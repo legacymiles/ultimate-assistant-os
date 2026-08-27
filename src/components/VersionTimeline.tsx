@@ -20,9 +20,26 @@ const CAT_STYLES: Record<string, string> = {
   file: "bg-slate-500/15 text-slate-300",
 };
 
+function downloadFile(file: ProjectFile) {
+  const url = file.url;
+  if (!url) return;
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = file.name;
+
+  // data: URLs and same-origin /downloads/ paths both work with the download
+  // attribute. For data URLs, the browser handles it natively.
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
 function FileRow({ file }: { file: ProjectFile }) {
   const deleteFile = useStore((s) => s.deleteFile);
   const cat = fileCategory(file.name, file.type);
+  const canDownload = !!file.url;
+
   return (
     <div className="group flex items-center gap-3 rounded-xl border border-line-soft bg-canvas px-3 py-2">
       <span
@@ -37,13 +54,25 @@ function FileRow({ file }: { file: ProjectFile }) {
         <div className="truncate text-sm text-ink">{file.name}</div>
         <div className="text-[11px] text-ink-faint">{formatBytes(file.size)}</div>
       </div>
-      <button
-        onClick={() => deleteFile(file.id)}
-        className="rounded-md p-1.5 text-ink-faint opacity-0 transition hover:bg-panel-2 hover:text-red-400 group-hover:opacity-100"
-        aria-label="Delete file"
-      >
-        <Icon.Trash width={15} height={15} />
-      </button>
+      <div className="flex items-center gap-1">
+        {canDownload && (
+          <button
+            onClick={() => downloadFile(file)}
+            className="rounded-md p-1.5 text-ink-faint transition hover:bg-brand/10 hover:text-brand"
+            aria-label={`Download ${file.name}`}
+            title="Download"
+          >
+            <Icon.Download width={15} height={15} />
+          </button>
+        )}
+        <button
+          onClick={() => deleteFile(file.id)}
+          className="rounded-md p-1.5 text-ink-faint opacity-0 transition hover:bg-panel-2 hover:text-red-400 group-hover:opacity-100"
+          aria-label="Delete file"
+        >
+          <Icon.Trash width={15} height={15} />
+        </button>
+      </div>
     </div>
   );
 }

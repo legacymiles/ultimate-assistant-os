@@ -28,7 +28,7 @@ export class SupabaseRepo implements Repo {
     const { data, error } = await this.db
       .from("projects")
       .select(
-        `id, user_id, name, one_liner, overview, created_at, updated_at,
+        `id, user_id, name, one_liner, overview, detailed, created_at, updated_at,
          features ( id, project_id, title, description, "group", created_at ),
          versions (
            id, project_id, number, summary, created_at,
@@ -53,6 +53,7 @@ export class SupabaseRepo implements Repo {
         name: row.name as string,
         one_liner: (row.one_liner as string) ?? "",
         overview: (row.overview as string) ?? "",
+        detailed: (row.detailed as string) ?? "",
         created_at: row.created_at as string,
         updated_at: row.updated_at as string,
         features: ((row.features as Feature[]) ?? []) as Feature[],
@@ -71,6 +72,7 @@ export class SupabaseRepo implements Repo {
         name: input.name,
         one_liner: input.one_liner ?? "",
         overview: input.overview ?? "",
+        detailed: input.detailed ?? "",
       })
       .select()
       .single();

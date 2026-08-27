@@ -32,4 +32,12 @@ next-env.d.ts
 *.png
 !src/**/*.png
 !public/**/*.png
-\n.claude/
+.claude/
+
+
+.vercel
+.env*
+
+# local backups / secrets — never push these
+*.zip
+claude-code-backup.zip

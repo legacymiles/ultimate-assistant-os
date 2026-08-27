@@ -24,10 +24,14 @@ create table if not exists public.projects (
   user_id     uuid not null references auth.users (id) on delete cascade,
   name        text not null,
   one_liner   text not null default '',
-  overview    text not null default '',
+  overview    text not null default '',      -- short "basic overview"
+  detailed    text not null default '',      -- long-form "detailed explanation"
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
+
+-- If upgrading an existing database, add the column:
+alter table public.projects add column if not exists detailed text not null default '';
 
 create table if not exists public.features (
   id          uuid primary key default gen_random_uuid(),

@@ -21,7 +21,12 @@ export async function POST(req: Request) {
   // Always compute the heuristic — it's the fallback and a sanity baseline.
   const heuristic = heuristicAnalyze(project);
 
-  const apiKey = process.env.AI_GATEWAY_API_KEY;
+  // Prefer an explicit AI Gateway key; otherwise fall back to the Vercel OIDC
+  // token, which Vercel injects automatically on its deployments. The AI
+  // Gateway accepts it as a bearer token, so the AI engine works with zero
+  // extra configuration on Vercel. If neither is present (or the call fails),
+  // we return the — now lossless — heuristic result.
+  const apiKey = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
   if (!apiKey) {
     return NextResponse.json(heuristic);
   }
@@ -43,19 +48,36 @@ async function analyzeWithLLM(
 
   const context = buildContext(project);
   const system =
-    "You are an expert software Project Analyst. You read a project's entire " +
-    "history — its knowledge inbox (notes, ideas, bug reports, AI chats, brain " +
-    "dumps), version summaries and existing features — and produce a single, " +
-    "coherent, up-to-date picture of the project. You decide where information " +
-    "belongs: CORE features define what the project fundamentally is; SUPPORTING " +
-    "features are enhancements, refinements, visual upgrades, bug fixes and " +
-    "quality-of-life improvements. You detect what changed: new features, changed " +
-    "features, improvements, bug fixes and documentation gaps. " +
+    "You are an expert software/strategy Project Analyst. You read a project's " +
+    "entire history — its knowledge inbox (notes, ideas, bug reports, AI chats, " +
+    "brain dumps), version summaries and existing features — and produce a " +
+    "single, coherent, up-to-date picture of the project.\n\n" +
+    "You must produce TWO levels of documentation:\n" +
+    "1. overview — a SHORT, skimmable basic overview (2-3 sentences) that says " +
+    "what the project is at a glance.\n" +
+    "2. detailed — a COMPREHENSIVE, thorough explanation that captures EVERY " +
+    "important detail the user has explained: every rule, number, threshold, " +
+    "condition, parameter, edge case and decision. This is the definitive " +
+    "write-up. It is CRITICAL that you do not omit, generalise away, or lose any " +
+    "specific detail present in the source material. Prefer being exhaustive over " +
+    "being concise. Use clear paragraphs and, where helpful, headed sections and " +
+    "bullet lists (plain text, e.g. lines beginning with '• '). If the project is " +
+    "a trading strategy, capture the exact entry rules, exit rules, stop-loss / " +
+    "take-profit logic, risk and position sizing, indicators and timeframes, " +
+    "filters and confirmations, and any conditions verbatim.\n\n" +
+    "You also decide where information belongs: CORE features define what the " +
+    "project fundamentally is (for a trading strategy, the actual mechanics — " +
+    "entries, exits, risk, signals); SUPPORTING features are enhancements, " +
+    "refinements, filters, visual upgrades, bug fixes and quality-of-life " +
+    "improvements. Extract a GENEROUS, specific list of both — never leave them " +
+    "empty when the source describes them. You also detect what changed: new " +
+    "features, changed features, improvements, bug fixes and documentation gaps.\n\n" +
     "Respond ONLY with minified JSON matching the requested schema. No prose.";
 
   const schema = `{
   "one_liner": string (<= 140 chars),
-  "overview": string (2-4 plain-English sentences),
+  "overview": string (SHORT basic overview, 2-3 sentences),
+  "detailed": string (LONG, exhaustive detailed explanation capturing every important detail; may contain newlines and bullet lines),
   "core_features": [{ "title": string, "description": string }],
   "supporting_features": [{ "title": string, "description": string }],
   "version_summaries": [{ "version_id": string, "summary": string }],
@@ -105,6 +127,7 @@ async function analyzeWithLLM(
   return {
     one_liner: String(parsed.one_liner ?? project.one_liner ?? ""),
     overview: String(parsed.overview ?? project.overview ?? ""),
+    detailed: String(parsed.detailed ?? project.detailed ?? ""),
     core_features: normalizeFeatures(parsed.core_features),
     supporting_features: normalizeFeatures(parsed.supporting_features),
     version_summaries: normalizeVersionSummaries(parsed.version_summaries, versionIds),
@@ -123,7 +146,8 @@ function buildContext(project: Project): string {
   const lines: string[] = [];
   lines.push(`Name: ${project.name}`);
   lines.push(`Current one-liner: ${project.one_liner || "(none)"}`);
-  lines.push(`Current overview: ${project.overview || "(none)"}`);
+  lines.push(`Current basic overview: ${project.overview || "(none)"}`);
+  lines.push(`Current detailed explanation: ${project.detailed || "(none)"}`);
 
   lines.push("\nExisting CORE features:");
   project.features.filter((f) => f.group === "core").forEach((f) =>

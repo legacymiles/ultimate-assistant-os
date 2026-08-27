@@ -50,9 +50,19 @@ export function buildSuperPrompt(project: Project): string {
 
   // ---- Overview -----------------------------------------------------------
   if (project.overview) {
-    push("## 2. Overview");
+    push(`## ${section(project, "overview")}. Overview`);
     push();
     push(project.overview);
+    push();
+  }
+
+  // ---- Detailed explanation ----------------------------------------------
+  if (project.detailed) {
+    push(`## ${section(project, "detailed")}. Detailed Explanation`);
+    push();
+    push("The full specification — every important detail. Treat this as authoritative.");
+    push();
+    push(project.detailed);
     push();
   }
 
@@ -197,11 +207,13 @@ function groupByKind(project: Project): [KnowledgeKind, Project["knowledge"]][] 
 // Section numbering adapts to which sections are present so headings stay sequential.
 function section(project: Project, which: string): number {
   const hasOverview = Boolean(project.overview);
+  const hasDetailed = Boolean(project.detailed);
   const hasVersions = project.versions.length > 0;
   const hasKnowledge = project.knowledge.length > 0;
   let n = 1; // snapshot is always 1
   const order: { id: string; present: boolean }[] = [
     { id: "overview", present: hasOverview },
+    { id: "detailed", present: hasDetailed },
     { id: "core", present: true },
     { id: "supporting", present: true },
     { id: "versions", present: hasVersions },

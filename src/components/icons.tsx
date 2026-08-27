@@ -126,4 +126,99 @@ export const Icon = {
       <path d="M3 12a9 3 0 0 0 18 0" />
     </svg>
   ),
+  Copy: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <rect x="9" y="9" width="12" height="12" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  ),
+  Download: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <path d="M7 10l5 5 5-5M12 15V3" />
+    </svg>
+  ),
+  ArrowRight: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M5 12h14M12 5l7 7-7 7" />
+    </svg>
+  ),
+  Mic: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <rect x="9" y="2" width="6" height="12" rx="3" />
+      <path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8" />
+    </svg>
+  ),
+  Film: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4" />
+    </svg>
+  ),
+  ZoomIn: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.3-4.3M11 8v6M8 11h6" />
+    </svg>
+  ),
+  ZoomOut: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.3-4.3M8 11h6" />
+    </svg>
+  ),
+  Refresh: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+      <path d="M21 3v5h-5" />
+    </svg>
+  ),
+  Folder: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />
+    </svg>
+  ),
+  FolderOpen: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2H3V7Z" />
+      <path d="m3 9 1.6 8a2 2 0 0 0 2 1.6h10.8a2 2 0 0 0 2-1.6L21 9" />
+    </svg>
+  ),
+  Tag: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M20.6 13.4 12 22l-8-8 8.6-8.6a2 2 0 0 1 1.4-.6H20a2 2 0 0 1 2 2v5.2a2 2 0 0 1-.6 1.4Z" />
+      <circle cx="16.5" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+  Send: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z" />
+    </svg>
+  ),
+  Link: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5" />
+      <path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5" />
+    </svg>
+  ),
+  Image: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="m21 15-4.5-4.5L3 21" />
+    </svg>
+  ),
+  Bot: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <rect x="4" y="8" width="16" height="12" rx="3" />
+      <path d="M12 8V4M8 3h8" />
+      <circle cx="9" cy="14" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="14" r="1.2" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+  Move: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M5 9 2 12l3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20" />
+    </svg>
+  ),
 };

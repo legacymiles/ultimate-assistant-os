@@ -135,6 +135,26 @@ export function ProjectView({ project }: { project: Project }) {
                 No overview yet. Run the AI Analyst or edit the project to add one.
               </p>
             )}
+
+            {project.detailed ? (
+              <section className="rounded-2xl border border-line bg-panel p-5">
+                <div className="mb-2 flex items-center gap-2">
+                  <Icon.File width={15} height={15} className="text-ink-muted" />
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                    Detailed Explanation
+                  </h2>
+                </div>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">
+                  {project.detailed}
+                </p>
+              </section>
+            ) : (
+              <p className="rounded-2xl border border-dashed border-line px-4 py-6 text-center text-sm text-ink-faint">
+                No detailed explanation yet. Add your notes to the Knowledge Inbox and run the AI
+                Analyst — it writes a full write-up here that keeps every important detail.
+              </p>
+            )}
+
             <AIPanel project={project} />
           </div>
         )}

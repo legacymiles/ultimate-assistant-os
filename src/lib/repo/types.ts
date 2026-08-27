@@ -11,12 +11,14 @@ export interface NewProjectInput {
   name: string;
   one_liner?: string;
   overview?: string;
+  detailed?: string;
 }
 
 export interface ProjectMetaPatch {
   name?: string;
   one_liner?: string;
   overview?: string;
+  detailed?: string;
 }
 
 export interface NewVersionInput {

@@ -1,0 +1,599 @@
+/* Scoped styles for the kart showcase — HUD chrome, leader-line callouts,
+   scroll scaffolding, luxury content sections. Fonts injected as CSS vars. */
+
+.root {
+  --k-cyan: #57c8ff;
+  --k-cyan-soft: #cfe8ff;
+  --k-heat: #ff5a1f;
+  --k-ink: #ffffff;
+  --k-ink-2: #9fb4c7;
+  --k-ink-3: #5f7183;
+  --k-gold: #c9a96e;
+  position: relative;
+  min-height: 100vh;
+  background: #07090c;
+  color: var(--k-ink);
+  font-family: var(--kart-mono, ui-monospace, monospace);
+}
+
+/* full-screen canvas behind everything */
+.canvasWrap {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+}
+
+/* the tall element that provides scroll length */
+.scroll {
+  position: relative;
+  z-index: 5;
+  height: 800vh;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ HUD */
+.hud {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  text-transform: uppercase;
+  mix-blend-mode: difference;
+  color: #dbe7f2;
+  transition: opacity 0.5s ease;
+}
+.hud[data-hidden="true"] {
+  opacity: 0;
+}
+.hud > * {
+  position: absolute;
+}
+.tl {
+  top: 26px;
+  left: 30px;
+}
+.mark {
+  margin: 0;
+  font-family: var(--kart-display, sans-serif);
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.markSub {
+  margin: 8px 0 0;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  opacity: 0.62;
+}
+.tr {
+  top: 26px;
+  right: 30px;
+  max-width: 230px;
+  text-align: right;
+  font-size: 10.5px;
+  line-height: 1.55;
+  letter-spacing: 0.06em;
+  opacity: 0.8;
+  transition: opacity 0.5s ease;
+}
+.tr[data-ride="true"] {
+  opacity: 0;
+}
+.bl {
+  bottom: 26px;
+  left: 30px;
+  display: grid;
+  gap: 12px;
+}
+.hint {
+  margin: 0;
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hintArrow {
+  display: inline-block;
+  animation: bob 1.8s ease-in-out infinite;
+}
+@keyframes bob {
+  50% {
+    transform: translateY(4px);
+  }
+}
+.sound {
+  pointer-events: auto;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: 0.16em;
+  font-size: 10.5px;
+  opacity: 0.8;
+  cursor: pointer;
+}
+.br {
+  bottom: 26px;
+  right: 30px;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  opacity: 0.7;
+  text-align: right;
+}
+
+/* region readout that appears mid-left when hovering */
+.region {
+  top: 50%;
+  left: 30px;
+  transform: translateY(-50%);
+  display: grid;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.region[data-on="true"] {
+  opacity: 1;
+}
+.regionIdx {
+  font-family: var(--kart-display, sans-serif);
+  font-size: 46px;
+  font-weight: 700;
+  line-height: 0.9;
+}
+.regionName {
+  font-size: 11px;
+  letter-spacing: 0.24em;
+}
+
+/* --------------------------------------------------------------- Callout */
+.callout {
+  position: relative;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.34s ease, transform 0.34s cubic-bezier(0.2, 0.8, 0.2, 1);
+  font-family: var(--kart-mono, monospace);
+}
+.callout[data-on="true"] {
+  opacity: 1;
+  transform: none;
+}
+.node {
+  position: absolute;
+  left: -16px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  border: 1px solid var(--k-cyan-soft);
+  border-radius: 50%;
+  box-shadow: 0 0 9px var(--k-cyan);
+}
+.node::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  width: 14px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--k-cyan), transparent);
+}
+.cName {
+  display: block;
+  font-family: var(--kart-display, sans-serif);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6);
+}
+.cSpec {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--k-ink-2);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7);
+}
+.cHint {
+  display: block;
+  margin-top: 5px;
+  font-size: 8.5px;
+  letter-spacing: 0.18em;
+  color: var(--k-cyan);
+  opacity: 0.85;
+}
+
+/* --------------------------------------------------------------- SpeedHUD */
+.speed {
+  position: fixed;
+  z-index: 20;
+  right: 34px;
+  bottom: 34px;
+  text-align: right;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  font-family: var(--kart-mono, monospace);
+}
+.speed[data-on="true"] {
+  opacity: 1;
+}
+.kph {
+  font-family: var(--kart-display, sans-serif);
+  font-weight: 700;
+  font-size: clamp(64px, 12vw, 150px);
+  line-height: 0.8;
+  letter-spacing: -0.03em;
+  color: #fff;
+  text-shadow: 0 0 40px rgba(87, 200, 255, 0.4);
+}
+.kphUnit {
+  font-family: var(--kart-mono, monospace);
+  font-size: 14px;
+  letter-spacing: 0.3em;
+  color: var(--k-cyan);
+}
+.gear {
+  margin-top: 6px;
+  font-size: 12px;
+  letter-spacing: 0.28em;
+  color: var(--k-ink-2);
+}
+.gearNum {
+  color: var(--k-heat);
+  font-weight: 700;
+}
+
+/* ride title */
+.rideTitle {
+  position: fixed;
+  z-index: 19;
+  left: 30px;
+  bottom: 92px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.rideTitle[data-on="true"] {
+  opacity: 1;
+}
+.rideTitleMain {
+  font-family: var(--kart-display, sans-serif);
+  font-weight: 700;
+  font-size: clamp(28px, 5vw, 62px);
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+.rideTitleSub {
+  margin-top: 8px;
+  font-size: 10.5px;
+  letter-spacing: 0.24em;
+  color: var(--k-ink-2);
+  text-transform: uppercase;
+}
+
+/* ============================================================= HERO INTRO */
+.heroIntro {
+  position: fixed;
+  inset: 0;
+  z-index: 18;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+.heroIntro[data-on="true"] {
+  opacity: 1;
+}
+.heroBadge {
+  position: absolute;
+  bottom: 140px;
+  right: 40px;
+  text-align: right;
+}
+.heroEyebrow {
+  font-size: 9px;
+  letter-spacing: 0.5em;
+  color: var(--k-ink-3);
+  margin: 0 0 8px;
+}
+.heroTitle {
+  font-family: var(--kart-display, sans-serif);
+  font-weight: 700;
+  font-size: clamp(56px, 12vw, 140px);
+  letter-spacing: -0.04em;
+  line-height: 0.85;
+  margin: 0;
+  text-transform: uppercase;
+  text-shadow: 0 4px 60px rgba(0, 0, 0, 0.6);
+}
+.heroSlash {
+  color: var(--k-heat);
+}
+.heroBottom {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+.heroTag {
+  font-size: 10px;
+  letter-spacing: 0.35em;
+  color: var(--k-ink-3);
+  margin: 0 0 14px;
+}
+.heroScrollCue {
+  display: flex;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--k-ink-3);
+}
+
+/* ========================================================== STORY SECTIONS */
+.storySection {
+  position: fixed;
+  inset: 0;
+  z-index: 18;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.7s ease;
+  background: radial-gradient(ellipse at center, rgba(7, 9, 12, 0.75) 0%, rgba(7, 9, 12, 0.5) 100%);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.storySection[data-on="true"] {
+  opacity: 1;
+}
+.storyInner {
+  max-width: 640px;
+  padding: 0 40px;
+  text-align: center;
+}
+.storyEyebrow {
+  font-size: 10px;
+  letter-spacing: 0.4em;
+  color: var(--k-cyan);
+  margin-bottom: 24px;
+}
+.storyHeadline {
+  font-family: var(--kart-display, sans-serif);
+  font-weight: 700;
+  font-size: clamp(24px, 4.5vw, 48px);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  margin: 0;
+  text-transform: none;
+}
+.storyBody {
+  margin-top: 28px;
+  font-size: clamp(12px, 1.6vw, 15px);
+  line-height: 1.85;
+  letter-spacing: 0.02em;
+  color: var(--k-ink-2);
+  text-transform: none;
+}
+.storyScrollHint {
+  margin-top: 40px;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  color: var(--k-ink-3);
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* quote */
+.quote {
+  font-family: var(--kart-display, sans-serif);
+  font-weight: 500;
+  font-size: clamp(18px, 3vw, 32px);
+  line-height: 1.5;
+  letter-spacing: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  color: var(--k-ink);
+  font-style: italic;
+  text-transform: none;
+}
+.quoteAttr {
+  margin-top: 24px;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  color: var(--k-gold);
+  font-style: normal;
+}
+
+/* ============================================================ OUTRO */
+.outro {
+  position: fixed;
+  inset: 0;
+  z-index: 22;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  background: radial-gradient(ellipse at center, rgba(7, 9, 12, 0.94) 0%, rgba(7, 9, 12, 0.99) 100%);
+}
+.outro[data-on="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+.outroInner {
+  max-width: 640px;
+  padding: 0 30px;
+  text-align: center;
+}
+.outroEyebrow {
+  font-size: 10px;
+  letter-spacing: 0.45em;
+  color: var(--k-cyan);
+  margin: 0 0 28px;
+}
+.outroTitle {
+  font-family: var(--kart-display, sans-serif);
+  font-weight: 700;
+  font-size: clamp(36px, 8vw, 80px);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin: 0;
+  text-transform: uppercase;
+}
+.outroTitleAccent {
+  color: var(--k-heat);
+}
+
+.outroCta {
+  margin-top: 48px;
+}
+.outroButton {
+  display: inline-block;
+  padding: 18px 52px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-family: var(--kart-display, sans-serif);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  cursor: pointer;
+}
+.outroButton:hover {
+  background: rgba(255, 77, 30, 0.12);
+  border-color: var(--k-heat);
+  box-shadow: 0 0 40px rgba(255, 77, 30, 0.15);
+}
+.outroCtaSub {
+  margin-top: 16px;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--k-ink-3);
+}
+
+.outroDivider {
+  margin: 52px auto;
+  width: 40px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--k-ink-3), transparent);
+}
+
+.outroClose {
+  text-align: center;
+}
+.outroCloseLine {
+  font-size: clamp(13px, 1.6vw, 16px);
+  line-height: 1.9;
+  color: var(--k-ink-2);
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+
+.outroFooter {
+  margin-top: 56px;
+  text-align: center;
+}
+.outroMeta {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  color: var(--k-ink-3);
+  text-transform: uppercase;
+}
+
+/* --------------------------------------------------------------- Loader */
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: #07090c;
+  transition: opacity 0.6s ease;
+}
+.loaderInner {
+  text-align: center;
+  font-family: var(--kart-mono, monospace);
+}
+.loaderBar {
+  width: 220px;
+  height: 2px;
+  margin: 18px auto 0;
+  background: #1a2230;
+  overflow: hidden;
+}
+.loaderFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--k-cyan), var(--k-heat));
+  transform-origin: left;
+  animation: fill 1.4s ease-in-out infinite;
+}
+@keyframes fill {
+  0% { transform: scaleX(0.05); }
+  50% { transform: scaleX(0.9); }
+  100% { transform: scaleX(0.05); }
+}
+.loaderLabel {
+  font-size: 10.5px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--k-ink-2);
+}
+
+/* --------------------------------------------------- reduced-motion / no-webgl */
+.fallback {
+  position: relative;
+  z-index: 5;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 80px 30px 120px;
+  pointer-events: auto;
+}
+.fallbackList {
+  display: grid;
+  gap: 14px;
+  margin-top: 30px;
+}
+.fallbackItem {
+  border: 1px solid #1c2634;
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #0c1017;
+}
+.fallbackName {
+  font-family: var(--kart-display, sans-serif);
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.fallbackSpec {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--k-ink-2);
+}
+
+@media (max-width: 640px) {
+  .tr { max-width: 150px; }
+  .mark { font-size: 24px; }
+  .regionIdx { font-size: 34px; }
+  .heroBadge { right: 24px; bottom: 120px; }
+  .heroTitle { font-size: 56px; }
+  .outroMeta { flex-direction: column; gap: 6px; }
+}

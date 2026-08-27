@@ -161,10 +161,11 @@ export const useStore = create<StoreState>((set, get) => ({
       const project = get().projects.find((p) => p.id === projectId);
       if (!project) return;
 
-      // 1. Update summary + overview.
+      // 1. Update summary + basic overview + detailed explanation.
       await repo.updateProjectMeta(projectId, {
         one_liner: result.one_liner,
         overview: result.overview,
+        detailed: result.detailed,
       });
 
       // 2. Replace feature sets with the analyst's curated lists.

@@ -83,6 +83,17 @@ export function AppShell() {
         {/* Backend status */}
         <div className="flex items-center justify-center gap-2 border-t border-line bg-panel px-4 py-1.5 text-[10px] text-ink-faint">
           <Icon.Database width={11} height={11} />
+          <button
+            onClick={async () => {
+              await fetch("/api/timeline-unlock", { method: "DELETE" });
+              window.location.href = "/";
+            }}
+            className="font-medium text-ink-muted underline-offset-2 hover:text-ink hover:underline"
+            title="Sign out of this private workspace"
+          >
+            Lock workspace
+          </button>
+          <span>·</span>
           {backend === "supabase" ? (
             <>
               <span>Connected to Supabase</span>

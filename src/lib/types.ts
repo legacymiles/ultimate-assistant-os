@@ -73,7 +73,16 @@ export interface Project {
   user_id?: string;
   name: string;
   one_liner: string;
+  /** Short, skimmable "basic overview" — 2-3 sentences. */
   overview: string;
+  /**
+   * Long-form "detailed explanation" — a comprehensive, lossless writeup that
+   * preserves every important detail captured in the Knowledge Inbox. Optional
+   * so projects created before this field existed still load.
+   */
+  detailed?: string;
+  /** When set, this project was auto-seeded from a hub catalog entry. */
+  catalog_slug?: string;
   created_at: string;
   updated_at: string;
   features: Feature[];
@@ -98,7 +107,10 @@ export interface AnalystChanges {
 
 export interface AnalystResult {
   one_liner: string;
+  /** Short, skimmable basic overview (2-3 sentences). */
   overview: string;
+  /** Long-form detailed explanation capturing every important detail. */
+  detailed: string;
   core_features: AnalystFeature[];
   supporting_features: AnalystFeature[];
   version_summaries: { version_id: string; summary: string }[];

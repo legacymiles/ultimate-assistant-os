@@ -1,4 +1,5 @@
-import { seedProjects } from "../seed";
+import { PROJECTS } from "../catalog";
+import { catalogToProject, seedProjects } from "../seed";
 import type { Feature, Project, ProjectFile, Version } from "../types";
 import { nowIso, uid } from "../utils";
 import type {
@@ -11,6 +12,10 @@ import type {
 } from "./types";
 
 const KEY = "projects-timeline:v1";
+// Tracks which catalog slugs have already been auto-seeded so we never
+// re-add a project the user has deleted, but new catalog entries from
+// future deploys still get pulled in.
+const SEEN_KEY = "projects-timeline:v1:seeded-slugs";
 
 // localStorage-backed repository. Default backend — the app is fully usable
 // with zero configuration; data persists in the browser.
@@ -21,12 +26,46 @@ export class LocalRepo implements Repo {
     if (typeof window === "undefined") return [];
     try {
       const raw = window.localStorage.getItem(KEY);
+
+      // First-ever load: seed every catalog project and remember we did so.
       if (!raw) {
         const seeded = seedProjects();
         this.save(seeded);
+        window.localStorage.setItem(
+          SEEN_KEY,
+          JSON.stringify(seeded.map((p) => p.catalog_slug).filter(Boolean)),
+        );
         return seeded;
       }
-      return JSON.parse(raw) as Project[];
+
+      const projects = JSON.parse(raw) as Project[];
+
+      // Merge in any *new* catalog entries (e.g. apps added in a later deploy)
+      // without disturbing projects the user has already edited or deleted.
+      const seenRaw = window.localStorage.getItem(SEEN_KEY);
+      const seen = new Set<string>(seenRaw ? (JSON.parse(seenRaw) as string[]) : []);
+      // Backfill for legacy data that pre-dated SEEN_KEY: treat existing
+      // catalog-linked projects as already seeded.
+      if (!seenRaw) {
+        for (const p of projects) if (p.catalog_slug) seen.add(p.catalog_slug);
+      }
+
+      const newOnes: Project[] = [];
+      for (const c of PROJECTS) {
+        if (!seen.has(c.slug)) {
+          newOnes.push(catalogToProject(c));
+          seen.add(c.slug);
+        }
+      }
+
+      window.localStorage.setItem(SEEN_KEY, JSON.stringify([...seen]));
+
+      if (newOnes.length) {
+        const next = [...newOnes, ...projects];
+        this.save(next);
+        return next;
+      }
+      return projects;
     } catch {
       return seedProjects();
     }
@@ -64,6 +103,7 @@ export class LocalRepo implements Repo {
         name: input.name,
         one_liner: input.one_liner ?? "",
         overview: input.overview ?? "",
+        detailed: input.detailed ?? "",
         created_at: ts,
         updated_at: ts,
         features: [],
@@ -81,6 +121,7 @@ export class LocalRepo implements Repo {
       if (patch.name !== undefined) p.name = patch.name;
       if (patch.one_liner !== undefined) p.one_liner = patch.one_liner;
       if (patch.overview !== undefined) p.overview = patch.overview;
+      if (patch.detailed !== undefined) p.detailed = patch.detailed;
       p.updated_at = nowIso();
     });
   }

@@ -16,11 +16,13 @@ export function CreateProjectModal({
   const [name, setName] = useState("");
   const [oneLiner, setOneLiner] = useState("");
   const [overview, setOverview] = useState("");
+  const [detailed, setDetailed] = useState("");
 
   const reset = () => {
     setName("");
     setOneLiner("");
     setOverview("");
+    setDetailed("");
   };
 
   const submit = async () => {
@@ -29,6 +31,7 @@ export function CreateProjectModal({
       name: name.trim(),
       one_liner: oneLiner.trim(),
       overview: overview.trim(),
+      detailed: detailed.trim(),
     });
     reset();
     onClose();
@@ -65,13 +68,25 @@ export function CreateProjectModal({
           className={inputClass}
         />
       </Field>
-      <Field label="Overview" hint="Optional. Explain the project in plain English.">
+      <Field label="Overview" hint="Optional. A short, plain-English summary.">
         <textarea
           value={overview}
           onChange={(e) => setOverview(e.target.value)}
-          rows={4}
-          placeholder="A longer description of the project…"
+          rows={3}
+          placeholder="A short description of the project…"
           className={inputClass + " resize-none"}
+        />
+      </Field>
+      <Field
+        label="Detailed Explanation"
+        hint="Optional. Paste everything — all the important details. The AI Analyst refines this later."
+      >
+        <textarea
+          value={detailed}
+          onChange={(e) => setDetailed(e.target.value)}
+          rows={6}
+          placeholder="Every rule, number and decision that matters…"
+          className={inputClass + " resize-y"}
         />
       </Field>
     </Modal>

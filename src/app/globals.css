@@ -23,6 +23,10 @@
   --color-support: #3b82f6;
   --color-support-2: #2563eb;
 
+  /* CapCut-editor cyan accent (used by Seedance Studio) */
+  --color-accent: #00cae0;
+  --color-accent-2: #00a5b8;
+
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
 }

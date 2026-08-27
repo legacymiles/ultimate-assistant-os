@@ -66,7 +66,8 @@ export function AIPanel({ project }: { project: Project }) {
             <h2 className="text-base font-semibold text-ink">AI Project Analyst</h2>
             <p className="mt-0.5 max-w-md text-xs text-ink-muted">
               Reads the Knowledge Inbox, versions, files and existing features, then rewrites the
-              project&apos;s summary, overview and feature lists — and tells you what changed.
+              project&apos;s summary, basic overview, detailed explanation and core/supporting
+              feature lists — and tells you what changed. Nothing you captured is lost.
             </p>
           </div>
         </div>
@@ -132,6 +133,13 @@ export function AIPanel({ project }: { project: Project }) {
             </h3>
             <Diff label="One-Line Summary" before={project.one_liner} after={result.one_liner} />
             <Diff label="Overview" before={project.overview} after={result.overview} multiline />
+            <Diff
+              label="Detailed Explanation"
+              before={project.detailed ?? ""}
+              after={result.detailed}
+              multiline
+              scroll
+            />
             <ProposedFeatures result={result} />
           </div>
 
@@ -155,11 +163,13 @@ function Diff({
   before,
   after,
   multiline,
+  scroll,
 }: {
   label: string;
   before: string;
   after: string;
   multiline?: boolean;
+  scroll?: boolean;
 }) {
   const changed = before.trim() !== after.trim();
   return (
@@ -174,7 +184,14 @@ function Diff({
           <span className="text-[10px] text-ink-faint">unchanged</span>
         )}
       </div>
-      <p className={`text-sm text-ink ${multiline ? "leading-relaxed" : ""}`}>{after || "—"}</p>
+      <p
+        className={
+          `text-sm text-ink ${multiline ? "leading-relaxed whitespace-pre-wrap" : ""} ` +
+          (scroll ? "max-h-64 overflow-y-auto" : "")
+        }
+      >
+        {after || "—"}
+      </p>
     </div>
   );
 }
