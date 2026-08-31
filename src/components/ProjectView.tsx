@@ -11,6 +11,7 @@ import { KnowledgeInbox } from "./KnowledgeInbox";
 import { VersionTimeline } from "./VersionTimeline";
 import { EditProjectModal } from "./modals/EditProjectModal";
 import { SuperPromptModal } from "./modals/SuperPromptModal";
+import { Markdown } from "./Markdown";
 
 type Tab = "overview" | "features" | "versions" | "knowledge";
 
@@ -144,9 +145,7 @@ export function ProjectView({ project }: { project: Project }) {
                     Detailed Explanation
                   </h2>
                 </div>
-                <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">
-                  {project.detailed}
-                </p>
+                <Markdown source={project.detailed} />
               </section>
             ) : (
               <p className="rounded-2xl border border-dashed border-line px-4 py-6 text-center text-sm text-ink-faint">

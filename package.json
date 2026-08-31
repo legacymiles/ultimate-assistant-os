@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "dev:preview": "node scripts/dev-preview.mjs 3210"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
