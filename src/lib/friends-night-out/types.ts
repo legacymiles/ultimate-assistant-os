@@ -333,6 +333,15 @@ export interface FnoPlace {
   osmTag?: string;
   /** Wikipedia article title, when the element links one. */
   wikipedia?: string;
+  /**
+   * Monthly readers of that article.
+   *
+   * The direct measurement of fame, and the reason a Wikipedia link is no
+   * longer treated as evidence of obscurity. A few hundred readers a month is
+   * the sweet spot — documented enough to have a real sentence written about
+   * it, unread enough that nobody nearby has heard of it.
+   */
+  monthlyViews?: number;
   /** OSM `check_date` — "last verified" — so stale entries can be demoted. */
   checkDate?: string;
   /** True when OSM marks it as a chain (`brand` / `brand:wikidata`). */
@@ -415,6 +424,15 @@ export interface SearchCtx {
   organizers?: OrganizerSub[];
   /** Skip the AI sweep even when a key exists. */
   skipAiSweep?: boolean;
+  /**
+   * The viewer's IANA zone, sent from the browser.
+   *
+   * Community calendars publish floating local times with no zone. Resolving
+   * those in the SERVER's zone shifts every event by hours on any UTC host —
+   * which breaks the day buckets and pushes true duplicates outside the dedupe
+   * window. For an app about events near you, the viewer's zone is the venue's.
+   */
+  timeZone?: string;
 }
 
 /**
@@ -465,11 +483,19 @@ export interface RawEvent {
   /** Raw iCal RRULE, when the feed published one. */
   rrule?: string;
   /**
-   * A URL that independently proves this event exists. The AI sweep must supply
-   * one or its results are rejected — a model's claim that it found something
-   * is not evidence that it did.
+   * Set ONLY when this event's own page was fetched and confirmed to describe
+   * it — matching both a distinctive word from the title AND the date.
+   *
+   * This is the strongest evidence the app can obtain, and it is deliberately
+   * NOT "the source gave us a link". Every adapter has a link; almost none of
+   * them have been checked. Filling this in optimistically would hand the
+   * confidence bonus to sources that were never verified at all, which is the
+   * exact confusion between prestige and evidence this field exists to end.
+   *
+   * Today only the AI sweep earns it, because only the AI sweep is distrusted
+   * enough to be checked.
    */
-  verifyUrl?: string;
+  verifiedAt?: string;
   /** Performer/organiser names pulled from the listing, for watchlist matching. */
   actors?: string[];
 }

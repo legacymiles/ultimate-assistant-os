@@ -352,7 +352,6 @@ export function draftToRawEvent(draft: ExtractedDraft): RawEvent | null {
     price: draft.price,
     url: draft.url,
     imageUrl: draft.imageUrl,
-    verifyUrl: draft.url,
     source: { id: "inbox", label: sourceLabel(draft), url: draft.url },
   };
 }

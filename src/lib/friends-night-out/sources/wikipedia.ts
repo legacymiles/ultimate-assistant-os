@@ -21,10 +21,13 @@
 // ---------------------------------------------------------------------------
 
 import { diceSimilarity, normalizeTitle } from "../normalize";
+import { fameAdjustment } from "./overpass";
 import type { FnoPlace } from "../types";
 
 const REST = "https://en.wikipedia.org/api/rest_v1/page/summary";
 const API = "https://en.wikipedia.org/w/api.php";
+const PAGEVIEWS =
+  "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user";
 
 // Wikipedia asks for a descriptive agent with a contact path, and enforces it.
 const UA =
@@ -42,23 +45,35 @@ const CONCURRENCY = 5;
  * of the board rather than on the two hundredth result.
  */
 export async function enrichHooks(places: FnoPlace[]): Promise<FnoPlace[]> {
+  // A place that already has an OSM description still needs a fame reading if
+  // it links an article — otherwise the best-documented landmarks skip the
+  // pageview check purely because a mapper wrote them a sentence.
   const targets = places
     .map((p, index) => ({ p, index }))
-    .filter(({ p }) => !p.hook)
+    .filter(({ p }) => !p.hook || Boolean(p.wikipedia))
     .slice(0, MAX_ENRICH);
 
   for (let i = 0; i < targets.length; i += CONCURRENCY) {
     const batch = targets.slice(i, i + CONCURRENCY);
-    const results = await Promise.allSettled(batch.map(({ p }) => hookFor(p)));
+    const results = await Promise.allSettled(
+      batch.map(async ({ p }) => {
+        const found = await hookFor(p);
+        if (!found) return null;
+        const views = await monthlyPageviews(found.title);
+        return { ...found, views };
+      }),
+    );
     results.forEach((r, j) => {
       if (r.status === "fulfilled" && r.value) {
         const { index } = batch[j];
         places[index] = {
           ...places[index],
-          hook: r.value,
-          hookSource: "wikipedia",
-          // A place with a real article is more notable than its tags implied.
-          obscurity: Math.min(100, places[index].obscurity + 5),
+          hook: places[index].hook ?? r.value.hook,
+          hookSource: places[index].hook ? places[index].hookSource : "wikipedia",
+          monthlyViews: r.value.views,
+          // The article supplies the sentence. Whether it MOVES the score is
+          // decided by how many people read it — see fameAdjustment.
+          obscurity: clamp(places[index].obscurity + fameAdjustment(r.value.views)),
         };
       }
     });
@@ -66,12 +81,48 @@ export async function enrichHooks(places: FnoPlace[]): Promise<FnoPlace[]> {
   return places;
 }
 
-async function hookFor(place: FnoPlace): Promise<string | null> {
+interface Enrichment {
+  hook: string;
+  /** The article the hook came from, so pageviews can be read for it. */
+  title: string;
+}
+
+async function hookFor(place: FnoPlace): Promise<Enrichment | null> {
   if (place.wikipedia) {
-    const direct = await summaryFor(place.wikipedia);
-    if (direct) return direct;
+    const title = articleTitle(place.wikipedia);
+    if (title) {
+      const direct = await summaryFor(place.wikipedia);
+      if (direct) return { hook: direct, title };
+    }
   }
   return geoMatch(place);
+}
+
+/**
+ * Monthly readers of an article, as a median over recent complete months.
+ *
+ * Keyless and unauthenticated. The median rather than the latest month because
+ * the current month is always partial — reading it raw would make every article
+ * look like it had just lost most of its audience.
+ */
+export async function monthlyPageviews(title: string): Promise<number | undefined> {
+  const end = new Date();
+  // Step back to the first of last month, so only complete months are counted.
+  end.setUTCDate(1);
+  const start = new Date(end);
+  start.setUTCMonth(start.getUTCMonth() - 4);
+
+  const stamp = (d: Date) =>
+    `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}0100`;
+
+  const url = `${PAGEVIEWS}/${encodeURIComponent(title.replace(/ /g, "_"))}/monthly/${stamp(start)}/${stamp(end)}`;
+  const json = await getJson<{ items?: { views?: number }[] }>(url);
+  const views = (json?.items ?? [])
+    .map((i) => i.views)
+    .filter((v): v is number => typeof v === "number");
+  if (!views.length) return undefined;
+  views.sort((a, b) => a - b);
+  return views[Math.floor(views.length / 2)];
 }
 
 /**
@@ -101,7 +152,7 @@ async function summaryFor(tag: string): Promise<string | null> {
  * and attaching a neighbouring monument's description to a climbing gym would
  * be worse than leaving the card bare.
  */
-async function geoMatch(place: FnoPlace): Promise<string | null> {
+async function geoMatch(place: FnoPlace): Promise<Enrichment | null> {
   const url =
     `${API}?action=query&list=geosearch&gscoord=${place.lat}%7C${place.lon}` +
     `&gsradius=400&gslimit=8&format=json&origin=*`;
@@ -121,9 +172,20 @@ async function geoMatch(place: FnoPlace): Promise<string | null> {
     const candidate = normalizeTitle(hit.title.replace(/\s*\([^)]*\)\s*$/, ""));
     if (diceSimilarity(target, candidate) < 0.8) continue;
     const summary = await summaryFor(`en:${hit.title}`);
-    if (summary) return summary;
+    if (summary) return { hook: summary, title: hit.title };
   }
   return null;
+}
+
+/** "en:Stone House (Portland, Oregon)" -> "Stone House (Portland, Oregon)". */
+function articleTitle(tag: string): string | null {
+  const [lang, ...rest] = tag.split(":");
+  if (rest.length && lang !== "en") return null;
+  return rest.length ? rest.join(":") : tag;
+}
+
+function clamp(n: number): number {
+  return Math.max(0, Math.min(100, Math.round(n)));
 }
 
 /** One sentence is a hook; a paragraph is a wall the user will not read. */

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { sortEvents } from "@/lib/friends-night-out/normalize";
+import { isHiddenGem, sortEvents } from "@/lib/friends-night-out/normalize";
 import {
   EVENT_FORMATS,
   SORT_LABELS,
@@ -23,10 +23,9 @@ import { EventCard } from "./EventCard";
 //
 //   The default sort is "For you", not "Hidden gems". Sorting purely by
 //   obscurity puts the least-known thing on top whether or not anyone could
-//   want it, which in practice produces a feed of rummage sales. The blend
-//   multiplies obscurity by confidence and boosts watchlist matches, so the top
-//   of the list is obscure AND plausible AND yours. Hidden gems stays one click
-//   away for when the deep cuts are the point.
+//   want it, which in practice produces a feed of rummage sales. "For you"
+//   gates on confidence and then ranks by obscurity, so the top of the list is
+//   obscure AND believable. Hidden gems stays one click away for the deep cuts.
 //
 //   Venue size is a first-class filter. "Something under a hundred people" is
 //   an actual request, and no category or price filter can express it.
@@ -73,7 +72,9 @@ export function UpcomingView({
       const target = filters.venue.toLowerCase();
       list = list.filter((e) => e.venue.name.toLowerCase() === target);
     }
-    if (filters.gemsOnly) list = list.filter((e) => e.obscurity >= 65 && e.confidence >= 0.6);
+    // Shares the single definition with the badge — two copies of the
+    // thresholds would eventually disagree and the filter would hide gems.
+    if (filters.gemsOnly) list = list.filter(isHiddenGem);
     return sortEvents(list, sort);
   }, [events, filters, sort]);
 
@@ -229,15 +230,30 @@ function Select({
 }
 
 /**
- * Weekend means the coming Friday-to-Sunday, not "the next two days".
- * Someone looking on a Tuesday is asking about the weekend ahead.
+ * "This weekend" means the weekend you are currently in or heading into.
+ *
+ * The obvious formula — advance to the next Friday — is off by a full week for
+ * three days out of seven. Asked on a Saturday it returns NEXT Friday, so
+ * tonight's events fall into "Next 7 days" and the weekend heading shows a
+ * weekend eight days away. That is precisely the window in which people open a
+ * going-out app, so the bug fired exactly when it mattered most.
  */
 function groupByWhen(events: FnoEvent[]): [string, FnoEvent[]][] {
   const now = new Date();
-  const day = now.getDay();
+  const day = now.getDay(); // 0 = Sunday
+
   const friday = new Date(now);
-  friday.setDate(now.getDate() + ((5 - day + 7) % 7));
+  if (day === 5 || day === 6) {
+    // Already in it — the weekend started at the most recent Friday.
+    friday.setDate(now.getDate() - (day - 5));
+  } else if (day === 0) {
+    // Sunday is the tail of the weekend that began two days ago.
+    friday.setDate(now.getDate() - 2);
+  } else {
+    friday.setDate(now.getDate() + (5 - day));
+  }
   friday.setHours(0, 0, 0, 0);
+
   const monday = new Date(friday);
   monday.setDate(friday.getDate() + 3);
 

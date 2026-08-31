@@ -170,7 +170,6 @@ async function fetchEventbriteOrganizer(
       url: ev.url,
       imageUrl: ev.logo?.url,
       uid: ev.id ? `eventbrite:${ev.id}` : undefined,
-      verifyUrl: ev.url,
       actors: [sub.label],
       // Deliberately filed as `feed`, not a source of its own: for the obscurity
       // score a followed small promoter behaves like a community calendar, not

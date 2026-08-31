@@ -59,6 +59,7 @@ export async function POST(req: Request) {
     feeds: body.feeds ?? [],
     organizers: body.organizers ?? [],
     skipAiSweep: body.skipAiSweep,
+    timeZone: body.timeZone,
   };
 
   const statuses: SourceStatus[] = [];

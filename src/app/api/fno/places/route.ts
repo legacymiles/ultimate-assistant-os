@@ -61,7 +61,7 @@ export async function POST(req: Request) {
           // Say it out loud. Silently searching a smaller circle than the user
           // asked for reads as "there is nothing out there", which is a lie.
           reason: capped
-            ? `Places are searched to ${PLACES_MAX_RADIUS_MI} mi — a wider sweep across every tag is more than OpenStreetMap's free service will run. Events still use your full radius.`
+            ? `Places are searched to ${PLACES_MAX_RADIUS_MI} mi — a wider sweep across every tag is more than OpenStreetMap's free service reliably returns. Events still use your full radius.`
             : undefined,
         },
       ],

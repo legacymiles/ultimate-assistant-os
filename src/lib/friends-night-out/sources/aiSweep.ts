@@ -138,18 +138,23 @@ export async function fetchAiSweep(
 }
 
 /**
- * Confirm the cited page exists and actually mentions this event.
+ * Confirm the cited page exists and actually describes THIS event.
  *
- * Checking only for a 200 is not enough: a model that invents a URL frequently
- * invents a plausible one on a real domain, and a site's soft-404 answers 200
- * with its homepage. So the page body must also contain a distinctive word from
- * the title, or the event's date.
+ * A 200 alone is not enough: a model that invents a URL usually invents a
+ * plausible one on a real domain, and a soft-404 answers 200 with the homepage.
+ *
+ * The first version accepted a title word OR the date, and that OR was a hole
+ * big enough to drive through — a venue's own /events index page contains both
+ * the date and a title word for everything it lists, so a fabricated event
+ * citing that index passed. Both must now match, and bare index URLs are
+ * rejected outright.
  */
 async function verify(ev: SweptEvent): Promise<boolean> {
   const url = ev.source_url?.trim();
   const title = ev.title?.trim();
   if (!url || !title || !ev.start) return false;
   if (!/^https?:\/\//i.test(url)) return false;
+  if (isIndexUrl(url)) return false;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), VERIFY_TIMEOUT_MS);
@@ -173,23 +178,54 @@ async function verify(ev: SweptEvent): Promise<boolean> {
       .replace(/[^a-z0-9\s]/g, " ")
       .split(/\s+/)
       .filter((w) => w.length >= 5);
-    if (words.some((w) => body.includes(w))) return true;
+    const titleMatches = words.length > 0 && words.some((w) => body.includes(w));
+    if (!titleMatches) return false;
 
-    // Fall back to the date — a listing page may title the event differently
-    // from how the model phrased it, but the date will be on the page.
     const d = new Date(ev.start);
-    if (!Number.isNaN(d.getTime())) {
-      const month = d.toLocaleDateString("en-US", { month: "long" }).toLowerCase();
-      const day = String(d.getDate());
-      if (body.includes(`${month} ${day}`)) return true;
-      if (body.includes(d.toISOString().slice(0, 10))) return true;
-    }
-    return false;
+    if (Number.isNaN(d.getTime())) return false;
+    const month = d.toLocaleDateString("en-US", { month: "long" }).toLowerCase();
+    const shortMonth = d.toLocaleDateString("en-US", { month: "short" }).toLowerCase();
+    const day = String(d.getDate());
+    const dateMatches =
+      body.includes(`${month} ${day}`) ||
+      body.includes(`${shortMonth} ${day}`) ||
+      body.includes(`${day} ${month}`) ||
+      body.includes(d.toISOString().slice(0, 10));
+
+    return dateMatches;
   } catch {
     // A site that times out or blocks us has not verified anything. Drop it.
     return false;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/**
+ * A listing index is not a citation.
+ *
+ * A page at /events or /calendar lists everything the venue is doing, so it
+ * corroborates any date and any title the model cares to invent. A real
+ * citation points at one event: a deeper path, or one carrying a date or a slug.
+ */
+function isIndexUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const path = u.pathname.replace(/\/+$/, "");
+    if (!path || path === "/") return true;
+    const segments = path.split("/").filter(Boolean);
+    const last = segments[segments.length - 1]?.toLowerCase() ?? "";
+    const indexish = /^(events?|calendar|whats-?on|shows?|schedule|listings?|programme?|tickets?)$/;
+    // A single generic segment with nothing after it is an index.
+    if (segments.length <= 1 && indexish.test(last)) return true;
+    // /events/2026-09 style archives are indexes too — a real event slug has
+    // words in it, not only a date.
+    if (indexish.test(segments[0]?.toLowerCase() ?? "") && segments.length === 2) {
+      if (/^\d{4}(-\d{2})*$/.test(last)) return true;
+    }
+    return false;
+  } catch {
+    return true;
   }
 }
 
@@ -210,7 +246,9 @@ function toRawEvent(ev: SweptEvent): RawEvent | null {
     },
     price: inferPrice(ev.price_note || ev.description),
     url: ev.source_url,
-    verifyUrl: ev.source_url,
+    // Only reached after verify() fetched this page and confirmed both the
+    // title and the date appear on it.
+    verifiedAt: new Date().toISOString(),
     actors: ev.organizer ? [ev.organizer] : undefined,
     source: {
       id: "ai-sweep",

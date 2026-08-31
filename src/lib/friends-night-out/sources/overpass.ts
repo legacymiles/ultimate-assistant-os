@@ -27,7 +27,13 @@
 
 import { uid } from "../../utils";
 import { boundingBox, distanceMi } from "../geo";
-import { ACTIVITY_TAGS, deriveSeason, isClosed, type ActivityTag } from "../categories";
+import {
+  ACTIVITY_TAGS,
+  deriveSeason,
+  isClosed,
+  isOffLimits,
+  type ActivityTag,
+} from "../categories";
 import type {
   ActivityCategory,
   Coords,
@@ -59,17 +65,25 @@ const MIRRORS = [
 const BATCH_SIZE = 24;
 
 /**
- * Hard ceiling on the area the Always On board sweeps.
+ * Conservative ceiling on the area the Always On board sweeps.
  *
- * Measured, not guessed: a 25-mile box across the full tag table completes in
- * about twenty seconds, while a 40-mile box — 2.5x the area — is refused with a
- * 500 by the public instances, because Overpass bills by area scanned per
- * clause and this table has a lot of clauses.
+ * A 25-mile box across the full tag table completes in about twenty seconds. A
+ * 40-mile box came back 500 — but that finding is NOT solid, and the comment
+ * that used to sit here overstated it as a hard limit of the service. Under
+ * sustained testing the public mirrors began returning the same 500 for a
+ * single-clause query that had succeeded in 1.4 seconds minutes earlier, so a
+ * 500 here is indistinguishable from rate limiting, and the 40-mile refusal may
+ * have been nothing more than that.
  *
- * The alternative to a cap was cutting the tag table down, and that trades the
- * whole point of the board for a bigger circle. Events are unaffected: they come
- * from APIs and feeds that have no such limit, so a 60-mile event radius still
- * works. The UI states the cap rather than quietly returning less.
+ * The cap stays because it is the value that is actually known to work, and
+ * because being wrong in this direction costs a smaller circle rather than a
+ * broken board. If it is raised, verify from a cold IP over several hours
+ * rather than in a tight loop — and consider tiling the bbox into quadrants
+ * first, which lowers per-request cost even though it raises request count.
+ *
+ * Events are unaffected: they come from APIs and feeds with no such limit, so a
+ * 60-mile event radius works. The UI states the cap rather than quietly
+ * returning less.
  */
 export const PLACES_MAX_RADIUS_MI = 25;
 const SERVER_TIMEOUT_S = 60;
@@ -236,6 +250,11 @@ export async function fetchPlaces(
     // years ago — the failure that destroys trust fastest.
     if (isClosed(tags)) continue;
 
+    // Never hand out directions to somewhere private or dangerous. Withholding
+    // the "free" chip was not enough — the card, and its directions link,
+    // stayed on the board.
+    if (isOffLimits(tags)) continue;
+
     const lat = el.lat ?? el.center?.lat;
     const lon = el.lon ?? el.center?.lon;
     if (lat === undefined || lon === undefined) continue;
@@ -278,13 +297,21 @@ export async function fetchPlaces(
     const { tags, tag } = c;
     const sameKind = countsByLabel.get(tag.label) ?? 1;
     const nameRepeats = countsByName.get(tags.name?.toLowerCase().trim() ?? "") ?? 1;
-    const chain =
-      Boolean(tags.brand || tags["brand:wikidata"] || tags["operator:wikidata"]) ||
-      nameRepeats >= 3;
+    // `operator:wikidata` was in this test and it was badly wrong: the National
+    // Park Service, the Forest Service and every state park system carry it, so
+    // every Blue Ridge Parkway overlook and Forest Service waterfall took the
+    // largest penalty in the formula for being publicly operated — demoting the
+    // exact category the board is best at.
+    //
+    // The repeated-name rule is also gated now: three same-named features in a
+    // radius is common for park-system sub-areas and for one place mapped as
+    // both a node and a way, neither of which is a chain.
+    const brandedChain = Boolean(tags.brand || tags["brand:wikidata"]);
+    const repeatedName = nameRepeats >= 3 && CHAIN_PRONE.has(tag.category);
+    const chain = brandedChain || repeatedName;
 
     const { season, evidence } = deriveSeason(tag, tags);
     const wikipedia = tags.wikipedia;
-    const notable = Boolean(wikipedia || tags.wikidata);
 
     out.push({
       id: uid("place"),
@@ -321,12 +348,10 @@ export async function fetchPlaces(
       obscurity: scorePlace({
         base: tag.base,
         sameKind,
-        notable,
         heritage: Boolean(tags.heritage),
         historic: Boolean(tags.historic),
         described: Boolean(tags.description),
         chain,
-        checkDate: tags.check_date,
       }),
     });
   }
@@ -357,54 +382,6 @@ const ALLOW_UNNAMED = new Set([
 
 // ----- scoring -------------------------------------------------------------
 
-interface ScoreInput {
-  base: number;
-  sameKind: number;
-  notable: boolean;
-  heritage: boolean;
-  historic: boolean;
-  described: boolean;
-  chain: boolean;
-  checkDate?: string;
-}
-
-/**
- * 0-100. Higher means "you probably do not know this is here".
- *
- * The rarity term is what separates this from a directory: one curling sheet
- * in the whole radius scores far above the fourteenth climbing gym, even though
- * climbing has the higher category baseline.
- */
-export function scorePlace(input: ScoreInput): number {
-  const baseline = input.base / 100;
-  const rarity = 1 / Math.max(1, input.sameKind);
-
-  // A Wikipedia article is the strongest available signal that a place is
-  // interesting rather than merely present.
-  const notability =
-    (input.notable ? 0.35 : 0) +
-    (input.heritage ? 0.15 : 0) +
-    (input.historic ? 0.1 : 0) +
-    (input.described ? 0.1 : 0);
-
-  // A chain is the definitional opposite of a discovery — the user has seen the
-  // billboard. Demoted rather than hidden, so a filter can still surface it.
-  const chainPenalty = input.chain ? -0.4 : 0;
-
-  // An entry nobody has verified in five years is more likely to be wrong.
-  let staleness = 0;
-  if (input.checkDate) {
-    const checked = new Date(input.checkDate).getTime();
-    if (Number.isFinite(checked)) {
-      const years = (Date.now() - checked) / (365 * 86_400_000);
-      if (years > 5) staleness = -0.1;
-    }
-  }
-
-  const raw = baseline * 0.45 + rarity * 0.3 + notability + chainPenalty + staleness;
-  return Math.round(Math.max(0, Math.min(1, raw)) * 100);
-}
-
 /** Categories where a chain is a real possibility, so "local" means something. */
 const CHAIN_PRONE = new Set<ActivityCategory>([
   "Games",
@@ -413,6 +390,76 @@ const CHAIN_PRONE = new Set<ActivityCategory>([
   "Wellness",
   "Culture",
 ]);
+
+interface ScoreInput {
+  base: number;
+  sameKind: number;
+  heritage: boolean;
+  historic: boolean;
+  described: boolean;
+  chain: boolean;
+}
+
+/**
+ * 0-100. Higher means "you probably do not know this is here".
+ *
+ * Two corrections from the first version are worth naming, because both made
+ * the score measure something close to the opposite of what it claims:
+ *
+ *   Having a Wikipedia article used to be worth +0.35 — the single largest
+ *   term. But an article is evidence a place is DOCUMENTED, not that it is
+ *   unknown, and the two correlate the wrong way at the top end. It put the
+ *   most-visited paid attraction in the state in the top ten. Documentation and
+ *   fame are now separated: the article supplies the hook line, and fame is
+ *   measured directly from pageviews in `fameAdjustment`.
+ *
+ *   Rarity was the smallest weighted term while the category baseline was the
+ *   largest, so the board was really ranked by what KIND of thing something is,
+ *   with rarity as a tiebreaker that could never reorder anything. Rarity now
+ *   carries the most weight, and uses a log curve so "one of forty" is
+ *   distinguishable from "one of three" — the reciprocal collapsed everything
+ *   above three into the same value.
+ */
+export function scorePlace(input: ScoreInput): number {
+  const baseline = input.base / 100;
+
+  // 1 → 1.0, 2 → 0.63, 4 → 0.5, 12 → 0.28, 40 → 0.0
+  const rarity =
+    input.sameKind <= 1
+      ? 1
+      : Math.max(0, 1 - Math.log(input.sameKind) / Math.log(40));
+
+  const notability =
+    (input.heritage ? 0.1 : 0) +
+    (input.historic ? 0.1 : 0) +
+    (input.described ? 0.1 : 0);
+
+  // A chain is the definitional opposite of a discovery — the user has seen the
+  // billboard. Demoted rather than hidden, so a filter can still surface it.
+  const chainPenalty = input.chain ? -0.4 : 0;
+
+  const raw = baseline * 0.35 + rarity * 0.4 + notability + chainPenalty;
+  return Math.round(Math.max(0, Math.min(1, raw)) * 100);
+}
+
+/**
+ * Fame, in obscurity points, from monthly Wikipedia pageviews.
+ *
+ * This is the piece that turns the Wikipedia dependency from a fame amplifier
+ * into an obscurity oracle. An article with a few hundred readers a month is
+ * exactly the target: documented enough to have a real sentence written about
+ * it, unread enough that nobody nearby has heard of it. Forty thousand readers
+ * a month is a landmark.
+ *
+ * Keyless, and the article title is already in hand from building the hook.
+ */
+export function fameAdjustment(monthlyViews: number | undefined): number {
+  if (monthlyViews === undefined) return 0;
+  if (monthlyViews < 500) return 12;
+  if (monthlyViews < 5_000) return 3;
+  if (monthlyViews < 20_000) return -8;
+  return -25;
+}
 
 function deriveVibes(
   tags: Record<string, string>,
@@ -467,16 +514,18 @@ function deriveVibes(
  */
 function isFreeByNature(tags: Record<string, string>, tag: ActivityTag): boolean {
   if (tags.fee === "no") return true;
-  if (tags.access === "private" || tags.access === "permit") return false;
+  if (tags.access === "permit") return false;
+  void tag;
+  // Deliberately narrow. Nature reserves and their viewpoints were on this list
+  // and they charge routinely — a state park twenty minutes away can be $19 at
+  // the gate, and its overlooks sit inside the paid boundary. An affirmatively
+  // wrong "Free" chip is worse than the omitted chip this design is otherwise
+  // careful about, so only street-level features nobody gates are asserted.
   return (
-    tags.tourism === "viewpoint" ||
     tags.tourism === "artwork" ||
-    tags.leisure === "park" ||
-    tags.leisure === "nature_reserve" ||
-    tags.leisure === "bird_hide" ||
-    tags.leisure === "firepit" ||
     tags.historic === "memorial" ||
-    tag.category === "Nature" && !tags.fee && !tags.charge
+    tags.historic === "boundary_stone" ||
+    tags.man_made === "geoglyph"
   );
 }
 

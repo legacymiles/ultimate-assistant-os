@@ -107,7 +107,11 @@ const TITLE_STRONG = 0.82;
 /** Between this and STRONG, a second independent signal is required. */
 const TITLE_WEAK = 0.6;
 const VENUE_NAME_THRESHOLD = 0.7;
-const VENUE_DISTANCE_MI = 0.5;
+// A tenth of a mile. Half a mile encloses dozens of distinct venues in any
+// downtown core, and coordinates are offered as an ALTERNATIVE to name
+// similarity — so a loose radius silently merges two different bars a few
+// blocks apart that happen to run similar nights.
+const VENUE_DISTANCE_MI = 0.1;
 const START_WINDOW_MS = 3 * 60 * 60 * 1000;
 
 /** Origin + path, so two links to the same listing with different query strings match. */
@@ -173,11 +177,24 @@ function corroborates(a: RawEvent, b: RawEvent): boolean {
   const actorsB = (b.actors ?? []).map(normalizeTitle).filter(Boolean);
   if (actorsA.some((x) => actorsB.includes(x))) return true;
 
-  // One title containing the other is strong evidence once time and venue
-  // already agree — that is the "extra words" case, not a coincidence.
+  // Containment used to count on its own, and it backfired: a series head and
+  // one of its instances ("Comedy Night" vs "Comedy Night: Dan Ruiz") are a
+  // containment match, and so are the early and late shows of a double-header
+  // two and a half hours apart. Generic-prefix titles are exactly the case
+  // where containment fires most often and is most often wrong.
+  //
+  // It still counts, but only when the two starts are nearly identical AND the
+  // extra words are few — the "one source appended the venue" case it was
+  // meant for, not the "these are different nights" case.
   const ta = normalizeTitle(a.title);
   const tb = normalizeTitle(b.title);
-  if (ta && tb && (ta.includes(tb) || tb.includes(ta))) return true;
+  if (ta && tb && (ta.includes(tb) || tb.includes(ta))) {
+    const at = new Date(a.startsAt).getTime();
+    const bt = new Date(b.startsAt).getTime();
+    if (Math.abs(at - bt) > 30 * 60 * 1000) return false;
+    const extra = Math.abs(ta.split(" ").length - tb.split(" ").length);
+    return extra <= 2;
+  }
 
   return false;
 }
@@ -259,7 +276,7 @@ function absorb(bucket: Bucket, item: RawEvent): void {
     url: a.url ?? item.url,
     imageUrl: a.imageUrl ?? item.imageUrl,
     uid: a.uid ?? item.uid,
-    verifyUrl: a.verifyUrl ?? item.verifyUrl,
+    verifiedAt: a.verifiedAt ?? item.verifiedAt,
   };
   bucket.rrule = bucket.rrule ?? item.rrule;
   for (const actor of item.actors ?? []) bucket.actors.add(actor);
@@ -300,11 +317,17 @@ const VISIBILITY_WEIGHT: Record<SourceId, number> = {
  * next Tuesday. Weekly recurrences are discounted hard; a quarterly one barely
  * at all.
  */
-function seriesFactor(occurrences: number): number {
-  if (occurrences >= 8) return 0.3; // weekly or more often
-  if (occurrences >= 4) return 0.5; // roughly fortnightly
-  if (occurrences >= 2) return 0.75; // monthly-ish
-  return 1;
+function seriesFactor(cadenceDays: number | undefined): number {
+  // Keyed on the DETECTED CADENCE rather than how many instances happened to
+  // land in the fetch window. Counting occurrences made the damping depend on
+  // the window length: a weekly service inside a 30-day window yields four
+  // instances and would keep near-maximum obscurity, even though a weekly
+  // fixture is the definition of something you are not missing.
+  if (cadenceDays === undefined) return 1;
+  if (cadenceDays <= 9) return 0.3; // daily or weekly
+  if (cadenceDays <= 18) return 0.5; // fortnightly
+  if (cadenceDays <= 45) return 0.7; // monthly
+  return 0.9; // quarterly or rarer — still mostly a find
 }
 
 /**
@@ -316,14 +339,38 @@ function seriesFactor(occurrences: number): number {
  *   - venue scale       an arena is public knowledge regardless of listings
  *   - recurrence        a weekly fixture is not a discovery
  */
+/**
+ * Distinct PUBLISHERS, not distinct source rows.
+ *
+ * An institution routinely publishes the same event to its own iCal and to a
+ * Localist instance on the same domain. Counting those as two sources rewarded
+ * one publisher twice for being redundant — raising confidence and lowering
+ * obscurity for what is really a single claim.
+ */
+function distinctPublishers(sources: SourceRef[]): number {
+  const keys = new Set<string>();
+  for (const s of sources) {
+    let key = `${s.id}:${s.label.toLowerCase()}`;
+    if (s.url) {
+      try {
+        key = `${s.id}:${new URL(s.url).hostname.replace(/^www\./, "")}`;
+      } catch {
+        // Keep the label-based key.
+      }
+    }
+    keys.add(key);
+  }
+  return Math.max(1, keys.size);
+}
+
 export function obscurityScore(
   sources: SourceRef[],
   venue?: Venue,
-  occurrences = 1,
+  cadenceDays?: number,
 ): number {
   if (!sources.length) return 50;
 
-  const count = sources.length;
+  const count = distinctPublishers(sources);
   // 1 source → 1.0, 2 → 0.6, 3 → 0.43, 4+ → tails toward 0.
   const countFactor = 1 / (1 + (count - 1) * 0.65);
 
@@ -339,46 +386,66 @@ export function obscurityScore(
   }
 
   const raw =
-    (countFactor * 0.45 + visibilityFactor * 0.55) * scale * seriesFactor(occurrences);
+    (countFactor * 0.45 + visibilityFactor * 0.55) * scale * seriesFactor(cadenceDays);
   return Math.round(Math.max(0, Math.min(1, raw)) * 100);
 }
 
 // ----- confidence ----------------------------------------------------------
 
-/** How much a source is trusted to be describing something that exists. */
-const BASE_CONFIDENCE: Record<SourceId, number> = {
-  ticketmaster: 0.95,
-  seed: 0.9,
-  inbox: 0.8, // a human looked at it
-  feed: 0.78,
-  overpass: 0.85,
-  "ai-sweep": 0.3, // a model said so, which is not the same as true
+/**
+ * Weak prior on the source, NOT the score itself.
+ *
+ * The first version of this was a lookup table on source identity wearing a
+ * score's clothing, and it produced a perverse result: the AI sweep is the only
+ * source in the app subjected to a real evidence test — its cited page is
+ * fetched and must corroborate the event or the event is discarded — yet it
+ * started at 0.30 and topped out below the badge threshold, permanently marked
+ * "unverified". Ticketmaster meanwhile scored 0.95 with no verification
+ * performed at all. The ladder ranked prestige, not evidence.
+ *
+ * So the prior is small and the evidence terms below do the work.
+ */
+const SOURCE_PRIOR: Record<SourceId, number> = {
+  ticketmaster: 0.45,
+  seed: 0.4,
+  inbox: 0.4, // a human looked at it
+  overpass: 0.4,
+  feed: 0.35,
+  "ai-sweep": 0.25,
 };
 
 /**
  * 0-1: how sure we are the event is real and correctly described.
  *
- * Kept strictly separate from obscurity. A single-source event is equally
- * consistent with "genuinely obscure" and with "hallucinated", and merging the
- * two ideas would put the least-verified pipeline on the app's most prominent
- * surface — the Hidden Gem badge would become a bug magnet.
+ * Kept strictly separate from obscurity, because a single-source event is
+ * equally consistent with "genuinely obscure" and with "hallucinated" — and
+ * collapsing the two would put the least-verified pipeline on the app's most
+ * prominent surface.
+ *
+ * Scored from evidence actually obtained rather than from who reported it:
+ * a fetch-verified AI find should be able to outrank an unchecked feed entry,
+ * because it has been checked and the feed entry has not.
  */
 export function confidenceScore(item: RawEvent, sources: SourceRef[]): number {
-  const best = Math.max(...sources.map((s) => BASE_CONFIDENCE[s.id] ?? 0.5));
-  let score = best;
+  let score = Math.max(...sources.map((s) => SOURCE_PRIOR[s.id] ?? 0.3));
 
-  // Independent corroboration is the strongest signal available.
-  if (sources.length > 1) score += 0.12 * Math.min(3, sources.length - 1);
+  // The strongest evidence available: the cited page was fetched and confirmed
+  // to describe this event. Only the AI sweep currently earns this, and it is
+  // the reason the sweep is no longer capped below its own badge threshold.
+  if (item.verifiedAt) score += 0.2;
+
+  // Independent corroboration — by distinct publisher, so an institution
+  // posting the same event to its own iCal and its Localist does not count
+  // twice.
+  const publishers = distinctPublishers(sources);
+  if (publishers > 1) score += 0.12 * Math.min(3, publishers - 1);
 
   if (item.url) score += 0.05;
   if (item.venue.lat !== undefined && item.venue.lon !== undefined) score += 0.05;
-  if (item.price && item.price.tier !== "unknown") score += 0.03;
-
-  // An AI-sweep result with nothing to check against stays untrusted no matter
-  // how plausible it reads. The search route rejects these outright; the cap is
-  // a second line of defence for anything that slips through another path.
-  const onlyFromSweep = sources.every((s) => s.id === "ai-sweep");
-  if (onlyFromSweep && !item.verifyUrl) score = Math.min(score, 0.2);
+  // Price is deliberately NOT an input. Its absence says something about a
+  // venue's admin habits, not about whether the event is real — and unlisted
+  // price correlates almost perfectly with the small DIY events this app
+  // exists to surface, so scoring it taxed the target class.
 
   return Math.max(0, Math.min(1, Number(score.toFixed(2))));
 }
@@ -499,13 +566,21 @@ function seriesKey(item: RawEvent): string {
   return `${title}::${venue}`;
 }
 
-function describeInterval(starts: string[]): string {
-  if (starts.length < 2) return "recurring";
+/** Median gap between occurrences, in days. Undefined for a one-off. */
+export function medianGapDays(starts: string[]): number | undefined {
+  if (starts.length < 2) return undefined;
   const times = starts.map((s) => new Date(s).getTime()).sort((a, b) => a - b);
   const gaps: number[] = [];
   for (let i = 1; i < times.length; i++) gaps.push(times[i] - times[i - 1]);
-  const median = gaps.sort((a, b) => a - b)[Math.floor(gaps.length / 2)];
-  const days = median / 86_400_000;
+  if (!gaps.length) return undefined;
+  gaps.sort((a, b) => a - b);
+  return gaps[Math.floor(gaps.length / 2)] / 86_400_000;
+}
+
+function describeInterval(starts: string[]): string {
+  if (starts.length < 2) return "recurring";
+  const times = starts.map((s) => new Date(s).getTime()).sort((a, b) => a - b);
+  const days = medianGapDays(starts) ?? 0;
   const weekday = new Date(times[0]).toLocaleDateString(undefined, { weekday: "long" });
   if (days <= 1.5) return "daily";
   if (days <= 9) return `every ${weekday}`;
@@ -589,7 +664,13 @@ export function normalizeEvents(
     bySeries.set(key, list);
   }
 
-  const collapsed: { bucket: Bucket; occurrences: number; label?: string; upcoming: string[] }[] = [];
+  const collapsed: {
+    bucket: Bucket;
+    occurrences: number;
+    cadenceDays?: number;
+    label?: string;
+    upcoming: string[];
+  }[] = [];
   for (const group of bySeries.values()) {
     // Every start time this identity appears at, whether it arrived as separate
     // buckets (three feed entries) or one bucket with an RRULE.
@@ -617,16 +698,19 @@ export function normalizeEvents(
     collapsed.push({
       bucket: soonest,
       occurrences: starts.length,
+      cadenceDays: medianGapDays(starts),
       label: describeInterval(starts),
       upcoming: starts.slice(0, 6),
     });
   }
 
   // ---- stages 3 and 4: score, filter by distance, emit -------------------
-  const watch = (options.watchlist ?? []).map((w) => ({
-    name: w.name,
-    norm: normalizeTitle(w.name),
-  })).filter((w) => w.norm.length >= 3);
+  // Word-boundary matching. A plain substring test made "Mercury" match Mercury
+  // Lounge, Mercury Rev and "Mercury Retrograde Tarot Night" alike, and a
+  // watchlist entry is supposed to be a name, not a wildcard.
+  const watch = (options.watchlist ?? [])
+    .map((w) => ({ name: w.name, tokens: normalizeTitle(w.name).split(" ").filter(Boolean) }))
+    .filter((w) => w.tokens.length > 0 && w.tokens.join("").length >= 3);
 
   const out: FnoEvent[] = [];
   for (const entry of collapsed) {
@@ -647,8 +731,10 @@ export function normalizeEvents(
 
     const haystack = `${item.title} ${item.venue.name} ${[...entry.bucket.actors].join(" ")}`;
     const normHay = normalizeTitle(haystack);
+    const hayTokens = new Set(normHay.split(" ").filter(Boolean));
     const watchHits = watch
-      .filter((w) => normHay.includes(w.norm))
+      // Every token of the watched name has to appear as a whole word.
+      .filter((w) => w.tokens.every((t) => hayTokens.has(t)))
       .map((w) => w.name);
 
     out.push({
@@ -666,8 +752,9 @@ export function normalizeEvents(
       url: item.url,
       imageUrl: item.imageUrl,
       sources,
-      obscurity: obscurityScore(sources, venue, entry.occurrences),
+      obscurity: obscurityScore(sources, venue, entry.cadenceDays),
       confidence: confidenceScore(item, sources),
+      lastVerifiedAt: item.verifiedAt,
       series:
         entry.occurrences >= 3 || entry.bucket.rrule
           ? {
@@ -687,25 +774,35 @@ export function normalizeEvents(
 // ----- ranking -------------------------------------------------------------
 
 /**
- * The blended default.
+ * The default ordering.
  *
- * Sorting purely by obscurity puts the least-known thing first whether or not
- * anyone could want it, which reliably produces a feed of rummage sales. This
- * multiplies obscurity by confidence — so an unverifiable find cannot lead —
- * then adds a large boost for anything matching a followed name and a small one
- * for imminence, because a great event next year is not tonight's answer.
+ * This used to be `obscurity x confidence`, which was mathematically backwards:
+ * confidence RISES with corroboration and obscurity FALLS with it, so the
+ * product peaked in the middle and pushed the single-source local find — the
+ * entire point of the app — away from the top. It also double-counted
+ * corroboration, which had already moved obscurity down.
+ *
+ * Confidence is now a GATE, not a multiplier: below the floor an event cannot
+ * lead regardless of how obscure it is, and above the floor it stops mattering
+ * and obscurity decides. A watchlist match reorders within a tier rather than
+ * jumping the whole list.
  */
-export function forYouScore(e: FnoEvent, now = Date.now()): number {
-  const base = (e.obscurity / 100) * e.confidence;
-  const watch = e.watchHits?.length ? 0.45 : 0;
-  const days = Math.max(0, (new Date(e.startsAt).getTime() - now) / 86_400_000);
-  const imminence = days <= 14 ? 0.15 * (1 - days / 14) : 0;
-  const priced = e.price.tier === "unknown" ? -0.04 : 0;
-  return base + watch + imminence + priced;
+export const CONFIDENCE_FLOOR = 0.45;
+
+export function forYouScore(e: FnoEvent): number {
+  // Below the floor it still appears, but beneath everything that cleared it.
+  const gated = e.confidence >= CONFIDENCE_FLOOR ? 1 : 0;
+  const base = e.obscurity / 100;
+  // Scaled by confidence and capped well under the obscurity range, so a
+  // followed name promotes an event among its peers instead of over everything.
+  const watch = e.watchHits?.length ? 0.2 * e.confidence : 0;
+  // No imminence bonus: the view is already grouped into time buckets and has
+  // an explicit "Soonest" sort, so a third recency term only dragged tonight's
+  // filler above a genuinely interesting show next week.
+  return gated * 10 + base + watch;
 }
 
 export function sortEvents(events: FnoEvent[], mode: SortMode): FnoEvent[] {
-  const now = Date.now();
   const byDate = (a: FnoEvent, b: FnoEvent) =>
     new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
   const list = [...events];
@@ -731,9 +828,7 @@ export function sortEvents(events: FnoEvent[], mode: SortMode): FnoEvent[] {
     }
     case "for-you":
     default:
-      return list.sort(
-        (a, b) => forYouScore(b, now) - forYouScore(a, now) || byDate(a, b),
-      );
+      return list.sort((a, b) => forYouScore(b) - forYouScore(a) || byDate(a, b));
   }
 }
 

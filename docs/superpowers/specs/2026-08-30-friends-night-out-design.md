@@ -339,3 +339,84 @@ propose what is found.
   table is refused with a 500 by the public Overpass instances. The alternative
   was cutting the tag table, which trades the whole point of the board for a
   bigger circle. Events are unaffected and still use the full radius.
+
+
+---
+
+## 12. Round two
+
+Both halves were reviewed again, blind, against the same references.
+
+**Dated events: the implementation won.** RA's supply side is empty in a
+mid-size US metro, and its ranking is explicitly weighted toward ticket sales,
+paid-over-free, exclusive ticketing and purchasable placement — the opposite of
+obscurity. Thirteen correctness bugs came back anyway, and they were the
+valuable part:
+
+- **`obscurity x confidence` was backwards.** Confidence rises with
+  corroboration and obscurity falls with it, so the product peaked in the middle
+  and pushed the single-source local find — the point of the app — away from the
+  top, while double-counting corroboration. Confidence is now a gate, not a
+  multiplier.
+- **Confidence ranked prestige, not evidence.** The AI sweep is the only source
+  actually verified (its cited page is fetched and must corroborate), yet it
+  started at 0.30 and could never reach the 0.6 badge floor, while Ticketmaster
+  scored 0.95 unverified. Rebuilt so evidence obtained drives the score and the
+  source is a weak prior; `verifiedAt` now means "fetched and confirmed" and is
+  set only where that happened.
+- **The AI verification test was an OR.** A date-only match passed a fabricated
+  title, and a venue's own `/events` index corroborates anything it lists. Now
+  requires title AND date, and rejects index URLs.
+- **"This weekend" was off by a week on Fri, Sat and Sun** — the formula
+  advanced to the *next* Friday, so on a Saturday tonight's events fell into
+  "Next 7 days". It failed exactly when people open a going-out app.
+- **No timezone handling.** Community calendars publish floating local times;
+  resolving them in the server's zone shifts every event by hours on a UTC host,
+  which breaks the day buckets AND pushes true duplicates outside the 3-hour
+  dedupe window. The viewer's IANA zone is now sent with each search.
+- Containment alone was a dedupe corroborator (merging a series head with its
+  own instances); venue coordinate matching was 0.5 mi (dozens of venues
+  downtown); unknown price was penalised twice; recurrence decay keyed on window
+  occurrences rather than detected cadence; two feeds from one publisher counted
+  as corroboration; the watchlist matched substrings, so "Mercury" matched
+  everything.
+
+**Standing places: Atlas Obscura won again**, and the diagnosis was exact.
+
+- **Fame was being rewarded.** A Wikipedia article scored +0.35 — the largest
+  single term — so the most-visited paid attraction in the state sat in the top
+  ten. An article means DOCUMENTED, not unknown.
+
+  Fixed with the best idea in either review: Wikimedia's pageviews API is
+  keyless, and the article title is already in hand from building the hook line.
+  Fame is now measured directly — under 500 readers a month is +12 obscurity,
+  over 20,000 is −25. Verified: Biltmore Estate moves from 75 to 11, while a
+  one-of-a-kind ruin with 120 monthly readers takes the top of the board.
+- **Rarity was the smallest weighted term** while the category baseline was the
+  largest, so the board was really ranked by what KIND of thing something is.
+  Rarity now carries the most weight and uses a log curve, because the old
+  reciprocal collapsed everything above three into the same value.
+- **`tower:type=fire_observation` has zero uses worldwide** — the fire-lookout
+  clause was dead, which falsified the "every tag verified" claim. Also removed:
+  `craft=cidery` (17 uses), `historic=lime_kiln` (4 in the US), `man_made=kiln`
+  (88 in the US).
+- **`operator:wikidata` was in the chain test**, so every National Park Service
+  and Forest Service feature took the largest penalty in the formula for being
+  publicly operated.
+- **`memorial=ghost_bike` was in the tag table.** It marks where a cyclist was
+  killed, and it is rare enough to score well — it would have surfaced
+  full-bleed under "Surprise me" as somewhere to go on a night out. Removed.
+- **`access=private` only withheld the price chip**, leaving the place on the
+  board with a directions link. Combined with mine adits and shafts that is a
+  route to an open vertical shaft on private land. Now excluded outright.
+- Free-by-nature asserted free for nature reserves and their viewpoints, which
+  charge routinely; narrowed to features nobody gates.
+
+### Corrected from round one
+
+The 25-mile cap was recorded as a hard limit of the free Overpass service. That
+was overstated. Under sustained testing the mirrors began returning the same 500
+for a single-clause query that had succeeded seconds earlier, so the 500 at 40
+miles is indistinguishable from rate limiting. The cap stays because 25 is the
+value known to work, but it is conservative, not physics — the code and the UI
+copy now say so.

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import * as store from "@/lib/friends-night-out/store";
 import { DEMO_EVENTS, DEMO_ORIGIN, DEMO_PLACES } from "@/lib/friends-night-out/seed";
+import { browserTimeZone } from "@/lib/friends-night-out/time";
 import type {
   DateNightPlan,
   FnoData,
@@ -80,6 +81,10 @@ export function FriendsNightOut() {
             organizers: current.organizers,
             watchlist: current.watchlist,
             skipAiSweep: !current.prefs.aiSweepEnabled,
+            // Community calendars publish floating local times. Without the
+            // viewer's zone the server resolves them in its own, which shifts
+            // every one of them by hours on a UTC host.
+            timeZone: browserTimeZone(),
           }),
         });
         const payload = await res.json();

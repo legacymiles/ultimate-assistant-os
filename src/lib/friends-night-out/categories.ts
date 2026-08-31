@@ -99,148 +99,6 @@ export const ACTIVITY_TAGS: ActivityTag[] = [
   // ODDITIES — the surprise engine. Highest yield per query.
   // =========================================================================
   {
-    label: "Ruins",
-    filter: '["historic"="ruins"]["name"]',
-    category: "Oddities",
-    matches: eq("historic", "ruins"),
-    describe: () => "Ruins you can walk to",
-    base: 88,
-  },
-  {
-    label: "Archaeological site",
-    filter: '["historic"="archaeological_site"]["name"]',
-    category: "Oddities",
-    matches: eq("historic", "archaeological_site"),
-    describe: (t) => (t.site_type ? `${t.site_type.replace(/_/g, " ")} site` : "Archaeological site"),
-    base: 86,
-  },
-  {
-    label: "Shipwreck",
-    filter: '["historic"="wreck"]',
-    category: "Oddities",
-    matches: eq("historic", "wreck"),
-    describe: () => "Wreck, sometimes visible at low tide",
-    base: 94,
-  },
-  {
-    // Aircraft on poles, locomotives in parks, tanks on courthouse lawns.
-    // Reliably produces the reaction the app exists for.
-    label: "Big machine",
-    filter: '["historic"~"^(aircraft|locomotive|railway_car|tank|ship|cannon)$"]["name"]',
-    category: "Oddities",
-    matches: (t) => /^(aircraft|locomotive|railway_car|tank|ship|cannon)$/.test(t.historic ?? ""),
-    describe: (t) => `Historic ${(t.historic ?? "machine").replace(/_/g, " ")} you can walk up to`,
-    base: 90,
-  },
-  {
-    label: "Old mine",
-    filter: '["historic"="mine"]["name"]',
-    category: "Oddities",
-    matches: eq("historic", "mine"),
-    describe: () => "Historic mine workings",
-    base: 88,
-  },
-  {
-    label: "Fort",
-    filter: '["historic"~"^(fort|castle|city_gate|bunker)$"]["name"]',
-    category: "Oddities",
-    matches: (t) => /^(fort|castle|city_gate|bunker)$/.test(t.historic ?? ""),
-    describe: (t) => `Historic ${t.historic ?? "fortification"}`,
-    base: 82,
-  },
-  {
-    label: "Battlefield",
-    filter: '["historic"="battlefield"]["name"]',
-    category: "Oddities",
-    matches: eq("historic", "battlefield"),
-    describe: () => "Battlefield",
-    base: 80,
-  },
-  {
-    label: "Lime kiln",
-    filter: '["historic"="lime_kiln"]["name"]',
-    category: "Oddities",
-    matches: eq("historic", "lime_kiln"),
-    describe: () => "Stone kiln in the woods",
-    base: 95,
-  },
-  {
-    label: "Boundary stone",
-    filter: '["historic"~"^(boundary_stone|milestone)$"]["name"]',
-    category: "Oddities",
-    matches: (t) => /^(boundary_stone|milestone)$/.test(t.historic ?? ""),
-    describe: () => "Old survey marker",
-    base: 84,
-  },
-  {
-    // 500k uses globally and mostly plaques and benches, so this is the one
-    // historic tag that must be narrowed by subtype or it swamps the board.
-    label: "Monument",
-    filter: '["historic"="memorial"]["memorial"~"^(statue|sculpture|obelisk|stone|ghost_bike)$"]["name"]',
-    category: "Oddities",
-    matches: (t) =>
-      t.historic === "memorial" &&
-      /^(statue|sculpture|obelisk|stone|ghost_bike)$/.test(t.memorial ?? ""),
-    describe: (t) => `${(t.memorial ?? "memorial").replace(/_/g, " ")}`,
-    base: 70,
-  },
-  {
-    label: "Observatory",
-    filter: '["man_made"="observatory"]["name"]',
-    category: "Oddities",
-    matches: eq("man_made", "observatory"),
-    describe: () => "Observatory — many run free public viewing nights",
-    base: 94,
-  },
-  {
-    label: "Telescope",
-    filter: '["man_made"="telescope"]["name"]',
-    category: "Oddities",
-    matches: eq("man_made", "telescope"),
-    describe: () => "Telescope you can visit",
-    base: 92,
-  },
-  {
-    label: "Geoglyph",
-    filter: '["man_made"="geoglyph"]["name"]',
-    category: "Oddities",
-    matches: eq("man_made", "geoglyph"),
-    describe: () => "Land art or hillside figure",
-    base: 96,
-  },
-  {
-    label: "Lighthouse",
-    filter: '["man_made"="lighthouse"]["name"]',
-    category: "Oddities",
-    matches: eq("man_made", "lighthouse"),
-    describe: () => "Lighthouse",
-    base: 78,
-  },
-  {
-    label: "Windmill",
-    filter: '["man_made"~"^(windmill|watermill)$"]["name"]',
-    category: "Oddities",
-    matches: (t) => /^(windmill|watermill)$/.test(t.man_made ?? ""),
-    describe: (t) => (t.man_made === "watermill" ? "Working watermill" : "Windmill"),
-    base: 84,
-  },
-  {
-    label: "Water tower",
-    filter: '["man_made"="water_tower"]["name"]',
-    category: "Oddities",
-    matches: eq("man_made", "water_tower"),
-    describe: () => "Landmark water tower",
-    base: 80,
-  },
-  {
-    label: "Kiln",
-    filter: '["man_made"="kiln"]["name"]',
-    category: "Oddities",
-    matches: eq("man_made", "kiln"),
-    describe: () => "Beehive kiln",
-    base: 92,
-  },
-  {
     label: "Gasometer",
     filter: '["man_made"="gasometer"]["name"]',
     category: "Oddities",
@@ -403,10 +261,12 @@ export const ACTIVITY_TAGS: ActivityTag[] = [
   },
   {
     label: "Standing stone",
+    // natural=stone is a single notable standing stone. A boulder or outcrop
+    // is natural=rock, which is a different and much noisier tag.
     filter: '["natural"="stone"]["name"]',
     category: "Nature",
     matches: eq("natural", "stone"),
-    describe: () => "Notable boulder or erratic",
+    describe: () => "Standing stone",
     base: 88,
   },
   {
@@ -520,11 +380,18 @@ export const ACTIVITY_TAGS: ActivityTag[] = [
   },
   {
     label: "Lookout tower",
-    filter: '["tower:type"~"^(observation|fire_observation)$"]["name"]',
+    // `tower:type=fire_observation` reads as the obvious tag for a fire lookout
+    // and has ZERO uses worldwide — the clause it was in returned nothing at
+    // all. Fire lookouts are tagged `tower:type=observation` like any other
+    // lookout, so the operator is what distinguishes them.
+    filter: '["tower:type"="observation"]["name"]',
     category: "Air & Heights",
-    matches: (t) => /^(observation|fire_observation)$/.test(t["tower:type"] ?? ""),
+    matches: (t) => t["tower:type"] === "observation",
     describe: (t) =>
-      t["tower:type"] === "fire_observation" ? "Fire lookout tower" : "Climbable lookout",
+      /forest service|national forest|park service/i.test(t.operator ?? "") ||
+      t.building === "fire_lookout"
+        ? "Fire lookout tower"
+        : "Climbable lookout",
     base: 88,
   },
   {
@@ -1049,14 +916,6 @@ export const ACTIVITY_TAGS: ActivityTag[] = [
     base: 76,
   },
   {
-    label: "Cidery",
-    filter: '["craft"="cidery"]["name"]',
-    category: "Food & Drink",
-    matches: eq("craft", "cidery"),
-    describe: () => "Cidery",
-    base: 82,
-  },
-  {
     label: "Winery",
     filter: '["craft"="winery"]["name"]',
     category: "Food & Drink",
@@ -1131,6 +990,27 @@ export function isClosed(tags: Tags): boolean {
   return Object.keys(tags).some((k) =>
     LIFECYCLE_PREFIXES.some((p) => k.startsWith(p)),
   );
+}
+
+/**
+ * Places the app must not send anyone to.
+ *
+ * `access=private` and `access=no` were previously only used to withhold the
+ * "free" chip, which left the place itself on the board with a directions link.
+ * Combined with mine adits and shafts — thousands of them in OSM, unfenced and
+ * frequently on private land — that is a directions link to an open vertical
+ * shaft on someone else's property. Excluded outright, not down-ranked.
+ */
+export function isOffLimits(tags: Tags): boolean {
+  if (tags.access === "private" || tags.access === "no") return true;
+  // A mine opening needs positive evidence of public access, not merely the
+  // absence of a private tag.
+  const isMineOpening =
+    tags.man_made === "adit" || tags.man_made === "mineshaft" || tags.historic === "mine";
+  if (isMineOpening && !/^(yes|permissive|customers|designated)$/.test(tags.access ?? "")) {
+    return !tags.wikipedia && !tags.wikidata && tags.tourism !== "attraction";
+  }
+  return false;
 }
 
 // ----- season derivation ---------------------------------------------------

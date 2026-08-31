@@ -20,6 +20,7 @@
 // ---------------------------------------------------------------------------
 
 import { inferPrice } from "../normalize";
+import { parseWallTimestamp, wallTimeToIso } from "../time";
 import type { Feed, FeedKind, RawEvent, SearchCtx, SourceStatus } from "../types";
 
 const FETCH_TIMEOUT_MS = 12_000;
@@ -76,7 +77,7 @@ export async function fetchOneFeed(
 
   switch (kind) {
     case "tribe":
-      return parseTribe(body, feed.label, feed.url);
+      return parseTribe(body, feed.label, feed.url, ctx);
     case "localist":
       return parseLocalist(body, feed.label, feed.url);
     case "ical":
@@ -157,7 +158,12 @@ interface TribeEvent {
   organizer?: { organizer?: string }[];
 }
 
-function parseTribe(body: string, label: string, feedUrl: string): RawEvent[] {
+function parseTribe(
+  body: string,
+  label: string,
+  feedUrl: string,
+  ctx: SearchCtx,
+): RawEvent[] {
   const data = safeJson<{ events?: TribeEvent[] }>(body);
   if (!data?.events) return [];
 
@@ -167,7 +173,7 @@ function parseTribe(body: string, label: string, feedUrl: string): RawEvent[] {
     // Tribe returns "2026-09-04 19:00:00" in the site's local timezone with no
     // offset. Treating that as UTC shifts every event by hours, so it is parsed
     // as local time deliberately.
-    const startsAt = parseLocalish(ev.start_date);
+    const startsAt = parseLocalish(ev.start_date, ctx.timeZone);
     if (!startsAt) return [];
 
     const lat = Number(ev.venue?.geo_lat);
@@ -178,7 +184,7 @@ function parseTribe(body: string, label: string, feedUrl: string): RawEvent[] {
       title,
       description,
       startsAt,
-      endsAt: ev.end_date ? parseLocalish(ev.end_date) ?? undefined : undefined,
+      endsAt: ev.end_date ? parseLocalish(ev.end_date, ctx.timeZone) ?? undefined : undefined,
       allDay: Boolean(ev.all_day),
       venue: {
         name: ev.venue?.venue?.trim() || label,
@@ -191,7 +197,6 @@ function parseTribe(body: string, label: string, feedUrl: string): RawEvent[] {
       url: ev.url,
       imageUrl: typeof ev.image === "object" && ev.image ? ev.image.url : undefined,
       actors: (ev.organizer ?? []).map((o) => o.organizer).filter(Boolean) as string[],
-      verifyUrl: ev.url,
       source: { id: "feed", label, url: ev.url ?? feedUrl },
     }];
   });
@@ -252,7 +257,6 @@ function parseLocalist(body: string, label: string, feedUrl: string): RawEvent[]
           : inferPrice(ev.ticket_cost || description),
         url: ev.localist_url,
         imageUrl: ev.photo_url,
-        verifyUrl: ev.localist_url,
         source: { id: "feed" as const, label, url: ev.localist_url ?? feedUrl },
       }];
     });
@@ -283,11 +287,11 @@ function parseIcal(body: string, label: string, feedUrl: string, ctx: SearchCtx)
     const dtstart = icalRawField(body2, "DTSTART");
     if (!title || !dtstart) continue;
 
-    const start = parseIcalDate(dtstart.value, dtstart.params);
+    const start = parseIcalDate(dtstart.value, dtstart.params, ctx.timeZone);
     if (!start) continue;
 
     const dtend = icalRawField(body2, "DTEND");
-    const end = dtend ? parseIcalDate(dtend.value, dtend.params) : null;
+    const end = dtend ? parseIcalDate(dtend.value, dtend.params, ctx.timeZone) : null;
     const allDay = /VALUE=DATE(?!-TIME)/i.test(dtstart.params);
     const description = strip(icalField(body2, "DESCRIPTION"));
     const location = strip(icalField(body2, "LOCATION"));
@@ -313,13 +317,12 @@ function parseIcal(body: string, label: string, feedUrl: string, ctx: SearchCtx)
       url,
       uid: uidValue,
       rrule,
-      verifyUrl: url,
       source: { id: "feed", label, url: url ?? feedUrl },
     };
 
     out.push(base);
     if (rrule) {
-      for (const occurrence of expandRrule(start, rrule, windowEnd)) {
+      for (const occurrence of expandRrule(start, rrule, windowEnd, ctx.timeZone)) {
         out.push({ ...base, startsAt: occurrence });
       }
     }
@@ -351,7 +354,7 @@ function icalRawField(
   };
 }
 
-function parseIcalDate(value: string, params: string): string | null {
+function parseIcalDate(value: string, params: string, zone?: string): string | null {
   const v = value.trim();
   // 20260904T190000Z, 20260904T190000, or 20260904 for an all-day entry.
   const m = v.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?$/);
@@ -363,15 +366,21 @@ function parseIcalDate(value: string, params: string): string | null {
   if (z || /TZID=UTC/i.test(params)) {
     return new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +s)).toISOString();
   }
-  // No timezone marker: treat as local. A floating time is meant to be read in
-  // the reader's own zone, and for a local event finder that is correct.
-  return new Date(+y, +mo - 1, +d, +h, +mi, +s).toISOString();
+  // A floating time is meant to be read in the reader's own zone, which for a
+  // local event finder is exactly right — provided that zone is the VIEWER's
+  // and not whatever the server happens to be set to.
+  return wallTimeToIso(+y, +mo, +d, +h, +mi, +s, zone);
 }
 
 /** Cap so one badly-specified INTERVAL cannot flood the whole result set. */
 const MAX_OCCURRENCES = 12;
 
-function expandRrule(start: string, rrule: string, windowEnd: number): string[] {
+function expandRrule(
+  start: string,
+  rrule: string,
+  windowEnd: number,
+  zone?: string,
+): string[] {
   const parts = Object.fromEntries(
     rrule.split(";").map((p) => {
       const [k, v] = p.split("=");
@@ -384,7 +393,7 @@ function expandRrule(start: string, rrule: string, windowEnd: number): string[] 
 
   const interval = Math.max(1, Number(parts.INTERVAL ?? 1) || 1);
   const count = parts.COUNT ? Number(parts.COUNT) : undefined;
-  const until = parts.UNTIL ? parseIcalDate(parts.UNTIL, "") : null;
+  const until = parts.UNTIL ? parseIcalDate(parts.UNTIL, "", zone) : null;
   const untilMs = until ? new Date(until).getTime() : Infinity;
   const stop = Math.min(windowEnd, untilMs);
 
@@ -467,7 +476,6 @@ function parseJsonLd(body: string, label: string, feedUrl: string): RawEvent[] {
       url: ev.url ?? feedUrl,
       imageUrl: ldImage(ev.image),
       actors: performers.map((p) => p.name).filter(Boolean) as string[],
-      verifyUrl: ev.url ?? feedUrl,
       source: { id: "feed" as const, label, url: ev.url ?? feedUrl },
     }];
   });
@@ -551,7 +559,6 @@ function parseRss(body: string, label: string, feedUrl: string): RawEvent[] {
       venue: { name: label },
       price: inferPrice(`${title} ${description ?? ""}`),
       url: link?.trim(),
-      verifyUrl: link?.trim(),
       source: { id: "feed", label, url: link?.trim() ?? feedUrl },
     });
   }
@@ -640,11 +647,11 @@ function isoOrNull(value: string): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-/** "2026-09-04 19:00:00" with no offset — parse as local, never as UTC. */
-function parseLocalish(value: string): string | null {
-  const m = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
-  if (m) {
-    return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] ?? 0)).toISOString();
-  }
-  return isoOrNull(value);
+/**
+ * "2026-09-04 19:00:00" with no offset. Tribe emits the site's local wall time,
+ * so it is resolved in the viewer's zone — never as UTC, and never in whatever
+ * zone the server happens to run in.
+ */
+function parseLocalish(value: string, zone?: string): string | null {
+  return parseWallTimestamp(value, zone) ?? isoOrNull(value);
 }
