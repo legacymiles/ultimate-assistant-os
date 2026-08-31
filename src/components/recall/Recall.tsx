@@ -6,43 +6,110 @@ import { Icon } from "../icons";
 import {
   createFolder,
   deleteFolder,
-  descendantFolderIds,
-  folderPathString,
+  migrateRecords,
   getData,
   isLocal,
+  updateFolder,
 } from "@/lib/recall/store";
-import { search } from "@/lib/recall/search";
+import * as vault from "@/lib/recall/vault";
 import type { Folder, Item, RecallData } from "@/lib/recall/types";
 import { ALL, FolderTree, UNFILED } from "./FolderTree";
-import { ItemCard } from "./ItemCard";
 import { CaptureModal } from "./CaptureModal";
 import { ItemDetailModal } from "./ItemDetailModal";
 import { AgentChat } from "./AgentChat";
+import { FolderWorkspace } from "./FolderWorkspace";
+import { SearchResults } from "./SearchResults";
+import { useVault } from "./LoginsSection";
+import { FolderDialog, type FolderDraft } from "./FolderDialog";
+import { FolderHome } from "./FolderHome";
+import { SecurityDialog } from "./SecurityDialog";
+import { ListsBoard } from "./lists/ListsBoard";
+import { pruneOrphans } from "@/lib/recall/files";
+
+// ---------------------------------------------------------------------------
+// Recall — shell.
+// One search box over everything, a breadcrumb, and the folder workspace.
+// The folder tree still exists but it is a toggle, not permanent furniture:
+// sub-folders live as tiles inside the folder they belong to, so the page stays
+// minimal however deep the structure goes.
+// ---------------------------------------------------------------------------
+
+const HOME_TABS = [
+  { id: "folders" as const, label: "Folders", icon: Icon.Folder },
+  { id: "lists" as const, label: "Lists", icon: Icon.ListChecks },
+];
+
+/** Create a new folder under `parentId`, or edit an existing one. */
+type FolderDialogState =
+  | { mode: "create"; parentId: string | null }
+  | { mode: "edit"; folder: Folder };
 
 export function Recall() {
   const [data, setData] = useState<RecallData>({ folders: [], items: [] });
   const [ready, setReady] = useState(false);
-  const [selected, setSelected] = useState<string>(ALL);
+  /** null = the home grid; UNFILED = loose items; otherwise a folder id. */
+  const [folderId, setFolderId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<Item | null>(null);
   const [agentOpen, setAgentOpen] = useState(false);
   const [askQuestion, setAskQuestion] = useState<string | null>(null);
-  const [mobileNav, setMobileNav] = useState(false);
+  const [treeOpen, setTreeOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [folderDialog, setFolderDialog] = useState<FolderDialogState | null>(null);
+  /** True when Recall requires a password, so signing out is meaningful. */
+  const [gated, setGated] = useState(false);
+  const [securityOpen, setSecurityOpen] = useState(false);
+  /**
+   * The home page has two halves. Folders hold what you keep; Lists holds what
+   * the household is doing this week. Only the home view is tabbed — opening a
+   * folder or searching leaves the switch behind, because neither means
+   * anything on the Lists side.
+   */
+  const [homeTab, setHomeTab] = useState<"folders" | "lists">("folders");
   const searchRef = useRef<HTMLInputElement>(null);
+  const { exists: vaultExists, unlocked: vaultUnlocked } = useVault();
 
   useEffect(() => {
-    setData(getData());
+    // Fold any legacy server/site records into websites, then read.
+    migrateRecords();
+    const fresh = getData();
+    setData(fresh);
     setReady(true);
+    // Sweep blobs whose item was deleted some other way (agent, folder purge).
+    const referenced = new Set(
+      fresh.items.map((i) => i.attachment?.fileId).filter(Boolean) as string[],
+    );
+    void pruneOrphans(referenced).catch(() => {
+      /* IndexedDB unavailable — nothing to sweep */
+    });
   }, []);
+
+  useEffect(() => {
+    fetch("/api/recall-unlock")
+      .then((r) => r.json())
+      .then((d: { gated?: boolean }) => setGated(Boolean(d.gated)))
+      .catch(() => setGated(false));
+  }, []);
+
+  async function signOut() {
+    // Lock the vault first so no decrypted secret survives the redirect.
+    vault.lock();
+    await fetch("/api/recall-unlock", { method: "DELETE" });
+    window.location.href = "/recall-unlock";
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+      if (e.key === "Escape" && document.activeElement === searchRef.current) {
+        setQuery("");
+        searchRef.current?.blur();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -55,40 +122,12 @@ export function Recall() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const pathFor = useCallback((id: string | null) => folderPathString(data.folders, id), [data.folders]);
-
-  // Items in the currently-selected folder scope.
-  const scopeItems = useMemo(() => {
-    if (selected === ALL) return data.items;
-    if (selected === UNFILED) return data.items.filter((i) => !i.folderId);
-    const ids = descendantFolderIds(data.folders, selected);
-    return data.items.filter((i) => i.folderId && ids.has(i.folderId));
-  }, [data, selected]);
-
-  // Tags present in scope, most-frequent first (for the filter bar).
-  const scopeTags = useMemo(() => {
-    const freq = new Map<string, number>();
-    for (const it of scopeItems) for (const t of it.tags) freq.set(t, (freq.get(t) ?? 0) + 1);
-    return [...freq.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t).slice(0, 18);
-  }, [scopeItems]);
-
-  // Apply tag filters (AND) then keyword ranking.
-  const results = useMemo(() => {
-    const tagged = activeTags.length
-      ? scopeItems.filter((i) => activeTags.every((t) => i.tags.includes(t)))
-      : scopeItems;
-    if (query.trim()) {
-      return search(query, { items: tagged, folders: data.folders }).items.map((s) => s.item);
-    }
-    return [...tagged].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [scopeItems, activeTags, query, data.folders]);
-
-  // Global folder/tag matches for the "jump to" row while searching.
-  const jump = useMemo(() => {
-    if (!query.trim()) return { folders: [] as Folder[], tags: [] as string[] };
-    const r = search(query, data);
-    return { folders: r.folders.slice(0, 6), tags: r.tags.slice(0, 8) };
-  }, [query, data]);
+  const navigate = useCallback((id: string | null) => {
+    setFolderId(id);
+    setQuery("");
+    setTreeOpen(false);
+    window.scrollTo({ top: 0 });
+  }, []);
 
   const existingTags = useMemo(() => {
     const set = new Set<string>();
@@ -99,172 +138,264 @@ export function Recall() {
   const toggleTag = (t: string) =>
     setActiveTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
 
-  const handleSelect = (id: string) => {
-    setSelected(id);
-    setMobileNav(false);
-  };
+  function handleNewFolder(parentId: string | null) {
+    setFolderDialog({ mode: "create", parentId });
+  }
 
-  const handleDeleteFolder = (folder: Folder) => {
-    if (!window.confirm(`Delete “${folder.name}”? Items inside move up to the parent folder.`)) return;
-    const next = deleteFolder(folder.id);
-    setData(next);
-    if (selected === folder.id) setSelected(ALL);
-  };
+  function handleEditFolder(folder: Folder) {
+    setFolderDialog({ mode: "edit", folder });
+  }
 
-  const handleNewFolder = () => {
-    const name = window.prompt("New folder name");
-    if (!name?.trim()) return;
-    setData(createFolder(name.trim(), null).data);
-  };
+  function submitFolder(draft: FolderDraft) {
+    if (!folderDialog) return;
+    if (folderDialog.mode === "create") {
+      setData(createFolder(draft, folderDialog.parentId).data);
+      setToast("Folder created");
+    } else {
+      setData(updateFolder(folderDialog.folder.id, draft));
+      setToast("Folder updated");
+    }
+  }
 
-  const sidebar = (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between px-2 pb-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">Folders</span>
-        <button onClick={handleNewFolder} className="rounded-md p-1 text-ink-faint hover:bg-panel-2 hover:text-ink" title="New folder">
-          <Icon.Plus width={15} height={15} />
-        </button>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-        <FolderTree folders={data.folders} items={data.items} selected={selected} onSelect={handleSelect} onDelete={handleDeleteFolder} />
-      </div>
-    </div>
-  );
+  function handleDeleteFolder(folder: Folder) {
+    const msg = `Delete “${folder.name}”? Anything inside moves up to the parent — nothing is lost.`;
+    if (!window.confirm(msg)) return;
+    setData(deleteFolder(folder.id));
+    if (folderId === folder.id) setFolderId(folder.parentId);
+    setToast("Folder deleted");
+  }
+
+  const searching = query.trim().length > 0;
 
   return (
     <div className="flex min-h-dvh flex-col">
       {/* Top bar */}
-      <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-line bg-panel/95 px-3 py-2.5 backdrop-blur sm:px-4">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
-          aria-label="Back to hub"
-        >
-          <Icon.ArrowLeft width={14} height={14} />
-          <span className="hidden sm:inline">Hub</span>
-        </Link>
-        <button onClick={() => setMobileNav((v) => !v)} className="rounded-lg border border-line p-1.5 text-ink-muted hover:text-ink md:hidden" aria-label="Folders">
-          <Icon.Menu width={16} height={16} />
-        </button>
-        <span className="ml-1 flex items-center gap-1.5 text-sm font-semibold text-ink">
-          <Icon.Sparkles width={16} height={16} className="text-brand" /> Recall
-        </span>
-        {isLocal() && (
-          <span className="ml-1 rounded-md bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand">Local</span>
+      <header className="sticky top-0 z-30 border-b border-line bg-panel/95 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-5xl items-center gap-2 px-3 py-2.5 sm:px-5">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
+            aria-label="Back to hub"
+          >
+            <Icon.ArrowLeft width={14} height={14} />
+            <span className="hidden sm:inline">Hub</span>
+          </Link>
+
+          <button
+            onClick={() => setTreeOpen((v) => !v)}
+            aria-label="Toggle folder tree"
+            title="Folder tree"
+            className={
+              "rounded-lg border p-1.5 transition " +
+              (treeOpen
+                ? "border-brand/50 bg-brand/10 text-brand"
+                : "border-line text-ink-muted hover:text-ink")
+            }
+          >
+            <Icon.Sidebar width={15} height={15} />
+          </button>
+
+          <span className="ml-0.5 hidden items-center gap-1.5 text-sm font-semibold text-ink sm:flex">
+            <Icon.Sparkles width={16} height={16} className="text-brand" /> Recall
+          </span>
+          {isLocal() && (
+            <span className="hidden rounded-md bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand lg:inline">
+              Local
+            </span>
+          )}
+
+          {/* One search box over everything */}
+          <div className="relative ml-1 min-w-0 flex-1">
+            <Icon.Search
+              width={15}
+              height={15}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint"
+            />
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search everything — notes, files, logins, websites…  (⌘K)"
+              className="w-full rounded-xl border border-line bg-canvas py-2 pl-9 pr-8 text-[13px] text-ink outline-none placeholder:text-ink-faint focus:border-brand focus:ring-2 focus:ring-brand/25"
+            />
+            {searching && (
+              <button
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-ink-faint hover:text-ink"
+              >
+                <Icon.Close width={13} height={13} />
+              </button>
+            )}
+          </div>
+
+          {vaultExists && (
+            <button
+              onClick={() => {
+                if (vaultUnlocked) {
+                  vault.lock();
+                  setToast("Vault locked");
+                }
+              }}
+              title={vaultUnlocked ? "Vault unlocked — click to lock" : "Vault locked"}
+              aria-label={vaultUnlocked ? "Lock vault" : "Vault locked"}
+              className={
+                "shrink-0 rounded-lg border p-1.5 transition " +
+                (vaultUnlocked
+                  ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/20"
+                  : "border-line text-ink-faint")
+              }
+            >
+              {vaultUnlocked ? <Icon.Unlock width={15} height={15} /> : <Icon.Lock width={15} height={15} />}
+            </button>
+          )}
+
+          <button
+            onClick={() => setSecurityOpen(true)}
+            title="Security — app password and vault master password"
+            aria-label="Security settings"
+            className="shrink-0 rounded-lg border border-line p-1.5 text-ink-muted transition hover:text-ink"
+          >
+            <Icon.Shield width={15} height={15} />
+          </button>
+
+          {gated && (
+            <button
+              onClick={() => void signOut()}
+              title="Sign out of Recall"
+              aria-label="Sign out of Recall"
+              className="shrink-0 rounded-lg border border-line p-1.5 text-ink-muted transition hover:border-red-500/40 hover:text-red-400"
+            >
+              <Icon.ArrowRight width={15} height={15} />
+            </button>
+          )}
+
+          <button
+            onClick={() => setCaptureOpen(true)}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-[13px] font-semibold text-white transition hover:bg-brand-2"
+            title="Capture anything — Recall files and tags it for you"
+          >
+            <Icon.Plus width={15} height={15} />
+            <span className="hidden sm:inline">Capture</span>
+          </button>
+        </div>
+
+        {/* Folder tree — a drawer, not permanent furniture */}
+        {treeOpen && (
+          <div className="border-t border-line bg-panel">
+            <div className="mx-auto max-h-[50vh] w-full max-w-5xl overflow-y-auto px-3 py-3 sm:px-5">
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
+                  All folders
+                </span>
+                <button
+                  onClick={() => handleNewFolder(null)}
+                  className="rounded-md p-1 text-ink-faint hover:bg-panel-2 hover:text-ink"
+                  title="New top-level folder"
+                >
+                  <Icon.Plus width={14} height={14} />
+                </button>
+              </div>
+              <FolderTree
+                folders={data.folders}
+                items={data.items}
+                selected={folderId ?? ALL}
+                onSelect={(id) => navigate(id === ALL ? null : id)}
+                onDelete={handleDeleteFolder}
+              />
+            </div>
+          </div>
         )}
       </header>
 
-      <div className="mx-auto flex w-full max-w-6xl flex-1">
-        {/* Sidebar (desktop) */}
-        <aside className="sticky top-[49px] hidden h-[calc(100dvh-49px)] w-60 shrink-0 border-r border-line px-3 py-4 md:block">{sidebar}</aside>
-
-        {/* Mobile nav overlay */}
-        {mobileNav && (
-          <div className="fixed inset-0 z-40 md:hidden" onClick={() => setMobileNav(false)}>
-            <div className="absolute inset-0 bg-black/50" />
-            <div className="absolute left-0 top-0 h-full w-64 border-r border-line bg-panel px-3 py-4" onClick={(e) => e.stopPropagation()}>
-              {sidebar}
-            </div>
+      <main className="mx-auto w-full max-w-5xl flex-1 px-3 py-5 sm:px-5">
+        {activeTags.length > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-ink-faint">Filtered by</span>
+            {activeTags.map((t) => (
+              <button
+                key={t}
+                onClick={() => toggleTag(t)}
+                className="inline-flex items-center gap-1 rounded-full border border-brand bg-brand/15 px-2 py-0.5 text-[11px] font-medium text-brand"
+              >
+                <Icon.Tag width={10} height={10} /> {t}
+                <Icon.Close width={10} height={10} />
+              </button>
+            ))}
+            <button
+              onClick={() => setActiveTags([])}
+              className="text-[11px] text-ink-faint hover:text-ink"
+            >
+              Clear
+            </button>
           </div>
         )}
 
-        {/* Main */}
-        <main className="min-w-0 flex-1 px-3 py-4 sm:px-5 sm:py-6">
-          {/* Search + add */}
-          <div className="mb-3 flex items-center gap-2">
-            <div className="relative flex-1">
-              <Icon.Search width={16} height={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
-              <input
-                ref={searchRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search everything…  (⌘K)"
-                className="w-full rounded-xl border border-line bg-panel py-2.5 pl-9 pr-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/30"
-              />
-            </div>
-            <button
-              onClick={() => setCaptureOpen(true)}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-brand px-3.5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-2"
+        {!ready ? (
+          <p className="py-16 text-center text-sm text-ink-muted">Loading…</p>
+        ) : searching ? (
+          <SearchResults
+            query={query}
+            data={data}
+            activeTags={activeTags}
+            onToggleTag={toggleTag}
+            onNavigate={navigate}
+            onOpenItem={setDetailItem}
+          />
+        ) : folderId === null ? (
+          <>
+            <div
+              role="tablist"
+              aria-label="Recall home"
+              className="mb-4 inline-flex gap-1 rounded-xl border border-line bg-panel p-1"
             >
-              <Icon.Plus width={16} height={16} />
-              <span className="hidden sm:inline">Add</span>
-            </button>
-          </div>
-
-          {/* Jump-to matches while searching */}
-          {(jump.folders.length > 0 || jump.tags.length > 0) && (
-            <div className="mb-3 flex flex-wrap items-center gap-1.5 rounded-xl border border-line bg-panel/50 p-2 text-xs">
-              {jump.folders.map((f) => (
+              {HOME_TABS.map((tab) => (
                 <button
-                  key={f.id}
-                  onClick={() => handleSelect(f.id)}
-                  className="inline-flex items-center gap-1 rounded-lg bg-panel-2 px-2 py-1 text-ink-muted transition hover:text-brand"
+                  key={tab.id}
+                  role="tab"
+                  aria-selected={homeTab === tab.id}
+                  onClick={() => setHomeTab(tab.id)}
+                  className={
+                    "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-medium transition " +
+                    (homeTab === tab.id
+                      ? "bg-brand text-white"
+                      : "text-ink-muted hover:bg-panel-2 hover:text-ink")
+                  }
                 >
-                  <Icon.Folder width={12} height={12} /> {pathFor(f.id)}
-                </button>
-              ))}
-              {jump.tags.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => toggleTag(t)}
-                  className="inline-flex items-center gap-1 rounded-lg bg-panel-2 px-2 py-1 text-ink-muted transition hover:text-brand"
-                >
-                  <Icon.Tag width={12} height={12} /> {t}
+                  <tab.icon width={14} height={14} />
+                  {tab.label}
                 </button>
               ))}
             </div>
-          )}
 
-          {/* Tag filter bar */}
-          {scopeTags.length > 0 && (
-            <div className="mb-4 flex flex-wrap items-center gap-1.5">
-              {activeTags.length > 0 && (
-                <button onClick={() => setActiveTags([])} className="text-[11px] font-medium text-ink-faint hover:text-ink">
-                  Clear
-                </button>
-              )}
-              {scopeTags.map((t) => {
-                const on = activeTags.includes(t);
-                return (
-                  <button
-                    key={t}
-                    onClick={() => toggleTag(t)}
-                    className={
-                      "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition " +
-                      (on ? "border-brand bg-brand/15 text-brand" : "border-line text-ink-muted hover:bg-panel-2 hover:text-ink")
-                    }
-                  >
-                    <Icon.Tag width={11} height={11} /> {t}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Header line */}
-          <div className="mb-2 flex items-baseline justify-between">
-            <h1 className="text-base font-semibold text-ink">
-              {selected === ALL ? "All items" : selected === UNFILED ? "Unfiled" : pathFor(selected)}
-            </h1>
-            <span className="text-xs text-ink-faint">
-              {results.length} {results.length === 1 ? "item" : "items"}
-            </span>
-          </div>
-
-          {/* Results */}
-          {!ready ? (
-            <p className="py-16 text-center text-sm text-ink-muted">Loading…</p>
-          ) : results.length === 0 ? (
-            <EmptyState hasData={data.items.length > 0} onAdd={() => setCaptureOpen(true)} />
-          ) : (
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-              {results.map((item) => (
-                <ItemCard key={item.id} item={item} folderPath={pathFor(item.folderId)} onOpen={setDetailItem} onTagClick={toggleTag} />
-              ))}
-            </div>
-          )}
-        </main>
-      </div>
+            {homeTab === "folders" ? (
+              <FolderHome
+                data={data}
+                onOpen={navigate}
+                onNewFolder={() => handleNewFolder(null)}
+                onEditFolder={handleEditFolder}
+                onDeleteFolder={handleDeleteFolder}
+                onOpenUnfiled={() => navigate(UNFILED)}
+              />
+            ) : (
+              <ListsBoard />
+            )}
+          </>
+        ) : (
+          <FolderWorkspace
+            data={data}
+            folderId={folderId === UNFILED ? null : folderId}
+            isUnfiled={folderId === UNFILED}
+            onNavigate={navigate}
+            onData={setData}
+            onToast={setToast}
+            onOpenItem={setDetailItem}
+            onNewFolder={handleNewFolder}
+            onDeleteFolder={handleDeleteFolder}
+            onRenameFolder={handleEditFolder}
+          />
+        )}
+      </main>
 
       {/* Agent */}
       <AgentChat
@@ -284,14 +415,36 @@ export function Recall() {
         onAskConsumed={() => setAskQuestion(null)}
       />
 
-      {/* Toast */}
+      {securityOpen && (
+        <SecurityDialog
+          onClose={() => setSecurityOpen(false)}
+          onData={setData}
+          onToast={setToast}
+        />
+      )}
+
+      {folderDialog && (
+        <FolderDialog
+          title={
+            folderDialog.mode === "edit"
+              ? "Edit folder"
+              : folderDialog.parentId
+                ? "New sub-folder"
+                : "New folder"
+          }
+          confirmLabel={folderDialog.mode === "edit" ? "Save" : "Create"}
+          initial={folderDialog.mode === "edit" ? folderDialog.folder : undefined}
+          onSubmit={submitFolder}
+          onClose={() => setFolderDialog(null)}
+        />
+      )}
+
       {toast && (
         <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-elevated px-4 py-2 text-xs font-medium text-ink shadow-lg">
           {toast}
         </div>
       )}
 
-      {/* Modals */}
       {captureOpen && (
         <CaptureModal
           folders={data.folders}
@@ -306,7 +459,6 @@ export function Recall() {
       )}
       {detailItem && (
         <ItemDetailModal
-          // Re-read the latest version of the item from data so edits reflect.
           item={data.items.find((i) => i.id === detailItem.id) ?? detailItem}
           folders={data.folders}
           onClose={() => setDetailItem(null)}
@@ -322,25 +474,6 @@ export function Recall() {
           }}
         />
       )}
-    </div>
-  );
-}
-
-function EmptyState({ hasData, onAdd }: { hasData: boolean; onAdd: () => void }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-line bg-panel/50 py-16 text-center">
-      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/15 text-brand">
-        <Icon.Sparkles width={22} height={22} />
-      </div>
-      <h3 className="text-sm font-semibold text-ink">{hasData ? "Nothing matches here" : "Your second brain is empty"}</h3>
-      <p className="mx-auto mt-1 max-w-xs text-xs text-ink-muted">
-        {hasData
-          ? "Try a different folder, tag, or search — or capture something new."
-          : "Capture a note, a link, or an image and Recall files and tags it for you."}
-      </p>
-      <button onClick={onAdd} className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-2">
-        <Icon.Plus width={16} height={16} /> Capture something
-      </button>
     </div>
   );
 }

@@ -8,7 +8,7 @@
 
 import type { Folder, Item, ScoredItem, SearchResult } from "./types";
 
-const FIELD_WEIGHTS = { title: 6, tag: 5, summary: 2, body: 1 } as const;
+const FIELD_WEIGHTS = { title: 6, tag: 5, field: 4, summary: 2, body: 1, extract: 1 } as const;
 
 function tokenize(q: string): string[] {
   return q
@@ -24,18 +24,36 @@ function scoreItem(item: Item, tokens: string[], phrase: string): number {
   const summary = item.summary.toLowerCase();
   const body = item.body.toLowerCase();
   const tags = item.tags.map((t) => t.toLowerCase());
+  // Structured record values (host, provider, domain, username, deploy cmd…)
+  // plus the URL. `item.secret` is deliberately never read here — an encrypted
+  // password must not be searchable, and it is unreadable while locked anyway.
+  const fieldText = [
+    ...Object.values(item.fields ?? {}),
+    item.url ?? "",
+    item.kind,
+  ]
+    .join(" ")
+    .toLowerCase();
+  // Text read out of the file itself — a PDF's contents, a described
+  // screenshot. Lowest weight (it is long, so it matches easily) but it is what
+  // lets you find a document by something that was only ever inside it.
+  const extract = (item.extract ?? "").toLowerCase();
   let score = 0;
 
   for (const tok of tokens) {
     if (title.includes(tok)) score += FIELD_WEIGHTS.title;
     if (tags.some((t) => t.includes(tok))) score += FIELD_WEIGHTS.tag;
+    if (fieldText.includes(tok)) score += FIELD_WEIGHTS.field;
     if (summary.includes(tok)) score += FIELD_WEIGHTS.summary;
     if (body.includes(tok)) score += FIELD_WEIGHTS.body;
+    if (extract.includes(tok)) score += FIELD_WEIGHTS.extract;
   }
   // Whole-phrase bonus for a tighter match.
   if (phrase.length > 2) {
     if (title.includes(phrase)) score += 5;
+    if (fieldText.includes(phrase)) score += 4;
     if (body.includes(phrase)) score += 2;
+    if (extract.includes(phrase)) score += 2;
   }
   return score;
 }
@@ -85,11 +103,18 @@ export function relatedItems(item: Item, items: Item[], limit = 5): Item[] {
     .map((x) => x.o);
 }
 
-/** Top candidate items for a question — feeds the agent's retrieval step. */
+/**
+ * Top candidate items for a question — feeds the agent's retrieval step.
+ *
+ * Credentials are excluded outright. The agent posts its candidates to the AI
+ * Gateway, and a saved login's title and username have no business leaving the
+ * device just because the question happened to match them.
+ */
 export function retrieveForQuestion(query: string, data: { items: Item[]; folders: Folder[] }, limit = 6): Item[] {
-  const result = search(query, data);
+  const safe = data.items.filter((i) => i.kind !== "credential");
+  const result = search(query, { items: safe, folders: data.folders });
   const hits = result.items.slice(0, limit).map((s) => s.item);
   if (hits.length > 0) return hits;
   // Fall back to most-recent so the agent always has something to reason over.
-  return [...data.items].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+  return [...safe].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
 }

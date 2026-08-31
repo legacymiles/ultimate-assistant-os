@@ -18,6 +18,7 @@ interface Props {
 export function ItemDetailModal({ item, folders, onClose, onChange, onDeleted, onAsk }: Props) {
   const [tags, setTags] = useState<string[]>(item.tags);
   const [tagInput, setTagInput] = useState("");
+  const [extractOpen, setExtractOpen] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -91,6 +92,40 @@ export function ItemDetailModal({ item, folders, onClose, onChange, onDeleted, o
 
           {item.body && (
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{item.body}</p>
+          )}
+
+          {/* What Recall read out of the file — the reason it is retrievable */}
+          {item.extract && (
+            <div className="rounded-xl border border-line bg-canvas">
+              <button
+                onClick={() => setExtractOpen((v) => !v)}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left"
+              >
+                <Icon.Chevron
+                  width={12}
+                  height={12}
+                  className={"text-ink-faint transition-transform " + (extractOpen ? "rotate-90" : "")}
+                />
+                <span className="text-[11px] font-medium uppercase tracking-wider text-ink-faint">
+                  Read from this file
+                </span>
+                <span className="ml-auto text-[10px] text-ink-faint">
+                  {item.extract.length.toLocaleString()} chars indexed
+                </span>
+              </button>
+              {extractOpen && (
+                <pre className="max-h-64 overflow-auto whitespace-pre-wrap border-t border-line-soft px-3 py-2 font-mono text-[11px] leading-relaxed text-ink-muted">
+                  {item.extract}
+                </pre>
+              )}
+            </div>
+          )}
+
+          {item.attachment && item.extractStatus === "unsupported" && (
+            <p className="rounded-lg border border-line bg-canvas px-3 py-2 text-[11px] text-ink-faint">
+              Stored but not read — video is kept as-is, and images need an AI key to be described.
+              You can still find this by its filename, folder and tags.
+            </p>
           )}
 
           {/* Tags */}

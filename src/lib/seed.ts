@@ -7,6 +7,12 @@ import {
   amheKnowledge,
   amheVersions,
 } from "./seed-content/amhe";
+import {
+  recallDetailed,
+  recallFeatures,
+  recallKnowledge,
+  recallVersions,
+} from "./seed-content/recall";
 
 // ---------------------------------------------------------------------------
 // Projects Timeline auto-population.
@@ -34,8 +40,19 @@ export function catalogToProject(c: CatalogProject): Project {
     knowledge: [],
   };
 
-  // Rich seed enrichment for specific projects
-  if (c.slug === "amhe") {
+  applyEnrichment(base);
+  return base;
+}
+
+/**
+ * Rich, hand-written content for projects that have it.
+ * Kept separate from catalogToProject so it can also be applied later, as a
+ * backfill onto projects that were seeded before the content was written.
+ */
+export function applyEnrichment(base: Project): boolean {
+  const projectId = base.id;
+
+  if (base.catalog_slug === "amhe") {
     base.detailed = amheDetailed();
     base.features = amheFeatures(projectId);
     const versions = amheVersions(projectId);
@@ -44,9 +61,49 @@ export function catalogToProject(c: CatalogProject): Project {
     }
     base.versions = versions;
     base.knowledge = amheKnowledge(projectId);
+    return true;
   }
 
-  return base;
+  if (base.catalog_slug === "recall") {
+    base.detailed = recallDetailed();
+    base.features = recallFeatures(projectId);
+    base.versions = recallVersions(projectId);
+    base.knowledge = recallKnowledge(projectId);
+    return true;
+  }
+
+  return false;
+}
+
+/** True when a project still looks exactly as the catalog seeded it. */
+export function isPristine(p: Project): boolean {
+  return (
+    !p.detailed?.trim() &&
+    p.features.length === 0 &&
+    p.versions.length === 0 &&
+    p.knowledge.length === 0
+  );
+}
+
+/**
+ * Backfill rich content onto catalog projects the user has never touched.
+ * Only ever fills a project that is completely empty, so a project someone has
+ * written into is never overwritten.
+ */
+export function backfillEnrichment(projects: Project[]): boolean {
+  let changed = false;
+  for (const p of projects) {
+    if (!p.catalog_slug || !isPristine(p)) continue;
+    const c = PROJECTS.find((x) => x.slug === p.catalog_slug);
+    if (applyEnrichment(p)) {
+      // The stored overview is the older catalog copy; refresh it too, since a
+      // pristine project has no user edits to protect.
+      if (c) p.overview = c.overview;
+      p.updated_at = nowIso();
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 /** Initial set of Timeline projects derived from the hub catalog. */

@@ -58,10 +58,19 @@ export async function askAgent(question: string, data: RecallData): Promise<Agen
           title: it.title,
           summary: it.summary,
           body: it.body.slice(0, 1200),
+          // The text read out of the file itself — this is what lets the agent
+          // answer from the CONTENTS of a PDF or a screenshot, not its name.
+          extract: it.extract?.slice(0, 2000),
+          kind: it.kind,
           folder: folderPathString(data.folders, it.folderId),
           tags: it.tags,
         })),
         folderPaths: folderPaths(data.folders),
+        // Folder ids so the agent can propose rename/move/merge/delete on them.
+        folders: data.folders.map((f) => ({
+          id: f.id,
+          path: folderPathString(data.folders, f.id),
+        })),
       }),
     });
     if (res.ok) {

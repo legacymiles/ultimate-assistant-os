@@ -5,7 +5,8 @@ import { Icon } from "../icons";
 import { askAgent } from "@/lib/recall/agent";
 import { executeAction, folderPathString } from "@/lib/recall/store";
 import { uid } from "@/lib/utils";
-import type { AgentAction, ChatMessage, Item, RecallData } from "@/lib/recall/types";
+import { DESTRUCTIVE_ACTIONS } from "@/lib/recall/types";
+import type { AgentAction, ChatMessage, Folder, Item, RecallData } from "@/lib/recall/types";
 
 interface Props {
   open: boolean;
@@ -19,19 +20,56 @@ interface Props {
   onAskConsumed: () => void;
 }
 
-function actionLabel(action: AgentAction, items: Item[]): string {
+function actionLabel(action: AgentAction, items: Item[], folders: Folder[]): string {
   const titleOf = (id: string) => items.find((i) => i.id === id)?.title ?? "item";
+  const folderOf = (id: string) => folders.find((f) => f.id === id)?.name ?? "folder";
+  const pathOf = (p: string[]) => p.join(" › ") || "Inbox";
+
   switch (action.type) {
     case "create_folder":
-      return `Create folder ${action.path.join(" › ")}`;
+      return `Create folder ${pathOf(action.path)}`;
     case "move_item":
-      return `Move “${titleOf(action.itemId)}” → ${action.path.join(" › ")}`;
+      return `Move “${titleOf(action.itemId)}” → ${pathOf(action.path)}`;
+    case "move_items":
+      return `Move ${action.itemIds.length} items → ${pathOf(action.path)}`;
     case "add_tags":
       return `Tag “${titleOf(action.itemId)}” with ${action.tags.join(", ")}`;
     case "remove_tags":
       return `Remove ${action.tags.join(", ")} from “${titleOf(action.itemId)}”`;
     case "create_note":
-      return `Create note “${action.title}” in ${action.path.join(" › ") || "Inbox"}`;
+      return `Create note “${action.title}” in ${pathOf(action.path)}`;
+    case "rename_item":
+      return `Rename “${titleOf(action.itemId)}” → “${action.title}”`;
+    case "edit_note":
+      return `Rewrite the body of “${titleOf(action.itemId)}”`;
+    case "rename_folder":
+      return `Rename folder “${folderOf(action.folderId)}” → “${action.name}”`;
+    case "move_folder":
+      return `Move folder “${folderOf(action.folderId)}” → ${pathOf(action.path)}`;
+    case "merge_folders":
+      return `Merge “${folderOf(action.sourceId)}” into ${pathOf(action.targetPath)}`;
+    case "delete_item":
+      return `Delete “${titleOf(action.itemId)}”`;
+    case "delete_folder":
+      return `Delete folder “${folderOf(action.folderId)}”`;
+    default:
+      return "Unknown action";
+  }
+}
+
+/** Extra warning line for the actions that remove or overwrite something. */
+function actionCaveat(action: AgentAction): string | null {
+  switch (action.type) {
+    case "delete_item":
+      return "Permanent.";
+    case "delete_folder":
+      return "The folder goes; everything inside moves up to its parent.";
+    case "merge_folders":
+      return "The source folder is removed once its contents move across.";
+    case "edit_note":
+      return "Replaces the existing body.";
+    default:
+      return null;
   }
 }
 
@@ -89,6 +127,25 @@ export function AgentChat({ open, onOpen, onClose, data, onData, onOpenItem, ask
     setResolved((r) => ({ ...r, [msgId]: { ...r[msgId], [idx]: "dismissed" } }));
   }
 
+  /** Run a whole plan in order — each step sees the previous step's result. */
+  function applyAll(msgId: string, actions: AgentAction[]) {
+    const marks: Record<number, "applied" | "dismissed"> = {};
+    let next: RecallData | null = null;
+    actions.forEach((a, idx) => {
+      if (resolved[msgId]?.[idx]) return;
+      next = executeAction(a).data;
+      marks[idx] = "applied";
+    });
+    if (next) onData(next);
+    setResolved((r) => ({ ...r, [msgId]: { ...r[msgId], ...marks } }));
+  }
+
+  function dismissAll(msgId: string, count: number) {
+    const marks: Record<number, "applied" | "dismissed"> = {};
+    for (let i = 0; i < count; i++) if (!resolved[msgId]?.[i]) marks[i] = "dismissed";
+    setResolved((r) => ({ ...r, [msgId]: { ...r[msgId], ...marks } }));
+  }
+
   const citationItem = (id: string) => data.items.find((i) => i.id === id);
 
   if (!open) {
@@ -126,11 +183,16 @@ export function AgentChat({ open, onOpen, onClose, data, onData, onOpenItem, ask
               <Icon.Sparkles width={20} height={20} />
             </div>
             <p className="text-sm font-medium text-ink">Ask anything you&apos;ve saved</p>
-            <p className="mx-auto mt-1 max-w-[240px] text-xs text-ink-muted">
-              I&apos;ll search your notes, answer with sources, and can tidy things up when you ask.
+            <p className="mx-auto mt-1 max-w-[250px] text-xs text-ink-muted">
+              I search everything you&apos;ve saved — including the text inside your PDFs, docs and
+              images — answer with sources, and can reorganise things. Every change is shown for
+              your confirmation first.
             </p>
             <div className="mt-4 flex flex-col gap-1.5">
-              {["What did I decide about game engines?", "Show my open-source video models"].map((s) => (
+              {[
+                "What do I have saved about this?",
+                "Move the PDFs in this folder into a Docs sub-folder",
+              ].map((s) => (
                 <button
                   key={s}
                   onClick={() => send(s)}
@@ -172,30 +234,74 @@ export function AgentChat({ open, onOpen, onClose, data, onData, onOpenItem, ask
                   </div>
                 )}
 
-                {/* proposed actions */}
+                {/* proposed changes — nothing runs until you say so */}
                 {m.actions && m.actions.length > 0 && (
                   <div className="mt-2 space-y-1.5 rounded-xl border border-line bg-canvas p-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-faint">Proposed changes</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
+                        {m.actions.length === 1
+                          ? "Proposed change"
+                          : `Plan · ${m.actions.length} changes`}
+                      </p>
+                      {m.actions.some((_, i) => !resolved[m.id]?.[i]) && (
+                        <span className="ml-auto flex items-center gap-1">
+                          <button
+                            onClick={() => applyAll(m.id, m.actions as AgentAction[])}
+                            className="rounded-md bg-brand px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-brand-2"
+                          >
+                            Apply all
+                          </button>
+                          <button
+                            onClick={() => dismissAll(m.id, (m.actions as AgentAction[]).length)}
+                            className="rounded-md border border-line px-2 py-0.5 text-[11px] text-ink-muted hover:text-ink"
+                          >
+                            Dismiss all
+                          </button>
+                        </span>
+                      )}
+                    </div>
                     {m.actions.map((a, idx) => {
                       const state = resolved[m.id]?.[idx];
+                      const destructive = DESTRUCTIVE_ACTIONS.has(a.type);
+                      const caveat = actionCaveat(a);
                       return (
-                        <div key={idx} className="flex items-center gap-2 text-xs">
-                          <span className={"min-w-0 flex-1 truncate " + (state ? "text-ink-faint line-through" : "text-ink-muted")}>
-                            {actionLabel(a, data.items)}
+                        <div key={idx} className="flex items-start gap-2 text-xs">
+                          <span
+                            className={
+                              "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full " +
+                              (state ? "bg-ink-faint/40" : destructive ? "bg-red-400" : "bg-brand")
+                            }
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span
+                              className={
+                                "block " + (state ? "text-ink-faint line-through" : "text-ink-muted")
+                              }
+                            >
+                              {actionLabel(a, data.items, data.folders)}
+                            </span>
+                            {caveat && !state && (
+                              <span className="block text-[10px] text-red-400/70">{caveat}</span>
+                            )}
                           </span>
                           {state === "applied" ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-core">
+                            <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-core">
                               <Icon.Check width={12} height={12} /> Done
                             </span>
                           ) : state === "dismissed" ? (
-                            <span className="text-[11px] text-ink-faint">Dismissed</span>
+                            <span className="shrink-0 text-[11px] text-ink-faint">Dismissed</span>
                           ) : (
                             <span className="flex shrink-0 items-center gap-1">
                               <button
                                 onClick={() => applyAction(m.id, idx, a)}
-                                className="rounded-md bg-brand px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-brand-2"
+                                className={
+                                  "rounded-md px-2 py-0.5 text-[11px] font-semibold text-white " +
+                                  (destructive
+                                    ? "bg-red-500 hover:bg-red-600"
+                                    : "bg-brand hover:bg-brand-2")
+                                }
                               >
-                                Apply
+                                {destructive ? "Confirm" : "Apply"}
                               </button>
                               <button
                                 onClick={() => dismissAction(m.id, idx)}

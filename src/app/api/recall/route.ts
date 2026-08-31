@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { callerIsMember } from "@/lib/recall/lists/session";
 
 // POST /api/recall
 // Stages:
@@ -18,11 +19,32 @@ interface Candidate {
   title: string;
   summary: string;
   body: string;
+  /** Text read out of the file/page itself (PDF contents, described image). */
+  extract?: string;
+  kind?: string;
   folder: string;
   tags: string[];
 }
 
+interface FolderRef {
+  id: string;
+  path: string;
+}
+
+/**
+ * Family members get the Lists board and nothing else, so the RAG side refuses
+ * them here rather than only hiding the UI.
+ */
+async function memberBlocked(): Promise<NextResponse | null> {
+  return (await callerIsMember())
+    ? NextResponse.json({ error: "This part of Recall is not shared." }, { status: 403 })
+    : null;
+}
+
 export async function POST(req: Request) {
+  const blocked = await memberBlocked();
+  if (blocked) return blocked;
+
   let body: {
     stage?: string;
     url?: string;
@@ -32,6 +54,7 @@ export async function POST(req: Request) {
     existingTags?: string[];
     question?: string;
     candidates?: Candidate[];
+    folders?: FolderRef[];
   };
   try {
     body = await req.json();
@@ -173,33 +196,61 @@ async function classifyWithLLM(
 // ----- Stage: agent --------------------------------------------------------
 
 async function agentWithLLM(
-  body: { question?: string; candidates?: Candidate[]; folderPaths?: string[] },
+  body: {
+    question?: string;
+    candidates?: Candidate[];
+    folderPaths?: string[];
+    folders?: FolderRef[];
+  },
   apiKey: string,
 ) {
   const candidates = body.candidates ?? [];
   const system =
     "You are the user's personal knowledge assistant (RAG over their own saved " +
-    "notes). Answer the question USING ONLY the provided candidate items; cite the " +
-    "ids you used. If the notes don't cover it, say so plainly — never invent facts. " +
-    "Be concise and direct.\n\n" +
-    "You may ALSO propose actions to organise the knowledge base, but ONLY when the " +
-    "user clearly asks you to (e.g. 'tidy these', 'make a folder', 'tag this'). Every " +
-    "action is shown to the user for confirmation before it runs — never assume it " +
-    "happened. Allowed actions:\n" +
+    "notes, files and records). Answer the question USING ONLY the provided " +
+    "candidate items; cite the ids you used. Each candidate may carry an EXTRACT " +
+    "— text read out of the file itself (a PDF's contents, a described " +
+    "screenshot). Treat the extract as the item's real content and quote from it " +
+    "when it answers the question. If the candidates don't cover it, say so " +
+    "plainly — never invent facts. Be concise and direct.\n\n" +
+    "You may ALSO propose actions to reorganise the knowledge base when the user " +
+    "asks you to (e.g. 'put these bots in my FX Bots folder', 'tidy this up', " +
+    "'merge these two folders'). EVERY action is shown to the user for explicit " +
+    "confirmation before it runs — never state that you have already done it; say " +
+    "what you are proposing. Prefer the fewest, largest actions: use move_items " +
+    "for a batch rather than many move_item. Only propose deletions when the user " +
+    "clearly asked for them.\n\n" +
+    "Allowed actions:\n" +
     '  {"type":"create_folder","path":string[]}\n' +
     '  {"type":"move_item","itemId":string,"path":string[]}\n' +
+    '  {"type":"move_items","itemIds":string[],"path":string[]}\n' +
     '  {"type":"add_tags","itemId":string,"tags":string[]}\n' +
     '  {"type":"remove_tags","itemId":string,"tags":string[]}\n' +
     '  {"type":"create_note","title":string,"body":string,"path":string[],"tags":string[]}\n' +
-    "Use itemId values only from the candidates. Respond ONLY with minified JSON: " +
-    '{"answer":string,"citations":string[],"actions":object[]}. Use [] when there are no actions.';
+    '  {"type":"rename_item","itemId":string,"title":string}\n' +
+    '  {"type":"edit_note","itemId":string,"body":string}\n' +
+    '  {"type":"rename_folder","folderId":string,"name":string}\n' +
+    '  {"type":"move_folder","folderId":string,"path":string[]}\n' +
+    '  {"type":"merge_folders","sourceId":string,"targetPath":string[]}\n' +
+    '  {"type":"delete_item","itemId":string}\n' +
+    '  {"type":"delete_folder","folderId":string}\n' +
+    "Use itemId values only from the candidates and folderId values only from the " +
+    "FOLDERS list. `path` is an array of folder names from the root. Respond ONLY " +
+    'with minified JSON: {"answer":string,"citations":string[],"actions":object[]}. ' +
+    "Use [] when there are no actions.";
   const candidateBlock = candidates
-    .map(
-      (c) =>
-        `[${c.id}] ${c.title} (folder: ${c.folder}; tags: ${c.tags.join(", ") || "none"})\n${c.summary || c.body.slice(0, 200)}`,
-    )
+    .map((c) => {
+      const head = `[${c.id}] ${c.title} (${c.kind ?? "note"}; folder: ${c.folder}; tags: ${c.tags.join(", ") || "none"})`;
+      const own = c.summary || c.body.slice(0, 200);
+      const read = c.extract ? `\nEXTRACT: ${c.extract}` : "";
+      return `${head}\n${own}${read}`;
+    })
     .join("\n\n");
+  const folderBlock = (body.folders ?? [])
+    .map((f) => `[${f.id}] ${f.path}`)
+    .join("\n");
   const user =
+    `FOLDERS (id \u2192 path):\n${folderBlock || "(none)"}\n\n` +
     `FOLDER TREE:\n${(body.folderPaths ?? []).join("\n") || "(none)"}\n\n` +
     `CANDIDATE ITEMS:\n${candidateBlock || "(none saved yet)"}\n\n` +
     `QUESTION:\n${body.question ?? ""}`;

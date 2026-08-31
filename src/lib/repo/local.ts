@@ -1,5 +1,5 @@
 import { PROJECTS } from "../catalog";
-import { catalogToProject, seedProjects } from "../seed";
+import { backfillEnrichment, catalogToProject, seedProjects } from "../seed";
 import type { Feature, Project, ProjectFile, Version } from "../types";
 import { nowIso, uid } from "../utils";
 import type {
@@ -60,12 +60,17 @@ export class LocalRepo implements Repo {
 
       window.localStorage.setItem(SEEN_KEY, JSON.stringify([...seen]));
 
-      if (newOnes.length) {
-        const next = [...newOnes, ...projects];
+      const next = newOnes.length ? [...newOnes, ...projects] : projects;
+
+      // Projects seeded before their rich writeup existed are still empty
+      // shells. Fill them in — but only while they are untouched, so nothing
+      // the user has written is ever overwritten.
+      const backfilled = backfillEnrichment(next);
+
+      if (newOnes.length || backfilled) {
         this.save(next);
-        return next;
       }
-      return projects;
+      return next;
     } catch {
       return seedProjects();
     }

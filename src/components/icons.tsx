@@ -221,4 +221,135 @@ export const Icon = {
       <path d="M5 9 2 12l3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20" />
     </svg>
   ),
+  Lock: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <rect x="4" y="10" width="16" height="11" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+    </svg>
+  ),
+  Unlock: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <rect x="4" y="10" width="16" height="11" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 7.5-2" />
+    </svg>
+  ),
+  Eye: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z" />
+      <circle cx="12" cy="12" r="2.6" />
+    </svg>
+  ),
+  EyeOff: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M10.6 6.2A9.9 9.9 0 0 1 12 6c6.4 0 10 6 10 6a17 17 0 0 1-3 3.6M6.3 7.9A17 17 0 0 0 2 12s3.6 6 10 6a10 10 0 0 0 4-.8" />
+      <path d="m3 3 18 18" />
+    </svg>
+  ),
+  Server: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <rect x="3" y="4" width="18" height="7" rx="2" />
+      <rect x="3" y="13" width="18" height="7" rx="2" />
+      <path d="M7 7.5h.01M7 16.5h.01" />
+    </svg>
+  ),
+  Globe: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18Z" />
+    </svg>
+  ),
+  Check2: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <rect x="3" y="3" width="18" height="18" rx="4" />
+      <path d="m8 12 3 3 5-6" />
+    </svg>
+  ),
+  Square: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <rect x="3" y="3" width="18" height="18" rx="4" />
+    </svg>
+  ),
+  Key: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <circle cx="8" cy="15" r="4" />
+      <path d="m10.8 12.2 8-8M17 5l2.5 2.5M14.5 7.5 17 10" />
+    </svg>
+  ),
+  Shield: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M12 3l7.5 3v5.5c0 4.4-3.1 8.2-7.5 9.5-4.4-1.3-7.5-5.1-7.5-9.5V6L12 3Z" />
+    </svg>
+  ),
+  Grid: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <rect x="3" y="3" width="7.5" height="7.5" rx="2" />
+      <rect x="13.5" y="3" width="7.5" height="7.5" rx="2" />
+      <rect x="3" y="13.5" width="7.5" height="7.5" rx="2" />
+      <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" />
+    </svg>
+  ),
+  Sidebar: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9.5 4v16" />
+    </svg>
+  ),
+  Cart: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M2.5 3h2l2.2 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L20 7H5.6" />
+      <circle cx="9.5" cy="20" r="1.4" />
+      <circle cx="17" cy="20" r="1.4" />
+    </svg>
+  ),
+  Calendar: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <rect x="3" y="5" width="18" height="16" rx="2.5" />
+      <path d="M3 10h18M8 3v4M16 3v4" />
+    </svg>
+  ),
+  Bulb: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M9 18h6M10 21h4" />
+      <path d="M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.9v.2h5v-.2c0-.8.4-1.5 1-1.9A6 6 0 0 0 12 3Z" />
+    </svg>
+  ),
+  Target: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5" />
+      <circle cx="12" cy="12" r="1.4" />
+    </svg>
+  ),
+  Cash: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
+      <circle cx="12" cy="12" r="2.6" />
+      <path d="M6 10v4M18 10v4" />
+    </svg>
+  ),
+  Note: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M5 3.5h14a1 1 0 0 1 1 1V16l-4.5 4.5H5a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1Z" />
+      <path d="M20 15.5h-4.5v5M8 8.5h8M8 12.5h5" />
+    </svg>
+  ),
+  Users: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20a6.5 6.5 0 0 1 13 0" />
+      <path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M17.5 14.4A6.5 6.5 0 0 1 21.5 20" />
+    </svg>
+  ),
+  Flag: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M5 21V4" />
+      <path d="M5 4.5h11l-2 3.5 2 3.5H5" />
+    </svg>
+  ),
+  ListChecks: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="m3 6 1.6 1.6L7.5 4.5M3 15l1.6 1.6 2.9-3.1" />
+      <path d="M11 6.5h10M11 15.5h10" />
+    </svg>
+  ),
 };
