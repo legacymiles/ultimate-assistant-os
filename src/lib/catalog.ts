@@ -47,19 +47,71 @@ export interface CatalogProject {
 
 export const PROJECTS: CatalogProject[] = [
   {
+    slug: "friends-night-out",
+    title: "Friends Night Out",
+    tag: "Find the night nobody posted about",
+    category: "Apps",
+    overview:
+      "An event finder built around the events you never hear about. Set a point on the map and a radius, " +
+      "and it works two sides at once. One side is what's happening: concerts, festivals, church " +
+      "gatherings, farmers markets and block parties, grouped into this weekend, this week, this month. " +
+      "The other is what you can go do — the standing and seasonal stuff that has no date because it's " +
+      "always there: ice rinks, climbing walls, stables, zip lines, kayak launches, drive-ins. Free, paid " +
+      "and donation are colour-coded on every card, and \"price unknown\" stays its own honest grey rather " +
+      "than being guessed at. The part that makes it worth having is the obscurity score: after results " +
+      "from every source are merged, an event carried by one church bulletin's calendar outranks the " +
+      "stadium tour that six sites already told you about, so hidden gems sort to the top instead of the " +
+      "bottom. Sources are a ticket API, any RSS or iCal calendar you point it at, an AI sweep of your " +
+      "area, and an inbox where a pasted Instagram link or a photographed flyer becomes a real event. " +
+      "A date-night generator pairs an activity, an event and a food stop into a whole evening with a " +
+      "price estimate. Local-first, and genuinely usable with no API keys at all.",
+    status: "live",
+    appUrl: "/apps/friends-night-out",
+    iconStyle: "aurora",
+    hue: [315, 190],
+  },
+  {
+    slug: "ai-rankings",
+    title: "AI Rankings",
+    tag: "Your tool database",
+    category: "AI",
+    overview:
+      "A private database of every tool worth remembering — AI models first, but also the editors, " +
+      "platforms, design apps, media tools, security and trading software around them. It reads like a " +
+      "database because it is one: a section tree down the left, a dense sortable table in the middle, " +
+      "and the full record on the right. Each row carries the three facts that decide whether you reach " +
+      "for it — what it costs you, whether the code or weights are open and it runs on your own machine, " +
+      "and whether using it from code needs an API key you may or may not already hold. Those are three " +
+      "independent axes on purpose: an open model with a paid hosted tier is a different thing from a " +
+      "free website. Every record is stamped with the date you added it, so a two-year-old bookmark stops " +
+      "passing for current. The record panel is where it earns its keep: freeform notes plus a list of " +
+      "features you mark love / good / missing / dealbreaker — and that list is the written case for the " +
+      "rank you drag it to, so the tool that lost the benchmark but owns one feature you rely on holds " +
+      "its slot and says why. One button files a record for you: with an AI key it reads the tool and " +
+      "proposes a section, tags and licensing to accept or discard, and without one a keyword pass does " +
+      "the same job offline. Seeded with ~95 real tools, fully editable, local-first, JSON in and out.",
+    status: "live",
+    appUrl: "/apps/ai-rankings",
+    iconStyle: "rings",
+    hue: [275, 200],
+  },
+  {
     slug: "recall",
     title: "Recall",
     tag: "Personal RAG second brain",
     category: "AI",
     overview:
-      "Never lose a thing you found, and never dig for it. Recall is a personal RAG second brain: capture a " +
-      "note, a link, or an image and it reads the content, then proposes exactly where to file it and which " +
-      "tags to add — you accept or tweak in one tap, so folders and subfolders grow themselves (Game Dev › " +
-      "Engines, AI & Models › Video Models, Cooking, Restaurants). Find anything by hybrid search that ranks " +
-      "meaning, not just names — type “game” and get the folder, the tags and the best entries — or ask the " +
-      "expandable agent, which answers from your own notes with cited sources and can tidy things up on your " +
-      "say-so (create folders, re-file, tag), always with a confirm. Import from Google Drive with the file " +
-      "picker. Local-first so it works with zero setup; gets smarter when your AI Gateway key is present.",
+      "A private second brain where a folder is a page, not a filter. Home is a grid of folder tiles and " +
+      "nothing else; open one and it holds only the sections you asked for — sub-folders as tiles, notes, " +
+      "to-dos, links & files, logins, websites — added from a single + menu, so a folder that holds two " +
+      "things is two lines tall. Drop in PDFs, docs, images or video and Recall reads them (everything but " +
+      "video), so one search box finds a phrase that only ever existed inside a document. Passwords are " +
+      "sealed with AES-GCM under a master password and never leave the device or reach the AI. The agent " +
+      "answers from your own content with sources and can reorganise across 13 actions — always as a plan " +
+      "you confirm first. Alongside it, a shared Lists board for the daily churn — to-do, to-buy, bills, " +
+      "reminders — colour-coded red/orange/yellow by urgency and by who added each row. Family join through " +
+      "a one-time invite link, get the board and nothing else, and can only delete their own; you can delete " +
+      "anything. Local-first with zero setup; sharper with an AI Gateway key.",
     status: "live",
     appUrl: "/apps/recall",
     iconStyle: "aurora",
