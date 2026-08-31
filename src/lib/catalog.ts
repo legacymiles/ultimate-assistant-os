@@ -71,6 +71,29 @@ export const PROJECTS: CatalogProject[] = [
     hue: [315, 190],
   },
   {
+    slug: "tiktok-dances",
+    title: "Dance Vault",
+    tag: "The wall that never stops moving",
+    category: "Video",
+    overview:
+      "A living wall of TikTok dances. Rows of vertical tiles drift sideways forever, alternating " +
+      "direction; hover one and its row eases to a halt while that dance plays. Every record keeps " +
+      "the name people actually say, the song behind it, the choreographer who made it where that " +
+      "is documented, the year it broke, and your own score out of 100 — with unrated kept as its " +
+      "own honest state rather than collapsed into a zero. Sorting by score turns the front of the " +
+      "wall into your leaderboard, so there is no separate rankings page to keep in sync. " +
+      "The part that makes it trustworthy is what it refuses to do: every video is resolved by " +
+      "search, verified through a keyless oEmbed call, and then checked for whether it will " +
+      "actually play inside an embed — a dance that survives none of that is dropped rather than " +
+      "shipped as a tile that looks fine and plays nothing. Dance of the Day adds one new viral " +
+      "dance each morning through the same gate, so a name a model invented can never enter the " +
+      "vault. Runs with no API key at all; a key only buys better-named picks.",
+    status: "live",
+    appUrl: "/apps/tiktok-dances",
+    iconStyle: "pulse",
+    hue: [335, 190],
+  },
+  {
     slug: "ai-rankings",
     title: "AI Rankings",
     tag: "Your tool database",
