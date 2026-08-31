@@ -3,7 +3,7 @@
 **Date:** 2026-08-30
 **Route:** `/apps/friends-night-out`
 **Category:** Apps
-**Status:** approved, ready to plan
+**Status:** built and committed. Revised after two rounds of adversarial review — see section 11 for what changed and why.
 
 ---
 
@@ -233,3 +233,109 @@ results; styled enough to sit beside Recall and AI Rankings as a portfolio tile.
 - Eventbrite organizer-follow and Meetup Pro adapters (stubs only).
 - Native map view — distance is numeric in v1.
 - Push notifications and calendar export.
+
+
+---
+
+## 11. What the gauntlet changed
+
+The design above was reviewed twice against named references — ra.co for dated
+discovery, atlasobscura.com/things-to-do for standing discovery — by critics
+given the design blind. Both rounds went against it. These are the changes that
+came out, recorded because each one fixes a failure the original design could
+not see.
+
+### 11.1 Recurrence would have destroyed the Hidden Gems view
+
+Institutional calendars are mostly weekly: library storytime, Tuesday trivia,
+Sunday service. Every instance is single-source, community-weighted and in a
+small room — a near-perfect obscurity score, fifty-two times a year. The
+original design had no recurrence handling at all, so the marquee view would
+have degenerated into the same six recurring things within a week of use.
+
+Fixed by collapsing instances that share a normalized title and venue into one
+card with a derived cadence label, and multiplying obscurity by a factor that
+decays with occurrence count. Something that happens every week is by definition
+not something you are missing.
+
+### 11.2 Obscurity could not tell "obscure" from "invented"
+
+The original score treated a single-source event as maximally obscure. But a
+single source is equally consistent with a genuine find and with a hallucinated
+one — so the app's most prominent surface would have been fed by its least
+verified pipeline.
+
+Split into two scores. `confidence` is independent of `obscurity`, the Hidden
+Gem badge requires both, and the AI sweep now has to cite a URL that the server
+fetches and confirms actually describes the event. Unverifiable results are
+discarded rather than down-ranked.
+
+### 11.3 The Always On board was a directory, not a discovery
+
+The original tag list — ice skating, climbing, horse riding, zip lining,
+kayaking, mini golf — is the autocomplete suggestion set. Run against a real
+2.5-million-person metro it returns about twenty-seven named venues, all of them
+places locals can already name.
+
+Rebuilt around the tags that carry surprise (ruins, lookout towers, lava tubes,
+geoglyphs, moored ships, kilns, hot springs, planetariums, drive-ins,
+hackerspaces, curling sheets), ranked by rarity computed across the result set
+rather than by distance, and each card now leads with a hook line pulled
+keylessly from OSM descriptions or Wikipedia. Measured result: 224 places in
+Asheville at 25 miles, led by a storm-memorial art installation, a historic
+railway car and a public observatory, with the bowling alley scoring 24.
+
+Four tags in the first draft did not exist (`sport=zipline`,
+`leisure=adventure_park`, `attraction=corn_maze`, `natural=waterfall`); a
+flagship category would have silently returned nothing. Every tag is now
+verified, and the dead ones are documented in-file so they cannot be re-added.
+
+### 11.4 Season was being fabricated
+
+OpenStreetMap has no venue-season field, and the obvious per-category table
+("ice rink means November to March") is wrong for most US rinks, which are
+indoor and run year-round. Dimming a year-round rink and captioning it "opens in
+November" is worse than saying nothing: confidently false AND hides a valid
+result.
+
+Season is now derived only from evidence — the venue's own `opening_hours`
+month range, then indoor tagging, then a short allowlist of inherently seasonal
+types with hedged wording. Everything else is `unknown`, and unknown never dims.
+
+### 11.5 The feed registry was the cold-start problem in disguise
+
+"Add your local calendar URLs" is work nobody does, so a new user would have
+opened the app to ticketed events only — exactly the events they could already
+find. Replaced with keyless auto-discovery: ask OSM which institutions are in
+range, read their `website` tags, probe each for a published calendar, and
+propose what is found.
+
+### 11.6 Smaller corrections
+
+- Eventbrite was wrongly written off entirely. Public *search* is dead, but
+  organizer lookup is not, and it carries a large share of small local events.
+  Pasting one link now subscribes to that organizer's whole future calendar.
+- Dedupe thresholds were too strict on titles and too loose on time. Now: exact
+  short-circuits on iCal UID and canonical URL, a weaker title threshold backed
+  by a corroborator, date-level matching for all-day items, and a hard refusal
+  to merge across different rooms at one venue.
+- Venue size became a real filter. "Something under a hundred people" is an
+  actual request that no category or price filter can express.
+- Default sort is a blend, not raw obscurity. Sorting purely by obscurity puts
+  the least-known thing first whether or not anyone could want it, which
+  reliably produces a feed of rummage sales.
+- The price chip is omitted rather than greyed on the Always On board, because
+  OSM carries a fee tag on about 1.5% of elements and a mostly-grey axis is
+  chrome, not information.
+
+### 11.7 Constraints found by building it
+
+- `overpass.osm.jp` has an expired TLS certificate and was removed from the
+  mirror pool; it surfaced as an opaque "fetch failed" on every batch.
+- `next: { revalidate }` on the Overpass POST did nothing (Next does not cache
+  POST) and, combined with an AbortSignal, made the request fail outright. An
+  in-process cache replaced it.
+- The Always On radius is capped at 25 miles. A 40-mile box across the full tag
+  table is refused with a 500 by the public Overpass instances. The alternative
+  was cutting the tag table, which trades the whole point of the board for a
+  bigger circle. Events are unaffected and still use the full radius.
