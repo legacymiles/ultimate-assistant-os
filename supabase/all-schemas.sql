@@ -461,7 +461,7 @@ create policy shares_select on public.cookbook_shares for select
   using (
     shared_by = auth.uid()
     or shared_with_user_id = auth.uid()
-    or shared_with_email = (select email from auth.users where id = auth.uid())
+    or shared_with_email = (auth.jwt() ->> 'email')
     or share_link_token is not null
   );
 drop policy if exists shares_insert on public.cookbook_shares;
