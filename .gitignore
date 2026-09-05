@@ -42,12 +42,19 @@ next-env.d.ts
 *.zip
 claude-code-backup.zip
 
-# Recall app password (salted hash, never the plaintext)
-.next-preview-*
+# Throwaway Next build dirs (preview servers, verification, deploy checks).
+.next-*
 .preview-data-*
-.next-verify
+
+# Recall app password (salted hash, never the plaintext)
 .recall-gate.json
 .recall-lists.json
+
+# STD Safe — accounts, results, and the uploaded lab reports.
+# Real health records with names and dates of birth on them. Never commit these.
+.std-safe.json
+.std-safe.json.probe
+std-safe-reports/
 
 # Dance Vault — daily picks + cached clips
 .dances-daily.json

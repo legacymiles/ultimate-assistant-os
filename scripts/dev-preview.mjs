@@ -21,6 +21,9 @@ spawn("npx", ["next", "dev", "-p", port], {
     // Same reasoning for Dance Vault: a preview run must not write today's
     // pick into the real .dances-daily.json and burn the day's search.
     DANCES_DATA_DIR: resolve(`.preview-data-${port}`),
+    // And STD Safe: a preview must never write a test account or a lab report
+    // into the real store, which holds actual health records.
+    STDSAFE_DATA_DIR: resolve(`.preview-data-${port}`),
     // Empty rather than unset: Next will not overwrite a key that already
     // exists, so this wins over RECALL_PASSWORD in .env.local.
     RECALL_PASSWORD: "",

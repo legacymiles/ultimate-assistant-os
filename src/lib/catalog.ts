@@ -47,6 +47,36 @@ export interface CatalogProject {
 
 export const PROJECTS: CatalogProject[] = [
   {
+    slug: "std-safe",
+    title: "STD Safe",
+    tag: "Provable results, honest about what they don't prove",
+    category: "Apps",
+    overview:
+      "A tracker for the STD lab reports you already receive, and a way to show someone what you " +
+      "were tested for, what came back, and how long ago the sample was taken. Upload the PDF from " +
+      "STDcheck, Quest, Labcorp or MyChart and it is read server-side — lab, panel, collection date " +
+      "and each of ten results — then handed to you on a review screen where nothing is saved until " +
+      "you confirm every line. A phone photo goes to a vision model instead, and when there is no " +
+      "key it says so and drops to manual entry rather than pretending. The word \"clean\" appears " +
+      "nowhere in it. Status is derived per infection rather than per record, because someone may " +
+      "have had HIV drawn two weeks ago and syphilis six months ago, and one overall date would hide " +
+      "that; every row carries its own age, fresh under 30 days and stale past 90, and the ones " +
+      "nobody tested for stay on screen in grey so a two-test panel can never look like a full " +
+      "workup. Positives are first-class and carry treatment context — treated and cleared, " +
+      "undetectable, on suppressive therapy — because an undetectable viral load is not " +
+      "transmissible and flattening that into a red dot is both wrong and cruel. Sharing is a live " +
+      "handshake: you read out a six-character code, they type it, you see a preview of exactly " +
+      "what approving would show, and a yes opens it for 24 hours. Denials are silent, since a " +
+      "refusal that announces itself is a disclosure of its own, and rotating your code cuts " +
+      "everyone off at once. The report files are never shared — they carry a legal name and a date " +
+      "of birth — and no result page is without the two things it cannot prove: that the document " +
+      "is authentic, and that anything has happened since the sample was taken.",
+    status: "live",
+    appUrl: "/apps/std-safe",
+    iconStyle: "rings",
+    hue: [158, 199],
+  },
+  {
     slug: "friends-night-out",
     title: "Friends Night Out",
     tag: "Find the night nobody posted about",
