@@ -2,18 +2,28 @@
 
 import { useState } from "react";
 import { Icon } from "../icons";
-import { VIEWS } from "@/lib/ai-rankings/query";
-import type { Filters, ViewId } from "@/lib/ai-rankings/query";
+import { ADDED_PRESETS, ANY_TIME, CONTENT_FILTERS, VIEWS } from "@/lib/ai-rankings/query";
+import type {
+  AddedPreset,
+  ContentFilter,
+  Filters,
+  ViewId,
+} from "@/lib/ai-rankings/query";
 import { countsByCategory, countsByGroup, featureIndex, featureKey } from "@/lib/ai-rankings/query";
 import { groupHue } from "@/lib/ai-rankings/types";
 import type { BoardData } from "@/lib/ai-rankings/types";
 
 interface Props {
+  /** Already narrowed by the content filter — counts must agree with the table. */
   data: BoardData;
   filters: Filters;
   onFilters: (filters: Filters) => void;
   onAddGroup: (group: string) => void;
   onAddCategory: (group: string, category: string) => void;
+  content: ContentFilter;
+  onContent: (mode: ContentFilter) => void;
+  /** How many records the content filter is holding back right now. */
+  hidden: number;
 }
 
 /**
@@ -23,7 +33,16 @@ interface Props {
  * needs a key I don't have" — is one click and always in the same place,
  * rather than a row of chips to re-assemble every visit.
  */
-export function Sidebar({ data, filters, onFilters, onAddGroup, onAddCategory }: Props) {
+export function Sidebar({
+  data,
+  filters,
+  onFilters,
+  onAddGroup,
+  onAddCategory,
+  content,
+  onContent,
+  hidden,
+}: Props) {
   const groupCounts = countsByGroup(data.tools);
   const groups = Object.keys(data.tree);
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -44,6 +63,17 @@ export function Sidebar({ data, filters, onFilters, onAddGroup, onAddCategory }:
   const shownFeatures = allFeatures ? features : features.slice(0, 12);
 
   const pickView = (view: ViewId) => onFilters({ ...filters, view });
+
+  const pickAdded = (preset: AddedPreset) =>
+    onFilters({
+      ...filters,
+      added:
+        preset === "any"
+          ? ANY_TIME
+          : // The custom ends are kept when switching between presets, so
+            // flicking to "30 days" and back doesn't lose the dates you typed.
+            { ...filters.added, preset },
+    });
   const pickGroup = (group: string) => {
     setOpen((o) => ({ ...o, [group]: true }));
     onFilters({
@@ -69,6 +99,48 @@ export function Sidebar({ data, filters, onFilters, onAddGroup, onAddCategory }:
 
   return (
     <nav className="flex h-full flex-col gap-5 overflow-y-auto px-3 py-4">
+      {/* Content — above the views because it outranks them: this one narrows
+          the pool everything else, including the counts below, is measured
+          against, and it is the one setting that survives "reset". */}
+      <div>
+        <h2 className="mb-1.5 px-2 font-mono text-[10px] uppercase tracking-widest text-ink-faint">
+          Content
+        </h2>
+        <div className="flex gap-0.5 rounded-lg border border-line bg-canvas p-0.5">
+          {CONTENT_FILTERS.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => onContent(c.id)}
+              title={c.title}
+              aria-pressed={content === c.id}
+              className={
+                "flex-1 rounded px-2 py-1 text-[11px] font-medium transition " +
+                (content === c.id
+                  ? c.id === "nsfw"
+                    ? "bg-rose-500/80 text-white"
+                    : "bg-brand text-white"
+                  : "text-ink-muted hover:text-ink")
+              }
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+        {content === "safe" && (
+          <p className="mt-1.5 px-2 text-[11px] leading-relaxed text-ink-faint">
+            {hidden === 0
+              ? "Nothing rated 18+ or soft on this board yet."
+              : `${hidden} record${hidden === 1 ? "" : "s"} hidden. Unrated records still show.`}
+          </p>
+        )}
+        {content === "nsfw" && (
+          <p className="mt-1.5 px-2 text-[11px] leading-relaxed text-ink-faint">
+            Only records you rated soft or 18+.
+          </p>
+        )}
+      </div>
+
       {/* Views */}
       <div>
         <h2 className="mb-1.5 px-2 font-mono text-[10px] uppercase tracking-widest text-ink-faint">
@@ -88,6 +160,56 @@ export function Sidebar({ data, filters, onFilters, onAddGroup, onAddCategory }:
             {v.label}
           </button>
         ))}
+      </div>
+
+      {/* Added — a window, not a view, so it holds alongside a section, a tag,
+          a feature and the content filter all at once. */}
+      <div>
+        <h2 className="mb-1.5 px-2 font-mono text-[10px] uppercase tracking-widest text-ink-faint">
+          Added
+        </h2>
+        <div className="flex flex-wrap gap-1 px-1">
+          {ADDED_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => pickAdded(preset.id)}
+              title={preset.title}
+              aria-pressed={filters.added.preset === preset.id}
+              className={
+                "rounded-lg border px-2 py-1 text-[11px] font-medium transition " +
+                (filters.added.preset === preset.id
+                  ? "border-brand bg-brand/15 text-brand"
+                  : "border-line text-ink-muted hover:text-ink")
+              }
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+
+        {filters.added.preset === "custom" && (
+          <div className="mt-1.5 flex items-center gap-1 px-1">
+            {/* Either end may be left empty — one date is a valid answer. */}
+            <DateInput
+              value={filters.added.from}
+              label="Added from"
+              onChange={(from) => onFilters({ ...filters, added: { ...filters.added, from } })}
+            />
+            <span className="shrink-0 font-mono text-[11px] text-ink-faint">→</span>
+            <DateInput
+              value={filters.added.to}
+              label="Added up to"
+              onChange={(to) => onFilters({ ...filters, added: { ...filters.added, to } })}
+            />
+          </div>
+        )}
+
+        {filters.added.preset !== "any" && (
+          <p className="mt-1.5 px-2 text-[11px] leading-relaxed text-ink-faint">
+            Newest first. Clear it with &ldquo;Any time&rdquo;.
+          </p>
+        )}
       </div>
 
       {/* Sections */}
@@ -280,6 +402,26 @@ export function Sidebar({ data, filters, onFilters, onAddGroup, onAddCategory }:
         )}
       </div>
     </nav>
+  );
+}
+
+function DateInput({
+  value,
+  label,
+  onChange,
+}: {
+  value: string;
+  label: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <input
+      type="date"
+      value={value}
+      aria-label={label}
+      onChange={(e) => onChange(e.target.value)}
+      className="min-w-0 flex-1 rounded-lg border border-line bg-canvas px-1.5 py-1 font-mono text-[11px] text-ink outline-none focus:border-brand"
+    />
   );
 }
 

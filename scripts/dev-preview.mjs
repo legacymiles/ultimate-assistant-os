@@ -11,11 +11,20 @@ import { resolve } from "node:path";
 
 const port = process.argv[2] ?? "3210";
 
+// --no-auth blanks the public Supabase keys, which turns the hub's sign-in wall
+// off (middleware only gates when Supabase is configured) and drops every app
+// onto its signed-out, localStorage-only path. That is the path worth verifying
+// anyway, and it means checking a UI never needs a real account's password.
+const noAuth = process.argv.includes("--no-auth");
+
 spawn("npx", ["next", "dev", "-p", port], {
   stdio: "inherit",
   shell: true,
   env: {
     ...process.env,
+    ...(noAuth
+      ? { NEXT_PUBLIC_SUPABASE_URL: "", NEXT_PUBLIC_SUPABASE_ANON_KEY: "" }
+      : {}),
     NEXT_DIST_DIR: `.next-preview-${port}`,
     RECALL_DATA_DIR: resolve(`.preview-data-${port}`),
     // Same reasoning for Dance Vault: a preview run must not write today's

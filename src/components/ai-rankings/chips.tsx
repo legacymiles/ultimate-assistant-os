@@ -1,6 +1,7 @@
 "use client";
 
-import type { Feature } from "@/lib/ai-rankings/types";
+import { CONTENT_LABEL, CONTENT_MARK, ratingOf } from "@/lib/ai-rankings/types";
+import type { ContentRating, Feature, Tool } from "@/lib/ai-rankings/types";
 
 const TONE: Record<string, string> = {
   green: "border-emerald-500/25 bg-emerald-500/10 text-emerald-300",
@@ -32,6 +33,33 @@ export function MetaPill({
       }
     >
       {children}
+    </span>
+  );
+}
+
+/**
+ * The adult marker on a row.
+ *
+ * Renders nothing for "unrated" and nothing for "filtered": a badge on every
+ * safe record would be noise on a board that is mostly safe records, and the
+ * only thing worth catching from across the table is the one that isn't.
+ */
+export function ContentBadge({ tool }: { tool: Pick<Tool, "contentRating"> }) {
+  const rating: ContentRating = ratingOf(tool);
+  const mark = CONTENT_MARK[rating];
+  if (!mark) return null;
+
+  return (
+    <span
+      title={CONTENT_LABEL[rating]}
+      className={
+        "shrink-0 rounded px-1 font-mono text-[9px] font-bold uppercase " +
+        (rating === "explicit"
+          ? "bg-rose-500/20 text-rose-300"
+          : "bg-amber-500/15 text-amber-300")
+      }
+    >
+      {mark}
     </span>
   );
 }

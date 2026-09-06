@@ -14,9 +14,30 @@
 // Flux is open weights AND sells a paid hosted tier; Figma is freemium and
 // hosted-only; Obsidian is free, closed, and local. Collapsing these into one
 // enum loses exactly the distinction the board exists to make.
+//
+// `contentRating` is a fourth axis of the same kind, and it lives on the record
+// rather than in a tag because it is the one fact the whole board gets filtered
+// by: for image and video models, how far the filter lets you go decides
+// whether a tool is a candidate at all, and it is independent of the other
+// three — a filtered open model and an uncensored paid site both exist.
 // ---------------------------------------------------------------------------
 
 export type Access = "free" | "freemium" | "paid";
+
+/**
+ * What the tool will actually let you generate.
+ *
+ *   unknown   not checked yet — the honest default, and what every record
+ *             written before this field existed reads as
+ *   sfw       filtered; refuses adult output, often bans the account for asking
+ *   soft      suggestive or artistic nudity, but stops short of explicit
+ *   explicit  uncensored — X-rated images or video are on the table
+ *
+ * `soft` is not padding. A model that will do nudity but not hardcore and one
+ * that will do neither are different answers to the same question, and
+ * collapsing them means re-testing a model you already tested.
+ */
+export type ContentRating = "unknown" | "sfw" | "soft" | "explicit";
 export type Hosting = "hosted" | "self-host" | "both";
 export type ApiKey = "required" | "optional" | "none";
 
@@ -56,6 +77,12 @@ export interface Tool {
   haveKey: boolean;
   /** Free text — "$20/mo", "credits", "50 free/day". */
   pricingNote?: string;
+  /**
+   * How far its content filter lets you go. Optional on purpose: an absent
+   * value means "not checked", which is not the same as "safe" — an old record
+   * must not silently claim to be either one.
+   */
+  contentRating?: ContentRating;
   /** Your running log on this tool. Anything that doesn't fit a field. */
   notes?: string;
   /** The scored observations behind the rank. */
@@ -77,11 +104,6 @@ export interface BoardData {
   tree: Record<string, string[]>;
 }
 
-/** A seed entry before ids and timestamps are stamped on. */
-export type SeedTool = Omit<Tool, "id" | "addedAt" | "updatedAt" | "features"> & {
-  features?: Omit<Feature, "id">[];
-};
-
 // ----- display labels ------------------------------------------------------
 
 export const ACCESS_LABEL: Record<Access, string> = {
@@ -94,6 +116,21 @@ export const HOSTING_LABEL: Record<Hosting, string> = {
   hosted: "Website",
   "self-host": "Self-host",
   both: "Both",
+};
+
+export const CONTENT_LABEL: Record<ContentRating, string> = {
+  unknown: "Unrated",
+  sfw: "Filtered",
+  soft: "Suggestive",
+  explicit: "Uncensored",
+};
+
+/** What a row shows, where there is room for three characters and no more. */
+export const CONTENT_MARK: Record<ContentRating, string> = {
+  unknown: "",
+  sfw: "",
+  soft: "soft",
+  explicit: "18+",
 };
 
 export const API_KEY_LABEL: Record<ApiKey, string> = {
@@ -127,6 +164,23 @@ export function groupHue(group: string): number {
   let h = 0;
   for (let i = 0; i < group.length; i++) h = (h * 31 + group.charCodeAt(i)) % 360;
   return h;
+}
+
+/** Reading the rating through here is what makes the optional field safe. */
+export function ratingOf(tool: Pick<Tool, "contentRating">): ContentRating {
+  return tool.contentRating ?? "unknown";
+}
+
+/**
+ * Whether safe mode should hide this record.
+ *
+ * Unrated records stay visible. Hiding them would mean the first time safe mode
+ * is switched on the board goes empty — and it would assert that anything
+ * unchecked is adult, which is a claim the record has never made.
+ */
+export function isAdult(tool: Pick<Tool, "contentRating">): boolean {
+  const r = ratingOf(tool);
+  return r === "soft" || r === "explicit";
 }
 
 /** Entries added within this many days are badged NEW. */

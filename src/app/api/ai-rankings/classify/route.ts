@@ -65,7 +65,8 @@ export async function POST(req: Request) {
       '{"group":string,"category":string,"summary":string,"tags":string[],' +
       '"access":"free"|"freemium"|"paid","openSource":boolean,' +
       '"hosting":"hosted"|"self-host"|"both",' +
-      '"apiKey":"required"|"optional"|"none","pricingNote":string,"features":string[]}';
+      '"apiKey":"required"|"optional"|"none","pricingNote":string,"features":string[],' +
+      '"contentRating":"unknown"|"sfw"|"soft"|"explicit"}';
 
     const user =
       `Tool: ${name}\n` +
@@ -84,6 +85,12 @@ export async function POST(req: Request) {
       "the tool actually does.\n" +
       "access is what it costs the user; openSource is whether the code or " +
       "weights are open — these are independent.\n" +
+      "contentRating: how far the tool's own content filter lets a user go. " +
+      "sfw = refuses adult output; soft = suggestive or artistic nudity but " +
+      "not explicit; explicit = uncensored, X-rated images or video are on " +
+      "the table. Use unknown unless you actually know: this value decides " +
+      "whether the record is hidden from a board someone has put in safe " +
+      "mode, so a confident guess is worse here than an honest blank.\n" +
       `JSON:\n${schema}`;
 
     const res = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {

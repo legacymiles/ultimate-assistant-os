@@ -9,14 +9,43 @@
 // "what needs a key I don't have" — is a named view in the sidebar instead.
 // ---------------------------------------------------------------------------
 
+import { CONTENT_LABEL, isAdult, ratingOf } from "./types";
 import type { Tool } from "./types";
 
 export type SortBy = "rank" | "name" | "newest" | "oldest" | "category" | "access";
 export type SortDir = "asc" | "desc";
 
+/**
+ * The NSFW filter.
+ *
+ * Deliberately NOT one of the `Filters` below, for two reasons. It is applied
+ * before everything else — to the pool the sections, the counts, the feature
+ * index and the search all run against — so that with it on, an adult record
+ * cannot surface through a sidebar count or a stray search word. And "reset
+ * filters" must not silently switch it off: a filter you turned on for privacy
+ * should only ever come off deliberately.
+ *
+ *   all    every record
+ *   safe   hide anything rated suggestive or uncensored (unrated stays)
+ *   nsfw   only those, for when the adult board IS the thing you're working on
+ */
+export type ContentFilter = "all" | "safe" | "nsfw";
+
+export const CONTENT_FILTERS: { id: ContentFilter; label: string; title: string }[] = [
+  { id: "all", label: "All", title: "Every record" },
+  { id: "safe", label: "Safe", title: "Hide anything rated suggestive or uncensored" },
+  { id: "nsfw", label: "18+", title: "Only records rated suggestive or uncensored" },
+];
+
+/** Narrow the pool before any other filtering, sorting or counting happens. */
+export function applyContentFilter(tools: Tool[], mode: ContentFilter): Tool[] {
+  if (mode === "all") return tools;
+  const wantAdult = mode === "nsfw";
+  return tools.filter((t) => isAdult(t) === wantAdult);
+}
+
 export const VIEWS = [
   { id: "all", label: "All records" },
-  { id: "new", label: "Recently added" },
   { id: "ranked", label: "Ranked" },
   { id: "unranked", label: "Unranked" },
   { id: "open", label: "Open source" },
@@ -28,6 +57,53 @@ export const VIEWS = [
 ] as const;
 
 export type ViewId = (typeof VIEWS)[number]["id"];
+
+/**
+ * When a record was added to the board.
+ *
+ * A range rather than a view, because it has to hold at the same time as
+ * everything else: "the video models I added this month", "what came in this
+ * week that I rated 18+". A single-select view could never answer those.
+ */
+export type AddedPreset = "any" | "7d" | "30d" | "90d" | "365d" | "custom";
+
+export const ADDED_PRESETS: { id: AddedPreset; label: string; title: string }[] = [
+  { id: "any", label: "Any time", title: "No date filter" },
+  { id: "7d", label: "7 days", title: "Added in the last 7 days" },
+  { id: "30d", label: "30 days", title: "Added in the last 30 days" },
+  { id: "90d", label: "3 months", title: "Added in the last 3 months" },
+  { id: "365d", label: "1 year", title: "Added in the last year" },
+  { id: "custom", label: "Between…", title: "Added between two dates you pick" },
+];
+
+export interface AddedRange {
+  preset: AddedPreset;
+  /** yyyy-mm-dd, inclusive. Only read when the preset is "custom". */
+  from: string;
+  to: string;
+}
+
+export const ANY_TIME: AddedRange = { preset: "any", from: "", to: "" };
+
+const PRESET_DAYS: Record<Exclude<AddedPreset, "any" | "custom">, number> = {
+  "7d": 7,
+  "30d": 30,
+  "90d": 90,
+  "365d": 365,
+};
+
+/** How the header strip says which window is in force. */
+export function addedLabel(range: AddedRange): string | null {
+  if (range.preset === "any") return null;
+  if (range.preset !== "custom") {
+    return `added in the last ${ADDED_PRESETS.find((p) => p.id === range.preset)?.label}`;
+  }
+  if (range.from && range.to) return `added ${range.from} → ${range.to}`;
+  if (range.from) return `added since ${range.from}`;
+  if (range.to) return `added up to ${range.to}`;
+  // "Between…" with neither end filled in is not yet a filter.
+  return null;
+}
 
 export interface Filters {
   query: string;
@@ -46,6 +122,8 @@ export interface Filters {
    * a tool does — and the question is always "which of these do it".
    */
   feature: string | null;
+  /** When it was added. `ANY_TIME` is off. */
+  added: AddedRange;
 }
 
 export const EMPTY_FILTERS: Filters = {
@@ -55,6 +133,7 @@ export const EMPTY_FILTERS: Filters = {
   category: null,
   tags: [],
   feature: null,
+  added: ANY_TIME,
 };
 
 /** Features are compared loosely so "First-Last Frame" and "first last frame" meet. */
@@ -62,14 +141,10 @@ export function featureKey(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
-
-function matchesView(tool: Tool, view: ViewId, now: number): boolean {
+function matchesView(tool: Tool, view: ViewId): boolean {
   switch (view) {
     case "all":
       return true;
-    case "new":
-      return now - new Date(tool.addedAt).getTime() < THIRTY_DAYS;
     case "ranked":
       return tool.rank !== undefined;
     case "unranked":
@@ -89,6 +164,38 @@ function matchesView(tool: Tool, view: ViewId, now: number): boolean {
   }
 }
 
+/**
+ * Custom ends are parsed as local midnight and local end-of-day, not UTC.
+ * A date you typed means that date where you are — parsing "2026-09-06" as UTC
+ * drops everything you added that evening out of a range that names the day.
+ */
+function dayStart(date: string): number {
+  return new Date(`${date}T00:00:00`).getTime();
+}
+
+function dayEnd(date: string): number {
+  return new Date(`${date}T23:59:59.999`).getTime();
+}
+
+function matchesAdded(tool: Tool, range: AddedRange, now: number): boolean {
+  if (range.preset === "any") return true;
+
+  const added = new Date(tool.addedAt).getTime();
+  if (Number.isNaN(added)) return false;
+
+  if (range.preset === "custom") {
+    // Either end may be blank, so one field answers "everything since March"
+    // without making the user invent a closing date.
+    const from = range.from ? dayStart(range.from) : NaN;
+    const to = range.to ? dayEnd(range.to) : NaN;
+    if (!Number.isNaN(from) && added < from) return false;
+    if (!Number.isNaN(to) && added > to) return false;
+    return true;
+  }
+
+  return now - added < PRESET_DAYS[range.preset] * 24 * 60 * 60 * 1000;
+}
+
 function matchesQuery(tool: Tool, q: string): boolean {
   if (!q) return true;
   const haystack = [
@@ -99,6 +206,9 @@ function matchesQuery(tool: Tool, q: string): boolean {
     tool.group,
     tool.category,
     tool.url,
+    // Rated records answer to their label, so "uncensored" narrows by typing
+    // as well as by clicking. Unrated ones contribute nothing.
+    ratingOf(tool) === "unknown" ? "" : CONTENT_LABEL[ratingOf(tool)],
     ...tool.tags,
     ...tool.features.map((f) => f.text),
   ]
@@ -117,7 +227,8 @@ export function filterTools(tools: Tool[], f: Filters, now = Date.now()): Tool[]
   return tools.filter((t) => {
     if (f.group && t.group !== f.group) return false;
     if (f.category && t.category !== f.category) return false;
-    if (!matchesView(t, f.view, now)) return false;
+    if (!matchesView(t, f.view)) return false;
+    if (!matchesAdded(t, f.added, now)) return false;
     if (f.tags.length > 0 && !f.tags.every((tag) => t.tags.includes(tag))) return false;
     if (f.feature) {
       const want = featureKey(f.feature);

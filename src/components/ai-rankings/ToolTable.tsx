@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Icon } from "../icons";
+import { ContentBadge } from "./chips";
 import { ACCESS_LABEL, groupHue, isNew } from "@/lib/ai-rankings/types";
 import type { Tool } from "@/lib/ai-rankings/types";
 import type { SortBy, SortDir } from "@/lib/ai-rankings/query";
@@ -174,6 +175,10 @@ export function ToolTable({
                       new
                     </span>
                   )}
+                  {/* Next to the name, not in a column of its own: the columns
+                      that already exist get hidden on narrow screens, and this
+                      is the one fact you want visible on a phone. */}
+                  <ContentBadge tool={tool} />
                   {loved > 0 && (
                     <span
                       className="shrink-0 text-[11px] text-emerald-400"

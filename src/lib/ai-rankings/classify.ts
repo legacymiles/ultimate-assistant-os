@@ -11,7 +11,7 @@
 // you have to confirm.
 // ---------------------------------------------------------------------------
 
-import type { Access, ApiKey, Hosting } from "./types";
+import type { Access, ApiKey, ContentRating, Hosting } from "./types";
 
 export interface Suggestion {
   group: string;
@@ -23,6 +23,15 @@ export interface Suggestion {
   hosting: Hosting;
   apiKey: ApiKey;
   pricingNote?: string;
+  /**
+   * How far the content filter lets you go.
+   *
+   * Guessed last and left at "unknown" whenever nothing says otherwise. A wrong
+   * "sfw" here is the expensive kind of wrong: it is the value the safe-mode
+   * filter trusts, so inventing one would quietly file an adult model onto a
+   * board someone believes is clean.
+   */
+  contentRating: ContentRating;
   /**
    * Things this tool can do, phrased the way the board already phrases them.
    *
@@ -79,6 +88,39 @@ const TAG_RULES: [RegExp, string][] = [
   [/\bfree tier|freemium\b/, "free-tier"],
   [/\bcollaborat/, "collaboration"],
   [/\bplugin|extension/, "extensions"],
+];
+
+/**
+ * Keyword → content rating. First match wins, so the explicit rules come first:
+ * a page that says both "uncensored" and "content policy" is the former.
+ *
+ * Only the tool's own words are read here. Nothing infers a rating from the
+ * category — plenty of image models are filtered, and "it generates images"
+ * has never been evidence either way.
+ */
+const CONTENT_RULES: [RegExp, ContentRating][] = [
+  [/\buncensored|unfiltered|no (content )?filter|without (a )?filter\b/, "explicit"],
+  [/\bnsfw|x[- ]?rated|explicit content|adult content|porn|hentai|xxx\b/, "explicit"],
+  [/\bno (content )?(moderation|restrictions?|polic(y|ies))|anything goes\b/, "explicit"],
+  [/\b(artistic|tasteful|implied) nudity|suggestive|mature themes\b/, "soft"],
+  [/\bno nsfw|sfw only|safe[- ]for[- ]work only|family[- ]friendly\b/, "sfw"],
+  [/\bcontent (policy|filter|moderation)|heavily moderated|strict filter\b/, "sfw"],
+];
+
+/**
+ * Services whose filter is the well-known fact about them.
+ *
+ * A short, deliberately boring list: with no AI key set these rules are the
+ * whole answer, and "Midjourney will not draw that" is not a guess. Every one
+ * of these is still a suggestion the user has to accept.
+ */
+const CONTENT_BRANDS: [RegExp, ContentRating][] = [
+  [/\bmidjourney\b/, "sfw"],
+  [/\bdall[- ]?e\b|\bsora\b|\bchatgpt\b/, "sfw"],
+  [/\bfirefly\b|adobe\b/, "sfw"],
+  [/\bveo\b|\bimagen\b|\bgemini\b/, "sfw"],
+  [/\bideogram\b|\brecraft\b|\bcanva\b/, "sfw"],
+  [/\bcivitai\b/, "explicit"],
 ];
 
 /**
@@ -147,6 +189,27 @@ export function heuristicSuggestion(input: {
     if (re.test(blob) && !features.includes(feature)) features.push(feature);
   }
 
+  // What the tool says about itself beats what it is known for, so the keyword
+  // rules run before the brand list — a filtered service that has since shipped
+  // an uncensored mode should be readable from the summary the user typed.
+  let contentRating: ContentRating = "unknown";
+  for (const [re, rating] of CONTENT_RULES) {
+    if (re.test(blob)) {
+      contentRating = rating;
+      break;
+    }
+  }
+  if (contentRating === "unknown") {
+    for (const [re, rating] of CONTENT_BRANDS) {
+      // Brands are matched against `raw` too, so a bare midjourney.com URL with
+      // no summary written yet still lands somewhere useful.
+      if (re.test(blob) || re.test(raw)) {
+        contentRating = rating;
+        break;
+      }
+    }
+  }
+
   // A GitHub or Hugging Face home page is the strongest open-source signal
   // there is, and it only survives in `raw` — the normalised blob has eaten
   // the dot in the hostname.
@@ -178,6 +241,7 @@ export function heuristicSuggestion(input: {
     openSource,
     hosting,
     apiKey,
+    contentRating,
     features: features.slice(0, 8),
     source: "heuristic",
   };
@@ -206,6 +270,11 @@ export function coerceSuggestion(raw: unknown, fallback: Suggestion): Suggestion
     openSource: typeof r.openSource === "boolean" ? r.openSource : fallback.openSource,
     hosting: oneOf(r.hosting, ["hosted", "self-host", "both"] as const, fallback.hosting),
     apiKey: oneOf(r.apiKey, ["required", "optional", "none"] as const, fallback.apiKey),
+    contentRating: oneOf(
+      r.contentRating,
+      ["unknown", "sfw", "soft", "explicit"] as const,
+      fallback.contentRating,
+    ),
     pricingNote: typeof r.pricingNote === "string" ? r.pricingNote.slice(0, 120) : undefined,
     source: "ai",
   };

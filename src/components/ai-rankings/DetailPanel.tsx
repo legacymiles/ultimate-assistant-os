@@ -2,9 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icons";
-import { MetaPill, TagPill, VERDICT_STYLE } from "./chips";
-import { ACCESS_LABEL, HOSTING_LABEL, groupHue } from "@/lib/ai-rankings/types";
-import type { Access, ApiKey, BoardData, Feature, Hosting, Tool } from "@/lib/ai-rankings/types";
+import { ContentBadge, MetaPill, TagPill, VERDICT_STYLE } from "./chips";
+import { ACCESS_LABEL, CONTENT_LABEL, HOSTING_LABEL, groupHue, ratingOf } from "@/lib/ai-rankings/types";
+import type {
+  Access,
+  ApiKey,
+  BoardData,
+  ContentRating,
+  Feature,
+  Hosting,
+  Tool,
+} from "@/lib/ai-rankings/types";
 import type { Suggestion } from "@/lib/ai-rankings/classify";
 import { featureKey } from "@/lib/ai-rankings/query";
 import { formatDate } from "@/lib/utils";
@@ -81,6 +89,10 @@ export function DetailPanel(props: Props) {
       hosting: suggestion.hosting,
       apiKey: suggestion.apiKey,
       pricingNote: suggestion.pricingNote || tool.pricingNote,
+      // "unknown" from the classifier means it didn't know, not that the answer
+      // is no — so it must not erase a rating you set by hand.
+      contentRating:
+        suggestion.contentRating === "unknown" ? tool.contentRating : suggestion.contentRating,
     });
     // The card stays open: the filing fields are applied in one go, but the
     // suggested features are accepted one at a time and would vanish with it.
@@ -109,6 +121,7 @@ export function DetailPanel(props: Props) {
             placeholder="Name"
           />
           <div className="mt-0.5 flex items-center gap-1.5">
+            <ContentBadge tool={tool} />
             <InlineText
               value={tool.url}
               onCommit={(v) => onPatch({ url: v })}
@@ -172,6 +185,8 @@ export function DetailPanel(props: Props) {
               {suggestion.group} › {suggestion.category} · {ACCESS_LABEL[suggestion.access]} ·{" "}
               {suggestion.openSource ? "open source" : "closed"} ·{" "}
               {HOSTING_LABEL[suggestion.hosting]}
+              {suggestion.contentRating !== "unknown" &&
+                ` · ${CONTENT_LABEL[suggestion.contentRating].toLowerCase()}`}
             </p>
             {suggestion.summary && (
               <p className="mt-1 text-[12px] text-ink-muted">{suggestion.summary}</p>
@@ -286,6 +301,22 @@ export function DetailPanel(props: Props) {
             onChange={(haveKey) => onPatch({ haveKey })}
           />
         </div>
+
+        <Row
+          label="Content rating"
+          hint="How far its filter lets you go. Safe mode hides suggestive and uncensored records; unrated ones stay visible, because unrated is not the same as safe."
+        >
+          <Segmented<ContentRating>
+            value={ratingOf(tool)}
+            options={[
+              ["unknown", "Unrated"],
+              ["sfw", "Filtered"],
+              ["soft", "Soft"],
+              ["explicit", "18+"],
+            ]}
+            onChange={(contentRating) => onPatch({ contentRating })}
+          />
+        </Row>
 
         <Row label="Pricing note">
           <InlineText
