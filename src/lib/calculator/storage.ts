@@ -1,9 +1,12 @@
-// Saved-scenario storage for the basket calculator. localStorage-backed; pure
-// CRUD with no UI dependencies so it can be swapped for a remote backend.
+// Saved-scenario storage for the basket calculator. Reads stay synchronous off
+// localStorage; writes also push to the signed-in user's app_state row so the
+// same scenarios show up on another device. See lib/sync/appState.ts.
 
+import { loadLocal, saveSynced } from "@/lib/sync/appState";
 import type { BasketSettings, Order } from "./engine";
 
-const KEY = "moc:scenarios:v1";
+/** Also the app_state sync key; components pass it to useRemotePull. */
+export const KEY = "moc:scenarios:v1";
 
 export interface Scenario {
   id: string;
@@ -21,19 +24,11 @@ export function uid(prefix = "id"): string {
 }
 
 export function loadScenarios(): Scenario[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) as Scenario[];
-  } catch {
-    return [];
-  }
+  return loadLocal<Scenario[]>(KEY, []);
 }
 
 export function saveScenarios(scenarios: Scenario[]): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(KEY, JSON.stringify(scenarios));
+  saveSynced(KEY, scenarios);
 }
 
 export function upsertScenario(s: Scenario): Scenario[] {

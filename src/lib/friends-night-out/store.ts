@@ -20,8 +20,10 @@ import type {
   WatchItem,
   WatchKind,
 } from "./types";
+import { pushRemote, stampLocal } from "@/lib/sync/appState";
 
-const KEY = "friends-night-out:v1";
+/** Also the app_state sync key; components pass it to useRemotePull. */
+export const KEY = "friends-night-out:v1";
 
 export const DEFAULT_RADIUS_MI = 25;
 
@@ -89,9 +91,15 @@ function load(): FnoData {
 }
 
 function save(data: FnoData): FnoData {
+  // The cached events and places are a refetchable optimisation rather than
+  // anything the user typed, so they are stripped before the round trip: the
+  // other device can rebuild them, and leaving them out keeps the row small.
+  void pushRemote(KEY, { ...data, cache: { events: [], places: [] } });
+
   if (typeof window !== "undefined") {
     try {
       window.localStorage.setItem(KEY, JSON.stringify(data));
+      stampLocal(KEY);
     } catch {
       // Quota is the realistic failure — a big cache of events with images.
       // Drop the cache and retry once; losing it costs one refetch, whereas
@@ -99,6 +107,7 @@ function save(data: FnoData): FnoData {
       try {
         const trimmed: FnoData = { ...data, cache: { events: [], places: [] } };
         window.localStorage.setItem(KEY, JSON.stringify(trimmed));
+        stampLocal(KEY);
         return trimmed;
       } catch {
         // Give up silently: the in-memory copy is still correct for this session.

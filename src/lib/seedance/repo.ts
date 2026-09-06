@@ -8,11 +8,13 @@
 // the same shape later; production stores media in Vercel Blob.
 // ---------------------------------------------------------------------------
 
+import { saveSynced } from "@/lib/sync/appState";
 import { nowIso, uid } from "@/lib/utils";
 import { DEFAULT_DURATION, MOODS } from "./constants";
 import type { Segment, SeedanceProject } from "./types";
 
-const KEY = "seedance-studio:v1";
+/** Also the app_state sync key; components pass it to useRemotePull. */
+export const KEY = "seedance-studio:v1";
 
 export function blankSegment(): Segment {
   return {
@@ -89,10 +91,8 @@ export function deleteProject(id: string): SeedanceProject[] {
 }
 
 function persist(list: SeedanceProject[]) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(list));
-  } catch {
-    // Quota or serialization failure — non-fatal; the session state is intact.
-  }
+  // Only project structure lives here, never the heavy media, so this blob is
+  // small enough to also push to the signed-in user's app_state row. Failures
+  // are non-fatal on both paths; the session state is intact regardless.
+  saveSynced(KEY, list);
 }

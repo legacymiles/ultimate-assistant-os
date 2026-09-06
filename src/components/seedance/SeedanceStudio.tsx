@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { generateSegment, fileToMediaRef } from "@/lib/seedance/client";
 import { EDIT_MAX_DURATION, EDIT_MIN_DURATION } from "@/lib/seedance/constants";
-import { blankProject, blankSegment, loadProjects, saveProject } from "@/lib/seedance/repo";
+import { KEY as SEEDANCE_KEY, blankProject, blankSegment, loadProjects, saveProject } from "@/lib/seedance/repo";
+import { useRemotePull } from "@/lib/sync/useSync";
 import type { AspectRatio, SeedanceProject, Segment } from "@/lib/seedance/types";
 import { Icon } from "../icons";
 import { Composer } from "./Composer";
@@ -27,6 +28,16 @@ export function SeedanceStudio() {
 
   const songInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // A reel saved on another device is pulled down, then the same restore
+  // logic below runs again against the settled localStorage copy.
+  useRemotePull(SEEDANCE_KEY, () => {
+    const list = loadProjects();
+    if (list.length) {
+      setProject(list[0]);
+      setSelectedId(list[0].segments[0]?.id ?? null);
+    }
+  });
 
   // Restore the most recent saved reel's structure on first mount.
   useEffect(() => {

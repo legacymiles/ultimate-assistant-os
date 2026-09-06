@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 import { allTags, filterByTags, searchDances, sortDances } from "@/lib/dances/query";
 import type { SortBy } from "@/lib/dances/query";
 import * as store from "@/lib/dances/store";
+import { useRemotePull } from "@/lib/sync/useSync";
 import type { BoardData, DailyPick, Dance } from "@/lib/dances/types";
 import { AddDanceDialog } from "./AddDanceDialog";
 import { DanceModal } from "./DanceModal";
@@ -35,6 +36,8 @@ export function DanceVault() {
   const [dailyLoading, setDailyLoading] = useState(true);
   const [aiAvailable, setAiAvailable] = useState(false);
   const [persisted, setPersisted] = useState(true);
+
+  useRemotePull(store.KEY, () => setData(store.getBoard()));
 
   useEffect(() => {
     setData(store.getBoard());

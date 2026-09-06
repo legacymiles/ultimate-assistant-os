@@ -12,6 +12,7 @@ import {
 } from "@/lib/calculator/engine";
 import { DEFAULT_SYMBOL, SYMBOLS, getSymbol } from "@/lib/calculator/symbols";
 import {
+  KEY as SCENARIOS_KEY,
   type Scenario,
   deleteScenario,
   downloadFile,
@@ -22,6 +23,7 @@ import {
   uid,
   upsertScenario,
 } from "@/lib/calculator/storage";
+import { useRemotePull } from "@/lib/sync/useSync";
 import { Icon } from "../icons";
 import { OrderRow } from "./OrderRow";
 import { ProfitChart } from "./ProfitChart";
@@ -62,6 +64,9 @@ export function Calculator() {
   useEffect(() => {
     setScenarios(loadScenarios());
   }, []);
+
+  // Scenarios saved on another device land in localStorage first, then here.
+  useRemotePull(SCENARIOS_KEY, () => setScenarios(loadScenarios()));
 
   const sym = getSymbol(settings.symbol);
 

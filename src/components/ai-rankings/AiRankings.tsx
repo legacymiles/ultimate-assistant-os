@@ -7,6 +7,7 @@ import { Sidebar } from "./Sidebar";
 import { ToolTable } from "./ToolTable";
 import { DetailPanel } from "./DetailPanel";
 import * as store from "@/lib/ai-rankings/store";
+import { useRemotePull } from "@/lib/sync/useSync";
 import {
   EMPTY_FILTERS,
   featureIndex,
@@ -36,6 +37,10 @@ export function AiRankings() {
     setData(store.getData());
     setReady(true);
   }, []);
+
+  // Once the server copy has been settled into localStorage, re-read through
+  // the store so a board created on another device shows up here.
+  useRemotePull(store.KEY, () => setData(store.getData()));
 
   useEffect(() => {
     if (!flash) return;

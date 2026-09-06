@@ -10,12 +10,14 @@
 // and merged in here by `mergeDaily`.
 // ---------------------------------------------------------------------------
 
+import { saveSynced } from "@/lib/sync/appState";
 import { nowIso, uid } from "../utils";
 import { isKnownName } from "./names";
 import { GENERATED_SEED } from "./seed.generated";
 import type { BoardData, Dance } from "./types";
 
-const KEY = "dances:v1";
+/** Also the app_state sync key; components pass it to useRemotePull. */
+export const KEY = "dances:v1";
 
 function buildSeed(): BoardData {
   const at = nowIso();
@@ -60,14 +62,11 @@ function load(): BoardData {
 }
 
 function save(data: BoardData): BoardData {
-  if (typeof window !== "undefined") {
-    try {
-      window.localStorage.setItem(KEY, JSON.stringify(data));
-    } catch {
-      // Quota exceeded. The in-memory board is still correct for this session,
-      // so returning it beats throwing at the user mid-edit.
-    }
-  }
+  // Writes locally and, when signed in, pushes the same blob to app_state so
+  // the board follows the user to another device. A quota failure or a failed
+  // push is swallowed there: the in-memory board is still correct for this
+  // session, so returning it beats throwing at the user mid-edit.
+  saveSynced(KEY, data);
   return data;
 }
 

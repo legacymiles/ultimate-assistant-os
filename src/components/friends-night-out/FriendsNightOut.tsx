@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import * as store from "@/lib/friends-night-out/store";
+import { useRemotePull } from "@/lib/sync/useSync";
 import { DEMO_EVENTS, DEMO_ORIGIN, DEMO_PLACES } from "@/lib/friends-night-out/seed";
 import { browserTimeZone } from "@/lib/friends-night-out/time";
 import type {
@@ -57,6 +58,10 @@ export function FriendsNightOut() {
   useEffect(() => {
     setData(store.getData());
   }, []);
+
+  // Saved events and preferences made on another device arrive here once the
+  // server copy has been settled into localStorage.
+  useRemotePull(store.KEY, () => setData(store.getData()));
 
   const prefs = data?.prefs;
   const origin = prefs?.origin ?? null;
