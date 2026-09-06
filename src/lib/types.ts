@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // Domain types for Projects Timeline.
-// These mirror the Supabase schema in /supabase/schema.sql but are also used
+// These mirror the Supabase schema in /supabase/migrations but are also used
 // by the local (localStorage) repository so the app runs without a backend.
 // ---------------------------------------------------------------------------
 

@@ -14,7 +14,7 @@
 //   2. Sync is strictly additive. With Supabase unconfigured or nobody signed
 //      in, every function here degrades to the old local-only behaviour rather
 //      than throwing. The apps must keep working in local demo mode.
-//   3. Last write wins, by the server's clock. See app-state-schema.sql for
+//   3. Last write wins, by the server's clock. See the app_state migration for
 //      why this is the right guarantee for this workload and where it is not.
 //
 // What this deliberately does NOT do: merge. If a phone and a laptop both edit

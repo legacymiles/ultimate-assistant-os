@@ -62,3 +62,6 @@ public/dances/
 
 # Scratch Overpass queries
 *.osm
+
+# Supabase CLI scratch (version probe, linked-project cache).
+supabase/.temp/

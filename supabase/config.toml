@@ -1,0 +1,13 @@
+# Supabase CLI project config.
+#
+# `project_id` is the project ref, so `supabase db push` knows which remote
+# database the migrations in ./migrations belong to. It is an identifier, not a
+# secret — it is already visible in the project's public API URL.
+#
+# Applying migrations still needs a credential the CLI reads from the
+# environment rather than from this file:
+#   SUPABASE_ACCESS_TOKEN   personal access token (supabase.com/dashboard/account/tokens)
+#   SUPABASE_DB_PASSWORD    the database password chosen when the project was made
+#
+# Then: npx supabase db push
+project_id = "kiiwaiwrfslqankcsnkf"

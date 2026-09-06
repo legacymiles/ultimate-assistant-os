@@ -1,24 +1,21 @@
 -- ============================================================================
--- Ultimate Assistant OS — combined Supabase migration
+-- GENERATED FILE — do not edit by hand.
 --
--- Runs every app schema in one pass. Every statement is idempotent
--- (create ... if not exists / drop policy if exists / duplicate_object guards),
--- so re-running this is safe and is the intended way to apply later additions.
+-- Every migration in ./migrations concatenated in order, for the one case the
+-- Supabase CLI cannot cover: applying the schema by pasting into the dashboard
+-- SQL Editor when no database credential is available locally.
 --
--- HOW TO RUN: Supabase dashboard -> SQL Editor -> New query -> paste -> Run.
---   1. Projects Timeline  (projects, features, versions, files, knowledge_entries)
---   2. Cookbook Genie     (profiles, cookbooks, recipes, shares, favorites, ...)
---   3. Skills Library     (skills)
---   4. Shared app state   (app_state — the cross-device sync table)
+-- The migrations themselves are the source of truth. Regenerate with:
+--   scripts/build-all-schemas.sh
 --
--- All tables carry row-level security keyed to auth.uid(), so a signed-in user
--- only ever sees their own rows.
+-- Every statement is idempotent (create ... if not exists / drop policy if
+-- exists / duplicate_object guards), so running this more than once is safe.
 -- ============================================================================
 
 
 
 -- ####################################################################
--- SOURCE: supabase/schema.sql
+-- MIGRATION: 20260831000000_projects_timeline.sql
 -- ####################################################################
 
 -- ============================================================================
@@ -190,7 +187,7 @@ create policy project_files_rw on storage.objects
 
 
 -- ####################################################################
--- SOURCE: supabase/cookbook-genie-schema.sql
+-- MIGRATION: 20260831000100_cookbook_genie.sql
 -- ####################################################################
 
 -- ============================================================================
@@ -520,7 +517,7 @@ create policy recipe_images_update on storage.objects for update to authenticate
 
 
 -- ####################################################################
--- SOURCE: supabase/skills-library-schema.sql
+-- MIGRATION: 20260831000200_skills_library.sql
 -- ####################################################################
 
 -- ============================================================================
@@ -597,7 +594,7 @@ create policy "skills_delete_own" on public.skills
 
 
 -- ####################################################################
--- SOURCE: supabase/app-state-schema.sql
+-- MIGRATION: 20260905000000_app_state.sql
 -- ####################################################################
 
 -- ============================================================================

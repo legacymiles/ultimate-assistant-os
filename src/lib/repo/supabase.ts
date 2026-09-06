@@ -12,7 +12,7 @@ import type {
 
 // Supabase-backed repository. Activated automatically when Supabase env vars
 // are present. All rows are scoped to the authenticated user via RLS
-// (see /supabase/schema.sql).
+// (see /supabase/migrations/20260831000000_projects_timeline.sql).
 export class SupabaseRepo implements Repo {
   readonly kind = "supabase" as const;
 
