@@ -10,9 +10,15 @@
 // use a dedicated manager (1Password, Bitwarden) and keep only a pointer here.
 // ---------------------------------------------------------------------------
 
+import { saveSynced } from "@/lib/sync/appState";
 import type { Cipher } from "./types";
 
-const KEY = "recall:vault:v1";
+/**
+ * Also the app_state sync key. Only ciphertext and the KDF parameters are ever
+ * stored under it, so syncing the vault moves encrypted bytes and nothing else:
+ * the derived key never leaves the memory of the device that unlocked it.
+ */
+export const KEY = "recall:vault:v1";
 const ITERATIONS = 310_000;
 /** Auto-lock after this long without a vault interaction. */
 export const IDLE_LOCK_MS = 5 * 60 * 1000;
@@ -80,7 +86,7 @@ function readMeta(): VaultMeta | null {
 }
 
 function writeMeta(meta: VaultMeta): void {
-  window.localStorage.setItem(KEY, JSON.stringify(meta));
+  saveSynced(KEY, meta);
 }
 
 export function vaultExists(): boolean {

@@ -10,10 +10,24 @@
 // Node runtime only.
 // ---------------------------------------------------------------------------
 
-import { promises as fs } from "node:fs";
 import path from "node:path";
 import { uid } from "../utils";
-import { ensureDir, reportDir } from "./dataDir";
+import { deleteBlob, getBlob, putBlob } from "@/lib/server/blobStore";
+import { dataDir } from "./dataDir";
+
+/** Private bucket; RLS-denied to every client role. See its migration. */
+const BUCKET = "std-safe-reports";
+
+/**
+ * Where one report sits, in the bucket and on local disk alike.
+ *
+ * Keeping the same `std-safe-reports/<user>/<file>` shape in both backends
+ * means a directory left over from local development still lines up with the
+ * object paths, and there is one layout to reason about rather than two.
+ */
+function objectKey(userId: string, fileId: string): string {
+  return `std-safe-reports/${userId}/${fileId}`;
+}
 
 /** Big enough for a scanned multi-page report, small enough not to fill a disk. */
 export const MAX_REPORT_BYTES = 20 * 1024 * 1024;
@@ -54,31 +68,30 @@ function safeId(fileId: string): string | null {
 export async function saveReport(userId: string, file: File): Promise<string | null> {
   const ext = extensionFor(file.name, file.type);
   if (!ext) return null;
-  const dir = reportDir(userId);
-  if (!(await ensureDir(dir))) return null;
   const fileId = `${uid("rep")}${ext}`;
-  await fs.writeFile(path.join(dir, fileId), Buffer.from(await file.arrayBuffer()));
-  return fileId;
+  const ok = await putBlob(
+    BUCKET,
+    objectKey(userId, fileId),
+    dataDir(),
+    Buffer.from(await file.arrayBuffer()),
+    contentTypeFor(fileId),
+  );
+  // Returning null on a failed write matters more here than anywhere: the
+  // caller records a document-verified result, and a result whose document
+  // silently never saved is exactly the claim this app exists to prevent.
+  return ok ? fileId : null;
 }
 
 export async function readReport(userId: string, fileId: string): Promise<Buffer | null> {
   const id = safeId(fileId);
   if (!id) return null;
-  try {
-    return await fs.readFile(path.join(reportDir(userId), id));
-  } catch {
-    return null;
-  }
+  return getBlob(BUCKET, objectKey(userId, id), dataDir());
 }
 
 export async function deleteReport(userId: string, fileId: string): Promise<void> {
   const id = safeId(fileId);
   if (!id) return;
-  try {
-    await fs.unlink(path.join(reportDir(userId), id));
-  } catch {
-    // Already gone is the outcome we wanted.
-  }
+  await deleteBlob(BUCKET, objectKey(userId, id), dataDir());
 }
 
 export function contentTypeFor(fileId: string): string {

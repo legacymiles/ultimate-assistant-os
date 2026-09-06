@@ -650,3 +650,161 @@ drop trigger if exists app_state_touch on public.app_state;
 create trigger app_state_touch
   before update on public.app_state
   for each row execute function public.touch_app_state_updated_at();
+
+
+-- ####################################################################
+-- MIGRATION: 20260905000100_voice_clips_bucket.sql
+-- ####################################################################
+
+-- ============================================================================
+-- Voice Studio — storage for recorded and generated audio.
+--
+-- Voice Studio kept its cloned-voice reference clips and its generated history
+-- as base64 data: URLs inside one localStorage blob. That cannot follow the
+-- user to another device the way the other apps now do: a 10-30 second clip is
+-- far too big to sit in an app_state jsonb row, and a handful of them would
+-- blow past sensible row limits and make every sync slow.
+--
+-- So the bytes live here and only the path travels in the row.
+--
+-- Unlike the older project-files bucket, ownership is encoded in the object
+-- path — every object must sit under a folder named for the owner's user id —
+-- and the policies below enforce that. Without it, "authenticated" would mean
+-- any signed-in user could read every other user's voice recordings.
+-- ============================================================================
+
+insert into storage.buckets (id, name, public)
+values ('voice-clips', 'voice-clips', false)
+on conflict (id) do nothing;
+
+-- storage.foldername(name) splits the object path; [1] is the first segment,
+-- which callers must set to the uploader's auth.uid().
+drop policy if exists voice_clips_select on storage.objects;
+create policy voice_clips_select on storage.objects
+  for select to authenticated
+  using (
+    bucket_id = 'voice-clips'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists voice_clips_insert on storage.objects;
+create policy voice_clips_insert on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'voice-clips'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists voice_clips_update on storage.objects;
+create policy voice_clips_update on storage.objects
+  for update to authenticated
+  using (
+    bucket_id = 'voice-clips'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  )
+  with check (
+    bucket_id = 'voice-clips'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists voice_clips_delete on storage.objects;
+create policy voice_clips_delete on storage.objects
+  for delete to authenticated
+  using (
+    bucket_id = 'voice-clips'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+
+-- ####################################################################
+-- MIGRATION: 20260905000200_server_docs.sql
+-- ####################################################################
+
+-- ============================================================================
+-- Server-owned JSON documents.
+--
+-- Two apps here are not per-user stores and cannot use app_state: STD Safe and
+-- the Recall Lists board. Both are shared, multi-party, and keep their own
+-- account systems — STD Safe's whole point is that a second person asks you for
+-- a result and you approve it — so their state is one document owned by the
+-- server, not a row owned by a viewer.
+--
+-- Both wrote that document to a JSON file next to the project. On Vercel the
+-- filesystem is read-only and per-instance, so those writes either fail or
+-- vanish at the next deploy. This table is where the document goes instead.
+--
+-- SECURITY: row level security is enabled and NO policy is created. That is
+-- deliberate, not an oversight. Postgres denies every access to a table with
+-- RLS on and no matching policy, so `anon` and `authenticated` — which is to
+-- say anything holding the publishable key, including all browser code — can
+-- neither read nor write these rows. Only the service role, which bypasses RLS
+-- and is used exclusively in server routes, can reach them.
+--
+-- That matters more here than anywhere else in this schema: one of these
+-- documents holds real health records, and every rule about who may see which
+-- result is enforced in the route layer above. A client-readable copy would
+-- route around all of it.
+-- ============================================================================
+
+create table if not exists public.server_docs (
+  name       text        primary key,
+  data       jsonb       not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+-- Enabled with no policy: deny-all to every client-facing role. See above.
+alter table public.server_docs enable row level security;
+
+-- Should a policy ever have been added by hand, remove it — the deny-all
+-- posture is the point, and this migration is the place that asserts it.
+drop policy if exists server_docs_all on public.server_docs;
+
+create or replace function public.touch_server_docs_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end $$;
+
+drop trigger if exists server_docs_touch on public.server_docs;
+create trigger server_docs_touch
+  before update on public.server_docs
+  for each row execute function public.touch_server_docs_updated_at();
+
+
+-- ####################################################################
+-- MIGRATION: 20260905000300_std_safe_reports_bucket.sql
+-- ####################################################################
+
+-- ============================================================================
+-- STD Safe — storage for uploaded lab reports.
+--
+-- These are the most sensitive bytes in the hub: a real lab report carries a
+-- full legal name, a date of birth and a medical record number next to the
+-- results. They were written to std-safe-reports/<user>/ on local disk, which
+-- on Vercel means the upload is accepted and then silently lost.
+--
+-- SECURITY: like server_docs, RLS is on and NO policy is created, so every
+-- client-facing role is denied outright. This is stricter than the voice-clips
+-- bucket on purpose, and the reason is that STD Safe does not use Supabase auth
+-- at all — it has its own accounts, handles and share codes, so auth.uid() says
+-- nothing about who owns a report and cannot be used to fence one off.
+--
+-- Ownership is therefore enforced where it is actually known: in the routes,
+-- which re-derive the owner from the session rather than trusting the URL, and
+-- never include a report in a shared view. Only the service role reaches these
+-- objects, and only through that code.
+-- ============================================================================
+
+insert into storage.buckets (id, name, public)
+values ('std-safe-reports', 'std-safe-reports', false)
+on conflict (id) do nothing;
+
+-- No policy is created for this bucket. Any policy that previously existed is
+-- removed: deny-all to anon and authenticated is the intended posture, and
+-- this migration is the place that asserts it.
+drop policy if exists std_safe_reports_rw on storage.objects;
+drop policy if exists std_safe_reports_select on storage.objects;
+drop policy if exists std_safe_reports_insert on storage.objects;
+drop policy if exists std_safe_reports_update on storage.objects;
+drop policy if exists std_safe_reports_delete on storage.objects;

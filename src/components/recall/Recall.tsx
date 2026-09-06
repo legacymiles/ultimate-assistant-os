@@ -25,6 +25,8 @@ import { FolderHome } from "./FolderHome";
 import { SecurityDialog } from "./SecurityDialog";
 import { ListsBoard } from "./lists/ListsBoard";
 import { pruneOrphans } from "@/lib/recall/files";
+import { KEY as RECALL_KEY } from "@/lib/recall/store";
+import { useRemotePull } from "@/lib/sync/useSync";
 
 // ---------------------------------------------------------------------------
 // Recall — shell.
@@ -85,6 +87,14 @@ export function Recall() {
       /* IndexedDB unavailable — nothing to sweep */
     });
   }, []);
+
+  // Folders and items captured on another device land in localStorage first,
+  // then here. migrateRecords runs again so anything pulled down in an older
+  // shape is folded forward before it is read.
+  useRemotePull(RECALL_KEY, () => {
+    migrateRecords();
+    setData(getData());
+  });
 
   useEffect(() => {
     fetch("/api/recall-unlock")

@@ -19,10 +19,10 @@
 // do, but the UI is not the enforcement point.
 // ---------------------------------------------------------------------------
 
-import { promises as fs } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { nowIso, uid } from "../../utils";
-import { dataFile, ensureDataDir } from "../dataDir";
+import { persistence as docPersistence, readDoc, writeDoc } from "@/lib/server/docStore";
+import { dataDir } from "../dataDir";
 import { hashPassword, verifyPassword } from "../passwords";
 import {
   BUILT_IN_LISTS,
@@ -38,7 +38,11 @@ import {
   type PublicMember,
 } from "./types";
 
-const FILE = dataFile(".recall-lists.json");
+/**
+ * Document name, not a path. A row key in public.server_docs on a deployed
+ * host; still a file of this name under dataDir() locally.
+ */
+const DOC = ".recall-lists.json";
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** The admin is whoever holds the app password; this row is only their identity. */
@@ -129,23 +133,16 @@ function sweep(data: StoredData): { data: StoredData; changed: boolean } {
 }
 
 async function readFile(): Promise<StoredData> {
-  try {
-    const raw = await fs.readFile(FILE, "utf8");
-    return normalise(JSON.parse(raw) as Partial<StoredData>);
-  } catch {
-    return normalise(null);
-  }
+  return normalise(await readDoc<Partial<StoredData>>(DOC, dataDir()));
 }
 
 async function writeFile(data: StoredData): Promise<void> {
-  try {
-    // The directory may not exist yet — RECALL_DATA_DIR routinely points at a
-    // volume the app is expected to create.
-    await ensureDataDir();
-    await fs.writeFile(FILE, JSON.stringify(data, null, 2), "utf8");
-  } catch {
+  // writeDoc reports rather than throws, because its other caller wants to
+  // degrade quietly. Here a lost write must surface: someone just added
+  // something to a shared board and needs to know it did not land.
+  if (!(await writeDoc(DOC, dataDir(), data))) {
     throw new ListsError(
-      "This deployment's filesystem is read-only, so the list could not be saved.",
+      "The list could not be saved. This deployment has no writable storage — set SUPABASE_SERVICE_ROLE_KEY to keep the board in the database.",
       500,
     );
   }
@@ -164,25 +161,17 @@ async function load(): Promise<StoredData> {
 
 /** Can we actually write next to the project? Probes rather than guesses. */
 export async function canPersist(): Promise<boolean> {
-  const probe = `${FILE}.probe`;
-  try {
-    if (!(await ensureDataDir())) return false;
-    await fs.writeFile(probe, "1", "utf8");
-    await fs.unlink(probe);
-    return true;
-  } catch {
-    return false;
-  }
+  return (await docPersistence(dataDir())).persistent;
 }
 
 /** The HMAC key for member cookies, minted and stored on first use. */
 export async function signingSecret(): Promise<string> {
   const data = await readFile();
-  const onDisk = await fs
-    .readFile(FILE, "utf8")
-    .then(() => true)
-    .catch(() => false);
-  if (!onDisk) await writeFile(data).catch(() => undefined);
+  // normalise() mints a secret when the document is absent, so a missing
+  // document is exactly the case where it must be written back — otherwise
+  // every request mints a fresh one and every member cookie stops verifying.
+  const stored = await readDoc<Partial<StoredData>>(DOC, dataDir());
+  if (!stored?.secret) await writeFile(data).catch(() => undefined);
   return data.secret;
 }
 

@@ -17,11 +17,11 @@
 // are unaware of where the bytes sit.
 // ---------------------------------------------------------------------------
 
-import { promises as fs } from "node:fs";
 import { randomBytes, randomInt } from "node:crypto";
 import { nowIso, uid } from "../utils";
 import { hashPassword, verifyPassword } from "../recall/passwords";
-import { dataFile, ensureDataDir } from "./dataDir";
+import { dataDir } from "./dataDir";
+import { persistence as docPersistence, readDoc, writeDoc } from "@/lib/server/docStore";
 import { deriveStatus, type DerivedStatus } from "./status";
 import {
   GRANT_TTL_MS,
@@ -33,7 +33,11 @@ import {
   type Verification,
 } from "./types";
 
-const FILE = dataFile(".std-safe.json");
+/**
+ * Document name, not a path. On a deployed host this is a row key in
+ * public.server_docs; locally it is still a file of this name under dataDir().
+ */
+const DOC = ".std-safe.json";
 
 /** No I/1/O/0 — this code gets read aloud and typed by someone else. */
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -84,19 +88,16 @@ let cache: StoredData | null = null;
 
 async function readData(): Promise<StoredData> {
   if (cache) return cache;
-  try {
-    const raw = await fs.readFile(FILE, "utf8");
-    const parsed = JSON.parse(raw) as Partial<StoredData>;
-    cache = {
-      version: 1,
-      secret: parsed.secret || randomBytes(32).toString("hex"),
-      users: parsed.users ?? [],
-      records: parsed.records ?? [],
-      requests: parsed.requests ?? [],
-    };
-  } catch {
-    cache = seed();
-  }
+  const parsed = await readDoc<Partial<StoredData>>(DOC, dataDir());
+  cache = parsed
+    ? {
+        version: 1,
+        secret: parsed.secret || randomBytes(32).toString("hex"),
+        users: parsed.users ?? [],
+        records: parsed.records ?? [],
+        requests: parsed.requests ?? [],
+      }
+    : seed();
   return cache;
 }
 
@@ -120,8 +121,7 @@ function serialize<T>(fn: () => Promise<T>): Promise<T> {
 
 async function writeData(data: StoredData): Promise<void> {
   cache = data;
-  if (!(await ensureDataDir())) return;
-  await fs.writeFile(FILE, JSON.stringify(data, null, 2), "utf8");
+  await writeDoc(DOC, dataDir(), data);
 }
 
 async function mutate<T>(fn: (data: StoredData) => Promise<T> | T): Promise<T> {
@@ -141,23 +141,7 @@ async function mutate<T>(fn: (data: StoredData) => Promise<T> | T): Promise<T> {
  * build a health record on top of it.
  */
 export async function persistence(): Promise<{ persistent: boolean; reason: string }> {
-  if (!(await ensureDataDir())) {
-    return { persistent: false, reason: "The data directory is read-only, so nothing can be saved." };
-  }
-  try {
-    const probe = `${FILE}.probe`;
-    await fs.writeFile(probe, "1", "utf8");
-    await fs.unlink(probe);
-  } catch {
-    return { persistent: false, reason: "This host will not accept writes, so nothing can be saved." };
-  }
-  if (process.env.VERCEL) {
-    return {
-      persistent: false,
-      reason: "Running on serverless: the file is per-instance and disappears between deploys.",
-    };
-  }
-  return { persistent: true, reason: "Saved to a file on this machine." };
+  return docPersistence(dataDir());
 }
 
 // ----- users ---------------------------------------------------------------

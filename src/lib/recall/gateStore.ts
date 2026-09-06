@@ -1,6 +1,6 @@
 import { randomBytes, timingSafeEqual, createHash } from "node:crypto";
-import { promises as fs } from "node:fs";
-import { dataFile, ensureDataDir } from "./dataDir";
+import { persistence as docPersistence, readDoc, writeDoc } from "@/lib/server/docStore";
+import { dataDir } from "./dataDir";
 import { deriveKey } from "./passwords";
 
 // ---------------------------------------------------------------------------
@@ -15,11 +15,14 @@ import { deriveKey } from "./passwords";
 // Persistence depends on where this runs, and the UI is told which:
 //   · long-lived Node host (local dev, a VPS) → the file persists. Good.
 //   · Vercel serverless → the filesystem is ephemeral and per-instance, so a
-//     change would not survive. `status()` reports persistent:false and the
-//     Security dialog says so rather than pretending it saved.
+//     change would not survive there. With SUPABASE_SERVICE_ROLE_KEY set the
+//     hash goes to public.server_docs instead and does persist; without it,
+//     `status()` reports persistent:false and the Security dialog says so
+//     rather than pretending it saved.
 // ---------------------------------------------------------------------------
 
-const FILE = dataFile(".recall-gate.json");
+/** Document name, not a path. See lib/server/docStore. */
+const DOC = ".recall-gate.json";
 
 interface StoredSecret {
   version: 1;
@@ -40,13 +43,8 @@ export interface GateStatus {
 }
 
 async function readStored(): Promise<StoredSecret | null> {
-  try {
-    const raw = await fs.readFile(FILE, "utf8");
-    const parsed = JSON.parse(raw) as StoredSecret;
-    return parsed?.salt && parsed?.hash ? parsed : null;
-  } catch {
-    return null;
-  }
+  const parsed = await readDoc<StoredSecret>(DOC, dataDir());
+  return parsed?.salt && parsed?.hash ? parsed : null;
 }
 
 // Parameters live in ./passwords so the gate and Lists members cannot drift.
@@ -56,15 +54,7 @@ async function derive(password: string, salt: Buffer): Promise<Buffer> {
 
 /** Can we actually write next to the project? Probes rather than guesses. */
 async function canPersist(): Promise<boolean> {
-  const probe = `${FILE}.probe`;
-  try {
-    if (!(await ensureDataDir())) return false;
-    await fs.writeFile(probe, "1", "utf8");
-    await fs.unlink(probe);
-    return true;
-  } catch {
-    return false;
-  }
+  return (await docPersistence(dataDir())).persistent;
 }
 
 const envPassword = () => process.env.RECALL_PASSWORD ?? "";
@@ -111,13 +101,11 @@ export async function setPassword(next: string): Promise<StoredSecret> {
     hash: hash.toString("base64"),
     updatedAt: new Date().toISOString(),
   };
-  try {
-    await ensureDataDir();
-    await fs.writeFile(FILE, JSON.stringify(record, null, 2), "utf8");
-  } catch {
+  if (!(await writeDoc(DOC, dataDir(), record))) {
     throw new Error(
-      "This deployment's filesystem is read-only, so the password cannot be saved here. " +
-        "Change RECALL_PASSWORD in your hosting environment instead.",
+      "This deployment has no writable storage, so the password cannot be saved here. " +
+        "Set SUPABASE_SERVICE_ROLE_KEY to store it in the database, or change " +
+        "RECALL_PASSWORD in your hosting environment instead.",
     );
   }
   return record;
@@ -125,11 +113,9 @@ export async function setPassword(next: string): Promise<StoredSecret> {
 
 /** Remove the stored password, falling back to the env var (or open). */
 export async function clearPassword(): Promise<void> {
-  try {
-    await fs.unlink(FILE);
-  } catch {
-    /* nothing stored — already clear */
-  }
+  // An empty document reads back as "no salt/hash", which readStored() already
+  // treats as nothing stored — the same outcome deleting the file had.
+  await writeDoc(DOC, dataDir(), {});
 }
 
 /**

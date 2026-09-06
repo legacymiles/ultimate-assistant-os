@@ -17,8 +17,16 @@ export interface ClonedVoice {
   id: string;
   name: string;
   transcript: string;
-  /** data: URL of the reference clip (base64), 10–30s. */
-  audioDataUrl: string;
+  /**
+   * data: URL of the reference clip (base64), 10–30s.
+   *
+   * Absent on a record pulled from another device: there the audio lives in
+   * the voice-clips bucket and audioPath points at it. media.clipUrl() turns
+   * that into something playable.
+   */
+  audioDataUrl?: string;
+  /** Path in the voice-clips storage bucket, once uploaded. */
+  audioPath?: string;
   createdAt: string;
 }
 
@@ -31,6 +39,8 @@ export interface HistoryItem {
   source: "fish" | "browser";
   /** data: URL of the produced audio (absent for browser-fallback clips). */
   audioDataUrl?: string;
+  /** Path in the voice-clips storage bucket, once uploaded. */
+  audioPath?: string;
   format?: TtsFormat;
 }
 

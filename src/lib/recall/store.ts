@@ -5,11 +5,13 @@
 // All mutators return the fresh RecallData so the component can setData(result).
 // ---------------------------------------------------------------------------
 
+import { saveSynced } from "@/lib/sync/appState";
 import { nowIso, uid } from "../utils";
 import { buildSeed } from "./seed";
 import type { AgentAction, Cipher, Folder, Item, RecallData, SectionId } from "./types";
 
-const KEY = "recall:v1";
+/** Also the app_state sync key; the component passes it to useRemotePull. */
+export const KEY = "recall:v1";
 
 // ----- persistence ---------------------------------------------------------
 
@@ -33,8 +35,9 @@ function load(): RecallData {
 }
 
 function save(data: RecallData): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(KEY, JSON.stringify(data));
+  // Local write plus, when signed in, a push to app_state so folders and items
+  // are the same on every device the user opens Recall on.
+  saveSynced(KEY, data);
 }
 
 export function getData(): RecallData {

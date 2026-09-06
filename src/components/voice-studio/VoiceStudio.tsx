@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
+  HISTORY_KEY,
+  VOICES_KEY,
   addHistory,
   addVoice,
   clearHistory,
@@ -12,6 +14,7 @@ import {
   removeHistory,
   removeVoice,
 } from "@/lib/voice-studio/store";
+import { useRemotePull } from "@/lib/sync/useSync";
 import {
   getBrowserVoices,
   isSpeechSupported,
@@ -27,6 +30,7 @@ import type {
   TtsFormat,
   TtsRequest,
 } from "@/lib/voice-studio/types";
+import { clipUrl, toBase64 } from "@/lib/voice-studio/media";
 import { Icon } from "../icons";
 import { ClonePanel } from "./ClonePanel";
 
@@ -67,6 +71,28 @@ export function VoiceStudio() {
     setHistory(loadHistory());
     if (isSpeechSupported()) getBrowserVoices().then(setBrowserVoices);
   }, []);
+
+  // Records synced from another device carry a storage path instead of inline
+  // audio. Resolving it to a signed URL in state (never back into storage, so
+  // the short-lived URL is not persisted) lets every player and download link
+  // below keep reading audioDataUrl without caring where the clip came from.
+  const resolveClips = useCallback(async <T extends ClonedVoice | HistoryItem>(
+    items: T[],
+  ): Promise<T[]> =>
+    Promise.all(
+      items.map(async (item) =>
+        !item.audioDataUrl && item.audioPath
+          ? { ...item, audioDataUrl: (await clipUrl(item.audioPath)) ?? undefined }
+          : item,
+      ),
+    ), []);
+
+  useRemotePull(VOICES_KEY, () => {
+    void resolveClips(loadVoices()).then(setCloned);
+  });
+  useRemotePull(HISTORY_KEY, () => {
+    void resolveClips(loadHistory()).then(setHistory);
+  });
 
   // In browser mode, default the picker to the system voice.
   useEffect(() => {
@@ -166,7 +192,19 @@ export function VoiceStudio() {
       const reqBody: TtsRequest = { text: t, format, speed };
       if (voiceValue.startsWith("cloned:")) {
         const v = cloned.find((x) => `cloned:${x.id}` === voiceValue);
-        if (v) reqBody.reference = { audioBase64: dataUrlToBase64(v.audioDataUrl), transcript: v.transcript };
+        if (v) {
+          // The clip is a local data: URL on the device that recorded it, but
+          // only a storage path on any other one — so resolve before encoding.
+          const src =
+            v.audioDataUrl ?? (v.audioPath ? await clipUrl(v.audioPath) : null);
+          const audioBase64 = src ? await toBase64(src) : null;
+          if (!audioBase64) {
+            setError("That cloned voice's audio could not be loaded.");
+            setGenerating(false);
+            return;
+          }
+          reqBody.reference = { audioBase64, transcript: v.transcript };
+        }
       } else if (voiceValue === "paste" && pasteId.trim()) {
         reqBody.voiceId = pasteId.trim();
       }

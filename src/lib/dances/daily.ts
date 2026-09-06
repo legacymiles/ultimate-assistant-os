@@ -17,10 +17,10 @@
 // Server-only.
 // ---------------------------------------------------------------------------
 
-import { promises as fs } from "node:fs";
+import { readDoc, writeDoc } from "@/lib/server/docStore";
 
 import { uid } from "../utils";
-import { dailyFilePath, ensureDataDir } from "./dataDir";
+import { dataDir } from "./dataDir";
 import { isKnownName } from "./names";
 import { danceQuery, resolveVideo, searchYouTube, verifyVideo } from "./resolve";
 import type { Dance, DailyFile, DailyPick } from "./types";
@@ -42,25 +42,18 @@ function daysBack(n: number): string {
 
 // --- the file ---------------------------------------------------------------
 
+/** Document name, not a path. See lib/server/docStore. */
+const DOC = ".dances-daily.json";
+
 export async function readDaily(): Promise<DailyFile> {
-  try {
-    const raw = await fs.readFile(dailyFilePath(), "utf8");
-    const parsed = JSON.parse(raw) as DailyFile;
-    return { picks: Array.isArray(parsed.picks) ? parsed.picks : [], lastRunAt: parsed.lastRunAt };
-  } catch {
-    // Missing or corrupt file is simply "no history yet".
-    return { picks: [] };
-  }
+  const parsed = await readDoc<DailyFile>(DOC, dataDir());
+  // Missing or unparseable is simply "no history yet".
+  if (!parsed) return { picks: [] };
+  return { picks: Array.isArray(parsed.picks) ? parsed.picks : [], lastRunAt: parsed.lastRunAt };
 }
 
 async function writeDaily(file: DailyFile): Promise<boolean> {
-  if (!(await ensureDataDir())) return false;
-  try {
-    await fs.writeFile(dailyFilePath(), JSON.stringify(file, null, 2), "utf8");
-    return true;
-  } catch {
-    return false;
-  }
+  return writeDoc(DOC, dataDir(), file);
 }
 
 // --- discovery: the AI path -------------------------------------------------
