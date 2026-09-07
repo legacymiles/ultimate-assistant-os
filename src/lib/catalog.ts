@@ -29,6 +29,25 @@ export const CATEGORIES: Category[] = [
 /** Visual style used for each animated icon. */
 export type IconStyle = "aurora" | "orbit" | "rings" | "mesh" | "pulse" | "waves";
 
+/**
+ * What the carousel (hub v2) shows on a panel's face when it comes to rest.
+ *
+ *   "live"  — an iframe of the project's own route. The app really runs on the
+ *             panel: a 3D scene keeps orbiting, a video wall keeps playing.
+ *   "video" — a looping muted clip. Drop the file in `public/hub/` and point
+ *             `src` at it, e.g. { kind: "video", src: "/hub/kart.mp4" }.
+ *   "site"  — an iframe of an external URL (only works where the other site
+ *             permits framing; many refuse, so this is opt-in per project).
+ *
+ * Only ONE of these is ever mounted at a time — the focused panel, once it has
+ * settled. See the carousel for why that is both the performance rule and the
+ * intended feel.
+ */
+export type Preview =
+  | { kind: "live" }
+  | { kind: "video"; src: string; poster?: string }
+  | { kind: "site"; url: string };
+
 export interface CatalogProject {
   slug: string;
   title: string;
@@ -43,6 +62,13 @@ export interface CatalogProject {
   iconStyle: IconStyle;
   /** Two hues 0-360 used by the animated icon. */
   hue: [number, number];
+  /**
+   * Overrides what the carousel puts on this panel. Left unset, a live app
+   * gets a running preview of itself — see `previewFor`.
+   */
+  preview?: Preview;
+  /** Turns the carousel preview off for this project, whatever the default. */
+  noPreview?: boolean;
 }
 
 export const PROJECTS: CatalogProject[] = [
@@ -502,4 +528,35 @@ export const PROJECTS: CatalogProject[] = [
 
 export function getProject(slug: string): CatalogProject | null {
   return PROJECTS.find((p) => p.slug === slug) ?? null;
+}
+
+/**
+ * Routes that must never be framed as a preview.
+ *
+ * These are password-gated private workspaces. Framing one would either show a
+ * stranger an unlock form on the front of the carousel (ugly and confusing) or,
+ * for whoever IS signed in, put their own real data on a public-facing spinning
+ * panel. Neither is wanted, so they keep the animated icon instead.
+ */
+const UNPREVIEWABLE = new Set(["recall", "projects-timeline"]);
+
+/**
+ * The preview a carousel panel should mount, or null for the animated icon.
+ *
+ * Deriving this rather than tagging each project means a new app added to the
+ * catalog gets a living panel for free, which is the whole point of the
+ * catalog being the single source of truth.
+ */
+export function previewFor(project: CatalogProject): Preview | null {
+  if (project.noPreview || UNPREVIEWABLE.has(project.slug)) return null;
+  if (project.preview) return project.preview;
+  if (project.status !== "live") return null;
+  return project.appUrl ? { kind: "live" } : null;
+}
+
+/** The URL a "live" or "site" preview loads. */
+export function previewUrl(project: CatalogProject, preview: Preview): string | null {
+  if (preview.kind === "live") return project.appUrl ?? null;
+  if (preview.kind === "site") return preview.url;
+  return null;
 }

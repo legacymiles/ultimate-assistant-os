@@ -1,0 +1,414 @@
+/* ------------------------------------------------------------------ */
+/*  Hub v2 — the rotating panel stand.                                 */
+/*                                                                     */
+/*  Modelled on a desk rotary reference stand: black hinged holders     */
+/*  radiating from a hub on a weighted base, each carrying one page.    */
+/*                                                                     */
+/*  Nothing in here animates the ring. Every transform on .hubv2-panel  */
+/*  is written per-frame from JS (see CarouselHub.tsx), because the     */
+/*  layout tracks a live velocity rather than running to a timeline —   */
+/*  a CSS transition cannot express "spacing is a function of speed".   */
+/*                                                                     */
+/*  Kept out of globals.css because it is one self-contained view, and  */
+/*  v1 must not inherit a single line of it.                            */
+/* ------------------------------------------------------------------ */
+
+.hubv2 {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 80% at 50% -10%, #171a26 0%, transparent 60%),
+    var(--color-canvas);
+}
+
+/* Pool of light under the stand, so it reads as sitting on a surface. */
+.hubv2__glow {
+  position: absolute;
+  left: 50%;
+  bottom: 10%;
+  width: min(1000px, 130vw);
+  height: 46vh;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: radial-gradient(
+    50% 50% at 50% 50%,
+    hsl(243 70% 60% / 0.18) 0%,
+    hsl(243 70% 60% / 0.05) 45%,
+    transparent 72%
+  );
+  filter: blur(18px);
+}
+
+.hubv2__stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  perspective: 1500px;
+  perspective-origin: 50% 42%;
+  cursor: grab;
+  /* Vertical scroll still belongs to the page; horizontal is the carousel's. */
+  touch-action: pan-y;
+  /* Without this every flick leaves a smear of selected text behind it. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+.hubv2__stage.is-dragging {
+  cursor: grabbing;
+}
+
+.hubv2__ring {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+}
+
+/* ----- one panel --------------------------------------------------- */
+
+.hubv2-panel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* transform ONLY. opacity and filter live on the sheet; see CarouselHub. */
+  /* Backface culling is what makes the far side of the ring vanish on its own
+     rather than showing mirrored pages through the front. */
+  backface-visibility: hidden;
+  will-change: transform;
+}
+
+.hubv2-panel__sheet {
+  position: relative;
+  will-change: opacity, filter;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 10px;
+  /* The black holder the page sits in. */
+  background: linear-gradient(180deg, #14161e 0%, #0e1016 100%);
+  border: 1px solid #2a2f3d;
+  box-shadow:
+    0 30px 60px -30px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.hubv2-panel.is-focused .hubv2-panel__sheet {
+  border-color: hsl(243 70% 62% / 0.55);
+  box-shadow:
+    0 40px 80px -30px rgba(0, 0, 0, 0.95),
+    0 0 0 1px hsl(243 70% 62% / 0.25),
+    0 0 60px -18px hsl(243 80% 60% / 0.5);
+}
+
+/* The index tab down the spine of the holder, as on the real thing. */
+.hubv2-panel__tab {
+  position: absolute;
+  left: -3px;
+  top: 22%;
+  width: 6px;
+  height: 56px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #e8ecf5, #aeb6c8);
+  opacity: 0.5;
+}
+
+/* ----- the page ---------------------------------------------------- */
+
+.hubv2-face__art {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background: #0b0d13;
+  border-bottom: 1px solid #232838;
+}
+
+.hubv2-cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background:
+    radial-gradient(80% 70% at 50% 30%, hsl(var(--h1) 70% 22% / 0.55), transparent 70%),
+    #0b0d13;
+}
+
+.hubv2-media {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* A real app running on the face of the panel. Mounted at desktop width and
+   scaled down, because an app handed a 300px viewport lays itself out as a
+   phone — and the point is to show how the thing actually looks. */
+.hubv2-frame {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.hubv2-frame__iframe {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1280px;
+  /* Tall enough that, once scaled by panel-width/1280, it still covers the
+     art area at every panel size. The surplus is clipped, which just means
+     more of the page shows. */
+  height: 1500px;
+  border: 0;
+  transform-origin: 0 0;
+  /* --panel-w is set on the panel as a UNITLESS number so this division
+     yields a plain ratio; a px value here would produce "0.23px". */
+  transform: scale(calc(var(--panel-w, 300) / 1280));
+  background: var(--color-canvas);
+}
+/* Sits over the frame so a drag across the carousel is not swallowed by
+   whatever is inside it. */
+.hubv2-frame__shield {
+  position: absolute;
+  inset: 0;
+}
+.hubv2-frame__loading,
+.hubv2-frame__fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--color-ink-faint);
+  background: #0b0d13;
+}
+
+/* ----- the label plate --------------------------------------------- */
+
+.hubv2-face__plate {
+  flex: 0 0 auto;
+  padding: 9px 12px 12px;
+  background: linear-gradient(180deg, #141721 0%, #0f1119 100%);
+}
+.hubv2-face__cat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+.hubv2-face__soon {
+  border-radius: 999px;
+  background: #232838;
+  padding: 1px 6px;
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  color: var(--color-ink-muted);
+}
+.hubv2-face__title {
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hubv2-face__tag {
+  overflow: hidden;
+  font-size: 10.5px;
+  color: var(--color-brand);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hubv2-face__blurb {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 6px 0 0;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--color-ink-muted);
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+/* On the art area rather than the plate: at the bottom it sat on top of the
+   last line of the blurb, and the blurb is the reason the panel opens. */
+.hubv2-panel__open {
+  position: absolute;
+  right: 9px;
+  top: 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 8px;
+  background: var(--color-brand);
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  text-decoration: none;
+  box-shadow: 0 6px 18px -6px hsl(243 80% 55% / 0.8);
+}
+.hubv2-panel__open:hover {
+  background: var(--color-brand-2);
+}
+
+/* ----- the stand --------------------------------------------------- */
+
+/* The stand is anchored to the STAGE, not to the hub, so the base always
+   clears the bottom of the panels instead of being swallowed by them at one
+   viewport size and floating free at another. */
+.hubv2__spindle {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.hubv2__hub {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 62px;
+  height: 62px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(60% 60% at 40% 32%, #3a4152, #14161d 70%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 10px 24px -8px rgba(0, 0, 0, 0.9);
+}
+.hubv2__post {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  bottom: 8%;
+  width: 14px;
+  transform: translateX(-50%);
+  border-radius: 7px;
+  background: linear-gradient(90deg, #0d0f15, #2c3141 42%, #0d0f15);
+}
+.hubv2__base {
+  position: absolute;
+  left: 50%;
+  top: 92%;
+  width: min(210px, 34vw);
+  height: 40px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(60% 70% at 50% 30%, #333a4a, #0c0e14 72%);
+  box-shadow: 0 26px 46px -20px rgba(0, 0, 0, 0.95);
+}
+
+/* ----- chrome ------------------------------------------------------ */
+
+.hubv2__controls {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 0 16px 74px;
+}
+.hubv2__arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: hsl(228 20% 10% / 0.7);
+  color: var(--color-ink-muted);
+  backdrop-filter: blur(8px);
+  transition: color 0.15s, border-color 0.15s;
+}
+.hubv2__arrow:hover {
+  color: var(--color-ink);
+  border-color: hsl(243 70% 62% / 0.5);
+}
+.hubv2__readout {
+  display: flex;
+  min-width: 190px;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.hubv2__readout-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+  transition: opacity 0.2s;
+}
+/* Mid-spin the name is meaningless, so it steps back rather than flickering
+   through twenty-seven titles. */
+.hubv2__readout-title.is-spinning {
+  opacity: 0.4;
+}
+.hubv2__readout-count {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-faint);
+}
+
+/* ----- version toggle ---------------------------------------------- */
+
+.hubv2-toggle {
+  position: fixed;
+  right: 12px;
+  top: 12px;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: hsl(228 20% 8% / 0.78);
+  padding: 3px;
+  backdrop-filter: blur(10px);
+}
+.hubv2-toggle__btn {
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-ink-faint);
+  transition: background 0.15s, color 0.15s;
+}
+.hubv2-toggle__btn:hover {
+  color: var(--color-ink);
+}
+.hubv2-toggle__btn.is-active {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The panels still lay out in 3D; what stops is the video and the blur. */
+  .hubv2-media {
+    display: none;
+  }
+}
+
+/* Discoverability, then out of the way. */
+.hubv2__hint {
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--color-ink-faint);
+  opacity: 0.75;
+  transition: opacity 0.4s;
+}
+.hubv2__hint.is-hidden {
+  opacity: 0;
+}

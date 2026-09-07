@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Hub v2 (the rotating panel stand) keeps its own sheet; v1 inherits none of it. */
+@import "./hub-v2.css";
 
 /* ------------------------------------------------------------------ */
 /*  Projects Timeline — dark-first design tokens                       */
