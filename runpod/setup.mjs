@@ -126,6 +126,9 @@ async function api(path, { method = "GET", body } = {}) {
     method,
     headers: {
       Authorization: `Bearer ${KEY}`,
+      // Their edge rejects the default client UA with a Cloudflare 1010.
+      "User-Agent": "auteur-setup/1.0 (+https://github.com/legacymiles/ultimate-assistant-os)",
+      Accept: "application/json",
       ...(body ? { "Content-Type": "application/json" } : {}),
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
@@ -147,9 +150,22 @@ async function api(path, { method = "GET", body } = {}) {
 
 // ----- steps ---------------------------------------------------------------
 
-// Pool ids are not a documented enum, so the catalog is the source of truth
-// and these are only a last resort when it cannot be read.
-const FALLBACK_POOLS = ["ADA_32", "ADA_48_PRO", "AMPERE_80", "HOPPER_80"];
+// Pool ids come from the live catalog; these are only a last resort when it
+// cannot be read. Verified against /v2/catalog/gpus.
+const FALLBACK_POOLS = ["ADA_32_PRO", "BLACKWELL_32", "ADA_48_PRO"];
+
+/**
+ * Does this pool's hardware have native fp8?
+ *
+ * This matters more than price. The worker's default weights are
+ * `pruned_fp8_scaled`, and fp8 is native on Ada, Hopper and Blackwell but NOT
+ * on Ampere. Scheduling onto an A100 or A6000 would be cheap and then either
+ * fail or fall back to emulation that is far slower than the card's price
+ * suggests. So Ampere is excluded unless the weights are changed too.
+ */
+function supportsFp8(pool) {
+  return /^(ADA|HOPPER|BLACKWELL)_/i.test(pool);
+}
 
 async function pickGpuPools() {
   let catalog;
@@ -167,25 +183,42 @@ async function pickGpuPools() {
     return { pools: FALLBACK_POOLS, notes: ["catalog unavailable"] };
   }
 
+  const fp8 = /fp8/i.test(env("H3_DIT_VARIANT", "pruned_fp8_scaled"));
+
   const usable = list
     .map((g) => ({
-      pool: g.pool || g.poolId || g.id,
-      name: g.displayName || g.name || g.id,
-      vram: Number(g.memoryInGb ?? g.vramInGb ?? g.memory ?? 0),
-      price: Number(g?.price?.serverless ?? g?.serverlessPrice ?? 0),
+      // Not every card belongs to a serverless pool; those with a null pool
+      // cannot be scheduled to and have to be dropped.
+      pool: g.pool || null,
+      name: g.id || g.name,
+      vram: Number(g.memory ?? 0),
+      // The catalog quotes pod prices as `secure`/`community`. Serverless flex
+      // rates differ and are not exposed here, so this is a ranking signal
+      // only, never a cost estimate.
+      rank: Number(g?.price?.secure ?? g?.price?.community ?? 99),
     }))
-    .filter((g) => g.pool && g.vram >= CONFIG.minVramGb)
-    .sort((a, b) => (a.price || 99) - (b.price || 99));
+    .filter((g) => g.pool && g.vram >= CONFIG.minVramGb && (!fp8 || supportsFp8(g.pool)))
+    // Smallest card that fits, first. H3 peaks near 27 GB, so a 96 GB
+    // accelerator adds cost without adding speed; ranking purely on the
+    // catalog's pod price would have preferred exactly that.
+    .sort((a, b) => a.vram - b.vram || a.rank - b.rank);
 
-  if (!usable.length) die(`No GPU pool in the catalog has at least ${CONFIG.minVramGb} GB of VRAM.`);
+  if (!usable.length) {
+    die(
+      `No schedulable GPU pool has at least ${CONFIG.minVramGb} GB of VRAM` +
+        (fp8 ? " and native fp8." : ".") +
+        "\n  Lower RUNPOD_MIN_VRAM_GB, or set H3_DIT_VARIANT to a non-fp8 build.",
+    );
+  }
 
-  // Cheapest first, then a couple of larger fallbacks so a busy pool does not
+  // Cheapest first, plus a few roomier fallbacks so a busy pool does not
   // strand the endpoint with nowhere to run.
   const pools = [...new Set(usable.map((g) => g.pool))].slice(0, 4);
-  const notes = usable
-    .filter((g) => pools.includes(g.pool))
-    .slice(0, 6)
-    .map((g) => `${g.name} · ${g.vram}GB · $${g.price || "?"}/hr`);
+  const notes = pools.map((p) => {
+    const cards = usable.filter((g) => g.pool === p);
+    const names = cards.map((c) => c.name.replace(/^NVIDIA\s+/, "")).slice(0, 3).join(", ");
+    return `${p.padEnd(14)} ${String(cards[0].vram).padStart(3)}GB  ${names}`;
+  });
   return { pools, notes };
 }
 
@@ -196,26 +229,37 @@ async function pickGpuPools() {
  * pins the endpoint to it, which narrows the GPUs available. So prefer one the
  * catalog says actually has capacity, and only fall back to a guess.
  */
+// Large, well-stocked North American sites, tried in order. Only a
+// preference: anything offering STANDARD volumes will work.
+const PREFERRED_DATACENTERS = ["US-KS-2", "US-TX-3", "US-IL-1", "US-NC-1", "US-GA-2", "US-WA-1"];
+
 async function pickDataCenter() {
   if (CONFIG.dataCenter) return { id: CONFIG.dataCenter, why: "set in the environment" };
 
-  for (const path of ["/catalog/datacenters", "/datacenters", "/catalog/data-centers"]) {
-    try {
-      const out = await api(path);
-      const list = out.dataCenters || out.datacenters || out.data || (Array.isArray(out) ? out : []);
-      const usable = list
-        .map((d) => ({
-          id: d.id || d.dataCenterId || d.name,
-          storage: d.storageSupport ?? d.supportsNetworkVolumes ?? d.networkVolumeSupport ?? true,
-          listed: d.listed ?? true,
-        }))
-        .filter((d) => d.id && d.storage && d.listed);
-      if (usable.length) return { id: usable[0].id, why: `from ${path}` };
-    } catch {
-      // Try the next spelling; this endpoint is not documented in v2 yet.
+  let list = [];
+  try {
+    const out = await api("/catalog/datacenters");
+    list = out.dataCenters || out.datacenters || (Array.isArray(out) ? out : []);
+  } catch {
+    return { id: "US-KS-2", why: "catalog unreadable — falling back" };
+  }
+
+  // Only some sites offer network volumes at all, and a site that does not
+  // would fail at volume creation rather than at endpoint creation, which is
+  // a confusing place to discover it.
+  const withStandard = list.filter((d) => (d.networkVolumeTypes || []).includes("STANDARD"));
+  if (!withStandard.length) {
+    die("No datacenter in the catalog offers STANDARD network volumes. Set RUNPOD_DATACENTER by hand.");
+  }
+
+  for (const want of PREFERRED_DATACENTERS) {
+    if (withStandard.some((d) => d.id === want)) {
+      return { id: want, why: "supports network volumes, North America" };
     }
   }
-  return { id: "US-KS-2", why: "fallback default — override with RUNPOD_DATACENTER" };
+  const na = withStandard.find((d) => d.region === "NORTH_AMERICA");
+  const chosen = na || withStandard[0];
+  return { id: chosen.id, why: `supports network volumes${na ? ", North America" : `, ${chosen.region}`}` };
 }
 
 async function findVolume() {
@@ -240,7 +284,7 @@ async function createVolume(dataCenter) {
   });
 }
 
-function endpointBody({ pools, volumeId, image }) {
+function endpointBody({ pools, volumeId, image, dataCenterId }) {
   return {
     name: CONFIG.endpointName,
     image,
@@ -250,6 +294,9 @@ function endpointBody({ pools, volumeId, image }) {
     workers: { min: 0, max: CONFIG.maxWorkers, idleTimeout: CONFIG.idleTimeout },
     scaling: { type: "QUEUE_DELAY", queueDelay: 4 },
     ...(volumeId ? { networkVolumes: [volumeId] } : {}),
+    // A volume pins placement to its datacenter; say so explicitly rather
+    // than letting the scheduler pick somewhere the volume cannot follow.
+    ...(dataCenterId ? { dataCenterIds: [dataCenterId] } : {}),
     flashboot: "FLASHBOOT",
     disk: CONFIG.containerDiskGb,
     timeout: CONFIG.executionTimeoutMs,
@@ -339,7 +386,7 @@ async function provision() {
     );
   }
 
-  const body = endpointBody({ pools, volumeId: volume?.id, image: CONFIG.image });
+  const body = endpointBody({ pools, volumeId: volume?.id, image: CONFIG.image, dataCenterId: dataCenter });
 
   if (DRY || !YES) {
     console.log(`  ${bold("Would create")}`);
@@ -364,7 +411,7 @@ async function provision() {
   console.log("  Creating endpoint…");
   const endpoint = await api("/serverless", {
     method: "POST",
-    body: endpointBody({ pools, volumeId: volume.id, image: CONFIG.image }),
+    body: endpointBody({ pools, volumeId: volume.id, image: CONFIG.image, dataCenterId: dataCenter }),
   });
 
   console.log(`\n${good("✓")} Endpoint created: ${bold(endpoint.id)}\n`);
