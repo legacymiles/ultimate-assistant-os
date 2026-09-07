@@ -39,24 +39,33 @@ compute charge. But RunPod bills from worker start to worker stop, which
 includes the **cold start** and the short **idle timeout**. You are not billed
 per second of video; you are billed per second the machine exists.
 
-**Storage — bills continuously.** The ~42 GB of weights sit on a network
-volume at about **$0.07/GB/month**. An 80 GB volume is **about $5.60/month**,
-whether you render or not. This is the asterisk. The alternative is
-re-downloading 42 GB on every cold start, which costs far more in billed GPU
-time than the volume costs to keep.
+**Storage — off by default, so nothing bills at idle.** A network volume would
+cache the ~42 GB of weights between renders, but it bills about $0.07/GB/month
+whether or not you ever use it. That is the only line item that charges while
+you sleep, so it is **not** created by default. Instead the weights are fetched
+onto the worker's own disk on each cold start, and that disk exists only while
+the worker does.
+
+The trade is a slower first shot per session, and it favours the no-volume
+setup unless you render very often:
+
+| Sessions per month | With a volume | No volume |
+| --- | --- | --- |
+| 4 | $5.76 | **$0.58** |
+| 15 | $6.19 | **$2.17** |
+| 30 | $6.79 | **$4.34** |
+| 60 | **$7.97** | $8.69 |
+
+Turn the volume on with `RUNPOD_VOLUME_GB=80` if you end up rendering daily.
 
 Estimates on an RTX 5090 at $1.58/hr, for one ~5 second clip:
 
 | Situation | Billed time | Cost |
 | --- | --- | --- |
 | Warm worker, another shot right after | ~95 s | **~$0.04** |
-| Cold start, first shot of a session | ~6.5 min | **~$0.17** |
-| Very first render ever (downloads weights) | ~17 min | **~$0.44** once |
+| First shot of a session, no volume | ~5.5 min | **~$0.14** |
+| First shot of a session, with a volume | ~1.5 min | **~$0.04** |
 | MiniMax hosted API, same clip | — | **~$0.41** |
-
-So self-hosting is roughly **ten times cheaper per clip while warm**, and
-about **twice as cheap even cold**. Against the $5.60 monthly volume, you come
-out ahead somewhere around **16 clips a month**.
 
 The practical consequence: **render a storyboard in one sitting.** Ten shots
 in a row pay one cold start. Ten shots spread across ten days pay ten.

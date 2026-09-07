@@ -16,10 +16,17 @@
 FROM runpod/worker-comfyui:5.10.0-base
 
 # ComfyUI lives at /comfyui in this base image.
+#
+# H3_MODELS_DIR is deliberately NOT set. The worker decides at runtime: a
+# network volume when one is mounted at /runpod-volume, otherwise its own
+# disk. Pinning it here would break the no-volume setup, which is the default
+# precisely because a volume is the only thing that bills while idle.
 ENV COMFY_DIR=/comfyui \
-    H3_MODELS_DIR=/runpod-volume/models \
     PYTHONUNBUFFERED=1 \
     HF_HUB_ENABLE_HF_TRANSFER=1
+
+# Where the weights land when there is no network volume.
+RUN mkdir -p /models
 
 WORKDIR /app
 

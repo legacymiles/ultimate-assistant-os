@@ -18,10 +18,11 @@
 //                               when you are not rendering
 //   idleTimeout = 5s            the worker lingers only briefly after a job;
 //                               that lingering IS billed
-//   network volume              the ~42 GB of weights are written once and
-//                               reused, instead of re-downloaded per cold
-//                               start. This is the ONE line item that bills
-//                               while you are idle: about $0.07/GB/month.
+//   no network volume           a volume caches the ~42 GB of weights between
+//                               workers, but it is the ONE line item that
+//                               bills while you are idle. Off by default; the
+//                               weights are fetched per cold start instead.
+//                               RUNPOD_VOLUME_GB=80 turns it back on.
 //   FlashBoot                   snapshots a warm worker so a follow-up render
 //                               skips most of the load
 // ---------------------------------------------------------------------------
@@ -91,16 +92,29 @@ function defaultImage() {
 const CONFIG = {
   endpointName: env("RUNPOD_ENDPOINT_NAME", "auteur-h3"),
   volumeName: env("RUNPOD_VOLUME_NAME", "auteur-h3-models"),
-  // 42 GB of base weights, or ~65 GB if reference-to-video is ever enabled,
-  // plus headroom. A volume can be grown later but never shrunk.
-  volumeGb: Number(env("RUNPOD_VOLUME_GB", 80)),
+  /**
+   * Network volume size in GB, or 0 for none. Zero is the default, and that
+   * is the point: a volume is the only part of this setup that bills while
+   * nothing is running, at roughly $0.07/GB/month.
+   *
+   * Without one, the weights are fetched onto the worker's own disk on each
+   * cold start. That adds a few minutes of GPU time to the first shot of a
+   * session and costs nothing in between, which works out cheaper unless you
+   * render on more than about fifty separate occasions a month.
+   *
+   * Set RUNPOD_VOLUME_GB=80 to trade the monthly fee for faster cold starts.
+   */
+  volumeGb: Number(env("RUNPOD_VOLUME_GB", 0)),
   dataCenter: env("RUNPOD_DATACENTER"),
   image: env("RUNPOD_IMAGE") || defaultImage(),
   // 32 GB is the comfortable floor: the quantised model peaks around 27 GB.
   minVramGb: Number(env("RUNPOD_MIN_VRAM_GB", 32)),
   maxWorkers: Number(env("RUNPOD_MAX_WORKERS", 2)),
   idleTimeout: Number(env("RUNPOD_IDLE_TIMEOUT", 5)),
-  containerDiskGb: Number(env("RUNPOD_CONTAINER_DISK_GB", 30)),
+  // Must hold the ~42 GB model set plus the image and working space, because
+  // with no volume the weights land here. This disk exists only as long as
+  // the worker does, so it costs nothing at idle.
+  containerDiskGb: Number(env("RUNPOD_CONTAINER_DISK_GB", 90)),
   // A cold start plus a slow render; the request dies rather than billing
   // forever if something wedges.
   executionTimeoutMs: Number(env("RUNPOD_TIMEOUT_MS", 3_600_000)),
@@ -301,7 +315,8 @@ function endpointBody({ pools, volumeId, image, dataCenterId }) {
     disk: CONFIG.containerDiskGb,
     timeout: CONFIG.executionTimeoutMs,
     env: {
-      H3_MODELS_DIR: "/runpod-volume/models",
+      // Deliberately unset: the worker uses a network volume when one is
+      // mounted, and its own disk when not.
       ...(env("HF_TOKEN") ? { HF_TOKEN: env("HF_TOKEN") } : {}),
     },
   };
@@ -351,8 +366,18 @@ async function provision() {
   console.log(warn("  COST — what bills, and when"));
   console.log("  Compute bills only while a job runs, INCLUDING cold start and the idle");
   console.log(`  timeout (${CONFIG.idleTimeout}s). With min workers 0, an untouched endpoint costs nothing.`);
-  console.log(`  The ${CONFIG.volumeGb} GB network volume bills about $${(CONFIG.volumeGb * 0.07).toFixed(2)}/month whether you use it or not.`);
-  console.log(dim("  That volume is what stops every cold start re-downloading 42 GB.\n"));
+  if (CONFIG.volumeGb > 0) {
+    console.log(
+      `  The ${CONFIG.volumeGb} GB network volume bills about $${(CONFIG.volumeGb * 0.07).toFixed(2)}/month whether you use it or not,`,
+    );
+    console.log(dim("  and is what stops every cold start re-downloading the model."));
+  } else {
+    console.log(good("  No network volume, so NOTHING bills while you are not rendering."));
+    console.log(dim("  The model is fetched onto the worker's own disk each cold start,"));
+    console.log(dim("  adding a few minutes of GPU time to the first shot of a session."));
+    console.log(dim("  Set RUNPOD_VOLUME_GB=80 to trade that for a monthly storage fee."));
+  }
+  console.log("");
 
   if (!CONFIG.image) {
     die(
@@ -371,7 +396,8 @@ async function provision() {
   for (const n of notes) console.log(`    ${n}`);
   console.log(`    ${dim(`pools: ${pools.join(", ")}`)}\n`);
 
-  let volume = await findVolume();
+  const wantVolume = CONFIG.volumeGb > 0;
+  let volume = wantVolume ? await findVolume() : null;
   let dataCenter = volume?.dataCenter || volume?.dataCenterId || "";
   if (!volume) {
     const picked = await pickDataCenter();
@@ -379,7 +405,7 @@ async function provision() {
     console.log(`  ${bold("Datacenter")}  ${dataCenter} ${dim(`(${picked.why})`)}
 `);
   }
-  if (!volume && !dataCenter) {
+  if (wantVolume && !volume && !dataCenter) {
     die(
       "Set RUNPOD_DATACENTER (e.g. US-KS-2) so the network volume can be created.\n" +
         "  A volume lives in one datacenter and pins the endpoint to it.",
@@ -390,35 +416,43 @@ async function provision() {
 
   if (DRY || !YES) {
     console.log(`  ${bold("Would create")}`);
-    if (!volume) {
+    if (volume) {
+      console.log(`    network volume  ${dim(`reusing ${volume.id}`)}`);
+    } else if (wantVolume) {
       console.log(`    network volume  ${CONFIG.volumeName} · ${CONFIG.volumeGb} GB · ${dataCenter}`);
     } else {
-      console.log(`    network volume  ${dim(`reusing ${volume.id}`)}`);
+      console.log(`    network volume  ${good("none — nothing bills at idle")}`);
     }
     console.log(`    endpoint        ${JSON.stringify(body, null, 2).split("\n").join("\n    ")}`);
     console.log(`\n  ${DRY ? dim("Dry run — nothing created.") : warn("Re-run with --yes to create these.")}\n`);
     return;
   }
 
-  if (!volume) {
+  if (wantVolume && !volume) {
     console.log(`  Creating ${CONFIG.volumeGb} GB volume in ${dataCenter}…`);
     volume = await createVolume(dataCenter);
     console.log(`  ${good("✓")} volume ${volume.id}`);
-  } else {
+  } else if (volume) {
     console.log(`  ${good("✓")} reusing volume ${volume.id}`);
   }
 
   console.log("  Creating endpoint…");
   const endpoint = await api("/serverless", {
     method: "POST",
-    body: endpointBody({ pools, volumeId: volume.id, image: CONFIG.image, dataCenterId: dataCenter }),
+    body: endpointBody({ pools, volumeId: volume?.id, image: CONFIG.image, dataCenterId: dataCenter }),
   });
 
   console.log(`\n${good("✓")} Endpoint created: ${bold(endpoint.id)}\n`);
   console.log("  Add this to .env.local:\n");
   console.log(`    RUNPOD_ENDPOINT_ID=${endpoint.id}\n`);
-  console.log(dim("  The first render downloads ~42 GB onto the volume and will take"));
-  console.log(dim("  several billed minutes. Every render after that skips it.\n"));
+  if (wantVolume) {
+    console.log(dim("  The first render downloads ~42 GB onto the volume and will take"));
+    console.log(dim("  several billed minutes. Every render after that skips it.\n"));
+  } else {
+    console.log(dim("  The first shot of each session fetches the model onto the worker,"));
+    console.log(dim("  adding a few billed minutes. Later shots in the same sitting skip"));
+    console.log(dim("  it, so render a storyboard in one go rather than a shot at a time.\n"));
+  }
 }
 
 // ----- main ----------------------------------------------------------------

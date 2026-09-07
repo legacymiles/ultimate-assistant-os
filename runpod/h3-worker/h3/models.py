@@ -33,8 +33,26 @@ REPO = os.environ.get("H3_MODEL_REPO", "Comfy-Org/MiniMax-H3")
 # renders. Override only deliberately.
 REVISION = os.environ.get("H3_MODEL_REVISION", "main")
 
+def _default_models_root() -> Path:
+    """Where the weights live.
+
+    A RunPod network volume, when one is attached, mounts at /runpod-volume
+    and persists between workers, so weights survive a cold start. That
+    convenience costs about $0.07/GB/month whether or not anything renders.
+
+    Without a volume we fall back to the worker's own disk, which exists only
+    while the worker does. Idle then costs nothing at all, at the price of
+    re-fetching the model on each cold start. For occasional use that trade is
+    strongly favourable, which is why no volume is the default.
+    """
+    volume = Path("/runpod-volume")
+    if volume.is_dir() and os.access(volume, os.W_OK):
+        return volume / "models"
+    return Path("/models")
+
+
 # Where ComfyUI expects to find things, relative to a models root.
-MODELS_ROOT = Path(os.environ.get("H3_MODELS_DIR", "/runpod-volume/models"))
+MODELS_ROOT = Path(os.environ["H3_MODELS_DIR"]) if os.environ.get("H3_MODELS_DIR") else _default_models_root()
 
 # Comfy-Org recommend `pruned_int8_convrot` but only on a CUDA 13 PyTorch.
 # This worker builds on RunPod's ComfyUI base image, which is CUDA 12.8, so
