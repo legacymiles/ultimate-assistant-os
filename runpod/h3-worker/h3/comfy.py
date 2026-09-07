@@ -170,14 +170,50 @@ def input_names(class_type: str) -> list[str]:
 def enum_options(class_type: str, socket: str) -> list[str]:
     """The allowed values of a dropdown socket, e.g. CLIPLoader's `type`.
 
-    ComfyUI describes an enum as a list whose first element is the list of
-    choices, which is why this looks the way it does.
+    ComfyUI has described combo widgets three different ways across versions,
+    and a worker that understands only one of them fails at render time on a
+    node as ordinary as KSamplerSelect. All three are handled:
+
+        [["euler", "heun"], {...}]                 classic V1
+        ["COMBO", {"options": ["euler", ...]}]      newer typed form
+        {"type": "COMBO", "options": [...]}         dict form
+
+    Returns [] when the socket is not a combo at all.
     """
     d = describe_node(class_type)
-    spec = d["required"].get(socket) or d["optional"].get(socket)
-    if isinstance(spec, list) and spec and isinstance(spec[0], list):
-        return [str(x) for x in spec[0]]
+    spec = d["required"].get(socket)
+    if spec is None:
+        spec = d["optional"].get(socket)
+    return _options_from(spec)
+
+
+def _options_from(spec: Any) -> list[str]:
+    if spec is None:
+        return []
+    # {"type": "COMBO", "options": [...]}
+    if isinstance(spec, dict):
+        opts = spec.get("options") or spec.get("choices")
+        return [str(x) for x in opts] if isinstance(opts, list) else []
+    if isinstance(spec, list) and spec:
+        head = spec[0]
+        # [["euler", ...], {...}]
+        if isinstance(head, list):
+            return [str(x) for x in head]
+        # ["COMBO", {"options": [...]}]
+        if len(spec) > 1 and isinstance(spec[1], dict):
+            opts = spec[1].get("options") or spec[1].get("choices")
+            if isinstance(opts, list):
+                return [str(x) for x in opts]
+        # ["euler", "heun", ...] — already a bare list of choices
+        if all(isinstance(x, str) for x in spec) and len(spec) > 1:
+            return [str(x) for x in spec]
     return []
+
+
+def raw_input_spec(class_type: str) -> dict[str, Any]:
+    """The untouched `input` block for a node, for diagnostics."""
+    info = object_info()
+    return (info.get(class_type) or {}).get("input", {}) or {}
 
 
 def pick_enum(class_type: str, socket: str, prefer: list[str], fallback: str | None = None) -> str:

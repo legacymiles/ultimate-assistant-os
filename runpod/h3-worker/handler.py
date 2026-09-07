@@ -157,9 +157,52 @@ def _return_video(job, data: bytes, summary: dict) -> dict:
     return {"video_base64": base64.b64encode(data).decode("ascii"), "bytes": size, **summary}
 
 
+def _introspect(job, want: list[str]) -> dict:
+    """Report what this worker actually has, rather than what we assumed.
+
+    Node schemas and weight filenames are the two things that cannot be
+    verified from a laptop, and getting either wrong only shows up after the
+    GPU is billing. One diagnostic job answers both far more cheaply than
+    another failed render.
+    """
+    out: dict = {"models_root": str(models.MODELS_ROOT)}
+
+    present = {}
+    root = models.MODELS_ROOT
+    if root.exists():
+        for f in sorted(root.rglob("*.safetensors")):
+            present[str(f.relative_to(root))] = round(f.stat().st_size / 1e9, 2)
+    out["weights_on_disk_gb"] = present
+    out["weights_missing"] = [w.path for w in models.missing(False)]
+    out["comfy_up"] = comfy.is_up()
+
+    if comfy.is_up():
+        info = comfy.object_info()
+        out["node_count"] = len(info)
+        out["minimax_nodes"] = sorted(
+            k for k in info if any(s in k.lower() for s in ("minimax", "hailuo", "h3"))
+        )
+        specs = {}
+        for name in want:
+            try:
+                specs[name] = comfy.raw_input_spec(name)
+            except Exception as e:
+                specs[name] = {"error": str(e)}
+        out["input_specs"] = specs
+    return out
+
+
 def handler(job):
     job_input = job.get("input") or {}
     try:
+        # Diagnostics run before anything else and never touch the sampler.
+        if job_input.get("introspect"):
+            want = job_input.get("introspect")
+            if not isinstance(want, list):
+                want = ["KSamplerSelect", "MiniMaxH3ImageToVideo", "CLIPLoader", "UNETLoader"]
+            _boot(job, bool(job_input.get("with_reference")))
+            return _introspect(job, [str(w) for w in want])
+
         prompt = str(job_input.get("prompt") or "").strip()
         if not prompt:
             return {"error": "prompt is required"}

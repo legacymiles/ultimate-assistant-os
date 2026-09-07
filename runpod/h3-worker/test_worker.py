@@ -115,5 +115,42 @@ class DataUrls(unittest.TestCase):
             self.handler._decode_data_url("data:image/png;base64,!!!not base64!!!")
 
 
+class ComboOptions(unittest.TestCase):
+    """ComfyUI has emitted combo widgets three different ways across versions.
+
+    Getting this wrong cost a real failed render: KSamplerSelect reported
+    "no selectable options" on a live worker because only the oldest shape
+    was understood.
+    """
+
+    def setUp(self):
+        from h3.comfy import _options_from
+
+        self.parse = _options_from
+
+    def test_classic_v1_list_of_choices(self):
+        self.assertEqual(
+            self.parse([["euler", "heun", "dpmpp_2m"], {"default": "euler"}]),
+            ["euler", "heun", "dpmpp_2m"],
+        )
+
+    def test_typed_combo_with_options_dict(self):
+        self.assertEqual(
+            self.parse(["COMBO", {"options": ["euler", "res_multistep"]}]),
+            ["euler", "res_multistep"],
+        )
+
+    def test_plain_dict_form(self):
+        self.assertEqual(self.parse({"type": "COMBO", "options": ["simple", "beta"]}), ["simple", "beta"])
+
+    def test_bare_list_of_strings(self):
+        self.assertEqual(self.parse(["euler", "heun"]), ["euler", "heun"])
+
+    def test_non_combo_sockets_yield_nothing(self):
+        self.assertEqual(self.parse(["INT", {"default": 20}]), [])
+        self.assertEqual(self.parse(None), [])
+        self.assertEqual(self.parse([]), [])
+
+
 if __name__ == "__main__":
     unittest.main()
