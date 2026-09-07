@@ -109,7 +109,16 @@ const CONFIG = {
   image: env("RUNPOD_IMAGE") || defaultImage(),
   // 32 GB is the comfortable floor: the quantised model peaks around 27 GB.
   minVramGb: Number(env("RUNPOD_MIN_VRAM_GB", 32)),
-  maxWorkers: Number(env("RUNPOD_MAX_WORKERS", 2)),
+  /**
+   * Maximum concurrent workers. One, deliberately.
+   *
+   * With no network volume every new worker pays its own multi-minute model
+   * fetch, so a second worker started to drain a queue costs another full
+   * cold start rather than saving time. Queuing shots onto one already-warm
+   * worker is both cheaper and, for a handful of shots, no slower. Raise it
+   * only if you add a volume, which makes extra workers cheap to start.
+   */
+  maxWorkers: Number(env("RUNPOD_MAX_WORKERS", 1)),
   idleTimeout: Number(env("RUNPOD_IDLE_TIMEOUT", 5)),
   // Must hold the ~42 GB model set plus the image and working space, because
   // with no volume the weights land here. This disk exists only as long as
@@ -334,13 +343,26 @@ async function showStatus() {
   console.log(`\n${bold("Endpoint")} ${EXISTING_ENDPOINT}`);
   console.log(`  workers   idle ${h?.workers?.idle ?? "?"} · running ${h?.workers?.running ?? "?"}`);
   console.log(`  jobs      queued ${h?.jobs?.inQueue ?? "?"} · running ${h?.jobs?.inProgress ?? "?"} · done ${h?.jobs?.completed ?? "?"} · failed ${h?.jobs?.failed ?? "?"}`);
+  // Billing runs from worker start to worker stop, so a worker sitting idle
+  // inside its timeout is still on the meter. Counting only "running" here
+  // would report free while money was being spent.
   const running = Number(h?.workers?.running || 0);
+  const idle = Number(h?.workers?.idle || 0);
+  const alive = running + idle;
   console.log(
-    running > 0
-      ? `\n  ${warn("A worker is running right now, so the meter is on.")}`
-      : `\n  ${good("No workers running. You are not being billed for compute.")}`,
+    alive > 0
+      ? `\n  ${warn(`${alive} worker(s) alive (${running} rendering, ${idle} idle) — the meter is on.`)}`
+      : `\n  ${good("No workers alive. You are not being billed for compute.")}`,
   );
-  console.log(dim("  The network volume bills continuously regardless.\n"));
+  // Only true when a volume actually exists; saying it otherwise would
+  // describe a charge that is not being made.
+  const volumes = await api("/network-volumes").catch(() => null);
+  const attached = (volumes?.networkVolumes || []).length;
+  console.log(
+    attached
+      ? dim(`  ${attached} network volume(s) bill continuously regardless.\n`)
+      : dim("  No network volume either, so idle costs nothing at all.\n"),
+  );
 }
 
 async function teardown() {
