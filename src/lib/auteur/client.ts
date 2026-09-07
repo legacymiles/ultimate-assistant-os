@@ -233,10 +233,19 @@ export async function renderShot(p: Project, shot: Shot, prompt: H3Prompt, opts:
   }
 }
 
+/**
+ * How long to wait before declaring a render lost.
+ *
+ * Generous on purpose. A hosted render takes a few minutes, but the FIRST
+ * render against a freshly created self-hosted endpoint also downloads ~42 GB
+ * of weights onto its volume, which can run well past fifteen minutes. Giving
+ * up early there would abandon a job that is both working and being paid for.
+ */
+const POLL_CEILING_MS = 40 * 60_000;
+
 async function pollTask(taskId: string, opts: RenderOptions): Promise<RenderOutcome> {
   const started = Date.now();
-  // H3 at 2K can take several minutes; give it fifteen before giving up.
-  while (Date.now() - started < 15 * 60_000) {
+  while (Date.now() - started < POLL_CEILING_MS) {
     if (opts.signal?.aborted) return { engine: "minimax", error: "Cancelled" };
     await new Promise((r) => setTimeout(r, 8000));
     const res = await fetch("/api/auteur/generate", {
@@ -261,5 +270,8 @@ async function pollTask(taskId: string, opts: RenderOptions): Promise<RenderOutc
       return { engine: "minimax", blob: await dl.blob() };
     }
   }
-  return { engine: "minimax", error: "Timed out waiting for the render" };
+  return {
+    engine: "minimax",
+    error: `Gave up after ${Math.round(POLL_CEILING_MS / 60_000)} minutes. The job may still be running; check the backend before re-rendering.`,
+  };
 }
