@@ -65,3 +65,4 @@ public/dances/
 
 # Supabase CLI scratch (version probe, linked-project cache).
 supabase/.temp/
+__pycache__/

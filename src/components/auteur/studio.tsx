@@ -58,7 +58,13 @@ export interface Toast {
   tone: "info" | "ok" | "warn";
 }
 
-export type Progress = "uploading" | "queued" | "generating" | "downloading";
+export type ProgressState = "uploading" | "queued" | "generating" | "downloading";
+
+/** What a shot's render is doing, plus whatever the backend said about it. */
+export interface Progress {
+  state: ProgressState;
+  note?: string;
+}
 
 export interface Studio {
   projects: Project[];
@@ -507,7 +513,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
 
       const ac = new AbortController();
       aborters.current.set(shotId, ac);
-      setBusy((b) => ({ ...b, [shotId]: "uploading" }));
+      setBusy((b) => ({ ...b, [shotId]: { state: "uploading" } }));
       const setTake = (patch: Partial<ShotTake>) =>
         update((p) => updateShot(p, shotId, (s) => ({ ...s, takes: s.takes.map((t) => (t.id === take.id ? { ...t, ...patch } : t)) })));
 
@@ -516,7 +522,7 @@ export function StudioProvider({ children }: { children: ReactNode }) {
         const outcome = await renderShot(p0, hit.shot, prompt, {
           resolution,
           signal: ac.signal,
-          onProgress: (state) => setBusy((b) => ({ ...b, [shotId]: state })),
+          onProgress: (state, note) => setBusy((b) => ({ ...b, [shotId]: { state, note } })),
         });
         if (outcome.error) {
           setTake({ status: "error", engine: outcome.engine, error: outcome.error });

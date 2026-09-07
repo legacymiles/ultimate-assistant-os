@@ -1,0 +1,67 @@
+{
+  "title": "MiniMax H3 Video (self-hosted)",
+  "description": "Renders one MiniMax H3 clip per job from open weights on your own GPU. Text-to-video, first-frame, and reference-to-video, with native audio. Weights live on a network volume so the container stays small and idle costs nothing.",
+  "type": "serverless",
+  "category": "video",
+  "config": {
+    "runsOn": "GPU",
+    "containerDiskInGb": 30,
+    "gpuCount": 1,
+    "gpuIds": "ADA_32,ADA_48_PRO,AMPERE_80,HOPPER_80",
+    "allowedCudaVersions": ["12.8", "12.9", "13.0"],
+    "presets": [
+      {
+        "name": "Draft (fast, cheap)",
+        "defaults": { "H3_DIT_VARIANT": "pruned_fp8_scaled", "H3_RENDER_TIMEOUT_S": "1800" }
+      },
+      {
+        "name": "Quality (full 768p canvas)",
+        "defaults": { "H3_DIT_VARIANT": "pruned_fp8_scaled", "H3_RENDER_TIMEOUT_S": "3600" }
+      }
+    ],
+    "env": [
+      {
+        "key": "H3_DIT_VARIANT",
+        "input": {
+          "name": "Transformer quantization",
+          "type": "string",
+          "description": "pruned_fp8_scaled works on CUDA 12.8. Use pruned_int8_convrot only on a CUDA 13 build.",
+          "options": [
+            { "label": "fp8 scaled (default, CUDA 12.8)", "value": "pruned_fp8_scaled" },
+            { "label": "int8 convrot (needs CUDA 13)", "value": "pruned_int8_convrot" },
+            { "label": "bf16 pruned (needs 48GB+)", "value": "pruned_bf16" }
+          ],
+          "default": "pruned_fp8_scaled"
+        }
+      },
+      {
+        "key": "HF_TOKEN",
+        "input": {
+          "name": "Hugging Face token",
+          "type": "string",
+          "description": "Optional. Only raises download rate limits; the weights are not gated.",
+          "default": "",
+          "advanced": true
+        }
+      },
+      {
+        "key": "BUCKET_ENDPOINT_URL",
+        "input": {
+          "name": "S3 bucket endpoint",
+          "type": "string",
+          "description": "Optional but recommended. Must include the region, e.g. https://my-bucket.s3.us-east-1.amazonaws.com. Without it, clips over ~6.5MB cannot be returned.",
+          "default": "",
+          "advanced": true
+        }
+      },
+      {
+        "key": "BUCKET_ACCESS_KEY_ID",
+        "input": { "name": "S3 access key id", "type": "string", "description": "Optional, pairs with the bucket endpoint.", "default": "", "advanced": true }
+      },
+      {
+        "key": "BUCKET_SECRET_ACCESS_KEY",
+        "input": { "name": "S3 secret access key", "type": "string", "description": "Optional, pairs with the bucket endpoint.", "default": "", "advanced": true }
+      }
+    ]
+  }
+}

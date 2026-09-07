@@ -1,0 +1,7 @@
+# The base image already provides torch, ComfyUI and its dependencies.
+# These are only what the handler itself adds.
+runpod>=1.7.0
+huggingface_hub>=0.34.0
+# Parallel-chunk downloads; turns a ~42 GB first fetch from painful into
+# merely slow. Enabled via HF_HUB_ENABLE_HF_TRANSFER in the Dockerfile.
+hf_transfer>=0.1.6

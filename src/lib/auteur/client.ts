@@ -155,9 +155,16 @@ export interface RenderOutcome {
   error?: string;
 }
 
+export type RenderState = "uploading" | "queued" | "generating" | "downloading";
+
 export interface RenderOptions {
   resolution: "768P" | "2K";
-  onProgress?: (state: "uploading" | "queued" | "generating" | "downloading") => void;
+  /**
+   * `note` is free text from the backend, e.g. "Warming up — loading model"
+   * during a cold start on a self-hosted endpoint. Worth showing: without it
+   * a five-minute model load looks identical to a hang.
+   */
+  onProgress?: (state: RenderState, note?: string) => void;
   signal?: AbortSignal;
 }
 
@@ -238,9 +245,10 @@ async function pollTask(taskId: string, opts: RenderOptions): Promise<RenderOutc
       body: JSON.stringify({ action: "status", taskId }),
       signal: opts.signal,
     });
-    const data = (await res.json().catch(() => ({}))) as { status?: string; error?: string };
+    const data = (await res.json().catch(() => ({}))) as { status?: string; error?: string; note?: string };
     if (data.status === "error") return { engine: "minimax", error: data.error ?? "Render failed" };
-    if (data.status === "generating") opts.onProgress?.("generating");
+    if (data.status === "queued") opts.onProgress?.("queued", data.note);
+    if (data.status === "generating") opts.onProgress?.("generating", data.note);
     if (data.status === "done") {
       opts.onProgress?.("downloading");
       const dl = await fetch("/api/auteur/generate", {

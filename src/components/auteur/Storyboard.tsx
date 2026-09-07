@@ -9,7 +9,7 @@ import { activeTake, allShots } from "@/lib/auteur/repo";
 import type { Scene, Shot } from "@/lib/auteur/types";
 import { cn } from "@/lib/utils";
 import { Icon } from "../icons";
-import { useStudio } from "./studio";
+import { useStudio, type Progress } from "./studio";
 import { Btn, EmptyState, Mono, Spinner, TakeFrame, fmtSec } from "./ui";
 
 export function Storyboard() {
@@ -151,6 +151,7 @@ function ShotCard({
   const cast = shot.characterIds.map((id) => p.characters.find((c) => c.id === id)?.name).filter(Boolean);
   const refCount = shot.prompt.references.length + shot.referenceIds.length;
   const status = busy ? "generating" : take?.status ?? "idle";
+  const busyTitle = busy?.note ?? undefined;
 
   return (
     <div
@@ -203,7 +204,7 @@ function ShotCard({
           )}
         </div>
         <div className="mt-2 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <Btn size="sm" variant={take?.status === "done" ? "default" : "primary"} disabled={Boolean(busy)} onClick={() => void studio.generate(shot.id)} title={take ? "Render another take" : "Render this shot"}>
+          <Btn size="sm" variant={take?.status === "done" ? "default" : "primary"} disabled={Boolean(busy)} onClick={() => void studio.generate(shot.id)} title={busyTitle ?? (take ? "Render another take" : "Render this shot")}>
             {busy ? <Spinner /> : <Icon.Launch width={11} height={11} />}
             {busy ? busyLabel(busy) : take?.status === "done" ? "Retake" : "Generate"}
           </Btn>
@@ -220,8 +221,14 @@ function ShotCard({
   );
 }
 
-export function busyLabel(state: string): string {
-  switch (state) {
+/**
+ * What a rendering shot says on its button. A backend note wins when there is
+ * one — during a cold start on a self-hosted endpoint that note is the only
+ * thing distinguishing "loading 40GB of weights" from "stuck".
+ */
+export function busyLabel(p: Progress): string {
+  if (p.note) return p.note.length > 22 ? p.note.slice(0, 21) + "…" : p.note;
+  switch (p.state) {
     case "uploading":
       return "Sending";
     case "queued":
