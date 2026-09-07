@@ -1,0 +1,345 @@
+/* ------------------------------------------------------------------ */
+/*  Auteur — the film studio's own skin.                               */
+/*                                                                     */
+/*  Everything is scoped under .auteur so the hub's tokens stay as     */
+/*  they are. The look: a near-black stage, a warm projector-gold      */
+/*  accent, monospace HUD labels for shot data, letterboxed previews.  */
+/* ------------------------------------------------------------------ */
+
+.auteur {
+  --au-bg: #08080b;
+  --au-stage: #0d0d12;
+  --au-panel: #121218;
+  --au-panel-2: #17171f;
+  --au-raised: #1d1d27;
+  --au-line: #23232f;
+  --au-line-strong: #2f2f3d;
+  --au-ink: #ecebe6;
+  --au-ink-2: #a7a6a0;
+  --au-ink-3: #6d6c69;
+  --au-gold: #e8b95c;
+  --au-gold-2: #c9973c;
+  --au-gold-glow: rgba(232, 185, 92, 0.18);
+  --au-red: #e5533d;
+  --au-green: #5fc98a;
+  --au-blue: #6aa7ff;
+  --au-radius: 12px;
+  --au-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  background: var(--au-bg);
+  color: var(--au-ink);
+  min-height: 100vh;
+  font-feature-settings: "ss01", "cv11";
+}
+
+/* Faint grain and a vignette so the black reads like a cinema, not a void. */
+.auteur::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(232, 185, 92, 0.07), transparent 60%),
+    radial-gradient(900px 500px at 100% 100%, rgba(106, 167, 255, 0.05), transparent 60%);
+}
+.auteur::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+  mix-blend-mode: screen;
+}
+.auteur > * {
+  position: relative;
+  z-index: 1;
+}
+
+.au-mono {
+  font-family: var(--au-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 10px;
+  color: var(--au-ink-3);
+}
+
+.au-panel {
+  background: var(--au-panel);
+  border: 1px solid var(--au-line);
+  border-radius: var(--au-radius);
+}
+
+.au-input {
+  width: 100%;
+  background: var(--au-stage);
+  border: 1px solid var(--au-line);
+  border-radius: 10px;
+  color: var(--au-ink);
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.au-input:focus {
+  border-color: var(--au-gold-2);
+  box-shadow: 0 0 0 3px var(--au-gold-glow);
+}
+.au-input::placeholder {
+  color: var(--au-ink-3);
+}
+textarea.au-input {
+  resize: vertical;
+}
+
+.au-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  border: 1px solid var(--au-line-strong);
+  background: var(--au-panel-2);
+  color: var(--au-ink);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
+  white-space: nowrap;
+}
+.au-btn:hover {
+  background: var(--au-raised);
+  border-color: #3b3b4b;
+}
+.au-btn:active {
+  transform: translateY(1px);
+}
+.au-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+.au-btn-primary {
+  background: linear-gradient(180deg, #f0c56d, var(--au-gold-2));
+  border-color: #b98a35;
+  color: #1a1204;
+  font-weight: 600;
+  box-shadow: 0 6px 18px rgba(232, 185, 92, 0.18);
+}
+.au-btn-primary:hover {
+  background: linear-gradient(180deg, #f5cd7c, #d5a247);
+  border-color: #b98a35;
+}
+.au-btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--au-ink-2);
+}
+.au-btn-ghost:hover {
+  background: var(--au-panel-2);
+  border-color: var(--au-line);
+  color: var(--au-ink);
+}
+.au-btn-danger:hover {
+  border-color: rgba(229, 83, 61, 0.6);
+  color: #ff8a78;
+}
+.au-btn-sm {
+  padding: 5px 9px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+.au-btn-icon {
+  padding: 6px;
+}
+
+.au-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 12px;
+  line-height: 1;
+  border: 1px solid var(--au-line-strong);
+  background: var(--au-panel-2);
+  color: var(--au-ink-2);
+  transition: all 0.15s ease;
+}
+.au-chip:hover {
+  color: var(--au-ink);
+  border-color: #3d3d4e;
+}
+.au-chip[data-on="true"] {
+  background: rgba(232, 185, 92, 0.12);
+  border-color: rgba(232, 185, 92, 0.55);
+  color: var(--au-gold);
+}
+
+/* Letterboxed frame. The aspect comes from the project. */
+.au-frame {
+  position: relative;
+  overflow: hidden;
+  background: #000;
+  border-radius: 10px;
+  border: 1px solid var(--au-line);
+}
+.au-frame video,
+.au-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* The animatic a shot shows before it has a clip. */
+.au-animatic {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 80% at 30% 20%, hsl(var(--h) 45% 26%), transparent 60%),
+    radial-gradient(90% 70% at 80% 90%, hsl(calc(var(--h) + 40) 40% 18%), transparent 60%),
+    #0b0b10;
+}
+.au-animatic::before {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(60% 50% at 50% 50%, hsl(var(--h) 55% 45% / 0.35), transparent 70%);
+  animation: au-drift 14s ease-in-out infinite alternate;
+}
+@keyframes au-drift {
+  from {
+    transform: translate(-6%, -4%) scale(1);
+  }
+  to {
+    transform: translate(6%, 5%) scale(1.15);
+  }
+}
+
+/* Status dot on cards. */
+.au-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--au-ink-3);
+  flex: none;
+}
+.au-dot[data-s="generating"],
+.au-dot[data-s="queued"] {
+  background: var(--au-gold);
+  box-shadow: 0 0 0 0 rgba(232, 185, 92, 0.6);
+  animation: au-pulse 1.4s ease-out infinite;
+}
+.au-dot[data-s="done"] {
+  background: var(--au-green);
+}
+.au-dot[data-s="error"] {
+  background: var(--au-red);
+}
+@keyframes au-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(232, 185, 92, 0.6);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgba(232, 185, 92, 0);
+  }
+}
+
+/* A card that lifts on hover, used for templates, projects, shots. */
+.au-card {
+  background: var(--au-panel);
+  border: 1px solid var(--au-line);
+  border-radius: var(--au-radius);
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.au-card:hover {
+  border-color: var(--au-line-strong);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.au-card[data-selected="true"] {
+  border-color: var(--au-gold-2);
+  box-shadow: 0 0 0 3px var(--au-gold-glow);
+}
+.au-card[data-dragging="true"] {
+  opacity: 0.4;
+}
+.au-card[data-over="true"] {
+  border-color: var(--au-gold);
+}
+
+/* Scrollbars inside the studio: thinner and darker than the hub default. */
+.auteur * {
+  scrollbar-color: #2a2a36 transparent;
+}
+
+.au-fade-in {
+  animation: au-fade 0.25s ease-out both;
+}
+@keyframes au-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.au-marquee {
+  background: linear-gradient(90deg, var(--au-gold), #f6dfae 40%, var(--au-gold) 80%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.au-shimmer {
+  background: linear-gradient(90deg, var(--au-panel-2) 25%, var(--au-raised) 50%, var(--au-panel-2) 75%);
+  background-size: 200% 100%;
+  animation: au-shimmer 1.6s linear infinite;
+}
+@keyframes au-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.au-select {
+  appearance: none;
+  background: var(--au-stage);
+  border: 1px solid var(--au-line);
+  border-radius: 8px;
+  color: var(--au-ink);
+  padding: 6px 26px 6px 9px;
+  font-size: 12px;
+  outline: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236d6c69' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+}
+.au-select:focus {
+  border-color: var(--au-gold-2);
+}
+
+.au-range {
+  accent-color: var(--au-gold);
+  width: 100%;
+}
+
+.au-kbd {
+  font-family: var(--au-mono);
+  font-size: 10px;
+  padding: 2px 5px;
+  border: 1px solid var(--au-line-strong);
+  border-radius: 5px;
+  color: var(--au-ink-3);
+}

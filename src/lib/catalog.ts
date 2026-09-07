@@ -285,6 +285,33 @@ export const PROJECTS: CatalogProject[] = [
     hue: [286, 196],
   },
   {
+    slug: "auteur",
+    title: "Auteur",
+    tag: "AI film studio for MiniMax H3",
+    category: "Video",
+    overview:
+      "An AI filmmaking studio, not a prompt box. Type the film in plain language, pick a template " +
+      "(short film, music video, commercial, trailer, UGC ad, fashion film…) and a genre (romance, " +
+      "horror, comedy, noir…), and drop in references: a face that must stay the same, a location, a " +
+      "product, a style frame, a track. The AI Director develops the idea into a concept, a cast with " +
+      "continuity sheets, the worlds it happens in and a visual style, then breaks it into scenes and " +
+      "a shot list with camera, lighting, action, expression and what must match the previous shot. " +
+      "Every shot becomes a card on a storyboard you can reorder, duplicate, edit and delete, and each " +
+      "carries its own MiniMax H3 brief — composed from the whole project's context in H3's real " +
+      "format (a [Shot 1] production brief with a prose camera move, named <Subject N> references, a " +
+      "soundscape and a music line), invisible to most people and one click away for anyone who wants " +
+      "to read or edit it. Generate renders through MiniMax's v2 API (or the Vercel AI Gateway), " +
+      "polls the task and stores the clip in the browser; retakes are plain sentences — \"closer\", " +
+      "\"darker\", \"change her outfit\", \"make him look angry, keep everything else\" — turned into " +
+      "a patch on the shot so nothing else moves, and every take is kept. A timeline plays the active " +
+      "takes in order under a music track. With no key at all it still plans, boards, retakes and cuts " +
+      "with animatics, so the whole workflow is usable before a single frame is paid for.",
+    status: "live",
+    appUrl: "/apps/auteur",
+    iconStyle: "aurora",
+    hue: [40, 20],
+  },
+  {
     slug: "seedance-studio",
     title: "Seedance Studio",
     tag: "Seedance 2 prompt builder",
