@@ -1,140 +1,42 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { Icon } from "../icons";
 import { CREDENTIAL_FIELDS } from "@/lib/recall/schemas";
-import { createItem, deleteItem, setItemFields, setItemSecret, updateItem } from "@/lib/recall/store";
-import * as vault from "@/lib/recall/vault";
+import {
+  createItem,
+  deleteItem,
+  setItemFields,
+  setItemPassword,
+  updateItem,
+} from "@/lib/recall/store";
+import { copyEphemeral } from "@/lib/recall/clipboard";
 import type { Item, RecallData } from "@/lib/recall/types";
 import { RowAction } from "./Section";
 
 // ---------------------------------------------------------------------------
 // Logins & Passwords.
-// Usernames, emails and URLs are plaintext (searchable, copyable). The password
-// is the single encrypted value, sealed with the master password and only ever
-// decrypted on an explicit reveal/copy while the vault is unlocked.
+//
+// Everything on a credential — username, email, URL and the password itself —
+// is stored in the clear on this device. There is no second password to get
+// past: a saved password can always be revealed here, or recovered from
+// Settings › Saved passwords. Being able to get it back is the whole point of
+// writing it down.
+//
+// A folder holds as many logins as you like: + adds another, every time.
 // ---------------------------------------------------------------------------
 
-/**
- * Reactive mirror of the module-level vault state.
- * Reports "no vault" until mounted: the server cannot see localStorage, and
- * disagreeing with it on the first client render is a hydration mismatch.
- */
-export function useVault() {
-  const [, bump] = useState(0);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
-  useEffect(() => vault.subscribe(() => bump((n) => n + 1)), []);
-
-  // Enforce the idle auto-lock on a timer — never during render.
-  useEffect(() => {
-    const t = setInterval(() => {
-      vault.enforceIdleLock();
-      bump((n) => n + 1);
-    }, 15_000);
-    return () => clearInterval(t);
-  }, []);
-
-  return {
-    exists: mounted && vault.vaultExists(),
-    unlocked: mounted && vault.isUnlocked(),
-  };
-}
-
-export function VaultNotice() {
+function PasswordsNotice() {
   return (
     <div className="mb-2 flex gap-2 rounded-lg border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2">
       <Icon.Shield width={14} height={14} className="mt-0.5 shrink-0 text-amber-300/90" />
       <p className="text-[11px] leading-relaxed text-amber-100/70">
-        <span className="font-semibold text-amber-200/90">Encrypted for convenience.</span> Passwords
-        are sealed with AES-GCM under your master password and never stored in the clear. This still
-        is not a hardened password manager — for bank, email and root accounts, keep the real secret
-        in 1Password or Bitwarden and store only a pointer here.
+        <span className="font-semibold text-amber-200/90">Stored in the clear.</span> Saved
+        passwords are readable here — no master password, nothing to forget, and every one of them
+        is recoverable from Settings. That also means anyone using this device unlocked can read
+        them, so for bank, email and root accounts keep the real secret in 1Password or Bitwarden
+        and store only a pointer here.
       </p>
-    </div>
-  );
-}
-
-// ----- gate ----------------------------------------------------------------
-
-export function VaultGate({ mode }: { mode: "create" | "unlock" }) {
-  const [pw, setPw] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function submit() {
-    setErr(null);
-    setBusy(true);
-    try {
-      if (mode === "create") {
-        if (pw !== confirm) throw new Error("The two passwords do not match.");
-        await vault.createVault(pw);
-      } else {
-        const ok = await vault.unlock(pw);
-        if (!ok) throw new Error("Wrong master password.");
-      }
-      setPw("");
-      setConfirm("");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Something went wrong.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="rounded-xl border border-line bg-panel-2/60 p-4">
-      <div className="mb-2 flex items-center gap-2">
-        <Icon.Lock width={15} height={15} className="text-brand" />
-        <span className="text-[13px] font-semibold text-ink">
-          {mode === "create" ? "Set a master password" : "Vault locked"}
-        </span>
-      </div>
-      <p className="mb-3 max-w-md text-[11px] leading-relaxed text-ink-muted">
-        {mode === "create" ? (
-          <>
-            One password unlocks every saved login on this device. It is never stored — there is no
-            reset and no recovery, so if you forget it the saved passwords are gone for good.
-          </>
-        ) : (
-          <>Unlock to reveal and copy saved passwords. Re-locks after 5 minutes idle.</>
-        )}
-      </p>
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          type="password"
-          value={pw}
-          autoComplete={mode === "create" ? "new-password" : "current-password"}
-          onChange={(e) => setPw(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && mode === "unlock" && void submit()}
-          placeholder="master password"
-          className="w-52 rounded-lg border border-line bg-canvas px-3 py-2 text-xs text-ink outline-none placeholder:text-ink-faint focus:border-brand"
-        />
-        {mode === "create" && (
-          <input
-            type="password"
-            value={confirm}
-            autoComplete="new-password"
-            onChange={(e) => setConfirm(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && void submit()}
-            placeholder="confirm"
-            className="w-40 rounded-lg border border-line bg-canvas px-3 py-2 text-xs text-ink outline-none placeholder:text-ink-faint focus:border-brand"
-          />
-        )}
-        <button
-          onClick={() => void submit()}
-          disabled={busy || pw.length < 8}
-          className="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white transition hover:bg-brand-2 disabled:opacity-40"
-        >
-          {mode === "create" ? "Create vault" : "Unlock"}
-        </button>
-      </div>
-      {pw.length > 0 && pw.length < 8 && (
-        <p className="mt-2 text-[11px] text-ink-faint">At least 8 characters.</p>
-      )}
-      {err && <p className="mt-2 text-[11px] text-red-400">{err}</p>}
     </div>
   );
 }
@@ -143,42 +45,19 @@ export function VaultGate({ mode }: { mode: "create" | "unlock" }) {
 
 function CredentialCard({
   item,
-  unlocked,
   onData,
   onToast,
 }: {
   item: Item;
-  unlocked: boolean;
   onData: (d: RecallData) => void;
   onToast: (m: string) => void;
 }) {
-  const [revealed, setRevealed] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState(false);
   const [editing, setEditing] = useState(false);
   const fields = item.fields ?? {};
-
-  // Any lock event must drop a revealed password from the DOM immediately.
-  useEffect(() => {
-    if (!unlocked) setRevealed(null);
-  }, [unlocked]);
-
-  const reveal = useCallback(async () => {
-    if (!item.secret) return;
-    try {
-      setRevealed(await vault.decryptSecret(item.secret));
-    } catch {
-      onToast("Vault locked");
-    }
-  }, [item.secret, onToast]);
-
-  async function copySecret() {
-    if (!item.secret) return;
-    try {
-      await vault.copyEphemeral(await vault.decryptSecret(item.secret));
-      onToast("Password copied — clipboard clears in 30s");
-    } catch {
-      onToast("Vault locked");
-    }
-  }
+  const password = item.password ?? "";
+  /** Sealed under the retired master password and not imported yet. */
+  const stranded = !password && Boolean(item.secret);
 
   async function copyPlain(value: string, what: string) {
     await navigator.clipboard.writeText(value);
@@ -248,22 +127,33 @@ function CredentialCard({
           </div>
         ))}
 
-        {item.secret && (
+        {password && (
           <div className="flex items-center gap-2 text-[11px]">
             <dt className="w-16 shrink-0 text-ink-faint">Password</dt>
             <dd className="min-w-0 flex-1 truncate font-mono text-ink-muted">
-              {revealed ?? "••••••••••"}
+              {revealed ? password : "••••••••••"}
             </dd>
-            <RowAction
-              label={revealed ? "Hide" : "Reveal"}
-              onClick={() => (revealed ? setRevealed(null) : void reveal())}
-            >
+            <RowAction label={revealed ? "Hide" : "Reveal"} onClick={() => setRevealed((v) => !v)}>
               {revealed ? <Icon.EyeOff width={12} height={12} /> : <Icon.Eye width={12} height={12} />}
             </RowAction>
-            <RowAction label="Copy password" onClick={() => void copySecret()}>
+            <RowAction
+              label="Copy password"
+              onClick={() => {
+                void copyEphemeral(password);
+                onToast("Password copied — clipboard clears in 30s");
+              }}
+            >
               <Icon.Copy width={12} height={12} />
             </RowAction>
           </div>
+        )}
+
+        {stranded && (
+          <p className="rounded-lg border border-amber-400/25 bg-amber-400/[0.07] px-2 py-1.5 text-[11px] leading-relaxed text-amber-100/75">
+            Still sealed under the old master password. Open Settings ›{" "}
+            <span className="font-semibold">Saved passwords</span> and enter it once to bring this
+            back — or just type the password in again here.
+          </p>
         )}
       </dl>
     </div>
@@ -287,12 +177,12 @@ export function CredentialForm({
 }) {
   const [title, setTitle] = useState(item?.title ?? "");
   const [fields, setFields] = useState<Record<string, string>>({ ...(item?.fields ?? {}) });
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState(item?.password ?? "");
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  async function save() {
+  function save() {
     if (!title.trim()) {
       setErr("Give it a name.");
       return;
@@ -300,12 +190,12 @@ export function CredentialForm({
     setBusy(true);
     setErr(null);
     try {
-      const secret = password ? await vault.encryptSecret(password) : undefined;
       if (item) {
-        let d = updateItem(item.id, { title: title.trim() });
-        d = setItemFields(item.id, fields);
-        if (secret) d = setItemSecret(item.id, secret);
-        onDone(d);
+        updateItem(item.id, { title: title.trim() });
+        setItemFields(item.id, fields);
+        // The form starts with the current password in the box, so whatever is
+        // there now is the truth — including an emptied box, which clears it.
+        onDone(setItemPassword(item.id, password || null));
       } else {
         const { data } = createItem({
           title: title.trim(),
@@ -316,7 +206,7 @@ export function CredentialForm({
           folderId: folderId ?? null,
           tags: [],
           fields,
-          secret: secret ?? null,
+          password: password || null,
         });
         onDone(data);
       }
@@ -356,7 +246,7 @@ export function CredentialForm({
             value={password}
             autoComplete="new-password"
             onChange={(e) => setPassword(e.target.value)}
-            placeholder={item?.secret ? "Password — leave blank to keep the current one" : "Password"}
+            placeholder="Password"
             className="w-full rounded-lg border border-line bg-canvas px-2.5 py-1.5 pr-8 font-mono text-[11px] text-ink outline-none placeholder:font-sans placeholder:text-ink-faint focus:border-brand"
           />
           <button
@@ -371,7 +261,7 @@ export function CredentialForm({
       {err && <p className="mt-2 text-[11px] text-red-400">{err}</p>}
       <div className="mt-2.5 flex items-center gap-2">
         <button
-          onClick={() => void save()}
+          onClick={save}
           disabled={busy}
           className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-2 disabled:opacity-40"
         >
@@ -405,37 +295,13 @@ export function LoginsBody({
   onData: (d: RecallData) => void;
   onToast: (m: string) => void;
 }) {
-  const { exists, unlocked } = useVault();
-
-  if (!exists) {
-    return (
-      <div className="space-y-2 px-1">
-        <VaultNotice />
-        <VaultGate mode="create" />
-      </div>
-    );
-  }
-
-  if (!unlocked) {
-    return (
-      <div className="space-y-2 px-1">
-        <VaultGate mode="unlock" />
-        {items.length > 0 && (
-          <p className="px-1 text-[11px] text-ink-faint">
-            {items.length} saved {items.length === 1 ? "login" : "logins"} in this folder.
-          </p>
-        )}
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-2 px-1">
-      <VaultNotice />
+      <PasswordsNotice />
       {items.map((it) => (
-        <CredentialCard key={it.id} item={it} unlocked={unlocked} onData={onData} onToast={onToast} />
+        <CredentialCard key={it.id} item={it} onData={onData} onToast={onToast} />
       ))}
-      {adding && (
+      {adding ? (
         <CredentialForm
           folderId={folderId}
           onCancel={() => onAddingChange(false)}
@@ -445,6 +311,16 @@ export function LoginsBody({
           }}
           onToast={onToast}
         />
+      ) : (
+        // The header + is easy to miss, and one login per folder is never the
+        // real answer — so the way to add the next one is always on screen.
+        <button
+          onClick={() => onAddingChange(true)}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-line px-3 py-2 text-[11px] text-ink-faint transition hover:border-brand/40 hover:text-ink"
+        >
+          <Icon.Plus width={13} height={13} />
+          Add another login
+        </button>
       )}
     </div>
   );

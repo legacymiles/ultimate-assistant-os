@@ -154,14 +154,42 @@ export function FolderWorkspace({
     });
   }, [here?.sections, subfolders.length, buckets, isUnfiled]);
 
+  /**
+   * Every section is always in the menu. One a folder already shows offers
+   * "one more of these" instead of vanishing — the + is how you add a second
+   * login, not just the first.
+   */
   const choices: SectionChoice[] = SECTION_ORDER.filter(
-    (id) => !visible.includes(id) && !(isUnfiled && id === "subfolders"),
-  ).map((id) => ({ id, ...SECTION_META[id] }));
+    (id) => !(isUnfiled && id === "subfolders"),
+  ).map((id) => ({ id, ...SECTION_META[id], present: visible.includes(id) }));
 
   function addSection(id: SectionId) {
     if (!folderId) return;
     onData(addFolderSection(folderId, id));
-    onToast(`${SECTION_META[id].label} added`);
+    onToast(`label added`);
+  }
+
+  /** Open the inline "new item" form of a section the folder already shows. */
+  function startAdd(id: SectionId) {
+    switch (id) {
+      case "subfolders":
+        return onNewFolder(folderId);
+      case "notes":
+        return setAddingNote(true);
+      case "todos":
+        return setAddingTodo(true);
+      case "links":
+        return setAddingLink(true);
+      case "logins":
+        return setAddingLogin(true);
+      case "websites":
+        return setAddingWebsite(true);
+    }
+  }
+
+  function pick(id: SectionId, present: boolean) {
+    if (present) startAdd(id);
+    else addSection(id);
   }
 
   function dropSection(id: SectionId) {

@@ -57,7 +57,11 @@ export interface Attachment {
   category?: string;
 }
 
-/** AES-GCM ciphertext, both halves base64. Only ever holds a password. */
+/**
+ * AES-GCM ciphertext, both halves base64.
+ * LEGACY: passwords used to be sealed under a master password. Nothing writes
+ * this any more -- existing ones are imported into `password` from Settings.
+ */
 export interface Cipher {
   iv: string;
   ct: string;
@@ -87,7 +91,14 @@ export interface Item {
    * site registrar/renewal, credential username/url. Never a password.
    */
   fields?: Record<string, string>;
-  /** The one encrypted value on a credential. Undefined until a password is set. */
+  /**
+   * The saved password on a credential, in the clear.
+   * Deliberately readable: the whole point is that you can recover it later,
+   * from the card or from Settings, without a second password to remember.
+   * Never indexed by search (see `search.ts`) and never sent anywhere.
+   */
+  password?: string | null;
+  /** LEGACY ciphertext, kept only so it can be imported into `password`. */
   secret?: Cipher | null;
   /**
    * Text read out of the thing itself — a PDF's contents, a .docx, a page's

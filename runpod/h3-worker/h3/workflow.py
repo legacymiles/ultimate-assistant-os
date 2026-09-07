@@ -189,26 +189,15 @@ def build(
             lora_inputs[s["strength_model"]] = 1.0
         model = g.add(lora_class, lora_inputs, "turbo LoRA")
 
-    # ----- sigma shift ------------------------------------------------------
-    # H3 steps video and audio on two schedules inside one transformer call;
-    # the shift node is what sets them, and the turbo LoRAs assume it.
+    # No sigma-shift node here on purpose. Comfy Org's own H3 templates go
+    # straight from the turbo LoRA to the guider, and matching a known-good
+    # graph beats adding a node the reference workflow does without.
     info = comfy.object_info()
-    if "MiniMaxH3SigmaShift" in info:
-        s = _sockets("MiniMaxH3SigmaShift", ["model", "shift_video", "shift_audio"])
-        shift_inputs: dict[str, Any] = {s.get("model", "model"): [model, 0]}
-        if "shift_video" in s:
-            shift_inputs[s["shift_video"]] = 12.0
-        if "shift_audio" in s:
-            shift_inputs[s["shift_audio"]] = 3.0 if lora_filename else 5.0
-        model = g.add("MiniMaxH3SigmaShift", shift_inputs, "sigma shift")
 
     # ----- conditioning + latent -------------------------------------------
     if references:
         node_class = "MiniMaxH3ReferenceToVideo"
-        s = _sockets(
-            node_class,
-            ["clip", "vae", "audio_vae", "text", "width", "height", "length", "ref_images", "ref_image_size"],
-        )
+        s = _sockets(node_class, ["clip", "vae", "audio_vae", "text", "width", "height", "length", "ref_image_size"])
         _require(node_class, s, ["clip", "text", "width", "height", "length"])
         inputs: dict[str, Any] = {
             s["clip"]: [clip, 0],
@@ -225,17 +214,32 @@ def build(
             inputs[s["ref_image_size"]] = comfy.pick_enum(
                 node_class, s["ref_image_size"], ["match"], fallback="match"
             )
-        # Reference images are loaded individually and chained in the order
-        # the prompt names them; that order is semantic to H3.
+
+        # Reference image sockets are dotted and indexed from zero —
+        # "ref_images.ref_image_0", "ref_images.ref_image_1" — which is not a
+        # naming a reasonable person would guess. Taken from Comfy Org's own
+        # video_minimax_h3_r2v template. Only the slots this build actually
+        # declares are filled; H3 accepts up to nine.
+        available = set(comfy.input_names(node_class))
+        slots = [n for n in available if "ref_image_" in n and "audio" not in n]
+        slots.sort(key=lambda n: int(n.rsplit("_", 1)[-1]) if n.rsplit("_", 1)[-1].isdigit() else 99)
+        if not slots:
+            raise WorkflowError(
+                f"{node_class} exposes no reference image slots. It accepts: {sorted(available)}"
+            )
+
         load_class = _first_present("LoadImage")
-        ls = _sockets(load_class, ["image"])
-        image_key = ls.get("image", "image")
-        for i, name in enumerate(references[:9]):
-            img = g.add(load_class, {image_key: name}, f"reference {i + 1}")
-            socket = s.get("ref_images", "ref_images")
-            inputs[f"{socket}_{i}" if i else socket] = [img, 0]
+        image_key = _sockets(load_class, ["image"]).get("image", "image")
+        # Order is semantic to H3: the prompt names <Subject 1> first.
+        for slot, name in zip(slots, references[:9]):
+            img = g.add(load_class, {image_key: name}, f"reference {slot}")
+            inputs[slot] = [img, 0]
+        if len(references) > len(slots):
+            print(f"[h3] only {len(slots)} reference slots available; dropped {len(references) - len(slots)}")
         cond = g.add(node_class, inputs, "reference conditioning")
     else:
+        # Used for plain text-to-video too: the official t2v template is this
+        # node with no keyframe attached.
         node_class = "MiniMaxH3ImageToVideo"
         s = _sockets(
             node_class, ["clip", "vae", "audio_vae", "text", "width", "height", "length", "first_frame"]

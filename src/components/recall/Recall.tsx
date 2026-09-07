@@ -11,7 +11,6 @@ import {
   isLocal,
   updateFolder,
 } from "@/lib/recall/store";
-import * as vault from "@/lib/recall/vault";
 import type { Folder, Item, RecallData } from "@/lib/recall/types";
 import { ALL, FolderTree, UNFILED } from "./FolderTree";
 import { CaptureModal } from "./CaptureModal";
@@ -19,7 +18,6 @@ import { ItemDetailModal } from "./ItemDetailModal";
 import { AgentChat } from "./AgentChat";
 import { FolderWorkspace } from "./FolderWorkspace";
 import { SearchResults } from "./SearchResults";
-import { useVault } from "./LoginsSection";
 import { FolderDialog, type FolderDraft } from "./FolderDialog";
 import { FolderHome } from "./FolderHome";
 import { SecurityDialog } from "./SecurityDialog";
@@ -85,7 +83,6 @@ export function Recall() {
   const [calendarNonce, setCalendarNonce] = useState(0);
   const [photosNonce, setPhotosNonce] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
-  const { exists: vaultExists, unlocked: vaultUnlocked } = useVault();
 
   useEffect(() => {
     // Fold any legacy server/site records into websites, then read.
@@ -121,8 +118,6 @@ export function Recall() {
   }, []);
 
   async function signOut() {
-    // Lock the vault first so no decrypted secret survives the redirect.
-    vault.lock();
     await fetch("/api/recall-unlock", { method: "DELETE" });
     window.location.href = "/recall-unlock";
   }
@@ -256,30 +251,9 @@ export function Recall() {
             )}
           </div>
 
-          {vaultExists && (
-            <button
-              onClick={() => {
-                if (vaultUnlocked) {
-                  vault.lock();
-                  setToast("Vault locked");
-                }
-              }}
-              title={vaultUnlocked ? "Vault unlocked — click to lock" : "Vault locked"}
-              aria-label={vaultUnlocked ? "Lock vault" : "Vault locked"}
-              className={
-                "shrink-0 rounded-lg border p-1.5 transition " +
-                (vaultUnlocked
-                  ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/20"
-                  : "border-line text-ink-faint")
-              }
-            >
-              {vaultUnlocked ? <Icon.Unlock width={15} height={15} /> : <Icon.Lock width={15} height={15} />}
-            </button>
-          )}
-
           <button
             onClick={() => setSecurityOpen(true)}
-            title="Security — app password and vault master password"
+            title="Security — app password and saved passwords"
             aria-label="Security settings"
             className="shrink-0 rounded-lg border border-line p-1.5 text-ink-muted transition hover:text-ink"
           >

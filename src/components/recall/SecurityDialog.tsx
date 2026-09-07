@@ -1,19 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Icon } from "../icons";
-import { allSecrets, applyRekeyedSecrets } from "@/lib/recall/store";
-import * as vault from "@/lib/recall/vault";
-import type { RecallData } from "@/lib/recall/types";
+import { allCredentials, applyImportedPasswords, getData, legacySecrets } from "@/lib/recall/store";
+import { forgetLegacyVault, hasLegacyVault, importAll } from "@/lib/recall/legacyVault";
+import { copyEphemeral } from "@/lib/recall/clipboard";
+import type { Cipher, Folder, Item, RecallData } from "@/lib/recall/types";
+import { RowAction } from "./Section";
 
 // ---------------------------------------------------------------------------
 // Security settings.
 //
-// Recall has two passwords and they do different jobs, so they are shown side
-// by side with that spelled out:
-//   · the app password is a door on the page — it stops someone opening Recall
-//   · the vault master password is encryption — it is what actually protects
-//     saved logins, and it can never be recovered
+// Recall has exactly one password: the app password, a door on the page that
+// stops someone else opening Recall. Saved logins are NOT behind a second one
+// — they are listed here, revealable and copyable, because a password you
+// cannot get back is worse than useless.
 // ---------------------------------------------------------------------------
 
 interface GateStatus {
@@ -186,87 +187,213 @@ function AppPassword({ onToast }: { onToast: (m: string) => void }) {
   );
 }
 
-// ----- vault master password -------------------------------------------------
+// ----- saved passwords -------------------------------------------------------
 
-function VaultPassword({
+function PasswordRow({
+  item,
+  folderName,
+  showAll,
+  onToast,
+}: {
+  item: Item;
+  folderName: string;
+  showAll: boolean;
+  onToast: (m: string) => void;
+}) {
+  const [shown, setShown] = useState(false);
+  const reveal = showAll || shown;
+  const password = item.password ?? "";
+  const who = item.fields?.username || item.fields?.email || "";
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-line-soft px-2.5 py-1.5">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[12px] font-medium text-ink">{item.title}</p>
+        <p className="truncate text-[10px] text-ink-faint">
+          {folderName}
+          {who && ` · ${who}`}
+        </p>
+      </div>
+      <span className="min-w-0 max-w-[45%] shrink-0 truncate text-right font-mono text-[11px] text-ink-muted">
+        {password ? (reveal ? password : "••••••••••") : "encrypted — import below"}
+      </span>
+      {password && (
+        <>
+          <RowAction label={reveal ? "Hide" : "Reveal"} onClick={() => setShown((v) => !v)}>
+            {reveal ? <Icon.EyeOff width={12} height={12} /> : <Icon.Eye width={12} height={12} />}
+          </RowAction>
+          <RowAction
+            label="Copy password"
+            onClick={() => {
+              void copyEphemeral(password);
+              onToast("Password copied — clipboard clears in 30s");
+            }}
+          >
+            <Icon.Copy width={12} height={12} />
+          </RowAction>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Every saved login in one place, revealable without a second password.
+ * This is the recovery path: forget which folder a login went into and you can
+ * still find it here.
+ */
+function SavedPasswords({
   onData,
   onToast,
 }: {
   onData: (d: RecallData) => void;
   onToast: (m: string) => void;
 }) {
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [confirm, setConfirm] = useState("");
+  const [items, setItems] = useState<Item[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [query, setQuery] = useState("");
+  const [showAll, setShowAll] = useState(false);
+  // Anything still sealed under the retired master password.
+  const [stranded, setStranded] = useState<{ id: string; title: string; cipher: Cipher }[]>([]);
+  const [master, setMaster] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const exists = vault.vaultExists();
 
-  async function submit() {
+  const refresh = useCallback(() => {
+    setItems(allCredentials());
+    setFolders(getData().folders);
+    setStranded(hasLegacyVault() ? legacySecrets() : []);
+  }, []);
+
+  useEffect(() => refresh(), [refresh]);
+
+  const folderName = (id: string | null) =>
+    (id && folders.find((f) => f.id === id)?.name) || "Unfiled";
+
+  const shown = items.filter((i) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return [i.title, folderName(i.folderId), ...Object.values(i.fields ?? {})]
+      .join(" ")
+      .toLowerCase()
+      .includes(q);
+  });
+
+  async function runImport() {
     setError(null);
-    if (next.length < 8) return setError("Use at least 8 characters.");
-    if (next !== confirm) return setError("The two passwords do not match.");
     setBusy(true);
     try {
-      // Every saved secret is decrypted with the old key and re-encrypted with
-      // the new one in a single pass, then written back together.
-      const rekeyed = await vault.changeMasterPassword(current, next, allSecrets());
-      onData(applyRekeyedSecrets(rekeyed));
-      setCurrent("");
-      setNext("");
-      setConfirm("");
-      onToast(`Master password changed · ${rekeyed.length} logins re-encrypted`);
+      const { imported, failed } = await importAll(master, stranded);
+      onData(applyImportedPasswords(imported));
+      if (failed === 0) forgetLegacyVault();
+      setMaster("");
+      refresh();
+      onToast(
+        `${imported.length} password${imported.length === 1 ? "" : "s"} recovered` +
+          (failed ? ` · ${failed} could not be read` : ""),
+      );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not change it.");
+      setError(e instanceof Error ? e.message : "Could not import.");
     } finally {
       setBusy(false);
     }
   }
 
-  if (!exists) {
-    return (
-      <section className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Icon.Lock width={14} height={14} className="text-ink-faint" />
-          <h3 className="text-[13px] font-semibold text-ink">Vault master password</h3>
-        </div>
-        <p className="text-[11px] leading-relaxed text-ink-muted">
-          No vault yet. It is created the first time you add a login, in any folder&apos;s Logins
-          &amp; Passwords section.
-        </p>
-      </section>
-    );
-  }
-
   return (
     <section className="space-y-2">
       <div className="flex items-center gap-2">
-        <Icon.Lock width={14} height={14} className="text-ink-faint" />
-        <h3 className="text-[13px] font-semibold text-ink">Vault master password</h3>
+        <Icon.Key width={14} height={14} className="text-ink-faint" />
+        <h3 className="text-[13px] font-semibold text-ink">Saved passwords</h3>
+        {items.length > 0 && (
+          <button
+            onClick={() => setShowAll((v) => !v)}
+            className="ml-auto rounded-lg border border-line px-2 py-1 text-[11px] text-ink-muted transition hover:text-ink"
+          >
+            {showAll ? "Hide all" : "Reveal all"}
+          </button>
+        )}
       </div>
       <p className="text-[11px] leading-relaxed text-ink-muted">
-        The real encryption. Changing it decrypts every saved login and re-encrypts it under the new
-        password in one pass.
+        Every login you have saved, in any folder. There is no master password to remember — reveal
+        or copy any of them from here.
       </p>
-      <Note tone="warn">
-        There is no recovery. Forget this and the saved passwords are unreadable for good.
-      </Note>
 
-      <div className="grid gap-1.5 sm:grid-cols-3">
-        <Field label="Current" value={current} onChange={setCurrent} />
-        <Field label="New" value={next} onChange={setNext} placeholder="min 8 characters" />
-        <Field label="Confirm" value={confirm} onChange={setConfirm} />
-      </div>
+      {stranded.length > 0 && (
+        <div className="space-y-2 rounded-lg border border-amber-400/25 bg-amber-400/[0.07] p-2.5">
+          <p className="text-[11px] leading-relaxed text-amber-100/80">
+            {stranded.length} password{stranded.length === 1 ? " was" : "s were"} saved under the old
+            master password. Enter it once and they become readable like the rest — after that the
+            master password is gone for good.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="password"
+              autoComplete="off"
+              value={master}
+              placeholder="old master password"
+              onChange={(e) => setMaster(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && master && void runImport()}
+              className="w-52 rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-xs text-ink outline-none placeholder:text-ink-faint focus:border-brand"
+            />
+            <button
+              onClick={() => void runImport()}
+              disabled={busy || !master}
+              className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-2 disabled:opacity-40"
+            >
+              {busy ? "Importing…" : "Import"}
+            </button>
+            <button
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `Forget ${stranded.length} encrypted password${stranded.length === 1 ? "" : "s"}? The logins stay, but those passwords are unrecoverable and you will have to type them again.`,
+                  )
+                ) {
+                  onData(applyImportedPasswords(stranded.map((s) => ({ id: s.id, password: "" }))));
+                  forgetLegacyVault();
+                  refresh();
+                  onToast("Old encrypted passwords discarded");
+                }
+              }}
+              className="rounded-lg border border-line px-3 py-1.5 text-xs text-ink-muted transition hover:border-red-500/40 hover:text-red-400"
+            >
+              Forget them
+            </button>
+          </div>
+          {error && <p className="text-[11px] text-red-400">{error}</p>}
+        </div>
+      )}
 
-      {error && <p className="text-[11px] text-red-400">{error}</p>}
-
-      <button
-        onClick={() => void submit()}
-        disabled={busy || !current || !next}
-        className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-2 disabled:opacity-40"
-      >
-        {busy ? "Re-encrypting…" : "Change master password"}
-      </button>
+      {items.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-line px-3 py-3 text-center text-[11px] text-ink-faint">
+          No logins saved yet. Add one in any folder&apos;s Logins &amp; Passwords section.
+        </p>
+      ) : (
+        <>
+          {items.length > 5 && (
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Filter by name, folder or username"
+              className="w-full rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-xs text-ink outline-none placeholder:text-ink-faint focus:border-brand"
+            />
+          )}
+          <div className="max-h-64 space-y-1 overflow-y-auto pr-0.5">
+            {shown.map((it) => (
+              <PasswordRow
+                key={it.id}
+                item={it}
+                folderName={folderName(it.folderId)}
+                showAll={showAll}
+                onToast={onToast}
+              />
+            ))}
+            {shown.length === 0 && (
+              <p className="px-1 py-2 text-[11px] text-ink-faint">Nothing matches that.</p>
+            )}
+          </div>
+        </>
+      )}
     </section>
   );
 }
@@ -314,7 +441,7 @@ export function SecurityDialog({
         <div className="space-y-6 p-5">
           <AppPassword onToast={onToast} />
           <div className="border-t border-line-soft" />
-          <VaultPassword onData={onData} onToast={onToast} />
+          <SavedPasswords onData={onData} onToast={onToast} />
         </div>
       </div>
     </div>

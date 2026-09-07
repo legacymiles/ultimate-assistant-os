@@ -253,6 +253,7 @@ export interface NewItemInput {
   driveId?: string | null;
   done?: boolean;
   fields?: Record<string, string>;
+  password?: string | null;
   secret?: Cipher | null;
   extract?: string;
   extractStatus?: Item["extractStatus"];
@@ -279,6 +280,7 @@ export function createItem(input: NewItemInput): { data: RecallData; item: Item 
     driveId: input.driveId ?? null,
     done: input.done ?? false,
     fields: input.fields ?? {},
+    password: input.password ?? null,
     secret: input.secret ?? null,
     extract: input.extract,
     extractStatus: input.extractStatus,
@@ -363,12 +365,12 @@ export function setItemFields(itemId: string, patch: Record<string, string>): Re
   return data;
 }
 
-/** Store (or clear) the one encrypted value on a credential. */
-export function setItemSecret(itemId: string, secret: Cipher | null): RecallData {
+/** Store (or clear) the saved password on a credential. */
+export function setItemPassword(itemId: string, password: string | null): RecallData {
   const data = load();
   const it = data.items.find((x) => x.id === itemId);
   if (it) {
-    it.secret = secret;
+    it.password = password;
     it.updatedAt = nowIso();
   }
   save(data);
@@ -379,28 +381,33 @@ export function renameItem(itemId: string, title: string): RecallData {
   return updateItem(itemId, { title: title.trim() || "Untitled" });
 }
 
-/** Every credential ciphertext — used when re-keying the vault. */
-export function allSecrets(): { id: string; cipher: Cipher }[] {
+/** Every credential that still holds a password, in every folder. */
+export function allCredentials(): Item[] {
+  return load().items.filter((i) => i.kind === "credential" && (i.password || i.secret));
+}
+
+/**
+ * Credentials still sealed under the retired master password.
+ * Non-empty only on a device that used the old vault; Settings offers a
+ * one-time import that turns each of these into a readable `password`.
+ */
+export function legacySecrets(): { id: string; title: string; cipher: Cipher }[] {
   return load()
-    .items.filter((i) => i.secret)
-    .map((i) => ({ id: i.id, cipher: i.secret as Cipher }));
+    .items.filter((i) => i.secret && !i.password)
+    .map((i) => ({ id: i.id, title: i.title, cipher: i.secret as Cipher }));
 }
 
-export function applyRekeyedSecrets(next: { id: string; cipher: Cipher }[]): RecallData {
+/** Write imported plaintext back and drop the ciphertext it came from. */
+export function applyImportedPasswords(next: { id: string; password: string }[]): RecallData {
   const data = load();
-  const byId = new Map(next.map((n) => [n.id, n.cipher]));
+  const byId = new Map(next.map((n) => [n.id, n.password]));
   for (const it of data.items) {
-    const c = byId.get(it.id);
-    if (c) it.secret = c;
+    const p = byId.get(it.id);
+    if (p === undefined) continue;
+    it.password = p;
+    it.secret = null;
+    it.updatedAt = nowIso();
   }
-  save(data);
-  return data;
-}
-
-/** Drop every stored ciphertext — pairs with destroying the vault. */
-export function clearAllSecrets(): RecallData {
-  const data = load();
-  for (const it of data.items) if (it.secret) it.secret = null;
   save(data);
   return data;
 }
