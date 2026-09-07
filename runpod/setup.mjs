@@ -189,6 +189,35 @@ async function pickGpuPools() {
   return { pools, notes };
 }
 
+/**
+ * A datacenter to put the volume in.
+ *
+ * This choice is sticky: a network volume lives in exactly one datacenter and
+ * pins the endpoint to it, which narrows the GPUs available. So prefer one the
+ * catalog says actually has capacity, and only fall back to a guess.
+ */
+async function pickDataCenter() {
+  if (CONFIG.dataCenter) return { id: CONFIG.dataCenter, why: "set in the environment" };
+
+  for (const path of ["/catalog/datacenters", "/datacenters", "/catalog/data-centers"]) {
+    try {
+      const out = await api(path);
+      const list = out.dataCenters || out.datacenters || out.data || (Array.isArray(out) ? out : []);
+      const usable = list
+        .map((d) => ({
+          id: d.id || d.dataCenterId || d.name,
+          storage: d.storageSupport ?? d.supportsNetworkVolumes ?? d.networkVolumeSupport ?? true,
+          listed: d.listed ?? true,
+        }))
+        .filter((d) => d.id && d.storage && d.listed);
+      if (usable.length) return { id: usable[0].id, why: `from ${path}` };
+    } catch {
+      // Try the next spelling; this endpoint is not documented in v2 yet.
+    }
+  }
+  return { id: "US-KS-2", why: "fallback default — override with RUNPOD_DATACENTER" };
+}
+
 async function findVolume() {
   try {
     const out = await api("/network-volumes");
@@ -296,7 +325,13 @@ async function provision() {
   console.log(`    ${dim(`pools: ${pools.join(", ")}`)}\n`);
 
   let volume = await findVolume();
-  const dataCenter = CONFIG.dataCenter || volume?.dataCenter || volume?.dataCenterId || "";
+  let dataCenter = volume?.dataCenter || volume?.dataCenterId || "";
+  if (!volume) {
+    const picked = await pickDataCenter();
+    dataCenter = picked.id;
+    console.log(`  ${bold("Datacenter")}  ${dataCenter} ${dim(`(${picked.why})`)}
+`);
+  }
   if (!volume && !dataCenter) {
     die(
       "Set RUNPOD_DATACENTER (e.g. US-KS-2) so the network volume can be created.\n" +
