@@ -24,6 +24,9 @@ import { FolderDialog, type FolderDraft } from "./FolderDialog";
 import { FolderHome } from "./FolderHome";
 import { SecurityDialog } from "./SecurityDialog";
 import { ListsBoard } from "./lists/ListsBoard";
+import { PhotosBoard } from "./photos/PhotosBoard";
+import { CalendarBoard } from "./calendar/CalendarBoard";
+import { ensurePhotosRoot } from "@/lib/recall/store";
 import { pruneOrphans } from "@/lib/recall/files";
 import { KEY as RECALL_KEY } from "@/lib/recall/store";
 import { useRemotePull } from "@/lib/sync/useSync";
@@ -38,8 +41,12 @@ import { useRemotePull } from "@/lib/sync/useSync";
 
 const HOME_TABS = [
   { id: "folders" as const, label: "Folders", icon: Icon.Folder },
+  { id: "photos" as const, label: "Photos", icon: Icon.Image },
+  { id: "calendar" as const, label: "Calendar", icon: Icon.Calendar },
   { id: "lists" as const, label: "Lists", icon: Icon.ListChecks },
 ];
+
+type HomeTab = (typeof HOME_TABS)[number]["id"];
 
 /** Create a new folder under `parentId`, or edit an existing one. */
 type FolderDialogState =
@@ -69,13 +76,23 @@ export function Recall() {
    * folder or searching leaves the switch behind, because neither means
    * anything on the Lists side.
    */
-  const [homeTab, setHomeTab] = useState<"folders" | "lists">("folders");
+  const [homeTab, setHomeTab] = useState<HomeTab>("folders");
+  /**
+   * The calendar, the people list and the folder tree are three separate
+   * stores. When the assistant writes to one of the other two, bumping its
+   * nonce remounts that board so it re-reads instead of showing stale data.
+   */
+  const [calendarNonce, setCalendarNonce] = useState(0);
+  const [photosNonce, setPhotosNonce] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
   const { exists: vaultExists, unlocked: vaultUnlocked } = useVault();
 
   useEffect(() => {
     // Fold any legacy server/site records into websites, then read.
     migrateRecords();
+    // The camera roll needs somewhere to live before the first photo arrives,
+    // so the Photos root is created on first load rather than on first import.
+    ensurePhotosRoot();
     const fresh = getData();
     setData(fresh);
     setReady(true);
@@ -378,7 +395,7 @@ export function Recall() {
               ))}
             </div>
 
-            {homeTab === "folders" ? (
+            {homeTab === "folders" && (
               <FolderHome
                 data={data}
                 onOpen={navigate}
@@ -386,10 +403,31 @@ export function Recall() {
                 onEditFolder={handleEditFolder}
                 onDeleteFolder={handleDeleteFolder}
                 onOpenUnfiled={() => navigate(UNFILED)}
+                onOpenPhotos={() => setHomeTab("photos")}
               />
-            ) : (
-              <ListsBoard />
             )}
+            {homeTab === "photos" && (
+              <PhotosBoard
+                key={photosNonce}
+                data={data}
+                onNavigate={navigate}
+                onData={setData}
+                onToast={setToast}
+                onOpenItem={setDetailItem}
+                onCalendarChanged={() => setCalendarNonce((n) => n + 1)}
+              />
+            )}
+            {homeTab === "calendar" && (
+              <CalendarBoard
+                key={calendarNonce}
+                onToast={setToast}
+                onOpenItem={(id) => {
+                  const it = data.items.find((x) => x.id === id);
+                  if (it) setDetailItem(it);
+                }}
+              />
+            )}
+            {homeTab === "lists" && <ListsBoard />}
           </>
         ) : (
           <FolderWorkspace
@@ -423,6 +461,8 @@ export function Recall() {
         }}
         ask={askQuestion}
         onAskConsumed={() => setAskQuestion(null)}
+        onCalendarChanged={() => setCalendarNonce((n) => n + 1)}
+        onPhotosChanged={() => setPhotosNonce((n) => n + 1)}
       />
 
       {securityOpen && (

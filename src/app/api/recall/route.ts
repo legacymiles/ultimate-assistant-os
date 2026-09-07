@@ -31,6 +31,21 @@ interface FolderRef {
   path: string;
 }
 
+interface EventRef {
+  id: string;
+  title: string;
+  date: string;
+  time: string | null;
+  location: string | null;
+  notes: string | null;
+}
+
+interface PersonRef {
+  id: string;
+  name: string;
+  role: string;
+}
+
 /**
  * Family members get the Lists board and nothing else, so the RAG side refuses
  * them here rather than only hiding the UI.
@@ -55,6 +70,11 @@ export async function POST(req: Request) {
     question?: string;
     candidates?: Candidate[];
     folders?: FolderRef[];
+    today?: string;
+    events?: EventRef[];
+    people?: PersonRef[];
+    photoCategories?: string[];
+    pendingPhotos?: number;
   };
   try {
     body = await req.json();
@@ -201,25 +221,43 @@ async function agentWithLLM(
     candidates?: Candidate[];
     folderPaths?: string[];
     folders?: FolderRef[];
+    today?: string;
+    events?: EventRef[];
+    people?: PersonRef[];
+    photoCategories?: string[];
+    pendingPhotos?: number;
   },
   apiKey: string,
 ) {
   const candidates = body.candidates ?? [];
+  const today = body.today || new Date().toISOString().slice(0, 10);
   const system =
-    "You are the user's personal knowledge assistant (RAG over their own saved " +
-    "notes, files and records). Answer the question USING ONLY the provided " +
-    "candidate items; cite the ids you used. Each candidate may carry an EXTRACT " +
-    "— text read out of the file itself (a PDF's contents, a described " +
-    "screenshot). Treat the extract as the item's real content and quote from it " +
-    "when it answers the question. If the candidates don't cover it, say so " +
-    "plainly — never invent facts. Be concise and direct.\n\n" +
-    "You may ALSO propose actions to reorganise the knowledge base when the user " +
-    "asks you to (e.g. 'put these bots in my FX Bots folder', 'tidy this up', " +
-    "'merge these two folders'). EVERY action is shown to the user for explicit " +
-    "confirmation before it runs — never state that you have already done it; say " +
-    "what you are proposing. Prefer the fewest, largest actions: use move_items " +
-    "for a batch rather than many move_item. Only propose deletions when the user " +
-    "clearly asked for them.\n\n" +
+    "You are the user's personal assistant. You can see three things they own: " +
+    "their KNOWLEDGE BASE (notes, files, photos and records they have saved), " +
+    "their CALENDAR, and the PEOPLE their photo library knows how to recognise. " +
+    `Today is ${today}.\n\n` +
+    "Answer using ONLY what you are given; cite the item ids you drew on. Each " +
+    "candidate may carry an EXTRACT — text read out of the file itself (a " +
+    "PDF's contents, a described photo). Treat the extract as the item's real " +
+    "content and quote from it when it answers the question. Photos filed by the " +
+    "camera roll are ordinary items whose extract describes what is in them, so " +
+    "\"find the picture of the receipt\" is answerable the same way anything " +
+    "else is. If what you have does not cover it, say so plainly — never invent " +
+    "a fact, a date or a person. Be concise and direct, the way a good assistant " +
+    "is: lead with the answer, not with a preamble about what you did.\n\n" +
+    "You may ALSO propose actions — to reorganise the knowledge base, to put " +
+    "something on the calendar, or to register a new person. EVERY action is " +
+    "shown to the user for explicit confirmation before it runs, so never say " +
+    "you have already done something; say what you are proposing. Prefer the " +
+    "fewest, largest actions: move_items for a batch rather than many move_item. " +
+    "Only propose deletions when the user clearly asked for them.\n\n" +
+    "CALENDAR RULES. Resolve every relative date (\"Friday\", \"next week\", " +
+    "\"tomorrow\") against today and emit an absolute YYYY-MM-DD. If the user " +
+    "gives no date and none can be inferred, ask for it instead of proposing an " +
+    "event — an event on the wrong day is worse than no event. Times are local " +
+    "24-hour HH:MM; use null for an all-day event. `reminders` are whole minutes " +
+    "before the start (1440 = a day before, 60 = an hour before); default to " +
+    "[1440] for a dated commitment and [] for something purely informational.\n\n" +
     "Allowed actions:\n" +
     '  {"type":"create_folder","path":string[]}\n' +
     '  {"type":"move_item","itemId":string,"path":string[]}\n' +
@@ -234,9 +272,14 @@ async function agentWithLLM(
     '  {"type":"merge_folders","sourceId":string,"targetPath":string[]}\n' +
     '  {"type":"delete_item","itemId":string}\n' +
     '  {"type":"delete_folder","folderId":string}\n' +
-    "Use itemId values only from the candidates and folderId values only from the " +
-    "FOLDERS list. `path` is an array of folder names from the root. Respond ONLY " +
-    'with minified JSON: {"answer":string,"citations":string[],"actions":object[]}. ' +
+    '  {"type":"create_event","title":string,"date":"YYYY-MM-DD","time":"HH:MM"|null,"endTime":"HH:MM"|null,"location":string,"notes":string,"reminders":number[]}\n' +
+    '  {"type":"update_event","eventId":string,"title":string,"date":"YYYY-MM-DD","time":"HH:MM"|null,"location":string,"notes":string,"reminders":number[]}\n' +
+    '  {"type":"delete_event","eventId":string}\n' +
+    '  {"type":"add_person","name":string,"role":"self"|"partner"|"child"|"relative"|"friend"|"other"}\n' +
+    "Use itemId values only from the candidates, folderId only from FOLDERS, and " +
+    "eventId only from CALENDAR. `path` is an array of folder names from the " +
+    "root. Photo folders live under \"Photos\". Respond ONLY with minified " +
+    'JSON: {"answer":string,"citations":string[],"actions":object[]}. ' +
     "Use [] when there are no actions.";
   const candidateBlock = candidates
     .map((c) => {
@@ -249,9 +292,23 @@ async function agentWithLLM(
   const folderBlock = (body.folders ?? [])
     .map((f) => `[${f.id}] ${f.path}`)
     .join("\n");
+  const eventBlock = (body.events ?? [])
+    .map(
+      (e) =>
+        `[${e.id}] ${e.date}${e.time ? ` ${e.time}` : " (all day)"} — ${e.title}` +
+        `${e.location ? ` @ ${e.location}` : ""}${e.notes ? ` — ${e.notes}` : ""}`,
+    )
+    .join("\n");
+  const peopleBlock = (body.people ?? [])
+    .map((p) => `[${p.id}] ${p.name} (${p.role})`)
+    .join("\n");
   const user =
-    `FOLDERS (id \u2192 path):\n${folderBlock || "(none)"}\n\n` +
+    `FOLDERS (id → path):\n${folderBlock || "(none)"}\n\n` +
     `FOLDER TREE:\n${(body.folderPaths ?? []).join("\n") || "(none)"}\n\n` +
+    `CALENDAR (upcoming; id → event):\n${eventBlock || "(nothing scheduled)"}\n\n` +
+    `KNOWN PEOPLE:\n${peopleBlock || "(nobody labelled yet)"}\n\n` +
+    `PHOTO FOLDERS:\n${(body.photoCategories ?? []).join(", ") || "(none)"}\n` +
+    `PHOTOS AWAITING REVIEW: ${body.pendingPhotos ?? 0}\n\n` +
     `CANDIDATE ITEMS:\n${candidateBlock || "(none saved yet)"}\n\n` +
     `QUESTION:\n${body.question ?? ""}`;
   const content = await callGateway(apiKey, system, user);

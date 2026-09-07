@@ -21,6 +21,8 @@ interface Props {
   onDeleteFolder: (folder: Folder) => void;
   /** Opens the loose-items view when something sits outside every folder. */
   onOpenUnfiled: () => void;
+  /** Switches to the Photos tab — the camera roll has its own surface. */
+  onOpenPhotos: () => void;
 }
 
 export function FolderHome({
@@ -30,8 +32,24 @@ export function FolderHome({
   onEditFolder,
   onDeleteFolder,
   onOpenUnfiled,
+  onOpenPhotos,
 }: Props) {
-  const roots = childFolders(data.folders, null);
+  const allRoots = childFolders(data.folders, null);
+  /**
+   * Photos is lifted out of the ordinary grid. It is the one folder that is
+   * not just a container — it has a review queue, a people list and a backup —
+   * so it gets its own warm tile that opens that surface rather than a folder
+   * page, and it always leads.
+   */
+  const photosFolder = allRoots.find(
+    (f) => f.role === "photos" || f.name.toLowerCase() === "photos",
+  );
+  const roots = allRoots.filter((f) => f.id !== photosFolder?.id);
+  const photoCount = useMemo(() => {
+    if (!photosFolder) return 0;
+    const ids = descendantFolderIds(data.folders, photosFolder.id);
+    return data.items.filter((i) => i.folderId && ids.has(i.folderId)).length;
+  }, [data, photosFolder]);
   const unfiled = data.items.filter((i) => !i.folderId).length;
   const accents = useMemo(() => accentsFor(roots.map((f) => f.id), HOME_ACCENTS), [roots]);
 
@@ -40,7 +58,7 @@ export function FolderHome({
     return data.items.filter((i) => i.folderId && ids.has(i.folderId)).length;
   };
 
-  if (roots.length === 0 && unfiled === 0) {
+  if (roots.length === 0 && unfiled === 0 && !photosFolder) {
     return (
       <div className="rounded-2xl border border-dashed border-line bg-panel/40 px-6 py-20 text-center">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/15 text-brand">
@@ -63,6 +81,24 @@ export function FolderHome({
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {photosFolder && (
+        <button
+          onClick={onOpenPhotos}
+          className="flex h-[190px] flex-col items-center justify-center gap-3 rounded-2xl border border-amber-400/40 bg-gradient-to-br from-amber-500/35 via-amber-500/10 to-transparent px-5 text-center transition hover:brightness-125"
+        >
+          <Icon.Image width={40} height={40} className="text-amber-200" />
+          <div className="min-w-0">
+            <p className="truncate text-base font-bold tracking-tight text-ink">Photos</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">
+              Sorted by who&apos;s in them, with the rest filed or put on your calendar
+            </p>
+            <p className="mt-1.5 text-[10px] tabular-nums text-ink-faint">
+              {photoCount} {photoCount === 1 ? "photo" : "photos"}
+            </p>
+          </div>
+        </button>
+      )}
+
       {roots.map((f, i) => {
         const a = accents[i];
         const n = countFor(f.id);

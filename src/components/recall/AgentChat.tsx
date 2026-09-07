@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { askAgent } from "@/lib/recall/agent";
 import { executeAction, folderPathString } from "@/lib/recall/store";
+import { getEvents } from "@/lib/recall/calendar/store";
+import { formatDayKey, formatTime } from "@/lib/recall/calendar/types";
+import type { CalendarEvent } from "@/lib/recall/calendar/types";
 import { uid } from "@/lib/utils";
 import { DESTRUCTIVE_ACTIONS } from "@/lib/recall/types";
 import type { AgentAction, ChatMessage, Folder, Item, RecallData } from "@/lib/recall/types";
@@ -18,11 +21,30 @@ interface Props {
   /** A question to auto-ask (from "Ask about this"); cleared after sending. */
   ask: string | null;
   onAskConsumed: () => void;
+  /**
+   * The calendar and the people list live in their own stores, so an action
+   * that writes to them has to tell the shell to re-read. Without this the
+   * assistant adds an event and the Calendar tab keeps showing yesterday's.
+   */
+  onCalendarChanged?: () => void;
+  onPhotosChanged?: () => void;
 }
 
-function actionLabel(action: AgentAction, items: Item[], folders: Folder[]): string {
+function whenLabel(date: string, time?: string | null): string {
+  return `${formatDayKey(date, { weekday: "short", day: "numeric", month: "short" })}${
+    time ? ` at ${formatTime(time)}` : ""
+  }`;
+}
+
+function actionLabel(
+  action: AgentAction,
+  items: Item[],
+  folders: Folder[],
+  events: CalendarEvent[],
+): string {
   const titleOf = (id: string) => items.find((i) => i.id === id)?.title ?? "item";
   const folderOf = (id: string) => folders.find((f) => f.id === id)?.name ?? "folder";
+  const eventOf = (id: string) => events.find((e) => e.id === id);
   const pathOf = (p: string[]) => p.join(" › ") || "Inbox";
 
   switch (action.type) {
@@ -52,6 +74,17 @@ function actionLabel(action: AgentAction, items: Item[], folders: Folder[]): str
       return `Delete “${titleOf(action.itemId)}”`;
     case "delete_folder":
       return `Delete folder “${folderOf(action.folderId)}”`;
+    case "create_event":
+      return `Add “${action.title}” to the calendar — ${whenLabel(action.date, action.time)}`;
+    case "update_event": {
+      const e = eventOf(action.eventId);
+      const when = action.date ? whenLabel(action.date, action.time ?? e?.time) : null;
+      return `Update “${e?.title ?? "event"}”${when ? ` — ${when}` : ""}`;
+    }
+    case "delete_event":
+      return `Remove “${eventOf(action.eventId)?.title ?? "event"}” from the calendar`;
+    case "add_person":
+      return `Add ${action.name} to the people Recall can recognise`;
     default:
       return "Unknown action";
   }
@@ -68,13 +101,30 @@ function actionCaveat(action: AgentAction): string | null {
       return "The source folder is removed once its contents move across.";
     case "edit_note":
       return "Replaces the existing body.";
+    case "delete_event":
+      return "Permanent.";
+    case "add_person":
+      return "They can't be recognised until you add reference photos.";
     default:
       return null;
   }
 }
 
-export function AgentChat({ open, onOpen, onClose, data, onData, onOpenItem, ask, onAskConsumed }: Props) {
+export function AgentChat({
+  open,
+  onOpen,
+  onClose,
+  data,
+  onData,
+  onOpenItem,
+  ask,
+  onAskConsumed,
+  onCalendarChanged,
+  onPhotosChanged,
+}: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  /** Held only so proposed calendar changes can be described by name. */
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   // messageId -> set of resolved (applied/dismissed) action indices
@@ -84,6 +134,10 @@ export function AgentChat({ open, onOpen, onClose, data, onData, onOpenItem, ask
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy]);
+
+  useEffect(() => {
+    if (open) setEvents(getEvents());
+  }, [open]);
 
   const send = async (question: string) => {
     const q = question.trim();
@@ -118,8 +172,13 @@ export function AgentChat({ open, onOpen, onClose, data, onData, onOpenItem, ask
   }, [ask]);
 
   function applyAction(msgId: string, idx: number, action: AgentAction) {
-    const { data: next } = executeAction(action);
-    onData(next);
+    const res = executeAction(action);
+    onData(res.data);
+    if (res.calendarChanged) {
+      setEvents(getEvents());
+      onCalendarChanged?.();
+    }
+    if (res.photosChanged) onPhotosChanged?.();
     setResolved((r) => ({ ...r, [msgId]: { ...r[msgId], [idx]: "applied" } }));
   }
 
@@ -131,12 +190,22 @@ export function AgentChat({ open, onOpen, onClose, data, onData, onOpenItem, ask
   function applyAll(msgId: string, actions: AgentAction[]) {
     const marks: Record<number, "applied" | "dismissed"> = {};
     let next: RecallData | null = null;
+    let calendar = false;
+    let people = false;
     actions.forEach((a, idx) => {
       if (resolved[msgId]?.[idx]) return;
-      next = executeAction(a).data;
+      const res = executeAction(a);
+      next = res.data;
+      calendar = calendar || Boolean(res.calendarChanged);
+      people = people || Boolean(res.photosChanged);
       marks[idx] = "applied";
     });
     if (next) onData(next);
+    if (calendar) {
+      setEvents(getEvents());
+      onCalendarChanged?.();
+    }
+    if (people) onPhotosChanged?.();
     setResolved((r) => ({ ...r, [msgId]: { ...r[msgId], ...marks } }));
   }
 
@@ -155,7 +224,7 @@ export function AgentChat({ open, onOpen, onClose, data, onData, onOpenItem, ask
         className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-full bg-brand px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/30 transition hover:bg-brand-2"
       >
         <Icon.Bot width={18} height={18} />
-        <span className="hidden sm:inline">Ask Recall</span>
+        <span className="hidden sm:inline">Assistant</span>
       </button>
     );
   }
@@ -168,7 +237,7 @@ export function AgentChat({ open, onOpen, onClose, data, onData, onOpenItem, ask
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand/15 text-brand">
             <Icon.Bot width={16} height={16} />
           </span>
-          <span className="text-sm font-semibold text-ink">Ask Recall</span>
+          <span className="text-sm font-semibold text-ink">Assistant</span>
         </div>
         <button onClick={onClose} className="rounded-lg p-1.5 text-ink-faint hover:bg-panel-2 hover:text-ink" aria-label="Close chat">
           <Icon.Close width={16} height={16} />
@@ -182,16 +251,19 @@ export function AgentChat({ open, onOpen, onClose, data, onData, onOpenItem, ask
             <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-brand/15 text-brand">
               <Icon.Sparkles width={20} height={20} />
             </div>
-            <p className="text-sm font-medium text-ink">Ask anything you&apos;ve saved</p>
-            <p className="mx-auto mt-1 max-w-[250px] text-xs text-ink-muted">
-              I search everything you&apos;ve saved — including the text inside your PDFs, docs and
-              images — answer with sources, and can reorganise things. Every change is shown for
-              your confirmation first.
+            <p className="text-sm font-medium text-ink">What do you need?</p>
+            <p className="mx-auto mt-1 max-w-[260px] text-xs leading-relaxed text-ink-muted">
+              I can see everything you&apos;ve saved — including the text inside your PDFs, docs and
+              photos — plus your calendar and the people in your photo library. I answer with
+              sources, and I can file things, put things on your calendar and tidy up. Every change
+              is shown for your confirmation first.
             </p>
             <div className="mt-4 flex flex-col gap-1.5">
               {[
-                "What do I have saved about this?",
-                "Move the PDFs in this folder into a Docs sub-folder",
+                "What's on this week?",
+                "Put parents' evening on Thursday at 6, remind me the day before",
+                "Show me what I've saved about this",
+                "Tidy the loose files into the right folders",
               ].map((s) => (
                 <button
                   key={s}
@@ -278,7 +350,7 @@ export function AgentChat({ open, onOpen, onClose, data, onData, onOpenItem, ask
                                 "block " + (state ? "text-ink-faint line-through" : "text-ink-muted")
                               }
                             >
-                              {actionLabel(a, data.items, data.folders)}
+                              {actionLabel(a, data.items, data.folders, events)}
                             </span>
                             {caveat && !state && (
                               <span className="block text-[10px] text-red-400/70">{caveat}</span>

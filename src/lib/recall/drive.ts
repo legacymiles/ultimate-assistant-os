@@ -56,14 +56,26 @@ async function ensureLibraries(): Promise<void> {
   }
 }
 
+/**
+ * Access tokens last an hour; caching one in memory is the difference between
+ * a silent backup of forty photos and forty consent round-trips. Never
+ * persisted — a token in localStorage is a token someone else can read.
+ */
+let cachedToken: { token: string; expires: number } | null = null;
+
 function requestToken(): Promise<string> {
   return new Promise((resolve, reject) => {
     const tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
       scope: SCOPE,
       callback: (resp: any) => {
-        if (resp?.access_token) resolve(resp.access_token as string);
-        else reject(new Error("Drive authorization was cancelled."));
+        if (resp?.access_token) {
+          const ttl = Number(resp.expires_in ?? 3600) * 1000;
+          // Retire it a minute early rather than discovering it expired
+          // halfway through a multi-file upload.
+          cachedToken = { token: resp.access_token, expires: Date.now() + ttl - 60_000 };
+          resolve(resp.access_token as string);
+        } else reject(new Error("Drive authorization was cancelled."));
       },
     });
     tokenClient.requestAccessToken({ prompt: "" });
@@ -137,4 +149,155 @@ export async function pickFromDrive(): Promise<DriveFile[]> {
   const files: DriveFile[] = [];
   for (const doc of docs) files.push(await downloadFile(doc, token));
   return files;
+}
+
+// ---------------------------------------------------------------------------
+// Backup — the other direction.
+//
+// Picking files out of Drive needs `drive.file`; so does putting them back, and
+// that is a happy accident worth stating: `drive.file` grants access ONLY to
+// files this app created or the user hand-picked. Recall can therefore write a
+// full photo backup without ever being able to read the rest of the user's
+// Drive. No broader scope is requested, and none is needed.
+// ---------------------------------------------------------------------------
+
+const FOLDER_MIME = "application/vnd.google-apps.folder";
+
+/** A live token, from cache when one is still good. */
+async function accessToken(): Promise<string> {
+  if (cachedToken && cachedToken.expires > Date.now()) return cachedToken.token;
+  await ensureLibraries();
+  return requestToken();
+}
+
+/** Ask Drive to authorize now, so a long backup does not stall on consent. */
+export async function primeDriveAuth(): Promise<void> {
+  if (!driveConfigured()) throw new Error("Google Drive is not configured.");
+  await accessToken();
+}
+
+async function driveJson(url: string, token: string, init?: RequestInit): Promise<any> {
+  const res = await fetch(url, {
+    ...init,
+    headers: { ...(init?.headers ?? {}), Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Drive ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+/**
+ * The id of a folder with this name under `parentId`, creating it if needed.
+ *
+ * The lookup only ever sees app-created files (that is what `drive.file` means),
+ * which is exactly right here: we want OUR "Recall Photos" folder, not a
+ * same-named one the user made by hand.
+ */
+export async function ensureDriveFolder(name: string, parentId?: string | null): Promise<string> {
+  const token = await accessToken();
+  const q = [
+    `name = '${name.replace(/'/g, "\'")}'`,
+    `mimeType = '${FOLDER_MIME}'`,
+    "trashed = false",
+    parentId ? `'${parentId}' in parents` : "'root' in parents",
+  ].join(" and ");
+  const found = await driveJson(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=1`,
+    token,
+  );
+  if (found.files?.[0]?.id) return found.files[0].id as string;
+
+  const created = await driveJson("https://www.googleapis.com/drive/v3/files?fields=id", token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name,
+      mimeType: FOLDER_MIME,
+      ...(parentId ? { parents: [parentId] } : {}),
+    }),
+  });
+  return created.id as string;
+}
+
+/** Upload one blob into a Drive folder. Returns the new file's id. */
+export async function uploadToDrive(
+  blob: Blob,
+  name: string,
+  folderId: string,
+): Promise<string> {
+  const token = await accessToken();
+  const boundary = `recall${Math.random().toString(36).slice(2)}`;
+  const metadata = JSON.stringify({ name, parents: [folderId] });
+  const body = new Blob(
+    [
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`,
+      `--${boundary}\r\nContent-Type: ${blob.type || "application/octet-stream"}\r\n\r\n`,
+      blob,
+      `\r\n--${boundary}--\r\n`,
+    ],
+    { type: `multipart/related; boundary=${boundary}` },
+  );
+  const out = await driveJson(
+    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id",
+    token,
+    { method: "POST", body },
+  );
+  return out.id as string;
+}
+
+export interface BackupTarget {
+  /** The blob to upload. */
+  blob: Blob;
+  name: string;
+  /** Sub-folder under the backup root, e.g. "Me & My Son". "" = the root. */
+  category: string;
+}
+
+export interface BackupProgress {
+  done: number;
+  total: number;
+  current: string;
+}
+
+export interface BackupResult {
+  rootId: string;
+  uploaded: { name: string; driveId: string }[];
+  failed: { name: string; error: string }[];
+}
+
+/**
+ * Back a set of photos up to Drive, mirroring the category folders.
+ *
+ * Uploads run one at a time on purpose. A camera-roll backup is a background
+ * chore, and firing dozens of parallel multipart uploads is the reliable way to
+ * hit Drive's rate limiter and lose half the batch. One failure never stops the
+ * run — it is collected and reported so the user can retry just those.
+ */
+export async function backupPhotos(
+  targets: BackupTarget[],
+  opts: { rootName?: string; mirrorCategories?: boolean; onProgress?: (p: BackupProgress) => void } = {},
+): Promise<BackupResult> {
+  if (!driveConfigured()) throw new Error("Google Drive is not configured.");
+  const rootId = await ensureDriveFolder(opts.rootName ?? "Recall Photos", null);
+  const subIds = new Map<string, string>();
+  const result: BackupResult = { rootId, uploaded: [], failed: [] };
+
+  let done = 0;
+  for (const t of targets) {
+    opts.onProgress?.({ done, total: targets.length, current: t.name });
+    try {
+      let parent = rootId;
+      if (opts.mirrorCategories !== false && t.category) {
+        const cached = subIds.get(t.category);
+        parent = cached ?? (await ensureDriveFolder(t.category, rootId));
+        subIds.set(t.category, parent);
+      }
+      const driveId = await uploadToDrive(t.blob, t.name, parent);
+      result.uploaded.push({ name: t.name, driveId });
+    } catch (err) {
+      result.failed.push({ name: t.name, error: err instanceof Error ? err.message : "Upload failed" });
+    }
+    done++;
+    opts.onProgress?.({ done, total: targets.length, current: t.name });
+  }
+  return result;
 }

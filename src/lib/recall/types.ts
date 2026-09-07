@@ -98,6 +98,12 @@ export interface Item {
   extract?: string;
   /** "ok" | "pending" | "unsupported" | "failed" — surfaced on the row. */
   extractStatus?: "ok" | "pending" | "unsupported" | "failed";
+  /** Person ids the vision pass recognised in a photo. */
+  people?: string[];
+  /** The photo category rule that filed it, when one did. */
+  photoCategoryId?: string | null;
+  /** Set once this photo has been copied to the Google Drive backup. */
+  driveBackupId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -113,6 +119,13 @@ export interface Folder {
   accent?: string;
   /** Icon key from the folder icon set — chosen when the folder is created. */
   icon?: string;
+  /**
+   * Marks a folder the app itself manages. "photos" is the camera-roll root:
+   * it keeps its own warm palette everywhere it appears and opens the Photos
+   * surface instead of the ordinary workspace, so renaming it does not quietly
+   * turn it back into a normal folder.
+   */
+  role?: "photos";
   /**
    * Which sections this folder shows. Undefined on older folders, which is why
    * `visibleSections` also forces on any section that actually holds something —
@@ -171,7 +184,37 @@ export type AgentAction =
   | { type: "merge_folders"; sourceId: string; targetPath: string[] }
   | { type: "delete_item"; itemId: string }
   /** Folder delete lifts children to the parent — nothing is destroyed. */
-  | { type: "delete_folder"; folderId: string };
+  | { type: "delete_folder"; folderId: string }
+  // ----- calendar ---------------------------------------------------------
+  // The assistant reads the calendar as context and writes to it the same way
+  // it writes to the knowledge base: as a proposal the user confirms.
+  | {
+      type: "create_event";
+      title: string;
+      /** Local day, "YYYY-MM-DD". */
+      date: string;
+      /** Local "HH:MM", or null for all-day. */
+      time?: string | null;
+      endTime?: string | null;
+      location?: string;
+      notes?: string;
+      /** Minutes before the start. */
+      reminders?: number[];
+    }
+  | {
+      type: "update_event";
+      eventId: string;
+      title?: string;
+      date?: string;
+      time?: string | null;
+      location?: string;
+      notes?: string;
+      reminders?: number[];
+    }
+  | { type: "delete_event"; eventId: string }
+  // ----- photos -----------------------------------------------------------
+  /** Register someone so their photos can be recognised and filed. */
+  | { type: "add_person"; name: string; role: string };
 
 /** Actions that remove or overwrite something get a louder confirmation. */
 export const DESTRUCTIVE_ACTIONS: ReadonlySet<AgentAction["type"]> = new Set([
@@ -179,6 +222,7 @@ export const DESTRUCTIVE_ACTIONS: ReadonlySet<AgentAction["type"]> = new Set([
   "delete_folder",
   "merge_folders",
   "edit_note",
+  "delete_event",
 ]);
 
 export interface AgentReply {
