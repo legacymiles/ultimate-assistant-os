@@ -26,6 +26,7 @@
 //                               skips most of the load
 // ---------------------------------------------------------------------------
 
+import { execSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,27 +40,11 @@ const YES = args.has("--yes");
 const STATUS = args.has("--status");
 const TEARDOWN = args.has("--teardown");
 
-// ----- config --------------------------------------------------------------
-
-const CONFIG = {
-  endpointName: process.env.RUNPOD_ENDPOINT_NAME || "auteur-h3",
-  volumeName: process.env.RUNPOD_VOLUME_NAME || "auteur-h3-models",
-  // 42 GB of base weights, or ~65 GB if reference-to-video is ever enabled,
-  // plus headroom. A volume can be grown later but never shrunk.
-  volumeGb: Number(process.env.RUNPOD_VOLUME_GB || 80),
-  dataCenter: process.env.RUNPOD_DATACENTER || "",
-  image: process.env.RUNPOD_IMAGE || "",
-  // 32 GB is the comfortable floor: the quantised model peaks around 27 GB.
-  minVramGb: Number(process.env.RUNPOD_MIN_VRAM_GB || 32),
-  maxWorkers: Number(process.env.RUNPOD_MAX_WORKERS || 2),
-  idleTimeout: Number(process.env.RUNPOD_IDLE_TIMEOUT || 5),
-  containerDiskGb: Number(process.env.RUNPOD_CONTAINER_DISK_GB || 30),
-  // A cold start plus a slow render; the request dies rather than billing
-  // forever if something wedges.
-  executionTimeoutMs: Number(process.env.RUNPOD_TIMEOUT_MS || 3_600_000),
-};
-
 // ----- env -----------------------------------------------------------------
+//
+// Settings come from the real environment first, then .env.local, so nothing
+// has to be typed on the command line. The API key is only ever read; it is
+// never printed, logged or written anywhere.
 
 function loadEnvFile() {
   const path = resolve(ROOT, ".env.local");
@@ -74,8 +59,52 @@ function loadEnvFile() {
 }
 
 const fileEnv = loadEnvFile();
-const KEY = process.env.RUNPOD_API_KEY || fileEnv.RUNPOD_API_KEY || "";
-const EXISTING_ENDPOINT = process.env.RUNPOD_ENDPOINT_ID || fileEnv.RUNPOD_ENDPOINT_ID || "";
+const env = (name, fallback = "") => process.env[name] || fileEnv[name] || fallback;
+
+const KEY = env("RUNPOD_API_KEY");
+const EXISTING_ENDPOINT = env("RUNPOD_ENDPOINT_ID");
+
+/**
+ * Where GitHub Actions publishes this repo's worker image.
+ *
+ * Read from the git remote rather than hardcoded, so a fork builds and
+ * deploys its own copy without editing anything here. Must stay in step with
+ * .github/workflows/build-h3-worker.yml.
+ */
+function defaultImage() {
+  try {
+    const url = execSync("git remote get-url origin", {
+      cwd: ROOT,
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .toString()
+      .trim();
+    const owner = url.match(/github\.com[:/]([^/]+)\//i)?.[1];
+    return owner ? `ghcr.io/${owner.toLowerCase()}/auteur-h3:latest` : "";
+  } catch {
+    return "";
+  }
+}
+
+// ----- config --------------------------------------------------------------
+
+const CONFIG = {
+  endpointName: env("RUNPOD_ENDPOINT_NAME", "auteur-h3"),
+  volumeName: env("RUNPOD_VOLUME_NAME", "auteur-h3-models"),
+  // 42 GB of base weights, or ~65 GB if reference-to-video is ever enabled,
+  // plus headroom. A volume can be grown later but never shrunk.
+  volumeGb: Number(env("RUNPOD_VOLUME_GB", 80)),
+  dataCenter: env("RUNPOD_DATACENTER"),
+  image: env("RUNPOD_IMAGE") || defaultImage(),
+  // 32 GB is the comfortable floor: the quantised model peaks around 27 GB.
+  minVramGb: Number(env("RUNPOD_MIN_VRAM_GB", 32)),
+  maxWorkers: Number(env("RUNPOD_MAX_WORKERS", 2)),
+  idleTimeout: Number(env("RUNPOD_IDLE_TIMEOUT", 5)),
+  containerDiskGb: Number(env("RUNPOD_CONTAINER_DISK_GB", 30)),
+  // A cold start plus a slow render; the request dies rather than billing
+  // forever if something wedges.
+  executionTimeoutMs: Number(env("RUNPOD_TIMEOUT_MS", 3_600_000)),
+};
 
 // ----- output --------------------------------------------------------------
 
@@ -197,7 +226,7 @@ function endpointBody({ pools, volumeId, image }) {
     timeout: CONFIG.executionTimeoutMs,
     env: {
       H3_MODELS_DIR: "/runpod-volume/models",
-      ...(process.env.HF_TOKEN ? { HF_TOKEN: process.env.HF_TOKEN } : {}),
+      ...(env("HF_TOKEN") ? { HF_TOKEN: env("HF_TOKEN") } : {}),
     },
   };
 }

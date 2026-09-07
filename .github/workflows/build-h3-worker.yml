@@ -1,0 +1,94 @@
+# Builds the MiniMax H3 RunPod worker and publishes it to this repo's own
+# container registry (ghcr.io).
+#
+# Why here rather than on a laptop: the image is built on top of RunPod's
+# ComfyUI worker image, which is roughly 15 GB compressed. Pulling, layering
+# and pushing that is a poor use of a home connection, and it needs a Docker
+# daemon and a registry login that a developer machine may not have. A public
+# repository gets free Actions minutes, so GitHub does it instead.
+#
+# The result is ghcr.io/<owner>/auteur-h3:latest, which is what
+# runpod/setup.mjs wants for RUNPOD_IMAGE.
+
+name: Build H3 worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "runpod/h3-worker/**"
+      - ".github/workflows/build-h3-worker.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: build-h3-worker
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The base image unpacks to tens of gigabytes and a stock runner has
+      # only ~14 GB free. Deleting the preinstalled toolchains we do not use
+      # buys back roughly 30 GB, which is the difference between this working
+      # and failing with "no space left on device".
+      - name: Free disk space
+        run: |
+          echo "Before:"; df -h / | tail -1
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost \
+                      /usr/local/share/powershell /usr/share/swift || true
+          sudo docker image prune --all --force || true
+          echo "After:"; df -h / | tail -1
+
+      # Cheap sanity checks before spending twenty minutes on a build. These
+      # are the same tests that run locally.
+      - name: Test the worker's pure logic
+        working-directory: runpod/h3-worker
+        run: |
+          python -m unittest -v
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The owner may be capitalised; image references must be lowercase.
+      - name: Compute image name
+        id: name
+        run: echo "image=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/auteur-h3" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: runpod/h3-worker
+          push: true
+          tags: |
+            ${{ steps.name.outputs.image }}:latest
+            ${{ steps.name.outputs.image }}:${{ github.sha }}
+          # Layer cache in the registry keeps later builds to a couple of
+          # minutes instead of re-pulling the base every time.
+          cache-from: type=registry,ref=${{ steps.name.outputs.image }}:buildcache
+          cache-to: type=registry,ref=${{ steps.name.outputs.image }}:buildcache,mode=max
+          provenance: false
+
+      - name: What to do with it
+        run: |
+          echo "::notice title=Image published::${{ steps.name.outputs.image }}:latest"
+          echo ""
+          echo "Set this in .env.local, then run: node runpod/setup.mjs --yes"
+          echo "  RUNPOD_IMAGE=${{ steps.name.outputs.image }}:latest"
+          echo ""
+          echo "If RunPod cannot pull it, the package is still private."
+          echo "Make it public once at:"
+          echo "  https://github.com/users/${{ github.repository_owner }}/packages/container/auteur-h3/settings"

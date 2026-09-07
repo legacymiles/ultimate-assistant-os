@@ -81,39 +81,50 @@ RUNPOD_API_KEY=rpa_your_key_here
 That file is gitignored. The setup script reads the key from there and never
 prints it.
 
-### 2. Publish the worker image
+### 2. The worker image builds itself
 
-The endpoint needs a container to run. Pick whichever suits you; neither needs
-Docker working on this machine except the second one.
+You do not need Docker, a Docker Hub account, or any local build. Pushing to
+this repository triggers `.github/workflows/build-h3-worker.yml`, which builds
+`runpod/h3-worker/` on GitHub's runners and publishes it to this repo's own
+container registry as:
 
-**RunPod Hub (no Docker needed).** Push `runpod/h3-worker/` to a GitHub
-repository, cut a release, and submit the repo at
-<https://console.runpod.io/hub>. RunPod builds and hosts the image. The
-`.runpod/hub.json` and `.runpod/tests.json` manifests are already written.
-
-**Docker.** With a daemon running and a registry login:
-
-```bash
-docker build -t <you>/auteur-h3:1 runpod/h3-worker
-docker push <you>/auteur-h3:1
 ```
+ghcr.io/<your-github-owner>/auteur-h3:latest
+```
+
+Public repositories get free Actions minutes, so this costs nothing. Watch it
+under the repository's Actions tab. The first build takes roughly twenty
+minutes because it pulls a large base image; later builds are cached and take
+a couple of minutes.
+
+**One manual click, once.** Images published this way start out private, and
+RunPod has to be able to pull it. Open
+
+```
+https://github.com/users/<your-github-owner>/packages/container/auteur-h3/settings
+```
+
+and set the visibility to public. If you would rather keep it private, add
+your registry credentials to the endpoint in the RunPod console instead.
 
 ### 3. Create the endpoint
 
-Look before you leap:
+Look before you leap. This prints the exact payload and creates nothing:
 
 ```bash
 node runpod/setup.mjs --dry-run
 ```
 
-Then, with the image published:
+Then, for real:
 
 ```bash
-RUNPOD_IMAGE=<you>/auteur-h3:1 RUNPOD_DATACENTER=US-KS-2 node runpod/setup.mjs --yes
+RUNPOD_DATACENTER=US-KS-2 node runpod/setup.mjs --yes
 ```
 
-It creates the network volume and an endpoint with `workers.min = 0`,
-FlashBoot on, and a 5 second idle timeout, then prints the endpoint id.
+The image name is worked out from your git remote, so there is nothing to
+pass unless you want to override it. The script creates the network volume
+and an endpoint with `workers.min = 0`, FlashBoot on and a five second idle
+timeout, then prints the endpoint id.
 
 ### 4. Point Auteur at it
 
