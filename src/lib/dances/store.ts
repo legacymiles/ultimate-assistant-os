@@ -15,6 +15,7 @@ import { nowIso, uid } from "../utils";
 import { isKnownName } from "./names";
 import { GENERATED_SEED } from "./seed.generated";
 import type { BoardData, Dance } from "./types";
+import { scopedKey } from "@/lib/sync/identity";
 
 /** Also the app_state sync key; components pass it to useRemotePull. */
 export const KEY = "dances:v1";
@@ -43,7 +44,7 @@ function buildSeed(): BoardData {
 function load(): BoardData {
   if (typeof window === "undefined") return { dances: [] };
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = window.localStorage.getItem(scopedKey(KEY));
     if (!raw) {
       const seeded = buildSeed();
       save(seeded);

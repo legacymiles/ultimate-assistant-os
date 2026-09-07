@@ -8,6 +8,7 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { FEATURED_SKILLS } from "./seed-skills";
 import type { ScannedSkill, Skill, SkillDraft } from "./types";
+import { scopedKey } from "@/lib/sync/identity";
 
 const LS_KEY = "skills-library:v1";
 
@@ -46,7 +47,7 @@ export function isCloudBacked(): boolean {
 function lsRead(): Skill[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(LS_KEY);
+    const raw = window.localStorage.getItem(scopedKey(LS_KEY));
     const list = raw ? (JSON.parse(raw) as Skill[]) : [];
     return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   } catch {
@@ -55,7 +56,7 @@ function lsRead(): Skill[] {
 }
 
 function lsWrite(skills: Skill[]): void {
-  window.localStorage.setItem(LS_KEY, JSON.stringify(skills));
+  window.localStorage.setItem(scopedKey(LS_KEY), JSON.stringify(skills));
 }
 
 // ----- Supabase row mapping ------------------------------------------------

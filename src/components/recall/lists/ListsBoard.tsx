@@ -11,6 +11,7 @@ import { MembersDialog } from "./MembersDialog";
 import { SUB_ACCENTS, accentsFor } from "@/lib/recall/accents";
 import { ApiError, listsApi } from "@/lib/recall/lists/client";
 import type { BoardPayload, ListDef, ListItem } from "@/lib/recall/lists/types";
+import { scopedKey } from "@/lib/sync/identity";
 
 // ---------------------------------------------------------------------------
 // The Lists board.
@@ -52,7 +53,7 @@ export function ListsBoard({ standalone = false }: Props) {
 
   useEffect(() => {
     try {
-      const raw = window.localStorage.getItem(FILTER_KEY);
+      const raw = window.localStorage.getItem(scopedKey(FILTER_KEY));
       if (raw) setFilter(JSON.parse(raw) as string[]);
     } catch {
       /* a corrupt filter is not worth failing over — show everyone */
@@ -61,7 +62,7 @@ export function ListsBoard({ standalone = false }: Props) {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(FILTER_KEY, JSON.stringify(filter));
+      window.localStorage.setItem(scopedKey(FILTER_KEY), JSON.stringify(filter));
     } catch {
       /* private mode — the filter just will not survive a reload */
     }

@@ -12,6 +12,7 @@ import { saveSynced } from "@/lib/sync/appState";
 import { nowIso, uid } from "@/lib/utils";
 import { DEFAULT_DURATION, MOODS } from "./constants";
 import type { Segment, SeedanceProject } from "./types";
+import { scopedKey } from "@/lib/sync/identity";
 
 /** Also the app_state sync key; components pass it to useRemotePull. */
 export const KEY = "seedance-studio:v1";
@@ -65,7 +66,7 @@ function serialize(p: SeedanceProject): SeedanceProject {
 export function loadProjects(): SeedanceProject[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = window.localStorage.getItem(scopedKey(KEY));
     if (!raw) return [];
     const list = JSON.parse(raw) as SeedanceProject[];
     return Array.isArray(list) ? list : [];

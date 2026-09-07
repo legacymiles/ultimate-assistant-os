@@ -16,6 +16,7 @@
 import { pushRemote, stampLocal } from "@/lib/sync/appState";
 import { uploadClip } from "./media";
 import { MAX_HISTORY, type ClonedVoice, type HistoryItem } from "./types";
+import { scopedKey } from "@/lib/sync/identity";
 
 /** Also the app_state sync keys; components pass them to useRemotePull. */
 export const HISTORY_KEY = "voice-studio.history";
@@ -24,7 +25,7 @@ export const VOICES_KEY = "voice-studio.voices";
 function read<T>(key: string): T[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = window.localStorage.getItem(scopedKey(key));
     const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? (parsed as T[]) : [];
   } catch {
@@ -35,11 +36,11 @@ function read<T>(key: string): T[] {
 function writeLocal<T>(key: string, value: T[]): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(key, JSON.stringify(value));
+    window.localStorage.setItem(scopedKey(key), JSON.stringify(value));
   } catch {
     // Quota exceeded (base64 audio is heavy) — drop the oldest and retry once.
     try {
-      window.localStorage.setItem(key, JSON.stringify(value.slice(0, Math.ceil(value.length / 2))));
+      window.localStorage.setItem(scopedKey(key), JSON.stringify(value.slice(0, Math.ceil(value.length / 2))));
     } catch {
       /* give up silently — persistence is best-effort */
     }

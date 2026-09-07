@@ -23,6 +23,7 @@
 // ---------------------------------------------------------------------------
 
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { currentUid, scopedKey } from "./identity";
 
 /** Rows are per-user; this is the table those rows live in. */
 const TABLE = "app_state";
@@ -31,7 +32,7 @@ const TABLE = "app_state";
 export function loadLocal<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = window.localStorage.getItem(scopedKey(key));
     if (!raw) return fallback;
     return JSON.parse(raw) as T;
   } catch {
@@ -44,7 +45,7 @@ export function loadLocal<T>(key: string, fallback: T): T {
 export function saveLocal<T>(key: string, value: T): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(key, JSON.stringify(value));
+    window.localStorage.setItem(scopedKey(key), JSON.stringify(value));
   } catch {
     // Quota or a storage-blocked browser. The in-memory state is still right,
     // and the remote push below is a second chance at durability.
@@ -74,13 +75,37 @@ export async function syncAvailable(): Promise<boolean> {
 }
 
 /**
+ * The account to sync as, or null when the two answers disagree.
+ *
+ * There are two sources of identity here and they can briefly diverge: the
+ * cookie that decided which localStorage keys were read, and the session
+ * getUser() resolves against the server. In the window where someone has just
+ * switched accounts, trusting the session alone would take a blob that was
+ * loaded under the OLD key and write it to the NEW user's row — precisely the
+ * cross-account copy this module exists to prevent. When they disagree the
+ * only safe answer is to skip this round; the next call, a moment later, has
+ * both sides agreeing and syncs normally.
+ */
+async function syncingAs(): Promise<string | null> {
+  const sessionId = await currentUserId();
+  if (!sessionId) return null;
+  // A missing cookie is treated the same as a mismatched one. Without it the
+  // keys just read were the UNSCOPED ones, which may still hold a previous
+  // account's data, so pushing them would be the very copy being guarded
+  // against. Middleware stamps the cookie on every authenticated page request,
+  // so this is a momentary state, not a lasting one.
+  if (currentUid() !== sessionId) return null;
+  return sessionId;
+}
+
+/**
  * Push the local blob to the user's row. Fire-and-forget by design: a failed
  * sync must never lose the user's edit, which localStorage already holds.
  * Returns whether the write actually landed, for callers that want to show it.
  */
 export async function pushRemote<T>(key: string, value: T): Promise<boolean> {
   const supabase = getSupabaseBrowserClient();
-  const userId = await currentUserId();
+  const userId = await syncingAs();
   if (!supabase || !userId) return false;
   try {
     const { error } = await supabase
@@ -100,7 +125,7 @@ export async function pullRemote<T>(
   key: string,
 ): Promise<{ data: T; updatedAt: string } | null> {
   const supabase = getSupabaseBrowserClient();
-  const userId = await currentUserId();
+  const userId = await syncingAs();
   if (!supabase || !userId) return null;
   try {
     const { data, error } = await supabase
@@ -130,7 +155,7 @@ export async function reconcile(key: string): Promise<void> {
 
   const rawLocal = (() => {
     try {
-      return window.localStorage.getItem(key);
+      return window.localStorage.getItem(scopedKey(key));
     } catch {
       return null;
     }
@@ -182,7 +207,7 @@ const STAMP_SUFFIX = ":__synced_at";
 export function stampLocal(key: string): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(key + STAMP_SUFFIX, String(Date.now()));
+    window.localStorage.setItem(scopedKey(key) + STAMP_SUFFIX, String(Date.now()));
   } catch {
     /* storage blocked — reconcile falls back to preferring the remote copy */
   }
@@ -191,7 +216,7 @@ export function stampLocal(key: string): void {
 function loadLocalStamp(key: string): number | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(key + STAMP_SUFFIX);
+    const raw = window.localStorage.getItem(scopedKey(key) + STAMP_SUFFIX);
     if (!raw) return null;
     const n = Number(raw);
     return Number.isFinite(n) ? n : null;

@@ -12,6 +12,7 @@
 
 import { saveSynced } from "@/lib/sync/appState";
 import type { Cipher } from "./types";
+import { scopedKey } from "@/lib/sync/identity";
 
 /**
  * Also the app_state sync key. Only ciphertext and the KDF parameters are ever
@@ -78,7 +79,7 @@ function subtle(): SubtleCrypto {
 function readMeta(): VaultMeta | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = window.localStorage.getItem(scopedKey(KEY));
     return raw ? (JSON.parse(raw) as VaultMeta) : null;
   } catch {
     return null;
@@ -254,7 +255,7 @@ export async function changeMasterPassword(
 
 /** Nuke the vault metadata. Caller clears the ciphertexts. */
 export function destroyVault(): void {
-  if (typeof window !== "undefined") window.localStorage.removeItem(KEY);
+  if (typeof window !== "undefined") window.localStorage.removeItem(scopedKey(KEY));
   lock();
 }
 

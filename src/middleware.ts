@@ -12,6 +12,36 @@ const supabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
  */
 export { gateHash as timelineHash };
 
+/**
+ * Name of the cookie carrying the signed-in account id to the browser.
+ *
+ * The client needs to know WHICH account it is rendering for before it reads
+ * localStorage, and it needs to know synchronously — the stores read during
+ * render, and awaiting supabase.auth.getUser() would let one frame paint the
+ * previous account's data. Middleware has already resolved the user here, so
+ * it hands the answer over in a readable cookie. See lib/sync/identity.ts.
+ *
+ * Deliberately NOT httpOnly: client code must read it. That is safe because
+ * the id is not a credential — the browser can already ask Supabase for it —
+ * and the session tokens stay httpOnly.
+ */
+const UID_COOKIE = "hub_uid";
+
+/** Stamp (or clear) the account id the browser is allowed to render as. */
+function setUidCookie(response: NextResponse, userId: string | null): NextResponse {
+  if (userId) {
+    response.cookies.set(UID_COOKIE, userId, {
+      httpOnly: false,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+    });
+  } else {
+    response.cookies.set(UID_COOKIE, "", { path: "/", maxAge: 0 });
+  }
+  return response;
+}
+
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
@@ -55,20 +85,38 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const isAuthRoute = path.startsWith("/login") || path.startsWith("/auth");
+  const isApi = path.startsWith("/api");
+
   if (!user && !isAuthRoute) {
+    // An API call gets a status it can act on. Redirecting it to /login would
+    // hand fetch() a 200 and a page of HTML, which every caller here would try
+    // to parse as JSON and report as a confusing failure.
+    if (isApi) {
+      return setUidCookie(
+        NextResponse.json({ error: "Sign in to use this endpoint." }, { status: 401 }),
+        null,
+      );
+    }
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    return NextResponse.redirect(url);
+    return setUidCookie(NextResponse.redirect(url), null);
   }
   if (user && path.startsWith("/login")) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
-    return NextResponse.redirect(url);
+    return setUidCookie(NextResponse.redirect(url), user.id);
   }
-  return response;
+  return setUidCookie(response, user?.id ?? null);
 }
 
 export const config = {
-  // Run on app routes; skip static assets and the API.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  // Run on app routes AND on /api. The API used to be excluded, which left
+  // every route handler reachable with no session at all — including
+  // /api/skills/scan, which reads the host's ~/.claude and would hand a
+  // stranger the owner's personal skill prompts. The AI proxy routes were
+  // likewise free for anyone to spend the owner's gateway credits on.
+  //
+  // Still skipped: static assets, which carry no data and would only add a
+  // Supabase round trip to every image request.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

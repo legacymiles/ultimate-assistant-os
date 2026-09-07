@@ -10,6 +10,7 @@ import type {
   ProjectMetaPatch,
   Repo,
 } from "./types";
+import { scopedKey } from "@/lib/sync/identity";
 
 const KEY = "projects-timeline:v1";
 // Tracks which catalog slugs have already been auto-seeded so we never
@@ -25,14 +26,14 @@ export class LocalRepo implements Repo {
   private load(): Project[] {
     if (typeof window === "undefined") return [];
     try {
-      const raw = window.localStorage.getItem(KEY);
+      const raw = window.localStorage.getItem(scopedKey(KEY));
 
       // First-ever load: seed every catalog project and remember we did so.
       if (!raw) {
         const seeded = seedProjects();
         this.save(seeded);
         window.localStorage.setItem(
-          SEEN_KEY,
+          scopedKey(SEEN_KEY),
           JSON.stringify(seeded.map((p) => p.catalog_slug).filter(Boolean)),
         );
         return seeded;
@@ -42,7 +43,7 @@ export class LocalRepo implements Repo {
 
       // Merge in any *new* catalog entries (e.g. apps added in a later deploy)
       // without disturbing projects the user has already edited or deleted.
-      const seenRaw = window.localStorage.getItem(SEEN_KEY);
+      const seenRaw = window.localStorage.getItem(scopedKey(SEEN_KEY));
       const seen = new Set<string>(seenRaw ? (JSON.parse(seenRaw) as string[]) : []);
       // Backfill for legacy data that pre-dated SEEN_KEY: treat existing
       // catalog-linked projects as already seeded.
@@ -58,7 +59,7 @@ export class LocalRepo implements Repo {
         }
       }
 
-      window.localStorage.setItem(SEEN_KEY, JSON.stringify([...seen]));
+      window.localStorage.setItem(scopedKey(SEEN_KEY), JSON.stringify([...seen]));
 
       const next = newOnes.length ? [...newOnes, ...projects] : projects;
 
@@ -78,7 +79,7 @@ export class LocalRepo implements Repo {
 
   private save(projects: Project[]) {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(KEY, JSON.stringify(projects));
+    window.localStorage.setItem(scopedKey(KEY), JSON.stringify(projects));
   }
 
   private mutate<T>(fn: (projects: Project[]) => T): T {

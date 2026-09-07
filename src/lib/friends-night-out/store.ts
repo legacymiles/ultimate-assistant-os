@@ -21,6 +21,7 @@ import type {
   WatchKind,
 } from "./types";
 import { pushRemote, stampLocal } from "@/lib/sync/appState";
+import { scopedKey } from "@/lib/sync/identity";
 
 /** Also the app_state sync key; components pass it to useRemotePull. */
 export const KEY = "friends-night-out:v1";
@@ -69,7 +70,7 @@ function buildSeed(): FnoData {
 function load(): FnoData {
   if (typeof window === "undefined") return emptyData();
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = window.localStorage.getItem(scopedKey(KEY));
     if (!raw) return save(buildSeed());
     const parsed = JSON.parse(raw) as Partial<FnoData>;
     // Merge against a fresh shape so a store written by an older build never
@@ -98,7 +99,7 @@ function save(data: FnoData): FnoData {
 
   if (typeof window !== "undefined") {
     try {
-      window.localStorage.setItem(KEY, JSON.stringify(data));
+      window.localStorage.setItem(scopedKey(KEY), JSON.stringify(data));
       stampLocal(KEY);
     } catch {
       // Quota is the realistic failure — a big cache of events with images.
@@ -106,7 +107,7 @@ function save(data: FnoData): FnoData {
       // losing the write costs the user's saved events.
       try {
         const trimmed: FnoData = { ...data, cache: { events: [], places: [] } };
-        window.localStorage.setItem(KEY, JSON.stringify(trimmed));
+        window.localStorage.setItem(scopedKey(KEY), JSON.stringify(trimmed));
         stampLocal(KEY);
         return trimmed;
       } catch {

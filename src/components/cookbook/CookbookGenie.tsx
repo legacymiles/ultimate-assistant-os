@@ -94,18 +94,15 @@ export function CookbookGenie() {
         // Resolve a share link if present: ?shared=<token>
         const token = new URLSearchParams(window.location.search).get("shared");
         if (token) {
-          const { data: share } = await sb
-            .from("cookbook_shares")
-            .select("cookbook_id, shared_with_user_id")
-            .eq("share_link_token", token)
-            .maybeSingle();
-          if (share?.cookbook_id) {
-            if (!share.shared_with_user_id) {
-              await sb.from("cookbook_shares")
-                .update({ shared_with_user_id: session.user.id })
-                .eq("share_link_token", token);
-            }
-            setRoute({ page: "cookbook", id: share.cookbook_id });
+          // Redeeming is one server-side call rather than a select-then-update.
+          // The old pair needed a policy that let any user read every share row
+          // and rewrite any unclaimed one; holding the token is the actual
+          // authorisation, and only a function argument can carry that.
+          const { data: cookbookId } = await sb.rpc("redeem_cookbook_share", {
+            _token: token,
+          });
+          if (cookbookId) {
+            setRoute({ page: "cookbook", id: cookbookId as string });
             setLoading(false);
             return;
           }

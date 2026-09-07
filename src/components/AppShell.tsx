@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSelectedProject, useStore } from "@/lib/store";
 import { getRepo } from "@/lib/repo";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { forgetCurrentUser } from "@/lib/sync/identity";
 import { Icon } from "./icons";
 import { ProjectView } from "./ProjectView";
 import { Sidebar } from "./Sidebar";
@@ -99,6 +100,13 @@ export function AppShell() {
               <span>Connected to Supabase</span>
               <button
                 onClick={async () => {
+                  // Order matters: drop this account's local copy while the
+                  // uid cookie is still readable, because forgetCurrentUser()
+                  // needs it to know which keys are ours. Everything removed
+                  // is already in app_state and returns on the next sign-in;
+                  // what does not return is a readable copy left on a shared
+                  // machine.
+                  forgetCurrentUser();
                   const db = getSupabaseBrowserClient();
                   await db?.auth.signOut();
                   window.location.href = "/login";

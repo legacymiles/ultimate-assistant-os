@@ -11,7 +11,15 @@
 // is that you do not have to remember what was inside the file.
 // ---------------------------------------------------------------------------
 
-const DB_NAME = "recall-files";
+// The database NAME carries the signed-in account, for the same reason the
+// localStorage keys do: sign-out clears a session, not a browser's storage, so
+// an unscoped name would hand the next person to sign in every file the last
+// one uploaded. See lib/sync/identity.ts.
+import { blobDbName } from "@/lib/sync/identity";
+
+/** The pre-namespacing database name, migrated away from on first open. */
+const LEGACY_DB = "recall-files";
+
 const DB_VERSION = 1;
 const STORE = "blobs";
 
@@ -40,13 +48,13 @@ export function isReadable(category: FileCategory): boolean {
 
 // ----- IndexedDB -----------------------------------------------------------
 
-function openDb(): Promise<IDBDatabase> {
+function open(name: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === "undefined") {
       reject(new Error("This browser has no IndexedDB, so files cannot be stored."));
       return;
     }
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    const req = indexedDB.open(name, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
@@ -54,6 +62,77 @@ function openDb(): Promise<IDBDatabase> {
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error ?? new Error("Could not open the file store."));
   });
+}
+
+/**
+ * Move the pre-namespacing database into the signed-in account's, once.
+ *
+ * These bytes are the one thing in the hub with no second copy: items sync to
+ * app_state, but the file blobs never leave the browser. So the old database
+ * cannot simply be dropped when the naming changes — that would take the
+ * owner's uploads with it, and leave every attachment in Recall pointing at a
+ * file that no longer exists. It is copied across and only then removed.
+ */
+let migrated = false;
+async function migrateLegacy(target: string): Promise<void> {
+  if (migrated || typeof indexedDB === "undefined") return;
+  migrated = true;
+  if (target === LEGACY_DB) return;
+
+  // databases() is unavailable in Firefox; opening the legacy name there would
+  // CREATE it, so skip the migration rather than risk a pointless empty db.
+  if (typeof indexedDB.databases !== "function") return;
+  try {
+    const names = (await indexedDB.databases()).map((d) => d.name);
+    if (!names.includes(LEGACY_DB)) return;
+
+    const from = await open(LEGACY_DB);
+    const entries = await new Promise<[IDBValidKey, Blob][]>((resolve, reject) => {
+      const t = from.transaction(STORE, "readonly");
+      const s = t.objectStore(STORE);
+      const keysReq = s.getAllKeys();
+      const valsReq = s.getAll();
+      t.oncomplete = () =>
+        resolve(keysReq.result.map((k, i) => [k, valsReq.result[i] as Blob]));
+      t.onerror = () => reject(t.error);
+    });
+    from.close();
+
+    if (entries.length) {
+      const to = await open(target);
+      await new Promise<void>((resolve, reject) => {
+        const t = to.transaction(STORE, "readwrite");
+        const s = t.objectStore(STORE);
+        // Which keys this account already holds. Checking first rather than
+        // letting add() reject on a duplicate: a failed add ABORTS its
+        // transaction, which would roll back every blob copied alongside it.
+        const existing = s.getAllKeys();
+        existing.onsuccess = () => {
+          const held = new Set(existing.result.map(String));
+          for (const [key, blob] of entries) {
+            // An account's own copy wins; only fill in what is missing.
+            if (!held.has(String(key))) s.put(blob, key);
+          }
+        };
+        t.oncomplete = () => resolve();
+        t.onerror = () => reject(t.error);
+        t.onabort = () => reject(t.error);
+      });
+      to.close();
+    }
+
+    indexedDB.deleteDatabase(LEGACY_DB);
+  } catch {
+    // A failed migration must not break file storage. The legacy database is
+    // left in place, so a later load can try again.
+    migrated = false;
+  }
+}
+
+async function openDb(): Promise<IDBDatabase> {
+  const name = blobDbName();
+  await migrateLegacy(name);
+  return open(name);
 }
 
 function tx<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {

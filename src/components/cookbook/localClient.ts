@@ -14,6 +14,7 @@
 // ---------------------------------------------------------------------------
 
 import { recipeImageUrl } from "./imageGen";
+import { scopedKey } from "@/lib/sync/identity";
 
 type Row = Record<string, any>;
 type Result = { data: any; error: any };
@@ -24,10 +25,10 @@ const AUTH_KEY = "cookbook_genie_local_auth_v1";
 
 function loadDB(): DB {
   if (typeof window === "undefined") return {};
-  try { return JSON.parse(localStorage.getItem(DB_KEY) || "{}"); } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem(scopedKey(DB_KEY)) || "{}"); } catch { return {}; }
 }
 function saveDB(db: DB) {
-  try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch { /* quota — keep in-memory */ }
+  try { localStorage.setItem(scopedKey(DB_KEY), JSON.stringify(db)); } catch { /* quota — keep in-memory */ }
 }
 function uuid(): string {
   return typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `id-${Math.random().toString(36).slice(2)}${Date.now()}`;
@@ -159,10 +160,10 @@ type AuthCb = (event: string, session: any) => void;
 
 function loadAuth(): AuthState {
   if (typeof window === "undefined") return { user: null, signedOut: false };
-  try { return JSON.parse(localStorage.getItem(AUTH_KEY) || "") as AuthState; } catch { return { user: null, signedOut: false }; }
+  try { return JSON.parse(localStorage.getItem(scopedKey(AUTH_KEY)) || "") as AuthState; } catch { return { user: null, signedOut: false }; }
 }
 function saveAuth(a: AuthState) {
-  try { localStorage.setItem(AUTH_KEY, JSON.stringify(a)); } catch { /* noop */ }
+  try { localStorage.setItem(scopedKey(AUTH_KEY), JSON.stringify(a)); } catch { /* noop */ }
 }
 
 const authCallbacks: AuthCb[] = [];
@@ -448,6 +449,54 @@ const storage = {
   },
 };
 
+/* ── RPC ───────────────────────────────────────────────────────── */
+// Two share operations moved server-side when the RLS policies were tightened
+// (see the tighten_cross_user_access migration): counting shares no longer
+// means reading every share row, and redeeming a link no longer means an
+// unrestricted update. Demo mode has no server, so it reimplements both here
+// with the same contracts, including the one that matters — a link belongs to
+// whoever claims it first, and returns nothing to anyone else.
+
+async function rpc(fn: string, args: Record<string, any> = {}): Promise<Result> {
+  const db = loadDB();
+
+  if (fn === "cookbook_share_counts") {
+    const counts = new Map<string, number>();
+    for (const s of db.cookbook_shares || []) {
+      counts.set(s.cookbook_id, (counts.get(s.cookbook_id) || 0) + 1);
+    }
+    return {
+      data: [...counts].map(([cookbook_id, share_count]) => ({ cookbook_id, share_count })),
+      error: null,
+    };
+  }
+
+  if (fn === "redeem_cookbook_share") {
+    const token = args._token;
+    const user = loadAuth().user;
+    if (!user || !token) return { data: null, error: null };
+
+    const share = (db.cookbook_shares || []).find((s) => s.share_link_token === token);
+    if (!share) return { data: null, error: null };
+    if (share.expires_at && new Date(share.expires_at).getTime() <= Date.now()) {
+      return { data: null, error: null };
+    }
+
+    if (!share.shared_with_user_id) {
+      share.shared_with_user_id = user.id;
+      saveDB(db);
+      return { data: share.cookbook_id, error: null };
+    }
+    // Claimed already: only the claimant gets it back.
+    return {
+      data: share.shared_with_user_id === user.id ? share.cookbook_id : null,
+      error: null,
+    };
+  }
+
+  return { data: null, error: new Error(`Unknown function: ${fn}`) };
+}
+
 /* ── Public factory ────────────────────────────────────────────── */
 
 let instance: any = null;
@@ -457,6 +506,7 @@ export function getLocalCookbookClient() {
     instance = {
       __local: true,
       from: (table: string) => new QueryBuilder(table),
+      rpc,
       auth,
       storage,
     };

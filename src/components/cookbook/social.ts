@@ -28,10 +28,18 @@ export async function loadStarCounts(sb: SupabaseClient): Promise<Map<string, nu
   return map;
 }
 
+/**
+ * Share counts come from a function, not from the rows.
+ *
+ * Counting client-side meant selecting every share row, and those rows carry
+ * shared_with_email — reading them all to produce one number handed every user
+ * a list of who had been invited to what. The function returns the totals and
+ * nothing else.
+ */
 export async function loadShareCounts(sb: SupabaseClient): Promise<Map<string, number>> {
-  const { data } = await sb.from("cookbook_shares").select("*");
+  const { data } = await sb.rpc("cookbook_share_counts");
   const map = new Map<string, number>();
-  (data || []).forEach((s: any) => map.set(s.cookbook_id, (map.get(s.cookbook_id) || 0) + 1));
+  (data || []).forEach((r: any) => map.set(r.cookbook_id, Number(r.share_count)));
   return map;
 }
 
