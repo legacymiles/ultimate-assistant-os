@@ -97,15 +97,15 @@ under the repository's Actions tab. The first build takes roughly twenty
 minutes because it pulls a large base image; later builds are cached and take
 a couple of minutes.
 
-**One manual click, once.** Images published this way start out private, and
-RunPod has to be able to pull it. Open
+The published image is **public and anonymously pullable**, which is what
+RunPod needs. Verified against the registry:
 
 ```
-https://github.com/users/<your-github-owner>/packages/container/auteur-h3/settings
+ghcr.io/legacymiles/auteur-h3:latest   33 layers, 14.7 GB compressed
 ```
 
-and set the visibility to public. If you would rather keep it private, add
-your registry credentials to the endpoint in the RunPod console instead.
+If you ever make the repository private, the package follows it, and you would
+then need to give RunPod registry credentials in the console.
 
 ### 3. Create the endpoint
 
