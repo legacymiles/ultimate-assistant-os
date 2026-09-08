@@ -2,8 +2,8 @@
 // Recall — structured record schemas.
 // Websites and logins get the SAME fields every time, so a folder of them reads
 // as a table instead of a pile of differently-shaped notes. Every value here is
-// plaintext and searchable; the one encrypted value on a credential lives in
-// `item.secret`, never in fields.
+// plaintext and searchable; a credential's password lives in `item.password`,
+// never in fields, and is never indexed by search.
 // ---------------------------------------------------------------------------
 
 import type { ItemKind } from "./types";

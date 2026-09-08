@@ -25,8 +25,8 @@ function scoreItem(item: Item, tokens: string[], phrase: string): number {
   const body = item.body.toLowerCase();
   const tags = item.tags.map((t) => t.toLowerCase());
   // Structured record values (host, provider, domain, username, deploy cmd…)
-  // plus the URL. `item.secret` is deliberately never read here — an encrypted
-  // password must not be searchable, and it is unreadable while locked anyway.
+  // plus the URL. `item.password` is deliberately never read here — a saved
+  // password must not turn up as a search hit just because you typed it.
   const fieldText = [
     ...Object.values(item.fields ?? {}),
     item.url ?? "",

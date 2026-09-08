@@ -70,7 +70,7 @@ const SECTION_META: Record<SectionId, SectionMeta> = {
   logins: {
     label: "Logins & Passwords",
     icon: Icon.Key,
-    blurb: "Usernames and encrypted passwords",
+    blurb: "Usernames and passwords you can always read back",
     emptyHint: "No logins yet. Click + to add one.",
     addLabel: "New login",
   },
@@ -395,7 +395,7 @@ export function FolderWorkspace({
             &amp; files, logins, websites. You can add more later, or drop the ones you stop using.
           </p>
           <div className="flex justify-center">
-            <AddSectionMenu choices={choices} onPick={addSection} variant="block" />
+            <AddSectionMenu choices={choices} onPick={pick} variant="block" />
           </div>
         </div>
       ) : (
@@ -405,7 +405,7 @@ export function FolderWorkspace({
           </div>
           {choices.length > 0 && folderId && (
             <div className="mt-2 flex">
-              <AddSectionMenu choices={choices} onPick={addSection} variant="inline" />
+              <AddSectionMenu choices={choices} onPick={pick} variant="inline" />
             </div>
           )}
         </>

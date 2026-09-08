@@ -38,10 +38,11 @@
     ".next-preview-3213/types/**/*.ts",
     ".next-preview-3214/types/**/*.ts",
     ".next-preview-3215/types/**/*.ts",
+    ".next-preview-3217/types/**/*.ts",
     ".next-verify/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-preview-3217/types/**/*.ts"
+    ".next-preview-3216/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

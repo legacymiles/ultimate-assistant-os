@@ -5,6 +5,7 @@
 //   node runpod/setup.mjs --dry-run     show exactly what would be created
 //   node runpod/setup.mjs --yes         actually create it
 //   node runpod/setup.mjs --status      health of the endpoint in .env.local
+//   node runpod/setup.mjs --update-image point the endpoint at this commit
 //   node runpod/setup.mjs --teardown    delete the endpoint (volume kept)
 //
 // The API key is read from .env.local or the environment and is never printed.
@@ -40,6 +41,7 @@ const DRY = args.has("--dry-run");
 const YES = args.has("--yes");
 const STATUS = args.has("--status");
 const TEARDOWN = args.has("--teardown");
+const UPDATE_IMAGE = args.has("--update-image");
 
 // ----- env -----------------------------------------------------------------
 //
@@ -72,7 +74,7 @@ const EXISTING_ENDPOINT = env("RUNPOD_ENDPOINT_ID");
  * deploys its own copy without editing anything here. Must stay in step with
  * .github/workflows/build-h3-worker.yml.
  */
-function defaultImage() {
+function imageRepo() {
   try {
     const url = execSync("git remote get-url origin", {
       cwd: ROOT,
@@ -81,10 +83,73 @@ function defaultImage() {
       .toString()
       .trim();
     const owner = url.match(/github\.com[:/]([^/]+)\//i)?.[1];
-    return owner ? `ghcr.io/${owner.toLowerCase()}/auteur-h3:latest` : "";
+    return owner ? `ghcr.io/${owner.toLowerCase()}/auteur-h3` : "";
   } catch {
     return "";
   }
+}
+
+function headSha() {
+  try {
+    return execSync("git rev-parse HEAD", { cwd: ROOT, stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * The commit whose image was actually built and published.
+ *
+ * Asks GitHub for the newest successful run of the worker build rather than
+ * trusting local HEAD: commits that do not touch the worker never trigger a
+ * build, so HEAD frequently names a tag that does not exist in the registry.
+ * Public repo, so this needs no credentials. Returns "" when unreachable.
+ */
+async function builtSha() {
+  const repo = repoSlug();
+  if (!repo) return "";
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${repo}/actions/workflows/build-h3-worker.yml/runs?status=success&per_page=1`,
+      { headers: { Accept: "application/vnd.github+json", "User-Agent": "auteur-setup" } },
+    );
+    if (!res.ok) return "";
+    const d = await res.json();
+    return d?.workflow_runs?.[0]?.head_sha || "";
+  } catch {
+    return "";
+  }
+}
+
+function repoSlug() {
+  try {
+    const url = execSync("git remote get-url origin", { cwd: ROOT, stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+    const m = url.match(/github\.com[:/]([^/]+)\/([^/.]+)/i);
+    return m ? `${m[1]}/${m[2]}` : "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Pin to a commit, never to `latest`.
+ *
+ * RunPod caches images by tag. Pushing a fix to a mutable tag leaves warm
+ * workers running the old bytes, and the symptom is nasty: the same failure
+ * as before, in milliseconds, on the same worker id, with nothing to suggest
+ * the fix never arrived. An immutable tag makes a code change a different
+ * image, which forces the pull.
+ */
+async function resolveImage() {
+  if (env("RUNPOD_IMAGE")) return env("RUNPOD_IMAGE");
+  const repo = imageRepo();
+  if (!repo) return "";
+  const sha = (await builtSha()) || headSha();
+  return sha ? `${repo}:${sha}` : `${repo}:latest`;
 }
 
 // ----- config --------------------------------------------------------------
@@ -106,7 +171,6 @@ const CONFIG = {
    */
   volumeGb: Number(env("RUNPOD_VOLUME_GB", 0)),
   dataCenter: env("RUNPOD_DATACENTER"),
-  image: env("RUNPOD_IMAGE") || defaultImage(),
   // 32 GB is the comfortable floor: the quantised model peaks around 27 GB.
   minVramGb: Number(env("RUNPOD_MIN_VRAM_GB", 32)),
   /**
@@ -333,6 +397,36 @@ function endpointBody({ pools, volumeId, image, dataCenterId }) {
 
 // ----- modes ---------------------------------------------------------------
 
+/**
+ * Repoint an existing endpoint at the image built from the current commit.
+ *
+ * Needed after every worker change: the endpoint holds an image reference,
+ * and nothing about pushing a new build updates it on its own.
+ */
+async function updateImage() {
+  if (!EXISTING_ENDPOINT) die("No RUNPOD_ENDPOINT_ID in .env.local.");
+  const image = await resolveImage();
+  if (!image) die("Could not work out an image name from the git remote.");
+
+  const current = await api(`/serverless/${EXISTING_ENDPOINT}`).catch(() => null);
+  const was = current?.image || current?.template?.image || "(unknown)";
+  console.log("");
+  console.log(`  was: ${dim(was)}`);
+  console.log(`  now: ${bold(image)}`);
+  if (was === image) {
+    console.log(`\n  ${good("Already on this image.")}\n`);
+    return;
+  }
+  if (!YES) {
+    console.log(`\n  ${warn("Re-run with --yes to apply.")}\n`);
+    return;
+  }
+  await api(`/serverless/${EXISTING_ENDPOINT}`, { method: "PATCH", body: { image } });
+  console.log(`\n${good("✓")} Endpoint now runs ${image}`);
+  console.log(dim("  Warm workers finish their current job on the old image;"));
+  console.log(dim("  the next cold start pulls the new one.\n"));
+}
+
 async function showStatus() {
   if (!EXISTING_ENDPOINT) die("No RUNPOD_ENDPOINT_ID in .env.local yet.");
   const res = await fetch(`https://api.runpod.ai/v2/${EXISTING_ENDPOINT}/health`, {
@@ -401,7 +495,8 @@ async function provision() {
   }
   console.log("");
 
-  if (!CONFIG.image) {
+  const image = await resolveImage();
+  if (!image) {
     die(
       "No container image set.\n\n" +
         "  This worker has to be built and published before an endpoint can run it.\n" +
@@ -434,7 +529,7 @@ async function provision() {
     );
   }
 
-  const body = endpointBody({ pools, volumeId: volume?.id, image: CONFIG.image, dataCenterId: dataCenter });
+  const body = endpointBody({ pools, volumeId: volume?.id, image, dataCenterId: dataCenter });
 
   if (DRY || !YES) {
     console.log(`  ${bold("Would create")}`);
@@ -461,7 +556,7 @@ async function provision() {
   console.log("  Creating endpoint…");
   const endpoint = await api("/serverless", {
     method: "POST",
-    body: endpointBody({ pools, volumeId: volume?.id, image: CONFIG.image, dataCenterId: dataCenter }),
+    body: endpointBody({ pools, volumeId: volume?.id, image, dataCenterId: dataCenter }),
   });
 
   console.log(`\n${good("✓")} Endpoint created: ${bold(endpoint.id)}\n`);
@@ -489,7 +584,8 @@ if (!KEY) {
 }
 
 try {
-  if (STATUS) await showStatus();
+  if (UPDATE_IMAGE) await updateImage();
+  else if (STATUS) await showStatus();
   else if (TEARDOWN) await teardown();
   else await provision();
 } catch (err) {

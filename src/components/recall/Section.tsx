@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Icon } from "../icons";
 
 interface Props {
@@ -47,6 +47,12 @@ export function Section({
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
 
+  // A form opened from the folder + menu must not land inside a collapsed
+  // section, where nothing would appear to have happened.
+  useEffect(() => {
+    if (bodyOverride) setOpen(true);
+  }, [bodyOverride]);
+
   return (
     <section className="border-b border-line-soft last:border-b-0">
       <div className="group/sec flex items-center gap-2 py-2">
@@ -85,7 +91,7 @@ export function Section({
             onClick={onAdd}
             title={addLabel}
             aria-label={addLabel}
-            className="shrink-0 rounded-md p-1 text-ink-faint opacity-0 transition hover:bg-panel-2 hover:text-ink focus:opacity-100 group-hover/sec:opacity-100"
+            className="shrink-0 rounded-md p-1 text-ink-faint transition hover:bg-panel-2 hover:text-ink"
           >
             <Icon.Plus width={14} height={14} />
           </button>

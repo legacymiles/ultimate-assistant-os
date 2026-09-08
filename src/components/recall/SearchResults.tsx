@@ -14,7 +14,7 @@ import { Row } from "./Section";
 // folder names and tags. Structured field values are indexed, and so is the
 // text READ OUT of uploaded PDFs, docs and images — so a phrase that only ever
 // existed inside a document still finds it.
-// Encrypted passwords are never searched — they are unreadable by design.
+// Saved passwords are never searched — a password is not a search term.
 // ---------------------------------------------------------------------------
 
 // Sub-folders are not an item bucket, so search never groups into them.
