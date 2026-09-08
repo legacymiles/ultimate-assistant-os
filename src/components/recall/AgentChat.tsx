@@ -84,7 +84,7 @@ function actionLabel(
     case "delete_event":
       return `Remove “${eventOf(action.eventId)?.title ?? "event"}” from the calendar`;
     case "add_person":
-      return `Add ${action.name} to the people Recall can recognise`;
+      return `Add ${action.name} to the people Dashboard can recognise`;
     default:
       return "Unknown action";
   }

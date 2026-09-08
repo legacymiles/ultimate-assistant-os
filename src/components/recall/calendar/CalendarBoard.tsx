@@ -124,7 +124,7 @@ export function CalendarBoard({ onToast, onOpenItem }: Props) {
   async function askNotifications() {
     const next = await requestNotifications();
     setPerm(next);
-    if (next === "granted") onToast("Reminders on — while Recall is open");
+    if (next === "granted") onToast("Reminders on — while Dashboard is open");
     else if (next === "denied") onToast("Your browser blocked notifications");
   }
 
@@ -213,7 +213,7 @@ export function CalendarBoard({ onToast, onOpenItem }: Props) {
           {perm === "default" && (
             <button
               onClick={() => void askNotifications()}
-              title="Let Recall show a notification when a reminder comes due"
+              title="Let Dashboard show a notification when a reminder comes due"
               className="rounded-lg border border-line px-2.5 py-1.5 text-[11px] text-ink-muted transition hover:text-ink"
             >
               Turn on reminders
@@ -383,7 +383,7 @@ function AgendaView({
         <h2 className="text-base font-semibold text-ink">Nothing scheduled</h2>
         <p className="mx-auto mt-1.5 max-w-sm text-xs leading-relaxed text-ink-muted">
           Add something yourself, ask the assistant to (&ldquo;put parents&rsquo; evening on
-          Thursday at 6&rdquo;), or drop a photo of a flyer into Photos — Recall reads the date off
+          Thursday at 6&rdquo;), or drop a photo of a flyer into Photos — Dashboard reads the date off
           it and offers to put it here.
         </p>
         <button

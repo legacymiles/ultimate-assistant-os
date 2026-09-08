@@ -314,7 +314,7 @@ function PhotoDetail({
         {a && a.route === "people" && (
           <div className="mb-3">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
-              Who Recall saw
+              Who Dashboard saw
             </p>
             {a.people.length === 0 && a.unknownPeople === 0 ? (
               <p className="text-[11.5px] text-ink-faint">

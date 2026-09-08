@@ -159,7 +159,7 @@ export function MembersDialog({ board, onBoard, onToast, onClose }: Props) {
           <>
             {gated === false && (
               <p className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-[11px] leading-relaxed text-amber-200">
-                Recall has no app password set, so anyone who opens it is treated as the admin.
+                Dashboard has no app password set, so anyone who opens it is treated as the admin.
                 Set one in Security (the shield icon) before inviting anyone — until then, the
                 member rules below do not hold.
               </p>

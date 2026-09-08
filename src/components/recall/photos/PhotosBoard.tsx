@@ -32,11 +32,11 @@ import { PeopleManager } from "./PeopleManager";
 // Photos.
 //
 // One folder, many sub-folders, and a warm palette that is never used anywhere
-// else in Recall — so the photo side is identifiable from across the room and
+// else in Dashboard — so the photo side is identifiable from across the room and
 // from every other screen in the app.
 //
-// The sub-folders are ordinary Recall folders under "Photos", and the photos in
-// them are ordinary Recall items. That is deliberate: it means the search box,
+// The sub-folders are ordinary Dashboard folders under "Photos", and the photos in
+// them are ordinary Dashboard items. That is deliberate: it means the search box,
 // the folder workspace and the assistant all work on photos for free, and a
 // photo of a receipt is findable by what it SAYS, not by which folder it sits
 // in. This screen is the specialised front door to that data, not a silo
@@ -358,10 +358,10 @@ export function PhotosBoard({
       {/* Setup nudge — the one thing that must happen before any of this works */}
       {needsSetup && (
         <div className="mb-4 rounded-2xl border border-amber-400/30 bg-amber-400/[0.06] p-4">
-          <p className="text-sm font-semibold text-ink">Teach Recall who&apos;s who first</p>
+          <p className="text-sm font-semibold text-ink">Teach Dashboard who&apos;s who first</p>
           <p className="mt-1 max-w-xl text-[11.5px] leading-relaxed text-ink-muted">
             Add yourself, your partner and your kids, with two or three clear photos of each face.
-            Recall then sorts new photos into <em>Selfies</em>, <em>Me &amp; …</em>,{" "}
+            Dashboard then sorts new photos into <em>Selfies</em>, <em>Me &amp; …</em>,{" "}
             <em>My Little Family</em> and a folder per person on its own — and anything that turns
             out to be a receipt, a screenshot or a flyer goes to your knowledge base or your
             calendar instead.
@@ -451,7 +451,7 @@ export function PhotosBoard({
       )}
 
       <p className="mt-4 text-[11px] leading-relaxed text-ink-faint">
-        <strong className="text-ink-muted">Getting photos off your phone:</strong> open Recall in
+        <strong className="text-ink-muted">Getting photos off your phone:</strong> open Dashboard in
         your phone&apos;s browser and tap <em>Add photos</em> — that opens your camera roll and you
         can select as many as you like. A web app can&apos;t sync your camera roll in the
         background, so this (or a Google Drive import) is the way in.
@@ -546,8 +546,8 @@ function PhotoSettings({
                   Copy approved photos to Drive
                 </span>
                 <span className="mt-0.5 block text-[11px] leading-relaxed text-ink-muted">
-                  Uploads to a <strong>Recall Photos</strong> folder Drive creates for this app.
-                  Recall only ever sees files it created or you hand-picked — it cannot read the
+                  Uploads to a <strong>Dashboard Photos</strong> folder Drive creates for this app.
+                  Dashboard only ever sees files it created or you hand-picked — it cannot read the
                   rest of your Drive.
                 </span>
               </span>
@@ -658,7 +658,7 @@ function Gallery({
         )}
         <button
           onClick={onOpenWorkspace}
-          title="Open this as an ordinary Recall folder"
+          title="Open this as an ordinary Dashboard folder"
           className="rounded-lg border border-line px-2.5 py-1.5 text-[11px] text-ink-muted transition hover:text-ink"
         >
           Open as a folder
@@ -677,7 +677,7 @@ function Gallery({
           <Icon.Image width={26} height={26} className="mx-auto mb-2 text-ink-faint" />
           <p className="text-sm font-medium text-ink">Nothing here yet</p>
           <p className="mx-auto mt-1 max-w-xs text-[11.5px] leading-relaxed text-ink-muted">
-            Photos land here on their own once Recall recognises who&apos;s in them.
+            Photos land here on their own once Dashboard recognises who&apos;s in them.
           </p>
         </div>
       ) : (

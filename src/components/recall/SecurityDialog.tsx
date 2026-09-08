@@ -11,7 +11,7 @@ import { RowAction } from "./Section";
 // ---------------------------------------------------------------------------
 // Security settings.
 //
-// Recall has exactly one password: the app password, a door on the page that
+// Dashboard has exactly one password: the app password, a door on the page that
 // stops someone else opening Recall. Saved logins are NOT behind a second one
 // — they are listed here, revealable and copyable, because a password you
 // cannot get back is worse than useless.
@@ -124,13 +124,13 @@ function AppPassword({ onToast }: { onToast: (m: string) => void }) {
         <h3 className="text-[13px] font-semibold text-ink">App password</h3>
       </div>
       <p className="text-[11px] leading-relaxed text-ink-muted">
-        Required before Recall will open. This is a door on the page — it is not encryption, and
+        Required before Dashboard will open. This is a door on the page — it is not encryption, and
         anyone holding this device unlocked can still read the stored data in devtools.
       </p>
 
       {gate && !gate.gated && (
         <Note tone="warn">
-          Recall is currently <strong>open</strong> — anyone who reaches this URL can use it. Set a
+          Dashboard is currently <strong>open</strong> — anyone who reaches this URL can use it. Set a
           password below.
         </Note>
       )}
@@ -169,7 +169,7 @@ function AppPassword({ onToast }: { onToast: (m: string) => void }) {
         {gate?.gated && (
           <button
             onClick={() => {
-              if (window.confirm("Remove the app password? Recall will open without one.")) {
+              if (window.confirm("Remove the app password? Dashboard will open without one.")) {
                 void submit(true);
               }
             }}

@@ -64,7 +64,9 @@ export function applyEnrichment(base: Project): boolean {
     return true;
   }
 
-  if (base.catalog_slug === "recall") {
+  // Both slugs: the app is now "dashboard", but timeline rows written before
+  // the rename still carry "recall" and would otherwise lose their content.
+  if (base.catalog_slug === "dashboard" || base.catalog_slug === "recall") {
     base.detailed = recallDetailed();
     base.features = recallFeatures(projectId);
     base.versions = recallVersions(projectId);

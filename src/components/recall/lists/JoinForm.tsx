@@ -94,7 +94,7 @@ function Inner() {
         return;
       }
       // Full reload so the server sees the new cookie on the next render.
-      window.location.href = "/apps/recall/lists";
+      window.location.href = "/apps/dashboard/lists";
     } catch {
       setError("No connection.");
     } finally {

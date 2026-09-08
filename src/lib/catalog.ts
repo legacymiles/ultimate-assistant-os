@@ -175,24 +175,24 @@ export const PROJECTS: CatalogProject[] = [
     hue: [275, 200],
   },
   {
-    slug: "recall",
-    title: "Recall",
+    slug: "dashboard",
+    title: "Dashboard",
     tag: "Personal RAG second brain",
     category: "AI",
     overview:
       "A private second brain where a folder is a page, not a filter. Home is a grid of folder tiles and " +
       "nothing else; open one and it holds only the sections you asked for — sub-folders as tiles, notes, " +
       "to-dos, links & files, logins, websites — added from a single + menu, so a folder that holds two " +
-      "things is two lines tall. Drop in PDFs, docs, images or video and Recall reads them (everything but " +
-      "video), so one search box finds a phrase that only ever existed inside a document. Passwords are " +
-      "sealed with AES-GCM under a master password and never leave the device or reach the AI. The agent " +
+      "things is two lines tall. Drop in PDFs, docs, images or video and Dashboard reads them (everything but " +
+      "video), so one search box finds a phrase that only ever existed inside a document. Saved logins stay " +
+      "on the device and are filtered out of every AI call. The agent " +
       "answers from your own content with sources and can reorganise across 13 actions — always as a plan " +
       "you confirm first. Alongside it, a shared Lists board for the daily churn — to-do, to-buy, bills, " +
       "reminders — colour-coded red/orange/yellow by urgency and by who added each row. Family join through " +
       "a one-time invite link, get the board and nothing else, and can only delete their own; you can delete " +
-      "anything. Local-first with zero setup; sharper with an AI Gateway key.",
+      "anything. Local-first with zero setup; sharper with an AI key.",
     status: "live",
-    appUrl: "/apps/recall",
+    appUrl: "/apps/dashboard",
     iconStyle: "aurora",
     hue: [190, 265],
   },
@@ -565,7 +565,7 @@ export function getProject(slug: string): CatalogProject | null {
  * for whoever IS signed in, put their own real data on a public-facing spinning
  * panel. Neither is wanted, so they keep the animated icon instead.
  */
-const UNPREVIEWABLE = new Set(["recall", "projects-timeline"]);
+const UNPREVIEWABLE = new Set(["dashboard", "projects-timeline"]);
 
 /**
  * The preview a carousel panel should mount, or null for the animated icon.

@@ -94,7 +94,7 @@ export function ItemDetailModal({ item, folders, onClose, onChange, onDeleted, o
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{item.body}</p>
           )}
 
-          {/* What Recall read out of the file — the reason it is retrievable */}
+          {/* What Dashboard read out of the file — the reason it is retrievable */}
           {item.extract && (
             <div className="rounded-xl border border-line bg-canvas">
               <button

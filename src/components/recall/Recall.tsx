@@ -32,7 +32,7 @@ import { KEY as RECALL_KEY } from "@/lib/recall/store";
 import { useRemotePull } from "@/lib/sync/useSync";
 
 // ---------------------------------------------------------------------------
-// Recall — shell.
+// Dashboard — shell.
 // One search box over everything, a breadcrumb, and the folder workspace.
 // The folder tree still exists but it is a toggle, not permanent furniture:
 // sub-folders live as tiles inside the folder they belong to, so the page stays
@@ -68,7 +68,7 @@ export function Recall() {
   const [toast, setToast] = useState<string | null>(null);
   const [folderDialog, setFolderDialog] = useState<FolderDialogState | null>(null);
   const [movingFolder, setMovingFolder] = useState<Folder | null>(null);
-  /** True when Recall requires a password, so signing out is meaningful. */
+  /** True when Dashboard requires a password, so signing out is meaningful. */
   const [gated, setGated] = useState(false);
   const [securityOpen, setSecurityOpen] = useState(false);
   /**
@@ -231,7 +231,7 @@ export function Recall() {
           </button>
 
           <span className="ml-0.5 hidden items-center gap-1.5 text-sm font-semibold text-ink sm:flex">
-            <Icon.Sparkles width={16} height={16} className="text-brand" /> Recall
+            <Icon.Sparkles width={16} height={16} className="text-brand" /> Dashboard
           </span>
           {isLocal() && (
             <span className="hidden rounded-md bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand lg:inline">
@@ -276,8 +276,8 @@ export function Recall() {
           {gated && (
             <button
               onClick={() => void signOut()}
-              title="Sign out of Recall"
-              aria-label="Sign out of Recall"
+              title="Sign out of Dashboard"
+              aria-label="Sign out of Dashboard"
               className="shrink-0 rounded-lg border border-line p-1.5 text-ink-muted transition hover:border-red-500/40 hover:text-red-400"
             >
               <Icon.ArrowRight width={15} height={15} />
@@ -287,7 +287,7 @@ export function Recall() {
           <button
             onClick={() => setCaptureOpen(true)}
             className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-[13px] font-semibold text-white transition hover:bg-brand-2"
-            title="Capture anything — Recall files and tags it for you"
+            title="Capture anything — Dashboard files and tags it for you"
           >
             <Icon.Plus width={15} height={15} />
             <span className="hidden sm:inline">Capture</span>
@@ -360,7 +360,7 @@ export function Recall() {
           <>
             <div
               role="tablist"
-              aria-label="Recall home"
+              aria-label="Dashboard home"
               className="mb-4 inline-flex gap-1 rounded-xl border border-line bg-panel p-1"
             >
               {HOME_TABS.map((tab) => (

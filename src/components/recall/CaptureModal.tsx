@@ -346,7 +346,7 @@ export function CaptureModal({ folders, existingTags, onClose, onSaved }: Props)
                   onClick={save}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-2"
                 >
-                  <Icon.Check width={15} height={15} /> Save to Recall
+                  <Icon.Check width={15} height={15} /> Save to Dashboard
                 </button>
               </div>
             </div>

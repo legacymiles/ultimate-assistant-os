@@ -22,7 +22,7 @@ import { scopedKey } from "@/lib/sync/identity";
 // would save.
 //
 // Rendered two ways:
-//   · inside Recall, as the second home tab (admin) — `standalone` false
+//   · inside Dashboard, as the second home tab (admin) — `standalone` false
 //   · on its own page (family members, who get nothing else) — `standalone` true
 // ---------------------------------------------------------------------------
 
@@ -214,7 +214,7 @@ export function ListsBoard({ standalone = false }: Props) {
       {!board.persistent && (
         <p className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200">
           This host does not keep files between requests, so the board will reset. It works
-          properly when Recall runs somewhere long-lived — your own machine or a VPS.
+          properly when Dashboard runs somewhere long-lived — your own machine or a VPS.
         </p>
       )}
 
@@ -228,7 +228,7 @@ export function ListsBoard({ standalone = false }: Props) {
           isAdmin={board.isAdmin}
           onManage={() => setMembersOpen(true)}
         />
-        {/* Inside Recall the header carries no identity, so the chip does. On the
+        {/* Inside Dashboard the header carries no identity, so the chip does. On the
             standalone page the header already names you — a second chip beside
             your own filter chip just reads as two of you. */}
         {!standalone && (

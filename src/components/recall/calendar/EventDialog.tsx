@@ -195,7 +195,7 @@ export function EventDialog({ initial, defaultDate, onSubmit, onDelete, onClose 
           ))}
         </div>
         <p className="mt-1.5 text-[10px] leading-relaxed text-ink-faint">
-          Reminders show up while Recall is open. For a nudge that reaches your phone, export the
+          Reminders show up while Dashboard is open. For a nudge that reaches your phone, export the
           event to your phone&apos;s own calendar with the ↓ button on the calendar header.
         </p>
 

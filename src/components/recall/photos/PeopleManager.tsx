@@ -75,7 +75,7 @@ export function PeopleManager({ data, onData, onToast, onClose }: Props) {
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-400/15 text-amber-300">
             <Icon.Users width={15} height={15} />
           </span>
-          <span className="text-sm font-semibold text-ink">People Recall can recognise</span>
+          <span className="text-sm font-semibold text-ink">People Dashboard can recognise</span>
           <button
             onClick={onClose}
             aria-label="Close"
@@ -87,7 +87,7 @@ export function PeopleManager({ data, onData, onToast, onClose }: Props) {
 
         <p className="mb-3 text-[11.5px] leading-relaxed text-ink-muted">
           Name the people who matter and give each of them two or three clear photos of their face.
-          Recall builds those into a labelled reference sheet and shows it to the vision model
+          Dashboard builds those into a labelled reference sheet and shows it to the vision model
           alongside every new photo, so it can answer &ldquo;which of these people is in this
           picture?&rdquo; instead of guessing. Everything stays in your own storage.
         </p>
