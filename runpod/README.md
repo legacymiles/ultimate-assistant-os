@@ -46,33 +46,30 @@ you sleep, so it is **not** created by default. Instead the weights are fetched
 onto the worker's own disk on each cold start, and that disk exists only while
 the worker does.
 
-The trade is a slower first shot per session, and it favours the no-volume
-setup unless you render very often:
+The trade is a slower first shot per session. These figures are **measured on
+this endpoint**, not estimated:
 
-| Sessions per month | With a volume | No volume |
-| --- | --- | --- |
-| 4 | $5.76 | **$0.58** |
-| 15 | $6.19 | **$2.17** |
-| 30 | $6.79 | **$4.34** |
-| 60 | **$7.97** | $8.69 |
+| Measured | |
+| --- | --- |
+| Cold start (fetch 44.5 GB + load model) | 86 s |
+| Render, 5 s clip at 864x480, 8 turbo steps | 47 s |
+| Billed worker time for that whole job | 142 s = **$0.062** |
 
-Turn the volume on with `RUNPOD_VOLUME_GB=80` if you end up rendering daily.
+Per clip on a warm worker, against MiniMax's hosted per-second price:
 
-Estimates on an RTX 5090 at $1.58/hr, for one ~5 second clip:
+| Clip | Draft 864x480 | Full 768p | MiniMax hosted |
+| --- | --- | --- | --- |
+| 5s | $0.023 | $0.050 | $0.41 |
+| 10s | $0.043 | $0.095 | $0.81 |
+| 15s | $0.062 | $0.141 | $1.21 |
 
-| Situation | Billed time | Cost |
-| --- | --- | --- |
-| Warm worker, another shot right after | ~95 s | **~$0.04** |
-| First shot of a session, no volume | ~5.5 min | **~$0.14** |
-| First shot of a session, with a volume | ~1.5 min | **~$0.04** |
-| MiniMax hosted API, same clip | — | **~$0.41** |
+A 30-second video, five shots plus one cold start, costs about **$0.17** in
+draft or **$0.32** at full resolution, against **$2.35** hosted. So roughly
+seven to fourteen times cheaper, depending on resolution.
 
-The practical consequence: **render a storyboard in one sitting.** Ten shots
-in a row pay one cold start. Ten shots spread across ten days pay ten.
-
-These are estimates built from published pricing and third-party benchmarks,
-not measurements from your account. Treat the first month as the real test,
-and watch the spend limit in the RunPod console.
+The cold start turned out far cheaper than expected: 44.5 GB lands in 86
+seconds, about 520 MB/s. That is why no network volume is the right default.
+A volume would save roughly four cents per session and cost $5.60 a month.
 
 ---
 
