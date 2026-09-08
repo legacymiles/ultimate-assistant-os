@@ -2,6 +2,8 @@
 
 **Date:** 2026-09-07
 **Status:** approved, not yet implemented
+**Scope decided:** all four phases (0, A, B, C) in one pass.
+**Provider decided:** Vercel AI Gateway only; the OpenRouter fallback was declined.
 **Supersedes:** nothing. Extends the Recall photos pipeline described in
 `src/lib/seed-content/recall.ts`.
 
@@ -76,14 +78,17 @@ assistant is currently the only way to move a folder at all.
 
 ### Fixes
 
-**0.1 — Provider fallback.** `callGateway` (`route.ts:160`) becomes
-provider-aware: prefer `AI_GATEWAY_API_KEY` against
-`https://ai-gateway.vercel.sh/v1/chat/completions`, else `OPENROUTER_API_KEY`
-against `https://openrouter.ai/api/v1/chat/completions`. Both are
-OpenAI-compatible `chat/completions`, so only the base URL, the auth header and
-the model id change; the request body is untouched. `OPENROUTER_API_KEY` is
-**already set** in this environment, so this alone restores the assistant with no
-new signup. Follows the existing precedent in `src/lib/soundprint/providers.ts`.
+**0.1 — Provider: Vercel AI Gateway.** Decided 2026-09-07. The route keeps
+`AI_GATEWAY_API_KEY` against `https://ai-gateway.vercel.sh/v1/chat/completions`,
+the path the code was written for. An OpenRouter fallback was offered and
+**declined**, so no provider-abstraction layer is added — `callGateway` stays as
+it is.
+
+The consequence, accepted knowingly: **the assistant does not work until the user
+creates the key**, and it must also be set in Vercel project settings for the
+deployed hub. `AI_MODEL` defaults to `anthropic/claude-sonnet-4-6`, which the
+route already falls back to. This makes 0.2 the piece carrying the user until the
+key exists, and raises its priority from polish to essential.
 
 **0.2 — Degradation must be visible.** A missing key currently degrades silently
 into keyword search, which reads to the user as a stupid AI rather than an absent
@@ -294,6 +299,7 @@ unchanged. Nothing writes until approve.
 | `AI_GATEWAY_API_KEY` (**currently unset**) | Vision returns `null`; the existing deliberately-unconfident heuristic files photos instead. Import still works. The Sources panel states that AI filing is off. |
 | `SUPABASE_SERVICE_ROLE_KEY` (**currently unset**) | Inbox falls back to the filesystem under `RECALL_DATA_DIR`. Correct locally; **fails on Vercel**, whose filesystem is read-only. Autopilot on the deployed hub requires this variable. The Autopilot panel detects and says so rather than failing silently at 3am. |
 | Invalid/rotated token | `401` with a message body the Shortcut displays. |
+| `AI_GATEWAY_API_KEY`, for the **assistant** | Reply carries the degraded-mode notice from 0.2 and is labelled a search result. It must never read as an answer the assistant reasoned its way to. |
 | Neither key set | Picker path still works end to end with heuristic filing. |
 
 ## Testing
