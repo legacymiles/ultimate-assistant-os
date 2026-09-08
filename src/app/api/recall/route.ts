@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { aiEndpoint, DEFAULT_MODEL } from "@/lib/ai/provider";
 import { callerIsMember } from "@/lib/recall/lists/session";
 
 // POST /api/recall
@@ -12,7 +13,8 @@ import { callerIsMember } from "@/lib/recall/lists/session";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const GATEWAY = "https://ai-gateway.vercel.sh/v1/chat/completions";
+// Endpoint + key come from the shared provider picker (OpenRouter, else
+// the Vercel gateway). Both speak the same OpenAI-compatible shape.
 
 interface Candidate {
   id: string;
@@ -82,7 +84,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const apiKey = process.env.AI_GATEWAY_API_KEY;
+  const apiKey = aiEndpoint()?.key;
 
   switch (body.stage) {
     case "link":
@@ -158,8 +160,10 @@ function stripHtml(html: string): string {
 // ----- Gateway helper ------------------------------------------------------
 
 async function callGateway(apiKey: string, system: string, user: string): Promise<string> {
-  const model = process.env.AI_MODEL || "anthropic/claude-sonnet-4-6";
-  const res = await fetch(GATEWAY, {
+  const endpoint = aiEndpoint();
+  if (!endpoint) throw new Error("No AI provider configured");
+  const model = process.env.AI_MODEL || DEFAULT_MODEL;
+  const res = await fetch(endpoint.url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({

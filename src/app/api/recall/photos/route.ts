@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { aiEndpoint, DEFAULT_MODEL } from "@/lib/ai/provider";
 import { callerIsMember } from "@/lib/recall/lists/session";
 
 // POST /api/recall/photos
@@ -18,7 +19,7 @@ import { callerIsMember } from "@/lib/recall/lists/session";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const GATEWAY = "https://ai-gateway.vercel.sh/v1/chat/completions";
+// Endpoint + key come from the shared provider picker.
 
 interface LegendEntry {
   slot: number;
@@ -54,7 +55,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const apiKey = process.env.AI_GATEWAY_API_KEY;
+  const apiKey = aiEndpoint()?.key;
   if (!apiKey || !body.image) return NextResponse.json({ analysis: null });
 
   try {
@@ -114,7 +115,7 @@ function systemPrompt(legend: LegendEntry[], today: string, folders: string[], t
 
 async function triage(body: Body, apiKey: string) {
   const legend = body.legend ?? [];
-  const model = process.env.AI_VISION_MODEL || process.env.AI_MODEL || "anthropic/claude-sonnet-4-6";
+  const model = process.env.AI_VISION_MODEL || process.env.AI_MODEL || DEFAULT_MODEL;
   const today = body.today || new Date().toISOString().slice(0, 10);
 
   const content: Record<string, unknown>[] = [];
@@ -125,7 +126,7 @@ async function triage(body: Body, apiKey: string) {
   content.push({ type: "text", text: `PHOTO TO TRIAGE (filename: ${body.name ?? "photo"}):` });
   content.push({ type: "image_url", image_url: { url: body.image } });
 
-  const res = await fetch(GATEWAY, {
+  const res = await fetch(aiEndpoint()!.url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
