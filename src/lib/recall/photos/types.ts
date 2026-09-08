@@ -72,7 +72,13 @@ export interface PhotoCategory {
   description?: string;
 }
 
-export type PhotoRoute = "people" | "info" | "event";
+/**
+ * Where a photo goes. The first three are owned by this pipeline; anything else
+ * is a destination id from the registry (src/lib/dashboard/destinations), which
+ * is why this is not a closed union — adding an app must not require editing
+ * this line.
+ */
+export type PhotoRoute = "people" | "info" | "event" | (string & {});
 
 /** A person the vision pass believes it saw. */
 export interface PersonHit {
@@ -102,6 +108,12 @@ export interface PhotoAnalysis {
   folderPath?: string[];
   tags: string[];
   event?: PhotoEventDraft | null;
+  /**
+   * Raw fields for a registry destination, unvalidated. The destination's own
+   * parse() is the trust boundary — this route cannot know what any given app
+   * requires, and should not have to.
+   */
+  destination?: { id: string; fields: Record<string, unknown> };
   engine: "ai" | "heuristic";
 }
 

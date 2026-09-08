@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { DESTINATION_ROUTES, destinationPromptBlock } from "@/lib/dashboard/destinations/registry";
 import { aiEndpoint, DEFAULT_MODEL } from "@/lib/ai/provider";
 import { callerIsMember } from "@/lib/recall/lists/session";
 
@@ -98,7 +99,7 @@ function systemPrompt(legend: LegendEntry[], today: string, folders: string[], t
     `invent a path when nothing is close):\n${folders.join("\n") || "(none yet)"}\n\n` +
     `EXISTING TAGS:\n${tags.join(", ") || "(none yet)"}\n\n` +
     "Respond ONLY with minified JSON:\n" +
-    '{"route":"people"|"info"|"event","title":string,"caption":string,"text":string,' +
+    `{"route":${['"people"','"info"','"event"',...DESTINATION_ROUTES.map((r) => `"${r}"`)].join("|")},"title":string,"caption":string,"text":string,` +
     '"people":[{"slot":number,"confidence":number}],"unknownPeople":number,' +
     '"folderPath":string[],"tags":string[],' +
     '"event":{"title":string,"date":"YYYY-MM-DD"|null,"time":"HH:MM"|null,"location":string}|null}\n' +
@@ -109,7 +110,10 @@ function systemPrompt(legend: LegendEntry[], today: string, folders: string[], t
     '  event      — only for route "event". Resolve relative dates ("this Friday") ' +
     `against ${today}. Use null for date or time when the image truly does not say; ` +
     "never invent one. 24-hour time.\n" +
-    "  tags       — short, lowercase, hyphenated."
+    "  tags       — short, lowercase, hyphenated." +
+    // Generated from the destination registry, so a destination can never be
+    // added without the model being told about it.
+    destinationPromptBlock()
   );
 }
 
@@ -152,8 +156,8 @@ async function triage(body: Body, apiKey: string) {
 /** Slot numbers back to person ids; every field clamped to something usable. */
 function normalize(p: Record<string, unknown>, legend: LegendEntry[]) {
   const bySlot = new Map(legend.map((l) => [l.slot, l.personId]));
-  const route = ["people", "info", "event"].includes(String(p?.route))
-    ? (p.route as "people" | "info" | "event")
+  const route = ["people", "info", "event", ...DESTINATION_ROUTES].includes(String(p?.route))
+    ? (p.route as string)
     : "info";
 
   const hits = Array.isArray(p?.people) ? (p.people as Record<string, unknown>[]) : [];
@@ -198,6 +202,13 @@ function normalize(p: Record<string, unknown>, legend: LegendEntry[]) {
             location: String(ev.location ?? "").trim() || undefined,
           }
         : null,
+    // The destination's own extracted fields, kept under its id and validated
+    // by that destination's parse() rather than here — this route has no idea
+    // what an AI Rankings record needs, and should not learn.
+    destination:
+      typeof p?.[route] === "object" && p[route]
+        ? { id: route, fields: p[route] as Record<string, unknown> }
+        : undefined,
     engine: "ai" as const,
   };
 }
