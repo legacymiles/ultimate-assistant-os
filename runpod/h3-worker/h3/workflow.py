@@ -140,7 +140,8 @@ def validate_required(g: "Graph") -> None:
         except comfy.ComfyError:
             continue
         supplied = set(node["inputs"].keys())
-        # "ref_images.ref_image_0" satisfies the "ref_images" container.
+        # A dotted key satisfies its parent: "ref_images.ref_image_0" covers
+        # "ref_images", and "format.codec" covers nothing extra but is legal.
         containers = {k.split(".", 1)[0] for k in supplied if "." in k}
         for name, spec in required.items():
             if name in supplied or name in containers:
@@ -389,9 +390,10 @@ def build(
     # it is never set at the top level.
     if "format" in comfy.input_names(save_class):
         if comfy.is_dynamic_combo(save_class, "format"):
-            # "auto" is what Comfy Org's own H3 template uses, and it resolves
-            # to mp4 for every codec except av1.
-            save_inputs["format"] = comfy.dynamic_combo_value(save_class, "format", ["auto", "mp4"])
+            # A plain key string, plus dotted keys for whatever that choice
+            # unlocks. "auto" is what Comfy Org's own H3 template uses and
+            # resolves to mp4 for every codec except av1.
+            save_inputs.update(comfy.dynamic_combo_inputs(save_class, "format", ["auto", "mp4"]))
         else:
             save_inputs["format"] = comfy.pick_enum(save_class, "format", ["mp4", "auto"], fallback="auto")
     g.add(save_class, save_inputs, "save")

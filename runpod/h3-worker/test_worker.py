@@ -191,21 +191,31 @@ class DynamicCombo(unittest.TestCase):
         self.assertTrue(self.comfy.is_dynamic_combo("SaveVideo", "format"))
         self.assertFalse(self.comfy.is_dynamic_combo("SaveVideo", "filename_prefix"))
 
-    def test_builds_the_shape_execute_destructures(self):
-        # SaveVideo.execute does format["format"] and codec["codec"].
+    def test_value_is_a_plain_key_not_a_dict(self):
+        """_expand_schema_for_dynamic compares the value to option["key"].
+
+        Anything but a bare string matches no option, so the socket never
+        enters the finalized schema and the node is called without it.
+        """
+        got = self.comfy.dynamic_combo_inputs("SaveVideo", "format", ["auto", "mp4"])
+        self.assertIsInstance(got["format"], str)
+        self.assertEqual(got["format"], "auto")
+
+    def test_nested_inputs_use_dotted_paths(self):
+        # finalize_prefix joins parent and child with a dot.
         self.assertEqual(
-            self.comfy.dynamic_combo_value("SaveVideo", "format", ["auto", "mp4"]),
-            {"format": "auto", "codec": {"codec": "auto"}},
+            self.comfy.dynamic_combo_inputs("SaveVideo", "format", ["auto", "mp4"]),
+            {"format": "auto", "format.codec": "auto"},
         )
 
     def test_honours_preference_order(self):
         self.assertEqual(
-            self.comfy.dynamic_combo_value("SaveVideo", "format", ["mp4"])["format"], "mp4"
+            self.comfy.dynamic_combo_inputs("SaveVideo", "format", ["mp4"])["format"], "mp4"
         )
 
     def test_falls_back_to_a_real_option(self):
         self.assertIn(
-            self.comfy.dynamic_combo_value("SaveVideo", "format", ["nonsense"])["format"],
+            self.comfy.dynamic_combo_inputs("SaveVideo", "format", ["nonsense"])["format"],
             ["auto", "mp4"],
         )
 

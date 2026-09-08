@@ -265,47 +265,60 @@ def is_dynamic_combo(class_type: str, socket: str) -> bool:
     return isinstance(spec, list) and bool(spec) and "DYNAMICCOMBO" in str(spec[0]).upper()
 
 
-def dynamic_combo_value(class_type: str, socket: str, prefer: list[str]) -> Any:
-    """The value a dynamic-combo socket actually accepts.
+def dynamic_combo_inputs(class_type: str, socket: str, prefer: list[str], _prefix: str = "") -> dict[str, str]:
+    """Every key a dynamic-combo socket needs, flattened to dotted paths.
 
-    A plain string is silently dropped before it reaches the node, so
-    SaveVideo reports its required `format` as missing even though the graph
-    set it. ComfyUI's own SaveVideo.execute shows the shape it expects:
+    ComfyUI resolves these in `DynamicCombo._expand_schema_for_dynamic`:
 
-        format = {"format": "mp4", "codec": {"codec": "h264"}}
+        key = live_inputs[id]
+        for option in options:
+            if option["key"] == key: ...
 
-    a dict keyed by the socket's own name, carrying any sub-inputs that the
-    chosen option unlocks. Sub-options are resolved the same way, one level
-    down, which is as deep as these nodes go.
+    So the value is compared directly against the option's key and must be a
+    **plain string**. Anything else, a dict included, matches nothing, the
+    socket is never added to the finalized schema, and the node is then
+    called without it — which surfaces as "missing required positional
+    argument" even though the graph clearly set it.
+
+    Whatever inputs the chosen option unlocks are nested under the parent's
+    id, joined with dots by `finalize_prefix`, so `codec` beneath `format`
+    is supplied as "format.codec". Nested combos resolve the same way,
+    recursively.
+
+    Returns e.g. {"format": "auto", "format.codec": "auto"}.
     """
-    spec = _spec_for(class_type, socket)
+    path = _prefix or socket
+    spec = _spec_for(class_type, socket) if not _prefix else None
+    if spec is None and _prefix:
+        raise ComfyError(f"cannot resolve nested combo at {path}")
     meta = spec[1] if isinstance(spec, list) and len(spec) > 1 and isinstance(spec[1], dict) else {}
     options = meta.get("options") or []
-
-    chosen = None
     keys = [str(o.get("key")) for o in options if isinstance(o, dict) and o.get("key") is not None]
-    for want in prefer:
-        if want in keys:
-            chosen = want
-            break
-    if chosen is None:
-        chosen = keys[0] if keys else (prefer[0] if prefer else "auto")
 
-    value: dict[str, Any] = {socket: chosen}
+    chosen = next((w for w in prefer if w in keys), None) or (keys[0] if keys else "auto")
+    out: dict[str, str] = {path: chosen}
 
-    # Whatever inputs this choice unlocks have to travel with it.
     picked = next((o for o in options if isinstance(o, dict) and str(o.get("key")) == chosen), None)
-    sub = ((picked or {}).get("inputs") or {}).get("required") or {}
-    for name, sub_spec in sub.items():
-        sub_meta = (
-            sub_spec[1] if isinstance(sub_spec, list) and len(sub_spec) > 1 and isinstance(sub_spec[1], dict) else {}
-        )
-        sub_keys = [str(o.get("key")) for o in (sub_meta.get("options") or []) if isinstance(o, dict)]
-        if not sub_keys:
-            sub_keys = _options_from(sub_spec)
-        pick = next((p for p in prefer if p in sub_keys), None) or ("auto" if "auto" in sub_keys else (sub_keys[0] if sub_keys else "auto"))
-        value[name] = {name: pick}
-    return value
+    for section in ("required", "optional"):
+        for name, sub_spec in (((picked or {}).get("inputs") or {}).get(section) or {}).items():
+            if section == "optional":
+                continue  # only what the option actually requires
+            sub_meta = (
+                sub_spec[1]
+                if isinstance(sub_spec, list) and len(sub_spec) > 1 and isinstance(sub_spec[1], dict)
+                else {}
+            )
+            sub_opts = sub_meta.get("options") or []
+            sub_keys = [str(o.get("key")) for o in sub_opts if isinstance(o, dict) and o.get("key") is not None]
+            if not sub_keys:
+                sub_keys = _options_from(sub_spec)
+            if not sub_keys:
+                continue
+            sub_choice = next((w for w in prefer if w in sub_keys), None) or (
+                "auto" if "auto" in sub_keys else sub_keys[0]
+            )
+            out[f"{path}.{name}"] = sub_choice
+    return out
 
 
 def autogrow_item(class_type: str, socket: str) -> str | None:
