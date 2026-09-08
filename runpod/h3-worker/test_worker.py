@@ -152,5 +152,63 @@ class ComboOptions(unittest.TestCase):
         self.assertEqual(self.parse([]), [])
 
 
+class DynamicCombo(unittest.TestCase):
+    """SaveVideo's `format` is a dynamic combo, and a plain string is dropped
+    before it reaches the node. Two renders died at the final node over this,
+    after the model had already loaded, sampled and decoded.
+    """
+
+    def setUp(self):
+        import h3.comfy as comfy
+
+        self.comfy = comfy
+        codec = ["COMFY_DYNAMICCOMBO_V3", {"options": [{"key": "auto"}, {"key": "h264"}, {"key": "av1"}]}]
+        comfy._object_info = {
+            "SaveVideo": {
+                "input": {
+                    "required": {
+                        "video": ["VIDEO", {}],
+                        "filename_prefix": ["STRING", {}],
+                        "format": [
+                            "COMFY_DYNAMICCOMBO_V3",
+                            {
+                                "options": [
+                                    {"key": "auto", "inputs": {"required": {"codec": codec}}},
+                                    {"key": "mp4", "inputs": {"required": {"codec": codec}}},
+                                ]
+                            },
+                        ],
+                    },
+                    "optional": {"codec": codec},
+                }
+            }
+        }
+
+    def tearDown(self):
+        self.comfy._object_info = None
+
+    def test_detects_a_dynamic_combo(self):
+        self.assertTrue(self.comfy.is_dynamic_combo("SaveVideo", "format"))
+        self.assertFalse(self.comfy.is_dynamic_combo("SaveVideo", "filename_prefix"))
+
+    def test_builds_the_shape_execute_destructures(self):
+        # SaveVideo.execute does format["format"] and codec["codec"].
+        self.assertEqual(
+            self.comfy.dynamic_combo_value("SaveVideo", "format", ["auto", "mp4"]),
+            {"format": "auto", "codec": {"codec": "auto"}},
+        )
+
+    def test_honours_preference_order(self):
+        self.assertEqual(
+            self.comfy.dynamic_combo_value("SaveVideo", "format", ["mp4"])["format"], "mp4"
+        )
+
+    def test_falls_back_to_a_real_option(self):
+        self.assertIn(
+            self.comfy.dynamic_combo_value("SaveVideo", "format", ["nonsense"])["format"],
+            ["auto", "mp4"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

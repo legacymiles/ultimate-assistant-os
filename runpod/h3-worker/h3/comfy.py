@@ -231,6 +231,60 @@ def _options_from(spec: Any) -> list[str]:
     return []
 
 
+def _spec_for(class_type: str, socket: str) -> Any:
+    d = describe_node(class_type)
+    spec = d["required"].get(socket)
+    return d["optional"].get(socket) if spec is None else spec
+
+
+def is_dynamic_combo(class_type: str, socket: str) -> bool:
+    spec = _spec_for(class_type, socket)
+    return isinstance(spec, list) and bool(spec) and "DYNAMICCOMBO" in str(spec[0]).upper()
+
+
+def dynamic_combo_value(class_type: str, socket: str, prefer: list[str]) -> Any:
+    """The value a dynamic-combo socket actually accepts.
+
+    A plain string is silently dropped before it reaches the node, so
+    SaveVideo reports its required `format` as missing even though the graph
+    set it. ComfyUI's own SaveVideo.execute shows the shape it expects:
+
+        format = {"format": "mp4", "codec": {"codec": "h264"}}
+
+    a dict keyed by the socket's own name, carrying any sub-inputs that the
+    chosen option unlocks. Sub-options are resolved the same way, one level
+    down, which is as deep as these nodes go.
+    """
+    spec = _spec_for(class_type, socket)
+    meta = spec[1] if isinstance(spec, list) and len(spec) > 1 and isinstance(spec[1], dict) else {}
+    options = meta.get("options") or []
+
+    chosen = None
+    keys = [str(o.get("key")) for o in options if isinstance(o, dict) and o.get("key") is not None]
+    for want in prefer:
+        if want in keys:
+            chosen = want
+            break
+    if chosen is None:
+        chosen = keys[0] if keys else (prefer[0] if prefer else "auto")
+
+    value: dict[str, Any] = {socket: chosen}
+
+    # Whatever inputs this choice unlocks have to travel with it.
+    picked = next((o for o in options if isinstance(o, dict) and str(o.get("key")) == chosen), None)
+    sub = ((picked or {}).get("inputs") or {}).get("required") or {}
+    for name, sub_spec in sub.items():
+        sub_meta = (
+            sub_spec[1] if isinstance(sub_spec, list) and len(sub_spec) > 1 and isinstance(sub_spec[1], dict) else {}
+        )
+        sub_keys = [str(o.get("key")) for o in (sub_meta.get("options") or []) if isinstance(o, dict)]
+        if not sub_keys:
+            sub_keys = _options_from(sub_spec)
+        pick = next((p for p in prefer if p in sub_keys), None) or ("auto" if "auto" in sub_keys else (sub_keys[0] if sub_keys else "auto"))
+        value[name] = {name: pick}
+    return value
+
+
 def autogrow_item(class_type: str, socket: str) -> str | None:
     """The per-item input name behind a growable socket.
 

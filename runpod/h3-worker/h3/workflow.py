@@ -383,12 +383,17 @@ def build(
         save_inputs[_sockets(save_class, ["images"]).get("images", "images")] = [images, 0]
     if "filename_prefix" in s:
         save_inputs[s["filename_prefix"]] = "h3"
-    # format is REQUIRED on SaveVideo and is a dynamic combo whose options are
-    # objects rather than strings; leaving it unset is what killed an
-    # otherwise complete render at the final node.
-    for extra, prefer in (("format", ["mp4", "auto"]), ("codec", ["h264", "auto"])):
-        if extra in comfy.input_names(save_class):
-            save_inputs[extra] = comfy.pick_enum(save_class, extra, prefer, fallback="auto")
+    # `format` is required on SaveVideo and is a dynamic combo. A plain string
+    # is dropped before it reaches the node, so it must be the dict form its
+    # execute() documents. `codec` is hidden and travels inside that value, so
+    # it is never set at the top level.
+    if "format" in comfy.input_names(save_class):
+        if comfy.is_dynamic_combo(save_class, "format"):
+            # "auto" is what Comfy Org's own H3 template uses, and it resolves
+            # to mp4 for every codec except av1.
+            save_inputs["format"] = comfy.dynamic_combo_value(save_class, "format", ["auto", "mp4"])
+        else:
+            save_inputs["format"] = comfy.pick_enum(save_class, "format", ["mp4", "auto"], fallback="auto")
     g.add(save_class, save_inputs, "save")
 
     validate_required(g)
