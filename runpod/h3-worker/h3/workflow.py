@@ -119,6 +119,39 @@ class Graph:
         return self.nodes
 
 
+def validate_required(g: "Graph") -> None:
+    """Refuse to submit a graph with an unfilled required socket.
+
+    Worth doing because of where the alternative fails. A missing required
+    argument is not caught by ComfyUI's own validation; it surfaces as a
+    TypeError inside the node's execute, which for a save node means AFTER
+    the model has loaded, sampled and decoded. That is several minutes of
+    billed GPU time to learn about a missing string. This check costs
+    nothing and fails in the first second.
+
+    Growable sockets are skipped: their container is never filled directly,
+    only its dotted per-item keys.
+    """
+    problems: list[str] = []
+    for node_id, node in g.nodes.items():
+        class_type = node["class_type"]
+        try:
+            required = comfy.describe_node(class_type)["required"]
+        except comfy.ComfyError:
+            continue
+        supplied = set(node["inputs"].keys())
+        # "ref_images.ref_image_0" satisfies the "ref_images" container.
+        containers = {k.split(".", 1)[0] for k in supplied if "." in k}
+        for name, spec in required.items():
+            if name in supplied or name in containers:
+                continue
+            if isinstance(spec, list) and spec and "AUTOGROW" in str(spec[0]).upper():
+                continue
+            problems.append(f"{class_type} (node {node_id}) is missing required input '{name}'")
+    if problems:
+        raise WorkflowError("; ".join(problems))
+
+
 def _first_present(*class_types: str) -> str:
     """The first of these node classes this ComfyUI actually has."""
     info = comfy.object_info()
@@ -215,27 +248,26 @@ def build(
                 node_class, s["ref_image_size"], ["match"], fallback="match"
             )
 
-        # Reference image sockets are dotted and indexed from zero —
-        # "ref_images.ref_image_0", "ref_images.ref_image_1" — which is not a
-        # naming a reasonable person would guess. Taken from Comfy Org's own
-        # video_minimax_h3_r2v template. Only the slots this build actually
-        # declares are filled; H3 accepts up to nine.
-        available = set(comfy.input_names(node_class))
-        slots = [n for n in available if "ref_image_" in n and "audio" not in n]
-        slots.sort(key=lambda n: int(n.rsplit("_", 1)[-1]) if n.rsplit("_", 1)[-1].isdigit() else 99)
-        if not slots:
+        # Reference images go into a growable input. `/object_info` describes
+        # only the container ("ref_images") plus a template of one item, but a
+        # workflow addresses each slot by a dotted, zero-indexed key:
+        # "ref_images.ref_image_0". The item name comes from the template so
+        # this is derived rather than guessed.
+        container = "ref_images"
+        item = comfy.autogrow_item(node_class, container)
+        if not item:
             raise WorkflowError(
-                f"{node_class} exposes no reference image slots. It accepts: {sorted(available)}"
+                f"{node_class} exposes no reference image slots. It accepts: "
+                f"{sorted(comfy.input_names(node_class))}"
             )
 
         load_class = _first_present("LoadImage")
         image_key = _sockets(load_class, ["image"]).get("image", "image")
-        # Order is semantic to H3: the prompt names <Subject 1> first.
-        for slot, name in zip(slots, references[:9]):
-            img = g.add(load_class, {image_key: name}, f"reference {slot}")
-            inputs[slot] = [img, 0]
-        if len(references) > len(slots):
-            print(f"[h3] only {len(slots)} reference slots available; dropped {len(references) - len(slots)}")
+        # Order is semantic to H3: the prompt names <Subject 1> first, and H3
+        # takes at most nine images.
+        for i, name in enumerate(references[:9]):
+            img = g.add(load_class, {image_key: name}, f"reference {i + 1}")
+            inputs[f"{container}.{item}_{i}"] = [img, 0]
         cond = g.add(node_class, inputs, "reference conditioning")
     else:
         # Used for plain text-to-video too: the official t2v template is this
@@ -351,11 +383,15 @@ def build(
         save_inputs[_sockets(save_class, ["images"]).get("images", "images")] = [images, 0]
     if "filename_prefix" in s:
         save_inputs[s["filename_prefix"]] = "h3"
+    # format is REQUIRED on SaveVideo and is a dynamic combo whose options are
+    # objects rather than strings; leaving it unset is what killed an
+    # otherwise complete render at the final node.
     for extra, prefer in (("format", ["mp4", "auto"]), ("codec", ["h264", "auto"])):
-        real = _sockets(save_class, [extra]).get(extra)
-        if real:
-            save_inputs[real] = comfy.pick_enum(save_class, real, prefer)
+        if extra in comfy.input_names(save_class):
+            save_inputs[extra] = comfy.pick_enum(save_class, extra, prefer, fallback="auto")
     g.add(save_class, save_inputs, "save")
+
+    validate_required(g)
 
     summary = {
         "width": width,

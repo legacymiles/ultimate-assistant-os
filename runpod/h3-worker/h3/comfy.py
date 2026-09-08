@@ -187,27 +187,69 @@ def enum_options(class_type: str, socket: str) -> list[str]:
     return _options_from(spec)
 
 
+def _names(options: Any) -> list[str]:
+    """Option names, whether they are plain values or dynamic-combo objects.
+
+    A COMFY_DYNAMICCOMBO_V3 lists its choices as objects carrying a `key`
+    plus the extra inputs that choice unlocks, e.g.
+    {"key": "mp4", "inputs": {...}}. Reading only plain strings makes such a
+    socket look like it has no options at all, which is how a required
+    argument silently went unset and killed a render at the last node.
+    """
+    if not isinstance(options, list):
+        return []
+    out = []
+    for o in options:
+        if isinstance(o, dict):
+            key = o.get("key", o.get("value", o.get("name")))
+            if key is not None:
+                out.append(str(key))
+        else:
+            out.append(str(o))
+    return out
+
+
 def _options_from(spec: Any) -> list[str]:
     if spec is None:
         return []
     # {"type": "COMBO", "options": [...]}
     if isinstance(spec, dict):
-        opts = spec.get("options") or spec.get("choices")
-        return [str(x) for x in opts] if isinstance(opts, list) else []
+        return _names(spec.get("options") or spec.get("choices"))
     if isinstance(spec, list) and spec:
         head = spec[0]
         # [["euler", ...], {...}]
         if isinstance(head, list):
-            return [str(x) for x in head]
-        # ["COMBO", {"options": [...]}]
+            return _names(head)
+        # ["COMBO" | "COMFY_DYNAMICCOMBO_V3", {"options": [...]}]
         if len(spec) > 1 and isinstance(spec[1], dict):
-            opts = spec[1].get("options") or spec[1].get("choices")
-            if isinstance(opts, list):
-                return [str(x) for x in opts]
+            found = _names(spec[1].get("options") or spec[1].get("choices"))
+            if found:
+                return found
         # ["euler", "heun", ...] — already a bare list of choices
         if all(isinstance(x, str) for x in spec) and len(spec) > 1:
             return [str(x) for x in spec]
     return []
+
+
+def autogrow_item(class_type: str, socket: str) -> str | None:
+    """The per-item input name behind a growable socket.
+
+    ComfyUI models a variable-length input as COMFY_AUTOGROW_V3 carrying a
+    template of the single item it repeats. `/object_info` therefore reports
+    only the container ("ref_images"), while a workflow addresses each slot
+    as "ref_images.ref_image_0". This digs the item name out of the template
+    so those keys can be built rather than guessed.
+    """
+    d = describe_node(class_type)
+    spec = d["required"].get(socket)
+    if spec is None:
+        spec = d["optional"].get(socket)
+    meta = spec[1] if isinstance(spec, list) and len(spec) > 1 and isinstance(spec[1], dict) else None
+    if not isinstance(meta, dict):
+        return None
+    template = ((meta.get("template") or {}).get("input") or {}).get("required") or {}
+    names = list(template.keys())
+    return names[0] if names else None
 
 
 def raw_input_spec(class_type: str) -> dict[str, Any]:
