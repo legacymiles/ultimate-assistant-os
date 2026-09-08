@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
 import {
   heuristicClarify,
   heuristicClarify2,
@@ -19,7 +20,7 @@ import type {
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const GATEWAY = "https://ai-gateway.vercel.sh/v1/chat/completions";
+const GATEWAY = aiUrl();
 
 // POST /api/blueprint
 // Body: { stage: "clarify" | "synthesize" | "prompt", brief?, overview? }
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const apiKey = process.env.AI_GATEWAY_API_KEY;
+  const apiKey = aiKey();
 
   switch (body.stage) {
     case "clarify": {
@@ -138,7 +139,7 @@ async function callGateway(
   user: string,
   json: boolean,
 ): Promise<string> {
-  const model = process.env.AI_MODEL || "anthropic/claude-sonnet-4-6";
+  const model = process.env.AI_MODEL || DEFAULT_MODEL;
   const res = await fetch(GATEWAY, {
     method: "POST",
     headers: {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
 import { heuristicAnalyze } from "@/lib/analyst";
 import type { AnalystResult, Project } from "@/lib/types";
 
@@ -26,7 +27,7 @@ export async function POST(req: Request) {
   // Gateway accepts it as a bearer token, so the AI engine works with zero
   // extra configuration on Vercel. If neither is present (or the call fails),
   // we return the — now lossless — heuristic result.
-  const apiKey = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
+  const apiKey = aiKey();
   if (!apiKey) {
     return NextResponse.json(heuristic);
   }
@@ -44,7 +45,7 @@ async function analyzeWithLLM(
   project: Project,
   apiKey: string,
 ): Promise<AnalystResult> {
-  const model = process.env.AI_MODEL || "anthropic/claude-sonnet-4-6";
+  const model = process.env.AI_MODEL || DEFAULT_MODEL;
 
   const context = buildContext(project);
   const system =
@@ -96,7 +97,7 @@ async function analyzeWithLLM(
     `Return JSON exactly matching this schema (version_summaries must use these ` +
     `version ids: ${JSON.stringify(versionIds)}):\n${schema}`;
 
-  const res = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
+  const res = await fetch(aiUrl(), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

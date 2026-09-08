@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -14,13 +15,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const apiKey = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
+  const apiKey = aiKey();
   if (!apiKey) {
     return NextResponse.json(heuristicTags(body));
   }
 
   try {
-    const model = process.env.AI_MODEL || "anthropic/claude-sonnet-4-6";
+    const model = process.env.AI_MODEL || DEFAULT_MODEL;
     const system =
       "You are a culinary classifier. Given a recipe, return concise tags. " +
       "Respond ONLY with minified JSON.";
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
       `Ingredients: ${JSON.stringify(body.ingredients || [])}\n\n` +
       `Return 1-3 tags per category (protein source, meal type, cuisine). JSON:\n${schema}`;
 
-    const res = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
+    const res = await fetch(aiUrl(), {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({

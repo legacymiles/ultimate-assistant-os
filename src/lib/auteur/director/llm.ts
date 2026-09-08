@@ -10,6 +10,7 @@
 // ---------------------------------------------------------------------------
 
 import "server-only";
+import { DEFAULT_MODEL, aiKey as providerKey, aiUrl } from "@/lib/ai/provider";
 
 import { uid } from "@/lib/utils";
 import { GENRES, TEMPLATES, genreById, templateById } from "../constants";
@@ -29,16 +30,17 @@ import type {
 } from "../types";
 import { heuristicBreakdown } from "./heuristic";
 
-const GATEWAY = "https://ai-gateway.vercel.sh/v1/chat/completions";
+const GATEWAY = aiUrl();
 
+/** Re-exported so existing callers keep their import. */
 export function aiKey(): string {
-  return process.env.AI_GATEWAY_API_KEY || "";
+  return providerKey();
 }
 
 type Part = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 
 async function chat(system: string, user: string | Part[], json = true, timeoutMs = 60_000): Promise<string> {
-  const model = process.env.AUTEUR_MODEL || process.env.AI_MODEL || "anthropic/claude-sonnet-4-6";
+  const model = process.env.AUTEUR_MODEL || process.env.AI_MODEL || DEFAULT_MODEL;
   const res = await fetch(GATEWAY, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${aiKey()}` },

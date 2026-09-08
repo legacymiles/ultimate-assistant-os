@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
 import { coerceSuggestion, heuristicSuggestion } from "@/lib/ai-rankings/classify";
 
 export const runtime = "nodejs";
@@ -37,11 +38,11 @@ export async function POST(req: Request) {
     notes: body.notes,
   });
 
-  const apiKey = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
+  const apiKey = aiKey();
   if (!apiKey) return NextResponse.json(fallback);
 
   try {
-    const model = process.env.AI_MODEL || "anthropic/claude-sonnet-4-6";
+    const model = process.env.AI_MODEL || DEFAULT_MODEL;
 
     // The existing sections are handed over so the model files into the board
     // the user already has instead of inventing a parallel taxonomy.
@@ -93,7 +94,7 @@ export async function POST(req: Request) {
       "mode, so a confident guess is worse here than an honest blank.\n" +
       `JSON:\n${schema}`;
 
-    const res = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
+    const res = await fetch(aiUrl(), {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
 import { callerIsMember } from "@/lib/recall/lists/session";
 
 // POST /api/recall/extract  (multipart form: file, category)
@@ -16,7 +17,7 @@ import { callerIsMember } from "@/lib/recall/lists/session";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const GATEWAY = "https://ai-gateway.vercel.sh/v1/chat/completions";
+const GATEWAY = aiUrl();
 /** Plenty for retrieval; keeps localStorage sane. */
 const MAX_TEXT = 40_000;
 
@@ -70,7 +71,7 @@ export async function POST(req: Request) {
     }
 
     if (category === "image") {
-      const apiKey = process.env.AI_GATEWAY_API_KEY;
+      const apiKey = aiKey();
       // No key: the file is still stored and searchable by name — just not read.
       if (!apiKey) return done("", "unsupported");
       return done(await describeImage(file, apiKey), "ok");
@@ -105,7 +106,7 @@ async function readPdf(file: File): Promise<string> {
  * text visible in it (screenshots of dashboards, error messages, receipts).
  */
 async function describeImage(file: File, apiKey: string): Promise<string> {
-  const model = process.env.AI_VISION_MODEL || process.env.AI_MODEL || "anthropic/claude-sonnet-4-6";
+  const model = process.env.AI_VISION_MODEL || process.env.AI_MODEL || DEFAULT_MODEL;
   const b64 = Buffer.from(await file.arrayBuffer()).toString("base64");
   const dataUrl = `data:${file.type || "image/jpeg"};base64,${b64}`;
 

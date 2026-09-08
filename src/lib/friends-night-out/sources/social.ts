@@ -19,9 +19,10 @@
 // ---------------------------------------------------------------------------
 
 import { inferCategory, inferFormat, inferPrice } from "../normalize";
+import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
 import type { EventCategory, Price, RawEvent } from "../types";
 
-const GATEWAY = "https://ai-gateway.vercel.sh/v1/chat/completions";
+const GATEWAY = aiUrl();
 const FETCH_TIMEOUT_MS = 10_000;
 
 export interface ExtractedDraft {
@@ -73,13 +74,13 @@ export async function extractFromUrl(rawUrl: string): Promise<{
   if (structured) return { draft: structured, body };
 
   const tags = fromOpenGraph(body, url);
-  const aiKey = process.env.AI_GATEWAY_API_KEY;
+  const apiKey = aiKey();
 
   // The tag-based draft is usually missing the date, because OpenGraph has no
   // field for one. If a key exists, let the model read the page for the parts
   // the tags could not give us, seeded with what we already know.
-  if (aiKey && (!tags || !tags.startsAt)) {
-    const read = await aiReadPage(body, url, aiKey);
+  if (apiKey && (!tags || !tags.startsAt)) {
+    const read = await aiReadPage(body, url, apiKey);
     if (read) return { draft: read, body };
   }
   return { draft: tags, body };
@@ -253,7 +254,7 @@ async function aiReadPage(
 export async function extractFromImage(
   dataUrl: string,
 ): Promise<ExtractedDraft | null> {
-  const apiKey = process.env.AI_GATEWAY_API_KEY;
+  const apiKey = aiKey();
   if (!apiKey) return null;
   if (!/^data:image\/(png|jpe?g|webp|gif);base64,/i.test(dataUrl)) return null;
 
@@ -316,7 +317,7 @@ async function askModel(
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: process.env.AI_MODEL ?? "anthropic/claude-sonnet-4-6",
+        model: process.env.AI_MODEL ?? DEFAULT_MODEL,
         messages,
         temperature: 0.1,
         max_tokens: 900,

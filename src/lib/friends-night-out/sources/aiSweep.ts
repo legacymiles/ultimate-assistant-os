@@ -19,14 +19,15 @@
 // ---------------------------------------------------------------------------
 
 import { inferPrice } from "../normalize";
+import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
 import type { RawEvent, SearchCtx, SourceStatus } from "../types";
 
-const GATEWAY = "https://ai-gateway.vercel.sh/v1/chat/completions";
+const GATEWAY = aiUrl();
 const VERIFY_TIMEOUT_MS = 7_000;
 const MAX_EVENTS = 25;
 
 export function aiSweepStatus(ctx?: SearchCtx): SourceStatus {
-  const hasKey = Boolean(process.env.AI_GATEWAY_API_KEY);
+  const hasKey = Boolean(aiKey());
   if (!hasKey) {
     return {
       id: "ai-sweep",
@@ -56,10 +57,10 @@ export async function fetchAiSweep(
   ctx: SearchCtx,
   placeLabel: string,
 ): Promise<RawEvent[]> {
-  const apiKey = process.env.AI_GATEWAY_API_KEY;
+  const apiKey = aiKey();
   if (!apiKey || ctx.skipAiSweep) return [];
 
-  const model = process.env.AI_MODEL ?? "anthropic/claude-sonnet-4-6";
+  const model = process.env.AI_MODEL ?? DEFAULT_MODEL;
   const from = ctx.from.slice(0, 10);
   const to = ctx.to.slice(0, 10);
 

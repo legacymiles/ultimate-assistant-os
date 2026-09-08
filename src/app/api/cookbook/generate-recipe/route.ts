@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -29,7 +30,7 @@ export async function POST(req: Request) {
   }
 
   const action = body.action === "edit" ? "edit" : "generate";
-  const apiKey = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
+  const apiKey = aiKey();
 
   // Offline fallback — deterministic recipe so the app is fully usable with no key.
   if (!apiKey) {
@@ -63,7 +64,7 @@ export async function POST(req: Request) {
   }
 }
 
-const MODEL = process.env.AI_MODEL || "anthropic/claude-sonnet-4-6";
+const MODEL = process.env.AI_MODEL || DEFAULT_MODEL;
 
 async function generateWithLLM(prompt: string, apiKey: string): Promise<RecipeData> {
   const system =
@@ -109,7 +110,7 @@ async function editWithLLM(recipe: RecipeData, instruction: string, apiKey: stri
 }
 
 async function callGateway(apiKey: string, system: string, user: string): Promise<string> {
-  const res = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
+  const res = await fetch(aiUrl(), {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({

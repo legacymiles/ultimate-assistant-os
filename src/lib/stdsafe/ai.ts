@@ -12,12 +12,14 @@
 // ---------------------------------------------------------------------------
 
 import { INFECTIONS, type InfectionId, type Outcome, type Result } from "./types";
+import { DEFAULT_MODEL, aiKey as providerKey, aiUrl } from "@/lib/ai/provider";
 import { emptyDraft, toIsoDate, type ParsedDraft } from "./parse";
 
-const GATEWAY = "https://ai-gateway.vercel.sh/v1/chat/completions";
+const GATEWAY = aiUrl();
 
+/** Re-exported so existing callers keep their import. */
 export function aiKey(): string {
-  return process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN || "";
+  return providerKey();
 }
 
 const INSTRUCTIONS = [
@@ -86,7 +88,7 @@ function cleanResults(raw: unknown): Result[] {
 }
 
 async function callGateway(messages: unknown[], key: string): Promise<ParsedDraft | null> {
-  const model = process.env.AI_VISION_MODEL || process.env.AI_MODEL || "anthropic/claude-sonnet-4-6";
+  const model = process.env.AI_VISION_MODEL || process.env.AI_MODEL || DEFAULT_MODEL;
   const res = await fetch(GATEWAY, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },

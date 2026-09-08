@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
 import {
   DEFAULT_SKILLS,
   heuristicRedesign,
@@ -16,7 +17,7 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const GATEWAY = "https://ai-gateway.vercel.sh/v1/chat/completions";
+const GATEWAY = aiUrl();
 
 // POST /api/redesign
 // Body: { url, description?, ownSite?, sourcePath?, skills? }
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
   }
 
   const skills = Array.isArray(body.skills) && body.skills.length ? body.skills : DEFAULT_SKILLS;
-  const apiKey = process.env.AI_GATEWAY_API_KEY;
+  const apiKey = aiKey();
 
   if (!apiKey) {
     return NextResponse.json(heuristicRedesign(url, scrape, skills, body));
@@ -68,7 +69,7 @@ async function aiRedesign(
   body: ReqBody,
   apiKey: string,
 ): Promise<RedesignResult> {
-  const model = process.env.AI_MODEL || "anthropic/claude-sonnet-4-6";
+  const model = process.env.AI_MODEL || DEFAULT_MODEL;
 
   const system =
     "You are a senior brand + web design director. You redesign the LOOK of an " +

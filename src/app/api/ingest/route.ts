@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
 import type { KnowledgeKind } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
   const title = name.replace(/\.[^.]+$/, "");
   const isImage = mime.startsWith("image/") || IMAGE_EXTS.has(ext);
 
-  const apiKey = process.env.AI_GATEWAY_API_KEY;
+  const apiKey = aiKey();
 
   // ---- Images: vision model (or placeholder) ------------------------------
   if (isImage) {
@@ -130,10 +131,10 @@ async function extractText(buffer: Buffer, ext: string, mime: string): Promise<s
 }
 
 // ---- AI summarisation -----------------------------------------------------
-const GATEWAY = "https://ai-gateway.vercel.sh/v1/chat/completions";
+const GATEWAY = aiUrl();
 
 async function summarizeText(text: string, name: string, apiKey: string): Promise<string> {
-  const model = process.env.AI_MODEL || "anthropic/claude-sonnet-4-6";
+  const model = process.env.AI_MODEL || DEFAULT_MODEL;
   const res = await fetch(GATEWAY, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
@@ -165,7 +166,7 @@ async function summarizeImage(
   name: string,
   apiKey: string,
 ): Promise<string> {
-  const model = process.env.AI_MODEL || "anthropic/claude-sonnet-4-6";
+  const model = process.env.AI_MODEL || DEFAULT_MODEL;
   const dataUrl = `data:${mime};base64,${buffer.toString("base64")}`;
   const res = await fetch(GATEWAY, {
     method: "POST",

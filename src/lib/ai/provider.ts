@@ -26,6 +26,9 @@ export interface AiEndpoint {
 /** The default model, when a route does not name its own. */
 export const DEFAULT_MODEL = "anthropic/claude-opus-5";
 
+/** The gateway's URL, also the honest default when nothing is configured. */
+const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
+
 export function aiEndpoint(): AiEndpoint | null {
   const openrouter = process.env.OPENROUTER_API_KEY;
   if (openrouter)
@@ -35,18 +38,36 @@ export function aiEndpoint(): AiEndpoint | null {
       provider: "openrouter",
     };
 
-  const gateway = process.env.AI_GATEWAY_API_KEY;
-  if (gateway)
-    return {
-      url: "https://ai-gateway.vercel.sh/v1/chat/completions",
-      key: gateway,
-      provider: "vercel-gateway",
-    };
+  // VERCEL_OIDC_TOKEN authenticates to the gateway only — it is meaningless to
+  // OpenRouter, which is why it is checked here and not above.
+  const gateway = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
+  if (gateway) return { url: GATEWAY_URL, key: gateway, provider: "vercel-gateway" };
 
   return null;
 }
 
-/** True when any provider is configured. Cheaper to read than aiEndpoint(). */
+/**
+ * The chat-completions URL to POST to.
+ *
+ * Safe at module scope: `process.env` is populated before any module in a Next
+ * server runtime evaluates, so `const GATEWAY = aiUrl()` reads the same value a
+ * call-time read would.
+ */
+export function aiUrl(): string {
+  return aiEndpoint()?.url ?? GATEWAY_URL;
+}
+
+/**
+ * The bearer key, or "" when nothing is configured.
+ *
+ * Empty string rather than null so existing `if (apiKey)` guards keep working
+ * unchanged — every caller already has an offline path behind that check.
+ */
+export function aiKey(): string {
+  return aiEndpoint()?.key ?? "";
+}
+
+/** True when any provider is configured. */
 export function aiConfigured(): boolean {
-  return Boolean(process.env.OPENROUTER_API_KEY || process.env.AI_GATEWAY_API_KEY);
+  return aiEndpoint() !== null;
 }
