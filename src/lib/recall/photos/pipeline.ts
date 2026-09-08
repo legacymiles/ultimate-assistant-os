@@ -20,6 +20,7 @@
 // ---------------------------------------------------------------------------
 
 import { uid } from "../../utils";
+import { destinationById } from "@/lib/dashboard/destinations/registry";
 import { categorize, deleteFile, getFile, putFile } from "../files";
 import { createItem, ensureFolderPath, updateItem } from "../store";
 import { createEvent } from "../calendar/store";
@@ -190,6 +191,8 @@ export function retarget(photoId: string, path: string[], categoryId: string | n
 export interface ApproveResult {
   filed: number;
   eventsCreated: number;
+  /** Records written into another hub app by a registry destination. */
+  filedElsewhere?: number;
   backedUp: number;
   backupFailed: number;
   /** Photos that could not be filed, with why. */
@@ -279,6 +282,19 @@ export async function approvePhotos(args: ApproveArgs): Promise<ApproveResult> {
           reminders: [1440, 60],
         });
         result.eventsCreated++;
+      }
+
+      // Registry destinations write into ANOTHER hub app, through that app's
+      // own store — never by touching its storage key. parse() is the trust
+      // boundary: a proposal that does not survive it is dropped rather than
+      // repaired, exactly as the agent's own actions are.
+      const dest = a?.destination ? destinationById(a.destination.id) : undefined;
+      if (dest && a?.destination) {
+        const fields = dest.parse(a.destination.fields);
+        if (fields) {
+          await dest.commit(fields);
+          result.filedElsewhere = (result.filedElsewhere ?? 0) + 1;
+        }
       }
 
       filedForBackup.push({

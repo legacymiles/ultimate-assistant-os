@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { destinationById } from "@/lib/dashboard/destinations/registry";
 import { Icon } from "../../icons";
 import { categoryPath, groupByDestination } from "@/lib/recall/photos/store";
 import type { DestGroup } from "@/lib/recall/photos/store";
@@ -294,7 +295,11 @@ function PhotoDetail({
                       : "bg-panel-2 text-ink-muted")
                 }
               >
-                {a.route === "people" ? "People" : a.route === "event" ? "Event" : "Information"}
+                {a.route === "people"
+                  ? "People"
+                  : a.route === "event"
+                    ? "Event"
+                    : (destinationById(a.route)?.label ?? "Information")}
               </span>
             )}
           </div>
@@ -310,6 +315,34 @@ function PhotoDetail({
         {a?.caption && (
           <p className="mb-3 text-[12px] leading-relaxed text-ink-muted">{a.caption}</p>
         )}
+
+        {(() => {
+          // What this photo will write into ANOTHER app, shown before approval.
+          // The whole promise of the feature is that nothing is written until
+          // you have seen where it is going, so this is not optional detail.
+          const dest = a?.destination ? destinationById(a.destination.id) : undefined;
+          const fields = dest && a?.destination ? dest.parse(a.destination.fields) : null;
+          if (!dest || !fields) return null;
+          const pv = dest.preview(fields);
+          return (
+            <div className="mb-3 rounded-xl border border-brand/30 bg-brand/[0.06] p-2.5">
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-brand">
+                Will be saved to {pv.where}
+              </p>
+              <p className="text-[12.5px] font-semibold text-ink">{pv.title}</p>
+              {pv.lines.map((l, i) => (
+                <p key={i} className="mt-0.5 text-[11px] leading-relaxed text-ink-muted">
+                  {l}
+                </p>
+              ))}
+              {pv.unverified && (
+                <p className="mt-1.5 rounded-lg border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[10.5px] text-amber-200">
+                  ⚠ {pv.unverified}
+                </p>
+              )}
+            </div>
+          );
+        })()}
 
         {a && a.route === "people" && (
           <div className="mb-3">

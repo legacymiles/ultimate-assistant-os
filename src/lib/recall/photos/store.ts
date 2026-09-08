@@ -14,6 +14,7 @@
 // ---------------------------------------------------------------------------
 
 import { loadLocal, saveLocal, saveSynced } from "@/lib/sync/appState";
+import { destinationById } from "@/lib/dashboard/destinations/registry";
 import { scopedKey } from "@/lib/sync/identity";
 import { nowIso, uid } from "../../utils";
 import { PHOTOS_ROOT } from "./types";
@@ -358,6 +359,12 @@ export function resolveDestination(
     // The picture of the flyer is still worth keeping next to the event.
     return { path: [PHOTOS_ROOT, "Events"], categoryId: null };
   }
+  // A registry destination files the RECORD into another app, but the picture
+  // itself is still worth keeping and searchable — so it lands in a folder
+  // named after where the record went, rather than vanishing into that app.
+  const dest = destinationById(analysis.route);
+  if (dest) return { path: ["Screenshots", dest.label], categoryId: null };
+
   const path = analysis.folderPath?.filter(Boolean) ?? [];
   return { path: path.length ? path : ["Inbox"], categoryId: null };
 }
