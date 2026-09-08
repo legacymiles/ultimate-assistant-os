@@ -6,14 +6,14 @@
 // password configured the app stays open, so local dev works out of the box.
 //
 // These gates read their password from an env var, so they are enforced here in
-// edge middleware. Recall is NOT in this list: its password lives in a writable
-// store so it can be changed in-app, which needs the Node runtime, so it gates
-// itself in src/app/apps/recall/page.tsx instead.
+// edge middleware. Dashboard is NOT in this list: its password lives in a
+// writable store so it can be changed in-app, which needs the Node runtime, so
+// it gates itself in src/app/apps/dashboard/page.tsx instead.
 //
 // What a gate IS: a door on the route, enforced in middleware before the page
 // renders. What it is NOT: encryption. The app's data still lives in the
 // browser's own storage and anyone holding an unlocked device can read it with
-// devtools. Recall's vault is the thing that actually encrypts secrets.
+// devtools. Nothing here encrypts anything.
 // ---------------------------------------------------------------------------
 
 export interface AppGate {

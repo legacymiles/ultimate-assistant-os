@@ -61,6 +61,16 @@ export async function middleware(request: NextRequest) {
     break;
   }
 
+  // ----- Token-authenticated ingest ---------------------------------------
+  // The iPhone Shortcut that pushes photos has no Supabase session and never
+  // will — it is the Shortcuts app, not a browser. It presents a per-user
+  // device token instead, which the route verifies against a stored hash.
+  //
+  // This is the ONLY session-exempt API path, and it is exempt by exact match,
+  // not by prefix: /api/dashboard/inbox (list) and .../claim and .../token all
+  // stay behind the session gate, because those read or mint secrets.
+  if (path === "/api/dashboard/inbox/push") return NextResponse.next();
+
   // ----- Supabase session refresh + login gate ----------------------------
   if (!supabaseConfigured) return NextResponse.next();
 
