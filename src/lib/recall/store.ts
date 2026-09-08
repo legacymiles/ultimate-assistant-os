@@ -449,7 +449,7 @@ export function migrateRecords(): RecallData {
 // ----- folder structure operations ----------------------------------------
 
 /** True when `candidateParent` sits inside `folderId` (or is it). */
-function wouldCycle(folders: Folder[], folderId: string, candidateParent: string | null): boolean {
+export function wouldCycle(folders: Folder[], folderId: string, candidateParent: string | null): boolean {
   let cur = candidateParent;
   const guard = new Set<string>();
   while (cur && !guard.has(cur)) {

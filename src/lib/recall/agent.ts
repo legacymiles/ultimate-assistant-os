@@ -45,6 +45,23 @@ function heuristicActions(question: string): AgentAction[] {
  * this week" is answerable from local data alone and it would be a poor
  * assistant that shrugged at it.
  */
+/**
+ * What the assistant says when no model is configured.
+ *
+ * This exists because the SILENT fallback was itself the bug. With no key the
+ * route returned null, the keyword search answered instead, and the reply read
+ * as a stupid AI rather than an absent one — a user reported exactly that after
+ * asking it to move a folder and getting a search hit back. A degraded mode
+ * that does not announce itself is indistinguishable from a broken feature.
+ */
+export function degradedNotice(): string {
+  return [
+    "AI is off - this is a keyword search, not an answer.",
+    "Set OPENROUTER_API_KEY (or AI_GATEWAY_API_KEY) in .env.local and restart " +
+      "the dev server to enable reasoning and actions such as moving folders.",
+  ].join("\n");
+}
+
 function heuristicAnswer(
   question: string,
   candidates: Item[],
@@ -148,7 +165,10 @@ export async function askAgent(question: string, data: RecallData): Promise<Agen
   }
 
   return {
-    answer: heuristicAnswer(question, candidates, data.folders, soon),
+    answer: [
+      degradedNotice(),
+      heuristicAnswer(question, candidates, data.folders, soon),
+    ].join("\n\n"),
     citations: candidates.slice(0, 3).map((c) => c.id),
     actions: heuristicActions(question),
     engine: "heuristic",
@@ -185,7 +205,7 @@ function cleanReminders(v: unknown): number[] | undefined {
  * user cannot understand and then do something else — so an action that does
  * not name a real item, folder or event is dropped rather than repaired.
  */
-function sanitizeActions(input: unknown, data: RecallData, events: CalendarEvent[]): AgentAction[] {
+export function sanitizeActions(input: unknown, data: RecallData, events: CalendarEvent[]): AgentAction[] {
   if (!Array.isArray(input)) return [];
   const itemIds = new Set(data.items.map((i) => i.id));
   const folderIds = new Set(data.folders.map((f) => f.id));
