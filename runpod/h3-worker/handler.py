@@ -79,22 +79,40 @@ def _decode_data_url(data_url: str) -> tuple[bytes, str]:
 
 
 def _boot(job, want_reference: bool) -> None:
-    """Cold-start work: weights, then ComfyUI. Runs at most once per worker."""
-    global _ready
-    if _ready and comfy.is_up():
-        return
+    """Ensure the weights this job needs are present, and ComfyUI is up.
 
+    Not a once-per-worker step, which is the trap it originally fell into.
+    Reference-to-video needs a second transformer that text-to-video does not,
+    so a worker warmed by a text job is NOT ready for a reference job. Booting
+    only once meant the reference weights were never fetched and ComfyUI
+    rejected the graph with "value not in list".
+
+    So the weight check runs every time and is keyed to what this job needs;
+    only the parts already on disk are skipped.
+    """
+    global _ready
     started = time.time()
-    _progress(job, "Warming up — checking model weights")
 
     todo = models.missing(want_reference)
     if todo:
         gb = models.total_gb(todo)
-        _progress(job, f"Downloading {gb} GB of weights (first run only)")
+        _progress(job, f"Downloading {gb} GB of weights")
         models.ensure(want_reference, on_progress=lambda n: _progress(job, n))
         _boot_notes.append(f"downloaded {gb} GB")
+        # ComfyUI lists model files lazily and caches what it finds, so a file
+        # that appears after it started is invisible until the cache is
+        # dropped. Our own schema cache goes with it.
+        if comfy.is_up():
+            comfy.refresh_model_lists()
+    elif _ready and comfy.is_up():
+        return
     else:
-        _boot_notes.append("weights already on volume")
+        _boot_notes.append("weights already present")
+
+    if _ready and comfy.is_up():
+        _boot_notes.append(f"added weights in {int(time.time() - started)}s")
+        _progress(job, f"Extra weights ready ({int(time.time() - started)}s)")
+        return
 
     _progress(job, "Starting ComfyUI")
     comfy.start(extra_model_paths=models.extra_model_paths_yaml())

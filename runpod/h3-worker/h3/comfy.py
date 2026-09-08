@@ -138,6 +138,29 @@ def object_info(refresh: bool = False) -> dict[str, Any]:
     return _object_info
 
 
+def refresh_model_lists() -> None:
+    """Make ComfyUI notice model files that appeared after it started.
+
+    It builds its model dropdowns lazily and caches them, so a weight file
+    downloaded mid-session stays invisible and the graph is rejected with
+    "value not in list". Its own refresh endpoint is asked first; the
+    object_info re-read is what actually matters to us, and it also rebuilds
+    those lists.
+    """
+    for path in ("/api/refresh", "/refresh"):
+        try:
+            req = urllib.request.Request(f"{BASE}{path}", data=b"{}", method="POST")
+            req.add_header("Content-Type", "application/json")
+            urllib.request.urlopen(req, timeout=60).read()
+            break
+        except Exception:
+            continue
+    try:
+        object_info(refresh=True)
+    except Exception:
+        pass
+
+
 def describe_node(class_type: str) -> dict[str, Any]:
     """Required and optional input sockets for one node class.
 
