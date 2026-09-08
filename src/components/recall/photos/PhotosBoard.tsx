@@ -27,6 +27,7 @@ import type { Folder, Item, RecallData } from "@/lib/recall/types";
 import { useRemotePull } from "@/lib/sync/useSync";
 import { ReviewQueue } from "./ReviewQueue";
 import { PeopleManager } from "./PeopleManager";
+import { IphoneSources } from "./IphoneSources";
 
 // ---------------------------------------------------------------------------
 // Photos.
@@ -348,6 +349,12 @@ export function PhotosBoard({
         </button>
       </div>
 
+      <IphoneSources
+        busy={Boolean(busy)}
+        onImport={(files) => runImport(files)}
+        onToast={onToast}
+      />
+
       {busy && (
         <div className="mb-3 flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/5 px-3 py-2 text-[11.5px] text-amber-200">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-300" />
@@ -451,10 +458,10 @@ export function PhotosBoard({
       )}
 
       <p className="mt-4 text-[11px] leading-relaxed text-ink-faint">
-        <strong className="text-ink-muted">Getting photos off your phone:</strong> open Dashboard in
-        your phone&apos;s browser and tap <em>Add photos</em> — that opens your camera roll and you
-        can select as many as you like. A web app can&apos;t sync your camera roll in the
-        background, so this (or a Google Drive import) is the way in.
+        <strong className="text-ink-muted">Two ways in.</strong> <em>Import now</em> opens your
+        camera roll and you pick — a web page cannot select photos for you, which is an iOS rule, not
+        a missing feature here. <em>Autopilot</em> installs a Shortcut on the phone that takes the
+        last N by itself and can run unattended; that is the only path that syncs without you.
       </p>
 
       {peopleOpen && (

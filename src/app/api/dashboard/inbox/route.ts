@@ -7,7 +7,7 @@ import { hasToken, pending } from "@/lib/dashboard/inbox";
 
 export const runtime = "nodejs";
 
-export async function currentUid(): Promise<string> {
+async function currentUid(): Promise<string> {
   return (await cookies()).get("hub_uid")?.value ?? "local";
 }
 
