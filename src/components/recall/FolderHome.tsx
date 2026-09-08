@@ -18,6 +18,7 @@ interface Props {
   onOpen: (folderId: string | null) => void;
   onNewFolder: () => void;
   onEditFolder: (folder: Folder) => void;
+  onMoveFolder: (folder: Folder) => void;
   onDeleteFolder: (folder: Folder) => void;
   /** Opens the loose-items view when something sits outside every folder. */
   onOpenUnfiled: () => void;
@@ -30,6 +31,7 @@ export function FolderHome({
   onOpen,
   onNewFolder,
   onEditFolder,
+  onMoveFolder,
   onDeleteFolder,
   onOpenUnfiled,
   onOpenPhotos,
@@ -134,6 +136,14 @@ export function FolderHome({
                 className="rounded-md bg-canvas/70 p-1.5 text-ink-faint backdrop-blur hover:text-ink"
               >
                 <Icon.Edit width={13} height={13} />
+              </button>
+              <button
+                onClick={() => onMoveFolder(f)}
+                title="Move folder"
+                aria-label={`Move ${f.name}`}
+                className="rounded-md bg-canvas/70 p-1.5 text-ink-faint backdrop-blur hover:text-ink"
+              >
+                <Icon.Move width={13} height={13} />
               </button>
               <button
                 onClick={() => onDeleteFolder(f)}

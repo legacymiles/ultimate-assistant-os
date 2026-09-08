@@ -9,6 +9,7 @@ import {
   migrateRecords,
   getData,
   isLocal,
+  moveFolder,
   updateFolder,
 } from "@/lib/recall/store";
 import type { Folder, Item, RecallData } from "@/lib/recall/types";
@@ -19,6 +20,7 @@ import { AgentChat } from "./AgentChat";
 import { FolderWorkspace } from "./FolderWorkspace";
 import { SearchResults } from "./SearchResults";
 import { FolderDialog, type FolderDraft } from "./FolderDialog";
+import { MoveFolderDialog } from "./MoveFolderDialog";
 import { FolderHome } from "./FolderHome";
 import { SecurityDialog } from "./SecurityDialog";
 import { ListsBoard } from "./lists/ListsBoard";
@@ -65,6 +67,7 @@ export function Recall() {
   const [treeOpen, setTreeOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [folderDialog, setFolderDialog] = useState<FolderDialogState | null>(null);
+  const [movingFolder, setMovingFolder] = useState<Folder | null>(null);
   /** True when Recall requires a password, so signing out is meaningful. */
   const [gated, setGated] = useState(false);
   const [securityOpen, setSecurityOpen] = useState(false);
@@ -177,6 +180,16 @@ export function Recall() {
       setData(updateFolder(folderDialog.folder.id, draft));
       setToast("Folder updated");
     }
+  }
+
+  function handleMoveFolder(folder: Folder) {
+    setMovingFolder(folder);
+  }
+
+  function submitMove(parentId: string | null) {
+    if (!movingFolder) return;
+    setData(moveFolder(movingFolder.id, parentId));
+    setToast("Folder moved");
   }
 
   function handleDeleteFolder(folder: Folder) {
@@ -375,6 +388,7 @@ export function Recall() {
                 onOpen={navigate}
                 onNewFolder={() => handleNewFolder(null)}
                 onEditFolder={handleEditFolder}
+                onMoveFolder={handleMoveFolder}
                 onDeleteFolder={handleDeleteFolder}
                 onOpenUnfiled={() => navigate(UNFILED)}
                 onOpenPhotos={() => setHomeTab("photos")}
@@ -460,6 +474,15 @@ export function Recall() {
           initial={folderDialog.mode === "edit" ? folderDialog.folder : undefined}
           onSubmit={submitFolder}
           onClose={() => setFolderDialog(null)}
+        />
+      )}
+
+      {movingFolder && (
+        <MoveFolderDialog
+          folder={movingFolder}
+          folders={data.folders}
+          onMove={submitMove}
+          onClose={() => setMovingFolder(null)}
         />
       )}
 
