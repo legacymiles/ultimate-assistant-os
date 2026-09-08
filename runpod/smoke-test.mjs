@@ -15,11 +15,19 @@
 // ---------------------------------------------------------------------------
 
 import { readFileSync, existsSync, writeFileSync } from "node:fs";
+import { extname } from "node:path";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const FULL = process.argv.includes("--full");
+// --ref <file> renders in reference mode, which is what Auteur uses to keep a
+// character or a look consistent across shots. It needs a second transformer,
+// so the first reference render downloads about 23 GB more.
+const REF = (() => {
+  const i = process.argv.indexOf("--ref");
+  return i >= 0 ? process.argv[i + 1] : null;
+})();
 
 const fileEnv = (() => {
   const p = resolve(ROOT, ".env.local");
@@ -59,17 +67,67 @@ const PROMPT = [
   "non_diegetic_music: a single sustained cello note, very slow, soft dynamics.",
 ].join(" ");
 
+// H3's reference form is six labelled sections, and the reference is named
+// <Subject 1> so the model knows which parts to hold on to.
+const REF_PROMPT = [
+  "subject_definitions:",
+  "<Subject 1> is a floating arena: a dark teal circular platform rimmed with",
+  "glowing cyan light, surrounded by drifting capsule-shaped objects in hot pink,",
+  "cyan and orange, against a deep magenta-to-pink gradient background.",
+  "Retention: fully_preserved.",
+  "summary: [reference generation] A slow orbit around the floating arena while",
+  "the objects drift and turn.",
+  "retention_analysis:",
+  "<Subject 1> (appears in [Shot 1]): fully_preserved - the magenta-and-cyan",
+  "palette, the glowing rim of the platform and the floating capsule objects are",
+  "retained.",
+  "detailed_description: [Shot 1] Stylised 3D rendered look, a wide shot frames",
+  "the floating arena of <Subject 1> suspended in empty space. The camera orbits",
+  "slowly around it with medium amplitude at slow speed as the capsule objects",
+  "drift and tumble around the platform. Lighting: the cyan rim glows against the",
+  "magenta background, soft bloom. No subtitles, no on-screen text, no logos.",
+  "overall_soundscape: a low airy hum, soft chimes as objects drift past, distant",
+  "resonant tones. No dialogue.",
+  "non_diegetic_music: a slow synth pad with a gentle arpeggio, soft dynamics.",
+].join(" ");
+
+function referencePayload() {
+  if (!REF) return null;
+  if (!existsSync(REF)) {
+    console.error(`Reference image not found: ${REF}`);
+    process.exit(1);
+  }
+  const mime =
+    { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" }[
+      extname(REF).toLowerCase()
+    ] || "image/png";
+  const b64 = readFileSync(REF).toString("base64");
+  return [{ label: "Subject 1", kind: "image", data_url: `data:${mime};base64,${b64}` }];
+}
+
 const started = Date.now();
 const mins = () => ((Date.now() - started) / 60000).toFixed(1);
 
 async function main() {
-  console.log(`Submitting a ${FULL ? "full 768p" : "draft"} 5s render to ${ID}…\n`);
+  const references = referencePayload();
+  console.log(
+    `Submitting a ${FULL ? "full 768p" : "draft"} 5s ${references ? "REFERENCE" : "text"} render to ${ID}…`,
+  );
+  if (references) {
+    const mb = (references[0].data_url.length / 1.37 / 1e6).toFixed(1);
+    console.log(`  reference: ${REF} (${mb} MB)`);
+    console.log("  a first reference render also fetches ~23 GB for the reference model\n");
+  } else {
+    console.log("");
+  }
+
   const res = await fetch(`${BASE}/run`, {
     method: "POST",
     headers,
     body: JSON.stringify({
       input: {
-        prompt: PROMPT,
+        prompt: references ? REF_PROMPT : PROMPT,
+        ...(references ? { references } : {}),
         duration: 5,
         aspect_ratio: "16:9",
         resolution: FULL ? "768P" : "draft",
@@ -117,7 +175,7 @@ async function main() {
         if (out[k] !== undefined) console.log(`  ${k}:`, out[k]);
       }
       if (out.video_base64) {
-        const path = resolve(ROOT, "runpod/smoke-test-output.mp4");
+        const path = resolve(ROOT, `runpod/smoke-test-output${REF ? "-ref" : ""}.mp4`);
         writeFileSync(path, Buffer.from(out.video_base64, "base64"));
         console.log(`\n  wrote ${path}`);
       } else if (out.video_url) {

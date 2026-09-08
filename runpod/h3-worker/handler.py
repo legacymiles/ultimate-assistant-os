@@ -262,6 +262,12 @@ def handler(job):
         summary["seconds"] = seconds_for_frames(summary.get("frames", 0)) if summary.get("frames") else None
         summary["boot"] = "; ".join(_boot_notes[-3:])
 
+        # Hand the assembled graph back without sampling. Reading the exact
+        # JSON costs seconds; inferring it from a failure that only appears
+        # after the model has sampled costs minutes of billed GPU time.
+        if job_input.get("build_only"):
+            return {"graph": graph, **summary}
+
         _progress(job, f"Rendering {summary.get('width', '?')}x{summary.get('height', '?')}, {summary.get('frames', '?')} frames")
         prompt_id = comfy.submit(graph)
         outputs = comfy.wait_for(
