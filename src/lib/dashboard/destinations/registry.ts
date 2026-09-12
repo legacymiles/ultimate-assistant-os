@@ -1,5 +1,7 @@
 import type { Destination } from "./types";
 import { aiRankingsDestination } from "./aiRankings";
+import { cookbookDestination } from "./cookbook";
+import { skillsLibraryDestination } from "./skillsLibrary";
 
 // ---------------------------------------------------------------------------
 // Every place a photo can be filed that is NOT one of the three the photo
@@ -9,10 +11,21 @@ import { aiRankingsDestination } from "./aiRankings";
 // and the commit path all read from this list. There is nowhere else to update,
 // which is what makes "file into any hub app" affordable rather than a fourth
 // copy of the same logic each time.
+//
+// EA Feature List is deliberately absent. It is READ-ONLY: `EA_FEATURES` is a
+// static array in src/lib/ea-features/features.ts with no store, no
+// localStorage and no write path anywhere, by design — its features are
+// dictated and appended to source. A destination for it would mean building
+// persistence for that app first, which is a different job from adding a file
+// here. Left out rather than faked.
 // ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const DESTINATIONS: Destination<any>[] = [aiRankingsDestination];
+export const DESTINATIONS: Destination<any>[] = [
+  aiRankingsDestination,
+  cookbookDestination,
+  skillsLibraryDestination,
+];
 
 export function destinationById(id: string): Destination | undefined {
   return DESTINATIONS.find((d) => d.id === id);
