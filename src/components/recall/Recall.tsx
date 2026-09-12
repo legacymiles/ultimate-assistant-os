@@ -28,6 +28,8 @@ import { PhotosBoard } from "./photos/PhotosBoard";
 import { CalendarBoard } from "./calendar/CalendarBoard";
 import { ensurePhotosRoot } from "@/lib/recall/store";
 import { pruneOrphans } from "@/lib/recall/files";
+import { getQueue } from "@/lib/recall/photos/store";
+import { referencedFileIds } from "@/lib/recall/referencedFiles";
 import { KEY as RECALL_KEY } from "@/lib/recall/store";
 import { useRemotePull } from "@/lib/sync/useSync";
 
@@ -96,11 +98,10 @@ export function Recall() {
     const fresh = getData();
     setData(fresh);
     setReady(true);
-    // Sweep blobs whose item was deleted some other way (agent, folder purge).
-    const referenced = new Set(
-      fresh.items.map((i) => i.attachment?.fileId).filter(Boolean) as string[],
-    );
-    void pruneOrphans(referenced).catch(() => {
+    // Sweep blobs whose owner was deleted some other way (agent, folder purge).
+    // Photos still waiting in the review queue own their blobs too: counting
+    // only items deleted the image of every queued photo on each page load.
+    void pruneOrphans(referencedFileIds(fresh.items, getQueue())).catch(() => {
       /* IndexedDB unavailable — nothing to sweep */
     });
   }, []);
