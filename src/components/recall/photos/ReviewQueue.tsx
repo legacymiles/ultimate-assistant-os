@@ -327,7 +327,10 @@ function PhotoDetail({
           return (
             <div className="mb-3 rounded-xl border border-brand/30 bg-brand/[0.06] p-2.5">
               <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-brand">
-                Will be saved to {pv.where}
+                Info sent to {pv.where}
+              </p>
+              <p className="mb-1 text-[10px] text-ink-faint">
+                Only the details below go to that app — the photo itself stays here.
               </p>
               <p className="text-[12.5px] font-semibold text-ink">{pv.title}</p>
               {pv.lines.map((l, i) => (

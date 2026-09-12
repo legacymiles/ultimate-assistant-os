@@ -363,7 +363,7 @@ export function resolveDestination(
   // itself is still worth keeping and searchable — so it lands in a folder
   // named after where the record went, rather than vanishing into that app.
   const dest = destinationById(analysis.route);
-  if (dest) return { path: ["Screenshots", dest.label], categoryId: null };
+  if (dest) return { path: ["Sent to apps", dest.label], categoryId: null };
 
   const path = analysis.folderPath?.filter(Boolean) ?? [];
   return { path: path.length ? path : ["Inbox"], categoryId: null };
