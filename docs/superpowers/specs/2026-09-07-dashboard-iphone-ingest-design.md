@@ -228,11 +228,19 @@ interface Destination<F> {
   label: string;           // "AI Rankings"
   appSlug: string;         // links the review queue to the target app
   hint: string;            // what the vision model is told this is for
-  schema: ZodType<F>;      // fields to extract
+  /** Field names + descriptions, used to BUILD the prompt (not just validate). */
+  fields: FieldSpec[];
+  /** Hand validation, returning null to drop. Mirrors agent.ts:200-253. */
+  parse(raw: unknown): F | null;
   preview(fields: F): { title: string; where: string; lines: string[] };
   commit(fields: F, ctx: CommitContext): Promise<void>;
 }
 ```
+
+**No `zod`.** The repo does not depend on it, and `agent.ts` already validates
+LLM output by hand with a switch that drops anything naming an unknown id. The
+registry follows that existing convention rather than introducing a schema
+library for one feature.
 
 **The vision prompt is generated from the registry** — each destination
 contributes its `hint` and its field list. Adding a destination is adding a file;
@@ -303,6 +311,23 @@ unchanged. Nothing writes until approve.
 | Neither key set | Picker path still works end to end with heuristic filing. |
 
 ## Testing
+
+**The repo has no test *runner*** — no `test` script and no framework in
+`package.json`. There is one pre-existing test file,
+`src/lib/auteur/director/director.test.ts`, written against `node:test`; it does
+not run, because Node's ESM loader rejects the extensionless relative imports
+this codebase uses throughout.
+
+Phase 0 adds `vitest` as a single dev dependency in the node environment,
+because the regression cases below are the evidence that the reported bug is
+fixed and there is nowhere else to put them. Pinned to `^2`: vitest 5 requires
+`@types/node >=22` and this repo pins `^20`, and bumping that to satisfy a test
+runner risks the Next build. No component/DOM library is added — the logic under
+test (action validation, cycle safety, destination parsing, dedup) is all pure.
+
+The auteur file is **excluded**, not converted: making it run would mean adding
+`.ts` extensions to imports in production source, which is a large edit to app
+code in service of a test runner.
 
 Phase 0 regression cases, run against a fixture tree containing `vps 2026` and
 `trading fx`:
