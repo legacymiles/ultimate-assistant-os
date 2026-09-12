@@ -233,6 +233,24 @@ export async function approvePhotos(args: ApproveArgs): Promise<ApproveResult> {
     args.onProgress?.(done, queue.length);
     const a = p.analysis;
     try {
+      // The other-app write goes FIRST. It is the one step here that can fail for
+      // a reason outside this app — signed out of Cookbook Genie, say — and when
+      // it ran after the Dashboard item was created, a failure left the photo
+      // filed here AND still queued, so pressing "File it" again made a duplicate.
+      // Now a failed destination writes nothing and a retry is clean.
+      //
+      // Writes go through the target app's own client or store, never its
+      // storage key; parse() is the trust boundary, and a proposal that does not
+      // survive it is dropped rather than repaired.
+      const dest = a?.destination ? destinationById(a.destination.id) : undefined;
+      if (dest && a?.destination) {
+        const fields = dest.parse(a.destination.fields);
+        if (fields) {
+          await dest.commit(fields);
+          result.filedElsewhere = (result.filedElsewhere ?? 0) + 1;
+        }
+      }
+
       const path = p.destPath?.length ? p.destPath : ["Inbox"];
       const { folderId } = ensureFolderPath(path, true);
 
@@ -282,19 +300,6 @@ export async function approvePhotos(args: ApproveArgs): Promise<ApproveResult> {
           reminders: [1440, 60],
         });
         result.eventsCreated++;
-      }
-
-      // Registry destinations write into ANOTHER hub app, through that app's
-      // own store — never by touching its storage key. parse() is the trust
-      // boundary: a proposal that does not survive it is dropped rather than
-      // repaired, exactly as the agent's own actions are.
-      const dest = a?.destination ? destinationById(a.destination.id) : undefined;
-      if (dest && a?.destination) {
-        const fields = dest.parse(a.destination.fields);
-        if (fields) {
-          await dest.commit(fields);
-          result.filedElsewhere = (result.filedElsewhere ?? 0) + 1;
-        }
       }
 
       filedForBackup.push({

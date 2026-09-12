@@ -209,10 +209,15 @@ export function PhotosBoard({
     if (res.eventsCreated) onCalendarChanged?.();
 
     const bits = [`Filed ${res.filed}`];
+    if (res.filedElsewhere) bits.push(`${res.filedElsewhere} sent to other apps`);
     if (res.eventsCreated) bits.push(`${res.eventsCreated} on the calendar`);
     if (res.backedUp) bits.push(`${res.backedUp} backed up`);
     if (res.backupFailed) bits.push(`${res.backupFailed} failed to back up`);
-    if (res.problems.length) bits.push(`${res.problems.length} couldn't be filed`);
+    if (res.problems.length) {
+      // A bare count gave the user nothing to act on — the reason is the useful
+      // part, so the first one is shown in full. The photo stays in the queue.
+      bits.push(`${res.problems.length} couldn't be filed: ${res.problems[0].error}`);
+    }
     onToast(bits.join(" · "));
   }
 
