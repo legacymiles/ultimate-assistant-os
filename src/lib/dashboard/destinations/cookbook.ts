@@ -262,18 +262,20 @@ export const cookbookDestination: Destination<RecipeFields> = {
     let cookbookId = match ? mine.find((c) => c.name === match)?.id : undefined;
 
     if (!cookbookId) {
-      const { data: made, error: makeErr } = await sb
+      // Client-made id, no .select(): the cookbooks SELECT policy cannot see a
+      // row inside the statement that inserts it, so RETURNING fails RLS.
+      const newId = crypto.randomUUID();
+      const { error: makeErr } = await sb
         .from("cookbooks")
         .insert({
+          id: newId,
           name: wanted,
           description: "Recipes read out of photos by Dashboard.",
           owner_id: ownerId,
           privacy: "private",
-        })
-        .select()
-        .single();
+        });
       if (makeErr) throw new Error(`Could not create “${wanted}”: ${makeErr.message ?? makeErr}`);
-      cookbookId = made?.id as string | undefined;
+      cookbookId = newId;
     }
     if (!cookbookId) throw new Error(`Could not open the “${wanted}” cookbook.`);
 

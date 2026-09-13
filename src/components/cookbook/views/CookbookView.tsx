@@ -140,10 +140,12 @@ export function CookbookView({ id }: Props) {
 
   const handleDuplicate = async () => {
     if (!cookbook || !user) return;
-    const { data: newCb } = await sb.from("cookbooks").insert({
-      name: `${cookbook.name} (Copy)`, description: cookbook.description, owner_id: user.id,
-    }).select().single();
-    if (!newCb) return;
+    // Client-made id, no .select() — see NewCookbookView for why.
+    const newCb = { id: crypto.randomUUID() };
+    const { error } = await sb.from("cookbooks").insert({
+      id: newCb.id, name: `${cookbook.name} (Copy)`, description: cookbook.description, owner_id: user.id,
+    });
+    if (error) return;
     if (recipes.length > 0) {
       const copies = recipes.map((r) => ({
         cookbook_id: newCb.id, title: r.title, description: r.description,

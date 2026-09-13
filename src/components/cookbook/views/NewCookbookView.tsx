@@ -16,16 +16,18 @@ export function NewCookbookView() {
     if (!user || !name.trim()) return;
     setLoading(true);
     setError(null);
-    const { data, error: err } = await sb
+    // The id is made here rather than read back with .select(): the SELECT
+    // policy's can_view_cookbook() cannot see a row inside the statement that
+    // inserts it, so INSERT ... RETURNING fails with an RLS violation.
+    const id = crypto.randomUUID();
+    const { error: err } = await sb
       .from("cookbooks")
-      .insert({ owner_id: user.id, name: name.trim(), description: description.trim() || null, privacy })
-      .select()
-      .single();
+      .insert({ id, owner_id: user.id, name: name.trim(), description: description.trim() || null, privacy });
     setLoading(false);
     if (err) {
       setError(err.message);
     } else {
-      navigate({ page: "cookbook", id: data.id });
+      navigate({ page: "cookbook", id });
     }
   };
 
