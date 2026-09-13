@@ -113,6 +113,8 @@ export interface Item {
   people?: string[];
   /** The photo category rule that filed it, when one did. */
   photoCategoryId?: string | null;
+  /** Look-alike fingerprint of an image item; syncs, so duplicates are caught on every device. */
+  fingerprint?: string;
   /** Set once this photo has been copied to the Google Drive backup. */
   driveBackupId?: string | null;
   createdAt: string;

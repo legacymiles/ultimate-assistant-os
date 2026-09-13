@@ -37,6 +37,10 @@ interface Body {
   folderPaths?: string[];
   existingTags?: string[];
   today?: string;
+  /** The user's own note about what these photos are. */
+  instruction?: string;
+  /** Set when the user picked where this photo goes; enforced below. */
+  forceRoute?: string;
 }
 
 async function memberBlocked(): Promise<NextResponse | null> {
@@ -67,7 +71,14 @@ export async function POST(req: Request) {
   }
 }
 
-function systemPrompt(legend: LegendEntry[], today: string, folders: string[], tags: string[]): string {
+function systemPrompt(
+  legend: LegendEntry[],
+  today: string,
+  folders: string[],
+  tags: string[],
+  instruction?: string,
+  forceRoute?: string,
+): string {
   const roster = legend.length
     ? legend.map((l) => `  ${l.slot} = ${l.name} (${l.role})`).join("\n")
     : "  (nobody has been labelled yet)";
@@ -113,7 +124,8 @@ function systemPrompt(legend: LegendEntry[], today: string, folders: string[], t
     "  tags       — short, lowercase, hyphenated." +
     // Generated from the destination registry, so a destination can never be
     // added without the model being told about it.
-    destinationPromptBlock()
+    destinationPromptBlock() +
+    userGuidance(instruction, forceRoute)
   );
 }
 
@@ -140,7 +152,14 @@ async function triage(body: Body, apiKey: string) {
       messages: [
         {
           role: "system",
-          content: systemPrompt(legend, today, body.folderPaths ?? [], body.existingTags ?? []),
+          content: systemPrompt(
+            legend,
+            today,
+            body.folderPaths ?? [],
+            body.existingTags ?? [],
+            body.instruction,
+            body.forceRoute,
+          ),
         },
         { role: "user", content },
       ],
@@ -150,7 +169,22 @@ async function triage(body: Body, apiKey: string) {
   if (!res.ok) throw new Error(`Gateway ${res.status}: ${await res.text()}`);
   const data = await res.json();
   const raw = String(data?.choices?.[0]?.message?.content ?? "");
-  return normalize(JSON.parse(raw), legend);
+  const parsed = JSON.parse(raw);
+  const analysis = normalize(parsed, legend);
+
+  // The user's choice of destination is final. The prompt already asks for it,
+  // but a model can still answer with its own guess — and the whole point of
+  // choosing is that the photo does not end up somewhere else.
+  const forced = body.forceRoute;
+  if (forced && ["people", "info", "event", ...DESTINATION_ROUTES].includes(forced)) {
+    analysis.route = forced;
+    const fields = parsed?.[forced];
+    analysis.destination =
+      fields && typeof fields === "object"
+        ? { id: forced, fields: fields as Record<string, unknown> }
+        : undefined;
+  }
+  return analysis;
 }
 
 /** Slot numbers back to person ids; every field clamped to something usable. */
@@ -211,4 +245,30 @@ function normalize(p: Record<string, unknown>, legend: LegendEntry[]) {
         : undefined,
     engine: "ai" as const,
   };
+}
+
+/**
+ * The user's own steer, appended last so it reads as the final word.
+ *
+ * A forced route is an instruction. The note is strong guidance, but it does
+ * not override what an image plainly is: "these are all recipes" must not turn
+ * a photo of a receipt into a recipe.
+ */
+function userGuidance(instruction?: string, forceRoute?: string): string {
+  const note = (instruction ?? "").trim().slice(0, 500);
+  const parts: string[] = [];
+  if (forceRoute) {
+    parts.push(
+      `The user has decided this photo goes to "${forceRoute}". Use route "${forceRoute}" and ` +
+        "fill in every field for it as fully as the image allows.",
+    );
+  }
+  if (note) {
+    parts.push(
+      `The user says about these photos: "${note}". Treat that as strong guidance about what ` +
+        "they are and where they belong. Still read the image: if this photo plainly is not " +
+        "what the note describes, route it by what it actually is.",
+    );
+  }
+  return parts.length ? `\n\nUSER GUIDANCE:\n${parts.join("\n")}` : "";
 }

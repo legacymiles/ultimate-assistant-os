@@ -22,7 +22,7 @@
 import { uid } from "../../utils";
 import { destinationById } from "@/lib/dashboard/destinations/registry";
 import { categorize, deleteFile, getFile, putFile } from "../files";
-import { createItem, ensureFolderPath, updateItem } from "../store";
+import { createItem, ensureFolderPath, folderPathString, getData, updateItem } from "../store";
 import { createEvent } from "../calendar/store";
 import { todayKey } from "../calendar/types";
 import { backupPhotos, driveConfigured } from "../drive";
@@ -36,6 +36,7 @@ import {
   updatePending,
 } from "./store";
 import { analyzePhoto, buildContactSheet, heuristicAnalysis, toThumb } from "./vision";
+import { findDuplicate, fingerprintImage, type FingerprintCandidate } from "./fingerprint";
 import type { PendingPhoto, PhotoAnalysis, PhotosData } from "./types";
 
 /** Photos analysed at once. Three keeps a big import moving without
@@ -61,6 +62,8 @@ export interface ImportArgs {
   files: File[];
   folderPaths: string[];
   existingTags: string[];
+  /** The user's note about the batch, e.g. "these are all recipes". */
+  instruction?: string;
   onProgress?: (p: ImportProgress) => void;
   /** Called whenever the queue changes so the UI can re-render as it fills. */
   onQueue?: (queue: PendingPhoto[]) => void;
@@ -85,6 +88,10 @@ export async function importPhotos(args: ImportArgs): Promise<ImportOutcome> {
   const accepted = images.slice(0, room);
   const deferred = images.length - accepted.length;
 
+  // Photos already filed, fingerprinted once for the whole import. Anything
+  // filed before fingerprints existed is fingerprinted from its thumbnail.
+  const filed = await filedFingerprints();
+
   // Phase 1 — bytes to disk.
   const staged: { pending: PendingPhoto; file: File }[] = [];
   let stored = 0;
@@ -107,7 +114,15 @@ export async function importPhotos(args: ImportArgs): Promise<ImportOutcome> {
       size: file.size,
       thumb,
     });
-    queue = out.queue;
+    // Is this a picture the user already has? Checked against photos already
+    // filed and photos already waiting — this batch included, because picking
+    // the same photo twice in one import is the commonest accident of all.
+    const fingerprint = await fingerprintImage(thumb);
+    const dup = findDuplicate(fingerprint, [...filed, ...queuedFingerprints(out.queue)], out.photo.id);
+    queue = updatePending(out.photo.id, {
+      fingerprint,
+      duplicateOf: dup ? { label: dup.label, identical: dup.identical } : null,
+    });
     staged.push({ pending: out.photo, file });
     args.onQueue?.(queue);
     stored++;
@@ -124,6 +139,7 @@ export async function importPhotos(args: ImportArgs): Promise<ImportOutcome> {
       sheet,
       folderPaths: args.folderPaths,
       existingTags: args.existingTags,
+      instruction: args.instruction,
     });
     applyAnalysis(job.pending.id, analysis, photos);
     analysed++;
@@ -161,6 +177,8 @@ export async function reanalyze(
   photoId: string,
   folderPaths: string[],
   existingTags: string[],
+  /** `forceRoute` is set when the user picked where this photo goes, e.g. "cookbook". */
+  options: { instruction?: string; forceRoute?: string } = {},
 ): Promise<PendingPhoto[]> {
   const pending = getQueue().find((p) => p.id === photoId);
   if (!pending) return getQueue();
@@ -177,6 +195,8 @@ export async function reanalyze(
     sheet,
     folderPaths,
     existingTags,
+    instruction: options.instruction,
+    forceRoute: options.forceRoute,
   });
   return applyAnalysis(photoId, analysis, photos);
 }
@@ -283,6 +303,9 @@ export async function approvePhotos(args: ApproveArgs): Promise<ApproveResult> {
         extractStatus: a?.engine === "ai" ? "ok" : "unsupported",
         people: peopleIds.length ? peopleIds : undefined,
         photoCategoryId: p.categoryId ?? null,
+        // Kept on the item so this photo is recognised as a duplicate later,
+        // on any device — the item syncs, the pixels do not.
+        fingerprint: p.fingerprint,
       });
       result.filed++;
 
@@ -419,4 +442,30 @@ export async function backupFiled(args: BulkBackupArgs): Promise<{ ok: number; f
     if (driveId) updateItem(t.itemId, { driveBackupId: driveId });
   }
   return { ok: res.uploaded.length, failed: res.failed.length, skipped };
+}
+
+// ----- duplicates ------------------------------------------------------------
+
+/** Every filed photo's fingerprint, labelled with the folder it lives in. */
+async function filedFingerprints(): Promise<FingerprintCandidate[]> {
+  const data = getData();
+  const out: FingerprintCandidate[] = [];
+  for (const it of data.items) {
+    if (it.kind !== "image") continue;
+    const hash = it.fingerprint ?? (await fingerprintImage(it.attachment?.url));
+    if (hash) out.push({ id: it.id, hash, label: folderPathString(data.folders, it.folderId) });
+  }
+  return out;
+}
+
+/** Photos still waiting for review that have been fingerprinted. */
+function queuedFingerprints(queue: PendingPhoto[]): FingerprintCandidate[] {
+  return queue
+    .filter((p) => p.fingerprint)
+    .map((p) => ({ id: p.id, hash: p.fingerprint as string, label: "Waiting for review" }));
+}
+
+/** The user saw the duplicate warning and wants this photo anyway. */
+export function keepDuplicate(photoId: string): PendingPhoto[] {
+  return updatePending(photoId, { keepDuplicate: true });
 }

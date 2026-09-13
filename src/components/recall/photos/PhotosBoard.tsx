@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../../icons";
 import {
   categoryPath,
+  createCategory,
   getPhotos,
   getQueue,
   setSettings,
@@ -16,6 +17,7 @@ import {
   approvePhotos,
   backupFiled,
   importPhotos,
+  keepDuplicate,
   reanalyze,
   rejectPhotos,
   retarget,
@@ -25,7 +27,7 @@ import { childFolders, getData } from "@/lib/recall/store";
 import { folderPaths } from "@/lib/recall/classify";
 import type { Folder, Item, RecallData } from "@/lib/recall/types";
 import { useRemotePull } from "@/lib/sync/useSync";
-import { ReviewQueue } from "./ReviewQueue";
+import { ReviewQueue, type NewAlbum } from "./ReviewQueue";
 import { PeopleManager } from "./PeopleManager";
 import { IphoneSources } from "./IphoneSources";
 
@@ -79,6 +81,8 @@ export function PhotosBoard({
   const [busy, setBusy] = useState<string | null>(null);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** The user's note about what they are importing, sent with every photo. */
+  const [instruction, setInstruction] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -158,6 +162,7 @@ export function PhotosBoard({
       files,
       folderPaths: paths,
       existingTags,
+      instruction: instruction.trim() || undefined,
       onProgress: (p) =>
         setBusy(
           p.stage === "storing"
@@ -226,10 +231,34 @@ export function PhotosBoard({
     onToast(`Discarded ${ids.length}`);
   }
 
-  async function reread(id: string) {
-    setBusy("Re-reading…");
-    setPending(await reanalyze(id, paths, existingTags));
+  async function reread(id: string, forceRoute?: string) {
+    setBusy(forceRoute ? "Reading it again for that app…" : "Re-reading…");
+    setPending(
+      await reanalyze(id, paths, existingTags, {
+        instruction: instruction.trim() || undefined,
+        forceRoute,
+      }),
+    );
     setBusy(null);
+  }
+
+  function createAlbum(photoId: string, album: NewAlbum) {
+    // An album with nobody chosen is a plain album and must NEVER match on its
+    // own: custom albums sort ahead of the family rules, so a rule of "any one
+    // person" would swallow every photo of a person. A people count no real
+    // photo reaches keeps it manual-only.
+    const next = createCategory({
+      name: album.name,
+      requires: album.requires,
+      exact: album.exact,
+      minPeople: album.requires.length || 999,
+    });
+    setPhotos(next);
+    const made = [...next.categories]
+      .reverse()
+      .find((c) => !c.builtIn && c.name === album.name.trim());
+    if (made) setPending(retarget(photoId, categoryPath(made), made.id));
+    onToast(`Album “${album.name}” created`);
   }
 
   // ----- backup ------------------------------------------------------------
@@ -354,6 +383,21 @@ export function PhotosBoard({
         </button>
       </div>
 
+      <label className="mb-2 block">
+        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
+          What are these photos?{" "}
+          <span className="normal-case tracking-normal text-ink-faint/70">
+            optional — helps it send them to the right place
+          </span>
+        </span>
+        <input
+          value={instruction}
+          onChange={(e) => setInstruction(e.target.value)}
+          placeholder='e.g. "these are all recipes" or "screenshots of AI tools"'
+          className="w-full rounded-xl border border-line bg-canvas px-3 py-2 text-xs text-ink outline-none placeholder:text-ink-faint focus:border-brand focus:ring-2 focus:ring-brand/25"
+        />
+      </label>
+
       <IphoneSources
         busy={Boolean(busy)}
         onImport={(files) => runImport(files)}
@@ -407,6 +451,9 @@ export function PhotosBoard({
         onReject={(ids) => void reject(ids)}
         onRetarget={(id, path, catId) => setPending(retarget(id, path, catId))}
         onReanalyze={(id) => void reread(id)}
+        onSendTo={(id, routeId) => void reread(id, routeId)}
+        onKeepDuplicate={(id) => setPending(keepDuplicate(id))}
+        onCreateAlbum={(id, album) => createAlbum(id, album)}
       />
 
       {/* Sub-folders */}

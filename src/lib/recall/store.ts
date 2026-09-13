@@ -260,6 +260,8 @@ export interface NewItemInput {
   /** Person ids recognised in a photo. */
   people?: string[];
   photoCategoryId?: string | null;
+  /** Look-alike fingerprint of an image, so it is recognised as a duplicate later. */
+  fingerprint?: string;
   driveBackupId?: string | null;
 }
 
@@ -286,6 +288,9 @@ export function createItem(input: NewItemInput): { data: RecallData; item: Item 
     extractStatus: input.extractStatus,
     people: input.people,
     photoCategoryId: input.photoCategoryId ?? null,
+    // Copied explicitly: this function lists every field, so a field that is
+    // only typed and not copied here is silently dropped.
+    fingerprint: input.fingerprint,
     driveBackupId: input.driveBackupId ?? null,
     createdAt: ts,
     updatedAt: ts,

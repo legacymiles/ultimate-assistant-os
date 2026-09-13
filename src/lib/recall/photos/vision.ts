@@ -191,6 +191,10 @@ export interface AnalyzeArgs {
   sheet: ContactSheet;
   folderPaths: string[];
   existingTags: string[];
+  /** The user's own note about what these photos are, e.g. "these are all recipes". */
+  instruction?: string;
+  /** Where the user has decided this photo goes, e.g. "cookbook". Overrides the guess. */
+  forceRoute?: string;
 }
 
 /**
@@ -210,6 +214,8 @@ export async function analyzePhoto(args: AnalyzeArgs): Promise<PhotoAnalysis> {
         legend: args.sheet.legend,
         folderPaths: args.folderPaths,
         existingTags: args.existingTags,
+        instruction: args.instruction,
+        forceRoute: args.forceRoute,
         // The model has no clock; without today's date "next Friday" on a
         // flyer is unresolvable and every relative date comes back wrong.
         today: new Date().toISOString().slice(0, 10),

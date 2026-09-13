@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { destinationById } from "@/lib/dashboard/destinations/registry";
+import { DESTINATIONS, destinationById } from "@/lib/dashboard/destinations/registry";
 import { Icon } from "../../icons";
 import { categoryPath, groupByDestination } from "@/lib/recall/photos/store";
 import type { DestGroup } from "@/lib/recall/photos/store";
 import type { PendingPhoto, PhotosData } from "@/lib/recall/photos/types";
+import { PHOTOS_ROOT } from "@/lib/recall/photos/types";
 import { formatDayKey, formatTime } from "@/lib/recall/calendar/types";
 
 // ---------------------------------------------------------------------------
@@ -22,6 +23,27 @@ import { formatDayKey, formatTime } from "@/lib/recall/calendar/types";
 // deeper rather than in everyone's way.
 // ---------------------------------------------------------------------------
 
+/** What "+ New album" hands back: a name, and optionally who belongs in it. */
+export interface NewAlbum {
+  name: string;
+  /** People who must be in a photo for it to sort here automatically. */
+  requires: string[];
+  /** True when nobody else may be in the shot. */
+  exact: boolean;
+}
+
+const APP_EMOJI: Record<string, string> = {
+  "ai-rankings": "🧠",
+  cookbook: "🍳",
+  "skills-library": "📝",
+};
+
+/**
+ * A duplicate the user has not yet ruled on. These are left out of every bulk
+ * approve so a repeated photo cannot slip into the library by accident.
+ */
+const heldBack = (p: PendingPhoto) => Boolean(p.duplicateOf) && !p.keepDuplicate;
+
 interface Props {
   pending: PendingPhoto[];
   photos: PhotosData;
@@ -30,6 +52,10 @@ interface Props {
   onReject: (photoIds: string[]) => void;
   onRetarget: (photoId: string, path: string[], categoryId: string | null) => void;
   onReanalyze: (photoId: string) => void;
+  /** Re-read the photo as an entry for this app, e.g. "cookbook". */
+  onSendTo: (photoId: string, routeId: string) => void;
+  onKeepDuplicate: (photoId: string) => void;
+  onCreateAlbum: (photoId: string, album: NewAlbum) => void;
 }
 
 export function ReviewQueue({
@@ -40,12 +66,17 @@ export function ReviewQueue({
   onReject,
   onRetarget,
   onReanalyze,
+  onSendTo,
+  onKeepDuplicate,
+  onCreateAlbum,
 }: Props) {
   const [detail, setDetail] = useState<string | null>(null);
   const groups = useMemo(() => groupByDestination(pending), [pending]);
   const analyzing = pending.filter((p) => p.status === "analyzing").length;
   const failed = pending.filter((p) => p.status === "failed");
   const ready = pending.filter((p) => p.status === "ready");
+  const approvable = ready.filter((p) => !heldBack(p));
+  const dupCount = ready.length - approvable.length;
   const detailPhoto = pending.find((p) => p.id === detail) ?? null;
 
   if (pending.length === 0) return null;
@@ -68,11 +99,11 @@ export function ReviewQueue({
         {ready.length > 0 && (
           <span className="ml-auto flex items-center gap-1.5">
             <button
-              onClick={() => onApprove(ready.map((p) => p.id))}
-              disabled={busy}
+              onClick={() => onApprove(approvable.map((p) => p.id))}
+              disabled={busy || approvable.length === 0}
               className="rounded-lg bg-brand px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-brand-2 disabled:opacity-40"
             >
-              Approve everything ({ready.length})
+              Approve everything ({approvable.length})
             </button>
             <button
               onClick={() => {
@@ -87,6 +118,13 @@ export function ReviewQueue({
           </span>
         )}
       </div>
+
+      {dupCount > 0 && (
+        <p className="mb-2 rounded-lg border border-red-500/40 bg-red-500/10 px-2.5 py-1.5 text-[11px] text-red-300">
+          {dupCount} {dupCount === 1 ? "photo looks" : "photos look"} like one you already have. They are
+          outlined in red and left out of Approve everything. Open one to discard it or keep it anyway.
+        </p>
+      )}
 
       {analyzing > 0 && ready.length === 0 && (
         <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-8">
@@ -155,6 +193,9 @@ export function ReviewQueue({
           }}
           onRetarget={(path, catId) => onRetarget(detailPhoto.id, path, catId)}
           onReanalyze={() => onReanalyze(detailPhoto.id)}
+          onSendTo={(routeId) => onSendTo(detailPhoto.id, routeId)}
+          onKeepDuplicate={() => onKeepDuplicate(detailPhoto.id)}
+          onCreateAlbum={(album) => onCreateAlbum(detailPhoto.id, album)}
         />
       )}
     </div>
@@ -174,7 +215,8 @@ function GroupSection({
   onReject: (ids: string[]) => void;
   onOpen: (id: string) => void;
 }) {
-  const ids = group.photos.map((p) => p.id);
+  const allIds = group.photos.map((p) => p.id);
+  const ids = group.photos.filter((p) => !heldBack(p)).map((p) => p.id);
   const isEventGroup = group.photos.some((p) => p.analysis?.route === "event");
 
   return (
@@ -193,13 +235,13 @@ function GroupSection({
         <span className="ml-auto flex items-center gap-1.5">
           <button
             onClick={() => onApprove(ids)}
-            disabled={busy}
+            disabled={busy || ids.length === 0}
             className="rounded-lg bg-brand px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-brand-2 disabled:opacity-40"
           >
-            Approve all {group.photos.length}
+            Approve all {ids.length}
           </button>
           <button
-            onClick={() => onReject(ids)}
+            onClick={() => onReject(allIds)}
             disabled={busy}
             aria-label={`Discard all ${group.photos.length}`}
             className="rounded-lg border border-line p-1.5 text-ink-faint transition hover:text-red-400 disabled:opacity-40"
@@ -215,7 +257,10 @@ function GroupSection({
             key={p.id}
             onClick={() => onOpen(p.id)}
             title={p.analysis?.title ?? p.name}
-            className="group relative aspect-square overflow-hidden rounded-lg bg-panel-2 ring-offset-2 ring-offset-panel transition hover:ring-2 hover:ring-brand"
+            className={
+              "group relative aspect-square overflow-hidden rounded-lg bg-panel-2 ring-offset-2 ring-offset-panel transition " +
+              (heldBack(p) ? "ring-2 ring-red-500" : "hover:ring-2 hover:ring-brand")
+            }
           >
             {p.thumb ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -228,6 +273,11 @@ function GroupSection({
             {p.overridden && (
               <span className="absolute left-1 top-1 rounded bg-canvas/80 px-1 text-[8px] font-semibold uppercase tracking-wider text-ink-muted backdrop-blur">
                 Moved
+              </span>
+            )}
+            {heldBack(p) && (
+              <span className="absolute inset-x-0 top-0 bg-red-600/90 px-1 py-0.5 text-center text-[8px] font-bold uppercase tracking-wider text-white">
+                Duplicate
               </span>
             )}
             <span className="absolute inset-x-0 bottom-0 hidden bg-gradient-to-t from-black/80 to-transparent px-1 pb-0.5 pt-3 text-[9px] leading-tight text-white group-hover:block">
@@ -250,6 +300,9 @@ function PhotoDetail({
   onReject,
   onRetarget,
   onReanalyze,
+  onSendTo,
+  onKeepDuplicate,
+  onCreateAlbum,
 }: {
   photo: PendingPhoto;
   photos: PhotosData;
@@ -258,8 +311,15 @@ function PhotoDetail({
   onReject: () => void;
   onRetarget: (path: string[], categoryId: string | null) => void;
   onReanalyze: () => void;
+  onSendTo: (routeId: string) => void;
+  onKeepDuplicate: () => void;
+  onCreateAlbum: (album: NewAlbum) => void;
 }) {
   const [pathText, setPathText] = useState((photo.destPath ?? []).join(" / "));
+  const [albumOpen, setAlbumOpen] = useState(false);
+  const [albumName, setAlbumName] = useState("");
+  const [albumPeople, setAlbumPeople] = useState<string[]>([]);
+  const [albumExact, setAlbumExact] = useState(false);
   const a = photo.analysis;
   const nameOf = new Map(photos.people.map((p) => [p.id, p.name]));
 
@@ -278,7 +338,7 @@ function PhotoDetail({
             <img
               src={photo.thumb}
               alt={a?.title ?? photo.name}
-              className="h-24 w-24 shrink-0 rounded-xl object-cover"
+              className={"h-24 w-24 shrink-0 rounded-xl object-cover " + (heldBack(photo) ? "ring-2 ring-red-500" : "")}
             />
           )}
           <div className="min-w-0 flex-1">
@@ -311,6 +371,40 @@ function PhotoDetail({
             <Icon.Close width={15} height={15} />
           </button>
         </div>
+
+        {photo.duplicateOf && (
+          <div
+            className={
+              "mb-3 rounded-xl border p-2.5 " +
+              (photo.keepDuplicate ? "border-line bg-panel-2" : "border-red-500/60 bg-red-500/10")
+            }
+          >
+            <p className="text-[12px] font-semibold text-red-300">
+              {photo.duplicateOf.identical
+                ? "You already have this photo"
+                : "This looks like a photo you already have"}
+            </p>
+            <p className="mt-0.5 text-[11px] text-ink-muted">Already in: {photo.duplicateOf.label}</p>
+            {photo.keepDuplicate ? (
+              <p className="mt-1 text-[10.5px] text-ink-faint">You chose to keep it anyway.</p>
+            ) : (
+              <div className="mt-2 flex gap-1.5">
+                <button
+                  onClick={onReject}
+                  className="rounded-lg bg-red-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-red-500"
+                >
+                  Discard duplicate
+                </button>
+                <button
+                  onClick={onKeepDuplicate}
+                  className="rounded-lg border border-line px-2.5 py-1 text-[11px] text-ink-muted transition hover:text-ink"
+                >
+                  Keep anyway
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {a?.caption && (
           <p className="mb-3 text-[12px] leading-relaxed text-ink-muted">{a.caption}</p>
@@ -412,7 +506,33 @@ function PhotoDetail({
         )}
 
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
-          File it into
+          Send the details to an app
+        </p>
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {DESTINATIONS.map((d) => {
+            const active = a?.route === d.id;
+            return (
+              <button
+                key={d.id}
+                onClick={() => {
+                  if (!active) onSendTo(d.id);
+                }}
+                title={active ? `Already going to ${d.label}` : `Read this photo as a ${d.label} entry`}
+                className={
+                  "rounded-full border px-2 py-0.5 text-[11px] transition " +
+                  (active
+                    ? "border-brand bg-brand/15 font-medium text-brand"
+                    : "border-line text-ink-muted hover:text-ink")
+                }
+              >
+                {APP_EMOJI[d.id] ?? "📦"} {d.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
+          Or file the photo into an album
         </p>
         <div className="mb-2 flex flex-wrap gap-1.5">
           {photos.categories.slice(0, 10).map((c) => {
@@ -436,7 +556,87 @@ function PhotoDetail({
               </button>
             );
           })}
+          <button
+            onClick={() => setAlbumOpen((o) => !o)}
+            className="rounded-full border border-dashed border-amber-400/60 px-2 py-0.5 text-[11px] text-amber-200 transition hover:bg-amber-400/10"
+          >
+            + New album
+          </button>
         </div>
+        {albumOpen && (
+          <div className="mb-2 rounded-xl border border-amber-400/40 bg-amber-400/[0.06] p-2.5">
+            <input
+              autoFocus
+              value={albumName}
+              onChange={(e) => setAlbumName(e.target.value)}
+              placeholder="Album name, e.g. Beach Trip 2026"
+              className="mb-2 w-full rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-xs text-ink outline-none placeholder:text-ink-faint focus:border-amber-400"
+            />
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
+              Who belongs in it (future photos of them sort here automatically)
+            </p>
+            {photos.people.length === 0 ? (
+              <p className="mb-2 text-[11px] text-ink-faint">
+                Add people first to auto-sort. You can still make the album and file photos into it yourself.
+              </p>
+            ) : (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {photos.people.map((person) => {
+                  const on = albumPeople.includes(person.id);
+                  return (
+                    <button
+                      key={person.id}
+                      onClick={() =>
+                        setAlbumPeople((cur) =>
+                          on ? cur.filter((x) => x !== person.id) : [...cur, person.id],
+                        )
+                      }
+                      className={
+                        "rounded-full border px-2 py-0.5 text-[11px] transition " +
+                        (on
+                          ? "border-amber-400 bg-amber-400/15 text-amber-200"
+                          : "border-line text-ink-muted hover:text-ink")
+                      }
+                    >
+                      {on ? "✓ " : ""}
+                      {person.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {albumPeople.length > 0 && (
+              <label className="mb-2 flex items-center gap-1.5 text-[11px] text-ink-muted">
+                <input
+                  type="checkbox"
+                  checked={albumExact}
+                  onChange={(e) => setAlbumExact(e.target.checked)}
+                />
+                Only these people (skip photos with anyone else in them)
+              </label>
+            )}
+            <div className="flex justify-end gap-1.5">
+              <button
+                onClick={() => setAlbumOpen(false)}
+                className="rounded-lg border border-line px-2.5 py-1 text-[11px] text-ink-muted"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!albumName.trim()}
+                onClick={() => {
+                  const name = albumName.trim();
+                  onCreateAlbum({ name, requires: albumPeople, exact: albumExact });
+                  setPathText([PHOTOS_ROOT, name].join(" / "));
+                  setAlbumOpen(false);
+                }}
+                className="rounded-lg bg-amber-500 px-2.5 py-1 text-[11px] font-semibold text-black transition hover:bg-amber-400 disabled:opacity-40"
+              >
+                Create album and file here
+              </button>
+            </div>
+          </div>
+        )}
         <input
           value={pathText}
           onChange={(e) => setPathText(e.target.value)}

@@ -141,6 +141,15 @@ export interface PendingPhoto {
   /** Set when the user overrides the proposal by hand. */
   overridden?: boolean;
   error?: string;
+  /** Look-alike fingerprint of the picture (see fingerprint.ts). */
+  fingerprint?: string;
+  /**
+   * Set when this photo looks like one already filed or already waiting.
+   * A warning, not a block: the user can still keep it.
+   */
+  duplicateOf?: { label: string; identical: boolean } | null;
+  /** The user saw the duplicate warning and chose to keep this photo anyway. */
+  keepDuplicate?: boolean;
 }
 
 export interface PhotosSettings {
