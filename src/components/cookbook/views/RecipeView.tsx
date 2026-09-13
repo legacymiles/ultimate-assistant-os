@@ -8,6 +8,18 @@ import { recipeImageUrl } from "../imageGen";
 interface Ingredient { name: string; amount: string; unit: string }
 interface Instruction { step: number; text: string }
 
+/** "Imported from TikTok (Tyler): https://…" — written by CreateRecipeView's link import. */
+function SourceNote({ note }: { note: string }) {
+  const url = note.match(/https?:\/\/\S+$/)?.[0];
+  const label = url ? note.slice(0, note.length - url.length).replace(/:\s*$/, "") : note;
+  return (
+    <p className="mt-2 text-xs text-ink-faint">
+      {label}
+      {url && <> · <a href={url} target="_blank" rel="noopener noreferrer" className="text-[#e67e22] hover:underline">Watch the original ↗</a></>}
+    </p>
+  );
+}
+
 interface Recipe {
   id: string;
   cookbook_id: string;
@@ -26,6 +38,7 @@ interface Recipe {
   image_url: string | null;
   plating_style: string | null;
   lighting_style: string | null;
+  notes?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -213,6 +226,7 @@ export function RecipeView({ id, cookbookId }: Props) {
         <div className="flex-1">
           <h1 className="text-3xl font-bold" style={{ fontFamily: "Georgia, serif" }}>{recipe.title}</h1>
           {recipe.description && <p className="mt-2 text-ink-muted">{recipe.description}</p>}
+          {recipe.notes?.startsWith("Imported from") && <SourceNote note={recipe.notes} />}
         </div>
         {isOwner && (
           <div className="flex items-center gap-2">

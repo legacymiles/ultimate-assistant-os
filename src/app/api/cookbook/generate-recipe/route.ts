@@ -1,22 +1,9 @@
 import { NextResponse } from "next/server";
 import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
+import { normalizeRecipe, type RecipeData } from "@/lib/cookbook/recipe";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-interface Ingredient { name: string; amount: string; unit: string }
-interface Instruction { step: number; text: string }
-interface RecipeData {
-  title: string;
-  description: string;
-  ingredients: Ingredient[];
-  instructions: Instruction[];
-  prep_time: number;
-  cook_time: number;
-  servings: number;
-  calories: number;
-  dietary_tags: string[];
-}
 
 // POST /api/cookbook/generate-recipe
 // Body: { action: "generate", prompt } | { action: "edit", editInstruction, recipe }
@@ -127,33 +114,6 @@ async function callGateway(apiKey: string, system: string, user: string): Promis
   if (!res.ok) throw new Error(`Gateway ${res.status}: ${await res.text()}`);
   const json = await res.json();
   return json?.choices?.[0]?.message?.content ?? "";
-}
-
-function normalizeRecipe(p: any): RecipeData {
-  const ingredients: Ingredient[] = Array.isArray(p.ingredients)
-    ? p.ingredients.map((i: any) => ({
-        name: String(i?.name ?? "").trim(),
-        amount: String(i?.amount ?? "").trim(),
-        unit: String(i?.unit ?? "").trim(),
-      })).filter((i: Ingredient) => i.name)
-    : [];
-  const instructions: Instruction[] = Array.isArray(p.instructions)
-    ? p.instructions.map((s: any, idx: number) => ({
-        step: Number(s?.step ?? idx + 1),
-        text: String(s?.text ?? "").trim(),
-      })).filter((s: Instruction) => s.text)
-    : [];
-  return {
-    title: String(p.title ?? "Untitled Recipe"),
-    description: String(p.description ?? ""),
-    ingredients,
-    instructions,
-    prep_time: Number(p.prep_time) || 0,
-    cook_time: Number(p.cook_time) || 0,
-    servings: Number(p.servings) || 2,
-    calories: Number(p.calories) || 0,
-    dietary_tags: Array.isArray(p.dietary_tags) ? p.dietary_tags.map(String).slice(0, 8) : [],
-  };
 }
 
 /* ── Offline heuristic ─────────────────────────────────────────── */
