@@ -6,7 +6,11 @@ import { Icon } from "../icons";
 import { Sidebar } from "./Sidebar";
 import { ToolTable } from "./ToolTable";
 import { DetailPanel } from "./DetailPanel";
+import { AnalyzeLink } from "./AnalyzeLink";
 import * as store from "@/lib/ai-rankings/store";
+import type { AnalyzeResult } from "@/lib/ai-rankings/analyzeLink";
+import { closestPlace } from "@/lib/dashboard/places";
+import { uid } from "@/lib/utils";
 import { useRemotePull } from "@/lib/sync/useSync";
 import {
   addedLabel,
@@ -40,6 +44,8 @@ export function AiRankings() {
   const [confirmBulk, setConfirmBulk] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [flash, setFlash] = useState("");
+  const [newMenu, setNewMenu] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -169,6 +175,54 @@ export function AiRankings() {
     setNavOpen(false);
   };
 
+  /** The analyzer's entry goes straight onto the board and opens for review. */
+  const addFromLink = ({ entry, warning }: AnalyzeResult) => {
+    setAnalyzing(false);
+    setNavOpen(false);
+
+    // The same link twice is the same tool — open the one you already have.
+    const norm = (u: string) =>
+      u.toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/[/#?]+$/, "");
+    const existing = data.tools.find((t) => t.url && norm(t.url) === norm(entry.url));
+    if (existing) {
+      setSelectedId(existing.id);
+      setFlash(`"${existing.name}" is already on the board — opened it.`);
+      return;
+    }
+
+    // "Images" when the board says "Image" would start a second section.
+    const group = closestPlace(entry.group, Object.keys(data.tree)) ?? entry.group;
+    const category = closestPlace(entry.category, data.tree[group] ?? []) ?? entry.category;
+
+    const { data: next, id } = store.addTool({
+      name: entry.name,
+      url: entry.url,
+      summary: entry.summary,
+      group,
+      category,
+      tags: entry.tags,
+      access: entry.access,
+      openSource: entry.openSource,
+      hosting: entry.hosting,
+      apiKey: entry.apiKey,
+      haveKey: false,
+      pricingNote: entry.pricingNote || undefined,
+      contentRating: entry.contentRating === "unknown" ? undefined : entry.contentRating,
+      notes: entry.notes,
+      features: entry.features.map((text) => ({ id: uid("feat"), text, verdict: "good" as const })),
+    });
+    setData(next);
+
+    const created = next.tools.find((t) => t.id === id);
+    const shown = created && applyContentFilter([created], content).length > 0;
+    if (shown) setSelectedId(id);
+    setFlash(
+      shown
+        ? `Added "${entry.name}" to ${group} › ${category}.${warning ? ` ${warning}` : ""}`
+        : `Added "${entry.name}", but it's hidden by the ${content === "safe" ? "Safe" : "18+"} filter.`,
+    );
+  };
+
   const exportJson = () => {
     const blob = new Blob([store.exportJson()], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -275,14 +329,72 @@ export function AiRankings() {
               <Icon.Trash width={14} height={14} />
             </button>
           ))}
-        <button
-          onClick={addRecord}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-2"
-        >
-          <Icon.Plus width={13} height={13} />
-          <span className="hidden sm:inline">New</span>
-        </button>
+        <div className="relative shrink-0">
+          <button
+            onClick={() => setNewMenu((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={newMenu}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-2"
+          >
+            <Icon.Plus width={13} height={13} />
+            <span className="hidden sm:inline">New</span>
+          </button>
+          {newMenu && (
+            <>
+              <button
+                aria-hidden
+                tabIndex={-1}
+                className="fixed inset-0 z-40 cursor-default"
+                onClick={() => setNewMenu(false)}
+              />
+              <div
+                role="menu"
+                className="animate-fade-in absolute right-0 top-full z-50 mt-1 w-64 overflow-hidden rounded-xl border border-line bg-panel p-1 shadow-2xl"
+              >
+                {[
+                  {
+                    icon: <Icon.Link width={14} height={14} />,
+                    title: "Analyze a link",
+                    hint: "Paste a URL — it fills in the whole entry",
+                    run: () => setAnalyzing(true),
+                  },
+                  {
+                    icon: <Icon.Edit width={14} height={14} />,
+                    title: "Blank entry",
+                    hint: "Start empty and type it in yourself",
+                    run: addRecord,
+                  },
+                ].map((item) => (
+                  <button
+                    key={item.title}
+                    role="menuitem"
+                    onClick={() => {
+                      setNewMenu(false);
+                      item.run();
+                    }}
+                    className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-panel-2"
+                  >
+                    <span className="mt-0.5 text-brand">{item.icon}</span>
+                    <span>
+                      <span className="block text-[13px] font-medium text-ink">{item.title}</span>
+                      <span className="block text-[11px] text-ink-faint">{item.hint}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </header>
+
+      {analyzing && (
+        <AnalyzeLink
+          tree={data.tree}
+          knownFeatures={knownFeatures}
+          onResult={addFromLink}
+          onClose={() => setAnalyzing(false)}
+        />
+      )}
 
       <div className="flex min-h-0 flex-1">
         {/* Sections */}

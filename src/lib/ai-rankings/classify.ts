@@ -45,6 +45,56 @@ export interface Suggestion {
   source: "ai" | "heuristic";
 }
 
+// ----- the model's filing brief ---------------------------------------------
+//
+// Shared by /classify (a record you already typed) and /analyze-url (a record
+// built from a link), so both file into the board by the same rules. Pure
+// strings, which is why they can live beside the heuristic.
+
+export const FILING_SYSTEM =
+  "You catalogue software tools for a personal database. Prefer an existing " +
+  "group and category from the user's tree; only invent one when nothing fits. " +
+  "Be accurate about licensing and pricing — say freemium rather than free when " +
+  "there is a paid tier. Respond ONLY with minified JSON.";
+
+/** The Suggestion fields as a JSON shape, without the surrounding braces. */
+export const FILING_SCHEMA_FIELDS =
+  '"group":string,"category":string,"summary":string,"tags":string[],' +
+  '"access":"free"|"freemium"|"paid","openSource":boolean,' +
+  '"hosting":"hosted"|"self-host"|"both",' +
+  '"apiKey":"required"|"optional"|"none","pricingNote":string,"features":string[],' +
+  '"contentRating":"unknown"|"sfw"|"soft"|"explicit"';
+
+export const FILING_RULES =
+  "summary: one plain sentence, max 100 chars, no marketing language.\n" +
+  "tags: 3-6 lowercase capability tags (e.g. vision, local, open-source).\n" +
+  "features: 3-8 concrete things this tool can do, or is known for, that " +
+  "would separate it from a rival in the same category — e.g. 'First/last " +
+  "frame control', 'Extend an existing clip', 'Cinematic look', 'Lipsync'. " +
+  "Reuse the wording already in use above whenever it means the same thing. " +
+  "Short noun phrases, sentence case. Skip anything you are not confident " +
+  "the tool actually does.\n" +
+  "access is what it costs the user; openSource is whether the code or " +
+  "weights are open — these are independent.\n" +
+  "contentRating: how far the tool's own content filter lets a user go. " +
+  "sfw = refuses adult output; soft = suggestive or artistic nudity but " +
+  "not explicit; explicit = uncensored, X-rated images or video are on " +
+  "the table. Use unknown unless you actually know: this value decides " +
+  "whether the record is hidden from a board someone has put in safe " +
+  "mode, so a confident guess is worse here than an honest blank.\n";
+
+/** The board's sections and feature wording, as the model is shown them. */
+export function boardContext(tree: Record<string, string[]>, knownFeatures: string[]): string {
+  const treeText = Object.entries(tree)
+    .map(([g, cats]) => `${g}: ${cats.join(", ") || "(no categories yet)"}`)
+    .join("\n");
+  const known = knownFeatures.slice(0, 60);
+  return (
+    `\nExisting sections:\n${treeText || "(empty board)"}\n` +
+    (known.length ? `\nFeature wording already in use:\n${known.join("\n")}\n` : "")
+  );
+}
+
 /** Keyword → (group, category). First match wins, so order matters. */
 const RULES: [RegExp, string, string][] = [
   [/\b(llm|chatbot|assistant|gpt|claude|gemini|mistral|qwen|deepseek)\b/, "AI", "LLM"],
