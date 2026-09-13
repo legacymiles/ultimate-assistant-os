@@ -18,6 +18,8 @@ import { promisify } from "node:util";
 
 import { NextResponse } from "next/server";
 
+import { ytDlpBinary } from "@/lib/social-import/ytdlp";
+
 const run = promisify(execFile);
 
 export const dynamic = "force-dynamic";
@@ -56,9 +58,16 @@ export async function POST(req: Request) {
     });
   }
 
+  let bin: string;
+  try {
+    bin = await ytDlpBinary();
+  } catch (err) {
+    return NextResponse.json({ ok: false, error: `yt-dlp isn't available: ${(err as Error).message}` });
+  }
+
   try {
     await run(
-      "yt-dlp",
+      bin,
       [
         "-f",
         "mp4[height<=720]/best[height<=720]",

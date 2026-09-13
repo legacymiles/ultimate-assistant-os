@@ -67,6 +67,10 @@ export interface Dance {
   video?: DanceVideo;
   /** The original TikTok, when known — opened from the modal, for credit. */
   tiktokUrl?: string;
+  /** The link it was added from, on any network (TikTok, Instagram, YouTube, X…). */
+  sourceUrl?: string;
+  /** social-import Platform id for sourceUrl ("tiktok", "instagram", "web", …). */
+  sourcePlatform?: string;
   source: DanceSource;
   /** Only when source === "daily": the day it was picked, as YYYY-MM-DD. */
   dailyDate?: string;

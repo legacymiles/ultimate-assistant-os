@@ -11,18 +11,26 @@
 import { useEffect, useState } from "react";
 
 import type { Dance } from "@/lib/dances/types";
+import { PLATFORM_LABEL, type Platform } from "@/lib/social-import/platform";
 
 interface Props {
   dance: Dance;
   onClose: () => void;
   onChange: (patch: Partial<Dance>) => void;
   onDelete: () => void;
+  /** Hand the original link to Dance Studio to put a character in it. */
+  onUseInStudio?: (url: string, name: string) => void;
 }
 
-export function DanceModal({ dance, onClose, onChange, onDelete }: Props) {
+export function DanceModal({ dance, onClose, onChange, onDelete, onUseInStudio }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [caching, setCaching] = useState<"idle" | "working" | string>("idle");
   const v = dance.video;
+  const originalUrl = dance.sourceUrl ?? dance.tiktokUrl;
+  const originalPlatform = (dance.sourcePlatform ?? (dance.tiktokUrl ? "tiktok" : "web")) as Platform;
+  // The playing YouTube video counts as an original too: the studio can download it.
+  const studioUrl = originalUrl ?? (v?.kind === "youtube" ? `https://www.youtube.com/watch?v=${v.ref}` : undefined);
+  const studioReady = !!studioUrl;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -134,12 +142,12 @@ export function DanceModal({ dance, onClose, onChange, onDelete }: Props) {
                 </dd>
               </>
             )}
-            {dance.tiktokUrl && (
+            {originalUrl && (
               <>
                 <dt>Original</dt>
                 <dd>
-                  <a href={dance.tiktokUrl} target="_blank" rel="noreferrer">
-                    on TikTok
+                  <a href={originalUrl} target="_blank" rel="noreferrer">
+                    on {PLATFORM_LABEL[originalPlatform] ?? "the web"}
                   </a>
                 </dd>
               </>
@@ -186,6 +194,11 @@ export function DanceModal({ dance, onClose, onChange, onDelete }: Props) {
           </label>
 
           <div className="dm__actions">
+            {studioReady && onUseInStudio && (
+              <button type="button" className="btn btn--primary" onClick={() => onUseInStudio(studioUrl!, dance.name)}>
+                Put a character in it
+              </button>
+            )}
             {v?.kind === "youtube" && (
               <button type="button" className="btn" onClick={cacheLocally} disabled={caching === "working"}>
                 {caching === "working" ? "Caching…" : "Cache clip locally"}

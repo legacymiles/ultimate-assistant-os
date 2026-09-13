@@ -59,6 +59,8 @@ std-safe-reports/
 # Dance Vault — daily picks + cached clips
 .dances-daily.json
 public/dances/
+# Dance Studio — local-disk library + media (production uses Supabase)
+.dance-studio-*
 
 # Scratch Overpass queries
 *.osm

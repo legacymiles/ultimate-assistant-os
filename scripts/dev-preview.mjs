@@ -17,6 +17,12 @@ const port = process.argv[2] ?? "3210";
 // anyway, and it means checking a UI never needs a real account's password.
 const noAuth = process.argv.includes("--no-auth");
 
+// --no-auth-keep-storage blanks only the anon key: the sign-in wall is still
+// off, but the server-side Supabase URL + service-role key keep working, so
+// features that need real Storage (Dance Studio hands signed links to a video
+// model) can be verified end to end. Writes go to the real project.
+const keepStorage = process.argv.includes("--no-auth-keep-storage");
+
 spawn("npx", ["next", "dev", "-p", port], {
   stdio: "inherit",
   shell: true,
@@ -25,6 +31,7 @@ spawn("npx", ["next", "dev", "-p", port], {
     ...(noAuth
       ? { NEXT_PUBLIC_SUPABASE_URL: "", NEXT_PUBLIC_SUPABASE_ANON_KEY: "" }
       : {}),
+    ...(keepStorage ? { NEXT_PUBLIC_SUPABASE_ANON_KEY: "" } : {}),
     NEXT_DIST_DIR: `.next-preview-${port}`,
     RECALL_DATA_DIR: resolve(`.preview-data-${port}`),
     // Same reasoning for Dance Vault: a preview run must not write today's

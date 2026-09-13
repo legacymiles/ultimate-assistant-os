@@ -110,6 +110,66 @@ export async function getBlob(
   }
 }
 
+const ensured = new Map<string, Promise<boolean>>();
+
+/**
+ * Make sure a private bucket exists. Migrations create the others; this lets a
+ * new app's bucket appear on first use instead of failing every upload until
+ * someone pastes SQL. A no-op on the file backend.
+ */
+export function ensureBucket(bucket: string): Promise<boolean> {
+  const db = remote();
+  if (!db) return Promise.resolve(true);
+  let pending = ensured.get(bucket);
+  if (!pending) {
+    pending = (async () => {
+      try {
+        const { data } = await db.storage.getBucket(bucket);
+        if (data) return true;
+        const { error } = await db.storage.createBucket(bucket, { public: false });
+        return !error || /already exists/i.test(error.message);
+      } catch {
+        return false;
+      }
+    })();
+    ensured.set(bucket, pending);
+    // A failure is not cached: the next request tries again.
+    void pending.then((ok) => ok || ensured.delete(bucket));
+  }
+  return pending;
+}
+
+/**
+ * A time-limited read link, for handing a private file to a third party that
+ * must download it (a video model). Null on the file backend, where no outside
+ * service could reach the file anyway.
+ */
+export async function signedBlobUrl(bucket: string, key: string, ttlSeconds: number): Promise<string | null> {
+  const db = remote();
+  if (!db) return null;
+  try {
+    const { data, error } = await db.storage.from(bucket).createSignedUrl(key, ttlSeconds);
+    return error ? null : (data?.signedUrl ?? null);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A one-time upload link, so the browser can send a large file straight to
+ * Storage instead of through a function body capped at 4.5 MB.
+ */
+export async function signedUploadUrl(bucket: string, key: string): Promise<string | null> {
+  const db = remote();
+  if (!db) return null;
+  try {
+    const { data, error } = await db.storage.from(bucket).createSignedUploadUrl(key, { upsert: true });
+    return error ? null : (data?.signedUrl ?? null);
+  } catch {
+    return null;
+  }
+}
+
 /** Remove bytes. Already-gone is the outcome we wanted, so failures are quiet. */
 export async function deleteBlob(
   bucket: string,

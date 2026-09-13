@@ -18,9 +18,24 @@ import { AddDanceDialog } from "./AddDanceDialog";
 import { DanceModal } from "./DanceModal";
 import { DanceOfTheDay } from "./DanceOfTheDay";
 import { DanceWall } from "./DanceWall";
+import { DanceStudio } from "./studio/DanceStudio";
 import { Toolbar } from "./Toolbar";
 
+type View = "wall" | "studio";
+
 export function DanceVault() {
+  const [view, setView] = useState<View>("wall");
+  const [studioLink, setStudioLink] = useState<{ url: string; name: string } | null>(null);
+
+  // ?view=studio is shareable and survives a reload.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("view") === "studio") setView("studio");
+  }, []);
+  const switchView = (next: View) => {
+    setView(next);
+    window.history.replaceState(null, "", next === "studio" ? "?view=studio" : window.location.pathname);
+  };
+
   // Storage is browser-only, so the first render must match the server's empty
   // one; everything real arrives in the effect below.
   const [data, setData] = useState<BoardData>({ dances: [] });
@@ -108,8 +123,20 @@ export function DanceVault() {
             on autopilot.
           </p>
         </div>
+        <nav className="dv-tabs" aria-label="Dance Vault views">
+          <button type="button" className={view === "wall" ? "is-on" : ""} onClick={() => switchView("wall")}>
+            Wall
+          </button>
+          <button type="button" className={view === "studio" ? "is-on" : ""} onClick={() => switchView("studio")}>
+            Studio
+          </button>
+        </nav>
       </header>
 
+      {view === "studio" ? (
+        <DanceStudio seedLink={studioLink} onSeedUsed={() => setStudioLink(null)} />
+      ) : (
+        <>
       <DanceOfTheDay
         picks={picks}
         loading={dailyLoading}
@@ -139,10 +166,17 @@ export function DanceVault() {
       )}
 
       {soundHint && <div className="dv__soundhint">Click anywhere to allow sound</div>}
+        </>
+      )}
 
       {open && (
         <DanceModal
           dance={open}
+          onUseInStudio={(url, name) => {
+            setOpenId(null);
+            setStudioLink({ url, name });
+            switchView("studio");
+          }}
           onClose={() => setOpenId(null)}
           onChange={(patch) => setData(store.updateDance(open.id, patch))}
           onDelete={() => {
