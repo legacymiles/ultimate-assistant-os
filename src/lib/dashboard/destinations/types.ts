@@ -54,4 +54,11 @@ export interface Destination<F = Record<string, unknown>> {
   preview(fields: F): DestinationPreview;
   /** Write it. Runs on approve, in the browser. */
   commit(fields: F): Promise<void> | void;
+  /**
+   * The places that already exist inside this app — cookbook names, board
+   * sections. Sent to the agent so "my desert cookbook" resolves to the
+   * existing "Desserts" before the preview, instead of a near-duplicate.
+   * Optional: an app with nowhere to choose from simply omits it.
+   */
+  places?(): Promise<string[]>;
 }

@@ -30,6 +30,7 @@ import { useRemotePull } from "@/lib/sync/useSync";
 import { ReviewQueue, type NewAlbum } from "./ReviewQueue";
 import { PeopleManager } from "./PeopleManager";
 import { IphoneSources } from "./IphoneSources";
+import { gatherKnownPlaces } from "@/lib/dashboard/destinations/registry";
 
 // ---------------------------------------------------------------------------
 // Photos.
@@ -231,12 +232,28 @@ export function PhotosBoard({
     onToast(`Discarded ${ids.length}`);
   }
 
-  async function reread(id: string, forceRoute?: string) {
-    setBusy(forceRoute ? "Reading it again for that app…" : "Re-reading…");
+  async function reread(id: string, forceRoute?: string, userPrompt?: string) {
+    const hasPrompt = Boolean(userPrompt || pending.find((p) => p.id === id)?.userPrompt);
+    setBusy(
+      userPrompt
+        ? "The agent is reading your instructions and the photo…"
+        : forceRoute
+          ? "Reading it again for that app…"
+          : "Re-reading…",
+    );
+    // Tell the agent what already exists: cookbooks, board sections and photo
+    // albums. That is what lets "my desert cookbook" land in the existing
+    // "Desserts" rather than a near-duplicate beside it.
+    const knownPlaces =
+      hasPrompt || forceRoute
+        ? { ...(await gatherKnownPlaces()), "photo albums": photos.categories.map((c) => c.name) }
+        : undefined;
     setPending(
       await reanalyze(id, paths, existingTags, {
         instruction: instruction.trim() || undefined,
         forceRoute,
+        userPrompt,
+        knownPlaces,
       }),
     );
     setBusy(null);
@@ -451,7 +468,7 @@ export function PhotosBoard({
         onReject={(ids) => void reject(ids)}
         onRetarget={(id, path, catId) => setPending(retarget(id, path, catId))}
         onReanalyze={(id) => void reread(id)}
-        onSendTo={(id, routeId) => void reread(id, routeId)}
+        onSendTo={(id, routeId, prompt) => void reread(id, routeId, prompt)}
         onKeepDuplicate={(id) => setPending(keepDuplicate(id))}
         onCreateAlbum={(id, album) => createAlbum(id, album)}
       />

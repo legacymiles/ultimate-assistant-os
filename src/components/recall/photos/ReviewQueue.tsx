@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DESTINATIONS, destinationById } from "@/lib/dashboard/destinations/registry";
 import { Icon } from "../../icons";
 import { categoryPath, groupByDestination } from "@/lib/recall/photos/store";
@@ -52,8 +52,8 @@ interface Props {
   onReject: (photoIds: string[]) => void;
   onRetarget: (photoId: string, path: string[], categoryId: string | null) => void;
   onReanalyze: (photoId: string) => void;
-  /** Re-read the photo as an entry for this app, e.g. "cookbook". */
-  onSendTo: (photoId: string, routeId: string) => void;
+  /** Re-read the photo, optionally as an app's entry and with the user's own instructions. */
+  onSendTo: (photoId: string, routeId?: string, prompt?: string) => void;
   onKeepDuplicate: (photoId: string) => void;
   onCreateAlbum: (photoId: string, album: NewAlbum) => void;
 }
@@ -193,7 +193,7 @@ export function ReviewQueue({
           }}
           onRetarget={(path, catId) => onRetarget(detailPhoto.id, path, catId)}
           onReanalyze={() => onReanalyze(detailPhoto.id)}
-          onSendTo={(routeId) => onSendTo(detailPhoto.id, routeId)}
+          onSendTo={(routeId, prompt) => onSendTo(detailPhoto.id, routeId, prompt)}
           onKeepDuplicate={() => onKeepDuplicate(detailPhoto.id)}
           onCreateAlbum={(album) => onCreateAlbum(detailPhoto.id, album)}
         />
@@ -311,7 +311,7 @@ function PhotoDetail({
   onReject: () => void;
   onRetarget: (path: string[], categoryId: string | null) => void;
   onReanalyze: () => void;
-  onSendTo: (routeId: string) => void;
+  onSendTo: (routeId?: string, prompt?: string) => void;
   onKeepDuplicate: () => void;
   onCreateAlbum: (album: NewAlbum) => void;
 }) {
@@ -320,6 +320,11 @@ function PhotoDetail({
   const [albumName, setAlbumName] = useState("");
   const [albumPeople, setAlbumPeople] = useState<string[]>([]);
   const [albumExact, setAlbumExact] = useState(false);
+  const [agentPrompt, setAgentPrompt] = useState(photo.userPrompt ?? "");
+  // A re-read can move the photo (an album the agent chose, an app the user
+  // picked), so keep the path box showing where it will actually go.
+  const destKey = (photo.destPath ?? []).join(" / ");
+  useEffect(() => setPathText(destKey), [destKey]);
   const a = photo.analysis;
   const nameOf = new Map(photos.people.map((p) => [p.id, p.name]));
 
@@ -441,6 +446,24 @@ function PhotoDetail({
           );
         })()}
 
+        {a?.agentNote && (a.agentNote.followed.length > 0 || a.agentNote.couldNot.length > 0) && (
+          <div className="mb-3 rounded-xl border border-line bg-panel-2 p-2.5">
+            {photo.userPrompt && (
+              <p className="mb-1 text-[10px] text-ink-faint">You asked: “{photo.userPrompt}”</p>
+            )}
+            {a.agentNote.followed.map((line, i) => (
+              <p key={"f" + i} className="text-[11px] leading-relaxed text-emerald-300">
+                ✓ {line}
+              </p>
+            ))}
+            {a.agentNote.couldNot.map((line, i) => (
+              <p key={"c" + i} className="text-[11px] leading-relaxed text-amber-300">
+                ⚠ Couldn’t: {line}
+              </p>
+            ))}
+          </div>
+        )}
+
         {a && a.route === "people" && (
           <div className="mb-3">
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
@@ -505,8 +528,34 @@ function PhotoDetail({
           </details>
         )}
 
+        <div className="mb-3 rounded-xl border border-brand/30 bg-brand/[0.05] p-2.5">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-brand">
+            Tell the agent what to do with this photo
+          </p>
+          <textarea
+            value={agentPrompt}
+            onChange={(e) => setAgentPrompt(e.target.value)}
+            rows={2}
+            placeholder='e.g. "Save this to my Desserts cookbook, leave out the nutrition info, and put the photo in My Little Family"'
+            className="w-full resize-none rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-xs text-ink outline-none placeholder:text-ink-faint focus:border-brand"
+          />
+          <div className="mt-1.5 flex items-center gap-2">
+            <p className="text-[10px] leading-snug text-ink-faint">
+              The agent sees your message and the photo, then shows you the result. Nothing is saved
+              until you tap File it.
+            </p>
+            <button
+              disabled={!agentPrompt.trim()}
+              onClick={() => onSendTo(undefined, agentPrompt.trim())}
+              className="ml-auto shrink-0 rounded-lg bg-brand px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-brand-2 disabled:opacity-40"
+            >
+              Send to agent
+            </button>
+          </div>
+        </div>
+
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
-          Send the details to an app
+          Or pick an app
         </p>
         <div className="mb-3 flex flex-wrap gap-1.5">
           {DESTINATIONS.map((d) => {
@@ -515,7 +564,9 @@ function PhotoDetail({
               <button
                 key={d.id}
                 onClick={() => {
-                  if (!active) onSendTo(d.id);
+                  // With instructions typed, sending to the same app again is a
+                  // real request ("...but leave out the nutrition info").
+                  if (!active || agentPrompt.trim()) onSendTo(d.id, agentPrompt.trim() || undefined);
                 }}
                 title={active ? `Already going to ${d.label}` : `Read this photo as a ${d.label} entry`}
                 className={

@@ -1,5 +1,6 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getLocalCookbookClient } from "@/components/cookbook/localClient";
+import { closestPlace } from "../places";
 import type { Destination } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -21,10 +22,11 @@ import type { Destination } from "./types";
 // — as the first version of this file did — produced blank ingredient and step
 // rows, because every one of those properties was undefined.
 //
-// A recipe needs a parent cookbook, so one is resolved or created before the
-// insert. Photos land in a dedicated "From Photos" cookbook rather than
-// whichever cookbook happens to be first: a filing rule that depends on
-// ordering is a filing rule that moves.
+// Which cookbook: the one the user named ("my Desserts cookbook"), matched to
+// an existing cookbook when it is the same one under another spelling, else
+// created. With nothing named, recipes land in "From Photos" — a dedicated
+// cookbook rather than whichever happens to sort first, because a filing rule
+// that depends on ordering is a filing rule that moves.
 // ---------------------------------------------------------------------------
 
 const INBOX_COOKBOOK = "From Photos";
@@ -53,6 +55,8 @@ export interface RecipeFields {
   servings?: number;
   dietaryTags: string[];
   incomplete: boolean;
+  /** The cookbook the user asked for, or "" for the default inbox cookbook. */
+  cookbook: string;
 }
 
 /**
@@ -68,6 +72,32 @@ type CookbookClient = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   from(table: string): any;
 };
+
+function cookbookClient(): CookbookClient {
+  // Same client the app itself uses: Supabase when configured, the
+  // localStorage shim otherwise. Never the storage key directly.
+  return (getSupabaseBrowserClient() ?? getLocalCookbookClient()) as unknown as CookbookClient;
+}
+
+/**
+ * The signed-in cook. On the shim, getSession provisions the guest on first
+ * visit exactly as opening Cookbook Genie would, so filing a recipe does not
+ * require having opened that app first.
+ */
+async function ownerOf(sb: CookbookClient): Promise<string | null> {
+  const { data } = await sb.auth.getSession();
+  return data?.session?.user?.id ?? null;
+}
+
+async function ownCookbooks(sb: CookbookClient, ownerId: string): Promise<{ id: string; name: string }[]> {
+  const { data, error } = await sb.from("cookbooks").select("id,name").eq("owner_id", ownerId);
+  if (error) throw new Error(`Could not open Cookbook Genie: ${error.message ?? error}`);
+  return Array.isArray(data)
+    ? (data as { id?: string; name?: string }[])
+        .filter((c) => c?.id && c?.name)
+        .map((c) => ({ id: c.id as string, name: c.name as string }))
+    : [];
+}
 
 /** Trimmed text from a string or a number; anything else is "". */
 function text(v: unknown): string {
@@ -158,6 +188,13 @@ export const cookbookDestination: Destination<RecipeFields> = {
         "true if ingredients or steps are cut off, unreadable, or continue onto " +
         "a page not shown.",
     },
+    {
+      name: "cookbook",
+      type: "string",
+      describe:
+        "The user's cookbook this recipe goes in — ONLY when their instructions name one, " +
+        'using their existing cookbook\'s exact name when it is the same one. Otherwise "".',
+    },
   ],
 
   parse(raw) {
@@ -180,6 +217,7 @@ export const cookbookDestination: Destination<RecipeFields> = {
       // Trust the model's own flag, but also infer it: a "recipe" with no
       // ingredients or no steps is missing something whatever the model said.
       incomplete: r.incomplete === true || !ingredients.length || !instructions.length,
+      cookbook: text(r.cookbook).slice(0, 60),
     };
   },
 
@@ -194,7 +232,7 @@ export const cookbookDestination: Destination<RecipeFields> = {
 
     return {
       title: f.title,
-      where: `Cookbook Genie › ${INBOX_COOKBOOK}`,
+      where: `Cookbook Genie › ${f.cookbook || INBOX_COOKBOOK}`,
       lines,
       unverified: f.incomplete
         ? "Ingredients or steps look cut off — check it before cooking from this"
@@ -202,44 +240,42 @@ export const cookbookDestination: Destination<RecipeFields> = {
     };
   },
 
-  async commit(f) {
-    // Same client the app itself uses: Supabase when configured, the
-    // localStorage shim otherwise. Never the storage key directly.
-    const sb = (getSupabaseBrowserClient() ?? getLocalCookbookClient()) as unknown as CookbookClient;
+  async places() {
+    const sb = cookbookClient();
+    const ownerId = await ownerOf(sb);
+    return ownerId ? (await ownCookbooks(sb, ownerId)).map((c) => c.name) : [];
+  },
 
-    // On the shim, getSession provisions the guest on first visit, exactly as
-    // opening Cookbook Genie would — so filing a recipe does not require having
-    // opened that app first.
-    const { data } = await sb.auth.getSession();
-    const ownerId = data?.session?.user?.id;
+  async commit(f) {
+    const sb = cookbookClient();
+    const ownerId = await ownerOf(sb);
     if (!ownerId) {
       throw new Error("Cookbook Genie is signed out — open it, sign in, then file this again.");
     }
 
-    const { data: existing, error: findErr } = await sb
-      .from("cookbooks")
-      .select("id")
-      .eq("owner_id", ownerId)
-      .eq("name", INBOX_COOKBOOK)
-      .maybeSingle();
-    if (findErr) throw new Error(`Could not open Cookbook Genie: ${findErr.message ?? findErr}`);
+    // The named cookbook, as the SAME cookbook under another spelling when one
+    // exists ("desert" → "Desserts"), else a new one by that name. The agent is
+    // given the existing names, so this is normally exact; it is the safety net.
+    const wanted = f.cookbook || INBOX_COOKBOOK;
+    const mine = await ownCookbooks(sb, ownerId);
+    const match = closestPlace(wanted, mine.map((c) => c.name));
+    let cookbookId = match ? mine.find((c) => c.name === match)?.id : undefined;
 
-    let cookbookId = existing?.id as string | undefined;
     if (!cookbookId) {
       const { data: made, error: makeErr } = await sb
         .from("cookbooks")
         .insert({
-          name: INBOX_COOKBOOK,
+          name: wanted,
           description: "Recipes read out of photos by Dashboard.",
           owner_id: ownerId,
           privacy: "private",
         })
         .select()
         .single();
-      if (makeErr) throw new Error(`Could not create “${INBOX_COOKBOOK}”: ${makeErr.message ?? makeErr}`);
+      if (makeErr) throw new Error(`Could not create “${wanted}”: ${makeErr.message ?? makeErr}`);
       cookbookId = made?.id as string | undefined;
     }
-    if (!cookbookId) throw new Error(`Could not open the “${INBOX_COOKBOOK}” cookbook.`);
+    if (!cookbookId) throw new Error(`Could not open the “${wanted}” cookbook.`);
 
     // Supabase reports a failed insert in the return value rather than by
     // throwing. Unchecked, a refused save counted as filed and the photo left

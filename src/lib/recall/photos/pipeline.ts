@@ -38,6 +38,8 @@ import {
 import { analyzePhoto, buildContactSheet, heuristicAnalysis, toThumb } from "./vision";
 import { findDuplicate, fingerprintImage, type FingerprintCandidate } from "./fingerprint";
 import type { PendingPhoto, PhotoAnalysis, PhotosData } from "./types";
+import { PHOTOS_ROOT } from "./types";
+import { closestPlace } from "@/lib/dashboard/places";
 
 /** Photos analysed at once. Three keeps a big import moving without
  *  stampeding the gateway (and its rate limit) from one browser tab. */
@@ -164,6 +166,23 @@ export async function importPhotos(args: ImportArgs): Promise<ImportOutcome> {
 /** Store an analysis against a pending photo along with its destination. */
 function applyAnalysis(id: string, analysis: PhotoAnalysis, photos: PhotosData): PendingPhoto[] {
   const dest = resolveDestination(analysis, photos);
+
+  // The user asked for the picture itself to go in a particular album. It goes
+  // in the existing album they mean ("little family" is "My Little Family"),
+  // or a new one by that name when nothing is close.
+  if (analysis.photoAlbum) {
+    const albums = photos.categories.map((c) => c.name);
+    const name = closestPlace(analysis.photoAlbum, albums) ?? analysis.photoAlbum;
+    const cat = photos.categories.find((c) => c.name === name);
+    return updatePending(id, {
+      status: "ready",
+      analysis,
+      destPath: [PHOTOS_ROOT, name],
+      categoryId: cat?.id ?? null,
+      overridden: true,
+    });
+  }
+
   return updatePending(id, {
     status: "ready",
     analysis,
@@ -177,12 +196,22 @@ export async function reanalyze(
   photoId: string,
   folderPaths: string[],
   existingTags: string[],
-  /** `forceRoute` is set when the user picked where this photo goes, e.g. "cookbook". */
-  options: { instruction?: string; forceRoute?: string } = {},
+  /**
+   * `forceRoute` is set when the user picked an app; `userPrompt` is their own
+   * instructions for this photo; `knownPlaces` lists what already exists.
+   */
+  options: {
+    instruction?: string;
+    forceRoute?: string;
+    userPrompt?: string;
+    knownPlaces?: Record<string, string[]>;
+  } = {},
 ): Promise<PendingPhoto[]> {
   const pending = getQueue().find((p) => p.id === photoId);
   if (!pending) return getQueue();
-  updatePending(photoId, { status: "analyzing" });
+  // Instructions given once keep applying: a later plain Re-read follows them too.
+  const prompt = options.userPrompt ?? pending.userPrompt;
+  updatePending(photoId, { status: "analyzing", userPrompt: prompt });
   const blob = await getFile(pending.fileId);
   if (!blob) {
     return updatePending(photoId, { status: "failed", error: "The file is no longer stored locally." });
@@ -197,6 +226,8 @@ export async function reanalyze(
     existingTags,
     instruction: options.instruction,
     forceRoute: options.forceRoute,
+    userPrompt: prompt,
+    knownPlaces: options.knownPlaces,
   });
   return applyAnalysis(photoId, analysis, photos);
 }

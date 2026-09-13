@@ -1,5 +1,6 @@
-import { addTool } from "@/lib/ai-rankings/store";
+import { addTool, getData } from "@/lib/ai-rankings/store";
 import type { Access, ApiKey, Hosting } from "@/lib/ai-rankings/types";
+import { closestPlace } from "../places";
 import type { Destination } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -49,7 +50,7 @@ export const aiRankingsDestination: Destination<CatalogFields> = {
   appSlug: "ai-rankings",
 
   hint:
-    '"catalog" — the photo is a screenshot of a SOFTWARE TOOL worth remembering: ' +
+    '"ai-rankings" — the photo is a screenshot of a SOFTWARE TOOL worth remembering: ' +
     "a GitHub repository page, a model card, a product landing page, an app " +
     "listing, a pricing page. Route here when the subject is a tool you could " +
     "go and use, not information about the user's own life.",
@@ -65,8 +66,18 @@ export const aiRankingsDestination: Destination<CatalogFields> = {
     },
     { name: "url", type: "string", describe: "The URL visible in the image, or \"\"." },
     { name: "summary", type: "string", describe: "One plain sentence: what it is." },
-    { name: "group", type: "string", describe: "Top-level section: AI, Dev, Design, Media…" },
-    { name: "category", type: "string", describe: "Leaf within the group: Image, Video, Editors…" },
+    {
+      name: "group",
+      type: "string",
+      describe:
+        "Top-level section: AI, Dev, Design, Media… Use the user's existing section when one fits.",
+    },
+    {
+      name: "category",
+      type: "string",
+      describe:
+        "Leaf within the group: Image, Video, Editors… Use the user's existing one when one fits.",
+    },
     { name: "tags", type: "string[]", describe: "Capabilities, lowercase-hyphenated. Max 6." },
     { name: "access", type: '"free"|"freemium"|"paid"', describe: "What it costs the user." },
     { name: "openSource", type: "boolean", describe: "Is the code or are the weights open." },
@@ -135,13 +146,27 @@ export const aiRankingsDestination: Destination<CatalogFields> = {
     };
   },
 
+  async places() {
+    const { tree } = getData();
+    return Object.entries(tree).flatMap(([group, cats]) =>
+      cats.length ? cats.map((c) => `${group} › ${c}`) : [group],
+    );
+  },
+
   commit(f) {
+    // The agent is given the existing sections, so this is normally a no-op.
+    // It is the safety net for a near-miss spelling, which would otherwise add
+    // a second "Image" section beside "Images".
+    const { tree } = getData();
+    const group = closestPlace(f.group, Object.keys(tree)) ?? f.group;
+    const category = closestPlace(f.category, tree[group] ?? []) ?? f.category;
+
     addTool({
       name: f.name,
       url: f.url,
       summary: f.summary,
-      group: f.group,
-      category: f.category,
+      group,
+      category,
       tags: f.tags,
       access: f.access,
       openSource: f.openSource,

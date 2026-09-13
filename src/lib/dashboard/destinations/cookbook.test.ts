@@ -79,8 +79,20 @@ describe("Cookbook destination — validation", () => {
     expect(f?.cookTime).toBeUndefined();
     expect(f?.servings).toBeUndefined();
   });
+});
 
-  it("names the cookbook photos land in", () => {
+describe("Cookbook destination — which cookbook", () => {
+  it("defaults to the From Photos cookbook when none was named", () => {
     expect(d.preview(d.parse(FULL)!).where).toBe("Cookbook Genie › From Photos");
+  });
+
+  it("shows the cookbook the user named, before anything is saved", () => {
+    expect(d.preview(d.parse({ ...FULL, cookbook: "Desserts" })!).where).toBe(
+      "Cookbook Genie › Desserts",
+    );
+  });
+
+  it("treats a blank cookbook as none named", () => {
+    expect(d.parse({ ...FULL, cookbook: "   " })!.cookbook).toBe("");
   });
 });

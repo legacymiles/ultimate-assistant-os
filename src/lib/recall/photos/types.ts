@@ -114,6 +114,10 @@ export interface PhotoAnalysis {
    * requires, and should not have to.
    */
   destination?: { id: string; fields: Record<string, unknown> };
+  /** The Dashboard photo album the user's instructions asked the picture itself to go in. */
+  photoAlbum?: string | null;
+  /** What the agent did because of the user's instructions, and what it could not do. */
+  agentNote?: { followed: string[]; couldNot: string[] } | null;
   engine: "ai" | "heuristic";
 }
 
@@ -150,6 +154,12 @@ export interface PendingPhoto {
   duplicateOf?: { label: string; identical: boolean } | null;
   /** The user saw the duplicate warning and chose to keep this photo anyway. */
   keepDuplicate?: boolean;
+  /**
+   * The user's own instructions for this photo ("save it to my Desserts
+   * cookbook, leave out the nutrition info"). Kept so a later Re-read still
+   * follows them.
+   */
+  userPrompt?: string;
 }
 
 export interface PhotosSettings {

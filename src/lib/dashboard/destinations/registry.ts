@@ -34,6 +34,27 @@ export function destinationById(id: string): Destination | undefined {
 export const DESTINATION_ROUTES = DESTINATIONS.map((d) => d.id);
 
 /**
+ * The places that already exist in each app, keyed by destination id.
+ *
+ * An app that cannot answer — signed out, offline — is left out rather than
+ * failing the whole request: the agent simply does not know that app's places
+ * and falls back to a new name, which the preview still shows before saving.
+ */
+export async function gatherKnownPlaces(): Promise<Record<string, string[]>> {
+  const out: Record<string, string[]> = {};
+  for (const d of DESTINATIONS) {
+    if (!d.places) continue;
+    try {
+      const places = await d.places();
+      if (places.length) out[d.id] = places.slice(0, 80);
+    } catch {
+      /* this app's places are unknown; the agent proposes a name instead */
+    }
+  }
+  return out;
+}
+
+/**
  * The slice of the vision prompt these destinations own.
  *
  * Generated, never hand-written. A destination whose hint says one thing while

@@ -41,6 +41,10 @@ interface Body {
   instruction?: string;
   /** Set when the user picked where this photo goes; enforced below. */
   forceRoute?: string;
+  /** The user's instructions for this photo, followed as instructions. */
+  userPrompt?: string;
+  /** Existing places by destination id, so a named place resolves to one of them. */
+  knownPlaces?: Record<string, string[]>;
 }
 
 async function memberBlocked(): Promise<NextResponse | null> {
@@ -78,6 +82,8 @@ function systemPrompt(
   tags: string[],
   instruction?: string,
   forceRoute?: string,
+  userPrompt?: string,
+  knownPlaces?: Record<string, string[]>,
 ): string {
   const roster = legend.length
     ? legend.map((l) => `  ${l.slot} = ${l.name} (${l.role})`).join("\n")
@@ -125,7 +131,7 @@ function systemPrompt(
     // Generated from the destination registry, so a destination can never be
     // added without the model being told about it.
     destinationPromptBlock() +
-    userGuidance(instruction, forceRoute)
+    userGuidance(instruction, forceRoute, userPrompt, knownPlaces)
   );
 }
 
@@ -159,6 +165,8 @@ async function triage(body: Body, apiKey: string) {
             body.existingTags ?? [],
             body.instruction,
             body.forceRoute,
+            body.userPrompt,
+            body.knownPlaces,
           ),
         },
         { role: "user", content },
@@ -183,6 +191,15 @@ async function triage(body: Body, apiKey: string) {
       fields && typeof fields === "object"
         ? { id: forced, fields: fields as Record<string, unknown> }
         : undefined;
+  }
+  // Only instructions can ask for these, so they are only read back when given.
+  if (body.userPrompt) {
+    const album = parsed?.photoAlbum;
+    analysis.photoAlbum = typeof album === "string" && album.trim() ? album.trim().slice(0, 60) : null;
+    const note = parsed?.agentNote;
+    const lines = (v: unknown) =>
+      Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean).slice(0, 6) : [];
+    analysis.agentNote = { followed: lines(note?.followed), couldNot: lines(note?.couldNot) };
   }
   return analysis;
 }
@@ -243,6 +260,8 @@ function normalize(p: Record<string, unknown>, legend: LegendEntry[]) {
       typeof p?.[route] === "object" && p[route]
         ? { id: route, fields: p[route] as Record<string, unknown> }
         : undefined,
+    photoAlbum: null as string | null,
+    agentNote: null as { followed: string[]; couldNot: string[] } | null,
     engine: "ai" as const,
   };
 }
@@ -250,12 +269,23 @@ function normalize(p: Record<string, unknown>, legend: LegendEntry[]) {
 /**
  * The user's own steer, appended last so it reads as the final word.
  *
- * A forced route is an instruction. The note is strong guidance, but it does
- * not override what an image plainly is: "these are all recipes" must not turn
- * a photo of a receipt into a recipe.
+ * Three strengths, on purpose:
+ *   - a forced route (an app chip) is an instruction;
+ *   - per-photo instructions are instructions too, and may also say where
+ *     inside an app the entry goes and what to include or leave out;
+ *   - the batch note is guidance only, so "these are all recipes" cannot turn a
+ *     photo of a receipt into a recipe.
+ * Nothing the user says licenses inventing a fact that is in neither the image
+ * nor their message.
  */
-function userGuidance(instruction?: string, forceRoute?: string): string {
+function userGuidance(
+  instruction?: string,
+  forceRoute?: string,
+  userPrompt?: string,
+  knownPlaces?: Record<string, string[]>,
+): string {
   const note = (instruction ?? "").trim().slice(0, 500);
+  const prompt = (userPrompt ?? "").trim().slice(0, 1000);
   const parts: string[] = [];
   if (forceRoute) {
     parts.push(
@@ -263,11 +293,36 @@ function userGuidance(instruction?: string, forceRoute?: string): string {
         "fill in every field for it as fully as the image allows.",
     );
   }
+  if (prompt) {
+    parts.push(
+      `The user's instructions for THIS photo: "${prompt}". Follow them exactly. They override your ` +
+        "own judgment about which route to use, where the entry is stored inside that app, and what " +
+        "to include or leave out. If they name an app or a place, use it. Put any extra detail they " +
+        "give into the entry. Never invent a fact that is in neither the image nor these " +
+        "instructions: if they ask for something neither supplies, leave it out and say so in " +
+        "agentNote.couldNot.",
+    );
+    parts.push(
+      'Also return "photoAlbum": string or null (the Dashboard photo album the user wants the ' +
+        "PICTURE itself filed in, only if they asked for one) and " +
+        '"agentNote": {"followed": string[], "couldNot": string[]} (short plain-English lines ' +
+        "saying what you did because of their instructions, and anything you could not do).",
+    );
+  }
   if (note) {
     parts.push(
       `The user says about these photos: "${note}". Treat that as strong guidance about what ` +
         "they are and where they belong. Still read the image: if this photo plainly is not " +
         "what the note describes, route it by what it actually is.",
+    );
+  }
+  const places = Object.entries(knownPlaces ?? {}).filter(([, v]) => Array.isArray(v) && v.length);
+  if (places.length && (prompt || forceRoute)) {
+    parts.push(
+      "EXISTING PLACES. When the user names a place, use the existing one that is the same place " +
+        "or a close match (spelling, plural, capitalisation), with its exact name. Only use a new " +
+        "name when nothing is close.\n" +
+        places.map(([k, v]) => `  ${k}: ${v.join("; ")}`).join("\n"),
     );
   }
   return parts.length ? `\n\nUSER GUIDANCE:\n${parts.join("\n")}` : "";

@@ -195,6 +195,10 @@ export interface AnalyzeArgs {
   instruction?: string;
   /** Where the user has decided this photo goes, e.g. "cookbook". Overrides the guess. */
   forceRoute?: string;
+  /** The user's instructions for THIS photo, followed rather than weighed. */
+  userPrompt?: string;
+  /** Places that already exist, keyed by destination id, so named places resolve to them. */
+  knownPlaces?: Record<string, string[]>;
 }
 
 /**
@@ -216,6 +220,8 @@ export async function analyzePhoto(args: AnalyzeArgs): Promise<PhotoAnalysis> {
         existingTags: args.existingTags,
         instruction: args.instruction,
         forceRoute: args.forceRoute,
+        userPrompt: args.userPrompt,
+        knownPlaces: args.knownPlaces,
         // The model has no clock; without today's date "next Friday" on a
         // flyer is unresolvable and every relative date comes back wrong.
         today: new Date().toISOString().slice(0, 10),
