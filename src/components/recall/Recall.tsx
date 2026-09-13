@@ -21,6 +21,7 @@ import { FolderWorkspace } from "./FolderWorkspace";
 import { SearchResults } from "./SearchResults";
 import { FolderDialog, type FolderDraft } from "./FolderDialog";
 import { MoveFolderDialog } from "./MoveFolderDialog";
+import { DriveBackupCard } from "./DriveBackupCard";
 import { FolderHome } from "./FolderHome";
 import { SecurityDialog } from "./SecurityDialog";
 import { ListsBoard } from "./lists/ListsBoard";
@@ -384,6 +385,8 @@ export function Recall() {
             </div>
 
             {homeTab === "folders" && (
+              <>
+              <DriveBackupCard data={data} onToast={setToast} />
               <FolderHome
                 data={data}
                 onOpen={navigate}
@@ -394,6 +397,7 @@ export function Recall() {
                 onOpenUnfiled={() => navigate(UNFILED)}
                 onOpenPhotos={() => setHomeTab("photos")}
               />
+              </>
             )}
             {homeTab === "photos" && (
               <PhotosBoard

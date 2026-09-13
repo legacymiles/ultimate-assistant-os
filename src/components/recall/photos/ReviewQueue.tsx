@@ -8,6 +8,7 @@ import type { DestGroup } from "@/lib/recall/photos/store";
 import type { PendingPhoto, PhotosData } from "@/lib/recall/photos/types";
 import { PHOTOS_ROOT } from "@/lib/recall/photos/types";
 import { formatDayKey, formatTime } from "@/lib/recall/calendar/types";
+import { getFile } from "@/lib/recall/files";
 
 // ---------------------------------------------------------------------------
 // The review queue.
@@ -71,6 +72,8 @@ export function ReviewQueue({
   onCreateAlbum,
 }: Props) {
   const [detail, setDetail] = useState<string | null>(null);
+  /** The photo shown full-screen, or null. */
+  const [enlarged, setEnlarged] = useState<PendingPhoto | null>(null);
   const groups = useMemo(() => groupByDestination(pending), [pending]);
   const analyzing = pending.filter((p) => p.status === "analyzing").length;
   const failed = pending.filter((p) => p.status === "failed");
@@ -145,6 +148,8 @@ export function ReviewQueue({
         </div>
       )}
 
+      {enlarged && <Lightbox photo={enlarged} onClose={() => setEnlarged(null)} />}
+
       <div className="space-y-3">
         {groups.map((g) => (
           <GroupSection
@@ -154,6 +159,7 @@ export function ReviewQueue({
             onApprove={onApprove}
             onReject={onReject}
             onOpen={setDetail}
+            onEnlarge={setEnlarged}
           />
         ))}
       </div>
@@ -196,6 +202,7 @@ export function ReviewQueue({
           onSendTo={(routeId, prompt) => onSendTo(detailPhoto.id, routeId, prompt)}
           onKeepDuplicate={() => onKeepDuplicate(detailPhoto.id)}
           onCreateAlbum={(album) => onCreateAlbum(detailPhoto.id, album)}
+          onEnlarge={() => setEnlarged(detailPhoto)}
         />
       )}
     </div>
@@ -208,12 +215,14 @@ function GroupSection({
   onApprove,
   onReject,
   onOpen,
+  onEnlarge,
 }: {
   group: DestGroup;
   busy: boolean;
   onApprove: (ids: string[]) => void;
   onReject: (ids: string[]) => void;
   onOpen: (id: string) => void;
+  onEnlarge: (photo: PendingPhoto) => void;
 }) {
   const allIds = group.photos.map((p) => p.id);
   const ids = group.photos.filter((p) => !heldBack(p)).map((p) => p.id);
@@ -253,12 +262,12 @@ function GroupSection({
 
       <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-8">
         {group.photos.map((p) => (
+          <div key={p.id} className="group/cell relative">
           <button
-            key={p.id}
             onClick={() => onOpen(p.id)}
             title={p.analysis?.title ?? p.name}
             className={
-              "group relative aspect-square overflow-hidden rounded-lg bg-panel-2 ring-offset-2 ring-offset-panel transition " +
+              "group relative block aspect-square w-full overflow-hidden rounded-lg bg-panel-2 ring-offset-2 ring-offset-panel transition " +
               (heldBack(p) ? "ring-2 ring-red-500" : "hover:ring-2 hover:ring-brand")
             }
           >
@@ -284,6 +293,15 @@ function GroupSection({
               <span className="line-clamp-2">{p.analysis?.title ?? p.name}</span>
             </span>
           </button>
+          <button
+            onClick={() => onEnlarge(p)}
+            aria-label={`View ${p.analysis?.title ?? p.name} larger`}
+            title="View larger"
+            className="absolute bottom-1 right-1 z-10 rounded-md bg-black/70 p-1 text-white opacity-0 backdrop-blur transition hover:bg-black/90 focus:opacity-100 group-hover/cell:opacity-100"
+          >
+            <Icon.ZoomIn width={12} height={12} />
+          </button>
+          </div>
         ))}
       </div>
     </div>
@@ -303,6 +321,7 @@ function PhotoDetail({
   onSendTo,
   onKeepDuplicate,
   onCreateAlbum,
+  onEnlarge,
 }: {
   photo: PendingPhoto;
   photos: PhotosData;
@@ -314,6 +333,7 @@ function PhotoDetail({
   onSendTo: (routeId?: string, prompt?: string) => void;
   onKeepDuplicate: () => void;
   onCreateAlbum: (album: NewAlbum) => void;
+  onEnlarge: () => void;
 }) {
   const [pathText, setPathText] = useState((photo.destPath ?? []).join(" / "));
   const [albumOpen, setAlbumOpen] = useState(false);
@@ -340,11 +360,22 @@ function PhotoDetail({
         <div className="mb-3 flex items-start gap-3">
           {photo.thumb && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={photo.thumb}
-              alt={a?.title ?? photo.name}
-              className={"h-24 w-24 shrink-0 rounded-xl object-cover " + (heldBack(photo) ? "ring-2 ring-red-500" : "")}
-            />
+            <button
+              onClick={onEnlarge}
+              title="View larger"
+              aria-label="View this photo larger"
+              className="group/enl relative shrink-0 cursor-zoom-in rounded-xl"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photo.thumb}
+                alt={a?.title ?? photo.name}
+                className={"h-24 w-24 rounded-xl object-cover " + (heldBack(photo) ? "ring-2 ring-red-500" : "")}
+              />
+              <span className="absolute bottom-1 right-1 rounded-md bg-black/70 p-1 text-white opacity-80 transition group-hover/enl:opacity-100">
+                <Icon.ZoomIn width={12} height={12} />
+              </span>
+            </button>
           )}
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-ink">{a?.title ?? photo.name}</p>
@@ -723,6 +754,88 @@ function PhotoDetail({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ----- enlarge ---------------------------------------------------------------
+
+/**
+ * The photo at full size, for checking a face or reading small print before
+ * filing it.
+ *
+ * Loaded from the full stored file rather than the review thumbnail: the
+ * thumbnail is a 180px square crop, which is exactly too small for that job.
+ * The thumbnail shows first so the view opens instantly, then is replaced.
+ */
+function Lightbox({ photo, onClose }: { photo: PendingPhoto; onClose: () => void }) {
+  const [src, setSrc] = useState<string | undefined>(photo.thumb);
+  const [fullSize, setFullSize] = useState(false);
+
+  useEffect(() => {
+    let url: string | null = null;
+    let cancelled = false;
+    void getFile(photo.fileId)
+      .then((blob) => {
+        if (!blob || cancelled) return;
+        url = URL.createObjectURL(blob);
+        setSrc(url);
+        setFullSize(true);
+      })
+      .catch(() => {
+        /* the thumbnail stays up: a small view beats none */
+      });
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [photo.fileId]);
+
+  // Capture phase, and stopped there: Esc should close only this view, not
+  // the review screen sitting underneath it as well.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopImmediatePropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+
+  const title = photo.analysis?.title ?? photo.name;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${title}, enlarged`}
+      className="fixed inset-0 z-[90] flex flex-col items-center justify-center bg-black/90 p-4"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        aria-label="Close enlarged photo"
+        title="Close (Esc)"
+        className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/30"
+      >
+        <Icon.Close width={22} height={22} />
+      </button>
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={title}
+          onClick={(e) => e.stopPropagation()}
+          className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl"
+        />
+      ) : (
+        <p className="text-sm text-white/70">This photo is no longer stored on this device.</p>
+      )}
+      <p className="mt-3 max-w-xl text-center text-xs text-white/70" onClick={(e) => e.stopPropagation()}>
+        {title}
+        {src && !fullSize ? " · loading full size…" : ""}
+      </p>
     </div>
   );
 }

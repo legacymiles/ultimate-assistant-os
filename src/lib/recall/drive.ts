@@ -164,7 +164,7 @@ export async function pickFromDrive(): Promise<DriveFile[]> {
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 
 /** A live token, from cache when one is still good. */
-async function accessToken(): Promise<string> {
+export async function accessToken(): Promise<string> {
   if (cachedToken && cachedToken.expires > Date.now()) return cachedToken.token;
   await ensureLibraries();
   return requestToken();
@@ -176,7 +176,7 @@ export async function primeDriveAuth(): Promise<void> {
   await accessToken();
 }
 
-async function driveJson(url: string, token: string, init?: RequestInit): Promise<any> {
+export async function driveJson(url: string, token: string, init?: RequestInit): Promise<any> {
   const res = await fetch(url, {
     ...init,
     headers: { ...(init?.headers ?? {}), Authorization: `Bearer ${token}` },
@@ -300,4 +300,20 @@ export async function backupPhotos(
     opts.onProgress?.({ done, total: targets.length, current: t.name });
   }
   return result;
+}
+
+/** True when the client id needed to sign in exists. Backing up does not need the Picker's API key. */
+export function driveClientConfigured(): boolean {
+  return Boolean(CLIENT_ID);
+}
+
+/**
+ * True while a Drive approval from this visit is still valid.
+ *
+ * An automatic backup checks this first. Asking Google for a new token opens a
+ * consent window, and a window that pops up with no click behind it is blocked
+ * by the browser — so an automatic run waits for the user instead.
+ */
+export function driveTokenLive(): boolean {
+  return Boolean(cachedToken && cachedToken.expires > Date.now());
 }
