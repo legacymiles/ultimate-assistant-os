@@ -45,7 +45,7 @@ function loadScript(src: string): Promise<void> {
 }
 
 let pickerReady = false;
-async function ensureLibraries(): Promise<void> {
+export async function ensureLibraries(): Promise<void> {
   await Promise.all([
     loadScript("https://accounts.google.com/gsi/client"),
     loadScript("https://apis.google.com/js/api.js"),
@@ -75,8 +75,12 @@ function requestToken(): Promise<string> {
           // halfway through a multi-file upload.
           cachedToken = { token: resp.access_token, expires: Date.now() + ttl - 60_000 };
           resolve(resp.access_token as string);
-        } else reject(new Error("Drive authorization was cancelled."));
+        } else reject(new Error(explainGoogleError(resp?.error, resp?.error_description)));
       },
+      // Without this, a blocked or closed Google window left the promise pending
+      // forever: the caller never heard back, and the backup card spun on
+      // "Checking what is already on Drive…" with no explanation at all.
+      error_callback: (err: any) => reject(new Error(explainGoogleError(err?.type, err?.message))),
     });
     tokenClient.requestAccessToken({ prompt: "" });
   });
@@ -316,4 +320,37 @@ export function driveClientConfigured(): boolean {
  */
 export function driveTokenLive(): boolean {
   return Boolean(cachedToken && cachedToken.expires > Date.now());
+}
+
+/**
+ * A Google sign-in failure, in words the user can act on.
+ *
+ * The raw codes ("popup_failed_to_open", "access_denied") mean nothing to
+ * someone who just clicked a button, and most of them point at one specific
+ * setting in Google Cloud Console — so the message names that setting.
+ */
+export function explainGoogleError(code?: string, detail?: string): string {
+  switch (code) {
+    case "popup_failed_to_open":
+      return "Your browser blocked Google's sign-in window. Allow pop-ups for this site, then tap the button again.";
+    case "popup_closed":
+      return (
+        "Google's sign-in window closed before finishing. If it showed an error such as " +
+        "origin_mismatch or access denied, fix that setting in Google Cloud and try again."
+      );
+    case "access_denied":
+      return (
+        "Google refused access. In Google Cloud, open OAuth consent screen, then Test users, " +
+        "and add the Google account you are signing in with."
+      );
+    case "origin_mismatch":
+    case "invalid_request":
+      return (
+        "Google does not recognise this website. In Google Cloud, open Credentials, edit the " +
+        `OAuth client, and add ${typeof window === "undefined" ? "this site's address" : window.location.origin} ` +
+        "under Authorized JavaScript origins."
+      );
+    default:
+      return `Google sign-in failed${code ? ` (${code})` : ""}${detail ? `: ${detail}` : ""}.`;
+  }
 }

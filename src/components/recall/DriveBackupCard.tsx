@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
-import { backupConfigured, folderUrl } from "@/lib/dashboard/driveBackup/driveApi";
+import { backupConfigured, explainDriveFailure, folderUrl } from "@/lib/dashboard/driveBackup/driveApi";
 import { runBackup, type BackupProgress, type BackupSummary } from "@/lib/dashboard/driveBackup/run";
 import {
   getDriveBackupSettings,
   saveDriveBackupSettings,
   type DriveBackupSettings,
 } from "@/lib/dashboard/driveBackup/settings";
-import { driveTokenLive } from "@/lib/recall/drive";
+import { driveTokenLive, ensureLibraries } from "@/lib/recall/drive";
 import type { RecallData } from "@/lib/recall/types";
 
 // ---------------------------------------------------------------------------
@@ -47,6 +47,13 @@ export function DriveBackupCard({ data, onToast }: { data: RecallData; onToast: 
 
   useEffect(() => setSettings(getDriveBackupSettings()), []);
 
+  // Load Google's sign-in script as soon as the card appears. Browsers only let
+  // a page open a pop-up close behind a click; loading the script inside the
+  // click spends that window on a download, and the sign-in window gets blocked.
+  useEffect(() => {
+    if (backupConfigured()) void ensureLibraries().catch(() => undefined);
+  }, []);
+
   // Anything that would change what is on Drive: items edited, added or moved,
   // folders added, renamed or moved.
   const signature = useMemo(() => {
@@ -77,7 +84,7 @@ export function DriveBackupCard({ data, onToast }: { data: RecallData; onToast: 
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Backup failed";
-        setError(/cancel/i.test(msg) ? "Google approval was cancelled — nothing was backed up." : msg);
+        setError(explainDriveFailure(msg));
       } finally {
         setProgress(null);
         running.current = false;

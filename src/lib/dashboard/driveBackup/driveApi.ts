@@ -21,6 +21,29 @@ export function folderUrl(id: string): string {
   return `https://drive.google.com/drive/folders/${id}`;
 }
 
+/**
+ * A failed Drive request, in words the user can act on.
+ *
+ * Drive answers a misconfigured project with a long JSON error. The one that
+ * matters most on first setup — the Drive API was never switched on for the
+ * Google Cloud project — is common, and fixable in one click once named.
+ */
+export function explainDriveFailure(message: string): string {
+  if (/accessNotConfigured|has not been used in project|Drive API.*disabled|SERVICE_DISABLED/i.test(message)) {
+    return (
+      "The Google Drive API is not turned on for your Google Cloud project. In Google Cloud, open " +
+      "APIs & Services, then Library, enable Google Drive API, wait a minute, and try again."
+    );
+  }
+  if (/Drive 401/.test(message)) {
+    return "Google's approval expired. Tap the button again to re-approve.";
+  }
+  if (/Drive 403/.test(message) && /insufficient|scope/i.test(message)) {
+    return "Google did not grant Drive access. Tap the button again and allow access when Google asks.";
+  }
+  return message;
+}
+
 /** Every live file and folder carrying this app's marker. */
 export async function listAppEntries(appValue: string): Promise<DriveEntry[]> {
   const token = await accessToken();
