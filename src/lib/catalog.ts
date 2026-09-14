@@ -599,6 +599,25 @@ export const PROJECTS: CatalogProject[] = [
     iconStyle: "waves",
     hue: [280, 320],
   },
+  {
+    slug: "game-creator",
+    title: "Game Creator",
+    tag: "Describe a game → Unreal Engine builds it",
+    category: "Apps",
+    overview:
+      "Type an idea for a video game and Unreal Engine 5.8 on your own PC builds it. A builder on the " +
+      "PC picks up each prompt and runs Claude Code with the Unreal game-builder skill: it writes a " +
+      "one-page design, creates a Blueprint project from the right engine template, builds the " +
+      "gameplay through Epic's in-editor MCP tools (Blueprint graphs, level actors, HUD widgets), " +
+      "playtests it in the editor, takes screenshots from the player's eye, and packages a Windows " +
+      "game. Every game lands in a gallery that updates live while it is being built — status, the " +
+      "design document, the build log, what was built and what was left out, and the controls. A " +
+      "finished game opens straight into Unreal or launches to play on the PC that built it.",
+    status: "live",
+    appUrl: "/apps/game-creator",
+    iconStyle: "orbit",
+    hue: [265, 330],
+  },
 ];
 
 export function getProject(slug: string): CatalogProject | null {

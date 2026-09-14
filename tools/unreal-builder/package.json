@@ -1,0 +1,13 @@
+{
+  "name": "unreal-builder",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Runs on the PC with Unreal Engine: builds the games queued in the Game Creator app with Claude Code and the unreal-game-builder skill.",
+  "scripts": {
+    "builder": "node builder.mjs",
+    "builder:once": "node builder.mjs --once",
+    "builder:install": "node install.mjs",
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}

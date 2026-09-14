@@ -27,6 +27,15 @@ export { gateHash as timelineHash };
  */
 const UID_COOKIE = "hub_uid";
 
+/** API paths authenticated by a per-user token instead of a session. Exact matches only. */
+const TOKEN_AUTH_PATHS = new Set([
+  "/api/dashboard/inbox/push",
+  "/api/game-creator/builder/claim",
+  "/api/game-creator/builder/progress",
+  "/api/game-creator/builder/screenshot",
+  "/api/game-creator/builder/fail",
+]);
+
 /** Stamp (or clear) the account id the browser is allowed to render as. */
 function setUidCookie(response: NextResponse, userId: string | null): NextResponse {
   if (userId) {
@@ -62,14 +71,16 @@ export async function middleware(request: NextRequest) {
   }
 
   // ----- Token-authenticated ingest ---------------------------------------
-  // The iPhone Shortcut that pushes photos has no Supabase session and never
-  // will — it is the Shortcuts app, not a browser. It presents a per-user
-  // device token instead, which the route verifies against a stored hash.
+  // Two callers have no Supabase session and never will, because they are not
+  // browsers: the iPhone Shortcut that pushes photos, and the Game Creator
+  // builder running on the owner's PC. Each presents a per-user token, which
+  // its route verifies against a stored hash before touching anything.
   //
-  // This is the ONLY session-exempt API path, and it is exempt by exact match,
-  // not by prefix: /api/dashboard/inbox (list) and .../claim and .../token all
-  // stay behind the session gate, because those read or mint secrets.
-  if (path === "/api/dashboard/inbox/push") return NextResponse.next();
+  // These are the ONLY session-exempt API paths, exempt by exact match, never
+  // by prefix: /api/dashboard/inbox (list), .../claim, .../token, and every
+  // /api/game-creator route outside builder/* stay behind the session gate,
+  // because those read owner data or mint the tokens themselves.
+  if (TOKEN_AUTH_PATHS.has(path)) return NextResponse.next();
 
   // ----- Supabase session refresh + login gate ----------------------------
   if (!supabaseConfigured) return NextResponse.next();

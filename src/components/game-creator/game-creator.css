@@ -1,0 +1,84 @@
+/* Game Creator — the few things Tailwind utilities do not express well. */
+
+.gc-hero__glow {
+  position: absolute;
+  inset: -40% -10% auto auto;
+  width: 60%;
+  aspect-ratio: 1;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--color-brand) 28%, transparent), transparent 70%);
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+/* The "being forged" placeholder for a game with no screenshot yet. */
+.gc-forge {
+  background:
+    radial-gradient(120% 90% at 50% 110%, color-mix(in srgb, var(--color-brand) 22%, transparent), transparent 60%),
+    var(--color-canvas);
+  overflow: hidden;
+}
+.gc-forge[data-status="failed"] {
+  background:
+    radial-gradient(120% 90% at 50% 110%, rgba(239, 68, 68, 0.18), transparent 60%),
+    var(--color-canvas);
+}
+.gc-forge[data-status="queued"] {
+  background:
+    radial-gradient(120% 90% at 50% 110%, color-mix(in srgb, var(--color-ink-faint) 18%, transparent), transparent 60%),
+    var(--color-canvas);
+}
+
+.gc-forge__grid {
+  position: absolute;
+  inset: -50% -10% 0;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--color-line) 90%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-line) 90%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+  transform: perspective(420px) rotateX(58deg);
+  transform-origin: 50% 100%;
+  mask-image: linear-gradient(to top, black 10%, transparent 85%);
+  animation: gc-grid 3.2s linear infinite;
+}
+
+.gc-forge__scan {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in srgb, var(--color-accent) 16%, transparent) 48%,
+    transparent 52%
+  );
+  animation: gc-scan 2.6s ease-in-out infinite;
+}
+.gc-forge[data-status="queued"] .gc-forge__scan,
+.gc-forge[data-status="failed"] .gc-forge__scan {
+  display: none;
+}
+.gc-forge[data-status="queued"] .gc-forge__grid,
+.gc-forge[data-status="failed"] .gc-forge__grid {
+  animation: none;
+}
+
+@keyframes gc-grid {
+  to {
+    background-position: 0 28px;
+  }
+}
+
+@keyframes gc-scan {
+  0% {
+    transform: translateY(-60%);
+  }
+  100% {
+    transform: translateY(60%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gc-forge__grid,
+  .gc-forge__scan {
+    animation: none;
+  }
+}

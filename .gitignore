@@ -1,5 +1,5 @@
 # dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.js
 
@@ -61,6 +61,9 @@ std-safe-reports/
 public/dances/
 # Dance Studio — local-disk library + media (production uses Supabase)
 .dance-studio-*
+
+# Game Creator — local-disk games document + screenshots (production uses Supabase)
+.data/
 
 # Scratch Overpass queries
 *.osm
