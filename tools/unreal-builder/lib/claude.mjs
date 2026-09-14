@@ -64,10 +64,22 @@ export function linesFromEvent(ev) {
  */
 export function runClaude({ prompt, cwd, model, onLine, signal }) {
   return new Promise((resolve) => {
-    const args = ["-p", prompt, "--output-format", "stream-json", "--verbose", "--permission-mode", "bypassPermissions"];
-    if (model) args.push("--model", model);
+    // The prompt goes in on stdin, never as an argument. On Windows `claude` is
+    // an npm .cmd shim, so it must run through the shell, and the shell joins
+    // arguments without escaping: a multi-line prompt with quotes in it arrives
+    // mangled. Only fixed flags pass through the command line.
+    const args = ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "bypassPermissions"];
+    if (model && /^[\w.:-]+$/.test(model)) args.push("--model", model);
 
-    const child = spawn("claude", args, { cwd, shell: process.platform === "win32", windowsHide: true, env: process.env });
+    const child = spawn("claude", args, {
+      cwd,
+      shell: process.platform === "win32",
+      windowsHide: true,
+      env: process.env,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    child.stdin.on("error", () => {});
+    child.stdin.end(prompt);
     const lastLines = [];
     let result = null;
     let buffer = "";
