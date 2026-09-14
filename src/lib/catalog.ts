@@ -441,14 +441,22 @@ export const PROJECTS: CatalogProject[] = [
     hue: [40, 24],
   },
   {
-    slug: "image-lab",
-    title: "Image Lab",
-    tag: "AI image studio",
+    slug: "image-studio",
+    title: "Image Studio",
+    tag: "Specialist image agents",
     category: "Image",
     overview:
-      "A creative workspace for generating, editing and remixing images with AI. Combine prompts, " +
-      "reference images and presets to produce on-brand visuals fast.",
-    status: "coming-soon",
+      "A studio of specialist image agents, each an expert in one look. Nostalgia turns you into a " +
+      "photo from any decade — 70s Polaroid, 90s disposable, VHS still. Glamour shoots sultry, " +
+      "magazine-grade editorial portraits. Family Portrait arranges everyone you upload into the photo " +
+      "you'd frame. Cartoon → Real brings any cartoon or anime character to life as a real person. GTA " +
+      "Life drops you into your most unhinged moments: wrestling bears, yacht chaos, headlining a " +
+      "stadium. Write a prompt, add reference photos and tag each one as a Person to keep or a Style to " +
+      "borrow; the agent rewrites your idea into a detailed prompt you can edit, then generates up to " +
+      "four variations. Everything lands in a gallery you can filter by agent, download, or refine into " +
+      "the next round.",
+    status: "live",
+    appUrl: "/apps/image-studio",
     iconStyle: "mesh",
     hue: [320, 20],
   },
