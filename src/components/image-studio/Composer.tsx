@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icons";
 import type { ImageAgent } from "@/lib/image-studio/agents";
+import { imageUrlFromDrop } from "@/lib/image-studio/files";
 import { MAX_REFS, type RefRole } from "@/lib/image-studio/prompt";
 
 export interface Ref {
@@ -19,6 +20,7 @@ interface Props {
   refs: Ref[];
   onRefs: (refs: Ref[]) => void;
   onFiles: (files: File[]) => void;
+  onUrl: (url: string) => void;
   expanded: string | null;
   onExpanded: (v: string | null) => void;
   count: number;
@@ -66,7 +68,7 @@ export function Composer(p: Props) {
         />
       </label>
 
-      <RefTray refs={p.refs} onRefs={p.onRefs} onFiles={p.onFiles} />
+      <RefTray refs={p.refs} onRefs={p.onRefs} onFiles={p.onFiles} onUrl={p.onUrl} />
 
       <div className="flex gap-2">
         <button
@@ -139,11 +141,34 @@ export function Composer(p: Props) {
   );
 }
 
-function RefTray({ refs, onRefs, onFiles }: { refs: Ref[]; onRefs: (r: Ref[]) => void; onFiles: (f: File[]) => void }) {
+function RefTray({
+  refs,
+  onRefs,
+  onFiles,
+  onUrl,
+}: {
+  refs: Ref[];
+  onRefs: (r: Ref[]) => void;
+  onFiles: (f: File[]) => void;
+  onUrl: (url: string) => void;
+}) {
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
   const setRole = (id: string, role: RefRole) => onRefs(refs.map((r) => (r.id === id ? { ...r, role } : r)));
+
+  // Ctrl/Cmd+V a copied image or screenshot anywhere on the page.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const files = Array.from(e.clipboardData?.files ?? []);
+      // Text pastes carry no files, so typing into the prompt boxes is untouched.
+      if (!files.length) return;
+      e.preventDefault();
+      onFiles(files);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [onFiles]);
 
   return (
     <div
@@ -151,11 +176,17 @@ function RefTray({ refs, onRefs, onFiles }: { refs: Ref[]; onRefs: (r: Ref[]) =>
         e.preventDefault();
         setDragging(true);
       }}
-      onDragLeave={() => setDragging(false)}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+      }}
       onDrop={(e) => {
         e.preventDefault();
         setDragging(false);
-        onFiles(Array.from(e.dataTransfer.files));
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length) return onFiles(files);
+        const url = imageUrlFromDrop(e.dataTransfer.getData("text/uri-list"), e.dataTransfer.getData("text/html"));
+        if (url) onUrl(url);
+        else onFiles([]);
       }}
       className={`rounded-lg border border-dashed p-2 transition ${dragging ? "border-[var(--color-brand)] bg-panel-2" : "border-line"}`}
     >
@@ -190,7 +221,7 @@ function RefTray({ refs, onRefs, onFiles }: { refs: Ref[]; onRefs: (r: Ref[]) =>
           onClick={() => input.current?.click()}
           className="w-full rounded-md py-4 text-center text-[12px] text-ink-faint hover:text-ink-muted"
         >
-          Drop photos here or click to add — tag each as a Person or a Style
+          Click to add, drop photos here, or paste a screenshot — then tag each as a Person or a Style
         </button>
       ) : (
         <div className="grid grid-cols-3 gap-2">

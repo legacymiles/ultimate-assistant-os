@@ -111,14 +111,47 @@ export async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
  * the request size limit and makes the model call faster.
  */
 export async function downscaleToDataUrl(file: Blob, max = 1024, quality = 0.86): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+  const source = await decode(file);
+  const scale = Math.min(1, max / Math.max(source.width, source.height));
   const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  canvas.width = Math.max(1, Math.round(source.width * scale));
+  canvas.height = Math.max(1, Math.round(source.height * scale));
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas is unavailable in this browser.");
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
+  // JPEG has no alpha: paint white first so transparent PNGs don't turn black.
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(source.image, 0, 0, canvas.width, canvas.height);
+  source.close();
   return canvas.toDataURL("image/jpeg", quality);
+}
+
+interface Decoded {
+  image: CanvasImageSource;
+  width: number;
+  height: number;
+  close: () => void;
+}
+
+/**
+ * createImageBitmap first; an <img> element as the fallback. Safari decodes
+ * HEIC through <img> but not always through createImageBitmap, and a blob with
+ * no MIME type is sniffed more reliably by <img>.
+ */
+async function decode(file: Blob): Promise<Decoded> {
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    return { image: bitmap, width: bitmap.width, height: bitmap.height, close: () => bitmap.close() };
+  } catch {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      return { image: img, width: img.naturalWidth, height: img.naturalHeight, close: () => URL.revokeObjectURL(url) };
+    } catch (err) {
+      URL.revokeObjectURL(url);
+      throw err;
+    }
+  }
 }

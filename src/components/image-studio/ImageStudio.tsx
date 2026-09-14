@@ -10,6 +10,7 @@ import { generateOne, rewrite } from "./api";
 import { AGENTS, agentById } from "@/lib/image-studio/agents";
 import { loadGallery, saveGallery, type GalleryItem } from "@/lib/image-studio/gallery";
 import { dataUrlToBlob, deleteMedia, downscaleToDataUrl, getMedia, putMedia } from "@/lib/image-studio/media";
+import { isHeic, pickImageFiles } from "@/lib/image-studio/files";
 import { fallbackPrompt, MAX_REFS } from "@/lib/image-studio/prompt";
 import { uid } from "@/lib/utils";
 
@@ -127,20 +128,44 @@ export function ImageStudio() {
   };
 
   const addFiles = async (files: File[]) => {
+    setError("");
+    setNotice("");
+    if (!files.length) return setError("No image came through. Try the Add button, or save the image to your device first.");
     const room = MAX_REFS - refs.length;
-    if (room <= 0) return setError(`You can use up to ${MAX_REFS} reference images.`);
-    if (files.length > room) setNotice(`Only the first ${room} image${room === 1 ? "" : "s"} were added (limit ${MAX_REFS}).`);
+    if (room <= 0) return setError(`You can use up to ${MAX_REFS} reference images. Remove one first.`);
+    const { accepted, skipped } = pickImageFiles(files, room, MAX_REFS);
+    const problems = skipped.map((s) => `"${s.name}" ${s.reason}`);
     const added: Ref[] = [];
-    for (const file of files.filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name)).slice(0, room)) {
+    for (const file of accepted) {
       try {
-        added.push({ id: uid("ref"), role: "person", name: file.name, dataUrl: await downscaleToDataUrl(file) });
+        added.push({ id: uid("ref"), role: "person", name: file.name || "Photo", dataUrl: await downscaleToDataUrl(file) });
       } catch {
-        setError(`Couldn't read "${file.name}". HEIC photos from iPhone may need converting to JPEG first.`);
+        problems.push(
+          isHeic(file)
+            ? `"${file.name}" is an iPhone HEIC photo this browser can't open. Share it as JPEG (Photos → Share → Options → "Most Compatible") or take a screenshot of it.`
+            : `"${file.name}" couldn't be opened as an image.`,
+        );
       }
     }
     if (added.length) {
       setRefs((prev) => [...prev, ...added].slice(0, MAX_REFS));
       setExpanded(null);
+    }
+    if (problems.length) {
+      const text = problems.join(" ");
+      if (added.length) setNotice(`Added ${added.length}. ${text}`);
+      else setError(text);
+    }
+  };
+
+  const addFromUrl = async (url: string) => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(String(res.status));
+      const blob = await res.blob();
+      await addFiles([new File([blob], url.split("/").pop()?.split("?")[0] || "dropped-image", { type: blob.type })]);
+    } catch {
+      setError("That website doesn't let other sites copy its images. Save the image to your device, then drop the file here.");
     }
   };
 
@@ -202,6 +227,7 @@ export function ImageStudio() {
               setExpanded(null);
             }}
             onFiles={addFiles}
+            onUrl={addFromUrl}
             expanded={expanded}
             onExpanded={setExpanded}
             count={count}
