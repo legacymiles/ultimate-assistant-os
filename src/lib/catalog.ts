@@ -266,6 +266,33 @@ export const PROJECTS: CatalogProject[] = [
     hue: [268, 320],
   },
   {
+    slug: "music-classified",
+    title: "Music Classified",
+    tag: "Your favourite songs, filed by how they hit",
+    category: "Music",
+    overview:
+      "A private catalogue of the songs you love, organised by what they actually sound like. Type a " +
+      "song name or paste a YouTube, Apple Music or Spotify link; it confirms the exact recording " +
+      "against the music catalogue, measures the tempo and key off the 30-second preview right in " +
+      "your browser, and files it on a 1–10 energy ladder — 1 still and ambient, 10 mosh-pit hype — " +
+      "then into a genre playlist inside that level and a sub-genre inside that. Reuses the " +
+      "playlist names you already have so R&B never splits into three spellings. Before it runs you " +
+      "pick how you want it described: plain English, producer, songwriter, music theory, DJ, vibe, " +
+      "dancer, or a recipe for making one like it with a ready style prompt — and any song can be " +
+      "re-described another way later. Each filing says how sure it is. Any playlist can be turned " +
+      "into a blueprint: what its songs have in common, written as a guide to making the next one. " +
+      "Star any song and filter to just your favorites — across every level or one number at a time. " +
+      "A second tab, My Music, is for the songs you make: upload audio, name the artist, and an " +
+      "audio-capable model actually listens to each file while tempo and key are measured in the " +
+      "browser — then it's filed the same way, browsed by artist, and any artist's songs can be " +
+      "turned into a blueprint of their sound. Library songs are only names and words; uploads " +
+      "stay on the device they came from. Local-first, synced across devices.",
+    status: "live",
+    appUrl: "/apps/music-classified",
+    iconStyle: "waves",
+    hue: [250, 40],
+  },
+  {
     slug: "soundprint",
     title: "Soundprint",
     tag: "Reference → Suno prompt",
@@ -461,13 +488,26 @@ export const PROJECTS: CatalogProject[] = [
     hue: [320, 20],
   },
   {
-    slug: "video-forge",
-    title: "Video Forge",
-    tag: "AI video pipeline",
+    slug: "smart-shot-videos",
+    title: "Smart Shot Videos",
+    tag: "Prompt → editable storyboard → H3 video",
     category: "Video",
     overview:
-      "Storyboard, generate and edit short-form video with AI. Script → scenes → cuts → captions in a single flow.",
-    status: "coming-soon",
+      "One prompt and your own photos become a full production sheet before a single frame of video " +
+      "is rendered. Upload images and tag each as a character, a location, a product or a style; " +
+      "describe the film; pick how many cuts. The planner writes the shoot and draws it: a character " +
+      "reference sheet built from your photo (turnaround, portrait, wardrobe, palette), environment " +
+      "set-design plates, a top-down floor plan with every cut's camera position, a side elevation " +
+      "for the crane move, one storyboard frame per cut captioned with lens, duration, camera move and " +
+      "framing, four lighting references, mood words and cinematography notes — the OpenArt Smart " +
+      "Shot layout, on one sheet. Everything is editable in place and every panel can be redrawn. " +
+      "When the board is right, each cut gets a MiniMax H3 brief in H3's real reference format " +
+      "(subject definitions, retention analysis, a prose camera move with amplitude and speed, " +
+      "soundscape and score) with the character sheet, the set plate and the storyboard frame " +
+      "attached as references, and renders on your own H3 — RunPod, MiniMax hosted or the AI " +
+      "Gateway. Play the cuts back to back, retake any one, download each clip.",
+    status: "live",
+    appUrl: "/apps/smart-shot-videos",
     iconStyle: "waves",
     hue: [200, 260],
   },
