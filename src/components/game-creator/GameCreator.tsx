@@ -135,6 +135,10 @@ export function GameCreator() {
                   <button
                     key={t.id}
                     type="button"
+                    // aria-label keeps the visible label as the accessible name;
+                    // with title alone, screen readers announced the blurb instead.
+                    aria-label={t.label}
+                    aria-pressed={template === t.id}
                     title={t.blurb}
                     onClick={() => setTemplate(t.id)}
                     className={`rounded-full border px-3 py-1 text-xs transition ${

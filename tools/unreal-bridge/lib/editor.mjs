@@ -172,7 +172,17 @@ export async function close({ graceMs = 3000 } = {}) {
 
   await new Promise((r) => setTimeout(r, graceMs));
   await new Promise((resolve) => execFile("taskkill", ["/PID", String(pid), "/T", "/F"], () => resolve()));
-  for (let i = 0; i < 30 && (await pidAlive(pid)); i++) await new Promise((r) => setTimeout(r, 500));
+  // Unreal takes a while to leave the process table after taskkill, and
+  // process.kill(pid, 0) stops reporting it before tasklist does. Wait on
+  // tasklist, or a launch straight after this one finds the old editor.
+  let gone = false;
+  for (let i = 0; i < 120; i++) {
+    if (!(await editorPids()).includes(pid)) {
+      gone = true;
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
   await writeRecord(null);
-  return { closed: true, pid, saved };
+  return { closed: gone, pid, saved, ...(gone ? {} : { warning: "The editor process is still exiting." }) };
 }
