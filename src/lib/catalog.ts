@@ -618,6 +618,25 @@ export const PROJECTS: CatalogProject[] = [
     iconStyle: "orbit",
     hue: [265, 330],
   },
+  {
+    slug: "3d-studio",
+    title: "3D Studio Video Creator",
+    tag: "Describe a video → an AI animation director makes it",
+    category: "Video",
+    overview:
+      "An AI animation director that turns a simple prompt into a complete animated video. Pick a style, " +
+      "length and format; the director interprets the idea, writes the story beats, casts characters, " +
+      "scouts sets and storyboards every shot with a camera move, lighting and timing. For each piece of " +
+      "motion it decides the right tool — Mixamo mocap clips for everyday humanoid movement, Cascadeur " +
+      "for stunts, fights, creatures and physics-based motion, Blender for cameras, objects and effects — " +
+      "and explains why. The storyboard plays instantly as a moving 3D animatic you can export, and one " +
+      "click sends it to Blender on your own PC, where Claude Code builds, animates and renders the " +
+      "finished film for you to watch and download.",
+    status: "live",
+    appUrl: "/apps/3d-studio",
+    iconStyle: "mesh",
+    hue: [190, 285],
+  },
 ];
 
 export function getProject(slug: string): CatalogProject | null {

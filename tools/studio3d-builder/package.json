@@ -1,0 +1,13 @@
+{
+  "name": "studio3d-builder",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Runs on the studio PC: builds, animates and renders the videos queued in 3D Studio Video Creator with Claude Code, Blender, Mixamo clips and Cascadeur, using the animation-director skill.",
+  "scripts": {
+    "builder": "node builder.mjs",
+    "builder:once": "node builder.mjs --once",
+    "doctor": "node builder.mjs --doctor",
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}

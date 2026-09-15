@@ -34,6 +34,10 @@ const TOKEN_AUTH_PATHS = new Set([
   "/api/game-creator/builder/progress",
   "/api/game-creator/builder/screenshot",
   "/api/game-creator/builder/fail",
+  "/api/studio3d/builder/claim",
+  "/api/studio3d/builder/progress",
+  "/api/studio3d/builder/media",
+  "/api/studio3d/builder/fail",
 ]);
 
 /** Stamp (or clear) the account id the browser is allowed to render as. */

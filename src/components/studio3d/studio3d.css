@@ -1,0 +1,160 @@
+/* 3D Studio Video Creator — the few things Tailwind utilities do not express well. */
+
+.s3d-hero {
+  background:
+    radial-gradient(90% 120% at 100% 0%, color-mix(in srgb, var(--color-brand) 20%, transparent), transparent 55%),
+    radial-gradient(70% 90% at 0% 100%, color-mix(in srgb, var(--color-accent) 14%, transparent), transparent 60%),
+    var(--color-panel);
+}
+
+/* Film-strip sprocket edge on the hero and the screening room. */
+.s3d-sprockets {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 10px;
+  background-image: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--color-ink-faint) 40%, transparent) 2.5px, transparent 3px);
+  background-size: 22px 10px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.s3d-style-card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.s3d-style-card__swatch {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.22;
+  transition: opacity 0.2s;
+}
+.s3d-style-card[aria-pressed="true"] .s3d-style-card__swatch,
+.s3d-style-card:hover .s3d-style-card__swatch {
+  opacity: 0.4;
+}
+
+/* Tool chips: one colour per tool, from the registry. */
+.s3d-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--chip) 55%, transparent);
+  background: color-mix(in srgb, var(--chip) 14%, transparent);
+  color: color-mix(in srgb, var(--chip) 75%, var(--color-ink));
+  padding: 0.05rem 0.5rem;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  --chip: var(--color-ink-muted);
+}
+.s3d-chip::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--chip);
+}
+.s3d-chip--button {
+  cursor: pointer;
+  transition: transform 0.12s, background 0.12s;
+}
+.s3d-chip--button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--chip) 26%, transparent);
+  transform: translateY(-1px);
+}
+.s3d-chip--button:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+.s3d-chip--blender { --chip: #f5792a; }
+.s3d-chip--mixamo { --chip: #ff3a7a; }
+.s3d-chip--cascadeur { --chip: #7c5cff; }
+.s3d-chip--animatic { --chip: #2dd4bf; }
+.s3d-chip--voice { --chip: #60a5fa; }
+.s3d-chip--music { --chip: #facc15; }
+.s3d-chip--concept-art { --chip: #f472b6; }
+
+/* Poster for a project card: a sky-to-ground gradient from its first set. */
+.s3d-poster {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, var(--sky) 0%, var(--sky) 55%, var(--ground) 56%, var(--ground) 100%);
+}
+.s3d-poster::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(40% 30% at 50% 58%, rgba(0, 0, 0, 0.28), transparent 70%),
+    linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent 55%);
+}
+
+/* The director at work, while a plan is being written. */
+.s3d-directing {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--color-canvas) 82%, transparent);
+  backdrop-filter: blur(6px);
+}
+.s3d-clapper {
+  width: 64px;
+  height: 48px;
+  position: relative;
+}
+.s3d-clapper__top {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 14px;
+  border-radius: 4px 4px 0 0;
+  background: repeating-linear-gradient(-45deg, var(--color-ink) 0 8px, var(--color-canvas) 8px 16px);
+  transform-origin: 0 100%;
+  animation: s3d-clap 1.1s ease-in-out infinite;
+}
+.s3d-clapper__body {
+  position: absolute;
+  inset: 16px 0 0 0;
+  border-radius: 0 0 6px 6px;
+  background: var(--color-ink);
+}
+@keyframes s3d-clap {
+  0%, 60%, 100% { transform: rotate(0deg); }
+  30% { transform: rotate(-24deg); }
+}
+
+.s3d-step[data-state="done"] .s3d-step__dot {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: white;
+}
+.s3d-step[data-state="active"] .s3d-step__dot {
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-brand) 20%, transparent);
+}
+.s3d-step[data-state="active"][data-pulse="true"] .s3d-step__dot {
+  animation: s3d-pulse 1.6s ease-in-out infinite;
+}
+@keyframes s3d-pulse {
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--color-brand) 8%, transparent); }
+}
+
+.s3d-stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s3d-clapper__top,
+  .s3d-step[data-state="active"][data-pulse="true"] .s3d-step__dot {
+    animation: none;
+  }
+}
