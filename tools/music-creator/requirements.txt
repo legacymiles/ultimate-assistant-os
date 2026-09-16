@@ -1,0 +1,15 @@
+# Music Creator — the SERVER's own dependencies, and only those.
+#
+# The models are not in here on purpose. YuE2 wants Python 3.12, AuK wants
+# 3.10, and SheetSage2 wants 3.10/3.11 with FFmpeg 6.1 beside it; one
+# requirements file cannot describe all three, and pip would spend an hour
+# proving it. Each model is installed from its own repo into its own venv
+# (see README.md), and the server reaches the ones it cannot import with
+# --yue2-python / --auk-python / --sheetsage-python.
+#
+# So this file is deliberately tiny: everything else the server needs is in
+# the standard library, and ffmpeg is a system package, not a wheel.
+#
+#   python -m pip install -r tools/music-creator/requirements.txt
+#
+aiohttp>=3.9

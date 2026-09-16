@@ -1,0 +1,294 @@
+/* ------------------------------------------------------------------ */
+/*  Music Creator — the few parts only the tools need.                 */
+/*                                                                     */
+/*  music-creator.css owns the studio's vocabulary: panels, fields,    */
+/*  buttons, notes, takes, track lists, the mono block. Nothing here   */
+/*  redefines any of it. Every class is prefixed `mct-`, every rule is */
+/*  scoped under `.mc`, and every colour comes from that sheet's own   */
+/*  tokens — so the two files cannot drift apart and cannot collide.   */
+/* ------------------------------------------------------------------ */
+
+.mc .mct {
+  display: block;
+}
+
+/* ----- rows of controls that are not form fields ----- */
+
+.mc .mct-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.mc .mct-bar > .mc-input {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+/* A label sitting beside its control, for settings rather than fields. */
+.mc .mct-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.mc .mct-inline .mc-field-l {
+  margin: 0;
+  white-space: nowrap;
+}
+.mc .mct-sel {
+  width: auto;
+  min-width: 92px;
+  padding: 7px 9px;
+}
+.mc .mct-load {
+  display: flex;
+  margin-bottom: 4px;
+}
+
+/* The pressed state of a `mc-btn` used as a toggle. Its own class, not a
+   modifier on mc-btn, so the studio sheet keeps sole ownership of buttons. */
+.mc .mct-on {
+  border-color: var(--mc-go);
+  background: rgba(124, 92, 255, 0.16);
+}
+
+/* ----- the hook wall ----- */
+
+.mc .mct-wall {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 12px;
+}
+.mc .mct-card {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--mc-line);
+  border-radius: 12px;
+  background: var(--mc-panel-2);
+}
+.mc .mct-card.mct-on {
+  border-color: var(--mc-go);
+}
+.mc .mct-card .mc-field {
+  margin-bottom: 0;
+}
+.mc .mct-card-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mc .mct-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  padding: 6px 9px;
+}
+.mc .mct-lyr {
+  font-family: var(--mc-mono);
+  font-size: 12px;
+}
+.mc .mct-why {
+  margin: 0;
+  font-size: 11.5px;
+  font-style: italic;
+  color: var(--mc-ink-3);
+}
+.mc .mct-card-f {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 2px;
+}
+.mc .mct-seeds {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.mc .mct-seeds i {
+  font-style: normal;
+}
+
+/* ----- picking up audio ----- */
+
+.mc .mct-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 22px 16px;
+  border: 1px dashed var(--mc-line-2);
+  border-radius: 12px;
+  background: var(--mc-bg);
+  text-align: center;
+  color: var(--mc-ink-3);
+}
+.mc .mct-drop strong {
+  color: var(--mc-ink);
+  font-size: 13px;
+}
+.mc .mct-drop span {
+  font-size: 11.5px;
+}
+.mc .mct-drop.is-over {
+  border-color: var(--mc-go);
+  background: rgba(124, 92, 255, 0.1);
+}
+
+/* A file input cannot be styled, so the label is the button and the input
+   lies transparent on top of it. Clicking still opens the picker, and the
+   control stays a real <input type="file"> for the keyboard. */
+.mc .mct-file {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+.mc .mct-file input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.mc .mct-clip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  margin-top: 10px;
+  border: 1px solid var(--mc-line);
+  border-radius: 11px;
+  background: var(--mc-panel-2);
+}
+.mc .mct-clip strong {
+  font-size: 12.5px;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mc .mct-clip > span {
+  font-size: 11px;
+  font-family: var(--mc-mono);
+  color: var(--mc-ink-3);
+}
+.mc .mct-clip audio {
+  flex: 1 1 220px;
+  min-width: 180px;
+  height: 32px;
+}
+
+/* Stands in for the artwork on a catalogue result that has none, so the
+   row does not lose its left column. */
+.mc .mct-art {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 7px;
+  background: var(--mc-line);
+}
+
+.mc .mct-fold {
+  margin-top: 12px;
+  border: 1px solid var(--mc-line);
+  border-radius: 11px;
+  padding: 10px 12px;
+}
+.mc .mct-fold > summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--mc-ink-2);
+}
+
+/* ----- the score editor ----- */
+
+/* The <pre> is the frame — mc-mono already gives it the typeface and stops
+   it wrapping — and the textarea inside inherits all of it, so the score
+   stays editable without the frame turning into an ordinary form field. */
+.mc .mct-pre {
+  margin: 0 0 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--mc-line);
+  border-radius: 11px;
+  background: var(--mc-bg);
+  color: var(--mc-ink);
+  line-height: 1.6;
+}
+.mc .mct-score {
+  display: block;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  resize: vertical;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: pre;
+  overflow-wrap: normal;
+  outline: none;
+}
+.mc .mct-ro {
+  max-height: 260px;
+  color: var(--mc-ink-2);
+}
+
+.mc .mct-warns ul {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+.mc .mct-warns li {
+  margin: 2px 0;
+}
+.mc .mct-warns p:last-child {
+  margin: 6px 0 0;
+}
+
+/* ----- quick edits ----- */
+
+.mc .mct-intents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.mc .mct-intent {
+  padding: 11px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--mc-line);
+  border-radius: 11px;
+  background: var(--mc-panel-2);
+}
+.mc .mct-intent .mc-note {
+  margin: 0;
+}
+
+/* ----- the A / B markers on the mashup headings ----- */
+
+.mc .mct-ab {
+  display: inline-grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  margin-right: 8px;
+  border-radius: 6px;
+  background: var(--mc-go);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  vertical-align: middle;
+}
+
+@media (max-width: 640px) {
+  .mc .mct-wall {
+    grid-template-columns: 1fr;
+  }
+  .mc .mct-inline {
+    flex: 1 1 100%;
+  }
+}

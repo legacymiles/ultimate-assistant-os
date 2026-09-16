@@ -1,0 +1,4 @@
+# Produced audio, scores and voice clips - never committed.
+data/
+__pycache__/
+*.pyc
