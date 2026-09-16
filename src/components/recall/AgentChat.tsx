@@ -96,7 +96,7 @@ function actionCaveat(action: AgentAction): string | null {
     case "delete_item":
       return "Permanent.";
     case "delete_folder":
-      return "The folder goes; everything inside moves up to its parent.";
+      return "Permanent — its subfolders and everything inside them go too.";
     case "merge_folders":
       return "The source folder is removed once its contents move across.";
     case "edit_note":

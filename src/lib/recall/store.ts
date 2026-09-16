@@ -225,15 +225,41 @@ export function updateFolder(id: string, patch: FolderInput): RecallData {
   return data;
 }
 
-/** Delete a folder; its child folders and items lift up to its parent. */
+/** A folder's id plus the ids of every folder nested beneath it, at any depth. */
+function folderSubtreeIds(folders: Folder[], id: string): Set<string> {
+  const ids = new Set([id]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const f of folders) {
+      if (f.parentId && ids.has(f.parentId) && !ids.has(f.id)) {
+        ids.add(f.id);
+        grew = true;
+      }
+    }
+  }
+  return ids;
+}
+
+/** What deleting a folder would remove — for the confirm prompt. */
+export function folderDeleteImpact(
+  data: RecallData,
+  id: string,
+): { subfolders: number; items: number } {
+  const ids = folderSubtreeIds(data.folders, id);
+  return {
+    subfolders: ids.size - 1,
+    items: data.items.filter((it) => it.folderId && ids.has(it.folderId)).length,
+  };
+}
+
+/** Delete a folder together with every subfolder and item inside it. */
 export function deleteFolder(id: string): RecallData {
   const data = load();
-  const target = data.folders.find((f) => f.id === id);
-  if (!target) return data;
-  const parentId = target.parentId;
-  for (const f of data.folders) if (f.parentId === id) f.parentId = parentId;
-  for (const it of data.items) if (it.folderId === id) it.folderId = parentId;
-  data.folders = data.folders.filter((f) => f.id !== id);
+  if (!data.folders.some((f) => f.id === id)) return data;
+  const ids = folderSubtreeIds(data.folders, id);
+  data.folders = data.folders.filter((f) => !ids.has(f.id));
+  data.items = data.items.filter((it) => !(it.folderId && ids.has(it.folderId)));
   save(data);
   return data;
 }
@@ -616,7 +642,7 @@ export function executeAction(action: AgentAction): ActionResult {
     case "delete_folder": {
       const f = load().folders.find((x) => x.id === action.folderId);
       const data = deleteFolder(action.folderId);
-      return { data, note: `Deleted folder “${f?.name ?? ""}” (contents moved up)` };
+      return { data, note: `Deleted folder “${f?.name ?? ""}” and everything inside it` };
     }
 
     case "create_event": {

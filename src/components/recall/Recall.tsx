@@ -6,6 +6,7 @@ import { Icon } from "../icons";
 import {
   createFolder,
   deleteFolder,
+  folderDeleteImpact,
   migrateRecords,
   getData,
   isLocal,
@@ -195,7 +196,14 @@ export function Recall() {
   }
 
   function handleDeleteFolder(folder: Folder) {
-    const msg = `Delete “${folder.name}”? Anything inside moves up to the parent — nothing is lost.`;
+    const { subfolders, items } = folderDeleteImpact(data, folder.id);
+    const inside = [
+      subfolders && `${subfolders} subfolder${subfolders === 1 ? "" : "s"}`,
+      items && `${items} item${items === 1 ? "" : "s"}`,
+    ].filter(Boolean);
+    const msg = inside.length
+      ? `Delete “${folder.name}” and everything inside it (${inside.join(" and ")})? This can’t be undone.`
+      : `Delete “${folder.name}”?`;
     if (!window.confirm(msg)) return;
     setData(deleteFolder(folder.id));
     if (folderId === folder.id) setFolderId(folder.parentId);

@@ -196,7 +196,7 @@ export type AgentAction =
   /** Fold one folder's contents into another, then remove the empty source. */
   | { type: "merge_folders"; sourceId: string; targetPath: string[] }
   | { type: "delete_item"; itemId: string }
-  /** Folder delete lifts children to the parent — nothing is destroyed. */
+  /** Folder delete removes its subfolders and their items too. */
   | { type: "delete_folder"; folderId: string }
   // ----- calendar ---------------------------------------------------------
   // The assistant reads the calendar as context and writes to it the same way
