@@ -165,7 +165,7 @@ Retrieval-augmented over your own content, with the ability to reorganise — bu
 Every proposed action lands in a **Plan** panel. Nothing executes until clicked.
 
 - **Apply all** / **Dismiss all**, plus per-action **Apply** / **No**
-- Destructive actions (\`delete_item\`, \`delete_folder\`, \`merge_folders\`, \`edit_note\` — the \`DESTRUCTIVE_ACTIONS\` set) get a **red dot**, a red **Confirm** button instead of Apply, and a plain-English caveat such as *"The folder goes; everything inside moves up to its parent."*
+- Destructive actions (\`delete_item\`, \`delete_folder\`, \`merge_folders\`, \`edit_note\` — the \`DESTRUCTIVE_ACTIONS\` set) get a **red dot**, a red **Confirm** button instead of Apply, and a plain-English caveat such as *"Permanent — its subfolders and everything inside them go too."*
 - Applied actions strike through and show **Done**
 - \`applyAll\` runs actions **in order**, each seeing the previous step's result
 
@@ -542,7 +542,7 @@ Verified with a hand-built PDF containing "PINEAPPLE-TROMBONE-42", a string exis
       "Agent action vocabulary and the confirmation contract",
       `13 actions: create_folder, move_item, move_items, add_tags, remove_tags, create_note, rename_item, edit_note, rename_folder, move_folder, merge_folders, delete_item, delete_folder.
 
-DESTRUCTIVE_ACTIONS = { delete_item, delete_folder, merge_folders, edit_note }. These render with a red dot, a red "Confirm" button (not "Apply"), and a caveat line — e.g. "The folder goes; everything inside moves up to its parent."
+DESTRUCTIVE_ACTIONS = { delete_item, delete_folder, merge_folders, edit_note }. These render with a red dot, a red "Confirm" button (not "Apply"), and a caveat line — e.g. "Permanent — its subfolders and everything inside them go too."
 
 UI contract:
 · Panel titled "Proposed change" (1) or "Plan · N changes"
@@ -552,7 +552,7 @@ UI contract:
 
 Prompt contract (server): "EVERY action is shown to the user for explicit confirmation before it runs — never state that you have already done it; say what you are proposing." Also: "Prefer the fewest, largest actions: use move_items for a batch rather than many move_item." And: "Only propose deletions when the user clearly asked for them."
 
-Non-destructive by construction: deleteFolder lifts child folders and items to the parent rather than removing them. mergeFolders moves contents across and then removes the empty source. Neither can lose an item.
+deleteFolder removes the folder with every nested subfolder and the items inside them; the confirm prompt states how many subfolders and items will go. mergeFolders moves contents across and then removes the empty source, so it cannot lose an item.
 
 The agent receives folder ids alongside paths so it can target rename/move/merge/delete precisely rather than guessing by name.`,
     ),
