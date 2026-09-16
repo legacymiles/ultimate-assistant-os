@@ -1,0 +1,4 @@
+# benchmark outputs: keep the numbers, not the camera footage or logs
+*.mp4
+*.png
+*.log

@@ -1,0 +1,82 @@
+/* Realtime Lucy — the few things Tailwind utilities do not express well. */
+
+.rl-hero__glow {
+  position: absolute;
+  inset: -40% -10% auto auto;
+  width: 60%;
+  aspect-ratio: 1;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--color-brand) 26%, transparent), transparent 70%);
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+.rl-stage {
+  background:
+    radial-gradient(120% 90% at 50% 110%, color-mix(in srgb, var(--color-brand) 16%, transparent), transparent 60%),
+    var(--color-canvas);
+}
+
+.rl-stage video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+/* Thin scanning line while the model is warming up: the stage stays honest
+   (black) until real frames arrive. */
+.rl-stage[data-state="opening"]::after,
+.rl-stage[data-state="connecting"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in srgb, var(--color-accent) 18%, transparent) 49%,
+    transparent 51%
+  );
+  animation: rl-scan 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes rl-scan {
+  0% {
+    transform: translateY(-50%);
+  }
+  100% {
+    transform: translateY(50%);
+  }
+}
+
+.rl-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-ink-faint);
+  flex: none;
+}
+.rl-dot[data-on="true"] {
+  background: #22c55e;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.18);
+}
+.rl-dot[data-on="warn"] {
+  background: #f59e0b;
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.18);
+}
+
+.rl-key {
+  min-width: 26px;
+  padding: 2px 6px;
+  border: 1px solid var(--color-line);
+  border-radius: 6px;
+  font: 600 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--color-ink-muted);
+  text-align: center;
+  transition: background 0.1s, color 0.1s;
+}
+.rl-key[data-held="true"] {
+  background: var(--color-brand);
+  color: #fff;
+  border-color: var(--color-brand);
+}

@@ -1,0 +1,23 @@
+# Realtime Lucy — GPU server + benchmark.
+# Install torch first for your CUDA (see README), then:  pip install -r requirements.txt
+diffusers>=0.31.0
+transformers==4.51.3
+tokenizers>=0.20.3
+sentencepiece
+protobuf
+accelerate
+einops
+safetensors
+numpy<2
+scipy
+easydict
+ftfy
+opencv-python-headless
+tqdm
+imageio
+imageio-ffmpeg
+pillow
+aiortc
+av
+aiohttp
+huggingface_hub
