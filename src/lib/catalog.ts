@@ -293,6 +293,30 @@ export const PROJECTS: CatalogProject[] = [
     hue: [250, 40],
   },
   {
+    slug: "music-creator",
+    title: "Music Creator",
+    tag: "A studio, not a generate button",
+    category: "Music",
+    overview:
+      "A music creation studio built as a container for tools that have no reason to look alike. Song Creator is " +
+      "full-song production: write the brief, watch it become the style line and the lyric sheet, then render a real " +
+      "48 kHz stereo song — vocals and accompaniment — on YuE2. Because YuE2 plans before it plays, the melody and " +
+      "chords come back as a score you can actually read, which is what makes the rest possible: Remix / Stems edits " +
+      "that score and re-renders it, so a reharmonisation is a musical edit rather than another roll of the dice. " +
+      "Mashup is the honest kind: SheetSage2 transcribes one recording's melody, and YuE2 performs that melody in a " +
+      "second song's world — the tune crosses over, the original singer and recording do not. Hook Creator chases one " +
+      "earworm across several seeds so takes can be compared side by side. Artist Voice Studio finds a voice, isolates " +
+      "it from the music it arrived in, cuts the five seconds worth cloning, and saves it to a Voice Library that never " +
+      "has to process that artist again — then performs your words in it with AuK and mixes them over the bed. AuK is " +
+      "a speech model, so that vocal is spoken or rapped, never sung, and the app says so where the choice is made. " +
+      "The writing, planning, score editing and library all run with no GPU at all; rendering needs a 24 GB card, " +
+      "which the studio points at over a URL and reports honestly when it is not there.",
+    status: "live",
+    appUrl: "/apps/music-creator",
+    iconStyle: "waves",
+    hue: [268, 199],
+  },
+  {
     slug: "soundprint",
     title: "Soundprint",
     tag: "Reference → Suno prompt",
@@ -385,6 +409,30 @@ export const PROJECTS: CatalogProject[] = [
     appUrl: "/apps/multi-order-calculator",
     iconStyle: "rings",
     hue: [42, 18],
+  },
+  {
+    slug: "gods-eye-view",
+    title: "God's Eye View",
+    tag: "A spy-satellite view of the real, live planet",
+    category: "Apps",
+    overview:
+      "A spy-satellite simulator in the browser, where the data turns out to be real. A CesiumJS globe " +
+      "behind a keyhole scope and a tactical HUD: coordinates, altitude, estimated GSD and NIIRS, sun " +
+      "elevation, a REC clock. Toggle live layers from public, keyless sources: every aircraft OpenSky can " +
+      "see (adsb.lol around you when OpenSky is throttled), military traffic from adsb.lol, thousands of " +
+      "satellites propagated in the browser with SGP4 from CelesTrak, the last day of USGS earthquakes, " +
+      "London's TfL traffic cameras with their live clips, and the world's submarine cables. Aircraft glide " +
+      "between updates by dead reckoning. Click anything to lock on: a detection box, a telemetry card, a " +
+      "trail, and a camera that follows it, orbit ring included for satellites. Re-skin the whole planet " +
+      "through the original's GLSL sensor looks: CRT, NVG, FLIR (Ironbow or white-hot), Anime, Noir and " +
+      "Snow, on keys 1-7. Drive it by typing or holding Space to talk: \"fly to Tokyo\", \"thermal\", " +
+      "\"turn on satellites\", \"track the ISS\", \"reset globe\". Views share as links. Esri imagery works " +
+      "with no keys; paste a Cesium ion token or Google Maps key in POWER UP for photorealistic 3D cities. " +
+      "A port of bilawalsidhu/gods-eye-view (MIT).",
+    status: "live",
+    appUrl: "/apps/gods-eye-view",
+    iconStyle: "orbit",
+    hue: [186, 32],
   },
   {
     slug: "kart-showcase",
@@ -512,17 +560,6 @@ export const PROJECTS: CatalogProject[] = [
     hue: [200, 260],
   },
   {
-    slug: "sonic",
-    title: "Sonic",
-    tag: "Music & sound",
-    category: "Music",
-    overview:
-      "Generate stems, melodies and full tracks. Pair AI composition with simple arrangement tools for quick musical sketches.",
-    status: "coming-soon",
-    iconStyle: "rings",
-    hue: [160, 200],
-  },
-  {
     slug: "amhe",
     title: "Adaptive Mission Hedge Engine",
     tag: "Kalshi + MT4 hedge bot",
@@ -538,66 +575,6 @@ export const PROJECTS: CatalogProject[] = [
     appUrl: "/apps/projects-timeline",
     iconStyle: "orbit",
     hue: [40, 22],
-  },
-  {
-    slug: "goldea",
-    title: "GoldEA Console",
-    tag: "MT4 expert advisor",
-    category: "Trading",
-    overview:
-      "Mission control for the GoldEA basket trading system. Monitor open baskets, lot sizes, pending orders " +
-      "and risk in one view — and push parameter updates to the MT4 EA.",
-    status: "coming-soon",
-    iconStyle: "orbit",
-    hue: [40, 22],
-  },
-  {
-    slug: "flowmaker",
-    title: "FlowMaker",
-    tag: "Visual automation",
-    category: "Automation",
-    overview:
-      "A lightweight visual builder for personal automations. Connect triggers, actions and AI steps without " +
-      "wrestling with full IPaaS platforms.",
-    status: "coming-soon",
-    iconStyle: "pulse",
-    hue: [140, 180],
-  },
-  {
-    slug: "portfolio",
-    title: "Portfolio",
-    tag: "Personal site",
-    category: "Websites",
-    overview:
-      "The public-facing portfolio: featured work, case studies and a contact path. Fast, mobile-first, " +
-      "and built to look sharp on phones.",
-    status: "coming-soon",
-    iconStyle: "aurora",
-    hue: [220, 200],
-  },
-  {
-    slug: "snippetbox",
-    title: "SnippetBox",
-    tag: "Code & prompt vault",
-    category: "Utilities",
-    overview:
-      "A tiny searchable vault for the code snippets, prompts and shell commands you keep forgetting. " +
-      "Tag, pin and copy in one tap.",
-    status: "coming-soon",
-    iconStyle: "mesh",
-    hue: [10, 340],
-  },
-  {
-    slug: "scratchpad",
-    title: "Scratchpad",
-    tag: "Quick capture",
-    category: "Apps",
-    overview:
-      "An instant-open note for the half-formed thought you want to come back to later — captured to your " +
-      "Projects Timeline inbox of choice in one tap.",
-    status: "coming-soon",
-    iconStyle: "waves",
-    hue: [280, 320],
   },
   {
     slug: "game-creator",
@@ -636,6 +613,27 @@ export const PROJECTS: CatalogProject[] = [
     appUrl: "/apps/3d-studio",
     iconStyle: "mesh",
     hue: [190, 285],
+  },
+  {
+    slug: "realtime-lucy",
+    title: "Realtime Lucy",
+    tag: "Your webcam, re-imagined live by a world model",
+    category: "Video",
+    overview:
+      "A live video-to-video stream driven by LingBot-World 2.0's causal-fast world model, running on your " +
+      "own GPU. The webcam goes out over WebRTC; on the PC the model's inference loop is turned inside out " +
+      "so it never stops: every quarter second of camera video is VAE-encoded, noised into the distilled " +
+      "four-step schedule, denoised against a rolling KV-cache memory of what the model already generated, " +
+      "written into that memory, and decoded straight back into the return video track. Type a prompt to " +
+      "change the look mid-stream, choose how much of the camera to keep, and hold WASD or the arrow keys " +
+      "to drive the model's own camera-control conditioning. A live panel shows real numbers — generated " +
+      "fps, glass-to-glass latency, per-stage timings and VRAM — because the whole point is that it is real " +
+      "model inference, not a filter.",
+    status: "live",
+    appUrl: "/apps/realtime-lucy",
+    iconStyle: "pulse",
+    hue: [330, 20],
+    noPreview: true,
   },
 ];
 
