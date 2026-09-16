@@ -4,6 +4,7 @@ import {
   DEFAULT_SKILLS,
   heuristicRedesign,
   normalizeUrl,
+  pinnedSkills,
   scrapeUrl,
   str,
   toStrArr,
@@ -45,14 +46,19 @@ export async function POST(req: Request) {
     );
   }
 
-  const skills = Array.isArray(body.skills) && body.skills.length ? body.skills : DEFAULT_SKILLS;
+  const roster = Array.isArray(body.skills) && body.skills.length ? body.skills : DEFAULT_SKILLS;
+  // Skills the user pinned in the dropdown. When they pinned any, those are the
+  // only ones the directions may use — and every direction mixes all of them.
+  const pinned = pinnedSkills(roster, body);
+  const pinnedNames = pinned.map((s) => s.name);
+  const skills = pinned.length ? pinned : roster;
   const apiKey = aiKey();
 
   if (!apiKey) {
     return NextResponse.json(heuristicRedesign(url, scrape, skills, body));
   }
   try {
-    const result = await aiRedesign(url, scrape, skills, body, apiKey);
+    const result = await aiRedesign(url, scrape, skills, pinnedNames, body, apiKey);
     return NextResponse.json(result);
   } catch (err) {
     console.error("AI redesign failed, using heuristic:", err);
@@ -66,6 +72,7 @@ async function aiRedesign(
   url: string,
   scrape: Scrape,
   skills: DesignSkill[],
+  pinnedNames: string[],
   body: ReqBody,
   apiKey: string,
 ): Promise<RedesignResult> {
@@ -76,19 +83,29 @@ async function aiRedesign(
     "existing website while keeping its FUNCTIONALITY identical. You are given a " +
     "scrape of a real page. Produce (1) a short analysis and a functionality " +
     "inventory to preserve, and (2) exactly 3 DISTINCT redesign directions that " +
-    "span restrained → expressive → experimental. Each direction is driven by one " +
-    "of the provided design skills and names a real, fetchable reference site to " +
+    "span restrained → expressive → experimental. " +
+    (pinnedNames.length
+      ? `EVERY direction MUST mix ALL of these ${pinnedNames.length} design skills the user pinned — ` +
+        `${pinnedNames.join(", ")} — into ONE cohesive design (set "drivingSkills" to exactly that list, in that order). ` +
+        "The three directions differ by look and feel, never by which skills they use. " +
+        "Do not stitch the skills together as separate sections: the first skill owns the overall " +
+        "frame (layout, type, palette, pacing), the others contribute their signature mechanics inside it. "
+      : "Each direction is driven by one of the provided design skills (set \"drivingSkills\" to " +
+        "that single-item list). ") +
+    "Each direction names a real, fetchable reference site to " +
     "beat. For each direction, also write a complete, paste-ready build prompt for " +
     "an autonomous coding agent (like Claude Code) that: leads with the exact " +
-    "functionality to preserve, specifies the new design tokens, invokes the " +
-    "driving skill by name, and sets the reference site as the quality bar. " +
+    "functionality to preserve, specifies the new design tokens, invokes every " +
+    "driving skill by name (and, when there are several, says how to blend them " +
+    "into one design rather than separate sections), and sets the reference site " +
+    "as the quality bar. " +
     (body.ownSite
       ? `This is the user's OWN site${body.sourcePath ? ` at source path "${body.sourcePath}"` : ""} — the prompt must say to EDIT the existing source, preserve all logic/handlers/API calls/routes, and restyle only.`
       : "This is an EXTERNAL site — the prompt must say to recreate the front-end and the listed behaviors under the new design (their backend cannot be reproduced).") +
     " Use the site's REAL content, never lorem ipsum. Respond ONLY with minified " +
     "JSON matching this schema:\n" +
     `{"summary":string,"functionality":[{"kind":string,"label":string,"detail":string}],` +
-    `"directions":[{"name":string,"pitch":string,"drivingSkill":string,` +
+    `"directions":[{"name":string,"pitch":string,"drivingSkills":[string],` +
     `"palette":[string],"typography":{"heading":string,"body":string},` +
     `"layout":string,"motion":string,"referenceBar":string,"buildPrompt":string}]}`;
 
@@ -106,7 +123,9 @@ async function aiRedesign(
       ? "NOTE: the scrape was thin (likely a JS-rendered SPA) — lean on the URL, title and user note."
       : "",
     "",
-    "Design skills available to drive directions:",
+    pinnedNames.length
+      ? `The user pinned these skills — every direction must mix all of them: ${pinnedNames.join(", ")}.`
+      : "Design skills available to drive directions:",
     ...skills.map((s) => `- ${s.name}: ${s.description}`),
   ].filter(Boolean).join("\n");
 
@@ -119,7 +138,12 @@ async function aiRedesign(
       id: `dir-${i}`,
       name: str(d?.name) || `Direction ${i + 1}`,
       pitch: str(d?.pitch),
-      drivingSkill: str(d?.drivingSkill) || skills[0]?.name || "interactive-web-studio",
+      // A pinned set is non-negotiable; otherwise take what the model chose.
+      drivingSkills: pinnedNames.length
+        ? pinnedNames
+        : toStrArr(d?.drivingSkills, 6).length
+          ? toStrArr(d?.drivingSkills, 6)
+          : [str((d as Record<string, unknown>)?.drivingSkill) || skills[0]?.name || "interactive-web-studio"],
       palette: toStrArr(d?.palette, 6),
       typography: {
         heading: str((d?.typography as Record<string, unknown>)?.heading) || "Modern serif display",

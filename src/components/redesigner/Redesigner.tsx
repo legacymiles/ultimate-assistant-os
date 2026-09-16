@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import type { Direction, RedesignResult } from "@/lib/redesigner/engine";
+import { DEFAULT_SKILLS, type Direction, type RedesignResult } from "@/lib/redesigner/engine";
 import { Icon } from "../icons";
 
 const SAMPLES = ["stripe.com", "linear.app", "vercel.com"];
@@ -13,6 +13,7 @@ export function Redesigner() {
   const [description, setDescription] = useState("");
   const [ownSite, setOwnSite] = useState(false);
   const [sourcePath, setSourcePath] = useState("");
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RedesignResult | null>(null);
@@ -35,6 +36,7 @@ export function Redesigner() {
           description: description.trim() || undefined,
           ownSite,
           sourcePath: ownSite ? sourcePath.trim() || undefined : undefined,
+          selectedSkills,
         }),
       });
       const data = await res.json();
@@ -141,6 +143,10 @@ export function Redesigner() {
                   className="h-9 flex-1 rounded-lg border border-line bg-canvas px-2.5 text-xs text-ink outline-none transition placeholder:text-ink-faint focus:border-brand focus:ring-2 focus:ring-brand/30"
                 />
               )}
+            </div>
+
+            <div className="mt-3 border-t border-line pt-3">
+              <SkillPicker selected={selectedSkills} onChange={setSelectedSkills} />
             </div>
           </form>
 
@@ -271,9 +277,16 @@ function DirectionCard({ direction }: { direction: Direction }) {
         <p className="text-sm text-ink-muted">{direction.pitch}</p>
 
         <div className="mt-2.5 space-y-1 text-xs text-ink-faint">
-          <Row label="Skill">
-            <span className="rounded bg-brand/15 px-1.5 py-0.5 font-mono text-[11px] text-brand">
-              {direction.drivingSkill}
+          <Row label={direction.drivingSkills.length > 1 ? "Mix" : "Skill"}>
+            <span className="flex flex-wrap gap-1">
+              {direction.drivingSkills.map((s) => (
+                <span
+                  key={s}
+                  className="rounded bg-brand/15 px-1.5 py-0.5 font-mono text-[11px] text-brand"
+                >
+                  {s}
+                </span>
+              ))}
             </span>
           </Row>
           <Row label="Type">
@@ -320,6 +333,166 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
     <div className="flex gap-2">
       <span className="w-9 shrink-0 text-ink-faint/70">{label}</span>
       <span className="text-ink-muted">{children}</span>
+    </div>
+  );
+}
+
+/**
+ * Multi-select design-skill dropdown. Each pick closes the menu (the user's
+ * ask): reopen it to see what's already chosen — highlighted with a check —
+ * and add or remove one more. Nothing picked = the engine chooses per direction.
+ */
+function SkillPicker({
+  selected,
+  onChange,
+}: {
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  function toggle(name: string) {
+    // Keep roster order, so "the first skill owns the frame" stays predictable.
+    const next = selected.includes(name)
+      ? selected.filter((s) => s !== name)
+      : DEFAULT_SKILLS.map((s) => s.name).filter((n) => n === name || selected.includes(n));
+    onChange(next);
+    setOpen(false); // one pick per open — reopen to mix in another
+  }
+
+  const label =
+    selected.length === 0
+      ? "Pick for me"
+      : selected.length === 1
+        ? selected[0]
+        : `${selected.length} skills mixed`;
+
+  return (
+    <div>
+      {/* The label sits on its own line so the menu can open flush with the
+          form's left edge — at phone width it would otherwise run off-screen. */}
+      <p className="text-xs font-medium text-ink-muted">Design skills</p>
+
+      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+        <div ref={wrapRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition",
+              selected.length
+                ? "border-brand/50 bg-brand/10 text-ink"
+                : "border-line bg-canvas text-ink-muted hover:bg-panel-2 hover:text-ink",
+            )}
+          >
+            <span className={cn(selected.length === 1 && "font-mono")}>{label}</span>
+            <Icon.Chevron
+              width={12}
+              height={12}
+              className={cn("transition-transform", open && "rotate-180")}
+            />
+          </button>
+
+          {open && (
+            <div
+              role="listbox"
+              aria-multiselectable
+              className="absolute left-0 z-30 mt-1.5 w-[min(22rem,calc(100vw-4rem))] overflow-hidden rounded-xl border border-line bg-panel shadow-xl shadow-black/30"
+            >
+              <p className="border-b border-line px-3 py-2 text-[10px] uppercase tracking-wide text-ink-faint">
+                Pick one — reopen to mix in more
+              </p>
+              {DEFAULT_SKILLS.map((skill) => {
+                const on = selected.includes(skill.name);
+                return (
+                  <button
+                    key={skill.name}
+                    type="button"
+                    role="option"
+                    aria-selected={on}
+                    onClick={() => toggle(skill.name)}
+                    className={cn(
+                      "flex w-full items-start gap-2 px-3 py-2 text-left transition",
+                      on ? "bg-brand/10" : "hover:bg-panel-2",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                        on ? "border-brand bg-brand text-white" : "border-line",
+                      )}
+                    >
+                      {on && <Icon.Check width={10} height={10} />}
+                    </span>
+                    <span className="min-w-0">
+                      <span className={cn("block font-mono text-[11px]", on ? "text-brand" : "text-ink")}>
+                        {skill.name}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] leading-snug text-ink-faint">
+                        {skill.description}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {selected.map((name) => (
+          <span
+            key={name}
+            className="inline-flex items-center gap-1 rounded-full border border-brand/40 bg-brand/10 px-2 py-0.5 font-mono text-[11px] text-brand"
+          >
+            {name}
+            <button
+              type="button"
+              onClick={() => onChange(selected.filter((s) => s !== name))}
+              aria-label={`Remove ${name}`}
+              className="text-brand/70 transition hover:text-brand"
+            >
+              &times;
+            </button>
+          </span>
+        ))}
+
+        {selected.length > 0 && (
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="text-[11px] text-ink-faint underline-offset-2 transition hover:text-ink hover:underline"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      <p className="mt-1.5 text-[11px] text-ink-faint">
+        {selected.length > 1
+          ? `Every direction blends all ${selected.length} — ${selected[0]} owns the frame, the rest add their signature moves.`
+          : selected.length === 1
+            ? "Every direction uses this skill. Reopen the menu to mix in another."
+            : "Leave empty and each direction picks its own skill."}
+      </p>
     </div>
   );
 }

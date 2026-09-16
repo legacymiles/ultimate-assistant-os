@@ -23,7 +23,8 @@ export interface Direction {
   id: string;
   name: string;
   pitch: string;
-  drivingSkill: string;
+  /** The design skill(s) this direction is built from. 2+ = a deliberate mix. */
+  drivingSkills: string[];
   palette: string[];
   typography: { heading: string; body: string };
   layout: string;
@@ -50,6 +51,8 @@ export interface ReqBody {
   ownSite?: boolean;
   sourcePath?: string;
   skills?: DesignSkill[];
+  /** Names of the skills the user pinned in the dropdown. Empty = pick for me. */
+  selectedSkills?: string[];
 }
 
 export interface Scrape {
@@ -204,20 +207,25 @@ export function heuristicRedesign(
   skills: DesignSkill[],
   body: ReqBody,
 ): RedesignResult {
+  const pinned = pinnedSkills(skills, body);
   const skillNames = new Set(skills.map((s) => s.name));
   const directions: Direction[] = PRESETS.map((p, i) => {
-    const drivingSkill = skillNames.has(p.skill) ? p.skill : skills[0]?.name ?? p.skill;
+    // Pinned skills win: every direction mixes exactly what the user chose, so
+    // the three directions differ by look, not by technique.
+    const drivingSkills = pinned.length
+      ? pinned.map((s) => s.name)
+      : [skillNames.has(p.skill) ? p.skill : skills[0]?.name ?? p.skill];
     return {
       id: `dir-${i}`,
       name: p.name,
       pitch: `A ${p.tone} take on ${scrape.title}.`,
-      drivingSkill,
+      drivingSkills,
       palette: p.palette,
       typography: p.typography,
       layout: p.layout,
       motion: p.motion,
       referenceBar: p.bar,
-      buildPrompt: templatePrompt(url, scrape, p, drivingSkill, body),
+      buildPrompt: templatePrompt(url, scrape, p, drivingSkills, skills, body),
     };
   });
 
@@ -234,11 +242,46 @@ export function heuristicRedesign(
   };
 }
 
+/** The roster entries matching the names the user pinned, in roster order. */
+export function pinnedSkills(skills: DesignSkill[], body: ReqBody): DesignSkill[] {
+  const wanted = Array.isArray(body.selectedSkills) ? body.selectedSkills : [];
+  if (!wanted.length) return [];
+  const set = new Set(wanted);
+  const hit = skills.filter((s) => set.has(s.name));
+  // Names we don't know still count — the build agent can invoke them by name.
+  const extra = wanted
+    .filter((n) => !skills.some((s) => s.name === n))
+    .map((name) => ({ name, description: "" }));
+  return [...hit, ...extra];
+}
+
+/**
+ * The "how to build it" skill instruction. One skill reads as a single driver;
+ * several read as an explicit mix with a tie-breaker, so the agent blends them
+ * into one design instead of stitching three looks together.
+ */
+export function skillInstruction(drivingSkills: string[], skills: DesignSkill[]): string[] {
+  if (drivingSkills.length <= 1) {
+    return [`- Use the \`${drivingSkills[0] ?? "interactive-web-studio"}\` skill to drive the design and motion work.`];
+  }
+  const describe = (name: string) => skills.find((s) => s.name === name)?.description ?? "";
+  return [
+    `- MIX these ${drivingSkills.length} skills into ONE cohesive design — invoke each of them, then blend:`,
+    ...drivingSkills.map((n) => {
+      const d = describe(n);
+      return `  - \`${n}\`${d ? ` — ${d}` : ""}`;
+    }),
+    `- \`${drivingSkills[0]}\` owns the overall frame (layout, type, palette, pacing). The others contribute their signature mechanics inside that frame — never a separate section that looks bolted on.`,
+    `- Where two skills disagree, the earlier one in that list wins. The finished page must read as one designer's work.`,
+  ];
+}
+
 export function templatePrompt(
   url: string,
   scrape: Scrape,
   p: (typeof PRESETS)[number],
-  drivingSkill: string,
+  drivingSkills: string[],
+  skills: DesignSkill[],
   body: ReqBody,
 ): string {
   const inventory = scrape.functionality.length
@@ -259,7 +302,7 @@ export function templatePrompt(
     `## Functionality to preserve — exactly`,
     inventory,
     ``,
-    `## Design direction: ${p.name}`,
+    `## Design direction: ${p.name}${drivingSkills.length > 1 ? ` (${drivingSkills.join(" × ")})` : ""}`,
     `- Feel: ${p.tone}.`,
     `- Palette: ${p.palette.join(", ")}.`,
     `- Typography: ${p.typography.heading} for headings, ${p.typography.body} for body.`,
@@ -267,7 +310,7 @@ export function templatePrompt(
     `- Motion: ${p.motion}`,
     ``,
     `## How to build it`,
-    `- Use the \`${drivingSkill}\` skill to drive the design and motion work.`,
+    ...skillInstruction(drivingSkills, skills),
     `- Use the site's REAL content (headings, copy, CTAs) — no lorem ipsum.`,
     `- Quality bar: make it beat ${p.bar}. Fetch that reference and hold your work to it.`,
     `- Optionally wrap the build in a gauntlet-loop (Builder vs blind Critic) until it beats the bar.`,
