@@ -5,9 +5,11 @@ import { Icon } from "../../icons";
 import {
   categoryPath,
   createCategory,
+  deleteCategory,
   getPhotos,
   getQueue,
   setSettings,
+  updateCategory,
   PHOTOS_KEY,
   UNSORTED_PEOPLE_PATH,
 } from "@/lib/recall/photos/store";
@@ -15,15 +17,27 @@ import { PHOTO_ACCENTS, PHOTOS_ROOT } from "@/lib/recall/photos/types";
 import type { PendingPhoto, PhotoCategory, PhotosData } from "@/lib/recall/photos/types";
 import {
   approvePhotos,
-  backupFiled,
+  backupToDrive,
   importPhotos,
   keepDuplicate,
   reanalyze,
   rejectPhotos,
   retarget,
 } from "@/lib/recall/photos/pipeline";
-import { driveConfigured, pickFromDrive } from "@/lib/recall/drive";
-import { childFolders, getData } from "@/lib/recall/store";
+import { composeBatch } from "@/lib/recall/photos/compose";
+import { readBatchPlan } from "@/lib/recall/photos/batch";
+import type { BatchPlan } from "@/lib/recall/photos/batch";
+import { driveConfigured, drivePickerConfigured, pickFromDrive } from "@/lib/recall/drive";
+import {
+  childFolders,
+  descendantFolderIds,
+  ensureFolderPath,
+  folderPathString,
+  getData,
+  updateFolder,
+} from "@/lib/recall/store";
+import { AlbumDialog, type AlbumDraft } from "./AlbumDialog";
+import { explainDriveFailure } from "@/lib/dashboard/driveBackup/driveApi";
 import { folderPaths } from "@/lib/recall/classify";
 import type { Folder, Item, RecallData } from "@/lib/recall/types";
 import { useRemotePull } from "@/lib/sync/useSync";
@@ -76,14 +90,24 @@ export function PhotosBoard({
   const [photos, setPhotos] = useState<PhotosData>(() => ({
     people: [],
     categories: [],
-    settings: { driveBackup: false, driveFolderId: null, driveMirrorCategories: true },
+    settings: { driveBackup: false },
   }));
   const [pending, setPending] = useState<PendingPhoto[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  /** The user's note about what they are importing, sent with every photo. */
+  /**
+   * The folder grid, or every picture in the library at once. "All photos" is
+   * the view that answers "where did that go" without having to remember which
+   * album the sorting chose — it reads straight through the folder tree.
+   */
+  const [view, setView] = useState<"folders" | "all">("folders");
+  /** Open with null to create a folder, or with a category to teach one. */
+  const [albumEdit, setAlbumEdit] = useState<{ category: PhotoCategory | null } | null>(null);
+  /** The user's instructions for what they are importing, read by the agent. */
   const [instruction, setInstruction] = useState("");
+  /** What the agent did with those instructions on the last import. */
+  const [planNote, setPlanNote] = useState<{ note?: string; couldNot: string[] } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -109,10 +133,31 @@ export function PhotosBoard({
     () => (root ? childFolders(data.folders, root.id) : []),
     [data.folders, root],
   );
-  const countOf = useCallback(
-    (folder: Folder) => data.items.filter((i) => i.folderId === folder.id).length,
-    [data.items],
+
+  /**
+   * Photos counted THROUGH the tree, not just the folder itself.
+   *
+   * A tile that says "empty" because the pictures are one level down is worse
+   * than no count at all — it reads as lost data. Every count here, and the
+   * total in the header, is the whole subtree.
+   */
+  const deepCount = useCallback(
+    (folderId: string) => {
+      const ids = descendantFolderIds(data.folders, folderId);
+      return data.items.filter((i) => i.kind === "image" && i.folderId && ids.has(i.folderId)).length;
+    },
+    [data.folders, data.items],
   );
+  const countOf = useCallback((folder: Folder) => deepCount(folder.id), [deepCount]);
+
+  /** Every picture anywhere under Photos, newest first. */
+  const allPhotos = useMemo(() => {
+    if (!root) return [];
+    const ids = descendantFolderIds(data.folders, root.id);
+    return data.items
+      .filter((i) => i.kind === "image" && i.folderId && ids.has(i.folderId))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [data.folders, data.items, root]);
 
   /**
    * The tile list is the CATEGORIES, not the folders on disk — an empty
@@ -149,21 +194,71 @@ export function PhotosBoard({
     return [...fromCategories, ...extras];
   }, [photos.categories, subFolders, countOf]);
 
-  const totalPhotos = useMemo(
-    () => tiles.reduce((n, t) => n + t.count, 0),
-    [tiles],
-  );
+  const totalPhotos = allPhotos.length;
 
   // ----- import ------------------------------------------------------------
 
-  async function runImport(files: File[]) {
-    if (!files.length) return;
+  /**
+   * Bring a batch in — after doing whatever the instructions asked for.
+   *
+   * "Make these into a collage" has to happen BEFORE anything is queued, or the
+   * user reviews six photos of a truck and a collage nobody asked to keep. So
+   * the agent reads the instruction first, the pictures are combined on a
+   * canvas here in the browser, and it is the ONE finished picture that goes
+   * into the queue, gets filed, and is backed up.
+   */
+  async function runImport(incoming: File[]) {
+    if (!incoming.length) return;
+    let files = incoming;
+    const note = instruction.trim();
+    setPlanNote(null);
+
+    let plan: BatchPlan | null = null;
+    if (note) {
+      setBusy("Reading your instructions…");
+      plan = await readBatchPlan(note, files);
+    }
+
+    let composite: { kind: "collage"; sources: string[] } | null = null;
+    if (plan && (plan.collage || plan.caption)) {
+      setBusy(plan.collage ? "Building the collage…" : "Adding your words…");
+      try {
+        const made = await composeBatch({
+          files,
+          collage: plan.collage,
+          caption: plan.caption,
+          title: plan.title,
+        });
+        if (plan.collage) {
+          // Counted as one picture, on purpose: the originals are still in the
+          // camera roll, and queueing all seven would undo the thing that was
+          // asked for.
+          composite = { kind: "collage", sources: files.map((f) => f.name) };
+          files = [made];
+        } else {
+          // Words on ONE picture. Anything else in the batch comes in untouched
+          // rather than being silently dropped.
+          files = [made, ...files.slice(1)];
+        }
+      } catch (err) {
+        plan = {
+          ...plan,
+          couldNot: [...plan.couldNot, err instanceof Error ? err.message : "That edit failed."],
+        };
+      }
+    }
+    if (plan && (plan.note || plan.couldNot.length)) {
+      setPlanNote({ note: plan.note, couldNot: plan.couldNot });
+    }
+
     setBusy("Storing photos…");
+    const existing = new Set(getQueue().map((q) => q.id));
     const out = await importPhotos({
       files,
       folderPaths: paths,
       existingTags,
-      instruction: instruction.trim() || undefined,
+      instruction: note || undefined,
+      composite,
       onProgress: (p) =>
         setBusy(
           p.stage === "storing"
@@ -175,6 +270,14 @@ export function PhotosBoard({
       onQueue: setPending,
     });
     setPending(out.queue);
+
+    // "…and put them in my Jobs folder". The folder is created if it is new —
+    // nothing is committed by that: the photos sit in the review queue showing
+    // exactly where they are headed, and an empty folder is one click to delete.
+    if (plan?.album) {
+      const queuedNow = out.queue.filter((q) => !existing.has(q.id)).map((q) => q.id);
+      if (queuedNow.length) fileInto(plan.album, queuedNow);
+    }
     setBusy(null);
 
     // Say exactly what happened, including what did NOT come in — a silent
@@ -183,6 +286,20 @@ export function PhotosBoard({
     if (out.deferred) bits.push(`${out.deferred} held back — clear the queue first`);
     if (out.skipped) bits.push(`${out.skipped} skipped (not images)`);
     onToast(bits.join(" · "));
+  }
+
+  /** Point queued photos at an album by name, making it if it does not exist. */
+  function fileInto(albumName: string, photoIds: string[]) {
+    const wanted = albumName.trim().toLowerCase();
+    let cat = photos.categories.find((c) => c.name.trim().toLowerCase() === wanted);
+    if (!cat) {
+      const next = makeAlbum({ name: albumName.trim(), description: "", requires: [], exact: false, refs: [] });
+      cat = next.categories.find((c) => c.name.trim().toLowerCase() === wanted);
+    }
+    if (!cat) return;
+    let queue = getQueue();
+    for (const id of photoIds) queue = retarget(id, categoryPath(cat), cat.id);
+    setPending(queue);
   }
 
   async function importFromDrive() {
@@ -219,6 +336,7 @@ export function PhotosBoard({
     if (res.eventsCreated) bits.push(`${res.eventsCreated} on the calendar`);
     if (res.backedUp) bits.push(`${res.backedUp} backed up`);
     if (res.backupFailed) bits.push(`${res.backupFailed} failed to back up`);
+    if (res.backupNeedsTap) bits.push("press Back up — Google needs a fresh OK");
     if (res.problems.length) {
       // A bare count gave the user nothing to act on — the reason is the useful
       // part, so the first one is shown in full. The photo stays in the queue.
@@ -259,18 +377,44 @@ export function PhotosBoard({
     setBusy(null);
   }
 
-  function createAlbum(photoId: string, album: NewAlbum) {
-    // An album with nobody chosen is a plain album and must NEVER match on its
-    // own: custom albums sort ahead of the family rules, so a rule of "any one
-    // person" would swallow every photo of a person. A people count no real
-    // photo reaches keeps it manual-only.
+  /**
+   * Create a photo folder, both halves of it: the RULE that sorts photos into
+   * it, and the real Dashboard folder it files into.
+   *
+   * Both, always. A rule with no folder is a destination that shows as empty
+   * until its first photo; a folder with no rule never sorts anything. Making
+   * one without the other is the bug this function exists to prevent.
+   */
+  function makeAlbum(draft: AlbumDraft): PhotosData {
     const next = createCategory({
-      name: album.name,
-      requires: album.requires,
-      exact: album.exact,
-      minPeople: album.requires.length || 999,
+      name: draft.name,
+      description: draft.description || undefined,
+      requires: draft.requires,
+      exact: draft.exact,
+      // A folder with nobody chosen must NEVER match on people alone: custom
+      // rules sort ahead of the family ones, so "any one person" would swallow
+      // every photo of a person. A count no real photo reaches leaves it to the
+      // reference pictures, or to the user.
+      minPeople: draft.requires.length || 999,
+      refs: draft.refs,
+      refHint: draft.description || undefined,
     });
     setPhotos(next);
+    // The real folder, created now rather than on the first photo, so it is on
+    // the Folders tab and in the next Drive backup straight away.
+    ensureFolderPath([PHOTOS_ROOT, draft.name.trim()], false);
+    onData(getData());
+    return next;
+  }
+
+  function createAlbum(photoId: string, album: NewAlbum) {
+    const next = makeAlbum({
+      name: album.name,
+      description: "",
+      requires: album.requires,
+      exact: album.exact,
+      refs: [],
+    });
     const made = [...next.categories]
       .reverse()
       .find((c) => !c.builtIn && c.name === album.name.trim());
@@ -278,30 +422,89 @@ export function PhotosBoard({
     onToast(`Album “${album.name}” created`);
   }
 
-  // ----- backup ------------------------------------------------------------
-
-  async function backupFolder(folderId: string, name: string) {
-    const items: Item[] = data.items.filter((i) => i.folderId === folderId && i.attachment?.fileId);
-    if (!items.length) return onToast("Nothing in that folder to back up");
-    setBusy(`Backing up ${name}…`);
-    try {
-      const res = await backupFiled({
-        items: items.map((i) => ({
-          id: i.id,
-          name: i.attachment?.name ?? `${i.title}.jpg`,
-          fileId: i.attachment?.fileId as string,
-          category: name,
-          driveBackupId: i.driveBackupId,
-        })),
-        mirrorCategories: photos.settings.driveMirrorCategories,
-        onProgress: (done, total) => setBusy(`Backing up ${done}/${total}…`),
-      });
+  /** Save the dialog — a new folder, or changes to one that exists. */
+  function saveAlbum(draft: AlbumDraft) {
+    const editing = albumEdit?.category ?? null;
+    if (!editing) {
+      makeAlbum(draft);
+      onToast(`Folder “${draft.name}” created`);
+    } else {
+      const was = editing.name;
+      setPhotos(
+        updateCategory(editing.id, {
+          name: draft.name,
+          description: draft.description,
+          requires: draft.requires,
+          exact: draft.exact,
+          refs: draft.refs,
+          refHint: draft.description,
+        }),
+      );
+      // A renamed rule whose folder kept the old name would file into a second
+      // folder beside the first, so the folder is renamed with it.
+      const folder = root ? childFolders(data.folders, root.id).find((f) => f.name === was) : null;
+      if (folder && folder.name !== draft.name) {
+        updateFolder(folder.id, { name: draft.name, description: draft.description });
+      } else if (folder) {
+        updateFolder(folder.id, { name: folder.name, description: draft.description });
+      } else {
+        ensureFolderPath([PHOTOS_ROOT, draft.name], false);
+      }
       onData(getData());
       onToast(
-        `${res.ok} uploaded${res.skipped ? ` · ${res.skipped} already there` : ""}${res.failed ? ` · ${res.failed} failed` : ""}`,
+        draft.refs.length
+          ? `“${draft.name}” now sorts by ${draft.refs.length} reference ${draft.refs.length === 1 ? "picture" : "pictures"}`
+          : `“${draft.name}” saved`,
       );
+    }
+    setAlbumEdit(null);
+  }
+
+  /**
+   * Remove the RULE, never the pictures. The folder and everything filed in it
+   * stay exactly where they are on the Folders tab — deleting photos is not
+   * something an "edit folder" dialog should ever be able to do by accident.
+   */
+  function removeAlbum() {
+    const editing = albumEdit?.category;
+    if (!editing) return;
+    setPhotos(deleteCategory(editing.id));
+    setAlbumEdit(null);
+    onToast(`“${editing.name}” will not sort new photos any more. The folder and its photos are untouched.`);
+  }
+
+  // ----- backup ------------------------------------------------------------
+
+  /**
+   * Back everything up — the SAME backup the Folders tab runs, on purpose.
+   *
+   * Photos used to have a Drive path of their own that uploaded into a separate
+   * folder, flat but for one level of album names, and could not see a
+   * sub-folder inside an album at all. Now there is one backup: it mirrors the
+   * folder tree exactly as it appears here, at any depth, and matches by id so
+   * a renamed album moves on Drive instead of being uploaded again beside the
+   * old copy. "Just like everything else" is the whole point.
+   */
+  async function backupEverything() {
+    setBusy("Checking what is already on Drive…");
+    try {
+      const summary = await backupToDrive((p) =>
+        setBusy(
+          p.stage === "scanning"
+            ? "Checking what is already on Drive…"
+            : `Backing up ${p.done + 1} of ${p.total}${p.current ? ` — ${p.current}` : ""}`,
+        ),
+      );
+      onData(getData());
+      const bits = [`${summary.created} added`, `${summary.updated} updated`];
+      if (summary.unchanged) bits.push(`${summary.unchanged} already there`);
+      if (summary.failed.length) bits.push(`${summary.failed.length} failed`);
+      if (summary.notOnThisDevice.length) {
+        bits.push(`${summary.notOnThisDevice.length} stored on another device`);
+      }
+      onToast(`Google Drive: ${bits.join(" · ")}`);
     } catch (err) {
-      onToast(err instanceof Error ? err.message : "Backup failed");
+      onToast(explainDriveFailure(err instanceof Error ? err.message : "Backup failed"));
     }
     setBusy(null);
   }
@@ -311,18 +514,26 @@ export function PhotosBoard({
     () => (openFolder ? data.items.filter((i) => i.folderId === openFolder.id) : []),
     [data.items, openFolder],
   );
+  /** Folders nested inside the open one — shown, not hidden, at every depth. */
+  const openSubFolders = useMemo(
+    () => (openFolder ? childFolders(data.folders, openFolder.id) : []),
+    [data.folders, openFolder],
+  );
 
   if (openFolder) {
     return (
       <Gallery
         folder={openFolder}
         items={openPhotos}
-        driveEnabled={photos.settings.driveBackup}
+        subFolders={openSubFolders}
+        countIn={deepCount}
+        driveEnabled={driveConfigured()}
         busy={busy}
         onBack={() => setOpenFolderId(null)}
+        onOpenFolder={setOpenFolderId}
         onOpenItem={onOpenItem}
         onOpenWorkspace={() => onNavigate(openFolder.id)}
-        onBackup={() => void backupFolder(openFolder.id, openFolder.name)}
+        onBackup={() => void backupEverything()}
       />
     );
   }
@@ -340,8 +551,8 @@ export function PhotosBoard({
         <div className="mr-auto">
           <p className="text-sm font-semibold text-ink">Photos</p>
           <p className="text-[11px] text-ink-muted">
-            {totalPhotos} filed · {photos.people.length}{" "}
-            {photos.people.length === 1 ? "person" : "people"} labelled
+            {totalPhotos} filed · {tiles.length} {tiles.length === 1 ? "folder" : "folders"} ·{" "}
+            {photos.people.length} {photos.people.length === 1 ? "person" : "people"} labelled
           </p>
         </div>
 
@@ -373,6 +584,13 @@ export function PhotosBoard({
           )}
         </button>
         <button
+          onClick={() => setAlbumEdit({ category: null })}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-line px-2.5 py-2 text-[12px] font-medium text-ink-muted transition hover:text-ink"
+        >
+          <Icon.Plus width={14} height={14} />
+          <span className="hidden sm:inline">New folder</span>
+        </button>
+        <button
           onClick={() => setSettingsOpen(true)}
           title="Backup and folder rules"
           aria-label="Photo settings"
@@ -381,6 +599,17 @@ export function PhotosBoard({
           <Icon.Settings width={15} height={15} />
         </button>
         {driveConfigured() && (
+          <button
+            onClick={() => void backupEverything()}
+            disabled={Boolean(busy)}
+            title="Back the whole library up to Google Drive — every folder, at any depth"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-line px-2.5 py-2 text-[12px] font-medium text-ink-muted transition hover:text-ink disabled:opacity-40"
+          >
+            <Icon.Upload width={14} height={14} />
+            <span className="hidden sm:inline">Back up</span>
+          </button>
+        )}
+        {drivePickerConfigured() && (
           <button
             onClick={() => void importFromDrive()}
             disabled={Boolean(busy)}
@@ -400,20 +629,58 @@ export function PhotosBoard({
         </button>
       </div>
 
-      <label className="mb-2 block">
+      {/*
+        The batch instruction. It used to be a hint about what the photos WERE;
+        it is now an instruction the agent carries out — because "make these
+        into a collage" has to change the pictures before any of them is
+        queued, not merely colour how they are filed.
+      */}
+      <label className="mb-1.5 block">
         <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
-          What are these photos?{" "}
+          Tell the agent what to do with them{" "}
           <span className="normal-case tracking-normal text-ink-faint/70">
-            optional — helps it send them to the right place
+            optional — applies to the next batch you add
           </span>
         </span>
         <input
           value={instruction}
           onChange={(e) => setInstruction(e.target.value)}
-          placeholder='e.g. "these are all recipes" or "screenshots of AI tools"'
+          placeholder='e.g. "make these into a collage and put a short quote about hard work at the bottom"'
           className="w-full rounded-xl border border-line bg-canvas px-3 py-2 text-xs text-ink outline-none placeholder:text-ink-faint focus:border-brand focus:ring-2 focus:ring-brand/25"
         />
       </label>
+
+      <div className="mb-2 flex flex-wrap gap-1.5">
+        {[
+          "Make these into a collage",
+          "Collage these and put “FOR SALE” across the bottom",
+          "These are all recipes",
+        ].map((example) => (
+          <button
+            key={example}
+            onClick={() => setInstruction(example)}
+            className="rounded-lg border border-line px-2 py-1 text-[10.5px] text-ink-faint transition hover:text-ink"
+          >
+            {example}
+          </button>
+        ))}
+      </div>
+
+      {planNote && (
+        <div className="mb-2 rounded-xl border border-brand/30 bg-brand/[0.06] px-3 py-2 text-[11.5px] leading-relaxed">
+          {planNote.note && (
+            <p className="flex items-center gap-1.5 text-ink">
+              <Icon.Sparkles width={12} height={12} className="shrink-0 text-brand" />
+              {planNote.note}
+            </p>
+          )}
+          {planNote.couldNot.map((line, i) => (
+            <p key={i} className="mt-0.5 text-amber-300">
+              {line}
+            </p>
+          ))}
+        </div>
+      )}
 
       <IphoneSources
         busy={Boolean(busy)}
@@ -473,20 +740,79 @@ export function PhotosBoard({
         onCreateAlbum={(id, album) => createAlbum(id, album)}
       />
 
-      {/* Sub-folders */}
-      {tiles.length === 0 ? (
+      {/* Folders, or the whole library at once */}
+      <div className="mb-2 flex items-center gap-1">
+        {(["folders", "all"] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={
+              "rounded-lg px-2.5 py-1.5 text-[11.5px] font-medium transition " +
+              (view === v ? "bg-amber-400/15 text-amber-200" : "text-ink-faint hover:text-ink")
+            }
+          >
+            {v === "folders" ? "Folders" : `All photos (${totalPhotos})`}
+          </button>
+        ))}
+      </div>
+
+      {view === "all" ? (
+        allPhotos.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-line bg-panel/40 px-6 py-14 text-center">
+            <Icon.Image width={28} height={28} className="mx-auto mb-3 text-ink-faint" />
+            <p className="text-sm font-medium text-ink">No photos filed yet</p>
+            <p className="mx-auto mt-1 max-w-sm text-[11.5px] leading-relaxed text-ink-muted">
+              Add some above; they appear here once you approve them.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5 lg:grid-cols-6">
+            {allPhotos.map((it) => (
+              <button
+                key={it.id}
+                onClick={() => onOpenItem(it)}
+                title={`${it.title} — ${folderPathString(data.folders, it.folderId)}`}
+                className="group relative aspect-square overflow-hidden rounded-xl bg-panel-2 transition hover:brightness-110"
+              >
+                {it.attachment?.url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={it.attachment.url} alt={it.title} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="flex h-full w-full items-center justify-center text-ink-faint">
+                    <Icon.Image width={18} height={18} />
+                  </span>
+                )}
+                <span className="absolute inset-x-0 bottom-0 hidden bg-gradient-to-t from-black/85 to-transparent px-1.5 pb-1 pt-4 text-[10px] leading-tight text-white group-hover:block">
+                  <span className="line-clamp-1">{it.title}</span>
+                  <span className="line-clamp-1 text-white/60">
+                    {folderPathString(data.folders, it.folderId)}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )
+      ) : tiles.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-line bg-panel/40 px-6 py-14 text-center">
           <Icon.Image width={28} height={28} className="mx-auto mb-3 text-ink-faint" />
           <p className="text-sm font-medium text-ink">No photo folders yet</p>
           <p className="mx-auto mt-1 max-w-sm text-[11.5px] leading-relaxed text-ink-muted">
-            They appear as soon as you add the people they&apos;re about.
+            Add the people they&apos;re about, or make one yourself with{" "}
+            <strong className="text-ink-muted">New folder</strong>.
           </p>
+          <button
+            onClick={() => setAlbumEdit({ category: null })}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3 py-2 text-[13px] font-semibold text-black transition hover:bg-amber-400"
+          >
+            <Icon.Plus width={15} height={15} /> New folder
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
           {tiles.map((t, i) => {
             const a = PHOTO_ACCENTS[i % PHOTO_ACCENTS.length];
             const disabled = !t.folderId;
+            const refs = t.category?.refs?.length ?? 0;
             return (
               <div key={t.key} className="group/tile relative">
                 <button
@@ -506,18 +832,22 @@ export function PhotosBoard({
                     </span>
                     <span className="mt-0.5 block text-[10px] tabular-nums text-ink-faint">
                       {t.count === 0 ? "empty" : `${t.count} ${t.count === 1 ? "photo" : "photos"}`}
+                      {refs > 0 && ` · ${refs} ref`}
                     </span>
                   </span>
                 </button>
-                {photos.settings.driveBackup && t.folderId && t.count > 0 && (
+                {t.category && (
                   <button
-                    onClick={() => void backupFolder(t.folderId as string, t.name)}
-                    disabled={Boolean(busy)}
-                    title={`Back “${t.name}” up to Google Drive`}
-                    aria-label={`Back up ${t.name} to Drive`}
-                    className="absolute right-2 top-2 rounded-md bg-canvas/70 p-1.5 text-ink-faint opacity-0 backdrop-blur transition hover:text-ink group-hover/tile:opacity-100 disabled:opacity-40"
+                    onClick={() => setAlbumEdit({ category: t.category })}
+                    title={
+                      refs > 0
+                        ? `Edit “${t.name}” and its reference pictures`
+                        : `Teach “${t.name}” with a reference picture`
+                    }
+                    aria-label={`Edit ${t.name}`}
+                    className="absolute right-2 top-2 rounded-md bg-canvas/70 p-1.5 text-ink-faint opacity-0 backdrop-blur transition hover:text-ink group-hover/tile:opacity-100"
                   >
-                    <Icon.Upload width={12} height={12} />
+                    <Icon.Edit width={12} height={12} />
                   </button>
                 )}
               </div>
@@ -539,6 +869,17 @@ export function PhotosBoard({
           onData={setPhotos}
           onToast={onToast}
           onClose={() => setPeopleOpen(false)}
+        />
+      )}
+
+      {albumEdit && (
+        <AlbumDialog
+          photos={photos}
+          category={albumEdit.category}
+          takenNames={[...photos.categories.map((c) => c.name), ...subFolders.map((f) => f.name)]}
+          onSave={saveAlbum}
+          onDelete={removeAlbum}
+          onClose={() => setAlbumEdit(null)}
         />
       )}
 
@@ -574,6 +915,7 @@ function PhotoSettings({
   }, [onClose]);
 
   const configured = driveConfigured();
+  const pickerConfigured = drivePickerConfigured();
 
   return (
     <div
@@ -604,9 +946,8 @@ function PhotoSettings({
         {!configured ? (
           <p className="rounded-xl border border-line bg-canvas px-3 py-2 text-[11.5px] leading-relaxed text-ink-muted">
             Google Drive isn&apos;t set up on this deployment. Add{" "}
-            <code className="text-ink">NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> and{" "}
-            <code className="text-ink">NEXT_PUBLIC_GOOGLE_API_KEY</code> and the backup and import
-            buttons appear.
+            <code className="text-ink">NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> to your site settings and
+            redeploy, and the backup button appears.
           </p>
         ) : (
           <>
@@ -619,39 +960,29 @@ function PhotoSettings({
               />
               <span>
                 <span className="block text-[12.5px] font-medium text-ink">
-                  Copy approved photos to Drive
+                  Back up to Drive after filing photos
                 </span>
                 <span className="mt-0.5 block text-[11px] leading-relaxed text-ink-muted">
-                  Uploads to a <strong>Dashboard Photos</strong> folder Drive creates for this app.
-                  Dashboard only ever sees files it created or you hand-picked — it cannot read the
-                  rest of your Drive.
-                </span>
-              </span>
-            </label>
-
-            <label className="mt-2 flex cursor-pointer items-start gap-2.5 rounded-xl border border-line bg-canvas px-3 py-2.5">
-              <input
-                type="checkbox"
-                checked={photos.settings.driveMirrorCategories}
-                onChange={(e) => onChange({ driveMirrorCategories: e.target.checked })}
-                disabled={!photos.settings.driveBackup}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-amber-500 disabled:opacity-40"
-              />
-              <span>
-                <span className="block text-[12.5px] font-medium text-ink">
-                  Mirror the sub-folders
-                </span>
-                <span className="mt-0.5 block text-[11px] leading-relaxed text-ink-muted">
-                  Recreates <em>Selfies</em>, <em>My Son</em> and the rest inside the backup folder
-                  instead of dumping everything in one pile.
+                  Saves into <strong>Ultimate Assistant OS › Photos</strong> in your Drive — the same
+                  place the Folders tab backs up to, with every folder and sub-folder in the shape
+                  they have here. Dashboard only ever sees files it created or you hand-picked; it
+                  cannot read the rest of your Drive.
                 </span>
               </span>
             </label>
 
             <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
-              Already-filed photos aren&apos;t uploaded retroactively. Hover any photo folder tile
-              and press the ↑ button to back that one up; anything already in Drive is skipped.
+              Nothing is ever deleted from Drive, and a renamed folder moves there instead of being
+              copied again. Press <strong className="text-ink-muted">Back up</strong> at the top to
+              run it now over everything, including photos filed before you turned this on.
             </p>
+            {!pickerConfigured && (
+              <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
+                Adding <code className="text-ink-muted">NEXT_PUBLIC_GOOGLE_API_KEY</code> as well
+                turns on the other direction — a <em>From Drive</em> button for picking photos out of
+                your Drive. Backing up does not need it.
+              </p>
+            )}
           </>
         )}
 
@@ -689,23 +1020,30 @@ function PhotoSettings({
 function Gallery({
   folder,
   items,
+  subFolders,
+  countIn,
   driveEnabled,
   busy,
   onBack,
+  onOpenFolder,
   onOpenItem,
   onOpenWorkspace,
   onBackup,
 }: {
   folder: Folder;
   items: Item[];
+  subFolders: Folder[];
+  countIn: (folderId: string) => number;
   driveEnabled: boolean;
   busy: string | null;
   onBack: () => void;
+  onOpenFolder: (folderId: string) => void;
   onOpenItem: (item: Item) => void;
   onOpenWorkspace: () => void;
   onBackup: () => void;
 }) {
-  const backedUp = items.filter((i) => i.driveBackupId).length;
+  const deep = countIn(folder.id);
+  const nested = deep - items.length;
 
   return (
     <div>
@@ -720,13 +1058,14 @@ function Gallery({
           <p className="text-sm font-semibold text-ink">{folder.name}</p>
           <p className="text-[11px] text-ink-muted">
             {items.length} {items.length === 1 ? "photo" : "photos"}
-            {driveEnabled && ` · ${backedUp} backed up`}
+            {nested > 0 && ` · ${nested} more in ${subFolders.length === 1 ? "a sub-folder" : "sub-folders"}`}
           </p>
         </div>
-        {driveEnabled && items.length > 0 && (
+        {driveEnabled && deep > 0 && (
           <button
             onClick={onBackup}
             disabled={Boolean(busy)}
+            title="Backs up the whole library, sub-folders and all"
             className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[11px] text-ink-muted transition hover:text-ink disabled:opacity-40"
           >
             <Icon.Upload width={13} height={13} /> Back up to Drive
@@ -745,6 +1084,22 @@ function Gallery({
         <div className="mb-3 flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/5 px-3 py-2 text-[11.5px] text-amber-200">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-300" />
           {busy}
+        </div>
+      )}
+
+      {subFolders.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {subFolders.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => onOpenFolder(f.id)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-line bg-panel px-2.5 py-1.5 text-[11.5px] text-ink-muted transition hover:text-ink"
+            >
+              <Icon.Folder width={13} height={13} className="text-amber-300" />
+              {f.name}
+              <span className="tabular-nums text-ink-faint">{countIn(f.id)}</span>
+            </button>
+          ))}
         </div>
       )}
 
@@ -771,14 +1126,6 @@ function Gallery({
               ) : (
                 <span className="flex h-full w-full items-center justify-center text-ink-faint">
                   <Icon.Image width={18} height={18} />
-                </span>
-              )}
-              {it.driveBackupId && (
-                <span
-                  title="Backed up to Google Drive"
-                  className="absolute right-1 top-1 rounded bg-canvas/80 p-0.5 text-emerald-300 backdrop-blur"
-                >
-                  <Icon.Check width={10} height={10} />
                 </span>
               )}
               <span className="absolute inset-x-0 bottom-0 hidden bg-gradient-to-t from-black/85 to-transparent px-1.5 pb-1 pt-4 text-[10px] leading-tight text-white group-hover:block">

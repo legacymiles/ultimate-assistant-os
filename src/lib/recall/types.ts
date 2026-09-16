@@ -115,6 +115,12 @@ export interface Item {
   photoCategoryId?: string | null;
   /** Look-alike fingerprint of an image item; syncs, so duplicates are caught on every device. */
   fingerprint?: string;
+  /**
+   * True when this picture was built here from several uploads (a collage).
+   * Kept so the duplicate check never measures a collage against a plain photo
+   * — see findDuplicate in lib/recall/photos/fingerprint.ts.
+   */
+  composite?: boolean;
   /** Set once this photo has been copied to the Google Drive backup. */
   driveBackupId?: string | null;
   createdAt: string;

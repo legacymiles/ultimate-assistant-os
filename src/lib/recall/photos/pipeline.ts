@@ -22,11 +22,17 @@
 import { uid } from "../../utils";
 import { destinationById } from "@/lib/dashboard/destinations/registry";
 import { categorize, deleteFile, getFile, putFile } from "../files";
-import { createItem, ensureFolderPath, folderPathString, getData, updateItem } from "../store";
+import { createItem, ensureFolderPath, folderPathString, getData } from "../store";
 import { createEvent } from "../calendar/store";
 import { todayKey } from "../calendar/types";
-import { backupPhotos, driveConfigured } from "../drive";
+import { driveConfigured, driveTokenLive } from "../drive";
 import {
+  runBackup as runSharedBackup,
+  type BackupProgress as SharedBackupProgress,
+  type BackupSummary,
+} from "@/lib/dashboard/driveBackup/run";
+import {
+  categoryPath,
   enqueuePhoto,
   getPhotos,
   getQueue,
@@ -66,6 +72,12 @@ export interface ImportArgs {
   existingTags: string[];
   /** The user's note about the batch, e.g. "these are all recipes". */
   instruction?: string;
+  /**
+   * Set when `files` is one picture this app BUILT from several uploads. It
+   * travels with the photo so the duplicate check knows not to measure a
+   * collage against the pictures that went into it.
+   */
+  composite?: { kind: "collage"; sources: string[] } | null;
   onProgress?: (p: ImportProgress) => void;
   /** Called whenever the queue changes so the UI can re-render as it fills. */
   onQueue?: (queue: PendingPhoto[]) => void;
@@ -115,12 +127,18 @@ export async function importPhotos(args: ImportArgs): Promise<ImportOutcome> {
       type: file.type || "image/jpeg",
       size: file.size,
       thumb,
+      composite: args.composite ?? null,
     });
     // Is this a picture the user already has? Checked against photos already
     // filed and photos already waiting — this batch included, because picking
     // the same photo twice in one import is the commonest accident of all.
     const fingerprint = await fingerprintImage(thumb);
-    const dup = findDuplicate(fingerprint, [...filed, ...queuedFingerprints(out.queue)], out.photo.id);
+    const dup = findDuplicate(
+      fingerprint,
+      [...filed, ...queuedFingerprints(out.queue)],
+      out.photo.id,
+      Boolean(args.composite),
+    );
     queue = updatePending(out.photo.id, {
       fingerprint,
       duplicateOf: dup ? { label: dup.label, identical: dup.identical } : null,
@@ -132,7 +150,7 @@ export async function importPhotos(args: ImportArgs): Promise<ImportOutcome> {
 
   // Phase 2 — triage, a few at a time.
   const photos = getPhotos();
-  const sheet = await buildContactSheet(photos.people);
+  const sheet = await buildContactSheet(photos.people, photos.categories);
   let analysed = 0;
   const run = async (job: { pending: PendingPhoto; file: File }) => {
     const analysis = await analyzePhoto({
@@ -183,6 +201,24 @@ function applyAnalysis(id: string, analysis: PhotoAnalysis, photos: PhotosData):
     });
   }
 
+  // A folder the user taught with reference pictures. It beats the people rules
+  // when the model is confident, and otherwise only rescues a photo that would
+  // have landed in Unsorted — so teaching a folder can improve the sorting
+  // without ever quietly overruling a face match the user already trusts.
+  const ref = analysis.albumMatch;
+  if (ref) {
+    const cat = photos.categories.find((c) => c.id === ref.categoryId);
+    const unplaced = dest.categoryId === null;
+    if (cat && (ref.confidence >= 0.7 || unplaced)) {
+      return updatePending(id, {
+        status: "ready",
+        analysis,
+        destPath: categoryPath(cat),
+        categoryId: cat.id,
+      });
+    }
+  }
+
   return updatePending(id, {
     status: "ready",
     analysis,
@@ -217,7 +253,7 @@ export async function reanalyze(
     return updatePending(photoId, { status: "failed", error: "The file is no longer stored locally." });
   }
   const photos = getPhotos();
-  const sheet = await buildContactSheet(photos.people);
+  const sheet = await buildContactSheet(photos.people, photos.categories);
   const analysis = await analyzePhoto({
     blob,
     name: pending.name,
@@ -246,6 +282,8 @@ export interface ApproveResult {
   filedElsewhere?: number;
   backedUp: number;
   backupFailed: number;
+  /** Backup was on but needs a tap on "Back up" first — Google's consent window. */
+  backupNeedsTap?: boolean;
   /** Photos that could not be filed, with why. */
   problems: { name: string; error: string }[];
 }
@@ -337,6 +375,7 @@ export async function approvePhotos(args: ApproveArgs): Promise<ApproveResult> {
         // Kept on the item so this photo is recognised as a duplicate later,
         // on any device — the item syncs, the pixels do not.
         fingerprint: p.fingerprint,
+        composite: p.composite ? true : undefined,
       });
       result.filed++;
 
@@ -377,40 +416,27 @@ export async function approvePhotos(args: ApproveArgs): Promise<ApproveResult> {
   removePending(queue.filter((p) => !problemNames.has(p.name)).map((p) => p.id));
 
   if (photos.settings.driveBackup && driveConfigured() && filedForBackup.length) {
-    const backup = await runBackup(filedForBackup, photos);
-    result.backedUp = backup.ok;
-    result.backupFailed = backup.failed;
+    // Only when an approval from this visit is still good. Asking Google for a
+    // fresh token opens a consent window, and by now the click that approved
+    // these photos is several awaits old — the browser blocks a pop-up with no
+    // click behind it, so an automatic run would fail looking like a bug. It
+    // waits for the Back up button instead, and says so.
+    if (!driveTokenLive()) {
+      result.backupNeedsTap = true;
+      return result;
+    }
+    try {
+      const summary = await backupToDrive();
+      result.backedUp = summary.created + summary.updated;
+      result.backupFailed = summary.failed.length;
+    } catch {
+      // A failed backup must never look like a failed import — the photos are
+      // filed either way, and the Photos tab reports the backup state separately.
+      result.backupFailed = filedForBackup.length;
+    }
   }
 
   return result;
-}
-
-async function runBackup(
-  filed: { photo: PendingPhoto; itemId: string; category: string }[],
-  photos: PhotosData,
-): Promise<{ ok: number; failed: number }> {
-  try {
-    const targets = [];
-    for (const f of filed) {
-      const blob = await getFile(f.photo.fileId);
-      if (blob) targets.push({ blob, name: f.photo.name, category: f.category });
-    }
-    const res = await backupPhotos(targets, {
-      mirrorCategories: photos.settings.driveMirrorCategories,
-    });
-    // Stamp the Drive id on each item so a later "back everything up" can skip
-    // what is already there rather than making duplicates.
-    const byName = new Map(res.uploaded.map((u) => [u.name, u.driveId]));
-    for (const f of filed) {
-      const driveId = byName.get(f.photo.name);
-      if (driveId) updateItem(f.itemId, { driveBackupId: driveId });
-    }
-    return { ok: res.uploaded.length, failed: res.failed.length };
-  } catch {
-    // A failed backup must never look like a failed import — the photos are
-    // filed either way, and the Photos tab reports the backup state separately.
-    return { ok: 0, failed: filed.length };
-  }
 }
 
 /** Discard photos from the queue, taking their blobs with them. */
@@ -437,42 +463,24 @@ export function markUnanalysed(photo: PendingPhoto): PendingPhoto[] {
   return applyAnalysis(photo.id, heuristicAnalysis(photo.name), getPhotos());
 }
 
-// ----- backing up what is already filed ------------------------------------
-
-export interface BulkBackupArgs {
-  /** Already-filed photo items, newest first. */
-  items: { id: string; name: string; fileId: string; category: string; driveBackupId?: string | null }[];
-  mirrorCategories: boolean;
-  onProgress?: (done: number, total: number, current: string) => void;
-}
+// ----- backing up ----------------------------------------------------------
 
 /**
- * Copy an existing photo folder to Drive. Anything already stamped with a
- * Drive id is skipped, so running this twice is cheap rather than duplicative.
+ * Back the library up to Google Drive — the SAME backup the Folders tab runs.
+ *
+ * Photos used to have a Drive path of their own, uploading into a separate
+ * "Recall Photos" folder, flat but for one level of album names. That was two
+ * backups of the same library in two shapes, and it could not see a sub-folder
+ * inside an album at all. There is now one: it mirrors the folder tree exactly
+ * as it appears in the app, at any depth, and matches files by the id they came
+ * from — so a renamed or moved album moves on Drive instead of being uploaded
+ * again beside the old copy.
  */
-export async function backupFiled(args: BulkBackupArgs): Promise<{ ok: number; failed: number; skipped: number }> {
-  const todo = args.items.filter((i) => !i.driveBackupId);
-  const skipped = args.items.length - todo.length;
-  if (!todo.length) return { ok: 0, failed: 0, skipped };
-
-  const targets = [];
-  for (const i of todo) {
-    const blob = await getFile(i.fileId);
-    if (blob) targets.push({ blob, name: i.name, category: i.category, itemId: i.id });
-  }
-  const res = await backupPhotos(
-    targets.map(({ blob, name, category }) => ({ blob, name, category })),
-    {
-      mirrorCategories: args.mirrorCategories,
-      onProgress: (p) => args.onProgress?.(p.done, p.total, p.current),
-    },
-  );
-  const byName = new Map(res.uploaded.map((u) => [u.name, u.driveId]));
-  for (const t of targets) {
-    const driveId = byName.get(t.name);
-    if (driveId) updateItem(t.itemId, { driveBackupId: driveId });
-  }
-  return { ok: res.uploaded.length, failed: res.failed.length, skipped };
+export async function backupToDrive(
+  onProgress?: (p: SharedBackupProgress) => void,
+): Promise<BackupSummary> {
+  const data = getData();
+  return runSharedBackup(data.folders, data.items, onProgress);
 }
 
 // ----- duplicates ------------------------------------------------------------
@@ -484,7 +492,14 @@ async function filedFingerprints(): Promise<FingerprintCandidate[]> {
   for (const it of data.items) {
     if (it.kind !== "image") continue;
     const hash = it.fingerprint ?? (await fingerprintImage(it.attachment?.url));
-    if (hash) out.push({ id: it.id, hash, label: folderPathString(data.folders, it.folderId) });
+    if (hash) {
+      out.push({
+        id: it.id,
+        hash,
+        label: folderPathString(data.folders, it.folderId),
+        composite: Boolean(it.composite),
+      });
+    }
   }
   return out;
 }
@@ -493,7 +508,12 @@ async function filedFingerprints(): Promise<FingerprintCandidate[]> {
 function queuedFingerprints(queue: PendingPhoto[]): FingerprintCandidate[] {
   return queue
     .filter((p) => p.fingerprint)
-    .map((p) => ({ id: p.id, hash: p.fingerprint as string, label: "Waiting for review" }));
+    .map((p) => ({
+      id: p.id,
+      hash: p.fingerprint as string,
+      label: "Waiting for review",
+      composite: Boolean(p.composite),
+    }));
 }
 
 /** The user saw the duplicate warning and wants this photo anyway. */

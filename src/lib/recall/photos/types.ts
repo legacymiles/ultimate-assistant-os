@@ -70,6 +70,18 @@ export interface PhotoCategory {
   /** Auto-maintained solo folder for this person, when the category is one. */
   personId?: string | null;
   description?: string;
+  /**
+   * Reference pictures for the FOLDER itself, as data URLs.
+   *
+   * The people rules answer "who is in this shot"; these answer "does this shot
+   * belong in here" — which is the only question a folder like "Jobs", "My
+   * Truck" or "Receipts" can be sorted by, because there is no face to match.
+   * They ride along in the same contact sheet the faces use, so adding them
+   * costs one tile, not another request per photo.
+   */
+  refs?: string[];
+  /** A sentence about what belongs here, sent with the references. */
+  refHint?: string;
 }
 
 /**
@@ -116,6 +128,12 @@ export interface PhotoAnalysis {
   destination?: { id: string; fields: Record<string, unknown> };
   /** The Dashboard photo album the user's instructions asked the picture itself to go in. */
   photoAlbum?: string | null;
+  /**
+   * The folder whose reference pictures this photo matched. This is how a
+   * folder with no face rule behind it — "Jobs", "My Truck", "My Sister" —
+   * gets sorted automatically.
+   */
+  albumMatch?: { categoryId: string; name: string; confidence: number } | null;
   /** What the agent did because of the user's instructions, and what it could not do. */
   agentNote?: { followed: string[]; couldNot: string[] } | null;
   engine: "ai" | "heuristic";
@@ -160,15 +178,25 @@ export interface PendingPhoto {
    * follows them.
    */
   userPrompt?: string;
+  /**
+   * Set when this picture was BUILT from several uploads (a collage), rather
+   * than imported as-is. It carries the names it was made from, so the review
+   * card can say "made from 6 photos" instead of showing an unexplained image
+   * the user never took.
+   */
+  composite?: { kind: "collage"; sources: string[] } | null;
 }
 
 export interface PhotosSettings {
-  /** Back approved photos up to Google Drive as they are filed. */
+  /**
+   * Back the library up to Google Drive as photos are filed.
+   *
+   * There is only this one switch now. The old pair — a photos-only backup
+   * folder, and a toggle for whether to mirror the album names inside it — went
+   * when photos started using the same whole-tree backup as everything else,
+   * which always mirrors the folders exactly as they appear here.
+   */
   driveBackup: boolean;
-  /** The Drive folder id Recall created for backups, once it has one. */
-  driveFolderId?: string | null;
-  /** Mirror the category sub-folders inside the Drive backup folder. */
-  driveMirrorCategories: boolean;
 }
 
 export interface PhotosData {

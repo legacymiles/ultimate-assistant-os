@@ -5,7 +5,7 @@ import { Icon } from "../icons";
 import { classifyContent, folderPaths } from "@/lib/recall/classify";
 import { createItem, ensureFolderPath } from "@/lib/recall/store";
 import { fetchLinkMeta, imageToDataUrl, isProbablyUrl } from "@/lib/recall/media";
-import { driveConfigured, pickFromDrive } from "@/lib/recall/drive";
+import { drivePickerConfigured, pickFromDrive } from "@/lib/recall/drive";
 import type { Classification, Folder, Item, RecallData } from "@/lib/recall/types";
 
 type Step = "input" | "analyzing" | "confirm";
@@ -124,9 +124,10 @@ export function CaptureModal({ folders, existingTags, onClose, onSaved }: Props)
   }
 
   async function importFromDrive() {
-    if (!driveConfigured()) {
+    if (!drivePickerConfigured()) {
       setDriveNote(
-        "Drive import needs NEXT_PUBLIC_GOOGLE_CLIENT_ID and NEXT_PUBLIC_GOOGLE_API_KEY set. Until then, paste text/links or upload images.",
+        "Picking files out of Drive needs NEXT_PUBLIC_GOOGLE_API_KEY as well as the client id. " +
+          "Backing up to Drive works without it. Until then, paste text/links or upload images.",
       );
       return;
     }

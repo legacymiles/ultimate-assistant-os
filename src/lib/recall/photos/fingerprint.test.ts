@@ -94,6 +94,26 @@ describe("findDuplicate", () => {
   it("returns null when there is no fingerprint to compare", () => {
     expect(findDuplicate(undefined, candidates)).toBeNull();
   });
+
+  it("never calls a collage a duplicate of a photo that went into it", () => {
+    // Worst case for the old rule: the collage happens to hash close to one of
+    // its own sources. It is still a different picture, and must not be flagged.
+    const sources = [{ id: "src", hash: "0000000000000000", label: "My Truck" }];
+    expect(findDuplicate("0000000000000001", sources, undefined, true)).toBeNull();
+  });
+
+  it("never calls a photo a duplicate of a collage it appears inside", () => {
+    const made = [{ id: "col", hash: "0000000000000000", label: "My Truck", composite: true }];
+    expect(findDuplicate("0000000000000001", made, undefined, false)).toBeNull();
+  });
+
+  it("still catches the same collage imported twice", () => {
+    const made = [{ id: "col", hash: "0000000000000000", label: "My Truck", composite: true }];
+    expect(findDuplicate("0000000000000000", made, undefined, true)).toMatchObject({
+      id: "col",
+      identical: true,
+    });
+  });
 });
 
 describe("grayFromRGBA", () => {

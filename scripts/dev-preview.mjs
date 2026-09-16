@@ -23,6 +23,17 @@ const noAuth = process.argv.includes("--no-auth");
 // model) can be verified end to end. Writes go to the real project.
 const keepStorage = process.argv.includes("--no-auth-keep-storage");
 
+// Plain KEY=value arguments become environment variables for this server only.
+// What it is for: checking a screen that behaves differently when a public key
+// is configured — the Photos tab and Google Drive, say — without putting that
+// key in .env.local, where the real dev server would pick it up too.
+const extraEnv = Object.fromEntries(
+  process.argv
+    .slice(3)
+    .filter((a) => /^[A-Z][A-Z0-9_]*=/.test(a))
+    .map((a) => [a.slice(0, a.indexOf("=")), a.slice(a.indexOf("=") + 1)]),
+);
+
 spawn("npx", ["next", "dev", "-p", port], {
   stdio: "inherit",
   shell: true,
@@ -43,5 +54,6 @@ spawn("npx", ["next", "dev", "-p", port], {
     // Empty rather than unset: Next will not overwrite a key that already
     // exists, so this wins over RECALL_PASSWORD in .env.local.
     RECALL_PASSWORD: "",
+    ...extraEnv,
   },
 });

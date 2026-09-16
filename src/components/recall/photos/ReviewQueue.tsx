@@ -408,6 +408,24 @@ function PhotoDetail({
           </button>
         </div>
 
+        {/*
+          Where this picture came from. It was never taken — it was built here
+          out of several uploads — and a picture the user does not recognise is
+          exactly the thing a review screen has to explain.
+        */}
+        {photo.composite && (
+          <div className="mb-3 rounded-xl border border-brand/30 bg-brand/[0.06] p-2.5">
+            <p className="text-[12px] font-semibold text-ink">
+              Made here from {photo.composite.sources.length} of your photos
+            </p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-ink-muted">
+              {photo.composite.sources.slice(0, 6).join(", ")}
+              {photo.composite.sources.length > 6 && ` and ${photo.composite.sources.length - 6} more`}
+              . Only this one is filed; the originals stay in your camera roll.
+            </p>
+          </div>
+        )}
+
         {photo.duplicateOf && (
           <div
             className={

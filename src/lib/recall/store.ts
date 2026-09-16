@@ -288,6 +288,8 @@ export interface NewItemInput {
   photoCategoryId?: string | null;
   /** Look-alike fingerprint of an image, so it is recognised as a duplicate later. */
   fingerprint?: string;
+  /** True when this picture was built here out of several uploads (a collage). */
+  composite?: boolean;
   driveBackupId?: string | null;
 }
 
@@ -317,6 +319,7 @@ export function createItem(input: NewItemInput): { data: RecallData; item: Item 
     // Copied explicitly: this function lists every field, so a field that is
     // only typed and not copied here is silently dropped.
     fingerprint: input.fingerprint,
+    composite: input.composite || undefined,
     driveBackupId: input.driveBackupId ?? null,
     createdAt: ts,
     updatedAt: ts,

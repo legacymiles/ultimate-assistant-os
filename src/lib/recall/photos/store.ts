@@ -37,11 +37,7 @@ export const PHOTO_QUEUE_KEY = "recall-photo-queue:v1";
 /** Beyond this the localStorage thumbnails start to matter; we stop and say so. */
 export const MAX_QUEUE = 300;
 
-const DEFAULT_SETTINGS: PhotosSettings = {
-  driveBackup: false,
-  driveFolderId: null,
-  driveMirrorCategories: true,
-};
+const DEFAULT_SETTINGS: PhotosSettings = { driveBackup: false };
 
 // ----- category ordering ---------------------------------------------------
 // Specific rules must be TRIED first. Solo and pair rules are `exact`, so they
@@ -182,6 +178,11 @@ export function reconcileCategories(data: PhotosData): PhotosData {
       order: existing?.order ?? ORDER_SOLO,
       builtIn: true,
       personId: p.id,
+      // Derived folders are rebuilt from the people list on every change, so
+      // anything the user added by hand has to be carried across explicitly or
+      // it silently disappears the next time they rename someone.
+      refs: existing?.refs,
+      refHint: existing?.refHint,
     });
 
     // "Me and my son" only means something once the user has said who "me" is.
@@ -199,6 +200,8 @@ export function reconcileCategories(data: PhotosData): PhotosData {
         order: ex?.order ?? ORDER_PAIR,
         builtIn: true,
         personId: p.id,
+        refs: ex?.refs,
+        refHint: ex?.refHint,
       });
     }
   }
@@ -207,7 +210,9 @@ export function reconcileCategories(data: PhotosData): PhotosData {
   const fresh = builtInCategories(data.people);
   const fixed = fresh.map((f) => {
     const ex = byKey.get(f.id);
-    return ex ? { ...f, name: ex.name, description: ex.description, order: ex.order } : f;
+    return ex
+      ? { ...f, name: ex.name, description: ex.description, order: ex.order, refs: ex.refs, refHint: ex.refHint }
+      : f;
   });
 
   const custom = kept.filter((c) => !c.builtIn);
@@ -281,7 +286,14 @@ export interface CategoryInput {
   anyRoles?: PhotoCategory["anyRoles"];
   exact: boolean;
   minPeople: number;
+  /** Reference pictures for the folder itself — "photos that look like these". */
+  refs?: string[];
+  /** A sentence about what belongs here, sent alongside the references. */
+  refHint?: string;
 }
+
+/** Four tiles is the most a folder contributes to the contact sheet. */
+export const MAX_CATEGORY_REFS = 4;
 
 export function createCategory(input: CategoryInput): PhotosData {
   const data = load();
@@ -293,6 +305,8 @@ export function createCategory(input: CategoryInput): PhotosData {
     anyRoles: input.anyRoles ?? null,
     exact: input.exact,
     minPeople: Math.max(1, input.minPeople),
+    refs: (input.refs ?? []).slice(0, MAX_CATEGORY_REFS),
+    refHint: input.refHint?.trim() || undefined,
     // Custom rules run just ahead of the fuzzy family rules, so a hand-written
     // rule can beat "Group Photos" without having to out-rank a pair folder.
     order: ORDER_LITTLE_FAM - 1,
@@ -311,7 +325,30 @@ export function updateCategory(id: string, patch: Partial<CategoryInput>): Photo
     if (patch.anyRoles !== undefined) c.anyRoles = patch.anyRoles;
     if (patch.exact !== undefined) c.exact = patch.exact;
     if (patch.minPeople !== undefined) c.minPeople = Math.max(1, patch.minPeople);
+    if (patch.refs !== undefined) c.refs = patch.refs.slice(0, MAX_CATEGORY_REFS);
+    if (patch.refHint !== undefined) c.refHint = patch.refHint.trim() || undefined;
   }
+  return save(data);
+}
+
+/**
+ * Add one reference picture to a folder.
+ *
+ * Built-in folders take references too — "Selfies" is a face rule, but a folder
+ * the user renamed to "My Sister" is not, and refusing it a reference would
+ * make the feature depend on which folder happened to be created by the app.
+ */
+export function addCategoryRef(id: string, dataUrl: string): PhotosData {
+  const data = load();
+  const c = data.categories.find((x) => x.id === id);
+  if (c) c.refs = [...(c.refs ?? []), dataUrl].slice(-MAX_CATEGORY_REFS);
+  return save(data);
+}
+
+export function removeCategoryRef(id: string, index: number): PhotosData {
+  const data = load();
+  const c = data.categories.find((x) => x.id === id);
+  if (c) c.refs = (c.refs ?? []).filter((_, i) => i !== index);
   return save(data);
 }
 
@@ -377,6 +414,8 @@ export interface QueueInput {
   type: string;
   size: number;
   thumb?: string;
+  /** Set when this picture was built here out of several uploads. */
+  composite?: PendingPhoto["composite"];
 }
 
 export function enqueuePhoto(input: QueueInput): { queue: PendingPhoto[]; photo: PendingPhoto } {

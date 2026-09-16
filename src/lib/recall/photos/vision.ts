@@ -16,22 +16,41 @@
 // ---------------------------------------------------------------------------
 
 import { ROLE_LABELS } from "./types";
-import type { PhotoAnalysis, Person } from "./types";
+import type { PhotoAnalysis, PhotoCategory, Person } from "./types";
 
 const CELL = 128;
 const COLS = 4;
 const LABEL_H = 22;
 
-/** Cache key = every person's id/name/role plus the refs they carry. */
-function sheetSignature(people: Person[]): string {
-  return people.map((p) => `${p.id}:${p.name}:${p.role}:${p.refs.length}`).join("|");
+/**
+ * Cache key = every person's id/name/role plus the refs they carry, and the
+ * same for every folder that has reference pictures of its own.
+ */
+function sheetSignature(people: Person[], albums: PhotoCategory[]): string {
+  return [
+    ...people.map((p) => `p${p.id}:${p.name}:${p.role}:${p.refs.length}`),
+    ...albums.map((c) => `a${c.id}:${c.name}:${(c.refs ?? []).length}:${c.refHint ?? ""}`),
+  ].join("|");
+}
+
+/** One numbered slot on the sheet: a person to recognise, or a folder to match. */
+export interface SheetEntry {
+  slot: number;
+  kind: "person" | "album";
+  /** The person id or the category id, depending on `kind`. */
+  id: string;
+  name: string;
+  /** Role label for a person; "" for a folder. */
+  role: string;
+  /** What the user says belongs in this folder. */
+  hint?: string;
 }
 
 export interface ContactSheet {
-  /** JPEG data URL of the labelled grid, or null when nobody has a face yet. */
+  /** JPEG data URL of the labelled grid, or null when nothing has a reference yet. */
   dataUrl: string | null;
-  /** Legend the prompt needs: slot number → person. */
-  legend: { slot: number; personId: string; name: string; role: string }[];
+  /** Legend the prompt needs: slot number → person or folder. */
+  legend: SheetEntry[];
 }
 
 let cached: { sig: string; sheet: ContactSheet } | null = null;
@@ -45,23 +64,43 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
   });
 }
 
-/** Composite one labelled tile per reference face, grouped by person. */
-export async function buildContactSheet(people: Person[]): Promise<ContactSheet> {
+/**
+ * Composite one labelled tile per reference picture — faces first, then the
+ * folders that carry references of their own.
+ *
+ * Folders share the sheet rather than getting one of their own for the reason
+ * the sheet exists at all: cost must not grow with the number of things the
+ * user has taught the app. "Which numbered tiles does this photo match?" is one
+ * question whether there are two tiles or twenty.
+ */
+export async function buildContactSheet(
+  people: Person[],
+  albums: PhotoCategory[] = [],
+): Promise<ContactSheet> {
   const withFaces = people.filter((p) => p.refs.length > 0);
-  const sig = sheetSignature(withFaces);
+  const withRefs = albums.filter((c) => (c.refs ?? []).length > 0);
+  const sig = sheetSignature(withFaces, withRefs);
   if (cached && cached.sig === sig) return cached.sheet;
 
-  const legend: ContactSheet["legend"] = [];
+  const legend: SheetEntry[] = [];
   const tiles: { img: HTMLImageElement; slot: number; caption: string }[] = [];
 
   let slot = 0;
   for (const p of withFaces) {
     slot++;
-    legend.push({ slot, personId: p.id, name: p.name, role: ROLE_LABELS[p.role] });
+    legend.push({ slot, kind: "person", id: p.id, name: p.name, role: ROLE_LABELS[p.role] });
     // Two shots each is enough variation to be useful without bloating the grid.
     for (const ref of p.refs.slice(0, 2)) {
       const img = await loadImage(ref);
       if (img) tiles.push({ img, slot, caption: `${slot}. ${p.name}` });
+    }
+  }
+  for (const c of withRefs) {
+    slot++;
+    legend.push({ slot, kind: "album", id: c.id, name: c.name, role: "", hint: c.refHint });
+    for (const ref of (c.refs ?? []).slice(0, 2)) {
+      const img = await loadImage(ref);
+      if (img) tiles.push({ img, slot, caption: `${slot}. ${c.name}` });
     }
   }
 

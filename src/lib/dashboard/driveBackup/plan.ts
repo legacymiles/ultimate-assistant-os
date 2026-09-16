@@ -173,7 +173,13 @@ export function buildPlan(
     if (key && e.appProperties?.dashboardApp === APP_VALUE && !byKey.has(key)) byKey.set(key, e);
   }
 
-  const photosRoot = folders.find((f) => f.parentId === null && f.role === "photos");
+  // Matched by role first, then by name — the same two-step the app itself
+  // uses. A Photos folder made before the role existed is still the photo root,
+  // and backing it up as an ordinary folder would put the albums in the wrong
+  // half of the Drive tree.
+  const photosRoot =
+    folders.find((f) => f.parentId === null && f.role === "photos") ??
+    folders.find((f) => f.parentId === null && f.name.toLowerCase() === PHOTOS_NAME.toLowerCase());
   const keyOf = (folderId: string | null): NodeKey =>
     folderId === null ? "unfiled" : photosRoot && folderId === photosRoot.id ? "photos" : `folder:${folderId}`;
 

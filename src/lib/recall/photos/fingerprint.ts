@@ -82,6 +82,8 @@ export interface FingerprintCandidate {
   label: string;
   /** The photo this candidate IS, so a photo never matches itself. */
   id: string;
+  /** True when this picture was built from several uploads (a collage). */
+  composite?: boolean;
 }
 
 export interface DuplicateMatch {
@@ -95,16 +97,25 @@ export interface DuplicateMatch {
 /**
  * The closest existing photo that counts as the same picture, or null.
  * The nearest match wins, so the message names the most likely original.
+ *
+ * A COLLAGE is only ever compared against other collages, and a plain photo
+ * only against plain photos. That is a rule, not an optimisation: a collage
+ * made from six pictures of a truck is a new picture, and flagging it against
+ * one of the six — or flagging one of the six against it — would be wrong every
+ * single time. Two collages of the same six, on the other hand, really are the
+ * same picture, and those still catch each other.
  */
 export function findDuplicate(
   hash: string | undefined,
   candidates: readonly FingerprintCandidate[],
   selfId?: string,
+  composite = false,
 ): DuplicateMatch | null {
   if (!hash) return null;
   let best: DuplicateMatch | null = null;
   for (const c of candidates) {
     if (c.id === selfId) continue;
+    if (Boolean(c.composite) !== composite) continue;
     const distance = hammingHex(hash, c.hash);
     if (distance > LOOKALIKE_MAX_DISTANCE) continue;
     if (!best || distance < best.distance) {

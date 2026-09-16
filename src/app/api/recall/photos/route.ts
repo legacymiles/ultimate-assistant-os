@@ -22,12 +22,26 @@ export const maxDuration = 60;
 
 // Endpoint + key come from the shared provider picker.
 
+/**
+ * One numbered tile on the reference sheet. A tile is either a PERSON to
+ * recognise or a FOLDER to match — the sheet carries both, so the cost of
+ * teaching the app something new is one tile rather than one extra request.
+ */
 interface LegendEntry {
   slot: number;
-  personId: string;
+  kind?: "person" | "album";
+  /** Person id or category id, per `kind`. */
+  id?: string;
+  /** Older clients sent this instead of `id`. */
+  personId?: string;
   name: string;
   role: string;
+  /** What the user says belongs in this folder. */
+  hint?: string;
 }
+
+const isPerson = (l: LegendEntry) => (l.kind ?? "person") === "person";
+const entryId = (l: LegendEntry) => l.id ?? l.personId ?? "";
 
 interface Body {
   image?: string;
@@ -85,9 +99,23 @@ function systemPrompt(
   userPrompt?: string,
   knownPlaces?: Record<string, string[]>,
 ): string {
-  const roster = legend.length
-    ? legend.map((l) => `  ${l.slot} = ${l.name} (${l.role})`).join("\n")
+  const people = legend.filter(isPerson);
+  const albums = legend.filter((l) => !isPerson(l));
+  const roster = people.length
+    ? people.map((l) => `  ${l.slot} = ${l.name} (${l.role})`).join("\n")
     : "  (nobody has been labelled yet)";
+  // Folders the user has taught by example. Only mentioned when some exist, so
+  // an unused feature never spends tokens or invites a match nobody asked for.
+  const albumBlock = albums.length
+    ? "\n\nFOLDERS TAUGHT BY EXAMPLE. Other tiles on the same sheet show pictures the " +
+      "user says belong in a particular folder. Say whether this photo belongs in one:\n" +
+      albums
+        .map((l) => `  ${l.slot} = folder "${l.name}"${l.hint ? ` — ${l.hint}` : ""}`)
+        .join("\n") +
+      '\nReturn "albumMatch":{"slot":number,"confidence":number}|null. Match on what the ' +
+      "picture IS — the same vehicle, the same person, the same kind of document — not on a " +
+      "loose resemblance. null when none of them fits, which is the usual answer."
+    : "";
 
   return (
     "You triage photos from a personal camera roll into someone's second brain. " +
@@ -95,7 +123,9 @@ function systemPrompt(
     "You get up to two images. The FIRST, when present, is a REFERENCE CONTACT " +
     "SHEET: a labelled grid of the people this user has already named, each tile " +
     "captioned with a slot number and a name. The SECOND is the PHOTO to triage.\n\n" +
-    `KNOWN PEOPLE:\n${roster}\n\n` +
+    `KNOWN PEOPLE:\n${roster}` +
+    albumBlock +
+    "\n\n" +
     "Decide ONE route:\n" +
     '  "people" — the photo is primarily of a person or people the user knows or ' +
     "cares about (portraits, selfies, family shots, candids).\n" +
@@ -204,9 +234,12 @@ async function triage(body: Body, apiKey: string) {
   return analysis;
 }
 
-/** Slot numbers back to person ids; every field clamped to something usable. */
+/** Slot numbers back to person and folder ids; every field clamped to something usable. */
 function normalize(p: Record<string, unknown>, legend: LegendEntry[]) {
-  const bySlot = new Map(legend.map((l) => [l.slot, l.personId]));
+  const bySlot = new Map(legend.filter(isPerson).map((l) => [l.slot, entryId(l)]));
+  const albumBySlot = new Map(
+    legend.filter((l) => !isPerson(l)).map((l) => [l.slot, { id: entryId(l), name: l.name }]),
+  );
   const route = ["people", "info", "event", ...DESTINATION_ROUTES].includes(String(p?.route))
     ? (p.route as string)
     : "info";
@@ -261,9 +294,29 @@ function normalize(p: Record<string, unknown>, legend: LegendEntry[]) {
         ? { id: route, fields: p[route] as Record<string, unknown> }
         : undefined,
     photoAlbum: null as string | null,
+    albumMatch: matchedAlbum(p, albumBySlot),
     agentNote: null as { followed: string[]; couldNot: string[] } | null,
     engine: "ai" as const,
   };
+}
+
+/**
+ * The folder whose reference pictures this photo matched, if any.
+ *
+ * The floor is enforced here as well as in the prompt. A folder reference is a
+ * convenience, and a confident-sounding wrong answer would quietly file someone
+ * else's photo in "My Sister" — so below 0.5 it is treated as no answer at all.
+ */
+function matchedAlbum(
+  p: Record<string, unknown>,
+  bySlot: Map<number, { id: string; name: string }>,
+): { categoryId: string; name: string; confidence: number } | null {
+  const m = p?.albumMatch as Record<string, unknown> | null | undefined;
+  if (!m || typeof m !== "object") return null;
+  const hit = bySlot.get(Number(m.slot));
+  const confidence = Math.max(0, Math.min(1, Number(m.confidence ?? 0)));
+  if (!hit || confidence < 0.5) return null;
+  return { categoryId: hit.id, name: hit.name, confidence };
 }
 
 /**
