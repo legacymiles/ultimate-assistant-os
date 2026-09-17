@@ -239,6 +239,9 @@ export class GlobeEngine {
   private readonly camBB: BillboardCollection;
   private readonly cameras = new Map<string, Camera>();
   private readonly camPositions = new Map<string, Cartesian3>();
+  /** lat,lon cells already drawn: a city and its state DOT often republish the same camera. */
+  private readonly camCoords = new Set<string>();
+  private camAbort: AbortController | null = null;
   private cameraProvider = "";
   private camNetworksNote = "";
   private windyEnabled = false;
@@ -563,6 +566,10 @@ export class GlobeEngine {
     clearInterval(this.timers.get(id));
     this.timers.delete(id);
     this.aborts.get(id)?.abort();
+    if (id === "cctv") {
+      this.camAbort?.abort();
+      this.windyAbort?.abort();
+    }
     this.collectionsFor(id).forEach((c) => (c.show = false));
     if (id === "flights" || id === "military") {
       // Thousands of billboards: free them rather than keep them hidden.
@@ -848,25 +855,53 @@ export class GlobeEngine {
   // ----- Cameras -------------------------------------------------------------
 
   private async loadCameras() {
-    const data = await this.fetchFeed<CamerasFeed>("cctv", "cameras");
-    if (!data || this.destroyed) return;
-    this.camBB.removeAll();
-    this.windyBB.clear();
-    this.windyCell = "";
-    this.cameras.clear();
-    this.camPositions.clear();
-    this.cameraProvider = data.provider;
-    this.windyEnabled = Boolean(data.windy);
-    for (const cam of data.cameras) this.addCamera(cam);
-    const live = data.networks?.filter((n) => n.count).length ?? 0;
-    const pending = data.networks?.filter((n) => n.state === "loading").length ?? 0;
-    this.camNetworksNote = `${live} networks${pending ? ` · ${pending} loading` : ""}${this.windyEnabled ? " · + Windy nearby" : ""}`;
-    this.setStatus("cctv", { state: data.stale ? "stale" : "live", count: this.cameras.size, note: this.camNetworksNote });
-    await this.loadWebcams();
+    const index = await this.fetchFeed<CamerasFeed>("cctv", "cameras");
+    if (!index || this.destroyed || !this.layersOn.has("cctv")) return;
+    this.cameraProvider = index.provider;
+    this.windyEnabled = Boolean(index.windy);
+    // Windy doesn't depend on the open-data networks; start it straight away.
+    void this.loadWebcams();
+
+    this.camAbort?.abort();
+    const ac = new AbortController();
+    this.camAbort = ac;
+    const nets = index.networks ?? [];
+    let live = 0;
+    let failed = 0;
+    let done = 0;
+    const note = () =>
+      `${live} networks${done < nets.length ? ` · ${nets.length - done} loading` : ""}` +
+      `${failed ? ` · ${failed} down` : ""}${this.windyEnabled ? " · + Windy nearby" : ""}`;
+
+    let next = 0;
+    await Promise.all(
+      Array.from({ length: 6 }, async () => {
+        while (next < nets.length) {
+          const net = nets[next++];
+          try {
+            const res = await fetch(`/api/gods-eye/cameras?net=${encodeURIComponent(net.id)}`, { signal: ac.signal });
+            const data = (await res.json()) as CamerasFeed & { error?: string };
+            if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+            if (ac.signal.aborted || this.destroyed || !this.layersOn.has("cctv")) return;
+            for (const cam of data.cameras) this.addCamera(cam);
+            live++;
+          } catch {
+            if (ac.signal.aborted || this.destroyed) return;
+            failed++;
+          }
+          done++;
+          this.camNetworksNote = note();
+          this.setStatus("cctv", { state: live ? "live" : done < nets.length ? "loading" : "error", count: this.cameras.size, note: this.camNetworksNote });
+        }
+      }),
+    );
   }
 
   private addCamera(cam: Camera): Billboard | null {
     if (this.cameras.has(cam.id)) return null;
+    const at = `${cam.lat.toFixed(4)},${cam.lon.toFixed(4)}`;
+    if (this.camCoords.has(at)) return null;
+    this.camCoords.add(at);
     const C = this.C;
     const position = C.Cartesian3.fromDegrees(cam.lon, cam.lat, 25);
     this.cameras.set(cam.id, cam);
@@ -903,6 +938,8 @@ export class GlobeEngine {
         if (keep.has(id) || this.selected?.key === id) continue;
         this.camBB.remove(bb);
         this.windyBB.delete(id);
+        const gone = this.cameras.get(id);
+        if (gone) this.camCoords.delete(`${gone.lat.toFixed(4)},${gone.lon.toFixed(4)}`);
         this.cameras.delete(id);
         this.camPositions.delete(id);
       }

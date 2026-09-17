@@ -290,45 +290,29 @@ async function quakes(): Promise<QuakesFeed> {
 
 // ----- Public cameras (open-data traffic networks + optional Windy) ----------
 
-async function cameras(): Promise<CamerasFeed> {
-  return cached("cameras", 60_000, async () => {
-    // A cold network (Florida is ~50 pages) keeps loading in the background and
-    // joins on a later poll instead of holding up everything that's ready.
-    const results = await Promise.all(
-      CAMERA_NETWORKS.map((net) =>
-        Promise.race([loadNetwork(net), new Promise<null>((r) => setTimeout(() => r(null), 40_000))]),
-      ),
-    );
-    const seen = new Set<string>();
-    const out: CamerasFeed["cameras"] = [];
-    const networks: CamerasFeed["networks"] = [];
-    for (const [i, res] of results.entries()) {
-      const net = CAMERA_NETWORKS[i];
-      if (!res) {
-        networks.push({ id: net.id, label: net.label, count: 0, state: "loading" });
-        continue;
-      }
-      let count = 0;
-      for (const cam of res.cams) {
-        // The same physical camera is often republished by a city and its state DOT.
-        const at = `${cam.lat.toFixed(4)},${cam.lon.toFixed(4)}`;
-        if (seen.has(at)) continue;
-        seen.add(at);
-        out.push(cam);
-        count++;
-      }
-      networks.push({ id: net.id, label: net.label, count, state: res.error ? (count ? "stale" : "error") : "live", error: res.error });
-    }
-    if (!out.length) throw new Error("No camera network answered");
-    const live = networks.filter((n) => n.count).length;
+/**
+ * Without `net`: the list of networks (tiny). With `net`: that one network's cameras.
+ *
+ * All ~24,000 cameras in one response is ~5 MB, past Vercel's 4.5 MB function
+ * response limit — so the browser fetches the index, then each network on its
+ * own, drawing them as they arrive.
+ */
+async function cameras(params: URLSearchParams): Promise<CamerasFeed> {
+  const netId = params.get("net");
+  if (!netId) {
     return {
       time: Date.now(),
-      provider: `${live} open-data networks`,
-      cameras: out,
-      networks,
+      provider: `${CAMERA_NETWORKS.length} open-data networks`,
+      cameras: [],
+      networks: CAMERA_NETWORKS.map((n) => ({ id: n.id, label: n.label, count: 0, state: "loading" as const })),
       windy: Boolean(windyKey()),
     };
-  });
+  }
+  const net = CAMERA_NETWORKS.find((n) => n.id === netId);
+  if (!net) throw new Error(`Unknown camera network "${netId}"`);
+  const res = await loadNetwork(net);
+  if (!res.cams.length) throw new Error(`${net.label}: ${res.error ?? "no cameras"}`);
+  return { time: Date.now(), provider: net.label, cameras: res.cams, stale: res.stale || undefined };
 }
 
 async function webcams(params: URLSearchParams): Promise<CamerasFeed> {
