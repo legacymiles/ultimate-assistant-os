@@ -214,6 +214,7 @@ export function GodsEyeView() {
     lastFrame.current = at;
   }, []);
   const [autoHop, setAutoHop] = useState(false);
+  const [videoOnly, setVideoOnly] = useState(false);
   const [hover, setHover] = useState<HoverInfo | null>(null);
   const [cockpit, setCockpit] = useState<CockpitInfo | null>(null);
   const [celestial, setCelestial] = useState(false);
@@ -414,9 +415,9 @@ export function GodsEyeView() {
   // AUTO HOP: walk the nearest cameras one by one.
   useEffect(() => {
     if (!autoHop || !camKey) return;
-    const t = setTimeout(() => engineRef.current?.cycleCamera(1), 9000);
+    const t = setTimeout(() => engineRef.current?.cycleCamera(1, videoOnly), videoOnly ? 15_000 : 9000);
     return () => clearTimeout(t);
-  }, [autoHop, camKey]);
+  }, [autoHop, camKey, videoOnly]);
 
   useEffect(() => {
     if (ready) engineRef.current?.setLighting(lighting);
@@ -1207,7 +1208,8 @@ export function GodsEyeView() {
                         />
                       )}
                       <span className={styles.cctvTag}>
-                        <span className={styles.recDot} /> {camMode === "video" ? "LIVE VIDEO" : "LIVE"} · {selection.key}
+                        <span className={styles.recDot} data-still={camMode === "still"} />{" "}
+                        {camMode === "video" ? "LIVE VIDEO" : camMode === "clip" ? "LIVE CLIP" : "STILL"} · {selection.key}
                       </span>
                       <span className={styles.cctvExpand}>⤢ ENLARGE</span>
                     </button>
@@ -1224,19 +1226,45 @@ export function GodsEyeView() {
                             : camMode === "clip"
                               ? "TFL CLIP"
                               : camGap
-                                ? `NEW FRAME ~${camGap >= 1000 ? `${(camGap / 1000).toFixed(camGap < 10_000 ? 1 : 0)} S` : "INSTANT"} · POLL 1 S`
-                                : "POLL 1 S"}
+                                ? `THIS AGENCY PUBLISHES ~${camGap >= 1000 ? `${(camGap / 1000).toFixed(camGap < 10_000 ? 1 : 0)} S` : "1 S"} · POLL 1 S`
+                                : "POLL 1 S · AGENCY SETS THE RATE"}
                         </span>
                       </div>
                       <div className={styles.row}>
-                        <button className={styles.btn} onClick={() => engineRef.current?.cycleCamera(-1)}>
+                        <button
+                          className={styles.btn}
+                          onClick={() => engineRef.current?.cycleCamera(-1, videoOnly) ?? flash("NO OTHER CAMERA NEARBY")}
+                        >
                           ‹ PREV
                         </button>
-                        <button className={styles.btn} onClick={() => engineRef.current?.cycleCamera(1)}>
+                        <button
+                          className={styles.btn}
+                          onClick={() => engineRef.current?.cycleCamera(1, videoOnly) ?? flash("NO OTHER CAMERA NEARBY")}
+                        >
                           NEXT ›
                         </button>
                         <button className={`${styles.btn} ${autoHop ? styles.btnHot : ""}`} onClick={() => setAutoHop((v) => !v)}>
                           {autoHop ? "■ AUTO HOP" : "▶ AUTO HOP"}
+                        </button>
+                      </div>
+                      <div className={styles.row}>
+                        <button
+                          className={`${styles.btn} ${videoOnly ? styles.btnHot : ""}`}
+                          onClick={() => setVideoOnly((v) => !v)}
+                          title="PREV / NEXT / AUTO HOP only visit cameras that stream real video"
+                        >
+                          {videoOnly ? "◉" : "○"} VIDEO ONLY
+                        </button>
+                        <button
+                          className={styles.btn}
+                          onClick={() => {
+                            flash("FINDING A LIVE STREAM…");
+                            void engineRef.current?.nearestVideoCamera().then((found) =>
+                              flash(found ? `LIVE VIDEO › ${found.toUpperCase()}` : "NO STREAMING CAMERA ANSWERED — TRY ANOTHER REGION"),
+                            );
+                          }}
+                        >
+                          ⤓ NEAREST LIVE VIDEO
                         </button>
                       </div>
                     </>
@@ -1695,7 +1723,8 @@ export function GodsEyeView() {
               onFrame={onCamFrame}
             />
             <span className={styles.cctvTag}>
-              <span className={styles.recDot} /> {camMode === "video" ? "LIVE VIDEO" : "LIVE"} · {selection.key}
+              <span className={styles.recDot} data-still={camMode === "still"} />{" "}
+              {camMode === "video" ? "LIVE VIDEO" : camMode === "clip" ? "LIVE CLIP" : "STILL"} · {selection.key}
             </span>
           </div>
           <div className={styles.camViewerFoot}>

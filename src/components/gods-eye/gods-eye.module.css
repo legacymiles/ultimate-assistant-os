@@ -1213,6 +1213,12 @@ button.cctv {
   cursor: zoom-in;
 }
 
+.recDot[data-still="true"] {
+  background: var(--amber);
+  box-shadow: 0 0 8px rgba(255, 176, 32, 0.8);
+  animation: none;
+}
+
 .cctvElsewhere {
   display: grid;
   place-items: center;

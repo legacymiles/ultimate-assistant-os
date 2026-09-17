@@ -355,7 +355,7 @@ export class GlobeEngine {
   private readonly aborts = new Map<LayerId, AbortController>();
   private readonly statuses = new Map<LayerId, LayerStatus>();
 
-  private readonly icons: { plane: string; ground: string; mil: string; cam: string };
+  private readonly icons: { plane: string; ground: string; mil: string; cam: string; camVideo: string };
   private readonly nearFar: NearFarScalar;
   private readonly flightBB: BillboardCollection;
   private readonly milBB: BillboardCollection;
@@ -413,7 +413,7 @@ export class GlobeEngine {
   private routeFlight: { points: Cartesian3[]; seg: number; t: number; heading: number } | null = null;
   private lightingOn = false;
   private celestialOn = false;
-  private hop: { list: string[] } | null = null;
+  private hop: { list: string[]; videoOnly: boolean } | null = null;
 
   private style: StyleId = "normal";
   private readonly styleStages = new Map<StyleId, PostProcessStage>();
@@ -501,6 +501,8 @@ export class GlobeEngine {
       ground: planeIcon("#7f8c99"),
       mil: planeIcon("#ffb020"),
       cam: cameraIcon("#39ff88"),
+      // Cameras that stream real video are drawn cyan, so they stand out from stills.
+      camVideo: cameraIcon("#00f0ff"),
     };
     this.nearFar = new C.NearFarScalar(2_000, 1.25, 1.5e7, 0.4);
 
@@ -1218,20 +1220,22 @@ export class GlobeEngine {
   // ----- CCTV hopping --------------------------------------------------------------
 
   /** Step to the next-nearest camera around where hopping started. */
-  cycleCamera(dir: 1 | -1): string | null {
+  cycleCamera(dir: 1 | -1, videoOnly = false): string | null {
     const sel = this.selected;
     if (sel?.layer !== "cctv") return null;
-    if (!this.hop || !this.hop.list.includes(sel.key)) {
+    if (!this.hop || this.hop.videoOnly !== videoOnly || !this.hop.list.includes(sel.key)) {
       const origin = this.camPositions.get(sel.key);
       if (!origin) return null;
       const C = this.C;
       const near: [string, number][] = [];
       for (const [id, p] of this.camPositions) {
+        if (videoOnly && !this.cameras.get(id)?.hls && id !== sel.key) continue;
         const d = C.Cartesian3.distance(origin, p);
-        if (d < 60_000) near.push([id, d]);
+        if (d < (videoOnly ? 400_000 : 60_000)) near.push([id, d]);
       }
       near.sort((a, b) => a[1] - b[1]);
-      this.hop = { list: near.slice(0, 80).map(([id]) => id) };
+      if (near.length < 2) return null;
+      this.hop = { videoOnly, list: near.slice(0, 80).map(([id]) => id) };
     }
     const list = this.hop.list;
     const i = list.indexOf(sel.key);
@@ -1242,6 +1246,44 @@ export class GlobeEngine {
     const cam = this.cameras.get(nextKey);
     if (cam) this.flyTo(cam.lon, cam.lat, 1_800, this.getView().heading, -45, 1.4);
     return cam?.name ?? null;
+  }
+
+  /**
+   * Fly to the closest camera that is streaming right now.
+   *
+   * Cameras go offline without their agency saying so, so the nearest few are
+   * probed and the first playlist that actually answers wins.
+   */
+  async nearestVideoCamera(): Promise<string | null> {
+    const C = this.C;
+    const { lat, lon } = this.viewCenter();
+    const here = C.Cartesian3.fromDegrees(lon, lat, 0);
+    const near: { id: string; dist: number }[] = [];
+    for (const [id, p] of this.camPositions) {
+      if (!this.cameras.get(id)?.hls) continue;
+      near.push({ id, dist: C.Cartesian3.distance(here, p) });
+    }
+    if (!near.length) return null;
+    near.sort((a, b) => a.dist - b.dist);
+    for (const candidate of near.slice(0, 6)) {
+      const cam = this.cameras.get(candidate.id)!;
+      const live = await fetch(cam.hls!, { signal: AbortSignal.timeout(4000) })
+        .then((r) => r.ok)
+        .catch(() => false);
+      if (this.destroyed) return null;
+      if (!live) continue;
+      this.select({ layer: "cctv", key: candidate.id });
+      this.flyTo(cam.lon, cam.lat, 2_000, 0, -45, 2.4);
+      return `${cam.name} · ${(candidate.dist / 1000).toFixed(0)} KM`;
+    }
+    return null;
+  }
+
+  /** How many loaded cameras stream video. */
+  videoCameraCount(): number {
+    let n = 0;
+    for (const cam of this.cameras.values()) if (cam.hls) n++;
+    return n;
   }
 
   // ----- Cockpit (first person) -------------------------------------------------
@@ -1737,7 +1779,7 @@ export class GlobeEngine {
     this.camPositions.set(cam.id, position);
     return this.camBB.add({
       position,
-      image: this.icons.cam,
+      image: cam.hls ? this.icons.camVideo : this.icons.cam,
       width: 22,
       height: 22,
       scaleByDistance: new C.NearFarScalar(500, 1.3, 400_000, 0.35),

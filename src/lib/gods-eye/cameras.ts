@@ -18,7 +18,7 @@ import type { Camera } from "./types";
 const UA = "ultimate-assistant-os/gods-eye-view (+https://ultimate-assistant-os.vercel.app)";
 const LIST_TTL_MS = 6 * 60 * 60_000; // camera locations change rarely; the stills themselves are live
 // Bump the folder when the Camera shape changes, so no instance serves an old-shape list.
-const DISK_DIR = join(tmpdir(), "gods-eye-view", "cameras-v2");
+const DISK_DIR = join(tmpdir(), "gods-eye-view", "cameras-v3");
 
 export interface CameraNetwork {
   id: string;
@@ -116,6 +116,20 @@ const FIVE_ONE_ONE: { id: string; host: string; label: string }[] = [
   { id: "AK", host: "511.alaska.gov", label: "Alaska 511" },
 ];
 
+// Only stream hosts verified to serve a public, CORS-enabled playlist to a
+// browser. Several DOTs advertise a videoUrl that then answers 401 (Florida's
+// divas.cloud) or refuses cross-origin reads, which would show as a dead player.
+const OPEN_STREAM_HOSTS = /(^|\.)(nysdot\.skyvdn\.com|its\.nv\.gov|dot\.wi\.gov|dotd\.la\.gov|iowadot\.gov)(:\d+)?$/i;
+
+function openStream(url?: string): string | undefined {
+  if (!url?.startsWith("https://")) return undefined;
+  try {
+    return OPEN_STREAM_HOSTS.test(new URL(url).host) ? url : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 interface FiveOneOneRow {
   id: number;
   location?: string;
@@ -162,10 +176,10 @@ function fiveOneOne(site: (typeof FIVE_ONE_ONE)[number]) {
         lon,
         lat,
         image: `https://${site.host}${img.imageUrl}`,
-        // Some DOTs (NY, NV, WI, LA) publish open HLS; others gate video behind a login.
+        // NY, NV, WI and LA publish open HLS; others gate video behind a login.
         hls:
-          img.videoUrl?.startsWith("https://") && !img.isVideoAuthRequired && !img.videoDisabled && /mpegurl|m3u8/i.test(`${img.videoType} ${img.videoUrl}`)
-            ? img.videoUrl
+          !img.isVideoAuthRequired && !img.videoDisabled && /mpegurl|m3u8/i.test(`${img.videoType} ${img.videoUrl}`)
+            ? openStream(img.videoUrl)
             : undefined,
         view:
           [row.roadway && row.roadway !== "Unknown" && row.roadway !== row.location ? row.roadway : "", dir]
