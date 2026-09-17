@@ -17,6 +17,7 @@ import type {
   ImageryLayer,
   LabelCollection,
   Matrix4,
+  Model,
   NearFarScalar,
   PerspectiveFrustum,
   PointPrimitive,
@@ -31,6 +32,7 @@ import type { CesiumModule } from "./cesium";
 import { styleById, type StyleId } from "./shaders";
 import {
   deadReckon,
+  rangeBearing,
   densifyLine,
   estimateGsd,
   formatAgo,
@@ -48,12 +50,17 @@ import type {
   Camera,
   CamerasFeed,
   FlightsFeed,
+  Poi,
+  PoiFeed,
   Quake,
   QuakesFeed,
   SatellitesFeed,
 } from "./types";
 
-export type LayerId = "flights" | "military" | "satellites" | "quakes" | "cctv" | "cables";
+export type PoiLayerId = "launches" | "fires" | "vessels" | "datacenters" | "dams";
+export type LayerId = "flights" | "military" | "satellites" | "quakes" | "cctv" | "cables" | "traffic" | PoiLayerId;
+const POI_LAYERS: PoiLayerId[] = ["launches", "fires", "vessels", "datacenters", "dams"];
+const isPoiLayer = (id: LayerId): id is PoiLayerId => (POI_LAYERS as LayerId[]).includes(id);
 export type MapSource = "esri" | "osm" | "google3d";
 export type LayerState = "off" | "loading" | "live" | "stale" | "error";
 
@@ -95,6 +102,47 @@ export interface CameraView {
 }
 
 export type DetectMode = "off" | "sparse" | "dense";
+export type Allocation = "elastic" | "weighted";
+export type ModelMode = "off" | "proximity" | "all";
+
+/** Cesium's sample aircraft (Apache-2.0), served from the pinned Cesium release on jsDelivr. */
+const AIRCRAFT_MODEL_URL = "https://cdn.jsdelivr.net/gh/CesiumGS/cesium@1.145/Apps/SampleData/models/CesiumAir/Cesium_Air.glb";
+
+/** A nearby moving contact, for the CONTEXT › CONTACTS list. */
+export interface NearbyContact {
+  layer: "flights" | "military" | "vessels";
+  key: string;
+  label: string;
+  sub: string;
+  rangeKm: number;
+  /** Bearing from the view centre, degrees. */
+  bearing: number;
+}
+
+/** What the cockpit HUD shows, emitted a few times a second while in first person. */
+export interface CockpitInfo {
+  key: string;
+  callsign: string;
+  type: string;
+  military: boolean;
+  gsKts: number;
+  heading: number;
+  pitch: number;
+  roll: number;
+  altFt: number;
+  vsFpm: number;
+  onGround: boolean;
+  lat: number;
+  lon: number;
+  traffic: { label: string; rangeKm: number; relBearing: number; altFt: number }[];
+}
+
+export interface HoverInfo {
+  x: number;
+  y: number;
+  title: string;
+  image?: string;
+}
 
 export interface EngineEvents {
   select(selection: Selection | null): void;
@@ -102,6 +150,8 @@ export interface EngineEvents {
   readout(readout: Readout): void;
   layer(id: LayerId, status: LayerStatus): void;
   message(text: string): void;
+  cockpit?(info: CockpitInfo | null): void;
+  hover?(info: HoverInfo | null): void;
 }
 
 export interface EngineKeys {
@@ -116,6 +166,12 @@ export const LAYERS: { id: LayerId; label: string; source: string; color: string
   { id: "quakes", label: "Earthquakes (24h)", source: "USGS", color: "#ff4d4d" },
   { id: "cctv", label: "CCTV · Traffic Cams", source: "Open-data DOTs · Windy", color: "#39ff88" },
   { id: "cables", label: "Submarine Cables", source: "TeleGeography", color: "#00e5ff" },
+  { id: "launches", label: "Space Missions (±30d)", source: "Launch Library", color: "#c78bff" },
+  { id: "vessels", label: "Vessels (AIS)", source: "AISStream · key", color: "#4dd2ff" },
+  { id: "traffic", label: "Street Traffic", source: "TomTom · key", color: "#ff6b3d" },
+  { id: "fires", label: "FIRMS Active Fires", source: "NASA FIRMS · key", color: "#ff7a1a" },
+  { id: "datacenters", label: "Datacenters", source: "OpenStreetMap", color: "#9dff5c" },
+  { id: "dams", label: "Dams", source: "Wikidata", color: "#5ca8ff" },
 ];
 
 const POLL_MS: Record<LayerId, number> = {
@@ -126,7 +182,28 @@ const POLL_MS: Record<LayerId, number> = {
   // Camera lists are cached for hours upstream; the stills themselves refresh in the context card.
   cctv: 30 * 60_000,
   cables: 0,
+  launches: 60 * 60_000,
+  vessels: 60_000,
+  traffic: 0,
+  fires: 30 * 60_000,
+  datacenters: 0,
+  dams: 0,
 };
+
+const POI_STYLE: Record<PoiLayerId, { color: string; label: string }> = {
+  launches: { color: "#c78bff", label: "LAUNCH" },
+  vessels: { color: "#4dd2ff", label: "AIS" },
+  fires: { color: "#ff7a1a", label: "FIRE" },
+  datacenters: { color: "#9dff5c", label: "DC" },
+  dams: { color: "#5ca8ff", label: "DAM" },
+};
+
+interface PoiLayer {
+  coll: BillboardCollection;
+  items: Map<string, Poi>;
+  positions: Map<string, Cartesian3>;
+  note: string;
+}
 
 const FT_PER_M = 3.28084;
 const KT_PER_MS = 1.943844;
@@ -198,6 +275,67 @@ function cameraIcon(stroke: string): string {
   return c.toDataURL();
 }
 
+function poiIcon(kind: PoiLayerId, color: string): string {
+  const c = document.createElement("canvas");
+  c.width = c.height = 48;
+  const g = c.getContext("2d")!;
+  g.translate(24, 24);
+  g.lineWidth = 3;
+  g.strokeStyle = color;
+  g.fillStyle = "rgba(2,10,20,0.8)";
+  g.beginPath();
+  if (kind === "vessels") {
+    // A hull pointing up; billboards rotate it to the ship's heading.
+    g.moveTo(0, -20);
+    g.lineTo(10, -4);
+    g.lineTo(9, 18);
+    g.lineTo(-9, 18);
+    g.lineTo(-10, -4);
+    g.closePath();
+    g.fillStyle = color;
+    g.fill();
+    g.strokeStyle = "rgba(0,0,0,0.7)";
+    g.stroke();
+    return c.toDataURL();
+  }
+  if (kind === "fires") {
+    const grad = g.createRadialGradient(0, 0, 0, 0, 0, 22);
+    grad.addColorStop(0, "rgba(255,255,210,1)");
+    grad.addColorStop(0.3, color);
+    grad.addColorStop(1, "rgba(255,60,0,0)");
+    g.fillStyle = grad;
+    g.arc(0, 0, 22, 0, Math.PI * 2);
+    g.fill();
+    return c.toDataURL();
+  }
+  if (kind === "launches") {
+    g.moveTo(0, -20);
+    g.quadraticCurveTo(9, -8, 8, 10);
+    g.lineTo(14, 20);
+    g.lineTo(-14, 20);
+    g.lineTo(-8, 10);
+    g.quadraticCurveTo(-9, -8, 0, -20);
+  } else if (kind === "datacenters") {
+    g.rect(-14, -17, 28, 34);
+    g.moveTo(-14, -6);
+    g.lineTo(14, -6);
+    g.moveTo(-14, 5);
+    g.lineTo(14, 5);
+  } else {
+    // dams: a wall with water behind it
+    g.moveTo(-18, -12);
+    g.lineTo(18, -12);
+    g.lineTo(12, 16);
+    g.lineTo(-12, 16);
+    g.closePath();
+  }
+  g.fill();
+  g.stroke();
+  return c.toDataURL();
+}
+
+const angleDiff = (from: number, to: number) => ((to - from + 540) % 360) - 180;
+
 // -----------------------------------------------------------------------------
 
 export class GlobeEngine {
@@ -251,6 +389,30 @@ export class GlobeEngine {
 
   private readonly cableLines: PolylineCollection;
   private cables: Cable[] = [];
+
+  private readonly pois = new Map<PoiLayerId, PoiLayer>();
+  private readonly poiIcons = new Map<PoiLayerId, string>();
+  private vesselCell = "";
+  private trafficLayer: ImageryLayer | null = null;
+
+  private cockpit: { key: string; heading: number; pitch: number; roll: number; offset: Cartesian3; at: number; last: Cartesian3 | null } | null = null;
+  private lastCockpitEmit = 0;
+  private savedFovy = 0;
+
+  private allocation: Allocation = "elastic";
+  private labelFade = 0;
+  private modelMode: ModelMode = "off";
+  private readonly models = new Map<string, Model | "loading">();
+  private lastModelPick = 0;
+
+  private readonly marks: { label: string; entity: Entity }[] = [];
+  private routeEntity: Entity | null = null;
+  private routeCoords: [number, number][] = [];
+  private orbitCenter: Cartesian3 | null = null;
+  private routeFlight: { points: Cartesian3[]; seg: number; t: number; heading: number } | null = null;
+  private lightingOn = false;
+  private celestialOn = false;
+  private hop: { list: string[] } | null = null;
 
   private style: StyleId = "normal";
   private readonly styleStages = new Map<StyleId, PostProcessStage>();
@@ -349,6 +511,10 @@ export class GlobeEngine {
     this.satPoints = scene.primitives.add(new C.PointPrimitiveCollection());
     this.satLabels = scene.primitives.add(new C.LabelCollection());
     this.camBB = scene.primitives.add(new C.BillboardCollection());
+    for (const id of POI_LAYERS) {
+      this.pois.set(id, { coll: scene.primitives.add(new C.BillboardCollection()), items: new Map(), positions: new Map(), note: "" });
+      this.poiIcons.set(id, poiIcon(id, POI_STYLE[id].color));
+    }
     this.flightBB = scene.primitives.add(new C.BillboardCollection());
     this.milBB = scene.primitives.add(new C.BillboardCollection());
 
@@ -378,9 +544,22 @@ export class GlobeEngine {
       lastHover = now;
       const picked = scene.pick(new C.Cartesian2(e.endPosition.x, e.endPosition.y));
       scene.canvas.style.cursor = isPickId(picked?.id) ? "pointer" : "";
+      const id = isPickId(picked?.id) ? picked.id : null;
+      if (id?.layer === "cctv") {
+        const cam = this.cameras.get(id.key);
+        this.ev.hover?.(cam ? { x: e.endPosition.x, y: e.endPosition.y, title: cam.name, image: cam.image } : null);
+      } else if (id && isPoiLayer(id.layer)) {
+        const item = this.pois.get(id.layer)?.items.get(id.key);
+        this.ev.hover?.(item ? { x: e.endPosition.x, y: e.endPosition.y, title: item.name, image: item.image } : null);
+      } else {
+        this.ev.hover?.(null);
+      }
     }, C.ScreenSpaceEventType.MOUSE_MOVE);
 
-    const touch = () => (this.lastInteraction = performance.now());
+    const touch = () => {
+      this.lastInteraction = performance.now();
+      if (this.orbitCenter) this.stopOrbit();
+    };
     for (const type of ["pointerdown", "wheel", "touchstart"] as const) {
       scene.canvas.addEventListener(type, touch, { passive: true });
       this.cleanups.push(() => scene.canvas.removeEventListener(type, touch));
@@ -388,13 +567,19 @@ export class GlobeEngine {
 
     this.cleanups.push(scene.preRender.addEventListener(() => this.tick()));
     // Windy webcams are fetched around wherever the view settles.
-    this.cleanups.push(viewer.camera.moveEnd.addEventListener(() => void this.loadWebcams()));
+    this.cleanups.push(
+      viewer.camera.moveEnd.addEventListener(() => {
+        void this.loadWebcams();
+        if (this.layersOn.has("vessels")) void this.loadVessels(false);
+      }),
+    );
     this.cleanups.push(scene.postRender.addEventListener(() => this.afterRender()));
   }
 
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.models.clear();
     for (const t of this.timers.values()) clearInterval(t);
     for (const a of this.aborts.values()) a.abort();
     this.cleanups.forEach((fn) => fn());
@@ -438,17 +623,53 @@ export class GlobeEngine {
   /** Fly so the target sits in the middle of the frame, seen from `range` metres at heading/pitch. */
   flyTo(lon: number, lat: number, range: number, heading = 0, pitch = -40, duration = 3) {
     const C = this.C;
+    this.stopOrbit();
+    this.stopRouteFlight();
     this.untrack();
     this.lastInteraction = performance.now();
     const center = C.Cartesian3.fromDegrees(lon, lat, 0);
+    this.exitCockpit(false);
     this.viewer.camera.flyToBoundingSphere(new C.BoundingSphere(center, 1), {
       offset: new C.HeadingPitchRange(toRad(heading), toRad(pitch), range),
       duration,
     });
   }
 
+  /** Fly to an exact saved camera (scenes). */
+  flyToView(v: CameraView, duration = 3) {
+    const C = this.C;
+    this.stopOrbit();
+    this.stopRouteFlight();
+    this.exitCockpit(false);
+    this.untrack();
+    this.lastInteraction = performance.now();
+    this.viewer.camera.flyTo({
+      destination: C.Cartesian3.fromDegrees(v.lon, v.lat, v.alt),
+      orientation: { heading: toRad(v.heading), pitch: toRad(v.pitch), roll: 0 },
+      duration,
+    });
+  }
+
+  /** Real sun, moon and stars with day/night lighting. */
+  setCelestial(on: boolean) {
+    const scene = this.viewer.scene;
+    if (scene.sun) {
+      scene.sun.show = on;
+      scene.sun.glowFactor = on ? 1.6 : 1;
+    }
+    if (scene.moon) scene.moon.show = on;
+    this.viewer.clock.currentTime = this.C.JulianDate.now();
+    this.viewer.clock.multiplier = 1;
+    this.celestialOn = on;
+    scene.globe.enableLighting = on || this.lightingOn;
+    scene.globe.dynamicAtmosphereLighting = on || this.lightingOn;
+  }
+
   resetGlobe() {
     const C = this.C;
+    this.stopOrbit();
+    this.stopRouteFlight();
+    this.exitCockpit(false);
     this.untrack();
     const { lon, lat } = this.getView();
     this.viewer.camera.flyTo({
@@ -463,14 +684,151 @@ export class GlobeEngine {
   }
 
   setLighting(on: boolean) {
-    this.viewer.scene.globe.enableLighting = on;
-    this.viewer.scene.globe.dynamicAtmosphereLighting = on;
+    this.lightingOn = on;
+    this.viewer.scene.globe.enableLighting = on || this.celestialOn;
+    this.viewer.scene.globe.dynamicAtmosphereLighting = on || this.celestialOn;
   }
 
   setDetection(mode: DetectMode, density: number) {
     this.detectMode = mode;
     this.detectDensity = density;
     this.lastDetect = 0;
+  }
+
+  /** ELASTIC: labels go to the nearest contacts of any kind. WEIGHTED: each kind gets a fair share. */
+  setAllocation(mode: Allocation) {
+    this.allocation = mode;
+    this.lastDetect = 0;
+  }
+
+  /** 0–100: how much far labels fade relative to near ones. */
+  setLabelFade(amount: number) {
+    this.labelFade = Math.max(0, Math.min(1, amount / 100));
+    this.lastDetect = 0;
+  }
+
+  /** Swap aircraft icons for 3D models: none, the ones close to the camera, or every visible one (capped). */
+  setModelMode(mode: ModelMode) {
+    this.modelMode = mode;
+    this.lastModelPick = 0;
+    if (mode === "off") this.syncModels(new Set());
+  }
+
+  // ----- Annotations (voice agent) --------------------------------------------
+
+  addMark(label: string, lon: number, lat: number) {
+    const C = this.C;
+    const entity = this.viewer.entities.add({
+      position: C.Cartesian3.fromDegrees(lon, lat, 0),
+      point: {
+        pixelSize: 12,
+        color: C.Color.fromCssColorString("#ff3b3b"),
+        outlineColor: C.Color.WHITE,
+        outlineWidth: 2,
+        heightReference: C.HeightReference.CLAMP_TO_GROUND,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+      polyline: {
+        positions: [C.Cartesian3.fromDegrees(lon, lat, 0), C.Cartesian3.fromDegrees(lon, lat, 600)],
+        width: 2,
+        material: C.Color.fromCssColorString("#ff3b3b").withAlpha(0.8),
+      },
+      label: {
+        text: label.toUpperCase(),
+        font: "600 13px 'JetBrains Mono', ui-monospace, monospace",
+        fillColor: C.Color.WHITE,
+        showBackground: true,
+        backgroundColor: C.Color.fromCssColorString("#200406").withAlpha(0.85),
+        pixelOffset: new C.Cartesian2(0, -28),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        eyeOffset: new C.Cartesian3(0, 600, 0),
+      },
+    });
+    this.marks.push({ label, entity });
+  }
+
+  listMarks(): string[] {
+    return this.marks.map((m) => m.label);
+  }
+
+  drawRoute(coords: [number, number][], label: string) {
+    const C = this.C;
+    if (this.routeEntity) this.viewer.entities.remove(this.routeEntity);
+    this.routeCoords = coords;
+    this.routeEntity = this.viewer.entities.add({
+      name: label,
+      polyline: {
+        positions: coords.map(([lon, lat]) => C.Cartesian3.fromDegrees(lon, lat, 0)),
+        width: 5,
+        clampToGround: true,
+        material: new C.PolylineGlowMaterialProperty({ glowPower: 0.3, color: C.Color.fromCssColorString("#00f0ff") }),
+      },
+    });
+    const lons = coords.map((c) => c[0]);
+    const lats = coords.map((c) => c[1]);
+    const rect = C.Rectangle.fromDegrees(Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats));
+    this.untrack();
+    this.viewer.camera.flyTo({ destination: rect, duration: 2.5 });
+  }
+
+  hasRoute() {
+    return this.routeCoords.length > 1;
+  }
+
+  /** Low, forward-looking flight along the drawn route. */
+  flyRoute(): boolean {
+    if (this.routeCoords.length < 2) return false;
+    const C = this.C;
+    this.exitCockpit(false);
+    this.untrack();
+    this.orbitCenter = null;
+    this.viewer.camera.cancelFlight();
+    const points = this.routeCoords.map(([lon, lat]) => C.Cartesian3.fromDegrees(lon, lat, 0));
+    const [lon0, lat0] = this.routeCoords[0];
+    const [lon1, lat1] = this.routeCoords[1];
+    this.routeFlight = { points, seg: 0, t: 0, heading: rangeBearing(lat0, lon0, lat1, lon1).bearing };
+    this.viewer.scene.screenSpaceCameraController.enableInputs = false;
+    return true;
+  }
+
+  private stopRouteFlight() {
+    if (!this.routeFlight) return;
+    this.routeFlight = null;
+    if (!this.cockpit) this.viewer.scene.screenSpaceCameraController.enableInputs = true;
+  }
+
+  /** Circle the camera around a point (default: the screen centre). */
+  startOrbit(lon?: number, lat?: number, range?: number) {
+    const C = this.C;
+    this.exitCockpit(false);
+    this.untrack();
+    this.stopRouteFlight();
+    const center = lon !== undefined && lat !== undefined ? { lon, lat } : this.viewCenter();
+    this.orbitCenter = C.Cartesian3.fromDegrees(center.lon, center.lat, 0);
+    const r = range ?? Math.min(Math.max(this.getView().alt * 1.4, 1_500), 60_000);
+    this.viewer.camera.cancelFlight();
+    this.viewer.camera.lookAt(this.orbitCenter, new C.HeadingPitchRange(this.viewer.camera.heading, toRad(-35), r));
+  }
+
+  stopOrbit() {
+    if (!this.orbitCenter) return;
+    this.orbitCenter = null;
+    this.viewer.camera.lookAtTransform(this.C.Matrix4.IDENTITY);
+  }
+
+  clearAnnotations() {
+    for (const m of this.marks) this.viewer.entities.remove(m.entity);
+    this.marks.length = 0;
+    if (this.routeEntity) this.viewer.entities.remove(this.routeEntity);
+    this.routeEntity = null;
+    this.routeCoords = [];
+    this.stopOrbit();
+    this.stopRouteFlight();
+  }
+
+  /** The ground point under the middle of the screen, for the agent's context. */
+  getCenter(): { lat: number; lon: number } {
+    return this.viewCenter();
   }
 
   // ----- Style ---------------------------------------------------------------
@@ -570,6 +928,9 @@ export class GlobeEngine {
       this.camAbort?.abort();
       this.windyAbort?.abort();
     }
+    if ((id === "flights" || id === "military") && this.cockpit && this.contacts.get(this.cockpit.key)?.layer === id) {
+      this.exitCockpit(false);
+    }
     this.collectionsFor(id).forEach((c) => (c.show = false));
     if (id === "flights" || id === "military") {
       // Thousands of billboards: free them rather than keep them hidden.
@@ -581,7 +942,10 @@ export class GlobeEngine {
   }
 
   private collectionsFor(id: LayerId): { show: boolean }[] {
+    if (isPoiLayer(id)) return [this.pois.get(id)!.coll];
     switch (id) {
+      case "traffic":
+        return this.trafficLayer ? [this.trafficLayer] : [];
       case "flights":
         return [this.flightBB];
       case "military":
@@ -637,6 +1001,470 @@ export class GlobeEngine {
         return this.loadCameras();
       case "cables":
         return this.loadCables();
+      case "traffic":
+        return this.loadTraffic();
+      case "launches":
+      case "fires":
+        return this.loadPoiFeed(id, id);
+      case "vessels":
+        return this.loadVessels(true);
+      case "datacenters":
+      case "dams":
+        return this.loadSnapshot(id);
+    }
+  }
+
+  // ----- Point layers (launches, fires, vessels, datacenters, dams) ----------
+
+  private drawPois(id: PoiLayerId, items: Poi[], note: string, stale?: boolean) {
+    const C = this.C;
+    const layer = this.pois.get(id)!;
+    layer.coll.removeAll();
+    layer.items.clear();
+    layer.positions.clear();
+    layer.note = note;
+    const icon = this.poiIcons.get(id)!;
+    const near = id === "fires" ? new C.NearFarScalar(5_000, 1.1, 8e6, 0.35) : new C.NearFarScalar(2_000, 1.2, 1.2e7, 0.4);
+    for (const item of items) {
+      if (!Number.isFinite(item.lat) || !Number.isFinite(item.lon)) continue;
+      const position = C.Cartesian3.fromDegrees(item.lon, item.lat, id === "launches" ? 200 : 30);
+      const size = (id === "fires" ? 10 : id === "vessels" ? 12 : 16) + (item.weight ?? 0.5) * (id === "fires" ? 22 : 8);
+      layer.items.set(item.id, item);
+      layer.positions.set(item.id, position);
+      layer.coll.add({
+        position,
+        image: icon,
+        width: size,
+        height: size,
+        rotation: item.heading !== undefined ? -toRad(item.heading) : 0,
+        alignedAxis: item.heading !== undefined ? C.Cartesian3.UNIT_Z : C.Cartesian3.ZERO,
+        scaleByDistance: near,
+        id: { layer: id, key: item.id } satisfies PickId,
+      });
+    }
+    this.setStatus(id, { state: stale ? "stale" : "live", count: layer.items.size, note });
+    if (this.selected?.layer === id) this.ev.select(this.describe(this.selected));
+  }
+
+  private async loadPoiFeed(id: PoiLayerId, path: string) {
+    const data = await this.fetchFeed<PoiFeed>(id, path);
+    if (!data || this.destroyed || !this.layersOn.has(id)) return;
+    if (data.needsKey) {
+      this.setStatus(id, { state: "error", count: 0, note: `Add ${data.needsKey} to .env.local` });
+      return;
+    }
+    this.drawPois(id, data.items, data.note ?? "", data.stale);
+  }
+
+  private async loadVessels(force: boolean) {
+    const { lat, lon, alt } = this.getView();
+    const cell = `${Math.round(lat)}:${Math.round(lon)}`;
+    if (!force && cell === this.vesselCell) return;
+    if (alt > 4_000_000 && !force) return;
+    this.vesselCell = cell;
+    await this.loadPoiFeed("vessels", `vessels?lat=${lat.toFixed(1)}&lon=${lon.toFixed(1)}`);
+  }
+
+  private async loadSnapshot(id: "datacenters" | "dams") {
+    if (this.pois.get(id)!.items.size) {
+      const l = this.pois.get(id)!;
+      this.setStatus(id, { state: "live", count: l.items.size, note: l.note });
+      return;
+    }
+    this.setStatus(id, { state: "loading", count: 0 });
+    try {
+      const res = await fetch(`/gods-eye/${id}.json`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { rows } = (await res.json()) as { rows: (string | number)[][] };
+      if (this.destroyed || !this.layersOn.has(id)) return;
+      const items: Poi[] =
+        id === "datacenters"
+          ? rows.map(([key, name, lat, lon, operator, place]) => ({
+              id: String(key),
+              name: String(name),
+              lat: Number(lat),
+              lon: Number(lon),
+              sub: ["DATA CENTER", operator, place].filter(Boolean).join(" · ").toUpperCase(),
+              weight: 0.5,
+              fields: [
+                ["OPERATOR", String(operator || "—").toUpperCase()],
+                ["LOCATION", String(place || "—").toUpperCase()],
+                ["POS", `${formatLat(Number(lat))} ${formatLon(Number(lon))}`],
+              ] as [string, string][],
+              link: {
+                href: `https://www.openstreetmap.org/${({ n: "node", w: "way", r: "relation" } as Record<string, string>)[String(key)[0]]}/${String(key).slice(1)}`,
+                label: "OpenStreetMap",
+              },
+            }))
+          : rows.map(([key, name, lat, lon, mw, height, country]) => ({
+              id: String(key),
+              name: String(name),
+              lat: Number(lat),
+              lon: Number(lon),
+              sub: ["DAM", country].filter(Boolean).join(" · ").toUpperCase(),
+              weight: Math.min(1, Number(mw) / 3000 + Number(height) / 300),
+              fields: [
+                ["HYDRO", Number(mw) ? `${Number(mw).toLocaleString("en-US")} MW` : "—"],
+                ["HEIGHT", Number(height) ? `${height} M` : "—"],
+                ["COUNTRY", String(country || "—").toUpperCase()],
+                ["POS", `${formatLat(Number(lat))} ${formatLon(Number(lon))}`],
+              ] as [string, string][],
+              link: { href: `https://www.wikidata.org/wiki/${key}`, label: "Wikidata" },
+            }));
+      this.drawPois(id, items, id === "datacenters" ? "OpenStreetMap snapshot" : "Wikidata · ≥15 m or hydro");
+    } catch (err) {
+      this.setStatus(id, { state: "error", count: 0, note: err instanceof Error ? err.message : "unavailable" });
+    }
+  }
+
+  private async loadTraffic() {
+    const C = this.C;
+    if (!this.trafficLayer) {
+      this.setStatus("traffic", { state: "loading", count: 0 });
+      const probe = await fetch("/api/gods-eye/traffic/3/2/3").catch(() => null);
+      if (this.destroyed || !this.layersOn.has("traffic")) return;
+      if (!probe || !probe.ok) {
+        const text = probe ? await probe.text() : "network error";
+        this.setStatus("traffic", {
+          state: "error",
+          count: 0,
+          note: probe?.status === 503 ? "Add TOMTOM_API_KEY to .env.local" : text.slice(0, 80),
+        });
+        return;
+      }
+      this.trafficLayer = this.viewer.imageryLayers.addImageryProvider(
+        new C.UrlTemplateImageryProvider({
+          url: "/api/gods-eye/traffic/{z}/{x}/{y}",
+          minimumLevel: 0,
+          maximumLevel: 18,
+          credit: "Traffic © TomTom",
+        }),
+      );
+      this.trafficLayer.alpha = 0.9;
+    }
+    this.trafficLayer.show = true;
+    this.setStatus("traffic", {
+      state: "live",
+      count: 0,
+      note: this.mapSource === "google3d" ? "TomTom flow · shows on ESRI/OSM maps" : "TomTom flow · live",
+    });
+  }
+
+  /** Items of a point layer, e.g. the SPACE MISSIONS list. */
+  listPois(id: PoiLayerId): Poi[] {
+    return [...(this.pois.get(id)?.items.values() ?? [])];
+  }
+
+  selectPoi(id: PoiLayerId, key: string) {
+    if (!this.pois.get(id)?.items.has(key)) return;
+    this.select({ layer: id, key });
+    this.focusSelection();
+  }
+
+  // ----- Context: nearby contacts ---------------------------------------------
+
+  /** The ground point under the middle of the screen (or under the camera). */
+  private viewCenter(): { lat: number; lon: number } {
+    const { C, viewer } = this;
+    if (this.cockpit) {
+      const c = this.contacts.get(this.cockpit.key);
+      if (c) return { lat: c.row[4], lon: c.row[3] };
+    }
+    const canvas = viewer.scene.canvas;
+    const hit = viewer.camera.pickEllipsoid(new C.Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2));
+    const carto = hit ? C.Cartographic.fromCartesian(hit) : viewer.camera.positionCartographic;
+    return { lat: toDeg(carto.latitude), lon: toDeg(carto.longitude) };
+  }
+
+  nearbyContacts(radiusKm = 250): NearbyContact[] {
+    const { lat, lon } = this.viewCenter();
+    const out: NearbyContact[] = [];
+    const push = (layer: NearbyContact["layer"], key: string, la: number, lo: number, label: string, sub: string) => {
+      const { km, bearing } = rangeBearing(lat, lon, la, lo);
+      if (km <= radiusKm) out.push({ layer, key, label, sub, rangeKm: km, bearing });
+    };
+    for (const c of this.contacts.values()) {
+      const r = c.row;
+      const ft = Math.round((r[5] * FT_PER_M) / 100);
+      push(c.layer, c.key, r[4], r[3], r[1] || r[0].toUpperCase(), r[6] ? "GND" : `FL${String(ft).padStart(3, "0")} · ${Math.round(r[7] * KT_PER_MS)} KT`);
+    }
+    if (this.layersOn.has("vessels")) {
+      for (const v of this.pois.get("vessels")!.items.values()) {
+        push("vessels", v.id, v.lat, v.lon, v.name, `AIS · ${v.speedKts !== undefined ? `${v.speedKts.toFixed(1)} KT` : "—"}`);
+      }
+    }
+    return out.sort((a, b) => a.rangeKm - b.rangeKm);
+  }
+
+  /** Step to the previous/next nearby contact and lock on (or fly the cockpit to it). */
+  cycleContact(dir: 1 | -1): string | null {
+    const list = this.nearbyContacts().filter((c) => !this.cockpit || c.layer !== "vessels");
+    if (!list.length) return null;
+    const current = this.cockpit?.key ?? this.selected?.key;
+    const i = list.findIndex((c) => c.key === current);
+    const next = list[i < 0 ? 0 : (i + dir + list.length) % list.length];
+    if (this.cockpit) {
+      this.select({ layer: next.layer, key: next.key });
+      this.enterCockpit();
+    } else {
+      this.select({ layer: next.layer, key: next.key });
+      if (next.layer === "vessels") this.focusSelection();
+      else this.track();
+    }
+    return next.label;
+  }
+
+  // ----- CCTV hopping --------------------------------------------------------------
+
+  /** Step to the next-nearest camera around where hopping started. */
+  cycleCamera(dir: 1 | -1): string | null {
+    const sel = this.selected;
+    if (sel?.layer !== "cctv") return null;
+    if (!this.hop || !this.hop.list.includes(sel.key)) {
+      const origin = this.camPositions.get(sel.key);
+      if (!origin) return null;
+      const C = this.C;
+      const near: [string, number][] = [];
+      for (const [id, p] of this.camPositions) {
+        const d = C.Cartesian3.distance(origin, p);
+        if (d < 60_000) near.push([id, d]);
+      }
+      near.sort((a, b) => a[1] - b[1]);
+      this.hop = { list: near.slice(0, 80).map(([id]) => id) };
+    }
+    const list = this.hop.list;
+    const i = list.indexOf(sel.key);
+    const nextKey = list[(i + dir + list.length) % list.length];
+    const hop = this.hop;
+    this.select({ layer: "cctv", key: nextKey });
+    this.hop = hop;
+    const cam = this.cameras.get(nextKey);
+    if (cam) this.flyTo(cam.lon, cam.lat, 1_800, this.getView().heading, -45, 1.4);
+    return cam?.name ?? null;
+  }
+
+  // ----- Cockpit (first person) -------------------------------------------------
+
+  /** Put the camera in the selected aircraft's flight deck, looking along its track. */
+  enterCockpit(): boolean {
+    const sel = this.selected;
+    if (!sel || (sel.layer !== "flights" && sel.layer !== "military")) return false;
+    const c = this.contacts.get(sel.key);
+    if (!c) return false;
+    const { C, viewer } = this;
+    this.stopOrbit();
+    this.stopRouteFlight();
+    this.untrack();
+    if (this.cockpit) {
+      const prev = this.contacts.get(this.cockpit.key);
+      if (prev) prev.bb.show = true;
+    } else {
+      const frustum = viewer.camera.frustum as PerspectiveFrustum;
+      this.savedFovy = frustum.fov ?? toRad(60);
+      frustum.fov = toRad(75);
+      viewer.scene.screenSpaceCameraController.enableInputs = false;
+    }
+    viewer.camera.cancelFlight();
+    c.bb.show = false;
+    this.cockpit = { key: c.key, heading: c.row[8], pitch: 0, roll: 0, offset: new C.Cartesian3(), at: c.at, last: null };
+    this.ev.message(`COCKPIT › ${c.row[1] || c.row[0].toUpperCase()}`);
+    return true;
+  }
+
+  /** Leave first person; by default settle into a chase view of the same aircraft. */
+  exitCockpit(chase = true) {
+    const cp = this.cockpit;
+    if (!cp) return;
+    const { viewer } = this;
+    this.cockpit = null;
+    const c = this.contacts.get(cp.key);
+    if (c) c.bb.show = true;
+    (viewer.camera.frustum as PerspectiveFrustum).fov = this.savedFovy || toRad(60);
+    viewer.scene.screenSpaceCameraController.enableInputs = true;
+    this.ev.cockpit?.(null);
+    if (chase && c && this.selected?.key === cp.key) this.track();
+  }
+
+  inCockpit() {
+    return !!this.cockpit;
+  }
+
+  private updateRouteFlight(dt: number) {
+    const f = this.routeFlight!;
+    const C = this.C;
+    const speed = 600; // m/s along the ground — a 100 km route takes under 3 minutes
+    let travel = speed * dt;
+    while (travel > 0 && f.seg < f.points.length - 1) {
+      const a = f.points[f.seg];
+      const b = f.points[f.seg + 1];
+      const len = Math.max(C.Cartesian3.distance(a, b), 0.01);
+      const left = len * (1 - f.t);
+      if (travel < left) {
+        f.t += travel / len;
+        travel = 0;
+      } else {
+        travel -= left;
+        f.seg++;
+        f.t = 0;
+      }
+    }
+    if (f.seg >= f.points.length - 1) {
+      this.stopRouteFlight();
+      this.ev.message("ROUTE COMPLETE");
+      return;
+    }
+    const a = C.Cartographic.fromCartesian(f.points[f.seg]);
+    const b = C.Cartographic.fromCartesian(f.points[f.seg + 1]);
+    const lat = toDeg(a.latitude + (b.latitude - a.latitude) * f.t);
+    const lon = toDeg(a.longitude + (b.longitude - a.longitude) * f.t);
+    // Look a few points ahead so the heading doesn't twitch on every road kink.
+    const ahead = C.Cartographic.fromCartesian(f.points[Math.min(f.seg + 6, f.points.length - 1)]);
+    const target = rangeBearing(lat, lon, toDeg(ahead.latitude), toDeg(ahead.longitude)).bearing;
+    f.heading = (f.heading + angleDiff(f.heading, target) * Math.min(1, dt * 1.5) + 360) % 360;
+    // Sit behind and above the point, looking along the route.
+    const [bLon, bLat] = deadReckon(lon, lat, -900, f.heading);
+    this.viewer.camera.setView({
+      destination: C.Cartesian3.fromDegrees(bLon, bLat, 650),
+      orientation: { heading: toRad(f.heading), pitch: toRad(-28), roll: 0 },
+    });
+  }
+
+  /** Keep a pool of 3D aircraft models on the contacts nearest the camera. */
+  private updateModels(now: number) {
+    const C = this.C;
+    const camPos = this.viewer.camera.positionWC;
+    if (now - this.lastModelPick > 700) {
+      this.lastModelPick = now;
+      const maxDist = this.modelMode === "proximity" ? 60_000 : 400_000;
+      const cap = this.modelMode === "proximity" ? 30 : 120;
+      const near: [string, number][] = [];
+      const scratch = new C.Cartesian3();
+      for (const c of this.contacts.values()) {
+        if (c.key === this.cockpit?.key) continue;
+        const d = C.Cartesian3.distance(this.contactPosition(c, scratch), camPos);
+        if (d < maxDist) near.push([c.key, d]);
+      }
+      near.sort((a, b) => a[1] - b[1]);
+      this.syncModels(new Set(near.slice(0, cap).map(([k]) => k)));
+    }
+    const hpr = new C.HeadingPitchRoll();
+    const matrix = new C.Matrix4();
+    for (const [key, model] of this.models) {
+      if (model === "loading") continue;
+      const c = this.contacts.get(key);
+      if (!c) continue;
+      const pos = this.contactPosition(c);
+      // The sample aircraft's nose points along local +X (east), so heading = track − 90°.
+      hpr.heading = toRad(c.row[8] - 90);
+      hpr.pitch = c.row[7] > 5 ? Math.atan2(c.row[9], c.row[7]) : 0;
+      model.modelMatrix = C.Transforms.headingPitchRollToFixedFrame(pos, hpr, C.Ellipsoid.WGS84, C.Transforms.eastNorthUpToFixedFrame, matrix);
+    }
+  }
+
+  private syncModels(want: Set<string>) {
+    const scene = this.viewer.scene;
+    for (const [key, model] of this.models) {
+      if (want.has(key)) continue;
+      if (model !== "loading") scene.primitives.remove(model);
+      this.models.delete(key);
+      const c = this.contacts.get(key);
+      if (c && c.key !== this.cockpit?.key) c.bb.show = true;
+    }
+    for (const key of want) {
+      if (this.models.has(key)) continue;
+      this.models.set(key, "loading");
+      const layer = this.contacts.get(key)?.layer ?? "flights";
+      void this.C.Model.fromGltfAsync({ url: AIRCRAFT_MODEL_URL, minimumPixelSize: 40, maximumScale: 400, id: { layer, key } satisfies PickId })
+        .then((model) => {
+          if (this.destroyed || this.models.get(key) !== "loading") {
+            model.destroy();
+            return;
+          }
+          const c = this.contacts.get(key);
+          if (!c) {
+            this.models.delete(key);
+            model.destroy();
+            return;
+          }
+          scene.primitives.add(model);
+          this.models.set(key, model);
+          c.bb.show = false;
+        })
+        .catch(() => this.models.delete(key));
+    }
+  }
+
+  private updateCockpit(dt: number, now: number) {
+    const cp = this.cockpit!;
+    const { C, viewer } = this;
+    const c = this.contacts.get(cp.key);
+    if (!c) {
+      this.ev.message("SIGNAL LOST — LEAVING COCKPIT");
+      this.exitCockpit(false);
+      return;
+    }
+    const r = c.row;
+    const raw = this.contactPosition(c);
+    // A fresh feed row snaps the dead-reckoned position; carry the old spot as an
+    // offset that bleeds away over a couple of seconds instead of jumping.
+    if (c.at !== cp.at && cp.last) {
+      C.Cartesian3.subtract(cp.last, raw, cp.offset);
+      cp.at = c.at;
+    }
+    C.Cartesian3.multiplyByScalar(cp.offset, Math.exp(-dt * 0.9), cp.offset);
+    const pos = C.Cartesian3.add(raw, cp.offset, new C.Cartesian3());
+    const carto = C.Cartographic.fromCartesian(pos);
+    const ground = viewer.scene.globe.getHeight(carto) ?? 0;
+    carto.height = Math.max(carto.height, ground + (r[6] ? 4 : 25)) + 3;
+    const eye = C.Cartographic.toCartesian(carto);
+    cp.last = C.Cartesian3.clone(pos);
+
+    const turn = angleDiff(cp.heading, r[8]);
+    const step = Math.max(-dt * 6, Math.min(dt * 6, turn * Math.min(1, dt * 1.2)));
+    cp.heading = (cp.heading + step + 360) % 360;
+    const climb = r[7] > 5 ? toDeg(Math.atan2(r[9], r[7])) : 0;
+    cp.pitch += (Math.max(-12, Math.min(15, climb)) - cp.pitch) * Math.min(1, dt * 1.5);
+    const rollTarget = Math.max(-25, Math.min(25, (step / Math.max(dt, 1e-3)) * 8));
+    cp.roll += (rollTarget - cp.roll) * Math.min(1, dt * 2);
+
+    viewer.camera.setView({
+      destination: eye,
+      orientation: { heading: toRad(cp.heading), pitch: toRad(cp.pitch - 4), roll: toRad(cp.roll) },
+    });
+
+    if (now - this.lastCockpitEmit > 200) {
+      this.lastCockpitEmit = now;
+      const lat = toDeg(carto.latitude);
+      const lon = toDeg(carto.longitude);
+      const traffic: CockpitInfo["traffic"] = [];
+      for (const o of this.contacts.values()) {
+        if (o.key === c.key) continue;
+        const { km, bearing } = rangeBearing(lat, lon, o.row[4], o.row[3]);
+        if (km > 80) continue;
+        traffic.push({
+          label: o.row[1] || o.row[0].toUpperCase(),
+          rangeKm: km,
+          relBearing: angleDiff(cp.heading, bearing),
+          altFt: Math.round(o.row[5] * FT_PER_M),
+        });
+      }
+      traffic.sort((a, b) => a.rangeKm - b.rangeKm);
+      this.ev.cockpit?.({
+        key: c.key,
+        callsign: r[1] || r[0].toUpperCase(),
+        type: r[11] || "",
+        military: c.layer === "military",
+        gsKts: Math.round(r[7] * KT_PER_MS),
+        heading: cp.heading,
+        pitch: cp.pitch,
+        roll: cp.roll,
+        altFt: Math.round((carto.height - 3) * FT_PER_M),
+        vsFpm: Math.round(r[9] * FT_PER_M * 60),
+        onGround: !!r[6],
+        lat,
+        lon,
+        traffic: traffic.slice(0, 8),
+      });
     }
   }
 
@@ -999,6 +1827,7 @@ export class GlobeEngine {
     const prev = this.selected;
     if (prev && id && prev.layer === id.layer && prev.key === id.key) return;
     if (this.tracked) this.untrack();
+    this.hop = null;
     this.selected = id;
     this.trail = [];
     this.orbitLines.removeAll();
@@ -1026,6 +1855,9 @@ export class GlobeEngine {
     const sel = this.selected;
     if (!sel) return;
     const { C, viewer } = this;
+    this.stopOrbit();
+    this.stopRouteFlight();
+    this.exitCockpit(false);
     this.untrack();
     const target = this.positionOf(sel);
     if (!target) return;
@@ -1067,10 +1899,16 @@ export class GlobeEngine {
   focusSelection() {
     const sel = this.selected;
     if (!sel) return;
+    this.exitCockpit(false);
     const p = this.positionOf(sel);
     if (!p) return;
     const carto = this.C.Cartographic.fromCartesian(p);
-    const range = sel.layer === "satellites" ? 3_000_000 : sel.layer === "cables" ? 2_000_000 : sel.layer === "quakes" ? 400_000 : 12_000;
+    const range =
+      sel.layer === "satellites" ? 3_000_000
+      : sel.layer === "cables" ? 2_000_000
+      : sel.layer === "quakes" || sel.layer === "launches" || sel.layer === "fires" ? 400_000
+      : sel.layer === "cctv" ? 1_800
+      : 12_000;
     const lon = toDeg(carto.longitude);
     const lat = toDeg(carto.latitude);
     this.untrack();
@@ -1119,7 +1957,13 @@ export class GlobeEngine {
 
   private positionOf(sel: PickId, result?: Cartesian3): Cartesian3 | null {
     const C = this.C;
+    if (isPoiLayer(sel.layer)) {
+      const p = this.pois.get(sel.layer)?.positions.get(sel.key);
+      return p ? C.Cartesian3.clone(p, result) : null;
+    }
     switch (sel.layer) {
+      case "traffic":
+        return null;
       case "flights":
       case "military": {
         const c = this.contacts.get(sel.key);
@@ -1150,7 +1994,22 @@ export class GlobeEngine {
   private describe(sel: PickId): Selection {
     const base = { layer: sel.layer, key: sel.key };
     const C = this.C;
+    if (isPoiLayer(sel.layer)) {
+      const item = this.pois.get(sel.layer)?.items.get(sel.key);
+      if (!item) return { ...base, title: "NO LONGER REPORTED", subtitle: "", fields: [] };
+      const when = item.when ? [["SEEN", formatAgo(item.when)] as [string, string]] : [];
+      return {
+        ...base,
+        title: item.name.toUpperCase(),
+        subtitle: item.sub.toUpperCase(),
+        fields: [...item.fields, ...(sel.layer === "vessels" ? when : [])],
+        image: item.image,
+        link: item.link,
+      };
+    }
     switch (sel.layer) {
+      case "traffic":
+        return { ...base, title: "STREET TRAFFIC", subtitle: "", fields: [] };
       case "flights":
       case "military": {
         const c = this.contacts.get(sel.key);
@@ -1285,6 +2144,11 @@ export class GlobeEngine {
       }
     }
 
+    if (this.cockpit) this.updateCockpit(dt, now);
+    if (this.orbitCenter) this.viewer.camera.rotateRight(dt * 0.12);
+    if (this.routeFlight) this.updateRouteFlight(dt);
+    if (this.modelMode !== "off") this.updateModels(now);
+
     if (this.tracked) {
       const p = this.positionOf(this.tracked, this.followScratch);
       if (p) this.viewer.camera.lookAtTransform(C.Transforms.eastNorthUpToFixedFrame(p, undefined, this.followMatrix));
@@ -1303,6 +2167,9 @@ export class GlobeEngine {
     if (
       this.autoRotate &&
       !this.tracked &&
+      !this.cockpit &&
+      !this.orbitCenter &&
+      !this.routeFlight &&
       now - this.lastInteraction > 8000 &&
       this.viewer.camera.positionCartographic.height > 6_000_000
     ) {
@@ -1319,7 +2186,8 @@ export class GlobeEngine {
     }
     if (this.selected && now - this.lastDescribe > 1000) {
       this.lastDescribe = now;
-      if (this.selected.layer !== "cctv" && this.selected.layer !== "cables") {
+      const still: LayerId[] = ["cctv", "cables", "datacenters", "dams", "launches", "fires"];
+      if (!still.includes(this.selected.layer)) {
         this.ev.select(this.describe(this.selected));
       }
     }
@@ -1390,6 +2258,7 @@ export class GlobeEngine {
     if (this.detectMode !== "off") {
       const limit = this.detectMode === "sparse" ? 10 : 10 + Math.round(this.detectDensity * 0.7);
       for (const c of this.contacts.values()) {
+        if (c.key === this.cockpit?.key) continue;
         const p = this.contactPosition(c, scratch);
         if (!visible(p)) continue;
         const dist = C.Cartesian3.distance(p, camPos);
@@ -1411,6 +2280,16 @@ export class GlobeEngine {
           cands.push({ p, dist, label: id, sub: "CCTV", color: "#39ff88", sel: false });
         }
       }
+      for (const id of ["vessels", "launches", "datacenters", "dams"] as const) {
+        if (!this.layersOn.has(id)) continue;
+        const layer = this.pois.get(id)!;
+        const style = POI_STYLE[id];
+        for (const [key, p] of layer.positions) {
+          const dist = C.Cartesian3.distance(p, camPos);
+          if (dist > (id === "launches" ? 2_000_000 : 150_000) || !visible(p)) continue;
+          cands.push({ p, dist, label: (layer.items.get(key)?.name ?? key).slice(0, 18).toUpperCase(), sub: style.label, color: style.color, sel: false });
+        }
+      }
       if (this.detectMode === "dense" && this.layersOn.has("satellites")) {
         for (const s of this.sats) {
           if (s.kind === "starlink" || !s.point.show) continue;
@@ -1420,8 +2299,22 @@ export class GlobeEngine {
         }
       }
       cands.sort((a, b) => a.dist - b.dist);
-      cands.length = Math.min(cands.length, limit);
+      if (this.allocation === "weighted") {
+        // Round-robin across kinds (colour identifies the kind), nearest first within each.
+        const groups = new Map<string, Cand[]>();
+        for (const c of cands) (groups.get(c.color) ?? groups.set(c.color, []).get(c.color)!).push(c);
+        const picked: Cand[] = [];
+        const queues = [...groups.values()];
+        for (let i = 0; picked.length < limit && queues.some((q) => q.length > i); i++) {
+          for (const q of queues) if (q[i] && picked.length < limit) picked.push(q[i]);
+        }
+        cands.length = 0;
+        cands.push(...picked);
+      } else {
+        cands.length = Math.min(cands.length, limit);
+      }
     }
+    const farthest = cands.reduce((m, c) => Math.max(m, c.dist), 1);
 
     if (this.selected) {
       const p = this.positionOf(this.selected);
@@ -1443,7 +2336,7 @@ export class GlobeEngine {
       const arm = Math.max(4, size * 0.3);
       ctx.strokeStyle = c.color;
       ctx.lineWidth = c.sel ? 2 : 1.25;
-      ctx.globalAlpha = c.sel ? 1 : 0.85;
+      ctx.globalAlpha = c.sel ? 1 : 0.85 * Math.max(0.12, 1 - this.labelFade * (c.dist / farthest));
       ctx.beginPath();
       for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
         const x = win.x + sx * half;

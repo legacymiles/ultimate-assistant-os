@@ -110,3 +110,33 @@ export interface Place {
 export interface SearchFeed {
   places: Place[];
 }
+
+/** A generic pin for the simpler point layers (launches, fires, vessels, datacenters, dams). */
+export interface Poi {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  /** Short line under the title in the context card. */
+  sub: string;
+  fields: [string, string][];
+  link?: { href: string; label: string };
+  image?: string;
+  /** Degrees clockwise from north, for pins that point (ships). */
+  heading?: number;
+  /** Relative marker size, 0–1. */
+  weight?: number;
+  /** Epoch ms the item refers to (launch time, detection time). */
+  when?: number;
+  /** Speed over ground, knots (vessels). */
+  speedKts?: number;
+}
+
+export interface PoiFeed {
+  time: number;
+  items: Poi[];
+  note?: string;
+  /** Set when the layer needs a server env var that isn't configured. */
+  needsKey?: string;
+  stale?: boolean;
+}

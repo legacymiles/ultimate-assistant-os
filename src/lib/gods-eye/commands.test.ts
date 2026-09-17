@@ -35,4 +35,22 @@ describe("parseCommand", () => {
   it("returns nothing for chatter", () => {
     expect(parseCommand("hello there")).toEqual([]);
   });
+
+  it("turns on the extra layers from the walkthrough", () => {
+    expect(parseCommand("please turn on vessels")).toEqual([{ type: "layer", layer: "vessels", on: true }]);
+    expect(parseCommand("turn on traffic mode and CCTV mode please")).toEqual([
+      { type: "layer", layer: "cctv", on: true },
+      { type: "layer", layer: "traffic", on: true },
+    ]);
+    expect(parseCommand("show air traffic")).toEqual([{ type: "layer", layer: "flights", on: true }]);
+    expect(parseCommand("show wildfires and dams")).toEqual([
+      { type: "layer", layer: "fires", on: true },
+      { type: "layer", layer: "dams", on: true },
+    ]);
+  });
+
+  it("enters and leaves the cockpit", () => {
+    expect(parseCommand("cockpit view")).toEqual([{ type: "cockpit", on: true }]);
+    expect(parseCommand("exit cockpit")).toEqual([{ type: "cockpit", on: false }]);
+  });
 });

@@ -2,6 +2,9 @@ import "server-only";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { cached } from "./cache";
+import { FIRES, LAUNCHES, VESSELS } from "./extra-feeds";
+import { radio } from "./radio";
 import { CAMERA_NETWORKS, loadNetwork, windyKey, windyNearby } from "./cameras";
 import type {
   AircraftRow,
@@ -27,33 +30,6 @@ import type {
 const UA = "ultimate-assistant-os/gods-eye-view (+https://ultimate-assistant-os.vercel.app)";
 const FT = 0.3048;
 const KT = 0.514444;
-
-type Entry = { at: number; value: unknown; pending?: Promise<unknown> };
-const cache = new Map<string, Entry>();
-
-/** Serve `key` from cache for `ttlMs`, coalescing concurrent refreshes; fall back to stale data on error. */
-async function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T & { stale?: boolean }> {
-  type Out = T & { stale?: boolean };
-  const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < ttlMs) return hit.value as Out;
-  if (hit?.pending) return hit.pending as Promise<Out>;
-
-  const pending: Promise<Out> = load()
-    .then((value) => {
-      cache.set(key, { at: Date.now(), value });
-      return value as Out;
-    })
-    .catch((err) => {
-      if (hit?.value !== undefined) {
-        cache.set(key, { at: hit.at, value: hit.value });
-        return { ...(hit.value as T), stale: true } as Out;
-      }
-      cache.delete(key);
-      throw err;
-    });
-  cache.set(key, { at: hit?.at ?? 0, value: hit?.value, pending });
-  return pending;
-}
 
 async function getJson<T>(url: string, timeoutMs = 20_000, headers: Record<string, string> = {}): Promise<T> {
   const res = await fetch(url, {
@@ -389,6 +365,10 @@ export const FEEDS = {
   quakes,
   cameras,
   webcams,
+  launches: LAUNCHES,
+  fires: FIRES,
+  vessels: VESSELS,
+  radio,
   cables,
   search,
 } satisfies Record<string, (params: URLSearchParams) => Promise<unknown>>;

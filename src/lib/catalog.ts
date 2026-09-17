@@ -421,7 +421,9 @@ export const PROJECTS: CatalogProject[] = [
       "elevation, a REC clock. Toggle live layers from public, keyless sources: every aircraft OpenSky can " +
       "see (adsb.lol around you when OpenSky is throttled), military traffic from adsb.lol, thousands of " +
       "satellites propagated in the browser with SGP4 from CelesTrak, the last day of USGS earthquakes, " +
-      "~20,000 live public traffic cameras across the US, Canada, London, Finland, New Zealand, Hong Kong and Singapore, and the world's submarine cables. Aircraft glide " +
+      "~25,000 live public traffic cameras (click one to enlarge it, hop to the next, or let it auto-hop), " +
+      "space missions from the Launch Library, datacenters, dams, and with free keys NASA FIRMS fires, AIS ships and " +
+      "TomTom street traffic, plus the world's submarine cables. Ride any aircraft in COCKPIT first person. Aircraft glide " +
       "between updates by dead reckoning. Click anything to lock on: a detection box, a telemetry card, a " +
       "trail, and a camera that follows it, orbit ring included for satellites. Re-skin the whole planet " +
       "through the original's GLSL sensor looks: CRT, NVG, FLIR (Ironbow or white-hot), Anime, Noir and " +

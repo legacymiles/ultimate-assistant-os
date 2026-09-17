@@ -42,7 +42,9 @@ export type Command =
   | { type: "detect"; mode: DetectMode }
   | { type: "track"; query: string }
   | { type: "untrack" }
-  | { type: "fly"; place: string };
+  | { type: "fly"; place: string }
+  | { type: "cockpit"; on: boolean }
+  | { type: "celestial"; on: boolean };
 
 const STYLE_WORDS: [RegExp, StyleId][] = [
   [/\b(night ?vision|nvg|green mode)\b/, "nvg"],
@@ -61,6 +63,13 @@ const LAYER_WORDS: [RegExp, LayerId][] = [
   [/\b(earthquakes?|quakes?|seismic)\b/, "quakes"],
   [/\b(cctv|cameras?|webcams?|jam ?cams?|traffic cams?)\b/, "cctv"],
   [/\b(cables?|submarine|undersea|subsea)\b/, "cables"],
+  [/\b(vessels?|ships?|boats?|ais|maritime|shipping)\b/, "vessels"],
+  [/\b(wild ?fires?|fires?|firms|hot ?spots?)\b/, "fires"],
+  [/\b(space missions?|launch(es)?|rockets?)\b/, "launches"],
+  [/\b(data ?cent(er|re)s?)\b/, "datacenters"],
+  [/\bdams?\b/, "dams"],
+  // Last, so "air traffic" and "traffic cams" have already been claimed above.
+  [/\b(street traffic|road traffic|traffic mode|traffic)\b/, "traffic"],
 ];
 
 const OFF = /\b(turn off|switch off|hide|disable|remove|kill|stop showing|no more|get rid of)\b|\boff\b/;
@@ -85,6 +94,16 @@ export function parseCommand(input: string): Command[] {
 
   if (/\b(stop|cancel|release) (tracking|following)\b|\buntrack\b|\bunlock\b/.test(text)) {
     out.push({ type: "untrack" });
+  }
+
+  if (/\b(cockpit|first person|pilot view|pilots view)\b/.test(text)) {
+    out.push({ type: "cockpit", on: !/\b(exit|leave|out of|get out|close|off)\b/.test(text) });
+    return out;
+  }
+
+  if (/\b(celestial|sun and moon|moon and sun)\b/.test(text)) {
+    out.push({ type: "celestial", on: !OFF.test(text) });
+    return out;
   }
 
   const track = text.match(/\b(?:track|follow|lock on(?: to)?|lock onto)\s+(?:the\s+)?(.+?)\s*$/);
@@ -160,6 +179,10 @@ export function describeCommands(cmds: Command[]): string {
           return "TRACK RELEASED";
         case "fly":
           return `FLYING TO ${c.place.toUpperCase()}`;
+        case "cockpit":
+          return c.on ? "COCKPIT VIEW" : "EXIT COCKPIT";
+        case "celestial":
+          return `CELESTIAL ${c.on ? "ON" : "OFF"}`;
       }
     })
     .join(" · ");

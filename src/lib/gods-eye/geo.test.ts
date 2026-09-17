@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deadReckon, densifyLine, niirsFromGsd, sunPosition } from "./geo";
+import { deadReckon, densifyLine, niirsFromGsd, rangeBearing, sunPosition } from "./geo";
 
 describe("deadReckon", () => {
   it("moves ~111 km north per degree of latitude", () => {
@@ -41,5 +41,24 @@ describe("densifyLine", () => {
     ]);
     expect(out).toHaveLength(11);
     expect(out[5]).toEqual([5, 0]);
+  });
+});
+
+describe("rangeBearing", () => {
+  it("measures a degree of latitude due north", () => {
+    const { km, bearing } = rangeBearing(0, 0, 1, 0);
+    expect(km).toBeCloseTo(111.2, 0);
+    expect(bearing).toBeCloseTo(0, 5);
+  });
+
+  it("points east along the equator", () => {
+    expect(rangeBearing(0, 10, 0, 11).bearing).toBeCloseTo(90, 5);
+  });
+
+  it("round-trips with deadReckon", () => {
+    const [lon, lat] = deadReckon(-84.43, 33.64, 80_000, 237);
+    const { km, bearing } = rangeBearing(33.64, -84.43, lat, lon);
+    expect(km).toBeCloseTo(80, 1);
+    expect(bearing).toBeCloseTo(237, 1);
   });
 });

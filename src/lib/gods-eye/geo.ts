@@ -18,6 +18,18 @@ export function deadReckon(lon: number, lat: number, meters: number, trackDeg: n
   return [((toDeg(lambda2) + 540) % 360) - 180, toDeg(phi2)];
 }
 
+/** Great-circle distance (km) and initial bearing (degrees from north) from one lat/lon to another. */
+export function rangeBearing(lat1: number, lon1: number, lat2: number, lon2: number): { km: number; bearing: number } {
+  const p1 = toRad(lat1);
+  const p2 = toRad(lat2);
+  const dl = toRad(lon2 - lon1);
+  const a = Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  const km = (2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(a)))) / 1000;
+  const y = Math.sin(dl) * Math.cos(p2);
+  const x = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl);
+  return { km, bearing: (toDeg(Math.atan2(y, x)) + 360) % 360 };
+}
+
 /** Approximate solar elevation and azimuth (degrees) for a place and instant. Good to ~1°. */
 export function sunPosition(date: Date, lat: number, lon: number): { el: number; az: number } {
   const d = date.getTime() / 86_400_000 - 10_957.5; // days since J2000.0
