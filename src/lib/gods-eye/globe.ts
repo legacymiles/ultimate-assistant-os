@@ -78,6 +78,7 @@ export interface Selection {
   fields: [string, string][];
   image?: string;
   video?: string;
+  hls?: string;
   link?: { href: string; label: string };
 }
 
@@ -2091,6 +2092,7 @@ export class GlobeEngine {
           ],
           image: cam.image,
           video: cam.video,
+          hls: cam.hls,
         };
       }
       case "cables": {

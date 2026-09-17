@@ -17,7 +17,8 @@ import type { Camera } from "./types";
 
 const UA = "ultimate-assistant-os/gods-eye-view (+https://ultimate-assistant-os.vercel.app)";
 const LIST_TTL_MS = 6 * 60 * 60_000; // camera locations change rarely; the stills themselves are live
-const DISK_DIR = join(tmpdir(), "gods-eye-view", "cameras");
+// Bump the folder when the Camera shape changes, so no instance serves an old-shape list.
+const DISK_DIR = join(tmpdir(), "gods-eye-view", "cameras-v2");
 
 export interface CameraNetwork {
   id: string;
@@ -121,7 +122,16 @@ interface FiveOneOneRow {
   roadway?: string;
   direction?: string;
   latLng?: { geography?: { wellKnownText?: string } };
-  images?: { imageUrl?: string; description?: string; disabled?: boolean; blocked?: boolean }[];
+  images?: {
+    imageUrl?: string;
+    description?: string;
+    disabled?: boolean;
+    blocked?: boolean;
+    videoUrl?: string;
+    videoType?: string;
+    videoDisabled?: boolean;
+    isVideoAuthRequired?: boolean;
+  }[];
 }
 
 function fiveOneOne(site: (typeof FIVE_ONE_ONE)[number]) {
@@ -152,6 +162,11 @@ function fiveOneOne(site: (typeof FIVE_ONE_ONE)[number]) {
         lon,
         lat,
         image: `https://${site.host}${img.imageUrl}`,
+        // Some DOTs (NY, NV, WI, LA) publish open HLS; others gate video behind a login.
+        hls:
+          img.videoUrl?.startsWith("https://") && !img.isVideoAuthRequired && !img.videoDisabled && /mpegurl|m3u8/i.test(`${img.videoType} ${img.videoUrl}`)
+            ? img.videoUrl
+            : undefined,
         view:
           [row.roadway && row.roadway !== "Unknown" && row.roadway !== row.location ? row.roadway : "", dir]
             .filter(Boolean)
@@ -194,7 +209,7 @@ async function caltrans(): Promise<Camera[]> {
             index: string;
             inService: string;
             location: { locationName: string; nearbyPlace?: string; latitude: string; longitude: string; direction?: string; route?: string };
-            imageData?: { static?: { currentImageURL?: string } };
+            imageData?: { streamingVideoURL?: string; static?: { currentImageURL?: string } };
           };
         }[];
       }>(`https://cwwp2.dot.ca.gov/data/d${Number(d)}/cctv/cctvStatusD${d}.json`, 60_000);
@@ -210,6 +225,7 @@ async function caltrans(): Promise<Camera[]> {
             lat,
             lon,
             image,
+            hls: c.imageData?.streamingVideoURL?.startsWith("https://") ? c.imageData.streamingVideoURL : undefined,
             view: [c.location.route, c.location.direction].filter(Boolean).join(" · ") || undefined,
             source: `Caltrans · District ${Number(d)}`,
           },

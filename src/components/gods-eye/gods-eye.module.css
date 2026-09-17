@@ -1213,6 +1213,15 @@ button.cctv {
   cursor: zoom-in;
 }
 
+.cctvElsewhere {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--dim);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+}
+
 .cctvExpand {
   position: absolute;
   right: 6px;

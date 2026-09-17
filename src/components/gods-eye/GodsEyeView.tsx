@@ -26,6 +26,7 @@ import { formatAltitude, formatLat, formatLon, orbitStamp } from "@/lib/gods-eye
 import type { Place, Poi, SearchFeed } from "@/lib/gods-eye/types";
 import type { AgentAction, AgentModel, ChatTurn } from "@/lib/gods-eye/agent";
 import { RadioDeck, type RadioHandle } from "./RadioDeck";
+import { LiveCam, type FeedMode } from "./LiveCam";
 import styles from "./gods-eye.module.css";
 
 const display = Chakra_Petch({ subsets: ["latin"], weight: ["500", "600", "700"] });
@@ -163,12 +164,6 @@ function speechCtor(): (new () => SpeechRecognitionLike) | null {
   return (w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null) as (new () => SpeechRecognitionLike) | null;
 }
 
-/** Cache-bust a camera still without clobbering its own query (signed URLs are left alone). */
-function bust(url: string, tick: number): string {
-  if (/[?&](token|sig|signature|expires)=/i.test(url)) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}t=${tick}`;
-}
-
 export function GodsEyeView() {
   const globeRef = useRef<HTMLDivElement>(null);
   const creditsRef = useRef<HTMLDivElement>(null);
@@ -208,9 +203,9 @@ export function GodsEyeView() {
   const [command, setCommand] = useState("");
   const [listening, setListening] = useState(false);
   const [toast, setToast] = useState<{ text: string; id: number } | null>(null);
-  const [camTick, setCamTick] = useState(0);
   const [camExpanded, setCamExpanded] = useState(false);
   const [camSnapshot, setCamSnapshot] = useState<"ok" | "err" | "loading">("loading");
+  const [camMode, setCamMode] = useState<FeedMode>("still");
   const [autoHop, setAutoHop] = useState(false);
   const [hover, setHover] = useState<HoverInfo | null>(null);
   const [cockpit, setCockpit] = useState<CockpitInfo | null>(null);
@@ -431,13 +426,6 @@ export function GodsEyeView() {
   useEffect(() => {
     if (selectedKey) setRightOpen(true);
   }, [selectedKey]);
-
-  // CCTV stills refresh; most agencies republish every 30 s to a few minutes.
-  useEffect(() => {
-    if (selection?.layer !== "cctv") return;
-    const t = setInterval(() => setCamTick((n) => n + 1), 30_000);
-    return () => clearInterval(t);
-  }, [selection?.layer, selection?.key]);
 
   // ----- Share link: keep the hash in step with the view ---------------------
   useEffect(() => {
@@ -1194,27 +1182,22 @@ export function GodsEyeView() {
                       title="Click to enlarge"
                       aria-label={`Enlarge ${selection.title}`}
                     >
-                      {selection.video ? (
-                        <video
-                          key={`${selection.key}-${camTick}`}
-                          src={bust(selection.video, camTick)}
-                          poster={bust(selection.image, camTick)}
-                          autoPlay
-                          muted
-                          loop
-                          playsInline
-                        />
+                      {camExpanded ? (
+                        <span className={styles.cctvElsewhere}>VIEWING ENLARGED</span>
                       ) : (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={bust(selection.image, camTick)}
+                        <LiveCam
+                          image={selection.image}
+                          video={selection.video}
+                          hls={selection.hls}
                           alt={selection.title}
-                          onLoad={() => setCamSnapshot("ok")}
-                          onError={() => setCamSnapshot("err")}
+                          onState={(st, m) => {
+                            setCamSnapshot(st);
+                            setCamMode(m);
+                          }}
                         />
                       )}
                       <span className={styles.cctvTag}>
-                        <span className={styles.recDot} /> LIVE · {selection.key}
+                        <span className={styles.recDot} /> {camMode === "video" ? "LIVE VIDEO" : "LIVE"} · {selection.key}
                       </span>
                       <span className={styles.cctvExpand}>⤢ ENLARGE</span>
                     </button>
@@ -1223,9 +1206,9 @@ export function GodsEyeView() {
                     <>
                       <div className={styles.cctvStatus}>
                         <span data-state={camSnapshot}>
-                          SNAPSHOT: {camSnapshot === "ok" ? "OK" : camSnapshot === "err" ? "NO SIGNAL" : "…"}
+                          {camMode === "video" ? "STREAM" : "SNAPSHOT"}: {camSnapshot === "ok" ? "OK" : camSnapshot === "err" ? "NO SIGNAL" : "…"}
                         </span>
-                        <span>REFRESH 30 S</span>
+                        <span>{camMode === "video" ? "LIVE HLS VIDEO" : camMode === "clip" ? "TFL CLIP" : "REFRESH 4 S"}</span>
                       </div>
                       <div className={styles.row}>
                         <button className={styles.btn} onClick={() => engineRef.current?.cycleCamera(-1)}>
@@ -1682,22 +1665,18 @@ export function GodsEyeView() {
             </button>
           </div>
           <div className={styles.camViewerFrame}>
-            {selection.video ? (
-              <video
-                key={`big-${selection.key}-${camTick}`}
-                src={bust(selection.video, camTick)}
-                poster={bust(selection.image, camTick)}
-                autoPlay
-                muted
-                loop
-                playsInline
-              />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={bust(selection.image, camTick)} alt={selection.title} />
-            )}
+            <LiveCam
+              image={selection.image}
+              video={selection.video}
+              hls={selection.hls}
+              alt={selection.title}
+              onState={(st, m) => {
+                setCamSnapshot(st);
+                setCamMode(m);
+              }}
+            />
             <span className={styles.cctvTag}>
-              <span className={styles.recDot} /> LIVE · {selection.key}
+              <span className={styles.recDot} /> {camMode === "video" ? "LIVE VIDEO" : "LIVE"} · {selection.key}
             </span>
           </div>
           <div className={styles.camViewerFoot}>

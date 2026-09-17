@@ -60,8 +60,10 @@ export interface Camera {
   lon: number;
   lat: number;
   image: string;
-  /** An mp4 clip the browser can play natively (HLS streams are left out). */
+  /** An mp4 clip the browser can play natively. */
   video?: string;
+  /** A public, CORS-enabled HLS live stream (.m3u8), played with hls.js. */
+  hls?: string;
   view?: string;
   /** The agency or network that publishes this camera. */
   source?: string;
