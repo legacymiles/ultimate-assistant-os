@@ -32,7 +32,7 @@ import { ensurePhotosRoot } from "@/lib/recall/store";
 import { pruneOrphans } from "@/lib/recall/files";
 import { getQueue } from "@/lib/recall/photos/store";
 import { referencedFileIds } from "@/lib/recall/referencedFiles";
-import { KEY as RECALL_KEY } from "@/lib/recall/store";
+import { KEY as RECALL_KEY, SYNC_REPAIR_FLAG, mergeRecallData } from "@/lib/recall/store";
 import { useRemotePull } from "@/lib/sync/useSync";
 
 // ---------------------------------------------------------------------------
@@ -92,11 +92,9 @@ export function Recall() {
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Fold any legacy server/site records into websites, then read.
-    migrateRecords();
-    // The camera roll needs somewhere to live before the first photo arrives,
-    // so the Photos root is created on first load rather than on first import.
-    ensurePhotosRoot();
+    // Read only. Anything that writes (migration, the Photos root) waits for
+    // the remote pull below: a write here stamped this device as newest and
+    // pushed its copy over the account's folders before they were pulled.
     const fresh = getData();
     setData(fresh);
     setReady(true);
@@ -111,10 +109,18 @@ export function Recall() {
   // Folders and items captured on another device land in localStorage first,
   // then here. migrateRecords runs again so anything pulled down in an older
   // shape is folded forward before it is read.
-  useRemotePull(RECALL_KEY, () => {
-    migrateRecords();
-    setData(getData());
-  });
+  // The Photos root is created here too, after settling, so it lands in the
+  // account's real tree instead of seeding a fresh device with one of its own.
+  // The merge repairs devices that drifted apart under the old write-on-load.
+  useRemotePull(
+    RECALL_KEY,
+    () => {
+      migrateRecords();
+      ensurePhotosRoot();
+      setData(getData());
+    },
+    { flag: SYNC_REPAIR_FLAG, merge: mergeRecallData },
+  );
 
   useEffect(() => {
     fetch("/api/recall-unlock")

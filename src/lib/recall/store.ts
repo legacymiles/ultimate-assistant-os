@@ -23,11 +23,9 @@ function load(): RecallData {
   if (typeof window === "undefined") return { folders: [], items: [] };
   try {
     const raw = window.localStorage.getItem(scopedKey(KEY));
-    if (!raw) {
-      const seeded = buildSeed();
-      save(seeded);
-      return seeded;
-    }
+    // Not saved: writing the empty seed on a fresh device stamped it as the
+    // newest copy, and sync then pushed it over the account's real folders.
+    if (!raw) return buildSeed();
     const data = JSON.parse(raw) as RecallData;
     return {
       folders: Array.isArray(data.folders) ? data.folders : [],
@@ -42,6 +40,68 @@ function save(data: RecallData): void {
   // Local write plus, when signed in, a push to app_state so folders and items
   // are the same on every device the user opens Recall on.
   saveSynced(KEY, data);
+}
+
+/** Flag for the one-time repair of devices that drifted apart (see mergeRecallData). */
+export const SYNC_REPAIR_FLAG = "recall:sync-repair:v1";
+
+/**
+ * Union two copies of the data by id — the repair for devices that each kept
+ * overwriting the server with their own copy. Where both hold the same item,
+ * the later updatedAt wins. Top-level folders that share a name (every device
+ * made its own "Photos" root) collapse into one, and whatever pointed at the
+ * dropped duplicate is moved to the one kept. Deletions made on only one side
+ * can reappear; that is the price of never losing a folder here.
+ */
+export function mergeRecallData(localRaw: unknown, remoteRaw: unknown): RecallData {
+  const norm = (d: unknown): RecallData => {
+    const r = (d ?? {}) as Partial<RecallData>;
+    return {
+      folders: Array.isArray(r.folders) ? r.folders : [],
+      items: Array.isArray(r.items) ? r.items : [],
+    };
+  };
+  const local = norm(localRaw);
+  const remote = norm(remoteRaw);
+
+  const folders = new Map<string, Folder>();
+  for (const f of [...remote.folders, ...local.folders]) if (!folders.has(f.id)) folders.set(f.id, f);
+
+  const items = new Map<string, Item>();
+  for (const it of [...remote.items, ...local.items]) {
+    const prev = items.get(it.id);
+    if (!prev || Date.parse(it.updatedAt) > Date.parse(prev.updatedAt)) items.set(it.id, it);
+  }
+
+  // Collapse same-named siblings, repeatedly, so a duplicate root's children
+  // that also collide get merged on the next pass.
+  const remap = new Map<string, string>();
+  for (let changed = true; changed; ) {
+    changed = false;
+    const seen = new Map<string, Folder>();
+    for (const f of [...folders.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
+      const sig = JSON.stringify([f.parentId, f.name.trim().toLowerCase()]);
+      const keep = seen.get(sig);
+      if (!keep) {
+        seen.set(sig, f);
+        continue;
+      }
+      keep.sections = [...new Set([...(keep.sections ?? []), ...(f.sections ?? [])])];
+      keep.role = keep.role ?? f.role;
+      folders.delete(f.id);
+      remap.set(f.id, keep.id);
+      for (const other of folders.values()) if (other.parentId === f.id) other.parentId = keep.id;
+      changed = true;
+    }
+  }
+  const resolve = (id: string | null): string | null => {
+    let cur = id;
+    while (cur && remap.has(cur)) cur = remap.get(cur)!;
+    return cur;
+  };
+  for (const it of items.values()) it.folderId = resolve(it.folderId);
+
+  return { folders: [...folders.values()], items: [...items.values()] };
 }
 
 export function getData(): RecallData {
@@ -130,8 +190,12 @@ function ensurePath(data: RecallData, path: string[], auto: boolean): string | n
 
 export function ensureFolderPath(path: string[], auto = true): { data: RecallData; folderId: string | null } {
   const data = load();
+  const before = data.folders.length;
   const folderId = ensurePath(data, path, auto);
-  save(data);
+  // Save only when a folder was created. This runs on every page load (for the
+  // Photos root); an unconditional save made every load look like a fresh edit,
+  // so each device pushed its own copy and never pulled the other's.
+  if (data.folders.length !== before) save(data);
   return { data, folderId };
 }
 

@@ -150,7 +150,19 @@ export async function pullRemote<T>(
  * the obvious `[]` or `{}` could overwrite real data with a placeholder in the
  * window before its store had loaded. Absent stays absent here instead.
  */
-export async function reconcile(key: string): Promise<void> {
+/**
+ * A one-time repair for a key whose devices drifted apart. When both a local
+ * and a remote copy exist and `flag` has not been recorded on this device,
+ * the two are merged and the result pushed, instead of one replacing the
+ * other. Used where an older bug let each device overwrite the server with
+ * its own copy, so "newest wins" would pick an arbitrary, incomplete side.
+ */
+export interface MergeOnce {
+  flag: string;
+  merge: (local: unknown, remote: unknown) => unknown;
+}
+
+export async function reconcile(key: string, mergeOnce?: MergeOnce): Promise<void> {
   if (typeof window === "undefined") return;
 
   const rawLocal = (() => {
@@ -182,6 +194,20 @@ export async function reconcile(key: string): Promise<void> {
     return;
   }
 
+  if (mergeOnce && !hasFlag(mergeOnce.flag)) {
+    try {
+      const merged = mergeOnce.merge(JSON.parse(rawLocal), remote.data);
+      saveLocal(key, merged);
+      stampLocal(key);
+      // Only a merge that reached the server counts as done; otherwise the
+      // next load tries again rather than trusting a device-only copy.
+      if (await pushRemote(key, merged)) setFlag(mergeOnce.flag);
+      return;
+    } catch {
+      /* unparseable local value — fall through to the normal rule */
+    }
+  }
+
   // Both exist. updated_at is stamped by the server, so it is the one clock
   // both devices agree on; a local edit recorded after it is genuinely newer.
   const localStamp = loadLocalStamp(key);
@@ -195,6 +221,22 @@ export async function reconcile(key: string): Promise<void> {
   }
 
   saveLocal(key, remote.data);
+}
+
+function hasFlag(flag: string): boolean {
+  try {
+    return window.localStorage.getItem(scopedKey(flag)) !== null;
+  } catch {
+    return false;
+  }
+}
+
+function setFlag(flag: string): void {
+  try {
+    window.localStorage.setItem(scopedKey(flag), String(Date.now()));
+  } catch {
+    /* storage blocked — the merge simply runs again next load, which is harmless */
+  }
 }
 
 // --- local write stamps ----------------------------------------------------

@@ -15,7 +15,7 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect, useRef } from "react";
-import { reconcile } from "./appState";
+import { reconcile, type MergeOnce } from "./appState";
 
 /**
  * Settle `key` against the server once, then invoke `onSettled` so the caller
@@ -29,14 +29,16 @@ import { reconcile } from "./appState";
  * and the callback still fires once, so callers can rely on it running exactly
  * one time in every configuration.
  */
-export function useRemotePull(key: string, onSettled: () => void): void {
+export function useRemotePull(key: string, onSettled: () => void, mergeOnce?: MergeOnce): void {
   const settled = useRef(onSettled);
   settled.current = onSettled;
+  const merge = useRef(mergeOnce);
+  merge.current = mergeOnce;
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      await reconcile(key);
+      await reconcile(key, merge.current);
       // The component may have unmounted mid-flight; setting state then would
       // be a wasted render at best.
       if (!cancelled) settled.current();
