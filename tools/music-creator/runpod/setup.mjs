@@ -185,6 +185,23 @@ async function pickGpu() {
   const price = (g) => g.price?.secure ?? Infinity;
   const available = (g) => (g.maxCount?.secure ?? 0) > 0;
 
+  /**
+   * Is `--keep-loaded both` safe on this card?
+   *
+   * Only on 80 GB and up, and the reason is a detail of how the server runs.
+   * YuE2 lives in the server's own process, AuK runs as a subprocess in its own
+   * interpreter, and `both` makes free_gpu() a no-op — so a resident YuE2
+   * (~24 GB) is still on the card while AuK loads ~24.8 GiB beside it, needing
+   * a shade under 49 GiB. An "48 GB" card does not have that: an A40 reports
+   * 46068 MiB and even an A6000 only 49140 MiB.
+   *
+   * `one` is not a compromise here. It keeps YuE2 resident between song jobs
+   * exactly the same way, and frees it before a speech job, so the peak is one
+   * model rather than two — which is why 48 GB is ample and 24 GB is not (AuK
+   * alone peaks above it).
+   */
+  const bothResident = (g) => vram(g) >= 64;
+
   if (CONFIG.gpuId) {
     const exact = gpus.find((g) => g.id === CONFIG.gpuId || g.name === CONFIG.gpuId);
     if (!exact) die(`MUSIC_GPU="${CONFIG.gpuId}" is not in the catalog. Run with --dry-run to see the candidates.`);
@@ -195,6 +212,10 @@ async function pickGpu() {
     // NVIDIA only: both model stacks are CUDA. An MI300X has 192 GB and would
     // sort straight to the top on memory while running neither model.
     .filter((g) => g.manufacturer === "NVIDIA" && vram(g) >= CONFIG.minVram && available(g) && Number.isFinite(price(g)))
+    // Simply the cheapest that clears the bar. Since the two models never sit
+    // on the card together, a more expensive 48 GB card buys nothing here —
+    // and 48 GB is where the cheap cards are anyway: every 32 GB card in the
+    // catalog costs more per hour than the 48 GB A40.
     .sort((a, b) => price(a) - price(b));
 
   if (!usable.length) {
@@ -208,6 +229,7 @@ async function pickGpu() {
     id: chosen.id,
     vram: vram(chosen),
     price: price(chosen),
+    bothResident: bothResident(chosen),
     why: `cheapest card with at least ${CONFIG.minVram} GB`,
     alternatives: usable.slice(1, 4).map((g) => `${g.name ?? g.id} (${vram(g)} GB, $${price(g)}/hr)`),
   };
@@ -499,7 +521,11 @@ async function main() {
   console.log(`  pod            ${CONFIG.podName}`);
   console.log(`  gpu            ${gpu.id}${gpu.vram ? `  ${gpu.vram} GB` : ""}${Number.isFinite(gpu.price) ? `  ~$${gpu.price}/hr` : ""}   ${dim(gpu.why)}`);
   if (gpu.alternatives?.length) console.log(`  alternatives   ${dim(gpu.alternatives.join(" | "))}`);
-  console.log(`  keep-loaded    ${(gpu.vram ?? 0) >= 48 ? "both (YuE2 and AuK resident together)" : warn("one (they will swap; AuK needs --cpu-offload under 25 GB)")}`);
+  console.log(`  keep-loaded    ${gpu.bothResident ? "both - 80 GB is enough for a resident YuE2 and an AuK subprocess side by side" : "one"}`);
+  if (!gpu.bothResident) {
+    console.log(dim("                 YuE2 stays loaded between songs and is freed before a speech job, so only one"));
+    console.log(dim("                 model is ever on the card. bootstrap.sh confirms this against the real card."));
+  }
   console.log(`  image          ${CONFIG.image}`);
   console.log(`  container disk ${CONFIG.diskGb} GB ${dim("(ephemeral)")}`);
   console.log(`  volume         ${volume ? `${CONFIG.volumeName} (exists, ${volume.size ?? "?"} GB)` : `${CONFIG.volumeName} (new, ${CONFIG.volumeGb} GB)`} at ${MOUNT}`);

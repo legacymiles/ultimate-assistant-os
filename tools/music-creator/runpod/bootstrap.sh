@@ -2,15 +2,18 @@
 #
 # bootstrap.sh - make a RunPod Pod ready to run tools/music-creator/server.
 #
-#   bash bootstrap.sh                 everything (first run: ~1 hour, ~50-60 GB)
+#   bash bootstrap.sh                 everything (first run: about an hour;
+#                                     ~30 GB of weights plus three Python envs)
 #   bash bootstrap.sh --skip-auk      songs and transcription only
 #   bash bootstrap.sh --no-weights    environments only, download nothing
 #   bash bootstrap.sh --weights-only  downloads only, touch no environment
 #   bash bootstrap.sh --help
 #
-# Runs ON the pod, as root, on an Ubuntu + NVIDIA CUDA image. It is meant to be
-# run again after every pod stop/start, so everything it does is either already
-# done (and skipped in seconds) or genuinely needed.
+# Runs ON the pod, as root, on an Ubuntu + NVIDIA CUDA image. Run it again
+# after every pod stop/start: the volume keeps the venvs, weights and caches,
+# but apt packages (the three Pythons, ffmpeg, git) are on the container disk
+# and are wiped with it. A re-run reinstalls those in a few minutes and
+# downloads no weights - every step checks before it does anything.
 #
 # Three Python versions, because the models disagree and no amount of pip will
 # change their minds:
@@ -20,8 +23,13 @@
 #   SheetSage2  Python 3.11 + FFmpeg 6.1 with its shared libraries
 #                                    ->  $VOLUME/venvs/sheetsage
 #
-# The server sits outside all three and reaches them with --yue2-python,
-# --auk-python and --sheetsage-python.
+# The server itself runs IN the YuE2 venv, and --yue2-python is deliberately
+# not passed, so yue2 imports in the server's own interpreter and the model
+# stays resident between songs instead of being reloaded for each one. AuK and
+# SheetSage2 are reached with --auk-python and --sheetsage-python, and their
+# jobs unload a resident YuE2 before the worker starts. With --skip-yue2 the
+# server falls back to its own small venv. (Full reasoning at "which
+# interpreter runs the server", below.)
 #
 # EVERYTHING PERSISTENT GOES ON THE NETWORK VOLUME ($VOLUME, default
 # /workspace): the venvs, the Hugging Face cache, the checkpoints, pip's cache,
@@ -45,7 +53,7 @@ DO_WEIGHTS=1
 AUK_FLASH="${AUK_FLASH:-0}"
 
 usage() {
-    sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
     cat <<'USAGE'
 
 Options
@@ -175,7 +183,8 @@ FREE_GB=$(df -BG --output=avail "$VOLUME" 2>/dev/null | tail -1 | tr -dc '0-9' |
 if [ -n "$FREE_GB" ]; then
     log "free on volume: ${FREE_GB} GB"
     if [ "$FREE_GB" -lt 60 ] && [ "$DO_WEIGHTS" = 1 ]; then
-        warn "a full install wants roughly 50-60 GB; ${FREE_GB} GB free may not be enough"
+        warn "a full install wants roughly 60 GB (about 30 GB of weights plus three"
+        warn "Python environments); ${FREE_GB} GB free may not be enough"
     fi
 fi
 
@@ -188,22 +197,14 @@ else
     warn "start and /health will still answer, but every job will fail."
 fi
 
-# --keep-loaded: 'both' only makes sense on a card that can hold YuE2 (~24 GB)
-# and AuK (~24.8 GiB) at the same time.
-KEEP_LOADED="one"
+# AuK peaks around 24.8 GiB. On a 24 GB card it only fits with cpu_offload.
+# (--keep-loaded is decided further down, where it is known which interpreter
+# runs the server, because that is what decides whether anything is resident.)
 CPU_OFFLOAD=""
-if [ -n "$VRAM_MB" ]; then
-    if [ "$VRAM_MB" -ge 47000 ]; then
-        KEEP_LOADED="both"
-        log "card is >= 48 GB: --keep-loaded both (no swap between song and speech jobs)"
-    else
-        log "card is under 48 GB: --keep-loaded one (engines swap; that is correct here)"
-    fi
-    if [ "$VRAM_MB" -lt 26000 ]; then
-        CPU_OFFLOAD="--cpu-offload"
-        warn "AuK peaks around 24.8 GiB and this card has ${VRAM_MB} MiB;"
-        warn "adding --cpu-offload to the start command. It saves about a third, and is slower."
-    fi
+if [ -n "$VRAM_MB" ] && [ "$VRAM_MB" -lt 26000 ]; then
+    CPU_OFFLOAD="--cpu-offload"
+    warn "AuK peaks around 24.8 GiB and this card has ${VRAM_MB} MiB;"
+    warn "adding --cpu-offload to the start command. It saves about a third, and is slower."
 fi
 
 # The token. Generated once and kept on the volume so a restart keeps the same
@@ -413,6 +414,15 @@ if [ "$SKIP_YUE2" = 0 ]; then
             "$YUE_VENV/bin/python" -c "import yue2" >/dev/null 2>&1 \
                 || { echo "yue2 still does not import after pip install ." >&2; exit 1; }
         fi
+        # The server itself runs in THIS venv, so that yue2 imports in the
+        # server's own interpreter and the model stays resident between songs.
+        # See "which interpreter runs the server" below.
+        if "$YUE_VENV/bin/python" -c "import aiohttp" >/dev/null 2>&1; then
+            skip "aiohttp is already in the YuE2 venv"
+        else
+            log "installing the server's own requirements into the YuE2 venv"
+            "$YUE_VENV/bin/python" -m pip install -q -r "$SERVER_DST/requirements.txt"
+        fi
     fi
     if [ "$DO_WEIGHTS" = 1 ]; then
         step "YuE2 weights (CC BY-NC 4.0 - non-commercial only)"
@@ -510,10 +520,71 @@ fi
 
 step "start script"
 
+# Which interpreter runs the server
+# --------------------------------
+# The YuE2 venv, when YuE2 is installed - and then --yue2-python is deliberately
+# NOT passed. engines.py picks the mode like this:
+#
+#     def yue2_mode(self):
+#         if _interpreter(self.args.yue2_python):
+#             return "subprocess"
+#         return "inprocess" if module_available("yue2") else None
+#
+# so passing the flag forces subprocess mode even when yue2 imports fine, and
+# subprocess mode reloads a 7.3 GB model for EVERY song. Songs are the thing
+# this server exists for, so YuE2 gets the in-process path: loaded once, cached
+# in Engines._yue2, and reused by every later song job.
+#
+# AuK and SheetSage2 keep their own interpreters. They have to: AuK wants 3.10,
+# SheetSage2 pins transformers versions that fight with YuE2's, and both of
+# those jobs call free_gpu(keep=None) before spawning the worker, so a resident
+# YuE2 is unloaded first rather than sitting next to a second 24 GB process.
+RUN_PYTHON="$SERVER_VENV/bin/python"
+RUN_WHY="the server's own small venv"
+if [ "$SKIP_YUE2" = 0 ] && [ -x "$YUE_VENV/bin/python" ] \
+    && "$YUE_VENV/bin/python" -c "import yue2, aiohttp" >/dev/null 2>&1; then
+    RUN_PYTHON="$YUE_VENV/bin/python"
+    RUN_WHY="the YuE2 venv, so YuE2 loads in-process and stays resident between songs"
+elif [ "$SKIP_YUE2" = 0 ]; then
+    warn "the YuE2 venv cannot import both yue2 and aiohttp, so the server will run"
+    warn "from $SERVER_VENV and reach YuE2 through --yue2-python (a reload per song)."
+    warn "Re-run this script to finish that venv."
+fi
+log "server interpreter: $RUN_PYTHON"
+log "  ($RUN_WHY)"
+
+# --keep-loaded, decided by what can actually be resident here
+# -----------------------------------------------------------
+# In this layout only YuE2 is ever resident in the server process; AuK and
+# SheetSage2 are subprocesses, which never populate Engines._auk. So:
+#
+#   'one'  keeps YuE2 loaded across consecutive song jobs - free_gpu(keep=
+#          "yue2") unloads only the OTHER engines, and release_after_job()
+#          frees nothing unless --keep-loaded is 'none'. This is the fast path
+#          for songs, and it still unloads YuE2 before an AuK subprocess
+#          starts, which is what stops the two 24 GB processes colliding.
+#   'both' would add nothing (AuK cannot be resident anyway) and would make
+#          free_gpu() return immediately, so a resident YuE2 (~24 GB) would
+#          still be on the card while an AuK subprocess loads ~24.8 GiB. That
+#          is ~49 GiB, which an A6000 (49140 MiB) does not have once anything
+#          else is allocated. It is only safe on an 80 GB card, where it saves
+#          a YuE2 reload after a speech job.
+KEEP_LOADED="one"
+if [ "$RUN_PYTHON" = "$YUE_VENV/bin/python" ] && [ -n "$VRAM_MB" ] && [ "$VRAM_MB" -ge 60000 ]; then
+    KEEP_LOADED="both"
+    log "${VRAM_MB} MiB: --keep-loaded both (YuE2 can stay resident even while an AuK subprocess runs)"
+elif [ "$RUN_PYTHON" = "$YUE_VENV/bin/python" ]; then
+    log "--keep-loaded one: YuE2 stays resident between songs, and is unloaded before an AuK job"
+else
+    log "--keep-loaded one (nothing runs in-process here, so this setting changes nothing)"
+fi
+
 SERVER_ARGS=(--host 0.0.0.0 --port "$PORT" --data-dir "$DATA_DIR" --keep-loaded "$KEEP_LOADED")
 [ -n "$CPU_OFFLOAD" ] && SERVER_ARGS+=("$CPU_OFFLOAD")
 
-if [ "$SKIP_YUE2" = 0 ] && [ -x "$YUE_VENV/bin/python" ]; then
+# Only if the fast path above is not available: reach YuE2 in its own venv.
+if [ "$SKIP_YUE2" = 0 ] && [ "$RUN_PYTHON" != "$YUE_VENV/bin/python" ] \
+    && [ -x "$YUE_VENV/bin/python" ]; then
     SERVER_ARGS+=(--yue2-python "$YUE_VENV/bin/python")
 fi
 if [ "$SKIP_AUK" = 0 ] && [ -x "$AUK_VENV/bin/python" ]; then
@@ -581,10 +652,19 @@ fi
 
 cat >> "$START_SCRIPT" <<EOF
 
-PYTHON="$SERVER_VENV/bin/python"
+PYTHON="$RUN_PYTHON"
 SERVER="$SERVER_DST/server/server.py"
 LOG="$LOG_FILE"
 PIDFILE="$VOLUME/music-server.pid"
+
+if ! "\$PYTHON" -c "import sys" >/dev/null 2>&1; then
+    echo "\$PYTHON does not run." >&2
+    echo "The venvs are on the volume but the interpreters they were built from" >&2
+    echo "(python3.10 / 3.11 / 3.12, apt packages) live on the container disk, which" >&2
+    echo "is wiped when the pod restarts. Run bootstrap.sh again: it reinstalls them" >&2
+    echo "in a few minutes and downloads nothing." >&2
+    exit 1
+fi
 
 MUSIC_TOKEN="\${MUSIC_TOKEN:-\$(cat "$TOKEN_FILE" 2>/dev/null || true)}"
 if [ -z "\$MUSIC_TOKEN" ]; then
@@ -651,7 +731,7 @@ if [ -n "$FFMPEG_PATH_PREFIX" ]; then
 fi
 echo
 set +e
-"$SERVER_VENV/bin/python" "$SERVER_DST/server/server.py" "${SERVER_ARGS[@]}" --self-test
+"$RUN_PYTHON" "$SERVER_DST/server/server.py" "${SERVER_ARGS[@]}" --self-test
 SELFTEST_RC=$?
 set -e
 echo
@@ -674,14 +754,15 @@ Start the server:
 or, by hand, exactly what that script runs:
 
     export HF_HOME="$HF_HOME"
-    $SERVER_VENV/bin/python $SERVER_DST/server/server.py \\
+    $RUN_PYTHON $SERVER_DST/server/server.py \\
 ${ARGS_PRINT}
       --token "\$MUSIC_TOKEN"
 
---keep-loaded is $KEEP_LOADED for this card: 'both' keeps YuE2 (~24 GB) and AuK
-(~24.8 GiB) resident at once and needs 48 GB or more; 'one' swaps them, which is
-the right answer on anything smaller and costs a model load when you alternate
-between song and speech jobs.
+--keep-loaded is $KEEP_LOADED for this card. 'both' keeps YuE2 (~24 GB) and AuK
+(~24.8 GiB) resident at once, which needs a little under 49 GiB of reported
+VRAM - an RTX A6000 (49140 MiB) has it, an A40 or L40S (46068 MiB) does not,
+whatever the marketing says. 'one' swaps them, and costs a model load whenever
+you alternate between song and speech jobs.
 
 Then on the website, in .env.local:
 
@@ -693,6 +774,10 @@ Check it from your laptop:
     curl https://<pod id>-$PORT.proxy.runpod.net/health
 
 The pod bills for every second it is RUNNING, generating or not. Stop it when
-you are finished. The volume keeps everything above, so the next start is this
-script again and it will take under a minute.
+you are finished.
+
+After a stop/start, run this script again before starting the server. The
+volume keeps the venvs, the weights and the caches, but apt packages - the
+three Pythons, ffmpeg, git - live on the container disk and are wiped with it.
+The re-run reinstalls those in a few minutes and downloads no weights at all.
 EOF
