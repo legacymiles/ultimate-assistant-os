@@ -206,6 +206,13 @@ export function GodsEyeView() {
   const [camExpanded, setCamExpanded] = useState(false);
   const [camSnapshot, setCamSnapshot] = useState<"ok" | "err" | "loading">("loading");
   const [camMode, setCamMode] = useState<FeedMode>("still");
+  // Measured from the feed itself: how long between two genuinely new frames.
+  const [camGap, setCamGap] = useState<number | null>(null);
+  const lastFrame = useRef(0);
+  const onCamFrame = useCallback((at: number) => {
+    if (lastFrame.current) setCamGap((prev) => (prev ? prev * 0.6 + (at - lastFrame.current) * 0.4 : at - lastFrame.current));
+    lastFrame.current = at;
+  }, []);
   const [autoHop, setAutoHop] = useState(false);
   const [hover, setHover] = useState<HoverInfo | null>(null);
   const [cockpit, setCockpit] = useState<CockpitInfo | null>(null);
@@ -396,6 +403,8 @@ export function GodsEyeView() {
   const camKey = selection?.layer === "cctv" ? selection.key : null;
   useEffect(() => {
     setCamSnapshot("loading");
+    setCamGap(null);
+    lastFrame.current = 0;
     if (!camKey) {
       setCamExpanded(false);
       setAutoHop(false);
@@ -1194,6 +1203,7 @@ export function GodsEyeView() {
                             setCamSnapshot(st);
                             setCamMode(m);
                           }}
+                          onFrame={onCamFrame}
                         />
                       )}
                       <span className={styles.cctvTag}>
@@ -1208,7 +1218,15 @@ export function GodsEyeView() {
                         <span data-state={camSnapshot}>
                           {camMode === "video" ? "STREAM" : "SNAPSHOT"}: {camSnapshot === "ok" ? "OK" : camSnapshot === "err" ? "NO SIGNAL" : "…"}
                         </span>
-                        <span>{camMode === "video" ? "LIVE HLS VIDEO" : camMode === "clip" ? "TFL CLIP" : "REFRESH 4 S"}</span>
+                        <span>
+                          {camMode === "video"
+                            ? "LIVE HLS VIDEO"
+                            : camMode === "clip"
+                              ? "TFL CLIP"
+                              : camGap
+                                ? `NEW FRAME ~${camGap >= 1000 ? `${(camGap / 1000).toFixed(camGap < 10_000 ? 1 : 0)} S` : "INSTANT"} · POLL 1 S`
+                                : "POLL 1 S"}
+                        </span>
                       </div>
                       <div className={styles.row}>
                         <button className={styles.btn} onClick={() => engineRef.current?.cycleCamera(-1)}>
@@ -1674,6 +1692,7 @@ export function GodsEyeView() {
                 setCamSnapshot(st);
                 setCamMode(m);
               }}
+              onFrame={onCamFrame}
             />
             <span className={styles.cctvTag}>
               <span className={styles.recDot} /> {camMode === "video" ? "LIVE VIDEO" : "LIVE"} · {selection.key}

@@ -8,13 +8,15 @@ import { useEffect, useRef, useState } from "react";
 //   1. HLS live video (Caltrans, NYSDOT, Nevada, Wisconsin, Louisiana) through
 //      hls.js, or natively on Safari.
 //   2. TfL's short mp4 clips.
-//   3. Everyone else publishes a still that they re-render every few seconds,
-//      so the still is re-fetched every few seconds too. Each new frame loads
-//      off-screen and only swaps in once decoded, so the picture never blanks.
+//   3. Everyone else publishes a still. It is polled every second; when the
+//      host allows cross-origin reads (most do) the poll is conditional, so a
+//      frame is only decoded and swapped in when the agency actually published
+//      a new one — and `onFrame` reports how often that really happens.
+//      Some agencies republish every ~3 s (NYC DOT), others every minute or two.
 // ---------------------------------------------------------------------------
 
 const HLS_URL = "https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js";
-const STILL_REFRESH_MS = 4_000;
+const STILL_POLL_MS = 1_000;
 
 interface HlsInstance {
   loadSource(url: string): void;
@@ -62,18 +64,23 @@ export function LiveCam({
   hls,
   alt,
   onState,
+  onFrame: onFrameProp,
 }: {
   image: string;
   video?: string;
   hls?: string;
   alt: string;
   onState?: (state: FeedState, mode: FeedMode) => void;
+  /** Called with the arrival time of each genuinely new still. */
+  onFrame?: (at: number) => void;
 }) {
   const [mode, setMode] = useState<FeedMode>(hls ? "video" : video ? "clip" : "still");
   const [frame, setFrame] = useState(() => bust(image, Date.now()));
   const videoRef = useRef<HTMLVideoElement>(null);
   const report = useRef(onState);
   report.current = onState;
+  const onFrame = useRef(onFrameProp);
+  onFrame.current = onFrameProp;
 
   // A different camera starts from its best mode again.
   useEffect(() => {
@@ -137,31 +144,85 @@ export function LiveCam({
     };
   }, [mode, hls]);
 
-  // Fast stills: preload the next frame, swap when it's ready.
+  // Stills: poll every second, swap only on a genuinely new frame.
   useEffect(() => {
     if (mode !== "still") return;
     let alive = true;
     let timer: ReturnType<typeof setTimeout>;
-    const next = () => {
-      const url = bust(image, Date.now());
+    let objectUrl: string | null = null;
+    let stamp = "";
+    // Hosts that allow cross-origin reads get conditional polling; the rest are
+    // simply re-displayed, which is all a plain <img> can do.
+    let readable = true;
+
+    const again = (ms = STILL_POLL_MS) => {
+      if (alive) timer = setTimeout(() => void poll(), ms);
+    };
+
+    const show = (url: string, blob?: Blob) => {
+      if (blob) {
+        const next = URL.createObjectURL(blob);
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        objectUrl = next;
+        setFrame(next);
+        // Only the readable path knows a frame is genuinely new; the display-only
+        // path would report every poll and overstate how live the camera is.
+        onFrame.current?.(Date.now());
+      } else {
+        setFrame(url);
+      }
+      report.current?.("ok", "still");
+    };
+
+    /** Display-only path for hosts without CORS. */
+    const viaImage = (url: string) => {
       const img = new Image();
       img.onload = () => {
         if (!alive) return;
-        setFrame(url);
-        report.current?.("ok", "still");
-        timer = setTimeout(next, STILL_REFRESH_MS);
+        show(url);
+        again();
       };
       img.onerror = () => {
         if (!alive) return;
         report.current?.("err", "still");
-        timer = setTimeout(next, STILL_REFRESH_MS * 3);
+        again(STILL_POLL_MS * 5);
       };
       img.src = url;
     };
-    next();
+
+    const poll = async () => {
+      const url = bust(image, Date.now());
+      if (!readable) return viaImage(url);
+      try {
+        const res = await fetch(url, { cache: "no-store" });
+        if (!alive) return;
+        if (!res.ok) {
+          report.current?.("err", "still");
+          return again(STILL_POLL_MS * 5);
+        }
+        const key = `${res.headers.get("etag") ?? res.headers.get("last-modified") ?? ""}|${res.headers.get("content-length") ?? ""}`;
+        const blob = await res.blob();
+        if (!alive) return;
+        // Same bytes as last second: keep what's on screen, skip the decode.
+        if (key !== "|" && key === stamp) report.current?.("ok", "still");
+        else {
+          stamp = key;
+          show(url, blob);
+        }
+        again();
+      } catch {
+        // Cross-origin reads refused (NYC DOT and friends): never try fetch again.
+        if (!alive) return;
+        readable = false;
+        viaImage(url);
+      }
+    };
+
+    void poll();
     return () => {
       alive = false;
       clearTimeout(timer);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [mode, image]);
 
