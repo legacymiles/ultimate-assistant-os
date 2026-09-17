@@ -114,7 +114,7 @@ export const LAYERS: { id: LayerId; label: string; source: string; color: string
   { id: "military", label: "Military Flights", source: "adsb.lol", color: "#ffb020" },
   { id: "satellites", label: "Satellites", source: "CelesTrak · SGP4", color: "#00f0ff" },
   { id: "quakes", label: "Earthquakes (24h)", source: "USGS", color: "#ff4d4d" },
-  { id: "cctv", label: "CCTV · London", source: "TfL JamCams", color: "#39ff88" },
+  { id: "cctv", label: "CCTV · Traffic Cams", source: "Open-data DOTs · Windy", color: "#39ff88" },
   { id: "cables", label: "Submarine Cables", source: "TeleGeography", color: "#00e5ff" },
 ];
 
@@ -123,7 +123,8 @@ const POLL_MS: Record<LayerId, number> = {
   military: 20_000,
   satellites: 3 * 60 * 60_000,
   quakes: 120_000,
-  cctv: 10 * 60_000,
+  // Camera lists are cached for hours upstream; the stills themselves refresh in the context card.
+  cctv: 30 * 60_000,
   cables: 0,
 };
 
@@ -237,7 +238,13 @@ export class GlobeEngine {
 
   private readonly camBB: BillboardCollection;
   private readonly cameras = new Map<string, Camera>();
+  private readonly camPositions = new Map<string, Cartesian3>();
   private cameraProvider = "";
+  private camNetworksNote = "";
+  private windyEnabled = false;
+  private readonly windyBB = new Map<string, Billboard>();
+  private windyCell = "";
+  private windyAbort: AbortController | null = null;
 
   private readonly cableLines: PolylineCollection;
   private cables: Cable[] = [];
@@ -377,6 +384,8 @@ export class GlobeEngine {
     }
 
     this.cleanups.push(scene.preRender.addEventListener(() => this.tick()));
+    // Windy webcams are fetched around wherever the view settles.
+    this.cleanups.push(viewer.camera.moveEnd.addEventListener(() => void this.loadWebcams()));
     this.cleanups.push(scene.postRender.addEventListener(() => this.afterRender()));
   }
 
@@ -841,23 +850,71 @@ export class GlobeEngine {
   private async loadCameras() {
     const data = await this.fetchFeed<CamerasFeed>("cctv", "cameras");
     if (!data || this.destroyed) return;
-    const C = this.C;
     this.camBB.removeAll();
+    this.windyBB.clear();
+    this.windyCell = "";
     this.cameras.clear();
+    this.camPositions.clear();
     this.cameraProvider = data.provider;
-    for (const cam of data.cameras) {
-      this.cameras.set(cam.id, cam);
-      this.camBB.add({
-        position: C.Cartesian3.fromDegrees(cam.lon, cam.lat, 25),
-        image: this.icons.cam,
-        width: 22,
-        height: 22,
-        scaleByDistance: new C.NearFarScalar(500, 1.3, 400_000, 0.35),
-        translucencyByDistance: new C.NearFarScalar(200_000, 1, 2_500_000, 0),
-        id: { layer: "cctv", key: cam.id } satisfies PickId,
-      });
+    this.windyEnabled = Boolean(data.windy);
+    for (const cam of data.cameras) this.addCamera(cam);
+    const live = data.networks?.filter((n) => n.count).length ?? 0;
+    const pending = data.networks?.filter((n) => n.state === "loading").length ?? 0;
+    this.camNetworksNote = `${live} networks${pending ? ` · ${pending} loading` : ""}${this.windyEnabled ? " · + Windy nearby" : ""}`;
+    this.setStatus("cctv", { state: data.stale ? "stale" : "live", count: this.cameras.size, note: this.camNetworksNote });
+    await this.loadWebcams();
+  }
+
+  private addCamera(cam: Camera): Billboard | null {
+    if (this.cameras.has(cam.id)) return null;
+    const C = this.C;
+    const position = C.Cartesian3.fromDegrees(cam.lon, cam.lat, 25);
+    this.cameras.set(cam.id, cam);
+    this.camPositions.set(cam.id, position);
+    return this.camBB.add({
+      position,
+      image: this.icons.cam,
+      width: 22,
+      height: 22,
+      scaleByDistance: new C.NearFarScalar(500, 1.3, 400_000, 0.35),
+      translucencyByDistance: new C.NearFarScalar(200_000, 1, 2_500_000, 0),
+      id: { layer: "cctv", key: cam.id } satisfies PickId,
+    });
+  }
+
+  /** Swap in Windy's webcams around the current view (only when the server has a key). */
+  private async loadWebcams() {
+    if (!this.windyEnabled || !this.layersOn.has("cctv") || this.destroyed) return;
+    const { lat, lon, alt } = this.getView();
+    if (alt > 3_000_000) return; // whole-globe view: nothing "nearby" to ask for
+    const cell = `${Math.round(lat)}:${Math.round(lon)}`;
+    if (cell === this.windyCell) return;
+    this.windyAbort?.abort();
+    const ac = new AbortController();
+    this.windyAbort = ac;
+    try {
+      const res = await fetch(`/api/gods-eye/webcams?lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}`, { signal: ac.signal });
+      const data = (await res.json()) as CamerasFeed & { error?: string };
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      if (ac.signal.aborted || this.destroyed || !this.layersOn.has("cctv")) return;
+      this.windyCell = cell;
+      const keep = new Set(data.cameras.map((c) => c.id));
+      for (const [id, bb] of this.windyBB) {
+        if (keep.has(id) || this.selected?.key === id) continue;
+        this.camBB.remove(bb);
+        this.windyBB.delete(id);
+        this.cameras.delete(id);
+        this.camPositions.delete(id);
+      }
+      for (const cam of data.cameras) {
+        const bb = this.addCamera(cam);
+        if (bb) this.windyBB.set(cam.id, bb);
+        else if (this.windyBB.has(cam.id)) this.cameras.set(cam.id, cam); // refresh the short-lived image token
+      }
+      this.setStatus("cctv", { state: "live", count: this.cameras.size, note: this.camNetworksNote });
+    } catch {
+      /* Windy is a bonus layer: keep the open-data cameras as they are */
     }
-    this.setStatus("cctv", { state: data.stale ? "stale" : "live", count: data.cameras.length, note: "TfL JamCams · London" });
   }
 
   // ----- Cables --------------------------------------------------------------
@@ -1040,8 +1097,8 @@ export class GlobeEngine {
         return q ? C.Cartesian3.fromDegrees(q.lon, q.lat, 500, undefined, result) : null;
       }
       case "cctv": {
-        const cam = this.cameras.get(sel.key);
-        return cam ? C.Cartesian3.fromDegrees(cam.lon, cam.lat, 25, undefined, result) : null;
+        const p = this.camPositions.get(sel.key);
+        return p ? C.Cartesian3.clone(p, result) : null;
       }
       case "cables": {
         const cable = this.cables[Number(sel.key)];
@@ -1131,7 +1188,7 @@ export class GlobeEngine {
         return {
           ...base,
           title: cam.name.toUpperCase(),
-          subtitle: `${cam.id} · ${this.cameraProvider.toUpperCase()}`,
+          subtitle: `${cam.id} · ${(cam.source ?? this.cameraProvider).toUpperCase()}`,
           fields: [
             ["VIEW", (cam.view ?? "—").toUpperCase()],
             ["POS", `${formatLat(cam.lat)} ${formatLon(cam.lon)}`],
@@ -1310,10 +1367,11 @@ export class GlobeEngine {
         });
       }
       if (this.layersOn.has("cctv")) {
-        for (const cam of this.cameras.values()) {
-          const p = C.Cartesian3.fromDegrees(cam.lon, cam.lat, 25, undefined, scratch);
-          if (!visible(p)) continue;
-          cands.push({ p: C.Cartesian3.clone(p), dist: C.Cartesian3.distance(p, camPos), label: cam.id, sub: "CCTV", color: "#39ff88", sel: false });
+        // Tens of thousands of cameras: only those close enough to be drawn are worth labelling.
+        for (const [id, p] of this.camPositions) {
+          const dist = C.Cartesian3.distance(p, camPos);
+          if (dist > 400_000 || !visible(p)) continue;
+          cands.push({ p, dist, label: id, sub: "CCTV", color: "#39ff88", sel: false });
         }
       }
       if (this.detectMode === "dense" && this.layersOn.has("satellites")) {

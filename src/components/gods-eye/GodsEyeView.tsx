@@ -98,6 +98,12 @@ function speechCtor(): (new () => SpeechRecognitionLike) | null {
   return (w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null) as (new () => SpeechRecognitionLike) | null;
 }
 
+/** Cache-bust a camera still without clobbering its own query (signed URLs are left alone). */
+function bust(url: string, tick: number): string {
+  if (/[?&](token|sig|signature|expires)=/i.test(url)) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}t=${tick}`;
+}
+
 export function GodsEyeView() {
   const globeRef = useRef<HTMLDivElement>(null);
   const creditsRef = useRef<HTMLDivElement>(null);
@@ -250,7 +256,7 @@ export function GodsEyeView() {
     if (selectedKey) setRightOpen(true);
   }, [selectedKey]);
 
-  // CCTV stills refresh; TfL republishes roughly every few minutes.
+  // CCTV stills refresh; most agencies republish every 30 s to a few minutes.
   useEffect(() => {
     if (selection?.layer !== "cctv") return;
     const t = setInterval(() => setCamTick((n) => n + 1), 30_000);
@@ -664,8 +670,8 @@ export function GodsEyeView() {
                       {selection.video ? (
                         <video
                           key={`${selection.key}-${camTick}`}
-                          src={`${selection.video}?t=${camTick}`}
-                          poster={`${selection.image}?t=${camTick}`}
+                          src={bust(selection.video, camTick)}
+                          poster={bust(selection.image, camTick)}
                           autoPlay
                           muted
                           loop
@@ -673,7 +679,7 @@ export function GodsEyeView() {
                         />
                       ) : (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={`${selection.image}?t=${camTick}`} alt={selection.title} />
+                        <img src={bust(selection.image, camTick)} alt={selection.title} />
                       )}
                       <span className={styles.cctvTag}>
                         <span className={styles.recDot} /> LIVE · {selection.key}

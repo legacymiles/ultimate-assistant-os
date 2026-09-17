@@ -2,6 +2,7 @@ import "server-only";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { CAMERA_NETWORKS, loadNetwork, windyKey, windyNearby } from "./cameras";
 import type {
   AircraftRow,
   CablesFeed,
@@ -287,29 +288,64 @@ async function quakes(): Promise<QuakesFeed> {
   });
 }
 
-// ----- Public cameras (TfL JamCams, London) --------------------------------
+// ----- Public cameras (open-data traffic networks + optional Windy) ----------
 
 async function cameras(): Promise<CamerasFeed> {
-  return cached("cameras", 10 * 60_000, async () => {
-    const data = await getJson<
-      { id: string; commonName: string; lat: number; lon: number; additionalProperties: { key: string; value: string }[] }[]
-    >("https://api.tfl.gov.uk/Place/Type/JamCam", 30_000);
+  return cached("cameras", 60_000, async () => {
+    // A cold network (Florida is ~50 pages) keeps loading in the background and
+    // joins on a later poll instead of holding up everything that's ready.
+    const results = await Promise.all(
+      CAMERA_NETWORKS.map((net) =>
+        Promise.race([loadNetwork(net), new Promise<null>((r) => setTimeout(() => r(null), 40_000))]),
+      ),
+    );
+    const seen = new Set<string>();
     const out: CamerasFeed["cameras"] = [];
-    for (const c of data) {
-      const props = Object.fromEntries(c.additionalProperties.map((p) => [p.key, p.value]));
-      if (props.available === "false" || !props.imageUrl) continue;
-      out.push({
-        id: c.id.replace("JamCams_", "CAM-"),
-        name: c.commonName,
-        lon: c.lon,
-        lat: c.lat,
-        image: props.imageUrl,
-        video: props.videoUrl,
-        view: props.view,
-      });
+    const networks: CamerasFeed["networks"] = [];
+    for (const [i, res] of results.entries()) {
+      const net = CAMERA_NETWORKS[i];
+      if (!res) {
+        networks.push({ id: net.id, label: net.label, count: 0, state: "loading" });
+        continue;
+      }
+      let count = 0;
+      for (const cam of res.cams) {
+        // The same physical camera is often republished by a city and its state DOT.
+        const at = `${cam.lat.toFixed(4)},${cam.lon.toFixed(4)}`;
+        if (seen.has(at)) continue;
+        seen.add(at);
+        out.push(cam);
+        count++;
+      }
+      networks.push({ id: net.id, label: net.label, count, state: res.error ? (count ? "stale" : "error") : "live", error: res.error });
     }
-    return { time: Date.now(), provider: "Powered by TfL Open Data", cameras: out };
+    if (!out.length) throw new Error("No camera network answered");
+    const live = networks.filter((n) => n.count).length;
+    return {
+      time: Date.now(),
+      provider: `${live} open-data networks`,
+      cameras: out,
+      networks,
+      windy: Boolean(windyKey()),
+    };
   });
+}
+
+async function webcams(params: URLSearchParams): Promise<CamerasFeed> {
+  const lat = Number(params.get("lat"));
+  const lon = Number(params.get("lon"));
+  if (!windyKey() || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return { time: Date.now(), provider: "Windy Webcams", cameras: [], windy: false };
+  }
+  // Snap to a 1° cell so small pans share a cache entry (and Windy's quota).
+  const cellLat = Math.round(lat);
+  const cellLon = Math.round(lon);
+  return cached(`webcams:${cellLat}:${cellLon}`, 8 * 60_000, async () => ({
+    time: Date.now(),
+    provider: "Windy Webcams",
+    cameras: await windyNearby(cellLat, cellLon),
+    windy: true,
+  }));
 }
 
 // ----- Submarine cables -----------------------------------------------------
@@ -368,6 +404,7 @@ export const FEEDS = {
   satellites,
   quakes,
   cameras,
+  webcams,
   cables,
   search,
 } satisfies Record<string, (params: URLSearchParams) => Promise<unknown>>;

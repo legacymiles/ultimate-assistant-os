@@ -60,14 +60,28 @@ export interface Camera {
   lon: number;
   lat: number;
   image: string;
+  /** An mp4 clip the browser can play natively (HLS streams are left out). */
   video?: string;
   view?: string;
+  /** The agency or network that publishes this camera. */
+  source?: string;
+}
+
+export interface CameraNetworkStatus {
+  id: string;
+  label: string;
+  count: number;
+  state: "live" | "stale" | "error" | "loading";
+  error?: string;
 }
 
 export interface CamerasFeed {
   time: number;
   provider: string;
   cameras: Camera[];
+  networks?: CameraNetworkStatus[];
+  /** Whether the server has a Windy webcams key for worldwide coverage. */
+  windy?: boolean;
   stale?: boolean;
 }
 
