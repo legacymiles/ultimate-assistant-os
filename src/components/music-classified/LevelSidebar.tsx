@@ -20,11 +20,8 @@ function AddInline({ placeholder, onAdd }: { placeholder: string; onAdd: (v: str
   const [value, setValue] = useState("");
   if (!open)
     return (
-      <button
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-1 px-2 py-0.5 font-mono text-[10px] text-ink-faint transition hover:text-brand"
-      >
-        <Icon.Plus width={9} height={9} /> {placeholder}
+      <button onClick={() => setOpen(true)} className="mcl-addlink">
+        <Icon.Plus width={10} height={10} /> {placeholder}
       </button>
     );
   return (
@@ -35,7 +32,7 @@ function AddInline({ placeholder, onAdd }: { placeholder: string; onAdd: (v: str
         setValue("");
         setOpen(false);
       }}
-      className="px-2 py-0.5"
+      className="mcl-addform"
     >
       <input
         autoFocus
@@ -44,7 +41,7 @@ function AddInline({ placeholder, onAdd }: { placeholder: string; onAdd: (v: str
         onBlur={() => !value.trim() && setOpen(false)}
         onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
         placeholder={placeholder}
-        className="w-full rounded border border-line bg-canvas px-1.5 py-0.5 text-[12px] text-ink outline-none focus:border-brand"
+        aria-label={placeholder}
       />
     </form>
   );
@@ -56,92 +53,73 @@ export function LevelSidebar({ songs, tree, scope, onScope, onAddGenre, onAddSub
   const max = Math.max(1, ...LEVELS.map((l) => count(l.n)));
 
   return (
-    <nav className="h-full overflow-y-auto py-2 text-[13px]">
+    <nav className="pb-4 pt-1">
       <button
         onClick={() => onScope({})}
-        className={
-          "mx-2 mb-1 flex w-[calc(100%-1rem)] items-center justify-between rounded-lg px-2 py-1.5 transition " +
-          (scope.level === undefined ? "bg-brand/15 text-ink" : "text-ink-muted hover:bg-panel-2")
-        }
+        className={"mcl-navitem" + (scope.level === undefined ? " is-on" : "")}
       >
-        <span className="font-medium">All songs</span>
-        <span className="font-mono text-[11px] text-ink-faint">{songs.length}</span>
+        <span className="mcl-navitem__name block truncate">All songs</span>
+        <span className="mcl-navitem__n">{songs.length}</span>
       </button>
 
-      <p className="px-4 pb-1 pt-3 font-mono text-[10px] uppercase tracking-widest text-ink-faint">
-        Energy · slow → hype
-      </p>
+      <p className="mcl-rail__label">Energy · slow → hype</p>
 
       {LEVELS.map((lvl) => {
         const n = count(lvl.n);
         const open = scope.level === lvl.n;
         const genres = Object.entries(tree[lvl.n] ?? {});
         return (
-          <div key={lvl.n} className="mx-2">
+          <div key={lvl.n}>
             <button
               onClick={() => onScope(open && !scope.genre ? {} : { level: lvl.n })}
               title={`${lvl.feel} · typically ${lvl.bpm} BPM`}
-              className={
-                "group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition " +
-                (open && !scope.genre ? "bg-brand/15" : "hover:bg-panel-2")
-              }
+              style={{ "--h": lvl.hue } as React.CSSProperties}
+              className={"mcl-navitem" + (open && !scope.genre ? " is-on" : "")}
             >
               <span
-                className="grid h-6 w-6 shrink-0 place-items-center rounded-md font-mono text-[12px] font-bold text-black/80"
-                style={{ background: `hsl(${lvl.hue} 80% ${n ? 66 : 40}%)` }}
+                className="mcl-navitem__chip"
+                style={{ background: `hsl(${lvl.hue} 82% ${n ? 64 : 38}%)` }}
               >
                 {lvl.n}
               </span>
               <span className="min-w-0 flex-1">
-                <span className={"block truncate " + (n ? "text-ink" : "text-ink-faint")}>{lvl.name}</span>
-                <span className="mt-0.5 block h-0.5 rounded bg-line-soft">
-                  <span
-                    className="block h-full rounded"
-                    style={{ width: `${(n / max) * 100}%`, background: `hsl(${lvl.hue} 80% 62%)` }}
-                  />
+                <span className={"mcl-navitem__name block truncate" + (n ? "" : " is-empty")}>{lvl.name}</span>
+                <span className="mcl-navitem__meter">
+                  <span style={{ width: `${(n / max) * 100}%` }} />
                 </span>
               </span>
-              <span className="font-mono text-[11px] text-ink-faint">{n || ""}</span>
+              <span className="mcl-navitem__n">{n || ""}</span>
             </button>
 
             {open && (
-              <div className="animate-fade-in mb-1 ml-5 border-l border-line-soft pl-1.5">
+              <div className="mcl-navsub">
                 {genres.map(([genre, subs]) => {
                   const gOpen = scope.genre === genre;
                   return (
                     <div key={genre}>
                       <button
                         onClick={() => onScope(gOpen && !scope.subgenre ? { level: lvl.n } : { level: lvl.n, genre })}
-                        className={
-                          "flex w-full items-center justify-between rounded-md px-2 py-1 text-left transition " +
-                          (gOpen && !scope.subgenre ? "bg-brand/15 text-ink" : "text-ink-muted hover:bg-panel-2")
-                        }
+                        className={"mcl-navsub__item" + (gOpen && !scope.subgenre ? " is-on" : "")}
                       >
-                        <span className="flex min-w-0 items-center gap-1">
-                          <Icon.Chevron
-                            width={9}
-                            height={9}
-                            className={"shrink-0 transition " + (gOpen ? "rotate-90" : "")}
-                          />
-                          <span className="truncate">{genre}</span>
-                        </span>
-                        <span className="font-mono text-[10px] text-ink-faint">{count(lvl.n, genre) || ""}</span>
+                        <Icon.Chevron
+                          width={10}
+                          height={10}
+                          className={"shrink-0 transition " + (gOpen ? "rotate-90" : "")}
+                        />
+                        <span className="min-w-0 flex-1 truncate">{genre}</span>
+                        <span className="mcl-navitem__n">{count(lvl.n, genre) || ""}</span>
                       </button>
                       {gOpen && (
-                        <div className="ml-3 border-l border-line-soft pl-1">
+                        <div className="ml-3 border-l pl-1" style={{ borderColor: "var(--color-line-soft)" }}>
                           {subs.map((sub) => (
                             <button
                               key={sub}
                               onClick={() => onScope({ level: lvl.n, genre, subgenre: sub })}
-                              className={
-                                "flex w-full items-center justify-between rounded-md px-2 py-0.5 text-left text-[12px] transition " +
-                                (scope.subgenre === sub ? "bg-brand/15 text-ink" : "text-ink-muted hover:bg-panel-2")
-                              }
+                              className={"mcl-navsub__item" + (scope.subgenre === sub ? " is-on" : "")}
+                              style={{ fontSize: "0.74rem" }}
                             >
-                              <span className="truncate">{sub}</span>
-                              <span className="font-mono text-[10px] text-ink-faint">
-                                {count(lvl.n, genre, sub) || ""}
-                              </span>
+                              <span className="min-w-0 flex-1 truncate">{sub}</span>
+                              <span className="mcl-navitem__n">{count(lvl.n, genre, sub) || ""}</span>
                             </button>
                           ))}
                           <AddInline placeholder="sub-genre" onAdd={(v) => onAddSubgenre(lvl.n, genre, v)} />
@@ -150,9 +128,7 @@ export function LevelSidebar({ songs, tree, scope, onScope, onAddGenre, onAddSub
                     </div>
                   );
                 })}
-                {!genres.length && (
-                  <p className="px-2 py-1 text-[11px] text-ink-faint">No playlists yet.</p>
-                )}
+                {!genres.length && <p className="mcl-rail__hint">No playlists yet.</p>}
                 <AddInline placeholder="genre playlist" onAdd={(v) => onAddGenre(lvl.n, v)} />
               </div>
             )}

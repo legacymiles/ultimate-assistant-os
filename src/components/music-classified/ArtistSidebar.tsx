@@ -21,44 +21,37 @@ function artistHue(name: string): number {
 export function ArtistSidebar({ songs, scope, onScope }: Props) {
   const artists = artistsOf(songs);
   return (
-    <nav className="h-full overflow-y-auto py-2 text-[13px]">
-      <button
-        onClick={() => onScope({})}
-        className={
-          "mx-2 mb-1 flex w-[calc(100%-1rem)] items-center justify-between rounded-lg px-2 py-1.5 transition " +
-          (!scope.artist ? "bg-brand/15 text-ink" : "text-ink-muted hover:bg-panel-2")
-        }
-      >
-        <span className="font-medium">All my music</span>
-        <span className="font-mono text-[11px] text-ink-faint">{songs.length}</span>
+    <nav className="pb-4 pt-1">
+      <button onClick={() => onScope({})} className={"mcl-navitem" + (!scope.artist ? " is-on" : "")}>
+        <span className="mcl-navitem__name block truncate">All my music</span>
+        <span className="mcl-navitem__n">{songs.length}</span>
       </button>
 
-      <p className="px-4 pb-1 pt-3 font-mono text-[10px] uppercase tracking-widest text-ink-faint">Artists</p>
+      <p className="mcl-rail__label">Artists</p>
 
       {artists.map((a) => {
         const open = scope.artist?.toLowerCase() === a.name.toLowerCase();
         const mine = inScope(songs, { artist: a.name });
         const hue = artistHue(a.name);
         return (
-          <div key={a.name} className="mx-2">
+          <div key={a.name}>
             <button
               onClick={() => onScope(open && scope.level === undefined ? {} : { artist: a.name })}
-              className={
-                "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition " +
-                (open && scope.level === undefined ? "bg-brand/15" : "hover:bg-panel-2")
-              }
+              className={"mcl-navitem" + (open && scope.level === undefined ? " is-on" : "")}
             >
               <span
-                className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold text-black/80"
+                className="mcl-navitem__avatar"
                 style={{ background: `hsl(${hue} 70% 68%)` }}
+                aria-hidden
               >
                 {a.name[0]?.toUpperCase()}
               </span>
-              <span className="min-w-0 flex-1 truncate text-ink">{a.name}</span>
-              <span className="font-mono text-[11px] text-ink-faint">{a.count}</span>
+              <span className="mcl-navitem__name block truncate">{a.name}</span>
+              <span className="mcl-navitem__n">{a.count}</span>
             </button>
+
             {open && (
-              <div className="animate-fade-in mb-1 ml-5 border-l border-line-soft pl-1.5">
+              <div className="mcl-navsub">
                 {LEVELS.map((l) => {
                   const n = mine.filter((s) => s.level === l.n).length;
                   if (!n) return null;
@@ -66,19 +59,16 @@ export function ArtistSidebar({ songs, scope, onScope }: Props) {
                     <button
                       key={l.n}
                       onClick={() => onScope(scope.level === l.n ? { artist: a.name } : { artist: a.name, level: l.n })}
-                      className={
-                        "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[12px] transition " +
-                        (scope.level === l.n ? "bg-brand/15 text-ink" : "text-ink-muted hover:bg-panel-2")
-                      }
+                      className={"mcl-navsub__item" + (scope.level === l.n ? " is-on" : "")}
                     >
                       <span
-                        className="grid h-4 w-4 place-items-center rounded font-mono text-[10px] font-bold text-black/80"
-                        style={{ background: `hsl(${l.hue} 80% 66%)` }}
+                        className="grid h-4 w-4 shrink-0 place-items-center rounded font-mono text-[0.6rem] font-bold text-black/80"
+                        style={{ background: `hsl(${l.hue} 82% 64%)` }}
                       >
                         {l.n}
                       </span>
-                      <span className="flex-1 truncate">{l.name}</span>
-                      <span className="font-mono text-[10px] text-ink-faint">{n}</span>
+                      <span className="min-w-0 flex-1 truncate">{l.name}</span>
+                      <span className="mcl-navitem__n">{n}</span>
                     </button>
                   );
                 })}
@@ -88,7 +78,7 @@ export function ArtistSidebar({ songs, scope, onScope }: Props) {
         );
       })}
       {!artists.length && (
-        <p className="px-4 py-2 text-[12px] leading-relaxed text-ink-faint">
+        <p className="mcl-rail__hint">
           Upload songs to start — each one is filed under its artist, then by energy level.
         </p>
       )}

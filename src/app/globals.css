@@ -972,3 +972,849 @@ video.dance-tile__player { object-fit: cover; }
   .dotd__card { flex-direction: column; }
   .dotd__media { width: 100%; max-width: 200px; }
 }
+
+/* ===========================================================================
+   Music Classified — "the record room"
+
+   The old layout was five full-bleed stripes stacked on top of each other
+   (header, classify form, flash, filter strip, blueprint) and a type scale of
+   10-13px used for everything, so nothing led and the song list got whatever
+   height was left over. This rebuilds it as four zones with real hierarchy:
+
+     1. ONE top bar   — identity, tabs, search, data actions
+     2. ONE console   — the tab's primary action, with room to breathe
+     3. rail | stage  — navigation beside the songs
+     4. panel         — the open song, over or beside the stage
+
+   Energy is the app's signature idea, so the 1-10 ladder is a hue-coded
+   spectrum instead of ten small grey chips. Every level-driven swatch in the
+   app (spectrum, badges, meters, the panel's radio row) reads its hue from a
+   `--h` custom property, which is what keeps them all in step with each other.
+   =========================================================================== */
+
+.mcl {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+/* On a near-black ground the browser's default focus ring is invisible. */
+.mcl :focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.mcl-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #2c3145 transparent;
+}
+.mcl-scroll::-webkit-scrollbar { width: 11px; height: 11px; }
+.mcl-scroll::-webkit-scrollbar-track { background: transparent; }
+.mcl-scroll::-webkit-scrollbar-thumb {
+  background: #2c3145;
+  border: 3px solid transparent;
+  border-radius: 99px;
+  background-clip: content-box;
+}
+.mcl-scroll::-webkit-scrollbar-thumb:hover { background: #3b4260; background-clip: content-box; }
+
+/* --- 1. Top bar ---------------------------------------------------------- */
+
+.mcl-top {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 20;
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid var(--color-line);
+  background: linear-gradient(180deg, #171a25 0%, var(--color-panel) 100%);
+}
+.mcl-top__row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
+}
+
+.mcl-brand { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+.mcl-mark {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 50%, #3a4064 0%, #232840 45%, #171b2b 46%, #11141f 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07), 0 2px 10px rgba(0, 0, 0, 0.45);
+}
+.mcl-mark::after {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  box-shadow: 0 0 10px var(--color-brand);
+}
+.mcl-brand__text { min-width: 0; line-height: 1.15; }
+.mcl-brand__name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+.mcl-brand__sub {
+  font-size: 0.68rem;
+  color: var(--color-ink-faint);
+  white-space: nowrap;
+}
+
+.mcl-tabs {
+  display: flex;
+  gap: 0.15rem;
+  padding: 0.18rem;
+  border: 1px solid var(--color-line);
+  border-radius: 11px;
+  background: var(--color-canvas);
+}
+.mcl-tab {
+  padding: 0.36rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-ink-muted);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.mcl-tab:hover { color: var(--color-ink); }
+.mcl-tab[aria-selected="true"] {
+  background: linear-gradient(180deg, var(--color-brand) 0%, var(--color-brand-2) 100%);
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.35);
+}
+
+/* A modest basis on purpose: flex line breaking uses the basis, not the shrunk
+   size, so a wide basis pushes the search onto a row of its own on tablets. */
+.mcl-search { position: relative; flex: 1 1 8rem; min-width: 9rem; max-width: 30rem; }
+.mcl-search__icon {
+  position: absolute;
+  left: 0.7rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-ink-faint);
+  pointer-events: none;
+}
+.mcl-search input {
+  width: 100%;
+  padding: 0.5rem 0.75rem 0.5rem 2.1rem;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-size: 0.82rem;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.mcl-search input::placeholder { color: var(--color-ink-faint); }
+.mcl-search input:focus { border-color: var(--color-brand); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.16); }
+
+.mcl-top__actions { margin-left: auto; display: flex; align-items: center; gap: 0.35rem; }
+
+.mcl-iconbtn {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-line);
+  border-radius: 9px;
+  background: var(--color-panel-2);
+  color: var(--color-ink-muted);
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.mcl-iconbtn:hover { color: var(--color-ink); border-color: var(--color-ink-faint); background: var(--color-elevated); }
+
+/* The rail is permanent from 1024px up, so its toggle only exists below that. */
+.mcl-nav-toggle { display: grid; }
+
+.mcl-menu { position: relative; }
+.mcl-menu__pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.4rem);
+  z-index: 60;
+  width: 12.5rem;
+  padding: 0.3rem;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-elevated);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+}
+.mcl-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: var(--color-ink-muted);
+  text-align: left;
+}
+.mcl-menu__item:hover { background: var(--color-panel-2); color: var(--color-ink); }
+.mcl-menu__scrim { position: fixed; inset: 0; z-index: 55; cursor: default; }
+
+/* --- 2. The console (the tab's primary action) --------------------------- */
+
+.mcl-console {
+  flex: 0 0 auto;
+  position: relative;
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-panel);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.mcl-console.is-drag {
+  background: rgba(99, 102, 241, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.5);
+}
+.mcl-console__row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; row-gap: 0.5rem; }
+.mcl-console__note {
+  margin-top: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-ink-faint);
+}
+.mcl-console__note.is-busy { color: var(--color-ink-muted); animation: mcl-pulse 1.4s ease-in-out infinite; }
+@keyframes mcl-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+
+.mcl-field { position: relative; flex: 1 1 20rem; min-width: 12rem; }
+.mcl-field__icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-brand);
+  pointer-events: none;
+}
+.mcl-field input {
+  width: 100%;
+  padding: 0.58rem 0.8rem 0.58rem 2.2rem;
+  border: 1px solid var(--color-line);
+  border-radius: 11px;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.mcl-field input::placeholder { color: var(--color-ink-faint); }
+.mcl-field input:focus { border-color: var(--color-brand); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.16); }
+.mcl-field input:disabled { opacity: 0.55; }
+
+.mcl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.95rem;
+  border: 1px solid var(--color-line);
+  border-radius: 11px;
+  background: var(--color-panel-2);
+  color: var(--color-ink-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.mcl-btn:hover { color: var(--color-ink); border-color: var(--color-ink-faint); }
+.mcl-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.mcl-btn--primary {
+  border-color: transparent;
+  background: linear-gradient(180deg, var(--color-brand) 0%, var(--color-brand-2) 100%);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.32);
+}
+.mcl-btn--primary:hover { color: #fff; filter: brightness(1.08); }
+.mcl-btn--sm { padding: 0.32rem 0.6rem; font-size: 0.72rem; border-radius: 9px; }
+
+/* --- 3. Rail + stage ----------------------------------------------------- */
+
+.mcl-body { flex: 1 1 auto; min-height: 0; display: flex; position: relative; }
+
+.mcl-rail {
+  display: none;
+  width: 266px;
+  flex: 0 0 266px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-right: 1px solid var(--color-line);
+  background: var(--color-panel);
+}
+.mcl-rail__scrim { display: none; }
+
+.mcl-stage { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+
+/* Scope header — the one place with real typographic weight. */
+.mcl-scope {
+  flex: 0 0 auto;
+  padding: 0.8rem 0.9rem 0.7rem;
+  border-bottom: 1px solid var(--color-line-soft);
+  background: linear-gradient(180deg, rgba(24, 27, 37, 0.65) 0%, transparent 100%);
+}
+.mcl-scope__head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+.mcl-scope__crumbs { display: flex; align-items: center; gap: 0.3rem; min-width: 0; flex-wrap: wrap; }
+.mcl-scope__name {
+  font-size: 1.12rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-ink);
+  line-height: 1.25;
+}
+.mcl-scope__sep { color: var(--color-ink-faint); font-size: 0.8rem; }
+.mcl-scope__crumb { font-size: 1.12rem; font-weight: 600; color: var(--color-ink-muted); letter-spacing: -0.02em; }
+.mcl-scope__count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--color-ink-faint);
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--color-line);
+  border-radius: 99px;
+  white-space: nowrap;
+}
+.mcl-scope__count b { color: var(--color-ink); font-weight: 600; }
+.mcl-scope__tools { margin-top: 0.6rem; display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; }
+
+/* The energy spectrum: ten hue stops with the active one lit. */
+.mcl-spectrum { display: flex; align-items: stretch; gap: 4px; flex: 1 1 26rem; min-width: 0; }
+.mcl-stop {
+  --h: 240;
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 38px;
+  border: 1px solid hsl(var(--h) 52% 58% / 0.3);
+  border-radius: 10px;
+  background: hsl(var(--h) 48% 54% / 0.2);
+  color: hsl(var(--h) 80% 82%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.05rem;
+  transition: transform 0.12s ease, background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.mcl-stop:hover { background: hsl(var(--h) 58% 56% / 0.34); transform: translateY(-2px); }
+.mcl-stop b { font-family: var(--font-mono); font-size: 0.78rem; font-weight: 700; line-height: 1; }
+.mcl-stop i {
+  font-style: normal;
+  font-size: 0.55rem;
+  letter-spacing: 0.02em;
+  opacity: 0.8;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcl-stop.is-empty { opacity: 0.42; }
+.mcl-stop.is-on {
+  background: hsl(var(--h) 82% 64%);
+  border-color: hsl(var(--h) 82% 72%);
+  color: rgba(0, 0, 0, 0.86);
+  box-shadow: 0 0 0 3px hsl(var(--h) 82% 64% / 0.22), 0 4px 14px hsl(var(--h) 82% 60% / 0.28);
+}
+.mcl-stop.is-on i { opacity: 0.7; }
+
+/* "All" is not an eleventh hue — it stays neutral so the ten stops read as the
+   ladder they are, and lights up in the brand colour when it is the active one. */
+.mcl-stop.is-all {
+  flex: 0 0 auto;
+  min-width: 58px;
+  background: var(--color-panel-2);
+  border-color: var(--color-line);
+  color: var(--color-ink-muted);
+}
+.mcl-stop.is-all:hover { background: var(--color-elevated); }
+.mcl-stop.is-all.is-on {
+  background: var(--color-elevated);
+  border-color: var(--color-brand);
+  color: var(--color-ink);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+.mcl-stop.is-all.is-on i { color: var(--color-brand); opacity: 1; }
+
+.mcl-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-panel-2);
+  color: var(--color-ink-muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.mcl-pill:hover { color: var(--color-ink); border-color: var(--color-ink-faint); }
+.mcl-pill.is-fav {
+  border-color: rgba(251, 191, 36, 0.5);
+  background: rgba(251, 191, 36, 0.14);
+  color: #fcd34d;
+}
+.mcl-pill__n { font-family: var(--font-mono); font-size: 0.68rem; color: var(--color-ink-faint); }
+.mcl-pill.is-fav .mcl-pill__n { color: rgba(252, 211, 77, 0.75); }
+
+/* --- Blueprint: a contained card, not another full-bleed stripe ---------- */
+
+.mcl-blueprint {
+  flex: 0 0 auto;
+  margin: 0.75rem 0.9rem 0;
+  border: 1px solid var(--color-line);
+  border-radius: 13px;
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.08) 0%, var(--color-panel) 55%);
+  overflow: hidden;
+}
+.mcl-blueprint__bar { display: flex; align-items: center; gap: 0.55rem; padding: 0.6rem 0.75rem; }
+.mcl-blueprint__text { min-width: 0; flex: 1; text-align: left; font-size: 0.79rem; color: var(--color-ink-muted); }
+.mcl-blueprint__text strong { color: var(--color-ink); font-weight: 600; }
+.mcl-blueprint__body {
+  max-height: 45vh;
+  overflow-y: auto;
+  padding: 0.85rem 1rem;
+  border-top: 1px solid var(--color-line-soft);
+  background: rgba(10, 11, 15, 0.45);
+}
+
+/* --- The list ------------------------------------------------------------ */
+
+.mcl-list { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.mcl-empty {
+  margin: 3rem auto;
+  max-width: 34rem;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  border: 1px dashed var(--color-line);
+  border-radius: 16px;
+  color: var(--color-ink-faint);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.mcl-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.84rem; }
+.mcl-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 0.5rem 0.6rem;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+  background: var(--color-canvas);
+  border-bottom: 1px solid var(--color-line);
+}
+.mcl-table thead th button { display: inline-flex; align-items: center; gap: 0.25rem; transition: color 0.15s ease; }
+.mcl-table thead th button:hover { color: var(--color-ink); }
+
+.mcl-row { cursor: pointer; }
+.mcl-row > td {
+  padding: 0.42rem 0.6rem;
+  border-bottom: 1px solid var(--color-line-soft);
+  transition: background 0.12s ease;
+  vertical-align: middle;
+}
+.mcl-row:hover > td { background: var(--color-panel-2); }
+.mcl-row.is-on > td { background: rgba(99, 102, 241, 0.11); }
+.mcl-row.is-on > td:first-child { box-shadow: inset 3px 0 0 var(--color-brand); }
+
+.mcl-row__title {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.005em;
+}
+.mcl-row__sub { display: block; font-size: 0.75rem; color: var(--color-ink-faint); }
+.mcl-row__genre { display: block; font-size: 0.76rem; color: var(--color-ink-muted); }
+.mcl-row__subgenre { display: block; font-family: var(--font-mono); font-size: 0.66rem; color: var(--color-ink-faint); }
+.mcl-row__num { font-family: var(--font-mono); font-size: 0.76rem; font-variant-numeric: tabular-nums; color: var(--color-ink-muted); }
+.mcl-row__faint { font-family: var(--font-mono); font-size: 0.7rem; color: var(--color-ink-faint); }
+
+.mcl-art {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  object-fit: cover;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+.mcl-art--none {
+  display: grid;
+  place-items: center;
+  background: var(--color-panel-2);
+  color: var(--color-ink-faint);
+  font-size: 1rem;
+}
+
+.mcl-badge {
+  --h: 240;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.84);
+  background: hsl(var(--h) 82% 64%);
+  box-shadow: 0 2px 8px hsl(var(--h) 82% 55% / 0.28);
+}
+.mcl-badge--sm { width: 24px; height: 24px; font-size: 0.7rem; }
+.mcl-badge--lg { width: 40px; height: 40px; font-size: 1.05rem; border-radius: 11px; }
+
+.mcl-conf { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+
+.mcl-star {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  font-size: 0.95rem;
+  line-height: 1;
+  color: #4b5268;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.mcl-star:hover { color: #fbbf24; background: rgba(251, 191, 36, 0.1); }
+.mcl-star.is-on { color: #fbbf24; }
+
+/* --- Rail contents ------------------------------------------------------- */
+
+.mcl-rail__label {
+  padding: 0.85rem 0.9rem 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+.mcl-navitem {
+  --h: 240;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: calc(100% - 1.1rem);
+  margin: 0 0.55rem 0.15rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
+  text-align: left;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.mcl-navitem:hover { background: var(--color-panel-2); }
+.mcl-navitem.is-on { background: rgba(99, 102, 241, 0.14); box-shadow: inset 2px 0 0 var(--color-brand); }
+.mcl-navitem__name { min-width: 0; flex: 1; font-size: 0.82rem; color: var(--color-ink-muted); }
+.mcl-navitem.is-on .mcl-navitem__name { color: var(--color-ink); }
+.mcl-navitem__name.is-empty { color: var(--color-ink-faint); }
+.mcl-navitem__n { font-family: var(--font-mono); font-size: 0.7rem; color: var(--color-ink-faint); }
+.mcl-navitem__meter {
+  display: block;
+  margin-top: 0.3rem;
+  height: 3px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+.mcl-navitem__meter > span { display: block; height: 100%; border-radius: 99px; background: hsl(var(--h) 82% 62%); }
+.mcl-navitem__chip {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.84);
+}
+.mcl-navitem__avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.82);
+}
+.mcl-navsub { margin: 0 0.55rem 0.4rem 1.1rem; padding-left: 0.5rem; border-left: 1px solid var(--color-line); }
+.mcl-navsub__item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.32rem 0.5rem;
+  border-radius: 8px;
+  text-align: left;
+  font-size: 0.78rem;
+  color: var(--color-ink-muted);
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.mcl-navsub__item:hover { background: var(--color-panel-2); color: var(--color-ink); }
+.mcl-navsub__item.is-on { background: rgba(99, 102, 241, 0.14); color: var(--color-ink); }
+.mcl-rail__hint { padding: 0.5rem 0.9rem 1rem; font-size: 0.76rem; line-height: 1.55; color: var(--color-ink-faint); }
+
+.mcl-addlink {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 7px;
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  color: var(--color-ink-faint);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.mcl-addlink:hover { color: var(--color-brand); background: rgba(99, 102, 241, 0.1); }
+.mcl-addform { padding: 0.2rem 0.5rem; }
+.mcl-addform input {
+  width: 100%;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--color-line);
+  border-radius: 7px;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-size: 0.76rem;
+  outline: none;
+}
+.mcl-addform input:focus { border-color: var(--color-brand); }
+
+/* --- 4. The song panel --------------------------------------------------- */
+
+.mcl-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-panel);
+}
+.mcl-panel__head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border-bottom: 1px solid var(--color-line);
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.1) 0%, transparent 100%);
+}
+.mcl-panel__art {
+  width: 68px;
+  height: 68px;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+.mcl-panel__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0.85rem; }
+.mcl-panel__foot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-top: 1px solid var(--color-line);
+  background: var(--color-panel);
+}
+
+.mcl-card {
+  margin-bottom: 0.85rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-line-soft);
+  border-radius: 13px;
+  background: rgba(10, 11, 15, 0.4);
+}
+.mcl-card__label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+.mcl-facts { display: grid; grid-template-columns: 84px 1fr; gap: 0.4rem 0.6rem; font-size: 0.79rem; }
+.mcl-facts dt { color: var(--color-ink-faint); }
+.mcl-facts dd { color: var(--color-ink); min-width: 0; }
+.mcl-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.mcl-chip {
+  padding: 0.12rem 0.45rem;
+  border: 1px solid var(--color-line);
+  border-radius: 99px;
+  background: var(--color-panel-2);
+  font-size: 0.7rem;
+  color: var(--color-ink-muted);
+}
+.mcl-input {
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--color-line);
+  border-radius: 9px;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-size: 0.82rem;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.mcl-input:focus { border-color: var(--color-brand); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); }
+.mcl-textarea {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  resize: vertical;
+  outline: none;
+}
+.mcl-textarea:focus { border-color: var(--color-brand); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); }
+.mcl-flabel {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+.mcl-radio { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; }
+.mcl-radio button {
+  --h: 240;
+  height: 28px;
+  border-radius: 7px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: hsl(var(--h) 45% 52% / 0.16);
+  color: hsl(var(--h) 72% 72%);
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+.mcl-radio button:hover { transform: translateY(-1px); background: hsl(var(--h) 55% 55% / 0.3); }
+.mcl-radio button[aria-checked="true"] {
+  background: hsl(var(--h) 82% 64%);
+  color: rgba(0, 0, 0, 0.86);
+  box-shadow: 0 0 0 2px hsl(var(--h) 82% 64% / 0.25);
+}
+.mcl-tagbtn {
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  font-size: 0.72rem;
+  color: var(--color-ink-muted);
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.mcl-tagbtn:hover { color: var(--color-ink); border-color: var(--color-ink-faint); }
+.mcl-tagbtn.is-on { border-color: var(--color-brand); background: rgba(99, 102, 241, 0.16); color: var(--color-ink); }
+
+.mcl-meter { height: 4px; flex: 1; border-radius: 99px; background: var(--color-panel-2); overflow: hidden; }
+.mcl-meter > span { display: block; height: 100%; border-radius: 99px; }
+
+.mcl-note {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-panel);
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--color-ink-faint);
+}
+
+/* --- Transient strip (flash + wrong-song alternatives) ------------------- */
+
+.mcl-flash {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.85rem;
+  border-bottom: 1px solid var(--color-line);
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.16) 0%, rgba(99, 102, 241, 0.04) 60%);
+  font-size: 0.78rem;
+  color: var(--color-ink-muted);
+  animation: mcl-in 0.18s ease;
+}
+.mcl-flash__alt {
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--color-line);
+  border-radius: 99px;
+  font-size: 0.72rem;
+  color: var(--color-ink-muted);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.mcl-flash__alt:hover { border-color: var(--color-brand); color: var(--color-ink); }
+@keyframes mcl-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+.mcl-error { color: #fda4af; font-size: 0.78rem; }
+.mcl-muted { color: var(--color-ink-faint); }
+
+/* --- Responsive ---------------------------------------------------------- */
+
+@media (min-width: 1024px) {
+  .mcl-rail { display: block; }
+  .mcl-nav-toggle { display: none; }
+  /* With a song open the rail competes with the panel for width, so it steps
+     aside until there is room for all three columns. */
+  .mcl-rail.is-crowded { display: none; }
+  .mcl-panel { position: static; inset: auto; flex: 0 0 400px; width: 400px; border-left: 1px solid var(--color-line); }
+  .mcl-panel__body { padding: 1rem; }
+}
+/* Three columns only once the song list can still hold a readable title beside
+   the rail and a 400px panel — below this the rail waits to be asked for. */
+@media (min-width: 1536px) {
+  .mcl-rail.is-crowded { display: block; }
+}
+/* On small screens the rail is an overlay drawer, so an open one has to beat
+   the "hidden by default" rules above — these come last on purpose. */
+.mcl-rail.is-open {
+  display: block;
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 45;
+  box-shadow: 24px 0 60px rgba(0, 0, 0, 0.55);
+}
+.mcl-rail__scrim.is-on { display: block; position: absolute; inset: 0; z-index: 44; background: rgba(0, 0, 0, 0.5); }
+
+@media (max-width: 900px) {
+  /* The tagline is the first thing to go: it costs ~120px of a bar that has
+     four controls to fit. */
+  .mcl-brand__sub { display: none; }
+}
+
+@media (max-width: 640px) {
+  /* Two rows rather than three: identity and the data menu up top, then the
+     tabs and the search together underneath. */
+  .mcl-tabs { order: 4; }
+  .mcl-search { order: 5; }
+  .mcl-top__actions { order: 3; margin-left: auto; }
+  .mcl-stop i { display: none; }
+  .mcl-stop { height: 32px; }
+  .mcl-scope__name, .mcl-scope__crumb { font-size: 1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mcl *, .mcl *::before, .mcl *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

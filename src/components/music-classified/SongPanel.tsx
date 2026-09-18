@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "../icons";
 import { postJson } from "./api";
 import { Prose } from "./Prose";
-import { CONFIDENCE, LevelBadge, StarButton } from "./SongTable";
+import { CONFIDENCE, LevelBadge, StarButton, levelStyle } from "./SongTable";
 import { allGenres, allSubgenres } from "@/lib/music-classified/classify";
 import { LENSES, LEVELS, levelInfo } from "@/lib/music-classified/levels";
 import { audioUrl } from "@/lib/music-classified/media";
@@ -29,13 +29,13 @@ function CommitInput({
   onCommit,
   list,
   placeholder,
-  className = "",
+  style,
 }: {
   value: string;
   onCommit: (v: string) => void;
   list?: string;
   placeholder?: string;
-  className?: string;
+  style?: React.CSSProperties;
 }) {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
@@ -52,20 +52,18 @@ function CommitInput({
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
-      className={
-        "w-full rounded-lg border border-line bg-canvas px-2 py-1 text-[13px] text-ink outline-none focus:border-brand " +
-        className
-      }
+      className="mcl-input"
+      style={style}
     />
   );
 }
 
 function Chips({ items }: { items: string[] }) {
-  if (!items.length) return <span className="text-ink-faint">—</span>;
+  if (!items.length) return <span className="mcl-muted">—</span>;
   return (
-    <span className="flex flex-wrap gap-1">
+    <span className="mcl-chips">
       {items.map((m) => (
-        <span key={m} className="rounded bg-panel-2 px-1.5 py-0.5 text-[11px] text-ink-muted">
+        <span key={m} className="mcl-chip">
           {m}
         </span>
       ))}
@@ -88,11 +86,11 @@ function OwnPlayer({ audioId }: { audioId?: string }) {
   if (url === undefined) return null;
   if (!url)
     return (
-      <p className="rounded-lg border border-line-soft px-2 py-1.5 text-[11px] text-ink-faint">
+      <p className="mcl-note">
         The audio is saved on the device you uploaded it from — the filing and descriptions are here, the file isn&apos;t.
       </p>
     );
-  return <audio controls src={url} className="h-9 w-full" preload="metadata" />;
+  return <audio controls src={url} style={{ width: "100%", height: 36 }} preload="metadata" />;
 }
 
 export function SongPanel({ song, lib, busy, onClose, onPatch, onDescriptions, onDelete, onReanalyze }: Props) {
@@ -149,67 +147,81 @@ export function SongPanel({ song, lib, busy, onClose, onPatch, onDescriptions, o
   const artists = artistsOf(lib.songs.filter((s) => s.kind === "own")).map((a) => a.name);
 
   return (
-    <aside className="flex h-full flex-col">
-      <div className="flex shrink-0 items-start gap-3 border-b border-line p-3">
+    <aside className="flex min-h-0 flex-1 flex-col">
+      <div className="mcl-panel__head">
         {song.artwork ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={song.artwork} alt="" className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+          <img src={song.artwork} alt="" className="mcl-panel__art" />
         ) : (
-          <span className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-panel-2 text-xl text-ink-faint">♪</span>
+          <span className="mcl-panel__art mcl-art--none">♪</span>
         )}
         <div className="min-w-0 flex-1">
           {own ? (
-            <div className="space-y-1">
-              <CommitInput value={song.title} onCommit={(title) => onPatch({ title })} className="font-semibold" />
+            <div className="flex flex-col gap-1.5">
+              <CommitInput
+                value={song.title}
+                onCommit={(title) => onPatch({ title })}
+                style={{ fontWeight: 600, fontSize: "0.9rem" }}
+              />
               <CommitInput value={song.artist} list="mc-artists" onCommit={(artist) => onPatch({ artist })} />
               <datalist id="mc-artists">{artists.map((a) => <option key={a} value={a} />)}</datalist>
             </div>
           ) : (
             <>
-              <h2 className="text-[15px] font-semibold leading-tight text-ink">{song.title}</h2>
-              <p className="truncate text-[13px] text-ink-muted">{song.artist || "Unknown artist"}</p>
-              <p className="truncate font-mono text-[11px] text-ink-faint">
+              <h2 className="mcl-scope__name" style={{ fontSize: "1.02rem" }}>
+                {song.title}
+              </h2>
+              <p className="mcl-row__sub" style={{ fontSize: "0.8rem" }}>
+                {song.artist || "Unknown artist"}
+              </p>
+              <p className="mcl-row__faint truncate">
                 {[song.album, song.year, song.sourceGenre].filter(Boolean).join(" · ")}
               </p>
             </>
           )}
         </div>
-        <div className="flex flex-col items-center gap-1">
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1 text-ink-faint transition hover:bg-panel-2 hover:text-ink"
-            aria-label="Close"
-          >
+        <div className="flex shrink-0 flex-col items-center gap-1">
+          <button onClick={onClose} className="mcl-iconbtn" aria-label="Close">
             <Icon.Close width={14} height={14} />
           </button>
           <StarButton on={Boolean(song.favorite)} onToggle={() => onPatch({ favorite: !song.favorite })} label={song.title} />
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+      <div className="mcl-panel__body mcl-scroll">
         {own && (
-          <section className="space-y-1">
+          <div className="mcl-card">
             <OwnPlayer audioId={song.audioId} />
-            {song.fileName && <p className="truncate font-mono text-[10px] text-ink-faint">{song.fileName}</p>}
-          </section>
+            {song.fileName && (
+              <p className="mcl-row__faint truncate" style={{ marginTop: "0.4rem" }}>
+                {song.fileName}
+              </p>
+            )}
+          </div>
         )}
 
         {/* Filing */}
-        <section>
-          <div className="mb-1.5 flex items-center gap-2">
+        <section className="mcl-card">
+          <span className="mcl-card__label">Filed as</span>
+          <div className="mb-2.5 flex items-center gap-2.5">
             <LevelBadge level={song.level} size="lg" />
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-medium text-ink">
+              <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--color-ink)" }}>
                 Level {song.level} · {info.name}
               </p>
-              <p className="flex items-center gap-1.5 font-mono text-[10px] text-ink-faint" title={conf.hint}>
-                <span className={"h-1.5 w-1.5 rounded-full " + conf.className} />
+              <p
+                className="mcl-row__faint"
+                style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
+                title={conf.hint}
+              >
+                <span className="mcl-conf" style={{ background: conf.color }} />
                 {conf.label}
                 {song.filedBy === "offline" && " · filed offline"}
               </p>
             </div>
           </div>
-          <div className="mb-2 grid grid-cols-10 gap-0.5" role="radiogroup" aria-label="Energy level">
+
+          <div className="mcl-radio" role="radiogroup" aria-label="Energy level">
             {LEVELS.map((l) => (
               <button
                 key={l.n}
@@ -217,24 +229,26 @@ export function SongPanel({ song, lib, busy, onClose, onPatch, onDescriptions, o
                 aria-checked={song.level === l.n}
                 title={`${l.n} · ${l.name}`}
                 onClick={() => onPatch({ level: l.n })}
-                className="h-6 rounded font-mono text-[11px] font-semibold transition"
-                style={{
-                  background: song.level === l.n ? `hsl(${l.hue} 80% 66%)` : `hsl(${l.hue} 40% 50% / 0.15)`,
-                  color: song.level === l.n ? "rgba(0,0,0,.8)" : `hsl(${l.hue} 70% 70%)`,
-                }}
+                style={levelStyle(l.hue)}
               >
                 {l.n}
               </button>
             ))}
           </div>
-          {song.levelReason && <p className="mb-2 text-[12px] italic text-ink-muted">{song.levelReason}</p>}
-          <div className="grid grid-cols-2 gap-2">
+
+          {song.levelReason && (
+            <p style={{ marginTop: "0.6rem", fontSize: "0.78rem", fontStyle: "italic", color: "var(--color-ink-muted)" }}>
+              {song.levelReason}
+            </p>
+          )}
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
             <label className="block">
-              <span className="mb-0.5 block font-mono text-[10px] uppercase tracking-widest text-ink-faint">Genre</span>
+              <span className="mcl-flabel">Genre</span>
               <CommitInput value={song.genre} list="mc-genres" onCommit={(genre) => onPatch({ genre })} />
             </label>
             <label className="block">
-              <span className="mb-0.5 block font-mono text-[10px] uppercase tracking-widest text-ink-faint">Sub-genre</span>
+              <span className="mcl-flabel">Sub-genre</span>
               <CommitInput value={song.subgenre} list="mc-subs" onCommit={(subgenre) => onPatch({ subgenre })} />
             </label>
           </div>
@@ -243,61 +257,87 @@ export function SongPanel({ song, lib, busy, onClose, onPatch, onDescriptions, o
         </section>
 
         {/* Sound profile */}
-        <section>
-          <h3 className="mb-1.5 font-mono text-[10px] uppercase tracking-widest text-ink-faint">How it sounds</h3>
-          <dl className="grid grid-cols-[88px_1fr] gap-x-2 gap-y-1.5 text-[12px]">
-            <dt className="text-ink-faint">Tempo</dt>
-            <dd className="text-ink">
+        <section className="mcl-card">
+          <span className="mcl-card__label">How it sounds</span>
+          <dl className="mcl-facts">
+            <dt>Tempo</dt>
+            <dd>
               {p.bpm ? `${p.bpm} BPM` : "—"}
               {song.measured && (
-                <span className="ml-1.5 font-mono text-[10px] text-emerald-300" title="Measured from the audio in your browser">
+                <span
+                  style={{ marginLeft: "0.4rem", fontFamily: "var(--font-mono)", fontSize: "0.68rem", color: "#6ee7b7" }}
+                  title="Measured from the audio in your browser"
+                >
                   measured {song.measured.bpm}
                 </span>
               )}
             </dd>
-            <dt className="text-ink-faint">Key</dt>
-            <dd className="text-ink">{p.key || "—"}</dd>
+            <dt>Key</dt>
+            <dd>{p.key || "—"}</dd>
             {p.energy !== null && (
               <>
-                <dt className="text-ink-faint">Energy</dt>
+                <dt>Energy</dt>
                 <dd className="flex items-center gap-2">
-                  <span className="h-1 flex-1 rounded bg-panel-2">
-                    <span
-                      className="block h-full rounded"
-                      style={{ width: `${p.energy}%`, background: `hsl(${info.hue} 80% 62%)` }}
-                    />
+                  <span className="mcl-meter">
+                    <span style={{ width: `${p.energy}%`, background: `hsl(${info.hue} 82% 62%)` }} />
                   </span>
-                  <span className="font-mono text-[11px] text-ink-muted">{p.energy}</span>
+                  <span className="mcl-row__num">{p.energy}</span>
                 </dd>
               </>
             )}
-            <dt className="text-ink-faint">Mood</dt>
-            <dd><Chips items={p.mood} /></dd>
-            <dt className="text-ink-faint">Instruments</dt>
-            <dd><Chips items={p.instruments} /></dd>
-            {p.vocals && (<><dt className="text-ink-faint">Vocals</dt><dd className="text-ink-muted">{p.vocals}</dd></>)}
-            {p.production && (<><dt className="text-ink-faint">Production</dt><dd className="text-ink-muted">{p.production}</dd></>)}
-            {p.era && (<><dt className="text-ink-faint">Era</dt><dd className="text-ink-muted">{p.era}</dd></>)}
-            {p.similarArtists.length > 0 && (<><dt className="text-ink-faint">Sounds like</dt><dd><Chips items={p.similarArtists} /></dd></>)}
+            <dt>Mood</dt>
+            <dd>
+              <Chips items={p.mood} />
+            </dd>
+            <dt>Instruments</dt>
+            <dd>
+              <Chips items={p.instruments} />
+            </dd>
+            {p.vocals && (
+              <>
+                <dt>Vocals</dt>
+                <dd style={{ color: "var(--color-ink-muted)" }}>{p.vocals}</dd>
+              </>
+            )}
+            {p.production && (
+              <>
+                <dt>Production</dt>
+                <dd style={{ color: "var(--color-ink-muted)" }}>{p.production}</dd>
+              </>
+            )}
+            {p.era && (
+              <>
+                <dt>Era</dt>
+                <dd style={{ color: "var(--color-ink-muted)" }}>{p.era}</dd>
+              </>
+            )}
+            {p.similarArtists.length > 0 && (
+              <>
+                <dt>Sounds like</dt>
+                <dd>
+                  <Chips items={p.similarArtists} />
+                </dd>
+              </>
+            )}
             {song.measured && (
               <>
-                <dt className="text-ink-faint">Measured</dt>
-                <dd className="font-mono text-[11px] text-ink-muted">
+                <dt>Measured</dt>
+                <dd className="mcl-row__faint">
                   {[song.measured.key, song.measured.percussion, song.measured.brightness, song.measured.dynamics].join(" · ")}
                 </dd>
               </>
             )}
           </dl>
           {song.tags.length > 0 && (
-            <div className="mt-2">
+            <div style={{ marginTop: "0.6rem" }}>
               <Chips items={song.tags} />
             </div>
           )}
         </section>
 
         {/* Descriptions */}
-        <section>
-          <h3 className="mb-1.5 font-mono text-[10px] uppercase tracking-widest text-ink-faint">Descriptions</h3>
+        <section className="mcl-card">
+          <span className="mcl-card__label">Descriptions</span>
           {have.length > 0 ? (
             <>
               <div className="mb-2 flex flex-wrap gap-1">
@@ -305,10 +345,8 @@ export function SongPanel({ song, lib, busy, onClose, onPatch, onDescriptions, o
                   <button
                     key={l.id}
                     onClick={() => setTab(l.id)}
-                    className={
-                      "rounded-md px-2 py-0.5 text-[11px] transition " +
-                      (tab === l.id ? "bg-brand text-white" : "bg-panel-2 text-ink-muted hover:text-ink")
-                    }
+                    className={"mcl-tagbtn" + (tab === l.id ? " is-on" : "")}
+                    style={tab === l.id ? { background: "var(--color-brand)", color: "#fff", borderColor: "transparent" } : undefined}
                   >
                     {l.label}
                   </button>
@@ -317,11 +355,13 @@ export function SongPanel({ song, lib, busy, onClose, onPatch, onDescriptions, o
               {tab && song.descriptions[tab] && <Prose text={song.descriptions[tab]!} />}
             </>
           ) : (
-            <p className="text-[12px] text-ink-faint">No descriptions yet — pick a way to describe it below.</p>
+            <p style={{ fontSize: "0.78rem", color: "var(--color-ink-faint)" }}>
+              No descriptions yet — pick a way to describe it below.
+            </p>
           )}
 
-          <div className="mt-3 rounded-lg border border-line-soft p-2">
-            <p className="mb-1.5 text-[11px] text-ink-faint">
+          <div className="mcl-note" style={{ marginTop: "0.75rem", background: "transparent" }}>
+            <p style={{ marginBottom: "0.5rem" }}>
               Describe it another way (or rewrite one){own ? " — written from the sound profile above" : ""}:
             </p>
             <div className="flex flex-wrap gap-1">
@@ -332,11 +372,8 @@ export function SongPanel({ song, lib, busy, onClose, onPatch, onDescriptions, o
                     key={l.id}
                     title={l.hint}
                     onClick={() => setPicking(on ? picking.filter((x) => x !== l.id) : [...picking, l.id])}
-                    className={
-                      "rounded-md border px-2 py-0.5 text-[11px] transition " +
-                      (on ? "border-brand bg-brand/15 text-ink" : "border-line text-ink-muted hover:text-ink") +
-                      (song.descriptions[l.id] ? " italic" : "")
-                    }
+                    className={"mcl-tagbtn" + (on ? " is-on" : "")}
+                    style={song.descriptions[l.id] ? { fontStyle: "italic" } : undefined}
                   >
                     {song.descriptions[l.id] ? "↻ " : "+ "}
                     {l.label}
@@ -348,39 +385,41 @@ export function SongPanel({ song, lib, busy, onClose, onPatch, onDescriptions, o
               <button
                 onClick={describe}
                 disabled={describing}
-                className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-brand px-2.5 py-1 text-[12px] font-semibold text-white transition hover:bg-brand-2 disabled:opacity-50"
+                className="mcl-btn mcl-btn--primary mcl-btn--sm"
+                style={{ marginTop: "0.6rem" }}
               >
                 <Icon.Sparkles width={11} height={11} />
                 {describing ? "Writing…" : `Describe (${picking.length})`}
               </button>
             )}
-            {error && <p className="mt-1.5 text-[12px] text-rose-300">{error}</p>}
+            {error && <p className="mcl-error" style={{ marginTop: "0.4rem" }}>{error}</p>}
           </div>
         </section>
 
         {/* Notes */}
-        <section>
-          <h3 className="mb-1.5 font-mono text-[10px] uppercase tracking-widest text-ink-faint">Your notes</h3>
+        <section className="mcl-card">
+          <span className="mcl-card__label">Your notes</span>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             onBlur={() => notes !== song.notes && onPatch({ notes })}
             rows={3}
             placeholder={own ? "What's working, what to fix in the next version…" : "What you love about it, the part to steal…"}
-            className="w-full resize-y rounded-lg border border-line bg-canvas px-2 py-1.5 text-[13px] text-ink outline-none focus:border-brand"
+            className="mcl-textarea"
           />
         </section>
 
         {song.links.length > 0 && (
-          <section>
-            <h3 className="mb-1.5 font-mono text-[10px] uppercase tracking-widest text-ink-faint">Links</h3>
+          <section className="mcl-card">
+            <span className="mcl-card__label">Links</span>
             {song.links.map((l) => (
               <a
                 key={l}
                 href={l}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center gap-1.5 truncate py-0.5 font-mono text-[11px] text-ink-muted transition hover:text-brand"
+                className="mcl-row__faint flex items-center gap-1.5 truncate"
+                style={{ padding: "0.15rem 0", display: "flex" }}
               >
                 <Icon.Link width={10} height={10} className="shrink-0" />
                 <span className="truncate">{l.replace(/^https?:\/\/(www\.)?/, "")}</span>
@@ -390,11 +429,11 @@ export function SongPanel({ song, lib, busy, onClose, onPatch, onDescriptions, o
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-2 border-t border-line p-2">
+      <div className="mcl-panel__foot">
         <button
           onClick={onReanalyze}
           disabled={busy}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1 text-[12px] text-ink-muted transition hover:text-ink disabled:opacity-50"
+          className="mcl-btn mcl-btn--sm"
           title={own ? "Have the AI listen to the file again" : "Look it up again and re-file"}
         >
           <Icon.Refresh width={12} height={12} />
@@ -403,11 +442,11 @@ export function SongPanel({ song, lib, busy, onClose, onPatch, onDescriptions, o
         <span className="flex-1" />
         <button
           onClick={() => (confirmDelete ? onDelete() : setConfirmDelete(true))}
-          className={
-            "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[12px] transition " +
-            (confirmDelete
-              ? "border-rose-500/30 bg-rose-500/10 font-semibold text-rose-300"
-              : "border-line text-ink-muted hover:text-rose-300")
+          className="mcl-btn mcl-btn--sm"
+          style={
+            confirmDelete
+              ? { borderColor: "rgba(244,63,94,.4)", background: "rgba(244,63,94,.14)", color: "#fda4af", fontWeight: 600 }
+              : undefined
           }
         >
           <Icon.Trash width={12} height={12} />

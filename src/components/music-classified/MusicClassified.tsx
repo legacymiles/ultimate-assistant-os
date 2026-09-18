@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { ArtistSidebar } from "./ArtistSidebar";
 import { BlueprintBox } from "./BlueprintBox";
@@ -27,6 +27,11 @@ type Tab = "library" | "mine";
 const TAB_KEY = "music-classified:tab";
 const AUDIO_EXT = /\.(mp3|wav|m4a|aac|flac|ogg|oga|opus|aiff?|webm)$/i;
 
+/** A hue-carrying style object, so one CSS rule can colour every level swatch. */
+function hueStyle(hue: number): React.CSSProperties {
+  return { "--h": hue } as React.CSSProperties;
+}
+
 export function MusicClassified() {
   const [lib, setLib] = useState<Library>(EMPTY);
   const [ready, setReady] = useState(false);
@@ -38,6 +43,7 @@ export function MusicClassified() {
   const [dir, setDir] = useState<SortDir>("desc");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [navOpen, setNavOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [flash, setFlash] = useState("");
   const [input, setInput] = useState("");
   const [artistInput, setArtistInput] = useState("");
@@ -107,13 +113,24 @@ export function MusicClassified() {
   const levelBase: Scope = tab === "mine" && scope.artist ? { artist: scope.artist } : {};
   const artists = useMemo(() => artistsOf(lib.songs.filter((s) => s.kind === "own")).map((a) => a.name), [lib.songs]);
 
-  const where =
-    tab === "mine"
-      ? [scope.artist ?? "All my music", scope.level !== undefined && `${scope.level} · ${levelInfo(scope.level).name}`]
-      : scope.level === undefined
-        ? ["All songs"]
-        : [`${scope.level} · ${levelInfo(scope.level).name}`, scope.genre, scope.subgenre];
-  const scopeLabel = [favOnly && "Favorites", ...where].filter(Boolean).join(" › ");
+  // Where you are, as breadcrumbs. The first one is the headline; the rest
+  // read as the finer slices of it.
+  const crumbs = useMemo(() => {
+    const parts: string[] = [];
+    if (favOnly) parts.push("Favorites");
+    if (tab === "mine") {
+      parts.push(scope.artist ?? "All my music");
+      if (scope.level !== undefined) parts.push(`${scope.level} · ${levelInfo(scope.level).name}`);
+    } else if (scope.level === undefined) {
+      parts.push("All songs");
+    } else {
+      parts.push(`${scope.level} · ${levelInfo(scope.level).name}`);
+      if (scope.genre) parts.push(scope.genre);
+      if (scope.subgenre) parts.push(scope.subgenre);
+    }
+    return parts;
+  }, [favOnly, tab, scope]);
+  const scopeLabel = crumbs.join(" › ");
   const blueprintKey = (tab === "mine" ? "mine:" : "") + (favOnly ? "fav:" : "") + scopeKey(scope);
 
   const toggleLens = (id: LensId) => {
@@ -365,86 +382,118 @@ export function MusicClassified() {
           : "Your library is empty. Type a song you love above — or paste a link — and hit Classify.";
 
   return (
-    <div className="flex h-dvh flex-col">
-      <header className="flex shrink-0 items-center gap-2 border-b border-line bg-panel px-3 py-2">
-        <button
-          onClick={() => setNavOpen((v) => !v)}
-          className="rounded-lg border border-line p-1.5 text-ink-muted transition hover:text-ink lg:hidden"
-          aria-label="Toggle sidebar"
-        >
-          <Icon.Menu width={14} height={14} />
-        </button>
-        <Link
-          href="/"
-          className="hidden items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink sm:inline-flex"
-        >
-          <Icon.ArrowLeft width={13} height={13} />
-          Hub
-        </Link>
-        <span className="hidden text-sm font-semibold text-ink xl:inline">Music Classified</span>
+    <div className="mcl">
+      <header className="mcl-top">
+        <div className="mcl-top__row">
+          <button
+            onClick={() => setNavOpen((v) => !v)}
+            className="mcl-iconbtn mcl-nav-toggle"
+            aria-label="Toggle navigation"
+            aria-expanded={navOpen}
+          >
+            <Icon.Sidebar width={15} height={15} />
+          </button>
 
-        <div className="flex shrink-0 rounded-lg border border-line p-0.5" role="tablist">
-          {(
-            [
-              ["library", "Library"],
-              ["mine", "My Music"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              role="tab"
-              aria-selected={tab === id}
-              onClick={() => switchTab(id)}
-              className={
-                "rounded-md px-2.5 py-1 text-[12px] font-medium transition " +
-                (tab === id ? "bg-brand text-white" : "text-ink-muted hover:text-ink")
-              }
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+          <div className="mcl-brand">
+            <span className="mcl-mark" aria-hidden />
+            <span className="mcl-brand__text">
+              <span className="mcl-brand__name">Music Classified</span>
+              <span className="mcl-brand__sub">Every song, filed by energy</span>
+            </span>
+          </div>
 
-        <div className="relative mx-1 min-w-0 flex-1">
-          <Icon.Search
-            width={14}
-            height={14}
-            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint"
-          />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={favOnly ? "Search your favorites…" : "Search songs, sounds, moods, descriptions…"}
-            className="w-full rounded-lg border border-line bg-canvas py-1.5 pl-8 pr-2 text-[13px] text-ink outline-none focus:border-brand"
-          />
+          <div className="mcl-tabs" role="tablist">
+            {(
+              [
+                ["library", "Library"],
+                ["mine", "My Music"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                role="tab"
+                aria-selected={tab === id}
+                onClick={() => switchTab(id)}
+                className="mcl-tab"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mcl-search">
+            <Icon.Search width={15} height={15} className="mcl-search__icon" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={favOnly ? "Search your favorites…" : "Search songs, sounds, moods, descriptions…"}
+              aria-label="Search songs"
+            />
+          </div>
+
+          <div className="mcl-top__actions">
+            <Link href="/" className="mcl-iconbtn" title="Back to the hub" aria-label="Back to the hub">
+              <Icon.Home width={15} height={15} />
+            </Link>
+            <div className="mcl-menu">
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                className="mcl-iconbtn"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                aria-label="Library data"
+                title="Library data"
+              >
+                <Icon.Database width={15} height={15} />
+              </button>
+              {menuOpen && (
+                <>
+                  <button
+                    className="mcl-menu__scrim"
+                    aria-hidden
+                    tabIndex={-1}
+                    onClick={() => setMenuOpen(false)}
+                  />
+                  <div className="mcl-menu__pop" role="menu">
+                    <button
+                      role="menuitem"
+                      className="mcl-menu__item"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        exportJson();
+                      }}
+                    >
+                      <Icon.Download width={14} height={14} />
+                      Export library
+                    </button>
+                    <button
+                      role="menuitem"
+                      className="mcl-menu__item"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        fileInput.current?.click();
+                      }}
+                    >
+                      <Icon.Upload width={14} height={14} />
+                      Import library
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            <input
+              ref={fileInput}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void importJson(file);
+                e.target.value = "";
+              }}
+            />
+          </div>
         </div>
-        <button
-          onClick={exportJson}
-          className="hidden rounded-lg border border-line p-1.5 text-ink-muted transition hover:text-ink sm:block"
-          title="Export JSON"
-          aria-label="Export JSON"
-        >
-          <Icon.Download width={14} height={14} />
-        </button>
-        <button
-          onClick={() => fileInput.current?.click()}
-          className="hidden rounded-lg border border-line p-1.5 text-ink-muted transition hover:text-ink sm:block"
-          title="Import JSON"
-          aria-label="Import JSON"
-        >
-          <Icon.Upload width={14} height={14} />
-        </button>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="application/json,.json"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void importJson(file);
-            e.target.value = "";
-          }}
-        />
       </header>
 
       {/* The tab's main action, always on screen. */}
@@ -454,45 +503,33 @@ export function MusicClassified() {
             e.preventDefault();
             if (input.trim()) void run({ input });
           }}
-          className="relative shrink-0 border-b border-line bg-panel/70 px-3 py-2"
+          className="mcl-console"
         >
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[220px] flex-1">
-              <Icon.Sparkles
-                width={13}
-                height={13}
-                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-brand"
-              />
+          <div className="mcl-console__row">
+            <div className="mcl-field">
+              <Icon.Sparkles width={14} height={14} className="mcl-field__icon" />
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 disabled={step !== "idle"}
                 placeholder="Song name, or a YouTube / Apple Music / Spotify link"
-                className="w-full rounded-lg border border-line bg-canvas py-1.5 pl-8 pr-2 text-[13px] text-ink outline-none focus:border-brand disabled:opacity-60"
+                aria-label="Song to classify"
               />
             </div>
             <LensPicker lenses={lenses} onToggle={toggleLens} />
             {step === "idle" ? (
-              <button
-                type="submit"
-                disabled={!input.trim()}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-2 disabled:opacity-40"
-              >
-                <Icon.Plus width={12} height={12} />
+              <button type="submit" disabled={!input.trim()} className="mcl-btn mcl-btn--primary">
+                <Icon.Plus width={13} height={13} />
                 Classify
               </button>
             ) : (
-              <button
-                type="button"
-                onClick={() => abort.current?.abort()}
-                className="rounded-lg border border-line px-3 py-1.5 text-xs text-ink-muted transition hover:text-ink"
-              >
+              <button type="button" onClick={() => abort.current?.abort()} className="mcl-btn">
                 Cancel
               </button>
             )}
           </div>
-          {progressText && <p className="mt-1.5 animate-pulse font-mono text-[11px] text-ink-faint">{progressText}</p>}
-          {error && <p className="mt-1.5 text-[12px] text-rose-300">{error}</p>}
+          {progressText && <p className="mcl-console__note is-busy">{progressText}</p>}
+          {error && <p className="mcl-console__note mcl-error">{error}</p>}
         </form>
       ) : (
         <div
@@ -506,25 +543,18 @@ export function MusicClassified() {
             setDragging(false);
             void upload([...e.dataTransfer.files]);
           }}
-          className={
-            "relative shrink-0 border-b px-3 py-2 transition " +
-            (dragging ? "border-brand bg-brand/10" : "border-line bg-panel/70")
-          }
+          className={"mcl-console" + (dragging ? " is-drag" : "")}
         >
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[180px] flex-1">
-              <Icon.Users
-                width={13}
-                height={13}
-                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-brand"
-              />
+          <div className="mcl-console__row">
+            <div className="mcl-field">
+              <Icon.Users width={14} height={14} className="mcl-field__icon" />
               <input
                 value={artistInput}
                 onChange={(e) => setArtistInput(e.target.value)}
                 disabled={step !== "idle"}
                 list="mc-upload-artists"
                 placeholder="Artist name (who made these songs)"
-                className="w-full rounded-lg border border-line bg-canvas py-1.5 pl-8 pr-2 text-[13px] text-ink outline-none focus:border-brand disabled:opacity-60"
+                aria-label="Artist name"
               />
               <datalist id="mc-upload-artists">{artists.map((a) => <option key={a} value={a} />)}</datalist>
             </div>
@@ -533,17 +563,13 @@ export function MusicClassified() {
               <button
                 type="button"
                 onClick={() => (artistInput.trim() ? audioInput.current?.click() : setError("Type the artist first — My Music is organised by artist."))}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-2"
+                className="mcl-btn mcl-btn--primary"
               >
-                <Icon.Upload width={12} height={12} />
+                <Icon.Upload width={13} height={13} />
                 Upload songs
               </button>
             ) : (
-              <button
-                type="button"
-                onClick={() => abort.current?.abort()}
-                className="rounded-lg border border-line px-3 py-1.5 text-xs text-ink-muted transition hover:text-ink"
-              >
+              <button type="button" onClick={() => abort.current?.abort()} className="mcl-btn">
                 Cancel
               </button>
             )}
@@ -560,29 +586,26 @@ export function MusicClassified() {
               }}
             />
           </div>
-          <p className="mt-1.5 font-mono text-[11px] text-ink-faint">
-            {progressText ? (
-              <span className="animate-pulse">{progressText}</span>
-            ) : (
-              "Drop audio files here or pick them. The AI listens to each one and files it; the audio stays on this device."
-            )}
+          <p className={"mcl-console__note" + (progressText ? " is-busy" : "")}>
+            {progressText ||
+              "Drop audio files here or pick them. The AI listens to each one and files it; the audio stays on this device."}
           </p>
-          {error && <p className="mt-1 text-[12px] text-rose-300">{error}</p>}
+          {error && <p className="mcl-console__note mcl-error">{error}</p>}
         </div>
       )}
 
       {(flash || alts) && (
-        <div className="animate-fade-in shrink-0 border-b border-line-soft bg-panel px-3 py-1.5 text-[12px] text-ink-muted">
-          {flash && <p>{flash}</p>}
+        <div className="mcl-flash">
+          {flash && <span>{flash}</span>}
           {alts && (
-            <div className="mt-1 flex flex-wrap items-center gap-1.5">
-              <span className="text-ink-faint">Wrong song?</span>
+            <>
+              <span className="mcl-muted">Wrong song?</span>
               {alts.options.map((o) => (
                 <button
                   key={`${o.title}|${o.artist}`}
                   onClick={() => void run({ identity: o }, alts.songId)}
                   disabled={step !== "idle"}
-                  className="rounded-md border border-line px-1.5 py-0.5 text-[11px] text-ink-muted transition hover:border-brand hover:text-ink disabled:opacity-40"
+                  className="mcl-flash__alt"
                 >
                   {o.title} — {o.artist}
                 </button>
@@ -592,25 +615,27 @@ export function MusicClassified() {
                   setAlts(null);
                   setFlash("");
                 }}
-                className="ml-auto font-mono text-[11px] text-ink-faint hover:text-ink"
+                className="mcl-muted"
+                style={{ marginLeft: "auto", fontSize: "0.72rem" }}
               >
                 dismiss
               </button>
-            </div>
+            </>
           )}
         </div>
       )}
 
-      <div className="relative flex min-h-0 flex-1">
+      <div className="mcl-body">
+        {/* Drawer scrim — the rail is an overlay below 1024px. */}
         <div
-          className={
-            // With a record open, three panes crush the song column below xl,
-            // so the sidebar steps aside (still reachable via the menu).
-            "w-60 shrink-0 border-r border-line bg-panel " +
-            (record ? "xl:static xl:block " : "lg:static lg:block ") +
-            (navOpen ? "absolute inset-y-0 left-0 z-30 shadow-2xl" : "hidden")
-          }
-        >
+          className={"mcl-rail__scrim" + (navOpen ? " is-on" : "")}
+          onClick={() => setNavOpen(false)}
+          aria-hidden
+        />
+
+        {/* With a record open, three panes crush the song column below xl, so
+            the rail steps aside (still reachable via the top-bar toggle). */}
+        <div className={"mcl-rail mcl-scroll" + (navOpen ? " is-open" : "") + (record ? " is-crowded" : "")}>
           {tab === "library" ? (
             <LevelSidebar
               songs={pool}
@@ -635,58 +660,66 @@ export function MusicClassified() {
           )}
         </div>
 
-        <main className="flex min-w-0 flex-1 flex-col">
-          {/* Favorites + the 1–10 filter, in one strip, above everything. */}
-          <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-line-soft px-3 py-1.5">
-            <button
-              onClick={() => setFavOnly((v) => !v)}
-              aria-pressed={favOnly}
-              className={
-                "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[12px] transition " +
-                (favOnly
-                  ? "border-amber-400/50 bg-amber-400/15 text-amber-200"
-                  : "border-line text-ink-muted hover:text-ink")
-              }
-            >
-              <span className={favOnly ? "text-amber-300" : ""}>{favOnly ? "★" : "☆"}</span>
-              Favorites
-              <span className="font-mono text-[10px] text-ink-faint">{favCount}</span>
-            </button>
-            <span className="mx-1 h-4 w-px bg-line" />
-            <button
-              onClick={() => setScope(levelBase)}
-              className={
-                "rounded-md px-1.5 py-0.5 font-mono text-[11px] transition " +
-                (scope.level === undefined ? "bg-panel-2 text-ink" : "text-ink-faint hover:text-ink")
-              }
-            >
-              All
-            </button>
-            {LEVELS.map((l) => {
-              const n = inScope(pool, { ...levelBase, level: l.n }).length;
-              const on = scope.level === l.n;
-              return (
-                <button
-                  key={l.n}
-                  onClick={() => setScope(on ? levelBase : { ...levelBase, level: l.n })}
-                  title={`${l.n} · ${l.name} — ${n} song${n === 1 ? "" : "s"}`}
-                  className="h-5 min-w-[22px] rounded px-1 font-mono text-[11px] font-semibold transition"
-                  style={{
-                    background: on ? `hsl(${l.hue} 80% 66%)` : `hsl(${l.hue} 40% 50% / ${n ? 0.18 : 0.06})`,
-                    color: on ? "rgba(0,0,0,.8)" : `hsl(${l.hue} 70% ${n ? 72 : 45}%)`,
-                  }}
-                >
-                  {l.n}
-                </button>
-              );
-            })}
-            <p className="ml-auto truncate pl-2 font-mono text-[11px] text-ink-faint">
-              {scopeLabel}
-              <span className="ml-2 text-ink-muted">
-                {visible.length}
-                {visible.length !== scoped.length && `/${scoped.length}`}
+        <main className="mcl-stage">
+          {/* Where you are, the favourites filter, and the 1–10 spectrum. */}
+          <div className="mcl-scope">
+            <div className="mcl-scope__head">
+              <div className="mcl-scope__crumbs">
+                <span className="mcl-scope__name">{crumbs[0]}</span>
+                {crumbs.slice(1).map((c) => (
+                  <Fragment key={c}>
+                    <span className="mcl-scope__sep" aria-hidden>
+                      ›
+                    </span>
+                    <span className="mcl-scope__crumb">{c}</span>
+                  </Fragment>
+                ))}
+              </div>
+              <span className="mcl-scope__count">
+                <b>{visible.length}</b>
+                {visible.length !== scoped.length && ` / ${scoped.length}`} songs
               </span>
-            </p>
+            </div>
+
+            <div className="mcl-scope__tools">
+              <button
+                onClick={() => setFavOnly((v) => !v)}
+                aria-pressed={favOnly}
+                title="Show favorites only"
+                className={"mcl-pill" + (favOnly ? " is-fav" : "")}
+              >
+                <span>{favOnly ? "★" : "☆"}</span>
+                Favorites
+                <span className="mcl-pill__n">{favCount}</span>
+              </button>
+
+              <div className="mcl-spectrum">
+                <button
+                  onClick={() => setScope(levelBase)}
+                  title="Every energy level"
+                  className={"mcl-stop is-all" + (scope.level === undefined ? " is-on" : "")}
+                >
+                  <b>All</b>
+                  <i>{pool.length}</i>
+                </button>
+                {LEVELS.map((l) => {
+                  const n = inScope(pool, { ...levelBase, level: l.n }).length;
+                  const on = scope.level === l.n;
+                  return (
+                    <button
+                      key={l.n}
+                      onClick={() => setScope(on ? levelBase : { ...levelBase, level: l.n })}
+                      title={`${l.n} · ${l.name} — ${l.feel}. Typically ${l.bpm} BPM. ${n} song${n === 1 ? "" : "s"}.`}
+                      className={"mcl-stop" + (on ? " is-on" : "") + (n ? "" : " is-empty")}
+                      style={hueStyle(l.hue)}
+                    >
+                      <b>{l.n}</b>
+                      <i>{n}</i>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           <BlueprintBox
@@ -698,9 +731,9 @@ export function MusicClassified() {
             onSaved={(bp) => setLib(store.saveBlueprint(bp))}
           />
 
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div className="mcl-list mcl-scroll">
             {!ready ? (
-              <p className="px-4 py-20 text-center text-sm text-ink-faint">Loading your library…</p>
+              <p className="mcl-empty">Loading your library…</p>
             ) : (
               <SongTable
                 songs={visible}
@@ -717,7 +750,7 @@ export function MusicClassified() {
         </main>
 
         {record && (
-          <div className="fixed inset-0 z-40 bg-panel lg:static lg:z-auto lg:w-[400px] lg:shrink-0 lg:border-l lg:border-line">
+          <div className="mcl-panel">
             <SongPanel
               song={record}
               lib={lib}
