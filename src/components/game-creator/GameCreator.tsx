@@ -23,6 +23,8 @@ export function GameCreator() {
   const [builder, setBuilder] = useState<BuilderInfo | null>(null);
   const [prompt, setPrompt] = useState("");
   const [template, setTemplate] = useState<TemplateId>("Auto");
+  // null = use the PC's default. Only one skill builds a game.
+  const [skill, setSkill] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
@@ -58,7 +60,7 @@ export function GameCreator() {
     setSubmitting(true);
     setError("");
     try {
-      const game = await createGame(prompt, template);
+      const game = await createGame(prompt, template, chosenSkill);
       setGames((prev) => [game, ...(prev ?? [])]);
       setPrompt("");
     } catch (err) {
@@ -83,6 +85,9 @@ export function GameCreator() {
   );
 
   const online = builderOnline(builder);
+  const skills = builder?.skills ?? [];
+  const defaultSkill = builder?.defaultSkill ?? null;
+  const chosenSkill = skill && skills.some((s) => s.name === skill) ? skill : defaultSkill;
   const queued = (games ?? []).filter((g) => g.status === "queued").length;
 
   return (
@@ -150,6 +155,38 @@ export function GameCreator() {
                     {t.label}
                   </button>
                 ))}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="gc-skill" className="text-xs text-ink-muted">
+                  Build skill
+                </label>
+                <select
+                  id="gc-skill"
+                  value={chosenSkill ?? ""}
+                  onChange={(e) => setSkill(e.target.value || null)}
+                  disabled={skills.length < 2}
+                  title={skills.find((s) => s.name === chosenSkill)?.description}
+                  className="rounded-lg border border-line bg-canvas px-2 py-1 text-xs text-ink outline-none focus:border-brand/60 disabled:opacity-80"
+                >
+                  {skills.length === 0 ? (
+                    <option value="">Your PC&apos;s default skill</option>
+                  ) : (
+                    skills.map((s) => (
+                      <option key={s.name} value={s.name}>
+                        {s.name}
+                        {s.name === defaultSkill ? " (default)" : ""}
+                      </option>
+                    ))
+                  )}
+                </select>
+                <span className="text-[11px] text-ink-faint">
+                  {skills.length === 0
+                    ? "The list appears once your PC's builder has checked in."
+                    : skills.length === 1
+                      ? "The only game-building skill on your PC."
+                      : "One skill builds each game."}
+                </span>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">

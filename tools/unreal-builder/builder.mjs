@@ -11,7 +11,8 @@
 
 import { config } from "./lib/env.mjs";
 import { HubClient } from "./lib/hub.mjs";
-import { buildPrompt, runClaude } from "./lib/claude.mjs";
+import { buildPrompt, followUpPrompt, ownerMessage, runClaude } from "./lib/claude.mjs";
+import { FALLBACK_SKILL, findGameSkills, skillReport } from "./lib/skills.mjs";
 import { watchGame } from "./lib/watch.mjs";
 
 const cfg = config();
@@ -20,8 +21,23 @@ const hub = new HubClient(cfg);
 
 const log = (...a) => console.log(new Date().toLocaleTimeString(), ...a);
 
-async function buildOne(game) {
-  log(`Building "${game.prompt.slice(0, 80)}" (${game.id})`);
+/** Re-read the skills folder each claim, so a newly added skill shows up in the app. */
+async function currentSkills() {
+  try {
+    return skillReport(await findGameSkills(cfg.skillDirs), cfg.defaultSkill);
+  } catch (err) {
+    log("skill scan failed:", err.message);
+    return { skills: [], defaultSkill: null };
+  }
+}
+
+async function buildOne(game, report) {
+  // Exactly one game-building skill per game: the one the owner picked if this
+  // PC has it, else this PC's default.
+  const offered = report.skills.map((s) => s.name);
+  const skill = game.skill && offered.includes(game.skill) ? game.skill : report.defaultSkill || FALLBACK_SKILL;
+  game = { ...game, skill };
+  log(`${game.followUp ? "Follow-up on" : "Building"} "${game.prompt.slice(0, 80)}" (${game.id}) with skill ${skill}`);
 
   // Claude's narration, batched so a chatty run is a few posts a second at most.
   let pending = [];
@@ -42,6 +58,7 @@ async function buildOne(game) {
   const watcher = watchGame({
     projectsRoot: cfg.projectsRoot,
     gameId: game.id,
+    ignoreExisting: Boolean(game.followUp),
     onChange: async (change) => {
       try {
         if (change.type === "project") {
@@ -73,16 +90,80 @@ async function buildOne(game) {
   const limit = new AbortController();
   const timer = setTimeout(() => limit.abort(), cfg.maxMinutes * 60_000);
 
-  const run = await runClaude({
-    prompt: buildPrompt(game),
+  // The owner's chat messages. On a follow-up they are the instructions; during
+  // any build, new ones join the running session.
+  const takeMessages = async () => {
+    try {
+      return await hub.messages(game.id);
+    } catch (err) {
+      log("message fetch failed:", err.message);
+      return [];
+    }
+  };
+  const echo = (msgs) => msgs.forEach((m) => pending.push(`Message from you: ${m.text.replace(/\s+/g, " ").slice(0, 300)}`));
+
+  let prompt = buildPrompt(game);
+  let resume;
+  if (game.followUp) {
+    const asks = await takeMessages();
+    echo(asks);
+    resume = game.sessionId || undefined;
+    prompt = followUpPrompt(game, asks.length ? asks : [{ text: "Review the game and fix anything that looks or plays wrong." }], {
+      resumed: Boolean(resume),
+    });
+  }
+
+  let skillSeen = false;
+  let toolCalls = 0;
+  const session = runClaude({
+    prompt,
+    resume,
     cwd: cfg.projectsRoot,
     model: cfg.model,
     signal: limit.signal,
     onLine: (line) => {
       pending.push(line);
+      if (line.startsWith("→")) {
+        toolCalls++;
+        // The skill must be the first thing Claude loads. A resumed session
+        // already has it, so only fresh sessions are checked.
+        if (!resume && !skillSeen && toolCalls === 3) {
+          pending.push(`Skill check: Claude has not loaded ${skill} yet — the build may not follow it.`);
+          void hub.progress(game.id, { skillUsed: false }).catch(() => {});
+        }
+      }
       if (process.stdout.isTTY) console.log("  ", line.slice(0, 160));
     },
+    onSession: (sessionId) => void hub.progress(game.id, { sessionId }).catch(() => {}),
+    onSkill: (name) => {
+      if (name !== skill || skillSeen) return;
+      skillSeen = true;
+      pending.push(`Skill loaded: ${name}`);
+      void hub.progress(game.id, { skillUsed: true }).catch(() => {});
+    },
+    // Every turn is done: hand over anything the owner wrote meanwhile, or end.
+    onTurnEnd: async () => {
+      const msgs = await takeMessages();
+      echo(msgs);
+      return msgs.map((m) => ownerMessage(m.text));
+    },
   });
+  if (resume) {
+    skillSeen = true;
+    void hub.progress(game.id, { skillUsed: true }).catch(() => {});
+  }
+
+  // Messages written while Claude is mid-turn join the session right away;
+  // Claude picks them up as soon as its current step allows.
+  const inbox = setInterval(async () => {
+    const msgs = await takeMessages();
+    if (!msgs.length) return;
+    echo(msgs);
+    for (const m of msgs) session.send(ownerMessage(m.text));
+  }, cfg.messagePollMs);
+
+  const run = await session.done;
+  clearInterval(inbox);
 
   clearTimeout(timer);
   await watcher.stop();
@@ -112,15 +193,16 @@ async function main() {
   log(`Builder started. Hub: ${cfg.hubUrl}. Projects: ${cfg.projectsRoot}`);
   for (;;) {
     let game = null;
+    const report = await currentSkills();
     try {
-      game = await hub.claim();
+      game = await hub.claim(report);
     } catch (err) {
       log("claim failed:", err.message);
     }
 
     if (game) {
       try {
-        await buildOne(game);
+        await buildOne(game, report);
       } catch (err) {
         log("build crashed:", err);
         await hub.fail(game.id, `The builder crashed: ${err.message}`).catch(() => {});

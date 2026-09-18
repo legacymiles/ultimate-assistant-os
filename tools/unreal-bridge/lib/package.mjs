@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { runUat } from "./paths.mjs";
 import { REQUIRED_PLUGINS } from "./project.mjs";
+import { watchSdkChecks } from "./sdkcheck.mjs";
 
 // Package a project into a standalone Windows game with Unreal's automation
 // tool. A Blueprint-only project needs no C++ compiler: BuildCookRun stages the
@@ -108,6 +109,8 @@ async function runBuildCookRun(uproject, { outDir, onLine, timeoutMs = 60 * 60_0
     const quoted = [`"${runUat()}"`, ...args.map((a) => `"${a}"`)].join(" ");
     const child = spawn("cmd.exe", ["/d", "/s", "/c", `"${quoted}"`], { windowsVerbatimArguments: true, windowsHide: true });
     const timer = setTimeout(() => child.kill(), timeoutMs);
+    // The cook runs the engine's SDK check, which can hang forever here (sdkcheck.mjs).
+    const stopSdkWatch = watchSdkChecks();
     const feed = (buf) => {
       for (const line of String(buf).split(/\r?\n/)) {
         if (!line.trim()) continue;
@@ -120,10 +123,12 @@ async function runBuildCookRun(uproject, { outDir, onLine, timeoutMs = 60 * 60_0
     child.stderr.on("data", feed);
     child.on("close", (c) => {
       clearTimeout(timer);
+      stopSdkWatch();
       resolve(c);
     });
     child.on("error", (err) => {
       clearTimeout(timer);
+      stopSdkWatch();
       tail.push(String(err));
       resolve(-1);
     });

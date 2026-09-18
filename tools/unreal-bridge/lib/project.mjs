@@ -89,15 +89,70 @@ export function parseSharedContentPacks(ini) {
   return packs;
 }
 
-async function copySharedPacks(folder, projectDir) {
-  let ini = "";
+/**
+ * A template's optional variants (the new-project wizard's "Variant" drop-down),
+ * each with the extra shared packs it copies in, e.g. FirstPerson "ArenaShooter"
+ * adds the Weapons and Variant_Shooter packs.
+ */
+export function parseVariants(ini) {
+  const variants = [];
+  for (const line of String(ini ?? "").split(/\r?\n/)) {
+    if (!/^\s*Variants\s*=/.test(line)) continue;
+    const name = /Name\s*=\s*"([^"]+)"/.exec(line)?.[1];
+    if (!name) continue;
+    const packs = [];
+    for (const m of line.matchAll(/\(\s*DetailLevels\s*=\s*\(([^)]*)\)\s*,\s*MountName\s*=\s*"([^"]+)"\s*\)/g)) {
+      const levels = m[1].split(",").map((s) => s.trim().replace(/"/g, "")).filter(Boolean);
+      packs.push({ mount: m[2], levels: levels.length ? levels : ["Standard"] });
+    }
+    variants.push({ name, packs });
+  }
+  return variants;
+}
+
+async function readTemplateDefs(folder) {
   try {
-    ini = await fs.readFile(path.join(templatesDir(), folder, "Config", "TemplateDefs.ini"), "utf8");
+    return await fs.readFile(path.join(templatesDir(), folder, "Config", "TemplateDefs.ini"), "utf8");
   } catch {
-    return [];
+    return "";
+  }
+}
+
+/**
+ * fs.cp filter that leaves out `excluded` sub-folders of a pack's Content, and
+ * any external actor/object package that references one of them (a level
+ * actor whose class lives in an excluded folder would fail to load).
+ */
+export function packFilter(contentRoot, mount, excluded = []) {
+  if (!excluded.length) return undefined;
+  const norm = (p) => p.split(path.sep).join("/");
+  const refs = excluded.map((e) => `/Game/${mount}/${e.replace(/^\/+|\/+$/g, "")}`);
+  const dirs = excluded.map((e) => norm(path.join(contentRoot, e)).toLowerCase());
+  return async (src) => {
+    const s = norm(src).toLowerCase();
+    if (dirs.some((d) => s === d || s.startsWith(`${d}/`))) return false;
+    if (/__external(actors|objects)__/i.test(s) && /\.uasset$/i.test(s)) {
+      const bytes = await fs.readFile(src);
+      if (refs.some((r) => bytes.includes(r))) return false;
+    }
+    return true;
+  };
+}
+
+async function copySharedPacks(folder, projectDir, variant, exclude = {}) {
+  const ini = await readTemplateDefs(folder);
+  if (!ini) return [];
+  const packs = parseSharedContentPacks(ini);
+  if (variant) {
+    const v = parseVariants(ini).find((x) => x.name.toLowerCase() === variant.toLowerCase());
+    if (!v) {
+      const names = parseVariants(ini).map((x) => x.name);
+      throw new Error(`Template has no variant "${variant}". Variants: ${names.join(", ") || "none"}`);
+    }
+    for (const p of v.packs) if (!packs.some((q) => q.mount === p.mount)) packs.push(p);
   }
   const copied = [];
-  for (const pack of parseSharedContentPacks(ini)) {
+  for (const pack of packs) {
     // Prefer the listed detail level, then fall back to the other one.
     const order = [...pack.levels, "High", "Standard"].filter((v, i, a) => a.indexOf(v) === i);
     let done = false;
@@ -108,7 +163,21 @@ async function copySharedPacks(folder, projectDir) {
       } catch {
         continue;
       }
-      await fs.cp(src, path.join(projectDir, "Content", pack.mount), { recursive: true });
+      const filter = packFilter(src, pack.mount, exclude[pack.mount]);
+      await fs.cp(src, path.join(projectDir, "Content", pack.mount), { recursive: true, filter });
+      // Variant levels keep their actors in one-file-per-actor packages next to
+      // Content (__ExternalActors__/<Level>). They belong under
+      // Content/__ExternalActors__/<Mount>/<Level>; without them the level
+      // loads empty — no floor, no walls, no spawn points.
+      for (const ext of ["__ExternalActors__", "__ExternalObjects__"]) {
+        const extSrc = path.join(templatesDir(), "TemplateResources", level, pack.mount, ext);
+        try {
+          await fs.access(extSrc);
+        } catch {
+          continue;
+        }
+        await fs.cp(extSrc, path.join(projectDir, "Content", ext, pack.mount), { recursive: true, filter });
+      }
       copied.push(`${pack.mount} (${level})`);
       done = true;
       break;
@@ -116,6 +185,32 @@ async function copySharedPacks(folder, projectDir) {
     if (!done) throw new Error(`Template pack "${pack.mount}" is missing from TemplateResources`);
   }
   return copied;
+}
+
+/** Point the editor and the packaged game at a variant's own level. */
+export function withStartupMap(engineIni, map) {
+  const pkg = `${map}.${map.split("/").pop()}`;
+  let out = String(engineIni ?? "");
+  let found = false;
+  out = out.replace(/^(\s*(?:GameDefaultMap|EditorStartupMap)\s*=).*$/gim, (_, key) => {
+    found = true;
+    return `${key}${pkg}`;
+  });
+  if (!found) {
+    out += `${out.endsWith("\n") || !out ? "" : "\n"}[/Script/EngineSettings.GameMapsSettings]\nGameDefaultMap=${pkg}\nEditorStartupMap=${pkg}\n`;
+  }
+  return out;
+}
+
+async function setStartupMap(projectDir, map) {
+  const file = path.join(projectDir, "Config", "DefaultEngine.ini");
+  let ini = "";
+  try {
+    ini = await fs.readFile(file, "utf8");
+  } catch {
+    /* no ini yet */
+  }
+  await fs.writeFile(file, withStartupMap(ini, map), "utf8");
 }
 
 async function readTemplatePlugins(folder) {
@@ -152,8 +247,12 @@ async function freeName(base) {
  * the MCP plugins on, makes the GameCreator/ folder the builder watches, and
  * records the game in the registry.
  */
-export async function createProject({ name, template = "FirstPerson", id, description = "" }) {
+export async function createProject({ name, template = "FirstPerson", variant, id, description = "" }) {
   const t = templateFor(template);
+  const v = variant ? t.variants?.[variant] : null;
+  if (variant && !v) {
+    throw new Error(`Template ${template} has no variant "${variant}". Variants: ${Object.keys(t.variants ?? {}).join(", ") || "none"}`);
+  }
   const src = path.join(templatesDir(), t.folder);
   try {
     await fs.access(src);
@@ -174,7 +273,9 @@ export async function createProject({ name, template = "FirstPerson", id, descri
   }
   await fs.rm(path.join(projectDir, "Config", "TemplateDefs.ini"), { force: true });
   await fs.rm(path.join(projectDir, "Config", "config.ini"), { force: true });
-  const packs = await copySharedPacks(t.folder, projectDir);
+  const packs = await copySharedPacks(t.folder, projectDir, v?.wizardName, v?.exclude);
+  const map = v?.map ?? t.map;
+  if (v) await setStartupMap(projectDir, map);
 
   const uproject = path.join(projectDir, `${projectName}.uproject`);
   const doc = buildUproject({ description, templatePlugins: await readTemplatePlugins(t.folder) });
@@ -186,7 +287,8 @@ export async function createProject({ name, template = "FirstPerson", id, descri
     id: id || randomUUID(),
     name: projectName,
     template,
-    map: t.map,
+    variant: variant ?? null,
+    map,
     projectDir,
     uproject,
     createdAt: new Date().toISOString(),

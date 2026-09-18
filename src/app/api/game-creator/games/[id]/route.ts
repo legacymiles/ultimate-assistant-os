@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
-import { getGame, remove, retry } from "@/lib/game-creator/store";
+import { getGame, message, remove, retry } from "@/lib/game-creator/store";
+import { MAX_MESSAGE_CHARS } from "@/lib/game-creator/types";
 import { notFound, sessionUid, storageFailed } from "@/lib/game-creator/http";
 
 // GET    /api/game-creator/games/:id — one game with its log, design and shots.
 // POST   /api/game-creator/games/:id { action: "retry" } — requeue a failed game.
+// POST   /api/game-creator/games/:id { action: "message", text } — write to the agent:
+//        handed to the running build, or starts a follow-up build of a finished game.
 // DELETE /api/game-creator/games/:id — remove the record and its screenshots.
 //        The Unreal project on the PC is never touched from the website.
 
@@ -19,9 +22,20 @@ export async function GET(_req: Request, ctx: Ctx) {
 
 export async function POST(req: Request, ctx: Ctx) {
   const { id } = await ctx.params;
-  const body = (await req.json().catch(() => ({}))) as { action?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { action?: unknown; text?: unknown };
+  const uid = await sessionUid();
+  if (body.action === "message") {
+    const text = typeof body.text === "string" ? body.text.trim() : "";
+    if (!text) return NextResponse.json({ error: "Write a message first." }, { status: 400 });
+    if (text.length > MAX_MESSAGE_CHARS) {
+      return NextResponse.json({ error: `Keep messages under ${MAX_MESSAGE_CHARS} characters.` }, { status: 400 });
+    }
+    if (!(await getGame(uid, id))) return notFound();
+    const game = await message(uid, id, text);
+    return game ? NextResponse.json({ game }) : storageFailed();
+  }
   if (body.action !== "retry") return NextResponse.json({ error: "Unknown action" }, { status: 400 });
-  const game = await retry(await sessionUid(), id);
+  const game = await retry(uid, id);
   return game ? NextResponse.json({ game }) : notFound();
 }
 

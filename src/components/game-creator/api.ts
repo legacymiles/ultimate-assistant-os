@@ -1,8 +1,11 @@
-import type { Game, TemplateId } from "@/lib/game-creator/types";
+import type { BuildSkill, Game, TemplateId } from "@/lib/game-creator/types";
 
 export interface BuilderInfo {
   linked: boolean;
   lastSeen: string | null;
+  /** Game-building skills the PC reported; the game is built with exactly one. */
+  skills?: BuildSkill[];
+  defaultSkill?: string | null;
 }
 
 async function json<T>(res: Response): Promise<T> {
@@ -19,11 +22,21 @@ export async function fetchGame(id: string): Promise<Game> {
   return (await json<{ game: Game }>(await fetch(`/api/game-creator/games/${encodeURIComponent(id)}`, { cache: "no-store" }))).game;
 }
 
-export async function createGame(prompt: string, template: TemplateId): Promise<Game> {
+export async function createGame(prompt: string, template: TemplateId, skill?: string | null): Promise<Game> {
   const res = await fetch("/api/game-creator/games", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, template }),
+    body: JSON.stringify({ prompt, template, ...(skill ? { skill } : {}) }),
+  });
+  return (await json<{ game: Game }>(res)).game;
+}
+
+/** Write to the agent: goes to the running build, or starts a follow-up build of a finished game. */
+export async function sendMessage(id: string, text: string): Promise<Game> {
+  const res = await fetch(`/api/game-creator/games/${encodeURIComponent(id)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "message", text }),
   });
   return (await json<{ game: Game }>(res)).game;
 }

@@ -64,6 +64,33 @@ export interface GameCut {
   reason: string;
 }
 
+/**
+ * A message the owner typed on the game page. The builder hands pending ones to
+ * the running Claude session (or starts a follow-up session for a finished
+ * game); Claude's answers show up as its narration in the build log.
+ */
+export interface GameMessage {
+  id: string;
+  text: string;
+  at: string;
+  /** pending = not yet handed to Claude; delivered = Claude has it. */
+  state: "pending" | "delivered";
+  deliveredAt?: string;
+}
+
+/** A game-building skill the owner's PC offers (from its skills folder). */
+export interface BuildSkill {
+  name: string;
+  description?: string;
+}
+
+export interface BuilderSkills {
+  skills: BuildSkill[];
+  /** Always one of `skills` when the list is not empty. */
+  defaultSkill: string | null;
+  at: string;
+}
+
 export interface GamePaths {
   uproject?: string;
   projectDir?: string;
@@ -88,6 +115,16 @@ export interface Game {
   ownerId: string;
   prompt: string;
   template: TemplateId;
+  /** The one game-building skill this game is built with. */
+  skill?: string;
+  /** Claude confirmed loading `skill` (seen in its tool calls). */
+  skillUsed?: boolean;
+  /** Claude Code session id, so follow-up messages continue the same session. */
+  sessionId?: string;
+  /** Owner's messages to the agent, oldest first. */
+  messages?: GameMessage[];
+  /** Queued again because the owner asked for changes to a finished game. */
+  followUp?: boolean;
   createdAt: string;
   updatedAt: string;
   status: GameStatus;
@@ -117,8 +154,17 @@ export interface ProgressUpdate {
   design?: string;
   manifest?: GameManifest;
   paths?: GamePaths;
+  sessionId?: string;
+  skillUsed?: boolean;
 }
 
 export const MAX_LOG_LINES = 500;
 export const MAX_SCREENSHOTS = 24;
 export const MAX_PROMPT_CHARS = 4000;
+export const MAX_MESSAGE_CHARS = 2000;
+export const MAX_MESSAGES = 200;
+
+/** Skill names are folder names: letters, digits, dashes, underscores, colons. */
+export function isSkillName(value: unknown): value is string {
+  return typeof value === "string" && /^[A-Za-z0-9][\w:.-]{0,79}$/.test(value);
+}

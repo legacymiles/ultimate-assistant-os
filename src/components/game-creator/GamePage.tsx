@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { Markdown } from "../Markdown";
-import { ACTIVE_STATUSES, type Game } from "@/lib/game-creator/types";
-import { ago, deleteGame, fetchGame, retryGame, shotUrl } from "./api";
+import { ACTIVE_STATUSES, MAX_MESSAGE_CHARS, type Game } from "@/lib/game-creator/types";
+import { ago, deleteGame, fetchGame, retryGame, sendMessage, shotUrl } from "./api";
 import { StatusPill } from "./StatusPill";
 import "./game-creator.css";
 
@@ -19,7 +19,10 @@ export function GamePage({ id }: { id: string }) {
   const [game, setGame] = useState<Game | null>(null);
   const [error, setError] = useState("");
   const [shot, setShot] = useState<number | null>(null);
-  const [tab, setTab] = useState<"about" | "design" | "log">("about");
+  const [tab, setTab] = useState<"chat" | "about" | "design" | "log">("chat");
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const chatEnd = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState("");
   const logEnd = useRef<HTMLDivElement>(null);
@@ -46,7 +49,25 @@ export function GamePage({ id }: { id: string }) {
 
   useEffect(() => {
     if (tab === "log") logEnd.current?.scrollIntoView({ block: "end" });
-  }, [tab, game?.log.length]);
+    if (tab === "chat") chatEnd.current?.scrollIntoView({ block: "end" });
+  }, [tab, game?.log.length, game?.messages?.length]);
+
+  const timeline = useMemo(() => (game ? chatTimeline(game) : []), [game]);
+
+  const send = async () => {
+    const text = draft.trim();
+    if (!text) return;
+    setSending(true);
+    try {
+      setGame(await sendMessage(id, text));
+      setDraft("");
+      setError("");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSending(false);
+    }
+  };
 
   // Keyboard navigation in the screenshot viewer.
   useEffect(() => {
@@ -164,7 +185,7 @@ export function GamePage({ id }: { id: string }) {
             )}
 
             <div className="flex gap-1.5 border-b border-line">
-              {(["about", "design", "log"] as const).map((t) => (
+              {(["chat", "about", "design", "log"] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -173,10 +194,85 @@ export function GamePage({ id }: { id: string }) {
                     tab === t ? "border-brand text-ink" : "border-transparent text-ink-muted hover:text-ink"
                   }`}
                 >
-                  {t === "log" ? `Build log (${game.log.length})` : t}
+                  {t === "log" ? `Build log (${game.log.length})` : t === "chat" ? "Chat with the agent" : t}
                 </button>
               ))}
             </div>
+
+            {tab === "chat" && (
+              <div className="flex flex-col gap-3">
+                <div className="max-h-[520px] overflow-y-auto rounded-2xl border border-line bg-canvas p-3">
+                  {timeline.length === 0 ? (
+                    <p className="text-sm text-ink-faint">
+                      The agent&apos;s updates appear here once your PC starts building. You can write to it any time.
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {timeline.map((item) =>
+                        item.kind === "user" ? (
+                          <div key={item.key} className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-brand/20 px-3 py-2">
+                            <p className="whitespace-pre-wrap text-sm text-ink">{item.text}</p>
+                            <p className="mt-0.5 text-right text-[10px] text-ink-faint">
+                              {new Date(item.t).toLocaleTimeString()} ·{" "}
+                              {item.state === "delivered" ? "the agent has it" : "waiting for your PC"}
+                            </p>
+                          </div>
+                        ) : (
+                          <div
+                            key={item.key}
+                            className="mr-auto max-w-[85%] rounded-2xl rounded-bl-md border border-line bg-panel px-3 py-2"
+                          >
+                            <p className="whitespace-pre-wrap text-sm text-ink-muted">{item.text}</p>
+                            <p className="mt-0.5 text-[10px] text-ink-faint">{new Date(item.t).toLocaleTimeString()}</p>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  )}
+                  <div ref={chatEnd} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="gc-chat" className="sr-only">
+                    Message to the agent
+                  </label>
+                  <textarea
+                    id="gc-chat"
+                    value={draft}
+                    maxLength={MAX_MESSAGE_CHARS}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        void send();
+                      }
+                    }}
+                    rows={2}
+                    placeholder={
+                      active
+                        ? "Tell the agent something — it reads it between steps"
+                        : "Ask for changes — e.g. make the zombies faster, add fog"
+                    }
+                    className="w-full resize-y rounded-2xl border border-line bg-canvas px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-brand/60 focus:ring-2 focus:ring-brand/20"
+                  />
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void send()}
+                      disabled={sending || !draft.trim()}
+                      className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+                    >
+                      {sending ? "Sending…" : active ? "Send" : "Send and rebuild"}
+                    </button>
+                    <span className="text-[11px] text-ink-faint">
+                      {active
+                        ? "Enter sends · Shift+Enter for a new line"
+                        : "Your PC continues the same session on this project and updates the game."}
+                    </span>
+                  </div>
+                  {error && <p className="text-xs text-red-400">{error}</p>}
+                </div>
+              </div>
+            )}
 
             {tab === "about" && (
               <div className="flex flex-col gap-5">
@@ -239,6 +335,13 @@ export function GamePage({ id }: { id: string }) {
                 {[game.genre, game.template !== "Auto" ? game.template : null].filter(Boolean).join(" · ") || "Genre pending"} ·
                 queued {ago(game.createdAt)}
               </p>
+              {game.skill && (
+                <p className="mt-1 text-[11px] text-ink-faint">
+                  Skill <code className="text-ink-muted">{game.skill}</code>
+                  {game.skillUsed === true && <span className="text-emerald-400"> · loaded</span>}
+                  {game.skillUsed === false && <span className="text-amber-400"> · not confirmed</span>}
+                </p>
+              )}
 
               {game.status === "ready" ? (
                 <div className="mt-4 grid gap-2">
@@ -346,6 +449,25 @@ export function GamePage({ id }: { id: string }) {
       )}
     </div>
   );
+}
+
+type ChatItem =
+  | { kind: "user"; key: string; t: string; text: string; state: "pending" | "delivered" }
+  | { kind: "agent"; key: string; t: string; text: string };
+
+// Log lines that are the builder's own bookkeeping or a tool call, not the agent talking.
+const NOT_SPEECH = /^(→|stderr:|Project created:|Claude finished\.|Skill loaded:|Skill check:|Message from you)/;
+
+/** The owner's messages interleaved with what the agent said (its narration from the build log). */
+function chatTimeline(game: Game): ChatItem[] {
+  const items: ChatItem[] = [
+    ...(game.messages ?? []).map((m) => ({ kind: "user" as const, key: m.id, t: m.at, text: m.text, state: m.state })),
+    ...game.log
+      .map((l, i) => ({ l, i }))
+      .filter(({ l }) => !NOT_SPEECH.test(l.line))
+      .map(({ l, i }) => ({ kind: "agent" as const, key: `log-${i}`, t: l.t, text: l.line })),
+  ];
+  return items.sort((a, b) => a.t.localeCompare(b.t));
 }
 
 function List({ title, items }: { title: string; items: string[] }) {

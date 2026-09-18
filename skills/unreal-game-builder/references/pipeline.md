@@ -29,11 +29,22 @@ template. Scope honestly — about six Blueprints on top of the template.
 ## 2. Project
 
 ```
-unreal_new_project {name, template, id?}          -> {id, projectDir, uproject, map, contentPacks}
-write <projectDir>/GameCreator/status.json        {"stage":"project","note":"Opening the editor"}
+unreal_new_project {name, template, variant?, id?} -> {id, projectDir, uproject, map, contentPacks}
+write <projectDir>/GameCreator/status.json        {"stage":"project","note":"Creating the project"}
 write <projectDir>/GameCreator/Design.md
+```
+
+## 2b. Assets (realistic games — references/realism.md)
+
+```
+status.json {"stage":"assets","note":"Importing real models and surfaces"}
+unreal_find_assets {type:"models", query}          confirm ids
+unreal_find_assets {type:"textures", query}
+unreal_add_assets {id, models:[...], surfaces:[...]}   ONE call, editor closed; ~30 s + downloads
 unreal_open_project {id}                           first launch takes minutes (shaders)
 ```
+
+Adding more later works the same way, but it closes the editor: save first, reopen after.
 
 ## 3. Build (repeat per feature)
 
@@ -64,17 +75,23 @@ Update text from gameplay events.
 status.json {"stage":"testing","note":"Playtesting"}
 APP.StartPIE {options:{bSimulate:false, playMode:"PlayMode_InViewPort", warmupSeconds:3}}
 LOGS.GetLogEntries {category:"", pattern:"Error|Warning|<checkpoint text>", maxEntries:50}
-unreal_screenshot {name:"02-gameplay", caption:"...", view:"player"}
 APP.StopPIE {}
+ASSET.save_assets {asset_paths:[]}
+unreal_game_shot {name:"01-spawn", caption:"...", seconds:8}       the REAL game view
+unreal_game_shot {name:"02-combat", caption:"...", seconds:30}     enemies closed in
 ```
+
+`unreal_game_shot` launches the project in -game mode (the saved state) and the engine screenshots
+its own window: weapon, arms, HUD, post-process, no editor icons. Read the PNG back and judge it
+honestly before moving on. It works with the editor still open.
 
 `StartPIE` returns within seconds when every Blueprint compiles. If it hangs, a Blueprint has
 compile errors and the editor is showing a modal dialog. Run
 `unreal_editor_log {grep:"LogBlueprint: Error"}`, then `unreal_close_editor`, fix, and reopen.
 
-Editor-view shots: `APP.SetCameraTransform {transform}`, then `unreal_screenshot {name, view:"editor"}`.
-Editor billboard icons (lights, player start) appear in editor-view shots, so frame away from them
-or prefer player-view shots. For third-person and vehicle games pass `thirdPersonDistance` (for
+Editor-view shots (wide level overviews only): `APP.SetCameraTransform {transform}`, then
+`unreal_screenshot {name, view:"editor"}`. Editor billboard icons (lights, player start) appear in
+them and there is no weapon or HUD, so they never stand in for gameplay. For third-person and vehicle games pass `thirdPersonDistance` (for
 example 450).
 
 ## 5. Package
@@ -82,6 +99,7 @@ example 450).
 ```
 status.json {"stage":"packaging","note":"Packaging the Windows build"}
 unreal_package {id}          saves and closes the editor; several minutes
+unreal_game_shot {id, name:"03-packaged", seconds:10, packaged:true}
 ```
 
 ## 6. Report

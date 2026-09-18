@@ -9,11 +9,12 @@ import { parseLink } from "../open.mjs";
 
 test("buildPrompt names the skill, the id and the chosen template", () => {
   const p = buildPrompt({ id: "abc-123", prompt: "A coin rush", template: "ThirdPerson" });
-  assert.match(p, /unreal-game-builder/);
+  assert.match(p, /skill "unreal-game-builder"/);
   assert.match(p, /abc-123/);
   assert.match(p, /ThirdPerson/);
   assert.match(p, /A coin rush/);
   assert.match(buildPrompt({ id: "x", prompt: "y", template: "Auto" }), /choose the one that fits/);
+  assert.match(p, /gauntlet-loop skill/);
 });
 
 test("tool uses become short readable lines", () => {

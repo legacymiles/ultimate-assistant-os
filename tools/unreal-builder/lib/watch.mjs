@@ -13,6 +13,7 @@ const STAGE_TO_STATUS = {
   design: "designing",
   designing: "designing",
   project: "building",
+  assets: "building",
   build: "building",
   building: "building",
   test: "testing",
@@ -43,9 +44,12 @@ export async function projectForGame(projectsRoot, gameId) {
 
 /**
  * Poll the project folder and call back with only what changed since last time.
+ * With `ignoreExisting` (follow-up builds of a finished game) whatever is
+ * already in the folder — the old game.json, status and screenshots — counts as
+ * seen, so only what the follow-up writes is reported.
  * Returns a stop() function.
  */
-export function watchGame({ projectsRoot, gameId, intervalMs = 3000, onChange }) {
+export function watchGame({ projectsRoot, gameId, intervalMs = 3000, onChange, ignoreExisting = false }) {
   let project = null;
   let lastStatus = "";
   let lastDesign = "";
@@ -53,6 +57,23 @@ export function watchGame({ projectsRoot, gameId, intervalMs = 3000, onChange })
   const seenShots = new Set();
   let stopped = false;
   let running = false;
+  let baselined = !ignoreExisting;
+
+  const baseline = async (dir) => {
+    lastStatus = JSON.stringify(await readJson(path.join(dir, "status.json")));
+    try {
+      lastDesign = await fs.readFile(path.join(dir, "Design.md"), "utf8");
+    } catch {
+      /* none */
+    }
+    lastManifest = JSON.stringify(await readJson(path.join(dir, "game.json")));
+    try {
+      for (const n of await fs.readdir(path.join(dir, "shots"))) seenShots.add(n);
+    } catch {
+      /* none */
+    }
+    baselined = true;
+  };
 
   const tick = async () => {
     if (stopped || running) return;
@@ -64,6 +85,10 @@ export function watchGame({ projectsRoot, gameId, intervalMs = 3000, onChange })
       }
       if (!project) return;
       const dir = path.join(project.projectDir, "GameCreator");
+      if (!baselined) {
+        await baseline(dir);
+        return;
+      }
 
       const status = await readJson(path.join(dir, "status.json"));
       const statusKey = JSON.stringify(status);

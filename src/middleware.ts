@@ -34,6 +34,7 @@ const TOKEN_AUTH_PATHS = new Set([
   "/api/game-creator/builder/progress",
   "/api/game-creator/builder/screenshot",
   "/api/game-creator/builder/fail",
+  "/api/game-creator/builder/messages",
   "/api/studio3d/builder/claim",
   "/api/studio3d/builder/progress",
   "/api/studio3d/builder/media",

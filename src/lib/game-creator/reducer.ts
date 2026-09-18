@@ -4,8 +4,13 @@
 
 import {
   MAX_LOG_LINES,
+  MAX_MESSAGES,
   MAX_SCREENSHOTS,
+  isSkillName,
+  type BuildSkill,
+  type BuilderSkills,
   type Game,
+  type GameMessage,
   type GameShot,
   type ProgressUpdate,
   type TemplateId,
@@ -25,13 +30,14 @@ function update(games: Game[], id: string, fn: (g: Game) => Game): Game[] {
 
 export function addGame(
   games: Game[],
-  input: { id: string; ownerId: string; prompt: string; template: TemplateId; now: string },
+  input: { id: string; ownerId: string; prompt: string; template: TemplateId; skill?: string; now: string },
 ): Game[] {
   const game: Game = {
     id: input.id,
     ownerId: input.ownerId,
     prompt: input.prompt.trim(),
     template: input.template,
+    ...(input.skill ? { skill: input.skill } : {}),
     createdAt: input.now,
     updatedAt: input.now,
     status: "queued",
@@ -66,8 +72,13 @@ export function applyProgress(games: Game[], id: string, u: ProgressUpdate, now:
     // still shutting down are welcome; a late "building" is not.
     if (u.status && !FINISHED.has(g.status)) {
       next.status = u.status;
-      if (u.status === "ready" || u.status === "failed") next.finishedAt = now;
+      if (u.status === "ready" || u.status === "failed") {
+        next.finishedAt = now;
+        next.followUp = false;
+      }
     }
+    if (u.sessionId) next.sessionId = u.sessionId;
+    if (u.skillUsed !== undefined) next.skillUsed = u.skillUsed;
     if (u.note !== undefined) next.note = u.note;
     if (u.design !== undefined) next.design = u.design;
 
@@ -101,7 +112,15 @@ export function applyProgress(games: Game[], id: string, u: ProgressUpdate, now:
 export function failGame(games: Game[], id: string, error: string, now: string): Game[] {
   // The note describes the last thing in progress ("Queued again", "Spawner");
   // once the build has stopped it would read as if it were still going.
-  return update(games, id, (g) => ({ ...g, status: "failed", error, note: "Build stopped", finishedAt: now, updatedAt: now }));
+  return update(games, id, (g) => ({
+    ...g,
+    status: "failed",
+    error,
+    note: "Build stopped",
+    followUp: false,
+    finishedAt: now,
+    updatedAt: now,
+  }));
 }
 
 /** Put a failed game back in the queue. Active or ready games are left alone. */
@@ -111,6 +130,43 @@ export function retryGame(games: Game[], id: string, now: string): Game[] {
     const { error: _e, finishedAt: _f, startedAt: _s, ...rest } = g;
     return { ...rest, status: "queued", note: "Queued again", updatedAt: now };
   });
+}
+
+/**
+ * The owner writes to the agent. While the game is being built the message
+ * waits for the builder to hand it to the running session. On a finished game
+ * it re-queues the game as a follow-up: the builder continues the same Claude
+ * session on the same project with the message as the next instruction.
+ */
+export function addMessage(games: Game[], id: string, msg: { id: string; text: string }, now: string): Game[] {
+  return update(games, id, (g) => {
+    const message: GameMessage = { id: msg.id, text: msg.text.trim(), at: now, state: "pending" };
+    const messages = [...(g.messages ?? []), message].slice(-MAX_MESSAGES);
+    if (!FINISHED.has(g.status)) return { ...g, messages, updatedAt: now };
+    const { error: _e, finishedAt: _f, ...rest } = g;
+    return {
+      ...rest,
+      messages,
+      status: "queued",
+      followUp: true,
+      note: "Queued: the changes you asked for",
+      updatedAt: now,
+    };
+  });
+}
+
+/** Hand every pending message to the builder, oldest first, marking them delivered. */
+export function takePendingMessages(games: Game[], id: string, now: string): { games: Game[]; messages: GameMessage[] } {
+  let taken: GameMessage[] = [];
+  const next = update(games, id, (g) => {
+    taken = (g.messages ?? []).filter((m) => m.state === "pending");
+    if (!taken.length) return g;
+    const messages = (g.messages ?? []).map((m) =>
+      m.state === "pending" ? { ...m, state: "delivered" as const, deliveredAt: now } : m,
+    );
+    return { ...g, messages, updatedAt: now };
+  });
+  return { games: next, messages: taken };
 }
 
 export function removeGame(games: Game[], id: string): Game[] {
@@ -128,4 +184,25 @@ export function addScreenshot(
     const screenshots = [...g.screenshots, { ...shot, at: now }].slice(-MAX_SCREENSHOTS);
     return { ...g, screenshots, updatedAt: now };
   });
+}
+
+/**
+ * Clean up what a builder reports: unique valid names, and a default that is
+ * always one of them (the reported default, else the first).
+ */
+export function normaliseSkills(input: unknown, now: string): BuilderSkills | null {
+  const raw = (input ?? {}) as { skills?: unknown; defaultSkill?: unknown };
+  if (!Array.isArray(raw.skills)) return null;
+  const seen = new Set<string>();
+  const skills: BuildSkill[] = [];
+  for (const item of raw.skills.slice(0, 50)) {
+    const name = typeof item === "string" ? item : (item as { name?: unknown })?.name;
+    if (typeof name !== "string" || !isSkillName(name) || seen.has(name)) continue;
+    seen.add(name);
+    const description = (item as { description?: unknown })?.description;
+    skills.push({ name, ...(typeof description === "string" ? { description: description.slice(0, 300) } : {}) });
+  }
+  const wanted = typeof raw.defaultSkill === "string" ? raw.defaultSkill : "";
+  const defaultSkill = skills.some((x) => x.name === wanted) ? wanted : (skills[0]?.name ?? null);
+  return { skills, defaultSkill, at: now };
 }

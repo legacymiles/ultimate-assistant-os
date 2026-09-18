@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   addGame,
+  addMessage,
   addScreenshot,
   applyProgress,
   claimNext,
   failGame,
+  normaliseSkills,
   removeGame,
   retryGame,
+  takePendingMessages,
 } from "./reducer";
 import { MAX_LOG_LINES, MAX_SCREENSHOTS, type Game } from "./types";
 
@@ -147,5 +150,68 @@ describe("addScreenshot", () => {
       games = addScreenshot(games, "old", { key: `k${i}`, file: `f${i}.png` }, T2);
     }
     expect(games.find((g) => g.id === "old")!.screenshots).toHaveLength(MAX_SCREENSHOTS);
+  });
+});
+
+describe("messages to the agent", () => {
+  it("waits for the running build without changing its status", () => {
+    let games = claimNext(seed(), T1).games;
+    games = addMessage(games, "old", { id: "m1", text: "  make it night  " }, T2);
+    const g = games.find((x) => x.id === "old")!;
+    expect(g.status).toBe("designing");
+    expect(g.followUp).toBeFalsy();
+    expect(g.messages).toEqual([{ id: "m1", text: "make it night", at: T2, state: "pending" }]);
+  });
+
+  it("re-queues a finished game as a follow-up and clears the old outcome", () => {
+    let games = failGame(seed(), "new", "boom", T1);
+    games = addMessage(games, "new", { id: "m1", text: "try again with fog" }, T2);
+    const g = games.find((x) => x.id === "new")!;
+    expect(g).toMatchObject({ status: "queued", followUp: true });
+    expect(g.error).toBeUndefined();
+    expect(g.finishedAt).toBeUndefined();
+  });
+
+  it("hands pending messages over once, oldest first", () => {
+    let games = seed();
+    games = addMessage(games, "new", { id: "a", text: "one" }, T1);
+    games = addMessage(games, "new", { id: "b", text: "two" }, T2);
+    const first = takePendingMessages(games, "new", T2);
+    expect(first.messages.map((m) => m.id)).toEqual(["a", "b"]);
+    const second = takePendingMessages(first.games, "new", T2);
+    expect(second.messages).toEqual([]);
+    expect(second.games.find((g) => g.id === "new")!.messages!.every((m) => m.state === "delivered")).toBe(true);
+  });
+
+  it("clears the follow-up flag when the follow-up build finishes", () => {
+    let games = applyProgress(seed(), "new", { status: "ready" }, T1);
+    games = addMessage(games, "new", { id: "m", text: "faster zombies" }, T1);
+    games = claimNext(games, T2).games;
+    games = applyProgress(games, "new", { status: "ready", sessionId: "abc12345-x", skillUsed: true }, T2);
+    expect(games.find((g) => g.id === "new")).toMatchObject({ status: "ready", followUp: false, sessionId: "abc12345-x", skillUsed: true });
+  });
+});
+
+describe("normaliseSkills", () => {
+  it("keeps valid unique names and a default that is one of them", () => {
+    const s = normaliseSkills(
+      { skills: [{ name: "unreal-game-builder", description: "d" }, "godot-builder", { name: "bad name!" }, "godot-builder"], defaultSkill: "godot-builder" },
+      T0,
+    )!;
+    expect(s.skills.map((x) => x.name)).toEqual(["unreal-game-builder", "godot-builder"]);
+    expect(s.defaultSkill).toBe("godot-builder");
+  });
+
+  it("falls back to the first skill when the default is unknown, and null when none", () => {
+    expect(normaliseSkills({ skills: ["a-skill"], defaultSkill: "nope" }, T0)!.defaultSkill).toBe("a-skill");
+    expect(normaliseSkills({ skills: [] }, T0)!.defaultSkill).toBeNull();
+    expect(normaliseSkills(null, T0)).toBeNull();
+  });
+});
+
+describe("addGame skill", () => {
+  it("records the chosen skill", () => {
+    const games = addGame([], { id: "x", ownerId: "u", prompt: "zombie shooter", template: "Auto", skill: "unreal-game-builder", now: T0 });
+    expect(games[0].skill).toBe("unreal-game-builder");
   });
 });

@@ -39,8 +39,14 @@ export function config() {
     hubUrl,
     token,
     model: process.env.BUILDER_MODEL || "",
+    // Where game-building skills live, and which one is the default when several are.
+    skillDirs: (process.env.BUILDER_SKILL_DIRS || path.join(process.env.USERPROFILE || process.env.HOME || ".", ".claude", "skills"))
+      .split(";")
+      .filter(Boolean),
+    defaultSkill: process.env.BUILDER_DEFAULT_SKILL || "",
+    messagePollMs: Number(process.env.BUILDER_MESSAGE_POLL_MS || 5000),
     pollMs: Number(process.env.BUILDER_POLL_MS || 15000),
-    maxMinutes: Number(process.env.BUILDER_MAX_MINUTES || 90),
+    maxMinutes: Number(process.env.BUILDER_MAX_MINUTES || 240),
     projectsRoot:
       process.env.GC_PROJECTS_ROOT ||
       path.join(process.env.USERPROFILE || process.env.HOME || ".", "Documents", "Unreal Projects"),

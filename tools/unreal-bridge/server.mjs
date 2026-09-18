@@ -23,6 +23,8 @@ import * as registry from "./lib/registry.mjs";
 import * as editor from "./lib/editor.mjs";
 import { EpicClient, resultText } from "./lib/epic.mjs";
 import { packageGame } from "./lib/package.mjs";
+import { addAssets, searchAssets } from "./lib/assets.mjs";
+import { gameShot } from "./lib/gameshot.mjs";
 
 const PORT = Number(process.env.UNREAL_MCP_PORT || DEFAULT_PORT);
 
@@ -114,6 +116,14 @@ const BRIDGE_TOOLS = [
       properties: {
         name: { type: "string", description: "Game name; becomes the project folder name (letters and digits only, max 20)." },
         template: { type: "string", enum: TEMPLATE_IDS, default: "FirstPerson" },
+        variant: {
+          type: "string",
+          description:
+            "Optional template variant. FirstPerson: " +
+            Object.entries(TEMPLATES.FirstPerson.variants)
+              .map(([k, v]) => `${k} (${v.blurb})`)
+              .join("; "),
+        },
         id: { type: "string", description: "Optional game id to register the project under (the Game Creator app passes its own)." },
         description: { type: "string" },
       },
@@ -179,6 +189,53 @@ const BRIDGE_TOOLS = [
     },
   },
   {
+    name: "unreal_game_shot",
+    description:
+      "Screenshot the REAL game as a player sees it — first-person arms and weapon, HUD, post-process, no editor icons — by launching the game and letting it capture its own window after `seconds` of play. Use this for every gameplay/HUD screenshot and for all quality critique; unreal_screenshot only shows the editor viewport. Unpackaged mode runs the project in -game mode and shows the last SAVED state, so save_assets first. Takes 30-90 s. Close no editor for this.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "File name without extension, e.g. '02-combat'." },
+        caption: { type: "string" },
+        seconds: { type: "number", default: 10, description: "Seconds of play before the shot. Later = enemies have closed in." },
+        packaged: { type: "boolean", default: false, description: "Shoot the packaged exe instead of the project." },
+        id: { type: "string" },
+        uproject: { type: "string" },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "unreal_find_assets",
+    description:
+      "Search Poly Haven (polyhaven.com, all CC0, photoscanned PBR) for real-looking models (type 'models': buildings/facades, barriers, cars, barrels, street lamps, props, firearms, furniture, rocks, trees) or tiling surfaces (type 'textures': asphalt, brick, concrete, plaster, metal, wood, ground, rock). Every query word must match. Returns ids for unreal_add_assets.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        type: { type: "string", enum: ["models", "textures"] },
+        query: { type: "string", description: "e.g. 'barrier', 'brick wall dirty', 'car'." },
+        limit: { type: "number", default: 25 },
+      },
+      required: ["type"],
+    },
+  },
+  {
+    name: "unreal_add_assets",
+    description:
+      "Download Poly Haven models and surfaces and import them into the project under /Game/PolyHaven: models as static meshes with their PBR materials and collision; surfaces as MI_<id> material instances of M_PH_Surface (parameters: Tiling scalar, Tint colour). CLOSES the editor if it is open (the import runs as a commandlet), so reopen with unreal_open_project afterwards. Batch everything the level needs into ONE call. About 30 s plus downloads.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        models: { type: "array", items: { type: "string" }, description: "Poly Haven model ids." },
+        surfaces: { type: "array", items: { type: "string" }, description: "Poly Haven texture ids." },
+        modelResolution: { type: "string", enum: ["1k", "2k", "4k"], default: "1k" },
+        surfaceResolution: { type: "string", enum: ["1k", "2k", "4k"], default: "2k" },
+        id: { type: "string" },
+        uproject: { type: "string" },
+      },
+    },
+  },
+  {
     name: "unreal_package",
     description:
       "Save and close the editor, then package the project as a standalone Windows game into <project>/Packaged. Takes several minutes. Returns the .exe path, or the errors from the build log.",
@@ -233,6 +290,7 @@ const handlers = {
     const entry = await createProject({
       name: args.name,
       template: args.template ?? "FirstPerson",
+      variant: args.variant || undefined,
       id: args.id,
       description: args.description ?? "",
     });
@@ -340,6 +398,33 @@ const handlers = {
       await fs.writeFile(capFile, JSON.stringify(caps, null, 2), "utf8");
     }
     return text({ saved: file, caption: args.caption ?? null });
+  },
+
+  async unreal_game_shot(args) {
+    const project = await resolveProject(args);
+    return text(await gameShot(project, { name: args.name, caption: args.caption, seconds: args.seconds ?? 10, packaged: Boolean(args.packaged) }));
+  },
+
+  async unreal_find_assets(args) {
+    return text(await searchAssets({ type: args.type, query: args.query ?? "", limit: args.limit ?? 25 }));
+  },
+
+  async unreal_add_assets(args) {
+    const project = await resolveProject(args);
+    const s = await editor.status();
+    let closedEditor = false;
+    if (s.running) {
+      await editor.close();
+      dropEpic();
+      closedEditor = true;
+    }
+    const result = await addAssets(project, {
+      models: args.models ?? [],
+      surfaces: args.surfaces ?? [],
+      modelRes: args.modelResolution ?? "1k",
+      surfaceRes: args.surfaceResolution ?? "2k",
+    });
+    return text({ ...result, closedEditor, next: "Reopen the project with unreal_open_project, then place the meshes / apply the MI_ materials." });
   },
 
   async unreal_package(args) {

@@ -10,6 +10,9 @@ description: >-
   it to extend or fix a game project this pipeline already created. Requires the `unreal` MCP
   server (tools named unreal_*); if those tools are missing, tell the user the bridge is not
   connected instead of improvising.
+metadata:
+  game-creator: true
+  game-creator-default: true
 ---
 
 # Unreal Game Builder
@@ -23,7 +26,9 @@ gives you two kinds of tools:
 
 Read `references/pipeline.md` before starting — it has the exact tool sequence. Read
 `references/blueprint-dsl.md` before writing any Blueprint logic. Read
-`references/gameplay-patterns.md` when building a mechanic it covers.
+`references/gameplay-patterns.md` when building a mechanic it covers. Read
+`references/realism.md` for EVERY game whose prompt wants it to look real, gritty, AAA, or like a
+named real game (Call of Duty, Battlefield, Resident Evil, ...) — and for every shooter.
 
 ## Stages
 
@@ -33,18 +38,25 @@ watches that file to show live progress; before the project exists, keep the not
 
 1. **design** — Turn the prompt into a one-page design (title, pitch, core loop, controls,
    win/lose, 3–6 features you will actually build, template). Pick the template whose character and
-   camera already match (see `references/templates.md`). Keep scope to what the template plus about
-   six Blueprints can express; say what you are leaving out.
-2. **project** — `unreal_new_project` (pass the Game Creator `id` if you were given one), write
-   `GameCreator/Design.md`, then `unreal_open_project`. First launch compiles shaders: be patient.
-3. **build** — Build each feature with Epic's tools. Blueprints via the DSL, actors placed into the
+   camera already match (see `references/templates.md`), plus the template VARIANT (shooters:
+   `FirstPerson` + `ArenaShooter`). Keep scope to what the template plus about six Blueprints can
+   express; say what you are leaving out. List the Poly Haven models and surfaces the level needs.
+2. **project** — `unreal_new_project` (pass the Game Creator `id` if you were given one, and the
+   variant), write `GameCreator/Design.md`.
+3. **assets** — `unreal_find_assets` to confirm ids, then ONE `unreal_add_assets` call with every
+   model and surface (see `references/realism.md`). Then `unreal_open_project`. First launch
+   compiles shaders: be patient.
+4. **build** — Replace the grey box first (real materials, Poly Haven meshes, lighting, fog,
+   post-process — `references/realism.md`), then build each feature with Epic's tools. Blueprints via the DSL, actors placed into the
    template level, HUD with UMG. Compile after each Blueprint; fix every compile error before moving
    on. Save with `AssetTools.save_assets {asset_paths: []}` after each feature.
-4. **test** — `EditorAppToolset.StartPIE`, let it run, read `LogsToolset.GetLogEntries` for errors
-   and your PrintString checkpoints, take gameplay screenshots with `unreal_screenshot view:"player"`,
-   `EditorAppToolset.StopPIE`. Fix what broke, then test again.
-5. **package** — `unreal_package`. On failure read its errors, fix, package once more.
-6. **report** — Write `GameCreator/game.json` (schema below) with `"stage": "ready"`, then give the
+5. **test** — `EditorAppToolset.StartPIE`, let it run, read `LogsToolset.GetLogEntries` for errors
+   and your PrintString checkpoints, `EditorAppToolset.StopPIE`. Save all assets, then take the
+   gameplay screenshots with `unreal_game_shot` (the real game: weapon, HUD, post-process). Fix
+   what broke, then test again.
+6. **package** — `unreal_package`. On failure read its errors, fix, package once more. Then one
+   `unreal_game_shot {packaged:true}` to prove the exe looks like the editor build.
+7. **report** — Write `GameCreator/game.json` (schema below) with `"stage": "ready"`, then give the
    user a short summary: what the game is, controls, what was cut, and the exe path.
 
 ## Rules
@@ -63,8 +75,11 @@ watches that file to show live progress; before the project exists, keep the not
 - Every feature in the design ends up either built or listed in `cut` with a reason.
 - Epic's script tool (`ProgrammaticToolset.execute_tool_script`) is sandboxed: it can batch tool
   calls, but cannot import `unreal`. Use it to cut round-trips, not to reach the engine API.
-- Screenshots: at least three — a wide shot of the level, one or more in-game `view:"player"` shots
-  showing the core mechanic, and the HUD. Give each a caption.
+- Screenshots: at least three `unreal_game_shot` images (spawn view ~8 s, combat ~25-40 s, one
+  more) plus optionally one wide editor overview with `unreal_screenshot`. Never present an editor
+  viewport shot as gameplay: it has light-bulb icons and no weapon or HUD. Give each a caption.
+- Status stages written to status.json: design, project, assets, building, testing, packaging,
+  ready (or failed).
 
 ## game.json
 

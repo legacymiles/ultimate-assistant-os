@@ -11,6 +11,7 @@
 import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { config } from "./lib/env.mjs";
 import { projectForGame } from "./lib/watch.mjs";
 
@@ -64,7 +65,9 @@ async function main() {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"))) {
+// fileURLToPath, not URL.pathname: this folder has spaces ("claude code files"), which the
+// pathname keeps as %20, so the check never matched and every link silently did nothing.
+if (process.argv[1] && path.resolve(process.argv[1]).toLowerCase() === path.resolve(fileURLToPath(import.meta.url)).toLowerCase()) {
   main().catch((err) => {
     console.error(err.message);
     process.exit(1);

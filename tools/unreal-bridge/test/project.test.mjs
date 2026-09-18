@@ -113,3 +113,52 @@ test("createProject never overwrites an existing project folder", async () => {
 test("createProject rejects an unknown template", async () => {
   await assert.rejects(createProject({ name: "x", template: "Nope" }), /Unknown template/);
 });
+
+test("createProject with a variant copies its packs, its level's external actors, and starts on its level", async () => {
+  const engine = process.env.UE_ENGINE_DIR;
+  const defs = path.join(engine, "Templates", "TP_FirstPersonBP", "Config", "TemplateDefs.ini");
+  await fs.appendFile(
+    defs,
+    '\nVariants=(Name="ArenaShooter",SharedContentPacks=((DetailLevels=(Standard),MountName="Weapons"),(DetailLevels=(Standard),MountName="Variant_Shooter")) )\n',
+  );
+  const std = path.join(engine, "Templates", "TemplateResources", "Standard");
+  await fs.mkdir(path.join(std, "Weapons", "Content", "Rifle"), { recursive: true });
+  await fs.writeFile(path.join(std, "Weapons", "Content", "Rifle", "SK_Rifle.uasset"), "rifle");
+  await fs.mkdir(path.join(std, "Variant_Shooter", "Content"), { recursive: true });
+  await fs.writeFile(path.join(std, "Variant_Shooter", "Content", "Lvl_ArenaShooter.umap"), "map");
+  await fs.mkdir(path.join(std, "Variant_Shooter", "__ExternalActors__", "Lvl_ArenaShooter", "0"), { recursive: true });
+  await fs.writeFile(path.join(std, "Variant_Shooter", "__ExternalActors__", "Lvl_ArenaShooter", "0", "Floor.uasset"), "floor");
+  const ini = path.join(engine, "Templates", "TP_FirstPersonBP", "Config", "DefaultEngine.ini");
+  await fs.writeFile(ini, "[/Script/EngineSettings.GameMapsSettings]\nGameDefaultMap=/Game/FirstPerson/Lvl.Lvl\n");
+
+  const entry = await createProject({ name: "Arena", template: "FirstPerson", variant: "ArenaShooter", id: "g4" });
+  await fs.access(path.join(entry.projectDir, "Content", "Weapons", "Rifle", "SK_Rifle.uasset"));
+  await fs.access(path.join(entry.projectDir, "Content", "Variant_Shooter", "Lvl_ArenaShooter.umap"));
+  await fs.access(path.join(entry.projectDir, "Content", "__ExternalActors__", "Variant_Shooter", "Lvl_ArenaShooter", "0", "Floor.uasset"));
+  assert.equal(entry.map, "/Game/Variant_Shooter/Lvl_ArenaShooter");
+  const engineIni = await fs.readFile(path.join(entry.projectDir, "Config", "DefaultEngine.ini"), "utf8");
+  assert.match(engineIni, /GameDefaultMap=\/Game\/Variant_Shooter\/Lvl_ArenaShooter\.Lvl_ArenaShooter/);
+  await assert.rejects(createProject({ name: "x", template: "FirstPerson", variant: "Nope" }), /no variant/);
+});
+
+test("packFilter drops excluded folders and external actors that reference them", async () => {
+  const { packFilter } = await import("../lib/project.mjs");
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "gc-filter-"));
+  try {
+    const content = path.join(root, "Variant_Shooter", "Content");
+    const ext = path.join(root, "Variant_Shooter", "__ExternalActors__", "Lvl");
+    await fs.mkdir(path.join(content, "Blueprints", "AI"), { recursive: true });
+    await fs.mkdir(ext, { recursive: true });
+    await fs.writeFile(path.join(ext, "Spawner.uasset"), "xx/Game/Variant_Shooter/Blueprints/AI/BP_ShooterNPCSpawner.BP_ShooterNPCSpawner_Cxx");
+    await fs.writeFile(path.join(ext, "Floor.uasset"), "xx/Game/LevelPrototyping/Meshes/SM_Cube xx");
+    const keep = packFilter(content, "Variant_Shooter", ["Blueprints/AI"]);
+    assert.equal(await keep(path.join(content, "Blueprints", "AI")), false);
+    assert.equal(await keep(path.join(content, "Blueprints", "AI", "ST_Shooter.uasset")), false);
+    assert.equal(await keep(path.join(content, "Blueprints", "BP_ShooterCharacter.uasset")), true);
+    assert.equal(await keep(path.join(ext, "Spawner.uasset")), false);
+    assert.equal(await keep(path.join(ext, "Floor.uasset")), true);
+    assert.equal(packFilter(content, "Variant_Shooter", []), undefined);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});

@@ -4,7 +4,7 @@ import { builderUid, notFound, unauthorized } from "@/lib/game-creator/http";
 import type { GameCut, GameStatus, ProgressUpdate } from "@/lib/game-creator/types";
 
 // POST /api/game-creator/builder/progress
-//   { gameId, status?, note?, lines?, design?, manifest?, paths? }
+//   { gameId, status?, note?, lines?, design?, manifest?, paths?, sessionId?, skillUsed? }
 //
 // The builder streams what Claude is doing: log lines, the design document,
 // stage changes, and finally the game.json manifest. Every field is validated
@@ -63,6 +63,8 @@ export async function POST(req: Request) {
     paths: p
       ? { uproject: str(p.uproject, 500), projectDir: str(p.projectDir, 500), packagedExe: str(p.packagedExe, 500) }
       : undefined,
+    sessionId: typeof body.sessionId === "string" && /^[\w-]{8,80}$/.test(body.sessionId) ? body.sessionId : undefined,
+    skillUsed: typeof body.skillUsed === "boolean" ? body.skillUsed : undefined,
   };
   if (update.paths) {
     update.paths = Object.fromEntries(Object.entries(update.paths).filter(([, v]) => v)) as ProgressUpdate["paths"];

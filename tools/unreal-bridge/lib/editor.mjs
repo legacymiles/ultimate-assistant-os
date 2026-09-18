@@ -1,3 +1,4 @@
+import { unstickSdkChecks } from "./sdkcheck.mjs";
 import { spawn, execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -126,7 +127,12 @@ export async function launch(uproject, { port = DEFAULT_PORT } = {}) {
  */
 export async function waitReady({ port = DEFAULT_PORT, pid, uproject, timeoutMs = 20 * 60_000, onTick } = {}) {
   const start = Date.now();
+  let lastSdkSweep = 0;
   for (;;) {
+    if (Date.now() - lastSdkSweep > 30_000) {
+      lastSdkSweep = Date.now();
+      await unstickSdkChecks(); // see sdkcheck.mjs: a hung SDK check would stall start-up forever
+    }
     if (await ping(mcpUrl(port))) return { readyAfterMs: Date.now() - start };
     if (pid && !(await pidAlive(pid))) {
       await writeRecord(null);

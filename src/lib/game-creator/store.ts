@@ -5,14 +5,17 @@ import { readDoc, writeDoc } from "@/lib/server/docStore";
 import { ensureBucket, getBlob, putBlob, deleteBlob } from "@/lib/server/blobStore";
 import {
   addGame,
+  addMessage,
   addScreenshot,
   applyProgress,
+  normaliseSkills,
   claimNext,
   failGame,
   removeGame,
   retryGame,
+  takePendingMessages,
 } from "./reducer";
-import type { Game, ProgressUpdate, TemplateId } from "./types";
+import type { BuildSkill, BuilderSkills, Game, GameMessage, ProgressUpdate, TemplateId } from "./types";
 
 // ---------------------------------------------------------------------------
 // Game Creator persistence.
@@ -39,6 +42,8 @@ interface GameCreatorDoc {
   lastSeen: Record<string, string>;
   /** uid -> games, newest first. */
   games: Record<string, Game[]>;
+  /** uid -> the game-building skills that owner's PC last reported. */
+  skills: Record<string, BuilderSkills>;
 }
 
 function dataDir(): string {
@@ -47,7 +52,7 @@ function dataDir(): string {
 
 async function load(): Promise<GameCreatorDoc> {
   const doc = await readDoc<GameCreatorDoc>(DOC, dataDir());
-  return { tokens: doc?.tokens ?? {}, lastSeen: doc?.lastSeen ?? {}, games: doc?.games ?? {} };
+  return { tokens: doc?.tokens ?? {}, lastSeen: doc?.lastSeen ?? {}, games: doc?.games ?? {}, skills: doc?.skills ?? {} };
 }
 
 let chain: Promise<unknown> = Promise.resolve();
@@ -81,10 +86,19 @@ export async function mintToken(uid: string): Promise<string | null> {
   return saved ? token : null;
 }
 
-export async function builderInfo(uid: string): Promise<{ linked: boolean; lastSeen: string | null }> {
+export async function builderInfo(
+  uid: string,
+): Promise<{ linked: boolean; lastSeen: string | null; skills: BuildSkill[]; defaultSkill: string | null }> {
   const doc = await load();
-  return { linked: Boolean(doc.tokens[uid]), lastSeen: doc.lastSeen[uid] ?? null };
+  const s = doc.skills[uid];
+  return {
+    linked: Boolean(doc.tokens[uid]),
+    lastSeen: doc.lastSeen[uid] ?? null,
+    skills: s?.skills ?? [],
+    defaultSkill: s?.defaultSkill ?? null,
+  };
 }
+
 
 /** The owner a builder token belongs to, or null. Constant time per candidate. */
 export async function uidForToken(token: string): Promise<string | null> {
@@ -108,19 +122,27 @@ export async function getGame(uid: string, id: string): Promise<Game | null> {
   return (await listGames(uid)).find((g) => g.id === id) ?? null;
 }
 
-export async function createGame(uid: string, prompt: string, template: TemplateId): Promise<Game | null> {
+export async function createGame(uid: string, prompt: string, template: TemplateId, skill?: string): Promise<Game | null> {
   const id = randomUUID();
   const { value, saved } = await mutate((doc) => {
-    doc.games[uid] = addGame(doc.games[uid] ?? [], { id, ownerId: uid, prompt, template, now: now() });
+    // One skill per game: the one asked for if this PC offers it, else the PC's default.
+    const offered = doc.skills[uid];
+    const pick =
+      skill && (!offered?.skills.length || offered.skills.some((x) => x.name === skill))
+        ? skill
+        : (offered?.defaultSkill ?? undefined);
+    doc.games[uid] = addGame(doc.games[uid] ?? [], { id, ownerId: uid, prompt, template, skill: pick, now: now() });
     return doc.games[uid][0];
   });
   return saved ? value : null;
 }
 
 /** The builder asks for work: records that it is alive, and claims the oldest queued game. */
-export async function claim(uid: string): Promise<Game | null> {
+export async function claim(uid: string, reported?: unknown): Promise<Game | null> {
   const { value } = await mutate((doc) => {
     doc.lastSeen[uid] = now();
+    const skills = normaliseSkills(reported, now());
+    if (skills) doc.skills[uid] = skills;
     const { games, game } = claimNext(doc.games[uid] ?? [], now());
     doc.games[uid] = games;
     return game;
@@ -149,6 +171,25 @@ export async function retry(uid: string, id: string): Promise<Game | null> {
   const { value } = await mutate((doc) => {
     doc.games[uid] = retryGame(doc.games[uid] ?? [], id, now());
     return doc.games[uid].find((g) => g.id === id) ?? null;
+  });
+  return value;
+}
+
+export async function message(uid: string, id: string, text: string): Promise<Game | null> {
+  const { value, saved } = await mutate((doc) => {
+    doc.games[uid] = addMessage(doc.games[uid] ?? [], id, { id: randomUUID(), text }, now());
+    return doc.games[uid].find((g) => g.id === id) ?? null;
+  });
+  return saved ? value : null;
+}
+
+/** The builder collects the owner's pending messages for a game (marks them delivered). */
+export async function takeMessages(uid: string, id: string): Promise<GameMessage[]> {
+  const { value } = await mutate((doc) => {
+    doc.lastSeen[uid] = now();
+    const { games, messages } = takePendingMessages(doc.games[uid] ?? [], id, now());
+    doc.games[uid] = games;
+    return messages;
   });
   return value;
 }

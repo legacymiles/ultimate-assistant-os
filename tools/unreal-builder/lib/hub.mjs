@@ -34,10 +34,19 @@ export class HubClient {
     return data;
   }
 
-  /** The oldest queued game, or null. Also tells the site this PC is online. */
-  async claim() {
-    const data = await this.post("claim");
+  /**
+   * The oldest queued game, or null. Also tells the site this PC is online and
+   * which game-building skills it offers ({skills, defaultSkill}).
+   */
+  async claim(skills) {
+    const data = await this.post("claim", skills ?? {});
     return data?.game ?? null;
+  }
+
+  /** The owner's messages for this game that Claude has not seen yet (each returned once). */
+  async messages(gameId) {
+    const data = await this.post("messages", { gameId });
+    return data?.messages ?? [];
   }
 
   progress(gameId, update) {

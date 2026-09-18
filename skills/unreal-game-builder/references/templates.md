@@ -12,6 +12,13 @@ Blueprints fail to compile and Play-In-Editor stops on a modal dialog — the br
 | Vehicle | `/Game/VehicleTemplate/Maps/Lvl_VehicleBasic` | Chaos drivable car, track, Enhanced Input | racing, driving challenges |
 | Blank | `/Engine/Maps/Templates/OpenWorld` | nothing | only when no template fits |
 
+## Variants (`unreal_new_project {..., variant}`)
+
+| template + variant | start level | adds |
+|---|---|---|
+| FirstPerson + `ArenaShooter` | `/Game/Variant_Shooter/Lvl_ArenaShooter` | `/Game/Variant_Shooter`: `BP_ShooterCharacter` (first-person arms holding weapons, fire/reload montages, recoil), `BP_ShooterGameMode`, `BP_ShooterPlayerController`, weapons (`BP_ShooterWeapon_*`: rifle, pistol, grenade launcher), projectiles, pickups, bullet-counter HUD (`UI_Shooter`). `/Game/Weapons`: textured SK/SM rifle, pistol, grenade launcher, fire sound. Its StateTree enemy AI is deliberately left out (it cannot be packaged here) — build enemies yourself. |
+| FirstPerson + `SurvivalHorror` | `/Game/Variant_Horror/Lvl_Horror` | sprint, torch, dark map, horror HUD |
+
 Useful level-prototyping assets (FirstPerson/ThirdPerson): `/Game/LevelPrototyping/Meshes/*`
 (cubes, ramps, cylinders), `/Game/LevelPrototyping/Interactable/Target`, `/JumpPad`, `/Door`.
 Find exact asset paths with `AssetTools.find_assets {folder_path:"/Game/LevelPrototyping", name:"", asset_type:null, recursive:true, tags:null}`.

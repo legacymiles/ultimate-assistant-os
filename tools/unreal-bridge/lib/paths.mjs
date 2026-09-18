@@ -12,6 +12,11 @@ export function editorExe() {
   return path.join(engineDir(), "Engine", "Binaries", "Win64", "UnrealEditor.exe");
 }
 
+/** Console build of the editor, for commandlets (no window, output on stdout). */
+export function editorCmdExe() {
+  return path.join(engineDir(), "Engine", "Binaries", "Win64", "UnrealEditor-Cmd.exe");
+}
+
 export function runUat() {
   return path.join(engineDir(), "Engine", "Build", "BatchFiles", "RunUAT.bat");
 }
