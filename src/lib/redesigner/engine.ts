@@ -8,6 +8,8 @@
 // prompt template and shared types (same split as lib/blueprint).
 // ---------------------------------------------------------------------------
 
+import designSkills from "./design-skills.json";
+
 export interface DesignSkill {
   name: string;
   description: string;
@@ -66,30 +68,11 @@ export interface Scrape {
   confidence: "high" | "low";
 }
 
-// The roster of design skills the redesign directions can be driven by. Mirrors
-// the website-redesigner skill's roster.
-export const DEFAULT_SKILLS: DesignSkill[] = [
-  {
-    name: "interactive-web-studio",
-    description:
-      "Premium, cinematic, highly interactive sites — immersive motion, WebGL/Three.js, custom shaders, smooth scroll, scroll-driven storytelling. Best for expressive/experimental directions.",
-  },
-  {
-    name: "capcut-design",
-    description:
-      "Clean, modern product UI with an exact token system (color, type, spacing). Best for polished, consistent, restrained directions.",
-  },
-  {
-    name: "webgl-trail-reveal",
-    description:
-      "A mouse-trail image-reveal mechanic (calm ↔ dramatic). Best when the site has a strong hero image or a before/after story.",
-  },
-  {
-    name: "exploded-showcase",
-    description:
-      "Cinematic 3D product teardown / exploded hero with labeled parts. Best when the site sells a physical product, device or machine.",
-  },
-];
+// The roster of design skills the redesign directions can be driven by. Lives in
+// design-skills.json so `scripts/sync-design-skills.mjs` can append any new
+// website design skill installed in ~/.claude/skills (it runs from a hook and
+// commits + pushes the JSON on its own).
+export const DEFAULT_SKILLS: DesignSkill[] = designSkills;
 
 // ----- Scrape ----------------------------------------------------------------
 

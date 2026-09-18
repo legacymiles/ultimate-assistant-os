@@ -1,0 +1,22 @@
+[
+  {
+    "name": "interactive-web-studio",
+    "description": "Premium, cinematic, highly interactive sites — immersive motion, WebGL/Three.js, custom shaders, smooth scroll, scroll-driven storytelling. Best for expressive/experimental directions."
+  },
+  {
+    "name": "capcut-design",
+    "description": "Clean, modern product UI with an exact token system (color, type, spacing). Best for polished, consistent, restrained directions."
+  },
+  {
+    "name": "webgl-trail-reveal",
+    "description": "A mouse-trail image-reveal mechanic (calm ↔ dramatic). Best when the site has a strong hero image or a before/after story."
+  },
+  {
+    "name": "exploded-showcase",
+    "description": "Cinematic 3D product teardown / exploded hero with labeled parts. Best when the site sells a physical product, device or machine."
+  },
+  {
+    "name": "scroll-craft",
+    "description": "Premium scroll-driven landing pages — layered depth heroes, scroll-as-timeline storytelling, one engineered peak, separate mobile art direction. Best for service, product, food and drink brands."
+  }
+]

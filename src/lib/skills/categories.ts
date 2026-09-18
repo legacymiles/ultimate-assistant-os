@@ -9,14 +9,12 @@
 // ---------------------------------------------------------------------------
 
 import type { Skill } from "./types";
+import designSkills from "../redesigner/design-skills.json";
 
-/** slug → category label. */
+/** slug → category label. Every Website Redesigner design skill is Web Design. */
 export const CATEGORY_BY_SLUG: Record<string, string> = {
   "github:scroll-world": "Web Design",
-  "interactive-web-studio": "Web Design",
-  "webgl-trail-reveal": "Web Design",
-  "exploded-showcase": "Web Design",
-  "capcut-design": "Web Design",
+  ...Object.fromEntries(designSkills.map((s) => [s.name, "Web Design"])),
 };
 
 /** Preferred order for the category filter chips; others sort after, A–Z. */
