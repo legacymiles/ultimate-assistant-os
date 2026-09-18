@@ -22,5 +22,9 @@
   {
     "name": "blender-to-web",
     "description": "Design and build a \"living 3D hero\" for any brand or product: a sculptural centerpiece modeled in Blender (reproducible Python, editable .blend, efficient GLB) and brought to life on a website with Three.js — idle motion, hover, click-to…"
+  },
+  {
+    "name": "real-estate-reveal",
+    "description": "Turn a property listing (photos + facts, optionally a Zillow/Redfin/MLS link) into a cinematic luxury real estate website: one continuous scroll-driven camera journey through the real home, from drone approach through the rooms to the po…"
   }
 ]
