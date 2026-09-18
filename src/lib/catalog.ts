@@ -73,6 +73,23 @@ export interface CatalogProject {
 
 export const PROJECTS: CatalogProject[] = [
   {
+    slug: "new-dashboard",
+    title: "New Dashboard",
+    tag: "Your AI Operating System, in one screen",
+    category: "AI",
+    overview:
+      "Seven quick questions turn into a personal AI Operating System dashboard, built on the AIS-OS kit's " +
+      "Four Cs: Context (who you are, your 90-day priorities, pasted voice samples), Connections (the seven " +
+      "systems your AI should reach and how each is wired), Capabilities (your skills — pulled straight from " +
+      "Claude Code), and Cadence (routines, credited only once they've actually run). Ask it what to focus on " +
+      "this week, keep an append-only decisions log, and export the exact CLAUDE.md + context files that make " +
+      "every Claude Code session know you. Onboard friends and family onto their own dashboards too.",
+    status: "live",
+    appUrl: "/apps/new-dashboard",
+    iconStyle: "rings",
+    hue: [190, 265],
+  },
+  {
     slug: "std-safe",
     title: "STD Safe",
     tag: "Provable results, honest about what they don't prove",
@@ -651,7 +668,7 @@ export function getProject(slug: string): CatalogProject | null {
  * for whoever IS signed in, put their own real data on a public-facing spinning
  * panel. Neither is wanted, so they keep the animated icon instead.
  */
-const UNPREVIEWABLE = new Set(["dashboard", "projects-timeline"]);
+const UNPREVIEWABLE = new Set(["dashboard", "new-dashboard", "projects-timeline"]);
 
 /**
  * The preview a carousel panel should mount, or null for the animated icon.
