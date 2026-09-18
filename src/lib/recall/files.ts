@@ -195,6 +195,34 @@ export async function openStoredFile(fileId: string, name: string): Promise<void
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+/**
+ * Save an item's file to the device. The full original from IndexedDB when this
+ * device has it; otherwise the inline preview, so a photo filed on another
+ * device still downloads something rather than nothing. Returns which it was.
+ */
+export async function downloadAttachment(att: {
+  name: string;
+  fileId?: string;
+  url?: string;
+}): Promise<"original" | "preview"> {
+  let blob = att.fileId ? await getFile(att.fileId) : null;
+  let kind: "original" | "preview" = "original";
+  if (!blob && att.url) {
+    blob = await (await fetch(att.url)).blob();
+    kind = "preview";
+  }
+  if (!blob) throw new Error("That file isn't stored on this device.");
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = att.name || "photo";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return kind;
+}
+
 // ----- reading -------------------------------------------------------------
 
 const INLINE_PREVIEW_MAX_DIM = 320;

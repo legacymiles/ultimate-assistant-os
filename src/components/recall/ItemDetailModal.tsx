@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Icon } from "../icons";
 import { deleteItem, folderPathString, moveItem, setItemTags } from "@/lib/recall/store";
+import { downloadAttachment } from "@/lib/recall/files";
 import { relativeTime } from "@/lib/utils";
 import type { Folder, Item, RecallData } from "@/lib/recall/types";
 
@@ -19,6 +20,8 @@ export function ItemDetailModal({ item, folders, onClose, onChange, onDeleted, o
   const [tags, setTags] = useState<string[]>(item.tags);
   const [tagInput, setTagInput] = useState("");
   const [extractOpen, setExtractOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadNote, setDownloadNote] = useState<string | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -43,6 +46,24 @@ export function ItemDetailModal({ item, folders, onClose, onChange, onDeleted, o
     const t = raw.toLowerCase().trim().replace(/\s+/g, "-");
     if (t && !tags.includes(t)) commitTags([...tags, t]);
     setTagInput("");
+  }
+
+  async function handleDownload() {
+    if (!item.attachment) return;
+    setDownloading(true);
+    setDownloadNote(null);
+    try {
+      const got = await downloadAttachment({
+        ...item.attachment,
+        name: item.attachment.name || `${item.title || "photo"}.jpg`,
+      });
+      if (got === "preview") {
+        setDownloadNote("The full-size original is on another device — saved the preview instead.");
+      }
+    } catch (err) {
+      setDownloadNote(err instanceof Error ? err.message : "Download failed");
+    }
+    setDownloading(false);
   }
 
   function handleDelete() {
@@ -76,6 +97,19 @@ export function ItemDetailModal({ item, folders, onClose, onChange, onDeleted, o
           {item.kind === "image" && item.attachment?.url && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={item.attachment.url} alt={item.title} className="max-h-80 w-full rounded-xl border border-line object-contain" />
+          )}
+
+          {item.kind === "image" && item.attachment && (item.attachment.fileId || item.attachment.url) && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => void handleDownload()}
+                disabled={downloading}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+              >
+                <Icon.Download width={14} height={14} /> {downloading ? "Downloading…" : "Download"}
+              </button>
+              {downloadNote && <span className="text-[11px] text-ink-faint">{downloadNote}</span>}
+            </div>
           )}
 
           {item.url && (
