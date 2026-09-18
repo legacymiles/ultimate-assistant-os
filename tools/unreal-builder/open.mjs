@@ -42,6 +42,28 @@ async function exists(file) {
   }
 }
 
+/**
+ * Open a game this PC built: "play" runs the packaged exe (or the project in
+ * -game mode), "open" opens the project in the Unreal Editor. Paths come from
+ * the bridge's registry, never from the caller. Returns what was started.
+ */
+export async function launch(projectsRoot, id, action) {
+  if (!["open", "play"].includes(action) || !/^[A-Za-z0-9-]{8,64}$/.test(String(id))) throw new Error("Bad launch request");
+  const game = await projectForGame(projectsRoot, id);
+  if (!game) throw new Error(`No game ${id} on this PC.`);
+  const editor = path.join(ENGINE, "Engine", "Binaries", "Win64", "UnrealEditor.exe");
+  if (action === "play" && game.packagedExe && (await exists(game.packagedExe))) {
+    spawn(game.packagedExe, [], { detached: true, stdio: "ignore", cwd: path.dirname(game.packagedExe) }).unref();
+    return game.packagedExe;
+  }
+  if (action === "play") {
+    spawn(editor, [game.uproject, "-game", "-windowed", "-ResX=1600", "-ResY=900"], { detached: true, stdio: "ignore" }).unref();
+    return `${game.uproject} (-game)`;
+  }
+  spawn(editor, [game.uproject, "-ModelContextProtocolStartServer"], { detached: true, stdio: "ignore" }).unref();
+  return `${game.uproject} (editor)`;
+}
+
 async function main() {
   const link = parseLink(process.argv[2]);
   if (!link) {
@@ -49,20 +71,7 @@ async function main() {
     process.exit(2);
   }
   const { projectsRoot } = config();
-  const game = await projectForGame(projectsRoot, link.id);
-  if (!game) {
-    console.error(`No game ${link.id} on this PC.`);
-    process.exit(3);
-  }
-
-  const editor = path.join(ENGINE, "Engine", "Binaries", "Win64", "UnrealEditor.exe");
-  if (link.action === "play" && game.packagedExe && (await exists(game.packagedExe))) {
-    spawn(game.packagedExe, [], { detached: true, stdio: "ignore", cwd: path.dirname(game.packagedExe) }).unref();
-  } else if (link.action === "play") {
-    spawn(editor, [game.uproject, "-game", "-windowed", "-ResX=1600", "-ResY=900"], { detached: true, stdio: "ignore" }).unref();
-  } else {
-    spawn(editor, [game.uproject, "-ModelContextProtocolStartServer"], { detached: true, stdio: "ignore" }).unref();
-  }
+  await launch(projectsRoot, link.id, link.action);
 }
 
 // fileURLToPath, not URL.pathname: this folder has spaces ("claude code files"), which the

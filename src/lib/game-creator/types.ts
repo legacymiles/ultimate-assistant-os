@@ -78,6 +78,16 @@ export interface GameMessage {
   deliveredAt?: string;
 }
 
+export type LaunchAction = "play" | "open";
+
+export interface GameLaunch {
+  action: LaunchAction;
+  at: string;
+  /** pending = waiting for the PC; sent = the builder has picked it up. */
+  state: "pending" | "sent";
+  sentAt?: string;
+}
+
 /** A game-building skill the owner's PC offers (from its skills folder). */
 export interface BuildSkill {
   name: string;
@@ -125,6 +135,12 @@ export interface Game {
   messages?: GameMessage[];
   /** Queued again because the owner asked for changes to a finished game. */
   followUp?: boolean;
+  /**
+   * "Play" / "Open in Unreal" pressed on the website. The builder on the PC
+   * collects it on its next check-in and opens the game itself, so it works
+   * without the browser's custom-link prompt.
+   */
+  launch?: GameLaunch;
   createdAt: string;
   updatedAt: string;
   status: GameStatus;

@@ -11,6 +11,7 @@ import {
   type BuilderSkills,
   type Game,
   type GameMessage,
+  type LaunchAction,
   type GameShot,
   type ProgressUpdate,
   type TemplateId,
@@ -167,6 +168,22 @@ export function takePendingMessages(games: Game[], id: string, now: string): { g
     return { ...g, messages, updatedAt: now };
   });
   return { games: next, messages: taken };
+}
+
+/** The owner pressed Play / Open: remember it for the PC's next check-in. */
+export function requestLaunch(games: Game[], id: string, action: LaunchAction, now: string): Game[] {
+  return update(games, id, (g) => ({ ...g, launch: { action, at: now, state: "pending" }, updatedAt: now }));
+}
+
+/** Every pending launch, handed to the builder once (marked sent). */
+export function takeLaunches(games: Game[], now: string): { games: Game[]; launches: { gameId: string; action: LaunchAction }[] } {
+  const launches: { gameId: string; action: LaunchAction }[] = [];
+  const next = games.map((g) => {
+    if (g.launch?.state !== "pending") return g;
+    launches.push({ gameId: g.id, action: g.launch.action });
+    return { ...g, launch: { ...g.launch, state: "sent" as const, sentAt: now } };
+  });
+  return { games: launches.length ? next : games, launches };
 }
 
 export function removeGame(games: Game[], id: string): Game[] {

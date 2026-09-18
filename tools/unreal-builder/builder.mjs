@@ -14,6 +14,7 @@ import { HubClient } from "./lib/hub.mjs";
 import { buildPrompt, followUpPrompt, ownerMessage, runClaude } from "./lib/claude.mjs";
 import { FALLBACK_SKILL, findGameSkills, skillReport } from "./lib/skills.mjs";
 import { watchGame } from "./lib/watch.mjs";
+import { launch } from "./open.mjs";
 
 const cfg = config();
 const once = process.argv.includes("--once");
@@ -195,7 +196,16 @@ async function main() {
     let game = null;
     const report = await currentSkills();
     try {
-      game = await hub.claim(report);
+      const got = await hub.claim(report);
+      game = got.game;
+      // Play / Open pressed on the website: this PC opens the game itself.
+      for (const l of got.launches) {
+        try {
+          log(`${l.action === "play" ? "Playing" : "Opening"} ${l.gameId}:`, await launch(cfg.projectsRoot, l.gameId, l.action));
+        } catch (err) {
+          log(`launch ${l.gameId} failed:`, err.message);
+        }
+      }
     } catch (err) {
       log("claim failed:", err.message);
     }

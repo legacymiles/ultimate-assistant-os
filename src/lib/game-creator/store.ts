@@ -12,10 +12,12 @@ import {
   claimNext,
   failGame,
   removeGame,
+  requestLaunch,
   retryGame,
+  takeLaunches,
   takePendingMessages,
 } from "./reducer";
-import type { BuildSkill, BuilderSkills, Game, GameMessage, ProgressUpdate, TemplateId } from "./types";
+import type { BuildSkill, BuilderSkills, Game, GameMessage, LaunchAction, ProgressUpdate, TemplateId } from "./types";
 
 // ---------------------------------------------------------------------------
 // Game Creator persistence.
@@ -137,17 +139,32 @@ export async function createGame(uid: string, prompt: string, template: Template
   return saved ? value : null;
 }
 
-/** The builder asks for work: records that it is alive, and claims the oldest queued game. */
-export async function claim(uid: string, reported?: unknown): Promise<Game | null> {
+/**
+ * The builder asks for work: records that it is alive and which skills it
+ * offers, hands over Play/Open requests, and claims the oldest queued game.
+ */
+export async function claim(
+  uid: string,
+  reported?: unknown,
+): Promise<{ game: Game | null; launches: { gameId: string; action: LaunchAction }[] }> {
   const { value } = await mutate((doc) => {
     doc.lastSeen[uid] = now();
     const skills = normaliseSkills(reported, now());
     if (skills) doc.skills[uid] = skills;
-    const { games, game } = claimNext(doc.games[uid] ?? [], now());
+    const taken = takeLaunches(doc.games[uid] ?? [], now());
+    const { games, game } = claimNext(taken.games, now());
     doc.games[uid] = games;
-    return game;
+    return { game, launches: taken.launches };
   });
   return value;
+}
+
+export async function launch(uid: string, id: string, action: LaunchAction): Promise<Game | null> {
+  const { value, saved } = await mutate((doc) => {
+    doc.games[uid] = requestLaunch(doc.games[uid] ?? [], id, action, now());
+    return doc.games[uid].find((g) => g.id === id) ?? null;
+  });
+  return saved ? value : null;
 }
 
 export async function progress(uid: string, id: string, update: ProgressUpdate): Promise<Game | null> {

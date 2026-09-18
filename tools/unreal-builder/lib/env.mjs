@@ -45,7 +45,8 @@ export function config() {
       .filter(Boolean),
     defaultSkill: process.env.BUILDER_DEFAULT_SKILL || "",
     messagePollMs: Number(process.env.BUILDER_MESSAGE_POLL_MS || 5000),
-    pollMs: Number(process.env.BUILDER_POLL_MS || 15000),
+    // Short, because Play / Open on the website waits for this check-in.
+    pollMs: Number(process.env.BUILDER_POLL_MS || 4000),
     maxMinutes: Number(process.env.BUILDER_MAX_MINUTES || 240),
     projectsRoot:
       process.env.GC_PROJECTS_ROOT ||

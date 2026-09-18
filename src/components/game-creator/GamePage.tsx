@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { Markdown } from "../Markdown";
 import { ACTIVE_STATUSES, MAX_MESSAGE_CHARS, type Game } from "@/lib/game-creator/types";
-import { ago, deleteGame, fetchGame, retryGame, sendMessage, shotUrl } from "./api";
+import { ago, deleteGame, fetchGame, launchGame, retryGame, sendMessage, shotUrl } from "./api";
 import { StatusPill } from "./StatusPill";
 import "./game-creator.css";
 
@@ -90,6 +90,27 @@ export function GamePage({ id }: { id: string }) {
       /* the path is visible to select by hand */
     }
   };
+
+  const [launching, setLaunching] = useState<"" | "play" | "open">("");
+  const startOnPc = async (action: "play" | "open") => {
+    setLaunching(action);
+    try {
+      setGame(await launchGame(id, action));
+      setError("");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLaunching("");
+    }
+  };
+
+  // Watch a pending Play/Open until the PC has picked it up.
+  const launchPending = game?.launch?.state === "pending";
+  useEffect(() => {
+    if (!launchPending) return;
+    const t = setInterval(() => void load(), 3000);
+    return () => clearInterval(t);
+  }, [launchPending, load]);
 
   const retry = async () => {
     setBusy(true);
@@ -346,22 +367,36 @@ export function GamePage({ id }: { id: string }) {
               {game.status === "ready" ? (
                 <div className="mt-4 grid gap-2">
                   {game.paths?.packagedExe && (
-                    <a
-                      href={`ueos://play?id=${encodeURIComponent(game.id)}`}
-                      className="rounded-xl bg-core px-4 py-2.5 text-center text-sm font-semibold text-canvas transition hover:brightness-110"
+                    <button
+                      type="button"
+                      onClick={() => void startOnPc("play")}
+                      disabled={Boolean(launching)}
+                      className="rounded-xl bg-core px-4 py-2.5 text-center text-sm font-semibold text-canvas transition hover:brightness-110 disabled:opacity-60"
                     >
-                      Play on this PC
-                    </a>
+                      {launching === "play" ? "Sending…" : "Play on my PC"}
+                    </button>
                   )}
-                  <a
-                    href={`ueos://open?id=${encodeURIComponent(game.id)}`}
-                    className="rounded-xl border border-line px-4 py-2.5 text-center text-sm font-medium text-ink transition hover:bg-elevated"
+                  <button
+                    type="button"
+                    onClick={() => void startOnPc("open")}
+                    disabled={Boolean(launching)}
+                    className="rounded-xl border border-line px-4 py-2.5 text-center text-sm font-medium text-ink transition hover:bg-elevated disabled:opacity-60"
                   >
-                    Open in Unreal Engine
-                  </a>
+                    {launching === "open" ? "Sending…" : "Open in Unreal Engine"}
+                  </button>
+                  {game.launch && (
+                    <p className="rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-[11px] text-ink-muted" role="status">
+                      {game.launch.state === "pending"
+                        ? `Sent — your PC ${game.launch.action === "play" ? "starts the game" : "opens Unreal"} within a few seconds (the builder must be running).`
+                        : `Your PC picked it up ${ago(game.launch.sentAt)} — look for the ${game.launch.action === "play" ? "game" : "Unreal"} window.`}
+                    </p>
+                  )}
                   <p className="text-[11px] leading-relaxed text-ink-faint">
-                    These open the game on the PC that built it. The first time, your browser asks to allow the Game Creator
-                    link.
+                    Opens on the PC that built it, through its builder. Not working?{" "}
+                    <a href={`ueos://${game.paths?.packagedExe ? "play" : "open"}?id=${encodeURIComponent(game.id)}`} className="underline">
+                      Try the direct link
+                    </a>
+                    .
                   </p>
                 </div>
               ) : game.status === "failed" ? (

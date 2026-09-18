@@ -8,7 +8,9 @@ import {
   failGame,
   normaliseSkills,
   removeGame,
+  requestLaunch,
   retryGame,
+  takeLaunches,
   takePendingMessages,
 } from "./reducer";
 import { MAX_LOG_LINES, MAX_SCREENSHOTS, type Game } from "./types";
@@ -213,5 +215,22 @@ describe("addGame skill", () => {
   it("records the chosen skill", () => {
     const games = addGame([], { id: "x", ownerId: "u", prompt: "zombie shooter", template: "Auto", skill: "unreal-game-builder", now: T0 });
     expect(games[0].skill).toBe("unreal-game-builder");
+  });
+});
+
+describe("play / open from the website", () => {
+  it("hands each launch to the builder once", () => {
+    let games = requestLaunch(seed(), "old", "play", T1);
+    expect(games.find((g) => g.id === "old")!.launch).toEqual({ action: "play", at: T1, state: "pending" });
+    const first = takeLaunches(games, T2);
+    expect(first.launches).toEqual([{ gameId: "old", action: "play" }]);
+    expect(first.games.find((g) => g.id === "old")!.launch).toMatchObject({ state: "sent", sentAt: T2 });
+    expect(takeLaunches(first.games, T2).launches).toEqual([]);
+  });
+
+  it("a newer press replaces an older one", () => {
+    let games = requestLaunch(seed(), "old", "play", T1);
+    games = requestLaunch(games, "old", "open", T2);
+    expect(takeLaunches(games, T2).launches).toEqual([{ gameId: "old", action: "open" }]);
   });
 });

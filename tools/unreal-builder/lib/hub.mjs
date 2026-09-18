@@ -35,12 +35,13 @@ export class HubClient {
   }
 
   /**
-   * The oldest queued game, or null. Also tells the site this PC is online and
-   * which game-building skills it offers ({skills, defaultSkill}).
+   * {game, launches}: the oldest queued game (or null) and any Play/Open
+   * requests from the website. Also tells the site this PC is online and which
+   * game-building skills it offers ({skills, defaultSkill}).
    */
   async claim(skills) {
     const data = await this.post("claim", skills ?? {});
-    return data?.game ?? null;
+    return { game: data?.game ?? null, launches: Array.isArray(data?.launches) ? data.launches : [] };
   }
 
   /** The owner's messages for this game that Claude has not seen yet (each returned once). */

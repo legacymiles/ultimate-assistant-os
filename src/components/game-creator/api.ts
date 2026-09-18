@@ -31,6 +31,16 @@ export async function createGame(prompt: string, template: TemplateId, skill?: s
   return (await json<{ game: Game }>(res)).game;
 }
 
+/** Ask the PC's builder to open the game (play) or its Unreal project (open). */
+export async function launchGame(id: string, action: "play" | "open"): Promise<Game> {
+  const res = await fetch(`/api/game-creator/games/${encodeURIComponent(id)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action }),
+  });
+  return (await json<{ game: Game }>(res)).game;
+}
+
 /** Write to the agent: goes to the running build, or starts a follow-up build of a finished game. */
 export async function sendMessage(id: string, text: string): Promise<Game> {
   const res = await fetch(`/api/game-creator/games/${encodeURIComponent(id)}`, {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getGame, message, remove, retry } from "@/lib/game-creator/store";
+import { getGame, launch, message, remove, retry } from "@/lib/game-creator/store";
 import { MAX_MESSAGE_CHARS } from "@/lib/game-creator/types";
 import { notFound, sessionUid, storageFailed } from "@/lib/game-creator/http";
 
@@ -7,6 +7,8 @@ import { notFound, sessionUid, storageFailed } from "@/lib/game-creator/http";
 // POST   /api/game-creator/games/:id { action: "retry" } — requeue a failed game.
 // POST   /api/game-creator/games/:id { action: "message", text } — write to the agent:
 //        handed to the running build, or starts a follow-up build of a finished game.
+// POST   /api/game-creator/games/:id { action: "play" | "open" } — ask the PC's builder to
+//        open the game (packaged exe) or its project in Unreal on its next check-in.
 // DELETE /api/game-creator/games/:id — remove the record and its screenshots.
 //        The Unreal project on the PC is never touched from the website.
 
@@ -32,6 +34,11 @@ export async function POST(req: Request, ctx: Ctx) {
     }
     if (!(await getGame(uid, id))) return notFound();
     const game = await message(uid, id, text);
+    return game ? NextResponse.json({ game }) : storageFailed();
+  }
+  if (body.action === "play" || body.action === "open") {
+    if (!(await getGame(uid, id))) return notFound();
+    const game = await launch(uid, id, body.action);
     return game ? NextResponse.json({ game }) : storageFailed();
   }
   if (body.action !== "retry") return NextResponse.json({ error: "Unknown action" }, { status: 400 });
