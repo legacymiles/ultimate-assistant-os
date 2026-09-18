@@ -18,5 +18,9 @@
   {
     "name": "scroll-craft",
     "description": "Premium scroll-driven landing pages — layered depth heroes, scroll-as-timeline storytelling, one engineered peak, separate mobile art direction. Best for service, product, food and drink brands."
+  },
+  {
+    "name": "blender-to-web",
+    "description": "Design and build a \"living 3D hero\" for any brand or product: a sculptural centerpiece modeled in Blender (reproducible Python, editable .blend, efficient GLB) and brought to life on a website with Three.js — idle motion, hover, click-to…"
   }
 ]
