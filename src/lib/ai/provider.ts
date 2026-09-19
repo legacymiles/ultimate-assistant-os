@@ -13,10 +13,15 @@
 // (the AI panel, src/lib/ai/settings.ts); `aiFetch` also retries on the other
 // provider when the chosen one is out of credit, rate-limited or down.
 //
+// The MODEL is the owner's pick too: every call that asks for the hub's general
+// model (DEFAULT_MODEL) is sent to the model chosen on the front page, then to
+// their fallback models if it fails — so no app depends on any one vendor.
+//
 // Returning null (rather than throwing) is deliberate: every caller already has
 // an offline path, and a missing key must degrade visibly rather than 500.
 // ---------------------------------------------------------------------------
 
+import { canRead, mediaIn } from "./models";
 import { cachedSettings, loadSettings, recordError, recordOk, type ProviderId } from "./settings";
 
 export interface AiEndpoint {
@@ -103,7 +108,7 @@ export async function aiFetch(init: RequestInit = {}): Promise<Response> {
     );
   }
 
-  const attempt = async (ep: AiEndpoint): Promise<Response | Error> => {
+  const attempt = async (ep: AiEndpoint, body: BodyInit | null | undefined): Promise<Response | Error> => {
     const headers = new Headers(init.headers);
     headers.set("Authorization", `Bearer ${ep.key}`);
     if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
@@ -112,7 +117,7 @@ export async function aiFetch(init: RequestInit = {}): Promise<Response> {
       headers.set("X-Title", "Ultimate Assistant OS");
     }
     try {
-      const res = await fetch(ep.url, { ...init, method: init.method ?? "POST", headers });
+      const res = await fetch(ep.url, { ...init, body, method: init.method ?? "POST", headers });
       if (res.ok) recordOk(ep.provider);
       else if (retryable(res.status)) recordError(ep.provider, { status: res.status, message: await describe(res) });
       return res;
@@ -124,16 +129,61 @@ export async function aiFetch(init: RequestInit = {}): Promise<Response> {
     }
   };
 
-  const first = await attempt(primary);
-  if (first instanceof Response && (first.ok || !retryable(first.status))) return first;
+  /** One model: the chosen provider, then the other one when the failure is the provider's. */
+  const viaProviders = async (body: BodyInit | null | undefined): Promise<Response | Error> => {
+    const first = await attempt(primary, body);
+    if (first instanceof Response && (first.ok || !retryable(first.status))) return first;
+    const second = fallbackFor(primary);
+    if (second) {
+      const again = await attempt(second, body);
+      if (again instanceof Response) return again;
+    }
+    return first;
+  };
 
-  const second = fallbackFor(primary);
-  if (second) {
-    const again = await attempt(second);
-    if (again instanceof Response) return again;
+  const chain = await modelChain(init.body);
+  if (!chain) {
+    const res = await viaProviders(init.body);
+    if (res instanceof Error) throw res;
+    return res;
   }
-  if (first instanceof Response) return first;
-  throw first;
+
+  // The owner's model, then their fallback models: a model that is down, out
+  // of capacity or can't take this request hands it to the next one.
+  let last: Response | Error = new Error("No model answered.");
+  for (const model of chain.models) {
+    const res = await viaProviders(JSON.stringify({ ...chain.body, model }));
+    if (res instanceof Response && (res.ok || res.status === 413)) return res;
+    last = res;
+  }
+  if (last instanceof Error) throw last;
+  return last;
+}
+
+/**
+ * The models to try for a request, or null to send it untouched. Calls asking
+ * for the hub's general model (DEFAULT_MODEL, AI_MODEL, or any Claude model an
+ * app hard-coded) follow the owner's pick; a route that names a specialist —
+ * an image painter, an audio listener, a web-search model — keeps it. Models that can't read the request's images or audio
+ * are skipped.
+ */
+async function modelChain(raw: BodyInit | null | undefined): Promise<{ body: Record<string, unknown>; models: string[] } | null> {
+  if (typeof raw !== "string") return null;
+  let body: Record<string, unknown>;
+  try {
+    body = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  const asked = typeof body.model === "string" ? body.model : "";
+  const general = asked === DEFAULT_MODEL || asked === process.env.AI_MODEL || asked.startsWith("anthropic/");
+  if (!general) return null;
+  const { model, fallbackModels } = cachedSettings();
+  const wanted = [...new Set([model ?? asked, ...fallbackModels])];
+  const need = mediaIn(body);
+  const readable: string[] = [];
+  for (const m of wanted) if (await canRead(m, need).catch(() => true)) readable.push(m);
+  return { body, models: (readable.length ? readable : wanted).slice(0, 3) };
 }
 
 /**

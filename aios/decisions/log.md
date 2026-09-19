@@ -65,3 +65,36 @@ model choice lets the owner try other LLMs on the builder without changing code.
 through OpenRouter was verified to work); fallback per app (26 places to keep in sync). Caveat: the
 gateway's free credit serves no Claude model, so falling back to it only helps non-Claude models until
 it is topped up.
+
+## 2026-09-18 — Smart Shot flow: brief → storyboard with AI director chat → play + download
+
+**Decision:** Smart Shot Videos has three pages. Page 1 takes the prompt and images. Page 2 is the
+editable shot-plan storyboard with a docked AI Director chat: the user says what to change, the
+model returns the whole revised plan keeping the ids of what it left alone, and only panels whose
+content changed are redrawn. The storyboard ends with "Edit with AI" and "Create video" (which
+opens page 3 and starts the render). Page 3 is just the player, Download MP4 and Recreate; the
+compiled H3 prompt and per-cut retakes are folded under "Advanced". A one-line prompt is expanded
+into production detail by the planner LLM and compiled into the MiniMax H3 brief format by code.
+
+**Why:** The owner wants users to review and re-edit the plan by talking to it, not by hand-editing
+every field, and wants the video page to be simple. Redrawing only changed panels keeps a chat edit
+at ~$0.04 per panel instead of ~$0.60 for a whole sheet.
+
+**Alternatives considered:** A diff/patch format from the model (fragile); redrawing the whole
+sheet after every chat turn (slow and costly).
+
+## 2026-09-18 — One LLM picker for the whole site, with fallback models
+
+**Decision:** The front-page AI panel's "Website AI" section now has a searchable Model dropdown
+(OpenRouter's catalogue with prices and image support) and two fallback models. Every app call that
+asks for the hub's general model (DEFAULT_MODEL, AI_MODEL, or any hard-coded Claude model) is sent
+to the picked model, then to the fallbacks if it fails; requests with photos skip models that can't
+see images. Specialist models (image painting, audio listening, web search, video) are not changed.
+The default fallbacks are Gemini 3.8 Flash and GPT-5.6 Sol, so no app depends on Claude. The Game
+Creator builder section is labelled as Game Creator only.
+
+**Why:** The owner doesn't want any app to depend on one vendor, and wants to switch the whole site
+to any LLM from one place.
+
+**Alternatives considered:** A model setting per app (26 places to keep in sync); using OpenRouter's
+native `models` array (does not work on the Vercel gateway).

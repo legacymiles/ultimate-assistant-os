@@ -1,6 +1,7 @@
 import "server-only";
 import path from "node:path";
 import { readDoc, writeDoc } from "@/lib/server/docStore";
+import { DEFAULT_FALLBACKS } from "./models";
 
 // ---------------------------------------------------------------------------
 // The owner's AI switchboard, chosen on the hub's front page.
@@ -30,6 +31,14 @@ export interface AiSettings {
   choice: ProviderChoice;
   /** On a failed call (no credit, bad key, rate limit, outage), retry on the other provider. */
   fallback: boolean;
+  /**
+   * The LLM every app uses for its general AI calls, or null for each app's
+   * own default. Apps that need a specialist (an image painter, a model that
+   * listens to audio) keep theirs.
+   */
+  model: string | null;
+  /** Tried in order when the chosen model fails (down, unsupported request, can't read the images). */
+  fallbackModels: string[];
   builder: BuilderRoute;
   /** Claude plan failed (limit, credit, login) → retry that build through OpenRouter. */
   builderFallback: boolean;
@@ -40,6 +49,8 @@ export interface AiSettings {
 export const DEFAULT_SETTINGS: AiSettings = {
   choice: "auto",
   fallback: true,
+  model: null,
+  fallbackModels: DEFAULT_FALLBACKS,
   builder: "plan",
   builderFallback: true,
   lastError: {},
@@ -57,11 +68,20 @@ let cached: AiSettings = DEFAULT_SETTINGS;
 let loadedAt = 0;
 let loading: Promise<AiSettings> | null = null;
 
+/** "vendor/model[:variant]" or null. */
+export function modelId(v: unknown): string | null {
+  return typeof v === "string" && /^[\w.-]+\/[\w.:+-]+$/.test(v.trim()) && v.length <= 120 ? v.trim() : null;
+}
+
 function normalise(raw: Partial<AiSettings> | null): AiSettings {
   const r = raw ?? {};
   return {
     choice: r.choice === "openrouter" || r.choice === "vercel-gateway" ? r.choice : "auto",
     fallback: r.fallback !== false,
+    model: modelId(r.model),
+    fallbackModels: Array.isArray(r.fallbackModels)
+      ? r.fallbackModels.map(modelId).filter((m): m is string => Boolean(m)).slice(0, 3)
+      : DEFAULT_FALLBACKS,
     builder: r.builder === "openrouter" ? "openrouter" : "plan",
     builderFallback: r.builderFallback !== false,
     lastError: r.lastError ?? {},
@@ -107,7 +127,7 @@ async function mutate(fn: (s: AiSettings) => void): Promise<AiSettings | null> {
   return run;
 }
 
-export function saveSettings(patch: Partial<Pick<AiSettings, "choice" | "fallback" | "builder" | "builderFallback">>) {
+export function saveSettings(patch: Partial<Pick<AiSettings, "choice" | "fallback" | "model" | "fallbackModels" | "builder" | "builderFallback">>) {
   return mutate((s) => {
     Object.assign(s, normalise({ ...s, ...patch }), { lastError: s.lastError, lastOk: s.lastOk });
   });

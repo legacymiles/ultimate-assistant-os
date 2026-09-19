@@ -1,5 +1,5 @@
 import "server-only";
-import { aiEndpoint, endpointFor } from "./provider";
+import { DEFAULT_MODEL, aiEndpoint, endpointFor } from "./provider";
 import { loadSettings, type AiSettings, type ProviderEvent, type ProviderId } from "./settings";
 import { builderInfo, listGames } from "@/lib/game-creator/store";
 
@@ -32,7 +32,9 @@ export interface KeyStatus {
 }
 
 export interface AiStatus {
-  settings: Pick<AiSettings, "choice" | "fallback" | "builder" | "builderFallback">;
+  settings: Pick<AiSettings, "choice" | "fallback" | "model" | "fallbackModels" | "builder" | "builderFallback">;
+  /** The model apps use when the owner has not picked one. */
+  defaultModel: string;
   providers: ProviderStatus[];
   builder: { linked: boolean; online: boolean; lastSeen: string | null; openrouter: boolean; level: Level; message: string };
   keys: KeyStatus[];
@@ -144,7 +146,15 @@ export async function aiStatus(uid: string): Promise<AiStatus> {
   if (builder.level === "error") problems.push({ level: "error", text: `Game builder: ${builder.message}` });
 
   return {
-    settings: { choice: settings.choice, fallback: settings.fallback, builder: settings.builder, builderFallback: settings.builderFallback },
+    settings: {
+      choice: settings.choice,
+      fallback: settings.fallback,
+      model: settings.model,
+      fallbackModels: settings.fallbackModels,
+      builder: settings.builder,
+      builderFallback: settings.builderFallback,
+    },
+    defaultModel: DEFAULT_MODEL,
     providers,
     builder,
     keys,

@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AiStatus, Level } from "@/lib/ai/status";
+import { ModelPicker } from "./ModelPicker";
 
 type Settings = AiStatus["settings"];
 
@@ -212,7 +213,7 @@ export function AiPanel() {
                 )}
 
                 <section className="space-y-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-faint">Website AI</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-faint">Website AI — every app on this site</p>
                   <Seg
                     label="Provider"
                     value={s!.choice}
@@ -224,6 +225,29 @@ export function AiPanel() {
                     ]}
                   />
                   <Toggle label="If it fails, retry on the other provider" checked={s!.fallback} onChange={(fallback) => void save({ fallback })} />
+                  <ModelPicker
+                    label="Model"
+                    value={s!.model}
+                    emptyLabel={`App defaults (${status.defaultModel})`}
+                    onChange={(model) => void save({ model })}
+                  />
+                  {[0, 1].map((i) => (
+                    <ModelPicker
+                      key={i}
+                      label={`If it fails, try ${i === 0 ? "" : "then "}`}
+                      value={s!.fallbackModels[i] ?? null}
+                      emptyLabel="Nothing"
+                      onChange={(id) => {
+                        const next = [...s!.fallbackModels];
+                        if (id) next[i] = id;
+                        else next.splice(i, 1);
+                        void save({ fallbackModels: next.filter(Boolean) });
+                      }}
+                    />
+                  ))}
+                  <p className="text-[10px] leading-snug text-ink-faint">
+                    Every app's AI uses this model. Apps that need a specialist (image painting, listening to audio, web search) keep theirs. A request with photos skips models that can't see images.
+                  </p>
                   <table className="w-full border-collapse text-[11px]">
                     <tbody>
                       {status.providers.map((p) => (
@@ -241,7 +265,7 @@ export function AiPanel() {
                 </section>
 
                 <section className="space-y-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-faint">Game Creator builder (your PC)</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-faint">Game Creator only — Unreal builds on your PC</p>
                   <Seg
                     label="Runs on"
                     value={s!.builder}

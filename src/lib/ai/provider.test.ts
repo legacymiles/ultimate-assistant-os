@@ -89,3 +89,59 @@ describe("aiFetch", () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+describe("aiFetch model choice", () => {
+  const models: string[] = [];
+  let answer: (model: string) => Response;
+
+  beforeEach(() => {
+    doc = null;
+    models.length = 0;
+    vi.stubEnv("OPENROUTER_API_KEY", "or-key");
+    vi.stubEnv("AI_GATEWAY_API_KEY", "");
+    vi.stubEnv("VERCEL_OIDC_TOKEN", "");
+    vi.stubEnv("AI_MODEL", "");
+    answer = (model) => Response.json({ model });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const model = String(JSON.parse(String(init.body)).model);
+        models.push(model);
+        return answer(model);
+      }),
+    );
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  const ask = (model: string) => JSON.stringify({ model, messages: [{ role: "user", content: "hi" }] });
+
+  it("sends general calls to the owner's picked model", async () => {
+    doc = { model: "google/gemini-3.8-flash" };
+    const { aiFetch, DEFAULT_MODEL } = await fresh();
+    expect(await (await aiFetch({ body: ask(DEFAULT_MODEL) })).json()).toEqual({ model: "google/gemini-3.8-flash" });
+  });
+
+  it("walks the fallback models when the pick fails", async () => {
+    doc = { model: "x-ai/grok-4.6", fallbackModels: ["deepseek/deepseek-v4-pro-0813", "openai/gpt-5.6-sol"] };
+    answer = (model) => (model === "x-ai/grok-4.6" ? new Response("down", { status: 503 }) : Response.json({ model }));
+    const { aiFetch, DEFAULT_MODEL } = await fresh();
+    expect(await (await aiFetch({ body: ask(DEFAULT_MODEL) })).json()).toEqual({ model: "deepseek/deepseek-v4-pro-0813" });
+    expect(models).toEqual(["x-ai/grok-4.6", "deepseek/deepseek-v4-pro-0813"]);
+  });
+
+  it("with no pick, a failing default still falls to a non-Claude model", async () => {
+    answer = (model) => (model.startsWith("anthropic/") ? new Response("nope", { status: 404 }) : Response.json({ model }));
+    const { aiFetch, DEFAULT_MODEL } = await fresh();
+    expect(await (await aiFetch({ body: ask(DEFAULT_MODEL) })).json()).toEqual({ model: "google/gemini-3.8-flash" });
+  });
+
+  it("leaves specialist models alone", async () => {
+    doc = { model: "x-ai/grok-4.6" };
+    const { aiFetch } = await fresh();
+    await aiFetch({ body: ask("google/gemini-3.1-flash-image") });
+    expect(models).toEqual(["google/gemini-3.1-flash-image"]);
+  });
+});
