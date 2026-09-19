@@ -1001,7 +1001,8 @@ values ('00000000-0000-0000-0000-00000000000a', 'a@test.local', now(), 'authenti
 insert into public.fno_areas (id, label, lat, lon, built_radius_mi, status)
 values ('00000000-0000-0000-0000-0000000000a1', 'Test', 40, -83, 25, 'ready');
 insert into public.fno_places (id, area_id, name, lat, lon, section, ai_stars)
-values ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000a1', 'Speakeasy', 40, -83, 'gems', 5);
+values ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000a1', 'Speakeasy', 40, -83, 'gems', 5),
+       ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-0000000000a1', 'Cat cafe', 40, -83, 'gems', 4);
 
 -- Act as user A.
 set local role authenticated;
@@ -1055,7 +1056,7 @@ begin
   -- B cannot write into A's list.
   begin
     insert into public.fno_list_items (profile_id, place_id)
-    values (a_id, '00000000-0000-0000-0000-0000000000c1');
+    values (a_id, '00000000-0000-0000-0000-0000000000c2');
     raise exception 'FAIL: B wrote A''s list';
   exception when insufficient_privilege then null; end;
 
