@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Icon } from "../icons";
-import { ACTIVE_STATUSES, TEMPLATES, type Game, type TemplateId } from "@/lib/game-creator/types";
+import { ACTIVE_STATUSES, BUILD_MODELS, TEMPLATES, type Game, type TemplateId } from "@/lib/game-creator/types";
 import { builderOnline, createGame, fetchGames, type BuilderInfo } from "./api";
 import { BuilderSetup } from "./BuilderSetup";
 import { GameCard } from "./GameCard";
@@ -25,6 +25,13 @@ export function GameCreator() {
   const [template, setTemplate] = useState<TemplateId>("Auto");
   // null = use the PC's default. Only one skill builds a game.
   const [skill, setSkill] = useState<string | null>(null);
+  // "" = the PC's default model (BUILDER_MODEL, else Claude Code's own default).
+  const [model, setModel] = useState("");
+  useEffect(() => {
+    try {
+      setModel(localStorage.getItem("gc-model") ?? "");
+    } catch {}
+  }, []);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
@@ -60,7 +67,7 @@ export function GameCreator() {
     setSubmitting(true);
     setError("");
     try {
-      const game = await createGame(prompt, template, chosenSkill);
+      const game = await createGame(prompt, template, chosenSkill, chosenModel || null);
       setGames((prev) => [game, ...(prev ?? [])]);
       setPrompt("");
     } catch (err) {
@@ -89,6 +96,16 @@ export function GameCreator() {
   const defaultSkill = builder?.defaultSkill ?? null;
   const chosenSkill = skill && skills.some((s) => s.name === skill) ? skill : defaultSkill;
   const queued = (games ?? []).filter((g) => g.status === "queued").length;
+  const openrouter = builder?.openrouter === true;
+  // An OpenRouter pick falls back to the default while the PC has no key.
+  const chosenModel = BUILD_MODELS.some((m) => m.id === model && (m.via === "plan" || openrouter)) ? model : "";
+  const modelInfo = BUILD_MODELS.find((m) => m.id === chosenModel);
+  const pickModel = (id: string) => {
+    setModel(id);
+    try {
+      localStorage.setItem("gc-model", id);
+    } catch {}
+  };
 
   return (
     <div className="min-h-dvh">
@@ -186,6 +203,40 @@ export function GameCreator() {
                     : skills.length === 1
                       ? "The only game-building skill on your PC."
                       : "One skill builds each game."}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="gc-model" className="text-xs text-ink-muted">
+                  Model
+                </label>
+                <select
+                  id="gc-model"
+                  value={chosenModel}
+                  onChange={(e) => pickModel(e.target.value)}
+                  title={modelInfo?.blurb}
+                  className="rounded-lg border border-line bg-canvas px-2 py-1 text-xs text-ink outline-none focus:border-brand/60"
+                >
+                  <option value="">Your PC&apos;s default</option>
+                  <optgroup label="Claude (your plan)">
+                    {BUILD_MODELS.filter((m) => m.via === "plan").map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label={openrouter ? "Other LLMs (OpenRouter)" : "Other LLMs (needs an OpenRouter key on your PC)"}>
+                    {BUILD_MODELS.filter((m) => m.via === "openrouter").map((m) => (
+                      <option key={m.id} value={m.id} disabled={!openrouter}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+                <span className="text-[11px] text-ink-faint">
+                  {modelInfo?.via === "openrouter"
+                    ? "Billed to OpenRouter. Claude Code is tuned for Claude, so other models may stumble on the Unreal tools."
+                    : (modelInfo?.blurb ?? "Claude Code's default model, on your Claude plan.")}
                 </span>
               </div>
 

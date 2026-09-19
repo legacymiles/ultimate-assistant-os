@@ -39,6 +39,8 @@ export function config() {
     hubUrl,
     token,
     model: process.env.BUILDER_MODEL || "",
+    // Lets the owner pick non-Claude models (openai/..., google/...) per game.
+    openrouterKey: process.env.OPENROUTER_API_KEY || "",
     // Where game-building skills live, and which one is the default when several are.
     skillDirs: (process.env.BUILDER_SKILL_DIRS || path.join(process.env.USERPROFILE || process.env.HOME || ".", ".claude", "skills"))
       .split(";")

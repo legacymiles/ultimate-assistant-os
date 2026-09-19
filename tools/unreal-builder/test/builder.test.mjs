@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { buildPrompt, describeToolUse, linesFromEvent } from "../lib/claude.mjs";
+import { buildPrompt, claudeEnv, describeToolUse, linesFromEvent } from "../lib/claude.mjs";
 import { statusForStage, watchGame } from "../lib/watch.mjs";
 import { parseLink } from "../open.mjs";
 
@@ -84,4 +84,18 @@ test("watchGame reports the project, status, design, screenshots and manifest on
   assert.equal(shots[0].caption, "Wide");
   assert.equal(seen.filter((c) => c.type === "manifest").length, 1);
   await fs.rm(root, { recursive: true, force: true });
+});
+
+test("Claude models keep the login; OpenRouter models are routed and pinned", () => {
+  const base = { PATH: "x", ANTHROPIC_API_KEY: "sk-real" };
+  assert.equal(claudeEnv("claude-opus-5", "or-key", base), base);
+  assert.equal(claudeEnv("", "or-key", base), base);
+  const env = claudeEnv("openai/gpt-5.6-sol", "or-key", base);
+  assert.equal(env.ANTHROPIC_BASE_URL, "https://openrouter.ai/api");
+  assert.equal(env.ANTHROPIC_AUTH_TOKEN, "or-key");
+  assert.equal(env.ANTHROPIC_API_KEY, "");
+  assert.equal(env.ANTHROPIC_CUSTOM_HEADERS, "Authorization: Bearer or-key");
+  assert.equal(env.ANTHROPIC_DEFAULT_HAIKU_MODEL, "openai/gpt-5.6-sol");
+  assert.equal(env.CLAUDE_CODE_SUBAGENT_MODEL, "openai/gpt-5.6-sol");
+  assert.equal(env.PATH, "x");
 });

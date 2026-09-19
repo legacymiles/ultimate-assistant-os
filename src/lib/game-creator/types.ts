@@ -98,6 +98,8 @@ export interface BuilderSkills {
   skills: BuildSkill[];
   /** Always one of `skills` when the list is not empty. */
   defaultSkill: string | null;
+  /** The builder has OPENROUTER_API_KEY, so non-Claude models can build. */
+  openrouter?: boolean;
   at: string;
 }
 
@@ -127,6 +129,8 @@ export interface Game {
   template: TemplateId;
   /** The one game-building skill this game is built with. */
   skill?: string;
+  /** The LLM driving the build (a BUILD_MODELS id); unset = the PC's default. */
+  model?: string;
   /** Claude confirmed loading `skill` (seen in its tool calls). */
   skillUsed?: boolean;
   /** Claude Code session id, so follow-up messages continue the same session. */
@@ -183,4 +187,43 @@ export const MAX_MESSAGES = 200;
 /** Skill names are folder names: letters, digits, dashes, underscores, colons. */
 export function isSkillName(value: unknown): value is string {
   return typeof value === "string" && /^[A-Za-z0-9][\w:.-]{0,79}$/.test(value);
+}
+
+/**
+ * The LLM that drives Claude Code on the PC for one game. "plan" models run on
+ * the owner's Claude subscription; "openrouter" models are routed through
+ * OpenRouter (ANTHROPIC_BASE_URL) and need OPENROUTER_API_KEY in the builder's
+ * .env. Claude Code is tuned for Claude, so the others are best-effort.
+ */
+export interface BuildModel {
+  id: string;
+  label: string;
+  via: "plan" | "openrouter";
+  blurb: string;
+}
+
+export const BUILD_MODELS: BuildModel[] = [
+  { id: "claude-opus-5", label: "Claude Opus 5", via: "plan", blurb: "Strongest all-round builder. Uses your Claude plan." },
+  { id: "claude-fable-5-1", label: "Claude Fable 5.1", via: "plan", blurb: "Newest Claude. Uses your Claude plan." },
+  { id: "claude-sonnet-5", label: "Claude Sonnet 5", via: "plan", blurb: "Faster, lighter on plan limits." },
+  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5", via: "plan", blurb: "Fastest; fine for small games." },
+  { id: "openai/gpt-5.6-sol", label: "GPT-5.6 Sol", via: "openrouter", blurb: "OpenAI flagship, via OpenRouter." },
+  {
+    id: "google/gemini-3.1-pro-preview-customtools",
+    label: "Gemini 3.1 Pro",
+    via: "openrouter",
+    blurb: "Google's agent-tuned Gemini, via OpenRouter.",
+  },
+  { id: "x-ai/grok-4.6", label: "Grok 4.6", via: "openrouter", blurb: "xAI, via OpenRouter." },
+  { id: "moonshotai/kimi-k2.7-code", label: "Kimi K2.7 Code", via: "openrouter", blurb: "Coding-focused, via OpenRouter." },
+  { id: "z-ai/glm-5.3", label: "GLM 5.3", via: "openrouter", blurb: "Long-horizon agent model, via OpenRouter." },
+  { id: "deepseek/deepseek-v4-pro-0813", label: "DeepSeek V4 Pro", via: "openrouter", blurb: "Cheapest capable option, via OpenRouter." },
+];
+
+export function isBuildModel(value: unknown): value is string {
+  return BUILD_MODELS.some((m) => m.id === value);
+}
+
+export function modelLabel(id: string | undefined): string | undefined {
+  return id ? (BUILD_MODELS.find((m) => m.id === id)?.label ?? id) : undefined;
 }

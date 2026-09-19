@@ -6,6 +6,8 @@ export interface BuilderInfo {
   /** Game-building skills the PC reported; the game is built with exactly one. */
   skills?: BuildSkill[];
   defaultSkill?: string | null;
+  /** The PC has an OpenRouter key, so non-Claude models can build. */
+  openrouter?: boolean;
 }
 
 async function json<T>(res: Response): Promise<T> {
@@ -22,11 +24,16 @@ export async function fetchGame(id: string): Promise<Game> {
   return (await json<{ game: Game }>(await fetch(`/api/game-creator/games/${encodeURIComponent(id)}`, { cache: "no-store" }))).game;
 }
 
-export async function createGame(prompt: string, template: TemplateId, skill?: string | null): Promise<Game> {
+export async function createGame(
+  prompt: string,
+  template: TemplateId,
+  skill?: string | null,
+  model?: string | null,
+): Promise<Game> {
   const res = await fetch("/api/game-creator/games", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, template, ...(skill ? { skill } : {}) }),
+    body: JSON.stringify({ prompt, template, ...(skill ? { skill } : {}), ...(model ? { model } : {}) }),
   });
   return (await json<{ game: Game }>(res)).game;
 }

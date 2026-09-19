@@ -11,7 +11,7 @@
 
 import { config } from "./lib/env.mjs";
 import { HubClient } from "./lib/hub.mjs";
-import { buildPrompt, followUpPrompt, ownerMessage, runClaude } from "./lib/claude.mjs";
+import { buildPrompt, followUpPrompt, isOpenRouterModel, ownerMessage, runClaude } from "./lib/claude.mjs";
 import { FALLBACK_SKILL, findGameSkills, skillReport } from "./lib/skills.mjs";
 import { watchGame } from "./lib/watch.mjs";
 import { launch } from "./open.mjs";
@@ -38,7 +38,17 @@ async function buildOne(game, report) {
   const offered = report.skills.map((s) => s.name);
   const skill = game.skill && offered.includes(game.skill) ? game.skill : report.defaultSkill || FALLBACK_SKILL;
   game = { ...game, skill };
-  log(`${game.followUp ? "Follow-up on" : "Building"} "${game.prompt.slice(0, 80)}" (${game.id}) with skill ${skill}`);
+  // The model the owner picked on the site, else this PC's BUILDER_MODEL, else Claude Code's default.
+  const model = game.model || cfg.model;
+  log(
+    `${game.followUp ? "Follow-up on" : "Building"} "${game.prompt.slice(0, 80)}" (${game.id}) with skill ${skill}` +
+      (model ? `, model ${model}` : ""),
+  );
+  if (isOpenRouterModel(model) && !cfg.openrouterKey) {
+    await hub.fail(game.id, `${model} runs through OpenRouter, and this PC has no OPENROUTER_API_KEY in tools/unreal-builder/.env.`);
+    log("Failed: no OpenRouter key for", model);
+    return;
+  }
 
   // Claude's narration, batched so a chatty run is a few posts a second at most.
   let pending = [];
@@ -120,7 +130,8 @@ async function buildOne(game, report) {
     prompt,
     resume,
     cwd: cfg.projectsRoot,
-    model: cfg.model,
+    model,
+    openrouterKey: cfg.openrouterKey,
     signal: limit.signal,
     onLine: (line) => {
       pending.push(line);
@@ -196,7 +207,7 @@ async function main() {
     let game = null;
     const report = await currentSkills();
     try {
-      const got = await hub.claim(report);
+      const got = await hub.claim({ ...report, openrouter: Boolean(cfg.openrouterKey) });
       game = got.game;
       // Play / Open pressed on the website: this PC opens the game itself.
       for (const l of got.launches) {

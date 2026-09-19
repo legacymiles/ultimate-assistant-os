@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { Markdown } from "../Markdown";
-import { ACTIVE_STATUSES, MAX_MESSAGE_CHARS, type Game } from "@/lib/game-creator/types";
+import { ACTIVE_STATUSES, MAX_MESSAGE_CHARS, modelLabel, type Game } from "@/lib/game-creator/types";
 import { ago, deleteGame, fetchGame, launchGame, retryGame, sendMessage, shotUrl } from "./api";
 import { StatusPill } from "./StatusPill";
 import "./game-creator.css";
@@ -356,6 +356,11 @@ export function GamePage({ id }: { id: string }) {
                 {[game.genre, game.template !== "Auto" ? game.template : null].filter(Boolean).join(" · ") || "Genre pending"} ·
                 queued {ago(game.createdAt)}
               </p>
+              {game.model && (
+                <p className="mt-1 text-[11px] text-ink-faint">
+                  Model <code className="text-ink-muted">{modelLabel(game.model)}</code>
+                </p>
+              )}
               {game.skill && (
                 <p className="mt-1 text-[11px] text-ink-faint">
                   Skill <code className="text-ink-muted">{game.skill}</code>

@@ -4,6 +4,40 @@ import { FALLBACK_SKILL } from "./skills.mjs";
 // Run Claude Code headless on one game and turn its stream-json output into
 // short, human-readable log lines for the gallery.
 
+const OPENROUTER_BASE = "https://openrouter.ai/api";
+
+/** OpenRouter model ids have a vendor prefix ("openai/gpt-5.6-sol"); Claude ids do not. */
+export function isOpenRouterModel(model) {
+  return typeof model === "string" && model.includes("/");
+}
+
+/**
+ * The environment Claude Code runs with. An OpenRouter model points Claude
+ * Code at OpenRouter's Anthropic-compatible API and pins every internal role
+ * (main, background, subagents) to that one model; Claude models keep the
+ * owner's own login.
+ */
+export function claudeEnv(model, openrouterKey, base = process.env) {
+  if (!isOpenRouterModel(model)) return base;
+  return {
+    ...base,
+    ANTHROPIC_BASE_URL: OPENROUTER_BASE,
+    ANTHROPIC_AUTH_TOKEN: openrouterKey,
+    // With a claude.ai login on this PC the CLI drops ANTHROPIC_AUTH_TOKEN for a
+    // custom base URL (OpenRouter answers 401 "Missing Authentication header");
+    // an explicit header always goes out.
+    ANTHROPIC_CUSTOM_HEADERS: `Authorization: Bearer ${openrouterKey}`,
+    ANTHROPIC_API_KEY: "",
+    ANTHROPIC_MODEL: model,
+    ANTHROPIC_DEFAULT_FABLE_MODEL: model,
+    ANTHROPIC_DEFAULT_OPUS_MODEL: model,
+    ANTHROPIC_DEFAULT_SONNET_MODEL: model,
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
+    ANTHROPIC_SMALL_FAST_MODEL: model,
+    CLAUDE_CODE_SUBAGENT_MODEL: model,
+  };
+}
+
 /** The instruction that pins the build to exactly one game-building skill. */
 function skillLines(skill) {
   return [
@@ -148,7 +182,7 @@ export function linesFromEvent(ev) {
  *                    next, or [] to end the session
  * `send(text)` queues a message into the running session at any time.
  */
-export function runClaude({ prompt, cwd, model, resume, onLine, onSession, onSkill, onTurnEnd, signal }) {
+export function runClaude({ prompt, cwd, model, openrouterKey, resume, onLine, onSession, onSkill, onTurnEnd, signal }) {
   let child = null;
   let open = true;
 
@@ -177,14 +211,14 @@ export function runClaude({ prompt, cwd, model, resume, onLine, onSession, onSki
       "--permission-mode",
       "bypassPermissions",
     ];
-    if (model && /^[\w.:-]+$/.test(model)) args.push("--model", model);
+    if (model && /^[\w.:/-]+$/.test(model)) args.push("--model", model);
     if (resume && /^[\w-]{8,80}$/.test(resume)) args.push("--resume", resume);
 
     child = spawn("claude", args, {
       cwd,
       shell: process.platform === "win32",
       windowsHide: true,
-      env: process.env,
+      env: claudeEnv(model, openrouterKey),
       stdio: ["pipe", "pipe", "pipe"],
     });
     child.stdin.on("error", () => {});

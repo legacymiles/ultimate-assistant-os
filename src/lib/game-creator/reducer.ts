@@ -31,7 +31,7 @@ function update(games: Game[], id: string, fn: (g: Game) => Game): Game[] {
 
 export function addGame(
   games: Game[],
-  input: { id: string; ownerId: string; prompt: string; template: TemplateId; skill?: string; now: string },
+  input: { id: string; ownerId: string; prompt: string; template: TemplateId; skill?: string; model?: string; now: string },
 ): Game[] {
   const game: Game = {
     id: input.id,
@@ -39,6 +39,7 @@ export function addGame(
     prompt: input.prompt.trim(),
     template: input.template,
     ...(input.skill ? { skill: input.skill } : {}),
+    ...(input.model ? { model: input.model } : {}),
     createdAt: input.now,
     updatedAt: input.now,
     status: "queued",
@@ -208,7 +209,7 @@ export function addScreenshot(
  * always one of them (the reported default, else the first).
  */
 export function normaliseSkills(input: unknown, now: string): BuilderSkills | null {
-  const raw = (input ?? {}) as { skills?: unknown; defaultSkill?: unknown };
+  const raw = (input ?? {}) as { skills?: unknown; defaultSkill?: unknown; openrouter?: unknown };
   if (!Array.isArray(raw.skills)) return null;
   const seen = new Set<string>();
   const skills: BuildSkill[] = [];
@@ -221,5 +222,5 @@ export function normaliseSkills(input: unknown, now: string): BuilderSkills | nu
   }
   const wanted = typeof raw.defaultSkill === "string" ? raw.defaultSkill : "";
   const defaultSkill = skills.some((x) => x.name === wanted) ? wanted : (skills[0]?.name ?? null);
-  return { skills, defaultSkill, at: now };
+  return { skills, defaultSkill, ...(raw.openrouter === true ? { openrouter: true } : {}), at: now };
 }

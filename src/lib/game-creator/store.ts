@@ -90,7 +90,13 @@ export async function mintToken(uid: string): Promise<string | null> {
 
 export async function builderInfo(
   uid: string,
-): Promise<{ linked: boolean; lastSeen: string | null; skills: BuildSkill[]; defaultSkill: string | null }> {
+): Promise<{
+  linked: boolean;
+  lastSeen: string | null;
+  skills: BuildSkill[];
+  defaultSkill: string | null;
+  openrouter: boolean;
+}> {
   const doc = await load();
   const s = doc.skills[uid];
   return {
@@ -98,6 +104,7 @@ export async function builderInfo(
     lastSeen: doc.lastSeen[uid] ?? null,
     skills: s?.skills ?? [],
     defaultSkill: s?.defaultSkill ?? null,
+    openrouter: s?.openrouter === true,
   };
 }
 
@@ -124,7 +131,13 @@ export async function getGame(uid: string, id: string): Promise<Game | null> {
   return (await listGames(uid)).find((g) => g.id === id) ?? null;
 }
 
-export async function createGame(uid: string, prompt: string, template: TemplateId, skill?: string): Promise<Game | null> {
+export async function createGame(
+  uid: string,
+  prompt: string,
+  template: TemplateId,
+  skill?: string,
+  model?: string,
+): Promise<Game | null> {
   const id = randomUUID();
   const { value, saved } = await mutate((doc) => {
     // One skill per game: the one asked for if this PC offers it, else the PC's default.
@@ -133,7 +146,7 @@ export async function createGame(uid: string, prompt: string, template: Template
       skill && (!offered?.skills.length || offered.skills.some((x) => x.name === skill))
         ? skill
         : (offered?.defaultSkill ?? undefined);
-    doc.games[uid] = addGame(doc.games[uid] ?? [], { id, ownerId: uid, prompt, template, skill: pick, now: now() });
+    doc.games[uid] = addGame(doc.games[uid] ?? [], { id, ownerId: uid, prompt, template, skill: pick, model, now: now() });
     return doc.games[uid][0];
   });
   return saved ? value : null;
