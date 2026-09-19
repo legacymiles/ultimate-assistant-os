@@ -1,145 +1,99 @@
 -- ============================================================================
 -- Jarvis — semantic memory.
 --
--- One row per remembered thing, with both a meaning vector (pgvector) and a
--- text-search vector, so a question can be answered by meaning AND by exact
--- words. The two orders are fused in the app (reciprocal rank fusion), which
--- is why this function returns BOTH ranks rather than one blended score.
+-- One row per remembered thing, carrying BOTH a meaning vector (pgvector) and
+-- a text-search vector, so a question can be answered by meaning and by exact
+-- words. jarvis_search returns the two ranks separately; the app fuses them
+-- (reciprocal rank fusion, src/lib/jarvis/rank.ts) so the same ranking rule
+-- also runs in the on-device fallback and is unit tested without a database.
 --
--- Rows belong to one person. RLS is on, and the policies are owner-only —
--- Jarvis's memory holds the owner's private life, so no world-readable path
--- exists, not even for aggregates.
+-- Rows belong to one person and RLS is owner-only: Jarvis's memory holds the
+-- owner's private life, so there is no world-readable path, not even for
+-- aggregates.
+--
+-- This file is the exact SQL that ran successfully on 2026-09-19 against
+-- project kiiwaiwrfslqankcsnkf, in three parts. Two things that are NOT here,
+-- because an earlier draft carrying them was rejected by the SQL editor:
+--   * a schema-qualified `extensions.vector(1536)` type — the unqualified name
+--     resolves, the qualified one depends on where the extension landed;
+--   * an ivfflat index. It is an optimisation for tens of thousands of rows,
+--     and an exact scan is both correct and fast below that. Add it later:
+--       create index jarvis_memories_embedding_idx on public.jarvis_memories
+--         using ivfflat (embedding vector_cosine_ops) with (lists = 100);
 --
 -- Additive and idempotent: safe to run twice.
 -- ============================================================================
 
+-- 1 of 3 ---------------------------------------------------------------------
 create extension if not exists vector;
 
+-- 2 of 3 ---------------------------------------------------------------------
 create table if not exists public.jarvis_memories (
-  id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null references auth.users (id) on delete cascade,
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
   -- Which Four-Cs profile this belongs to, so onboarding someone else does not
   -- pour their memories into the owner's ball.
-  profile_id  text not null default 'owner',
-  source      text not null check (source in
-                ('note','chat','master-folder','skill','file','email','event','profile')),
-  title       text not null check (char_length(title) between 1 and 300),
-  content     text not null,
-  origin      text not null default 'you',
-  tags        text[] not null default '{}',
-  meta        jsonb not null default '{}'::jsonb,
-  -- A stable key for re-syncable sources (a file path, a message id). Lets the
-  -- master-folder sync run twice without duplicating every note.
+  profile_id text not null default 'owner',
+  source text not null,
+  title text not null,
+  content text not null,
+  origin text not null default 'you',
+  tags text[] not null default '{}',
+  meta jsonb not null default '{}'::jsonb,
+  -- A stable key for re-syncable sources (a file path, a message id), so the
+  -- master-folder sync upserts instead of duplicating every note.
   external_id text,
-  embedding   vector(1536),
+  embedding vector(1536),
   captured_at timestamptz not null default now(),
-  updated_at  timestamptz not null default now(),
-  created_at  timestamptz not null default now()
-);
-
--- One row per external thing per person: the sync is an upsert, not an append.
-create unique index if not exists jarvis_memories_external_idx
-  on public.jarvis_memories (user_id, source, external_id)
-  where external_id is not null;
-
-create index if not exists jarvis_memories_user_idx
-  on public.jarvis_memories (user_id, captured_at desc);
-
--- Word search. A generated column keeps it in step with edits automatically.
-alter table public.jarvis_memories
-  add column if not exists tsv tsvector
-  generated always as (
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  tsv tsvector generated always as (
     setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
     setweight(to_tsvector('english', coalesce(content, '')), 'B')
-  ) stored;
+  ) stored
+);
 
+create unique index if not exists jarvis_memories_external_idx
+  on public.jarvis_memories (user_id, source, external_id) where external_id is not null;
+create index if not exists jarvis_memories_user_idx
+  on public.jarvis_memories (user_id, captured_at desc);
 create index if not exists jarvis_memories_tsv_idx
   on public.jarvis_memories using gin (tsv);
 
--- Meaning search. IVFFlat needs rows before it helps; with few rows Postgres
--- scans, which is correct and fast at this size.
-create index if not exists jarvis_memories_embedding_idx
-  on public.jarvis_memories using ivfflat (embedding vector_cosine_ops)
-  with (lists = 100);
-
 alter table public.jarvis_memories enable row level security;
+drop policy if exists "jarvis owner all" on public.jarvis_memories;
+create policy "jarvis owner all" on public.jarvis_memories
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
-drop policy if exists "jarvis_memories owner reads" on public.jarvis_memories;
-create policy "jarvis_memories owner reads" on public.jarvis_memories
-  for select using (auth.uid() = user_id);
-
-drop policy if exists "jarvis_memories owner writes" on public.jarvis_memories;
-create policy "jarvis_memories owner writes" on public.jarvis_memories
-  for insert with check (auth.uid() = user_id);
-
-drop policy if exists "jarvis_memories owner updates" on public.jarvis_memories;
-create policy "jarvis_memories owner updates" on public.jarvis_memories
-  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
-
-drop policy if exists "jarvis_memories owner deletes" on public.jarvis_memories;
-create policy "jarvis_memories owner deletes" on public.jarvis_memories
-  for delete using (auth.uid() = user_id);
-
--- ---------------------------------------------------------------------------
--- Hybrid search.
---
--- Returns the best `k` rows by meaning and the best `k` by words, each with its
--- position in that order. The caller fuses them. Returning ranks instead of a
--- blended score keeps the ranking rule in one tested place in the app, and
--- keeps this function honest about which search found what.
--- ---------------------------------------------------------------------------
+-- 3 of 3 ---------------------------------------------------------------------
 create or replace function public.jarvis_search(
-  p_user       uuid,
-  p_profile    text,
-  p_embedding  vector(1536),
-  p_query      text,
-  p_k          int default 10,
-  p_sources    text[] default null
+  p_user uuid, p_profile text, p_embedding vector(1536),
+  p_query text, p_k int default 10, p_sources text[] default null
 )
 returns table (
-  id           uuid,
-  source       text,
-  title        text,
-  content      text,
-  origin       text,
-  captured_at  timestamptz,
-  vector_rank  int,
-  word_rank    int
+  id uuid, source text, title text, content text, origin text,
+  captured_at timestamptz, vector_rank int, word_rank int
 )
-language sql
-stable
-security invoker
-set search_path = public
-as $$
+language sql stable security invoker as $$
   with scope as (
     select m.* from public.jarvis_memories m
-    where m.user_id = p_user
-      and m.profile_id = p_profile
+    where m.user_id = p_user and m.profile_id = p_profile
       and (p_sources is null or m.source = any (p_sources))
   ),
   by_vector as (
     select s.id, row_number() over (order by s.embedding <=> p_embedding) as rk
-    from scope s
-    where p_embedding is not null and s.embedding is not null
-    order by s.embedding <=> p_embedding
-    limit p_k
+    from scope s where p_embedding is not null and s.embedding is not null limit p_k
   ),
   by_words as (
-    select s.id,
-           row_number() over (
-             order by ts_rank_cd(s.tsv, websearch_to_tsquery('english', p_query)) desc
-           ) as rk
+    select s.id, row_number() over (
+      order by ts_rank_cd(s.tsv, websearch_to_tsquery('english', p_query)) desc) as rk
     from scope s
-    where p_query <> '' and s.tsv @@ websearch_to_tsquery('english', p_query)
-    limit p_k
+    where p_query <> '' and s.tsv @@ websearch_to_tsquery('english', p_query) limit p_k
   )
   select s.id, s.source, s.title, s.content, s.origin, s.captured_at,
-         coalesce(v.rk, 0)::int as vector_rank,
-         coalesce(w.rk, 0)::int as word_rank
+         coalesce(v.rk, 0)::int, coalesce(w.rk, 0)::int
   from scope s
   left join by_vector v on v.id = s.id
-  left join by_words  w on w.id = s.id
+  left join by_words w on w.id = s.id
   where v.id is not null or w.id is not null;
 $$;
-
-grant execute on function public.jarvis_search(uuid, text, vector, text, int, text[]) to authenticated;
