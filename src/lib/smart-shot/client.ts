@@ -48,6 +48,19 @@ export function requestPanel(spec: PanelSpec, caption: string, signal?: AbortSig
   return post<PanelResult>("/api/smart-shot/panel", { ...spec, caption }, signal);
 }
 
+export interface ReviseResult {
+  plan?: Plan;
+  totalSec?: number;
+  cutCount?: number;
+  reply: string;
+  unchanged?: boolean;
+}
+
+export function requestRevision(body: { brief: Brief; plan: Plan; uploads: Upload[]; history: { role: "user" | "ai"; text: string }[]; message: string }) {
+  const uploads = body.uploads.map(({ id, role, name, description }) => ({ id, role, name, description }));
+  return post<ReviseResult>("/api/smart-shot/revise", { ...body, uploads });
+}
+
 // ----- video, through Auteur's door -----
 
 export interface RenderStart {

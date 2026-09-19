@@ -8,7 +8,8 @@
 // in place and every picture can be redrawn.
 // ---------------------------------------------------------------------------
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { DirectorChat } from "./DirectorChat";
 import { Icon } from "../icons";
 import { APERTURES, FRAMINGS, LENSES, MOVES } from "@/lib/smart-shot/constants";
 import { panelFor } from "@/lib/smart-shot/panels";
@@ -21,6 +22,8 @@ export function Sheet({ s }: { s: Studio }) {
   const drawing = panels.filter((p) => p.status === "drawing").length;
   const missing = panels.filter((p) => p.status !== "done").length;
   const [exporting, setExporting] = useState(false);
+  const chatInput = useRef<HTMLTextAreaElement>(null);
+  const lastFull = s.project.takes.filter((t) => t.cutId === null).pop();
   const total = plan.cuts.reduce((a, c) => a + c.durationSec, 0);
 
   const downloadSheet = async () => {
@@ -42,6 +45,7 @@ export function Sheet({ s }: { s: Studio }) {
         : "SECTION 1: CHARACTER REFERENCE";
 
   return (
+    <div className="ss-sheetlayout">
     <div className="ss-sheetwrap">
       <div className="ss-toolbar">
         <div>
@@ -65,8 +69,8 @@ export function Sheet({ s }: { s: Studio }) {
           <button type="button" className="ss-btn" onClick={() => s.setStage("brief")}>
             <Icon.ArrowLeft width={13} height={13} /> Brief
           </button>
-          <button type="button" className="ss-primary" onClick={() => s.setStage("video")} disabled={drawing > 0}>
-            <Icon.Film width={14} height={14} /> Generate video
+          <button type="button" className="ss-primary" onClick={s.startVideo} disabled={drawing > 0 || s.chatBusy}>
+            <Icon.Film width={14} height={14} /> Create video
           </button>
         </div>
       </div>
@@ -231,6 +235,32 @@ export function Sheet({ s }: { s: Studio }) {
           </div>
         </section>
       </div>
+
+      <div className="ss-next">
+        <div>
+          <div className="ss-label">Happy with the storyboard?</div>
+          <p className="ss-hint">
+            {drawing > 0
+              ? `Still drawing ${drawing} panel${drawing === 1 ? "" : "s"}…`
+              : "Render all cuts as one H3 video, or tell the AI director what to change first."}
+          </p>
+        </div>
+        <div className="ss-next-actions">
+          <button type="button" className="ss-btn ss-btn-lg" onClick={() => chatInput.current?.focus()}>
+            <Icon.Sparkles width={14} height={14} /> Edit with AI
+          </button>
+          <button type="button" className="ss-primary ss-btn-lg" onClick={s.startVideo} disabled={drawing > 0 || s.chatBusy}>
+            <Icon.Film width={15} height={15} /> Create video
+          </button>
+          {lastFull?.status === "done" && (
+            <button type="button" className="ss-btn ss-btn-lg" onClick={() => s.setStage("video")}>
+              View last video
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+    <DirectorChat s={s} inputRef={chatInput} />
     </div>
   );
 }

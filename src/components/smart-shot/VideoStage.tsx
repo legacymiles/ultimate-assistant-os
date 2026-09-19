@@ -1,10 +1,10 @@
 "use client";
 
 // ---------------------------------------------------------------------------
-// The video stage. The film renders the Smart Shot way: ONE H3 generation of
-// every cut from one compiled prompt, with the reference sheets and the
-// composed shot-plan sheet attached. Below it, each cut can be retaken on
-// its own for a single beat that needs another go.
+// The video page: play and download. The film renders the Smart Shot way —
+// ONE H3 generation of every cut from one compiled prompt, with the
+// reference sheets and the composed shot-plan sheet attached. The compiled
+// prompt and per-cut retakes sit folded away under "Advanced".
 // ---------------------------------------------------------------------------
 
 import { useEffect, useState } from "react";
@@ -19,49 +19,120 @@ import { FULL, type Studio } from "./studio";
 export function VideoStage({ s }: { s: Studio }) {
   const plan = s.project.plan!;
   const [backend, setBackend] = useState<{ id: string; label: string } | null>(null);
+  const [advanced, setAdvanced] = useState(false);
+  const [pick, setPick] = useState<string | null>(null);
   useEffect(() => {
     videoBackend().then(setBackend).catch(() => setBackend(null));
   }, []);
-  const total = plan.cuts.reduce((a, c) => a + c.durationSec, 0);
+  const total = Math.min(15, plan.cuts.reduce((a, c) => a + c.durationSec, 0));
   const q = QUALITY[s.project.brief.quality];
+  const films = s.project.takes.filter((t) => t.cutId === null);
+  const take = (pick && films.find((t) => t.id === pick)) || films[films.length - 1];
+  const url = take?.mediaId ? s.urls[take.mediaId] : undefined;
+  const busy = take && (take.status === "queued" || take.status === "generating");
+  const slug = plan.title.replace(/[^\w-]+/g, "-").toLowerCase();
+  const sheetUrl = s.project.sheetMediaId ? s.urls[s.project.sheetMediaId] : undefined;
 
   return (
     <div className="ss-video">
       <div className="ss-toolbar">
         <div>
           <div className="ss-label">
-            Video · {plan.cuts.length} cuts · {s.project.brief.aspectRatio} | {q.label} | {Math.min(15, total)}s
+            Video · {plan.cuts.length} cuts · {s.project.brief.aspectRatio} | {q.label} | {total}s
           </div>
           <div className="ss-title">{plan.title}</div>
           <div className="ss-hint">
-            {backend ? (
-              backend.id === "placeholder" ? (
-                <>No video backend configured — renders will be animatic placeholders. Add RUNPOD_API_KEY + RUNPOD_ENDPOINT_ID, MINIMAX_API_KEY or AI_GATEWAY_API_KEY.</>
-              ) : (
-                <>Rendering with {backend.label}. {estimateCost(Math.min(15, total), s.project.brief.quality)}.</>
-              )
-            ) : (
-              "Checking the video backend…"
-            )}
+            {backend
+              ? backend.id === "placeholder"
+                ? "No video backend configured — renders are animatic placeholders. Add RUNPOD_API_KEY + RUNPOD_ENDPOINT_ID, MINIMAX_API_KEY or AI_GATEWAY_API_KEY."
+                : `Rendering with ${backend.label}. ${estimateCost(total, s.project.brief.quality)}.`
+              : "Checking the video backend…"}
           </div>
         </div>
         <div className="ss-toolbar-actions">
           <button type="button" className="ss-btn" onClick={() => s.setStage("storyboard")}>
-            <Icon.ArrowLeft width={13} height={13} /> Shot plan
+            <Icon.ArrowLeft width={13} height={13} /> Storyboard
           </button>
         </div>
       </div>
 
-      <FullFilm s={s} />
+      <div className="ss-watch">
+        <div className="ss-watch-stage">
+          {url ? (
+            <video key={url} src={url} controls autoPlay playsInline className="ss-player-video" />
+          ) : (
+            <div className="ss-full-empty">
+              {busy ? (
+                <>
+                  <span className="ss-spinner" /> {take.status === "queued" ? "Queued" : "Generating your video"}
+                  {take.note ? ` · ${take.note}` : ""} — this usually takes a few minutes.
+                </>
+              ) : take?.status === "error" ? (
+                <span className="ss-err">{take.error}</span>
+              ) : take?.status === "done" && take.engine === "placeholder" ? (
+                "Animatic placeholder — no video backend is configured."
+              ) : (
+                "No video yet."
+              )}
+            </div>
+          )}
+        </div>
+        <div className="ss-watch-bar">
+          <div className="ss-hint">
+            {s.project.brief.aspectRatio} | {q.label} | {total}s · audio on
+            {films.length > 1 && (
+              <>
+                {" · "}
+                <select className="ss-select" value={take?.id} onChange={(e) => setPick(e.target.value)} aria-label="Take">
+                  {films.map((t, i) => (
+                    <option key={t.id} value={t.id}>
+                      Take {i + 1}
+                      {t.status !== "done" ? ` (${t.status})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+          </div>
+          <div className="ss-watch-actions">
+            {url && (
+              <a className="ss-primary ss-btn-lg" href={url} download={`${slug}.mp4`}>
+                <Icon.Download width={14} height={14} /> Download MP4
+              </a>
+            )}
+            {sheetUrl && (
+              <a className="ss-btn ss-btn-lg" href={sheetUrl} download={`${slug}-shot-plan.jpg`}>
+                <Icon.Download width={14} height={14} /> Shot plan
+              </a>
+            )}
+            <button
+              type="button"
+              className={url ? "ss-btn ss-btn-lg" : "ss-primary ss-btn-lg"}
+              onClick={() => {
+                setPick(null);
+                void s.renderFull();
+              }}
+              disabled={!!busy || !!s.busy}
+            >
+              <Icon.Film width={14} height={14} /> {take ? "Recreate video" : "Create video"}
+            </button>
+          </div>
+        </div>
 
-      <div className="ss-label" style={{ marginTop: 8 }}>
-        Retake a single cut
-      </div>
-      <p className="ss-hint">Each cut can also render on its own (minimum 4 s) with its storyboard frame as the reference — useful when one beat needs another go.</p>
-      <div className="ss-cutlist">
-        {plan.cuts.map((c) => (
-          <CutRow key={c.id} s={s} cut={c} />
-        ))}
+        <details className="ss-advanced" onToggle={(e) => setAdvanced((e.target as HTMLDetailsElement).open)}>
+          <summary>Advanced — the H3 prompt and per-cut retakes</summary>
+          {advanced && (
+            <div className="ss-advanced-body">
+              <FullPrompt s={s} />
+              <p className="ss-hint">Each cut can also render on its own (minimum 4 s) with its storyboard frame as the reference — useful when one beat needs another go.</p>
+              <div className="ss-cutlist">
+                {plan.cuts.map((c) => (
+                  <CutRow key={c.id} s={s} cut={c} />
+                ))}
+              </div>
+            </div>
+          )}
+        </details>
       </div>
     </div>
   );
@@ -189,55 +260,11 @@ function TakeView({ s, take, name, onRender, busyLabel }: { s: Studio; take: Tak
   );
 }
 
-function FullFilm({ s }: { s: Studio }) {
+function FullPrompt({ s }: { s: Studio }) {
   const plan = s.project.plan!;
-  const take = latest(s.project.takes, null);
   const stamp = JSON.stringify([plan, s.project.promptOverrides[FULL], s.project.panels.map((p) => p.mediaId), s.project.sheetMediaId]);
   const brief = usePrompt(s, s.fullBrief, stamp);
-  const sheetUrl = s.project.sheetMediaId ? s.urls[s.project.sheetMediaId] : undefined;
-  const url = take?.mediaId ? s.urls[take.mediaId] : undefined;
-
-  return (
-    <div className="ss-full">
-      <div className="ss-full-main">
-        {url ? (
-          <video src={url} controls playsInline className="ss-player-video" />
-        ) : (
-          <div className="ss-full-empty">
-            {take && (take.status === "queued" || take.status === "generating") ? (
-              <>
-                <span className="ss-spinner" /> {take.status === "queued" ? "queued" : "generating the film"}
-                {take.note ? ` · ${take.note}` : ""}
-              </>
-            ) : take?.status === "error" ? (
-              <span className="ss-err">{take.error}</span>
-            ) : take?.status === "done" && take.engine === "placeholder" ? (
-              "Animatic placeholder (no backend)."
-            ) : (
-              "The whole film renders here as one MiniMax H3 generation."
-            )}
-          </div>
-        )}
-        <div className="ss-full-side">
-          <div className="ss-h">REFERENCES</div>
-          <div className="ss-refstrip">
-            {sheetUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={sheetUrl} alt="Shot plan sheet" title="The composed shot-plan sheet, attached to the render" />
-            ) : (
-              <span className="ss-hint">The shot-plan sheet is composed when you generate.</span>
-            )}
-          </div>
-          <div className="ss-h">SETTINGS</div>
-          <div className="ss-hint">
-            {s.project.brief.aspectRatio} | {QUALITY[s.project.brief.quality].label} | {Math.min(15, plan.cuts.reduce((a, c) => a + c.durationSec, 0))}s · Audio: On
-          </div>
-          <TakeView s={s} take={take} name={`${plan.title.replace(/[^\w-]+/g, "-").toLowerCase()}`} onRender={s.renderFull} busyLabel="Rendering…" />
-        </div>
-      </div>
-      <PromptBox s={s} brief={brief} overrideKey={FULL} />
-    </div>
-  );
+  return <PromptBox s={s} brief={brief} overrideKey={FULL} />;
 }
 
 function CutRow({ s, cut }: { s: Studio; cut: PlanCut }) {

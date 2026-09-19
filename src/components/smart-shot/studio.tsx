@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { downloadRender, renderStatus, requestPanel, requestPlan, startRender } from "@/lib/smart-shot/client";
+import { downloadRender, renderStatus, requestPanel, requestPlan, requestRevision, startRender } from "@/lib/smart-shot/client";
 import { QUALITY, standaloneSeconds } from "@/lib/smart-shot/constants";
 import { composeFullH3Prompt, composeH3Prompt, EMPTY_MEDIA, type H3Brief, type H3Media } from "@/lib/smart-shot/h3prompt";
 import { dataUrlToBlob, downscaleToDataUrl, mediaDataUrl, mediaUrl, putMedia } from "@/lib/smart-shot/media";
@@ -27,6 +27,7 @@ import {
   type PanelRef,
   type PanelSpec,
 } from "@/lib/smart-shot/panels";
+import { stalePanels } from "@/lib/smart-shot/plan/revise";
 import { renumber } from "@/lib/smart-shot/plan/schema";
 import { loadProjects, newProject, saveProjects, upsert } from "@/lib/smart-shot/repo";
 import { renderSheet } from "@/lib/smart-shot/sheetImage";
@@ -64,6 +65,11 @@ export interface Studio {
   fullBrief: () => Promise<H3Brief>;
   render: (cutId: string) => Promise<void>;
   renderFull: () => Promise<void>;
+  /** Storyboard → video page, starting the film unless one is already rendering. */
+  startVideo: () => void;
+  /** Ask the AI director to change the plan; redraws only what changed. */
+  revise: (message: string) => Promise<void>;
+  chatBusy: boolean;
   setPromptOverride: (key: string, text: string | null) => void;
   dismiss: () => void;
 }
@@ -75,6 +81,7 @@ export function useStudio(): Studio {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [chatBusy, setChatBusy] = useState(false);
   const ref = useRef(project);
   const listRef = useRef(projects);
   const loaded = useRef(false);
@@ -434,6 +441,53 @@ export function useStudio(): Studio {
       return { ...p, promptOverrides };
     });
 
+  // ----- the AI director chat ------------------------------------------------------
+
+  const revise = async (message: string) => {
+    const text = message.trim();
+    const start = ref.current;
+    if (!text || !start.plan || chatBusy) return;
+    const history = (start.chat ?? []).map(({ role, text }) => ({ role, text }));
+    commit((p) => ({ ...p, chat: [...(p.chat ?? []), { role: "user", text, at: nowIso() }] }));
+    setChatBusy(true);
+    try {
+      const res = await requestRevision({ brief: start.brief, plan: start.plan, uploads: start.uploads, history, message: text });
+      if (!res.plan) {
+        commit((p) => ({ ...p, chat: [...(p.chat ?? []), { role: "ai", text: res.reply, at: nowIso() }] }));
+        return;
+      }
+      const next = res.plan;
+      const old = ref.current.plan ?? start.plan;
+      const stale = new Set(stalePanels(old, next).map((x) => `${x.kind}:${x.targetId}`));
+      commit((p) => {
+        const kept = panelsFor(next, p.panels).map((x) =>
+          stale.has(`${x.kind}:${x.targetId}`) ? { id: x.id, kind: x.kind, targetId: x.targetId, status: "idle" as const } : x,
+        );
+        const redraw = kept.filter((x) => x.status === "idle").length;
+        return {
+          ...p,
+          title: next.title,
+          plan: next,
+          brief: { ...p.brief, cutCount: res.cutCount ?? p.brief.cutCount, totalSec: res.totalSec ?? p.brief.totalSec },
+          panels: kept,
+          sheetMediaId: undefined,
+          promptOverrides: {},
+          chat: [
+            ...(p.chat ?? []),
+            { role: "ai", text: `${res.reply}${redraw ? ` Redrawing ${redraw} panel${redraw === 1 ? "" : "s"}.` : ""}`, at: nowIso() },
+          ],
+        };
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      commit((p) => ({ ...p, chat: [...(p.chat ?? []), { role: "ai", text: `That didn't go through (${msg}). Try again.`, at: nowIso() }] }));
+      return;
+    } finally {
+      setChatBusy(false);
+    }
+    await drawAll();
+  };
+
   // ----- the composed sheet ----------------------------------------------------
 
   const composeSheet = async (): Promise<string | null> => {
@@ -559,6 +613,13 @@ export function useStudio(): Studio {
     await runTake(null, brief, Math.min(15, Math.max(4, total)));
   };
 
+  const startVideo = () => {
+    const full = ref.current.takes.filter((t) => t.cutId === null).pop();
+    commit((p) => ({ ...p, stage: "video" }));
+    if (full && (full.status === "queued" || full.status === "generating")) return;
+    void renderFull();
+  };
+
   const pollTake = async (takeId: string, taskId: string) => {
     for (let i = 0; i < 360; i++) {
       await new Promise((r) => setTimeout(r, i < 6 ? 4000 : 8000));
@@ -614,6 +675,9 @@ export function useStudio(): Studio {
     fullBrief,
     render,
     renderFull,
+    startVideo,
+    revise,
+    chatBusy,
     setPromptOverride,
     dismiss: () => {
       setError("");

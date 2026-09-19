@@ -209,6 +209,8 @@ export interface Project {
   promptOverrides: Record<string, string>;
   /** Media id of the composed shot-plan sheet PNG, once rendered. */
   sheetMediaId?: string;
+  /** The AI director chat on the storyboard page. */
+  chat?: { role: "user" | "ai"; text: string; at: string }[];
   stage: Stage;
   createdAt: string;
   updatedAt: string;

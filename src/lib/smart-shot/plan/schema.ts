@@ -133,6 +133,8 @@ export interface NormaliseInput {
   uploads: Upload[];
   /** A stable id generator so tests can be deterministic. */
   id: (prefix: string) => string;
+  /** Ids from an earlier plan the answer may reuse (AI revisions keep unchanged panels). */
+  keepIds?: Set<string>;
 }
 
 /**
@@ -144,7 +146,16 @@ export interface NormaliseInput {
  * environment to the first.
  */
 export function normalisePlan(raw: Record<string, unknown>, input: NormaliseInput): Plan {
-  const { brief, uploads, id } = input;
+  const { brief, uploads, keepIds } = input;
+  const used = new Set<string>();
+  const id = (prefix: string, prev?: unknown): string => {
+    const want = str(prev);
+    if (keepIds && want && keepIds.has(want) && want.startsWith(prefix) && !used.has(want)) {
+      used.add(want);
+      return want;
+    }
+    return input.id(prefix);
+  };
   const uploadIds = new Set(uploads.map((u) => u.id));
   const uploadByName = new Map(uploads.map((u) => [u.name.trim().toLowerCase(), u.id]));
   const validUpload = (v: unknown, name: string, role: Upload["role"]) => {
@@ -162,7 +173,7 @@ export function normalisePlan(raw: Record<string, unknown>, input: NormaliseInpu
     const name = str(c?.name).toUpperCase().slice(0, 40);
     if (!name) continue;
     characters.push({
-      id: id("chr"),
+      id: id("chr", c?.id),
       name,
       look: str(c?.look),
       wardrobe: str(c?.wardrobe),
@@ -193,7 +204,7 @@ export function normalisePlan(raw: Record<string, unknown>, input: NormaliseInpu
       .filter((n) => n.label && n.text)
       .slice(0, 6);
     products.push({
-      id: id("prd"),
+      id: id("prd", p?.id),
       name,
       description: str(p?.description),
       notes,
@@ -219,7 +230,7 @@ export function normalisePlan(raw: Record<string, unknown>, input: NormaliseInpu
     const name = str(e?.name).toUpperCase().slice(0, 60);
     if (!name) continue;
     environments.push({
-      id: id("env"),
+      id: id("env", e?.id),
       name,
       description: str(e?.description),
       timeOfDay: str(e?.timeOfDay),
@@ -266,7 +277,7 @@ export function normalisePlan(raw: Record<string, unknown>, input: NormaliseInpu
     const productIds = matchIds(strs(c?.productNames ?? c?.products, 4), products, prodByName);
     const nobody = !characterIds.length && !productIds.length;
     cuts.push({
-      id: id("cut"),
+      id: id("cut", c?.id),
       title: `Cut ${cuts.length + 1}`,
       lensMm: Math.min(200, Math.max(14, Math.round(num(c?.lensMm ?? c?.lens, 40)))),
       aperture: aperture(c?.aperture ?? c?.tStop ?? c?.fStop),
@@ -313,10 +324,10 @@ export function normalisePlan(raw: Record<string, unknown>, input: NormaliseInpu
   });
 
   const lighting = ((Array.isArray(raw.lighting) ? raw.lighting : []) as unknown[])
-    .map((l) => (typeof l === "string" ? l : str((l as Record<string, unknown>)?.caption)))
-    .filter(Boolean)
+    .map((l) => (typeof l === "string" ? { caption: l, prev: undefined } : { caption: str((l as Record<string, unknown>)?.caption), prev: (l as Record<string, unknown>)?.id }))
+    .filter((l) => l.caption)
     .slice(0, 4)
-    .map((caption) => ({ id: id("lit"), caption }));
+    .map((l) => ({ id: id("lit", l.prev), caption: l.caption }));
   while (lighting.length < 4) {
     const fill = ["key light and shadow on the main subject", "backlight through edges and rims", "environment texture under the ambient light", "reflective surfaces catching the key"];
     lighting.push({ id: id("lit"), caption: fill[lighting.length] });
