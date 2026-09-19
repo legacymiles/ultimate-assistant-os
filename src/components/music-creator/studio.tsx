@@ -18,6 +18,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useRemotePull } from "@/lib/sync/useSync";
 import {
   checkServer,
+  ensureServer,
   ensureVoiceOnServer,
   fileUrl,
   runJob,
@@ -260,6 +261,12 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       setRunning({ projectId, label, stage: "queued", progress: 0 });
 
       try {
+        // A stopped GPU pod is asleep, not broken: wake it and wait.
+        const awake = await ensureServer({
+          signal: controller.signal,
+          onStage: (stage) => setRunning({ projectId, label, stage, progress: 0 }),
+        });
+        setServer(awake);
         const { jobId, job } = await runJob(path, body, {
           signal: controller.signal,
           onProgress: (j: Job) =>
@@ -325,6 +332,10 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       // upload here rather than another trip through search and separation.
       let refId: string;
       try {
+        setRunning({ projectId, label, stage: "checking the GPU", progress: 0 });
+        setServer(
+          await ensureServer({ onStage: (stage) => setRunning({ projectId, label, stage, progress: 0 }) }),
+        );
         refId = await ensureVoiceOnServer(input.voice);
       } catch (err) {
         return fileRender(projectId, {

@@ -577,7 +577,21 @@ async function main() {
     ports: [`${PORT}/http`, "22/tcp"],
     dataCenterIds: [dc.id],
     mounts: { network: [{ volumeId, path: MOUNT }] },
-    env: { MUSIC_TOKEN: token, VOLUME: MOUNT, MUSIC_PORT: String(PORT) },
+    env: {
+      MUSIC_TOKEN: token,
+      VOLUME: MOUNT,
+      MUSIC_PORT: String(PORT),
+      MUSIC_IDLE_STOP_MINUTES: env("MUSIC_IDLE_STOP_MINUTES", "20"),
+    },
+    // Boot = start the music server too, so the website can wake a stopped pod
+    // with one API call. autostart.sh is written by bootstrap.sh on the first
+    // --deploy; until then it does not exist and this is just the image's own
+    // /start.sh (sshd), which must keep running in the foreground.
+    cmd: [
+      "bash",
+      "-c",
+      `[ -f ${MOUNT}/autostart.sh ] && (bash ${MOUNT}/autostart.sh &); exec /start.sh`,
+    ],
     startSsh: true,
   });
   console.log(good(`  ${pod.id}  ${pod.status}`));

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { podServerUrl, podState, startPod } from "@/lib/music-creator/pod";
 
 // ---------------------------------------------------------------------------
 // Proxy to the Music Creator GPU server (tools/music-creator).
@@ -30,12 +31,20 @@ function allowed(leaf: string): boolean {
 }
 
 function target(): string {
-  return (process.env.MUSIC_SERVER_URL ?? "").replace(/\/+$/, "");
+  // MUSIC_SERVER_URL wins; otherwise a managed RunPod pod has a known address.
+  return (process.env.MUSIC_SERVER_URL || podServerUrl()).replace(/\/+$/, "");
 }
 
 async function forward(req: Request, path: string[]) {
   const base = target();
   const leaf = path.join("/");
+
+  // The GPU pod itself, answered here rather than forwarded: GET is its state,
+  // POST wakes it. This is what lets a Render press start a stopped GPU.
+  if (leaf === "gpu") {
+    if (req.method === "POST") return NextResponse.json(await startPod());
+    return NextResponse.json(await podState());
+  }
   if (!allowed(leaf)) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   if (!base) {
@@ -46,7 +55,8 @@ async function forward(req: Request, path: string[]) {
       {
         error:
           "No music GPU server is configured. Set MUSIC_SERVER_URL to a machine running " +
-          "tools/music-creator (a 24 GB NVIDIA GPU). Writing, planning and the Voice Library work without it.",
+          "tools/music-creator (a 24 GB NVIDIA GPU), or set MUSIC_POD_ID + RUNPOD_API_KEY for a RunPod pod the " +
+          "site can wake on demand. Writing, planning and the Voice Library work without it.",
         code: "no-server",
       },
       { status: 503 },

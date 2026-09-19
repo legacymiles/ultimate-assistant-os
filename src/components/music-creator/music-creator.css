@@ -848,3 +848,21 @@ select.mc-input {
     justify-content: center;
   }
 }
+
+/* GPU pod asleep / online (studio.watch wakes it on render) */
+.mc-status.is-idle .mc-dot {
+  background: var(--mc-warm);
+}
+.mc-notice.is-sleep {
+  border-color: color-mix(in srgb, var(--mc-warm) 45%, transparent);
+}
+.mc-gpu-on {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 10px;
+}
+.mc-gpu-on .mc-dot {
+  background: var(--mc-ok);
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.6);
+}

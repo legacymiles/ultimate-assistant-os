@@ -124,12 +124,24 @@ export interface ServerHealth {
   };
   gpu?: { name: string; vram_gb: number; free_gb: number };
   queue?: { running: string | null; pending: number };
+  idle_stop?: { enabled: boolean; limit_minutes?: number; idle_minutes?: number };
   version?: string;
+}
+
+/** The RunPod pod behind the server, when the site manages one (see pod.ts). */
+export interface PodInfo {
+  managed: boolean;
+  status?: string;
+  gpu?: string;
+  costPerHour?: number;
+  error?: string;
 }
 
 /** Health plus how we got it, so the UI can say *why* something is unavailable. */
 export interface ServerState {
   reachable: boolean;
+  /** The pod's own state — lets a stopped GPU be woken instead of reported dead. */
+  pod?: PodInfo;
   /** Set when unreachable or misconfigured — shown to the user verbatim. */
   reason?: string;
   health?: ServerHealth;

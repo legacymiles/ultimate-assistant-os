@@ -103,9 +103,15 @@ export function WriterNote({ engine, warning, error }: { engine: "ai" | "local" 
 export function missingFor(tool: ToolDef, server: ServerState | null): Requirement[] {
   return tool.requires.filter((req) => {
     if (req === "ai") return false; // the writing route degrades on its own
-    if (!server?.reachable) return true;
+    // A sleeping RunPod pod is woken by the render itself (studio.watch).
+    if (!server?.reachable) return !gpuWakeable(server);
     return !server.health?.engines?.[req]?.available;
   });
+}
+
+/** True when the server is down only because its RunPod pod is stopped. */
+export function gpuWakeable(server: ServerState | null): boolean {
+  return !!server && !server.reachable && !!server.pod?.managed && !server.pod.error && server.pod.status !== "TERMINATED";
 }
 
 const ENGINE_NAMES: Record<string, string> = {
@@ -124,7 +130,9 @@ const ENGINE_NAMES: Record<string, string> = {
 export function ServerNotice({ tool }: { tool: ToolDef }) {
   const { server, checkingServer, refreshServer } = useStudio();
   const missing = missingFor(tool, server);
-  if (checkingServer || !missing.length) return null;
+  if (checkingServer) return null;
+  if (gpuWakeable(server)) return <GpuAsleep />;
+  if (!missing.length) return <GpuAwake />;
 
   const names = missing.map((m) => ENGINE_NAMES[m] ?? m).join(" and ");
   const noServer = !server?.reachable;
@@ -148,6 +156,70 @@ export function ServerNotice({ tool }: { tool: ToolDef }) {
         <code>MUSIC_SERVER_URL</code> at it to render.
       </p>
     </div>
+  );
+}
+
+/** The pod is stopped: say so, and that pressing Render wakes it. */
+function GpuAsleep() {
+  const { server, refreshServer } = useStudio();
+  const [waking, setWaking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const pod = server?.pod;
+  const booting = pod?.status === "RUNNING" || pod?.status === "STARTING" || pod?.status === "PROVISIONING";
+
+  async function wake() {
+    setWaking(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/music-creator/gpu", { method: "POST" });
+      const body = await res.json();
+      if (body.error) setError(body.error);
+      refreshServer();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setWaking(false);
+    }
+  }
+
+  return (
+    <div className="mc-notice is-sleep">
+      <div className="mc-notice-h">
+        <Icon.Server width={14} height={14} />
+        <strong>{booting ? "GPU is starting up" : "GPU is asleep"}</strong>
+        {!booting && (
+          <button type="button" className="mc-btn mc-btn-s" onClick={wake} disabled={waking}>
+            {waking ? "Waking…" : "Wake it now"}
+          </button>
+        )}
+        <button type="button" className="mc-btn mc-btn-s" onClick={refreshServer}>
+          <Icon.Refresh width={12} height={12} /> Check again
+        </button>
+      </div>
+      <p>
+        {booting
+          ? "The pod is booting and the music server is loading. Renders queue as soon as it answers."
+          : "Pressing Render wakes it automatically — the first render waits 3-8 minutes while it boots."}{" "}
+        {pod?.gpu ? `${pod.gpu}` : "RunPod GPU"}
+        {typeof pod?.costPerHour === "number" ? ` · ~$${pod.costPerHour.toFixed(2)}/hr while running` : ""} · it
+        stops itself after 20 idle minutes.
+      </p>
+      {error && <p className="mc-note is-bad">{error}</p>}
+    </div>
+  );
+}
+
+/** One quiet line when the GPU is up, so "is it on?" never needs guessing. */
+function GpuAwake() {
+  const { server } = useStudio();
+  const gpu = server?.health?.gpu;
+  const idle = server?.health?.idle_stop;
+  if (!server?.reachable) return null;
+  return (
+    <p className="mc-note mc-gpu-on">
+      <span className="mc-dot" /> GPU online{gpu?.name ? ` · ${gpu.name}` : ""}
+      {idle?.enabled ? ` · sleeps after ${idle.limit_minutes} idle min` : ""}
+    </p>
   );
 }
 

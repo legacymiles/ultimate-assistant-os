@@ -62,7 +62,11 @@ function Header() {
     ? { cls: "is-wait", text: "checking GPU" }
     : server?.reachable
       ? { cls: "is-on", text: server.health?.gpu?.name ? server.health.gpu.name.replace(/NVIDIA GeForce /, "") : "GPU ready" }
-      : { cls: "is-off", text: "no GPU server" };
+      : server?.pod?.managed && !server.pod.error
+        ? server.pod.status === "EXITED"
+          ? { cls: "is-idle", text: "GPU asleep · wakes on render" }
+          : { cls: "is-wait", text: "GPU starting" }
+        : { cls: "is-off", text: "no GPU server" };
 
   return (
     <header className="mc-head">

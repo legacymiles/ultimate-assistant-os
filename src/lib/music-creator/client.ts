@@ -15,7 +15,7 @@
 // fails with the reason, and the tools show that reason.
 // ---------------------------------------------------------------------------
 
-import type { Job, ServerHealth, ServerState, VoiceProfile } from "./types";
+import type { Job, PodInfo, ServerHealth, ServerState, VoiceProfile } from "./types";
 
 const BASE = "/api/music-creator";
 
@@ -50,6 +50,11 @@ async function post(path: string, body: unknown): Promise<Record<string, unknown
  * error condition, and every tool renders differently rather than breaking.
  */
 export async function checkServer(): Promise<ServerState> {
+  const [health, pod] = await Promise.all([checkHealth(), gpuState()]);
+  return pod.managed ? { ...health, pod } : health;
+}
+
+async function checkHealth(): Promise<ServerState> {
   try {
     const res = await fetch(`${BASE}/health`, { cache: "no-store" });
     const body = await res.json().catch(() => ({}));
@@ -60,6 +65,69 @@ export async function checkServer(): Promise<ServerState> {
   } catch (err) {
     return { reachable: false, reason: (err as Error).message, checkedAt: Date.now() };
   }
+}
+
+// ----- waking the GPU ------------------------------------------------------
+//
+// The GPU is a RunPod pod that is stopped most of the time (it bills per
+// second while running, and stops itself when idle). So "the server is not
+// answering" is usually "the GPU is asleep", and the right response to a
+// Render press is to wake it and wait, not to fail.
+
+export async function gpuState(): Promise<PodInfo> {
+  try {
+    const res = await fetch(`${BASE}/gpu`, { cache: "no-store" });
+    return (await res.json()) as PodInfo;
+  } catch {
+    return { managed: false };
+  }
+}
+
+export async function wakeGpu(): Promise<PodInfo> {
+  const res = await fetch(`${BASE}/gpu`, { method: "POST" });
+  return (await res.json()) as PodInfo;
+}
+
+/** A cold start re-installs the Pythons (a few minutes) and loads YuE2. */
+const WAKE_LIMIT_MS = 20 * 60_000;
+const WAKE_POLL_MS = 10_000;
+
+/**
+ * Make sure the GPU server is answering, waking the pod if the site manages
+ * one. Resolves when /health answers; throws with the reason otherwise.
+ */
+export async function ensureServer(opts: { onStage?: (stage: string) => void; signal?: AbortSignal } = {}): Promise<ServerState> {
+  let state = await checkServer();
+  if (state.reachable) return state;
+  if (!state.pod?.managed) throw new Error(state.reason ?? "The music GPU server is not reachable.");
+  if (state.pod.error) throw new Error(state.pod.error);
+
+  if (state.pod.status !== "RUNNING") {
+    opts.onStage?.("waking the GPU");
+    const woke = await wakeGpu();
+    if (woke.error) throw new Error(woke.error);
+  }
+
+  const started = Date.now();
+  while (Date.now() - started < WAKE_LIMIT_MS) {
+    if (opts.signal?.aborted) throw new DOMException("Stopped waiting for the GPU.", "AbortError");
+    const mins = Math.floor((Date.now() - started) / 60_000);
+    opts.onStage?.(
+      state.pod?.status === "RUNNING"
+        ? `GPU is up — starting the music server (${mins} min)`
+        : `waking the GPU (${mins} min, usually 3-8)`,
+    );
+    await new Promise((r) => setTimeout(r, WAKE_POLL_MS));
+    state = await checkServer();
+    if (state.reachable) return state;
+    if (state.pod?.error) throw new Error(state.pod.error);
+    if (state.pod?.status === "EXITED" || state.pod?.status === "TERMINATED") {
+      throw new Error(`The GPU pod went to ${state.pod.status} while starting. Check it on runpod.io.`);
+    }
+  }
+  throw new Error(
+    "The GPU pod is running but the music server never answered (20 min). Its log is /workspace/autostart.log on the pod.",
+  );
 }
 
 /** True when the named engine is installed on the server this hub points at. */

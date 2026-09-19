@@ -51,10 +51,12 @@ export const TOOLS: ToolDef[] = [
   {
     id: "song-creator",
     title: "Song Creator",
-    tagline: "Full-song production, start to finish",
+    tagline: "Type a style and lyrics — an AI producer does the rest",
     blurb:
-      "Write the style and the lyrics, plan the melody and harmony as a score you can read, " +
-      "then render a complete 48 kHz stereo song with vocals and accompaniment on YuE2.",
+      "Type the style (a one-line idea or a full production prompt) and, optionally, lyrics. The AI Producer " +
+      "reads the idea, designs the record, and engineers a ≤1,000-character style, finished lyrics, vocal and " +
+      "arrangement direction — shown next to your original — or send it exactly as typed. Renders a complete " +
+      "48 kHz stereo song on YuE2, waking the GPU if it is asleep.",
     area: "create",
     icon: "Note",
     hue: [268, 199],

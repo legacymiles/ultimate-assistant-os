@@ -48,6 +48,7 @@ from common import (DEFAULT_AUK_CKPT, DEFAULT_AUK_CONFIG, DEFAULT_AUK_FLASH_CKPT
                     BadRequest, Unavailable, Unsupported, content_type_for,
                     decode_b64_audio, gpu_info, validate_song_request)
 from engines import Engines
+from idle import IdleStopper
 from jobs import JobStore
 from storage import FileStore, VoiceStore, public_voice
 from tasks import Runner
@@ -106,7 +107,7 @@ def want_bool(body: dict, field: str, default: bool) -> bool:
 
 
 def make_app(args, engines: Engines, jobs: JobStore, runner: Runner,
-             files: FileStore, voices: VoiceStore):
+             files: FileStore, voices: VoiceStore, idle: IdleStopper | None = None):
     # Uploads arrive base64-encoded inside JSON, which costs a third on top of
     # the raw size, so the body limit is the upload limit plus that overhead.
     max_upload = args.max_upload_mb * 1024 * 1024
@@ -144,6 +145,8 @@ def make_app(args, engines: Engines, jobs: JobStore, runner: Runner,
                 request["body"] = body
             if needs_auth and not authorized(request, body):
                 return ok({"error": "bad or missing token"}, status=401)
+            if needs_auth and idle is not None:
+                idle.touch()
             try:
                 return await handler(request)
             except BadRequest as exc:
@@ -183,6 +186,7 @@ def make_app(args, engines: Engines, jobs: JobStore, runner: Runner,
             "ffmpeg": bool(audio.ffmpeg_path()),
             "auth": bool(token),
             "data_dir": os.path.abspath(args.data_dir),
+            "idle_stop": idle.state() if idle is not None else {"enabled": False},
         })
 
     # --- jobs ------------------------------------------------------------
@@ -381,6 +385,10 @@ def build_parser() -> argparse.ArgumentParser:
     group.add_argument("--max-upload-mb", type=int, default=64, help="largest base64 audio upload")
     group.add_argument("--job-timeout", type=int, default=7200,
                        help="seconds before a worker subprocess is killed")
+    group.add_argument("--idle-stop-minutes", type=float,
+                       default=float(os.environ.get("MUSIC_IDLE_STOP_MINUTES", "0") or 0),
+                       help="on RunPod, stop this pod after N minutes with no jobs and no "
+                            "authorised requests (0 = never). The site can wake it again.")
     parser.add_argument("--self-test", action="store_true",
                         help="check imports, weights, ffmpeg and VRAM, print a report and exit")
     return parser
@@ -419,7 +427,10 @@ def main():
              + f"  keep-loaded={args.keep_loaded}")
     log.info(f"Music Creator server on http://{args.host}:{args.port}  data in {args.data_dir}")
 
-    app = make_app(args, engines, jobs, runner, files, voices)
+    idle = IdleStopper(args.idle_stop_minutes, jobs)
+    idle.start()
+
+    app = make_app(args, engines, jobs, runner, files, voices, idle)
     web.run_app(app, host=args.host, port=args.port, print=None)
 
 
