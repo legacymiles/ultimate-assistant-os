@@ -3,6 +3,7 @@
 import type { Identity } from "@/lib/music-classified/identify";
 import { measurePreview } from "@/lib/music-classified/measure";
 import type { IdentifyResult } from "@/lib/music-classified/resolve";
+import type { StyleResponse } from "@/lib/music-classified/style";
 import type { ClassifyResult, LensId, Song, Tree } from "@/lib/music-classified/types";
 
 export type Step = "idle" | "finding" | "measuring" | "filing" | "describing";
@@ -11,7 +12,7 @@ export const STEP_LABEL: Record<Exclude<Step, "idle">, string> = {
   finding: "Finding the exact recording…",
   measuring: "Measuring tempo & key from the 30s preview…",
   filing: "Listening and filing it…",
-  describing: "Writing descriptions…",
+  describing: "Writing the style prompt & descriptions…",
 };
 
 export function describe(song: Song, lenses: LensId[], signal?: AbortSignal) {
@@ -20,6 +21,11 @@ export function describe(song: Song, lenses: LensId[], signal?: AbortSignal) {
     { song, lenses },
     signal,
   );
+}
+
+/** The song's generator style prompt — ≤1,000 characters, quality-checked on the server. */
+export function writeStyle(song: Song, signal?: AbortSignal) {
+  return postJson<StyleResponse>("/api/music-classified/style", { song }, signal);
 }
 
 export async function postJson<T>(url: string, body: unknown, signal?: AbortSignal): Promise<T> {

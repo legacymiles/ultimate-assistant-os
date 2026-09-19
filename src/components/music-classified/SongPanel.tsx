@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { Icon } from "../icons";
 import { postJson } from "./api";
 import { Prose } from "./Prose";
+import { StyleCard } from "./StyleCard";
 import { CONFIDENCE, LevelBadge, StarButton, levelStyle } from "./SongTable";
 import { allGenres, allSubgenres } from "@/lib/music-classified/classify";
 import { LENSES, LEVELS, levelInfo } from "@/lib/music-classified/levels";
 import { audioUrl } from "@/lib/music-classified/media";
 import { artistsOf } from "@/lib/music-classified/query";
 import { fullTree } from "@/lib/music-classified/store";
-import type { LensId, Library, Song } from "@/lib/music-classified/types";
+import type { LensId, Library, Song, SongStyle } from "@/lib/music-classified/types";
 
 interface Props {
   song: Song;
@@ -19,6 +20,7 @@ interface Props {
   onClose: () => void;
   onPatch: (patch: Partial<Song>) => void;
   onDescriptions: (descriptions: Song["descriptions"]) => void;
+  onStyle: (songId: string, style: SongStyle) => void;
   onDelete: () => void;
   onReanalyze: () => void;
 }
@@ -93,7 +95,7 @@ function OwnPlayer({ audioId }: { audioId?: string }) {
   return <audio controls src={url} style={{ width: "100%", height: 36 }} preload="metadata" />;
 }
 
-export function SongPanel({ song, lib, busy, onClose, onPatch, onDescriptions, onDelete, onReanalyze }: Props) {
+export function SongPanel({ song, lib, busy, onClose, onPatch, onDescriptions, onStyle, onDelete, onReanalyze }: Props) {
   const own = song.kind === "own";
   const have = LENSES.filter((l) => song.descriptions[l.id]);
   const [tab, setTab] = useState<LensId | null>(have[0]?.id ?? null);
@@ -199,6 +201,8 @@ export function SongPanel({ song, lib, busy, onClose, onPatch, onDescriptions, o
             )}
           </div>
         )}
+
+        <StyleCard song={song} busy={busy} onStyle={onStyle} />
 
         {/* Filing */}
         <section className="mcl-card">

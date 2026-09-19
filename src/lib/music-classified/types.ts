@@ -10,8 +10,6 @@
 // and what it sounds like in words.
 // ---------------------------------------------------------------------------
 
-import type { StyleBrief, StylePlan } from "./style";
-
 /** Ways a song can be described. Each one is a different pair of ears. */
 export type LensId =
   | "listener"
@@ -104,9 +102,27 @@ export interface Song {
   notes: string;
   /** "ai" when a model filed it, "offline" when the no-key fallback did. */
   filedBy: "ai" | "offline";
+  /** A ≤1,000-character prompt that makes a song generator sound like this recording. */
+  style?: SongStyle;
 
   addedAt: string;
   updatedAt: string;
+}
+
+/** A song's generator style prompt, plus what the quality gate needs to re-check an edit. */
+export interface SongStyle {
+  text: string;
+  /** The signature sound the prompt is built around. */
+  identity: string;
+  vocals: boolean;
+  drums: boolean;
+  /** "offline" = built from the filed profile because no AI key was set. */
+  source: "ai" | "offline";
+  /** How many times the quality gate sent it back for a rewrite. */
+  revisions: number;
+  /** True only if the last-resort cut was needed to stay under the limit. */
+  trimmed: boolean;
+  at: string;
 }
 
 /**
@@ -124,28 +140,10 @@ export interface Blueprint {
   at: string;
 }
 
-/** One Style Prompt run, kept so it can be reopened, copied or reworked. */
-export interface StyleRecord {
-  id: string;
-  brief: StyleBrief;
-  prompt: string;
-  plan: StylePlan;
-  checks: { id: string; label: string; pass: boolean }[];
-  /** "offline" = the rule-built draft used when no AI key is set. */
-  source: "ai" | "offline";
-  /** How many times the quality gate sent it back for a rewrite. */
-  revisions: number;
-  /** True only if the last-resort cut was needed to stay under the limit. */
-  trimmed: boolean;
-  at: string;
-}
-
 export interface Library {
   songs: Song[];
   tree: Tree;
   blueprints: Blueprint[];
-  /** Style Prompt history, newest first. */
-  styles: StyleRecord[];
   /** The lenses ticked last time, so the add box remembers your habit. */
   defaultLenses: LensId[];
 }

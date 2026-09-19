@@ -302,11 +302,11 @@ export const PROJECTS: CatalogProject[] = [
       "A second tab, My Music, is for the songs you make: upload audio, name the artist, and an " +
       "audio-capable model actually listens to each file while tempo and key are measured in the " +
       "browser — then it's filed the same way, browsed by artist, and any artist's songs can be " +
-      "turned into a blueprint of their sound. A third tab, Style Prompt, is the producer: describe a " +
-      "song in plain words with any references, and it makes the production calls — groove, drums, bass, " +
-      "melody, human vocal behaviour, buried hooks, where it strips down and builds — then compresses them " +
-      "into a style prompt of at most 1,000 characters for a music generator, checked against a 12-point " +
-      "quality gate and rewritten if it fails. No lyrics. Library songs are only names and words; uploads " +
+      "turned into a blueprint of their sound. Every song also gets a style prompt: at most 1,000 " +
+      "characters describing that exact recording — tempo, key, drums, bass, harmony, the vocal and how " +
+      "it's treated, how the arrangement moves — in words an AI song generator can follow, with no " +
+      "names or lyrics, checked by a quality gate and rewritten if it misses. One click copies it. " +
+      "Library songs are only names and words; uploads " +
       "stay on the device they came from. Local-first, synced across devices.",
     status: "live",
     appUrl: "/apps/music-classified",

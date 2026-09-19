@@ -33,3 +33,16 @@ Names are stripped because generators reject them and the goal is the idea, not 
 
 **Alternatives considered:** Generating lyrics in the same pass (kept out to keep the feature focused);
 letting the model write long and truncating (loses the most important decisions at random).
+
+## 2026-09-19 — Style prompts belong to every song, not a separate tab (supersedes the entry above)
+
+**Decision:** Removed the Style Prompt tab. Every song filed in Music Classified now gets its own
+style prompt automatically: at most 1,000 characters describing *that exact recording* as accurately
+as possible (measured tempo and key used exactly), in words a song generator can follow. Same quality
+gate (now 13 checks, incl. tempo & key; vocal checks skipped for instrumentals), no names, no lyrics.
+Songs filed earlier get one the first time they're opened.
+
+**Why:** People use the site to look up real songs they love. The job is to describe the song they
+searched so a generator can reproduce its sound — not to invent a new song from a brief.
+
+**Alternatives considered:** Keeping the brief-based tab alongside (rejected by the owner: wrong job).

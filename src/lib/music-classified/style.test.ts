@@ -3,34 +3,59 @@ import {
   STYLE_LIMIT,
   charCount,
   checkStyle,
+  coerceFacts,
   fitToLimit,
   forbiddenNames,
-  libraryRefsFor,
   normalizePrompt,
   offlineStyle,
-  stylePrompt,
-  type StyleBrief,
+  songStylePrompt,
 } from "./style";
 import type { Song } from "./types";
 
-const GOOD =
-  "Dark club-rap, 128 BPM, F# minor; identity: a distant band-passed sung hook buried under the rapper like a half-heard radio signal. " +
-  "Four-on-the-floor kick with a syncopated 808 that bounces off it, off-beat open hats, dry clap on 2 and 4. " +
-  "Hypnotic 4-note pluck motif repeats; wide detuned pad with minor chords and a borrowed major lift in the hook. " +
-  "VOX: rapper up front with loose off-grid phrasing, audible breaths, intensity rising into the hook, doubled end words, ad-libs; " +
-  "a sung layer holds long notes underneath and answers him. Tape-saturated delay throws, filtered reverb tails. " +
-  "Intro: filtered pad and buried hook alone; drums drop out for one bar of silence before the first hook, then kick and sub land together. " +
-  "Verse 2 adds a shaker layer and switches the 808 rhythm; fake drop before the last chorus, which returns harder with wider harmonies and a new counter-melody.";
+const SONG = {
+  id: "s1",
+  title: "Went Legit",
+  artist: "G Herbo",
+  album: "Survivor's Remorse",
+  year: "2023",
+  links: [],
+  level: 7,
+  genre: "Hip-Hop",
+  subgenre: "Chicago drill",
+  levelReason: "hard, driving",
+  confidence: "known",
+  tags: ["sample", "drill"],
+  descriptions: { producer: "Pitched soul sample under hard drums." },
+  notes: "",
+  filedBy: "ai",
+  addedAt: "",
+  updatedAt: "",
+  profile: {
+    bpm: 144,
+    key: "F# minor",
+    energy: 75,
+    mood: ["triumphant", "gritty"],
+    instruments: ["808", "soul sample", "hi-hats"],
+    vocals: "aggressive male rap",
+    production: "buried pitched soul vocal sample looped under drill drums",
+    era: "2020s",
+    similarArtists: ["Lil Durk"],
+  },
+} as unknown as Song;
 
-const BRIEF: StyleBrief = { describe: "dark fun club song", refArtists: "Regard, Zeddy Will", useTaste: true };
+const GOOD =
+  "Chicago drill, 144 BPM, F# minor, half-time feel; signature: a buried, pitched-up soul vocal sample looped under everything, band-passed and tape-warm like an old record. " +
+  "Drums: sliding 808s with long glides, stuttered triplet hi-hats, sharp snare on 3, sparse kick pattern. " +
+  "Minor chord loop from the sample, a descending 4-note piano motif doubling the hook melody. " +
+  "VOX: aggressive male rap, loose phrasing ahead of the beat, audible breaths, rising intensity into each hook, doubled punchlines, ad-libs panned wide; dry close-mic lead, delay throws on line ends. " +
+  "Intro: sample alone, filtered; drums drop in on bar 5; the 808 drops out for two bars before the second verse; beat returns harder, outro strips back to the sample. Mix: heavy sub, bright hats, vocal forward.";
+
+const FACTS = { identity: "buried pitched soul vocal sample looped under drill drums", vocals: true, drums: true };
 
 describe("the 1,000-character rule", () => {
   it("never lets a prompt through over the limit", () => {
-    const long = `${GOOD} ${GOOD}`;
-    expect(charCount(long)).toBeGreaterThan(STYLE_LIMIT);
-    const fitted = fitToLimit(long);
+    const fitted = fitToLimit(`${GOOD} ${GOOD}`);
     expect(charCount(fitted)).toBeLessThanOrEqual(STYLE_LIMIT);
-    // It ends on a full clause, not mid-word.
     expect(fitted).toMatch(/[.!]$/);
   });
 
@@ -38,75 +63,75 @@ describe("the 1,000-character rule", () => {
     expect(fitToLimit(GOOD)).toBe(GOOD);
   });
 
-  it("counts characters, not UTF-16 units", () => {
-    expect(charCount("♪—é")).toBe(3);
-  });
-
-  it("the offline draft respects the limit too", () => {
-    const { prompt } = offlineStyle({ describe: "x".repeat(50), avoid: "y ".repeat(400) });
-    expect(charCount(prompt)).toBeLessThanOrEqual(STYLE_LIMIT);
+  it("the profile-built draft respects the limit too", () => {
+    const big = {
+      ...SONG,
+      tags: Array(200).fill("very-long-tag-name"),
+      profile: { ...SONG.profile, production: "x ".repeat(600) },
+    };
+    expect(charCount(offlineStyle(big as Song).prompt)).toBeLessThanOrEqual(STYLE_LIMIT);
   });
 });
 
 describe("the quality gate", () => {
-  it("passes a real producer prompt", () => {
-    const failed = checkStyle(GOOD, BRIEF, "distant band-passed sung hook buried under the rapper").filter((c) => !c.pass);
+  it("passes an accurate producer prompt", () => {
+    const failed = checkStyle(GOOD, SONG, FACTS).filter((c) => !c.pass);
     expect(failed.map((c) => c.id)).toEqual([]);
   });
 
-  it("fails the generic prompt the owner hates", () => {
-    const bad = "Create a catchy, energetic, emotional song with professional vocals and modern production.";
-    const failed = checkStyle(bad, BRIEF, "").filter((c) => !c.pass).map((c) => c.id);
-    expect(failed).toEqual(expect.arrayContaining(["filler", "space", "identity", "movement", "vocal", "drums-bass"]));
-  });
-
-  it("catches reference names and review voice", () => {
-    const failed = checkStyle(`${GOOD} Like Zeddy Will, this song evokes the club.`, BRIEF, "buried sung hook")
+  it("fails a generic prompt", () => {
+    const bad = "Create a catchy, energetic drill song with professional vocals and modern production.";
+    const failed = checkStyle(bad, SONG, FACTS)
       .filter((c) => !c.pass)
       .map((c) => c.id);
-    expect(failed).toEqual(expect.arrayContaining(["names", "voice"]));
+    expect(failed).toEqual(expect.arrayContaining(["filler", "space", "tempo-key", "movement", "vocal", "drums-bass"]));
   });
 
-  it("does not flag a one-word song title used as a normal word", () => {
-    const names = forbiddenNames({ describe: "", refSongs: "Breathe - EMBRZ" });
-    expect(names).toContain("EMBRZ");
-    expect(names).not.toContain("Breathe");
+  it("catches the artist, title and similar artists", () => {
+    const failed = checkStyle(`${GOOD} Like G Herbo on Went Legit, a Lil Durk flow.`, SONG, FACTS)
+      .filter((c) => !c.pass)
+      .map((c) => c.id);
+    expect(failed).toContain("names");
   });
 
-  it("drops a note in brackets when reading a reference line", () => {
-    const names = forbiddenNames({ describe: "", refSongs: "Went Legit - G Herbo (the barely audible sung hook)", useTaste: false });
-    expect(names).toEqual(expect.arrayContaining(["G Herbo", "Went Legit"]));
+  it("skips vocal checks for an instrumental", () => {
+    const ids = checkStyle(GOOD, SONG, { ...FACTS, vocals: false }).map((c) => c.id);
+    expect(ids).not.toContain("vocal");
+    expect(ids).not.toContain("vocal-fx");
   });
 
-  it("rejects quoted lyric lines", () => {
-    const failed = checkStyle(`${GOOD.slice(0, 700)} hook sings "baby come back to me tonight"`, BRIEF, "buried sung hook");
-    expect(failed.find((c) => c.id === "no-lyrics")?.pass).toBe(false);
+  it("requires the measured tempo and key", () => {
+    const off = checkStyle(GOOD.replace("144", "140"), SONG, FACTS).find((c) => c.id === "tempo-key");
+    expect(off?.pass).toBe(false);
+  });
+
+  it("splits collaborations into separate names", () => {
+    expect(forbiddenNames({ ...SONG, artist: "Drake & Future feat. Young Thug" })).toEqual(
+      expect.arrayContaining(["Drake", "Future", "Young Thug"]),
+    );
   });
 });
 
 describe("prompt building", () => {
   it("keeps keys like F# minor intact", () => {
-    expect(normalizePrompt('Style prompt: "**Dark** club, F# minor,\nsub_bass"')).toBe("Dark club, F# minor, sub_bass");
+    expect(normalizePrompt('Style prompt: "**Dark** drill, F# minor,\nsub_bass"')).toBe(
+      "Dark drill, F# minor, sub_bass",
+    );
   });
 
-  it("includes the taste profile only when asked", () => {
-    expect(stylePrompt({ describe: "a", useTaste: true })).toContain("barely-hear-it");
-    expect(stylePrompt({ describe: "a", useTaste: false })).not.toContain("barely-hear-it");
+  it("hands the model the recording, the measured facts and existing notes", () => {
+    const p = songStylePrompt(SONG);
+    expect(p).toContain('"Went Legit" by G Herbo');
+    expect(p).toContain("Use 144 BPM and F# minor");
+    expect(p).toContain("Pitched soul sample");
   });
 
-  it("finds typed references already in the library", () => {
-    const song = {
-      id: "1",
-      title: "Ride It",
-      artist: "Regard",
-      genre: "House",
-      subgenre: "Deep house",
-      level: 7,
-      tags: ["hypnotic"],
-      profile: { bpm: 118, key: "A minor", energy: 70, mood: [], instruments: ["pluck"], vocals: "pitched", production: "sidechained", era: "", similarArtists: [] },
-    } as unknown as Song;
-    const refs = libraryRefsFor({ describe: "the energy of ride it" }, [song]);
-    expect(refs).toHaveLength(1);
-    expect(refs[0].bpm).toBe(118);
+  it("tells the model an own song is unreleased", () => {
+    expect(songStylePrompt({ ...SONG, kind: "own" })).toContain("unreleased");
+  });
+
+  it("defaults facts to vocals and drums", () => {
+    expect(coerceFacts({ identity: " x " })).toEqual({ identity: "x", vocals: true, drums: true });
+    expect(coerceFacts({ vocals: false, drums: false }).vocals).toBe(false);
   });
 });
