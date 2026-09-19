@@ -73,19 +73,20 @@ export interface CatalogProject {
 
 export const PROJECTS: CatalogProject[] = [
   {
-    slug: "new-dashboard",
-    title: "New Dashboard",
-    tag: "Your AI Operating System, in one screen",
+    slug: "jarvis",
+    title: "Jarvis",
+    tag: "A personal assistant with a real memory",
     category: "AI",
     overview:
-      "Seven quick questions turn into a personal AI Operating System dashboard, built on the AIS-OS kit's " +
-      "Four Cs: Context (who you are, your 90-day priorities, pasted voice samples), Connections (the seven " +
-      "systems your AI should reach and how each is wired), Capabilities (your skills — pulled straight from " +
-      "Claude Code), and Cadence (routines, credited only once they've actually run). Ask it what to focus on " +
-      "this week, keep an append-only decisions log, and export the exact CLAUDE.md + context files that make " +
-      "every Claude Code session know you. Onboard friends and family onto their own dashboards too.",
+      "Talk or type, and Jarvis answers from what he actually knows — your memories, your master Claude " +
+      "folder and your profile — naming every source and admitting what he's missing. His memory core is a " +
+      "turning ball of connected dots, one per memory, coloured by where it came from. He reads your inbox " +
+      "and calendar through your connected apps, drafts replies and books meetings, and always shows you the " +
+      "exact message or event before anything happens. Underneath is the AIS-OS Four Cs profile he was built " +
+      "on: Context, Connections, Capabilities and Cadence, exportable as the CLAUDE.md and context files that " +
+      "make every Claude Code session know you.",
     status: "live",
-    appUrl: "/apps/new-dashboard",
+    appUrl: "/apps/jarvis",
     iconStyle: "rings",
     hue: [190, 265],
   },
@@ -692,7 +693,7 @@ export function getProject(slug: string): CatalogProject | null {
  * for whoever IS signed in, put their own real data on a public-facing spinning
  * panel. Neither is wanted, so they keep the animated icon instead.
  */
-const UNPREVIEWABLE = new Set(["dashboard", "new-dashboard", "projects-timeline", "social-personas"]);
+const UNPREVIEWABLE = new Set(["dashboard", "jarvis", "projects-timeline", "social-personas"]);
 
 /**
  * The preview a carousel panel should mount, or null for the animated icon.
