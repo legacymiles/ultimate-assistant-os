@@ -118,33 +118,5 @@
   {
     "name": "shader-extract",
     "description": "Captures one WebGL / shader / Three.js / Spline / Unicorn Studio effect from a reference page and rebuilds it locally. Mix in when the redesign should borrow a specific animated background."
-  },
-  {
-    "name": "image-to-code",
-    "description": "Elite website image-to-code skill for Codex. For visually important web tasks, it must first generate the design image(s) itself, deeply analyze them, then implement the website to match them as closely as possible."
-  },
-  {
-    "name": "minimalist-ui",
-    "description": "Clean editorial-style interfaces. Warm monochrome palette, typographic contrast, flat bento grids, muted pastels."
-  },
-  {
-    "name": "redesign-existing-projects",
-    "description": "Upgrades existing websites and apps to premium quality. Audits current design, identifies generic AI patterns, and applies high-end design standards without breaking functionality."
-  },
-  {
-    "name": "high-end-visual-design",
-    "description": "Teaches the AI to design like a high-end agency. Defines the exact fonts, spacing, shadows, card structures, and animations that make a website feel expensive."
-  },
-  {
-    "name": "stitch-design-taste",
-    "description": "Semantic Design System Skill for Google Stitch. Generates agent-friendly DESIGN.md files that enforce premium, anti-generic UI standards — strict typography, calibrated color, asymmetric layouts, perpetual micro-motion, and hardware-acce…"
-  },
-  {
-    "name": "design-taste-frontend",
-    "description": "Anti-slop frontend skill for landing pages, portfolios, and redesigns. The agent reads the brief, infers the right design direction, and ships interfaces that do not look templated."
-  },
-  {
-    "name": "design-taste-frontend-v1",
-    "description": "The original v1 taste-skill, preserved for projects depending on its exact behavior."
   }
 ]
