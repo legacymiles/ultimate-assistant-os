@@ -29,7 +29,14 @@ function download(name: string, text: string, type = "text/markdown") {
   URL.revokeObjectURL(url);
 }
 
-export function NewDashboard() {
+/**
+ * The Four-Cs profile app. It is now the Profile tab of Jarvis
+ * (`/apps/jarvis`), which is why `chromeless` exists: inside Jarvis the shell
+ * already provides the back link and the app name, so this component drops its
+ * own and keeps only the controls that are its own (profile picker, onboard,
+ * import, export).
+ */
+export function NewDashboard({ chromeless = false }: { chromeless?: boolean } = {}) {
   const [store, setStore] = useState<DashboardStore>(emptyStore);
   const [ready, setReady] = useState(false);
   const [onboarding, setOnboarding] = useState<{ suggested: boolean } | null>(null);
@@ -99,12 +106,18 @@ export function NewDashboard() {
 
   const topBar = (
     <div className="flex flex-wrap items-center gap-2 border-b border-line bg-panel px-3 py-2.5 sm:px-4">
-      <Link href="/" className={btn} aria-label="Back to hub">
-        <Icon.ArrowLeft width={14} height={14} />
-        <span className="hidden sm:inline">Hub</span>
-      </Link>
-      <span className="ml-1 text-sm font-semibold text-ink">New Dashboard</span>
-      <span className="hidden text-xs text-ink-faint sm:inline">· your AI Operating System</span>
+      {chromeless ? (
+        <span className="text-sm font-semibold text-ink">Profile</span>
+      ) : (
+        <>
+          <Link href="/" className={btn} aria-label="Back to hub">
+            <Icon.ArrowLeft width={14} height={14} />
+            <span className="hidden sm:inline">Hub</span>
+          </Link>
+          <span className="ml-1 text-sm font-semibold text-ink">Jarvis</span>
+          <span className="hidden text-xs text-ink-faint sm:inline">· your AI Operating System</span>
+        </>
+      )}
       <div className="ml-auto flex flex-wrap items-center gap-2">
         {store.profiles.length > 0 && (
           <select

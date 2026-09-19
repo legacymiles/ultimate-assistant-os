@@ -1,11 +1,7 @@
-import { NewDashboard } from "@/components/new-dashboard/NewDashboard";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "New Dashboard · Ultimate Assistant OS",
-  description:
-    "Your personal AI Operating System: a 7-question onboarding becomes a Four-Cs dashboard (Context, Connections, Capabilities, Cadence) and the Claude Code files that make every session know you.",
-};
-
+// New Dashboard became Jarvis (2026-09-19). The old route stays so saved
+// links, the AI-OS skill's export notes and the decisions log keep working.
 export default function Page() {
-  return <NewDashboard />;
+  redirect("/apps/jarvis");
 }
