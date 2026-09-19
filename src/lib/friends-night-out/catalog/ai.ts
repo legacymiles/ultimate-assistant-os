@@ -43,7 +43,10 @@ async function chat(model: string, system: string, user: string, maxTokens: numb
     const retryAfter = Number(res.headers.get("retry-after"));
     await sleep(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 2000 * 2 ** attempt + Math.random() * 1000);
   }
-  if (!res || !res.ok) throw new Error(`AI returned ${res?.status}`);
+  if (!res || !res.ok) {
+    const detail = res ? (await res.text().catch(() => "")).slice(0, 300) : "";
+    throw new Error(`AI returned ${res?.status} ${detail}`);
+  }
   const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
   return data.choices?.[0]?.message?.content ?? "";
 }
