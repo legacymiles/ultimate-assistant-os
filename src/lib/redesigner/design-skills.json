@@ -42,5 +42,109 @@
   {
     "name": "h3-scroll-world",
     "description": "Builds an immersive scroll-scrubbed \"fly through the world\" landing page for any industry or brand, with MiniMax H3 rendering every video clip and OpenRouter generating the scene stills."
+  },
+  {
+    "name": "frontend-design",
+    "description": "Anthropic's official design skill: commits to one bold aesthetic direction (brutalist, editorial, luxury, retro-futuristic…) with distinctive type, a committed palette and deliberate motion. Best default when no specialist fits."
+  },
+  {
+    "name": "taste-skill",
+    "description": "Anti-slop landing pages: infers a real design direction from the brief, audit-first on redesigns, strict pre-flight so nothing looks templated. Best for portfolios, SaaS and brand sites."
+  },
+  {
+    "name": "taste-skill-v1",
+    "description": "The original taste-skill (v1) behaviour, for when the v2 rewrite drifts. Same anti-template goal, older rule set."
+  },
+  {
+    "name": "soft-skill",
+    "description": "The \"expensive agency\" look: exact premium fonts, spacing, soft shadows, card structures and animations; bans cheap AI defaults. Best for high-end service and product brands."
+  },
+  {
+    "name": "minimalist-skill",
+    "description": "Clean editorial minimalism: warm monochrome, typographic contrast, flat bento grids, muted pastels, no gradients or heavy shadows. Best for calm, content-first sites."
+  },
+  {
+    "name": "brutalist-skill",
+    "description": "Swiss-print meets military terminal: rigid grids, extreme type-scale contrast, utilitarian colour, analog degradation. Best for data-heavy, editorial or developer sites."
+  },
+  {
+    "name": "gpt-tasteskill",
+    "description": "GSAP-heavy scroll design: pinning, stacking and scrubbed ScrollTriggers, strict AIDA structure, gapless bento grids, randomized layout variance. Best for bold marketing one-pagers."
+  },
+  {
+    "name": "redesign-skill",
+    "description": "Upgrade-in-place: audits the existing site for generic AI patterns and lifts it to premium standards without breaking functionality. Best for a subtle-to-medium modernization."
+  },
+  {
+    "name": "stitch-skill",
+    "description": "Design-system first: writes a strict DESIGN.md (type, calibrated colour, asymmetric layout, micro-motion) then builds from it. Best when the redesign must scale to many pages."
+  },
+  {
+    "name": "imagegen-frontend-web",
+    "description": "Mockup-first: generates one premium design image per section with varied compositions and one palette, then the build matches it. Best when you want to approve the look visually before code."
+  },
+  {
+    "name": "image-to-code-skill",
+    "description": "Generates the design images itself, analyzes them deeply, then implements the site to match them closely. Pairs with imagegen-frontend-web."
+  },
+  {
+    "name": "brandkit",
+    "description": "Rebrand direction: produces a premium brand-guidelines board (logo system, identity, visual world) to drive the redesign's look. Best when the site needs a new identity, not just a new layout."
+  },
+  {
+    "name": "ui-ux-pro-max",
+    "description": "Design-intelligence database: picks a style, palette, font pairing and UX rules matched to the product type. Best for business apps, SaaS and dashboards."
+  },
+  {
+    "name": "theme-factory",
+    "description": "Ten curated colour + font themes (or one generated on the fly), applied consistently. Best for a fast, coherent re-theme of a plain site."
+  },
+  {
+    "name": "web-artifacts-builder",
+    "description": "React + Tailwind + shadcn/ui build bundled into one HTML file. Best for rich, component-heavy prototypes of the redesign."
+  },
+  {
+    "name": "web-design-guidelines",
+    "description": "Vercel's Web Interface Guidelines as a direction constraint: accessibility, focus states, forms, motion, typography, dark mode. Mix in to make any direction ship-ready."
+  },
+  {
+    "name": "clone-site",
+    "description": "Measure-first: tears down a reference site you love (exact tokens, motion, shader params) and rebuilds it pixel-accurately. Best when the redesign should look like a specific named site."
+  },
+  {
+    "name": "remix-site",
+    "description": "Take a cloned or measured site and make it yours: tokenize, re-skin with your brand, three directions side by side, live tweak panel."
+  },
+  {
+    "name": "shader-extract",
+    "description": "Captures one WebGL / shader / Three.js / Spline / Unicorn Studio effect from a reference page and rebuilds it locally. Mix in when the redesign should borrow a specific animated background."
+  },
+  {
+    "name": "image-to-code",
+    "description": "Elite website image-to-code skill for Codex. For visually important web tasks, it must first generate the design image(s) itself, deeply analyze them, then implement the website to match them as closely as possible."
+  },
+  {
+    "name": "minimalist-ui",
+    "description": "Clean editorial-style interfaces. Warm monochrome palette, typographic contrast, flat bento grids, muted pastels."
+  },
+  {
+    "name": "redesign-existing-projects",
+    "description": "Upgrades existing websites and apps to premium quality. Audits current design, identifies generic AI patterns, and applies high-end design standards without breaking functionality."
+  },
+  {
+    "name": "high-end-visual-design",
+    "description": "Teaches the AI to design like a high-end agency. Defines the exact fonts, spacing, shadows, card structures, and animations that make a website feel expensive."
+  },
+  {
+    "name": "stitch-design-taste",
+    "description": "Semantic Design System Skill for Google Stitch. Generates agent-friendly DESIGN.md files that enforce premium, anti-generic UI standards — strict typography, calibrated color, asymmetric layouts, perpetual micro-motion, and hardware-acce…"
+  },
+  {
+    "name": "design-taste-frontend",
+    "description": "Anti-slop frontend skill for landing pages, portfolios, and redesigns. The agent reads the brief, infers the right design direction, and ships interfaces that do not look templated."
+  },
+  {
+    "name": "design-taste-frontend-v1",
+    "description": "The original v1 taste-skill, preserved for projects depending on its exact behavior."
   }
 ]
