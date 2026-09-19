@@ -34,5 +34,9 @@
   {
     "name": "scroll-world",
     "description": "Build an immersive scroll-scrubbed \"fly through the world\" landing page for any industry or brand using Higgsfield."
+  },
+  {
+    "name": "cinematic-ui",
+    "description": "Design and build websites with film-inspired visual systems, director-driven art direction, storyboard-first layout planning, and cinematic motion."
   }
 ]
