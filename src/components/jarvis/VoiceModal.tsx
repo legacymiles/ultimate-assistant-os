@@ -154,6 +154,10 @@ export function VoiceModal({
   useEffect(() => {
     if (!open) return;
     const down = (e: KeyboardEvent) => {
+      if (e.code === "Escape") {
+        onClose();
+        return;
+      }
       if (e.code !== "Space" || e.repeat) return;
       const el = document.activeElement;
       if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return;
@@ -170,7 +174,7 @@ export function VoiceModal({
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
     };
-  }, [open, voice, finish]);
+  }, [open, voice, finish, onClose]);
 
   useEffect(() => {
     if (!open) {
@@ -196,7 +200,13 @@ export function VoiceModal({
             : "Hold the button, or press space";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm"
+      onMouseDown={(e) => {
+        // A click on the backdrop closes it; a click inside must not.
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className="relative flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-line bg-panel/90 shadow-2xl backdrop-blur-xl">
         <div className="flex items-center gap-2 border-b border-line px-3 py-2">
           <Icon.Mic width={13} height={13} className="text-ink-muted" />

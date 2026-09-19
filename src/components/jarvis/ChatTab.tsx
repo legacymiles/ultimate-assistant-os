@@ -59,6 +59,7 @@ export function ChatTab({
   const [error, setError] = useState("");
   const [proposals, setProposals] = useState<{ title: string; content: string }[]>([]);
   const [pending, setPending] = useState<PendingAction | null>(null);
+  const [acting, setActing] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   const conversation: Conversation | null = useMemo(
@@ -137,6 +138,29 @@ export function ChatTab({
       setError(e instanceof Error ? e.message : "Couldn't reach Jarvis.");
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** The owner said yes. This is the only path from chat to a real action. */
+  const act = async (args: Record<string, unknown>) => {
+    if (!pending) return;
+    setActing(true);
+    try {
+      const res = await fetch("/api/jarvis/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tool: pending.tool, args, confirmed: true }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      setPending(
+        data.ok
+          ? { ...pending, status: "done", result: "Done." }
+          : { ...pending, status: "failed", error: data.error ?? "It failed." },
+      );
+    } catch (e) {
+      setPending({ ...pending, status: "failed", error: e instanceof Error ? e.message : "It failed." });
+    } finally {
+      setActing(false);
     }
   };
 
@@ -231,15 +255,9 @@ export function ChatTab({
           {pending && (
             <ConfirmCard
               action={pending}
-              onConfirm={() => {
-                // Stage 4 wires this to the connector. Until then, be honest.
-                setPending({
-                  ...pending,
-                  status: "failed",
-                  error: "No app is connected yet, so I can't actually do this. Stage 4 connects them.",
-                });
-              }}
-              onCancel={() => setPending(null)}
+              busy={acting}
+              onConfirm={(args) => void act(args)}
+              onCancel={() => setPending({ ...pending, status: "cancelled" })}
             />
           )}
 
