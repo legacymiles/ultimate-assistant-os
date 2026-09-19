@@ -18,12 +18,15 @@ import { DashboardTab } from "./DashboardTab";
 import { MemoryTab } from "./MemoryTab";
 import { Placeholder } from "./Placeholder";
 import { RoutinesTab } from "./RoutinesTab";
+import { VoiceModal } from "./VoiceModal";
 import { loadLocal } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
 import { STORE_KEY, emptyStore } from "@/lib/new-dashboard/model";
 import type { DashboardStore, Profile } from "@/lib/new-dashboard/types";
-import { JARVIS_KEY, loadJarvis, saveJarvis } from "@/lib/jarvis/store";
-import type { JarvisStore } from "@/lib/jarvis/types";
+import { nodesFrom } from "./MemoryTab";
+import { emptyJarvis, JARVIS_KEY, loadJarvis, saveJarvis, uid } from "@/lib/jarvis/store";
+import { useMemory } from "@/lib/jarvis/useMemory";
+import type { ChatTurn, Conversation, JarvisStore } from "@/lib/jarvis/types";
 
 export type TabId = "dashboard" | "chat" | "inbox" | "calendar" | "memory" | "routines" | "profile";
 
@@ -76,12 +79,40 @@ export function Jarvis() {
     [profiles],
   );
 
+  const [talking, setTalking] = useState(false);
+
+  // The ball inside the voice window needs the same memories the Memory tab
+  // draws. One empty store instance keeps the hook's inputs stable before the
+  // real store has loaded.
+  const blank = useMemo(emptyJarvis, []);
+  const memory = useMemory(store ?? blank, commit);
+  const voiceNodes = useMemo(
+    () => nodesFrom(memory.memories, store?.mutedSources ?? []),
+    [memory.memories, store?.mutedSources],
+  );
+
   const go = (id: TabId) => {
     setTab(id);
     window.location.hash = id;
   };
 
   if (!store) return <div className="min-h-dvh" />;
+
+  const turns = store.conversations[0]?.turns ?? [];
+
+  /** A spoken exchange is kept in the same conversation the Chat tab shows. */
+  const keepExchange = (question: string, answer: string) => {
+    const now = new Date().toISOString();
+    const pair: ChatTurn[] = [
+      { id: uid(), role: "you", text: question, at: now, spoken: true },
+      { id: uid(), role: "jarvis", text: answer, at: now, spoken: true },
+    ];
+    const existing = store.conversations[0];
+    const next: Conversation = existing
+      ? { ...existing, turns: [...existing.turns, ...pair], updatedAt: now }
+      : { id: uid(), title: "Conversation", startedAt: now, updatedAt: now, turns: pair };
+    commit({ ...store, conversations: [next, ...store.conversations.slice(existing ? 1 : 0)] });
+  };
 
   const rail = (
     <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-line bg-panel px-2 py-1.5 md:h-[calc(100dvh-49px)] md:w-44 md:flex-col md:overflow-y-auto md:border-b-0 md:border-r md:px-2 md:py-3">
@@ -106,7 +137,7 @@ export function Jarvis() {
         <p className="text-[10px] leading-relaxed text-ink-faint">
           Apps: not connected
           <br />
-          Voice: stage 3
+          Voice: on
         </p>
       </div>
     </nav>
@@ -130,9 +161,9 @@ export function Jarvis() {
         <div className="ml-auto flex items-center gap-2">
           <button
             type="button"
-            disabled
-            title="Voice arrives in stage 3"
-            className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-faint opacity-60"
+            onClick={() => setTalking(true)}
+            title="Talk to Jarvis"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
           >
             <Icon.Mic width={14} height={14} />
             <span className="hidden sm:inline">Talk</span>
@@ -166,6 +197,32 @@ export function Jarvis() {
           {tab === "routines" && <RoutinesTab store={store} commit={commit} profile={profile} />}
         </main>
       </div>
+
+      <VoiceModal
+        open={talking}
+        onClose={() => setTalking(false)}
+        nodes={voiceNodes}
+        ownerName={profile?.name ?? ""}
+        history={turns}
+        onExchange={keepExchange}
+        onProposals={(list) =>
+          commit({
+            ...store,
+            proposals: [
+              ...list.map((p) => ({
+                id: uid(),
+                title: p.title,
+                content: p.content,
+                source: "chat" as const,
+                origin: "a spoken conversation",
+                conversationId: store.conversations[0]?.id ?? "",
+                createdAt: new Date().toISOString(),
+              })),
+              ...store.proposals,
+            ],
+          })
+        }
+      />
     </div>
   );
 }
