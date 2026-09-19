@@ -69,15 +69,23 @@ export function parseDiscovery(content: string, section: SectionId, max = 25): C
 // Quotes would end the Overpass string literal, so they are dropped, not escaped.
 const escapeRe = (s: string) => s.replace(/"/g, "").replace(/[.*+?^${}()|[\]\\]/g, "\\\\$&");
 
-/** Overpass queries finding any element whose name contains one of the names. */
-export function buildNameQueries(names: string[], bbox: string, batchSize = 30): string[] {
+/**
+ * Overpass queries finding any element whose name contains one of the names.
+ *
+ * One alternation regex per batch, not one clause per name: each clause is a
+ * full scan of the box, so 12 separate clauses took 45 s against 5.6 s for the
+ * same 12 names in one pattern — and under a full build's load the slow form
+ * timed out, silently dropping most web finds.
+ */
+export function buildNameQueries(names: string[], bbox: string, batchSize = 40): string[] {
   const out: string[] = [];
   for (let i = 0; i < names.length; i += batchSize) {
-    const clauses = names
+    const pattern = names
       .slice(i, i + batchSize)
-      .map((n) => `nwr["name"~"${escapeRe(n.trim())}",i](${bbox});`)
-      .join("");
-    out.push(`[out:json][timeout:60];(${clauses});out tags center 400;`);
+      .map((n) => escapeRe(n.trim()))
+      .filter(Boolean)
+      .join("|");
+    out.push(`[out:json][timeout:60];nwr["name"~"${pattern}",i](${bbox});out tags center 600;`);
   }
   return out;
 }
@@ -117,7 +125,11 @@ export function matchByName(
   const unmatched: Candidate[] = [];
   for (const c of candidates) {
     const key = normName(c.name);
-    const hits = located.filter((l) => namesAgree(key, l.key)).sort((a, b) => a.d - b.d);
+    // An exact name beats a containment hit ("Castle Rock State Park" the park,
+    // not "…Kirkwood Entrance"); nearest wins within each group.
+    const hits = located
+      .filter((l) => namesAgree(key, l.key))
+      .sort((a, b) => Number(b.key === key) - Number(a.key === key) || a.d - b.d);
     if (!hits.length) {
       unmatched.push(c);
       continue;

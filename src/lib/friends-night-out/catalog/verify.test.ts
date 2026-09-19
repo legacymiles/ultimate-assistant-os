@@ -80,6 +80,30 @@ describe("dedupeByNameAndPlace", () => {
   });
 });
 
+describe("buildNameQueries batching", () => {
+  it("puts a batch of names into one alternation pattern", () => {
+    const qs = buildNameQueries(["Alpha", "Beta", "Gamma"], "1,2,3,4", 2);
+    expect(qs).toHaveLength(2);
+    expect(qs[0]).toContain('nwr["name"~"Alpha|Beta",i](1,2,3,4);');
+    expect(qs[1]).toContain('nwr["name"~"Gamma",i](1,2,3,4);');
+  });
+});
+
+describe("matchByName exactness", () => {
+  it("prefers an exact name over a nearer containing one", () => {
+    const { matched } = matchByName(
+      [{ name: "Castle Rock State Park", section: "parks" }],
+      [
+        { type: "node", id: 1, lat: 40.001, lon: -83, tags: { name: "Castle Rock State Park Kirkwood Entrance" } },
+        { type: "way", id: 2, lat: 40.05, lon: -83, tags: { name: "Castle Rock State Park" } },
+      ],
+      { lat: 40, lon: -83 },
+      10,
+    );
+    expect(matched[0].element.id).toBe(2);
+  });
+});
+
 describe("buildNameQueries quoting", () => {
   it("drops double quotes so the Overpass string never closes early", () => {
     const [q] = buildNameQueries(['Joe\'s "Famous" Diner'], "1,2,3,4");

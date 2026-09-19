@@ -23,6 +23,17 @@ batched AI rating call. `store.ts` (service role, server-only) persists. One NDJ
 - **Deferred to plan 3:** events persistence (the live `/api/fno/search` already works for any city)
   and the scheduled refresh.
 
+## What real builds changed (Santa Cruz, CA, 2026-09-19)
+
+| Run | Time | Web finds kept | AI-rated | Fix that followed |
+|---|---|---|---|---|
+| 1 | 452 s | 5 / 39 | 30 / 427 | One Overpass clause per name took 45 s and timed out → one alternation regex (5.6 s). Exact name beats a containing one. |
+| 2 | 324 s | 26 / 49 | 90 / 405 | Rating hit provider 429s at 8-way parallel → retry with backoff. Verification now overlaps the map search. |
+| 3 | 279 s | 18 / 32 | 0 / 525 | Every rating batch 429'd even with retries; map search 95–144 s because one Overpass mirror stalls 65 s per attempt → **hedged mirror requests** (ask the next mirror after 20 s, first answer wins, failing mirrors tried last for 10 min: 446 places in 95 s vs 88 in 144 s) and **rating moved out of the build** into rounds. |
+
+So a saved build now returns in ~100 s with estimated stars; `POST /api/fno/areas/:id/rate` rates 80
+places per call (40 per AI call, 2 at a time) and the client repeats while `remaining > 0`.
+
 ## Tasks
 
 1. `catalog/sectionMap.ts` — default section from the OSM activity category/tag (pure, tested).
