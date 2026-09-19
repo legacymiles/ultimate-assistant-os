@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { mayUseAi } from "@/lib/friends-night-out/aiAccess";
 import { normalizeEvents } from "@/lib/friends-night-out/normalize";
 import { fetchAiSweep, aiSweepStatus } from "@/lib/friends-night-out/sources/aiSweep";
 import { fetchFeeds, feedsStatus } from "@/lib/friends-night-out/sources/feeds";
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
     to: body.to ?? new Date(now.getTime() + 90 * 86_400_000).toISOString(),
     feeds: body.feeds ?? [],
     organizers: body.organizers ?? [],
-    skipAiSweep: body.skipAiSweep,
+    skipAiSweep: body.skipAiSweep || !(await mayUseAi()),
     timeZone: body.timeZone,
   };
 
