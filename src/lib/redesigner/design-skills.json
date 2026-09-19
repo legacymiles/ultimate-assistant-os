@@ -30,5 +30,9 @@
   {
     "name": "impeccable",
     "description": "Use when the user wants to design, redesign, shape, critique, audit, polish, clarify, distill, harden, optimize, adapt, animate, colorize, extract, or otherwise improve a frontend interface."
+  },
+  {
+    "name": "scroll-world",
+    "description": "Build an immersive scroll-scrubbed \"fly through the world\" landing page for any industry or brand using Higgsfield."
   }
 ]
