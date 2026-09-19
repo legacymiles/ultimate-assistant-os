@@ -268,6 +268,42 @@ export const DESIGN_GUIDE: DesignGuideEntry[] = [
       "Writes agent-friendly DESIGN.md design-system files (typography, colour, asymmetric layout, micro-motion rules) for Google Stitch or any coding agent. From the taste-skill pack.",
     url: "https://github.com/Leonxlnx/taste-skill",
   },
+  {
+    slug: "taste-skill-v1",
+    name: "taste-skill-v1",
+    kind: "recommended",
+    bestFor: "The original taste-skill",
+    paragraph:
+      "The original taste-skill before the v2 rewrite. The README keeps it for anyone who depends on the old behaviour. Reach for it if v2 drifts on you.",
+    url: "https://github.com/Leonxlnx/taste-skill",
+  },
+  {
+    slug: "brandkit",
+    name: "brandkit",
+    kind: "recommended",
+    bestFor: "Brand-guidelines boards and logo systems",
+    paragraph:
+      "Generates premium brand-kit images: logo concepts, identity decks, brand-guidelines boards and visual-world presentations (editorial, dark-tech, luxury, gaming and more). Use it before a build when the site needs a new identity, not just a new layout.",
+    url: "https://github.com/Leonxlnx/taste-skill",
+  },
+  {
+    slug: "imagegen-frontend-mobile",
+    name: "imagegen-frontend-mobile",
+    kind: "recommended",
+    bestFor: "Mobile app screen concepts",
+    paragraph:
+      "Image-only mobile app concepts: premium, app-native iOS/Android screens and flows inside a subtle phone mockup, consistent across screens. It writes no code, so hand its images to a builder.",
+    url: "https://github.com/Leonxlnx/taste-skill",
+  },
+  {
+    slug: "output-skill",
+    name: "output-skill",
+    kind: "recommended",
+    bestFor: "No truncated code",
+    paragraph:
+      "Not a style. A rule skill that stops the model from truncating output, bans placeholder patterns like \"// rest of code\", and splits long files cleanly across token limits. Useful on big single-file site builds.",
+    url: "https://github.com/Leonxlnx/taste-skill",
+  },
 ];
 
 export const GUIDE_KIND_LABEL: Record<GuideKind, string> = {

@@ -35,6 +35,10 @@ export const CATEGORY_BY_SLUG: Record<string, string> = {
   "image-to-code-skill": "Web Design",
   "stitch-skill": "Web Design",
   "dom-clone": "Web Design",
+  "taste-skill-v1": "Web Design",
+  "brandkit": "Web Design",
+  "imagegen-frontend-mobile": "Web Design",
+  "output-skill": "Web Design",
   ...Object.fromEntries(designSkills.map((s) => [s.name, "Web Design"])),
 };
 

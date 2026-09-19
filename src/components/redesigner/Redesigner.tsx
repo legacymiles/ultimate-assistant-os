@@ -416,9 +416,9 @@ function SkillPicker({
             <div
               role="listbox"
               aria-multiselectable
-              className="absolute left-0 z-30 mt-1.5 w-[min(22rem,calc(100vw-4rem))] overflow-hidden rounded-xl border border-line bg-panel shadow-xl shadow-black/30"
+              className="absolute left-0 z-30 mt-1.5 max-h-[min(28rem,60vh)] w-[min(22rem,calc(100vw-4rem))] overflow-y-auto overscroll-contain rounded-xl border border-line bg-panel shadow-xl shadow-black/30"
             >
-              <p className="border-b border-line px-3 py-2 text-[10px] uppercase tracking-wide text-ink-faint">
+              <p className="sticky top-0 z-10 border-b border-line bg-panel px-3 py-2 text-[10px] uppercase tracking-wide text-ink-faint">
                 Pick one — reopen to mix in more
               </p>
               {DEFAULT_SKILLS.map((skill) => {
