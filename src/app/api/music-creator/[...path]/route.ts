@@ -30,13 +30,13 @@ function allowed(leaf: string): boolean {
   return PREFIXES.some((p) => leaf.startsWith(p) && /^[A-Za-z0-9_.-]+$/.test(leaf.slice(p.length)));
 }
 
-function target(): string {
-  // MUSIC_SERVER_URL wins; otherwise a managed RunPod pod has a known address.
-  return (process.env.MUSIC_SERVER_URL || podServerUrl()).replace(/\/+$/, "");
+async function target(): Promise<string> {
+  // MUSIC_SERVER_URL wins; otherwise the managed RunPod pod's proxy address
+  // (looked up by name, since a replaced pod gets a new id).
+  return (process.env.MUSIC_SERVER_URL || (await podServerUrl())).replace(/\/+$/, "");
 }
 
 async function forward(req: Request, path: string[]) {
-  const base = target();
   const leaf = path.join("/");
 
   // The GPU pod itself, answered here rather than forwarded: GET is its state,
@@ -46,6 +46,7 @@ async function forward(req: Request, path: string[]) {
     return NextResponse.json(await podState());
   }
   if (!allowed(leaf)) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const base = await target();
 
   if (!base) {
     // Not an error to be fixed in code: the studio is designed to be used with

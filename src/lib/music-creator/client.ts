@@ -61,6 +61,11 @@ async function checkHealth(): Promise<ServerState> {
     if (!res.ok) {
       return { reachable: false, reason: String(body?.error ?? `Server returned ${res.status}`), checkedAt: Date.now() };
     }
+    // RunPod's proxy serves an HTML "waiting for service" page while the pod
+    // boots; only the music server's own JSON counts as up.
+    if ((body as ServerHealth)?.ok !== true) {
+      return { reachable: false, reason: "The GPU is up but the music server is still starting.", checkedAt: Date.now() };
+    }
     return { reachable: true, health: body as ServerHealth, checkedAt: Date.now() };
   } catch (err) {
     return { reachable: false, reason: (err as Error).message, checkedAt: Date.now() };

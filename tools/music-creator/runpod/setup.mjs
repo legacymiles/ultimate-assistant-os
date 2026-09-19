@@ -265,6 +265,56 @@ async function pickDataCenter() {
   return { id: na.id, why: "offers network volumes" };
 }
 
+/**
+ * GPU and site chosen TOGETHER, from live stock.
+ *
+ * Learned the hard way (2026-09-18): picking the site first put the volume in
+ * US-TX-3, which had no 48 GB card at all, and the two sites that did have
+ * A40s take no network volumes. The catalog's AVAILABILITY view says which
+ * site has which card in stock, so: every NVIDIA card with enough memory, at
+ * every volume-capable site where it is in stock, ranked by stock level first
+ * (a stopped pod can only restart if its host still has the card free, so
+ * "HIGH" is what makes waking it from the website reliable), then price.
+ * With a volume already made, only its site is considered.
+ */
+async function pickPlacement(volumeDc) {
+  if (CONFIG.gpuId || (CONFIG.dataCenter && !volumeDc)) return null; // explicit settings win
+  const [gpuOut, dcOut] = await Promise.all([
+    api("/catalog/gpus?include=AVAILABILITY&product=POD").catch(() => null),
+    api("/catalog/datacenters").catch(() => null),
+  ]);
+  const gpus = list(gpuOut, "gpus", "data");
+  const volumeSites = new Set(
+    list(dcOut, "dataCenters", "datacenters", "data")
+      .filter((d) => (d.networkVolumeTypes || []).length)
+      .map((d) => d.id),
+  );
+  if (!gpus.length || !volumeSites.size) return null;
+  const rank = { HIGH: 3, MEDIUM: 2, LOW: 1 };
+  const options = [];
+  for (const g of gpus) {
+    if (g.manufacturer !== "NVIDIA" || (g.memory ?? 0) < CONFIG.minVram || !g.secure || !g.price?.secure) continue;
+    for (const d of g.dataCenters || []) {
+      if (!rank[d.availability] || !volumeSites.has(d.id) || (volumeDc && d.id !== volumeDc)) continue;
+      options.push({ g, dc: d.id, stock: d.availability, price: g.price.secure });
+    }
+  }
+  if (!options.length) return null;
+  options.sort((a, b) => rank[b.stock] - rank[a.stock] || a.price - b.price);
+  const best = options[0];
+  return {
+    dc: { id: best.dc, why: `${best.stock} stock of ${best.g.name ?? best.g.id} there, and it takes volumes` },
+    gpu: {
+      id: best.g.id,
+      vram: best.g.memory,
+      price: best.price,
+      bothResident: best.g.memory >= 64,
+      why: `best-stocked card with at least ${CONFIG.minVram} GB at a volume site`,
+      alternatives: options.slice(1, 4).map((o) => `${o.g.name ?? o.g.id} @ ${o.dc} (${o.stock}, $${o.price}/hr)`),
+    },
+  };
+}
+
 // ----- volume and pod ------------------------------------------------------
 
 async function findVolume() {
@@ -513,8 +563,11 @@ async function main() {
   }
 
   const volume = await findVolume();
-  const dc = volume ? { id: volume.dataCenterId, why: "the volume already lives there" } : await pickDataCenter();
-  const gpu = await pickGpu();
+  const placed = await pickPlacement(volume ? volume.dataCenter ?? volume.dataCenterId : "");
+  const dc = volume
+    ? { id: volume.dataCenter ?? volume.dataCenterId, why: "the volume already lives there" }
+    : placed?.dc ?? (await pickDataCenter());
+  const gpu = placed?.gpu ?? (await pickGpu());
   const token = CONFIG.token || randomBytes(24).toString("base64url");
 
   console.log(bold("\nThe plan"));
@@ -561,7 +614,7 @@ async function main() {
     console.log(bold("\nCreating the volume"));
     const created = await api("/network-volumes", {
       method: "POST",
-      body: { name: CONFIG.volumeName, size: CONFIG.volumeGb, dataCenterId: dc.id },
+      body: { name: CONFIG.volumeName, size: CONFIG.volumeGb, dataCenter: dc.id },
     });
     volumeId = created.id || created.networkVolumeId;
     console.log(good(`  ${volumeId}  ${CONFIG.volumeGb} GB in ${dc.id}`));

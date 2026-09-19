@@ -118,7 +118,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVER_SRC="$(cd "$HERE/.." && pwd)"
 
 export HF_HOME
-export PIP_CACHE_DIR="$VOLUME/pip-cache"
+# pip cache on the container disk, not the volume: the venvs themselves persist,
+# so the cache only matters during a first install and would eat ~10 GB of a 60 GB volume.
+export PIP_CACHE_DIR="${PIP_CACHE_DIR:-/root/.cache/pip}"
 export TMPDIR="$VOLUME/tmp"
 export DEBIAN_FRONTEND=noninteractive
 export PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -244,6 +246,34 @@ ensure_python() {
     fi
     command -v "$bin" >/dev/null 2>&1 || { echo "python$want still not on PATH after install" >&2; return 1; }
     echo "$(command -v "$bin")"
+}
+
+fit_torch_to_card() {
+    # fit_torch_to_card <venv python> <name>
+    #
+    # pip hands out whichever CUDA build of torch is the default, and a build
+    # without kernels for THIS card imports fine and then dies at the first
+    # CUDA call ("no kernel image is available"). Blackwell cards (sm_120, e.g.
+    # the RTX PRO 4500) need the CUDA 12.8 wheels, so check the compiled arch
+    # list against nvidia-smi and swap to cu128 - same torch version - if absent.
+    local py="$1" name="$2" cap ver p v
+    local pkgs=()
+    cap="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1 | tr -d ' .')"
+    [ -n "$cap" ] || return 0
+    "$py" -c "import torch" >/dev/null 2>&1 || return 0
+    if "$py" -c "import sys, torch; sys.exit(0 if 'sm_$cap' in torch.cuda.get_arch_list() else 1)" >/dev/null 2>&1; then
+        skip "$name: torch has kernels for this card (sm_$cap)"
+        return 0
+    fi
+    ver="$("$py" -c 'import torch; print(torch.__version__.split("+")[0])')"
+    pkgs=("torch==$ver")
+    for p in torchaudio torchvision; do
+        v="$("$py" -c "import $p; print($p.__version__.split('+')[0])" 2>/dev/null || true)"
+        [ -n "$v" ] && pkgs+=("$p==$v")
+    done
+    log "$name: torch $ver lacks sm_$cap kernels - reinstalling ${pkgs[*]} from the CUDA 12.8 index"
+    "$py" -m pip install --force-reinstall --no-deps "${pkgs[@]}" --index-url https://download.pytorch.org/whl/cu128 \
+        || { echo "$name: no cu128 build of torch $ver - this card needs torch >= 2.7" >&2; exit 1; }
 }
 
 ensure_venv() {
@@ -414,6 +444,7 @@ if [ "$SKIP_YUE2" = 0 ]; then
             "$YUE_VENV/bin/python" -c "import yue2" >/dev/null 2>&1 \
                 || { echo "yue2 still does not import after pip install ." >&2; exit 1; }
         fi
+        fit_torch_to_card "$YUE_VENV/bin/python" "YuE2"
         # The server itself runs in THIS venv, so that yue2 imports in the
         # server's own interpreter and the model stays resident between songs.
         # See "which interpreter runs the server" below.
@@ -455,6 +486,7 @@ if [ "$SKIP_AUK" = 0 ]; then
             "$AUK_VENV/bin/python" -c "import auk" >/dev/null 2>&1 \
                 || { echo "auk still does not import after pip install -e ." >&2; exit 1; }
         fi
+        fit_torch_to_card "$AUK_VENV/bin/python" "AuK"
     fi
     if [ "$DO_WEIGHTS" = 1 ]; then
         step "AuK weights (MIT)"
@@ -495,15 +527,18 @@ if [ "$SKIP_SHEETSAGE" = 0 ]; then
         else
             log "pip install -r $SHEET_DIR/requirements.txt"
             "$SHEET_VENV/bin/python" -m pip install -r "$SHEET_DIR/requirements.txt"
-            log "pinning torch 2.8.0 / torchaudio 2.8.0 (cu126)"
+            # cu128, not cu126: the cu126 wheels carry no Blackwell (sm_120)
+            # kernels, and cu128 still covers every older card (A40 = sm_86).
+            log "pinning torch 2.8.0 / torchaudio 2.8.0 (cu128)"
             "$SHEET_VENV/bin/python" -m pip install \
-                torch==2.8.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu126
+                torch==2.8.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu128
             log "pinning huggingface-hub 0.36.0"
             "$SHEET_VENV/bin/python" -m pip install huggingface-hub==0.36.0
             "$SHEET_VENV/bin/python" -c "import torch, transformers" >/dev/null 2>&1 \
                 || { echo "torch/transformers do not import in $SHEET_VENV" >&2; exit 1; }
             mark_done "sheetsage-deps"
         fi
+        fit_torch_to_card "$SHEET_VENV/bin/python" "SheetSage2"
     fi
 else
     step "SheetSage2"; skip "--skip-sheetsage: no transcription, so no cover workflow"
