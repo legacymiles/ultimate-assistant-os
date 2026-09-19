@@ -38,5 +38,9 @@
   {
     "name": "cinematic-ui",
     "description": "Design and build websites with film-inspired visual systems, director-driven art direction, storyboard-first layout planning, and cinematic motion."
+  },
+  {
+    "name": "h3-scroll-world",
+    "description": "Builds an immersive scroll-scrubbed \"fly through the world\" landing page for any industry or brand, with MiniMax H3 rendering every video clip and OpenRouter generating the scene stills."
   }
 ]
