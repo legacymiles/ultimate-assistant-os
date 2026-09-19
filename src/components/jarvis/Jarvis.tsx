@@ -13,9 +13,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Icon } from "../icons";
 import { NewDashboard } from "../new-dashboard/NewDashboard";
+import { ChatTab } from "./ChatTab";
 import { DashboardTab } from "./DashboardTab";
 import { MemoryTab } from "./MemoryTab";
 import { Placeholder } from "./Placeholder";
+import { RoutinesTab } from "./RoutinesTab";
 import { loadLocal } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
 import { STORE_KEY, emptyStore } from "@/lib/new-dashboard/model";
@@ -102,8 +104,6 @@ export function Jarvis() {
       })}
       <div className="hidden md:mt-auto md:block md:px-1 md:pt-4">
         <p className="text-[10px] leading-relaxed text-ink-faint">
-          Memory: local
-          <br />
           Apps: not connected
           <br />
           Voice: stage 3
@@ -148,13 +148,7 @@ export function Jarvis() {
           )}
           {tab === "memory" && <MemoryTab store={store} commit={commit} />}
           {tab === "profile" && <NewDashboard chromeless />}
-          {tab === "chat" && (
-            <Placeholder
-              stage={2}
-              title="Chat"
-              does="Ask Jarvis anything and he answers from your memory, your master folder and your profile — with every source named."
-            />
-          )}
+          {tab === "chat" && <ChatTab store={store} commit={commit} profile={profile} />}
           {tab === "inbox" && (
             <Placeholder
               stage={4}
@@ -169,13 +163,7 @@ export function Jarvis() {
               does="Your real calendar, with Jarvis able to add and move events — always showing you the exact event first."
             />
           )}
-          {tab === "routines" && (
-            <Placeholder
-              stage={2}
-              title="Routines"
-              does="One-tap versions of your daily brief, inbox triage, week plan and weekly review, run with real context."
-            />
-          )}
+          {tab === "routines" && <RoutinesTab store={store} commit={commit} profile={profile} />}
         </main>
       </div>
     </div>

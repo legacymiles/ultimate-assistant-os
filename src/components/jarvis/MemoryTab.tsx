@@ -2,21 +2,43 @@
 
 // ---------------------------------------------------------------------------
 // The memory tab: the ball full-size, the source filters, a search that
-// highlights hits inside the ball, and the box that writes a memory.
+// highlights hits inside the ball, the box that writes a memory, and the
+// master-folder sync.
 //
-// In stage 1 every memory here is one the owner typed, and search is word
-// overlap on this device. Stage 2 adds Supabase, embeddings and the master
-// folder sync — the UI does not change, because it only talks to memoryClient.
+// Which memory is in use — Supabase with meaning search, or this device with
+// word search — comes from useMemory, and the header says which, always.
 // ---------------------------------------------------------------------------
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Icon } from "../icons";
 import { MemoryCore, SOURCE_COLOR } from "./MemoryCore";
-import { addMemory, graphNodes, linkCount, searchMemories } from "@/lib/jarvis/memoryClient";
-import { MEMORY_SOURCES, SOURCE_LABEL, type JarvisStore, type MemorySource } from "@/lib/jarvis/types";
+import { recency } from "@/lib/jarvis/rank";
+import { useMemory } from "@/lib/jarvis/useMemory";
+import {
+  MEMORY_SOURCES,
+  SOURCE_LABEL,
+  type JarvisStore,
+  type Memory,
+  type MemorySource,
+} from "@/lib/jarvis/types";
+import type { GraphNode } from "@/lib/jarvis/memoryClient";
 
 const btn =
-  "inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink";
+  "inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink disabled:opacity-50";
+
+/** The ball's nodes, from whichever memory store is live. */
+export function nodesFrom(memories: Memory[], muted: MemorySource[], cap = 2000): GraphNode[] {
+  return memories
+    .filter((m) => !muted.includes(m.source))
+    .slice(0, cap)
+    .map((m) => ({
+      id: m.id,
+      source: m.source,
+      title: m.title,
+      strength: Math.min(1, 0.35 + Math.min(m.content.length, 800) / 1600 + recency(m.capturedAt) * 0.3),
+      links: m.links ?? [],
+    }));
+}
 
 export function MemoryTab({
   store,
@@ -25,38 +47,68 @@ export function MemoryTab({
   store: JarvisStore;
   commit: (s: JarvisStore) => void;
 }) {
+  const memory = useMemory(store, commit);
   const [mode, setMode] = useState<"sphere" | "network">("sphere");
   const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Memory[] | null>(null);
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
-  const [saved, setSaved] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
-  const nodes = useMemo(() => graphNodes(store), [store]);
-  const links = useMemo(() => linkCount(nodes), [nodes]);
-  const hits = useMemo(() => searchMemories(store, query, 40), [store, query]);
+  const visible = useMemo(
+    () => memory.memories.filter((m) => !store.mutedSources.includes(m.source)),
+    [memory.memories, store.mutedSources],
+  );
+  const nodes = useMemo(() => nodesFrom(memory.memories, store.mutedSources), [memory.memories, store.mutedSources]);
+
+  // Search runs against the live store, debounced so typing does not fire a
+  // request per keystroke.
+  useEffect(() => {
+    if (!query.trim()) {
+      setResults(null);
+      return;
+    }
+    let cancelled = false;
+    const t = window.setTimeout(() => {
+      void memory.search(query, 40).then((hits) => {
+        if (!cancelled) setResults(hits.filter((m) => !store.mutedSources.includes(m.source)));
+      });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [query, memory, store.mutedSources]);
+
+  const shown = results ?? visible.slice(0, 40);
   const highlight = useMemo(
-    () => (query.trim() ? new Set(hits.map((h) => h.memory.id)) : undefined),
-    [hits, query],
+    () => (results ? new Set(results.map((m) => m.id)) : undefined),
+    [results],
   );
 
   const counts = useMemo(() => {
     const c = new Map<MemorySource, number>();
-    for (const m of store.memories) c.set(m.source, (c.get(m.source) ?? 0) + 1);
+    for (const m of memory.memories) c.set(m.source, (c.get(m.source) ?? 0) + 1);
     return c;
-  }, [store.memories]);
+  }, [memory.memories]);
 
-  const save = () => {
+  const save = async () => {
     if (!text.trim()) return;
-    const next = addMemory(store, { source: "note", title, content: text, origin: "you" });
-    if (next === store) {
-      setSaved("You already have that exact note.");
-      return;
+    const msg = await memory.save({ source: "note", title, content: text, origin: "you" });
+    setNote(msg);
+    if (msg.startsWith("Saved")) {
+      setTitle("");
+      setText("");
     }
-    commit(next);
-    setTitle("");
-    setText("");
-    setSaved("Saved.");
-    window.setTimeout(() => setSaved(null), 2500);
+    window.setTimeout(() => setNote(null), 4000);
+  };
+
+  const sync = async () => {
+    setSyncing(true);
+    setNote("Reading your master folder…");
+    setNote(await memory.syncMasterFolder());
+    setSyncing(false);
   };
 
   const toggleSource = (s: MemorySource) => {
@@ -66,13 +118,9 @@ export function MemoryTab({
     commit({ ...store, mutedSources: muted });
   };
 
-  const remove = (id: string) => {
-    commit({ ...store, memories: store.memories.filter((m) => m.id !== id) });
-  };
-
   return (
     <div className="p-3 sm:p-4">
-      <div className="grid gap-3 lg:grid-cols-[1fr_260px]">
+      <div className="grid gap-3 lg:grid-cols-[1fr_280px]">
         <section className="relative overflow-hidden rounded-xl border border-line bg-black">
           <MemoryCore nodes={nodes} mode={mode} highlight={highlight} className="h-[46vh] min-h-[280px] w-full" />
 
@@ -110,8 +158,8 @@ export function MemoryTab({
             <div>
               <p className="text-[11px] uppercase tracking-[0.2em] text-ink-faint">memory core</p>
               <p className="text-sm text-ink">
-                {store.memories.length.toLocaleString()} memories · {links.toLocaleString()} links
-                {query.trim() ? ` · ${hits.length} match${hits.length === 1 ? "" : "es"}` : ""}
+                {memory.memories.length.toLocaleString()} memories
+                {results ? ` · ${results.length} match${results.length === 1 ? "" : "es"}` : ""}
               </p>
             </div>
           </div>
@@ -146,10 +194,22 @@ export function MemoryTab({
           <p className="mt-2 text-[10px] leading-relaxed text-ink-faint">
             Switching a source off hides it from the ball and from search. Nothing is deleted.
           </p>
-          <div className="mt-3 border-t border-line-soft pt-3">
+
+          <div className="mt-3 space-y-2 border-t border-line-soft pt-3">
+            <p className="text-[11px] text-ink-muted">
+              {memory.loading
+                ? "Checking your memory database…"
+                : memory.remote
+                  ? "Saved to your account, searched by meaning and by words."
+                  : `Local to this device. ${memory.reason}`}
+            </p>
+            <button className={btn} onClick={() => void sync()} disabled={syncing || !memory.remote}>
+              <Icon.Refresh width={13} height={13} /> {syncing ? "Syncing…" : "Sync master folder"}
+            </button>
             <p className="text-[10px] leading-relaxed text-ink-faint">
-              Stage 2 adds Supabase memory, meaning-based search and the master-folder sync
-              (CLAUDE.md, aios/ and your Claude Code memory files).
+              {memory.canSync
+                ? "Reads CLAUDE.md, aios/ and your Claude Code memory files from this PC."
+                : "On this machine only CLAUDE.md and aios/ are readable — run Jarvis on your PC to include your Claude Code memory files."}
             </p>
           </div>
         </aside>
@@ -173,29 +233,29 @@ export function MemoryTab({
           />
         </div>
         <div className="mt-2 flex items-center gap-2">
-          <button className={btn} onClick={save} disabled={!text.trim()}>
+          <button className={btn} onClick={() => void save()} disabled={!text.trim()}>
             <Icon.Plus width={13} height={13} /> Save memory
           </button>
-          {saved && <span className="text-[11px] text-ink-muted">{saved}</span>}
+          {note && <span className="text-[11px] text-ink-muted">{note}</span>}
         </div>
       </section>
 
       <section className="mt-3 rounded-xl border border-line bg-panel">
         <div className="flex items-center justify-between border-b border-line px-3 py-2">
           <h2 className="text-xs font-semibold text-ink">
-            {query.trim() ? `Results for "${query}"` : "All memories"}
+            {query.trim() ? `Results for "${query}"` : "Recent memories"}
           </h2>
-          <span className="text-[11px] text-ink-faint">{hits.length} shown</span>
+          <span className="text-[11px] text-ink-faint">{shown.length} shown</span>
         </div>
-        {hits.length === 0 ? (
+        {shown.length === 0 ? (
           <p className="px-3 py-4 text-xs text-ink-muted">
             {query.trim()
               ? "Nothing matches. Jarvis would rather show nothing than guess."
-              : "No memories yet. Write one above."}
+              : "No memories yet. Write one above, or sync your master folder."}
           </p>
         ) : (
           <ul className="divide-y divide-line-soft">
-            {hits.map(({ memory: m }) => (
+            {shown.map((m) => (
               <li key={m.id} className="flex items-start gap-2 px-3 py-2">
                 <span
                   className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
@@ -207,11 +267,11 @@ export function MemoryTab({
                   <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-ink-muted">{m.content}</p>
                   <p className="mt-1 text-[10px] text-ink-faint">
                     {SOURCE_LABEL[m.source]} · {m.origin} · captured{" "}
-                    {new Date(m.capturedAt).toLocaleDateString()}
+                    {m.capturedAt ? new Date(m.capturedAt).toLocaleDateString() : "unknown"}
                   </p>
                 </div>
                 <button
-                  onClick={() => remove(m.id)}
+                  onClick={() => void memory.remove(m.id)}
                   aria-label={`Forget ${m.title}`}
                   className="shrink-0 rounded-md p-1 text-ink-faint transition hover:bg-panel-2 hover:text-ink"
                 >
