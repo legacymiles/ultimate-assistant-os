@@ -157,10 +157,13 @@ export function AiPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
       });
-      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Save failed (${res.status})`);
+      const body = (await res.json().catch(() => ({}))) as { error?: string; settings?: Partial<Settings> };
+      if (!res.ok) throw new Error(body.error ?? `Save failed (${res.status})`);
+      // Show exactly what the server stored — never quietly swap in something else.
+      if (body.settings) setStatus((cur) => (cur ? { ...cur, settings: { ...cur.settings, ...body.settings } } : cur));
+      setSaving(false);
     } catch (err) {
-      setSaveError((err as Error).message);
-    } finally {
+      setSaveError(`Not saved: ${(err as Error).message}`);
       setSaving(false);
       void reload();
     }
@@ -248,6 +251,7 @@ export function AiPanel() {
                   <p className="text-[10px] leading-snug text-ink-faint">
                     Every app's AI uses this model. Apps that need a specialist (image painting, listening to audio, web search) keep theirs. A request with photos skips models that can't see images.
                   </p>
+                  {saveError && <p className="text-[11px] text-red-300">{saveError}</p>}
                   <table className="w-full border-collapse text-[11px]">
                     <tbody>
                       {status.providers.map((p) => (

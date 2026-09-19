@@ -15,7 +15,12 @@ export async function PUT(req: Request) {
   const patch: Parameters<typeof saveSettings>[0] = {};
   if (CHOICES.includes(body.choice as ProviderChoice)) patch.choice = body.choice as ProviderChoice;
   if (typeof body.fallback === "boolean") patch.fallback = body.fallback;
-  if (body.model === null || modelId(body.model)) patch.model = body.model === null ? null : modelId(body.model);
+  if ("model" in body) {
+    if (body.model !== null && !modelId(body.model)) {
+      return NextResponse.json({ error: `"${String(body.model).slice(0, 80)}" is not a model id this hub can use.` }, { status: 400 });
+    }
+    patch.model = body.model === null ? null : modelId(body.model);
+  }
   if (Array.isArray(body.fallbackModels)) patch.fallbackModels = body.fallbackModels.map(modelId).filter((m): m is string => Boolean(m)).slice(0, 3);
   if (BUILDERS.includes(body.builder as BuilderRoute)) patch.builder = body.builder as BuilderRoute;
   if (typeof body.builderFallback === "boolean") patch.builderFallback = body.builderFallback;

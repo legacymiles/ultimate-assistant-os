@@ -1,11 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+// `doc` is the ai-settings document; other documents (ai-health) live in `others`.
 let doc: unknown = null;
+const others: Record<string, unknown> = {};
 vi.mock("@/lib/server/docStore", () => ({
-  readDoc: vi.fn(async () => doc),
-  writeDoc: vi.fn(async (_n: string, _d: string, data: unknown) => {
-    doc = data;
+  readDoc: vi.fn(async (name: string) => (name === "ai-settings" ? doc : (others[name] ?? null))),
+  writeDoc: vi.fn(async (name: string, _d: string, data: unknown) => {
+    if (name === "ai-settings") doc = data;
+    else others[name] = data;
     return true;
   }),
 }));
@@ -143,5 +146,38 @@ describe("aiFetch model choice", () => {
     const { aiFetch } = await fresh();
     await aiFetch({ body: ask("google/gemini-3.1-flash-image") });
     expect(models).toEqual(["google/gemini-3.1-flash-image"]);
+  });
+});
+
+describe("saving the model pick", () => {
+  beforeEach(() => {
+    doc = null;
+  });
+
+  it("keeps an OpenRouter alias id like ~openai/gpt-sol-latest", async () => {
+    const { PUT } = await import("@/app/api/ai/settings/route");
+    const { loadSettings } = await fresh();
+    const res = await PUT(new Request("http://x", { method: "PUT", body: JSON.stringify({ model: "~openai/gpt-sol-latest" }) }));
+    expect(res.status).toBe(200);
+    expect((await loadSettings(true)).model).toBe("~openai/gpt-sol-latest");
+  });
+
+  it("rejects a bad id out loud instead of silently keeping the old one", async () => {
+    vi.resetModules();
+    const { PUT } = await import("@/app/api/ai/settings/route");
+    const res = await PUT(new Request("http://x", { method: "PUT", body: JSON.stringify({ model: "not a model" }) }));
+    expect(res.status).toBe(400);
+  });
+
+  it("a provider health write never overwrites the pick", async () => {
+    const { saveSettings, recordOk, recordError } = await fresh();
+    await saveSettings({ model: "x-ai/grok-4.6" });
+    recordError("openrouter", { status: 429, message: "slow down" });
+    recordOk("vercel-gateway");
+    await new Promise((r) => setTimeout(r, 20));
+    const again = await fresh();
+    const loaded = await again.loadSettings(true);
+    expect(loaded.model).toBe("x-ai/grok-4.6");
+    expect(loaded.lastError.openrouter?.status).toBe(429);
   });
 });
