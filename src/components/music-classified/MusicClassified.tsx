@@ -9,6 +9,7 @@ import { LensPicker } from "./LensPicker";
 import { LevelSidebar } from "./LevelSidebar";
 import { SongPanel } from "./SongPanel";
 import { SongTable } from "./SongTable";
+import { StyleStudio } from "./StyleStudio";
 import { describe, fileIdentity, identify, postJson, STEP_LABEL, type Step } from "./api";
 import * as store from "@/lib/music-classified/store";
 import { LENSES, LEVELS, levelInfo } from "@/lib/music-classified/levels";
@@ -21,9 +22,9 @@ import type { Identity } from "@/lib/music-classified/identify";
 import type { ClassifyResult, LensId, Library, Song } from "@/lib/music-classified/types";
 import { useRemotePull } from "@/lib/sync/useSync";
 
-const EMPTY: Library = { songs: [], tree: {}, blueprints: [], defaultLenses: [] };
+const EMPTY: Library = { songs: [], tree: {}, blueprints: [], styles: [], defaultLenses: [] };
 
-type Tab = "library" | "mine";
+type Tab = "library" | "mine" | "style";
 const TAB_KEY = "music-classified:tab";
 const AUDIO_EXT = /\.(mp3|wav|m4a|aac|flac|ogg|oga|opus|aiff?|webm)$/i;
 
@@ -63,7 +64,8 @@ export function MusicClassified() {
     setLib(l);
     setLenses(l.defaultLenses);
     try {
-      if (window.localStorage.getItem(TAB_KEY) === "mine") setTab("mine");
+      const saved = window.localStorage.getItem(TAB_KEY);
+      if (saved === "mine" || saved === "style") setTab(saved);
     } catch {
       /* storage blocked — start on the library */
     }
@@ -407,6 +409,7 @@ export function MusicClassified() {
               [
                 ["library", "Library"],
                 ["mine", "My Music"],
+                ["style", "Style Prompt"],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -421,15 +424,17 @@ export function MusicClassified() {
             ))}
           </div>
 
-          <div className="mcl-search">
-            <Icon.Search width={15} height={15} className="mcl-search__icon" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={favOnly ? "Search your favorites…" : "Search songs, sounds, moods, descriptions…"}
-              aria-label="Search songs"
-            />
-          </div>
+          {tab !== "style" && (
+            <div className="mcl-search">
+              <Icon.Search width={15} height={15} className="mcl-search__icon" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={favOnly ? "Search your favorites…" : "Search songs, sounds, moods, descriptions…"}
+                aria-label="Search songs"
+              />
+            </div>
+          )}
 
           <div className="mcl-top__actions">
             <Link href="/" className="mcl-iconbtn" title="Back to the hub" aria-label="Back to the hub">
@@ -496,282 +501,288 @@ export function MusicClassified() {
         </div>
       </header>
 
-      {/* The tab's main action, always on screen. */}
-      {tab === "library" ? (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (input.trim()) void run({ input });
-          }}
-          className="mcl-console"
-        >
-          <div className="mcl-console__row">
-            <div className="mcl-field">
-              <Icon.Sparkles width={14} height={14} className="mcl-field__icon" />
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                disabled={step !== "idle"}
-                placeholder="Song name, or a YouTube / Apple Music / Spotify link"
-                aria-label="Song to classify"
-              />
-            </div>
-            <LensPicker lenses={lenses} onToggle={toggleLens} />
-            {step === "idle" ? (
-              <button type="submit" disabled={!input.trim()} className="mcl-btn mcl-btn--primary">
-                <Icon.Plus width={13} height={13} />
-                Classify
-              </button>
-            ) : (
-              <button type="button" onClick={() => abort.current?.abort()} className="mcl-btn">
-                Cancel
-              </button>
-            )}
-          </div>
-          {progressText && <p className="mcl-console__note is-busy">{progressText}</p>}
-          {error && <p className="mcl-console__note mcl-error">{error}</p>}
-        </form>
+      {tab === "style" ? (
+        <StyleStudio lib={lib} setLib={setLib} navOpen={navOpen} setNavOpen={setNavOpen} />
       ) : (
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragging(false);
-            void upload([...e.dataTransfer.files]);
-          }}
-          className={"mcl-console" + (dragging ? " is-drag" : "")}
-        >
-          <div className="mcl-console__row">
-            <div className="mcl-field">
-              <Icon.Users width={14} height={14} className="mcl-field__icon" />
-              <input
-                value={artistInput}
-                onChange={(e) => setArtistInput(e.target.value)}
-                disabled={step !== "idle"}
-                list="mc-upload-artists"
-                placeholder="Artist name (who made these songs)"
-                aria-label="Artist name"
-              />
-              <datalist id="mc-upload-artists">{artists.map((a) => <option key={a} value={a} />)}</datalist>
-            </div>
-            <LensPicker lenses={lenses} onToggle={toggleLens} />
-            {step === "idle" ? (
-              <button
-                type="button"
-                onClick={() => (artistInput.trim() ? audioInput.current?.click() : setError("Type the artist first — My Music is organised by artist."))}
-                className="mcl-btn mcl-btn--primary"
-              >
-                <Icon.Upload width={13} height={13} />
-                Upload songs
-              </button>
-            ) : (
-              <button type="button" onClick={() => abort.current?.abort()} className="mcl-btn">
-                Cancel
-              </button>
-            )}
-            <input
-              ref={audioInput}
-              type="file"
-              accept="audio/*"
-              multiple
-              className="hidden"
-              onChange={(e) => {
-                const files = [...(e.target.files ?? [])];
-                e.target.value = "";
-                if (files.length) void upload(files);
-              }}
-            />
-          </div>
-          <p className={"mcl-console__note" + (progressText ? " is-busy" : "")}>
-            {progressText ||
-              "Drop audio files here or pick them. The AI listens to each one and files it; the audio stays on this device."}
-          </p>
-          {error && <p className="mcl-console__note mcl-error">{error}</p>}
-        </div>
-      )}
-
-      {(flash || alts) && (
-        <div className="mcl-flash">
-          {flash && <span>{flash}</span>}
-          {alts && (
-            <>
-              <span className="mcl-muted">Wrong song?</span>
-              {alts.options.map((o) => (
-                <button
-                  key={`${o.title}|${o.artist}`}
-                  onClick={() => void run({ identity: o }, alts.songId)}
-                  disabled={step !== "idle"}
-                  className="mcl-flash__alt"
-                >
-                  {o.title} — {o.artist}
-                </button>
-              ))}
-              <button
-                onClick={() => {
-                  setAlts(null);
-                  setFlash("");
-                }}
-                className="mcl-muted"
-                style={{ marginLeft: "auto", fontSize: "0.72rem" }}
-              >
-                dismiss
-              </button>
-            </>
-          )}
-        </div>
-      )}
-
-      <div className="mcl-body">
-        {/* Drawer scrim — the rail is an overlay below 1024px. */}
-        <div
-          className={"mcl-rail__scrim" + (navOpen ? " is-on" : "")}
-          onClick={() => setNavOpen(false)}
-          aria-hidden
-        />
-
-        {/* With a record open, three panes crush the song column below xl, so
-            the rail steps aside (still reachable via the top-bar toggle). */}
-        <div className={"mcl-rail mcl-scroll" + (navOpen ? " is-open" : "") + (record ? " is-crowded" : "")}>
+        <>
+          {/* The tab's main action, always on screen. */}
           {tab === "library" ? (
-            <LevelSidebar
-              songs={pool}
-              tree={lib.tree}
-              scope={scope}
-              onScope={(s) => {
-                setScope(s);
-                setNavOpen(false);
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (input.trim()) void run({ input });
               }}
-              onAddGenre={(level, genre) => setLib(store.addGenre(level, genre))}
-              onAddSubgenre={(level, genre, sub) => setLib(store.addSubgenre(level, genre, sub))}
-            />
+              className="mcl-console"
+            >
+              <div className="mcl-console__row">
+                <div className="mcl-field">
+                  <Icon.Sparkles width={14} height={14} className="mcl-field__icon" />
+                  <input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    disabled={step !== "idle"}
+                    placeholder="Song name, or a YouTube / Apple Music / Spotify link"
+                    aria-label="Song to classify"
+                  />
+                </div>
+                <LensPicker lenses={lenses} onToggle={toggleLens} />
+                {step === "idle" ? (
+                  <button type="submit" disabled={!input.trim()} className="mcl-btn mcl-btn--primary">
+                    <Icon.Plus width={13} height={13} />
+                    Classify
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => abort.current?.abort()} className="mcl-btn">
+                    Cancel
+                  </button>
+                )}
+              </div>
+              {progressText && <p className="mcl-console__note is-busy">{progressText}</p>}
+              {error && <p className="mcl-console__note mcl-error">{error}</p>}
+            </form>
           ) : (
-            <ArtistSidebar
-              songs={pool}
-              scope={scope}
-              onScope={(s) => {
-                setScope(s);
-                setNavOpen(false);
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragging(true);
               }}
-            />
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragging(false);
+                void upload([...e.dataTransfer.files]);
+              }}
+              className={"mcl-console" + (dragging ? " is-drag" : "")}
+            >
+              <div className="mcl-console__row">
+                <div className="mcl-field">
+                  <Icon.Users width={14} height={14} className="mcl-field__icon" />
+                  <input
+                    value={artistInput}
+                    onChange={(e) => setArtistInput(e.target.value)}
+                    disabled={step !== "idle"}
+                    list="mc-upload-artists"
+                    placeholder="Artist name (who made these songs)"
+                    aria-label="Artist name"
+                  />
+                  <datalist id="mc-upload-artists">{artists.map((a) => <option key={a} value={a} />)}</datalist>
+                </div>
+                <LensPicker lenses={lenses} onToggle={toggleLens} />
+                {step === "idle" ? (
+                  <button
+                    type="button"
+                    onClick={() => (artistInput.trim() ? audioInput.current?.click() : setError("Type the artist first — My Music is organised by artist."))}
+                    className="mcl-btn mcl-btn--primary"
+                  >
+                    <Icon.Upload width={13} height={13} />
+                    Upload songs
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => abort.current?.abort()} className="mcl-btn">
+                    Cancel
+                  </button>
+                )}
+                <input
+                  ref={audioInput}
+                  type="file"
+                  accept="audio/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = [...(e.target.files ?? [])];
+                    e.target.value = "";
+                    if (files.length) void upload(files);
+                  }}
+                />
+              </div>
+              <p className={"mcl-console__note" + (progressText ? " is-busy" : "")}>
+                {progressText ||
+                  "Drop audio files here or pick them. The AI listens to each one and files it; the audio stays on this device."}
+              </p>
+              {error && <p className="mcl-console__note mcl-error">{error}</p>}
+            </div>
           )}
-        </div>
 
-        <main className="mcl-stage">
-          {/* Where you are, the favourites filter, and the 1–10 spectrum. */}
-          <div className="mcl-scope">
-            <div className="mcl-scope__head">
-              <div className="mcl-scope__crumbs">
-                <span className="mcl-scope__name">{crumbs[0]}</span>
-                {crumbs.slice(1).map((c) => (
-                  <Fragment key={c}>
-                    <span className="mcl-scope__sep" aria-hidden>
-                      ›
-                    </span>
-                    <span className="mcl-scope__crumb">{c}</span>
-                  </Fragment>
-                ))}
-              </div>
-              <span className="mcl-scope__count">
-                <b>{visible.length}</b>
-                {visible.length !== scoped.length && ` / ${scoped.length}`} songs
-              </span>
-            </div>
-
-            <div className="mcl-scope__tools">
-              <button
-                onClick={() => setFavOnly((v) => !v)}
-                aria-pressed={favOnly}
-                title="Show favorites only"
-                className={"mcl-pill" + (favOnly ? " is-fav" : "")}
-              >
-                <span>{favOnly ? "★" : "☆"}</span>
-                Favorites
-                <span className="mcl-pill__n">{favCount}</span>
-              </button>
-
-              <div className="mcl-spectrum">
-                <button
-                  onClick={() => setScope(levelBase)}
-                  title="Every energy level"
-                  className={"mcl-stop is-all" + (scope.level === undefined ? " is-on" : "")}
-                >
-                  <b>All</b>
-                  <i>{pool.length}</i>
-                </button>
-                {LEVELS.map((l) => {
-                  const n = inScope(pool, { ...levelBase, level: l.n }).length;
-                  const on = scope.level === l.n;
-                  return (
+          {(flash || alts) && (
+            <div className="mcl-flash">
+              {flash && <span>{flash}</span>}
+              {alts && (
+                <>
+                  <span className="mcl-muted">Wrong song?</span>
+                  {alts.options.map((o) => (
                     <button
-                      key={l.n}
-                      onClick={() => setScope(on ? levelBase : { ...levelBase, level: l.n })}
-                      title={`${l.n} · ${l.name} — ${l.feel}. Typically ${l.bpm} BPM. ${n} song${n === 1 ? "" : "s"}.`}
-                      className={"mcl-stop" + (on ? " is-on" : "") + (n ? "" : " is-empty")}
-                      style={hueStyle(l.hue)}
+                      key={`${o.title}|${o.artist}`}
+                      onClick={() => void run({ identity: o }, alts.songId)}
+                      disabled={step !== "idle"}
+                      className="mcl-flash__alt"
                     >
-                      <b>{l.n}</b>
-                      <i>{n}</i>
+                      {o.title} — {o.artist}
                     </button>
-                  );
-                })}
-              </div>
+                  ))}
+                  <button
+                    onClick={() => {
+                      setAlts(null);
+                      setFlash("");
+                    }}
+                    className="mcl-muted"
+                    style={{ marginLeft: "auto", fontSize: "0.72rem" }}
+                  >
+                    dismiss
+                  </button>
+                </>
+              )}
             </div>
-          </div>
+          )}
 
-          <BlueprintBox
-            key={blueprintKey}
-            scope={blueprintKey}
-            scopeLabel={tab === "mine" ? `${scopeLabel} (the user's own songs)` : scopeLabel}
-            songs={scoped}
-            blueprint={lib.blueprints.find((b) => b.scope === blueprintKey)}
-            onSaved={(bp) => setLib(store.saveBlueprint(bp))}
-          />
+          <div className="mcl-body">
+            {/* Drawer scrim — the rail is an overlay below 1024px. */}
+            <div
+              className={"mcl-rail__scrim" + (navOpen ? " is-on" : "")}
+              onClick={() => setNavOpen(false)}
+              aria-hidden
+            />
 
-          <div className="mcl-list mcl-scroll">
-            {!ready ? (
-              <p className="mcl-empty">Loading your library…</p>
-            ) : (
-              <SongTable
-                songs={visible}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-                onFavorite={(id) => setLib(store.toggleFavorite(id))}
-                sort={sort}
-                dir={dir}
-                onSort={sortBy}
-                empty={emptyText}
+            {/* With a record open, three panes crush the song column below xl, so
+                the rail steps aside (still reachable via the top-bar toggle). */}
+            <div className={"mcl-rail mcl-scroll" + (navOpen ? " is-open" : "") + (record ? " is-crowded" : "")}>
+              {tab === "library" ? (
+                <LevelSidebar
+                  songs={pool}
+                  tree={lib.tree}
+                  scope={scope}
+                  onScope={(s) => {
+                    setScope(s);
+                    setNavOpen(false);
+                  }}
+                  onAddGenre={(level, genre) => setLib(store.addGenre(level, genre))}
+                  onAddSubgenre={(level, genre, sub) => setLib(store.addSubgenre(level, genre, sub))}
+                />
+              ) : (
+                <ArtistSidebar
+                  songs={pool}
+                  scope={scope}
+                  onScope={(s) => {
+                    setScope(s);
+                    setNavOpen(false);
+                  }}
+                />
+              )}
+            </div>
+
+            <main className="mcl-stage">
+              {/* Where you are, the favourites filter, and the 1–10 spectrum. */}
+              <div className="mcl-scope">
+                <div className="mcl-scope__head">
+                  <div className="mcl-scope__crumbs">
+                    <span className="mcl-scope__name">{crumbs[0]}</span>
+                    {crumbs.slice(1).map((c) => (
+                      <Fragment key={c}>
+                        <span className="mcl-scope__sep" aria-hidden>
+                          ›
+                        </span>
+                        <span className="mcl-scope__crumb">{c}</span>
+                      </Fragment>
+                    ))}
+                  </div>
+                  <span className="mcl-scope__count">
+                    <b>{visible.length}</b>
+                    {visible.length !== scoped.length && ` / ${scoped.length}`} songs
+                  </span>
+                </div>
+
+                <div className="mcl-scope__tools">
+                  <button
+                    onClick={() => setFavOnly((v) => !v)}
+                    aria-pressed={favOnly}
+                    title="Show favorites only"
+                    className={"mcl-pill" + (favOnly ? " is-fav" : "")}
+                  >
+                    <span>{favOnly ? "★" : "☆"}</span>
+                    Favorites
+                    <span className="mcl-pill__n">{favCount}</span>
+                  </button>
+
+                  <div className="mcl-spectrum">
+                    <button
+                      onClick={() => setScope(levelBase)}
+                      title="Every energy level"
+                      className={"mcl-stop is-all" + (scope.level === undefined ? " is-on" : "")}
+                    >
+                      <b>All</b>
+                      <i>{pool.length}</i>
+                    </button>
+                    {LEVELS.map((l) => {
+                      const n = inScope(pool, { ...levelBase, level: l.n }).length;
+                      const on = scope.level === l.n;
+                      return (
+                        <button
+                          key={l.n}
+                          onClick={() => setScope(on ? levelBase : { ...levelBase, level: l.n })}
+                          title={`${l.n} · ${l.name} — ${l.feel}. Typically ${l.bpm} BPM. ${n} song${n === 1 ? "" : "s"}.`}
+                          className={"mcl-stop" + (on ? " is-on" : "") + (n ? "" : " is-empty")}
+                          style={hueStyle(l.hue)}
+                        >
+                          <b>{l.n}</b>
+                          <i>{n}</i>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <BlueprintBox
+                key={blueprintKey}
+                scope={blueprintKey}
+                scopeLabel={tab === "mine" ? `${scopeLabel} (the user's own songs)` : scopeLabel}
+                songs={scoped}
+                blueprint={lib.blueprints.find((b) => b.scope === blueprintKey)}
+                onSaved={(bp) => setLib(store.saveBlueprint(bp))}
               />
+
+              <div className="mcl-list mcl-scroll">
+                {!ready ? (
+                  <p className="mcl-empty">Loading your library…</p>
+                ) : (
+                  <SongTable
+                    songs={visible}
+                    selectedId={selectedId}
+                    onSelect={setSelectedId}
+                    onFavorite={(id) => setLib(store.toggleFavorite(id))}
+                    sort={sort}
+                    dir={dir}
+                    onSort={sortBy}
+                    empty={emptyText}
+                  />
+                )}
+              </div>
+            </main>
+
+            {record && (
+              <div className="mcl-panel">
+                <SongPanel
+                  song={record}
+                  lib={lib}
+                  busy={step !== "idle"}
+                  onClose={() => setSelectedId(null)}
+                  onPatch={(patch) => setLib(store.updateSong(record.id, patch))}
+                  onDescriptions={(d) => setLib(store.mergeDescriptions(record.id, d))}
+                  onDelete={() => {
+                    if (record.audioId) void deleteAudio(record.audioId);
+                    setLib(store.deleteSong(record.id));
+                    setSelectedId(null);
+                  }}
+                  onReanalyze={() =>
+                    record.kind === "own"
+                      ? void relisten(record)
+                      : void run({ input: record.artist ? `${record.title} by ${record.artist}` : record.title }, record.id)
+                  }
+                />
+              </div>
             )}
           </div>
-        </main>
-
-        {record && (
-          <div className="mcl-panel">
-            <SongPanel
-              song={record}
-              lib={lib}
-              busy={step !== "idle"}
-              onClose={() => setSelectedId(null)}
-              onPatch={(patch) => setLib(store.updateSong(record.id, patch))}
-              onDescriptions={(d) => setLib(store.mergeDescriptions(record.id, d))}
-              onDelete={() => {
-                if (record.audioId) void deleteAudio(record.audioId);
-                setLib(store.deleteSong(record.id));
-                setSelectedId(null);
-              }}
-              onReanalyze={() =>
-                record.kind === "own"
-                  ? void relisten(record)
-                  : void run({ input: record.artist ? `${record.title} by ${record.artist}` : record.title }, record.id)
-              }
-            />
-          </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }

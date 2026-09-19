@@ -11,12 +11,15 @@ import { saveSynced } from "@/lib/sync/appState";
 import { scopedKey } from "@/lib/sync/identity";
 import { nowIso, uid } from "../utils";
 import { clampLevel, isLens, STARTER_LENSES } from "./levels";
-import type { Blueprint, LensId, Library, Song, SongDraft, Tree } from "./types";
+import type { Blueprint, LensId, Library, Song, SongDraft, StyleRecord, Tree } from "./types";
 
 /** Also the app_state sync key. */
 export const KEY = "music-classified:v1";
 
-const empty = (): Library => ({ songs: [], tree: {}, blueprints: [], defaultLenses: [...STARTER_LENSES] });
+const empty = (): Library => ({ songs: [], tree: {}, blueprints: [], styles: [], defaultLenses: [...STARTER_LENSES] });
+
+/** Enough history to be useful, small enough to keep syncing cheap. */
+const STYLE_HISTORY = 60;
 
 const isOwn = (s: { kind?: string }) => s.kind === "own";
 
@@ -62,6 +65,7 @@ function clean(raw: Partial<Library> | null): Library {
     songs,
     tree,
     blueprints: Array.isArray(raw.blueprints) ? raw.blueprints : [],
+    styles: (Array.isArray(raw.styles) ? raw.styles : []).filter((s): s is StyleRecord => Boolean(s?.id && s.prompt)),
     defaultLenses: lenses.length ? lenses : [...STARTER_LENSES],
   };
 }
@@ -185,6 +189,16 @@ export function setDefaultLenses(lenses: LensId[]): Library {
 export function saveBlueprint(bp: Blueprint): Library {
   const lib = load();
   return save({ ...lib, blueprints: [bp, ...lib.blueprints.filter((b) => b.scope !== bp.scope)] });
+}
+
+export function saveStyle(record: StyleRecord): Library {
+  const lib = load();
+  return save({ ...lib, styles: [record, ...lib.styles.filter((s) => s.id !== record.id)].slice(0, STYLE_HISTORY) });
+}
+
+export function deleteStyle(id: string): Library {
+  const lib = load();
+  return save({ ...lib, styles: lib.styles.filter((s) => s.id !== id) });
 }
 
 export function exportJson(): string {

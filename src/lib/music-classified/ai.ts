@@ -18,14 +18,19 @@ export type ContentPart =
 export async function chatJson(
   system: string,
   user: string | ContentPart[],
-  { maxTokens = 3000, timeoutMs = 55_000, model }: { maxTokens?: number; timeoutMs?: number; model?: string } = {},
+  {
+    maxTokens = 3000,
+    timeoutMs = 55_000,
+    model,
+    temperature = 0.3,
+  }: { maxTokens?: number; timeoutMs?: number; model?: string; temperature?: number } = {},
 ): Promise<Record<string, unknown>> {
   const res = await fetch(aiUrl(), {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${aiKey()}` },
     body: JSON.stringify({
       model: model || process.env.AI_MODEL || DEFAULT_MODEL,
-      temperature: 0.3,
+      temperature,
       max_tokens: maxTokens,
       response_format: { type: "json_object" },
       messages: [
