@@ -21,6 +21,22 @@ const ASK: Record<SectionId, string> = {
   food: "standout local restaurants, cafes, bakeries and food halls that locals love — independent places, not chains",
 };
 
+/**
+ * The AI account can't pay for more calls. Distinct from a transient failure:
+ * retrying is pointless, so a build stops rating and says why. Seen as a 402
+ * from OpenRouter, or — once aiFetch falls back — a 429 "Free tier" from the
+ * Vercel gateway, which looked like a rate limit and cost an hour of debugging.
+ */
+export class OutOfCreditError extends Error {
+  constructor(detail: string) {
+    super(`AI account is out of credit: ${detail}`);
+    this.name = "OutOfCreditError";
+  }
+}
+
+const isCreditProblem = (status: number, detail: string) =>
+  status === 402 || /credit|free tier/i.test(detail);
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function chat(model: string, system: string, user: string, maxTokens: number): Promise<string> {
@@ -33,18 +49,20 @@ async function chat(model: string, system: string, user: string, maxTokens: numb
     temperature: 0.2,
     max_tokens: maxTokens,
   });
-  // A city build fires a burst of rating calls; the provider answers 429 when
-  // they land together (measured: 11 of 14 batches lost at 8-way parallel).
-  // Back off and retry rather than silently falling back to estimated stars.
+  // A genuine rate limit is worth a short backoff and retry; running out of
+  // credit is not (see OutOfCreditError), so that is thrown straight away.
   let res: Response | null = null;
   for (let attempt = 0; attempt < 4; attempt++) {
     res = await aiFetch({ method: "POST", body, signal: AbortSignal.timeout(90_000) });
     if (res.status !== 429) break;
+    const why = await res.clone().text().catch(() => "");
+    if (isCreditProblem(429, why)) throw new OutOfCreditError(why.slice(0, 200));
     const retryAfter = Number(res.headers.get("retry-after"));
     await sleep(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 2000 * 2 ** attempt + Math.random() * 1000);
   }
   if (!res || !res.ok) {
     const detail = res ? (await res.text().catch(() => "")).slice(0, 300) : "";
+    if (res && isCreditProblem(res.status, detail)) throw new OutOfCreditError(detail);
     throw new Error(`AI returned ${res?.status} ${detail}`);
   }
   const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
@@ -123,6 +141,7 @@ export async function rateBatch(items: RateItem[], cityLabel: string): Promise<M
     }
     return out;
   } catch (err) {
+    if (err instanceof OutOfCreditError) throw err;
     console.warn("[fno catalog] rating batch failed:", (err as Error).name, (err as Error).message);
     return new Map();
   }

@@ -14,7 +14,7 @@ import { SECTIONS, type SectionId } from "../sections";
 import { PLACES_MAX_RADIUS_MI, fetchPlaces, overpassQuery, type OverpassElement } from "../sources/overpass";
 import { enrichHooks } from "../sources/wikipedia";
 import type { Coords, FnoPlace } from "../types";
-import { discoverSection, rateBatch, type RateItem } from "./ai";
+import { OutOfCreditError, discoverSection, rateBatch, type RateItem } from "./ai";
 import { heuristicStars } from "./rubric";
 import { defaultSection } from "./sectionMap";
 import { buildNameQueries, dedupeByNameAndPlace, matchByName, type Candidate } from "./verify";
@@ -159,7 +159,18 @@ export async function ratePlaces(places: CatalogPlace[], label: string): Promise
     address: p.address,
   }));
   let rated = 0;
-  const maps = await inBatches(items, RATE_BATCH, RATE_CONCURRENCY, (b) => rateBatch(b, label));
+  let noCredit: OutOfCreditError | null = null;
+  const maps = await inBatches(items, RATE_BATCH, RATE_CONCURRENCY, async (b) => {
+    // Once the account is out of credit every further call fails the same way.
+    if (noCredit) return new Map();
+    try {
+      return await rateBatch(b, label);
+    } catch (err) {
+      if (!(err instanceof OutOfCreditError)) throw err;
+      noCredit = err;
+      return new Map();
+    }
+  });
   for (const m of maps) {
     for (const [key, r] of m) {
       const p = byKey.get(key);
@@ -172,6 +183,7 @@ export async function ratePlaces(places: CatalogPlace[], label: string): Promise
       rated++;
     }
   }
+  if (noCredit && !rated) throw noCredit;
   return rated;
 }
 
@@ -191,14 +203,17 @@ export async function buildCatalog(
   onProgress({ stage: "places", message: `Searching the map around ${label}…` });
   if (useAi) onProgress({ stage: "discover", message: "Searching the web for hidden gems, food and more…" });
 
-  const discoverAndVerify = async (): Promise<{ candidates: Candidate[]; verified: CatalogPlace[]; dropped: number }> => {
-    if (!useAi) return { candidates: [], verified: [], dropped: 0 };
-    const candidates = (await Promise.all(SECTIONS.map((s) => discoverSection(s.id, label, radiusMi)))).flat();
-    if (!candidates.length) return { candidates, verified: [], dropped: 0 };
-    onProgress({ stage: "verify", message: `Checking ${candidates.length} web finds against the map…` });
+  /**
+   * Check web finds against the map. Returns null when the map check itself
+   * failed (every Overpass query rejected) — which must never be reported as
+   * "couldn't be confirmed": in Columbus all mirrors were busy and 29 real finds
+   * were silently thrown away that way.
+   */
+  const verifyAgainstMap = async (candidates: Candidate[]) => {
     const results = await Promise.allSettled(
       buildNameQueries(candidates.map((c) => c.name), bbox).map((q, i) => overpassQuery(q, i + 1)),
     );
+    if (results.every((r) => r.status === "rejected")) return null;
     const elements = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
     const { matched, unmatched } = matchByName(candidates, elements, center, radiusMi);
     const verified = matched.flatMap((m) => {
@@ -210,11 +225,15 @@ export async function buildCatalog(
       p.sources.push({ kind: "web", label: "Web search" });
       return [p];
     });
-    onProgress({
-      stage: "verify",
-      message: `${verified.length} web finds confirmed, ${unmatched.length} couldn't be confirmed and were left out.`,
-    });
-    return { candidates, verified, dropped: unmatched.length };
+    return { verified, dropped: unmatched.length };
+  };
+
+  const discoverAndVerify = async () => {
+    if (!useAi) return { candidates: [] as Candidate[], check: { verified: [] as CatalogPlace[], dropped: 0 } };
+    const candidates = (await Promise.all(SECTIONS.map((s) => discoverSection(s.id, label, radiusMi)))).flat();
+    if (!candidates.length) return { candidates, check: { verified: [] as CatalogPlace[], dropped: 0 } };
+    onProgress({ stage: "verify", message: `Checking ${candidates.length} web finds against the map…` });
+    return { candidates, check: await verifyAgainstMap(candidates) };
   };
 
   const [activity, parks, web] = await Promise.all([
@@ -226,7 +245,24 @@ export async function buildCatalog(
   ]);
   const osmPlaces = [...activity.map(fromActivity), ...parks];
   onProgress({ stage: "places", message: `Found ${osmPlaces.length} places on the map.` });
-  const { candidates, verified, dropped } = web;
+
+  const { candidates } = web;
+  let check = web.check;
+  if (!check && candidates.length) {
+    // The big map search is finished, so the mirrors are quieter: one retry.
+    onProgress({ stage: "verify", message: "The map was busy — checking the web finds again…" });
+    check = await verifyAgainstMap(candidates);
+  }
+  const verified = check?.verified ?? [];
+  const dropped = check?.dropped ?? 0;
+  if (candidates.length) {
+    onProgress({
+      stage: "verify",
+      message: check
+        ? `${verified.length} web finds confirmed, ${dropped} couldn't be confirmed and were left out.`
+        : `The map couldn't be reached to check ${candidates.length} web finds, so they were left out this time.`,
+    });
+  }
 
   // Discovered first so its "why" survives a merge with the plainer OSM copy.
   const places = dedupeByNameAndPlace([...verified, ...osmPlaces]);
@@ -238,7 +274,12 @@ export async function buildCatalog(
   let aiRated = 0;
   if (useAi && input.rateInline && places.length) {
     onProgress({ stage: "rate", message: `Rating ${places.length} places…` });
-    aiRated = await ratePlaces(places, label);
+    try {
+      aiRated = await ratePlaces(places, label);
+    } catch (err) {
+      if (!(err instanceof OutOfCreditError)) throw err;
+      onProgress({ stage: "rate", message: "The AI account is out of credit, so stars are estimated for now." });
+    }
   }
 
   places.sort((a, b) => b.aiStars - a.aiStars || a.distanceMi - b.distanceMi);

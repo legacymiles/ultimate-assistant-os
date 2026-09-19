@@ -86,6 +86,12 @@ export async function POST(req: Request) {
           { center, label, radiusMi: Math.max(radiusMi, 25), useAi: catalogAiAvailable(), rateInline: !store },
           (p: BuildProgress) => send({ type: "progress", ...p }),
         );
+        // A city whose map search came back empty is an outage, not a dull
+        // city. Saving it would serve that thin list to everyone forever, so
+        // fail and let the next visit build it properly.
+        if (result.stats.osm === 0) {
+          throw new Error("The map service isn't answering right now. Try again in a few minutes.");
+        }
         if (store && areaId) {
           await store.savePlaces(areaId, result.places);
           await store.setStatus(areaId, "ready", result.radiusMi);

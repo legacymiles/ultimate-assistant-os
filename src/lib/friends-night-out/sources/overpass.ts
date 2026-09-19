@@ -249,15 +249,20 @@ export async function fetchPlaces(
     batches.push(filters.slice(i, i + BATCH_SIZE));
   }
 
-  const results = await Promise.allSettled(
-    batches.map((batch, i) => {
-      const clauses = batch.map((f) => `nwr${f}(${bbox});`).join("");
-      return overpassQuery(
-        `[out:json][timeout:${SERVER_TIMEOUT_S}];(${clauses});out tags center ${MAX_ELEMENTS};`,
-        i,
-      );
-    }),
-  );
+  const queryFor = (batch: string[]) =>
+    `[out:json][timeout:${SERVER_TIMEOUT_S}];(${batch.map((f) => `nwr${f}(${bbox});`).join("")});out tags center ${MAX_ELEMENTS};`;
+  const results = await Promise.allSettled(batches.map((batch, i) => overpassQuery(queryFor(batch), i)));
+
+  // Batches that failed during the first burst get one more try, started on a
+  // different mirror. Without this a busy moment silently thinned a whole city:
+  // Columbus came back with 28 places instead of ~460, and a saved city
+  // catalogue would have kept that forever. The retries run side by side so a
+  // city build stays inside the 300 s function limit.
+  const failed = results.flatMap((r, i) => (r.status === "rejected" ? [i] : []));
+  const retried = await Promise.allSettled(failed.map((i) => overpassQuery(queryFor(batches[i]), i + 1)));
+  failed.forEach((i, k) => {
+    if (retried[k].status === "fulfilled") results[i] = retried[k];
+  });
 
   // A partial failure just thins the board. Every batch failing means OSM is
   // genuinely unreachable, and the caller must say so rather than render an

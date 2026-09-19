@@ -1,5 +1,5 @@
 import { mayUseAi } from "@/lib/friends-night-out/aiAccess";
-import { catalogAiAvailable } from "@/lib/friends-night-out/catalog/ai";
+import { OutOfCreditError, catalogAiAvailable } from "@/lib/friends-night-out/catalog/ai";
 import { ratePlaces } from "@/lib/friends-night-out/catalog/build";
 import { catalogStore } from "@/lib/friends-night-out/catalog/store";
 
@@ -37,6 +37,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     const remaining = await store.countUnrated(id);
     return Response.json({ rated, remaining });
   } catch (err) {
+    if (err instanceof OutOfCreditError) {
+      return Response.json({ error: "The AI account is out of credit, so stars stay estimated for now.", outOfCredit: true }, { status: 402 });
+    }
     return Response.json({ error: (err as Error).message }, { status: 502 });
   }
 }
