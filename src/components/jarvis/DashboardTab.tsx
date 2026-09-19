@@ -135,7 +135,9 @@ export function DashboardTab({
               ))}
             </ul>
           )}
-          <p className={from}>{brief.nextEvents.length ? "from your calendar" : "stage 4 connects your calendar"}</p>
+          <p className={from}>
+            {brief.nextEvents.length ? "from your calendar" : "connect a calendar in the Calendar tab"}
+          </p>
         </div>
 
         <div className={card}>
@@ -153,7 +155,9 @@ export function DashboardTab({
               ))}
             </ul>
           )}
-          <p className={from}>{brief.unread.length ? `${brief.unread.length} unread` : "stage 4 connects your inbox"}</p>
+          <p className={from}>
+            {brief.unread.length ? `${brief.unread.length} unread` : "connect a mailbox in the Inbox tab"}
+          </p>
         </div>
 
         <div className={`${card} lg:col-span-2`}>
@@ -162,7 +166,7 @@ export function DashboardTab({
           </h2>
           {brief.recentMemories.length === 0 ? (
             <p className="text-xs text-ink-muted">
-              Nothing remembered yet. Write a note in Memory, or sync your master folder in stage 2.
+              Nothing remembered yet. Write a note in Memory, or sync your master folder there.
             </p>
           ) : (
             <ul className="divide-y divide-line-soft text-xs">

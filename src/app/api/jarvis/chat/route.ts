@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { runAgent } from "@/lib/jarvis/server/agent";
+import { connector } from "@/lib/jarvis/server/connectors";
 
 // Reads the master folder from disk and the memory database per request.
 export const runtime = "nodejs";
@@ -31,8 +32,24 @@ export async function POST(req: Request) {
 
   if (!messages.length) return NextResponse.json({ error: "Nothing to answer." }, { status: 400 });
 
+  // The apps the owner has connected become tools Jarvis can use. Reads run
+  // inside the loop; writes stop it and come back as a pending action.
+  const c = connector();
+  let connectorTools: Awaited<ReturnType<typeof c.listTools>> = [];
+  if (c.available) {
+    try {
+      const apps = (await c.listApps()).filter((a) => a.connected).map((a) => a.slug);
+      if (apps.length) connectorTools = await c.listTools(apps);
+    } catch {
+      // A connector that cannot be reached simply gives Jarvis fewer tools; he
+      // says what he cannot do rather than failing the whole answer.
+    }
+  }
+
   try {
     const result = await runAgent({
+      connectorTools,
+      runTool: (name, args) => c.call(name, args),
       messages,
       ownerName: (body.ownerName || "the owner").slice(0, 60),
       timezone: body.timezone,

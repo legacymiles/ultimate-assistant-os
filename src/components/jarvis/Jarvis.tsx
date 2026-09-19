@@ -13,10 +13,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Icon } from "../icons";
 import { NewDashboard } from "../new-dashboard/NewDashboard";
+import { CalendarTab } from "./CalendarTab";
 import { ChatTab } from "./ChatTab";
+import { InboxTab } from "./InboxTab";
 import { DashboardTab } from "./DashboardTab";
 import { MemoryTab } from "./MemoryTab";
-import { Placeholder } from "./Placeholder";
 import { RoutinesTab } from "./RoutinesTab";
 import { VoiceModal } from "./VoiceModal";
 import { loadLocal } from "@/lib/sync/appState";
@@ -100,6 +101,18 @@ export function Jarvis() {
 
   const turns = store.conversations[0]?.turns ?? [];
 
+  /** The one client-side path to a real action, used by chat and by voice. */
+  const runAction = async (action: { tool: string }, args: Record<string, unknown>): Promise<string> => {
+    const res = await fetch("/api/jarvis/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tool: action.tool, args, confirmed: true }),
+    });
+    const data = (await res.json()) as { ok?: boolean; error?: string };
+    if (!data.ok) throw new Error(data.error ?? "It failed.");
+    return "Done.";
+  };
+
   /** A spoken exchange is kept in the same conversation the Chat tab shows. */
   const keepExchange = (question: string, answer: string) => {
     const now = new Date().toISOString();
@@ -135,8 +148,6 @@ export function Jarvis() {
       })}
       <div className="hidden md:mt-auto md:block md:px-1 md:pt-4">
         <p className="text-[10px] leading-relaxed text-ink-faint">
-          Apps: not connected
-          <br />
           Voice: on
         </p>
       </div>
@@ -180,20 +191,8 @@ export function Jarvis() {
           {tab === "memory" && <MemoryTab store={store} commit={commit} />}
           {tab === "profile" && <NewDashboard chromeless />}
           {tab === "chat" && <ChatTab store={store} commit={commit} profile={profile} />}
-          {tab === "inbox" && (
-            <Placeholder
-              stage={4}
-              title="Inbox"
-              does="Messages from the sites you connect, in one list, with reply drafts you approve before anything is sent."
-            />
-          )}
-          {tab === "calendar" && (
-            <Placeholder
-              stage={4}
-              title="Calendar"
-              does="Your real calendar, with Jarvis able to add and move events — always showing you the exact event first."
-            />
-          )}
+          {tab === "inbox" && <InboxTab store={store} commit={commit} profile={profile} />}
+          {tab === "calendar" && <CalendarTab store={store} commit={commit} />}
           {tab === "routines" && <RoutinesTab store={store} commit={commit} profile={profile} />}
         </main>
       </div>
@@ -205,6 +204,7 @@ export function Jarvis() {
         ownerName={profile?.name ?? ""}
         history={turns}
         onExchange={keepExchange}
+        runAction={runAction}
         onProposals={(list) =>
           commit({
             ...store,
