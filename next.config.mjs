@@ -5,7 +5,12 @@ const nextConfig = {
   // (EINVAL readlink, then blanket 500s). NEXT_DIST_DIR gives each its own.
   distDir: process.env.NEXT_DIST_DIR || ".next",
   // Heavy Node-only parsers — keep them out of the webpack bundle.
-  serverExternalPackages: ["pdf-parse", "mammoth"],
+  serverExternalPackages: ["pdf-parse", "mammoth", "ffmpeg-static"],
+  // Music Creator converts saved songs to MP3 with ffmpeg; the binary is not
+  // imported, only spawned, so it must be traced into that route explicitly.
+  outputFileTracingIncludes: {
+    "/api/music-creator/library": ["./node_modules/ffmpeg-static/ffmpeg*"],
+  },
   // Pod Play Connect is a prebuilt Vite SPA in public/pod-play-connect (rebuild:
   // POD_BASE=/pod-play-connect/ vite build in its repo). Real files are served
   // first; every other path under it falls back to its index.html.

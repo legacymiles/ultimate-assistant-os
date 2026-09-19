@@ -56,6 +56,14 @@ export interface Render {
   meta?: Record<string, unknown>;
   /** Set when the job failed, so a dead render says why instead of vanishing. */
   error?: string;
+  /**
+   * The take's permanent copy in the account's library (`<id>.<ext>`), made
+   * right after it rendered. Playback uses this, so a take keeps playing after
+   * the GPU pod goes to sleep. Absent = still only on the GPU server.
+   */
+  saved?: string;
+  /** Why the last attempt to save it to the library failed. */
+  saveError?: string;
 }
 
 export interface Project {

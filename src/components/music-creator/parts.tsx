@@ -12,7 +12,7 @@
 
 import { useCallback, useState } from "react";
 import { Icon } from "../icons";
-import { type WriteTask, write } from "@/lib/music-creator/client";
+import { type WriteTask, downloadUrl, playUrl, write } from "@/lib/music-creator/client";
 import type { Render, ServerState } from "@/lib/music-creator/types";
 import type { Requirement, ToolDef } from "@/lib/music-creator/tools";
 import { useStudio } from "./studio";
@@ -250,7 +250,7 @@ export function RunBar() {
 }
 
 export function Takes({ renders, empty }: { renders: Render[]; empty?: string }) {
-  const { fileUrl } = useStudio();
+  const project = useOpenProjectId();
   if (!renders.length) return <p className="mc-empty">{empty ?? "No takes yet."}</p>;
 
   return (
@@ -264,13 +264,11 @@ export function Takes({ renders, empty }: { renders: Render[]; empty?: string })
           </div>
           {r.error ? (
             <p className="mc-take-err">{r.error}</p>
-          ) : r.fileId ? (
+          ) : r.fileId || r.saved ? (
             <>
-              <audio controls preload="none" src={fileUrl(r.fileId)} />
+              <TakePlayer render={r} />
               <div className="mc-take-f">
-                <a className="mc-btn mc-btn-s" href={fileUrl(r.fileId)} download>
-                  <Icon.Download width={12} height={12} /> Download
-                </a>
+                <TakeActions projectId={project} render={r} />
                 {truncatedNote(r) && <span className="mc-take-warn">{truncatedNote(r)}</span>}
               </div>
             </>
@@ -280,6 +278,59 @@ export function Takes({ renders, empty }: { renders: Render[]; empty?: string })
         </li>
       ))}
     </ul>
+  );
+}
+
+function useOpenProjectId(): string {
+  const { view } = useStudio();
+  return view.kind === "tool" ? view.projectId : "";
+}
+
+/**
+ * A take's player. Plays the library copy, so it works with the GPU asleep.
+ * `key` on the src means a take that gets saved mid-view swaps to the copy.
+ */
+export function TakePlayer({ render }: { render: Render }) {
+  const src = playUrl(render);
+  if (!src) return null;
+  return <audio key={src} controls preload="none" src={src} />;
+}
+
+/** Download + whether the take is safe in the account's library. */
+export function TakeActions({ projectId, render }: { projectId: string; render: Render }) {
+  const { saving, saveTake, server } = useStudio();
+  const href = downloadUrl(render);
+  const busy = saving.has(render.id);
+  return (
+    <>
+      {href && (
+        <a className="mc-btn mc-btn-s" href={href} download>
+          <Icon.Download width={12} height={12} /> Download
+        </a>
+      )}
+      {render.saved ? (
+        <span className="mc-saved is-ok">
+          <Icon.Check width={11} height={11} /> saved to your account
+        </span>
+      ) : busy ? (
+        <span className="mc-saved">
+          {server?.reachable ? "saving to your account…" : "waking the GPU to save it (a few minutes)…"}
+        </span>
+      ) : (
+        <>
+          <button
+            type="button"
+            className="mc-btn mc-btn-s"
+            onClick={() => void saveTake(projectId, render.id)}
+            disabled={!projectId}
+            title="Wakes the GPU if it is asleep, copies this take into your account, and it plays forever after"
+          >
+            <Icon.Upload width={12} height={12} /> Save to my account
+          </button>
+          <span className="mc-saved is-warn">{render.saveError ?? "only on the GPU — won't play while it sleeps"}</span>
+        </>
+      )}
+    </>
   );
 }
 

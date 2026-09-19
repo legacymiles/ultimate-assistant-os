@@ -15,9 +15,10 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { Icon } from "../icons";
 import { AREAS, TOOLS, type ToolDef, type ToolProps, toolById } from "@/lib/music-creator/tools";
+import { FinishedSongs, finishedSongs } from "./Library";
 import { Projects } from "./Projects";
 import { VoiceLibrary } from "./VoiceLibrary";
-import { RunBar, missingFor } from "./parts";
+import { RunBar, TakePlayer, missingFor } from "./parts";
 import { StudioProvider, useOpenProject, useStudio } from "./studio";
 import "./music-creator.css";
 
@@ -110,7 +111,11 @@ function Header() {
 
 function Home() {
   const { openTool, server, projects, openProject } = useStudio();
-  const recent = useMemo(() => [...projects].sort((a, b) => b.updated - a.updated).slice(0, 4), [projects]);
+  // Only projects that actually produced a song.
+  const recent = useMemo(
+    () => projects.filter((p) => finishedSongs([p]).length > 0).sort((a, b) => b.updated - a.updated).slice(0, 4),
+    [projects],
+  );
 
   return (
     <div className="mc-home">
@@ -143,6 +148,8 @@ function Home() {
           </section>
         );
       })}
+
+      <FinishedSongs />
 
       {recent.length > 0 && (
         <section className="mc-area">
@@ -186,9 +193,12 @@ function Tile({ tool, onOpen, offline }: { tool: ToolDef; onOpen: () => void; of
 }
 
 function ToolFrame() {
-  const { view, updateProject, patchProject } = useStudio();
+  const { view, updateProject, patchProject, openTool, running } = useStudio();
   const project = useOpenProject();
   const tool = view.kind === "tool" ? toolById(view.toolId) : null;
+  // The newest finished song on this project, for the "it's done" banner.
+  const done = project && !(running?.projectId === project.id) ? finishedSongs([project])[0]?.render : undefined;
+  const latestFailed = project?.renders[0]?.error;
 
   if (!project || !tool) {
     return <p className="mc-empty">That project is no longer here.</p>;
@@ -202,16 +212,35 @@ function ToolFrame() {
   return (
     <div className="mc-tool">
       <div className="mc-tool-h">
-        <input
-          className="mc-title"
-          value={project.title}
-          onChange={(e) => updateProject(project.id, { title: e.target.value })}
-          placeholder="Untitled"
-          aria-label="Project title"
-        />
+        <div className="mc-tool-h-row">
+          <input
+            className="mc-title"
+            value={project.title}
+            onChange={(e) => updateProject(project.id, { title: e.target.value })}
+            placeholder="Untitled"
+            aria-label="Project title"
+          />
+          {project.renders.length > 0 && (
+            <button type="button" className="mc-btn mc-btn-s" onClick={() => openTool(tool.id)}>
+              <Icon.Plus width={12} height={12} /> New song
+            </button>
+          )}
+        </div>
         <p className="mc-tool-blurb">{tool.blurb}</p>
       </div>
       <RunBar />
+      {done && !latestFailed && (
+        <div className="mc-done">
+          <p>
+            <strong>Your song is ready</strong> — it&apos;s saved in Finished songs below and in your account, so you
+            can play it again any time without re-rendering.
+          </p>
+          <TakePlayer render={done} />
+          <button type="button" className="mc-btn mc-btn-go" onClick={() => openTool(tool.id)}>
+            <Icon.Plus width={13} height={13} /> Create another song
+          </button>
+        </div>
+      )}
       <Tool
         project={project}
         update={(patch) => updateProject(project.id, patch)}
@@ -221,6 +250,7 @@ function ToolFrame() {
         setData={(patch) => patchProject(project.id, (p) => ({ data: { ...(p.data ?? {}), ...patch } }))}
         patch={(fn) => patchProject(project.id, fn)}
       />
+      <FinishedSongs toolId={tool.id} />
     </div>
   );
 }

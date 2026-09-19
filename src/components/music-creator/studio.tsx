@@ -22,6 +22,7 @@ import {
   ensureVoiceOnServer,
   fileUrl,
   runJob,
+  saveToLibrary,
 } from "@/lib/music-creator/client";
 import {
   PROJECTS_KEY,
@@ -92,6 +93,16 @@ interface StudioValue {
   ) => Promise<Render | null>;
   cancelWatch: () => void;
   fileUrl: typeof fileUrl;
+  /** File a take a tool produced itself (e.g. a mix) — it is saved to the library like any other. */
+  addRender: (projectId: string, render: Render) => Render;
+  /**
+   * Save a take that is still only on the GPU server into the account's
+   * library, waking the GPU if it is asleep. For takes made before saving
+   * existed, or whose automatic save failed.
+   */
+  saveTake: (projectId: string, renderId: string) => Promise<void>;
+  /** Render ids currently being copied into the library. */
+  saving: ReadonlySet<string>;
 }
 
 const StudioContext = createContext<StudioValue | null>(null);
@@ -100,6 +111,17 @@ export function useStudio(): StudioValue {
   const value = useContext(StudioContext);
   if (!value) throw new Error("useStudio must be used inside <StudioProvider>");
   return value;
+}
+
+/**
+ * Opening a tool creates a project straight away, so every visit used to
+ * leave an empty "Untitled" behind. A project nobody typed in (never updated
+ * since it was created) and that has no takes is dropped as soon as the user
+ * leaves it. Anything edited is kept as a draft.
+ */
+function pruneUntouched(list: Project[], keepId?: string): Project[] {
+  const next = list.filter((p) => p.id === keepId || p.renders.length > 0 || p.updated !== p.created);
+  return next.length === list.length ? list : next;
 }
 
 function rid(): string {
@@ -113,10 +135,17 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
   const [server, setServer] = useState<ServerState | null>(null);
   const [checkingServer, setChecking] = useState(true);
   const [running, setRunning] = useState<Running | null>(null);
+  const [saving, setSaving] = useState<ReadonlySet<string>>(new Set());
+  const savingRef = useRef(new Set<string>());
   const abort = useRef<AbortController | null>(null);
 
   // Local first, then whatever the synced copy settles on.
-  useRemotePull(PROJECTS_KEY, () => setProjects(loadProjects()));
+  useRemotePull(PROJECTS_KEY, () => {
+    const loaded = loadProjects();
+    const pruned = pruneUntouched(loaded);
+    if (pruned !== loaded) saveProjects(pruned);
+    setProjects(pruned);
+  });
   useRemotePull(VOICES_KEY, () => setVoices(loadVoices()));
 
   const refreshServer = useCallback(() => {
@@ -128,6 +157,16 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => refreshServer(), [refreshServer]);
+
+  // Leaving a project nobody touched throws it away (see pruneUntouched).
+  const openId = view.kind === "tool" ? view.projectId : undefined;
+  useEffect(() => {
+    setProjects((prev) => {
+      const next = pruneUntouched(prev, openId);
+      if (next !== prev) saveProjects(next);
+      return next;
+    });
+  }, [openId]);
 
   const persistProjects = useCallback((next: Project[]) => {
     setProjects(next);
@@ -231,7 +270,41 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  /** File a finished or failed take on its project. */
+  const patchRender = useCallback((projectId: string, renderId: string, patch: Partial<Render>) => {
+    setProjects((prev) => {
+      const next = prev.map((p) =>
+        p.id === projectId ? { ...p, renders: p.renders.map((r) => (r.id === renderId ? { ...r, ...patch } : r)) } : p,
+      );
+      saveProjects(next);
+      return next;
+    });
+  }, []);
+
+  /**
+   * Copy a take off the GPU into the account's library. The GPU pod sleeps
+   * after 20 idle minutes and a take that only lives there goes silent with
+   * it; the library copy plays forever. Never throws — a failure is recorded
+   * on the take, which then offers to try again.
+   */
+  const archive = useCallback(
+    async (projectId: string, render: Render) => {
+      if (!render.fileId || render.saved || savingRef.current.has(render.id)) return;
+      savingRef.current.add(render.id);
+      setSaving(new Set(savingRef.current));
+      try {
+        const saved = await saveToLibrary(render.id, render.fileId);
+        patchRender(projectId, render.id, { saved, saveError: undefined });
+      } catch (err) {
+        patchRender(projectId, render.id, { saveError: (err as Error).message });
+      } finally {
+        savingRef.current.delete(render.id);
+        setSaving(new Set(savingRef.current));
+      }
+    },
+    [patchRender],
+  );
+
+  /** File a finished or failed take on its project, and save it to the library. */
   const fileRender = useCallback(
     (projectId: string, render: Render) => {
       setProjects((prev) => {
@@ -241,9 +314,49 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
         saveProjects(next);
         return next;
       });
+      // Straight away, while the GPU is certainly awake.
+      if (render.fileId && !render.error) void archive(projectId, render);
       return render;
     },
-    [],
+    [archive],
+  );
+
+  // Takes that are still only on the GPU (made before the library existed, or
+  // whose save failed) are picked up whenever the GPU is found awake. Never
+  // wakes it just for this — that costs money; the take's own button does.
+  const projectsRef = useRef(projects);
+  useEffect(() => {
+    projectsRef.current = projects;
+  }, [projects]);
+  useEffect(() => {
+    if (!server?.reachable) return;
+    void (async () => {
+      for (const p of projectsRef.current) {
+        for (const r of p.renders) {
+          if (r.fileId && !r.error && !r.saved) await archive(p.id, r);
+        }
+      }
+    })();
+  }, [server?.reachable, archive]);
+
+  const saveTake = useCallback(
+    async (projectId: string, renderId: string) => {
+      const render = projectsRef.current.find((p) => p.id === projectId)?.renders.find((r) => r.id === renderId);
+      if (!render?.fileId || render.saved) return;
+      savingRef.current.add(renderId);
+      setSaving(new Set(savingRef.current));
+      try {
+        setServer(await ensureServer());
+      } catch (err) {
+        patchRender(projectId, renderId, { saveError: (err as Error).message });
+        return;
+      } finally {
+        savingRef.current.delete(renderId);
+        setSaving(new Set(savingRef.current));
+      }
+      await archive(projectId, render);
+    },
+    [archive, patchRender],
   );
 
   /** The one place a job is watched, so progress and failure look the same everywhere. */
@@ -406,6 +519,9 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       runAndFile,
       cancelWatch,
       fileUrl,
+      addRender: fileRender,
+      saveTake,
+      saving,
     }),
     [
       projects,
@@ -428,6 +544,9 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       speak,
       runAndFile,
       cancelWatch,
+      fileRender,
+      saveTake,
+      saving,
     ],
   );
 
