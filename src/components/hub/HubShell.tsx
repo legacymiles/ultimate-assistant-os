@@ -23,6 +23,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CarouselHub } from "./v2/CarouselHub";
 import { HubHome } from "./HubHome";
+import { AiPanel } from "./AiPanel";
 
 export type HubVersion = "v1" | "v2";
 
@@ -69,6 +70,7 @@ export function HubShell() {
   return (
     <>
       <VersionToggle version={version} onChange={choose} />
+      <AiPanel />
       {version === "v2" ? <CarouselHub /> : <HubHome />}
     </>
   );

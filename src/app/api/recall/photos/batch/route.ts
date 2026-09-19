@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { aiEndpoint, DEFAULT_MODEL } from "@/lib/ai/provider";
+import { aiEndpoint, aiFetch, DEFAULT_MODEL } from "@/lib/ai/provider";
 import { callerIsMember } from "@/lib/recall/lists/session";
 
 // POST /api/recall/photos/batch
@@ -97,9 +97,9 @@ async function readPlan(prompt: string, body: Body, apiKey: string) {
   const count = Math.max(1, Number(body.fileCount ?? body.fileNames?.length ?? 1));
   const model = process.env.AI_MODEL || DEFAULT_MODEL;
 
-  const res = await fetch(aiEndpoint()!.url, {
+  const res = await aiFetch({
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
       temperature: 0.4,

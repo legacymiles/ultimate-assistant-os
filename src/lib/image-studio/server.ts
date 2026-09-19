@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import "server-only";
-import { aiKey, aiUrl } from "@/lib/ai/provider";
+import { aiFetch } from "@/lib/ai/provider";
 import { agentById, type ImageAgent } from "./agents";
 import { MAX_PROMPT, MAX_REFS, type Part, type RefInput } from "./prompt";
 
@@ -40,9 +40,9 @@ export async function chat(
   extra: Record<string, unknown> = {},
   timeoutMs = 60_000,
 ): Promise<unknown> {
-  const res = await fetch(aiUrl(), {
+  const res = await aiFetch({
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${aiKey()}` },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model, messages, ...extra }),
     signal: AbortSignal.timeout(timeoutMs),
   });

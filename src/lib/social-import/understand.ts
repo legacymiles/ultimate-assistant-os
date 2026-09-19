@@ -21,7 +21,7 @@
 
 import "server-only";
 
-import { DEFAULT_MODEL, aiEndpoint, type AiEndpoint } from "@/lib/ai/provider";
+import { DEFAULT_MODEL, aiEndpoint, aiFetch, type AiEndpoint } from "@/lib/ai/provider";
 import type { SocialPost } from "./resolve";
 import { fetchBytes } from "./safeFetch";
 
@@ -110,9 +110,9 @@ async function videoPart(req: UnderstandRequest): Promise<Part | null> {
 }
 
 async function ask(ep: AiEndpoint, model: string, system: string, content: Part[]): Promise<any> {
-  const res = await fetch(ep.url, {
+  const res = await aiFetch({
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${ep.key}` },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
       temperature: 0.3,

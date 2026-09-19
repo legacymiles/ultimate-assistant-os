@@ -1,6 +1,6 @@
 // Server-only: one JSON chat call through the hub's provider picker.
 
-import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
+import { DEFAULT_MODEL, aiKey, aiFetch } from "@/lib/ai/provider";
 
 export function aiReady(): boolean {
   return Boolean(aiKey());
@@ -25,9 +25,9 @@ export async function chatJson(
     temperature = 0.3,
   }: { maxTokens?: number; timeoutMs?: number; model?: string; temperature?: number } = {},
 ): Promise<Record<string, unknown>> {
-  const res = await fetch(aiUrl(), {
+  const res = await aiFetch({
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${aiKey()}` },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model: model || process.env.AI_MODEL || DEFAULT_MODEL,
       temperature,

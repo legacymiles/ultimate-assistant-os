@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 
 import "server-only";
-import { DEFAULT_MODEL, aiKey as providerKey, aiUrl } from "@/lib/ai/provider";
+import { DEFAULT_MODEL, aiKey as providerKey, aiFetch } from "@/lib/ai/provider";
 
 import { uid } from "@/lib/utils";
 import { GENRES, TEMPLATES, genreById, templateById } from "../constants";
@@ -30,7 +30,6 @@ import type {
 } from "../types";
 import { heuristicBreakdown } from "./heuristic";
 
-const GATEWAY = aiUrl();
 
 /** Re-exported so existing callers keep their import. */
 export function aiKey(): string {
@@ -41,9 +40,9 @@ type Part = { type: "text"; text: string } | { type: "image_url"; image_url: { u
 
 async function chat(system: string, user: string | Part[], json = true, timeoutMs = 60_000): Promise<string> {
   const model = process.env.AUTEUR_MODEL || process.env.AI_MODEL || DEFAULT_MODEL;
-  const res = await fetch(GATEWAY, {
+  const res = await aiFetch({
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${aiKey()}` },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
       temperature: 0.5,

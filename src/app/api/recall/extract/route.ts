@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
+import { DEFAULT_MODEL, aiKey, aiFetch } from "@/lib/ai/provider";
 import { callerIsMember } from "@/lib/recall/lists/session";
 
 // POST /api/recall/extract  (multipart form: file, category)
@@ -17,7 +17,6 @@ import { callerIsMember } from "@/lib/recall/lists/session";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const GATEWAY = aiUrl();
 /** Plenty for retrieval; keeps localStorage sane. */
 const MAX_TEXT = 40_000;
 
@@ -110,9 +109,9 @@ async function describeImage(file: File, apiKey: string): Promise<string> {
   const b64 = Buffer.from(await file.arrayBuffer()).toString("base64");
   const dataUrl = `data:${file.type || "image/jpeg"};base64,${b64}`;
 
-  const res = await fetch(GATEWAY, {
+  const res = await aiFetch({
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
       temperature: 0.2,

@@ -1,4 +1,4 @@
-import { DEFAULT_MODEL, aiConfigured, aiKey, aiUrl } from "@/lib/ai/provider";
+import { DEFAULT_MODEL, aiConfigured, aiFetch } from "@/lib/ai/provider";
 import {
   type Draft,
   type LyricsMode,
@@ -148,9 +148,9 @@ async function produce(input: ProduceInput, send: Send): Promise<Production> {
 
 async function chat(system: string, user: string, maxTokens: number, timeoutMs: number): Promise<Record<string, unknown>> {
   const model = process.env.MUSIC_MODEL || process.env.AI_MODEL || DEFAULT_MODEL;
-  const res = await fetch(aiUrl(), {
+  const res = await aiFetch({
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${aiKey()}` },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
       temperature: 0.8,

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { DEFAULT_MODEL, aiConfigured, aiKey, aiUrl } from "@/lib/ai/provider";
+import { DEFAULT_MODEL, aiConfigured, aiFetch } from "@/lib/ai/provider";
 import { type WriteTask, offlineDraft, systemFor, userFor } from "@/lib/music-creator/write";
 
 // POST /api/music-creator/write
@@ -46,9 +46,9 @@ export async function POST(req: Request) {
 
   try {
     const model = process.env.MUSIC_MODEL || process.env.AI_MODEL || DEFAULT_MODEL;
-    const res = await fetch(aiUrl(), {
+    const res = await aiFetch({
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${aiKey()}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
         temperature: task === "hooks" ? 1 : 0.85,

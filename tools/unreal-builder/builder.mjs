@@ -11,7 +11,15 @@
 
 import { config } from "./lib/env.mjs";
 import { HubClient } from "./lib/hub.mjs";
-import { buildPrompt, followUpPrompt, isOpenRouterModel, ownerMessage, runClaude } from "./lib/claude.mjs";
+import {
+  buildPrompt,
+  followUpPrompt,
+  isOpenRouterModel,
+  ownerMessage,
+  planProblem,
+  runClaude,
+  toOpenRouterModel,
+} from "./lib/claude.mjs";
 import { FALLBACK_SKILL, findGameSkills, skillReport } from "./lib/skills.mjs";
 import { watchGame } from "./lib/watch.mjs";
 import { launch } from "./open.mjs";
@@ -32,14 +40,16 @@ async function currentSkills() {
   }
 }
 
-async function buildOne(game, report) {
+async function buildOne(game, report, ai = {}) {
   // Exactly one game-building skill per game: the one the owner picked if this
   // PC has it, else this PC's default.
   const offered = report.skills.map((s) => s.name);
   const skill = game.skill && offered.includes(game.skill) ? game.skill : report.defaultSkill || FALLBACK_SKILL;
   game = { ...game, skill };
   // The model the owner picked on the site, else this PC's BUILDER_MODEL, else Claude Code's default.
-  const model = game.model || cfg.model;
+  let model = game.model || cfg.model;
+  // The hub's AI panel can send every build through OpenRouter instead of the plan.
+  if (ai.builder === "openrouter" && cfg.openrouterKey && !isOpenRouterModel(model)) model = toOpenRouterModel(model);
   log(
     `${game.followUp ? "Follow-up on" : "Building"} "${game.prompt.slice(0, 80)}" (${game.id}) with skill ${skill}` +
       (model ? `, model ${model}` : ""),
@@ -126,40 +136,42 @@ async function buildOne(game, report) {
 
   let skillSeen = false;
   let toolCalls = 0;
-  const session = runClaude({
-    prompt,
-    resume,
-    cwd: cfg.projectsRoot,
-    model,
-    openrouterKey: cfg.openrouterKey,
-    signal: limit.signal,
-    onLine: (line) => {
-      pending.push(line);
-      if (line.startsWith("→")) {
-        toolCalls++;
-        // The skill must be the first thing Claude loads. A resumed session
-        // already has it, so only fresh sessions are checked.
-        if (!resume && !skillSeen && toolCalls === 3) {
-          pending.push(`Skill check: Claude has not loaded ${skill} yet — the build may not follow it.`);
-          void hub.progress(game.id, { skillUsed: false }).catch(() => {});
+  const start = (runModel, runResume, runPrompt) =>
+    runClaude({
+      prompt: runPrompt,
+      resume: runResume,
+      cwd: cfg.projectsRoot,
+      model: runModel,
+      openrouterKey: cfg.openrouterKey,
+      signal: limit.signal,
+      onLine: (line) => {
+        pending.push(line);
+        if (line.startsWith("→")) {
+          toolCalls++;
+          // The skill must be the first thing Claude loads. A resumed session
+          // already has it, so only fresh sessions are checked.
+          if (!resume && !skillSeen && toolCalls === 3) {
+            pending.push(`Skill check: Claude has not loaded ${skill} yet — the build may not follow it.`);
+            void hub.progress(game.id, { skillUsed: false }).catch(() => {});
+          }
         }
-      }
-      if (process.stdout.isTTY) console.log("  ", line.slice(0, 160));
-    },
-    onSession: (sessionId) => void hub.progress(game.id, { sessionId }).catch(() => {}),
-    onSkill: (name) => {
-      if (name !== skill || skillSeen) return;
-      skillSeen = true;
-      pending.push(`Skill loaded: ${name}`);
-      void hub.progress(game.id, { skillUsed: true }).catch(() => {});
-    },
-    // Every turn is done: hand over anything the owner wrote meanwhile, or end.
-    onTurnEnd: async () => {
-      const msgs = await takeMessages();
-      echo(msgs);
-      return msgs.map((m) => ownerMessage(m.text));
-    },
-  });
+        if (process.stdout.isTTY) console.log("  ", line.slice(0, 160));
+      },
+      onSession: (sessionId) => void hub.progress(game.id, { sessionId }).catch(() => {}),
+      onSkill: (name) => {
+        if (name !== skill || skillSeen) return;
+        skillSeen = true;
+        pending.push(`Skill loaded: ${name}`);
+        void hub.progress(game.id, { skillUsed: true }).catch(() => {});
+      },
+      // Every turn is done: hand over anything the owner wrote meanwhile, or end.
+      onTurnEnd: async () => {
+        const msgs = await takeMessages();
+        echo(msgs);
+        return msgs.map((m) => ownerMessage(m.text));
+      },
+    });
+  let session = start(model, resume, prompt);
   if (resume) {
     skillSeen = true;
     void hub.progress(game.id, { skillUsed: true }).catch(() => {});
@@ -174,7 +186,25 @@ async function buildOne(game, report) {
     for (const m of msgs) session.send(ownerMessage(m.text));
   }, cfg.messagePollMs);
 
-  const run = await session.done;
+  let run = await session.done;
+
+  // The Claude plan failed (limit, no credit, logged out), not the build: when
+  // the hub allows it, run the same build again through OpenRouter.
+  const planLine = !isOpenRouterModel(model) ? planProblem(run) : null;
+  if (planLine) {
+    const canRetry = ai.builderFallback !== false && cfg.openrouterKey && !limit.signal.aborted;
+    const note = canRetry
+      ? `Claude plan problem: "${planLine}". Retrying through OpenRouter with ${toOpenRouterModel(model)}.`
+      : `Claude plan problem: "${planLine}". ${cfg.openrouterKey ? "OpenRouter fallback is off in the hub's AI panel." : "No OPENROUTER_API_KEY on this PC to fall back to."}`;
+    pending.push(note);
+    log(note);
+    if (canRetry) {
+      model = toOpenRouterModel(model);
+      const again = run.sessionId || resume;
+      session = start(model, again, again ? "Continue the build exactly where you left off." : prompt);
+      run = await session.done;
+    }
+  }
   clearInterval(inbox);
 
   clearTimeout(timer);
@@ -205,10 +235,12 @@ async function main() {
   log(`Builder started. Hub: ${cfg.hubUrl}. Projects: ${cfg.projectsRoot}`);
   for (;;) {
     let game = null;
+    let ai = {};
     const report = await currentSkills();
     try {
       const got = await hub.claim({ ...report, openrouter: Boolean(cfg.openrouterKey) });
       game = got.game;
+      ai = got.ai ?? {};
       // Play / Open pressed on the website: this PC opens the game itself.
       for (const l of got.launches) {
         try {
@@ -223,7 +255,7 @@ async function main() {
 
     if (game) {
       try {
-        await buildOne(game, report);
+        await buildOne(game, report, ai);
       } catch (err) {
         log("build crashed:", err);
         await hub.fail(game.id, `The builder crashed: ${err.message}`).catch(() => {});

@@ -6,6 +6,7 @@ import { Icon } from "../icons";
 import { ACTIVE_STATUSES, BUILD_MODELS, TEMPLATES, type Game, type TemplateId } from "@/lib/game-creator/types";
 import { builderOnline, createGame, fetchGames, type BuilderInfo } from "./api";
 import { BuilderSetup } from "./BuilderSetup";
+import { AiProblemStrip, useAiStatus } from "../hub/AiPanel";
 import { GameCard } from "./GameCard";
 import "./game-creator.css";
 
@@ -36,6 +37,7 @@ export function GameCreator() {
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const { status: aiStatus } = useAiStatus();
 
   const load = useCallback(async () => {
     try {
@@ -122,6 +124,7 @@ export function GameCreator() {
           {games === null ? "Loading…" : `${counts.all} game${counts.all === 1 ? "" : "s"} · ${counts.ready} ready`}
         </span>
       </header>
+      <AiProblemStrip status={aiStatus} only="builder" />
 
       <main className="mx-auto flex max-w-[1400px] flex-col gap-6 px-4 py-6">
         <section className="gc-hero relative overflow-hidden rounded-3xl border border-line bg-panel p-5 sm:p-7">

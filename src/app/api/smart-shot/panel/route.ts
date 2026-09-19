@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { aiConfigured, aiKey, aiUrl } from "@/lib/ai/provider";
+import { aiConfigured, aiFetch } from "@/lib/ai/provider";
 import { placeholderPanel } from "@/lib/smart-shot/placeholder";
 import type { PanelKind } from "@/lib/smart-shot/types";
 
@@ -38,9 +38,9 @@ export async function POST(req: Request) {
 
   const model = process.env.SMART_SHOT_IMAGE_MODEL || "google/gemini-3.1-flash-image";
   try {
-    const res = await fetch(aiUrl(), {
+    const res = await aiFetch({
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${aiKey()}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
         modalities: ["image", "text"],

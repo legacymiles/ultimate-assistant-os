@@ -38,6 +38,29 @@ export function claudeEnv(model, openrouterKey, base = process.env) {
   };
 }
 
+/**
+ * The OpenRouter id for a Claude model the plan would run ("claude-fable-5-1"
+ * → "anthropic/claude-fable-5.1"); no model or an alias means Opus 5.
+ */
+export function toOpenRouterModel(model) {
+  if (isOpenRouterModel(model)) return model;
+  const alias = { opus: "claude-opus-5", sonnet: "claude-sonnet-5", haiku: "claude-haiku-4-5", fable: "claude-fable-5-1" };
+  const id = alias[model] ?? (model && model.startsWith("claude-") ? model : "claude-opus-5");
+  return `anthropic/${id.replace(/-(\d+)-(\d+)$/, "-$1.$2")}`;
+}
+
+// What Claude Code prints when the plan or login (not the build) is the problem.
+const PLAN_PROBLEM =
+  /credit balance is too low|usage limit|limit reached|hit your limit|rate.?limit|not logged in|\/login|invalid api key|authentication_error|oauth token|overloaded/i;
+
+/** The line showing the Claude plan failed this run, or null when it did not. */
+export function planProblem(run) {
+  const lines = [...(run?.lastLines ?? []), String(run?.result?.result ?? "")];
+  const failed = run?.code !== 0 || run?.result?.is_error === true;
+  if (!failed || run?.aborted) return null;
+  return lines.find((l) => PLAN_PROBLEM.test(l))?.trim().slice(0, 200) ?? null;
+}
+
 /** The instruction that pins the build to exactly one game-building skill. */
 function skillLines(skill) {
   return [

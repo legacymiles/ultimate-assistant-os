@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { DEFAULT_MODEL, aiConfigured, aiKey, aiUrl } from "@/lib/ai/provider";
+import { DEFAULT_MODEL, aiConfigured, aiFetch } from "@/lib/ai/provider";
 import { MAX_PROMPT, MAX_UPLOADS, clampCutCount, clampTotal } from "@/lib/smart-shot/constants";
 import { heuristicPlan } from "@/lib/smart-shot/plan/heuristic";
 import { plannerSystem, plannerUser } from "@/lib/smart-shot/plan/prompt";
@@ -38,9 +38,9 @@ export async function POST(req: Request) {
       { type: "text", text: plannerUser(brief, uploads) },
       ...uploads.map((u) => ({ type: "image_url" as const, image_url: { url: u.dataUrl } })),
     ];
-    const res = await fetch(aiUrl(), {
+    const res = await aiFetch({
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${aiKey()}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
         temperature: 0.6,

@@ -19,10 +19,9 @@
 // ---------------------------------------------------------------------------
 
 import { inferPrice } from "../normalize";
-import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
+import { DEFAULT_MODEL, aiKey, aiFetch } from "@/lib/ai/provider";
 import type { RawEvent, SearchCtx, SourceStatus } from "../types";
 
-const GATEWAY = aiUrl();
 const VERIFY_TIMEOUT_MS = 7_000;
 const MAX_EVENTS = 25;
 
@@ -91,10 +90,9 @@ export async function fetchAiSweep(
 
   let payload: { events?: SweptEvent[] };
   try {
-    const res = await fetch(GATEWAY, {
+    const res = await aiFetch({
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({

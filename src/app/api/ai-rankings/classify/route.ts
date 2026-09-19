@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
+import { DEFAULT_MODEL, aiKey, aiFetch } from "@/lib/ai/provider";
 import {
   FILING_RULES,
   FILING_SCHEMA_FIELDS,
@@ -66,9 +66,9 @@ export async function POST(req: Request) {
       FILING_RULES +
       `JSON:\n{${FILING_SCHEMA_FIELDS}}`;
 
-    const res = await fetch(aiUrl(), {
+    const res = await aiFetch({
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
         temperature: 0.1,

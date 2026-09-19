@@ -1,5 +1,5 @@
 import "server-only";
-import { aiEndpoint, DEFAULT_MODEL } from "@/lib/ai/provider";
+import { aiEndpoint, aiFetch, DEFAULT_MODEL } from "@/lib/ai/provider";
 import { styleById, type Brief, type DirectorPlan } from "../types";
 import { TOOLS } from "../tools/registry";
 import { BLENDER_TRIGGERS, CASCADEUR_TRIGGERS, MIXAMO_CLIPS } from "./motion";
@@ -66,9 +66,9 @@ export async function directWithAI(
     .join("\n\n");
 
   try {
-    const res = await fetch(endpoint.url, {
+    const res = await aiFetch({
       method: "POST",
-      headers: { Authorization: `Bearer ${endpoint.key}`, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: process.env.STUDIO3D_MODEL || process.env.AI_MODEL || DEFAULT_MODEL,
         max_tokens: 9000,

@@ -41,7 +41,12 @@ export class HubClient {
    */
   async claim(skills) {
     const data = await this.post("claim", skills ?? {});
-    return { game: data?.game ?? null, launches: Array.isArray(data?.launches) ? data.launches : [] };
+    return {
+      game: data?.game ?? null,
+      launches: Array.isArray(data?.launches) ? data.launches : [],
+      // The hub's AI panel: { builder: "plan" | "openrouter", builderFallback }.
+      ai: data?.ai ?? {},
+    };
   }
 
   /** The owner's messages for this game that Claude has not seen yet (each returned once). */

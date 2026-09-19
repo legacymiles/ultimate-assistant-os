@@ -1,5 +1,5 @@
 import "server-only";
-import { aiEndpoint } from "@/lib/ai/provider";
+import { aiEndpoint, aiFetch } from "@/lib/ai/provider";
 import { FEEDS } from "./feeds";
 import { rangeBearing } from "./geo";
 import type { Place } from "./types";
@@ -342,10 +342,9 @@ export async function runAgent(history: ChatTurn[], ctx: AgentContext, model: Ag
   const actions: AgentAction[] = [];
 
   for (let round = 0; round < 6; round++) {
-    const res = await fetch(ep.url, {
+    const res = await aiFetch({
       method: "POST",
       headers: {
-        Authorization: `Bearer ${ep.key}`,
         "Content-Type": "application/json",
         "HTTP-Referer": "https://ultimate-assistant-os.vercel.app",
         "X-Title": "God's Eye View",

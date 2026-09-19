@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
+import { DEFAULT_MODEL, aiKey, aiFetch } from "@/lib/ai/provider";
 import { FILING_RULES, FILING_SCHEMA_FIELDS, FILING_SYSTEM, boardContext } from "@/lib/ai-rankings/classify";
 import { coerceEntry, describeSite, heuristicEntry } from "@/lib/ai-rankings/analyzeLink";
 import type { AnalyzeResult, SiteRead } from "@/lib/ai-rankings/analyzeLink";
@@ -81,9 +81,9 @@ export async function POST(req: Request) {
       FILING_RULES +
       `JSON:\n{"name":string,"notes":string,${FILING_SCHEMA_FIELDS}}`;
 
-    const res = await fetch(aiUrl(), {
+    const res = await aiFetch({
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: process.env.AI_MODEL || DEFAULT_MODEL,
         temperature: 0.1,

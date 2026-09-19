@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
+import { DEFAULT_MODEL, aiKey, aiFetch } from "@/lib/ai/provider";
 import { heuristicAnalyze } from "@/lib/analyst";
 import type { AnalystResult, Project } from "@/lib/types";
 
@@ -97,11 +97,10 @@ async function analyzeWithLLM(
     `Return JSON exactly matching this schema (version_summaries must use these ` +
     `version ids: ${JSON.stringify(versionIds)}):\n${schema}`;
 
-  const res = await fetch(aiUrl(), {
+  const res = await aiFetch({
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model,

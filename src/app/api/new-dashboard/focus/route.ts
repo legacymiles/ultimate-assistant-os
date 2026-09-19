@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { aiEndpoint, DEFAULT_MODEL } from "@/lib/ai/provider";
+import { aiEndpoint, aiFetch, DEFAULT_MODEL } from "@/lib/ai/provider";
 import { coerceProfile } from "@/lib/new-dashboard/export";
 import { coerceFocus, FOCUS_SYSTEM, focusPrompt, heuristicFocus } from "@/lib/new-dashboard/focus";
 
@@ -24,9 +24,9 @@ export async function POST(req: Request) {
   if (!endpoint) return NextResponse.json({ ...heuristicFocus(profile), warning: "No AI key set — answered from your priorities directly." });
 
   try {
-    const res = await fetch(endpoint.url, {
+    const res = await aiFetch({
       method: "POST",
-      headers: { Authorization: `Bearer ${endpoint.key}`, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: DEFAULT_MODEL,
         max_tokens: 800,

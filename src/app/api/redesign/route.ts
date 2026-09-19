@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
+import { DEFAULT_MODEL, aiKey, aiFetch } from "@/lib/ai/provider";
 import {
   DEFAULT_SKILLS,
   heuristicRedesign,
@@ -18,7 +18,6 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const GATEWAY = aiUrl();
 
 // POST /api/redesign
 // Body: { url, description?, ownSite?, sourcePath?, skills? }
@@ -183,9 +182,9 @@ async function aiRedesign(
 }
 
 async function callGateway(apiKey: string, model: string, system: string, user: string): Promise<string> {
-  const res = await fetch(GATEWAY, {
+  const res = await aiFetch({
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
       temperature: 0.5,

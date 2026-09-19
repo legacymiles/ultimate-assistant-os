@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
+import { DEFAULT_MODEL, aiKey, aiFetch } from "@/lib/ai/provider";
 import type { KnowledgeKind } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -131,13 +131,12 @@ async function extractText(buffer: Buffer, ext: string, mime: string): Promise<s
 }
 
 // ---- AI summarisation -----------------------------------------------------
-const GATEWAY = aiUrl();
 
 async function summarizeText(text: string, name: string, apiKey: string): Promise<string> {
   const model = process.env.AI_MODEL || DEFAULT_MODEL;
-  const res = await fetch(GATEWAY, {
+  const res = await aiFetch({
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
       temperature: 0.3,
@@ -168,9 +167,9 @@ async function summarizeImage(
 ): Promise<string> {
   const model = process.env.AI_MODEL || DEFAULT_MODEL;
   const dataUrl = `data:${mime};base64,${buffer.toString("base64")}`;
-  const res = await fetch(GATEWAY, {
+  const res = await aiFetch({
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
       temperature: 0.3,

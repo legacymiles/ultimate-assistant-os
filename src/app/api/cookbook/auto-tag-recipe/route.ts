@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
+import { DEFAULT_MODEL, aiKey, aiFetch } from "@/lib/ai/provider";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -31,9 +31,9 @@ export async function POST(req: Request) {
       `Ingredients: ${JSON.stringify(body.ingredients || [])}\n\n` +
       `Return 1-3 tags per category (protein source, meal type, cuisine). JSON:\n${schema}`;
 
-    const res = await fetch(aiUrl(), {
+    const res = await aiFetch({
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
         temperature: 0.2,

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
+import { DEFAULT_MODEL, aiKey, aiFetch } from "@/lib/ai/provider";
 import {
   heuristicClarify,
   heuristicClarify2,
@@ -20,7 +20,6 @@ import type {
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const GATEWAY = aiUrl();
 
 // POST /api/blueprint
 // Body: { stage: "clarify" | "synthesize" | "prompt", brief?, overview? }
@@ -140,11 +139,10 @@ async function callGateway(
   json: boolean,
 ): Promise<string> {
   const model = process.env.AI_MODEL || DEFAULT_MODEL;
-  const res = await fetch(GATEWAY, {
+  const res = await aiFetch({
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model,

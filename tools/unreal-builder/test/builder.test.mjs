@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { buildPrompt, claudeEnv, describeToolUse, linesFromEvent } from "../lib/claude.mjs";
+import { buildPrompt, claudeEnv, describeToolUse, linesFromEvent, planProblem, toOpenRouterModel } from "../lib/claude.mjs";
 import { statusForStage, watchGame } from "../lib/watch.mjs";
 import { parseLink } from "../open.mjs";
 
@@ -98,4 +98,19 @@ test("Claude models keep the login; OpenRouter models are routed and pinned", ()
   assert.equal(env.ANTHROPIC_DEFAULT_HAIKU_MODEL, "openai/gpt-5.6-sol");
   assert.equal(env.CLAUDE_CODE_SUBAGENT_MODEL, "openai/gpt-5.6-sol");
   assert.equal(env.PATH, "x");
+});
+test("plan models map to their OpenRouter ids", () => {
+  assert.equal(toOpenRouterModel(""), "anthropic/claude-opus-5");
+  assert.equal(toOpenRouterModel("claude-fable-5-1"), "anthropic/claude-fable-5.1");
+  assert.equal(toOpenRouterModel("claude-haiku-4-5"), "anthropic/claude-haiku-4.5");
+  assert.equal(toOpenRouterModel("sonnet"), "anthropic/claude-sonnet-5");
+  assert.equal(toOpenRouterModel("openai/gpt-5.6-sol"), "openai/gpt-5.6-sol");
+});
+
+test("a plan failure is told apart from a build failure", () => {
+  assert.match(planProblem({ code: 1, lastLines: ["Credit balance is too low"] }), /Credit balance/);
+  assert.match(planProblem({ code: 0, result: { is_error: true, result: "Claude AI usage limit reached" }, lastLines: [] }), /usage limit/);
+  assert.equal(planProblem({ code: 1, lastLines: ["Blueprint compile failed"] }), null);
+  assert.equal(planProblem({ code: 0, lastLines: ["rate limit mentioned in passing"] }), null);
+  assert.equal(planProblem({ code: 1, aborted: true, lastLines: ["usage limit"] }), null);
 });

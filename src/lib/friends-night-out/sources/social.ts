@@ -19,10 +19,9 @@
 // ---------------------------------------------------------------------------
 
 import { inferCategory, inferFormat, inferPrice } from "../normalize";
-import { DEFAULT_MODEL, aiKey, aiUrl } from "@/lib/ai/provider";
+import { DEFAULT_MODEL, aiKey, aiFetch } from "@/lib/ai/provider";
 import type { EventCategory, Price, RawEvent } from "../types";
 
-const GATEWAY = aiUrl();
 const FETCH_TIMEOUT_MS = 10_000;
 
 export interface ExtractedDraft {
@@ -313,9 +312,9 @@ async function askModel(
   messages: unknown[],
 ): Promise<ModelDraft | null> {
   try {
-    const res = await fetch(GATEWAY, {
+    const res = await aiFetch({
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: process.env.AI_MODEL ?? DEFAULT_MODEL,
         messages,

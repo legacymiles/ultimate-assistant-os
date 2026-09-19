@@ -12,10 +12,9 @@
 // ---------------------------------------------------------------------------
 
 import { INFECTIONS, type InfectionId, type Outcome, type Result } from "./types";
-import { DEFAULT_MODEL, aiKey as providerKey, aiUrl } from "@/lib/ai/provider";
+import { DEFAULT_MODEL, aiKey as providerKey, aiFetch } from "@/lib/ai/provider";
 import { emptyDraft, toIsoDate, type ParsedDraft } from "./parse";
 
-const GATEWAY = aiUrl();
 
 /** Re-exported so existing callers keep their import. */
 export function aiKey(): string {
@@ -89,9 +88,9 @@ function cleanResults(raw: unknown): Result[] {
 
 async function callGateway(messages: unknown[], key: string): Promise<ParsedDraft | null> {
   const model = process.env.AI_VISION_MODEL || process.env.AI_MODEL || DEFAULT_MODEL;
-  const res = await fetch(GATEWAY, {
+  const res = await aiFetch({
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model, temperature: 0, messages }),
     signal: AbortSignal.timeout(45_000),
   });
