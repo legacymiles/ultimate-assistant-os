@@ -10,6 +10,10 @@ const nextConfig = {
   // imported, only spawned, so it must be traced into that route explicitly.
   outputFileTracingIncludes: {
     "/api/music-creator/library": ["./node_modules/ffmpeg-static/ffmpeg*"],
+    // Jarvis reads the owner's master folder at request time, so those files
+    // have to travel with the deployment — nothing imports them, so tracing
+    // cannot infer it.
+    "/api/jarvis/**": ["./CLAUDE.md", "./aios/**/*.md"],
   },
   // Pod Play Connect is a prebuilt Vite SPA in public/pod-play-connect (rebuild:
   // POD_BASE=/pod-play-connect/ vite build in its repo). Real files are served
