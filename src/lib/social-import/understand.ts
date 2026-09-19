@@ -68,6 +68,11 @@ export async function understandPost(req: UnderstandRequest): Promise<Understand
         return { data, watchedVideo: true, sawImage: false, model: VIDEO_MODEL };
       } catch (err) {
         console.warn("[social-import] video pass failed, falling back to text:", err);
+        // Usually OpenRouter's rule that video needs at least $1 of credit (402);
+        // the gateway fallback then rejects video_url, which is the error seen here.
+        req.post.trail.push(
+          "Couldn't watch the video — the AI provider refused it (OpenRouter needs at least $1 of credit for video), so it was read from the caption and cover.",
+        );
       }
     }
   }

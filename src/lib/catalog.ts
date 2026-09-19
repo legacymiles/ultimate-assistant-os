@@ -583,6 +583,26 @@ export const PROJECTS: CatalogProject[] = [
     hue: [200, 260],
   },
   {
+    slug: "social-personas",
+    title: "Social Personas",
+    tag: "Your creator accounts, with an AI that knows them",
+    category: "AI",
+    overview:
+      "A grid of your creator personas — a rap channel, an explainer page, a baby-growth diary — each " +
+      "holding the TikTok, Instagram and Facebook accounts it posts to. Connect an account with the " +
+      "platform's own login and every post syncs in with its caption and view, like and comment counts; " +
+      "or paste links and the AI watches the video itself. From that it keeps a working memory of the " +
+      "account: what it's about, its content pillars, which hooks and formats actually perform, and the " +
+      "angles it hasn't tried. Every morning each persona gets a fresh batch of shootable ideas built on " +
+      "that data — hook word for word, format, beat-by-beat outline and why it should work — to save, " +
+      "mark made or skip, and a brainstorm chat that stays inside the niche and voice. Works offline " +
+      "with template ideas when no AI key is set.",
+    status: "live",
+    appUrl: "/apps/social-personas",
+    iconStyle: "orbit",
+    hue: [330, 200],
+  },
+  {
     slug: "amhe",
     title: "Adaptive Mission Hedge Engine",
     tag: "Kalshi + MT4 hedge bot",
@@ -672,7 +692,7 @@ export function getProject(slug: string): CatalogProject | null {
  * for whoever IS signed in, put their own real data on a public-facing spinning
  * panel. Neither is wanted, so they keep the animated icon instead.
  */
-const UNPREVIEWABLE = new Set(["dashboard", "new-dashboard", "projects-timeline"]);
+const UNPREVIEWABLE = new Set(["dashboard", "new-dashboard", "projects-timeline", "social-personas"]);
 
 /**
  * The preview a carousel panel should mount, or null for the animated icon.
