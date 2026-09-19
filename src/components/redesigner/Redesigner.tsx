@@ -1,10 +1,33 @@
 "use client";
 
+// ---------------------------------------------------------------------------
+// Website Redesigner — "Experimental WebGL" direction.
+//
+// The behaviour is unchanged from the previous skin: same state, same POST to
+// /api/redesign, same skill-picker semantics, same result rendering. What is
+// new is the shell: a full-bleed shader field seeded by the URL you are
+// typing, a console instead of a card, and a staggered result grid.
+//
+// Motion rule for this file: nothing animates through React state. The field
+// and the pointer effects are driven imperatively (see FingerprintField and
+// interactions.tsx) so typing stays at 60fps.
+// ---------------------------------------------------------------------------
+
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { cn } from "@/lib/utils";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_SKILLS, type Direction, type RedesignResult } from "@/lib/redesigner/engine";
+import { fingerprint, hexToRgb } from "@/lib/redesigner/fingerprint";
 import { Icon } from "../icons";
+import {
+  CustomCursor,
+  Reveal,
+  useFinePointer,
+  useMagnetic,
+  useReducedMotion,
+  useTilt,
+} from "./interactions";
+import { FingerprintField, type FieldHandle, type FieldPhase } from "./FingerprintField";
+import "./redesigner.css";
 
 const SAMPLES = ["stripe.com", "linear.app", "vercel.com"];
 
@@ -17,6 +40,27 @@ export function Redesigner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RedesignResult | null>(null);
+
+  const reduced = useReducedMotion();
+  const fine = useFinePointer();
+  const field = useRef<FieldHandle>(null);
+  const goRef = useMagnetic<HTMLButtonElement>(fine && !reduced, 0.28);
+
+  const fp = useMemo(() => fingerprint(url), [url]);
+  const phase: FieldPhase = loading ? "forge" : result ? "done" : "idle";
+
+  // Once results land, the three palettes bleed into the field — the page ends
+  // up wearing the answer it just produced.
+  const cells = useMemo<Array<[number, number, number]>>(() => {
+    if (!result) return [];
+    return result.directions
+      .slice(0, 3)
+      .map((d) => {
+        const hex = d.palette[2] ?? d.palette[d.palette.length - 1] ?? "#FF4D2E";
+        const rgb = hexToRgb(hex) ?? [1, 0.3, 0.18];
+        return [rgb[0] * 0.8, rgb[1] * 0.8, rgb[2] * 0.8] as [number, number, number];
+      });
+  }, [result]);
 
   async function run(e?: React.FormEvent) {
     e?.preventDefault();
@@ -50,183 +94,241 @@ export function Redesigner() {
     }
   }
 
+  const stateLabel = loading
+    ? "forging"
+    : result
+      ? `${result.directions.length} directions`
+      : "idle";
+
   return (
-    <div className="flex min-h-dvh flex-col">
-      {/* Top bar */}
-      <div className="flex items-center gap-2 border-b border-line bg-panel px-3 py-2.5 sm:px-4">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
-          aria-label="Back to hub"
-        >
-          <Icon.ArrowLeft width={14} height={14} />
-          <span className="hidden sm:inline">Hub</span>
-        </Link>
-        <span className="ml-1 text-sm font-semibold text-ink">Website Redesigner</span>
-        <span className="ml-2 rounded-md bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand">
-          URL → Redesign
-        </span>
-      </div>
-
-      {/* Aurora header */}
-      <header className="relative overflow-hidden border-b border-line">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-70 motion-reduce:opacity-40"
-          style={{
-            background:
-              "radial-gradient(60% 120% at 15% 0%, rgba(139,92,246,0.28), transparent 60%)," +
-              "radial-gradient(50% 120% at 85% 10%, rgba(59,130,246,0.18), transparent 55%)," +
-              "radial-gradient(60% 140% at 60% 120%, rgba(236,72,153,0.16), transparent 60%)",
-          }}
+    <div
+      className="rdx"
+      onPointerDown={(e) => field.current?.ripple(e.clientX, e.clientY)}
+    >
+      {reduced ? <div className="rdx-field-static" /> : (
+        <FingerprintField
+          ref={field}
+          seed={fp.seed}
+          turbulence={fp.turbulence}
+          phase={phase}
+          cells={cells}
         />
-        <div className="relative mx-auto max-w-4xl px-4 py-6 sm:px-6">
-          <h1 className="text-xl font-bold tracking-tight text-ink sm:text-2xl">
-            Redesign any site, keep what it does
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm text-ink-muted">
-            Paste a URL. Get three redesign directions — each driven by a design skill and named a
-            real site to beat — plus a paste-ready build prompt that rebuilds it with the same
-            functionality.
-          </p>
+      )}
+      <div className="rdx-scrim" aria-hidden />
+      <div className="rdx-grid" aria-hidden />
+      <CustomCursor enabled={fine && !reduced} />
+
+      <div className="rdx-shell">
+        {/* ----- rail ----- */}
+        <div className="rdx-rail">
+          <Link href="/" className="rdx-back" aria-label="Back to hub">
+            <Icon.ArrowLeft width={13} height={13} />
+            <span>Hub</span>
+          </Link>
+          <span className="rdx-rail-title">Website Redesigner</span>
+          <span className="rdx-rail-spacer" />
+          <span className="rdx-state" data-live={loading ? "1" : "0"}>
+            <span className="rdx-dot" />
+            {stateLabel}
+          </span>
         </div>
-      </header>
 
-      <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-          {/* Form */}
-          <form
-            onSubmit={run}
-            className="rounded-2xl border border-line bg-panel p-4"
-          >
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://example.com"
-                inputMode="url"
-                className="flex-1 rounded-xl border border-line bg-canvas px-4 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-brand focus:ring-2 focus:ring-brand/30"
+        {/* ----- hero ----- */}
+        <header className="rdx-hero">
+          <div className="rdx-hero-head">
+            <p className="rdx-eyebrow">URL → Redesign</p>
+            <h1 className="rdx-title">
+              <span className="rdx-title-line">Redesign any site,</span>
+              <span className={`rdx-title-line rdx-title-out${result ? " is-filled" : ""}`}>
+                keep what it does
+              </span>
+            </h1>
+            <p className="rdx-lede">
+              Paste a URL. Get three redesign directions — each driven by a{" "}
+              <b>design skill</b> and named a <b>real site to beat</b> — plus a paste-ready
+              build prompt that rebuilds it with the same functionality.
+            </p>
+          </div>
+
+          {/* The toy, made legible: the field behind this page is seeded by
+              whatever is in the URL box, and these are its real numbers. */}
+          <div className="rdx-readout" aria-hidden>
+            <div className="rdx-readout-row">
+              <span>seed</span>
+              <span className="rdx-readout-val">{fp.label}</span>
+            </div>
+            <div className="rdx-readout-row">
+              <span>flow</span>
+              <span className="rdx-readout-val">{fp.flow.toFixed(3)}</span>
+            </div>
+            <div className="rdx-readout-row">
+              <span>turb</span>
+              <span className="rdx-readout-val">{fp.turbulence.toFixed(3)}</span>
+            </div>
+            <div className="rdx-readout-row">
+              <span>state</span>
+              <span className="rdx-readout-val" data-hot={loading ? "1" : "0"}>
+                {stateLabel}
+              </span>
+            </div>
+            <p className="rdx-readout-note">
+              The field is hashed from the URL you type. Every site has its own.
+            </p>
+          </div>
+        </header>
+
+        <main className="rdx-body">
+          {/* ----- console ----- */}
+          <form onSubmit={run} className="rdx-console">
+            <div className="rdx-block">
+              <p className="rdx-label">
+                <span className="rdx-label-idx">01</span>
+                <span>Target URL</span>
+                <span className="rdx-label-hint">required</span>
+              </p>
+              <div className="rdx-url-row">
+                <input
+                  value={url}
+                  onChange={(e) => {
+                    setUrl(e.target.value);
+                    field.current?.pulse(0.34);
+                  }}
+                  placeholder="https://example.com"
+                  inputMode="url"
+                  aria-label="Target URL"
+                  className="rdx-url"
+                />
+                <button ref={goRef} type="submit" disabled={loading} className="rdx-go">
+                  {loading ? <Spinner /> : <Icon.Sparkles width={14} height={14} />}
+                  <span className="rdx-go-txt">{loading ? "Designing…" : "Redesign"}</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="rdx-block">
+              <p className="rdx-label">
+                <span className="rdx-label-idx">02</span>
+                <span>Context</span>
+                <span className="rdx-label-hint">optional — helps a lot for JS-heavy sites</span>
+              </p>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                placeholder="What is this site, and anything you want the redesign to nail?"
+                aria-label="Context"
+                className="rdx-note"
               />
-              <button
-                type="submit"
-                disabled={loading}
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-2 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {loading ? <Spinner /> : <Icon.Sparkles width={15} height={15} />}
-                {loading ? "Designing…" : "Redesign"}
-              </button>
             </div>
 
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-              placeholder="Optional: what is this site, and anything you want the redesign to nail? (helps a lot for JS-heavy sites)"
-              className="mt-2 w-full resize-none rounded-xl border border-line bg-canvas px-3 py-2 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-brand focus:ring-2 focus:ring-brand/30"
-            />
-
-            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-              <label className="inline-flex cursor-pointer items-center gap-2 text-ink-muted">
-                <input
-                  type="checkbox"
-                  checked={ownSite}
-                  onChange={(e) => setOwnSite(e.target.checked)}
-                  className="h-3.5 w-3.5 accent-brand"
-                />
-                This is my own site
-              </label>
-              {ownSite && (
-                <input
-                  value={sourcePath}
-                  onChange={(e) => setSourcePath(e.target.value)}
-                  placeholder="source path / repo (so the rebuild edits real code)"
-                  className="h-9 flex-1 rounded-lg border border-line bg-canvas px-2.5 text-xs text-ink outline-none transition placeholder:text-ink-faint focus:border-brand focus:ring-2 focus:ring-brand/30"
-                />
-              )}
+            <div className="rdx-block">
+              <p className="rdx-label">
+                <span className="rdx-label-idx">03</span>
+                <span>Ownership</span>
+              </p>
+              <div className="rdx-own">
+                <label className="rdx-check">
+                  <input
+                    type="checkbox"
+                    checked={ownSite}
+                    onChange={(e) => setOwnSite(e.target.checked)}
+                  />
+                  <span className="rdx-box">
+                    <Icon.Check width={10} height={10} />
+                  </span>
+                  This is my own site
+                </label>
+                {ownSite && (
+                  <input
+                    value={sourcePath}
+                    onChange={(e) => setSourcePath(e.target.value)}
+                    placeholder="source path / repo (so the rebuild edits real code)"
+                    aria-label="Source path or repo"
+                    className="rdx-path"
+                  />
+                )}
+              </div>
             </div>
 
-            <div className="mt-3 border-t border-line pt-3">
+            <div className="rdx-block">
+              <p className="rdx-label">
+                <span className="rdx-label-idx">04</span>
+                <span>Design skills</span>
+              </p>
               <SkillPicker selected={selectedSkills} onChange={setSelectedSkills} />
             </div>
           </form>
 
           {error && (
-            <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
-              {error}
+            <div className="rdx-error" role="alert">
+              <span aria-hidden>✕</span>
+              <span>{error}</span>
             </div>
           )}
 
           {!result && !loading && !error && (
-            <div className="mt-6 flex flex-wrap items-center gap-2 text-sm text-ink-faint">
-              <span>Try:</span>
+            <div className="rdx-samples">
+              <span>try</span>
               {SAMPLES.map((s) => (
                 <button
                   key={s}
+                  type="button"
                   onClick={() => setUrl(s)}
-                  className="inline-flex items-center gap-1 rounded-full border border-line bg-panel px-3 py-1 transition hover:border-brand/40 hover:text-ink"
+                  className="rdx-sample"
                 >
                   {s}
-                  <Icon.Launch width={11} height={11} />
+                  <Icon.Launch width={10} height={10} />
                 </button>
               ))}
             </div>
           )}
 
-          {/* Results */}
+          {/* ----- results ----- */}
           {result && (
-            <div className="mt-8 animate-fade-in">
-              <AnalysisPanel result={result} />
-              <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-                {result.directions.map((d) => (
-                  <DirectionCard key={d.id} direction={d} />
+            <div className="rdx-results">
+              <Reveal>
+                <AnalysisReadout result={result} />
+              </Reveal>
+              <div className="rdx-cards">
+                {result.directions.map((d, i) => (
+                  <Reveal key={d.id} delay={i * 90} className="rdx-card">
+                    <DirectionCard direction={d} index={i} fine={fine && !reduced} />
+                  </Reveal>
                 ))}
               </div>
             </div>
           )}
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
 
-function AnalysisPanel({ result }: { result: RedesignResult }) {
+function AnalysisReadout({ result }: { result: RedesignResult }) {
   const { analysis, engine } = result;
   return (
-    <div className="rounded-2xl border border-line bg-panel p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-semibold text-ink">{analysis.title}</h2>
-        <div className="flex items-center gap-2">
-          {analysis.confidence === "low" && (
-            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[10px] text-amber-300">
-              thin scrape — add a description for a better result
-            </span>
-          )}
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold",
-              engine === "ai" ? "bg-brand/15 text-brand" : "bg-panel-2 text-ink-faint",
-            )}
-          >
-            <Icon.Sparkles width={10} height={10} />
-            {engine === "ai" ? "AI" : "Offline draft"}
+    <div className="rdx-analysis">
+      <div className="rdx-analysis-top">
+        <h2 className="rdx-analysis-title">{analysis.title}</h2>
+        {analysis.confidence === "low" && (
+          <span className="rdx-badge" data-kind="warn">
+            thin scrape — add a description for a better result
           </span>
-        </div>
+        )}
+        <span className="rdx-badge" data-kind={engine === "ai" ? "ai" : "plain"}>
+          <Icon.Sparkles width={9} height={9} />
+          {engine === "ai" ? "AI" : "Offline draft"}
+        </span>
       </div>
-      <p className="mt-2 text-sm text-ink-muted">{analysis.summary}</p>
+      <p className="rdx-analysis-summary">{analysis.summary}</p>
 
       {analysis.functionality.length > 0 && (
-        <div className="mt-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
-            Functionality to preserve
-          </p>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
+        <div className="rdx-func">
+          <p className="rdx-func-head">Functionality to preserve</p>
+          <div className="rdx-func-list">
             {analysis.functionality.map((f, i) => (
-              <span
-                key={i}
-                title={f.detail}
-                className="rounded-full border border-line bg-panel-2 px-2.5 py-0.5 text-[11px] text-ink-muted"
-              >
-                {f.label}
+              <span key={i} className="rdx-func-item" title={f.detail}>
+                <span className="rdx-func-kind">[{f.kind}]</span> {f.label}
               </span>
             ))}
           </div>
@@ -236,9 +338,18 @@ function AnalysisPanel({ result }: { result: RedesignResult }) {
   );
 }
 
-function DirectionCard({ direction }: { direction: Direction }) {
+function DirectionCard({
+  direction,
+  index,
+  fine,
+}: {
+  direction: Direction;
+  index: number;
+  fine: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const tiltRef = useTilt<HTMLDivElement>(fine && !open, 4.5);
 
   async function copy() {
     try {
@@ -251,88 +362,90 @@ function DirectionCard({ direction }: { direction: Direction }) {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-2xl border border-line bg-panel">
+    <div ref={tiltRef} className="rdx-card-tilt">
       <div
-        className="relative flex h-28 flex-col justify-end p-3"
+        className="rdx-card-top"
         style={{
-          background: `linear-gradient(135deg, ${direction.palette[0] ?? "#111"} 0%, ${
+          background: `linear-gradient(140deg, ${direction.palette[0] ?? "#111"} 0%, ${
             direction.palette[1] ?? direction.palette[0] ?? "#222"
           } 100%)`,
         }}
       >
-        <span
-          className="text-xl font-bold leading-none"
-          style={{ color: direction.palette[2] ?? "#fff" }}
-        >
-          {direction.name}
+        <span className="rdx-card-num" aria-hidden>
+          {String(index + 1).padStart(2, "0")}
         </span>
-        <div className="mt-2 flex gap-1.5">
+        <h3 className="rdx-card-name" style={{ color: direction.palette[2] ?? "#fff" }}>
+          {direction.name}
+        </h3>
+        <div className="rdx-swatches" aria-hidden>
           {direction.palette.map((c) => (
-            <span key={c} className="h-4 w-4 rounded-full ring-1 ring-white/20" style={{ backgroundColor: c }} />
+            <span key={c} className="rdx-swatch" style={{ backgroundColor: c }} />
           ))}
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col p-3">
-        <p className="text-sm text-ink-muted">{direction.pitch}</p>
+      <div className="rdx-card-body">
+        <p className="rdx-pitch">{direction.pitch}</p>
 
-        <div className="mt-2.5 space-y-1 text-xs text-ink-faint">
-          <Row label={direction.drivingSkills.length > 1 ? "Mix" : "Skill"}>
-            <span className="flex flex-wrap gap-1">
+        <div className="rdx-spec">
+          <div className="rdx-spec-row">
+            <span className="rdx-spec-key">
+              {direction.drivingSkills.length > 1 ? "Mix" : "Skill"}
+            </span>
+            <span className="rdx-spec-val">
               {direction.drivingSkills.map((s) => (
-                <span
-                  key={s}
-                  className="rounded bg-brand/15 px-1.5 py-0.5 font-mono text-[11px] text-brand"
-                >
+                <span key={s} className="rdx-skill">
                   {s}
                 </span>
               ))}
             </span>
-          </Row>
-          <Row label="Type">
-            {direction.typography.heading} · {direction.typography.body}
-          </Row>
-          {direction.referenceBar && <Row label="Beat">{direction.referenceBar}</Row>}
+          </div>
+          <div className="rdx-spec-row">
+            <span className="rdx-spec-key">Type</span>
+            <span className="rdx-spec-val">
+              {direction.typography.heading} · {direction.typography.body}
+            </span>
+          </div>
+          {direction.referenceBar && (
+            <div className="rdx-spec-row">
+              <span className="rdx-spec-key">Beat</span>
+              <span className="rdx-spec-val">{direction.referenceBar}</span>
+            </div>
+          )}
         </div>
 
         {(direction.layout || direction.motion) && (
-          <p className="mt-2.5 text-[11px] leading-relaxed text-ink-faint">
+          <p className="rdx-prose">
             {direction.layout} {direction.motion}
           </p>
         )}
 
-        <div className="mt-3 flex items-center gap-2">
+        <div className="rdx-card-actions">
           <button
+            type="button"
             onClick={copy}
-            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-2"
+            className="rdx-copy"
+            data-done={copied ? "1" : "0"}
           >
-            {copied ? <Icon.Check width={13} height={13} /> : <Icon.Copy width={13} height={13} />}
-            {copied ? "Copied" : "Copy build prompt"}
+            {copied ? <Icon.Check width={12} height={12} /> : <Icon.Copy width={12} height={12} />}
+            {/* An element, not a bare text node: the hover fill is a positioned
+                pseudo-element and would paint straight over loose text. */}
+            <span>{copied ? "Copied" : "Copy prompt"}</span>
           </button>
           <button
+            type="button"
             onClick={() => setOpen((o) => !o)}
             aria-label={open ? "Collapse" : "Expand"}
-            className="rounded-lg border border-line p-1.5 text-ink-muted transition hover:bg-panel-2 hover:text-ink"
+            aria-expanded={open}
+            className="rdx-expand"
+            data-open={open ? "1" : "0"}
           >
-            <Icon.Chevron width={14} height={14} className={cn("transition-transform", open && "rotate-180")} />
+            <Icon.Chevron width={14} height={14} />
           </button>
         </div>
 
-        {open && (
-          <pre className="mt-2.5 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-line bg-canvas p-3 text-[11px] leading-relaxed text-ink-muted">
-            {direction.buildPrompt}
-          </pre>
-        )}
+        {open && <pre className="rdx-prompt">{direction.buildPrompt}</pre>}
       </div>
-    </div>
-  );
-}
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex gap-2">
-      <span className="w-9 shrink-0 text-ink-faint/70">{label}</span>
-      <span className="text-ink-muted">{children}</span>
     </div>
   );
 }
@@ -386,41 +499,24 @@ function SkillPicker({
 
   return (
     <div>
-      {/* The label sits on its own line so the menu can open flush with the
-          form's left edge — at phone width it would otherwise run off-screen. */}
-      <p className="text-xs font-medium text-ink-muted">Design skills</p>
-
-      <div className="mt-1.5 flex flex-wrap items-center gap-2">
-        <div ref={wrapRef} className="relative">
+      <div className="rdx-picker">
+        <div ref={wrapRef} className="rdx-pick-wrap">
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
             aria-haspopup="listbox"
             aria-expanded={open}
-            className={cn(
-              "inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition",
-              selected.length
-                ? "border-brand/50 bg-brand/10 text-ink"
-                : "border-line bg-canvas text-ink-muted hover:bg-panel-2 hover:text-ink",
-            )}
+            className="rdx-pick"
+            data-on={selected.length ? "1" : "0"}
+            data-open={open ? "1" : "0"}
           >
-            <span className={cn(selected.length === 1 && "font-mono")}>{label}</span>
-            <Icon.Chevron
-              width={12}
-              height={12}
-              className={cn("transition-transform", open && "rotate-180")}
-            />
+            <span>{label}</span>
+            <Icon.Chevron width={12} height={12} />
           </button>
 
           {open && (
-            <div
-              role="listbox"
-              aria-multiselectable
-              className="absolute left-0 z-30 mt-1.5 w-[min(22rem,calc(100vw-4rem))] overflow-hidden rounded-xl border border-line bg-panel shadow-xl shadow-black/30"
-            >
-              <p className="border-b border-line px-3 py-2 text-[10px] uppercase tracking-wide text-ink-faint">
-                Pick one — reopen to mix in more
-              </p>
+            <div role="listbox" aria-multiselectable className="rdx-menu">
+              <p className="rdx-menu-head">Pick one — reopen to mix in more</p>
               {DEFAULT_SKILLS.map((skill) => {
                 const on = selected.includes(skill.name);
                 return (
@@ -430,26 +526,15 @@ function SkillPicker({
                     role="option"
                     aria-selected={on}
                     onClick={() => toggle(skill.name)}
-                    className={cn(
-                      "flex w-full items-start gap-2 px-3 py-2 text-left transition",
-                      on ? "bg-brand/10" : "hover:bg-panel-2",
-                    )}
+                    className="rdx-opt"
+                    data-on={on ? "1" : "0"}
                   >
-                    <span
-                      className={cn(
-                        "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border",
-                        on ? "border-brand bg-brand text-white" : "border-line",
-                      )}
-                    >
-                      {on && <Icon.Check width={10} height={10} />}
+                    <span className="rdx-opt-mark">
+                      {on && <Icon.Check width={9} height={9} />}
                     </span>
-                    <span className="min-w-0">
-                      <span className={cn("block font-mono text-[11px]", on ? "text-brand" : "text-ink")}>
-                        {skill.name}
-                      </span>
-                      <span className="mt-0.5 block text-[11px] leading-snug text-ink-faint">
-                        {skill.description}
-                      </span>
+                    <span style={{ minWidth: 0 }}>
+                      <span className="rdx-opt-name">{skill.name}</span>
+                      <span className="rdx-opt-desc">{skill.description}</span>
                     </span>
                   </button>
                 );
@@ -459,16 +544,12 @@ function SkillPicker({
         </div>
 
         {selected.map((name) => (
-          <span
-            key={name}
-            className="inline-flex items-center gap-1 rounded-full border border-brand/40 bg-brand/10 px-2 py-0.5 font-mono text-[11px] text-brand"
-          >
+          <span key={name} className="rdx-tag">
             {name}
             <button
               type="button"
               onClick={() => onChange(selected.filter((s) => s !== name))}
               aria-label={`Remove ${name}`}
-              className="text-brand/70 transition hover:text-brand"
             >
               &times;
             </button>
@@ -476,17 +557,13 @@ function SkillPicker({
         ))}
 
         {selected.length > 0 && (
-          <button
-            type="button"
-            onClick={() => onChange([])}
-            className="text-[11px] text-ink-faint underline-offset-2 transition hover:text-ink hover:underline"
-          >
+          <button type="button" onClick={() => onChange([])} className="rdx-clear">
             Clear
           </button>
         )}
       </div>
 
-      <p className="mt-1.5 text-[11px] text-ink-faint">
+      <p className="rdx-hint">
         {selected.length > 1
           ? `Every direction blends all ${selected.length} — ${selected[0]} owns the frame, the rest add their signature moves.`
           : selected.length === 1
@@ -498,5 +575,5 @@ function SkillPicker({
 }
 
 function Spinner() {
-  return <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />;
+  return <span className="rdx-spinner" aria-hidden />;
 }
