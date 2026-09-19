@@ -160,6 +160,114 @@ export const DESIGN_GUIDE: DesignGuideEntry[] = [
       "Also from Anthropic's skills repo: scaffolds React + Tailwind + shadcn/ui projects and bundles them into a single HTML file. Good for quick, rich, self-contained prototypes and mockups.",
     url: "https://github.com/anthropics/skills/tree/main/skills/web-artifacts-builder",
   },
+  {
+    slug: "clone-site",
+    name: "clone-site",
+    kind: "recommended",
+    bestFor: "Clone any website, pixel-accurate",
+    paragraph:
+      "Point it at a URL and it measures the live page in a real browser, writes a TEARDOWN.md explaining the stack and every effect with its exact settings, rebuilds it (DOM/CSS and WebGL/shader backgrounds on separate tracks), then proves the result with an automated pixel diff at desktop, tablet and phone widths. Use --analyze-only for just the teardown (\"how did they build this?\"). It calls dom-clone and shader-extract for you, and ends by offering remix-site.",
+    url: "https://github.com/cth9191/site-clone",
+  },
+  {
+    slug: "remix-site",
+    name: "remix-site",
+    kind: "recommended",
+    bestFor: "Turn a clone into your own site",
+    paragraph:
+      "The step after clone-site: tokenizes the cloned design, re-skins it with your brand, copy and assets, renders three deliberately different directions side by side, then puts a live tweak panel on the one you pick. Use it when you want another site's structure and polish, but your own identity.",
+    url: "https://github.com/cth9191/site-clone",
+  },
+  {
+    slug: "shader-extract",
+    name: "shader-extract",
+    kind: "recommended",
+    bestFor: "Rip one WebGL / shader effect",
+    paragraph:
+      "Captures a single WebGL, WebGPU, canvas, Three.js, Spline or Unicorn Studio effect from a live page and rebuilds it as a runnable local module. clone-site uses it for GPU backgrounds, and you can also call it on its own for one effect you like. (dom-clone is its DOM/CSS sibling and runs inside clone-site.)",
+    url: "https://github.com/cth9191/site-clone",
+  },
+  {
+    slug: "taste-skill",
+    name: "taste-skill",
+    kind: "recommended",
+    bestFor: "Anti-slop landing pages (the 88k★ one)",
+    paragraph:
+      "Leon's taste-skill, the most-starred design skill on GitHub. It reads the brief, infers a real design direction, runs a strict pre-flight check and audits before redesigning, so pages stop looking templated. It overlaps with frontend-design and impeccable, so use whichever output you like best. The same pack's style presets are below.",
+    url: "https://github.com/Leonxlnx/taste-skill",
+  },
+  {
+    slug: "soft-skill",
+    name: "soft-skill",
+    kind: "recommended",
+    bestFor: "\"Expensive agency\" look",
+    paragraph:
+      "Codifies the exact fonts, spacing, shadows, card structures and animations that make a site feel high-end, and blocks the cheap AI defaults. From the taste-skill pack.",
+    url: "https://github.com/Leonxlnx/taste-skill",
+  },
+  {
+    slug: "minimalist-skill",
+    name: "minimalist-skill",
+    kind: "recommended",
+    bestFor: "Clean editorial minimalism",
+    paragraph:
+      "Warm monochrome palette, typographic contrast, flat bento grids and muted pastels, with no gradients or heavy shadows. From the taste-skill pack.",
+    url: "https://github.com/Leonxlnx/taste-skill",
+  },
+  {
+    slug: "brutalist-skill",
+    name: "brutalist-skill",
+    kind: "recommended",
+    bestFor: "Swiss / terminal brutalism",
+    paragraph:
+      "Raw mechanical interfaces: rigid grids, extreme type-scale contrast, utilitarian colour and analog degradation effects, like a declassified blueprint. Good for data-heavy dashboards and editorial sites. From the taste-skill pack.",
+    url: "https://github.com/Leonxlnx/taste-skill",
+  },
+  {
+    slug: "gpt-tasteskill",
+    name: "gpt-tasteskill",
+    kind: "recommended",
+    bestFor: "GSAP scroll-heavy layouts",
+    paragraph:
+      "Taste rules plus aggressive GSAP ScrollTrigger work (pinning, stacking, scrubbing), strict AIDA page structure, gapless bento grids and randomized layout variance so every build differs. From the taste-skill pack.",
+    url: "https://github.com/Leonxlnx/taste-skill",
+  },
+  {
+    slug: "redesign-skill",
+    name: "redesign-skill",
+    kind: "recommended",
+    bestFor: "Upgrade an existing site",
+    paragraph:
+      "Audits a current site for generic AI patterns and lifts it to premium standards without breaking functionality. It works with any CSS setup. A lighter alternative to website-redesigner when you just want this site made better. From the taste-skill pack.",
+    url: "https://github.com/Leonxlnx/taste-skill",
+  },
+  {
+    slug: "imagegen-frontend-web",
+    name: "imagegen-frontend-web",
+    kind: "recommended",
+    bestFor: "Design mockup images first",
+    paragraph:
+      "Generates one premium mockup image per page section, with varied compositions and one consistent palette, so you can approve the look before any code is written. Pair it with image-to-code-skill. From the taste-skill pack.",
+    url: "https://github.com/Leonxlnx/taste-skill",
+  },
+  {
+    slug: "image-to-code-skill",
+    name: "image-to-code-skill",
+    kind: "recommended",
+    bestFor: "Mockup image → matching site",
+    paragraph:
+      "Generates the design images itself, analyzes them closely, then builds the site to match. It was written for Codex but reads fine for Claude. From the taste-skill pack.",
+    url: "https://github.com/Leonxlnx/taste-skill",
+  },
+  {
+    slug: "stitch-skill",
+    name: "stitch-skill",
+    kind: "recommended",
+    bestFor: "DESIGN.md for Google Stitch",
+    paragraph:
+      "Writes agent-friendly DESIGN.md design-system files (typography, colour, asymmetric layout, micro-motion rules) for Google Stitch or any coding agent. From the taste-skill pack.",
+    url: "https://github.com/Leonxlnx/taste-skill",
+  },
 ];
 
 export const GUIDE_KIND_LABEL: Record<GuideKind, string> = {
