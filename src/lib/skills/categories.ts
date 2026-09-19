@@ -14,6 +14,14 @@ import designSkills from "../redesigner/design-skills.json";
 /** slug → category label. Every Website Redesigner design skill is Web Design. */
 export const CATEGORY_BY_SLUG: Record<string, string> = {
   "github:scroll-world": "Web Design",
+  "frontend-design:frontend-design": "Web Design",
+  impeccable: "Web Design",
+  "h3-scroll-world": "Web Design",
+  "cinematic-ui": "Web Design",
+  "ui-ux-pro-max": "Web Design",
+  "web-design-guidelines": "Web Design",
+  "theme-factory": "Web Design",
+  "web-artifacts-builder": "Web Design",
   ...Object.fromEntries(designSkills.map((s) => [s.name, "Web Design"])),
 };
 
