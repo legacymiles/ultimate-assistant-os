@@ -26,5 +26,9 @@
   {
     "name": "real-estate-reveal",
     "description": "Turn a property listing (photos + facts, optionally a Zillow/Redfin/MLS link) into a cinematic luxury real estate website: one continuous scroll-driven camera journey through the real home, from drone approach through the rooms to the po…"
+  },
+  {
+    "name": "impeccable",
+    "description": "Use when the user wants to design, redesign, shape, critique, audit, polish, clarify, distill, harden, optimize, adapt, animate, colorize, extract, or otherwise improve a frontend interface."
   }
 ]
