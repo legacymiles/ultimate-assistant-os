@@ -46,3 +46,22 @@ Songs filed earlier get one the first time they're opened.
 searched so a generator can reproduce its sound — not to invent a new song from a brief.
 
 **Alternatives considered:** Keeping the brief-based tab alongside (rejected by the owner: wrong job).
+
+## 2026-09-18 — AI switchboard with automatic fallback; per-game model choice in Game Creator
+
+**Decision:** The hub's AI provider is chosen on the front page (AI pill next to V1/V2): Auto,
+OpenRouter or Vercel AI Gateway. Every AI call goes through `aiFetch`, which retries on the other
+provider when the chosen one is out of credit, rate-limited, down or rejects the key. The panel shows
+credit left, last errors, builder health and missing keys, and a red strip appears when something is
+broken. Game Creator gets a per-game Model dropdown: Claude models run on the Claude plan; GPT,
+Gemini, Grok, Kimi, GLM and DeepSeek run Claude Code through OpenRouter. If the Claude plan fails on
+the PC (limit, credit, logged out), the build retries once through OpenRouter with the same Claude model.
+
+**Why:** One empty balance or expired key used to break apps silently, each in its own words. One
+switch, one fallback path and one status panel make problems visible and keep the site working. The
+model choice lets the owner try other LLMs on the builder without changing code.
+
+**Alternatives considered:** A separate agent harness for non-Claude models (more work; Claude Code
+through OpenRouter was verified to work); fallback per app (26 places to keep in sync). Caveat: the
+gateway's free credit serves no Claude model, so falling back to it only helps non-Claude models until
+it is topped up.
