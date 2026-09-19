@@ -156,7 +156,7 @@ export async function getJob(jobId: string): Promise<Job> {
 export async function runJob(
   path: "jobs/song" | "jobs/transcribe" | "jobs/speak" | "jobs/separate",
   body: unknown,
-  opts: { onProgress?: (job: Job) => void; signal?: AbortSignal } = {},
+  opts: { onProgress?: (job: Job, jobId: string) => void; signal?: AbortSignal } = {},
 ): Promise<{ jobId: string; job: Job }> {
   const submitted = await post(path, body);
   const jobId = String(submitted.job_id ?? "");
@@ -165,7 +165,7 @@ export async function runJob(
   for (;;) {
     if (opts.signal?.aborted) throw new DOMException("Stopped watching this render.", "AbortError");
     const job = await getJob(jobId);
-    opts.onProgress?.(job);
+    opts.onProgress?.(job, jobId);
     if (job.status === "done") return { jobId, job };
     if (job.status === "error") throw new Error(job.error || "The render failed without a message.");
     await new Promise((r) => setTimeout(r, POLL_MS));

@@ -269,8 +269,11 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
         setServer(awake);
         const { jobId, job } = await runJob(path, body, {
           signal: controller.signal,
-          onProgress: (j: Job) =>
-            setRunning({ projectId, label, stage: j.stage || j.status, progress: j.progress ?? 0, jobId }),
+          // The id arrives WITH each poll: reading the `jobId` being destructured
+          // from this very call threw "before initialization" on the first poll
+          // and failed every render.
+          onProgress: (j: Job, id: string) =>
+            setRunning({ projectId, label, stage: j.stage || j.status, progress: j.progress ?? 0, jobId: id }),
         });
         const result = (job.result ?? {}) as Record<string, unknown>;
         return fileRender(projectId, {

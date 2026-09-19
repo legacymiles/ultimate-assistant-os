@@ -774,7 +774,8 @@ exec >> "$VOLUME/autostart.log" 2>&1
 echo "== boot \$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 if ! "$RUN_PYTHON" -c "import sys" >/dev/null 2>&1; then
     echo "interpreters were wiped with the container disk - re-running bootstrap (no downloads)"
-    VOLUME="$VOLUME" MUSIC_PORT="$PORT" bash "$HERE/bootstrap.sh" --no-weights || { echo "bootstrap failed"; exit 1; }
+    VOLUME="$VOLUME" MUSIC_PORT="$PORT" SKIP_YUE2="$SKIP_YUE2" SKIP_AUK="$SKIP_AUK" SKIP_SHEETSAGE="$SKIP_SHEETSAGE" \\
+        bash "$HERE/bootstrap.sh" --no-weights || { echo "bootstrap failed"; exit 1; }
 fi
 bash "$START_SCRIPT" start
 AUTO

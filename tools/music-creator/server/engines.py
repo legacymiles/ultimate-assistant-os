@@ -95,7 +95,12 @@ class Engines:
         # Always out of process: SheetSage2 pins transformers versions that
         # fight with YuE2's, and it is the one model here that is documented
         # as needing its own environment.
-        return "subprocess" if _interpreter(self.args.sheetsage_python or sys.executable) else None
+        # So no --sheetsage-python means not installed — falling back to this
+        # interpreter reported "available" on a pod that skipped SheetSage2 and
+        # would only have failed mid-job.
+        if not self.args.sheetsage_python:
+            return None
+        return "subprocess" if _interpreter(self.args.sheetsage_python) else None
 
     def auk_paths(self, flash: bool) -> tuple[str, str]:
         if flash:
