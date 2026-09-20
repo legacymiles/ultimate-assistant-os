@@ -101,9 +101,109 @@ def test_vae_stream():
     print(f"decode_stream 1 latent @ {W}x{H}: {(time.perf_counter() - t0) / 3 * 1000:.1f} ms")
 
 
+def test_mask():
+    """set_mask resamples to the latent grid, and the region lock is exactly
+    `keep the camera where the mask is 0`. No GPU weights needed."""
+    import torch
+    from wan.streaming import CausalStream
+
+    s = CausalStream.__new__(CausalStream)
+    s.device = "cuda" if torch.cuda.is_available() else "cpu"
+    s.lat_h, s.lat_w = 24, 32
+
+    # A half-and-half mask at a different resolution than the latent grid:
+    # left half editable, right half pinned to the camera.
+    src = np.zeros((48, 64), dtype=np.uint8)
+    src[:, :32] = 255
+    s.set_mask(src)
+    assert tuple(s.mask.shape) == (1, 1, 24, 32), s.mask.shape
+    assert 0.45 <= s.mask_coverage <= 0.55, s.mask_coverage
+    assert s.mask[0, 0, 12, 2] > 0.9, "left half should be editable"
+    assert s.mask[0, 0, 12, 29] < 0.1, "right half should be pinned"
+    edge = s.mask[0, 0, 12, 14:18]
+    assert ((edge > 0.01) & (edge < 0.99)).any(), "the edge must be feathered, not hard"
+
+    # The blend the step loop performs.
+    z = torch.zeros(16, 1, 24, 32, device=s.device)       # "camera"
+    gen = torch.ones(16, 1, 24, 32, device=s.device)      # "model"
+    out = torch.lerp(z, gen, s.mask)
+    assert out[:, :, :, 0].max() > 0.9, "model output must survive inside the mask"
+    assert out[:, :, :, -1].abs().max() < 0.1, "camera must survive outside the mask"
+
+    # uint8 and float inputs must agree, and None clears.
+    s.set_mask(src.astype(np.float32) / 255.0)
+    assert 0.45 <= s.mask_coverage <= 0.55, s.mask_coverage
+    s.set_mask(None)
+    assert s.mask is None and s.mask_coverage == 1.0
+    print(f"mask ok: {s.lat_w}x{s.lat_h} latent grid, feathered edge, blend verified")
+
+
+def test_mask_live(args=None):
+    """The region lock end to end on the real model: with a half-and-half
+    mask, the pinned half of the generated frame must come back as the camera
+    while the free half is visibly repainted. Needs the GPU and the weights.
+    """
+    import argparse
+
+    import torch
+    from common import DEFAULT_CKPT, add_model_args, build_pipeline, open_stream
+
+    if not os.path.isdir(DEFAULT_CKPT):
+        print("mask_live skipped (no weights at", DEFAULT_CKPT, ")")
+        return
+    if args is None:
+        p = argparse.ArgumentParser()
+        add_model_args(p)
+        args = p.parse_args(["--size", "192*256", "--local_attn_size", "6", "--sink_size", "2"])
+    args.cond_mode = "masked"
+
+    pipe = build_pipeline(args)
+    rng = np.random.default_rng(0)
+
+    def camera_frames(n, t):
+        """A frame with structure on both halves so a repaint is obvious."""
+        h, w = 192, 256
+        yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+        base = (np.sin(xx / 9 + t) * 0.5 + 0.5) * (np.cos(yy / 11 - t) * 0.5 + 0.5)
+        img = np.stack([base, base * 0.6 + 0.2, 1 - base], -1) * 255
+        return np.repeat(img[None].astype(np.uint8), n, axis=0)
+
+    anchor = camera_frames(1, 0.0)[0]
+    stream = open_stream(pipe, args, anchor, prompt=args.prompt)
+
+    # Left half free, right half pinned to the camera.
+    mask = np.zeros((48, 64), dtype=np.uint8)
+    mask[:, :32] = 255
+    stream.set_mask(mask)
+
+    held_err = free_err = None
+    for step in range(3):
+        frames = camera_frames(stream.frames_needed, 0.3 * (step + 1))
+        out, stats = stream.step(frames)
+        # Compare the last generated frame against the camera frame that fed it.
+        gen = out[-1].astype(np.float32)
+        cam = frames[-1].astype(np.float32)
+        if gen.shape != cam.shape:  # the stream may run at its own size
+            continue
+        mid = gen.shape[1] // 2
+        free_err = np.abs(gen[:, :mid] - cam[:, :mid]).mean()
+        held_err = np.abs(gen[:, mid:] - cam[:, mid:]).mean()
+
+    assert held_err is not None, "no comparable frame came back"
+    print(f"mask_live: held half mean|gen-cam| = {held_err:.1f}, "
+          f"free half = {free_err:.1f} (0-255 scale), coverage {stream.mask_coverage:.2f}")
+    assert held_err < 12, f"pinned half drifted from the camera: {held_err:.1f}"
+    assert free_err > held_err * 2, (
+        f"free half was not repainted: free {free_err:.1f} vs held {held_err:.1f}")
+
+
 if __name__ == "__main__":
     sys.path.insert(0, LINGBOT_DIR)
     test_ring()
     test_camera()
-    test_vae_stream()
+    test_mask()
+    if "--live" in sys.argv:
+        test_mask_live()
+    else:
+        test_vae_stream()
     print("all checks passed")

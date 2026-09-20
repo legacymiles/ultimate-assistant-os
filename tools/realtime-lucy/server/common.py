@@ -27,6 +27,20 @@ DEFAULT_PROMPT = (
     "rich colour, gentle depth of field."
 )
 
+# The six presets the page offers (src/lib/realtime-lucy/protocol.ts). A prompt
+# the T5 has not seen takes ~50 s to encode on a small GPU, and the inference
+# loop is blocked for all of it — so the server warms these into the disk cache
+# while it is idle. Keep the strings byte-identical to protocol.ts or the cache
+# key misses and the wait comes back.
+PRESET_PROMPTS = [
+    DEFAULT_PROMPT,
+    "An oil painting come to life: thick brushstrokes, warm gallery light, impressionist colour.",
+    "A neon-soaked cyberpunk street at night, rain on the lens, magenta and cyan light, cinematic.",
+    "Hand-drawn anime, clean line art, soft cel shading, a bright studio, gentle camera drift.",
+    "A claymation scene shot on a tabletop, stop-motion texture, warm tungsten light.",
+    "Black and white film noir, hard shadows, venetian blinds, smoke drifting through the light.",
+]
+
 
 def add_model_args(p: argparse.ArgumentParser):
     p.add_argument("--task", default="i2v-1.3B", choices=["i2v-1.3B", "i2v-A14B"])
@@ -41,7 +55,7 @@ def add_model_args(p: argparse.ArgumentParser):
     p.add_argument("--sink_size", type=int, default=3, help="latent frames pinned at the start of the KV window")
     p.add_argument("--strength", type=int, default=2,
                    help="0=free (ignore camera after anchor), 1=dreamy, 2=balanced, 3=faithful")
-    p.add_argument("--cond_mode", default="sdedit", choices=["sdedit", "keyframe"])
+    p.add_argument("--cond_mode", default="sdedit", choices=["sdedit", "keyframe", "masked"])
     p.add_argument("--shift", type=float, default=None, help="flow shift (default: model config)")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--max_stream_latents", type=int, default=1000,
