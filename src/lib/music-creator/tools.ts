@@ -83,16 +83,30 @@ export const TOOLS: ToolDef[] = [
   {
     id: "mashup",
     title: "Mashup",
-    tagline: "One song's melody, another song's world",
+    tagline: "Name two songs, decide what each one gives",
     blurb:
-      "Take the melody out of one recording as a readable score, then have it performed in the " +
-      "style of another. SheetSage2 transcribes, YuE2 realises the result in melody mode.",
+      "Say which two records you want in one line; the catalogue finds them. Then choose what comes " +
+      "from which — melody, lyrics, chords, drums, instruments, voice, tempo — and which one wins. " +
+      "Generated builds a new recording from both (SheetSage2 + YuE2); Layered lays one record's real " +
+      "vocal over the other's real backing (AuK + ffmpeg). Prompt for a change and the next version " +
+      "joins the same session, every one of them still playable and downloadable.",
     area: "transform",
     icon: "Layers",
     hue: [190, 286],
-    requires: ["sheetsage", "yue2"],
+    // YuE2 only, even though the tool can also use SheetSage2 and AuK.
+    //
+    // `requires` gates the WHOLE tool, and this tool has two routes that need
+    // different engines: generated needs YuE2 to render (and SheetSage2 only
+    // to transcribe, which a pasted score makes optional), layered needs AuK.
+    // Listing all three meant a server without SheetSage2 disabled rendering,
+    // which SheetSage2 has nothing to do with. The per-step engines are
+    // checked next to the buttons that need them instead, where the message
+    // can say what to do about it.
+    requires: ["yue2"],
     ready: true,
-    offlineNote: "The mashup plan can be built offline; transcription and rendering need the server.",
+    offlineNote:
+      "Finding the songs, the blend plan and the style line all work with no GPU. Transcription, " +
+      "separation and rendering need the server.",
   },
   {
     id: "remix-stems",

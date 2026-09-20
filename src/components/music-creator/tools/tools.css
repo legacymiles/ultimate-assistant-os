@@ -480,3 +480,373 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/*  Mashup — two records side by side, and the session of versions.    */
+/*  Nothing below invents a colour: every value is a token from        */
+/*  music-creator.css, so the two sheets cannot drift.                 */
+/* ------------------------------------------------------------------ */
+
+/* The two song cards. They collapse to one column early: each holds a
+   search field, a result list and an audio player, and none of that is
+   usable at half of a narrow screen. */
+.mc .mct-sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.mc .mct-side {
+  min-width: 0;
+}
+.mc .mct-side .mc-panel-h h3 {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+}
+.mc .mct-results {
+  max-height: 280px;
+  overflow-y: auto;
+  margin-top: 10px;
+}
+
+/* The compact drop zone under each card, as opposed to the full-width
+   one the old single-source layout used. */
+.mc .mct-drop-s {
+  flex-direction: row;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-top: 10px;
+  text-align: left;
+}
+.mc .mct-drop-s span {
+  font-size: 11.5px;
+}
+
+/* The confirmed record: artwork, title, artist. */
+.mc .mct-chosen {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  margin-top: 10px;
+  border: 1px solid var(--mc-line-2);
+  border-radius: 10px;
+  background: var(--mc-panel-2);
+}
+.mc .mct-chosen img,
+.mc .mct-chosen .mct-art {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex: none;
+}
+.mc .mct-chosen-m {
+  display: grid;
+  min-width: 0;
+}
+.mc .mct-chosen-m strong {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mc .mct-chosen-m > span {
+  color: var(--mc-ink-2);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ----- the route switch ----- */
+
+.mc .mct-methods {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.mc .mct-method {
+  display: grid;
+  gap: 5px;
+  padding: 12px 13px;
+  border: 1px solid var(--mc-line);
+  border-radius: 11px;
+  background: var(--mc-panel-2);
+  color: var(--mc-ink-2);
+  text-align: left;
+  cursor: pointer;
+}
+.mc .mct-method strong {
+  color: var(--mc-ink);
+  font-size: 12.5px;
+}
+.mc .mct-method span {
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.mc .mct-method.is-on {
+  border-color: var(--mc-go);
+  background: rgba(124, 92, 255, 0.14);
+}
+.mc .mct-method:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ----- the dominance slider ----- */
+
+.mc .mct-dom {
+  padding: 12px 13px;
+  margin-bottom: 14px;
+  border: 1px solid var(--mc-line);
+  border-radius: 11px;
+  background: var(--mc-panel-2);
+}
+.mc .mct-dom-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.mc .mct-dom-h strong {
+  color: var(--mc-ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.mc .mct-dom-h > span {
+  color: var(--mc-ink);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 0;
+}
+.mc .mct-dom-h > span:last-child {
+  text-align: right;
+}
+.mc .mct-dom input[type="range"] {
+  width: 100%;
+  accent-color: var(--mc-go);
+}
+.mc .mct-dom input[type="range"]:disabled {
+  opacity: 0.45;
+}
+.mc .mct-dom .mc-note {
+  margin: 6px 0 0;
+}
+
+/* ----- one element, one A/B/other choice ----- */
+
+.mc .mct-elements {
+  display: grid;
+  gap: 1px;
+  border: 1px solid var(--mc-line);
+  border-radius: 11px;
+  background: var(--mc-line);
+  overflow: hidden;
+}
+.mc .mct-element {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--mc-panel-2);
+}
+.mc .mct-element.is-dead {
+  opacity: 0.6;
+}
+.mc .mct-element-l {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 260px;
+}
+.mc .mct-element-l strong {
+  font-size: 12.5px;
+}
+.mc .mct-element-l span {
+  color: var(--mc-ink-3);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+/* A segmented control. Its own class rather than a run of mc-btn, so the
+   studio sheet keeps sole ownership of what a button looks like. */
+.mc .mct-seg {
+  display: inline-flex;
+  flex: none;
+  border: 1px solid var(--mc-line-2);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.mc .mct-seg button {
+  padding: 6px 11px;
+  border: 0;
+  border-right: 1px solid var(--mc-line-2);
+  background: transparent;
+  color: var(--mc-ink-2);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mc .mct-seg button:last-child {
+  border-right: 0;
+}
+.mc .mct-seg button.is-on {
+  background: var(--mc-go);
+  color: #fff;
+}
+.mc .mct-seg button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.mc .mct-bpm {
+  margin-top: 12px;
+}
+.mc .mct-plan {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--mc-ink-2);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* ----- numbered build steps ----- */
+
+.mc .mct-step-row {
+  display: flex;
+  gap: 11px;
+  padding: 12px 0;
+  border-top: 1px solid var(--mc-line);
+}
+.mc .mct-step-row:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.mc .mct-step-row .mct-step-n {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--mc-line-2);
+  background: var(--mc-panel-2);
+  color: var(--mc-ink-2);
+  font-size: 11px;
+  font-weight: 700;
+}
+.mc .mct-step-b {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.mc .mct-step-b > strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+.mc .mct-step-b .mc-note:first-of-type {
+  margin-top: 4px;
+}
+.mc .mct-quiet {
+  margin: 0;
+  color: var(--mc-ink-3);
+}
+.mc .mct-gains {
+  align-items: flex-end;
+}
+
+/* ----- the session's versions ----- */
+
+.mc .mct-revise {
+  padding: 12px 13px;
+  margin-bottom: 14px;
+  border: 1px solid var(--mc-go);
+  border-radius: 11px;
+  background: rgba(124, 92, 255, 0.08);
+}
+.mc .mct-revise .mc-field {
+  margin-bottom: 0;
+}
+.mc .mct-versions {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mc .mct-version {
+  padding: 11px 12px;
+  border: 1px solid var(--mc-line);
+  border-radius: 11px;
+  background: var(--mc-panel-2);
+}
+.mc .mct-version.is-bad {
+  border-color: var(--mc-bad);
+}
+.mc .mct-version-h {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.mc .mct-version-h strong {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.mc .mct-version-h time {
+  margin-left: auto;
+  color: var(--mc-ink-3);
+  font-size: 11px;
+}
+.mc .mct-vn {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--mc-go);
+  color: #fff;
+  font-family: var(--mc-mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+.mc .mct-version audio {
+  width: 100%;
+  height: 34px;
+  margin-bottom: 8px;
+}
+.mc .mct-version-r {
+  margin-top: 8px;
+}
+
+@media (max-width: 860px) {
+  .mc .mct-sides,
+  .mc .mct-methods {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 560px) {
+  .mc .mct-element {
+    align-items: flex-start;
+  }
+  .mc .mct-seg {
+    width: 100%;
+  }
+  .mc .mct-seg button {
+    flex: 1 1 0;
+    text-align: center;
+  }
+}

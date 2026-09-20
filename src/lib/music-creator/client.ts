@@ -285,7 +285,16 @@ export async function mix(input: {
 // This one does not touch the GPU at all. It runs on the hub's ordinary AI key,
 // which is why the studio is useful on a laptop with no server configured.
 
-export type WriteTask = "lyrics" | "style" | "hooks" | "mashup" | "rewrite" | "vocal-direction";
+export type WriteTask =
+  | "lyrics"
+  | "style"
+  | "hooks"
+  | "mashup"
+  | "rewrite"
+  | "vocal-direction"
+  | "mashup-find"
+  | "mashup-blend"
+  | "mashup-revise";
 
 export async function write(task: WriteTask, input: Record<string, unknown>): Promise<Record<string, unknown>> {
   return post("write", { task, input });

@@ -1,512 +1,1425 @@
 "use client";
 
 // ---------------------------------------------------------------------------
-// Mashup — one recording's melody, another's world.
+// Mashup — two records in, one session out.
 //
-// The whole tool rests on one asymmetry, so the screen states it rather than
-// implying it:
+// Name two songs, say how they should be combined, and get a song back. Then
+// tell it what to change and get the next version back, in the same session,
+// with every version still playable and downloadable. That is the whole tool.
 //
-//   A is the MELODY. SheetSage2 listens to the recording and writes down what
-//   the tune does, as an ABC score. That is a transcription — notes and timing,
-//   nothing else. None of the recording survives it.
+// ----- the two routes, and why the screen makes you pick ---------------------
 //
-//   B is the STYLE. A line of prose describing the sound the melody should be
-//   performed in. YuE2 then realises A's notes in B's world.
+// There is no single operation called "mash up two songs" in this stack. There
+// are two, they produce genuinely different objects, and a button that quietly
+// chose between them would be lying about what the user is about to get. So
+// the screen names both:
 //
-// The consequence the UI repeats in as many words: this does NOT carry over the
-// original singer, their voice, their timbre or their recording. YuE2 has no
-// voice-reference input at all — there is no field this app is declining to
-// fill in. A mashup is a new performance of an old tune. If you want a specific
-// voice, that is the Artist Voice Studio, and it speaks rather than sings.
+//   GENERATED (YuE2). SheetSage2 transcribes one song's melody into a readable
+//   score; YuE2 performs that score inside a style line assembled from both
+//   records. Every knob on the blend panel is live, because every knob is
+//   either a clause in that style line or a decision about the score. Nothing
+//   of either original RECORDING is in the output — not a drum hit, not a
+//   voice. What crosses over is musical information.
 //
-// Two implementation notes:
+//   LAYERED (AuK + ffmpeg). One record is split into its vocal, the other into
+//   its backing, and the two are laid on top of each other. This is the literal
+//   DJ mashup, made of the real audio. It is also blunt: nothing here
+//   beat-matches, key-matches or time-stretches, so it lands when the two songs
+//   already sit near the same tempo and key and drifts when they do not. The
+//   knobs that cannot mean anything on this route are disabled, not hidden —
+//   `appliesTo` in lib/music-creator/mashup.ts decides, and the disabled
+//   control says why.
 //
-//   The audio is read to a data URL in the browser and held in React state
-//   only. It is never written into `project.data` — projects sync as JSON, and
-//   a few megabytes of base64 per project would either blow the row or quietly
-//   stop the whole store from saving. What persists is the score, which is the
-//   part worth keeping anyway.
+// ----- one session, many versions --------------------------------------------
 //
-//   Transcription warnings are shown verbatim, in full, next to the score. A
-//   melody that SheetSage2 was unsure about produces a score that is wrong in
-//   ways nothing downstream can detect: YuE2 will perform the mistake
-//   confidently. Hiding or softening those lines would turn a readable warning
-//   into a mystery about why the render sounds nothing like the source.
+// A revision never opens a new project. Rendering appends a `MashupVersion`
+// holding the exact style and lyrics that produced it, so v2 does not destroy
+// v1: both stay in the list, both play from the account's library, both
+// download, and any of them can be sent back to the GPU unchanged. The
+// alternative — overwriting the take — would make "make the chorus bigger" a
+// one-way door, and the whole point of prompting for changes is that it is not.
+//
+// ----- what persists ----------------------------------------------------------
+//
+// Audio for the two sides lives in React state and never enters `project.data`.
+// Projects sync as JSON rows; two songs of base64 per project would either blow
+// the row or stop the store saving at all. Scores, choices, version records and
+// server file ids are text, and those are what survive a reload.
 // ---------------------------------------------------------------------------
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../../icons";
-import { searchArtist } from "@/lib/music-creator/client";
+import { ensureServer, hasEngine, mix, searchArtist } from "@/lib/music-creator/client";
+import {
+  type BlendSpec,
+  ELEMENTS,
+  type ElementId,
+  type MashupMethod,
+  type MashupVersion,
+  type Side,
+  type SongPick,
+  appliesTo,
+  blendBrief,
+  chordsFromAbc,
+  defaultBlend,
+  describeBlend,
+  describeSong,
+  dominanceLine,
+  nameOf,
+  nextVersionNumber,
+  offlineMashupStyle,
+  readVersions,
+  shortName,
+} from "@/lib/music-creator/mashup";
 import { DEFAULT_SEED } from "@/lib/music-creator/store";
 import { type ToolProps, toolById } from "@/lib/music-creator/tools";
-import type { ArtistTrack, Project } from "@/lib/music-creator/types";
-import { Field, ServerNotice, Takes, Text, WriterNote, missingFor, useWriter } from "../parts";
+import type { Project, Render } from "@/lib/music-creator/types";
+import { Field, ServerNotice, TakeActions, TakePlayer, Text, WriterNote, missingFor, useWriter } from "../parts";
 import { useStudio } from "../studio";
+import { type SideClip, SongPicker } from "./SongPicker";
 import "./tools.css";
 
-/**
- * Above this, the request is likely to be refused by the hosting layer before
- * it ever reaches the GPU box: the audio travels as base64 inside a JSON body,
- * and serverless request bodies are capped around 4.5 MB. Said plainly rather
- * than enforced, because a self-hosted deployment has no such cap.
- */
-const BIG_FILE = 4_500_000;
+// ----- reading the opaque `data` bag ---------------------------------------
 
 function str(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
 
-function readDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(new Error("That file could not be read in this browser."));
-    reader.readAsDataURL(blob);
-  });
+interface Score {
+  stripped: string;
+  full: string;
+  warnings: string[];
 }
 
-function warningsOf(project: Project): string[] {
-  const raw = project.data?.warnings;
-  if (!Array.isArray(raw)) return [];
-  return raw.map((w) => String(w)).filter(Boolean);
+function readScore(value: unknown): Score | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const v = value as Record<string, unknown>;
+  const full = str(v.full);
+  const stripped = str(v.stripped) || full;
+  if (!stripped) return undefined;
+  return { stripped, full, warnings: Array.isArray(v.warnings) ? v.warnings.map(String) : [] };
 }
 
-/** Pull the warnings a transcribe job reported, whatever shape they arrived in. */
+function readPick(value: unknown): SongPick | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const v = value as SongPick;
+  return { query: str(v.query), track: v.track, fileName: str(v.fileName) || undefined };
+}
+
+function readBlend(value: unknown): BlendSpec {
+  const base = defaultBlend();
+  if (!value || typeof value !== "object") return base;
+  const v = value as Partial<BlendSpec>;
+  return {
+    ...base,
+    ...v,
+    dominance: Math.min(100, Math.max(0, Number(v.dominance ?? base.dominance) || 0)),
+  };
+}
+
+/** Whatever shape a transcribe job reported its warnings in. */
 function readWarnings(meta: Record<string, unknown> | undefined): string[] {
   const raw = meta?.warnings;
-  if (Array.isArray(raw)) return raw.map((w) => String(w)).filter(Boolean);
+  if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
   if (typeof raw === "string" && raw.trim()) return [raw.trim()];
   return [];
 }
 
-export function Mashup({ project, update, setData }: ToolProps) {
-  const { render, runAndFile, running, server } = useStudio();
+interface Stems {
+  vocalFileId?: string;
+  vocalFrom?: Side;
+  musicFileId?: string;
+  musicFrom?: Side;
+}
+
+function readStems(value: unknown): Stems {
+  return value && typeof value === "object" ? (value as Stems) : {};
+}
+
+// ---------------------------------------------------------------------------
+
+export function Mashup({ project, update, setData, patch }: ToolProps) {
+  const { render, runAndFile, addRender, running, server } = useStudio();
   const writer = useWriter();
   const tool = toolById("mashup");
 
-  // Source A's audio lives here and nowhere else — see the note at the top.
-  const [clip, setClip] = useState<{ dataUrl: string; name: string; bytes: number } | null>(null);
-  const [over, setOver] = useState(false);
-  const [localError, setLocalError] = useState<string | null>(null);
+  // The two sides' audio: this tab only, deliberately (see the header note).
+  const [clips, setClips] = useState<{ a: SideClip | null; b: SideClip | null }>({ a: null, b: null });
+  const [error, setError] = useState<string | null>(null);
+  const [finding, setFinding] = useState(false);
+  const [mixing, setMixing] = useState(false);
+  const [change, setChange] = useState("");
 
-  const [query, setQuery] = useState("");
-  const [tracks, setTracks] = useState<ArtistTrack[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [fetching, setFetching] = useState<string | null>(null);
-
-  const sourceA = str(project.data?.sourceA);
-  const sourceB = str(project.data?.sourceB);
-  const brief = str(project.data?.brief);
+  const prompt = str(project.data?.prompt);
   const notes = str(project.data?.notes);
-  const fullAbc = str(project.data?.fullAbc);
-  const warnings = warningsOf(project);
-  const abc = str(project.request.abc);
+  const pickA = readPick(project.data?.pickA);
+  const pickB = readPick(project.data?.pickB);
+  const blend = readBlend(project.data?.blend);
+  const method: MashupMethod = project.data?.method === "layered" ? "layered" : "generated";
+  const scores: Record<Side, Score | undefined> = {
+    a: readScore(project.data?.scoreA),
+    b: readScore(project.data?.scoreB),
+  };
+  const stems = readStems(project.data?.stems);
+  const versions = useMemo(() => readVersions(project.data), [project.data]);
 
+  const aName = nameOf(pickA, "a");
+  const bName = nameOf(pickB, "b");
   const blocked = tool ? missingFor(tool, server).length > 0 : false;
-  const busy = !!running;
+  const busy = !!running || writer.busy || finding || mixing;
 
   /**
-   * The project as it is now, not as it was when a button was pressed.
+   * The project as it is NOW, not as it was when a button was pressed.
    *
-   * A transcription runs for minutes and the user keeps typing during it —
-   * style, lyrics, the description of B. Every write that happens after an
-   * `await` merges into this instead of into the closure's copy, so finishing a
-   * job cannot quietly undo edits made while it ran. Synchronous handlers use
-   * the props directly, where the distinction cannot arise.
+   * Transcription and rendering run for minutes and the user keeps typing while
+   * they do. Every write that lands after an `await` merges into this, so
+   * finishing a job cannot silently undo edits made while it ran.
    */
   const live = useRef(project);
   useEffect(() => {
     live.current = project;
   }, [project]);
 
-  const takeFile = async (file: File) => {
-    setLocalError(null);
-    if (!file.type.startsWith("audio/") && !/\.(mp3|wav|m4a|flac|ogg|aac|aiff?)$/i.test(file.name)) {
-      setLocalError(`"${file.name}" does not look like an audio file.`);
-      return;
-    }
-    try {
-      const dataUrl = await readDataUrl(file);
-      setClip({ dataUrl, name: file.name, bytes: file.size });
-      if (!sourceA) setData({ sourceA: file.name });
-    } catch (err) {
-      setLocalError((err as Error).message);
-    }
-  };
-
-  const search = async () => {
-    if (!query.trim()) return;
-    setSearching(true);
-    setLocalError(null);
-    try {
-      const result = await searchArtist(query.trim());
-      setTracks(result.tracks ?? []);
-    } catch (err) {
-      setTracks([]);
-      setLocalError((err as Error).message);
-    } finally {
-      setSearching(false);
-    }
-  };
+  // ----- step 1: find the two songs ----------------------------------------
 
   /**
-   * Pull a catalogue preview through the site's proxy and treat it as a file.
+   * Turn one sentence into two chosen records.
    *
-   * It is a 30-second clip, which is plenty for a chorus melody and nothing
-   * like a whole song — the UI says so rather than letting a truncated
-   * transcription look like a failure of the model.
+   * The model only ever produces SEARCH QUERIES here; the catalogue decides
+   * what the songs actually are. That ordering matters — a model asked to name
+   * a track will occasionally invent a plausible one, and a catalogue lookup
+   * cannot invent anything. What the user confirms is a real record with a real
+   * artist, year and preview.
    */
-  const usePreview = async (track: ArtistTrack) => {
-    if (!track.previewUrl) return;
-    setFetching(track.id);
-    setLocalError(null);
+  const findSongs = async () => {
+    if (!prompt.trim()) return;
+    setFinding(true);
+    setError(null);
     try {
-      const res = await fetch(`/api/music-creator/artist?preview=${encodeURIComponent(track.previewUrl)}`);
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? `The preview returned ${res.status}.`);
+      const result = await writer.run("mashup-find", { prompt, brief: prompt });
+      if (!result) return;
+      const queries: Record<Side, string> = { a: str(result.songA), b: str(result.songB) };
+      const title = str(result.title);
+      const brief = str(result.brief);
+
+      const found: Record<string, unknown> = {};
+      for (const side of ["a", "b"] as Side[]) {
+        const query = queries[side];
+        if (!query) continue;
+        const key = side === "a" ? "pickA" : "pickB";
+        let pick: SongPick = { query };
+        try {
+          const { tracks } = await searchArtist(query);
+          // The first hit with a preview, so the next step has audio to work
+          // with; a hit without one is still better than nothing.
+          const best = tracks.find((t) => t.previewUrl) ?? tracks[0];
+          if (best) pick = { query, track: best };
+        } catch {
+          // A catalogue that is down must not lose the query the model read.
+        }
+        found[key] = pick;
       }
-      const blob = await res.blob();
-      const dataUrl = await readDataUrl(blob);
-      const name = `${track.artist} — ${track.title} (30s preview)`;
-      setClip({ dataUrl, name, bytes: blob.size });
-      setData({ sourceA: name });
-    } catch (err) {
-      setLocalError((err as Error).message);
+
+      const now = live.current;
+      update({
+        title: now.title && now.title !== "Untitled" ? now.title : title || now.title,
+        data: { ...(now.data ?? {}), ...found, brief: brief || str(now.data?.brief) },
+      });
+      if (!queries.b) {
+        setError(
+          `Only one song was named in that. "${queries.a || prompt}" is set as A — name the second one, or search for it below.`,
+        );
+      }
     } finally {
-      setFetching(null);
+      setFinding(false);
     }
   };
 
-  const transcribe = async () => {
+  /** Pull each chosen track's preview clip, for the sides that have none yet. */
+  const loadPreviews = async () => {
+    setError(null);
+    for (const [side, pick] of [
+      ["a", pickA],
+      ["b", pickB],
+    ] as [Side, SongPick | undefined][]) {
+      if (clips[side] || !pick?.track?.previewUrl) continue;
+      try {
+        const res = await fetch(`/api/music-creator/artist?preview=${encodeURIComponent(pick.track.previewUrl)}`);
+        if (!res.ok) continue;
+        const blob = await res.blob();
+        const reader = new FileReader();
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(String(reader.result ?? ""));
+          reader.onerror = () => reject(new Error("That clip could not be read."));
+          reader.readAsDataURL(blob);
+        });
+        const name = `${pick.track.artist} — ${pick.track.title} (30s preview)`;
+        setClips((prev) => ({ ...prev, [side]: { dataUrl, name, bytes: blob.size, preview: true } }));
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    }
+  };
+
+  // ----- step 2: get a score out of a record -------------------------------
+
+  /**
+   * Transcribe one side's audio into an ABC score.
+   *
+   * Kept per side and cached in the project, so flipping "melody from A" to
+   * "melody from B" does not spend another five GPU minutes on a record that
+   * has already been read. The stripped score (melody, no chord symbols) is
+   * what melody mode gets; the full one is kept beside it because that is where
+   * the chord progression comes from.
+   */
+  const transcribe = async (side: Side) => {
+    const clip = clips[side];
     if (!clip) return;
+    setError(null);
     const take = await runAndFile(
       project.id,
       "transcription",
       "jobs/transcribe",
       { audio_b64: clip.dataUrl, filename: clip.name, melody_only: true },
-      "Melody from A",
+      `Score of ${side === "a" ? aName : bName}`,
     );
-    if (!take || take.error) return;
-
+    if (!take || take.error) {
+      if (take?.error) setError(take.error);
+      return;
+    }
     const meta = take.meta;
-    // `stripped_abc` is the score with the chord symbols removed. That is the
-    // one to hand to YuE2 here: the chords belong to source A's harmony, and
-    // keeping them would drag A's world along with A's tune — the opposite of
-    // what a mashup is for. The full score is kept beside it so nothing is lost.
-    const stripped = str(meta?.stripped_abc);
-    const whole = str(meta?.abc);
-    const score = stripped || whole;
-    const now = live.current;
-    update({
-      request: score ? { ...now.request, abc: score, cot: "melody" } : now.request,
-      data: { ...(now.data ?? {}), fullAbc: whole, warnings: readWarnings(meta) },
-    });
+    const full = str(meta?.abc);
+    const stripped = str(meta?.stripped_abc) || full;
+    if (!stripped) {
+      setError("The transcription finished but produced no score.");
+      return;
+    }
+    const key = side === "a" ? "scoreA" : "scoreB";
+    patch((now) => ({
+      // `request.abc` is what actually gets performed, so reading a new melody
+      // must load it there. Without this the score box below would show one
+      // thing and the render would use another, and an edit made in it would
+      // silently do nothing.
+      request: side === readBlend(now.data?.blend).melody ? { ...now.request, abc: stripped } : now.request,
+      data: { ...(now.data ?? {}), [key]: { stripped, full, warnings: readWarnings(meta) } },
+    }));
   };
 
-  const writeStyle = async () => {
-    const result = await writer.run("mashup", { sourceA, sourceB, brief });
+  const melodyScore = scores[blend.melody];
+  const harmonyScore = blend.harmony === "model" ? undefined : scores[blend.harmony];
+  const progression = useMemo(
+    () => (harmonyScore ? chordsFromAbc(harmonyScore.full || harmonyScore.stripped) : []),
+    [harmonyScore],
+  );
+
+  // ----- step 3: write the plan --------------------------------------------
+
+  const plan = async () => {
+    setError(null);
+    const result = await writer.run("mashup-blend", {
+      prompt,
+      trackA: describeSong(pickA, "a"),
+      trackB: describeSong(pickB, "b"),
+      blend: blendBrief(blend, pickA, pickB, method),
+      progression: progression.length ? `${progression.join(" – ")} (from ${nameOf(blend.harmony === "b" ? pickB : pickA, blend.harmony as Side)})` : "",
+      // The offline draft has no producer in it, so hand it the plan read back
+      // as a style line rather than letting it answer with nothing.
+      style: offlineMashupStyle(blend, pickA, pickB),
+      title: project.title === "Untitled" ? "" : project.title,
+      brief: str(project.data?.brief),
+    });
     if (!result) return;
     const style = str(result.style);
     const lyrics = str(result.lyrics);
-    const now = live.current;
-    update({
-      request: {
-        ...now.request,
-        style: style || now.request.style,
-        lyrics: lyrics || now.request.lyrics,
-      },
+    const title = str(result.title);
+    patch((now) => ({
+      title: now.title && now.title !== "Untitled" ? now.title : title || now.title,
+      request: { ...now.request, style: style || now.request.style, lyrics: lyrics || now.request.lyrics },
       data: { ...(now.data ?? {}), notes: str(result.notes) },
+    }));
+  };
+
+  // ----- step 4: make a version ---------------------------------------------
+
+  /** Append a finished attempt to the session, newest last in storage. */
+  const fileVersion = (take: Render, entry: Omit<MashupVersion, "n" | "renderId" | "at">) => {
+    patch((now) => {
+      const existing = readVersions(now.data);
+      const version: MashupVersion = {
+        ...entry,
+        n: nextVersionNumber(existing),
+        renderId: take.id,
+        at: Date.now(),
+      };
+      return { data: { ...(now.data ?? {}), versions: [...existing, version] } };
     });
   };
 
-  const renderMashup = () =>
-    void render(
+  const renderGenerated = async (changeNote = "") => {
+    setError(null);
+    const now = live.current;
+    // Whatever is in the score box wins — it may have been pasted or edited by
+    // hand rather than transcribed.
+    const score = now.request.abc || melodyScore?.stripped || "";
+    if (!score.trim()) {
+      setError("Melody mode needs a score. Transcribe the melody above, or paste one into the score box.");
+      return;
+    }
+    const style = now.request.style;
+    const lyrics = now.request.lyrics;
+    const n = nextVersionNumber(readVersions(now.data));
+    const take = await render(
       project.id,
       {
-        style: project.request.style,
-        lyrics: project.request.lyrics,
-        // Melody mode is the documented cover/mashup path: YuE2 follows the
-        // score's melody and is free to build the accompaniment around it, which
-        // is exactly the freedom B's style line needs to mean anything.
+        style,
+        lyrics,
+        // Melody mode: YuE2 follows the score and builds the accompaniment the
+        // style line describes around it. That freedom is exactly what makes
+        // the other record's world audible.
         cot: "melody",
-        seed: project.request.seed || DEFAULT_SEED,
-        abc: project.request.abc,
-        cfg_scale: project.request.cfg_scale ?? null,
+        seed: now.request.seed || DEFAULT_SEED,
+        abc: score,
+        cfg_scale: now.request.cfg_scale ?? null,
       },
-      `${sourceA || "A"} in the style of ${sourceB || "B"}`.slice(0, 60),
+      `v${n} · ${(now.title || "Mashup").slice(0, 40)}`,
     );
+    if (!take || take.error) {
+      if (take?.error) setError(take.error);
+      return;
+    }
+    fileVersion(take, { title: now.title || "Mashup", change: changeNote, method: "generated", style, lyrics });
+  };
 
-  const canRender = !!abc.trim() && !!project.request.style.trim() && !!project.request.lyrics.trim();
+  /**
+   * The layered route: two separations and a mix.
+   *
+   * Run one after the other rather than together, because the studio watches a
+   * single job at a time — starting the second would abort the watch on the
+   * first, and the progress bar would lie about what is happening.
+   */
+  const buildLayered = async () => {
+    const vocalSide: Side = blend.vocal;
+    const musicSide: Side = vocalSide === "a" ? "b" : "a";
+    const vocalClip = clips[vocalSide];
+    const musicClip = clips[musicSide];
+    if (!vocalClip || !musicClip) {
+      setError("Both sides need audio for this. Pick a track with a preview, or drop the files in.");
+      return;
+    }
+    setError(null);
+
+    let vocalFileId = stems.vocalFrom === vocalSide ? stems.vocalFileId : undefined;
+    if (!vocalFileId) {
+      const take = await runAndFile(
+        project.id,
+        "stem",
+        "jobs/separate",
+        { audio_b64: vocalClip.dataUrl, filename: vocalClip.name, mode: "vocals" },
+        `Vocal from ${vocalSide === "a" ? aName : bName}`,
+      );
+      if (!take) return;
+      if (take.error || !take.fileId) {
+        setError(take.error ?? "The vocal separation produced no file.");
+        return;
+      }
+      vocalFileId = take.fileId;
+    }
+
+    let musicFileId = stems.musicFrom === musicSide ? stems.musicFileId : undefined;
+    if (!musicFileId) {
+      const take = await runAndFile(
+        project.id,
+        "stem",
+        "jobs/separate",
+        { audio_b64: musicClip.dataUrl, filename: musicClip.name, mode: "music" },
+        `Backing from ${musicSide === "a" ? aName : bName}`,
+      );
+      if (!take) return;
+      if (take.error || !take.fileId) {
+        setError(take.error ?? "The backing separation produced no file.");
+        return;
+      }
+      musicFileId = take.fileId;
+    }
+
+    patch((now) => ({
+      data: {
+        ...(now.data ?? {}),
+        stems: { vocalFileId, vocalFrom: vocalSide, musicFileId, musicFrom: musicSide },
+      },
+    }));
+
+    await mixStems(vocalFileId, musicFileId, vocalSide, "");
+  };
+
+  /**
+   * Lay the vocal over the backing. Synchronous on the server (ffmpeg, no GPU),
+   * so it does not go through the job queue and is filed by hand.
+   */
+  const mixStems = async (vocalFileId: string, musicFileId: string, vocalSide: Side, changeNote: string) => {
+    setMixing(true);
+    setError(null);
+    try {
+      await ensureServer();
+      const fileId = await mix({
+        musicFileId,
+        vocalFileId,
+        vocalGainDb: Number(project.data?.vocalGainDb ?? 0) || 0,
+        musicGainDb: Number(project.data?.musicGainDb ?? -3) || -3,
+        offsetS: Number(project.data?.offsetS ?? 0) || 0,
+      });
+      if (!fileId) throw new Error("The server mixed the two stems but returned no file.");
+      const now = live.current;
+      const n = nextVersionNumber(readVersions(now.data));
+      const take = addRender(project.id, {
+        id: `r_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+        kind: "mix",
+        label: `v${n} · ${(now.title || "Mashup").slice(0, 40)}`,
+        fileId,
+        jobId: null,
+        created: Date.now(),
+        meta: { mashup: "layered", vocalFrom: vocalSide },
+      });
+      fileVersion(take, {
+        title: now.title || "Mashup",
+        change: changeNote,
+        method: "layered",
+        style: `${vocalSide === "a" ? aName : bName}'s vocal over ${vocalSide === "a" ? bName : aName}'s backing`,
+        lyrics: "",
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setMixing(false);
+    }
+  };
+
+  /** Re-mix the stems already on the server with whatever the balance is now. */
+  const remixLayered = async () => {
+    if (!stems.vocalFileId || !stems.musicFileId || !stems.vocalFrom) {
+      setError("There are no split stems yet — build the layered mashup once first.");
+      return;
+    }
+    await mixStems(stems.vocalFileId, stems.musicFileId, stems.vocalFrom, change.trim() || "re-balanced");
+    setChange("");
+  };
+
+  // ----- step 5: change it and go again -------------------------------------
+
+  /**
+   * The user heard it and asked for one change.
+   *
+   * The model is given the style and lyrics that actually produced the last
+   * version, not whatever is in the boxes — otherwise a half-finished manual
+   * edit would be revised as if it were the record they heard.
+   */
+  const revise = async () => {
+    if (!change.trim()) return;
+    setError(null);
+    const last = versions[0];
+    const now = live.current;
+    const result = await writer.run("mashup-revise", {
+      change,
+      style: last?.style || now.request.style,
+      lyrics: last?.lyrics || now.request.lyrics,
+      blend: blendBrief(blend, pickA, pickB, method),
+      trackA: describeSong(pickA, "a"),
+      trackB: describeSong(pickB, "b"),
+    });
+    if (!result) return;
+    const style = str(result.style) || now.request.style;
+    const lyrics = str(result.lyrics) || now.request.lyrics;
+    const changed = str(result.changed) || change.trim();
+    patch((current) => ({
+      request: { ...current.request, style, lyrics },
+      data: { ...(current.data ?? {}), notes: changed },
+    }));
+    // The render reads `live.current`, which the patch above has not reached
+    // yet, so hand it the fresh text directly.
+    const n = nextVersionNumber(readVersions(now.data));
+    const take = await render(
+      project.id,
+      {
+        style,
+        lyrics,
+        cot: "melody",
+        seed: now.request.seed || DEFAULT_SEED,
+        abc: now.request.abc || melodyScore?.stripped || null,
+        cfg_scale: now.request.cfg_scale ?? null,
+      },
+      `v${n} · ${change.trim().slice(0, 40)}`,
+    );
+    if (!take || take.error) {
+      if (take?.error) setError(take.error);
+      return;
+    }
+    fileVersion(take, { title: now.title || "Mashup", change: changed, method: "generated", style, lyrics });
+    setChange("");
+  };
+
+  /**
+   * Perform an old version's recipe again — same words, same sound, new take.
+   *
+   * On a NEW seed, which is the whole point. YuE2 is deterministic: the same
+   * style, lyrics, score and seed produce the same file byte for byte, so
+   * reusing the version's seed would hand back a duplicate of a take the user
+   * already has while claiming to be another take of it. A revision keeps the
+   * seed deliberately (you want the same record with one thing changed); this
+   * is the opposite request.
+   */
+  const rerender = async (version: MashupVersion) => {
+    setError(null);
+    const now = live.current;
+    const n = nextVersionNumber(readVersions(now.data));
+    const take = await render(
+      project.id,
+      {
+        style: version.style,
+        lyrics: version.lyrics,
+        cot: "melody",
+        seed: Math.floor(Math.random() * 1_000_000) + 1,
+        abc: now.request.abc || melodyScore?.stripped || null,
+        cfg_scale: now.request.cfg_scale ?? null,
+      },
+      `v${n} · another take of v${version.n}`,
+    );
+    if (!take || take.error) {
+      if (take?.error) setError(take.error);
+      return;
+    }
+    fileVersion(take, {
+      title: version.title,
+      change: `another take of v${version.n}`,
+      method: "generated",
+      style: version.style,
+      lyrics: version.lyrics,
+    });
+  };
+
+  // ----- readiness ----------------------------------------------------------
+
+  const bothNamed = !!(pickA?.track || pickA?.fileName || pickA?.query) && !!(pickB?.track || pickB?.fileName || pickB?.query);
+  const canRender =
+    method === "generated"
+      ? !!(project.request.abc || melodyScore)?.toString().trim() &&
+        !!project.request.style.trim() &&
+        !!project.request.lyrics.trim()
+      : !!clips.a && !!clips.b;
+  const hasVersions = versions.length > 0;
+
+  /**
+   * Turn one knob.
+   *
+   * Melody is the one knob that is not purely descriptive: it decides which
+   * score gets performed. So pointing it at a side that has already been
+   * transcribed loads that score straight away, rather than leaving the score
+   * box showing one record while the render uses another.
+   */
+  const setBlend = (change: Partial<BlendSpec>) => {
+    const next = { ...blend, ...change };
+    const swapped = change.melody && change.melody !== blend.melody ? scores[change.melody] : undefined;
+    patch((now) => ({
+      request: swapped ? { ...now.request, abc: swapped.stripped } : now.request,
+      data: { ...(now.data ?? {}), blend: next },
+    }));
+  };
 
   return (
     <div className="mct">
-      <p className="mc-note is-warn">
-        This carries the melody across and nothing else. The original singer, their voice and their recording do not
-        come with it — YuE2 has no voice-reference input, so what you get is a new performance of the tune in the
-        style you describe. To put a particular voice on something, use the Artist Voice Studio.
-      </p>
+      <MethodNote method={method} />
 
       {tool && <ServerNotice tool={tool} />}
 
-      {/* ----- A: the melody -------------------------------------------- */}
+      {/* ----- 1. the idea ------------------------------------------------ */}
       <section className="mc-panel">
         <div className="mc-panel-h">
-          <h3>
-            <span className="mct-ab">A</span> The melody
-          </h3>
-          <p>A recording whose tune you want. SheetSage2 writes it down as a score; the audio goes no further.</p>
+          <h3>What do you want mashed up?</h3>
+          <p>Name both songs in one line. The catalogue finds the actual records; you confirm them below.</p>
         </div>
 
-        <div
-          className={`mct-drop ${over ? "is-over" : ""}`}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setOver(true);
-          }}
-          onDragLeave={() => setOver(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setOver(false);
-            const file = e.dataTransfer.files?.[0];
-            if (file) void takeFile(file);
-          }}
-        >
-          <Icon.Upload width={18} height={18} />
-          <strong>Drop an audio file here</strong>
-          <span>mp3, wav, m4a, flac — or pick one</span>
-          <label className="mc-btn mc-btn-s mct-file">
-            Choose a file
-            <input
-              type="file"
-              accept="audio/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void takeFile(file);
-                e.target.value = "";
-              }}
-            />
-          </label>
-        </div>
-
-        <details className="mct-fold">
-          <summary>Or audition a 30-second preview from the catalogue</summary>
-          <div className="mct-bar">
-            <input
-              className="mc-input"
-              value={query}
-              placeholder="artist or song"
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void search();
-              }}
-            />
-            <button type="button" className="mc-btn" onClick={() => void search()} disabled={searching}>
-              <Icon.Search width={13} height={13} /> {searching ? "Searching…" : "Search"}
-            </button>
-          </div>
-          {tracks.length > 0 && (
-            <div className="mc-tracks" style={{ marginTop: 12 }}>
-              {tracks.map((track) => (
-                <button
-                  key={track.id}
-                  type="button"
-                  className="mc-track"
-                  onClick={() => void usePreview(track)}
-                  disabled={!track.previewUrl || !!fetching || busy}
-                >
-                  {track.artwork ? <img src={track.artwork} alt="" /> : <span className="mct-art" />}
-                  <span className="mc-track-m">
-                    <strong>{track.title}</strong>
-                    <span>
-                      {track.artist}
-                      {track.releaseYear ? ` · ${track.releaseYear}` : ""}
-                      {!track.previewUrl ? " · no preview" : fetching === track.id ? " · fetching…" : ""}
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-          <p className="mc-note">
-            Picking one loads its preview as source A — you can play it back below before transcribing. Previews are 30
-            seconds: that is a chorus, not a song, and the score covers only what was in the clip.
-          </p>
-        </details>
-
-        <Field label="What A is" hint="for the writer, and for you in six months">
-          <Text value={sourceA} onChange={(v) => setData({ sourceA: v })} placeholder="the chorus melody of a 1970s soul record" />
-        </Field>
-
-        {clip && (
-          <div className="mct-clip">
-            <Icon.Note width={13} height={13} />
-            <strong>{clip.name}</strong>
-            <span>{(clip.bytes / 1_000_000).toFixed(1)} MB</span>
-            <audio controls preload="metadata" src={clip.dataUrl} />
-            <button type="button" className="mc-btn mc-btn-s" onClick={() => setClip(null)}>
-              Clear
-            </button>
-          </div>
-        )}
-        {clip && clip.bytes > BIG_FILE && (
-          <p className="mc-note is-warn">
-            {(clip.bytes / 1_000_000).toFixed(1)} MB is large for this path. The clip travels as base64 inside a JSON
-            request, and hosted deployments usually cap request bodies around 4.5 MB — if transcription comes back with
-            a 413, trim the file to the section you actually want.
-          </p>
-        )}
-        {localError && <p className="mc-note is-bad">{localError}</p>}
-        <p className="mc-note">
-          The audio stays in this browser tab. It is sent to the GPU server to be transcribed and is not saved into the
-          project — reloading the page clears it, and the score is what survives.
-        </p>
-
-        <div className="mct-bar">
-          <button
-            type="button"
-            className="mc-btn mc-btn-go"
-            onClick={() => void transcribe()}
-            disabled={!clip || blocked || busy}
-            title={blocked ? "SheetSage2 is not available on the server right now" : undefined}
-          >
-            <Icon.Layers width={14} height={14} /> Transcribe the melody
-          </button>
-        </div>
-      </section>
-
-      {/* ----- the score ------------------------------------------------- */}
-      <section className="mc-panel">
-        <div className="mc-panel-h">
-          <h3>The score</h3>
-          <p>ABC notation, chords removed. Edit it freely — this text is what gets performed, not the recording.</p>
-        </div>
-
-        {warnings.length > 0 && (
-          <div className="mc-note is-warn mct-warns">
-            <strong>SheetSage2 reported this about the transcription:</strong>
-            <ul>
-              {warnings.map((w, i) => (
-                <li key={i}>{w}</li>
-              ))}
-            </ul>
-            <p>
-              A transcription error carries straight into the mashup: YuE2 performs whatever these notes say, including
-              the wrong ones.
-            </p>
-          </div>
-        )}
-
-        <pre className="mc-mono mct-pre">
-          <textarea
-            className="mct-score"
-            rows={14}
-            spellCheck={false}
-            value={abc}
-            onChange={(e) => update({ request: { ...project.request, abc: e.target.value } })}
-            placeholder={"X:1\nT:Melody\nM:4/4\nL:1/8\nK:C\n| CDEF GABc |"}
-            aria-label="ABC score"
+        <Field label="Your prompt" hint="two songs, plus anything about how it should sound">
+          <Text
+            value={prompt}
+            onChange={(v) => setData({ prompt: v })}
+            placeholder="Take On Me and Blinding Lights, keep the 80s synths but make it slower and moodier"
+            rows={2}
           />
-        </pre>
-
-        {fullAbc && fullAbc !== abc && (
-          <details className="mct-fold">
-            <summary>The full transcription, with the chords SheetSage2 heard</summary>
-            <pre className="mc-mono mct-pre mct-ro">{fullAbc}</pre>
-            <button
-              type="button"
-              className="mc-btn mc-btn-s"
-              onClick={() => update({ request: { ...project.request, abc: fullAbc } })}
-            >
-              Use this one instead
-            </button>
-            <p className="mc-note">
-              Keeping the chords keeps A’s harmony, which pulls the result back towards A. Sometimes that is the mashup
-              you want.
-            </p>
-          </details>
-        )}
-      </section>
-
-      {/* ----- B: the style ---------------------------------------------- */}
-      <section className="mc-panel">
-        <div className="mc-panel-h">
-          <h3>
-            <span className="mct-ab">B</span> The world it gets performed in
-          </h3>
-          <p>Prose, not a file. Genre, instruments, vocal character, production, tempo.</p>
-        </div>
-
-        <Field label="What B is" hint="the sound you are aiming at">
-          <Text value={sourceB} onChange={(v) => setData({ sourceB: v })} placeholder="late-night drum and bass, halftime, rolling sub" />
         </Field>
-        <Field label="Anything else about the mashup">
-          <Text value={brief} onChange={(v) => setData({ brief: v })} placeholder="keep it wordless until the drop" rows={2} />
+        <Field label="Name this mashup" hint="the project, and the name every version is filed under">
+          <Text value={project.title === "Untitled" ? "" : project.title} onChange={(v) => update({ title: v || "Untitled" })} placeholder="Untitled" />
         </Field>
 
         <div className="mct-bar">
-          <button type="button" className="mc-btn mc-btn-go" onClick={() => void writeStyle()} disabled={writer.busy}>
-            <Icon.Sparkles width={14} height={14} /> {writer.busy ? "Writing…" : "Write the style line and lyrics"}
+          <button type="button" className="mc-btn mc-btn-go" onClick={() => void findSongs()} disabled={!prompt.trim() || busy}>
+            <Icon.Search width={14} height={14} /> {finding ? "Finding the songs…" : "Find the songs"}
           </button>
+          {(pickA?.track?.previewUrl || pickB?.track?.previewUrl) && (!clips.a || !clips.b) && (
+            <button type="button" className="mc-btn" onClick={() => void loadPreviews()} disabled={busy}>
+              <Icon.Download width={13} height={13} /> Load both previews
+            </button>
+          )}
         </div>
         <WriterNote engine={writer.engine} warning={writer.warning} error={writer.error} />
-        {notes && <p className="mc-note">{notes}</p>}
-
-        <Field label="Style line" hint="sent to YuE2 as-is">
-          <Text
-            value={project.request.style}
-            onChange={(style) => update({ request: { ...project.request, style } })}
-            placeholder="English drum and bass, halftime, rolling sub bass, airy male tenor, 174 BPM"
-            rows={3}
-          />
-        </Field>
-        <Field label="Lyrics" hint="every character is sung">
-          <Text
-            value={project.request.lyrics}
-            onChange={(lyrics) => update({ request: { ...project.request, lyrics } })}
-            placeholder={"[Verse]\nwords that fit A’s phrasing"}
-            rows={8}
-          />
-        </Field>
-        <p className="mc-note">
-          The melody is fixed by the score, so lines that do not match its phrasing get stretched or crushed to fit.
-          Counting syllables against the original is not fussiness here.
-        </p>
+        {error && <p className="mc-note is-bad">{error}</p>}
       </section>
 
-      {/* ----- render ----------------------------------------------------- */}
+      {/* ----- 2. the two records ------------------------------------------ */}
+      <div className="mct-sides">
+        <SongPicker
+          side="a"
+          role={roleOf("a", blend, method)}
+          pick={pickA}
+          clip={clips.a}
+          busy={busy}
+          onPick={(p) => setData({ pickA: p })}
+          onClip={(c) => setClips((prev) => ({ ...prev, a: c }))}
+        />
+        <SongPicker
+          side="b"
+          role={roleOf("b", blend, method)}
+          pick={pickB}
+          clip={clips.b}
+          busy={busy}
+          onPick={(p) => setData({ pickB: p })}
+          onClip={(c) => setClips((prev) => ({ ...prev, b: c }))}
+        />
+      </div>
+
+      {/* ----- 3. how it should sound -------------------------------------- */}
       <section className="mc-panel">
         <div className="mc-panel-h">
-          <h3>Render</h3>
-          <p>Melody mode: YuE2 follows the score and builds B’s accompaniment around it.</p>
+          <h3>How should it sound?</h3>
+          <p>Decide what comes from which record. Everything here is your call — the writer follows it, it does not argue.</p>
         </div>
-        <div className="mct-bar">
-          <button
-            type="button"
-            className="mc-btn mc-btn-go"
-            onClick={renderMashup}
-            disabled={blocked || busy || !canRender}
-            title={blocked ? "The GPU server cannot render this right now" : undefined}
-          >
-            <Icon.Note width={14} height={14} /> Perform A in the style of B
-          </button>
-          <label className="mct-inline">
-            <span className="mc-field-l">Seed</span>
+
+        <div className="mct-methods">
+          {(["generated", "layered"] as MashupMethod[]).map((id) => (
+            <button
+              key={id}
+              type="button"
+              className={`mct-method ${method === id ? "is-on" : ""}`}
+              onClick={() => setData({ method: id })}
+              disabled={busy}
+            >
+              <strong>{id === "generated" ? "Generated — a new recording" : "Layered — the two real records"}</strong>
+              <span>
+                {id === "generated"
+                  ? "One song's melody, performed inside a style built from both. Every control below works. Nothing of either original recording is in it."
+                  : "One song's vocal laid over the other's backing track. Real audio from both — but nothing here beat-matches or key-matches, so it works when the two already sit close."}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="mct-dom">
+          <div className="mct-dom-h">
+            <span>{aName}</span>
+            <strong>Which record wins?</strong>
+            <span>{bName}</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={blend.dominance}
+            onChange={(e) => setBlend({ dominance: Number(e.target.value) })}
+            disabled={method === "layered" || busy}
+            aria-label="Dominance between the two songs"
+          />
+          <p className="mc-note">
+            {method === "layered"
+              ? "On the layered route this is the mix balance instead — set the two gains down in Build."
+              : dominanceLine(blend.dominance, aName, bName)}
+          </p>
+        </div>
+
+        <div className="mct-elements">
+          {ELEMENTS.map((element) => {
+            // Not `live` — that name is the ref holding the current project.
+            const active = appliesTo(element.id, method);
+            const value = String(blend[element.id as keyof BlendSpec] ?? "a");
+            const options: { value: string; label: string }[] = [
+              { value: "a", label: `A · ${shortName(pickA, "a")}` },
+              { value: "b", label: `B · ${shortName(pickB, "b")}` },
+              ...(element.extra ? [{ value: element.extra.value, label: element.extra.label }] : []),
+            ];
+            return (
+              <div key={element.id} className={`mct-element ${active ? "" : "is-dead"}`}>
+                <div className="mct-element-l">
+                  <strong>{element.label}</strong>
+                  <span>
+                    {!active
+                      ? element.layeredNote
+                      : method === "layered" && element.layeredHint
+                        ? element.layeredHint
+                        : element.hint}
+                  </span>
+                </div>
+                <div className="mct-seg">
+                  {options.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={value === option.value ? "is-on" : ""}
+                      onClick={() => setBlend({ [element.id]: option.value } as Partial<BlendSpec>)}
+                      disabled={!active || busy}
+                      title={element.extra && option.value === element.extra.value ? element.extra.hint : undefined}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {blend.tempo === "custom" && appliesTo("tempo", method) && (
+          <label className="mct-inline mct-bpm">
+            <span className="mc-field-l">BPM</span>
             <input
               className="mc-input mct-sel"
               type="number"
-              value={project.request.seed || DEFAULT_SEED}
-              onChange={(e) => update({ request: { ...project.request, seed: Number(e.target.value) || DEFAULT_SEED } })}
+              min={40}
+              max={220}
+              value={blend.bpm ?? 120}
+              onChange={(e) => setBlend({ bpm: Number(e.target.value) || 120 })}
             />
           </label>
-        </div>
-        {!canRender && (
-          <p className="mc-note">
-            Needs all three: a score, a style line and lyrics. Melody mode has nothing to follow without the score.
-          </p>
         )}
-        <Takes renders={project.renders} empty="No takes yet. Transcribe A, describe B, then render." />
+
+        <details className="mct-fold">
+          <summary>The plan, as it will be sent</summary>
+          <ul className="mct-plan">
+            {describeBlend(blend, aName, bName, method).map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
+          </ul>
+        </details>
+      </section>
+
+      {/* ----- 4. build ----------------------------------------------------- */}
+      {method === "generated" ? (
+        <GeneratedBuild
+          project={project}
+          update={update}
+          blend={blend}
+          scores={scores}
+          clips={clips}
+          aName={aName}
+          bName={bName}
+          progression={progression}
+          notes={notes}
+          writer={writer}
+          busy={busy}
+          blocked={blocked}
+          bothNamed={bothNamed}
+          canRender={canRender}
+          // Transcription is the one step that needs SheetSage2; a server
+          // without it can still render a score from anywhere else.
+          noTranscriber={!!server?.reachable && !hasEngine(server, "sheetsage")}
+          onTranscribe={(side) => void transcribe(side)}
+          onPlan={() => void plan()}
+          onRender={() => void renderGenerated("")}
+          hasVersions={hasVersions}
+        />
+      ) : (
+        <LayeredBuild
+          project={project}
+          setData={setData}
+          blend={blend}
+          clips={clips}
+          stems={stems}
+          aName={shortName(pickA, "a")}
+          bName={shortName(pickB, "b")}
+          busy={busy}
+          mixing={mixing}
+          canBuild={canRender}
+          // The tool as a whole requires SheetSage2 and YuE2 — this route needs
+          // neither, and needs AuK, which the shared `requires` cannot express.
+          noSeparator={!!server?.reachable && !hasEngine(server, "auk")}
+          onBuild={() => void buildLayered()}
+          onRemix={() => void remixLayered()}
+        />
+      )}
+
+      {/* ----- 5. the session ----------------------------------------------- */}
+      <section className="mc-panel">
+        <div className="mc-panel-h">
+          <h3>This session</h3>
+          <p>
+            Every version you make stays here, plays from your account and downloads on its own. Changing something
+            adds the next version — it never replaces the one you already have.
+          </p>
+        </div>
+
+        {hasVersions && (
+          <div className="mct-revise">
+            <Field label="Change it" hint="say what to fix, and the next version comes back">
+              <Text
+                value={change}
+                onChange={setChange}
+                placeholder={
+                  method === "layered"
+                    ? "bring the vocal up and nudge it a bit later"
+                    : "drop the tempo to 90, make the chorus bigger, lose the second verse"
+                }
+                rows={2}
+              />
+            </Field>
+            <div className="mct-bar">
+              <button
+                type="button"
+                className="mc-btn mc-btn-go"
+                onClick={() => void (method === "layered" ? remixLayered() : revise())}
+                disabled={!change.trim() || busy || blocked}
+              >
+                <Icon.Sparkles width={14} height={14} />{" "}
+                {writer.busy ? "Rewriting…" : `Make v${nextVersionNumber(versions)}`}
+              </button>
+              <span className="mc-note mct-quiet">
+                {method === "layered"
+                  ? "Re-mixes the stems already split — no GPU work, so it is seconds not minutes."
+                  : "Revises the style line and lyrics of the last version, then renders again."}
+              </span>
+            </div>
+          </div>
+        )}
+
+        <Versions versions={versions} renders={project.renders} projectId={project.id} onRerender={(v) => void rerender(v)} busy={busy || blocked} method={method} />
       </section>
     </div>
+  );
+}
+
+// ----- the honesty banner ---------------------------------------------------
+
+function MethodNote({ method }: { method: MashupMethod }) {
+  return (
+    <p className="mc-note is-warn">
+      {method === "generated" ? (
+        <>
+          <strong>This builds a new recording, not an edit of the old ones.</strong> One song&apos;s melody is written
+          down as a score and performed by YuE2 inside a style assembled from both records. No original audio survives
+          it — not the singers, not their voices, not a single drum hit. Switch to <em>Layered</em> below if you want
+          the real records in the output.
+        </>
+      ) : (
+        <>
+          <strong>This is the real audio from both records.</strong> One song&apos;s vocal is separated out and laid
+          over the other&apos;s backing track. Nothing in this stack beat-matches, key-matches or time-stretches, so it
+          lands when the two songs already sit near the same tempo and key — and drifts when they do not. Most of the
+          controls above are generated-route only and are greyed out here.
+        </>
+      )}
+    </p>
+  );
+}
+
+/** The one-line role of a side, for the top of its picker card. */
+function roleOf(side: Side, blend: BlendSpec, method: MashupMethod): string {
+  if (method === "layered") {
+    return blend.vocal === side ? "Its vocal is lifted out and used." : "Its backing track is lifted out and used.";
+  }
+  const mine = (Object.keys(blend) as (keyof BlendSpec)[]).filter(
+    (k) => k !== "dominance" && k !== "bpm" && blend[k] === side && appliesTo(k as ElementId, method),
+  );
+  if (!mine.length) return "Nothing is taken from this one yet — every control is pointed at the other record.";
+  const names = mine.map((k) => ELEMENTS.find((e) => e.id === k)?.label.toLowerCase() ?? String(k));
+  return `Gives the ${names.join(", ")}.`;
+}
+
+// ----- the generated route's build panel ------------------------------------
+
+function GeneratedBuild({
+  project,
+  update,
+  blend,
+  scores,
+  clips,
+  aName,
+  bName,
+  progression,
+  notes,
+  writer,
+  busy,
+  blocked,
+  bothNamed,
+  canRender,
+  noTranscriber,
+  onTranscribe,
+  onPlan,
+  onRender,
+  hasVersions,
+}: {
+  project: Project;
+  update: (patch: Partial<Project>) => void;
+  blend: BlendSpec;
+  scores: Record<Side, Score | undefined>;
+  clips: { a: SideClip | null; b: SideClip | null };
+  aName: string;
+  bName: string;
+  progression: string[];
+  notes: string;
+  writer: ReturnType<typeof useWriter>;
+  busy: boolean;
+  blocked: boolean;
+  bothNamed: boolean;
+  canRender: boolean;
+  noTranscriber: boolean;
+  onTranscribe: (side: Side) => void;
+  onPlan: () => void;
+  onRender: () => void;
+  hasVersions: boolean;
+}) {
+  const melodySide = blend.melody;
+  const melodyScore = scores[melodySide];
+  const melodyName = melodySide === "a" ? aName : bName;
+  const harmonySide = blend.harmony === "model" ? null : blend.harmony;
+  const harmonyScore = harmonySide ? scores[harmonySide] : undefined;
+  const harmonyName = harmonySide === "a" ? aName : bName;
+  // What will actually be performed: whatever is in the box, falling back to
+  // the transcription it was seeded from.
+  const score = project.request.abc || melodyScore?.stripped || "";
+
+  return (
+    <section className="mc-panel">
+      <div className="mc-panel-h">
+        <h3>Build it</h3>
+        <p>Read the melody off one record, write the plan, render. Each step remembers what it did.</p>
+      </div>
+
+      {/* --- the melody score --- */}
+      <div className="mct-step-row">
+        <div className="mct-step-n">1</div>
+        <div className="mct-step-b">
+          <strong>Read the melody off {melodyName}</strong>
+          <p className="mc-note">
+            SheetSage2 writes the tune down as an ABC score. That score is what gets performed — the recording itself
+            goes no further. Transcribing takes a few GPU minutes and is remembered per song, so switching the melody
+            knob back and forth does not spend it twice.
+          </p>
+          <div className="mct-bar">
+            <button
+              type="button"
+              className="mc-btn mc-btn-go"
+              onClick={() => onTranscribe(melodySide)}
+              disabled={!clips[melodySide] || busy || blocked || noTranscriber}
+              title={
+                noTranscriber
+                  ? "This server has no SheetSage2, so it cannot transcribe"
+                  : !clips[melodySide]
+                    ? `${melodyName} has no audio loaded on this device`
+                    : undefined
+              }
+            >
+              <Icon.Layers width={14} height={14} />{" "}
+              {melodyScore ? `Transcribe ${melodySide.toUpperCase()} again` : `Transcribe ${melodySide.toUpperCase()}`}
+            </button>
+            {harmonySide && harmonySide !== melodySide && (
+              <button
+                type="button"
+                className="mc-btn"
+                onClick={() => onTranscribe(harmonySide)}
+                disabled={!clips[harmonySide] || busy || blocked || noTranscriber}
+                title={
+                  noTranscriber
+                    ? "This server has no SheetSage2, so it cannot transcribe"
+                    : !clips[harmonySide]
+                      ? `${harmonyName} has no audio loaded on this device`
+                      : undefined
+                }
+              >
+                <Icon.Layers width={13} height={13} />{" "}
+                {harmonyScore ? `Re-read ${harmonySide.toUpperCase()}'s chords` : `Read ${harmonySide.toUpperCase()}'s chords`}
+              </button>
+            )}
+          </div>
+          {noTranscriber && (
+            <p className="mc-note is-warn">
+              The GPU server is up but has no SheetSage2 installed, so it cannot read a melody off a recording. Every
+              other part of this route still works — paste an ABC score into the box below (Remix / Stems makes them,
+              and so does anything else that speaks ABC) and render as normal.
+            </p>
+          )}
+          {!noTranscriber && !clips[melodySide] && (
+            <p className="mc-note is-warn">
+              {melodyName} has no audio in this tab. Pick it from the catalogue (or drop its file in) above — audio is
+              never saved into the project, so it needs loading again after a reload.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {melodyScore?.warnings.length ? (
+        <div className="mc-note is-warn mct-warns">
+          <strong>SheetSage2 reported this about {melodyName}:</strong>
+          <ul>
+            {melodyScore.warnings.map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+          <p>A transcription error carries straight through: YuE2 performs whatever these notes say, confidently.</p>
+        </div>
+      ) : null}
+
+      {/*
+        Always open, never gated on a transcription having happened.
+
+        Transcribing is the normal way to fill this in, but it is not the only
+        source of a score: Remix / Stems produces them, ABC is a text format
+        people write by hand, and — the case that actually bites — a GPU server
+        without SheetSage2 installed cannot transcribe at all. Hiding the box
+        until a transcription succeeded made the whole generated route dead on
+        such a server, with no way in even for someone holding a perfectly good
+        score. `request.abc` is what gets performed either way, so the box that
+        edits it is the honest thing to show.
+      */}
+      <details className="mct-fold" open={!!score && !melodyScore}>
+        <summary>
+          {melodyScore ? "The melody score, chords stripped — edit it if you want" : "The melody score — paste one in, or transcribe above"}
+        </summary>
+        <pre className="mc-mono mct-pre">
+          <textarea
+            className="mct-score"
+            rows={12}
+            spellCheck={false}
+            value={score}
+            onChange={(e) => update({ request: { ...project.request, abc: e.target.value } })}
+            placeholder={"X:1\nT:Melody\nM:4/4\nL:1/8\nK:Am\n| A2 A2 c2 d2 | e4 d4 |"}
+            aria-label="ABC score"
+          />
+        </pre>
+        <p className="mc-note">
+          {melodyScore ? (
+            <>
+              Chord symbols are removed on purpose: they are {melodyName}&apos;s harmony, and keeping them drags that
+              record&apos;s world along with its tune — the opposite of what the chords knob is for.
+            </>
+          ) : (
+            <>
+              ABC notation. This text is what gets performed, so a score from anywhere — Remix / Stems, another tool,
+              your own typing — works here exactly as a transcription would.
+            </>
+          )}
+        </p>
+      </details>
+
+      {harmonySide && (
+        <p className={`mc-note ${progression.length ? "" : "is-warn"}`}>
+          {progression.length ? (
+            <>
+              <strong>Chords from {harmonyName}:</strong> {progression.join(" – ")}. These travel to YuE2 as prose in
+              the style line, not as notation — grafting one record&apos;s chord symbols onto another&apos;s bars needs
+              the two transcriptions to agree on bar counts, and two different records never do. A progression
+              described in words is approximate and visibly so; a bad graft is wrong and invisible.
+            </>
+          ) : harmonyScore ? (
+            <>No chord symbols were found in {harmonyName}&apos;s transcription, so YuE2 writes its own harmony.</>
+          ) : (
+            <>
+              Chords are set to come from {harmonyName}, but it has not been transcribed yet — until it is, YuE2 writes
+              its own harmony.
+            </>
+          )}
+        </p>
+      )}
+
+      {/* --- the plan --- */}
+      <div className="mct-step-row">
+        <div className="mct-step-n">2</div>
+        <div className="mct-step-b">
+          <strong>Write the style line and the words</strong>
+          <p className="mc-note">
+            The blend plan above goes to the writer as instructions, not suggestions. It answers with the one line YuE2
+            reads and a lyric sheet that fits the melody&apos;s phrasing.
+          </p>
+          <div className="mct-bar">
+            <button type="button" className="mc-btn mc-btn-go" onClick={onPlan} disabled={!bothNamed || busy}>
+              <Icon.Sparkles width={14} height={14} /> {writer.busy ? "Writing…" : "Write the plan"}
+            </button>
+            {!bothNamed && <span className="mc-note mct-quiet">Name both songs first.</span>}
+          </div>
+          <WriterNote engine={writer.engine} warning={writer.warning} error={writer.error} />
+          {notes && <p className="mc-note">{notes}</p>}
+        </div>
+      </div>
+
+      <Field label="Style line" hint="sent to YuE2 as-is">
+        <Text
+          value={project.request.style}
+          onChange={(style) => update({ request: { ...project.request, style } })}
+          placeholder="English synth-pop over halftime trap drums, DX7 bells, breathy male tenor, 92 BPM"
+          rows={3}
+        />
+      </Field>
+      <Field label="Lyrics" hint="every character is sung">
+        <Text
+          value={project.request.lyrics}
+          onChange={(lyrics) => update({ request: { ...project.request, lyrics } })}
+          placeholder={"[Verse]\nwords that fit the melody's phrasing"}
+          rows={8}
+        />
+      </Field>
+      <p className="mc-note">
+        The melody is fixed by the score, so lines that do not match its phrasing get stretched or crushed to fit.
+        Counting syllables against the original is not fussiness here.
+      </p>
+
+      {/* --- render --- */}
+      <div className="mct-step-row">
+        <div className="mct-step-n">3</div>
+        <div className="mct-step-b">
+          <strong>Render it</strong>
+          <div className="mct-bar">
+            <button type="button" className="mc-btn mc-btn-go" onClick={onRender} disabled={!canRender || busy || blocked}>
+              <Icon.Note width={14} height={14} /> {hasVersions ? "Render another version" : "Make the mashup"}
+            </button>
+            <label className="mct-inline">
+              <span className="mc-field-l">Seed</span>
+              <input
+                className="mc-input mct-sel"
+                type="number"
+                value={project.request.seed || DEFAULT_SEED}
+                onChange={(e) => update({ request: { ...project.request, seed: Number(e.target.value) || DEFAULT_SEED } })}
+              />
+            </label>
+          </div>
+          {!canRender && (
+            <p className="mc-note">
+              Needs all three: a transcribed melody, a style line and lyrics. Melody mode has nothing to follow without
+              the score.
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ----- the layered route's build panel --------------------------------------
+
+function LayeredBuild({
+  project,
+  setData,
+  blend,
+  clips,
+  stems,
+  aName,
+  bName,
+  busy,
+  mixing,
+  canBuild,
+  noSeparator,
+  onBuild,
+  onRemix,
+}: {
+  project: Project;
+  setData: (patch: Record<string, unknown>) => void;
+  blend: BlendSpec;
+  clips: { a: SideClip | null; b: SideClip | null };
+  stems: Stems;
+  aName: string;
+  bName: string;
+  busy: boolean;
+  mixing: boolean;
+  canBuild: boolean;
+  noSeparator: boolean;
+  onBuild: () => void;
+  onRemix: () => void;
+}) {
+  const vocalSide = blend.vocal;
+  const musicSide: Side = vocalSide === "a" ? "b" : "a";
+  const vocalName = vocalSide === "a" ? aName : bName;
+  const musicName = musicSide === "a" ? aName : bName;
+  const ready = !!stems.vocalFileId && !!stems.musicFileId && stems.vocalFrom === vocalSide;
+
+  return (
+    <section className="mc-panel">
+      <div className="mc-panel-h">
+        <h3>Build it</h3>
+        <p>
+          {vocalName}&apos;s vocal over {musicName}&apos;s backing. Flip the <em>Vocal character</em> control above to
+          swap which way round it goes.
+        </p>
+      </div>
+
+      <div className="mct-step-row">
+        <div className="mct-step-n">1</div>
+        <div className="mct-step-b">
+          <strong>Split both records</strong>
+          <p className="mc-note">
+            AuK separates {vocalName} into its vocal and {musicName} into its backing. Two GPU jobs, run one after the
+            other; both are kept on the server so re-balancing afterwards costs nothing.
+          </p>
+          <div className="mct-bar">
+            <button
+              type="button"
+              className="mc-btn mc-btn-go"
+              onClick={onBuild}
+              disabled={!canBuild || busy || noSeparator}
+              title={noSeparator ? "This server has no AuK, so it cannot split a recording" : undefined}
+            >
+              <Icon.Layers width={14} height={14} /> {mixing ? "Mixing…" : ready ? "Split and mix again" : "Split and mix"}
+            </button>
+          </div>
+          {noSeparator && (
+            <p className="mc-note is-bad">
+              The GPU server is up but has no AuK installed, and separation is the whole of this route. The generated
+              route needs SheetSage2 and YuE2 instead — switch to it above, or install AuK on the server.
+            </p>
+          )}
+          {!canBuild && (
+            <p className="mc-note is-warn">
+              Both sides need audio in this tab. Pick tracks that have previews above, or drop the files in — audio is
+              never saved into the project, so it needs loading again after a reload.
+            </p>
+          )}
+          {(clips.a?.preview || clips.b?.preview) && (
+            <p className="mc-note">
+              At least one side is a 30-second preview, so the mashup will be 30 seconds long. Drop the full files in
+              for a whole song.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="mct-step-row">
+        <div className="mct-step-n">2</div>
+        <div className="mct-step-b">
+          <strong>Balance</strong>
+          <p className="mc-note">
+            The vocal and the backing are two finished files laid on top of each other. Nothing time-aligns them, so
+            the offset is how you slide the vocal onto the beat by ear.
+          </p>
+          <div className="mct-bar mct-gains">
+            <label className="mct-inline">
+              <span className="mc-field-l">Vocal dB</span>
+              <input
+                className="mc-input mct-sel"
+                type="number"
+                step={0.5}
+                value={Number(project.data?.vocalGainDb ?? 0)}
+                onChange={(e) => setData({ vocalGainDb: Number(e.target.value) || 0 })}
+              />
+            </label>
+            <label className="mct-inline">
+              <span className="mc-field-l">Backing dB</span>
+              <input
+                className="mc-input mct-sel"
+                type="number"
+                step={0.5}
+                value={Number(project.data?.musicGainDb ?? -3)}
+                onChange={(e) => setData({ musicGainDb: Number(e.target.value) || 0 })}
+              />
+            </label>
+            <label className="mct-inline">
+              <span className="mc-field-l">Vocal offset s</span>
+              <input
+                className="mc-input mct-sel"
+                type="number"
+                step={0.1}
+                value={Number(project.data?.offsetS ?? 0)}
+                onChange={(e) => setData({ offsetS: Number(e.target.value) || 0 })}
+              />
+            </label>
+            <button type="button" className="mc-btn" onClick={onRemix} disabled={!ready || busy}>
+              <Icon.Refresh width={13} height={13} /> Re-mix with these
+            </button>
+          </div>
+          {!ready && <p className="mc-note mct-quiet">Available once both stems have been split.</p>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ----- the version list ------------------------------------------------------
+
+/**
+ * Every finished attempt in this session, newest first.
+ *
+ * Each row carries the exact text that produced it, so a version is not just a
+ * file — it is a reproducible recipe. That is why "another take" is offered per
+ * row rather than only at the top: going back to v2 and trying a different seed
+ * is the most common thing anybody does here.
+ */
+function Versions({
+  versions,
+  renders,
+  projectId,
+  onRerender,
+  busy,
+  method,
+}: {
+  versions: MashupVersion[];
+  renders: Render[];
+  projectId: string;
+  onRerender: (version: MashupVersion) => void;
+  busy: boolean;
+  method: MashupMethod;
+}) {
+  if (!versions.length) {
+    return (
+      <p className="mc-empty">
+        No versions yet. Name two songs, set the blend, and press{" "}
+        {method === "layered" ? "Split and mix" : "Make the mashup"}.
+      </p>
+    );
+  }
+
+  return (
+    <ul className="mct-versions">
+      {versions.map((version) => {
+        const render = renders.find((r) => r.id === version.renderId);
+        return (
+          <li key={version.renderId} className={`mct-version ${render?.error ? "is-bad" : ""}`}>
+            <div className="mct-version-h">
+              <span className="mct-vn">v{version.n}</span>
+              <strong>{version.change || "the first version"}</strong>
+              <span className="mc-take-kind">{version.method}</span>
+              <time>{new Date(version.at).toLocaleString()}</time>
+            </div>
+
+            {!render ? (
+              <p className="mc-take-err">This version&apos;s take is no longer on the project.</p>
+            ) : render.error ? (
+              <p className="mc-take-err">{render.error}</p>
+            ) : render.fileId || render.saved ? (
+              <>
+                <TakePlayer render={render} />
+                <div className="mc-take-f">
+                  <TakeActions projectId={projectId} render={render} />
+                  {version.method === "generated" && (
+                    <button
+                      type="button"
+                      className="mc-btn mc-btn-s"
+                      onClick={() => onRerender(version)}
+                      disabled={busy}
+                      title="Same words, same sound, new seed — a different performance of this version's recipe"
+                    >
+                      <Icon.Refresh width={12} height={12} /> Another take of this
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="mc-take-err">The job finished without producing a file.</p>
+            )}
+
+            {version.style && (
+              <details className="mct-fold mct-version-r">
+                <summary>What made this version</summary>
+                <p className="mc-note">
+                  <strong>Style:</strong> {version.style}
+                </p>
+                {version.lyrics && <pre className="mc-mono mct-pre mct-ro">{version.lyrics}</pre>}
+              </details>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
