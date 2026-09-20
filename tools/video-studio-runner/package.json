@@ -1,0 +1,12 @@
+{
+  "name": "video-studio-runner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Runs on the owner's PC: renders the Video Studio Arena jobs that need a local engine (Remotion, HyperFrames, Unreal, Blender) with Claude Code and that engine's skill.",
+  "scripts": {
+    "runner": "node runner.mjs",
+    "runner:once": "node runner.mjs --once",
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}

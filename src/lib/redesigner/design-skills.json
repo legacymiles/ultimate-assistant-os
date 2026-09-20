@@ -118,5 +118,17 @@
   {
     "name": "shader-extract",
     "description": "Captures one WebGL / shader / Three.js / Spline / Unicorn Studio effect from a reference page and rebuilds it locally. Mix in when the redesign should borrow a specific animated background."
+  },
+  {
+    "name": "blender-threejs-export",
+    "description": "Export the current Blender scene as a GLB and generate a ready-to-use Three.js HTML viewer with orbit controls, lighting, and auto-rotation."
+  },
+  {
+    "name": "hyperframes",
+    "description": "Mandatory entry point: read this first for any request to make, create, edit, animate, or render a video, animation, or motion graphic, including a promo, explainer, captioned clip, title card, overlay, slideshow or interactive deck, Rem…"
+  },
+  {
+    "name": "preview-icon",
+    "description": "Generate looping video preview icons that show what an app, product, website or workflow actually DOES — the kind of clip that sits in a tool grid on openart.ai or magiclight.ai and plays on hover."
   }
 ]

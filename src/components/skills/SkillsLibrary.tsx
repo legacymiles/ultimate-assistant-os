@@ -16,6 +16,7 @@ import { categoriesIn, categoryFor } from "@/lib/skills/categories";
 import { SkillRow } from "./SkillRow";
 import { SkillDetailModal } from "./SkillDetailModal";
 import { SkillEditorModal } from "./SkillEditorModal";
+import { DesignGuide } from "./DesignGuide";
 
 type EditorState = { mode: "add" } | { mode: "edit"; skill: Skill } | null;
 type SyncMsg = { kind: "ok" | "info" | "error"; text: string } | null;
@@ -273,6 +274,9 @@ export function SkillsLibrary() {
             ))}
           </div>
         )}
+
+        {/* Web design guide (separate dropdown) */}
+        <DesignGuide skills={skills} onOpen={setDetail} />
 
         {/* List */}
         {loading ? (

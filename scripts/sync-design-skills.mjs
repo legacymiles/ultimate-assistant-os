@@ -31,10 +31,16 @@ const NOT_DESIGN = new Set([
   "gauntlet-loop",
   "social-link-import",
   "ai-os-dashboard",
+  // Helpers and non-style skills that happen to mention websites or frontends.
+  "dom-clone",
+  "output-skill",
+  "imagegen-frontend-mobile",
+  "higgsfield-models",
+  "video-analyzer",
 ]);
 
-// A website design skill talks about building/designing sites or landing pages.
-const WEB = /\b(websites?|landing pages?|web ?design|web pages?|hero sections?|scroll[- ]driven|scrollytelling|portfolio sites?|marketing pages?)\b/i;
+// A website design skill talks about building/designing sites, pages or frontends.
+const WEB = /\b(websites?|landing pages?|web ?design|web pages?|web ?apps?|hero sections?|scroll[- ]driven|scrollytelling|portfolio sites?|marketing pages?|frontend|front-end|interfaces?|design systems?|dashboards?|editorial sites?)\b/i;
 const DESIGN = /\b(design|build|premium|cinematic|interactive|animat|motion|visual|style|layout|hero|ui)\b/i;
 
 function frontmatter(text) {
@@ -75,9 +81,11 @@ if (existsSync(SKILLS_DIR)) {
     const file = join(SKILLS_DIR, dir.name, "SKILL.md");
     if (!existsSync(file)) continue;
     const fm = frontmatter(readFileSync(file, "utf8"));
-    const name = fm.name || dir.name;
+    // The folder name is what Claude Code's Skill tool invokes (taste-skill's
+    // frontmatter says "design-taste-frontend", but the skill is "taste-skill").
+    const name = dir.name;
     const desc = fm.description || "";
-    if (have.has(name) || NOT_DESIGN.has(name)) continue;
+    if (have.has(name) || have.has(fm.name) || NOT_DESIGN.has(name)) continue;
     if (!(WEB.test(desc) && DESIGN.test(desc))) continue;
     const entry = { name, description: summarize(desc) };
     roster.push(entry);
@@ -96,23 +104,38 @@ if (DRY) process.exit(0);
 
 writeFileSync(ROSTER, JSON.stringify(roster, null, 2) + "\n");
 
-const git = (...args) => execFileSync("git", args, { cwd: REPO, stdio: "pipe" }).toString().trim();
+const git = (cwd, ...args) => execFileSync("git", args, { cwd, stdio: "pipe" }).toString().trim();
 const path = relative(REPO, ROSTER).replace(/\\/g, "/");
+const message =
+  `Website Redesigner: add design skill${added.length > 1 ? "s" : ""} ${added.map((a) => a.name).join(", ")}\n\n` +
+  "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.";
+
+// The live site deploys from main, so the roster always lands on origin/main,
+// whatever branch is checked out. (Earlier runs committed onto feature branches
+// with no upstream and the push failed silently, so the live Redesigner never
+// saw the new skills.) A throwaway worktree on origin/main takes only the
+// roster; the working tree and the checked-out branch are never touched.
+const wt = join(REPO, ".git", "sync-design-skills-wt");
 try {
-  // `commit -- <path>` commits only the roster, even if other files are staged.
-  git("commit", "-m",
-    `Website Redesigner: add design skill${added.length > 1 ? "s" : ""} ${added.map((a) => a.name).join(", ")}\n\n` +
-    "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.",
-    "--", path);
+  git(REPO, "fetch", "-q", "origin", "main");
+  try { git(REPO, "worktree", "remove", "--force", wt); } catch { /* not there */ }
+  git(REPO, "worktree", "add", "-q", "--detach", wt, "origin/main");
   try {
-    git("push", "-q");
-  } catch {
-    // Behind the remote: catch up, then push again. (Only here, because an
-    // autostash can drop the staged half of other in-progress work.)
-    git("pull", "--rebase", "--autostash", "-q");
-    git("push", "-q");
+    const live = JSON.parse(readFileSync(join(wt, path), "utf8"));
+    const liveNames = new Set(live.map((s) => s.name));
+    for (const entry of added) if (!liveNames.has(entry.name)) live.push(entry);
+    writeFileSync(join(wt, path), JSON.stringify(live, null, 2) + "\n");
+    git(wt, "add", path);
+    if (git(wt, "status", "--porcelain")) {
+      git(wt, "commit", "-q", "-m", message);
+      git(wt, "push", "-q", "origin", "HEAD:main");
+      console.log("sync-design-skills: committed and pushed to main.");
+    } else {
+      console.log("sync-design-skills: main already has these skills.");
+    }
+  } finally {
+    git(REPO, "worktree", "remove", "--force", wt);
   }
-  console.log("sync-design-skills: committed and pushed.");
 } catch (e) {
-  console.error("sync-design-skills: saved the roster but git failed —", String(e.stderr || e.message).trim());
+  console.error("sync-design-skills: saved the roster locally but could not push to main —", String(e.stderr || e.message).trim());
 }

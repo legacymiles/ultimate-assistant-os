@@ -19,7 +19,7 @@
 import { useState } from "react";
 import { Icon } from "../../icons";
 import { type Clip, fileToClip } from "@/lib/music-creator/audio";
-import { mix, registerVoice, searchArtist } from "@/lib/music-creator/client";
+import { downloadUrl, mix, registerVoice, searchArtist } from "@/lib/music-creator/client";
 import { toolById } from "@/lib/music-creator/tools";
 import type { ToolProps } from "@/lib/music-creator/tools";
 import type { ArtistTrack, Render, VoiceProfile } from "@/lib/music-creator/types";
@@ -529,7 +529,7 @@ function Perform({
 // ----- combining -----------------------------------------------------------
 
 function Combine({ project, busy, fileUrl }: { project: ToolProps["project"]; busy: boolean; fileUrl: (id: string) => string }) {
-  const { patchProject } = useStudio();
+  const { addRender } = useStudio();
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [vocalGain, setVocalGain] = useState(0);
@@ -559,9 +559,9 @@ function Combine({ project, busy, fileUrl }: { project: ToolProps["project"]; bu
         jobId: null,
         created: Date.now(),
       };
-      // Against the live project: a render that finished while the mix was
-      // running is still in the list this adds to.
-      patchProject(project.id, (p) => ({ renders: [record, ...p.renders] }));
+      // Against the live project (a render that finished while the mix was
+      // running is still in the list), and saved to the account's library.
+      addRender(project.id, record);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -608,7 +608,7 @@ function Combine({ project, busy, fileUrl }: { project: ToolProps["project"]; bu
         <button type="button" className="mc-btn mc-btn-go" onClick={combine} disabled={working || busy}>
           {working ? "Mixing…" : "Combine into one track"}
         </button>
-        <a className="mc-btn mc-btn-s" href={fileUrl(bed)} download>
+        <a className="mc-btn mc-btn-s" href={downloadUrl(music.find((r) => r.fileId === bed) ?? music[0]) ?? fileUrl(bed)} download>
           <Icon.Download width={12} height={12} /> The bed on its own
         </a>
       </div>

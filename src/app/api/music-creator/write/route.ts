@@ -16,7 +16,17 @@ import { type WriteTask, offlineDraft, systemFor, userFor } from "@/lib/music-cr
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-const TASKS = new Set<WriteTask>(["lyrics", "style", "hooks", "mashup", "rewrite", "vocal-direction"]);
+const TASKS = new Set<WriteTask>([
+  "lyrics",
+  "style",
+  "hooks",
+  "mashup",
+  "rewrite",
+  "vocal-direction",
+  "mashup-find",
+  "mashup-blend",
+  "mashup-revise",
+]);
 
 /** Longest brief we will forward. Generous for lyrics, small enough to bound cost. */
 const MAX_INPUT = 12_000;
@@ -121,6 +131,22 @@ function clean(task: WriteTask, result: Record<string, unknown>): Record<string,
   if (task === "vocal-direction") {
     out.text = String(out.text ?? "").trim();
     out.instruction = String(out.instruction ?? "").replace(/\s+/g, " ").trim().slice(0, 300);
+  }
+  if (task === "mashup-find") {
+    // Catalogue queries, not prose: a model that answers with a sentence would
+    // otherwise be sent to iTunes as a search term and find nothing.
+    out.songA = String(out.songA ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+    out.songB = String(out.songB ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+    out.brief = String(out.brief ?? "").trim().slice(0, 600);
+  }
+  if (task === "mashup-find" || task === "mashup-blend") {
+    out.title = String(out.title ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+  }
+  if (task === "mashup-blend" || task === "mashup-revise") {
+    out.notes = String(out.notes ?? "").trim().slice(0, 800);
+  }
+  if (task === "mashup-revise") {
+    out.changed = String(out.changed ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
   }
   return out;
 }

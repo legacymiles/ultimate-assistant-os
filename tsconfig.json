@@ -31,6 +31,8 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    ".next-build-check/types/**/*.ts",
+    ".next-build-jarvis/types/**/*.ts",
     ".next-buildcheck/types/**/*.ts",
     ".next-deploycheck/types/**/*.ts",
     ".next-preview-3210/types/**/*.ts",
@@ -53,11 +55,17 @@
     ".next-preview-3234/types/**/*.ts",
     ".next-preview-3236/types/**/*.ts",
     ".next-preview-3237/types/**/*.ts",
+    ".next-preview-3238/types/**/*.ts",
+    ".next-preview-3240/types/**/*.ts",
+    ".next-preview-3241/types/**/*.ts",
+    ".next-preview-3245/types/**/*.ts",
+    ".next-preview-3246/types/**/*.ts",
+    ".next-preview-3247/types/**/*.ts",
     ".next-ssbuild/types/**/*.ts",
     ".next-verify/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-preview-3238/types/**/*.ts"
+    ".next-preview-3242/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

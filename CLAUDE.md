@@ -23,7 +23,7 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 | Cross-device state | `src/lib/sync/appState.ts` (`loadLocal` / `saveSynced` / `useRemotePull`, Supabase `app_state` table) |
 | Password gates | `src/lib/appGate.ts` + `src/middleware.ts` |
 | Database schema | `supabase/migrations/` (combined: `supabase/all-schemas.sql`) |
-| GPU / desktop helpers that are not the website | `tools/` (music-creator, realtime-lucy, studio3d-builder, unreal-bridge, unreal-builder) |
+| GPU / desktop helpers that are not the website | `tools/` (music-creator, realtime-lucy, studio3d-builder, unreal-bridge, unreal-builder, video-studio-runner) |
 | Repo-local skill | `skills/unreal-game-builder/` — the owner's other skills are in `C:\Users\honey\.claude\skills\` |
 | Design specs and plans | `docs/superpowers/{specs,plans}/` |
 | Screenshots / loose images | `docs/screenshots/` (gitignored) · `docs/images/` |
@@ -49,6 +49,7 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 | `website-redesigner` | `redesigner` |
 | `seedance-studio` | `seedance` |
 | `smart-shot-videos` | `smart-shot` |
+| `video-studio-arena` | `video-studio` (engines: `src/lib/video-studio/methods/<id>/`) |
 | `skills-library` | `skills` |
 | `slippery-escape` | `slippery` |
 | `projects-timeline` | `src/components/AppShell.tsx` + `src/lib/repo` (the original app; `README.md` describes it) |

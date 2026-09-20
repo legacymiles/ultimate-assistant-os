@@ -43,6 +43,10 @@ const TOKEN_AUTH_PATHS = new Set([
   "/api/studio3d/builder/progress",
   "/api/studio3d/builder/media",
   "/api/studio3d/builder/fail",
+  "/api/video-studio/runner/claim",
+  "/api/video-studio/runner/progress",
+  "/api/video-studio/runner/clip",
+  "/api/video-studio/runner/fail",
 ]);
 
 /** Stamp (or clear) the account id the browser is allowed to render as. */

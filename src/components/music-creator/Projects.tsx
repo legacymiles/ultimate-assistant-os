@@ -7,10 +7,9 @@
 // memory rather than one tool's history. A project reopens in the tool that
 // made it, with its takes attached.
 //
-// Renders are not stored here as audio: `Render.fileId` is a handle to a file
-// on the GPU server. That is stated on the card, because a rented box that has
-// since been destroyed takes its files with it, and a project whose takes have
-// gone quiet should say why rather than look broken.
+// Renders are not stored here as audio: each take's `saved` names its copy in
+// the account's song library (lib/music-creator/library.ts), and `fileId` is
+// the original on the GPU server, used only until that copy exists.
 // ---------------------------------------------------------------------------
 
 import { useMemo, useState } from "react";
@@ -92,9 +91,9 @@ export function Projects() {
       </ul>
 
       <p className="mc-note">
-        Projects hold their words, style, score and the handles to their takes — the audio itself stays on the GPU
-        server that made it, so takes from a server you have since shut down will no longer play. Download the ones
-        worth keeping.
+        Projects hold their words, style, score and takes. Every finished take is also copied into your account the
+        moment it renders, so it keeps playing after the GPU goes to sleep — a take marked &quot;only on the GPU&quot; can
+        be saved with its button (it wakes the GPU once).
       </p>
     </div>
   );

@@ -866,3 +866,192 @@ select.mc-input {
   background: var(--mc-ok);
   box-shadow: 0 0 8px rgba(74, 222, 128, 0.6);
 }
+
+/* ----- library status on a take ----- */
+.mc-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mc-mono);
+  font-size: 10.5px;
+  color: var(--mc-ink-3);
+}
+.mc-saved.is-ok {
+  color: var(--mc-ok);
+}
+.mc-saved.is-warn {
+  color: var(--mc-warm);
+}
+
+/* ----- finished songs (library) ----- */
+.mc-lib {
+  resize: none;
+  margin-top: 30px;
+  padding-top: 22px;
+  border-top: 1px solid var(--mc-line);
+}
+.mc-lib .mc-area-h h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.mc-lib .mc-area-h h2 i {
+  font-style: normal;
+  color: var(--mc-ink-3);
+  font-family: var(--mc-mono);
+}
+.mc-lib-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.mc-chip {
+  font: inherit;
+  font-size: 11.5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--mc-line-2);
+  background: var(--mc-panel);
+  color: var(--mc-ink-2);
+  cursor: pointer;
+}
+.mc-chip i {
+  font-style: normal;
+  font-family: var(--mc-mono);
+  color: var(--mc-ink-3);
+  margin-left: 3px;
+}
+.mc-chip.is-on {
+  border-color: var(--mc-go);
+  color: var(--mc-ink);
+  background: rgba(124, 92, 255, 0.14);
+}
+.mc-chip:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.mc-lib-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--mc-line);
+  border-radius: 11px;
+  overflow: hidden;
+}
+.mc-lib-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: var(--mc-panel);
+  border-top: 1px solid var(--mc-line);
+}
+.mc-lib-row:first-child {
+  border-top: 0;
+}
+.mc-lib-row.is-on {
+  background: rgba(124, 92, 255, 0.1);
+}
+.mc-lib-play {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--mc-line-2);
+  background: var(--mc-panel-2);
+  color: var(--mc-ink);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.mc-lib-play:hover,
+.mc-lib-row.is-on .mc-lib-play {
+  border-color: var(--mc-go);
+  color: var(--mc-go-2);
+}
+.mc-lib-m {
+  flex: 1;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+}
+.mc-lib-m strong {
+  font-size: 13px;
+}
+.mc-lib-m span {
+  color: var(--mc-ink-3);
+  font-size: 11px;
+}
+.mc-lib-tool {
+  font-size: 11px;
+  color: var(--mc-go-2);
+  min-width: 100px;
+}
+.mc-lib-row time {
+  font-size: 11px;
+  color: var(--mc-ink-3);
+  min-width: 72px;
+}
+.mc-lib-a {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.mc-lib-now {
+  position: sticky;
+  bottom: 12px;
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--mc-go);
+  background: var(--mc-panel-2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+.mc-lib-now audio {
+  flex: 2;
+  min-width: 240px;
+  height: 34px;
+}
+
+/* ----- "create another" after a song is done ----- */
+.mc-done {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 0 16px;
+  padding: 12px 15px;
+  border-radius: 12px;
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  background: rgba(74, 222, 128, 0.07);
+}
+.mc-done p {
+  margin: 0;
+  flex: 1;
+  min-width: 200px;
+  color: var(--mc-ink-2);
+}
+.mc-done p strong {
+  color: var(--mc-ok);
+}
+.mc-tool-h-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mc-tool-h-row .mc-title {
+  flex: 1;
+  min-width: 0;
+}
+.mc-done audio {
+  flex: 1;
+  min-width: 220px;
+  height: 34px;
+}

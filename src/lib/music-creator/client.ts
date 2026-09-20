@@ -15,7 +15,7 @@
 // fails with the reason, and the tools show that reason.
 // ---------------------------------------------------------------------------
 
-import type { Job, PodInfo, ServerHealth, ServerState, VoiceProfile } from "./types";
+import type { Job, PodInfo, Render, ServerHealth, ServerState, VoiceProfile } from "./types";
 
 const BASE = "/api/music-creator";
 
@@ -177,6 +177,33 @@ export function fileUrl(fileId: string): string {
   return `${BASE}/files/${encodeURIComponent(fileId)}`;
 }
 
+// ----- the account's song library ------------------------------------------
+//
+// The GPU pod sleeps, and a take that only lives there goes silent with it. So
+// every take is copied into the account's library (see lib/music-creator/
+// library.ts) and played from there. The GPU link is only the fallback for a
+// take that has not been copied yet.
+
+/** Copy a take off the GPU server into the account's library. Returns the saved name. */
+export async function saveToLibrary(renderId: string, fileId: string): Promise<string> {
+  const body = await post("library", { renderId, fileId });
+  const saved = String(body.saved ?? "");
+  if (!saved) throw new Error("The library did not say where it saved the song.");
+  return saved;
+}
+
+/** The URL a take plays from: its library copy when it has one, else the GPU server. */
+export function playUrl(render: Render): string | null {
+  if (render.saved) return `${BASE}/library/${encodeURIComponent(render.saved)}`;
+  return render.fileId ? fileUrl(render.fileId) : null;
+}
+
+/** Like playUrl, but asking the browser to save the file. */
+export function downloadUrl(render: Render): string | null {
+  if (render.saved) return `${BASE}/library/${encodeURIComponent(render.saved)}?download=1`;
+  return render.fileId ? fileUrl(render.fileId) : null;
+}
+
 // ----- the Voice Library's server side -------------------------------------
 //
 // The library itself lives in the browser (see store.ts). These calls only
@@ -258,7 +285,16 @@ export async function mix(input: {
 // This one does not touch the GPU at all. It runs on the hub's ordinary AI key,
 // which is why the studio is useful on a laptop with no server configured.
 
-export type WriteTask = "lyrics" | "style" | "hooks" | "mashup" | "rewrite" | "vocal-direction";
+export type WriteTask =
+  | "lyrics"
+  | "style"
+  | "hooks"
+  | "mashup"
+  | "rewrite"
+  | "vocal-direction"
+  | "mashup-find"
+  | "mashup-blend"
+  | "mashup-revise";
 
 export async function write(task: WriteTask, input: Record<string, unknown>): Promise<Record<string, unknown>> {
   return post("write", { task, input });
