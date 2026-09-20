@@ -1,0 +1,20 @@
+---
+name: ember-reveal-app
+description: "EMBER WebGL mouse-trail image-reveal app at /apps/fire-reveal, using the webgl-trail-reveal skill"
+metadata: 
+  node_type: memory
+  type: project
+  originSessionId: 6b684e4c-8988-4266-807f-a4532306f0f1
+---
+
+EMBER — a WebGL **mouse-trail** image-reveal studio at `/apps/fire-reveal` (route: `src/app/apps/fire-reveal/`), built per the dedicated [[webgl-trail-reveal-skill]]. Two pixel-aligned wolf images (calm vs. fire-helmet) stacked in one shader; moving the pointer paints a ring-buffer trail (24 aged points) that scans the top image away, with a thin chromatic-split (RGB channel offset) distortion band at the boundary — not a blob/fireball. Trail holds briefly then eases closed. Click = "Flash" burst (scatter points at cursor). 4 rim-tint presets (Ember/Inferno/Frost/Toxic).
+
+Effect = WIDE warp field (morphs the WHOLE image around the cursor as it drags, then eases back to normal as the trail ages — this is what the Unicorn Studio video actually does; the user was clear it's not just an edge distortion) PLUS a tighter reveal core where the hidden image shows through. Shader accumulates both in one trail loop: `field`/`warp` on a wide radius, `mask` on a tight radius. Base samples with `imgUv + shift*0.6` so the base morphs too. Image is CONTAIN-fit (`containUv`, out-of-bounds → dark) so the whole subject is always visible — the wolf pngs are square 1254×1254 so letterbox bars are invisible on black. 6 presets are DISTINCT EFFECT MODES via `uMode` int, not colors (the user explicitly rejected color-only variants): Trail / Liquid(fbm flow) / Ripple(concentric sine) / Glitch(RGB blocks) / Pixel(mosaic) / Bulge(magnify pull). Dock label is "Effect". "Trail scale" slider 0.6–2.6, TRAIL_N=28. Intro/hero overlay (headline + lede + "Start creating") recedes on first pointer move — reads like a real mask-studio site; plus cinematic vignette + SVG grain.
+
+PARAMETRIC control panel (mirrors Unicorn Studio's "Reveal Background" panel from a screenshot the user shared): right-side floating panel with a Type selector (the 6 modes) + 9 live sliders — Radius, Strength, Hardness, Tail, Fluidity, Dissipation, Chromatic ab., Momentum, Scale — defaults copied from the reference (43/55/20/89/29/100/42/75/0). Params flow as a `RevealParams` object prop into RevealPlane; useFrame reads latest (re-registers each render). Momentum = spring inertia (stiffness/damping), Tail = point holdDuration, Dissipation = `uTailFade` exponent, Hardness = grain size + dissolve band width. Reveal edge is now a grainy particle DISSOLVE (fbm threshold) like the reference, not a clean mix. `DEFAULT_PARAMS`/`PARAM_META`/`MODES` all exported from the shader file. Bottom-left toolbar for Base/Hidden uploads + "Demo wolf" reset.
+
+Key files: `src/shaders/trailReveal.ts`, `src/components/reveal/RevealPlane.tsx` + `FireRevealStudio.tsx`. Real demo images at `public/reveal/demo-base.png` (calm wolf) / `demo-reveal.png` (fire-helmet wolf) — pulled from the user's Downloads folder (ChatGPT-generated, pasted in chat but landed on disk in Downloads, not accessible as a direct chat attachment).
+
+**First attempt was wrong and the user called it out hard:** built a cartoon fireball/spotlight-at-cursor effect instead of researching what Unicorn Studio's actual "image reveal" technique does (a mouse-TRAIL with subtle pixel/chromatic distortion, not a single blob that snaps to current pointer position). Lesson: when a user references a specific tool/video (unicorn.studio, a YouTube tutorial) for a technique, research it first (WebSearch for how-it's-built breakdowns) before implementing — don't improvise a similar-sounding effect from memory. Also lesson: when a user pastes images in chat and says "use my images," check `~/Downloads` and recently-modified files — pasted images often land there, not just as inline chat attachments.
+
+**Gotcha carried over:** R3F `useFrame` delta can be 0 on first frame → NaN poison. Guard with `Math.max(delta, 0.001)` on any velocity/age-from-delta shader logic.

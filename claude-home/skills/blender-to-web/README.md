@@ -1,0 +1,346 @@
+> **Local universal copy.** SKILL.md and references/brief.md were rewritten so the skill works for any brand, shape or palette (the LUMA/iris/charcoal-yellow prompts below are just the original example). The original skill text is in references/upstream-SKILL.md. Mockup images: scripts/mockups.mjs (OpenRouter).
+
+# Blender to Web
+
+> **Historical example — do not reuse its look/brief.** Everything below documents the original
+> APERTURE/LUMA/infinity project (charcoal + acid yellow, robotic iris). It is a technique record,
+> not a template, palette or prompt to copy.
+
+**Build living 3D website heroes from editable Blender assets.**
+
+An agent skill, a runnable reference project, and a documented workflow for going from a visual concept to Blender geometry to real-time browser interaction. Created from the APERTURE experiments by Chase AI with Codex.
+
+![APERTURE infinity hero](assets/reference-project/outputs/landing-build/desktop-hero.png)
+
+The infinity above is real geometry in the browser. You can brush its tiles apart, drag to rotate, click to expand and reassemble, and watch a light wave travel around its surface. Scrolling carries it through a story before a working, fictional notebook demo.
+
+[Run the example](#run-the-example) · [Install the skill](#install-the-codex-skill) · [Four-step practical guide](#four-step-practical-guide) · [Prompt library](references/prompts.md) · [Blender source](assets/reference-project/outputs/infinity-sculpture/build.py)
+
+## What this does
+
+- Preserves a repeatable process: concept, graybox, detailed model, export, browser interaction, visual comparison and verification.
+- Provides editable Blender Python and `.blend` files, an efficient `.glb`, a Three.js website, and still-image fallbacks.
+- Demonstrates shared geometry and instancing, local spring motion, click-versus-drag handling, a shader light pulse and scroll storytelling.
+- Gives an AI coding agent the asset contracts and lessons it needs to adapt the method to a new design.
+- Includes original saved concept/mockup prompts, separately labeled new prompt recipes, and historical validation evidence.
+
+This is a workflow and example code, not a Blender plugin or a one-click converter. Blender physics, hair dynamics, constraints and lighting do not automatically become browser behavior. The runtime implements its own motion and lighting.
+
+## How we built the original
+
+**Blender to Web was created after these experiments.** We first built and refined the shell and infinity using existing skills, executable tools and custom code, then packaged the successful handoff and lessons into this repository.
+
+| What we used | Role in the original work |
+| --- | --- |
+| Image-generation tools | Visual concepts and landing-page mockups to guide the build |
+| Blender Agent Studio skills | Modeling, rendering, animation, asset validation and iterative refinement guidance; its MCP integration guidance also helped assess connection options |
+| Blender Python through the command line | Actual scene construction, rendering, GLB export and fresh-import validation; the reproducible scripts are included here |
+| Native computer use | Opened and visually inspected the earlier shell scene in Blender; separate from the scripted build and rendered-image checks |
+| Frontend Design and Impeccable skills | Website composition, design refinement and review |
+| Custom Three.js code and browser checks | Live motion, visitor interactions, lighting, scroll behavior, screenshots and runtime verification |
+
+We checked a configured Blender MCP connection, but its live scene connection failed because the add-on server was not listening. The build proceeded through scripts; a working Blender MCP was not the mechanism that produced these assets. MCP remains an optional way to inspect or edit an open scene when available.
+
+A **skill supplies instructions**, while a **tool executes actions**. This new skill captures the Blender-to-browser workflow and working reference; it does not bundle those other skills, install Blender, supply an image generator or replace general modeling expertise. You do not need our entire original skill collection to run the example or its included Blender scripts. For a new complex asset, complementary Blender and design skills can still help.
+
+The four-step guide below is the simplified workflow we distilled afterward. The original work involved multiple experiments and revisions, rather than one prompt producing the finished website.
+
+## What to install
+
+| What you want to do | Requirements |
+| --- | --- |
+| View the supplied website | [Node.js](https://nodejs.org/en/download) and a browser; a hardware-accelerated WebGL 2 browser is needed for live 3D |
+| Download the repository | Git, or GitHub's **Code → Download ZIP** |
+| Use the agent skill | Codex plus this skill; Python 3.10+ for the optional installer/copy helper |
+| Follow our modeling workflow for a new asset (recommended) | Separately install [Blender Agent Studio](https://github.com/ifBars/blender-agent-studio#install); see [companion skills](#recommended-companion-skills) |
+| Rebuild or edit the sculpture | [Blender](https://www.blender.org/download/); reference authored with Blender 5.2.1 LTS |
+| Run the saved browser checks | Python, Playwright and installed Google Chrome; see [testing](#testing-and-known-limits) |
+| Convert a rebuilt macro render to WebP | Python with Pillow |
+
+The ready-to-run website does **not** require Blender, Figma, a Blender MCP server, an API key, a paid image/video model, or an npm dependency install. Three.js and Inter are included locally with their license notices.
+
+The reference was tested using Node 22.22.2, Python 3.13.7, Windows Chrome and an RTX 5090. Node's current LTS is a suitable starting point for new installs. Other environments need their own performance verification.
+
+## Recommended companion skills
+
+**For the four-step tutorial, we recommend installing Blender Agent Studio alongside Blender to Web before starting a new model.** It is an independent AI skill collection available as a Codex plugin. It does not come with Blender and is not included by this repository's installer.
+
+Follow the [Blender Agent Studio installation guide](https://github.com/ifBars/blender-agent-studio#install), which also links to a skills-only option. The full plugin currently requires Codex with plugin support, Blender and Bun 1.3.5 or newer. Open a new Codex task after installation. Its optional tooling is separate from the Blender Lab live connection discussed above; installing skills alone does not establish that connection.
+
+Blender Agent Studio guides modeling, rendering and validation. Blender to Web guides export, browser interaction and website integration. To use them together, add this sentence to the step-one prompt below:
+
+```text
+Also use the installed Blender Agent Studio modeling, rendering and
+asset-validation skills when we reach the Blender stage.
+```
+
+Frontend Design or Impeccable can additionally help with page design. These companion skills are recommendations for authoring new work; running the supplied website or rebuilding it with the included scripts does not require them. Our local Blender Agent Studio collection had adaptations, so the latest upstream package may differ from the one used for the original experiments.
+
+## Run the example
+
+```sh
+git clone https://github.com/cth9191/blender-to-web.git
+cd blender-to-web
+node assets/reference-project/outputs/infinity-site/server.cjs
+```
+
+Open **http://127.0.0.1:4175/**. Stop the server with `Ctrl+C`. It binds to localhost; this does not publish a website.
+
+If port 4175 is already occupied, choose another port:
+
+```powershell
+# Windows PowerShell
+$env:PORT = '4180'
+node assets/reference-project/outputs/infinity-site/server.cjs
+```
+
+```sh
+# macOS / Linux
+PORT=4180 node assets/reference-project/outputs/infinity-site/server.cjs
+```
+
+Then open **http://127.0.0.1:4180/**. Open through the server, not by double-clicking `index.html`.
+
+### Try these interactions
+
+1. Move over the infinity to disturb a local patch of tiles.
+2. Click to expand; click again to reassemble.
+3. Drag to rotate, then release for damped inertia.
+4. Leave it alone to see the yellow light wave.
+5. Scroll in a viewport wider than 1000 px to see the sculpture separate and reconnect while the text travels upward.
+6. Choose a notebook question, open its source, or copy its answer.
+7. Use **Pause motion** or enable reduced motion to inspect the fallback behavior.
+
+Coarse-pointer mobile, reduced-motion and data-saving contexts use a still. Narrow fine-pointer desktop layouts keep the live hero but show the story as normal document sections. Graphics initialization or performance problems may also select a fallback.
+
+## Install the Codex skill
+
+From the cloned repository:
+
+```sh
+python scripts/install_skill.py
+```
+
+Use `python3` if that is your Python command. The installer respects `CODEX_HOME`, otherwise uses `~/.codex/skills/blender-to-web`. It excludes Git history and refuses to overwrite an existing installation. For a custom location:
+
+```sh
+python scripts/install_skill.py --skills-dir /path/to/skills
+```
+
+Alternatively, copy this repository's files into a folder named `blender-to-web` inside your Codex skills directory, omitting `.git`. Open a fresh Codex task, then try:
+
+> **HISTORICAL — do not paste.** Original LUMA/APERTURE example; use references/brief.md prompts instead.
+
+> Use $blender-to-web to create an interactive robotic iris hero for a fictional optics product. Start with a visual direction, design the geometry and interaction contract, and use the APERTURE reference where appropriate.
+
+The skill can guide an agent through the work; it does not guarantee any coding model will reproduce a complex design in one attempt. General Blender specialist skills can complement it, but this repository does not require a particular MCP integration. No provider credential is bundled.
+
+## Four-step practical guide
+
+**Mockup → Blender model and inspection → Interactive website → Polish and test.**
+
+After installing the skill, open a Codex task in your new project folder. Invoke `$blender-to-web` in the first prompt; continue the remaining steps in that same task. In a new task, invoke it again and point the agent to your project and approved reference images.
+
+The prompts below are reusable recipes distilled from this project, **not verbatim transcripts**. They follow one example: a robotic iris for a fictional optics product. Replace that concept with your own. For our actual infinity direction, see the [saved concept prompts](assets/reference-project/outputs/hero-concepts/prompts.md), [landing-page mockup prompts](assets/reference-project/outputs/landing-page-mockups/prompts.md), and [sculpture brief](assets/reference-project/outputs/infinity-sculpture/contract.md).
+
+### 1. Design the look
+
+Copy this into your new task:
+
+> **HISTORICAL — do not paste.** Original LUMA/APERTURE example; use references/brief.md prompts instead.
+
+```text
+Use $blender-to-web to create a living 3D hero for a fictional optics
+product called LUMA. The centerpiece is a sculptural robotic iris.
+Generate three website mockup images with different art directions.
+Try charcoal and electric yellow for one. Show the headline, navigation
+and CTA, with the entire sculpture visible on a large desktop screen.
+Plan for a subtle idle light pulse, click to open/close, and drag to rotate.
+Use a still-image fallback for mobile. Keep the geometry plausible to
+build in Blender. Show me the mockups and wait for my choice before modeling.
+```
+
+**Review:** Choose the silhouette, colors, product story and page composition. Ask for another variation if needed. Image generation requires an available image-generation tool; this skill does not install one. The selected image is a visual reference for modeling, not an automatically converted 3D asset.
+
+### 2. Build and inspect in Blender
+
+Attach or identify the selected mockup, then send:
+
+> **HISTORICAL — do not paste.** Original LUMA/APERTURE example; use references/brief.md prompts instead.
+
+```text
+Use this mockup as the approved direction. Build the iris in Blender
+using reproducible Python, starting with a simple shape and camera check.
+Keep the editable .blend and builder script. Make its blades separate
+parts with stable names and pivots so the browser can animate them.
+Export an efficient GLB and verify it by importing it into a fresh scene.
+Show rendered previews of the closed and open poses plus a side view.
+Compare them to the mockup, fix visible problems, and let me review
+the previews before integrating the asset into the website.
+```
+
+**Review:** Check proportions, materials, blade movement and camera framing. You can inspect renders first and open the `.blend` for a closer look. Export and rendering may happen in the same build; the checkpoint is reviewing the asset before website integration.
+
+### 3. Build the interactive website
+
+Once the asset looks right:
+
+> **HISTORICAL — do not paste.** Original LUMA/APERTURE example; use references/brief.md prompts instead.
+
+```text
+Build the website around the approved iris using Three.js and the GLB.
+Match the selected mockup's layout, typography and lighting. Implement
+the idle light pulse, click-to-open/close and drag-to-rotate behavior in
+the browser. Distinguish clicks from drags and preserve rotation when
+scrolling. Keep text and buttons as normal accessible HTML. Add a pause
+control and a still fallback for mobile, reduced motion and graphics
+failure. Show the page in the browser pane so I can try it.
+```
+
+**Review:** Try the interactions and scroll through the page. Blender supplies the asset; the agent writes the website and browser behavior. Exporting a GLB does not transfer Blender's physics engine or recreate its rendered lighting automatically.
+
+### 4. Polish and test
+
+After trying the working page:
+
+> **HISTORICAL — do not paste.** Original LUMA/APERTURE example; use references/brief.md prompts instead.
+
+```text
+Compare browser screenshots against our approved mockup at matching
+viewport sizes. Refine composition, lighting, text flow and motion.
+Check idle, click, drag, scroll, pause and fallback states. Check narrow
+layouts and keyboard access. Measure asset download size and frame timing,
+recording the actual device and browser used. Pause rendering when hidden
+or offscreen. Fix issues you find, then give me the runnable website,
+Blender source, export, poster and a short report of what was verified
+and what still needs testing on other hardware.
+```
+
+**Review:** Judge the result in motion as well as in screenshots. A desktop GPU result does not establish performance on an average laptop; test representative hardware before making that claim. Repeat the relevant step when you want to change the design.
+
+For a head start, use the copy helper below. It gives you the working infinity baseline; a new iris needs its own geometry and motion code. The skill guides that adaptation rather than making every asset interchangeable.
+
+## Start a new project without changing the reference
+
+```sh
+python scripts/new_project.py ../my-living-hero
+cd ../my-living-hero
+node outputs/infinity-site/server.cjs
+```
+
+The destination must not already exist. Set `PORT` if the original demo is still running.
+
+The copy includes the editable asset and webpage. Begin by changing one family of decisions: silhouette, tile geometry, material palette, pulse, spring behavior, camera, or page composition. The current runtime expects a specific tile count, ID format and material grouping; [read the asset contract](references/infinity.md) before swapping the GLB.
+
+## Examples from the project
+
+### Magnetic infinity — complete runnable example
+
+![Expanded infinity sculpture](assets/reference-project/outputs/infinity-sculpture/browser-expanded.png)
+
+A 1,792-piece sculpture built from a shared beveled tile mesh. The export becomes three instanced draw calls in the browser. A fixed-step spring solver handles displacement and return; the light wave uses instance metadata in a shader. The source GLB is about 373 KB.
+
+[Editable Blender file](assets/reference-project/outputs/infinity-sculpture/infinity.blend) · [Builder](assets/reference-project/outputs/infinity-sculpture/build.py) · [Runtime](assets/reference-project/outputs/infinity-site/sculpture.js) · [Technical report](assets/reference-project/outputs/infinity-sculpture/final_report.md)
+
+### Landing page — composition around the sculpture
+
+![Prepared notebook demonstration](assets/reference-project/outputs/landing-build/desktop-product.png)
+
+The example includes the hero, scroll story, source-to-answer connections, a Blender-rendered macro detail and final call to action. The product and notebook answers are fictional; no AI backend is connected. Saved mockups show how the art direction became a working layout.
+
+[Original mockup prompts](assets/reference-project/outputs/landing-page-mockups/prompts.md) · [Design system](assets/reference-project/outputs/infinity-site/DESIGN.md)
+
+### Fiber shell — architecture and source extracts
+
+![Earlier fiber interaction experiment](references/fiber-source/interactive-brush.png)
+
+The earlier shell experiment used a small set of CPU-simulated guides to deform many GPU-rendered fibers. It taught us how to retain the appearance of a groom without delivering a huge baked animation. It approximates soft motion; it does not reproduce Blender Hair Dynamics or strand collisions.
+
+This repository contains selected export/runtime source and historical evidence for that technique, **not the full runnable shell project**. [Read the fiber lessons](references/fibers.md).
+
+## How the workflow fits together
+
+```mermaid
+flowchart LR
+    A[Concept and interaction brief] --> B[Blender Python and editable scene]
+    B --> C[Export geometry and rest data]
+    C --> D[Fresh import and visual checks]
+    D --> E[Three.js materials and interaction]
+    E --> F[Website composition and fallbacks]
+    F --> G[Browser captures and measured checks]
+    G -->|Refine| B
+```
+
+Blender owns the asset. The browser owns the live visitor response. MCP or computer use can assist with inspection, while deterministic scripts preserve the reproducible work. Read [workflow decisions](references/workflow.md) for choosing between instanced parts, skeletons, guide deformation and fixed playback.
+
+Possible next concepts include an iris, articulated robot arm, segmented face or kinetic flower. Those require their own modeling and motion work; they are ideas, not finished examples bundled here.
+
+## Rebuild the Blender asset
+
+Work inside a copy created by `new_project.py`. Put `blender` on PATH or substitute the full executable path. Blender includes the Python environment used by these scripts; do not install `bpy` with pip for this workflow.
+
+```sh
+blender --background --python outputs/infinity-sculpture/build.py -- --graybox
+blender --background --python outputs/infinity-sculpture/build.py
+blender --background --python outputs/infinity-sculpture/validate.py
+blender --background --python outputs/landing-build/render_macro.py
+```
+
+These scripts create a fresh scene and overwrite generated files beside the scripts. The original render setup explicitly selects **NVIDIA OptiX**. On Apple, AMD, Intel or CPU-only machines, adjust the device-selection block in the builder, validator and macro renderer to the supported backend before running. The included website and `.blend` can be viewed without rerendering.
+
+After rebuilding, copy `outputs/infinity-sculpture/infinity.glb` to `outputs/infinity-site/assets/infinity.glb` and `hero.png` to `outputs/infinity-site/assets/poster.png`. If rebuilding the macro, install Pillow and convert the output:
+
+```sh
+python -m pip install Pillow
+python -c "from PIL import Image; Image.open('outputs/landing-build/macro.png').save('outputs/infinity-site/assets/macro.webp', quality=90)"
+```
+
+See [infinity anatomy](references/infinity.md) for geometry counts, object IDs, pulse ordering and material assumptions.
+
+## Testing and known limits
+
+The saved standalone checks use the [Playwright Python library](https://playwright.dev/python/docs/library):
+
+```sh
+python -m pip install playwright
+python -m playwright install chromium
+```
+
+The historical hardware checks explicitly launch installed **Google Chrome** with Windows D3D11 arguments. Installing Chromium alone does not satisfy that `channel='chrome'` configuration; install Chrome or adapt the scripts for your browser/platform. Software rendering intentionally selects the still, so it cannot validate the live interaction.
+
+With a copied project running on port 4175, run:
+
+```sh
+python outputs/landing-build/verify.py
+python work/landing-build/check-scroll.py
+```
+
+These write screenshot/report evidence and exercise the notebook, scroll, graphics and fallback states. Some copy checks use the isolated browser context's clipboard. Make sure the server on 4175 is the project you intend to test.
+
+- The measured roughly 60 fps result is specific to the local RTX 5090 environment. Physical phones, Safari and integrated GPUs were not verified.
+- Spring motion is art-directed. There is no rigid-body collision solver or magnetic-field physics.
+- Browser reflections/shadows differ from the Cycles render.
+- Historical captures show stages of the project; the latest source includes the subsequent text-scroll refinement.
+- Packaging checks tested a fresh copied project. They did not rerun every Blender render.
+
+[Browser validation](assets/reference-project/outputs/landing-build/validation.json) · [Fresh-import metrics](assets/reference-project/outputs/infinity-sculpture/import-validation.json)
+
+## Repository guide
+
+| Path | Contents |
+| --- | --- |
+| `SKILL.md` | Agent workflow and routing |
+| `references/` | Decisions, asset contract, prompt recipes and fiber source extracts |
+| `scripts/` | Safe skill installation and fresh-project copying |
+| `assets/reference-project/outputs/infinity-sculpture/` | Blender source, editable scene, export and evidence |
+| `assets/reference-project/outputs/infinity-site/` | Complete local website and vendored dependencies |
+| `assets/reference-project/outputs/landing-page-mockups/` | Four concept images and their saved prompts |
+| `package-manifest.json` | Packaged file sizes and SHA-256 hashes |
+
+To improve the workflow, include the concept, changed asset contract, relevant source changes, a before/after capture and the device/browser used for verification. Keep large future videos/renders out of ordinary Git history; use release artifacts or Git LFS when needed.
+
+## Credits and licensing
+
+No reuse license has been granted for the authored code and assets yet; their reuse rights are reserved. Third-party files retain their existing notices: [Three.js MIT](assets/reference-project/outputs/infinity-site/vendor/three/LICENSE) and [Inter SIL Open Font License](assets/reference-project/outputs/infinity-site/assets/Inter-OFL.txt).
+
+Blender, Three.js, Codex and Figma are independent projects/products; this repository is not an official integration from their maintainers. The package contains our project files and generated reference imagery, not third-party source videos or account cookies.
