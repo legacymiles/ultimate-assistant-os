@@ -1,11 +1,7 @@
-import { SkillsLibrary } from "@/components/skills/SkillsLibrary";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Skills Library · Ultimate Assistant OS",
-  description:
-    "A private, searchable library of your skill prompts. Save any markdown skill with a title and quick overview, then find and copy the full prompt in one click.",
-};
-
+// Skills Library is a tab inside Jarvis now. The page is the only thing that
+// moved: the store, /api/skills/* and the Supabase table are unchanged.
 export default function Page() {
-  return <SkillsLibrary />;
+  redirect("/apps/jarvis#skills");
 }

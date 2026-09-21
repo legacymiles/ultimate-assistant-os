@@ -17,7 +17,7 @@ import "server-only";
 // ---------------------------------------------------------------------------
 
 import { aiEndpoint, aiFetch, DEFAULT_MODEL } from "@/lib/ai/provider";
-import { appOf, CORE_TOOLS, isReadOnly, summarise, toApiTools, type ToolSpec } from "../tools";
+import { appOf, CORE_TOOLS, DASHBOARD_TOOLS, isReadOnly, summarise, toApiTools, type ToolSpec } from "../tools";
 import type { Citation, MemorySource } from "../types";
 import { memoryContext, searchMemory, type MaybeContext } from "./memory";
 import { digest, repoFiles } from "./masterFolder";
@@ -63,6 +63,7 @@ HOW YOU ANSWER
 WHAT YOU DO
 - You may search memory freely.
 - You may propose a memory when {owner} states something durable — a preference, a decision, a lesson. It is only a proposal; they approve it.
+- {owner}'s Dashboard — folders, their own calendar and the family Lists — is summarised under CONTEXT FOR THIS REQUEST when available. Answer questions about those from that summary and say it came from their folders / lists / calendar. To add a list entry, a note or an event there, call lists_add_item, dashboard_add_note or dashboard_add_event; like every change, it waits for their yes.
 - Anything that touches the outside world — creating or changing a calendar event, sending an email or a message — you must NOT do silently. Call the tool and stop: {owner} sees exactly what would happen and confirms it. Say plainly that you have prepared it and are waiting for their yes.
 
 TODAY
@@ -129,7 +130,7 @@ export async function runAgent(opts: RunOptions): Promise<AgentResult> {
     (opts.extraContext ? `\n\nCONTEXT FOR THIS REQUEST:\n${opts.extraContext}` : "") +
     (ctx.available ? "" : "\n\nNOTE: your long-term memory database is unavailable right now. Say so if asked to remember or recall something.");
 
-  const tools = [...CORE_TOOLS, ...(opts.connectorTools ?? [])];
+  const tools = [...CORE_TOOLS, ...DASHBOARD_TOOLS, ...(opts.connectorTools ?? [])];
   const messages: Record<string, unknown>[] = [
     { role: "system", content: system },
     ...opts.messages.map((m) => ({ role: m.role, content: m.content })),

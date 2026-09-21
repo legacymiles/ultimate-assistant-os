@@ -9,6 +9,7 @@
 // permission. Jarvis prepares the action, says so out loud, and waits.
 // ---------------------------------------------------------------------------
 
+import { dashboardDigest } from "@/lib/jarvis/dashboardBridge";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { ConfirmCard } from "./ConfirmCard";
@@ -74,7 +75,10 @@ export function VoiceModal({
             ],
             ownerName,
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            extraContext: "This is a spoken conversation. Keep the answer to a few sentences a person can follow by ear.",
+            extraContext: [
+              "This is a spoken conversation. Keep the answer to a few sentences a person can follow by ear.",
+              await dashboardDigest(),
+            ].join("\n\n"),
           }),
         });
         const data = (await res.json()) as AgentResponse;

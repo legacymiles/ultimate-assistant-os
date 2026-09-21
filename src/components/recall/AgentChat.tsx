@@ -28,6 +28,8 @@ interface Props {
    */
   onCalendarChanged?: () => void;
   onPhotosChanged?: () => void;
+  /** What the launcher and header call the assistant. Jarvis passes his own name. */
+  label?: string;
 }
 
 function whenLabel(date: string, time?: string | null): string {
@@ -121,6 +123,7 @@ export function AgentChat({
   onAskConsumed,
   onCalendarChanged,
   onPhotosChanged,
+  label = "Assistant",
 }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   /** Held only so proposed calendar changes can be described by name. */
@@ -224,7 +227,7 @@ export function AgentChat({
         className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-full bg-brand px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/30 transition hover:bg-brand-2"
       >
         <Icon.Bot width={18} height={18} />
-        <span className="hidden sm:inline">Assistant</span>
+        <span className="hidden sm:inline">{label}</span>
       </button>
     );
   }
@@ -237,7 +240,7 @@ export function AgentChat({
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand/15 text-brand">
             <Icon.Bot width={16} height={16} />
           </span>
-          <span className="text-sm font-semibold text-ink">Assistant</span>
+          <span className="text-sm font-semibold text-ink">{label}</span>
         </div>
         <button onClick={onClose} className="rounded-lg p-1.5 text-ink-faint hover:bg-panel-2 hover:text-ink" aria-label="Close chat">
           <Icon.Close width={16} height={16} />

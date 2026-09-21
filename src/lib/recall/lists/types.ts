@@ -71,6 +71,16 @@ export interface ListItem {
   done: boolean;
   /** Member.id. Drives both the colour circle and who is allowed to delete it. */
   authorId: string;
+  /**
+   * Hidden from every other member. Absent means public — every item written
+   * before this field existed stays exactly as visible as it always was.
+   *
+   * The admin is the deliberate exception and always sees everything: they own
+   * the board, and a board with rows its owner cannot see is a board nobody can
+   * tidy. So a member's private item is "only me and the admin", while the
+   * admin's own private item is "only me". See canSee().
+   */
+  private?: boolean;
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
@@ -97,6 +107,58 @@ export interface BoardPayload {
    * Surfaced in the UI rather than silently losing the family's shopping list.
    */
   persistent: boolean;
+}
+
+// ----- Visibility ----------------------------------------------------------
+
+/** Who is looking. A plain shape so these rules can be tested without the store. */
+export interface Viewer {
+  isAdmin: boolean;
+  memberId: string;
+}
+
+/**
+ * The whole private/public rule in one line. The owner's four rules —
+ * members can hide their own items, the admin sees everything, the admin's
+ * private items are seen by no one else, admin items can be public — all
+ * collapse to: admin, or author, or not private.
+ *
+ * Lives here (client-safe) so the server enforces exactly the rule the UI
+ * describes; the store filters with it before anything leaves the server.
+ */
+export function canSee(item: ListItem, viewer: Viewer): boolean {
+  return viewer.isAdmin || item.authorId === viewer.memberId || !item.private;
+}
+
+/** The board as this viewer is allowed to receive it. */
+export function visibleItems(items: ListItem[], viewer: Viewer): ListItem[] {
+  return items.filter((i) => canSee(i, viewer));
+}
+
+/**
+ * Find an item by id, but only if the viewer can see it. An item you cannot
+ * see is reported exactly like one that does not exist — otherwise the id
+ * becomes a way to probe for, tick or delete someone else's private row.
+ */
+export function findVisible(items: ListItem[], id: string, viewer: Viewer): ListItem | undefined {
+  return items.find((i) => i.id === id && canSee(i, viewer));
+}
+
+/**
+ * May this viewer apply this patch? "gone" for invisible or missing items
+ * (a 404, not a 403 — see findVisible), "forbidden" for a visible item they
+ * do not own. Ticking `done` is the one open action on a shared list;
+ * everything else, `private` included, is author-or-admin.
+ */
+export function patchVerdict(
+  item: ListItem | undefined,
+  keys: string[],
+  viewer: Viewer,
+): "ok" | "gone" | "forbidden" {
+  if (!item || !canSee(item, viewer)) return "gone";
+  const onlyDone = keys.length > 0 && keys.every((k) => k === "done");
+  const owns = item.authorId === viewer.memberId;
+  return viewer.isAdmin || owns || onlyDone ? "ok" : "forbidden";
 }
 
 // ----- Priority tiers ------------------------------------------------------

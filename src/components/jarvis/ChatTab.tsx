@@ -12,6 +12,7 @@
 //   pending    — what he wants to do in the outside world (yes or no)
 // ---------------------------------------------------------------------------
 
+import { dashboardDigest, isDashboardTool, runDashboardTool } from "@/lib/jarvis/dashboardBridge";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { ConfirmCard } from "./ConfirmCard";
@@ -48,10 +49,13 @@ export function ChatTab({
   store,
   commit,
   profile,
+  onDashboardChanged,
 }: {
   store: JarvisStore;
   commit: (s: JarvisStore) => void;
   profile: Profile | null;
+  /** A confirmed folder / calendar / list action ran; the shell re-reads. */
+  onDashboardChanged?: () => void;
 }) {
   const memory = useMemory(store, commit);
   const [input, setInput] = useState("");
@@ -103,7 +107,7 @@ export function ChatTab({
           })),
           ownerName: profile?.name ?? "",
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          extraContext: profileContext(profile),
+          extraContext: [profileContext(profile), await dashboardDigest()].filter(Boolean).join("\n\n"),
         }),
       });
       const data = (await res.json()) as AgentResponse;
@@ -146,6 +150,13 @@ export function ChatTab({
     if (!pending) return;
     setActing(true);
     try {
+      // Folders, the owner's calendar and Lists are written from the browser.
+      if (isDashboardTool(pending.tool)) {
+        const result = await runDashboardTool(pending.tool, args);
+        setPending({ ...pending, status: "done", result });
+        onDashboardChanged?.();
+        return;
+      }
       const res = await fetch("/api/jarvis/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

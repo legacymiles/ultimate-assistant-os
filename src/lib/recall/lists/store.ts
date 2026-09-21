@@ -28,6 +28,11 @@ import {
   BUILT_IN_LISTS,
   COMPLETED_TTL_MS,
   MEMBER_COLOURS,
+  canSee,
+  findVisible,
+  patchVerdict,
+  visibleItems,
+  type Viewer,
   type BoardPayload,
   type Invite,
   type ListDef,
@@ -197,6 +202,11 @@ export async function memberCaller(id: string): Promise<Caller | null> {
   return { member, isAdmin: false };
 }
 
+/** The Caller reduced to what the visibility rules in types.ts need. */
+function viewerOf(caller: Caller): Viewer {
+  return { isAdmin: caller.isAdmin, memberId: caller.member.id };
+}
+
 function requireAdmin(caller: Caller): void {
   if (!caller.isAdmin) throw new ListsError("Only the admin can do that.");
 }
@@ -217,7 +227,9 @@ export async function getBoard(caller: Caller): Promise<BoardPayload> {
     isAdmin: caller.isAdmin,
     members: data.members.map(publicMember),
     lists: [...data.lists].sort((a, b) => a.order - b.order),
-    items: data.items,
+    // Private rows are dropped HERE, not in the component: anything sent to a
+    // browser is readable in devtools, so hiding it in the UI would hide nothing.
+    items: visibleItems(data.items, viewerOf(caller)),
     invites: caller.isAdmin ? data.invites.filter((v) => !v.consumedAt) : [],
     persistent: await canPersist(),
   };
@@ -232,6 +244,8 @@ export interface ItemInput {
   note?: string;
   dueDate?: string;
   url?: string;
+  /** Hide from other members. Omitted = public, the pre-existing behaviour. */
+  private?: boolean;
 }
 
 function cleanText(value: unknown, max: number): string {
@@ -255,6 +269,8 @@ export async function addItem(caller: Caller, input: ItemInput): Promise<BoardPa
     url: cleanText(input.url, 500) || undefined,
     done: false,
     authorId: caller.member.id,
+    // Only stored when set, so public rows stay byte-identical to older ones.
+    ...(input.private === true ? { private: true } : {}),
     createdAt: nowIso(),
     updatedAt: nowIso(),
   };
@@ -263,13 +279,18 @@ export async function addItem(caller: Caller, input: ItemInput): Promise<BoardPa
   return getBoard(caller);
 }
 
-export type ItemPatch = Partial<Pick<ListItem, "text" | "priority" | "note" | "dueDate" | "url" | "done" | "listId">>;
+export type ItemPatch = Partial<
+  Pick<ListItem, "text" | "priority" | "note" | "dueDate" | "url" | "done" | "listId" | "private">
+>;
 
 /**
  * The permission rule with the one deliberate exception:
  * editing and deleting are owner-scoped, but ANYONE may tick something done.
  * If one person buys the milk another person added, they have to be able to
  * check it off — that is the whole point of a shared list.
+ *
+ * "Anyone" means anyone who can SEE it: a private item is looked up through
+ * the same visibility rule as the board, so its id is useless to others.
  */
 export async function updateItem(
   caller: Caller,
@@ -277,15 +298,11 @@ export async function updateItem(
   patch: ItemPatch,
 ): Promise<BoardPayload> {
   const data = await load();
-  const item = data.items.find((i) => i.id === id);
-  if (!item) throw new ListsError("That item is gone.", 404);
-
-  const keys = Object.keys(patch);
-  const onlyDone = keys.length > 0 && keys.every((k) => k === "done");
-  const owns = item.authorId === caller.member.id;
-  if (!caller.isAdmin && !owns && !onlyDone) {
-    throw new ListsError("You can only change items you added.");
-  }
+  const viewer = viewerOf(caller);
+  const item = findVisible(data.items, id, viewer);
+  const verdict = patchVerdict(item, Object.keys(patch), viewer);
+  if (verdict === "gone" || !item) throw new ListsError("That item is gone.", 404);
+  if (verdict === "forbidden") throw new ListsError("You can only change items you added.");
 
   if (patch.text !== undefined) {
     const text = cleanText(patch.text, 300);
@@ -303,6 +320,11 @@ export async function updateItem(
     item.done = Boolean(patch.done);
     item.completedAt = item.done ? nowIso() : undefined;
   }
+  if (patch.private !== undefined) {
+    // Deleted rather than set false, matching how addItem writes public rows.
+    if (patch.private === true) item.private = true;
+    else delete item.private;
+  }
   item.updatedAt = nowIso();
 
   await writeFile(data);
@@ -311,7 +333,7 @@ export async function updateItem(
 
 export async function deleteItem(caller: Caller, id: string): Promise<BoardPayload> {
   const data = await load();
-  const item = data.items.find((i) => i.id === id);
+  const item = findVisible(data.items, id, viewerOf(caller));
   if (!item) throw new ListsError("That item is gone.", 404);
   if (!caller.isAdmin && item.authorId !== caller.member.id) {
     throw new ListsError("You can only remove items you added.");
@@ -324,8 +346,18 @@ export async function deleteItem(caller: Caller, id: string): Promise<BoardPaylo
 /** Admin-only bulk tidy: clear every ticked item on a list right now. */
 export async function clearDone(caller: Caller, listId: string): Promise<BoardPayload> {
   const data = await load();
+  const viewer = viewerOf(caller);
+  // canSee is implied by authorship today (you always see your own rows), but
+  // stated anyway so a later widening of the ownership rule cannot quietly let
+  // a bulk clear reach rows the caller was never shown.
   data.items = data.items.filter(
-    (i) => !(i.listId === listId && i.done && (caller.isAdmin || i.authorId === caller.member.id)),
+    (i) =>
+      !(
+        i.listId === listId &&
+        i.done &&
+        canSee(i, viewer) &&
+        (caller.isAdmin || i.authorId === caller.member.id)
+      ),
   );
   await writeFile(data);
   return getBoard(caller);

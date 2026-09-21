@@ -84,7 +84,12 @@ export const PROJECTS: CatalogProject[] = [
       "and calendar through your connected apps, drafts replies and books meetings, and always shows you the " +
       "exact message or event before anything happens. Underneath is the AIS-OS Four Cs profile he was built " +
       "on: Context, Connections, Capabilities and Cadence, exportable as the CLAUDE.md and context files that " +
-      "make every Claude Code session know you.",
+      "make every Claude Code session know you. " +
+      "It is also the one dashboard: the old Dashboard app moved in whole — Folders (with the Google Drive " +
+      "backup and the folder assistant), Photos (vision triage into people and album folders) and the " +
+      "shared family Lists, where members can keep entries private and the admin sees everything — plus " +
+      "the Skills Library as its own tab. Your own calendar, with reminders and .ics export, sits beside " +
+      "any connected one, and Jarvis can add a list entry, a note or an event when you say yes.",
     status: "live",
     appUrl: "/apps/jarvis",
     iconStyle: "rings",
@@ -191,28 +196,6 @@ export const PROJECTS: CatalogProject[] = [
     appUrl: "/apps/ai-rankings",
     iconStyle: "rings",
     hue: [275, 200],
-  },
-  {
-    slug: "dashboard",
-    title: "Dashboard",
-    tag: "Personal RAG second brain",
-    category: "AI",
-    overview:
-      "A private second brain where a folder is a page, not a filter. Home is a grid of folder tiles and " +
-      "nothing else; open one and it holds only the sections you asked for — sub-folders as tiles, notes, " +
-      "to-dos, links & files, logins, websites — added from a single + menu, so a folder that holds two " +
-      "things is two lines tall. Drop in PDFs, docs, images or video and Dashboard reads them (everything but " +
-      "video), so one search box finds a phrase that only ever existed inside a document. Saved logins stay " +
-      "on the device and are filtered out of every AI call. The agent " +
-      "answers from your own content with sources and can reorganise across 13 actions — always as a plan " +
-      "you confirm first. Alongside it, a shared Lists board for the daily churn — to-do, to-buy, bills, " +
-      "reminders — colour-coded red/orange/yellow by urgency and by who added each row. Family join through " +
-      "a one-time invite link, get the board and nothing else, and can only delete their own; you can delete " +
-      "anything. Local-first with zero setup; sharper with an AI key.",
-    status: "live",
-    appUrl: "/apps/dashboard",
-    iconStyle: "aurora",
-    hue: [190, 265],
   },
   {
     slug: "prompt-architect",
@@ -491,22 +474,6 @@ export const PROJECTS: CatalogProject[] = [
     appUrl: "/apps/fire-reveal",
     iconStyle: "pulse",
     hue: [22, 40],
-  },
-  {
-    slug: "skills-library",
-    title: "Skills Library",
-    tag: "Searchable prompt vault",
-    category: "Utilities",
-    overview:
-      "A private, searchable library for all your skill prompts. Save any skill by pasting its " +
-      "markdown — the title and quick overview auto-fill from the frontmatter — then browse everything " +
-      "as clean rows, search by name, and open any skill to read and copy the full prompt in one click. " +
-      "Login-gated and single-owner: your skills stay yours. Backed by Supabase, with a local-storage " +
-      "fallback so it works offline.",
-    status: "live",
-    appUrl: "/apps/skills-library",
-    iconStyle: "mesh",
-    hue: [268, 200],
   },
   {
     slug: "cookbook-genie",

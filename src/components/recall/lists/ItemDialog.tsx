@@ -26,10 +26,15 @@ export interface ItemDraft {
   note: string;
   dueDate: string;
   url: string;
+  private: boolean;
 }
 
 interface Props {
   lists: ListDef[];
+  /** Changes what "private" means in the copy: admin-private is truly only you. */
+  isAdmin: boolean;
+  /** What a new item starts as — the board's quick-add lock toggle. */
+  defaultPrivate?: boolean;
   /** Editing an existing row, or null when adding a new one. */
   item: ListItem | null;
   defaultListId: string;
@@ -38,7 +43,16 @@ interface Props {
   onClose: () => void;
 }
 
-export function ItemDialog({ lists, item, defaultListId, busy, onSubmit, onClose }: Props) {
+export function ItemDialog({
+  lists,
+  isAdmin,
+  defaultPrivate = false,
+  item,
+  defaultListId,
+  busy,
+  onSubmit,
+  onClose,
+}: Props) {
   const [draft, setDraft] = useState<ItemDraft>({
     listId: item?.listId ?? defaultListId,
     text: item?.text ?? "",
@@ -46,6 +60,7 @@ export function ItemDialog({ lists, item, defaultListId, busy, onSubmit, onClose
     note: item?.note ?? "",
     dueDate: item?.dueDate ?? "",
     url: item?.url ?? "",
+    private: item ? Boolean(item.private) : defaultPrivate,
   });
 
   useEffect(() => {
@@ -119,6 +134,55 @@ export function ItemDialog({ lists, item, defaultListId, busy, onSubmit, onClose
                   <span className="min-w-0">
                     <span className="block truncate text-[12px] font-medium">{p.label}</span>
                     <span className="block truncate text-[10px] text-ink-faint">{p.hint}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        {/* Visibility. Two options with their consequence spelled out, because
+            "private" means something different for the admin (truly only you)
+            than for a member (you and the admin) — and getting that wrong is
+            the one mistake on this form that is embarrassing, not just untidy. */}
+        <fieldset className="mb-3">
+          <legend className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
+            Visibility
+          </legend>
+          <div role="radiogroup" aria-label="Visibility" className="grid grid-cols-2 gap-1.5">
+            {[
+              {
+                value: false,
+                label: "Public",
+                hint: "Everyone on the board sees it",
+                icon: <Icon.Users width={14} height={14} />,
+                on: "border-brand/50 bg-brand/15 text-brand",
+              },
+              {
+                value: true,
+                label: "Private",
+                hint: isAdmin ? "Only you see it" : "Only you and the admin see it",
+                icon: <Icon.Lock width={14} height={14} />,
+                on: "border-violet-400/50 bg-violet-500/15 text-violet-200",
+              },
+            ].map((opt) => {
+              const active = draft.private === opt.value;
+              return (
+                <button
+                  key={opt.label}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => set("private", opt.value)}
+                  className={
+                    "flex items-center gap-2 rounded-xl border px-2.5 py-2 text-left transition " +
+                    (active ? opt.on : "border-line bg-canvas text-ink-muted hover:border-ink-faint")
+                  }
+                >
+                  <span className="shrink-0">{opt.icon}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[12px] font-medium">{opt.label}</span>
+                    <span className="block truncate text-[10px] text-ink-faint">{opt.hint}</span>
                   </span>
                 </button>
               );
