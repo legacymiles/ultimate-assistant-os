@@ -17,14 +17,39 @@ interface Props {
   author: PublicMember;
   /** True for the item's author and for the admin. */
   canEdit: boolean;
+  /** The viewer's member id — decides whose private item this is, for the chip. */
+  meId: string;
+  viewerIsAdmin: boolean;
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }
 
-export function ItemRow({ item, author, canEdit, onToggle, onEdit, onDelete }: Props) {
+export function ItemRow({
+  item,
+  author,
+  canEdit,
+  meId,
+  viewerIsAdmin,
+  onToggle,
+  onEdit,
+  onDelete,
+}: Props) {
+  // A member only ever receives their own private rows (the server drops the
+  // rest), so "someone else's private" can only happen on the admin's screen —
+  // and that is exactly the case worth naming, because the admin is looking at
+  // something its author believes nobody else can see.
+  const priv = Boolean(item.private);
+  const theirs = priv && item.authorId !== meId;
+  const chip = theirs ? `${author.name}'s private` : "Private";
+
   return (
-    <div className="group/item flex items-start gap-2 rounded-lg px-1.5 py-1 transition hover:bg-panel-2">
+    <div
+      className={
+        "group/item flex items-start gap-2 rounded-lg px-1.5 py-1 transition " +
+        (priv ? "bg-violet-500/[0.07] hover:bg-violet-500/[0.12]" : "hover:bg-panel-2")
+      }
+    >
       <button
         onClick={onToggle}
         aria-label={item.done ? `Mark ${item.text} as not done` : `Mark ${item.text} as done`}
@@ -46,6 +71,14 @@ export function ItemRow({ item, author, canEdit, onToggle, onEdit, onDelete }: P
       >
         <span className="flex items-center gap-1.5">
           {!item.done && <PriorityDot priority={item.priority} />}
+          {priv && (
+            <Icon.Lock
+              width={11}
+              height={11}
+              aria-label={theirs ? `Private to ${author.name}` : "Private"}
+              className="shrink-0 text-violet-300"
+            />
+          )}
           <span
             className={
               "truncate text-[12.5px] leading-snug " +
@@ -62,10 +95,26 @@ export function ItemRow({ item, author, canEdit, onToggle, onEdit, onDelete }: P
           </span>
         )}
 
-        {!item.done && (item.dueDate || item.url) && (
+        {/* The private chip sits under the text, never beside it: on a narrow
+            tile it would otherwise squeeze the item itself down to "Leo se…". */}
+        {(priv || (!item.done && (item.dueDate || item.url))) && (
           <span className="mt-1 flex flex-wrap items-center gap-1 pl-3.5">
-            {item.dueDate && <DueChip dueDate={item.dueDate} />}
-            {item.url && (
+            {priv && (
+              <span
+                title={
+                  theirs
+                    ? `Only ${author.name} and you can see this`
+                    : viewerIsAdmin
+                      ? "Only you can see this"
+                      : "Only you and the admin can see this"
+                }
+                className="shrink-0 rounded-md border border-violet-400/30 bg-violet-500/15 px-1.5 py-px text-[9.5px] font-medium text-violet-200"
+              >
+                {chip}
+              </span>
+            )}
+            {!item.done && item.dueDate && <DueChip dueDate={item.dueDate} />}
+            {!item.done && item.url && (
               <span className="inline-flex items-center gap-1 rounded-md border border-line bg-panel-2 px-1.5 py-px text-[10px] text-ink-faint">
                 <Icon.Link width={9} height={9} /> Link
               </span>

@@ -34,7 +34,8 @@ function sortSkills(list: Skill[]): Skill[] {
   });
 }
 
-export function SkillsLibrary() {
+/** `chromeless` drops the Hub bar when the library is a tab inside Jarvis. */
+export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } = {}) {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -149,8 +150,9 @@ export function SkillsLibrary() {
   };
 
   return (
-    <div className="min-h-dvh">
+    <div className={chromeless ? "" : "min-h-dvh"}>
       {/* Top bar */}
+      {!chromeless && (
       <div className="flex items-center gap-2 border-b border-line bg-panel px-3 py-2.5 sm:px-4">
         <Link
           href="/"
@@ -167,6 +169,7 @@ export function SkillsLibrary() {
           </span>
         )}
       </div>
+      )}
 
       <div className="mx-auto max-w-3xl px-3 py-5 sm:px-5 sm:py-8">
         {/* Heading */}

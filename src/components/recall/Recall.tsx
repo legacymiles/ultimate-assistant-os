@@ -50,14 +50,26 @@ const HOME_TABS = [
   { id: "lists" as const, label: "Lists", icon: Icon.ListChecks },
 ];
 
-type HomeTab = (typeof HOME_TABS)[number]["id"];
+export type HomeTab = (typeof HOME_TABS)[number]["id"];
+
+interface RecallProps {
+  /**
+   * Set when Dashboard is mounted inside Jarvis. Jarvis's rail owns the choice
+   * of Folders / Photos / Calendar / Lists, so the home tab switch and the Hub
+   * link disappear and this prop decides which half is showing.
+   */
+  section?: HomeTab;
+  /** Asks the host to switch section (e.g. the Photos tile on the folder grid). */
+  onSection?: (section: HomeTab) => void;
+}
 
 /** Create a new folder under `parentId`, or edit an existing one. */
 type FolderDialogState =
   | { mode: "create"; parentId: string | null }
   | { mode: "edit"; folder: Folder };
 
-export function Recall() {
+export function Recall({ section, onSection }: RecallProps = {}) {
+  const embedded = section !== undefined;
   const [data, setData] = useState<RecallData>({ folders: [], items: [] });
   const [ready, setReady] = useState(false);
   /** null = the home grid; UNFILED = loose items; otherwise a folder id. */
@@ -81,7 +93,9 @@ export function Recall() {
    * folder or searching leaves the switch behind, because neither means
    * anything on the Lists side.
    */
-  const [homeTab, setHomeTab] = useState<HomeTab>("folders");
+  const [ownTab, setOwnTab] = useState<HomeTab>("folders");
+  const homeTab = section ?? ownTab;
+  const setHomeTab = (t: HomeTab) => (embedded ? onSection?.(t) : setOwnTab(t));
   /**
    * The calendar, the people list and the folder tree are three separate
    * stores. When the assistant writes to one of the other two, bumping its
@@ -219,18 +233,20 @@ export function Recall() {
   const searching = query.trim().length > 0;
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className={embedded ? "flex flex-col" : "flex min-h-dvh flex-col"}>
       {/* Top bar */}
       <header className="sticky top-0 z-30 border-b border-line bg-panel/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-5xl items-center gap-2 px-3 py-2.5 sm:px-5">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
-            aria-label="Back to hub"
-          >
-            <Icon.ArrowLeft width={14} height={14} />
-            <span className="hidden sm:inline">Hub</span>
-          </Link>
+          {!embedded && (
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
+              aria-label="Back to hub"
+            >
+              <Icon.ArrowLeft width={14} height={14} />
+              <span className="hidden sm:inline">Hub</span>
+            </Link>
+          )}
 
           <button
             onClick={() => setTreeOpen((v) => !v)}
@@ -246,9 +262,11 @@ export function Recall() {
             <Icon.Sidebar width={15} height={15} />
           </button>
 
-          <span className="ml-0.5 hidden items-center gap-1.5 text-sm font-semibold text-ink sm:flex">
-            <Icon.Sparkles width={16} height={16} className="text-brand" /> Dashboard
-          </span>
+          {!embedded && (
+            <span className="ml-0.5 hidden items-center gap-1.5 text-sm font-semibold text-ink sm:flex">
+              <Icon.Sparkles width={16} height={16} className="text-brand" /> Dashboard
+            </span>
+          )}
           {isLocal() && (
             <span className="hidden rounded-md bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand lg:inline">
               Local
@@ -374,6 +392,7 @@ export function Recall() {
           />
         ) : folderId === null ? (
           <>
+            {!embedded && (
             <div
               role="tablist"
               aria-label="Dashboard home"
@@ -397,6 +416,7 @@ export function Recall() {
                 </button>
               ))}
             </div>
+            )}
 
             {homeTab === "folders" && (
               <>
@@ -470,6 +490,7 @@ export function Recall() {
         onAskConsumed={() => setAskQuestion(null)}
         onCalendarChanged={() => setCalendarNonce((n) => n + 1)}
         onPhotosChanged={() => setPhotosNonce((n) => n + 1)}
+        label={embedded ? "Ask Jarvis" : undefined}
       />
 
       {securityOpen && (

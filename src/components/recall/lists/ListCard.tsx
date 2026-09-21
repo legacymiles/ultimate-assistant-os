@@ -29,6 +29,11 @@ interface Props {
   accent: Accent;
   /** True when a member filter is on and this list has matches hidden by it. */
   hiddenByFilter: number;
+  /**
+   * The board's lock toggle. When on, this tile's inline add is private too —
+   * shown on the input itself, so nobody adds privately without seeing it.
+   */
+  quickPrivate: boolean;
   onQuickAdd: (text: string) => void;
   onOpenAdd: () => void;
   onToggle: (item: ListItem) => void;
@@ -54,6 +59,7 @@ export function ListCard({
   isAdmin,
   accent,
   hiddenByFilter,
+  quickPrivate,
   onQuickAdd,
   onOpenAdd,
   onToggle,
@@ -134,6 +140,8 @@ export function ListCard({
               item={item}
               author={memberById(members, item.authorId)}
               canEdit={isAdmin || item.authorId === me.id}
+              meId={me.id}
+              viewerIsAdmin={isAdmin}
               onToggle={() => onToggle(item)}
               onEdit={() => onEdit(item)}
               onDelete={() => onDelete(item)}
@@ -152,15 +160,28 @@ export function ListCard({
       )}
 
       {(!empty || adding) && (
-        <form onSubmit={submit} className="px-2 pb-2">
+        <form onSubmit={submit} className="relative px-2 pb-2">
+          {quickPrivate && (
+            <Icon.Lock
+              width={11}
+              height={11}
+              aria-hidden
+              className="pointer-events-none absolute left-4 top-[9px] text-violet-300"
+            />
+          )}
           <input
             value={draft}
             autoFocus={adding}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={() => !draft && setAdding(false)}
-            placeholder={`Add to ${list.name}…`}
-            aria-label={`Add to ${list.name}`}
-            className="w-full rounded-lg border border-line/70 bg-canvas/60 px-2.5 py-1.5 text-[12px] text-ink outline-none placeholder:text-ink-faint focus:border-brand/60 focus:bg-canvas focus:ring-1 focus:ring-brand/25"
+            placeholder={quickPrivate ? `Add privately to ${list.name}…` : `Add to ${list.name}…`}
+            aria-label={quickPrivate ? `Add privately to ${list.name}` : `Add to ${list.name}`}
+            className={
+              "w-full rounded-lg border py-1.5 pr-2.5 text-[12px] text-ink outline-none placeholder:text-ink-faint focus:bg-canvas focus:ring-1 " +
+              (quickPrivate
+                ? "border-violet-400/40 bg-violet-500/[0.07] pl-7 focus:border-violet-400/70 focus:ring-violet-400/25"
+                : "border-line/70 bg-canvas/60 pl-2.5 focus:border-brand/60 focus:ring-brand/25")
+            }
           />
           {/* Explicit rather than relying on implicit single-input submission. */}
           <button type="submit" className="sr-only">

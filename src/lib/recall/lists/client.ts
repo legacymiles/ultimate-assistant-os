@@ -49,8 +49,11 @@ export const listsApi = {
     note?: string;
     dueDate?: string;
     url?: string;
+    /** Hide from other members (the admin still sees it). Omitted = public. */
+    private?: boolean;
   }) => board(`${BASE}/items`, { method: "POST", body: JSON.stringify(input) }),
 
+  /** `private` is author-or-admin only; the server refuses it from anyone else. */
   updateItem: (id: string, patch: Partial<ListItem>) =>
     board(`${BASE}/items`, { method: "PATCH", body: JSON.stringify({ id, patch }) }),
 

@@ -53,7 +53,7 @@ export async function POST(req: Request) {
       messages,
       ownerName: (body.ownerName || "the owner").slice(0, 60),
       timezone: body.timezone,
-      extraContext: body.extraContext?.slice(0, 6000),
+      extraContext: body.extraContext?.slice(0, 10000),
       profileId: body.profileId,
     });
     return NextResponse.json(result);

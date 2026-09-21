@@ -6,12 +6,32 @@
 // Events come from the connected calendar when there is one, and from what the
 // owner typed when there isn't — and the header always says which, because a
 // calendar that looks empty must never be mistaken for a free week.
-// Every change goes through the confirm card.
+// Every change to the connected calendar goes through the confirm card.
+//
+// "Add here" writes to the Dashboard calendar (it moved into Jarvis), because
+// that is the calendar with reminders, .ics export and events read off photos.
+// Older hand-typed Jarvis events still show and can still be deleted.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Icon } from "../icons";
 import { ConfirmCard } from "./ConfirmCard";
+import { EventDialog } from "../recall/calendar/EventDialog";
+import {
+  createEvent,
+  deleteEvent,
+  downloadIcs,
+  getEvents,
+  updateEvent,
+  type EventInput,
+} from "@/lib/recall/calendar/store";
+import {
+  notificationPermission,
+  notificationsAvailable,
+  requestNotifications,
+} from "@/lib/recall/calendar/reminders";
+import { REMINDER_CHOICES, type CalendarEvent } from "@/lib/recall/calendar/types";
+import { toCalEvent } from "@/lib/jarvis/useDashboardCalendar";
 import { localDate, overlaps } from "@/lib/jarvis/brief";
 import { uid } from "@/lib/jarvis/store";
 import type { CalEvent, JarvisStore, PendingAction } from "@/lib/jarvis/types";
@@ -33,7 +53,24 @@ function monthGrid(year: number, month: number): Date[] {
   });
 }
 
-export function CalendarTab({ store, commit }: { store: JarvisStore; commit: (s: JarvisStore) => void }) {
+const ORIGIN: Record<string, string> = {
+  manual: "entered by you",
+  photo: "read off a photo",
+  agent: "added by Jarvis",
+};
+
+export function CalendarTab({
+  store,
+  commit,
+  dashboard,
+  onDashboard,
+}: {
+  store: JarvisStore;
+  commit: (s: JarvisStore) => void;
+  /** The Dashboard calendar, the one with reminders. Owned by the shell. */
+  dashboard: CalendarEvent[];
+  onDashboard: (events: CalendarEvent[]) => void;
+}) {
   const today = new Date();
   const [cursor, setCursor] = useState({ y: today.getFullYear(), m: today.getMonth() });
   const [selected, setSelected] = useState(localDate(today));
@@ -43,7 +80,25 @@ export function CalendarTab({ store, commit }: { store: JarvisStore; commit: (s:
   const [loading, setLoading] = useState(false);
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [busy, setBusy] = useState(false);
-  const [draft, setDraft] = useState({ title: "", date: localDate(today), start: "10:00", end: "11:00", where: "" });
+  const [draft, setDraft] = useState({
+    title: "",
+    date: localDate(today),
+    start: "10:00",
+    end: "11:00",
+    where: "",
+    remind: 1440,
+  });
+  const [editing, setEditing] = useState<CalendarEvent | null>(null);
+  const [perm, setPerm] = useState<string>("default");
+
+  // Photos and the folder assistant can add events while this tab is closed,
+  // so re-read on open rather than trusting the shell's copy.
+  useEffect(() => {
+    onDashboard(getEvents());
+    setPerm(notificationPermission());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const dashById = useMemo(() => new Map(dashboard.map((e) => [e.id, e])), [dashboard]);
 
   const grid = useMemo(() => monthGrid(cursor.y, cursor.m), [cursor]);
 
@@ -81,7 +136,10 @@ export function CalendarTab({ store, commit }: { store: JarvisStore; commit: (s:
     void load();
   }, [load]);
 
-  const events = useMemo<CalEvent[]>(() => [...(remote ?? []), ...store.events], [remote, store.events]);
+  const events = useMemo<CalEvent[]>(
+    () => [...(remote ?? []), ...store.events, ...dashboard.map(toCalEvent)],
+    [remote, store.events, dashboard],
+  );
   const clashes = useMemo(() => new Set(overlaps(events).flat()), [events]);
   const byDay = useMemo(() => {
     const map = new Map<string, CalEvent[]>();
@@ -96,18 +154,23 @@ export function CalendarTab({ store, commit }: { store: JarvisStore; commit: (s:
 
   const addManual = () => {
     if (!draft.title.trim()) return;
-    const event: CalEvent = {
-      id: uid(),
-      title: draft.title.trim(),
+    const { events: next } = createEvent({
+      title: draft.title,
       date: draft.date,
-      start: draft.start,
-      end: draft.end,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      where: draft.where || undefined,
-      app: "manual",
-    };
-    commit({ ...store, events: [...store.events, event] });
+      time: draft.start || null,
+      endTime: draft.end || null,
+      location: draft.where,
+      reminders: draft.remind >= 0 ? [draft.remind] : [],
+      source: "manual",
+    });
+    onDashboard(next);
     setDraft({ ...draft, title: "", where: "" });
+  };
+
+  const saveEdit = (input: EventInput) => {
+    if (!editing) return;
+    onDashboard(updateEvent(editing.id, input));
+    setEditing(null);
   };
 
   const prepareRemoteAdd = () => {
@@ -182,12 +245,31 @@ export function CalendarTab({ store, commit }: { store: JarvisStore; commit: (s:
           {loading
             ? "Reading your calendar…"
             : apps.length
-              ? `${apps.map((a) => a.name).join(", ")} connected${store.events.length ? " · plus your manual events" : ""}`
+              ? `${apps.map((a) => a.name).join(", ")} connected${dashboard.length || store.events.length ? " · plus your own events" : ""}`
               : "Manually maintained — no calendar is connected, so this is not proof you are free."}
         </span>
-        <button className={`${btn} ml-auto`} onClick={() => void load()} disabled={loading}>
-          <Icon.Refresh width={13} height={13} /> Refresh
-        </button>
+        <span className="ml-auto flex flex-wrap gap-2">
+          {notificationsAvailable() && perm === "default" && (
+            <button
+              className={btn}
+              onClick={() => void requestNotifications().then((p) => setPerm(p))}
+              title="Let reminders pop up even when this tab is in the background"
+            >
+              <Icon.Clock width={13} height={13} /> Turn on reminders
+            </button>
+          )}
+          <button
+            className={btn}
+            onClick={() => downloadIcs(dashboard, "jarvis-calendar.ics")}
+            disabled={!dashboard.length}
+            title="Download your events as an .ics file for your phone's calendar, so it rings even when Jarvis is closed"
+          >
+            <Icon.Download width={13} height={13} /> Export .ics
+          </button>
+          <button className={btn} onClick={() => void load()} disabled={loading}>
+            <Icon.Refresh width={13} height={13} /> Refresh
+          </button>
+        </span>
       </div>
       {note && <p className="mb-2 text-[11px] text-ink-muted">{note}</p>}
 
@@ -261,11 +343,28 @@ export function CalendarTab({ store, commit }: { store: JarvisStore; commit: (s:
                     <span className="min-w-0 flex-1">
                       <span className="block text-ink">{e.title}</span>
                       {e.where && <span className="block text-[10px] text-ink-faint">{e.where}</span>}
+                      {e.notes && <span className="block text-[10px] text-ink-muted">{e.notes}</span>}
                       <span className="block text-[10px] text-ink-faint">
-                        {e.app === "manual" ? "entered by you" : e.app}
+                        {e.app === "dashboard"
+                          ? ORIGIN[dashById.get(e.id)?.source ?? "manual"]
+                          : e.app === "manual"
+                            ? "entered by you"
+                            : e.app}
+                        {e.app === "dashboard" && (dashById.get(e.id)?.reminders.length ?? 0) > 0
+                          ? " · reminder on"
+                          : ""}
                         {clashes.has(e.id) ? " · overlaps another event" : ""}
                       </span>
                     </span>
+                    {e.app === "dashboard" && (
+                      <button
+                        onClick={() => setEditing(dashById.get(e.id) ?? null)}
+                        aria-label={`Edit ${e.title}`}
+                        className="shrink-0 text-ink-faint hover:text-ink"
+                      >
+                        <Icon.Edit width={12} height={12} />
+                      </button>
+                    )}
                     {e.app === "manual" && (
                       <button
                         onClick={() => commit({ ...store, events: store.events.filter((x) => x.id !== e.id) })}
@@ -300,9 +399,22 @@ export function CalendarTab({ store, commit }: { store: JarvisStore; commit: (s:
               placeholder="Where (optional)"
               className={`${field} mt-2`}
             />
+            <select
+              value={draft.remind}
+              onChange={(e) => setDraft({ ...draft, remind: Number(e.target.value) })}
+              aria-label="Reminder"
+              className={`${field} mt-2`}
+            >
+              <option value={-1}>No reminder</option>
+              {REMINDER_CHOICES.map((r) => (
+                <option key={r.minutes} value={r.minutes}>
+                  Remind me {r.label}
+                </option>
+              ))}
+            </select>
             <div className="mt-2 flex flex-wrap gap-2">
               <button className={btn} onClick={addManual} disabled={!draft.title.trim()}>
-                <Icon.Plus width={13} height={13} /> Add here only
+                <Icon.Plus width={13} height={13} /> Add here
               </button>
               <button className={btn} onClick={prepareRemoteAdd} disabled={!draft.title.trim() || !apps.length}>
                 <Icon.Calendar width={13} height={13} /> Add to my real calendar
@@ -314,6 +426,18 @@ export function CalendarTab({ store, commit }: { store: JarvisStore; commit: (s:
               </p>
             )}
           </div>
+
+          {editing && (
+            <EventDialog
+              initial={editing}
+              onSubmit={saveEdit}
+              onDelete={() => {
+                onDashboard(deleteEvent(editing.id));
+                setEditing(null);
+              }}
+              onClose={() => setEditing(null)}
+            />
+          )}
 
           {pending && (
             <ConfirmCard

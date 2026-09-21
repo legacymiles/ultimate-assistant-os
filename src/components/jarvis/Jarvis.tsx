@@ -20,6 +20,12 @@ import { DashboardTab } from "./DashboardTab";
 import { MemoryTab } from "./MemoryTab";
 import { RoutinesTab } from "./RoutinesTab";
 import { VoiceModal } from "./VoiceModal";
+import { isDashboardTool, runDashboardTool } from "@/lib/jarvis/dashboardBridge";
+import { ReminderBanner } from "./ReminderBanner";
+import { Recall } from "../recall/Recall";
+import { ListsBoard } from "../recall/lists/ListsBoard";
+import { SkillsLibrary } from "../skills/SkillsLibrary";
+import { toCalEvent, useDashboardCalendar } from "@/lib/jarvis/useDashboardCalendar";
 import { loadLocal } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
 import { STORE_KEY, emptyStore } from "@/lib/new-dashboard/model";
@@ -29,16 +35,27 @@ import { emptyJarvis, JARVIS_KEY, loadJarvis, saveJarvis, uid } from "@/lib/jarv
 import { useMemory } from "@/lib/jarvis/useMemory";
 import type { ChatTurn, Conversation, JarvisStore } from "@/lib/jarvis/types";
 
-export type TabId = "dashboard" | "chat" | "inbox" | "calendar" | "memory" | "routines" | "profile";
+export type TabId =
+  | "dashboard" | "chat" | "inbox" | "calendar"
+  | "folders" | "photos" | "lists"
+  | "memory" | "routines" | "skills" | "profile";
 
-const TABS: { id: TabId; label: string; icon: keyof typeof Icon }[] = [
-  { id: "dashboard", label: "Dashboard", icon: "Grid" },
-  { id: "chat", label: "Chat", icon: "Bot" },
-  { id: "inbox", label: "Inbox", icon: "Inbox" },
-  { id: "calendar", label: "Calendar", icon: "Calendar" },
-  { id: "memory", label: "Memory", icon: "Database" },
-  { id: "routines", label: "Routines", icon: "ListChecks" },
-  { id: "profile", label: "Profile", icon: "Users" },
+/**
+ * The rail, in three groups. Folders, Photos and Lists are the old Dashboard
+ * app, moved in whole — there is one dashboard now, and it is this one.
+ */
+const TABS: { id: TabId; label: string; icon: keyof typeof Icon; group: string }[] = [
+  { id: "dashboard", label: "Dashboard", icon: "Grid", group: "Assistant" },
+  { id: "chat", label: "Chat", icon: "Bot", group: "Assistant" },
+  { id: "inbox", label: "Inbox", icon: "Inbox", group: "Assistant" },
+  { id: "calendar", label: "Calendar", icon: "Calendar", group: "Assistant" },
+  { id: "folders", label: "Folders", icon: "Folder", group: "Your stuff" },
+  { id: "photos", label: "Photos", icon: "Image", group: "Your stuff" },
+  { id: "lists", label: "Lists", icon: "ListChecks", group: "Your stuff" },
+  { id: "memory", label: "Memory", icon: "Database", group: "Jarvis" },
+  { id: "routines", label: "Routines", icon: "Clock", group: "Jarvis" },
+  { id: "skills", label: "Skills", icon: "Sparkles", group: "Jarvis" },
+  { id: "profile", label: "Profile", icon: "Users", group: "Jarvis" },
 ];
 
 function isTab(v: string): v is TabId {
@@ -92,6 +109,13 @@ export function Jarvis() {
     [memory.memories, store?.mutedSources],
   );
 
+  const dash = useDashboardCalendar();
+  /** Hand-typed Jarvis events plus the Dashboard calendar, for the brief. */
+  const briefStore = useMemo(
+    () => (store ? { ...store, events: [...store.events, ...dash.events.map(toCalEvent)] } : null),
+    [store, dash.events],
+  );
+
   const go = (id: TabId) => {
     setTab(id);
     window.location.hash = id;
@@ -103,6 +127,11 @@ export function Jarvis() {
 
   /** The one client-side path to a real action, used by chat and by voice. */
   const runAction = async (action: { tool: string }, args: Record<string, unknown>): Promise<string> => {
+    if (isDashboardTool(action.tool)) {
+      const said = await runDashboardTool(action.tool, args);
+      dash.refresh();
+      return said;
+    }
     const res = await fetch("/api/jarvis/action", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -129,12 +158,20 @@ export function Jarvis() {
 
   const rail = (
     <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-line bg-panel px-2 py-1.5 md:h-[calc(100dvh-49px)] md:w-44 md:flex-col md:overflow-y-auto md:border-b-0 md:border-r md:px-2 md:py-3">
-      {TABS.map((t) => {
+      {TABS.map((t, i) => {
         const I = Icon[t.icon];
         const on = tab === t.id;
+        const first = i === 0 || TABS[i - 1].group !== t.group;
         return (
+          <div key={t.id} className="contents">
+          {first && (
+            <span
+              className={`hidden px-2.5 pb-1 text-[10px] font-medium text-ink-faint md:block ${i === 0 ? "" : "pt-3"}`}
+            >
+              {t.group}
+            </span>
+          )}
           <button
-            key={t.id}
             onClick={() => go(t.id)}
             aria-current={on ? "page" : undefined}
             className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition ${
@@ -144,6 +181,7 @@ export function Jarvis() {
             <I width={14} height={14} />
             <span className={on ? "" : "hidden sm:inline"}>{t.label}</span>
           </button>
+          </div>
         );
       })}
       <div className="hidden md:mt-auto md:block md:px-1 md:pt-4">
@@ -185,14 +223,30 @@ export function Jarvis() {
       <div className="md:flex">
         {rail}
         <main className="min-w-0 flex-1">
+          <ReminderBanner queue={dash.reminders.queue} onDismiss={dash.reminders.dismiss} />
           {tab === "dashboard" && (
-            <DashboardTab profile={profile} store={store} go={go} />
+            <DashboardTab profile={profile} store={briefStore ?? store} go={go} />
           )}
+          {/* One Dashboard instance serves both tabs, so an open folder survives
+              a hop to Photos and back. */}
+          {(tab === "folders" || tab === "photos") && (
+            <Recall section={tab} onSection={go} />
+          )}
+          {tab === "lists" && (
+            <div className="p-3 sm:p-4">
+              <ListsBoard />
+            </div>
+          )}
+          {tab === "skills" && <SkillsLibrary chromeless />}
           {tab === "memory" && <MemoryTab store={store} commit={commit} />}
           {tab === "profile" && <NewDashboard chromeless />}
-          {tab === "chat" && <ChatTab store={store} commit={commit} profile={profile} />}
+          {tab === "chat" && (
+            <ChatTab store={store} commit={commit} profile={profile} onDashboardChanged={dash.refresh} />
+          )}
           {tab === "inbox" && <InboxTab store={store} commit={commit} profile={profile} />}
-          {tab === "calendar" && <CalendarTab store={store} commit={commit} />}
+          {tab === "calendar" && (
+            <CalendarTab store={store} commit={commit} dashboard={dash.events} onDashboard={dash.setEvents} />
+          )}
           {tab === "routines" && <RoutinesTab store={store} commit={commit} profile={profile} />}
         </main>
       </div>

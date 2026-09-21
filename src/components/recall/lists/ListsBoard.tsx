@@ -44,6 +44,12 @@ export function ListsBoard({ standalone = false }: Props) {
   const [showHidden, setShowHidden] = useState(false);
   const [quickText, setQuickText] = useState("");
   const [quickList, setQuickList] = useState("todo");
+  /**
+   * The lock beside quick-add. Held in memory only, never persisted: a
+   * forgotten "private" that survives a reload would quietly hide the next
+   * week of shopping from the family, which is worse than re-tapping a lock.
+   */
+  const [quickPrivate, setQuickPrivate] = useState(false);
 
   const [itemDialog, setItemDialog] = useState<{ item: ListItem | null; listId: string } | null>(null);
   const [listDialog, setListDialog] = useState<{ list: ListDef | null } | null>(null);
@@ -159,6 +165,7 @@ export function ListsBoard({ standalone = false }: Props) {
       note: draft.note,
       dueDate: draft.dueDate,
       url: draft.url,
+      private: draft.private,
     };
     const existing = itemDialog?.item;
     setItemDialog(null);
@@ -243,6 +250,25 @@ export function ListsBoard({ standalone = false }: Props) {
         )}
       </div>
 
+      {/* What the violet means, in one line. The admin's wording differs because
+          their view differs: they are the one person who sees other people's
+          private rows, and should never mistake those for public ones. */}
+      <p className="-mt-1 mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-ink-faint">
+        <span className="inline-flex items-center gap-1">
+          <Icon.Users width={11} height={11} />
+          Public — everyone sees it
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <Icon.Lock width={11} height={11} className="text-violet-300" />
+          <span>
+            <span className="text-violet-200">Private</span>
+            {board.isAdmin
+              ? " — hidden from everyone else. You also see members' private items."
+              : " — only you and the admin"}
+          </span>
+        </span>
+      </p>
+
       {/* Quick add — anything into any list without navigating */}
       <form
         onSubmit={(e) => {
@@ -250,24 +276,63 @@ export function ListsBoard({ standalone = false }: Props) {
           const text = quickText.trim();
           if (!text) return;
           setQuickText("");
-          void run(() => listsApi.addItem({ listId: quickList, text }));
+          void run(
+            () => listsApi.addItem({ listId: quickList, text, private: quickPrivate }),
+            quickPrivate ? "Added privately" : undefined,
+          );
         }}
         className="mb-4 flex gap-1.5"
       >
         <div className="relative min-w-0 flex-1">
-          <Icon.Plus
-            width={14}
-            height={14}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint"
-          />
+          {quickPrivate ? (
+            <Icon.Lock
+              width={14}
+              height={14}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-violet-300"
+            />
+          ) : (
+            <Icon.Plus
+              width={14}
+              height={14}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint"
+            />
+          )}
           <input
             value={quickText}
             onChange={(e) => setQuickText(e.target.value)}
-            placeholder="Add something…"
-            aria-label="Add something to a list"
-            className="w-full rounded-xl border border-line bg-canvas py-2 pl-9 pr-3 text-[13px] text-ink outline-none placeholder:text-ink-faint focus:border-brand focus:ring-2 focus:ring-brand/25"
+            placeholder={quickPrivate ? "Add something private…" : "Add something…"}
+            aria-label={quickPrivate ? "Add something private to a list" : "Add something to a list"}
+            className={
+              "w-full rounded-xl border py-2 pl-9 pr-3 text-[13px] text-ink outline-none placeholder:text-ink-faint focus:ring-2 " +
+              (quickPrivate
+                ? "border-violet-400/40 bg-violet-500/[0.07] focus:border-violet-400/70 focus:ring-violet-400/25"
+                : "border-line bg-canvas focus:border-brand focus:ring-brand/25")
+            }
           />
         </div>
+        {/* The lock also governs every tile's inline add, so one switch decides
+            where the next thing goes rather than a checkbox per input. */}
+        <button
+          type="button"
+          onClick={() => setQuickPrivate((v) => !v)}
+          aria-pressed={quickPrivate}
+          title={
+            quickPrivate
+              ? "Adding privately — tap to add publicly"
+              : board.isAdmin
+                ? "Add privately (only you will see it)"
+                : "Add privately (only you and the admin will see it)"
+          }
+          aria-label="Add privately"
+          className={
+            "shrink-0 rounded-xl border px-2.5 transition " +
+            (quickPrivate
+              ? "border-violet-400/50 bg-violet-500/15 text-violet-200"
+              : "border-line text-ink-faint hover:border-violet-400/40 hover:text-violet-300")
+          }
+        >
+          <Icon.Lock width={14} height={14} />
+        </button>
         <select
           value={quickList}
           onChange={(e) => setQuickList(e.target.value)}
@@ -314,7 +379,10 @@ export function ListsBoard({ standalone = false }: Props) {
               isAdmin={board.isAdmin}
               accent={accents[i]}
               hiddenByFilter={total - mine.length}
-              onQuickAdd={(text) => void run(() => listsApi.addItem({ listId: list.id, text }))}
+              quickPrivate={quickPrivate}
+              onQuickAdd={(text) =>
+                void run(() => listsApi.addItem({ listId: list.id, text, private: quickPrivate }))
+              }
               onOpenAdd={() => setItemDialog({ item: null, listId: list.id })}
               onToggle={(item) =>
                 void run(() => listsApi.updateItem(item.id, { done: !item.done }))
@@ -387,6 +455,8 @@ export function ListsBoard({ standalone = false }: Props) {
       {itemDialog && (
         <ItemDialog
           lists={visibleLists}
+          isAdmin={board.isAdmin}
+          defaultPrivate={quickPrivate}
           item={itemDialog.item}
           defaultListId={itemDialog.listId}
           busy={busy}

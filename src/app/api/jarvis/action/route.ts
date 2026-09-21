@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { connector } from "@/lib/jarvis/server/connectors";
-import { isReadOnly } from "@/lib/jarvis/tools";
+import { DASHBOARD_TOOLS, isReadOnly } from "@/lib/jarvis/tools";
+
+const DASHBOARD_TOOL_NAMES = DASHBOARD_TOOLS.map((t) => t.name);
 
 // The ONLY place an action with outside effects is executed. It runs on an
 // explicit request from the confirm card — never from the agent loop.
@@ -20,6 +22,12 @@ export async function POST(req: Request) {
   // only the confirm card sends.
   if (!isReadOnly({ name: tool }) && body.confirmed !== true) {
     return NextResponse.json({ error: "That action needs to be confirmed first." }, { status: 403 });
+  }
+
+  // Dashboard actions run in the browser, where folders and the owner's own
+  // calendar live. One arriving here means a client skipped that path.
+  if (DASHBOARD_TOOL_NAMES.includes(tool)) {
+    return NextResponse.json({ error: "That action runs in the app, not on the server." }, { status: 400 });
   }
 
   const c = connector();
