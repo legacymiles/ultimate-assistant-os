@@ -1,4 +1,4 @@
-"""Realtime Lucy inference server.
+r"""Realtime Lucy inference server.
 
     python server/server.py --port 8765 [--token SECRET]
 
@@ -12,6 +12,7 @@ one GPU); a new offer replaces the previous session.
 
 import argparse
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -26,8 +27,8 @@ from aiohttp import web
 from aiortc import MediaStreamTrack, RTCPeerConnection, RTCSessionDescription
 from av import VideoFrame
 
-from common import (FrameRing, MODEL_FPS, add_model_args, build_pipeline,
-                    open_stream)
+from common import (FrameRing, MODEL_FPS, PRESET_PROMPTS, add_model_args,
+                    build_pipeline, open_stream)
 
 log = logging.getLogger("lucy")
 CLOCK = 90000
@@ -91,6 +92,10 @@ class Session:
         self.strength = strength
         self.cond_mode = cond_mode
         self.keys = []
+        # Latest edit mask from the browser, and whether the GPU loop has
+        # picked it up yet. A mask change must never re-anchor the stream.
+        self.mask = None
+        self.mask_dirty = False
         self.reset_requested = False
         self.closed = False
         self.channel = None
@@ -128,9 +133,36 @@ class Session:
             self.keys = [str(k)[:16] for k in msg["keys"]][:8]
         elif t == "reset":
             self.reset_requested = True
-        elif t == "cond_mode" and msg.get("value") in ("sdedit", "keyframe"):
+        elif t == "cond_mode" and msg.get("value") in ("sdedit", "keyframe", "masked"):
             self.cond_mode = msg["value"]
             self.reset_requested = True
+        elif t == "mask":
+            self.mask = self._decode_mask(msg)
+            self.mask_dirty = True
+
+    @staticmethod
+    def _decode_mask(msg):
+        """{"w":64,"h":48,"data":"<base64 of w*h uint8>"} -> [h, w] float 0..1.
+
+        `data: null` (or a bad payload) clears the mask, which is the safe
+        failure: the whole frame becomes editable again rather than the stream
+        silently freezing behind a stale region.
+        """
+        data = msg.get("data")
+        if not data:
+            return None
+        try:
+            w, h = int(msg["w"]), int(msg["h"])
+            if not (0 < w <= 256 and 0 < h <= 256):
+                return None
+            raw = base64.b64decode(data, validate=True)
+            if len(raw) != w * h:
+                log.warning(f"mask payload is {len(raw)} bytes, expected {w * h}")
+                return None
+            return np.frombuffer(raw, dtype=np.uint8).reshape(h, w).astype(np.float32) / 255.0
+        except Exception as e:
+            log.warning(f"bad mask payload: {e}")
+            return None
 
     # --- output bookkeeping -------------------------------------------
     def push_frames(self, frames, capture_ts_last, step_done_ts):
@@ -181,9 +213,24 @@ class Engine:
             self.load_error = f"{type(e).__name__}: {e}"
             log.exception("model load failed")
             return
+        # Prompts still missing from the disk cache, warmed below while idle.
+        to_warm = [p for p in PRESET_PROMPTS if p != self.args.prompt]
         while True:
             s = self.session
             if s is None or s.closed:
+                # Idle: spend the GPU on one preset prompt so that picking it
+                # later is instant instead of a ~50 s freeze. One per pass, so
+                # an incoming session waits at most one encode.
+                if to_warm:
+                    p = to_warm.pop(0)
+                    try:
+                        t0 = time.perf_counter()
+                        self.pipe.encode_prompt(p, disk_cache_dir=self.args.prompt_cache_dir)
+                        log.info(f"warmed preset prompt in {time.perf_counter() - t0:.1f}s "
+                                 f"({len(to_warm)} left): {p[:48]}…")
+                    except Exception:
+                        log.exception("preset prompt warm failed")
+                    continue
                 time.sleep(0.02)
                 continue
             try:
@@ -217,6 +264,11 @@ class Engine:
                     stream = open_stream(self.pipe, args, anchor, prompt=s.prompt)
                 finally:
                     args.strength, args.cond_mode = saved
+                # A re-anchor builds a new CausalStream, so the live mask has
+                # to be carried over or the region lock silently disappears.
+                if s.mask is not None:
+                    stream.set_mask(s.mask)
+                    s.mask_dirty = False
                 s.stream = stream
                 s.hold_h, s.hold_w = stream.h, stream.w
                 s.ring.clear()
@@ -245,6 +297,11 @@ class Engine:
                 s.send_threadsafe({"type": "status", "state": "streaming", "stream": stream.describe()})
             if s.strength != stream.strength:
                 stream.set_strength(s.strength)
+            if s.mask_dirty:
+                # Cheap (an interpolate on a 64x48 array) so it can ride every
+                # chunk, which is what lets the region track a moving subject.
+                stream.set_mask(s.mask)
+                s.mask_dirty = False
             stream.set_keys(s.keys)
 
             out, stats = stream.step(frames)
@@ -272,6 +329,12 @@ def make_app(engine: Engine, token: str | None):
         resp.headers["Access-Control-Allow-Origin"] = "*"
         resp.headers["Access-Control-Allow-Headers"] = "content-type, authorization"
         resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        # An https page calling http://localhost is a Private Network Access
+        # request: Chrome preflights it with Access-Control-Request-Private-
+        # Network and drops the call unless the answer opts in. Without this,
+        # /health and /offer fail from the deployed site even though the same
+        # page works from http://localhost:3000.
+        resp.headers["Access-Control-Allow-Private-Network"] = "true"
         return resp
 
     def authorized(req, body=None):

@@ -71,3 +71,11 @@ public/dances/
 # Supabase CLI scratch (version probe, linked-project cache).
 supabase/.temp/
 __pycache__/
+
+# Loose screenshots and local tool logs — CLAUDE.md documents docs/screenshots
+# as gitignored, but it never was, so 7MB of stills sat untracked in the tree.
+docs/screenshots/
+tools/unreal-builder/builder.log
+
+# Studio bridge renders and reference photos (local only)
+/tools/studio-bridge/out/

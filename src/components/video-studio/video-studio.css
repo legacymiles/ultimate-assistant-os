@@ -1,0 +1,1372 @@
+/* ------------------------------------------------------------------ */
+/*  Video Studio Arena — a dark production studio.                      */
+/*  Scoped under .vsa so the hub's own tokens stay untouched.           */
+/*  Glass is used sparingly: the header, and nothing else.              */
+/* ------------------------------------------------------------------ */
+
+.vsa {
+  --bg: #08080b;
+  --panel: #101017;
+  --panel-2: #16161f;
+  --line: #24242f;
+  --line-2: #32323f;
+  --ink: #eceaf4;
+  --ink-2: #9a99a8;
+  --ink-3: #6a6a78;
+  --brand: #8b5cf6;
+  --brand-2: #c084fc;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --bad: #f87171;
+  --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+  background:
+    radial-gradient(1200px 600px at 78% -12%, rgba(139, 92, 246, 0.14), transparent 62%),
+    radial-gradient(900px 500px at 8% 4%, rgba(56, 189, 248, 0.07), transparent 60%),
+    var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.vsa *,
+.vsa *::before,
+.vsa *::after {
+  box-sizing: border-box;
+}
+
+/* ----- header ----- */
+.vsa-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: rgba(8, 8, 11, 0.76);
+  backdrop-filter: blur(14px);
+}
+.vsa-head-l,
+.vsa-head-r {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.vsa-head-r {
+  margin-left: auto;
+}
+.vsa-back {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  flex: none;
+}
+.vsa-back:hover {
+  color: var(--ink);
+  border-color: var(--line-2);
+}
+.vsa-brand {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+}
+.vsa-brand span {
+  color: var(--brand-2);
+}
+.vsa-tag {
+  color: var(--ink-3);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.vsa-flow {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.vsa-flow-step {
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 11.5px;
+  padding: 5px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.vsa-flow-step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.vsa-flow-step.is-on {
+  background: var(--panel-2);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+/* ----- banners ----- */
+/* Sticky under the sticky header: a refusal raised by a button near the bottom
+   of a long workspace is useless if it lands above the fold. */
+.vsa-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 18px;
+  background: #2a1214;
+  border-bottom: 1px solid rgba(248, 113, 113, 0.35);
+  color: #fca5a5;
+  font-size: 12px;
+  position: sticky;
+  top: 53px;
+  z-index: 5;
+}
+.vsa-banner button {
+  margin-left: auto;
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.vsa-busy {
+  padding: 7px 18px;
+  font-size: 11.5px;
+  color: var(--brand-2);
+  border-bottom: 1px solid var(--line);
+  background: #171325;
+  position: sticky;
+  top: 53px;
+  z-index: 4;
+}
+
+/* ----- layout ----- */
+.vsa-main {
+  padding: 22px 18px 72px;
+}
+.vsa-screen {
+  max-width: 1180px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.vsa-panel {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  padding: 18px;
+}
+.vsa-panel-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.vsa-panel-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.vsa-panel-head p {
+  margin: 3px 0 0;
+  color: var(--ink-3);
+  font-size: 11.5px;
+}
+.vsa-panel-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ----- controls ----- */
+.vsa-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line-2);
+  background: var(--panel-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  padding: 7px 13px;
+  border-radius: 9px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.vsa-btn:hover:not(:disabled):not(.is-disabled) {
+  border-color: var(--brand);
+  background: #1c1c28;
+}
+.vsa-btn:disabled,
+.vsa-btn.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.vsa-btn.is-primary {
+  background: linear-gradient(135deg, var(--brand), #6d28d9);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+.vsa-btn.is-ghost {
+  background: none;
+  border-color: var(--line);
+  color: var(--ink-2);
+}
+.vsa-btn.is-small {
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: 7px;
+}
+.vsa-btn.is-big {
+  font-size: 14px;
+  padding: 11px 24px;
+}
+.vsa-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.vsa-icon-btn:hover {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+.vsa-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.vsa-link:hover {
+  color: var(--brand-2);
+}
+/* `.vsa select` below stretches inputs to the panel width — right in a form,
+   wrong for a control sitting in a button row. Matched on both so it wins. */
+.vsa select.vsa-select {
+  width: auto;
+}
+.vsa-select {
+  background: var(--panel-2);
+  border: 1px solid var(--line-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.vsa input[type="text"],
+.vsa input[type="number"],
+.vsa input:not([type]),
+.vsa textarea,
+.vsa select {
+  width: 100%;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--ink);
+  font: inherit;
+  padding: 8px 11px;
+  resize: vertical;
+}
+.vsa input:focus,
+.vsa textarea:focus,
+.vsa select:focus {
+  outline: none;
+  border-color: var(--brand);
+}
+.vsa input::placeholder,
+.vsa textarea::placeholder {
+  color: var(--ink-3);
+}
+
+.vsa-field {
+  display: block;
+  margin-bottom: 13px;
+}
+.vsa-field-label {
+  display: flex;
+  gap: 7px;
+  align-items: baseline;
+  margin-bottom: 5px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.vsa-field-label em {
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink-3);
+}
+.vsa-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+}
+.vsa-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 13px;
+  cursor: pointer;
+}
+.vsa-check input {
+  width: auto;
+  accent-color: var(--brand);
+}
+.vsa-hint {
+  color: var(--ink-3);
+  font-size: 11.5px;
+}
+.vsa-notice {
+  margin: 0 0 14px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  background: rgba(251, 191, 36, 0.08);
+  color: #fcd34d;
+  font-size: 11.5px;
+}
+.vsa-error {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 9px;
+  border: 1px solid rgba(248, 113, 113, 0.32);
+  background: rgba(248, 113, 113, 0.09);
+  color: #fca5a5;
+  font-size: 11.5px;
+}
+.vsa-error.is-inline {
+  padding: 5px 9px;
+  margin: 5px 0;
+}
+
+.vsa-choices {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.vsa-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--ink-2);
+  border-radius: 9px;
+  padding: 7px 13px;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.vsa-choice strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.vsa-choice span {
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+.vsa-choice.is-on {
+  border-color: var(--brand);
+  background: rgba(139, 92, 246, 0.14);
+}
+
+.vsa-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-end;
+}
+.vsa-actions .vsa-hint {
+  margin-right: auto;
+}
+
+/* ----- step 1 ----- */
+.vsa-prompt-panel {
+  padding: 20px;
+}
+.vsa-prompt {
+  display: block;
+}
+.vsa-step-tag {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brand-2);
+  margin-bottom: 9px;
+}
+.vsa-prompt textarea {
+  font-size: 16px;
+  line-height: 1.5;
+  padding: 14px 16px;
+  border-radius: 12px;
+}
+.vsa-examples {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-top: 11px;
+}
+.vsa-examples button {
+  border: 1px dashed var(--line-2);
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  text-align: left;
+}
+.vsa-examples button:hover {
+  color: var(--ink);
+  border-color: var(--brand);
+}
+.vsa-duration {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.vsa-duration input[type="range"] {
+  flex: 1;
+  accent-color: var(--brand);
+  padding: 0;
+  background: none;
+  border: 0;
+}
+.vsa-duration input[type="number"] {
+  width: 68px;
+}
+.vsa-duration span {
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+/* ----- step 2: method cards ----- */
+.vsa-methods {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 14px;
+}
+.vsa-method {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--panel-2);
+  padding: 16px;
+}
+.vsa-method.is-on {
+  border-color: var(--brand);
+}
+.vsa-method.is-director {
+  border-style: dashed;
+}
+.vsa-method header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.vsa-method header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+.vsa-method-best {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.vsa-method-best strong {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+.vsa-method header .vsa-cap {
+  margin-left: auto;
+  flex: none;
+}
+.vsa-method-desc {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+.vsa-strengths {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.vsa-strengths li {
+  font-size: 10.5px;
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+.vsa-method-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px 14px;
+  margin: 0;
+}
+.vsa-method-meta dt {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.vsa-method-meta dd {
+  margin: 1px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.vsa-method-block {
+  margin: 0;
+  font-size: 11px;
+  color: var(--warn);
+}
+.vsa-method footer {
+  margin-top: auto;
+  display: flex;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.vsa-mark {
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  flex: none;
+  position: relative;
+  overflow: hidden;
+}
+.vsa-mark i {
+  position: absolute;
+  inset: 3px;
+  border-radius: 10px;
+  background: #0d0d13;
+}
+.vsa-mark::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 10px;
+  background: inherit;
+  opacity: 0.35;
+  filter: blur(6px);
+}
+
+/* ----- capability badge ----- */
+.vsa-cap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.vsa-cap i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-3);
+}
+.vsa-cap.is-ready {
+  color: var(--ok);
+  border-color: rgba(74, 222, 128, 0.35);
+}
+.vsa-cap.is-ready i {
+  background: var(--ok);
+}
+.vsa-cap.is-connected i {
+  background: var(--ok);
+}
+.vsa-cap.is-running {
+  color: var(--brand-2);
+  border-color: rgba(192, 132, 252, 0.4);
+}
+.vsa-cap.is-running i {
+  background: var(--brand-2);
+}
+.vsa-cap.is-requires-api-key,
+.vsa-cap.is-requires-installation {
+  color: var(--warn);
+  border-color: rgba(251, 191, 36, 0.32);
+}
+.vsa-cap.is-requires-api-key i,
+.vsa-cap.is-requires-installation i {
+  background: var(--warn);
+}
+.vsa-cap.is-failed,
+.vsa-cap.is-not-connected {
+  color: var(--bad);
+  border-color: rgba(248, 113, 113, 0.3);
+}
+.vsa-cap.is-failed i,
+.vsa-cap.is-not-connected i {
+  background: var(--bad);
+}
+
+/* ----- step 3: plan ----- */
+.vsa-plan-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.vsa-title-input {
+  flex: 1;
+  min-width: 220px;
+  font-size: 18px !important;
+  font-weight: 650;
+  background: none !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+  padding: 4px 0 !important;
+}
+.vsa-plan-facts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.vsa-plan-facts span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+.vsa-plan-source {
+  color: var(--brand-2) !important;
+  border-color: rgba(192, 132, 252, 0.3) !important;
+}
+.vsa-logline {
+  font-size: 12.5px !important;
+  color: var(--ink-2) !important;
+  margin-bottom: 14px;
+}
+
+.vsa-scenes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.vsa-scene {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel-2);
+  padding: 11px 13px;
+}
+.vsa-scene-bar {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.vsa-scene-no {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--brand-2);
+  white-space: nowrap;
+}
+.vsa-scene-title {
+  flex: 1;
+  min-width: 140px;
+  font-weight: 600;
+  background: none !important;
+  border: 0 !important;
+  padding: 2px 0 !important;
+}
+/* Timing, engine and delete travel together so they never orphan on their
+   own line when the scene title takes the full width. */
+.vsa-scene-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-left: auto;
+  flex: none;
+}
+.vsa-scene-time {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.vsa-scene-ends {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.vsa-scene-end {
+  width: 54px;
+  flex: none;
+  padding: 4px 7px !important;
+  font-size: 11px !important;
+}
+.vsa-scene-method {
+  width: auto !important;
+  flex: none;
+  font-size: 11px !important;
+  padding: 4px 8px !important;
+}
+.vsa-narration {
+  margin-top: 7px;
+  font-size: 12px !important;
+  font-style: italic;
+}
+.vsa-directive {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.vsa-directive summary {
+  cursor: pointer;
+  color: var(--brand-2);
+}
+.vsa-directive pre {
+  white-space: pre-wrap;
+  margin: 7px 0 0;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: #0b0b11;
+  border: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-2);
+  max-height: 260px;
+  overflow: auto;
+}
+.vsa-add-scene {
+  margin-top: 11px;
+}
+.vsa-chosen {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.vsa-chosen dt {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.vsa-chosen dd {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ----- step 4: workspace ----- */
+.vsa-stage-panel {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+.vsa-stage-panel:has(.vsa-stage + .vsa-stage) {
+  grid-template-columns: 1fr 1fr;
+}
+/* The stage keeps the video's real shape and never grows past 62vh. The ratio
+   is a variable so the width can be derived from the height cap — capping the
+   height alone would squash the frame instead of shrinking it. */
+.vsa-stage {
+  --ar: 16 / 9;
+  position: relative;
+  border-radius: 11px;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--line);
+  aspect-ratio: var(--ar);
+  width: min(100%, calc(62vh * (var(--ar))));
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+}
+.vsa-ar-9-16 {
+  --ar: 9 / 16;
+}
+.vsa-ar-1-1 {
+  --ar: 1 / 1;
+}
+.vsa-ar-4-5 {
+  --ar: 4 / 5;
+}
+.vsa-ar-21-9 {
+  --ar: 21 / 9;
+}
+.vsa-stage video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.vsa-stage-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: center;
+  text-align: center;
+  padding: 24px;
+  color: var(--ink-3);
+}
+.vsa-stage-empty strong {
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.vsa-stage-empty span {
+  font-size: 11.5px;
+  max-width: 44ch;
+}
+
+.vsa-ws-bar {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.vsa-ws-title h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+}
+.vsa-ws-facts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.vsa-ws-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.vsa-status {
+  border-radius: 999px;
+  padding: 2px 9px;
+  border: 1px solid var(--line-2);
+}
+.vsa-status.is-ready {
+  color: var(--ok);
+  border-color: rgba(74, 222, 128, 0.35);
+}
+.vsa-status.is-failed {
+  color: var(--bad);
+  border-color: rgba(248, 113, 113, 0.32);
+}
+.vsa-status.is-rendering,
+.vsa-status.is-optimising,
+.vsa-status.is-assembling,
+.vsa-status.is-queued {
+  color: var(--brand-2);
+  border-color: rgba(192, 132, 252, 0.34);
+}
+.vsa-version {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--brand-2);
+  margin-left: 7px;
+}
+
+.vsa-ws-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.vsa-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.vsa-steps li {
+  display: flex;
+  gap: 9px;
+  align-items: baseline;
+  padding: 4px 0;
+  color: var(--ink-3);
+}
+.vsa-steps li.is-done {
+  color: var(--ok);
+}
+.vsa-steps li.is-running {
+  color: var(--brand-2);
+}
+.vsa-steps li.is-failed {
+  color: var(--bad);
+}
+.vsa-steps li.is-skipped {
+  color: var(--warn);
+}
+.vsa-step-mark {
+  width: 12px;
+  flex: none;
+}
+.vsa-step-label {
+  color: var(--ink);
+}
+.vsa-steps li.is-pending .vsa-step-label {
+  color: var(--ink-3);
+}
+.vsa-step-detail {
+  color: var(--ink-3);
+  font-size: 10.5px;
+  margin-left: auto;
+  text-align: right;
+}
+
+.vsa-ws-scenes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.vsa-ws-scenes li {
+  border: 1px solid var(--line);
+  border-left-width: 2px;
+  border-radius: 9px;
+  padding: 9px 11px;
+  background: var(--panel-2);
+}
+.vsa-ws-scenes li.is-done {
+  border-left-color: var(--ok);
+}
+.vsa-ws-scenes li.is-running {
+  border-left-color: var(--brand-2);
+}
+.vsa-ws-scenes li.is-failed {
+  border-left-color: var(--bad);
+}
+.vsa-ws-scene-head {
+  display: flex;
+  gap: 9px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.vsa-ws-scene-head strong {
+  font-size: 12.5px;
+}
+.vsa-ws-scene-time {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+.vsa-ws-scene-engine {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--brand-2);
+}
+.vsa-ws-scenes p {
+  margin: 5px 0 7px;
+  color: var(--ink-2);
+  font-size: 11.5px;
+}
+.vsa-ws-scene-actions {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.vsa-versions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 11px;
+}
+.vsa-version-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel-2);
+  color: var(--ink-2);
+  font: inherit;
+  padding: 7px 11px;
+  cursor: pointer;
+  text-align: left;
+}
+.vsa-version-chip strong {
+  font-size: 11.5px;
+  color: var(--ink);
+}
+.vsa-version-chip span {
+  font-size: 10.5px;
+}
+.vsa-version-chip em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--ink-3);
+}
+.vsa-version-chip.is-current {
+  border-color: var(--brand);
+}
+.vsa-version-chip.is-compare {
+  border-color: var(--ok);
+}
+.vsa-duplicate {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 9px;
+}
+
+.vsa-record {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.vsa-record dt {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.vsa-record dd {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.vsa-skill-list {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.vsa-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow: auto;
+  font-size: 11.5px;
+}
+.vsa-history li {
+  display: flex;
+  gap: 9px;
+  align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+}
+.vsa-history-kind {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brand-2);
+  min-width: 78px;
+}
+.vsa-history time {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+/* ----- home ----- */
+.vsa-hero {
+  text-align: center;
+  padding: 44px 24px;
+}
+.vsa-hero h1 {
+  margin: 0 0 20px;
+  font-size: 26px;
+  line-height: 1.3;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.vsa-hero h1 span {
+  display: block;
+  margin-top: 9px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+.vsa-hero-engines {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 22px;
+}
+.vsa-hero-engine {
+  font-size: 11px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink-3);
+}
+.vsa-hero-engine.is-ready {
+  color: var(--ok);
+  border-color: rgba(74, 222, 128, 0.3);
+}
+
+.vsa-projects {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.vsa-projects th {
+  text-align: left;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+  padding: 0 10px 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+.vsa-projects td {
+  padding: 9px 10px 9px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+}
+.vsa-projects tr:hover td {
+  background: rgba(139, 92, 246, 0.05);
+}
+.vsa-row-actions {
+  text-align: right;
+}
+
+.vsa-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  align-items: center;
+  padding: 34px 20px;
+  color: var(--ink-3);
+  text-align: center;
+}
+.vsa-empty strong {
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+/* ----- integrations ----- */
+.vsa-runner {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.vsa-runner .vsa-btn {
+  margin-left: auto;
+}
+.vsa-token {
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  background: rgba(74, 222, 128, 0.06);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 14px;
+}
+.vsa-token p {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.vsa-token-value {
+  display: block;
+  font-family: var(--mono);
+  font-size: 11px;
+  word-break: break-all;
+  background: #0b0b11;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  color: var(--ok);
+}
+.vsa-setup {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.vsa-setup li {
+  margin-bottom: 5px;
+}
+.vsa-integration-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.vsa-integration-head h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.vsa-integration-head p {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.vsa-integration-head .vsa-cap {
+  margin-left: auto;
+}
+.vsa-reqs {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  margin-bottom: 10px;
+}
+.vsa-reqs td {
+  padding: 6px 10px 6px 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  color: var(--ink-2);
+}
+.vsa-req-state {
+  width: 18px;
+  font-family: var(--mono);
+  color: var(--bad);
+}
+.is-met .vsa-req-state {
+  color: var(--ok);
+}
+.is-optional .vsa-req-state {
+  color: var(--ink-3);
+}
+.vsa-req-label {
+  color: var(--ink);
+  white-space: nowrap;
+}
+.vsa-req-label em {
+  font-style: normal;
+  color: var(--ink-3);
+  font-size: 10px;
+}
+.vsa-req-how {
+  color: var(--ink-3);
+}
+
+.vsa code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  background: #0b0b11;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 5px;
+  color: var(--ink-2);
+}
+
+/* ----- responsive ----- */
+@media (max-width: 860px) {
+  .vsa-grid-2,
+  .vsa-method-meta {
+    grid-template-columns: 1fr;
+  }
+  .vsa-stage-panel:has(.vsa-stage + .vsa-stage) {
+    grid-template-columns: 1fr;
+  }
+  .vsa-head {
+    gap: 10px;
+  }
+  .vsa-tag {
+    display: none;
+  }
+  .vsa-flow {
+    order: 3;
+    width: 100%;
+    justify-content: space-between;
+  }
+  .vsa-head-r {
+    margin-left: auto;
+  }
+  .vsa-ws-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+  .vsa-main {
+    padding: 16px 12px 60px;
+  }
+  .vsa-methods {
+    grid-template-columns: 1fr;
+  }
+  .vsa-ws-grid {
+    grid-template-columns: 1fr;
+  }
+  .vsa-reqs,
+  .vsa-reqs tbody,
+  .vsa-reqs tr,
+  .vsa-reqs td {
+    display: block;
+    width: 100%;
+  }
+  .vsa-reqs tr {
+    padding: 7px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .vsa-reqs td {
+    border: 0;
+    padding: 1px 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vsa * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

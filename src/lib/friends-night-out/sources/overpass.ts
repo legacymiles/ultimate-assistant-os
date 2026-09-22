@@ -115,6 +115,49 @@ export function overpassStatus(): SourceStatus {
   return { id: "overpass", label: "OpenStreetMap", ok: true };
 }
 
+/** How long a mirror gets before the next one is asked as well. */
+const HEDGE_AFTER_MS = 20_000;
+/** A mirror that just timed out or refused is tried last for this long. */
+const SICK_FOR_MS = 10 * 60_000;
+const sickUntil = new Map<string, number>();
+
+/** One attempt against one mirror. Resolves with elements or rejects with a readable error. */
+async function askMirror(mirror: string, query: string, signal: AbortSignal): Promise<OverpassElement[]> {
+  const res = await fetch(mirror, {
+    method: "POST",
+    signal,
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      // Public instances rate-limit generic agents harder than identified
+      // ones, so this is a practical requirement rather than etiquette.
+      "User-Agent":
+        "FriendsNightOut/1.0 (personal event finder; +https://github.com/ultimate-assistant-os)",
+    },
+    body: `data=${encodeURIComponent(query)}`,
+    cache: "no-store",
+  });
+  // 429 and 504 are Overpass saying "busy", not "wrong".
+  if (res.status === 429 || res.status === 504) throw new Error("OpenStreetMap is busy right now.");
+  if (!res.ok) throw new Error(`OpenStreetMap returned ${res.status}`);
+  const text = await res.text();
+  // A dispatcher failure arrives as a 200 with an error in the body,
+  // so status alone is not enough to trust the response.
+  if (/runtime error|Dispatcher_Client/i.test(text.slice(0, 400))) {
+    throw new Error("OpenStreetMap is busy right now.");
+  }
+  return (JSON.parse(text) as { elements?: OverpassElement[] }).elements ?? [];
+}
+
+/**
+ * Run a query against the mirror pool, hedged.
+ *
+ * The first version tried mirrors strictly one after another with a 65 s
+ * timeout each, so any batch that started on a slow mirror spent over a minute
+ * before trying the next — measured: a 25-mile Santa Cruz sweep took 144 s and
+ * lost most of its places. Now, if a mirror hasn't answered in HEDGE_AFTER_MS,
+ * the next one is asked too and the first good answer wins; the rest are
+ * aborted. Mirrors that recently failed are tried last.
+ */
 export async function overpassQuery(
   query: string,
   startMirror = 0,
@@ -122,72 +165,70 @@ export async function overpassQuery(
   const cached = cache.get(query);
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.elements;
 
+  const now = Date.now();
+  const rotated = MIRRORS.map((_, i) => MIRRORS[(startMirror + i) % MIRRORS.length]);
+  const order = [
+    ...rotated.filter((m) => (sickUntil.get(m) ?? 0) <= now),
+    ...rotated.filter((m) => (sickUntil.get(m) ?? 0) > now),
+  ];
+
+  const controllers: AbortController[] = [];
   let lastError: Error | null = null;
 
-  for (let i = 0; i < MIRRORS.length; i++) {
-    // Batches start at different mirrors, so a parallel fan-out spreads across
-    // the pool instead of every batch hitting the same instance at once.
-    const mirror = MIRRORS[(startMirror + i) % MIRRORS.length];
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), CLIENT_TIMEOUT_MS);
-    try {
-      const res = await fetch(mirror, {
-        method: "POST",
-        signal: controller.signal,
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          // Public instances rate-limit generic agents harder than identified
-          // ones, so this is a practical requirement rather than etiquette.
-          "User-Agent":
-            "FriendsNightOut/1.0 (personal event finder; +https://github.com/ultimate-assistant-os)",
-        },
-        body: `data=${encodeURIComponent(query)}`,
-        cache: "no-store",
-      });
+  const elements = await new Promise<OverpassElement[] | null>((resolve) => {
+    let started = 0;
+    let settled = 0;
+    let done = false;
+    let hedgeTimer: ReturnType<typeof setTimeout> | undefined;
 
-      // 429 and 504 are Overpass saying "busy", not "wrong".
-      if (res.status === 429 || res.status === 504) {
-        lastError = new Error("OpenStreetMap is busy right now.");
-      } else if (!res.ok) {
-        lastError = new Error(`OpenStreetMap returned ${res.status}`);
-      } else {
-        const text = await res.text();
-        // A dispatcher failure arrives as a 200 with an error in the body,
-        // so status alone is not enough to trust the response.
-        if (/runtime error|Dispatcher_Client/i.test(text.slice(0, 400))) {
-          lastError = new Error("OpenStreetMap is busy right now.");
-        } else {
-          const data = JSON.parse(text) as { elements?: OverpassElement[] };
-          const elements = data.elements ?? [];
-          cache.set(query, { at: Date.now(), elements });
-          return elements;
-        }
-      }
-    } catch (err) {
-      lastError =
-        err instanceof Error && err.name === "AbortError"
-          ? new Error("OpenStreetMap timed out.")
-          : err instanceof Error
-            ? err
-            : new Error("Overpass request failed");
-      // A mirror failing is normal and recoverable, but silently swallowing WHY
-      // makes an outage indistinguishable from an empty area. The cause code is
-      // the part that actually identifies a socket-level failure.
-      const cause = (err as { cause?: { code?: string } })?.cause?.code;
-      console.warn(
-        `[fno] overpass mirror failed: ${mirror} — ${lastError.message}${cause ? ` (${cause})` : ""}`,
-      );
-    } finally {
-      clearTimeout(timer);
-    }
+    const launch = () => {
+      if (done || started >= order.length) return;
+      const mirror = order[started++];
+      const controller = new AbortController();
+      controllers.push(controller);
+      const timer = setTimeout(() => controller.abort(), CLIENT_TIMEOUT_MS);
+      clearTimeout(hedgeTimer);
+      hedgeTimer = setTimeout(launch, HEDGE_AFTER_MS);
+      askMirror(mirror, query, controller.signal)
+        .then((els) => {
+          if (done) return;
+          done = true;
+          clearTimeout(hedgeTimer);
+          resolve(els);
+        })
+        .catch((err) => {
+          if (done) return;
+          lastError =
+            err instanceof Error && err.name === "AbortError"
+              ? new Error("OpenStreetMap timed out.")
+              : err instanceof Error
+                ? err
+                : new Error("Overpass request failed");
+          sickUntil.set(mirror, Date.now() + SICK_FOR_MS);
+          // A mirror failing is normal and recoverable, but silently swallowing
+          // WHY makes an outage indistinguishable from an empty area.
+          const cause = (err as { cause?: { code?: string } })?.cause?.code;
+          console.warn(`[fno] overpass mirror failed: ${mirror} — ${lastError.message}${cause ? ` (${cause})` : ""}`);
+          settled++;
+          if (started < order.length) {
+            // Jittered pause so a failing pool isn't hammered in lockstep.
+            setTimeout(launch, 300 + Math.random() * 700);
+          } else if (settled >= started) {
+            done = true;
+            clearTimeout(hedgeTimer);
+            resolve(null);
+          }
+        })
+        .finally(() => clearTimeout(timer));
+    };
+    launch();
+  });
 
-    // Jittered backoff before the next mirror — hammering the pool in lockstep
-    // is how a client gets blocked from all of them at once.
-    if (i < MIRRORS.length - 1) {
-      await sleep(300 + Math.random() * 700);
-    }
+  for (const c of controllers) c.abort();
+  if (elements) {
+    cache.set(query, { at: Date.now(), elements });
+    return elements;
   }
-
   throw lastError ?? new Error("Could not reach OpenStreetMap.");
 }
 
@@ -208,15 +249,20 @@ export async function fetchPlaces(
     batches.push(filters.slice(i, i + BATCH_SIZE));
   }
 
-  const results = await Promise.allSettled(
-    batches.map((batch, i) => {
-      const clauses = batch.map((f) => `nwr${f}(${bbox});`).join("");
-      return overpassQuery(
-        `[out:json][timeout:${SERVER_TIMEOUT_S}];(${clauses});out tags center ${MAX_ELEMENTS};`,
-        i,
-      );
-    }),
-  );
+  const queryFor = (batch: string[]) =>
+    `[out:json][timeout:${SERVER_TIMEOUT_S}];(${batch.map((f) => `nwr${f}(${bbox});`).join("")});out tags center ${MAX_ELEMENTS};`;
+  const results = await Promise.allSettled(batches.map((batch, i) => overpassQuery(queryFor(batch), i)));
+
+  // Batches that failed during the first burst get one more try, started on a
+  // different mirror. Without this a busy moment silently thinned a whole city:
+  // Columbus came back with 28 places instead of ~460, and a saved city
+  // catalogue would have kept that forever. The retries run side by side so a
+  // city build stays inside the 300 s function limit.
+  const failed = results.flatMap((r, i) => (r.status === "rejected" ? [i] : []));
+  const retried = await Promise.allSettled(failed.map((i) => overpassQuery(queryFor(batches[i]), i + 1)));
+  failed.forEach((i, k) => {
+    if (retried[k].status === "fulfilled") results[i] = retried[k];
+  });
 
   // A partial failure just thins the board. Every batch failing means OSM is
   // genuinely unreachable, and the caller must say so rather than render an
@@ -553,8 +599,4 @@ function cleanHook(value: string | undefined): string | undefined {
   const clean = value.replace(/\s+/g, " ").trim();
   if (clean.length < 12) return undefined;
   return clean.length > 240 ? `${clean.slice(0, 237)}…` : clean;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -98,3 +98,18 @@ to any LLM from one place.
 
 **Alternatives considered:** A model setting per app (26 places to keep in sync); using OpenRouter's
 native `models` array (does not work on the Vercel gateway).
+
+## 2026-09-19 — Higgsfield models go through muapi.ai, not a Higgsfield account
+
+**Decision:** Whenever a repo, prompt, skill or video calls for Higgsfield, use the `higgsfield-models`
+skill instead. It runs the same models (Kling 3, Veo 3.1/4, Sora 2, Seedance 2, Hailuo/H3, Wan, Nano
+Banana, Seedream, GPT Image, Flux Kontext) through muapi.ai, the backend of
+github.com/Anil-matcha/Open-Generative-AI, paid per generation with `MUAPI_API_KEY`. No Higgsfield
+account, SDK or MCP. Higgsfield-only models (Soul, DoP presets) get the closest muapi substitute, and
+the owner is told. Batches over about 5 paid videos need confirmation first.
+
+**Why:** One pay-per-use key reaches the same models without a Higgsfield subscription. A single global
+rule (`~/.claude/CLAUDE.md`) keeps every project on the same route.
+
+**Alternatives considered:** The official Higgsfield MCP/account (subscription, and the owner doesn't
+want it required); running the Open-Generative-AI app itself (a full UI when only the API is needed).

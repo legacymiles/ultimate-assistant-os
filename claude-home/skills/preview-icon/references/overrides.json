@@ -1,0 +1,133 @@
+{
+  "_comment": "Per-app corrections to what plan.mjs infers. 'subject' is the concrete subject-and-event clause; plan.mjs appends camera, hues and house style. 'archetype' overrides inference. 'engine' forces wan or h3. See archetypes.md for the vocabulary. Keep subjects to one sentence, one subject, no screens, no faces.",
+
+  "jarvis": {
+    "archetype": "accumulation",
+    "subject": "Thousands of tiny points of light drifting in dark space, drawing together into a slowly turning sphere threaded with fine connecting filaments."
+  },
+  "std-safe": {
+    "archetype": "interrogation",
+    "subject": "A row of ten small glass vials standing in a dark rack; a band of light sweeps across them and each fills with a steady glow as it passes."
+  },
+  "friends-night-out": {
+    "archetype": "interrogation",
+    "subject": "A dark topographic city model; concentric rings of light expand from a single point, and scattered markers rise from the surface where they pass."
+  },
+  "tiktok-dances": {
+    "archetype": "accumulation",
+    "subject": "Dozens of small blank tiles drifting in dark space, snapping into a tight grid; one tile lifts forward and begins to shimmer."
+  },
+  "ai-rankings": {
+    "archetype": "interrogation",
+    "subject": "A row of identical matte blocks standing in a dark field; a band of light sweeps left to right and each block rises to a different height behind it."
+  },
+  "dashboard": {
+    "archetype": "accumulation",
+    "subject": "A cascade of small photographic prints tumbling through dark space, sorting mid-air into three neat stacks that settle flat."
+  },
+  "prompt-architect": {
+    "archetype": "transformation",
+    "subject": "A rough lump of dark clay on a slowly turning plinth; it tightens and facets into a precise crystalline form."
+  },
+  "voice-studio": {
+    "archetype": "transformation",
+    "subject": "A smooth column of liquid metal standing upright in darkness; it ripples from the base upward and resolves into a crisp faceted shape."
+  },
+  "website-redesigner": {
+    "archetype": "transformation",
+    "subject": "A rough paper wireframe sheet lying flat; ink and creases dissolve as the sheet turns to polished glass with a hard rim light along its edge."
+  },
+  "pod-play-connect": {
+    "archetype": "transformation",
+    "subject": "Two halves of a broken ceramic disc drifting apart in dark space, turning and closing together into one seamless disc."
+  },
+  "music-classified": {
+    "archetype": "accumulation",
+    "subject": "Scattered vinyl records drifting in darkness, sliding into tight parallel racks that settle into ordered rows."
+  },
+  "music-creator": {
+    "archetype": "emission",
+    "subject": "A single studio condenser microphone in a dark room, dust suspended in a narrow beam; rings of light bloom outward from it and resolve into a steady pulse."
+  },
+  "soundprint": {
+    "archetype": "interrogation",
+    "subject": "A vinyl record turning in darkness; a fine stylus traces the groove and a ribbon of waveform light peels up and away behind it."
+  },
+  "auteur": {
+    "archetype": "emission",
+    "subject": "An empty dark soundstage; a single beam cuts down and a miniature film set condenses into being beneath it out of drifting particles."
+  },
+  "seedance-studio": {
+    "archetype": "accumulation",
+    "subject": "A row of blank film frames drifting in dark space, sliding edge to edge into one continuous strip that pulls taut."
+  },
+  "projects-timeline": {
+    "archetype": "accumulation",
+    "subject": "Scattered small markers drifting in darkness, drawing into a single straight illuminated line that settles level."
+  },
+  "multi-order-calculator": {
+    "archetype": "accumulation",
+    "subject": "Dozens of small paper receipts drifting in dark space, sliding together edge to edge and collapsing into one clean stack that settles flat."
+  },
+  "gods-eye-view": {
+    "archetype": "interrogation",
+    "subject": "A dark planet turning slowly; a thin sensor sweep crawls across the terminator, illuminating fine terrain detail that fades behind it."
+  },
+  "kart-showcase": {
+    "archetype": "transformation",
+    "subject": "A single racing kart suspended in darkness; its panels and components drift apart into a slow exploded arrangement, then draw back together."
+  },
+  "fire-reveal": {
+    "archetype": "interrogation",
+    "subject": "A smooth dark stone slab; a trail of molten light is drawn across its surface, revealing a glowing texture in its wake that cools back to dark."
+  },
+  "skills-library": {
+    "archetype": "accumulation",
+    "subject": "Identical blank cards fanning out across dark space into a tight grid; one card lifts slightly and catches the light."
+  },
+  "cookbook-genie": {
+    "archetype": "emission",
+    "subject": "An empty dark ceramic plate on a slowly turning surface; ingredients condense out of drifting particles and settle into a composed dish."
+  },
+  "ea-feature-list": {
+    "archetype": "accumulation",
+    "subject": "Small metal tags drifting in darkness, clicking together onto a single vertical rail in ordered sequence."
+  },
+  "image-studio": {
+    "archetype": "transformation",
+    "subject": "A blurred photographic print floating in darkness; it sharpens and resolves from the centre outward into crisp fine detail."
+  },
+  "smart-shot-videos": {
+    "archetype": "emission",
+    "subject": "An empty dark miniature stage; a product plinth, lights and a camera track condense into place out of drifting particles."
+  },
+  "video-studio-arena": {
+    "archetype": "transformation",
+    "subject": "Five short strips of film drifting separately in darkness, converging and braiding into one continuous ribbon."
+  },
+  "social-personas": {
+    "archetype": "accumulation",
+    "subject": "A scatter of identical blank badges drifting in darkness, arranging into a tight rosette that settles into place."
+  },
+  "amhe": {
+    "archetype": "interrogation",
+    "subject": "A taut dark cable under tension in darkness; a pulse of light travels its length and the cable flexes and rebalances as it passes."
+  },
+  "game-creator": {
+    "archetype": "emission",
+    "subject": "An empty dark void; blocks of terrain condense out of drifting particles and assemble into a small landscape."
+  },
+  "3d-studio": {
+    "archetype": "transformation",
+    "subject": "A wireframe armature turning in darkness; surfaces skin over it and resolve into a solid sculpted form."
+  },
+  "realtime-lucy": {
+    "archetype": "transformation",
+    "subject": "A smooth featureless mannequin bust turning slowly in darkness; its surface flows and re-textures into a different material as it turns."
+  },
+  "slippery-escape": {
+    "archetype": "inhabitation",
+    "engine": "h3",
+    "subject": "A low forward camera move down a wet, dimly lit concrete corridor, reflections stretching along the floor, an opening ahead growing closer."
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/honey/OneDrive/Desktop/claude code files/scripts/sync-design-skills.mjs\"",
+            "timeout": 60,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/honey/OneDrive/Desktop/claude code files/scripts/sync-design-skills.mjs\"",
+            "timeout": 60,
+            "async": true
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true,
+    "vercel@claude-plugins-official": true,
+    "imessage@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true
+  },
+  "autoUpdatesChannel": "latest",
+  "theme": "dark-daltonized"
+}

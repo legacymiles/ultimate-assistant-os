@@ -78,6 +78,63 @@ async function post(url: string, body: unknown): Promise<Response> {
   return fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 }
 
+/** The owner's free local renderer (tools/studio-bridge → WanGP on Pinokio). */
+export const BRIDGE = "http://127.0.0.1:42010";
+
+/** Is the local bridge running on this PC? */
+export async function bridgeStatus(): Promise<{ ok: boolean; wangp?: boolean; queue?: number }> {
+  try {
+    const res = await fetch(`${BRIDGE}/health`, { signal: AbortSignal.timeout(1500) });
+    return (await res.json()) as { ok: boolean; wangp?: boolean; queue?: number };
+  } catch {
+    return { ok: false };
+  }
+}
+
+async function renderVideoLocal(job: RenderJob, refs: string[], update: (p: Partial<RenderState>) => void): Promise<void> {
+  if (!(await bridgeStatus()).ok) {
+    throw new Error(
+      "The free local renderer isn't running on this PC. Double-click tools/studio-bridge/start.cmd, then press Make it again.",
+    );
+  }
+  const res = await fetch(`${BRIDGE}/video`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      prompt: job.prompt,
+      refs: pick(job, refs),
+      durationSec: Math.min(15, Math.max(4, Math.round(job.durationSec ?? 5))),
+      aspectRatio: VIDEO_ASPECTS.includes(job.aspectRatio ?? "") ? job.aspectRatio : "16:9",
+    }),
+  });
+  const { id, error } = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
+  if (!id) throw new Error(error ?? "The local renderer refused the job.");
+  // ~6 minutes per 5 s clip on the RTX 3050, and jobs queue behind each other.
+  for (let i = 0; i < 1080; i += 1) {
+    await sleep(5000);
+    const view = (await (await fetch(`${BRIDGE}/job/${id}`)).json().catch(() => ({}))) as {
+      status?: string;
+      position?: number;
+      seconds?: number;
+      error?: string;
+    };
+    if (view.status === "error") throw new Error(view.error ?? "The local render failed.");
+    if (view.status === "done") {
+      const file = await fetch(`${BRIDGE}/file/${id}`);
+      if (!file.ok) throw new Error("The clip finished but couldn't be fetched from the local renderer.");
+      update({ status: "done", url: URL.createObjectURL(await file.blob()) });
+      return;
+    }
+    update({
+      note:
+        view.status === "queued"
+          ? `local · #${view.position ?? "?"} in line`
+          : `local · ${Math.floor((view.seconds ?? 0) / 60)}m ${(view.seconds ?? 0) % 60}s`,
+    });
+  }
+  throw new Error("The local render has been going for 90 minutes — check the bridge window.");
+}
+
 async function renderVideo(job: RenderJob, refs: string[], update: (p: Partial<RenderState>) => void): Promise<void> {
   const res = await post("/api/auteur/generate", {
     action: "create",
@@ -148,6 +205,9 @@ export async function runRender(
 ): Promise<string> {
   const { medium, jobs } = jobsFrom(args);
   if (!jobs.length) throw new Error("There was nothing to render.");
+  // Video is free and local unless the owner asked for the paid cloud GPU.
+  const cloud = args.engine === "cloud";
+  const video = cloud ? renderVideo : renderVideoLocal;
   let states: RenderState[] = jobs.map((j, i) => ({
     id: `${Date.now()}-${i}`,
     title: j.title,
@@ -162,7 +222,7 @@ export async function runRender(
   await Promise.all(
     jobs.map(async (job, i) => {
       try {
-        await (medium === "video" ? renderVideo : renderImage)(job, refs, update(i));
+        await (medium === "video" ? video : renderImage)(job, refs, update(i));
       } catch (e) {
         update(i)({ status: "error", error: e instanceof Error ? e.message : "It failed." });
       }

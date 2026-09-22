@@ -23,7 +23,7 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 | Cross-device state | `src/lib/sync/appState.ts` (`loadLocal` / `saveSynced` / `useRemotePull`, Supabase `app_state` table) |
 | Password gates | `src/lib/appGate.ts` + `src/middleware.ts` |
 | Database schema | `supabase/migrations/` (combined: `supabase/all-schemas.sql`) |
-| GPU / desktop helpers that are not the website | `tools/` (music-creator, realtime-lucy, studio3d-builder, unreal-bridge, unreal-builder) |
+| GPU / desktop helpers that are not the website | `tools/` (music-creator, realtime-lucy, studio3d-builder, unreal-bridge, unreal-builder, video-studio-runner) |
 | Repo-local skill | `skills/unreal-game-builder/` — the owner's other skills are in `C:\Users\honey\.claude\skills\` |
 | Design specs and plans | `docs/superpowers/{specs,plans}/` |
 | Screenshots / loose images | `docs/screenshots/` (gitignored) · `docs/images/` |
@@ -49,6 +49,7 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 | `website-redesigner` | `redesigner` |
 | `seedance-studio` | `seedance` |
 | `smart-shot-videos` | `smart-shot` |
+| `video-studio-arena` | `video-studio` (engines: `src/lib/video-studio/methods/<id>/`) |
 | `skills-library` | `skills` |
 | `slippery-escape` | `slippery` |
 | `projects-timeline` | `src/components/AppShell.tsx` + `src/lib/repo` (the original app; `README.md` describes it) |
@@ -65,5 +66,10 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 
 - Be direct and concise. Lead with what needs action.
 - They like dense, database-style UIs over card grids.
+- **Every new app here gets a design skill, unasked.** Invoke it before writing any UI: `impeccable`
+  for app/tool UIs (the default for hub apps), `taste-skill` for landing/hero/public pages. Say which
+  one is driving the look. Never auto-pick a skill that costs money or renders footage
+  (`h3-scroll-world`, `scroll-world`, `scroll-craft`, `imagegen-frontend-*`, `image-to-code-skill`) —
+  those are opt-in only. Full rule: the global CLAUDE.md.
 - When a decision is made, offer to log it in `aios/decisions/log.md`.
 - Default Shift: for any new task, ask "to what extent could AI be leveraged here?"

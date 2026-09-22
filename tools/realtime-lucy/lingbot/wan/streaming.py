@@ -133,13 +133,18 @@ class CausalStream:
         max_sequence_length=512,
     ):
         assert pipe.infer_mode == "causal_fast", "streaming needs the distilled causal_fast model"
-        assert cond_mode in ("sdedit", "keyframe")
+        assert cond_mode in ("sdedit", "keyframe", "masked")
         assert 0 <= strength <= len(timesteps_index) - 1
         assert chunk_size >= 1
         self.pipe = pipe
         self.chunk_size = int(chunk_size)
         self.strength = int(strength)
         self.cond_mode = cond_mode
+        # "masked": the region the model is allowed to re-imagine. 1 = free,
+        # 0 = the camera's own latents are pinned there. None = the whole
+        # frame is free, which makes "masked" behave exactly like sdedit.
+        self.mask = None
+        self.mask_coverage = 1.0
         self.max_stream_latents = int(max_stream_latents)
         self.camera = camera or CameraController()
         self.prompt_cache_dir = prompt_cache_dir
@@ -253,6 +258,34 @@ class CausalStream:
         k = int(k)
         assert 0 <= k < len(self.timesteps)
         self.strength = k
+
+    def set_mask(self, mask):
+        """Set the region the model may re-imagine (`cond_mode="masked"`).
+
+        `mask` is any 2-D array of 0..1 at any resolution — it is resampled to
+        the latent grid — where 1 means "the prompt owns this" and 0 means
+        "keep what the camera sees". None clears it.
+        """
+        if mask is None:
+            self.mask = None
+            self.mask_coverage = 1.0
+            return
+        m = torch.as_tensor(np.ascontiguousarray(mask), dtype=torch.float32,
+                            device=self.device)
+        if m.ndim == 2:
+            m = m[None, None]
+        elif m.ndim == 3:
+            m = m[None]
+        if m.max() > 1.0:
+            m = m / 255.0
+        m = F.interpolate(m, size=(self.lat_h, self.lat_w), mode="bilinear",
+                          align_corners=False).clamp_(0.0, 1.0)
+        # A latent is not a pixel: the VAE's receptive field spreads each one
+        # over a neighbourhood, so a hard edge in the latent grid decodes as a
+        # visible seam. One box blur over the latent mask hides it.
+        m = F.avg_pool2d(F.pad(m, (1, 1, 1, 1), mode="replicate"), 3, stride=1)
+        self.mask = m
+        self.mask_coverage = float(m.mean())
 
     def set_keys(self, keys):
         self.camera.set_keys(keys)
@@ -375,6 +408,13 @@ class CausalStream:
             else:
                 current = pipe.scheduler.add_noise(z, noise, self.timesteps[k])
 
+            # Region lock. Outside the mask the camera's own clean latents are
+            # pasted back after every denoising step, so the preserved region
+            # is what goes into the KV cache and what the VAE decodes — the
+            # model never gets to drift there, and the memory it builds up
+            # agrees with the picture. Inside the mask nothing is constrained.
+            m = self.mask if self.cond_mode == "masked" else None
+
             x0 = None
             for ti in range(k, len(self.timesteps)):
                 t = torch.stack([self.timesteps[ti]]).to(self.device)
@@ -385,6 +425,8 @@ class CausalStream:
                 x0 = pipe._convert_flow_pred_to_x0(
                     flow_pred=pred, xt=current, timestep=self.timesteps[ti],
                     scheduler=pipe.scheduler)
+                if m is not None:
+                    x0 = torch.lerp(z.to(x0.dtype), x0, m.to(x0.dtype))
                 if ti < len(self.timesteps) - 1:
                     current = pipe.scheduler.add_noise(
                         x0, torch.randn(x0.shape, generator=self.gen,
@@ -426,6 +468,7 @@ class CausalStream:
             "peak_vram_mb": torch.cuda.max_memory_allocated(self.device) / 1e6,
             "strength": self.strength,
             "steps": len(self.timesteps) - self.strength,
+            "mask_coverage": self.mask_coverage if self.cond_mode == "masked" else None,
         }
         return frames_out, stats
 
@@ -441,6 +484,8 @@ class CausalStream:
             "strength": self.strength,
             "sigmas": self.sigmas,
             "cond_mode": self.cond_mode,
+            "has_mask": self.mask is not None,
+            "mask_coverage": self.mask_coverage if self.cond_mode == "masked" else None,
             "max_stream_latents": self.max_stream_latents,
             "prompt": self.prompt,
         }

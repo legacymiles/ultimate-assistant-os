@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { runAgent } from "@/lib/jarvis/server/agent";
 import { connector } from "@/lib/jarvis/server/connectors";
 import { resolveMention, studioContext, type Mention } from "@/lib/studio/workflows";
+import { cinemaContext, cleanMoves, cleanOutput, cleanSelection, moveById } from "@/lib/studio/cinema";
 import { loadSkills } from "@/lib/studio/server/skills";
 
 // Reads the master folder from disk and the memory database per request.
@@ -18,6 +19,11 @@ interface Body {
   skills?: unknown;
   /** Studio workflow tokens ("kids-story", "e-commerce:flat-lay"); briefs come from the catalog, never the client. */
   workflows?: unknown;
+  /** The camera deck: rail id -> option id, and the ordered camera-move ids. */
+  cinema?: unknown;
+  moves?: unknown;
+  /** Aspect ratio and clip length, passed to studio_generate verbatim. */
+  output?: unknown;
 }
 
 /** The owner's installed skills as one prompt block, name + what it is for. */
@@ -103,6 +109,14 @@ export async function POST(req: Request) {
     ? studioContext(studio, await loadSkills(studio.map((m) => m.workflow.id)))
     : "";
 
+  // The camera deck. Only ids cross the wire; the direction each one stands for
+  // is read from the catalog here, so the client can never write the prompt.
+  const shotBlock = cinemaContext(
+    cleanSelection(body.cinema),
+    cleanMoves(body.moves).map((id) => moveById(id)!),
+    cleanOutput(body.output),
+  );
+
   try {
     const result = await runAgent({
       connectorTools,
@@ -110,7 +124,7 @@ export async function POST(req: Request) {
       messages,
       ownerName: (body.ownerName || "the owner").slice(0, 60),
       timezone: body.timezone,
-      extraContext: [body.extraContext?.slice(0, 10000), studioBlock, skillsBlock(body.skills)].filter(Boolean).join("\n\n"),
+      extraContext: [body.extraContext?.slice(0, 10000), studioBlock, shotBlock, skillsBlock(body.skills)].filter(Boolean).join("\n\n"),
       profileId: body.profileId,
       studio: studio.length > 0,
     });

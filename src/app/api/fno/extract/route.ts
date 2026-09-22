@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { mayUseAi } from "@/lib/friends-night-out/aiAccess";
 import { organizerFromUrl } from "@/lib/friends-night-out/sources/organizers";
 import {
   extractFromImage,
@@ -31,6 +32,14 @@ export async function POST(req: Request) {
     body = (await req.json()) as typeof body;
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+
+  // Reading links and flyers spends the owner's AI credit; the app is public.
+  if (!(await mayUseAi())) {
+    return NextResponse.json(
+      { draft: null, reason: "Sign in to import links and flyers." },
+      { status: 401 },
+    );
   }
 
   if (body.image) {

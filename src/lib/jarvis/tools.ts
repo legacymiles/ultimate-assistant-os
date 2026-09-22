@@ -84,7 +84,13 @@ export function summarise(tool: string, args: Record<string, unknown>): string {
   if (tool === "studio_generate") {
     const jobs = Array.isArray(args.jobs) ? args.jobs.length : 0;
     const medium = s("medium") === "image" ? "image" : "video clip";
-    return `Render ${jobs} ${medium}${jobs === 1 ? "" : "s"} from the Studio prompt${jobs === 1 ? "" : "s"} below.`;
+    const where =
+      s("medium") === "image"
+        ? "with Gemini (a few cents)"
+        : s("engine") === "cloud"
+          ? "on RunPod (paid)"
+          : "free on this PC (Pinokio / WanGP, ~6 min per 5 s clip)";
+    return `Render ${jobs} ${medium}${jobs === 1 ? "" : "s"} ${where}, from the Studio prompt${jobs === 1 ? "" : "s"} below.`;
   }
   return `Run ${tool}.`;
 }
@@ -247,6 +253,13 @@ export const STUDIO_TOOLS: ToolSpec[] = [
       type: "object",
       properties: {
         medium: { type: "string", enum: ["video", "image"] },
+        engine: {
+          type: "string",
+          enum: ["local", "cloud"],
+          description:
+            "Video only. 'local' (default) = free, on the owner's PC via Pinokio/WanGP, ~6 min per 5 s clip. " +
+            "'cloud' = paid RunPod — use ONLY when the owner explicitly asks for it.",
+        },
         jobs: {
           type: "array",
           items: {

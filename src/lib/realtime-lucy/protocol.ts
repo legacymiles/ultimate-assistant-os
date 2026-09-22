@@ -16,7 +16,21 @@ export const STRENGTHS: { value: Strength; label: string; blurb: string }[] = [
   { value: 0, label: "Free", blurb: "all 4 steps from pure noise: ignores the camera after the anchor" },
 ];
 
-export type CondMode = "sdedit" | "keyframe";
+export type CondMode = "sdedit" | "keyframe" | "masked";
+
+/**
+ * The edit region for `cond_mode: "masked"`: a w×h grid of 0–255, base64 of
+ * that many bytes, where 255 means "the prompt owns this pixel" and 0 means
+ * "keep what the camera sees". `data: null` clears it. Small on purpose — a
+ * 64×48 grid is ~4 KB of base64 and rides the data channel several times a
+ * second, which is what lets the region follow a moving subject.
+ */
+export interface MaskMessage {
+  type: "mask";
+  w: number;
+  h: number;
+  data: string | null;
+}
 
 /** Browser → server. */
 export type ControlMessage =
@@ -24,7 +38,16 @@ export type ControlMessage =
   | { type: "strength"; value: Strength }
   | { type: "keys"; keys: string[] }
   | { type: "reset" }
-  | { type: "cond_mode"; value: CondMode };
+  | { type: "cond_mode"; value: CondMode }
+  | MaskMessage;
+
+/** Which side of the segmentation the prompt is allowed to repaint. */
+export type MaskTarget = "background" | "subject";
+
+export const MASK_GRID_W = 64;
+/** Where the vendored MediaPipe selfie segmenter lives (no CDN, works offline). */
+export const MEDIAPIPE_WASM_PATH = "/mediapipe/wasm";
+export const MEDIAPIPE_SEGMENTER_MODEL = "/mediapipe/selfie_segmenter.tflite";
 
 export interface StreamInfo {
   width: number;
@@ -39,6 +62,9 @@ export interface StreamInfo {
   strength: number;
   sigmas: number[];
   cond_mode: CondMode;
+  has_mask?: boolean;
+  /** Fraction of the frame the prompt is free to repaint, 0–1. */
+  mask_coverage?: number | null;
   max_stream_latents: number;
   prompt: string;
   open_ms?: number;
@@ -60,6 +86,7 @@ export interface Stats {
   vram_reserved_mb?: number;
   strength?: number;
   steps?: number;
+  mask_coverage?: number | null;
   ring?: number;
   cam_received?: number;
   cam_kept?: number;

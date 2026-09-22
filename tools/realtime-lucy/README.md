@@ -62,9 +62,30 @@ hf download robbyant/lingbot-world-v2-14b-causal-fast --include "Wan2.1_VAE.pth"
 
 ## Run
 
+```powershell
+powershell -File tools/realtime-lucy/start.ps1
+```
+
+`start.ps1` reads the card's VRAM and picks a size that fits, which is the
+setting that decides whether this works at all: on a 6 GB laptop GPU the
+384×288 config allocates ~7.2 GB, the Windows driver spills it into system RAM
+and a chunk takes 20.7 s instead of 2.6 (see `bench/RESULTS.md`). Over the card
+it does not look slow, it looks broken. By hand:
+
 ```bash
+# 6 GB card
+python tools/realtime-lucy/server/server.py --port 8765 --size 192*256 --chunk_size 1 --local_attn_size 6 --sink_size 2
+# 12 GB card and up
 python tools/realtime-lucy/server/server.py --port 8765 --size 288*384 --chunk_size 1 --local_attn_size 9 --sink_size 3
 ```
+
+A prompt the T5 has not encoded before costs ~50 s, and the inference loop is
+blocked for all of it — a prompt change mid-stream simply freezes the picture
+until it lands. The server therefore encodes the six presets the page offers
+(`PRESET_PROMPTS` in `server/common.py`, kept byte-identical to
+`src/lib/realtime-lucy/protocol.ts`) while it has no session, so picking one is
+instant. Results are cached on disk in `~/realtime-lucy/prompt-cache`
+permanently; only a prompt you type yourself pays the wait, once.
 
 Then open `/apps/realtime-lucy` in the hub, click **Go live**. The page talks
 to `http://localhost:8765` directly (Chrome treats localhost as a secure
@@ -73,7 +94,41 @@ the server behind https, or set `LUCY_SERVER_URL` on the site and leave the
 page's URL field empty so the site proxies the two signalling calls; the
 media still flows browser ↔ GPU box directly. `--token X` protects `/offer`.
 
-Useful flags: `--strength 0-3`, `--cond_mode keyframe`, `--chunk_size 2`
+## Masked mode (region lock)
+
+`--cond_mode masked` restricts the model to part of the frame. After every
+denoising step the chunk's own camera latents are pasted back wherever the
+mask is 0:
+
+```python
+x0 = torch.lerp(z, x0, mask)      # wan/streaming.py, inside the step loop
+```
+
+Because this happens *before* the KV-cache write and the VAE decode, the held
+region is what the model remembers and what gets decoded — it does not drift,
+and the model's memory never disagrees with the picture. Measured on the
+1.3B at 256×192 with a half-and-half mask (`test_streaming.py --live`):
+**held half mean |generated − camera| = 1.8 / 255, free half = 10.6** — the
+pinned side is the camera to within VAE round-trip error.
+
+The mask arrives over the data channel as `{"type":"mask","w","h","data"}`,
+base64 of `w*h` bytes (0 = keep the camera, 255 = the prompt owns it), at any
+resolution; the server resamples it onto the latent grid and feathers the edge
+by one latent cell, since a hard edge there decodes as a seam. A malformed or
+absent payload clears the mask, so the stream degrades to plain SDEdit rather
+than freezing behind a stale region.
+
+The page drives it with MediaPipe's selfie segmenter running **in the browser**
+on the **CPU delegate** — deliberately, so it takes neither VRAM nor GPU time
+from the DiT — at 4 Hz on a 64×48 grid (~4 KB per message). The WASM and the
+model are vendored in `public/mediapipe/`, so there is no CDN dependency.
+
+This is the *region-preserving* half of LiveEdit's idea. Its other half —
+skipping computation in unchanged regions — is **not** implemented and would
+need changes to the DiT forward, which this fork deliberately leaves untouched.
+Masked mode costs the same per chunk as SDEdit; it buys control, not speed.
+
+Useful flags: `--strength 0-3`, `--cond_mode keyframe|masked`, `--chunk_size 2`
 (fewer, larger steps), `--vae_dtype fp32`, `--no_low_mem` (upstream loaders,
 needs ~20 GB host RAM), `--max_stream_latents`.
 

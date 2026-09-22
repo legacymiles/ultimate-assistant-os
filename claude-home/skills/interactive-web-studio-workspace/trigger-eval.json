@@ -1,0 +1,23 @@
+[
+  { "query": "im starting a creative studio and the site needs to make people go whoa the second it loads. dark, cinematic, custom cursor, the works. can you build the homepage?", "should_trigger": true },
+  { "query": "build me a portfolio site for my work as a product designer — i want that buttery smooth scroll where projects reveal as you go down, and big confident typography", "should_trigger": true },
+  { "query": "we're launching our app next month and need a landing page that tells the story as you scroll, building up to the download CTA. should feel like a movie", "should_trigger": true },
+  { "query": "my homepage is fine but it feels flat and forgettable. can you make it feel more alive and premium without me telling you exactly how?", "should_trigger": true },
+  { "query": "i want a three.js hero on my agency site — some kind of reactive shader blob that follows the mouse, with bloom", "should_trigger": true },
+  { "query": "AI startup landing page. near-black, electric violet accent, and an animated particle/neural field behind the headline that reacts to the cursor", "should_trigger": true },
+  { "query": "redesign my hero section so it actually wows visitors instead of being a stock photo and a heading", "should_trigger": true },
+  { "query": "luxury watch brand microsite — i want the watch to rotate as you scroll with really clean reflections, lots of whitespace, slow weighty feel", "should_trigger": true },
+  { "query": "can you make a fashion lookbook site with full-bleed images and those cool WebGL distortion transitions between photos plus some kinetic type", "should_trigger": true },
+  { "query": "build the marketing site for our dev tool. dark editor vibe, monospace accents, animated code in the hero, snappy and fast. next.js + tailwind", "should_trigger": true },
+
+  { "query": "build an internal analytics dashboard for our sales team — sortable tables, date-range filters, and a sidebar nav. it's behind auth, only staff use it", "should_trigger": false },
+  { "query": "i have a csv of monthly revenue by region, can you make an animated bar chart visualization i can drop into a slide?", "should_trigger": false },
+  { "query": "fix the layout bug where my sticky navbar overlaps the hero text on mobile — pretty sure it's a z-index or padding thing", "should_trigger": false },
+  { "query": "write the marketing copy and headline options for my SaaS pricing page, three tiers, B2B tone", "should_trigger": false },
+  { "query": "set up Stripe checkout plus the backend API routes and webhook handling for my e-commerce site", "should_trigger": false },
+  { "query": "do an accessibility and SEO audit of our existing company website and give me a prioritized list of issues to fix", "should_trigger": false },
+  { "query": "convert this React class component to a function component with hooks and add jest unit tests for it", "should_trigger": false },
+  { "query": "help me write a blog post about web design trends to watch in 2026 for our company newsletter", "should_trigger": false },
+  { "query": "add a GDPR cookie consent banner to my site that remembers the user's choice in localStorage", "should_trigger": false },
+  { "query": "write a node CLI script that crawls a website and exports all the broken links to a csv", "should_trigger": false }
+]

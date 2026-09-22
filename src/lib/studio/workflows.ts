@@ -30,7 +30,9 @@ export type CategoryId =
   | "commerce-images"
   | "cards"
   | "restore"
-  | "design";
+  | "design"
+  | "illustration"
+  | "spaces";
 
 export interface Category {
   id: CategoryId;
@@ -52,6 +54,8 @@ export const CATEGORIES: Category[] = [
   { id: "commerce-images", medium: "image", label: "Product images" },
   { id: "cards", medium: "image", label: "Cards & occasions" },
   { id: "design", medium: "image", label: "Characters & design" },
+  { id: "illustration", medium: "image", label: "Illustration & story art" },
+  { id: "spaces", medium: "image", label: "Homes & spaces" },
   { id: "restore", medium: "image", label: "Fix & restore" },
 ];
 
@@ -391,6 +395,70 @@ export const WORKFLOWS: Workflow[] = [
     motif: "orbit",
     hue: 250,
   },
+  {
+    id: "motion-graphics",
+    name: "Motion graphics",
+    medium: "video",
+    category: "ads",
+    blurb: "Type, shapes and data that move",
+    brief:
+      "Design in motion, not photography: graphic elements with weight and easing, a strict grid, one idea per beat. The video model cannot render legible copy, so the moving artwork and the typographic frames are made separately and composited — plan deliberate empty type zones into every moving plate.",
+    format: "16:9 or 9:16 · 5–30 s",
+    keywords: ["minimal", "bold", "retro", "3D", "glitch", "hand-drawn", "corporate", "playful"],
+    variants: [
+      {
+        id: "kinetic-type",
+        name: "Kinetic type",
+        brief:
+          "Words are the subject. One phrase at a time, scaled to fill the frame, entering and leaving on the beat; the moving plate carries only the field the type sits on.",
+      },
+      {
+        id: "title-sequence",
+        name: "Title sequence",
+        brief:
+          "A short opening sequence with a single repeating visual device and the credits cut into it; the device, not the type, carries the identity.",
+      },
+      {
+        id: "data-viz",
+        name: "Data in motion",
+        brief:
+          "Charts, counters and comparisons that animate in a readable order: axis first, then bars or line, then the label that names the point.",
+      },
+      {
+        id: "broadcast-package",
+        name: "Broadcast package",
+        brief:
+          "A matched set for a show or channel: lower third, transition wipe, bumper and end card, all built from one shape language.",
+      },
+      {
+        id: "abstract-loop",
+        name: "Abstract loop",
+        brief:
+          "A seamless looping field of shape, gradient or material motion, designed as a backplate for type or a product to sit on top of.",
+      },
+      {
+        id: "ui-demo",
+        name: "Product UI in motion",
+        brief:
+          "A screen or interface animating through a flow, framed on a device or floating in space, with each step held long enough to follow.",
+      },
+      {
+        id: "infographic",
+        name: "Animated infographic",
+        brief:
+          "A process or comparison built in steps, each element drawing itself in the order the narration needs it.",
+      },
+      {
+        id: "logo-system",
+        name: "Logo system in motion",
+        brief:
+          "The mark's behaviour rather than one reveal: how it enters, holds, transitions and endcaps, as a consistent set.",
+      },
+    ],
+    motif: "grid",
+    hue: 285,
+    isNew: true,
+  },
 
   // ----- Social -----------------------------------------------------------------
   {
@@ -526,6 +594,20 @@ export const WORKFLOWS: Workflow[] = [
     format: "16:9 · 15 s per take",
     motif: "waveform",
     hue: 350,
+    isNew: true,
+  },
+  {
+    id: "crisis-evasion",
+    name: "Crisis evasion",
+    medium: "video",
+    category: "performance",
+    blurb: "Hazards rain down, the hero slips past each one",
+    brief:
+      "One continuous take: hazards genuinely enter the character's path and are evaded at the last instant; every event has warning, source, trajectory, evasion, near miss and consequence.",
+    format: "16:9 · 8–15 s",
+    keywords: ["photoreal disaster", "anime", "game CG", "cartoon"],
+    motif: "flash",
+    hue: 20,
     isNew: true,
   },
   {
@@ -1104,6 +1186,245 @@ export const WORKFLOWS: Workflow[] = [
     isNew: true,
   },
 
+  // ----- More image skills ------------------------------------------------------
+  {
+    id: "ai-avatars",
+    name: "AI avatar pack",
+    medium: "image",
+    category: "shoots",
+    blurb: "Your face in eight styles for every profile",
+    brief:
+      "Eight profile pictures of the same person in eight distinct looks (studio, editorial, painted, anime, 3D, noir…), identity locked, all square and crop-safe for circles.",
+    format: "1:1 · 8 images",
+    keywords: ["professional", "playful", "fantasy", "gaming", "minimal"],
+    motif: "grid",
+    hue: 280,
+    isNew: true,
+  },
+  {
+    id: "yearbook-photo",
+    name: "Retro yearbook photo",
+    medium: "image",
+    category: "shoots",
+    blurb: "You, in a 90s school portrait",
+    brief:
+      "A period-true school portrait: laser or mottled backdrop, era hair and wardrobe, soft studio flash, slight film grain — the face identical.",
+    format: "4:5 · 4 images",
+    keywords: ["70s", "80s", "90s", "2000s"],
+    motif: "flash",
+    hue: 25,
+    isNew: true,
+  },
+  {
+    id: "fashion-lookbook",
+    name: "Fashion lookbook",
+    medium: "image",
+    category: "shoots",
+    blurb: "One outfit, a campaign-ready look set",
+    brief:
+      "A lookbook of one outfit (from product photos) on a model: full look, detail, movement and styling shots, garment exact in every frame.",
+    format: "4:5 · 6 images",
+    keywords: ["street", "editorial", "minimal", "luxury", "resort"],
+    motif: "letterbox",
+    hue: 320,
+    isNew: true,
+  },
+  {
+    id: "food-photography",
+    name: "Food photography",
+    medium: "image",
+    category: "shoots",
+    blurb: "Menu and delivery-app shots that sell",
+    brief:
+      "Styled food photography of the owner's dish: hero angle, lighting and props chosen for the cuisine, the dish itself kept true to the photo.",
+    format: "1:1 + 4:5 · 4 images",
+    keywords: ["rustic", "bright & airy", "dark & moody", "street food", "fine dining"],
+    motif: "spotlight",
+    hue: 30,
+    isNew: true,
+  },
+  {
+    id: "car-photoshoot",
+    name: "Car photoshoot",
+    medium: "image",
+    category: "shoots",
+    blurb: "Your car, shot like a magazine feature",
+    brief:
+      "Automotive stills of the owner's car: 3/4 hero, profile, details, location and light chosen for the car's character; model, colour and wheels exact.",
+    format: "16:9 + 4:5 · 5 images",
+    keywords: ["night city", "golden hour", "studio", "track", "offroad"],
+    motif: "orbit",
+    hue: 210,
+    isNew: true,
+  },
+  {
+    id: "logo-design",
+    name: "Logo design",
+    medium: "image",
+    category: "design",
+    blurb: "Mark concepts for a brand, from a brief",
+    brief:
+      "Logo concepts from a brand brief: a symbol, a wordmark and a combination mark per direction, shown flat on white and in one mockup. Invented, never imitating an existing brand.",
+    format: "1:1 · 3 directions",
+    keywords: ["minimal", "geometric", "hand-drawn", "vintage", "tech"],
+    motif: "orbit",
+    hue: 250,
+    isNew: true,
+  },
+  {
+    id: "brand-board",
+    name: "Brand board",
+    medium: "image",
+    category: "design",
+    blurb: "Logo, colours, type and imagery on one sheet",
+    brief:
+      "A one-page brand identity board: mark, palette with hex values, type pairing, imagery style, patterns and two mockups, all in one coherent system.",
+    format: "16:9 · 2 boards",
+    keywords: ["luxury", "playful", "eco", "tech", "editorial"],
+    motif: "grid",
+    hue: 40,
+    isNew: true,
+  },
+  {
+    id: "sticker-pack",
+    name: "Sticker pack",
+    medium: "image",
+    category: "design",
+    blurb: "A character turned into die-cut stickers",
+    brief:
+      "A sheet of die-cut stickers of one character (or pet) with different expressions and short words, white borders, consistent style.",
+    format: "1:1 · 2 sheets",
+    keywords: ["kawaii", "retro", "bold outline", "3D"],
+    motif: "confetti",
+    hue: 300,
+    isNew: true,
+  },
+  {
+    id: "tattoo-design",
+    name: "Tattoo design",
+    medium: "image",
+    category: "design",
+    blurb: "Flash-ready tattoo concepts",
+    brief:
+      "Tattoo concepts as clean flash on paper plus a placement preview on the chosen body area; line weight and style true to the genre.",
+    format: "3:4 · 3 designs",
+    keywords: ["fine line", "traditional", "blackwork", "neo-trad", "minimal"],
+    motif: "candle",
+    hue: 0,
+    isNew: true,
+  },
+  {
+    id: "action-figure",
+    name: "Action figure box",
+    medium: "image",
+    category: "design",
+    blurb: "You as a boxed collectible figure",
+    brief:
+      "The person as a toy action figure in blister packaging with accessories that tell their story, a printed card back and a name on the box.",
+    format: "3:4 · 2 images",
+    keywords: ["retro 80s", "premium collector", "kids toy", "sci-fi"],
+    motif: "spotlight",
+    hue: 200,
+    isNew: true,
+  },
+  {
+    id: "phone-wallpaper",
+    name: "Phone wallpaper",
+    medium: "image",
+    category: "design",
+    blurb: "Custom lock screens that fit the clock",
+    brief:
+      "A set of phone wallpapers designed around the lock-screen clock and dock: safe zones kept clear, depth for the clock effect.",
+    format: "9:16 · 4 images",
+    keywords: ["minimal", "dreamy", "dark", "abstract", "nature"],
+    motif: "rise",
+    hue: 230,
+    isNew: true,
+  },
+  {
+    id: "storyboard-frames",
+    name: "Storyboard frames",
+    medium: "image",
+    category: "illustration",
+    blurb: "A script as a sheet of storyboard panels",
+    brief:
+      "A storyboard of a scene: numbered panels with framing, camera move arrows and action notes, consistent characters — ready to hand to a video skill.",
+    format: "16:9 · 1–3 sheets",
+    keywords: ["sketch", "clean line", "colour animatic"],
+    motif: "letterbox",
+    hue: 195,
+    isNew: true,
+  },
+  {
+    id: "comic-page",
+    name: "Comic page",
+    medium: "image",
+    category: "illustration",
+    blurb: "A story told as a comic or manga page",
+    brief:
+      "A full comic page: panel layout for pacing, consistent characters, speech balloons with short exact lines, a page-turn hook.",
+    format: "2:3 · 1–4 pages",
+    keywords: ["manga", "western comic", "webtoon", "graphic novel"],
+    motif: "grid",
+    hue: 15,
+    isNew: true,
+  },
+  {
+    id: "childrens-book",
+    name: "Children's book illustration",
+    medium: "image",
+    category: "illustration",
+    blurb: "Picture-book spreads with a consistent hero",
+    brief:
+      "Picture-book illustrations for a story: one spread per beat, the same lovable character throughout, space left for the text.",
+    format: "3:2 · 4–12 spreads",
+    keywords: ["watercolor", "gouache", "crayon", "3D animated", "paper cut"],
+    motif: "storybook",
+    hue: 38,
+    isNew: true,
+  },
+  {
+    id: "virtual-staging",
+    name: "Virtual staging",
+    medium: "image",
+    category: "spaces",
+    blurb: "Empty rooms furnished for the listing",
+    brief:
+      "Empty-room photos staged with furniture that fits the room's real size and light; walls, windows, floors and architecture untouched.",
+    format: "Original ratio · 1 per room",
+    keywords: ["modern", "scandinavian", "luxury", "family", "coastal"],
+    motif: "rise",
+    hue: 150,
+    isNew: true,
+  },
+  {
+    id: "interior-redesign",
+    name: "Interior redesign",
+    medium: "image",
+    category: "spaces",
+    blurb: "Your room, restyled in a new look",
+    brief:
+      "The owner's room photo redesigned in a chosen style: same layout and architecture, new finishes, furniture, colour and lighting.",
+    format: "Original ratio · 3 styles",
+    keywords: ["japandi", "industrial", "boho", "mid-century", "maximalist"],
+    motif: "grid",
+    hue: 90,
+    isNew: true,
+  },
+  {
+    id: "twilight-exterior",
+    name: "Twilight exterior",
+    medium: "image",
+    category: "spaces",
+    blurb: "Daytime house photo turned to dusk",
+    brief:
+      "A daytime exterior converted to a twilight shot: deep blue sky, warm interior lights, landscape lighting, the house itself unchanged.",
+    format: "Original ratio · 2 images",
+    motif: "candle",
+    hue: 220,
+    isNew: true,
+  },
+
   // ----- Images: fix & restore -----------------------------------------------------
   {
     id: "photo-restore",
@@ -1227,6 +1548,9 @@ export function studioContext(mentions: Mention[], skills: Map<string, string> =
     "  (e.g. your emotional read, the option explanations) as your message text in the same turn.",
     "- Call studio_generate only after the owner approved the final prompt. Images the owner attached",
     "  anywhere in this conversation are the references, in order (Subject 1, Subject 2, …).",
+    "- Video renders FREE on the owner's PC by default (engine \"local\": Pinokio/WanGP, ~6 min per 5 s clip,",
+    "  one clip at a time). Use engine \"cloud\" (paid RunPod) only if the owner explicitly asks for it. When a",
+    "  skill says to render several candidates, say how long the local queue will take.",
     `- Several skills = ONE interaction: "${lead.label}" leads the rounds; fold the others' fields and rules`,
     "  into the same forms and the same final output; never ask the same thing twice.",
     "- Style keywords the owner wrote (e.g. \"Keywords: luxury, funny\") are binding.",

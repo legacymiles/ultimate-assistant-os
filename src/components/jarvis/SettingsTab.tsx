@@ -23,11 +23,17 @@ import {
   requestNotifications,
 } from "@/lib/recall/calendar/reminders";
 import { getData } from "@/lib/recall/store";
+import { UPDATE_ABOUT, UPDATE_COLOR, UPDATE_LABEL, UPDATE_SOURCES } from "@/lib/jarvis/updates";
+import type { UpdateSource } from "@/lib/jarvis/updates";
+import type { UpdatesApi } from "@/lib/jarvis/useUpdates";
+
+const select =
+  "shrink-0 rounded-lg border border-line bg-panel-2 px-2 py-1.5 text-xs text-ink transition-colors hover:border-ink-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
 
 const btn =
   "inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink disabled:opacity-50";
 
-function Row({ title, status, children }: { title: string; status: ReactNode; children?: ReactNode }) {
+function Row({ title, status, children }: { title: ReactNode; status: ReactNode; children?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line-soft px-3 py-2.5 last:border-0">
       <div className="min-w-0 flex-1">
@@ -48,11 +54,53 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+/**
+ * A labelled switch. Two per source row — whether it appears in the feed, and
+ * whether it is also allowed to interrupt — because those are genuinely
+ * different questions and collapsing them into one control loses the quiet
+ * middle setting that most sources want.
+ */
+function Switch({
+  on,
+  label,
+  disabled,
+  title,
+  onChange,
+  children,
+}: {
+  on: boolean;
+  label: string;
+  disabled?: boolean;
+  title?: string;
+  onChange: (next: boolean) => void;
+  children?: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      title={title}
+      disabled={disabled}
+      onClick={() => onChange(!on)}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:pointer-events-none disabled:opacity-35 ${
+        on
+          ? "border-brand bg-brand/15 text-ink"
+          : "border-line text-ink-muted hover:border-ink-faint hover:bg-panel-2 hover:text-ink"
+      }`}
+    >
+      {children}
+      {label}
+    </button>
+  );
+}
+
 const Dot = ({ ok }: { ok: boolean }) => (
   <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle ${ok ? "bg-emerald-400" : "bg-amber-400"}`} />
 );
 
-export function SettingsTab({ go }: { go: (t: TabId) => void }) {
+export function SettingsTab({ go, updates }: { go: (t: TabId) => void; updates: UpdatesApi }) {
   const [gated, setGated] = useState<boolean | null>(null);
   const [security, setSecurity] = useState(false);
   const [perm, setPerm] = useState<string>("default");
@@ -82,6 +130,148 @@ export function SettingsTab({ go }: { go: (t: TabId) => void }) {
   return (
     <div className="max-w-3xl p-3 sm:p-4">
       <h2 className="mb-3 text-sm font-semibold text-ink">Settings</h2>
+
+      <Group title="Dashboard updates">
+        <Row
+          title="Pop-ups"
+          status={
+            !notificationsAvailable() ? (
+              "This browser can't show notifications, so updates stay inside Jarvis."
+            ) : perm === "granted" ? (
+              <>
+                <Dot ok />
+                Allowed. A source with its bell on will pop up while a Jarvis tab is open — a web
+                page cannot reach you once every tab is closed.
+              </>
+            ) : perm === "denied" ? (
+              <>
+                <Dot ok={false} />
+                Blocked in this browser's site settings. The feed below still works.
+              </>
+            ) : (
+              <>
+                <Dot ok={false} />
+                Not allowed yet, so the bells below have nothing to ring. The feed still works.
+              </>
+            )
+          }
+        >
+          {notificationsAvailable() && perm === "default" && (
+            <button className={btn} onClick={() => void requestNotifications().then(setPerm)}>
+              <Icon.Bell width={13} height={13} /> Allow
+            </button>
+          )}
+        </Row>
+
+        {UPDATE_SOURCES.map((source: UpdateSource) => {
+          const pref = updates.settings.sources?.[source] ?? { on: true, popup: false };
+          const live = updates.counts?.[source] ?? 0;
+          // A bell that cannot ring should not look switchable. The saved
+          // preference is kept either way, so allowing notifications later
+          // turns the source's pop-ups straight back on.
+          const canRing = notificationsAvailable() && perm === "granted";
+          return (
+            <Row
+              key={source}
+              title={
+                <>
+                  <span
+                    className="mr-2 inline-block h-2 w-2 shrink-0 rounded-full align-middle"
+                    style={{ background: UPDATE_COLOR[source] }}
+                    aria-hidden
+                  />
+                  {UPDATE_LABEL[source]}
+                </>
+              }
+              status={
+                <>
+                  {UPDATE_ABOUT[source]}{" "}
+                  <span className="text-ink-faint">
+                    {pref.on ? (live ? `${live} in the feed now.` : "Nothing in the feed now.") : "Switched off."}
+                  </span>
+                </>
+              }
+            >
+              <Switch
+                on={pref.on}
+                label="Show"
+                title={`Show ${UPDATE_LABEL[source]} in the Updates feed`}
+                onChange={(next) =>
+                  updates.patchSettings({
+                    sources: { ...updates.settings.sources, [source]: { ...pref, on: next } },
+                  })
+                }
+              />
+              <Switch
+                on={pref.popup}
+                label="Pop up"
+                disabled={!pref.on || !canRing}
+                title={
+                  !pref.on
+                    ? "Turn this source on first"
+                    : !canRing
+                      ? "Allow notifications above first"
+                      : `Raise a browser notification for ${UPDATE_LABEL[source]}`
+                }
+                onChange={(next) =>
+                  updates.patchSettings({
+                    sources: { ...updates.settings.sources, [source]: { ...pref, popup: next } },
+                  })
+                }
+              >
+                {pref.popup ? <Icon.Bell width={12} height={12} /> : <Icon.BellOff width={12} height={12} />}
+              </Switch>
+            </Row>
+          );
+        })}
+
+        <Row
+          title="Your own changes"
+          status="Lists can tell you about the items you added yourself. Off by default — you were there."
+        >
+          <Switch
+            on={updates.settings.includeMine === true}
+            label={updates.settings.includeMine ? "Included" : "Hidden"}
+            onChange={(next) => updates.patchSettings({ includeMine: next })}
+          />
+        </Row>
+
+        <Row
+          title="How far back the feed looks"
+          status="Anything older than this stops being an update. It is not deleted — it is just no longer news."
+        >
+          <select
+            className={select}
+            value={updates.settings.windowDays ?? 7}
+            aria-label="How far back the feed looks"
+            onChange={(e) => updates.patchSettings({ windowDays: Number(e.target.value) })}
+          >
+            {[1, 3, 7, 14, 30].map((d) => (
+              <option key={d} value={d}>
+                {d === 1 ? "24 hours" : `${d} days`}
+              </option>
+            ))}
+          </select>
+        </Row>
+
+        <Row
+          title="How early an event counts as news"
+          status="A calendar event enters the feed this long before it starts, and drops out once it is underway."
+        >
+          <select
+            className={select}
+            value={updates.settings.aheadHours ?? 3}
+            aria-label="How early an event counts as news"
+            onChange={(e) => updates.patchSettings({ aheadHours: Number(e.target.value) })}
+          >
+            {[1, 3, 6, 12, 24].map((h) => (
+              <option key={h} value={h}>
+                {h === 1 ? "1 hour" : `${h} hours`}
+              </option>
+            ))}
+          </select>
+        </Row>
+      </Group>
 
       <Group title="AI">
         <Row

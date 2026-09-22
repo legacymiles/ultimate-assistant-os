@@ -11,11 +11,13 @@
 import { useMemo } from "react";
 import { Icon } from "../icons";
 import { MemoryCore, SOURCE_COLOR } from "./MemoryCore";
+import { UpdatesPanel } from "./UpdatesPanel";
 import type { TabId } from "./Jarvis";
 import { briefInputs } from "@/lib/jarvis/brief";
 import { graphNodes, linkCount } from "@/lib/jarvis/memoryClient";
 import { SOURCE_LABEL, type JarvisStore } from "@/lib/jarvis/types";
 import type { Profile } from "@/lib/new-dashboard/types";
+import type { UpdatesApi } from "@/lib/jarvis/useUpdates";
 
 const card = "rounded-xl border border-line bg-panel p-3";
 const head = "mb-2 flex items-center gap-1.5 text-xs font-semibold text-ink";
@@ -34,10 +36,13 @@ function when(iso: string): string {
 export function DashboardTab({
   profile,
   store,
+  updates,
   go,
 }: {
   profile: Profile | null;
   store: JarvisStore;
+  /** The live feed, owned by the shell so its badge works from every tab. */
+  updates: UpdatesApi;
   go: (t: TabId) => void;
 }) {
   const nodes = useMemo(() => graphNodes(store), [store]);
@@ -75,6 +80,8 @@ export function DashboardTab({
           </button>
         </div>
       </section>
+
+      <UpdatesPanel api={updates} go={go} />
 
       <div className="mt-3 grid gap-3 lg:grid-cols-3">
         <div className={card}>
@@ -213,7 +220,7 @@ export function DashboardTab({
         </div>
       </div>
 
-      {brief.empty && (
+      {brief.empty && updates.updates.length === 0 && (
         <p className="mt-3 text-[11px] text-ink-faint">
           Jarvis knows nothing yet, so he is showing nothing. That is deliberate — he will never
           invent meetings, messages or progress.

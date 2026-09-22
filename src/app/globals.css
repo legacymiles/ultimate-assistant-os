@@ -2005,3 +2005,118 @@ video.dance-tile__player { object-fit: cover; }
 @media (prefers-reduced-motion: reduce) {
   .st-art i { animation: none !important; }
 }
+
+/* ---------------------------------------------------------------------------
+   The camera deck (Jarvis Studio) — the picker dialog, its tiles, and the
+   camera path that runs across a movement tile while it is hovered.
+--------------------------------------------------------------------------- */
+
+.cin-panel {
+  box-shadow: 0 28px 70px -20px rgb(0 0 0 / 0.8), 0 4px 16px -6px rgb(0 0 0 / 0.6);
+}
+
+.cin-tile {
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), border-color 160ms ease;
+}
+.cin-tile:hover { transform: translateY(-2px); }
+.cin-tile:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* "Put on prompt" rides up out of the tile on hover. */
+.cin-cta {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 180ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.cin-tile:hover .cin-cta,
+.cin-tile:focus-visible .cin-cta { opacity: 1; transform: translateY(0); }
+
+/* The move diagram: a dashed track, a solid run that travels it, an arrowhead. */
+.ca-move-track {
+  fill: none;
+  stroke: #fff;
+  stroke-opacity: 0.28;
+  stroke-width: 1.6;
+  stroke-dasharray: 3 3;
+}
+.ca-move-run {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-dasharray: 26 200;
+  stroke-dashoffset: 26;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 3px rgb(0 0 0 / 0.7));
+}
+.ca-move-head {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 3px rgb(0 0 0 / 0.7));
+}
+.ca-move-ring {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.4;
+  stroke-opacity: 0.75;
+}
+.cin-tile:hover .ca-move-run,
+.cin-tile:focus-visible .ca-move-run { animation: ca-run 1.5s cubic-bezier(0.33, 0, 0.2, 1) infinite; }
+.cin-tile:hover .ca-move-head,
+.cin-tile:focus-visible .ca-move-head { animation: ca-head 1.5s ease-in-out infinite; }
+.cin-tile:hover .ca-move-ring,
+.cin-tile:focus-visible .ca-move-ring { animation: ca-ring 1.5s ease-in-out infinite; }
+
+@keyframes ca-run { from { stroke-dashoffset: 26; } to { stroke-dashoffset: -200; } }
+@keyframes ca-head { 0%, 55% { opacity: 0.25; } 80%, 100% { opacity: 1; } }
+@keyframes ca-ring { 0%, 50% { r: 7; stroke-opacity: 0; } 100% { r: 4; stroke-opacity: 0.8; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .cin-tile:hover { transform: none; }
+  .cin-tile .ca-move-run,
+  .cin-tile .ca-move-head,
+  .cin-tile .ca-move-ring { animation: none !important; }
+  .cin-cta { transition: opacity 120ms ease; transform: none; }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Jarvis — the Updates feed                                          */
+/* ------------------------------------------------------------------ */
+
+/* A row's one authored moment: an arriving update settles into place under a
+   brief brand-tinted wash, so the eye is told WHICH row is new rather than
+   watching the whole list fade in.
+   
+   Deliberately no opacity and no fill mode. An entrance that animates from
+   opacity 0 leaves the row invisible whenever the animation does not run —
+   a backgrounded tab, a restarted animation, reduced motion — and an update
+   you cannot read is worse than one that simply appears. Every frame of this
+   keyframe is legible, and once it ends the row returns to its normal styles,
+   so the hover background still works. */
+@keyframes ju-in {
+  from {
+    transform: translateY(-5px);
+    background-color: color-mix(in oklab, var(--color-brand) 22%, transparent);
+  }
+  to {
+    transform: none;
+    background-color: transparent;
+  }
+}
+
+.ju-row[data-fresh="1"] {
+  animation: ju-in 620ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ju-row[data-fresh="1"] {
+    animation: none;
+  }
+}
+
+/* The deck is one row that scrolls sideways; the scrollbar is furniture here. */
+.cin-deck { scrollbar-width: none; }
+.cin-deck::-webkit-scrollbar { display: none; }

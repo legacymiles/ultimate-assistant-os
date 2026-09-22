@@ -1,6 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { APP_GATES, constantTimeEqual, gateHash } from "@/lib/appGate";
+import { PUBLIC_HOME, isOwner, parseOwnerEmails, routeAccess } from "@/lib/hubAccess";
+
+/** Emails allowed into the private hub. Unset = nobody (fail-closed). */
+const OWNER_EMAILS = parseOwnerEmails(process.env.HUB_OWNER_EMAILS);
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -39,6 +43,10 @@ const TOKEN_AUTH_PATHS = new Set([
   "/api/studio3d/builder/progress",
   "/api/studio3d/builder/media",
   "/api/studio3d/builder/fail",
+  "/api/video-studio/runner/claim",
+  "/api/video-studio/runner/progress",
+  "/api/video-studio/runner/clip",
+  "/api/video-studio/runner/fail",
 ]);
 
 /** Stamp (or clear) the account id the browser is allowed to render as. */
@@ -85,7 +93,8 @@ export async function middleware(request: NextRequest) {
   // by prefix: /api/dashboard/inbox (list), .../claim, .../token, and every
   // /api/game-creator route outside builder/* stay behind the session gate,
   // because those read owner data or mint the tokens themselves.
-  if (TOKEN_AUTH_PATHS.has(path)) return NextResponse.next();
+  const access = routeAccess(path, TOKEN_AUTH_PATHS);
+  if (access === "token") return NextResponse.next();
 
   // ----- Supabase session refresh + login gate ----------------------------
   if (!supabaseConfigured) return NextResponse.next();
@@ -109,11 +118,24 @@ export async function middleware(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const isAuthRoute = path.startsWith("/login") || path.startsWith("/auth");
+  const owner = isOwner(user?.email, OWNER_EMAILS);
   const isApi = path.startsWith("/api");
 
-  if (!user && !isAuthRoute) {
+  // Friends Night Out is public: anyone may browse, signed in or not. The
+  // session is still refreshed so a signed-in visitor stays signed in.
+  if (access === "public") return setUidCookie(response, user?.id ?? null);
+
+  if (access === "auth") {
+    if (user && path.startsWith("/login")) {
+      const url = request.nextUrl.clone();
+      url.pathname = owner ? "/" : PUBLIC_HOME;
+      return setUidCookie(NextResponse.redirect(url), user.id);
+    }
+    return setUidCookie(response, user?.id ?? null);
+  }
+
+  // ----- Owner-only: the rest of the hub ---------------------------------
+  if (!user) {
     // An API call gets a status it can act on. Redirecting it to /login would
     // hand fetch() a 200 and a page of HTML, which every caller here would try
     // to parse as JSON and report as a confusing failure.
@@ -127,12 +149,21 @@ export async function middleware(request: NextRequest) {
     url.pathname = "/login";
     return setUidCookie(NextResponse.redirect(url), null);
   }
-  if (user && path.startsWith("/login")) {
+  if (!owner) {
+    // A Friends Night Out member (or anyone who signed up) is not the owner.
+    // They get FNO and nothing else — never STD Safe, Dashboard, the AI proxy.
+    if (isApi) {
+      return setUidCookie(
+        NextResponse.json({ error: "This endpoint is private." }, { status: 403 }),
+        user.id,
+      );
+    }
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = PUBLIC_HOME;
+    url.search = "";
     return setUidCookie(NextResponse.redirect(url), user.id);
   }
-  return setUidCookie(response, user?.id ?? null);
+  return setUidCookie(response, user.id);
 }
 
 export const config = {

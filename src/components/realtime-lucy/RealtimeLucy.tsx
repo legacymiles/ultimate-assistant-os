@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { connectLucy, fetchHealth, type LucyConnection } from "@/lib/realtime-lucy/client";
+import { createSegmenter, type Segmenter } from "@/lib/realtime-lucy/segmenter";
 import {
   DEFAULT_SERVER_URL,
   MODEL_FPS,
@@ -11,6 +12,7 @@ import {
   STRENGTHS,
   type CondMode,
   type Health,
+  type MaskTarget,
   type ServerMessage,
   type Stats,
   type Strength,
@@ -51,6 +53,11 @@ export function RealtimeLucy() {
   const [stats, setStats] = useState<Stats>({});
   const [info, setInfo] = useState<StreamInfo | null>(null);
   const [held, setHeld] = useState<string[]>([]);
+  const [promptBusy, setPromptBusy] = useState(false);
+  const [maskTarget, setMaskTarget] = useState<MaskTarget>("background");
+  const [maskState, setMaskState] = useState<"off" | "loading" | "on" | "error">("off");
+  const [maskError, setMaskError] = useState("");
+  const [maskCoverage, setMaskCoverage] = useState<number | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const camRef = useRef<HTMLVideoElement>(null);
@@ -58,6 +65,10 @@ export function RealtimeLucy() {
   const cameraStream = useRef<MediaStream | null>(null);
   const conn = useRef<LucyConnection | null>(null);
   const heldRef = useRef<Set<string>>(new Set());
+  // Read inside the segmentation loop so flipping the target does not tear
+  // the segmenter down and reload the model.
+  const maskTargetRef = useRef<MaskTarget>("background");
+  maskTargetRef.current = maskTarget;
 
   useEffect(() => {
     setServerUrl(readLS(LS_URL, DEFAULT_SERVER_URL));
@@ -119,7 +130,12 @@ export function RealtimeLucy() {
         setPhase("streaming");
         if (msg.stream) setInfo(msg.stream);
         setStatusText("");
+        setPromptBusy(false);
       } else if (msg.state === "opening" || msg.state === "prompt") {
+        // A prompt the T5 has not seen before takes ~50 s to encode, and the
+        // GPU loop is blocked for all of it. Without this the picture just
+        // freezes while the caption still reads "live".
+        if (msg.state === "prompt") setPromptBusy(true);
         setPhase((p) => (p === "streaming" && msg.state === "prompt" ? "streaming" : "opening"));
         setStatusText(msg.message ?? "");
       } else {
@@ -138,6 +154,7 @@ export function RealtimeLucy() {
     setPhase(cameraStream.current ? "camera" : "idle");
     setInfo(null);
     setStatusText("");
+    setPromptBusy(false);
     heldRef.current.clear();
     setHeld([]);
   }, []);
@@ -183,11 +200,16 @@ export function RealtimeLucy() {
   useEffect(() => () => disconnect(), [disconnect]);
 
   // Live controls.
-  const applyPrompt = () => {
-    const text = prompt.trim();
+  const applyPrompt = (override?: string) => {
+    const text = (override ?? prompt).trim();
     if (!text || !conn.current) return;
     conn.current.send({ type: "prompt", text });
     setLivePrompt(text);
+  };
+  // Picking a preset mid-stream should change the picture, not just the textarea.
+  const choosePreset = (p: string) => {
+    setPrompt(p);
+    applyPrompt(p);
   };
   const chooseStrength = (v: Strength) => {
     setStrength(v);
@@ -196,6 +218,17 @@ export function RealtimeLucy() {
   const chooseCond = (v: CondMode) => {
     setCondMode(v);
     conn.current?.send({ type: "cond_mode", value: v });
+  };
+  // Switching between background and subject only changes the mask, so it must
+  // not go through chooseCond — a cond_mode change re-anchors the stream and
+  // would throw away the model's memory for nothing.
+  const chooseRegion = (region: "whole" | MaskTarget) => {
+    if (region === "whole") {
+      if (condMode === "masked") chooseCond("sdedit");
+      return;
+    }
+    setMaskTarget(region);
+    if (condMode !== "masked") chooseCond("masked");
   };
   const reanchor = () => conn.current?.send({ type: "reset" });
 
@@ -238,6 +271,52 @@ export function RealtimeLucy() {
       window.removeEventListener("blur", blur);
     };
   }, [phase]);
+
+  // Person-vs-background masking for cond_mode "masked". One mask per
+  // generated chunk (4 Hz) is plenty — the server holds the last one and the
+  // GPU is producing about one frame a second anyway.
+  useEffect(() => {
+    if (condMode !== "masked" || phase !== "streaming") {
+      setMaskState("off");
+      setMaskCoverage(null);
+      return;
+    }
+    let cancelled = false;
+    let seg: Segmenter | null = null;
+    let timer: number | undefined;
+    setMaskState("loading");
+    setMaskError("");
+    createSegmenter()
+      .then((s) => {
+        if (cancelled) {
+          s.close();
+          return;
+        }
+        seg = s;
+        setMaskState("on");
+        timer = window.setInterval(() => {
+          if (!seg || !camRef.current) return;
+          const frame = seg.run(camRef.current, maskTargetRef.current, performance.now());
+          if (!frame) return;
+          setMaskCoverage(frame.coverage);
+          conn.current?.send({ type: "mask", w: frame.w, h: frame.h, data: frame.data });
+        }, 250);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        // No segmenter means no region lock — clear the server's mask so the
+        // stream keeps running as plain SDEdit instead of freezing behind a
+        // stale region.
+        setMaskState("error");
+        setMaskError((err as Error).message);
+        conn.current?.send({ type: "mask", w: 0, h: 0, data: null });
+      });
+    return () => {
+      cancelled = true;
+      if (timer) window.clearInterval(timer);
+      seg?.close();
+    };
+  }, [condMode, phase]);
 
   const online = !!health?.ok;
   const ready = !!health?.ready;
@@ -306,12 +385,40 @@ export function RealtimeLucy() {
 
           <figure className="rl-stage relative overflow-hidden rounded-2xl border border-line" data-state={phase}>
             <figcaption className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-full border border-line bg-panel/80 px-2.5 py-1 text-[11px] font-medium text-ink-muted backdrop-blur">
-              <span className="rl-dot" data-on={streaming ? "true" : busy ? "warn" : "false"} aria-hidden />
-              {streaming ? "Generated · live" : busy ? statusText || "starting…" : "Generated"}
+              <span
+                className="rl-dot"
+                data-on={streaming ? (promptBusy ? "warn" : "true") : busy ? "warn" : "false"}
+                aria-hidden
+              />
+              {streaming
+                ? promptBusy
+                  ? "Encoding the new prompt — the picture holds until it lands"
+                  : "Generated · live"
+                : busy
+                  ? statusText || "starting…"
+                  : "Generated"}
             </figcaption>
             <div className="aspect-[4/3]">
               <video ref={outRef} muted playsInline autoPlay />
             </div>
+            {!streaming && !busy && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 px-8 text-center">
+                <p className="text-sm font-semibold text-ink">
+                  {!online
+                    ? "No GPU server — nothing is being generated"
+                    : !ready
+                      ? "Model loading on the GPU…"
+                      : "Server ready — press Go live"}
+                </p>
+                <p className="max-w-sm text-[11px] leading-relaxed text-ink-faint">
+                  {!online
+                    ? "This page is only the client. Until the Lucy server is running on the PC with the GPU, the camera on the left is all there is and the prompt has nothing to change. Start it with the command at the bottom of this page."
+                    : !ready
+                      ? "The 1.3B DiT, the VAE and the T5 are being streamed onto the card. This takes 20–30 seconds; the first uncached prompt adds about a minute more."
+                      : "Every frame here will be generated by the model. The prompt only takes effect once the stream is live — editing it before then changes nothing."}
+                </p>
+              </div>
+            )}
             {streaming && (
               <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex flex-wrap gap-1">
                 {[
@@ -337,14 +444,25 @@ export function RealtimeLucy() {
           <div className="flex flex-col gap-4 rounded-2xl border border-line bg-panel p-4">
             <div className="flex flex-col gap-2">
               <label htmlFor="rl-prompt" className="text-xs font-medium text-ink-muted">
-                Prompt {streaming && livePrompt !== prompt.trim() && <span className="text-accent">· edited, not applied</span>}
+                Prompt{" "}
+                {streaming ? (
+                  livePrompt !== prompt.trim() && (
+                    <span className="text-accent">· edited, not applied — press Enter</span>
+                  )
+                ) : (
+                  <span className="text-ink-faint">· takes effect when the stream starts</span>
+                )}
               </label>
               <textarea
                 id="rl-prompt"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) applyPrompt();
+                  // Enter applies it to the live stream; Shift+Enter is a newline.
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    applyPrompt();
+                  }
                 }}
                 rows={2}
                 className="w-full resize-y rounded-xl border border-line bg-canvas px-3 py-2 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-brand/60 focus:ring-2 focus:ring-brand/20"
@@ -354,7 +472,7 @@ export function RealtimeLucy() {
                   <button
                     key={p}
                     type="button"
-                    onClick={() => setPrompt(p)}
+                    onClick={() => choosePreset(p)}
                     className={`rounded-full border px-2.5 py-1 text-[11px] transition ${
                       prompt === p ? "border-brand bg-brand/15 text-ink" : "border-line text-ink-muted hover:border-ink-faint hover:text-ink"
                     }`}
@@ -386,6 +504,47 @@ export function RealtimeLucy() {
               <p className="text-[11px] text-ink-faint">{STRENGTHS.find((s) => s.value === strength)?.blurb}</p>
             </div>
 
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-medium text-ink-muted">Which part of the frame the prompt may repaint</p>
+              <div className="flex flex-wrap gap-1.5">
+                {(
+                  [
+                    ["whole", "Whole frame"],
+                    ["background", "Background only"],
+                    ["subject", "Me only"],
+                  ] as [("whole" | MaskTarget), string][]
+                ).map(([v, label]) => {
+                  const active = v === "whole" ? condMode !== "masked" : condMode === "masked" && maskTarget === v;
+                  return (
+                    <button
+                      key={v}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => chooseRegion(v)}
+                      className={`rounded-full border px-3 py-1 text-xs transition ${
+                        active ? "border-brand bg-brand/15 text-ink" : "border-line text-ink-muted hover:border-ink-faint hover:text-ink"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-ink-faint">
+                {condMode !== "masked"
+                  ? "Every pixel is the model's to re-imagine."
+                  : maskState === "loading"
+                    ? "Loading the segmenter…"
+                    : maskState === "error"
+                      ? `Segmenter unavailable (${maskError}) — running unmasked.`
+                      : maskState === "on"
+                        ? `Outside the region the camera's own latents are pinned at every denoising step, so it comes back untouched.${
+                            maskCoverage !== null ? ` Repainting ${Math.round(maskCoverage * 100)}% of the frame.` : ""
+                          }`
+                        : "Go live to start segmenting."}
+              </p>
+            </div>
+
             <div className="flex flex-wrap items-center gap-3">
               {!streaming && !busy ? (
                 <button
@@ -409,7 +568,7 @@ export function RealtimeLucy() {
                 <>
                   <button
                     type="button"
-                    onClick={applyPrompt}
+                    onClick={() => applyPrompt()}
                     disabled={livePrompt === prompt.trim()}
                     className="rounded-xl border border-line px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-elevated disabled:opacity-40"
                   >
@@ -429,7 +588,9 @@ export function RealtimeLucy() {
                 {!online
                   ? "Start the Lucy server on the PC with the GPU (see below)."
                   : streaming
-                    ? "Hold W A S D or the arrow keys to move the model's camera."
+                    ? promptBusy
+                      ? "A prompt the model has not seen before is run through the T5 once — about 50 s on this GPU, then it is cached on disk and instant forever after."
+                      : "Hold W A S D or the arrow keys to move the model's camera."
                     : busy
                       ? statusText
                       : phase === "camera"
@@ -478,6 +639,7 @@ export function RealtimeLucy() {
                       [
                         ["sdedit", "SDEdit (noise the camera latents)"],
                         ["keyframe", "Keyframe (camera latents as i2v condition)"],
+                        ["masked", "Masked (SDEdit + region lock)"],
                       ] as [CondMode, string][]
                     ).map(([v, label]) => (
                       <button
@@ -542,6 +704,12 @@ export function RealtimeLucy() {
                 {stats.latent_pos !== undefined && info ? `${stats.latent_pos} / ${info.max_stream_latents}` : "—"}
                 {stats.reanchors ? <span className="text-ink-faint"> · re-anchored ×{stats.reanchors}</span> : null}
               </dd>
+              <dt className="text-ink-faint">Region locked</dt>
+              <dd className="font-mono text-ink">
+                {info?.cond_mode === "masked" && stats.mask_coverage != null
+                  ? `${Math.round((1 - stats.mask_coverage) * 100)}% held`
+                  : "—"}
+              </dd>
               <dt className="text-ink-faint">Camera frames</dt>
               <dd className="font-mono text-ink">
                 {stats.cam_kept !== undefined ? `${stats.cam_kept} kept / ${stats.cam_received} received` : "—"}
@@ -565,7 +733,20 @@ export function RealtimeLucy() {
             Once it prints <em>engine ready</em>, this page can go live:
           </p>
           <pre className="overflow-x-auto rounded-xl border border-line bg-canvas p-3 font-mono text-[11px] text-ink">
-            {`python tools/realtime-lucy/server/server.py --port 8765 --size 288*384 --chunk_size 1 --local_attn_size 9`}
+            {`powershell -File tools/realtime-lucy/start.ps1`}
+          </pre>
+          <p className="mt-2">
+            That script picks the resolution your card can actually hold and starts the server. Size matters more than
+            anything else here: on a 6 GB laptop GPU the 384×288 config allocates ~7.2 GB, the driver spills it into
+            system RAM and one chunk takes <strong>21 seconds</strong> instead of 2.6 — which looks exactly like
+            &ldquo;the prompt does nothing&rdquo;. To choose by hand:
+          </p>
+          <pre className="mt-2 overflow-x-auto rounded-xl border border-line bg-canvas p-3 font-mono text-[11px] text-ink">
+            {`# 6 GB card (fits: ~5.2 GB, ~1.6 gen fps on an RTX 3050)
+python tools/realtime-lucy/server/server.py --port 8765 --size 192*256 --chunk_size 1 --local_attn_size 6 --sink_size 2
+
+# 12 GB card and up
+python tools/realtime-lucy/server/server.py --port 8765 --size 288*384 --chunk_size 1 --local_attn_size 9 --sink_size 3`}
           </pre>
         </section>
       </main>

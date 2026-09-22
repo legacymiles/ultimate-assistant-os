@@ -37,6 +37,7 @@ import type { DashboardStore, Profile } from "@/lib/new-dashboard/types";
 import { nodesFrom } from "./MemoryTab";
 import { emptyJarvis, JARVIS_KEY, loadJarvis, saveJarvis, uid } from "@/lib/jarvis/store";
 import { useMemory } from "@/lib/jarvis/useMemory";
+import { useUpdates } from "@/lib/jarvis/useUpdates";
 import type { ChatTurn, Conversation, JarvisStore } from "@/lib/jarvis/types";
 
 export type TabId =
@@ -155,6 +156,9 @@ export function Jarvis() {
   );
 
   const dash = useDashboardCalendar();
+  // The Updates feed lives here rather than in the dashboard tab so its badge
+  // and its pop-ups keep working from whichever tab the owner is on.
+  const updates = useUpdates(store, commit, dash.events);
   /** Hand-typed Jarvis events plus the Dashboard calendar, for the brief. */
   const briefStore = useMemo(
     () => (store ? { ...store, events: [...store.events, ...dash.events.map(toCalEvent)] } : null),
@@ -204,6 +208,8 @@ export function Jarvis() {
   const railButton = (t: RailTab, nested: boolean) => {
     const I = Icon[t.icon];
     const on = tab === t.id;
+    // Only the dashboard carries a count: it is where the feed is.
+    const badge = t.id === "dashboard" ? updates.unread : 0;
     return (
       <button
         key={t.id}
@@ -215,6 +221,12 @@ export function Jarvis() {
       >
         <I width={14} height={14} />
         <span className={on ? "" : "hidden sm:inline"}>{t.label}</span>
+        {badge > 0 && (
+          <span className="ml-auto shrink-0 rounded-full bg-brand px-1.5 text-[10px] font-semibold tabular-nums text-white">
+            {badge > 99 ? "99+" : badge}
+            <span className="sr-only"> new updates</span>
+          </span>
+        )}
       </button>
     );
   };
@@ -304,7 +316,7 @@ export function Jarvis() {
         <main className="min-w-0 flex-1">
           <ReminderBanner queue={dash.reminders.queue} onDismiss={dash.reminders.dismiss} />
           {tab === "dashboard" && (
-            <DashboardTab profile={profile} store={briefStore ?? store} go={go} />
+            <DashboardTab profile={profile} store={briefStore ?? store} updates={updates} go={go} />
           )}
           {/* One Dashboard instance serves both tabs, so an open folder survives
               a hop to Photos and back. */}
@@ -327,7 +339,7 @@ export function Jarvis() {
           {tab === "skills" && <SkillsLibrary chromeless />}
           {tab === "tools" && <ToolsTab />}
           {tab === "rankings" && <AiRankings embedded />}
-          {tab === "settings" && <SettingsTab go={go} />}
+          {tab === "settings" && <SettingsTab go={go} updates={updates} />}
           {tab === "memory" && <MemoryTab store={store} commit={commit} />}
           {tab === "profile" && <NewDashboard chromeless />}
           {tab === "chat" && (
