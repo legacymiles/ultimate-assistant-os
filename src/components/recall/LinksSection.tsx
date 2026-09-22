@@ -1,5 +1,6 @@
 "use client";
 
+import { useRowExtra } from "./rowExtra";
 import { useRef, useState } from "react";
 import { Icon } from "../icons";
 import { createItem, deleteItem } from "@/lib/recall/store";
@@ -75,6 +76,7 @@ export function LinksBody({
   const [busy, setBusy] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const extra = useRowExtra();
 
   async function addUrl(raw: string) {
     setBusy("Fetching…");
@@ -202,6 +204,7 @@ export function LinksBody({
         return (
           <Row
             key={it.id}
+            trailing={extra(it)}
             onClick={() => {
               if (att?.fileId) void openStoredFile(att.fileId, att.name).catch((e) => onToast(e.message));
               else onOpen(it);

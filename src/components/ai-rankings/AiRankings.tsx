@@ -26,7 +26,11 @@ import type { ContentFilter, Filters, SortBy, SortDir } from "@/lib/ai-rankings/
 import { isAdult } from "@/lib/ai-rankings/types";
 import type { BoardData, Tool } from "@/lib/ai-rankings/types";
 
-export function AiRankings() {
+/**
+ * `embedded` = a tab inside Jarvis's Toolbox: no Hub link, and the three panes
+ * fill what is left under Jarvis's own header instead of the whole viewport.
+ */
+export function AiRankings({ embedded = false }: { embedded?: boolean } = {}) {
   // Storage is browser-only, so the first render must match the server's empty
   // one; everything real arrives in the effect below.
   const [data, setData] = useState<BoardData>({ tools: [], tree: {} });
@@ -250,7 +254,13 @@ export function AiRankings() {
     : (filters.group ?? "Everything");
 
   return (
-    <div className="flex h-dvh flex-col">
+    <div
+      className={
+        embedded
+          ? "flex h-[calc(100dvh-96px)] flex-col md:h-[calc(100dvh-49px)]"
+          : "flex h-dvh flex-col"
+      }
+    >
       {/* Top bar */}
       <header className="flex shrink-0 items-center gap-2 border-b border-line bg-panel px-3 py-2">
         <button
@@ -260,14 +270,16 @@ export function AiRankings() {
         >
           <Icon.Menu width={14} height={14} />
         </button>
-        <Link
-          href="/"
-          className="hidden items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink sm:inline-flex"
-          aria-label="Back to hub"
-        >
-          <Icon.ArrowLeft width={13} height={13} />
-          Hub
-        </Link>
+        {!embedded && (
+          <Link
+            href="/"
+            className="hidden items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink sm:inline-flex"
+            aria-label="Back to hub"
+          >
+            <Icon.ArrowLeft width={13} height={13} />
+            Hub
+          </Link>
+        )}
         <span className="hidden text-sm font-semibold text-ink md:inline">AI Rankings</span>
 
         <div className="relative mx-1 min-w-0 flex-1">

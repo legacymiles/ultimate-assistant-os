@@ -122,11 +122,14 @@ export function Row({
   onClick,
   children,
   actions,
+  trailing,
   tone,
 }: {
   onClick?: () => void;
   children: ReactNode;
   actions?: ReactNode;
+  /** Always visible, unlike `actions` (hover-only) — for a control that must be seen. */
+  trailing?: ReactNode;
   tone?: "default" | "muted";
 }) {
   return (
@@ -143,6 +146,7 @@ export function Row({
       >
         {children}
       </button>
+      {trailing}
       {actions && (
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition focus-within:opacity-100 group-hover/row:opacity-100">
           {actions}

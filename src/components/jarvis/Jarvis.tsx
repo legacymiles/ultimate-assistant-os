@@ -25,6 +25,9 @@ import { ReminderBanner } from "./ReminderBanner";
 import { Recall } from "../recall/Recall";
 import { ListsBoard } from "../recall/lists/ListsBoard";
 import { SkillsLibrary } from "../skills/SkillsLibrary";
+import { AiRankings } from "../ai-rankings/AiRankings";
+import { ToolsTab } from "./ToolsTab";
+import { SettingsTab } from "./SettingsTab";
 import { toCalEvent, useDashboardCalendar } from "@/lib/jarvis/useDashboardCalendar";
 import { loadLocal } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
@@ -38,25 +41,55 @@ import type { ChatTurn, Conversation, JarvisStore } from "@/lib/jarvis/types";
 export type TabId =
   | "dashboard" | "chat" | "inbox" | "calendar"
   | "folders" | "photos" | "lists"
-  | "memory" | "routines" | "skills" | "profile";
+  | "memory" | "routines" | "skills" | "tools" | "rankings" | "profile" | "settings";
+
+type RailTab = { id: TabId; label: string; icon: keyof typeof Icon };
 
 /**
- * The rail, in three groups. Folders, Photos and Lists are the old Dashboard
- * app, moved in whole — there is one dashboard now, and it is this one.
+ * The rail. Folders, Photos and Lists are the old Dashboard app, moved in whole
+ * — there is one dashboard now, and it is this one. Toolbox is a folder in the
+ * rail rather than a tab: it opens to Skills, Tools and AI Rankings.
  */
-const TABS: { id: TabId; label: string; icon: keyof typeof Icon; group: string }[] = [
-  { id: "dashboard", label: "Dashboard", icon: "Grid", group: "Assistant" },
-  { id: "chat", label: "Chat", icon: "Bot", group: "Assistant" },
-  { id: "inbox", label: "Inbox", icon: "Inbox", group: "Assistant" },
-  { id: "calendar", label: "Calendar", icon: "Calendar", group: "Assistant" },
-  { id: "folders", label: "Folders", icon: "Folder", group: "Your stuff" },
-  { id: "photos", label: "Photos", icon: "Image", group: "Your stuff" },
-  { id: "lists", label: "Lists", icon: "ListChecks", group: "Your stuff" },
-  { id: "memory", label: "Memory", icon: "Database", group: "Jarvis" },
-  { id: "routines", label: "Routines", icon: "Clock", group: "Jarvis" },
-  { id: "skills", label: "Skills", icon: "Sparkles", group: "Jarvis" },
-  { id: "profile", label: "Profile", icon: "Users", group: "Jarvis" },
+const GROUPS: { title: string; items: (RailTab | { toolbox: RailTab[] })[] }[] = [
+  {
+    title: "Assistant",
+    items: [
+      { id: "dashboard", label: "Dashboard", icon: "Grid" },
+      { id: "chat", label: "Chat", icon: "Bot" },
+      { id: "inbox", label: "Inbox", icon: "Inbox" },
+      { id: "calendar", label: "Calendar", icon: "Calendar" },
+    ],
+  },
+  {
+    title: "Your stuff",
+    items: [
+      { id: "folders", label: "Folders", icon: "Folder" },
+      { id: "photos", label: "Photos", icon: "Image" },
+      { id: "lists", label: "Lists", icon: "ListChecks" },
+    ],
+  },
+  {
+    title: "Jarvis",
+    items: [
+      { id: "memory", label: "Memory", icon: "Database" },
+      { id: "routines", label: "Routines", icon: "Clock" },
+      {
+        toolbox: [
+          { id: "skills", label: "Skills", icon: "Sparkles" },
+          { id: "tools", label: "Tools", icon: "Layers" },
+          { id: "rankings", label: "AI Rankings", icon: "Star" },
+        ],
+      },
+      { id: "profile", label: "Profile", icon: "Users" },
+      { id: "settings", label: "Settings", icon: "Settings" },
+    ],
+  },
 ];
+
+const TOOLBOX: RailTab[] = GROUPS.flatMap((g) => g.items.flatMap((i) => ("toolbox" in i ? i.toolbox : [])));
+const TABS: RailTab[] = GROUPS.flatMap((g) =>
+  g.items.flatMap((i) => ("toolbox" in i ? i.toolbox : [i])),
+);
 
 function isTab(v: string): v is TabId {
   return TABS.some((t) => t.id === v);
@@ -64,6 +97,11 @@ function isTab(v: string): v is TabId {
 
 export function Jarvis() {
   const [tab, setTab] = useState<TabId>("dashboard");
+  /** Whether the Toolbox folder in the rail is open. Opening a tool inside it always opens it. */
+  const [toolboxOpen, setToolboxOpen] = useState(false);
+  useEffect(() => {
+    if (TOOLBOX.some((t) => t.id === tab)) setToolboxOpen(true);
+  }, [tab]);
   const [store, setStore] = useState<JarvisStore | null>(null);
   const [profiles, setProfiles] = useState<DashboardStore>(emptyStore);
 
@@ -156,34 +194,68 @@ export function Jarvis() {
     commit({ ...store, conversations: [next, ...store.conversations.slice(existing ? 1 : 0)] });
   };
 
+  const railButton = (t: RailTab, nested: boolean) => {
+    const I = Icon[t.icon];
+    const on = tab === t.id;
+    return (
+      <button
+        key={t.id}
+        onClick={() => go(t.id)}
+        aria-current={on ? "page" : undefined}
+        className={`flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition ${
+          nested ? "md:ml-3 md:border-l md:border-line md:rounded-l-none md:pl-3" : ""
+        } ${on ? "bg-panel-2 text-ink" : "text-ink-muted hover:bg-panel-2 hover:text-ink"}`}
+      >
+        <I width={14} height={14} />
+        <span className={on ? "" : "hidden sm:inline"}>{t.label}</span>
+      </button>
+    );
+  };
+
   const rail = (
     <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-line bg-panel px-2 py-1.5 md:h-[calc(100dvh-49px)] md:w-44 md:flex-col md:overflow-y-auto md:border-b-0 md:border-r md:px-2 md:py-3">
-      {TABS.map((t, i) => {
-        const I = Icon[t.icon];
-        const on = tab === t.id;
-        const first = i === 0 || TABS[i - 1].group !== t.group;
-        return (
-          <div key={t.id} className="contents">
-          {first && (
-            <span
-              className={`hidden px-2.5 pb-1 text-[10px] font-medium text-ink-faint md:block ${i === 0 ? "" : "pt-3"}`}
-            >
-              {t.group}
-            </span>
-          )}
-          <button
-            onClick={() => go(t.id)}
-            aria-current={on ? "page" : undefined}
-            className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition ${
-              on ? "bg-panel-2 text-ink" : "text-ink-muted hover:bg-panel-2 hover:text-ink"
-            }`}
+      {GROUPS.map((g, gi) => (
+        <div key={g.title} className="contents">
+          <span
+            className={`hidden px-2.5 pb-1 text-[10px] font-medium text-ink-faint md:block ${gi === 0 ? "" : "pt-3"}`}
           >
-            <I width={14} height={14} />
-            <span className={on ? "" : "hidden sm:inline"}>{t.label}</span>
-          </button>
-          </div>
-        );
-      })}
+            {g.title}
+          </span>
+          {g.items.map((item) => {
+            if ("toolbox" in item) {
+              const inside = item.toolbox.some((t) => t.id === tab);
+              return (
+                <div key="toolbox" className="contents">
+                  <button
+                    onClick={() => {
+                      // Closed: open it and land on Skills (unless a tool in it is
+                      // already showing). Open: fold it away again.
+                      if (toolboxOpen && !inside) return setToolboxOpen(false);
+                      setToolboxOpen(true);
+                      if (!inside) go(item.toolbox[0].id);
+                    }}
+                    aria-expanded={toolboxOpen}
+                    className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition ${
+                      inside ? "text-ink" : "text-ink-muted hover:bg-panel-2 hover:text-ink"
+                    }`}
+                  >
+                    <Icon.Toolbox width={14} height={14} />
+                    <span className={inside ? "" : "hidden sm:inline"}>Toolbox</span>
+                    <Icon.Chevron
+                      width={11}
+                      height={11}
+                      className={`ml-auto hidden text-ink-faint transition-transform md:block ${toolboxOpen ? "rotate-90" : ""}`}
+                    />
+                  </button>
+                  {toolboxOpen &&
+                    item.toolbox.map((t) => railButton(t, true))}
+                </div>
+              );
+            }
+            return railButton(item, false);
+          })}
+        </div>
+      ))}
       <div className="hidden md:mt-auto md:block md:px-1 md:pt-4">
         <p className="text-[10px] leading-relaxed text-ink-faint">
           Voice: on
@@ -238,6 +310,9 @@ export function Jarvis() {
             </div>
           )}
           {tab === "skills" && <SkillsLibrary chromeless />}
+          {tab === "tools" && <ToolsTab />}
+          {tab === "rankings" && <AiRankings embedded />}
+          {tab === "settings" && <SettingsTab go={go} />}
           {tab === "memory" && <MemoryTab store={store} commit={commit} />}
           {tab === "profile" && <NewDashboard chromeless />}
           {tab === "chat" && (
