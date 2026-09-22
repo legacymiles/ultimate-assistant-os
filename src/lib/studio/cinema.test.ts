@@ -4,6 +4,7 @@ import {
   MOVES,
   cinemaContext,
   cleanMoves,
+  clipsFor,
   cleanOutput,
   cleanSelection,
   groupSummary,
@@ -13,6 +14,7 @@ import {
   movesIn,
   optionById,
   outputSummary,
+  prettyDuration,
   searchMoves,
   selectionCount,
   withMove,
@@ -143,7 +145,8 @@ describe("what the model receives", () => {
 describe("output settings", () => {
   it("keeps only ratios and lengths the renderers accept", () => {
     expect(cleanOutput({ aspect: "16:9", duration: 10 })).toEqual({ aspect: "16:9", duration: 10 });
-    expect(cleanOutput({ aspect: "7:3", duration: 99 })).toEqual({});
+    // 99 is a real length now, so the out-of-range case has to be truly out.
+    expect(cleanOutput({ aspect: "7:3", duration: 9999 })).toEqual({});
     expect(cleanOutput({ duration: "8" })).toEqual({ duration: 8 });
     expect(cleanOutput(null)).toEqual({});
   });
@@ -200,5 +203,44 @@ describe("style outranks the rest", () => {
       // The prompt is technique, never "in the style of <title>".
       expect(o.prompt.toLowerCase()).not.toContain("in the style of");
     }
+  });
+});
+
+describe("length beyond one clip", () => {
+  it("accepts up to five minutes now, and still rejects nonsense", () => {
+    expect(cleanOutput({ duration: 300 })).toEqual({ duration: 300 });
+    expect(cleanOutput({ duration: 3 })).toEqual({});
+    expect(cleanOutput({ duration: 301 })).toEqual({});
+  });
+
+  it("reads minutes as minutes", () => {
+    expect(prettyDuration(8)).toBe("8s");
+    expect(prettyDuration(60)).toBe("1:00");
+    expect(prettyDuration(90)).toBe("1:30");
+    expect(prettyDuration(300)).toBe("5:00");
+    expect(outputSummary({ aspect: "9:16", duration: 120 })).toBe("9:16 · 2:00");
+  });
+
+  it("is one clip at or under the engine limit, several above it", () => {
+    expect(clipsFor(15)).toBe(1);
+    expect(clipsFor(4)).toBe(1);
+    expect(clipsFor(30)).toBeGreaterThan(1);
+    expect(clipsFor(300)).toBe(30);
+  });
+
+  it("asks for a single clip when it fits in one", () => {
+    const spec = cinemaContext({}, [], { duration: 10 });
+    expect(spec).toContain("duration_sec: 10");
+    expect(spec).toContain("one clip");
+    expect(spec).not.toContain("SEQUENCE");
+  });
+
+  it("asks for a sequence when it does not, rather than a too-long clip", () => {
+    const spec = cinemaContext({}, [], { duration: 300 });
+    expect(spec).toContain("5:00");
+    expect(spec).toContain("SEQUENCE");
+    expect(spec).toContain("at most 15 seconds");
+    // The thing that makes the clips usable together.
+    expect(spec).toContain("cut together");
   });
 });
