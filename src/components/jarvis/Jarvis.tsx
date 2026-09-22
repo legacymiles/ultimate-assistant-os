@@ -15,6 +15,7 @@ import { Icon } from "../icons";
 import { NewDashboard } from "../new-dashboard/NewDashboard";
 import { CalendarTab } from "./CalendarTab";
 import { ChatTab } from "./ChatTab";
+import { StudioTab } from "./StudioTab";
 import { InboxTab } from "./InboxTab";
 import { DashboardTab } from "./DashboardTab";
 import { MemoryTab } from "./MemoryTab";
@@ -39,7 +40,7 @@ import { useMemory } from "@/lib/jarvis/useMemory";
 import type { ChatTurn, Conversation, JarvisStore } from "@/lib/jarvis/types";
 
 export type TabId =
-  | "dashboard" | "chat" | "inbox" | "calendar"
+  | "dashboard" | "chat" | "inbox" | "calendar" | "studio"
   | "folders" | "photos" | "lists"
   | "memory" | "routines" | "skills" | "tools" | "rankings" | "profile" | "settings";
 
@@ -59,6 +60,10 @@ const GROUPS: { title: string; items: (RailTab | { toolbox: RailTab[] })[] }[] =
       { id: "inbox", label: "Inbox", icon: "Inbox" },
       { id: "calendar", label: "Calendar", icon: "Calendar" },
     ],
+  },
+  {
+    title: "Create",
+    items: [{ id: "studio", label: "Studio", icon: "Film" }],
   },
   {
     title: "Your stuff",
@@ -136,6 +141,8 @@ export function Jarvis() {
   );
 
   const [talking, setTalking] = useState(false);
+  /** A message Studio hands to Chat; the nonce lets the same text be sent twice. */
+  const [chatDraft, setChatDraft] = useState<{ text: string; nonce: number } | null>(null);
 
   // The ball inside the voice window needs the same memories the Memory tab
   // draws. One empty store instance keeps the hook's inputs stable before the
@@ -309,6 +316,14 @@ export function Jarvis() {
               <ListsBoard />
             </div>
           )}
+          {tab === "studio" && (
+            <StudioTab
+              onStartChat={(text) => {
+                setChatDraft({ text, nonce: Date.now() });
+                go("chat");
+              }}
+            />
+          )}
           {tab === "skills" && <SkillsLibrary chromeless />}
           {tab === "tools" && <ToolsTab />}
           {tab === "rankings" && <AiRankings embedded />}
@@ -316,7 +331,13 @@ export function Jarvis() {
           {tab === "memory" && <MemoryTab store={store} commit={commit} />}
           {tab === "profile" && <NewDashboard chromeless />}
           {tab === "chat" && (
-            <ChatTab store={store} commit={commit} profile={profile} onDashboardChanged={dash.refresh} />
+            <ChatTab
+              store={store}
+              commit={commit}
+              profile={profile}
+              onDashboardChanged={dash.refresh}
+              draft={chatDraft}
+            />
           )}
           {tab === "inbox" && <InboxTab store={store} commit={commit} profile={profile} />}
           {tab === "calendar" && (

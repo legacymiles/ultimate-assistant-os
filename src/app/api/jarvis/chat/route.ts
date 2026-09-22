@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runAgent } from "@/lib/jarvis/server/agent";
 import { connector } from "@/lib/jarvis/server/connectors";
+import { resolveMention, workflowBrief, type Mention } from "@/lib/studio/workflows";
 
 // Reads the master folder from disk and the memory database per request.
 export const runtime = "nodejs";
@@ -13,6 +14,8 @@ interface Body {
   extraContext?: string;
   profileId?: string;
   skills?: unknown;
+  /** Studio workflow tokens ("kids-story", "e-commerce:flat-lay"); briefs come from the catalog, never the client. */
+  workflows?: unknown;
 }
 
 /** The owner's installed skills as one prompt block, name + what it is for. */
@@ -41,6 +44,15 @@ function cleanImages(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
   // ~1.5 MB of base64 each; the client downsizes far below that.
   return v.filter((u): u is string => typeof u === "string" && u.length < 2_000_000 && IMAGE_URL.test(u));
+}
+
+function studioBlock(v: unknown): string {
+  if (!Array.isArray(v)) return "";
+  const picked = v
+    .slice(0, 6)
+    .map((t) => (typeof t === "string" ? resolveMention(t) : undefined))
+    .filter((m): m is Mention => Boolean(m));
+  return workflowBrief(picked);
 }
 
 export async function POST(req: Request) {
@@ -91,7 +103,7 @@ export async function POST(req: Request) {
       messages,
       ownerName: (body.ownerName || "the owner").slice(0, 60),
       timezone: body.timezone,
-      extraContext: [body.extraContext?.slice(0, 10000), skillsBlock(body.skills)].filter(Boolean).join("\n\n"),
+      extraContext: [body.extraContext?.slice(0, 10000), studioBlock(body.workflows), skillsBlock(body.skills)].filter(Boolean).join("\n\n"),
       profileId: body.profileId,
     });
     return NextResponse.json(result);
