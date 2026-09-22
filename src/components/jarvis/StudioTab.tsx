@@ -15,14 +15,20 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { bridgeStatus } from "@/lib/studio/render";
-import { CinemaBar } from "./CinemaDeck";
-import { useCinemaSelection } from "@/lib/studio/useCinema";
+import { CinemaBar, CinemaOutputRow } from "./CinemaDeck";
+import { StudioGallery } from "./StudioGallery";
+import { studioPlugins } from "@/lib/studio/plugins";
+import { useCinemaOutput, useCinemaSelection } from "@/lib/studio/useCinema";
 import { Icon } from "../icons";
 import {
   CATEGORIES,
   WORKFLOWS,
+  mentionQueryAt,
+  mentionsIn,
+  searchMentions,
   type CategoryId,
   type Medium,
+  type Mention,
   type Workflow,
 } from "@/lib/studio/workflows";
 
@@ -41,6 +47,14 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
   const [idea, setIdea] = useState("");
   // The look is shared with Chat, so a camera set here is still set there.
   const [cinema, setCinema] = useCinemaSelection();
+  const [output, setOutput] = useCinemaOutput();
+  /** The wall of workflows, what has been made, or the allowed add-on apps. */
+  const [view, setView] = useState<"browse" | "gallery" | "plugins">("browse");
+  /** The half-typed "@kid" in the idea box. */
+  const [mention, setMention] = useState<{ start: number; caret: number; query: string } | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const ideaRef = useRef<HTMLTextAreaElement>(null);
+  const mentionOptions = useMemo(() => (mention ? searchMentions(mention.query, 8) : []), [mention]);
   // The free local video renderer on this PC (tools/studio-bridge).
   const [local, setLocal] = useState<{ ok: boolean; wangp?: boolean; queue?: number } | null>(null);
   useEffect(() => {
@@ -99,9 +113,43 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
     setIdea("");
   };
 
+  const readMention = (el: HTMLTextAreaElement) => {
+    const caret = el.selectionStart ?? el.value.length;
+    const q = mentionQueryAt(el.value, caret);
+    setMention(q ? { ...q, caret } : null);
+    if (!q || q.query !== mention?.query) setMentionIndex(0);
+  };
+
+  /** Picking from the @ menu types the token AND ticks the card, so the two
+   *  ways of choosing a workflow never disagree. */
+  const chooseMention = (m: Mention) => {
+    if (!mention) return;
+    const before = idea.slice(0, mention.start);
+    const after = idea.slice(mention.caret).replace(/^\S*/, "");
+    const inserted = `@${m.token} `;
+    setIdea(`${before}${inserted}${after.replace(/^\s/, "")}`);
+    setMention(null);
+    setPicked((list) =>
+      list.some((p) => p.id === m.workflow.id)
+        ? list
+        : [...list, { id: m.workflow.id, variant: m.variant?.id ?? "" }],
+    );
+    const at = before.length + inserted.length;
+    requestAnimationFrame(() => {
+      ideaRef.current?.focus();
+      ideaRef.current?.setSelectionRange(at, at);
+    });
+  };
+
   const start = () => {
     if (!picked.length) return;
-    const mentions = picked.map((p) => `@${p.id}${p.variant ? `:${p.variant}` : ""}`).join(" ");
+    // A workflow typed straight into the box is already an @token; only add the
+    // ones picked from cards, so nothing is named twice.
+    const typed = new Set(mentionsIn(idea).map((m) => m.workflow.id));
+    const mentions = picked
+      .filter((p) => !typed.has(p.id))
+      .map((p) => `@${p.id}${p.variant ? `:${p.variant}` : ""}`)
+      .join(" ");
     const style = keywords.length ? `\nKeywords: ${keywords.join(", ")}` : "";
     // The camera moves ride along inside `idea` as #tokens; the look travels on
     // its own, shared with Chat through localStorage.
@@ -116,7 +164,27 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
         <span className="text-[11px] text-ink-faint">
           {WORKFLOWS.filter((w) => w.medium === medium).length} {medium} workflows
         </span>
-        <div role="tablist" aria-label="Medium" className="ml-2 flex rounded-lg border border-line p-0.5">
+        <div role="tablist" aria-label="Studio view" className="ml-2 flex rounded-lg border border-line p-0.5">
+          {([
+            { id: "browse", label: "Workflows", icon: <Icon.Grid width={12} height={12} /> },
+            { id: "gallery", label: "Gallery", icon: <Icon.Folder width={12} height={12} /> },
+            { id: "plugins", label: "App plugins", icon: <Icon.Toolbox width={12} height={12} /> },
+          ] as const).map((v) => (
+            <button
+              key={v.id}
+              role="tab"
+              aria-selected={view === v.id}
+              onClick={() => setView(v.id)}
+              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition ${
+                view === v.id ? "bg-panel-2 text-ink" : "text-ink-muted hover:text-ink"
+              }`}
+            >
+              {v.icon}
+              {v.label}
+            </button>
+          ))}
+        </div>
+        <div role="tablist" aria-label="Medium" className="ml-1 flex rounded-lg border border-line p-0.5">
           {(["video", "image"] as Medium[]).map((m) => (
             <button
               key={m}
@@ -164,6 +232,12 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
         </label>
       </div>
 
+      {view === "gallery" ? (
+        <StudioGallery onReuse={(prompt) => onStartChat(prompt)} />
+      ) : view === "plugins" ? (
+        <PluginsPane />
+      ) : (
+        <>
       {/* The composer first, the wall under it: the prompt is the thing being
           made, and the cards are the ingredients you reach down for. */}
       <div className="border-b border-line bg-panel px-3 py-3">
@@ -220,21 +294,94 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
 
           <CinemaBar selection={cinema} onSelection={setCinema} text={idea} onText={setIdea} />
 
-          <textarea
-            value={idea}
-            onChange={(e) => setIdea(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                start();
-              }
-            }}
-            rows={2}
-            placeholder="Describe the shot: whose story, which product, what happens…  (# for a camera move)"
-            className="mt-2 block max-h-48 min-h-[68px] w-full resize-none bg-transparent px-2 pt-1 text-[15px] leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
-          />
+          <div className="relative">
+            {mention && mentionOptions.length > 0 && (
+              <ul
+                role="listbox"
+                aria-label="Studio workflows"
+                className="absolute inset-x-0 bottom-full z-30 mb-2 max-h-72 overflow-y-auto rounded-xl border border-line bg-elevated p-1 shadow-[0_12px_32px_-8px_rgb(0_0_0/0.6)]"
+              >
+                <li className="px-2 pb-1 pt-1.5 text-[10px] text-ink-faint">
+                  Studio workflows · ↑↓ to move · Enter to add
+                </li>
+                {mentionOptions.map((m, i) => (
+                  <li key={m.token} role="option" aria-selected={i === mentionIndex}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        chooseMention(m);
+                      }}
+                      onMouseEnter={() => setMentionIndex(i)}
+                      className={`st-card flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left ${
+                        i === mentionIndex ? "bg-panel-2" : ""
+                      }`}
+                      style={{ ["--h" as string]: m.workflow.hue }}
+                    >
+                      <span className="relative h-7 w-6 shrink-0 overflow-hidden rounded">
+                        <span className="st-art" aria-hidden />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-xs text-ink">{m.label}</span>
+                        <span className="block truncate text-[11px] text-ink-faint">
+                          {m.variant ? m.variant.brief : m.workflow.blurb}
+                        </span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-1 text-[10px] capitalize text-ink-faint">
+                        {m.workflow.medium === "video" ? (
+                          <Icon.Film width={11} height={11} />
+                        ) : (
+                          <Icon.Image width={11} height={11} />
+                        )}
+                        {m.workflow.medium}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <textarea
+              ref={ideaRef}
+              value={idea}
+              onChange={(e) => {
+                setIdea(e.target.value);
+                readMention(e.target);
+              }}
+              onClick={(e) => readMention(e.currentTarget)}
+              onBlur={() => setMention(null)}
+              onKeyDown={(e) => {
+                if (mention && mentionOptions.length) {
+                  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                    e.preventDefault();
+                    const step = e.key === "ArrowDown" ? 1 : -1;
+                    setMentionIndex((i) => (i + step + mentionOptions.length) % mentionOptions.length);
+                    return;
+                  }
+                  if (e.key === "Enter" || e.key === "Tab") {
+                    e.preventDefault();
+                    chooseMention(mentionOptions[mentionIndex] ?? mentionOptions[0]);
+                    return;
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setMention(null);
+                    return;
+                  }
+                }
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  start();
+                }
+              }}
+              rows={2}
+              placeholder="Describe the shot: whose story, which product, what happens…  (@ for a workflow, # for a camera move)"
+              className="mt-2 block max-h-48 min-h-[68px] w-full resize-none bg-transparent px-2 pt-1 text-[15px] leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
+            />
+          </div>
 
           <div className="flex flex-wrap items-center gap-1.5 px-1 pb-1">
+            <CinemaOutputRow output={output} onOutput={setOutput} />
+            <span className="mx-0.5 h-5 w-px bg-line" aria-hidden />
             {takesKeywords &&
               [...new Set([...suggested, ...keywords])].slice(0, 8).map((k) => (
                 <button
@@ -315,7 +462,74 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
           )}
         </div>
       </div>
+        </>
+      )}
+    </div>
+  );
+}
 
+/**
+ * Add-on apps the owner has allowed into Studio. They are not workflows and
+ * they are not copies — each one still lives in the hub, and this is a door to
+ * it, opened in a new tab so a half-written prompt is never lost.
+ */
+function PluginsPane() {
+  const plugins = studioPlugins();
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+      <div className="mx-auto max-w-4xl">
+        <h3 className="text-sm font-semibold text-ink">App plugins</h3>
+        <p className="mt-0.5 text-[11px] text-ink-muted">
+          Other apps from the hub, allowed in here because they feed the work. They open in their own tab and stay
+          exactly where they were.
+        </p>
+
+        {plugins.length === 0 ? (
+          <p className="py-12 text-center text-xs text-ink-muted">No plugins allowed yet.</p>
+        ) : (
+          <ul className="mt-4 grid gap-2.5 sm:grid-cols-2">
+            {plugins.map((p) => (
+              <li key={p.slug}>
+                <a
+                  href={p.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="st-card group flex h-full gap-3 rounded-xl border border-line bg-panel p-3 transition hover:-translate-y-0.5 hover:border-ink-faint"
+                  style={{ ["--h" as string]: p.hue }}
+                >
+                  <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg">
+                    <span className="st-art st-m-orbit" aria-hidden>
+                      <i />
+                      <i />
+                      <i />
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5">
+                      <span className="truncate text-sm font-semibold text-ink">{p.title}</span>
+                      {p.status === "coming-soon" && (
+                        <span className="rounded border border-line px-1 py-px text-[9px] uppercase tracking-wide text-ink-faint">
+                          Soon
+                        </span>
+                      )}
+                      <Icon.Launch
+                        width={12}
+                        height={12}
+                        className="ml-auto shrink-0 text-ink-faint transition group-hover:text-ink"
+                      />
+                    </span>
+                    <span className="mt-0.5 block text-[11px] text-ink-muted">{p.tag}</span>
+                    {p.why && <span className="mt-1.5 block text-[11px] leading-snug text-ink-faint">{p.why}</span>}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
