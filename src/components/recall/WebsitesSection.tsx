@@ -1,5 +1,6 @@
 "use client";
 
+import { useRowExtra } from "./rowExtra";
 import { useState } from "react";
 import { Icon } from "../icons";
 import { daysUntilExpiry, WEBSITE_FIELDS, primaryFields } from "@/lib/recall/schemas";
@@ -40,6 +41,7 @@ function WebsiteCard({
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const fields = item.fields ?? {};
+  const extra = useRowExtra();
 
   if (editing) {
     return (
@@ -80,6 +82,7 @@ function WebsiteCard({
             className={"ml-auto shrink-0 text-ink-faint transition-transform " + (open ? "rotate-90" : "")}
           />
         </button>
+        {extra(item)}
         <div className="flex shrink-0 gap-0.5 opacity-0 transition group-hover/site:opacity-100">
           {fields.url && (
             <RowAction

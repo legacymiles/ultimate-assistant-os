@@ -1,5 +1,6 @@
 "use client";
 
+import { useRowExtra } from "./rowExtra";
 import { useState } from "react";
 import { Icon } from "../icons";
 import { createItem, deleteItem, toggleTodo, updateItem } from "@/lib/recall/store";
@@ -74,12 +75,14 @@ export function NotesBody({
   onData: (d: RecallData) => void;
   onToast: (m: string) => void;
 }) {
+  const extra = useRowExtra();
   return (
     <div className="space-y-0.5">
       {items.map((it) => (
         <Row
           key={it.id}
           onClick={() => onOpen(it)}
+          trailing={extra(it)}
           actions={
             <RowAction
               label="Delete"
@@ -151,6 +154,7 @@ export function TodosBody({
 }) {
   // Open tasks first, done ones sink to the bottom.
   const sorted = [...items].sort((a, b) => Number(a.done ?? false) - Number(b.done ?? false));
+  const extra = useRowExtra();
 
   return (
     <div className="space-y-0.5">
@@ -159,6 +163,7 @@ export function TodosBody({
           key={it.id}
           tone={it.done ? "muted" : "default"}
           onClick={() => onData(toggleTodo(it.id))}
+          trailing={extra(it)}
           actions={
             <RowAction label="Delete" danger onClick={() => onData(deleteItem(it.id))}>
               <Icon.Trash width={13} height={13} />

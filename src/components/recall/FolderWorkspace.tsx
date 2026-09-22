@@ -1,5 +1,8 @@
 "use client";
 
+import { RowExtraContext } from "./rowExtra";
+import { RankingsSyncButton } from "./RankingsSync";
+import { inRankingsFolder } from "@/lib/ai-rankings/fromDashboard";
 import { useMemo, useState } from "react";
 import { Icon } from "../icons";
 import {
@@ -210,6 +213,14 @@ export function FolderWorkspace({
     return out;
   }, [data.folders, folderId]);
 
+  // Entries in the "AI Rankings" folder (or any folder inside it) each get a
+  // Sync button; every other folder renders exactly as before.
+  const syncable = useMemo(() => inRankingsFolder(data.folders, folderId), [data.folders, folderId]);
+  const rowExtra = useMemo(
+    () => (syncable ? (item: Item) => <RankingsSyncButton item={item} onToast={onToast} /> : null),
+    [syncable, onToast],
+  );
+
   function renderSection(id: SectionId) {
     const meta = SECTION_META[id];
     const MetaIcon = meta.icon;
@@ -400,9 +411,18 @@ export function FolderWorkspace({
         </div>
       ) : (
         <>
-          <div className="rounded-2xl border border-line bg-panel/40 px-4">
-            {visible.map(renderSection)}
-          </div>
+          {syncable && (
+            <p className="mb-2 flex items-center gap-1.5 text-[11px] text-ink-muted">
+              <Icon.Refresh width={11} height={11} className="shrink-0 text-brand" />
+              Press <span className="font-medium text-brand">Sync</span> on an entry to add it to AI
+              Rankings — it picks the section from the name. Green means it is already there.
+            </p>
+          )}
+          <RowExtraContext.Provider value={rowExtra}>
+            <div className="rounded-2xl border border-line bg-panel/40 px-4">
+              {visible.map(renderSection)}
+            </div>
+          </RowExtraContext.Provider>
           {choices.length > 0 && folderId && (
             <div className="mt-2 flex">
               <AddSectionMenu choices={choices} onPick={pick} variant="inline" />

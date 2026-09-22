@@ -126,7 +126,11 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
   );
 }
 
-export function AiPanel() {
+/**
+ * `inline` = sit in the flow of a page (Jarvis › Settings) instead of floating
+ * over the hub's top-right corner; the problem strip then renders in place too.
+ */
+export function AiPanel({ inline = false }: { inline?: boolean } = {}) {
   const { status, failed, reload, setStatus } = useAiStatus();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -177,10 +181,10 @@ export function AiPanel() {
 
   return (
     <>
-      <div className="fixed inset-x-0 top-0 z-30">
+      <div className={inline ? "w-full" : "fixed inset-x-0 top-0 z-30"}>
         <AiProblemStrip status={status} />
       </div>
-      <div ref={box} className="fixed right-[112px] top-3 z-40">
+      <div ref={box} className={inline ? "relative" : "fixed right-[112px] top-3 z-40"}>
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
