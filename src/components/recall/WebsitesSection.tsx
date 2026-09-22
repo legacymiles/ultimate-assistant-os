@@ -1,6 +1,8 @@
 "use client";
 
 import { useRowExtra } from "./rowExtra";
+import { useInRankingsFolder } from "./rankingsFolder";
+import { resolveSiteUrl, urlNote, type UrlSource } from "@/lib/ai-rankings/siteUrl";
 import { useState } from "react";
 import { Icon } from "../icons";
 import { daysUntilExpiry, WEBSITE_FIELDS, primaryFields } from "@/lib/recall/schemas";
@@ -178,15 +180,41 @@ export function WebsiteForm({
   const [body, setBody] = useState(item?.body ?? "");
   const [err, setErr] = useState<string | null>(null);
 
-  function save() {
+  // In the AI Rankings folder a name with no URL gets one found for it, so the
+  // saved row is a link you can click. It lands in the editable field with a
+  // note saying where it came from — never written behind the owner's back.
+  const inRankings = useInRankingsFolder();
+  const [autoUrl, setAutoUrl] = useState<UrlSource | null>(null);
+  const [finding, setFinding] = useState(false);
+
+  /** Fill the URL from the name when it is empty. Returns the URL to save. */
+  async function fillUrl(name: string): Promise<string> {
+    const typed = (fields.url ?? "").trim();
+    if (typed || !inRankings || !name.trim() || finding) return typed;
+    setFinding(true);
+    try {
+      const { url, source } = await resolveSiteUrl(name.trim());
+      if (!url) return "";
+      // Guard against the owner typing a URL while the lookup was in flight.
+      setFields((s) => ((s.url ?? "").trim() ? s : { ...s, url }));
+      setAutoUrl(source);
+      return url;
+    } finally {
+      setFinding(false);
+    }
+  }
+
+  async function save() {
     if (!title.trim() && !fields.url?.trim()) {
       setErr("Give it a name or a URL.");
       return;
     }
-    const name = title.trim() || fields.url.trim();
+    const url = (fields.url ?? "").trim() || (await fillUrl(title));
+    const saved = url ? { ...fields, url } : fields;
+    const name = title.trim() || url;
     if (item) {
       updateItem(item.id, { title: name, body });
-      onDone(setItemFields(item.id, fields));
+      onDone(setItemFields(item.id, saved));
       onToast("Updated");
     } else {
       const { data } = createItem({
@@ -194,15 +222,15 @@ export function WebsiteForm({
         body,
         summary:
           primaryFields("website")
-            .map((f) => fields[f.key])
+            .map((f) => saved[f.key])
             .filter(Boolean)
             .join(" · ") || "Website",
         kind: "website",
         source: "manual",
         folderId: folderId ?? null,
         tags: ["website"],
-        url: fields.url ? normalizeUrl(fields.url) : null,
-        fields,
+        url: url ? normalizeUrl(url) : null,
+        fields: saved,
       });
       onDone(data);
       onToast("Website saved");
@@ -217,6 +245,7 @@ export function WebsiteForm({
           autoFocus
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          onBlur={(e) => void fillUrl(e.target.value)}
           placeholder="Name — e.g. AquaFunded dashboard"
           className="min-w-0 flex-1 rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-[13px] font-semibold text-ink outline-none placeholder:font-normal placeholder:text-ink-faint focus:border-brand"
         />
@@ -226,15 +255,33 @@ export function WebsiteForm({
           <input
             key={f.key}
             value={fields[f.key] ?? ""}
-            onChange={(e) => setFields((s) => ({ ...s, [f.key]: e.target.value }))}
-            placeholder={`${f.label} — ${f.placeholder ?? ""}`}
+            onChange={(e) => {
+              // Typing over an auto-filled URL makes it the owner's again.
+              if (f.key === "url") setAutoUrl(null);
+              setFields((s) => ({ ...s, [f.key]: e.target.value }));
+            }}
+            placeholder={
+              f.key === "url" && inRankings && finding
+                ? "URL — finding it from the name…"
+                : `${f.label} — ${f.placeholder ?? ""}`
+            }
             className={
-              "w-full rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-[11px] text-ink outline-none placeholder:text-ink-faint focus:border-brand " +
+              "w-full rounded-lg border bg-canvas px-2.5 py-1.5 text-[11px] text-ink outline-none placeholder:text-ink-faint focus:border-brand " +
+              (f.key === "url" && autoUrl ? "border-brand/50 " : "border-line ") +
               (f.mono ? "font-mono" : "")
             }
           />
         ))}
       </div>
+      {autoUrl && (
+        <p className="mt-1.5 flex items-center gap-1.5 text-[10.5px] text-ink-muted">
+          <Icon.Globe width={10} height={10} className="shrink-0 text-brand" />
+          <span>
+            <span className="font-medium text-brand">URL filled in for you.</span>{" "}
+            {urlNote(autoUrl)}
+          </span>
+        </p>
+      )}
       <textarea
         value={body}
         onChange={(e) => setBody(e.target.value)}
@@ -245,10 +292,11 @@ export function WebsiteForm({
       {err && <p className="mt-2 text-[11px] text-red-400">{err}</p>}
       <div className="mt-2.5 flex items-center gap-2">
         <button
-          onClick={save}
-          className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-2"
+          onClick={() => void save()}
+          disabled={finding}
+          className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-2 disabled:opacity-60"
         >
-          Save
+          {finding ? "Finding the site…" : "Save"}
         </button>
         <button
           onClick={onCancel}

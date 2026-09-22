@@ -21,6 +21,7 @@ import { closestPlace } from "@/lib/dashboard/places";
 import type { Folder, Item } from "@/lib/recall/types";
 import { heuristicSuggestion, type Suggestion } from "./classify";
 import { featureIndex } from "./query";
+import { resolveSiteUrl } from "./siteUrl";
 import { addTool, getData } from "./store";
 import type { Tool } from "./types";
 
@@ -91,8 +92,13 @@ function itemSummary(item: Item): string {
  * runs here.
  */
 export async function syncToRankings(item: Item): Promise<{ tool: Tool; suggestion: Suggestion }> {
+  const name = itemName(item);
+  // An entry saved without a link still becomes a record you can click: the
+  // same lookup the folder's own form uses fills it in here. It only runs when
+  // the entry really has no URL, so a typed one is never second-guessed.
+  const url = itemUrl(item) || (await resolveSiteUrl(name)).url;
   return fileOnBoard(
-    { name: itemName(item), url: itemUrl(item), summary: itemSummary(item) },
+    { name, url, summary: itemSummary(item) },
     "Synced from the AI Rankings folder in Jarvis.",
   );
 }
