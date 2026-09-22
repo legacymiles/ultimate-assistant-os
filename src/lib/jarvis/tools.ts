@@ -248,7 +248,10 @@ export const STUDIO_TOOLS: ToolSpec[] = [
     description:
       "Render the approved Studio prompt(s). Call only after the owner has seen and approved the " +
       "final prompt. One job = one video clip (4-15 s) or one image. Reference photos the owner " +
-      "uploaded in this conversation are attached in upload order when use_references is true.",
+      "uploaded in this conversation are attached in upload order when use_references is true. " +
+      "Anyone the owner @-mentioned from their photo library is attached automatically as well, so " +
+      "each prompt must describe them in words rather than naming them: the render sees the face, " +
+      "the model reading the prompt does not.",
     parameters: {
       type: "object",
       properties: {

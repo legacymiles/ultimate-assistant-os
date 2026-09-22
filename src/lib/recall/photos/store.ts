@@ -19,6 +19,7 @@ import { scopedKey } from "@/lib/sync/identity";
 import { nowIso, uid } from "../../utils";
 import { PHOTOS_ROOT } from "./types";
 import type {
+  CharacterSheet,
   DetectedCast,
   PendingPhoto,
   Person,
@@ -72,8 +73,15 @@ function load(): PhotosData {
   }
 }
 
+/** Announced as well as saved: the chat composer's cast list reads from here. */
+export const PHOTOS_CHANGED = "recall-photos-changed";
+
 function save(data: PhotosData): PhotosData {
   saveSynced(PHOTOS_KEY, data);
+  // People are now @-mentionable in Studio prompts, which means a screen that
+  // never loads this module has to hear about a new face. An event is the whole
+  // of that coupling — no store, no context, no prop drilled across two apps.
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(PHOTOS_CHANGED));
   return data;
 }
 
@@ -222,6 +230,14 @@ export function reconcileCategories(data: PhotosData): PhotosData {
 
 // ----- people --------------------------------------------------------------
 
+/**
+ * Reference faces kept per person.
+ *
+ * Six, not two, and the contact sheet now shows every one it can fit: the whole
+ * point of adding a fourth photo of someone is that the fourth photo is used.
+ */
+export const MAX_PERSON_REFS = 6;
+
 export interface PersonInput {
   name: string;
   role: PersonRole;
@@ -235,7 +251,7 @@ export function createPerson(input: PersonInput): PhotosData {
     id: uid("per"),
     name: input.name.trim() || "Unnamed",
     role: input.role,
-    refs: (input.refs ?? []).slice(0, 6),
+    refs: (input.refs ?? []).slice(0, MAX_PERSON_REFS),
     notes: input.notes?.trim() || undefined,
     createdAt: nowIso(),
   });
@@ -248,7 +264,7 @@ export function updatePerson(id: string, patch: Partial<PersonInput>): PhotosDat
   if (p) {
     if (patch.name !== undefined) p.name = patch.name.trim() || p.name;
     if (patch.role !== undefined) p.role = patch.role;
-    if (patch.refs !== undefined) p.refs = patch.refs.slice(0, 6);
+    if (patch.refs !== undefined) p.refs = patch.refs.slice(0, MAX_PERSON_REFS);
     if (patch.notes !== undefined) p.notes = patch.notes.trim() || undefined;
   }
   return save(reconcileCategories(data));
@@ -262,11 +278,17 @@ export function deletePerson(id: string): PhotosData {
   return save(reconcileCategories(data));
 }
 
-/** Add one reference face to a person — how recognition gets better over time. */
+/**
+ * Add one reference face to a person — how recognition gets better over time.
+ *
+ * A new face invalidates the written description rather than deleting it: the
+ * old one still works, it is simply out of date, and the card says so instead of
+ * silently spending a vision call the owner did not ask for.
+ */
 export function addPersonRef(id: string, dataUrl: string): PhotosData {
   const data = load();
   const p = data.people.find((x) => x.id === id);
-  if (p) p.refs = [...p.refs, dataUrl].slice(-6);
+  if (p) p.refs = [...p.refs, dataUrl].slice(-MAX_PERSON_REFS);
   return save(data);
 }
 
@@ -274,6 +296,22 @@ export function removePersonRef(id: string, index: number): PhotosData {
   const data = load();
   const p = data.people.find((x) => x.id === id);
   if (p) p.refs = p.refs.filter((_, i) => i !== index);
+  return save(data);
+}
+
+/** Store (or clear) the written description of a person. */
+export function setPersonSheet(id: string, sheet: CharacterSheet | null): PhotosData {
+  const data = load();
+  const p = data.people.find((x) => x.id === id);
+  if (p) p.sheet = sheet;
+  return save(data);
+}
+
+/** Store (or clear) the written description of a reference-picture folder. */
+export function setCategorySheet(id: string, sheet: CharacterSheet | null): PhotosData {
+  const data = load();
+  const c = data.categories.find((x) => x.id === id);
+  if (c) c.sheet = sheet;
   return save(data);
 }
 

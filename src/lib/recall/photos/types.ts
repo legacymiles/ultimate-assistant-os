@@ -33,6 +33,36 @@ export const ROLE_LABELS: Record<PersonRole, string> = {
   other: "Other",
 };
 
+/**
+ * What the app has worked out about one recognisable subject — a person, or the
+ * thing a reference-picture folder is about.
+ *
+ * It is written once, from every picture of them the app can find, and then it
+ * pays for itself twice. Recognition reads `identifiers`: a model comparing a
+ * face against a small tile does markedly better when it has been told which
+ * features to compare, and those are exactly the ones that survive a change of
+ * hair, clothes and lighting. Studio reads `appearance`, which is a character
+ * sheet — the paragraph a video model needs in order to draw this person in a
+ * shot nobody ever photographed.
+ *
+ * Writing it down beats attaching more photos to every request: the description
+ * costs a few hundred tokens once, and unlike a face crop it can be reused by a
+ * prompt, edited by hand, and read back by the owner.
+ */
+export interface CharacterSheet {
+  /** Prompt-ready: face, hair, build, skin, age, bearing, in one paragraph. */
+  appearance: string;
+  /** 3-6 features that do not change between photographs. */
+  identifiers: string[];
+  /** How they usually dress, when the pictures agree. Guidance, never binding. */
+  wardrobe?: string;
+  /** How many pictures it was written from, so the UI can offer a rebuild. */
+  builtFrom: number;
+  builtAt: string;
+  /** Set when the owner rewrote it by hand; a rebuild then has to be asked for. */
+  edited?: boolean;
+}
+
 export interface Person {
   id: string;
   name: string;
@@ -45,6 +75,12 @@ export interface Person {
    */
   refs: string[];
   notes?: string;
+  /**
+   * The written description of this person. Absent until it is built, because
+   * building it costs one vision call and a person with no reference faces has
+   * nothing to build it from.
+   */
+  sheet?: CharacterSheet | null;
   createdAt: string;
 }
 
@@ -82,6 +118,12 @@ export interface PhotoCategory {
   refs?: string[];
   /** A sentence about what belongs here, sent with the references. */
   refHint?: string;
+  /**
+   * The written description of whatever this folder is about, when it has
+   * references to build one from. A folder is a character too: "My Truck" is
+   * the subject of a prompt in exactly the way a person is.
+   */
+  sheet?: CharacterSheet | null;
 }
 
 /**

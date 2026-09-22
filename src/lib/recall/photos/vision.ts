@@ -12,15 +12,62 @@
 // easy question ("which numbered faces appear here?") rather than the hard,
 // open-ended one, and the cost stops growing with the size of the family.
 //
+// TWO NUMBERS DECIDE WHETHER ANY OF THAT WORKS, and both used to be wrong. The
+// sheet showed two shots per person and drew them at 128px. Two shots is one
+// angle and one haircut, so adding a third and fourth photo of someone changed
+// nothing — the extra pictures were stored, synced, listed on the card, and
+// never looked at. And 128px is below the size at which a vision model can
+// separate two people who merely resemble each other: it can see a face there,
+// not whose face it is.
+//
+// So the sheet now draws every reference it can fit, at 192px, and spends its
+// budget on TILES rather than on a fixed number per person: `BUDGET` bounds the
+// payload, and the allowance per person falls out of how many people there are.
+// A family of three gets four shots each; a gallery of twelve gets two. Adding
+// a photo of someone always improves the sheet, which is the only behaviour
+// that makes "add more photos" honest advice.
+//
 // The sheet is rebuilt only when the people or their reference shots change.
 // ---------------------------------------------------------------------------
 
 import { ROLE_LABELS } from "./types";
 import type { PhotoAnalysis, PhotoCategory, Person } from "./types";
 
-const CELL = 128;
+/**
+ * 192px per face, not 128. Faces are the whole job of this image, and a tile
+ * too small to tell two cousins apart makes every other part of the pipeline
+ * pointless.
+ */
+const CELL = 192;
 const COLS = 4;
-const LABEL_H = 22;
+const LABEL_H = 24;
+/** The most tiles the sheet will ever draw, so the payload has a ceiling. */
+const BUDGET = 28;
+/** Shots of one person past this add angles nobody needs. */
+const MAX_PER_SUBJECT = 4;
+/** …and below this a subject is not really on the sheet at all. */
+const MIN_PER_SUBJECT = 1;
+
+/**
+ * How many shots of each subject fit. Divided evenly rather than first-come, so
+ * the last person added is not the one who goes unrecognised.
+ */
+export function shotsPerSubject(subjects: number, budget = BUDGET): number {
+  if (subjects <= 0) return 0;
+  return Math.max(MIN_PER_SUBJECT, Math.min(MAX_PER_SUBJECT, Math.floor(budget / subjects)));
+}
+
+/**
+ * A cheap content digest of one reference picture.
+ *
+ * The signature used to count refs, which meant swapping a bad face crop for a
+ * good one — same count, different pixels — reused the stale sheet for the rest
+ * of the session. Length plus a sample of the base64 catches that without
+ * hashing tens of kilobytes on every import.
+ */
+function refDigest(url: string): string {
+  return `${url.length}.${url.slice(-24)}`;
+}
 
 /**
  * Cache key = every person's id/name/role plus the refs they carry, and the
@@ -28,8 +75,10 @@ const LABEL_H = 22;
  */
 function sheetSignature(people: Person[], albums: PhotoCategory[]): string {
   return [
-    ...people.map((p) => `p${p.id}:${p.name}:${p.role}:${p.refs.length}`),
-    ...albums.map((c) => `a${c.id}:${c.name}:${(c.refs ?? []).length}:${c.refHint ?? ""}`),
+    ...people.map((p) => `p${p.id}:${p.name}:${p.role}:${p.refs.map(refDigest).join(",")}`),
+    ...albums.map(
+      (c) => `a${c.id}:${c.name}:${(c.refs ?? []).map(refDigest).join(",")}:${c.refHint ?? ""}`,
+    ),
   ].join("|");
 }
 
@@ -44,6 +93,15 @@ export interface SheetEntry {
   role: string;
   /** What the user says belongs in this folder. */
   hint?: string;
+  /** How many tiles on the sheet show this subject. */
+  shots: number;
+  /**
+   * The features from their character sheet that do not change between
+   * photographs. Recognition is much steadier when the model is told what to
+   * compare than when it is left to decide for itself which of two similar
+   * faces a tile is closer to.
+   */
+  look?: string;
 }
 
 export interface ContactSheet {
@@ -85,20 +143,42 @@ export async function buildContactSheet(
   const legend: SheetEntry[] = [];
   const tiles: { img: HTMLImageElement; slot: number; caption: string }[] = [];
 
+  // One allowance for everything on the sheet, so a folder with four reference
+  // pictures cannot crowd out the face of a person the owner actually named.
+  const per = shotsPerSubject(withFaces.length + withRefs.length);
+
   let slot = 0;
   for (const p of withFaces) {
     slot++;
-    legend.push({ slot, kind: "person", id: p.id, name: p.name, role: ROLE_LABELS[p.role] });
-    // Two shots each is enough variation to be useful without bloating the grid.
-    for (const ref of p.refs.slice(0, 2)) {
+    const shots = p.refs.slice(0, per);
+    legend.push({
+      slot,
+      kind: "person",
+      id: p.id,
+      name: p.name,
+      role: ROLE_LABELS[p.role],
+      shots: shots.length,
+      look: p.sheet?.identifiers?.length ? p.sheet.identifiers.join("; ") : undefined,
+    });
+    for (const ref of shots) {
       const img = await loadImage(ref);
       if (img) tiles.push({ img, slot, caption: `${slot}. ${p.name}` });
     }
   }
   for (const c of withRefs) {
     slot++;
-    legend.push({ slot, kind: "album", id: c.id, name: c.name, role: "", hint: c.refHint });
-    for (const ref of (c.refs ?? []).slice(0, 2)) {
+    const shots = (c.refs ?? []).slice(0, per);
+    legend.push({
+      slot,
+      kind: "album",
+      id: c.id,
+      name: c.name,
+      role: "",
+      hint: c.refHint,
+      shots: shots.length,
+      look: c.sheet?.identifiers?.length ? c.sheet.identifiers.join("; ") : undefined,
+    });
+    for (const ref of shots) {
       const img = await loadImage(ref);
       if (img) tiles.push({ img, slot, caption: `${slot}. ${c.name}` });
     }
@@ -120,7 +200,7 @@ export async function buildContactSheet(
   ctx.fillStyle = "#111318";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.textBaseline = "middle";
-  ctx.font = "600 13px system-ui, sans-serif";
+  ctx.font = "600 14px system-ui, sans-serif";
 
   tiles.forEach((t, i) => {
     const cx = (i % COLS) * CELL;
@@ -138,10 +218,13 @@ export async function buildContactSheet(
     ctx.fillStyle = "#000";
     ctx.fillRect(cx, cy + CELL, CELL, LABEL_H);
     ctx.fillStyle = "#fff";
-    ctx.fillText(t.caption.slice(0, 18), cx + 6, cy + CELL + LABEL_H / 2);
+    ctx.fillText(t.caption.slice(0, 24), cx + 6, cy + CELL + LABEL_H / 2);
   });
 
-  const sheet: ContactSheet = { dataUrl: canvas.toDataURL("image/jpeg", 0.8), legend };
+  // 0.92, not 0.8: JPEG artefacts land on exactly the high-frequency detail —
+  // eyelids, the line of a nose, the edge of a hairline — that tells two faces
+  // apart, so this is the last place to save bytes.
+  const sheet: ContactSheet = { dataUrl: canvas.toDataURL("image/jpeg", 0.92), legend };
   cached = { sig, sheet };
   return sheet;
 }
@@ -177,8 +260,15 @@ export function toAnalysisDataUrl(blob: Blob, maxDim = 1024): Promise<string> {
   });
 }
 
-/** A tiny square thumbnail for the review grid — must stay localStorage-cheap. */
-export function toThumb(blob: Blob, size = 180): Promise<string | undefined> {
+/**
+ * A square crop, JPEG, as a data URL.
+ *
+ * Two callers with opposite needs: the review grid wants tiny and cheap, and a
+ * reference face wants every bit of detail it can get for a few more kilobytes,
+ * because that crop is what recognition is later asked to match against. Hence
+ * the quality argument — the default stays cheap.
+ */
+export function toThumb(blob: Blob, size = 180, quality = 0.62): Promise<string | undefined> {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onerror = () => resolve(undefined);
@@ -195,7 +285,7 @@ export function toThumb(blob: Blob, size = 180): Promise<string | undefined> {
         const w = img.width * scale;
         const h = img.height * scale;
         ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
-        resolve(canvas.toDataURL("image/jpeg", 0.62));
+        resolve(canvas.toDataURL("image/jpeg", quality));
       };
       img.src = String(reader.result ?? "");
     };

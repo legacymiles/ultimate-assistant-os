@@ -18,6 +18,27 @@ export interface RenderJob {
   references?: number[];
 }
 
+/**
+ * A person (or thing) from the owner's Photos tab that this conversation named,
+ * carrying the reference faces the library already holds. Nothing was uploaded
+ * for these — not having to is the entire point of @-mentioning someone.
+ */
+export interface CharacterRef {
+  token: string;
+  name: string;
+  images: string[];
+}
+
+/**
+ * Everything the jobs of one render can be shown. Uploads keep their
+ * conversation-wide numbers; characters are named, because "Brandy" is not the
+ * third file somebody dragged into a box.
+ */
+export interface RefPool {
+  subjects: string[];
+  characters: CharacterRef[];
+}
+
 export interface RenderState {
   id: string;
   title: string;
@@ -54,19 +75,65 @@ export function jobsFrom(args: Record<string, unknown>): { medium: "video" | "im
   return { medium, jobs };
 }
 
+/** The most reference images one render is given. */
+const MAX_JOB_REFS = 6;
+
 /**
- * The uploads one job should see, keeping their conversation-wide numbers
- * ("Subject 3" is always the third picture the owner attached): the Subjects
- * the job lists, else the Subjects its prompt names, else the first four.
+ * Everything one job should see.
+ *
+ * CHARACTERS COME FIRST, and attaching them is not conditional on the job's
+ * text. A prompt that names someone from the library carries their DESCRIPTION
+ * rather than their @token — that is what makes it renderable at all — so by the
+ * time a job arrives here there is nothing in its words to match them by.
+ * Attaching the faces of everyone the conversation named is therefore the only
+ * behaviour that keeps them the same person from clip to clip, which is the
+ * whole reason to mention them.
+ *
+ * Then the uploads, keeping their conversation-wide numbers ("Subject 3" is
+ * always the third picture the owner attached): the Subjects the job lists, else
+ * the Subjects its prompt names, else the first few.
  */
-export function pick(job: RenderJob, refs: string[]): { label: string; dataUrl: string }[] {
-  if (!job.useReferences || !refs.length) return [];
-  const named = [...job.prompt.matchAll(/@?\bSubject[\s-]*(\d+)\b/gi)].map((m) => Number(m[1]));
-  const wanted = job.references?.length ? job.references : named.length ? named : refs.slice(0, 4).map((_, i) => i + 1);
-  return [...new Set(wanted)]
-    .filter((n) => refs[n - 1])
-    .slice(0, 6)
-    .map((n) => ({ label: `Subject ${n}`, dataUrl: refs[n - 1] }));
+export function pick(
+  job: RenderJob,
+  refs: string[],
+  characters: CharacterRef[] = [],
+): { label: string; dataUrl: string }[] {
+  if (!job.useReferences) return [];
+  const out: { label: string; dataUrl: string }[] = [];
+
+  // A job may still narrow the cast by naming tokens; most do not, and then
+  // everyone the owner named is in the shot.
+  const cast = characters.filter((c) => tokenNamed(job.prompt, c.token));
+  const wantedCast = cast.length ? cast : characters;
+  // Two angles of one face, or one each in a crowd: a third shot of the same
+  // person would crowd out the second person in a two-hander.
+  const perCharacter = wantedCast.length > 2 ? 1 : 2;
+  for (const c of wantedCast) {
+    for (const url of c.images.slice(0, perCharacter)) {
+      if (out.length < MAX_JOB_REFS) out.push({ label: c.name, dataUrl: url });
+    }
+  }
+
+  if (refs.length) {
+    const numbers = [...job.prompt.matchAll(/@?\bSubject[\s-]*(\d+)\b/gi)].map((m) => Number(m[1]));
+    const wanted = job.references?.length
+      ? job.references
+      : numbers.length
+        ? numbers
+        : refs.slice(0, 4).map((_, i) => i + 1);
+    for (const n of [...new Set(wanted)]) {
+      if (refs[n - 1] && out.length < MAX_JOB_REFS) {
+        out.push({ label: `Subject ${n}`, dataUrl: refs[n - 1] });
+      }
+    }
+  }
+  return out;
+}
+
+/** Does this prompt name "@Brandy"? Tokens are owner-typed, so they are escaped. */
+function tokenNamed(prompt: string, token: string): boolean {
+  const safe = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`@${safe}(?![\\p{L}\\p{N}-])`, "iu").test(prompt);
 }
 
 const VIDEO_ASPECTS = ["16:9", "9:16", "1:1"];
@@ -100,7 +167,7 @@ export async function bridgeStatus(): Promise<{ ok: boolean; wangp?: boolean; qu
   }
 }
 
-async function renderVideoLocal(job: RenderJob, refs: string[], update: (p: Partial<RenderState>) => void): Promise<void> {
+async function renderVideoLocal(job: RenderJob, pool: RefPool, update: (p: Partial<RenderState>) => void): Promise<void> {
   if (!(await bridgeStatus()).ok) {
     throw new Error(
       "The free local renderer isn't running on this PC. Double-click tools/studio-bridge/start.cmd, then press Make it again.",
@@ -111,7 +178,7 @@ async function renderVideoLocal(job: RenderJob, refs: string[], update: (p: Part
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       prompt: job.prompt,
-      refs: pick(job, refs),
+      refs: pick(job, pool.subjects, pool.characters),
       durationSec: Math.min(15, Math.max(4, Math.round(job.durationSec ?? 5))),
       aspectRatio: VIDEO_ASPECTS.includes(job.aspectRatio ?? "") ? job.aspectRatio : "16:9",
     }),
@@ -144,13 +211,13 @@ async function renderVideoLocal(job: RenderJob, refs: string[], update: (p: Part
   throw new Error("The local render has been going for 90 minutes — check the bridge window.");
 }
 
-async function renderVideo(job: RenderJob, refs: string[], update: (p: Partial<RenderState>) => void): Promise<void> {
+async function renderVideo(job: RenderJob, pool: RefPool, update: (p: Partial<RenderState>) => void): Promise<void> {
   const res = await post("/api/auteur/generate", {
     action: "create",
     prompt: job.prompt,
     durationSec: Math.min(15, Math.max(4, Math.round(job.durationSec ?? 10))),
     aspectRatio: VIDEO_ASPECTS.includes(job.aspectRatio ?? "") ? job.aspectRatio : "16:9",
-    references: pick(job, refs).map((r) => ({ ...r, kind: "image" })),
+    references: pick(job, pool.subjects, pool.characters).map((r) => ({ ...r, kind: "image" })),
   });
   const data = (await res.json().catch(() => ({}))) as {
     mode?: string;
@@ -189,11 +256,11 @@ async function renderVideo(job: RenderJob, refs: string[], update: (p: Partial<R
   throw new Error("Still not finished after 20 minutes — try again later.");
 }
 
-async function renderImage(job: RenderJob, refs: string[], update: (p: Partial<RenderState>) => void): Promise<void> {
+async function renderImage(job: RenderJob, pool: RefPool, update: (p: Partial<RenderState>) => void): Promise<void> {
   const res = await post("/api/studio/image", {
     prompt: job.prompt,
     aspectRatio: job.aspectRatio,
-    refs: pick(job, refs),
+    refs: pick(job, pool.subjects, pool.characters),
   });
   const data = (await res.json().catch(() => ({}))) as { image?: string; refusal?: string; error?: string };
   if (data.image) {
@@ -213,7 +280,7 @@ async function renderImage(job: RenderJob, refs: string[], update: (p: Partial<R
  */
 export async function runRender(
   args: Record<string, unknown>,
-  refs: string[],
+  pool: RefPool,
   onChange: (states: RenderState[]) => void,
 ): Promise<string> {
   const { medium, jobs } = jobsFrom(args);
@@ -236,7 +303,7 @@ export async function runRender(
   await Promise.all(
     jobs.map(async (job, i) => {
       try {
-        await (medium === "video" ? video : renderImage)(job, refs, update(i));
+        await (medium === "video" ? video : renderImage)(job, pool, update(i));
       } catch (e) {
         update(i)({ status: "error", error: e instanceof Error ? e.message : "It failed." });
       }
