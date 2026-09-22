@@ -19,6 +19,14 @@ import { ConfirmCard } from "./ConfirmCard";
 import { SOURCE_COLOR } from "./MemoryCore";
 import { uid } from "@/lib/jarvis/store";
 import { listSkills } from "@/lib/skills/store";
+import {
+  MENTION_PATTERN,
+  mentionQueryAt,
+  mentionsIn,
+  resolveMention,
+  searchMentions,
+  type Mention,
+} from "@/lib/studio/workflows";
 import { imageFiles, MAX_ATTACHMENTS, toAttachment, type Attachment } from "@/lib/jarvis/chatImages";
 import { useMemory } from "@/lib/jarvis/useMemory";
 import { SOURCE_LABEL, type ChatTurn, type Conversation, type JarvisStore, type PendingAction } from "@/lib/jarvis/types";
@@ -52,15 +60,23 @@ export function ChatTab({
   commit,
   profile,
   onDashboardChanged,
+  draft,
 }: {
   store: JarvisStore;
   commit: (s: JarvisStore) => void;
   profile: Profile | null;
   /** A confirmed folder / calendar / list action ran; the shell re-reads. */
   onDashboardChanged?: () => void;
+  /** A message another tab (Studio) wants typed into the box, not sent. */
+  draft?: { text: string; nonce: number } | null;
 }) {
   const memory = useMemory(store, commit);
   const [input, setInput] = useState("");
+  /** The half-typed "@…" at the caret, while the workflow menu is open. */
+  const [mention, setMention] = useState<{ start: number; caret: number; query: string } | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const mentionOptions = useMemo(() => (mention ? searchMentions(mention.query, 8) : []), [mention]);
+  const used = useMemo(() => mentionsIn(input), [input]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [proposals, setProposals] = useState<{ title: string; content: string }[]>([]);
@@ -106,6 +122,40 @@ export function ChatTab({
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
   }, [input]);
+
+  // Studio handed over a mix: put it in the box for the owner to read and send.
+  useEffect(() => {
+    if (!draft) return;
+    setInput(draft.text);
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    });
+  }, [draft]);
+
+  const readMention = (el: HTMLTextAreaElement) => {
+    const caret = el.selectionStart ?? el.value.length;
+    const q = mentionQueryAt(el.value, caret);
+    setMention(q ? { ...q, caret } : null);
+    if (!q || q.query !== mention?.query) setMentionIndex(0);
+  };
+
+  const chooseMention = (m: Mention) => {
+    if (!mention) return;
+    const before = input.slice(0, mention.start);
+    const after = input.slice(mention.caret).replace(/^\S*/, "");
+    const inserted = `@${m.token} `;
+    const next = `${before}${inserted}${after.replace(/^\s/, "")}`;
+    setInput(next);
+    setMention(null);
+    const at = before.length + inserted.length;
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(at, at);
+    });
+  };
 
   const attach = async (files: File[]) => {
     if (!files.length) return;
@@ -175,6 +225,15 @@ export function ChatTab({
           })),
           ownerName: profile?.name ?? "",
           skills: skills.current,
+          // Workflows named in this message first, then earlier ones, so a
+          // follow-up ("make it funnier") still has the briefs.
+          workflows: [
+            ...new Set(
+              [asked, ...[...turns].reverse()]
+                .filter((t) => t.role === "you")
+                .flatMap((t) => mentionsIn(t.text).map((m) => m.token)),
+            ),
+          ].slice(0, 6),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           extraContext: [profileContext(profile), await dashboardDigest()].filter(Boolean).join("\n\n"),
         }),
@@ -343,7 +402,11 @@ export function ChatTab({
                     ))}
                   </div>
                 )}
-                {t.text && <p className="whitespace-pre-wrap text-xs leading-relaxed text-ink">{t.text}</p>}
+                {t.text && (
+                  <p className="whitespace-pre-wrap text-xs leading-relaxed text-ink">
+                    {t.role === "you" ? withMentions(t.text) : t.text}
+                  </p>
+                )}
                 {t.did && <p className="mt-1.5 text-[10px] text-ink-faint">{t.did}</p>}
                 {t.citations && t.citations.length > 0 && (
                   <ul className="mt-2 space-y-0.5 border-t border-line-soft pt-1.5">
@@ -417,7 +480,68 @@ export function ChatTab({
         }}
         className="border-t border-line bg-panel px-3 py-3"
       >
-        <div className="mx-auto max-w-3xl rounded-xl border border-line bg-panel-2 transition focus-within:border-ink-faint">
+        <div className="relative mx-auto max-w-3xl rounded-xl border border-line bg-panel-2 transition focus-within:border-ink-faint">
+          {mention && mentionOptions.length > 0 && (
+            <ul
+              role="listbox"
+              aria-label="Studio workflows"
+              className="absolute inset-x-0 bottom-full z-30 mb-2 max-h-80 overflow-y-auto rounded-xl border border-line bg-elevated p-1 shadow-[0_12px_32px_-8px_rgb(0_0_0/0.6)]"
+            >
+              <li className="px-2 pb-1 pt-1.5 text-[10px] text-ink-faint">
+                Studio workflows · ↑↓ to move · Enter to add
+              </li>
+              {mentionOptions.map((m, i) => (
+                <li key={m.token} role="option" aria-selected={i === mentionIndex}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      chooseMention(m);
+                    }}
+                    onMouseEnter={() => setMentionIndex(i)}
+                    className={`st-card flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left ${
+                      i === mentionIndex ? "bg-panel-2" : ""
+                    }`}
+                    style={{ ["--h" as string]: m.workflow.hue }}
+                  >
+                    <span className="relative h-7 w-6 shrink-0 overflow-hidden rounded">
+                      <span className="st-art" aria-hidden />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs text-ink">{m.label}</span>
+                      <span className="block truncate text-[11px] text-ink-faint">
+                        {m.variant ? m.variant.brief : m.workflow.blurb}
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1 text-[10px] capitalize text-ink-faint">
+                      {m.workflow.medium === "video" ? (
+                        <Icon.Film width={11} height={11} />
+                      ) : (
+                        <Icon.Image width={11} height={11} />
+                      )}
+                      {m.workflow.medium}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {used.length > 0 && (
+            <ul className="flex flex-wrap gap-1.5 px-3 pt-2.5" aria-label="Workflows in this message">
+              {used.map((m) => (
+                <li
+                  key={m.token}
+                  className="st-card flex items-center gap-1.5 rounded-md border border-line bg-panel py-0.5 pl-0.5 pr-2 text-[11px] text-ink"
+                  style={{ ["--h" as string]: m.workflow.hue }}
+                >
+                  <span className="relative h-4 w-4 overflow-hidden rounded-sm">
+                    <span className="st-art" aria-hidden />
+                  </span>
+                  {m.label}
+                </li>
+              ))}
+            </ul>
+          )}
           {attachments.length > 0 && (
             <ul className="flex flex-wrap gap-2 px-3 pt-3">
               {attachments.map((a) => (
@@ -439,8 +563,31 @@ export function ChatTab({
           <textarea
             ref={inputRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              readMention(e.target);
+            }}
+            onClick={(e) => readMention(e.currentTarget)}
+            onBlur={() => setMention(null)}
             onKeyDown={(e) => {
+              if (mention && mentionOptions.length) {
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  const step = e.key === "ArrowDown" ? 1 : -1;
+                  setMentionIndex((i) => (i + step + mentionOptions.length) % mentionOptions.length);
+                  return;
+                }
+                if (e.key === "Enter" || e.key === "Tab") {
+                  e.preventDefault();
+                  chooseMention(mentionOptions[mentionIndex] ?? mentionOptions[0]);
+                  return;
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setMention(null);
+                  return;
+                }
+              }
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 void ask(input);
@@ -453,7 +600,7 @@ export function ChatTab({
               void attach(files);
             }}
             rows={2}
-            placeholder={attachments.length ? "Ask about the image…" : "Ask Jarvis…"}
+            placeholder={attachments.length ? "Ask about the image…" : "Ask Jarvis…  (type @ for a video or image workflow)"}
             className="block max-h-60 min-h-[64px] w-full resize-none bg-transparent px-3 pt-2.5 text-sm leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
           />
           <div className="flex items-center gap-2 px-2 pb-2">
@@ -492,4 +639,24 @@ export function ChatTab({
       </form>
     </div>
   );
+}
+
+/** A sent message with its known @workflows drawn as tokens. */
+function withMentions(text: string) {
+  const out: React.ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(MENTION_PATTERN)) {
+    const hit = resolveMention(m[2]);
+    if (!hit) continue;
+    const at = (m.index ?? 0) + m[1].length;
+    out.push(text.slice(last, at));
+    out.push(
+      <span key={at} className="rounded bg-ink/10 px-1 font-medium text-ink" title={hit.workflow.blurb}>
+        @{hit.label}
+      </span>,
+    );
+    last = at + m[2].length + 1;
+  }
+  out.push(text.slice(last));
+  return out;
 }

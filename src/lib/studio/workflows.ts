@@ -1,0 +1,1035 @@
+// ---------------------------------------------------------------------------
+// Studio workflows — the video and image "skills" behind Jarvis's Studio tab.
+//
+// A workflow is a named way of making one kind of video or image: what it is,
+// the brief a director would follow, and (only where tone actually changes the
+// result) the style keywords the owner can stack on it. Some have variants,
+// shown as a dropdown on the card — E-commerce is one card, nine shoots.
+//
+// Workflows mix: the owner can pick several (in Studio, or with @ in chat) and
+// Jarvis combines their briefs into one production prompt.
+//
+// ADD ONE = add an object to WORKFLOWS. Ids are the @-mention names, so they
+// are lowercase-with-dashes and never change once shipped. `preview` takes the
+// card's looping clip when it exists; until then the card animates its motif.
+// ---------------------------------------------------------------------------
+
+export type Medium = "video" | "image";
+
+export type CategoryId =
+  | "stories"
+  | "talk"
+  | "ads"
+  | "film"
+  | "social"
+  | "occasions"
+  | "shoots"
+  | "covers"
+  | "commerce-images"
+  | "cards"
+  | "restore";
+
+export interface Category {
+  id: CategoryId;
+  medium: Medium;
+  label: string;
+}
+
+export const CATEGORIES: Category[] = [
+  { id: "stories", medium: "video", label: "Stories" },
+  { id: "ads", medium: "video", label: "Ads & brand" },
+  { id: "social", medium: "video", label: "Social" },
+  { id: "film", medium: "video", label: "Film, music & games" },
+  { id: "talk", medium: "video", label: "Talk & teach" },
+  { id: "occasions", medium: "video", label: "Occasions" },
+  { id: "shoots", medium: "image", label: "Photo shoots" },
+  { id: "covers", medium: "image", label: "Covers & posters" },
+  { id: "commerce-images", medium: "image", label: "Product images" },
+  { id: "cards", medium: "image", label: "Cards & occasions" },
+  { id: "restore", medium: "image", label: "Fix & restore" },
+];
+
+/** The card's placeholder animation until a real preview clip exists. */
+export type Motif =
+  | "storybook"
+  | "spotlight"
+  | "confetti"
+  | "loop"
+  | "equalizer"
+  | "letterbox"
+  | "waveform"
+  | "grid"
+  | "candle"
+  | "flash"
+  | "orbit"
+  | "rise";
+
+export interface Variant {
+  id: string;
+  name: string;
+  brief: string;
+}
+
+export interface Workflow {
+  id: string;
+  name: string;
+  medium: Medium;
+  category: CategoryId;
+  /** One line on the card. */
+  blurb: string;
+  /** The skill: how a director makes this. Jarvis receives it verbatim. */
+  brief: string;
+  /** Default format, e.g. "9:16 · 15–30 s". */
+  format: string;
+  /** Style words worth offering. Absent = this workflow doesn't take keywords. */
+  keywords?: string[];
+  /** A dropdown of sub-workflows. The first is the default. */
+  variants?: Variant[];
+  motif: Motif;
+  /** Card colour, 0–360. */
+  hue: number;
+  isNew?: boolean;
+  preview?: { video?: string; poster?: string };
+}
+
+const TONE = ["luxury", "funny", "cinematic", "heartfelt", "minimal", "bold", "playful", "epic"];
+const LOOK = ["3D animated", "cartoon", "anime", "watercolor", "claymation", "photoreal", "vintage film"];
+
+export const WORKFLOWS: Workflow[] = [
+  // ----- Stories --------------------------------------------------------------
+  {
+    id: "story-to-video",
+    name: "Story to video",
+    medium: "video",
+    category: "stories",
+    blurb: "Any story or script, told scene by scene",
+    brief:
+      "Break the story into 6–12 scenes with one clear visual beat each. Keep the same characters (describe face, hair, clothes once and reuse it word for word), write narration per scene, and end on an image that resolves the story.",
+    format: "16:9 · 1–5 min",
+    keywords: [...LOOK, "cinematic", "dreamy", "dark"],
+    motif: "storybook",
+    hue: 262,
+  },
+  {
+    id: "kids-story",
+    name: "Kids story video",
+    medium: "video",
+    category: "stories",
+    blurb: "Bedtime tales with a lesson and a friendly narrator",
+    brief:
+      "Ages 3–8. Simple sentences, a warm narrator, one lovable hero, gentle stakes, a clear lesson in the last scene. Bright, soft-edged visuals, no scary imagery, slow cuts so small eyes can follow.",
+    format: "16:9 · 2–6 min",
+    keywords: ["3D animated", "cartoon", "watercolor", "claymation", "funny", "cozy"],
+    motif: "storybook",
+    hue: 38,
+  },
+  {
+    id: "short-drama",
+    name: "Short story drama",
+    medium: "video",
+    category: "stories",
+    blurb: "Vertical micro-drama with a cliffhanger",
+    brief:
+      "Vertical episodic drama. Hook in the first 2 seconds (a slap, a secret, a reveal), escalate every 10 seconds, close on a cliffhanger line. Tight close-ups on faces, dialogue as on-screen subtitles.",
+    format: "9:16 · 60–90 s per episode",
+    keywords: ["romantic", "revenge", "betrayal", "cinematic", "dark"],
+    motif: "letterbox",
+    hue: 340,
+  },
+  {
+    id: "religious-story",
+    name: "Religious story video",
+    medium: "video",
+    category: "stories",
+    blurb: "Scripture and parables, told with reverence",
+    brief:
+      "Faithful to the source text; name the book and verse when it is scripture. Reverent pacing, painterly golden light, respectful portrayal of figures, narration in a calm, warm voice, closing reflection line.",
+    format: "16:9 · 2–8 min",
+    keywords: ["painterly", "cinematic", "3D animated", "watercolor"],
+    motif: "rise",
+    hue: 45,
+  },
+  {
+    id: "scary-story",
+    name: "Scary story maker",
+    medium: "video",
+    category: "stories",
+    blurb: "Creepypasta and campfire horror, slow-burn dread",
+    brief:
+      "Slow-burn dread: a normal setting, one wrong detail, escalation, a final reveal you only half see. Low-key lighting, long held shots, sound-led scares, first-person narration.",
+    format: "9:16 or 16:9 · 1–10 min",
+    keywords: ["found footage", "folk horror", "analog", "psychological", "creature"],
+    motif: "candle",
+    hue: 0,
+  },
+  {
+    id: "cinematic-story",
+    name: "Cinematic story",
+    medium: "video",
+    category: "stories",
+    blurb: "A short film look: lenses, light and score",
+    brief:
+      "Direct it like a short film: establishing wide, motivated camera moves, shallow depth of field, a colour palette of 2–3 hues, score-driven pacing and one hero shot the whole piece builds to.",
+    format: "2.39:1 · 30 s–3 min",
+    keywords: ["noir", "epic", "dreamy", "gritty", "vintage film"],
+    motif: "letterbox",
+    hue: 210,
+  },
+
+  // ----- Ads & brand ------------------------------------------------------------
+  {
+    id: "product-ad",
+    name: "Product ads",
+    medium: "video",
+    category: "ads",
+    blurb: "The product is the star — 15 seconds to sell it",
+    brief:
+      "Hook with the product in motion in second one, show the benefit (not the feature) in use, a hero packshot, then the call to action. Product must stay identical shot to shot.",
+    format: "9:16 + 1:1 · 15 s",
+    keywords: TONE,
+    motif: "spotlight",
+    hue: 12,
+  },
+  {
+    id: "commercial",
+    name: "Commercial ads",
+    medium: "video",
+    category: "ads",
+    blurb: "A TV-style spot with a story and a tagline",
+    brief:
+      "Broadcast structure: a relatable moment, a turn, the brand as the answer, tagline over logo. Actors, locations and a voice-over script with timings.",
+    format: "16:9 · 30 s",
+    keywords: TONE,
+    motif: "letterbox",
+    hue: 200,
+  },
+  {
+    id: "ad-remake",
+    name: "Ad remake",
+    medium: "video",
+    category: "ads",
+    blurb: "Rebuild a winning ad for your brand",
+    brief:
+      "Take the reference ad's structure — shot order, timing, hook, camera moves — and rebuild it beat for beat with the owner's product, brand colours and copy. Never copy the reference's logo, people or words.",
+    format: "Matches the reference",
+    keywords: TONE,
+    motif: "loop",
+    hue: 280,
+  },
+  {
+    id: "ugc-ad",
+    name: "UGC ads",
+    medium: "video",
+    category: "ads",
+    blurb: "A real-person testimonial shot on a phone",
+    brief:
+      "Handheld selfie framing, natural light, a relatable creator talking to camera: problem, first try, honest reaction, result. Imperfect on purpose; captions burned in; ends with where to buy.",
+    format: "9:16 · 20–45 s",
+    keywords: ["funny", "honest", "excited", "calm", "gen-z"],
+    motif: "waveform",
+    hue: 160,
+  },
+  {
+    id: "brand-film",
+    name: "Brand film",
+    medium: "video",
+    category: "ads",
+    blurb: "Why the brand exists, told as a feeling",
+    brief:
+      "Mission-first, product-second. Human moments, a manifesto voice-over in short lines, a consistent grade, and the logo only at the end.",
+    format: "16:9 · 60–120 s",
+    keywords: ["luxury", "heartfelt", "documentary", "bold", "minimal"],
+    motif: "rise",
+    hue: 225,
+  },
+  {
+    id: "promo",
+    name: "Promo video",
+    medium: "video",
+    category: "ads",
+    blurb: "Launch, sale or event — loud and quick",
+    brief:
+      "Fast cuts on the beat, kinetic type with the offer, the date/deadline twice, and a single clear call to action. Every frame readable with the sound off.",
+    format: "9:16 + 16:9 · 10–20 s",
+    keywords: ["bold", "playful", "luxury", "urgent", "neon"],
+    motif: "flash",
+    hue: 320,
+  },
+  {
+    id: "automotive-ad",
+    name: "Automotive ad",
+    medium: "video",
+    category: "ads",
+    blurb: "Tracking shots, wet roads, the reveal",
+    brief:
+      "Low tracking shots, rolling shots alongside, detail passes over lights and badge, wet-asphalt reflections, and a final hero stop. Keep the car's exact model, colour and wheels constant.",
+    format: "16:9 · 30 s",
+    keywords: ["luxury", "rugged", "futuristic", "night", "epic"],
+    motif: "orbit",
+    hue: 195,
+  },
+  {
+    id: "sports-campaign",
+    name: "Sports campaign",
+    medium: "video",
+    category: "ads",
+    blurb: "Sweat, slow motion and a line that hits",
+    brief:
+      "Training grind to game moment. Speed ramps, slow-motion impact, sweat and breath detail, a short spoken line or manifesto, the brand mark on the final freeze.",
+    format: "9:16 + 16:9 · 30 s",
+    keywords: ["gritty", "epic", "inspiring", "street"],
+    motif: "flash",
+    hue: 25,
+  },
+  {
+    id: "real-estate",
+    name: "Real estate reveal & tour",
+    medium: "video",
+    category: "ads",
+    blurb: "Listing photos into a walk-through film",
+    brief:
+      "Drone-style approach, front-door push-in, room-by-room glide in walking order, golden-hour exterior finish, price and contact card. Rooms must match the listing photos exactly.",
+    format: "16:9 + 9:16 · 45–90 s",
+    keywords: ["luxury", "cozy", "modern", "twilight"],
+    motif: "rise",
+    hue: 150,
+    isNew: true,
+  },
+  {
+    id: "hero-product-reveal",
+    name: "Hero product reveal",
+    medium: "video",
+    category: "ads",
+    blurb: "Darkness, a rim light, the product appears",
+    brief:
+      "Start in near-black, reveal the product with a moving rim light or particles, one slow orbit, end on a perfectly lit packshot with the name.",
+    format: "1:1 + 9:16 · 6–10 s",
+    keywords: ["luxury", "futuristic", "minimal", "epic"],
+    motif: "spotlight",
+    hue: 45,
+  },
+  {
+    id: "product-showcase",
+    name: "Product showcase video",
+    medium: "video",
+    category: "ads",
+    blurb: "Every angle and feature, clean and clear",
+    brief:
+      "Turntable, then close-ups of each key feature with a short label, then the product in use, then all colourways side by side.",
+    format: "1:1 · 15–30 s",
+    keywords: ["minimal", "playful", "luxury", "techy"],
+    motif: "orbit",
+    hue: 175,
+  },
+  {
+    id: "e-commerce",
+    name: "E-commerce",
+    medium: "video",
+    category: "ads",
+    blurb: "Nine store-ready product shoots in one",
+    brief: "Store-ready product video. Keep the product's shape, label and colour exact in every shot.",
+    format: "1:1 + 9:16 · 5–15 s",
+    keywords: ["luxury", "minimal", "playful", "seasonal"],
+    variants: [
+      { id: "detail-macro", name: "Detail macro", brief: "Extreme close-ups of texture, stitching, finish and materials, with a slow focus pull." },
+      { id: "flat-lay", name: "Flat lay", brief: "Top-down arrangement with complementary props that assemble or shift in a stop-motion rhythm." },
+      { id: "lifestyle", name: "Lifestyle", brief: "The product in a real home, street or hands, used naturally by a person." },
+      { id: "luxury-atmospherics", name: "Luxury atmospherics", brief: "Smoke, silk, water, marble and soft light around the product; slow and expensive." },
+      { id: "seasonal-campaign", name: "Seasonal campaign", brief: "The product styled for the current season or holiday, with its colours and props." },
+      { id: "model-showcase", name: "Model showcase", brief: "A model wearing or holding the product, turning and walking, catalogue-clean." },
+      { id: "infographic", name: "Infographic", brief: "Animated callouts that point to features, sizes and benefits on the product." },
+      { id: "creative-concept", name: "Creative concept", brief: "One surreal, scroll-stopping idea built around the product (giant scale, impossible physics)." },
+      { id: "virtual-try-on", name: "Virtual try-on", brief: "The same person shown wearing the product in several colours or sizes, matched frame to frame." },
+    ],
+    motif: "grid",
+    hue: 30,
+    isNew: true,
+  },
+  {
+    id: "logo-reveal",
+    name: "Logo reveals",
+    medium: "video",
+    category: "ads",
+    blurb: "Your mark, assembling in 4 seconds",
+    brief:
+      "The logo builds from a material or motion that suits the brand (ink, light, particles, metal), settles in 3–4 seconds, holds 1 second. Exact logo geometry and colours.",
+    format: "16:9 + 1:1 · 4–6 s",
+    keywords: ["minimal", "luxury", "glitch", "playful", "3D"],
+    motif: "orbit",
+    hue: 250,
+  },
+
+  // ----- Social -----------------------------------------------------------------
+  {
+    id: "social-content",
+    name: "Social content",
+    medium: "video",
+    category: "social",
+    blurb: "Scroll-stopping posts for TikTok, Reels, Shorts",
+    brief:
+      "Hook in the first 1.5 seconds, one idea per video, captions on screen, a loopable ending, and a trending-style format (POV, list, before/after).",
+    format: "9:16 · 7–30 s",
+    keywords: ["funny", "aesthetic", "relatable", "educational", "hype"],
+    motif: "flash",
+    hue: 300,
+  },
+  {
+    id: "vlog-memories",
+    name: "Vlog memories",
+    medium: "video",
+    category: "social",
+    blurb: "Your photos and clips into a day-in-the-life",
+    brief:
+      "Chronological memories with gentle zooms, handwritten-style date captions, a soft grade and a song-led rhythm. Real faces stay unaltered.",
+    format: "9:16 · 30–60 s",
+    keywords: ["cozy", "nostalgic", "film grain", "travel"],
+    motif: "grid",
+    hue: 20,
+  },
+  {
+    id: "seamless-loop",
+    name: "Seamless loop · 5 s",
+    medium: "video",
+    category: "social",
+    blurb: "A 5-second clip whose end is its beginning",
+    brief:
+      "Exactly 5 seconds; the last frame must match the first. Use periodic motion (orbit, sway, flow, rotation) with no cuts and no camera drift that cannot return.",
+    format: "1:1 or 9:16 · 5 s",
+    keywords: ["hypnotic", "satisfying", "minimal", "dreamy"],
+    motif: "loop",
+    hue: 185,
+  },
+  {
+    id: "flash-montage",
+    name: "Flash montage",
+    medium: "video",
+    category: "social",
+    blurb: "Rapid-fire cuts synced to a beat",
+    brief:
+      "Cuts every 2–6 frames on the beat, flash frames and whip transitions, recurring visual motif, a slow-motion moment before the drop.",
+    format: "9:16 · 10–20 s",
+    keywords: ["hype", "retro", "neon", "grunge"],
+    motif: "flash",
+    hue: 55,
+  },
+
+  // ----- Film, music & games ------------------------------------------------------
+  {
+    id: "music-video",
+    name: "Music video",
+    medium: "video",
+    category: "film",
+    blurb: "Visuals cut to your song's structure",
+    brief:
+      "Map the song: intro, verse, chorus, bridge. Change visual world at each section, cut on downbeats, performance shots in the chorus, a visual payoff at the final chorus.",
+    format: "16:9 or 9:16 · song length",
+    keywords: ["dreamy", "gritty", "neon", "anime", "performance", "narrative"],
+    motif: "equalizer",
+    hue: 275,
+    isNew: true,
+  },
+  {
+    id: "film-trailer",
+    name: "Film trailer",
+    medium: "video",
+    category: "film",
+    blurb: "Three acts in 60 seconds, title card last",
+    brief:
+      "Trailer grammar: calm world, inciting incident, rising montage, a big line of dialogue, the title card, a final sting after the title.",
+    format: "2.39:1 · 60–90 s",
+    keywords: ["action", "horror", "romance", "sci-fi", "comedy", "epic"],
+    motif: "letterbox",
+    hue: 15,
+  },
+  {
+    id: "game-trailer",
+    name: "Game trailer",
+    medium: "video",
+    category: "film",
+    blurb: "Gameplay beats, the world, the logo",
+    brief:
+      "Show the world, the core loop, the enemy, the hero moment and the logo with a release date. Include what the player actually does.",
+    format: "16:9 · 45–90 s",
+    keywords: ["fantasy", "sci-fi", "cozy", "pixel", "AAA"],
+    motif: "orbit",
+    hue: 140,
+  },
+  {
+    id: "game-cutscene",
+    name: "Game cut scene",
+    medium: "video",
+    category: "film",
+    blurb: "An in-engine story moment between levels",
+    brief:
+      "Written like a scene: characters, blocking, dialogue lines, camera per line. Match a game-engine look (real-time lighting, stylised models), end handing control back to the player.",
+    format: "16:9 · 30–120 s",
+    keywords: ["stylised", "photoreal", "anime", "pixel"],
+    motif: "letterbox",
+    hue: 120,
+  },
+
+  // ----- Talk & teach -----------------------------------------------------------
+  {
+    id: "interview",
+    name: "Interview video",
+    medium: "video",
+    category: "talk",
+    blurb: "Two chairs, two cameras, a real conversation",
+    brief:
+      "Two-camera setup (wide and close), interviewer and guest with consistent looks, B-roll cutaways for each answer, lower-third name titles.",
+    format: "16:9 · 1–10 min",
+    keywords: ["podcast", "documentary", "late-night", "street"],
+    motif: "waveform",
+    hue: 210,
+  },
+  {
+    id: "explainer",
+    name: "Explainer video",
+    medium: "video",
+    category: "talk",
+    blurb: "One idea, made obvious",
+    brief:
+      "Problem, why it matters, how it works in 3 steps, the takeaway. Each step gets one visual metaphor; on-screen text reinforces the narration.",
+    format: "16:9 · 60–120 s",
+    keywords: ["whiteboard", "3D animated", "motion graphics", "playful", "minimal"],
+    motif: "grid",
+    hue: 190,
+  },
+  {
+    id: "avatar-lip-sync",
+    name: "Avatar lip sync",
+    medium: "video",
+    category: "talk",
+    blurb: "A face that speaks your script",
+    brief:
+      "One consistent character, chest-up framing, natural blinks and head movement, lips synced to the provided audio or script, a clean background.",
+    format: "9:16 or 16:9 · up to 60 s",
+    motif: "waveform",
+    hue: 330,
+  },
+  {
+    id: "instructional-motion",
+    name: "Instructional motion",
+    medium: "video",
+    category: "talk",
+    blurb: "How-to steps, animated and numbered",
+    brief:
+      "Numbered steps, one action per shot, arrows and highlights on what moves, a final shot of the finished result.",
+    format: "9:16 or 16:9 · 30–90 s",
+    motif: "grid",
+    hue: 100,
+  },
+  {
+    id: "dance-tutorial",
+    name: "Instructional dance video",
+    medium: "video",
+    category: "talk",
+    blurb: "Choreography broken down count by count",
+    brief:
+      "Full routine at speed, then 8-count sections slowed with the counts on screen, a mirrored view, then the full routine again. Same dancer and outfit throughout.",
+    format: "9:16 · 30–90 s",
+    motif: "equalizer",
+    hue: 310,
+  },
+  {
+    id: "asmr-cooking",
+    name: "ASMR cooking tutorial",
+    medium: "video",
+    category: "talk",
+    blurb: "Close-up hands, crisp sounds, no talking",
+    brief:
+      "Overhead and macro shots of each step, sound-first (sizzles, chops, pours), no voice, minimal text for ingredients, a slow final plating shot.",
+    format: "9:16 · 30–60 s",
+    keywords: ["cozy", "rustic", "minimal", "street food"],
+    motif: "rise",
+    hue: 28,
+  },
+
+  // ----- Occasions ------------------------------------------------------------
+  {
+    id: "birthday-video",
+    name: "Birthday video",
+    medium: "video",
+    category: "occasions",
+    blurb: "A tribute, a surprise or a party invite",
+    brief: "Celebrate one person. Real names and photos stay exact; warm, upbeat pacing.",
+    format: "9:16 or 16:9 · 30–60 s",
+    keywords: ["funny", "heartfelt", "kids party", "elegant"],
+    variants: [
+      { id: "tribute", name: "Tribute montage", brief: "Photos from childhood to today, a song, and a closing message from friends." },
+      { id: "invite", name: "Party invite", brief: "Date, time and place revealed with confetti and the theme's colours." },
+      { id: "surprise", name: "Surprise greeting", brief: "A character or celebrity-style host wishing them happy birthday by name." },
+    ],
+    motif: "confetti",
+    hue: 330,
+    isNew: true,
+  },
+  {
+    id: "wedding",
+    name: "Wedding",
+    medium: "video",
+    category: "occasions",
+    blurb: "Save the date, love story or highlight film",
+    brief: "Romantic, soft and personal. Couple's real faces unaltered; names and date correct.",
+    format: "16:9 or 9:16 · 30–180 s",
+    keywords: ["romantic", "elegant", "rustic", "vintage film"],
+    variants: [
+      { id: "save-the-date", name: "Save the date", brief: "The couple, the date and the place, revealed in 15 seconds." },
+      { id: "love-story", name: "Love story", brief: "How they met, told as illustrated or cinematic chapters." },
+      { id: "highlight", name: "Highlight film", brief: "Ceremony, vows, first dance and party, cut to one song." },
+      { id: "proposal", name: "Proposal", brief: "A build-up to the question with a reveal moment." },
+    ],
+    motif: "rise",
+    hue: 350,
+  },
+  {
+    id: "anniversary",
+    name: "Anniversary",
+    medium: "video",
+    category: "occasions",
+    blurb: "Years together, one song long",
+    brief: "Then-and-now pairs, milestone dates as captions, a closing message between the couple.",
+    format: "9:16 or 16:9 · 45–90 s",
+    keywords: ["romantic", "funny", "nostalgic"],
+    motif: "grid",
+    hue: 5,
+  },
+  {
+    id: "baby",
+    name: "Baby & family news",
+    medium: "video",
+    category: "occasions",
+    blurb: "Announcements, gender reveals, first steps",
+    brief: "Joyful, gentle and personal; soft pastel palette unless asked otherwise.",
+    format: "9:16 · 15–45 s",
+    keywords: ["cute", "funny", "elegant"],
+    variants: [
+      { id: "announcement", name: "Pregnancy announcement", brief: "A playful reveal of the due date." },
+      { id: "gender-reveal", name: "Gender reveal", brief: "Build suspense, then a colour burst reveal." },
+      { id: "first-year", name: "First year", brief: "Month-by-month growth, one photo per month." },
+    ],
+    motif: "confetti",
+    hue: 195,
+  },
+  {
+    id: "graduation",
+    name: "Graduation",
+    medium: "video",
+    category: "occasions",
+    blurb: "From first day to cap and gown",
+    brief: "School years in order, friends and teachers, the walk, the cap toss; class year on the title.",
+    format: "9:16 or 16:9 · 45–90 s",
+    keywords: ["inspiring", "funny", "nostalgic"],
+    motif: "rise",
+    hue: 220,
+  },
+  {
+    id: "retirement",
+    name: "Retirement send-off",
+    medium: "video",
+    category: "occasions",
+    blurb: "A career celebrated by the people in it",
+    brief: "Career milestones, colleagues' messages as captions, the next adventure teased at the end.",
+    format: "16:9 · 60–120 s",
+    keywords: ["heartfelt", "funny"],
+    motif: "rise",
+    hue: 35,
+  },
+  {
+    id: "memorial",
+    name: "Memorial tribute",
+    medium: "video",
+    category: "occasions",
+    blurb: "Celebrating a life, gently",
+    brief:
+      "Dignified and warm, never dramatic. Photos kept exactly as they are (restore, never alter faces), slow dissolves, soft music, full name and years, a closing line chosen by the family.",
+    format: "16:9 · 2–5 min",
+    variants: [
+      { id: "celebration-of-life", name: "Celebration of life", brief: "Their story, told through photos and the things they loved." },
+      { id: "pet", name: "Pet memorial", brief: "A pet's life from first day home, with their favourite places and toys." },
+      { id: "remembrance", name: "Anniversary of passing", brief: "A short remembrance for the date, one or two photos and a message." },
+    ],
+    motif: "candle",
+    hue: 40,
+  },
+  {
+    id: "holiday-greeting",
+    name: "Holiday greeting",
+    medium: "video",
+    category: "occasions",
+    blurb: "A seasonal message for family, clients or fans",
+    brief: "Short, warm, culturally respectful. Correct symbols, colours and greetings for the holiday; the sender's name at the end.",
+    format: "9:16 + 1:1 · 10–30 s",
+    keywords: ["cozy", "funny", "elegant", "kids"],
+    variants: [
+      { id: "christmas", name: "Christmas", brief: "Snow, lights and warmth." },
+      { id: "hanukkah", name: "Hanukkah", brief: "The menorah lit night by night, blue and silver." },
+      { id: "diwali", name: "Diwali", brief: "Diyas, rangoli and fireworks." },
+      { id: "eid", name: "Eid", brief: "Crescent moon, lanterns and family gathering." },
+      { id: "lunar-new-year", name: "Lunar New Year", brief: "Red and gold, lanterns and the year's zodiac animal." },
+      { id: "new-year", name: "New Year's Eve", brief: "A countdown and fireworks at midnight." },
+      { id: "thanksgiving", name: "Thanksgiving", brief: "A table, family and gratitude." },
+      { id: "halloween", name: "Halloween", brief: "Spooky-fun, pumpkins and costumes." },
+      { id: "valentines", name: "Valentine's Day", brief: "Romantic or playfully cheesy." },
+      { id: "parents-day", name: "Mother's / Father's Day", brief: "Photos and a thank-you message." },
+    ],
+    motif: "confetti",
+    hue: 140,
+  },
+  {
+    id: "year-in-review",
+    name: "Year in review",
+    medium: "video",
+    category: "occasions",
+    blurb: "Your year, month by month",
+    brief: "Twelve beats, one per month, with the best photo and a one-line caption; a closing stat or wish for next year.",
+    format: "9:16 · 30–60 s",
+    keywords: ["nostalgic", "hype", "cozy"],
+    motif: "grid",
+    hue: 260,
+  },
+
+  // ----- Images: photo shoots -------------------------------------------------
+  {
+    id: "birthday-shoot",
+    name: "Birthday photo shoot",
+    medium: "image",
+    category: "shoots",
+    blurb: "Balloons, cake and studio light — of you",
+    brief:
+      "Studio birthday set around the uploaded person: backdrop, balloons with their age, cake, confetti. Face identical to the reference; 4 poses.",
+    format: "4:5 · 4 images",
+    keywords: ["elegant", "playful", "luxury", "pastel", "black & gold"],
+    motif: "confetti",
+    hue: 320,
+    isNew: true,
+  },
+  {
+    id: "nine-variations",
+    name: "9 cinematic variations",
+    medium: "image",
+    category: "shoots",
+    blurb: "One photo, nine film-still angles",
+    brief:
+      "A 3×3 grid of the same subject and scene from nine cinematic setups: wide, medium, close-up, over-the-shoulder, low angle, high angle, profile, detail insert, silhouette. Identity and wardrobe identical.",
+    format: "3×3 grid · 1:1",
+    keywords: ["noir", "golden hour", "neon", "moody"],
+    motif: "grid",
+    hue: 210,
+    isNew: true,
+  },
+  {
+    id: "headshots",
+    name: "Professional headshots",
+    medium: "image",
+    category: "shoots",
+    blurb: "LinkedIn-ready, from a selfie",
+    brief: "Chest-up, soft key light, neutral or office background, business attire; face identical; 4 background options.",
+    format: "1:1 · 4 images",
+    keywords: ["corporate", "creative", "outdoor", "studio"],
+    motif: "flash",
+    hue: 205,
+  },
+  {
+    id: "couple-shoot",
+    name: "Couple photo shoot",
+    medium: "image",
+    category: "shoots",
+    blurb: "Engagement-style photos, anywhere",
+    brief: "Both faces identical to references; natural poses, a chosen location, golden-hour light.",
+    format: "4:5 · 4 images",
+    keywords: ["romantic", "playful", "editorial", "beach", "city"],
+    motif: "rise",
+    hue: 355,
+  },
+  {
+    id: "maternity-shoot",
+    name: "Maternity shoot",
+    medium: "image",
+    category: "shoots",
+    blurb: "Soft, glowing, fine-art portraits",
+    brief: "Flowing gown, soft window or studio light, fine-art posing; face identical; tasteful and elegant.",
+    format: "4:5 · 4 images",
+    keywords: ["ethereal", "boho", "studio", "outdoor"],
+    motif: "rise",
+    hue: 25,
+  },
+  {
+    id: "family-portrait",
+    name: "Family portrait",
+    medium: "image",
+    category: "shoots",
+    blurb: "Everyone together, even if they can't be",
+    brief: "Composite each person from their own reference into one natural group photo with matching light and scale.",
+    format: "3:2 · 2 images",
+    keywords: ["holiday", "classic", "outdoor", "matching outfits"],
+    motif: "grid",
+    hue: 30,
+  },
+  {
+    id: "pet-portrait",
+    name: "Pet portrait",
+    medium: "image",
+    category: "shoots",
+    blurb: "Your pet as a royal, a hero, a painting",
+    brief: "The pet's exact markings and features, in a themed portrait setting.",
+    format: "4:5 · 4 images",
+    keywords: ["royal", "renaissance", "superhero", "cartoon", "studio"],
+    motif: "spotlight",
+    hue: 45,
+  },
+
+  // ----- Images: covers & posters ------------------------------------------------
+  {
+    id: "magazine-cover",
+    name: "Magazine cover",
+    medium: "image",
+    category: "covers",
+    blurb: "You, on the cover, with the headlines",
+    brief:
+      "Cover-model framing with the masthead behind the head, 3–5 cover lines, issue date and barcode; face identical. Invent the masthead — never use a real magazine's name.",
+    format: "8.5×11 · 1 image",
+    keywords: ["fashion", "business", "sports", "music", "vintage"],
+    motif: "spotlight",
+    hue: 0,
+  },
+  {
+    id: "pet-magazine-cover",
+    name: "Pet magazine cover",
+    medium: "image",
+    category: "covers",
+    blurb: "Pet of the year, cover story inside",
+    brief: "The pet as the cover star with playful cover lines about them; invented masthead.",
+    format: "8.5×11 · 1 image",
+    keywords: ["funny", "glam", "vintage"],
+    motif: "spotlight",
+    hue: 50,
+  },
+  {
+    id: "product-poster",
+    name: "Creative product posters",
+    medium: "image",
+    category: "covers",
+    blurb: "Scroll-stopping key art for a product",
+    brief: "One bold concept around the product, strong typography, the product label exact.",
+    format: "4:5 + 9:16 · 3 concepts",
+    keywords: ["luxury", "surreal", "minimal", "pop art", "Swiss"],
+    motif: "spotlight",
+    hue: 280,
+  },
+  {
+    id: "movie-poster",
+    name: "Movie poster",
+    medium: "image",
+    category: "covers",
+    blurb: "Your story as a one-sheet",
+    brief: "Title treatment, tagline, billing block, the hero image; genre-true composition.",
+    format: "27×40 · 1 image",
+    keywords: ["action", "horror", "romance", "sci-fi", "vintage"],
+    motif: "letterbox",
+    hue: 15,
+  },
+  {
+    id: "album-cover",
+    name: "Album cover",
+    medium: "image",
+    category: "covers",
+    blurb: "Square art that sounds like the music",
+    brief: "Square composition that reads at thumbnail size, artist and title placed or left off as asked.",
+    format: "1:1 · 3 concepts",
+    keywords: ["minimal", "grunge", "dreamy", "retro", "hip-hop"],
+    motif: "equalizer",
+    hue: 265,
+  },
+  {
+    id: "thumbnail",
+    name: "YouTube thumbnail",
+    medium: "image",
+    category: "covers",
+    blurb: "Click-worthy at 120 pixels wide",
+    brief: "A big expressive face or object, 3 words max, high contrast, one clear focal point.",
+    format: "16:9 · 3 options",
+    keywords: ["shocked", "clean", "gaming", "tutorial"],
+    motif: "flash",
+    hue: 5,
+  },
+
+  // ----- Images: product ---------------------------------------------------------
+  {
+    id: "product-photos",
+    name: "Product photos",
+    medium: "image",
+    category: "commerce-images",
+    blurb: "Store-ready stills in nine styles",
+    brief: "Product label, shape and colour exact in every image.",
+    format: "1:1 + 4:5 · 4 images",
+    keywords: ["luxury", "minimal", "playful", "seasonal"],
+    variants: [
+      { id: "white-background", name: "White background", brief: "Pure white, soft shadow, marketplace-ready." },
+      { id: "detail-macro", name: "Detail macro", brief: "Texture and material close-ups." },
+      { id: "flat-lay", name: "Flat lay", brief: "Top-down styled arrangement with props." },
+      { id: "lifestyle", name: "Lifestyle", brief: "The product in a real setting, in use." },
+      { id: "luxury-atmospherics", name: "Luxury atmospherics", brief: "Silk, stone, water and dramatic light." },
+      { id: "model-showcase", name: "Model showcase", brief: "Worn or held by a model." },
+      { id: "infographic", name: "Infographic", brief: "Feature callouts and dimensions on the image." },
+      { id: "virtual-try-on", name: "Virtual try-on", brief: "The same person wearing it in each colour." },
+      { id: "seasonal", name: "Seasonal campaign", brief: "Styled for the current season or holiday." },
+    ],
+    motif: "grid",
+    hue: 30,
+  },
+
+  // ----- Images: cards -----------------------------------------------------------
+  {
+    id: "holiday-card",
+    name: "Holiday card",
+    medium: "image",
+    category: "cards",
+    blurb: "Your family, on this year's card",
+    brief: "Family faces identical, a seasonal scene, the greeting and family name in elegant type.",
+    format: "5×7 · 2 designs",
+    keywords: ["classic", "funny", "modern", "illustrated"],
+    motif: "confetti",
+    hue: 145,
+  },
+  {
+    id: "invitation",
+    name: "Invitation",
+    medium: "image",
+    category: "cards",
+    blurb: "Party, wedding or shower — with the details",
+    brief: "Event name, host, date, time, place and RSVP, legible and correct; theme-matched art.",
+    format: "5×7 + 9:16 · 2 designs",
+    keywords: ["elegant", "playful", "floral", "modern"],
+    motif: "confetti",
+    hue: 300,
+  },
+  {
+    id: "memorial-portrait",
+    name: "Memorial portrait",
+    medium: "image",
+    category: "cards",
+    blurb: "A dignified portrait for the service",
+    brief: "Restore and gently enhance the given photo without changing the face; soft background, name and years.",
+    format: "8×10 · 1 image",
+    motif: "candle",
+    hue: 40,
+  },
+
+  // ----- Images: fix & restore -----------------------------------------------------
+  {
+    id: "photo-restore",
+    name: "Old photo restoration",
+    medium: "image",
+    category: "restore",
+    blurb: "Scratches gone, faces kept",
+    brief: "Remove damage, scratches and fading; sharpen gently; never change faces or add details that were not there.",
+    format: "Original size · 1 image",
+    motif: "flash",
+    hue: 35,
+  },
+  {
+    id: "colorize",
+    name: "Colorize",
+    medium: "image",
+    category: "restore",
+    blurb: "Black and white, brought back to colour",
+    brief: "Period-accurate, natural colours; skin tones realistic; keep the grain.",
+    format: "Original size · 1 image",
+    motif: "rise",
+    hue: 180,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Mentions: "@kids-story" or "@e-commerce:flat-lay".
+// ---------------------------------------------------------------------------
+
+export interface Mention {
+  /** What goes after @. */
+  token: string;
+  workflow: Workflow;
+  variant: Variant | null;
+  /** "E-commerce › Flat lay". */
+  label: string;
+}
+
+const BY_ID = new Map(WORKFLOWS.map((w) => [w.id, w]));
+
+export function workflowById(id: string): Workflow | undefined {
+  return BY_ID.get(id);
+}
+
+export function categoryOf(w: Workflow): Category {
+  return CATEGORIES.find((c) => c.id === w.category)!;
+}
+
+/** Every @-able entry: each workflow, then each of its variants. */
+export const MENTIONS: Mention[] = WORKFLOWS.flatMap((w) => [
+  { token: w.id, workflow: w, variant: null, label: w.name },
+  ...(w.variants ?? []).map((v) => ({
+    token: `${w.id}:${v.id}`,
+    workflow: w,
+    variant: v,
+    label: `${w.name} › ${v.name}`,
+  })),
+]);
+
+const BY_TOKEN = new Map(MENTIONS.map((m) => [m.token, m]));
+
+export function resolveMention(token: string): Mention | undefined {
+  return BY_TOKEN.get(token.toLowerCase());
+}
+
+export const MENTION_PATTERN = /(^|\s)@([a-z0-9-]+(?::[a-z0-9-]+)?)/gi;
+
+/** The known workflows mentioned in a message, in order, without repeats. */
+export function mentionsIn(text: string): Mention[] {
+  const out: Mention[] = [];
+  for (const m of text.matchAll(MENTION_PATTERN)) {
+    const hit = resolveMention(m[2]);
+    if (hit && !out.some((o) => o.token === hit.token)) out.push(hit);
+  }
+  return out;
+}
+
+/** The half-typed "@kid" right before the caret, if any. */
+export function mentionQueryAt(text: string, caret: number): { start: number; query: string } | null {
+  const m = /(^|\s)@([a-z0-9:-]*)$/i.exec(text.slice(0, caret));
+  if (!m) return null;
+  return { start: caret - m[2].length - 1, query: m[2].toLowerCase() };
+}
+
+/** Menu matches: name and token prefixes first, then anywhere. */
+export function searchMentions(query: string, limit = 12): Mention[] {
+  const q = query.toLowerCase().replace(/[-:]/g, " ").trim();
+  if (!q) return MENTIONS.filter((m) => !m.variant).slice(0, limit);
+  const scored = MENTIONS.map((m) => {
+    const hay = `${m.label} ${m.token.replace(/[-:]/g, " ")} ${m.workflow.blurb}`.toLowerCase();
+    const label = m.label.toLowerCase();
+    const score = label.startsWith(q) ? 0 : hay.includes(` ${q}`) || label.includes(q) ? 1 : hay.includes(q) ? 2 : 9;
+    return { m, score };
+  }).filter((s) => s.score < 9);
+  scored.sort((a, b) => a.score - b.score || Number(!!a.m.variant) - Number(!!b.m.variant));
+  return scored.slice(0, limit).map((s) => s.m);
+}
+
+/** What Jarvis receives for the workflows in a message. */
+export function workflowBrief(mentions: Mention[]): string {
+  if (!mentions.length) return "";
+  const parts = mentions.map((m) => {
+    const w = m.workflow;
+    const lines = [`## ${m.label} (${w.medium}, ${w.format})`, w.brief];
+    if (m.variant) lines.push(`Variant — ${m.variant.name}: ${m.variant.brief}`);
+    return lines.join("\n");
+  });
+  return [
+    "STUDIO WORKFLOWS THE OWNER PICKED — they are skills for making a video or image. Combine every one",
+    "listed into a single piece (a mix, not a list of separate outputs). Use any keywords the owner",
+    "wrote as the style. Reply with: a one-line concept, the shot or panel plan, then ONE paste-ready",
+    "generation prompt in a code block. Ask one short question only if something essential is missing",
+    "(e.g. which product, whose photo).",
+    "",
+    ...parts,
+  ].join("\n");
+}
