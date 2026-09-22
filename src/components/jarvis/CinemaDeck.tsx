@@ -33,6 +33,7 @@ import {
   ASPECTS,
   CINEMA_GROUPS,
   DURATIONS,
+  MAX_CLIP_SEC,
   MOVE_FAMILIES,
   MOVES,
   groupSummary,
@@ -846,20 +847,23 @@ export function CinemaOutputRow({
     <>
       <Picker
         label="Aspect ratio"
-        icon={<Icon.Frame width={12} height={12} />}
-        value={output.aspect ?? ""}
         placeholder="Ratio"
+        value={output.aspect ?? ""}
         options={ASPECTS}
-        width="w-[3.6rem]"
+        trigger={output.aspect ? <RatioMark ratio={output.aspect} /> : <Icon.Frame width={12} height={12} />}
+        renderOption={(o) => <RatioMark ratio={o.id} />}
         onChange={(v) => onOutput({ ...output, aspect: v || undefined })}
       />
       <Picker
-        label="Clip length"
-        icon={<Icon.Clock width={12} height={12} />}
-        value={output.duration ? String(output.duration) : ""}
+        label="Length"
         placeholder="Length"
+        value={output.duration ? String(output.duration) : ""}
         options={DURATIONS}
-        width="w-[3.2rem]"
+        trigger={<Icon.Clock width={12} height={12} />}
+        shelves={[
+          { label: "One clip", match: (o) => Number(o.id) <= MAX_CLIP_SEC },
+          { label: "A sequence, cut together", match: (o) => Number(o.id) > MAX_CLIP_SEC },
+        ]}
         onChange={(v) => onOutput({ ...output, duration: v ? Number(v) : undefined })}
       />
     </>
@@ -867,59 +871,164 @@ export function CinemaOutputRow({
 }
 
 /**
- * A native select styled as a chip. Native on purpose: it is a short list on a
- * crowded toolbar, and the platform's own menu beats anything re-implemented
- * here for keyboard and touch.
+ * The shape itself, drawn to the real proportion. A list of "16:9, 9:16, 4:5"
+ * makes you do arithmetic; a rectangle does not.
+ */
+function RatioMark({ ratio }: { ratio: string }) {
+  const [w, h] = ratio.split(":").map(Number);
+  if (!w || !h) return <Icon.Frame width={12} height={12} />;
+  // Fit inside a 16x16 box so every mark occupies the same slot.
+  const box = 15;
+  const scale = Math.min(box / w, box / h);
+  return (
+    <span className="grid h-4 w-4 shrink-0 place-items-center" aria-hidden>
+      <span
+        className="block rounded-[1.5px] border border-current"
+        style={{ width: Math.max(4, Math.round(w * scale)), height: Math.max(3, Math.round(h * scale)) }}
+      />
+    </span>
+  );
+}
+
+/**
+ * A themed dropdown, not a native select.
+ *
+ * The native one rendered its menu with the platform's own white background
+ * while inheriting this app's near-white text, so the options were white on
+ * white and unreadable. It also cannot draw a shape next to an option or
+ * group a long list, both of which these two need.
  */
 function Picker({
   label,
-  icon,
-  value,
   placeholder,
+  value,
   options,
-  width,
+  trigger,
+  renderOption,
+  shelves,
   onChange,
 }: {
   label: string;
-  icon: React.ReactNode;
-  value: string;
   placeholder: string;
+  value: string;
   options: OutputChoice[];
-  /** Pinned, because a native select is otherwise as wide as its longest option. */
-  width: string;
+  /** The glyph on the closed control. */
+  trigger: React.ReactNode;
+  /** An optional glyph beside each option in the menu. */
+  renderOption?: (o: OutputChoice) => React.ReactNode;
+  /** Splits a long list into labelled groups, in order. */
+  shelves?: { label: string; match: (o: OutputChoice) => boolean }[];
   onChange: (v: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
   const on = Boolean(value);
+  const current = options.find((o) => o.id === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", key, true);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", key, true);
+    };
+  }, [open]);
+
+  const groups = shelves
+    ? shelves.map((sh) => ({ label: sh.label, items: options.filter(sh.match) })).filter((g) => g.items.length)
+    : [{ label: "", items: options }];
+
   return (
-    <label
-      title={label}
-      className={`inline-flex items-center gap-1 rounded-lg border px-1.5 py-1 text-[11px] transition ${
-        on ? "border-ink-faint bg-panel text-ink" : "border-line text-ink-muted hover:border-ink-faint hover:text-ink"
-      }`}
-    >
-      <span className="sr-only">{label}</span>
-      <span className={on ? "text-ink-muted" : "text-ink-faint"}>{icon}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={label}
-        className={`cursor-pointer appearance-none bg-transparent pr-3 text-inherit focus:outline-none ${width}`}
-        style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 5' fill='none' stroke='%239aa3b5' stroke-width='1.2' stroke-linecap='round'><path d='M1 1l3 3 3-3'/></svg>\")",
-          backgroundRepeat: "no-repeat",
-          backgroundPosition: "right 0 center",
-          backgroundSize: "8px 5px",
-        }}
+    <div ref={box} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title={label}
+        className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] transition ${
+          on || open
+            ? "border-ink-faint bg-panel text-ink"
+            : "border-line text-ink-muted hover:border-ink-faint hover:text-ink"
+        }`}
       >
-        <option value="">{placeholder}</option>
-        {options.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.label}
-            {o.note ? ` — ${o.note}` : ""}
-          </option>
-        ))}
-      </select>
-    </label>
+        <span className="sr-only">{label}</span>
+        {trigger}
+        <span>{current ? current.label : placeholder}</span>
+        <Icon.Chevron width={9} height={9} className="rotate-90 opacity-60" />
+      </button>
+
+      {open && (
+        <ul
+          role="listbox"
+          aria-label={label}
+          className="cin-panel absolute bottom-full left-0 z-40 mb-1.5 max-h-72 w-52 overflow-y-auto rounded-xl border border-line bg-elevated p-1"
+        >
+          <li>
+            <button
+              type="button"
+              onClick={() => {
+                onChange("");
+                setOpen(false);
+              }}
+              className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] transition hover:bg-panel-2 ${
+                on ? "text-ink-muted" : "text-ink"
+              }`}
+            >
+              <span className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="flex-1">{placeholder} — auto</span>
+              {!on && <Icon.Check width={11} height={11} className="shrink-0 text-accent" />}
+            </button>
+          </li>
+          {groups.map((g) => (
+            <li key={g.label || "all"}>
+              {g.label && (
+                <p className="px-2 pb-0.5 pt-2 text-[10px] uppercase tracking-[0.06em] text-ink-faint">{g.label}</p>
+              )}
+              <ul>
+                {g.items.map((o) => {
+                  const picked = o.id === value;
+                  return (
+                    <li key={o.id}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={picked}
+                        onClick={() => {
+                          onChange(o.id);
+                          setOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition hover:bg-panel-2 ${
+                          picked ? "bg-panel-2" : ""
+                        }`}
+                      >
+                        <span className={picked ? "text-accent" : "text-ink-faint"}>
+                          {renderOption ? renderOption(o) : <span className="h-4 w-4 shrink-0" aria-hidden />}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className={`block text-[11px] ${picked ? "text-ink" : "text-ink-muted"}`}>{o.label}</span>
+                          {o.note && <span className="block truncate text-[10px] text-ink-faint">{o.note}</span>}
+                        </span>
+                        {picked && <Icon.Check width={11} height={11} className="shrink-0 text-accent" />}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

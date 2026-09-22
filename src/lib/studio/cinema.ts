@@ -693,10 +693,32 @@ export const ASPECTS: OutputChoice[] = [
 
 export const VIDEO_ASPECTS = ["16:9", "9:16", "1:1"];
 
-/** What both renderers accept: 4-15 seconds per clip. */
-export const DURATIONS: OutputChoice[] = [4, 5, 6, 8, 10, 12, 15].map((n) => ({
+/**
+ * How long the finished piece runs.
+ *
+ * One render is one clip of at most 15 seconds — that is a hard limit of both
+ * engines, not a preference. So anything longer is a SEQUENCE: the model plans
+ * several clips that cut together and add up to the target. The picker says so
+ * rather than pretending a five-minute button produces a five-minute file.
+ */
+export const MAX_CLIP_SEC = 15;
+
+export function prettyDuration(sec: number): string {
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  const r = sec % 60;
+  return r ? `${m}:${String(r).padStart(2, "0")}` : `${m}:00`;
+}
+
+/** Roughly how many clips a target implies, at a readable shot length. */
+export function clipsFor(sec: number): number {
+  return sec <= MAX_CLIP_SEC ? 1 : Math.ceil(sec / 10);
+}
+
+export const DURATIONS: OutputChoice[] = [4, 5, 6, 8, 10, 12, 15, 20, 30, 45, 60, 90, 120, 180, 300].map((n) => ({
   id: String(n),
-  label: `${n}s`,
+  label: prettyDuration(n),
+  note: n <= MAX_CLIP_SEC ? "One clip" : `${clipsFor(n)} clips, cut together`,
 }));
 
 export interface CinemaOutput {
@@ -710,12 +732,12 @@ export function cleanOutput(raw: unknown): CinemaOutput {
   const out: CinemaOutput = {};
   if (typeof o.aspect === "string" && ASPECTS.some((a) => a.id === o.aspect)) out.aspect = o.aspect;
   const d = Number(o.duration);
-  if (Number.isFinite(d) && d >= 4 && d <= 15) out.duration = Math.round(d);
+  if (Number.isFinite(d) && d >= 4 && d <= 300) out.duration = Math.round(d);
   return out;
 }
 
 export function outputSummary(output: CinemaOutput): string {
-  return [output.aspect, output.duration ? `${output.duration}s` : ""].filter(Boolean).join(" \u00b7 ");
+  return [output.aspect, output.duration ? prettyDuration(output.duration) : ""].filter(Boolean).join(" \u00b7 ");
 }
 
 function outputBlock(output: CinemaOutput): string[] {
@@ -729,10 +751,17 @@ function outputBlock(output: CinemaOutput): string[] {
     );
   }
   if (output.duration) {
-    lines.push(
-      `- duration_sec: ${output.duration} (video only). If the piece needs more than one shot, each clip is ` +
-        `${output.duration} seconds \u2014 do not stretch one clip past it.`,
-    );
+    if (output.duration <= MAX_CLIP_SEC) {
+      lines.push(`- duration_sec: ${output.duration} (video only), one clip.`);
+    } else {
+      lines.push(
+        `- The finished piece runs ${prettyDuration(output.duration)} (${output.duration} seconds). One render is one`,
+        `  clip of at most ${MAX_CLIP_SEC} seconds, so plan a SEQUENCE: around ${clipsFor(output.duration)} clips whose`,
+        "  duration_sec values add up to the target, each one its own job, written so they cut together — the same",
+        "  subject description word for word, continuous light and grade, and each shot picking up where the last",
+        "  one left off. Say the clip count and the total queue time before rendering.",
+      );
+    }
   }
   if (!lines.length) return [];
   return ["", "Output settings the owner chose. Pass these to studio_generate exactly:", ...lines];
