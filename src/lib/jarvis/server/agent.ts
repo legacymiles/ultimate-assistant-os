@@ -25,6 +25,17 @@ import { digest, repoFiles } from "./masterFolder";
 export interface AgentMessage {
   role: "user" | "assistant";
   content: string;
+  /** Images the owner attached to this turn, as data: URLs. User turns only. */
+  images?: string[];
+}
+
+/** A turn with pictures becomes text + image parts; the model sees both. */
+function toApiContent(m: AgentMessage): unknown {
+  if (m.role !== "user" || !m.images?.length) return m.content;
+  return [
+    { type: "text", text: m.content || "(image attached)" },
+    ...m.images.map((url) => ({ type: "image_url", image_url: { url } })),
+  ];
 }
 
 export interface ProposedMemory {
@@ -133,7 +144,7 @@ export async function runAgent(opts: RunOptions): Promise<AgentResult> {
   const tools = [...CORE_TOOLS, ...DASHBOARD_TOOLS, ...(opts.connectorTools ?? [])];
   const messages: Record<string, unknown>[] = [
     { role: "system", content: system },
-    ...opts.messages.map((m) => ({ role: m.role, content: m.content })),
+    ...opts.messages.map((m) => ({ role: m.role, content: toApiContent(m) })),
   ];
 
   for (let round = 0; round < MAX_ROUNDS; round += 1) {

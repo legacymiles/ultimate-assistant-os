@@ -107,6 +107,8 @@ export interface ChatTurn {
   spoken?: boolean;
   /** A tool result summary, e.g. "Found 3 events". */
   did?: string;
+  /** Thumbnails of pictures the owner attached (small JPEG data URLs). */
+  images?: string[];
 }
 
 export interface Conversation {

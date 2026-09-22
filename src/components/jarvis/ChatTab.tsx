@@ -18,6 +18,8 @@ import { Icon } from "../icons";
 import { ConfirmCard } from "./ConfirmCard";
 import { SOURCE_COLOR } from "./MemoryCore";
 import { uid } from "@/lib/jarvis/store";
+import { listSkills } from "@/lib/skills/store";
+import { imageFiles, MAX_ATTACHMENTS, toAttachment, type Attachment } from "@/lib/jarvis/chatImages";
 import { useMemory } from "@/lib/jarvis/useMemory";
 import { SOURCE_LABEL, type ChatTurn, type Conversation, type JarvisStore, type PendingAction } from "@/lib/jarvis/types";
 import type { Profile } from "@/lib/new-dashboard/types";
@@ -64,7 +66,28 @@ export function ChatTab({
   const [proposals, setProposals] = useState<{ title: string; content: string }[]>([]);
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [acting, setActing] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [dragging, setDragging] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  // Full-size copies of pictures sent this session, by turn id. The saved turn
+  // keeps only thumbnails, so this is what lets a follow-up still see them.
+  const fullImages = useRef(new Map<string, string[]>());
+  // The Skills tab's list (Supabase-synced), so Jarvis knows every skill on any
+  // device — not only after a master-folder sync run on the owner's PC.
+  const skills = useRef<{ name: string; about: string; from: string }[]>([]);
+  useEffect(() => {
+    listSkills()
+      .then((list) => {
+        skills.current = list.map((s) => ({
+          name: s.slug || s.title,
+          about: s.overview.slice(0, 160),
+          from: s.origin ?? s.source,
+        }));
+      })
+      .catch(() => {});
+  }, []);
 
   const conversation: Conversation | null = useMemo(
     () => store.conversations[0] ?? null,
@@ -76,8 +99,42 @@ export function ChatTab({
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [turns.length, busy]);
 
+  // The box grows with what is typed, up to a point, then scrolls.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+  }, [input]);
+
+  const attach = async (files: File[]) => {
+    if (!files.length) return;
+    const room = MAX_ATTACHMENTS - attachments.length;
+    if (room <= 0) {
+      setError(`Up to ${MAX_ATTACHMENTS} images per message.`);
+      return;
+    }
+    setError(files.length > room ? `Up to ${MAX_ATTACHMENTS} images per message — I added the first ${room}.` : "");
+    const added: Attachment[] = [];
+    for (const f of files.slice(0, room)) {
+      try {
+        added.push(await toAttachment(f, uid()));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't read that image.");
+      }
+    }
+    setAttachments((list) => [...list, ...added].slice(0, MAX_ATTACHMENTS));
+    inputRef.current?.focus();
+  };
+
+  // The answer lands after an await; writing it onto the store captured when
+  // the question was asked would drop the question. Always write onto the latest.
+  const storeRef = useRef(store);
+  storeRef.current = store;
+
   const writeTurns = (fn: (t: ChatTurn[]) => ChatTurn[]) => {
     const now = new Date().toISOString();
+    const store = storeRef.current;
     const existing = store.conversations[0];
     const next: Conversation = existing
       ? { ...existing, turns: fn(existing.turns), updatedAt: now }
@@ -87,12 +144,21 @@ export function ChatTab({
 
   const ask = async (text: string) => {
     const question = text.trim();
-    if (!question || busy) return;
+    const pictures = attachments;
+    if ((!question && !pictures.length) || busy) return;
     setInput("");
+    setAttachments([]);
     setError("");
     setProposals([]);
     setPending(null);
-    const asked: ChatTurn = { id: uid(), role: "you", text: question, at: new Date().toISOString() };
+    const asked: ChatTurn = {
+      id: uid(),
+      role: "you",
+      text: question,
+      at: new Date().toISOString(),
+      ...(pictures.length ? { images: pictures.map((p) => p.thumb) } : {}),
+    };
+    if (pictures.length) fullImages.current.set(asked.id, pictures.map((p) => p.full));
     writeTurns((t) => [...t, asked]);
     setBusy(true);
 
@@ -104,8 +170,11 @@ export function ChatTab({
           messages: [...turns, asked].map((t) => ({
             role: t.role === "you" ? "user" : "assistant",
             content: t.text,
+            // After a reload only the thumbnails remain; they still beat nothing.
+            images: t.role === "you" ? (fullImages.current.get(t.id) ?? t.images ?? []) : [],
           })),
           ownerName: profile?.name ?? "",
+          skills: skills.current,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           extraContext: [profileContext(profile), await dashboardDigest()].filter(Boolean).join("\n\n"),
         }),
@@ -182,11 +251,34 @@ export function ChatTab({
 
   const clear = () => {
     if (!turns.length || !confirm("Clear this conversation? Saved memories stay.")) return;
+    fullImages.current.clear();
     commit({ ...store, conversations: store.conversations.slice(1) });
   };
 
   return (
-    <div className="flex h-[calc(100dvh-49px)] flex-col">
+    <div
+      className="relative flex h-[calc(100dvh-49px)] flex-col"
+      onDragOver={(e) => {
+        if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        void attach(imageFiles(e.dataTransfer));
+      }}
+    >
+      {dragging && (
+        <div className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-xl border border-dashed border-ink-faint bg-panel/85 backdrop-blur-sm">
+          <p className="flex items-center gap-2 text-sm text-ink">
+            <Icon.Image width={16} height={16} /> Drop images for Jarvis to look at
+          </p>
+        </div>
+      )}
       <div className="flex items-center gap-2 border-b border-line px-3 py-2">
         <h2 className="text-xs font-semibold text-ink">Chat</h2>
         <span className="text-[11px] text-ink-faint">
@@ -238,7 +330,20 @@ export function ChatTab({
                     <Icon.Bot width={11} height={11} /> Jarvis
                   </p>
                 )}
-                <p className="whitespace-pre-wrap text-xs leading-relaxed text-ink">{t.text}</p>
+                {t.images && t.images.length > 0 && (
+                  <div className={`flex flex-wrap justify-end gap-1.5 ${t.text ? "mb-1.5" : ""}`}>
+                    {t.images.map((src, i) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        key={i}
+                        src={src}
+                        alt={`Attached image ${i + 1}`}
+                        className="h-24 max-w-[160px] rounded-lg border border-line object-cover"
+                      />
+                    ))}
+                  </div>
+                )}
+                {t.text && <p className="whitespace-pre-wrap text-xs leading-relaxed text-ink">{t.text}</p>}
                 {t.did && <p className="mt-1.5 text-[10px] text-ink-faint">{t.did}</p>}
                 {t.citations && t.citations.length > 0 && (
                   <ul className="mt-2 space-y-0.5 border-t border-line-soft pt-1.5">
@@ -310,10 +415,29 @@ export function ChatTab({
           e.preventDefault();
           void ask(input);
         }}
-        className="border-t border-line bg-panel px-3 py-2"
+        className="border-t border-line bg-panel px-3 py-3"
       >
-        <div className="mx-auto flex max-w-2xl items-end gap-2">
+        <div className="mx-auto max-w-3xl rounded-xl border border-line bg-panel-2 transition focus-within:border-ink-faint">
+          {attachments.length > 0 && (
+            <ul className="flex flex-wrap gap-2 px-3 pt-3">
+              {attachments.map((a) => (
+                <li key={a.id} className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={a.thumb} alt={a.name} className="h-16 w-16 rounded-lg border border-line object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setAttachments((list) => list.filter((x) => x.id !== a.id))}
+                    aria-label={`Remove ${a.name}`}
+                    className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full border border-line bg-panel text-ink-muted shadow-sm transition hover:text-ink"
+                  >
+                    <Icon.Close width={10} height={10} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
           <textarea
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -322,17 +446,48 @@ export function ChatTab({
                 void ask(input);
               }
             }}
-            rows={1}
-            placeholder="Ask Jarvis…"
-            className="max-h-32 min-h-[34px] flex-1 resize-y rounded-lg border border-line bg-panel-2 px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-faint focus:border-ink-faint focus:outline-none"
+            onPaste={(e) => {
+              const files = imageFiles(e.clipboardData);
+              if (!files.length) return;
+              e.preventDefault();
+              void attach(files);
+            }}
+            rows={2}
+            placeholder={attachments.length ? "Ask about the image…" : "Ask Jarvis…"}
+            className="block max-h-60 min-h-[64px] w-full resize-none bg-transparent px-3 pt-2.5 text-sm leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
           />
-          <button
-            type="submit"
-            disabled={busy || !input.trim()}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink disabled:opacity-50"
-          >
-            <Icon.Send width={13} height={13} /> Ask
-          </button>
+          <div className="flex items-center gap-2 px-2 pb-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(e) => {
+                void attach(Array.from(e.target.files ?? []));
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={attachments.length >= MAX_ATTACHMENTS}
+              title="Add images (or paste / drop them)"
+              className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-ink-muted transition hover:bg-panel hover:text-ink disabled:opacity-50"
+            >
+              <Icon.Image width={14} height={14} /> Image
+            </button>
+            <span className="hidden text-[11px] text-ink-faint sm:inline">
+              Enter to send · Shift+Enter for a new line · paste or drop images
+            </span>
+            <button
+              type="submit"
+              disabled={busy || (!input.trim() && !attachments.length)}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-line bg-panel px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-panel-2 disabled:opacity-50"
+            >
+              <Icon.Send width={13} height={13} /> Ask
+            </button>
+          </div>
         </div>
       </form>
     </div>

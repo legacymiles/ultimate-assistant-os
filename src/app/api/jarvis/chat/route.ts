@@ -7,11 +7,40 @@ export const runtime = "nodejs";
 export const maxDuration = 120;
 
 interface Body {
-  messages?: { role?: string; content?: string }[];
+  messages?: { role?: string; content?: string; images?: unknown }[];
   ownerName?: string;
   timezone?: string;
   extraContext?: string;
   profileId?: string;
+  skills?: unknown;
+}
+
+/** The owner's installed skills as one prompt block, name + what it is for. */
+function skillsBlock(v: unknown): string {
+  if (!Array.isArray(v) || !v.length) return "";
+  const lines = v
+    .slice(0, 400)
+    .map((s) => {
+      const o = (s ?? {}) as { name?: unknown; about?: unknown; from?: unknown };
+      const name = typeof o.name === "string" ? o.name.slice(0, 80) : "";
+      if (!name) return "";
+      const about = typeof o.about === "string" ? o.about.slice(0, 160) : "";
+      const from = typeof o.from === "string" && o.from ? ` [${o.from.slice(0, 30)}]` : "";
+      return `- ${name}${from}${about ? `: ${about}` : ""}`;
+    })
+    .filter(Boolean);
+  if (!lines.length) return "";
+  return `THE OWNER'S CLAUDE CODE SKILLS (${lines.length}, from their Skills tab):\n${lines.join("\n")}`.slice(0, 40000);
+}
+
+/** Pictures sent to the model per request, across the whole conversation. */
+const MAX_IMAGES = 6;
+const IMAGE_URL = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/;
+
+function cleanImages(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  // ~1.5 MB of base64 each; the client downsizes far below that.
+  return v.filter((u): u is string => typeof u === "string" && u.length < 2_000_000 && IMAGE_URL.test(u));
 }
 
 export async function POST(req: Request) {
@@ -23,12 +52,21 @@ export async function POST(req: Request) {
   }
 
   const messages = (body.messages ?? [])
-    .filter((m) => typeof m.content === "string" && m.content.trim())
     .map((m) => ({
       role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
-      content: String(m.content).slice(0, 12000),
+      content: typeof m.content === "string" ? m.content.slice(0, 12000) : "",
+      images: m.role === "assistant" ? [] : cleanImages(m.images),
     }))
+    .filter((m) => m.content.trim() || m.images.length)
     .slice(-24);
+
+  // Newest pictures win when a long conversation carries more than the cap.
+  let budget = MAX_IMAGES;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const keep = messages[i].images.slice(0, Math.max(0, budget));
+    budget -= keep.length;
+    messages[i].images = keep;
+  }
 
   if (!messages.length) return NextResponse.json({ error: "Nothing to answer." }, { status: 400 });
 
@@ -53,7 +91,7 @@ export async function POST(req: Request) {
       messages,
       ownerName: (body.ownerName || "the owner").slice(0, 60),
       timezone: body.timezone,
-      extraContext: body.extraContext?.slice(0, 10000),
+      extraContext: [body.extraContext?.slice(0, 10000), skillsBlock(body.skills)].filter(Boolean).join("\n\n"),
       profileId: body.profileId,
     });
     return NextResponse.json(result);
