@@ -31,7 +31,10 @@ import { Chip, CinemaBar, CinemaOutputRow } from "./CinemaDeck";
 import { MoveArt } from "./CinemaArt";
 import { useCinemaOutput, useCinemaSelection } from "@/lib/studio/useCinema";
 import { MOVE_PATTERN, moveById, moveQueryAt, movesIn, searchMoves, type CinemaMove } from "@/lib/studio/cinema";
-import { imageFiles, MAX_ATTACHMENTS, toAttachment, type Attachment } from "@/lib/jarvis/chatImages";
+import { ACCEPT_REFERENCES, imageFiles, MAX_ATTACHMENTS, toAttachment, type Attachment } from "@/lib/jarvis/chatImages";
+import { REFERENCE_PATTERN, referenceToken, referencesIn, searchReferences, type ReferenceMention } from "@/lib/studio/references";
+import { saveToGallery } from "@/lib/studio/gallery";
+import { groupSummary, movesIn as movesInText, optionById, CINEMA_GROUPS } from "@/lib/studio/cinema";
 import { useMemory } from "@/lib/jarvis/useMemory";
 import { answerText, type StudioForm } from "@/lib/studio/forms";
 import { runRender, type RenderState } from "@/lib/studio/render";
@@ -94,6 +97,8 @@ export function ChatTab({
   const [cinema, setCinema] = useCinemaSelection();
   /** Aspect ratio and clip length, on the toolbar under the box. */
   const [output, setOutput] = useCinemaOutput();
+  /** Which reference the caret is currently naming, so its tile can light up. */
+  const [highlight, setHighlight] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [proposals, setProposals] = useState<{ title: string; content: string }[]>([]);
@@ -201,6 +206,12 @@ export function ChatTab({
     setMoveMenu(null);
   };
 
+  const chooseReference = (r: ReferenceMention) => {
+    if (!mention) return;
+    replaceToken(mention, `@${r.token} `);
+    setMention(null);
+  };
+
   const chooseMention = (m: Mention) => {
     if (!mention) return;
     replaceToken(mention, `@${m.token} `);
@@ -211,16 +222,16 @@ export function ChatTab({
     if (!files.length) return;
     const room = MAX_ATTACHMENTS - attachments.length;
     if (room <= 0) {
-      setError(`Up to ${MAX_ATTACHMENTS} images per message.`);
+      setError(`Up to ${MAX_ATTACHMENTS} references per message.`);
       return;
     }
-    setError(files.length > room ? `Up to ${MAX_ATTACHMENTS} images per message — I added the first ${room}.` : "");
+    setError(files.length > room ? `Up to ${MAX_ATTACHMENTS} references per message — I added the first ${room}.` : "");
     const added: Attachment[] = [];
     for (const f of files.slice(0, room)) {
       try {
         added.push(await toAttachment(f, uid()));
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Couldn't read that image.");
+        setError(e instanceof Error ? e.message : "Couldn't read that file.");
       }
     }
     setAttachments((list) => [...list, ...added].slice(0, MAX_ATTACHMENTS));
@@ -338,7 +349,24 @@ export function ChatTab({
     try {
       // Studio renders run from the browser, where the reference photos are.
       if (pending.tool === "studio_generate") {
-        const result = await runRender(args, referenceImages(), setRenders);
+        const filed = new Set<string>();
+        const spec = specLine();
+        const marks = used.map((m) => m.label);
+        const result = await runRender(args, referenceImages(), (states) => {
+          setRenders(states);
+          // File each one the moment it lands, so closing the tab cannot lose it.
+          for (const st of states) {
+            if (st.status !== "done" || !st.blob || filed.has(st.id)) continue;
+            filed.add(st.id);
+            void saveToGallery(st.blob, {
+              medium: st.medium,
+              title: st.title,
+              prompt: st.prompt ?? "",
+              workflows: marks,
+              spec,
+            });
+          }
+        });
         setPending({ ...pending, status: "done", result });
         return;
       }
@@ -373,6 +401,59 @@ export function ChatTab({
       .filter((t) => t.role === "you" && (t.images?.length || fullImages.current.has(t.id)))
       .flatMap((t) => fullImages.current.get(t.id) ?? t.images ?? [])
       .slice(0, 24);
+
+  /**
+   * What "@Subject 3" can point at. The numbering is the conversation's, not
+   * the composer's: references already sent keep their number, and anything
+   * attached to this message continues the count. That is the same order
+   * render.ts hands the jobs, so a token always means the picture it shows.
+   */
+  const references: ReferenceMention[] = useMemo(() => {
+    const out: ReferenceMention[] = [];
+    for (const t of turns) {
+      if (t.role !== "you") continue;
+      for (const thumb of t.images ?? []) {
+        out.push({
+          n: out.length + 1,
+          token: referenceToken(out.length + 1),
+          label: `Subject ${out.length + 1}`,
+          kind: "image",
+          thumb,
+          name: `from an earlier message`,
+        });
+      }
+    }
+    for (const a of attachments) {
+      out.push({
+        n: out.length + 1,
+        token: referenceToken(out.length + 1),
+        label: `Subject ${out.length + 1}`,
+        kind: a.kind,
+        thumb: a.thumb,
+        name: a.name,
+      });
+    }
+    return out.slice(0, 24);
+  }, [turns, attachments]);
+
+  /** The references this draft already names, so their tiles can show it. */
+  const named = useMemo(() => referencesIn(input), [input]);
+
+  /**
+   * References win the @ menu when the half-typed word could be one, because
+   * pointing at your own upload is the more common intent and the workflow
+   * list is long enough to bury it.
+   */
+  const refOptions = useMemo(
+    () => (mention ? searchReferences(mention.query, references).slice(0, 8) : []),
+    [mention, references],
+  );
+
+  /** A one-line read of the camera deck, filed with anything rendered. */
+  const specLine = (): string =>
+    CINEMA_GROUPS.map((g) => groupSummary(g, cinema))
+      .filter(Boolean)
+      .join(" · ");
 
   /** The owner answered a Studio form: mark it, then send the answers as their next turn. */
   const submitForm = (turnId: string, form: StudioForm, s: FormSubmission) => {
@@ -640,7 +721,43 @@ export function ChatTab({
               ))}
             </ul>
           )}
-          {mention && mentionOptions.length > 0 && (
+          {mention && refOptions.length > 0 && (
+            <ul
+              role="listbox"
+              aria-label="References in this conversation"
+              className="absolute inset-x-0 bottom-full z-30 mb-2 max-h-80 overflow-y-auto rounded-xl border border-line bg-elevated p-1 shadow-[0_12px_32px_-8px_rgb(0_0_0/0.6)]"
+            >
+              <li className="px-2 pb-1 pt-1.5 text-[10px] text-ink-faint">
+                References · point the prompt at one of your uploads
+              </li>
+              {refOptions.map((r) => (
+                <li key={r.n} role="option" aria-selected={false}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      chooseReference(r);
+                    }}
+                    onMouseEnter={() => setHighlight(r.n)}
+                    onMouseLeave={() => setHighlight(null)}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-panel-2"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={r.thumb} alt="" className="h-8 w-10 shrink-0 rounded object-cover" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs text-ink">{r.label}</span>
+                      <span className="block truncate text-[11px] text-ink-faint">{r.name}</span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1 text-[10px] capitalize text-ink-faint">
+                      {r.kind === "video" ? <Icon.Film width={11} height={11} /> : <Icon.Image width={11} height={11} />}
+                      {r.kind}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {mention && refOptions.length === 0 && mentionOptions.length > 0 && (
             <ul
               role="listbox"
               aria-label="Studio workflows"
@@ -702,21 +819,51 @@ export function ChatTab({
             </ul>
           )}
           {attachments.length > 0 && (
-            <ul className="flex flex-wrap gap-2 px-3 pt-3">
-              {attachments.map((a) => (
-                <li key={a.id} className="relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={a.thumb} alt={a.name} className="h-16 w-16 rounded-lg border border-line object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => setAttachments((list) => list.filter((x) => x.id !== a.id))}
-                    aria-label={`Remove ${a.name}`}
-                    className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full border border-line bg-panel text-ink-muted shadow-sm transition hover:text-ink"
-                  >
-                    <Icon.Close width={10} height={10} />
-                  </button>
-                </li>
-              ))}
+            <ul className="flex flex-wrap gap-2 px-3 pt-3" aria-label="References on this message">
+              {attachments.map((a) => {
+                // Its conversation number, which is what @Subject N points at.
+                const n = references.find((r) => r.thumb === a.thumb)?.n;
+                const lit = n !== undefined && (highlight === n || named.includes(n));
+                return (
+                  <li key={a.id} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => n !== undefined && setInput((t) => `${t}${t && !/\s$/.test(t) ? " " : ""}@Subject${n} `)}
+                      onMouseEnter={() => n !== undefined && setHighlight(n)}
+                      onMouseLeave={() => setHighlight(null)}
+                      title={n !== undefined ? `Name this Subject ${n} in the prompt` : a.name}
+                      className={`block overflow-hidden rounded-lg border transition ${
+                        lit ? "border-accent ring-1 ring-accent" : "border-line hover:border-ink-faint"
+                      }`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={a.thumb} alt={a.name} className="h-16 w-16 object-cover" />
+                    </button>
+                    {n !== undefined && (
+                      <span
+                        className={`pointer-events-none absolute bottom-1 left-1 rounded px-1 py-px font-mono text-[9px] font-semibold transition ${
+                          lit ? "bg-accent text-canvas" : "bg-black/65 text-white"
+                        }`}
+                      >
+                        {n}
+                      </span>
+                    )}
+                    {a.kind === "video" && (
+                      <span className="pointer-events-none absolute right-1 top-1 rounded bg-black/65 px-1 py-px text-[9px] text-white">
+                        {a.durationSec ? `${a.durationSec}s` : "clip"}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setAttachments((list) => list.filter((x) => x.id !== a.id))}
+                      aria-label={`Remove ${a.name}`}
+                      className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full border border-line bg-panel text-ink-muted shadow-sm transition hover:text-ink"
+                    >
+                      <Icon.Close width={10} height={10} />
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
           <div className="px-2 pt-2">
@@ -816,7 +963,7 @@ export function ChatTab({
             <input
               ref={fileRef}
               type="file"
-              accept="image/*"
+              accept={ACCEPT_REFERENCES}
               multiple
               hidden
               onChange={(e) => {
@@ -871,14 +1018,31 @@ export function ChatTab({
 
 /** A sent message with its known @workflows and #camera moves drawn as tokens. */
 function withMentions(text: string) {
+  // `at` is where the token starts in the source and `len` is how much of the
+  // source it consumes — they differ per kind (an @workflow's sigil is part of
+  // the token, a bare "Subject 2" has none), so each match states both rather
+  // than the reader guessing.
   const found = [
     ...[...text.matchAll(MENTION_PATTERN)].flatMap((m) => {
       const hit = resolveMention(m[2]);
-      return hit ? [{ at: (m.index ?? 0) + m[1].length, raw: m[2], sigil: "@", label: hit.label, title: hit.workflow.blurb }] : [];
+      if (!hit) return [];
+      const at = (m.index ?? 0) + m[1].length;
+      return [{ at, len: m[2].length + 1, shown: `@${hit.label}`, title: hit.workflow.blurb }];
     }),
     ...[...text.matchAll(MOVE_PATTERN)].flatMap((m) => {
       const hit = moveById(m[2].toLowerCase());
-      return hit ? [{ at: (m.index ?? 0) + m[1].length, raw: m[2], sigil: "#", label: hit.name, title: hit.note }] : [];
+      if (!hit) return [];
+      const at = (m.index ?? 0) + m[1].length;
+      return [{ at, len: m[2].length + 1, shown: `#${hit.name}`, title: hit.note }];
+    }),
+    ...[...text.matchAll(REFERENCE_PATTERN)].map((m) => {
+      const lead = m[0].startsWith("@") ? 1 : 0;
+      return {
+        at: (m.index ?? 0) + lead,
+        len: m[0].length - lead,
+        shown: `Subject ${m[1]}`,
+        title: "One of your uploads",
+      };
     }),
   ].sort((a, b) => a.at - b.at);
 
@@ -888,12 +1052,11 @@ function withMentions(text: string) {
     if (t.at < last) continue;
     out.push(text.slice(last, t.at));
     out.push(
-      <span key={`${t.sigil}${t.at}`} className="rounded bg-ink/10 px-1 font-medium text-ink" title={t.title}>
-        {t.sigil}
-        {t.label}
+      <span key={t.at} className="rounded bg-ink/10 px-1 font-medium text-ink" title={t.title}>
+        {t.shown}
       </span>,
     );
-    last = t.at + t.raw.length + 1;
+    last = t.at + t.len;
   }
   out.push(text.slice(last));
   return out;

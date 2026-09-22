@@ -26,6 +26,10 @@ export interface RenderState {
   note?: string;
   url?: string;
   error?: string;
+  /** The prompt that made it, carried through so the gallery can keep it. */
+  prompt?: string;
+  /** The finished bytes. A blob URL dies with the tab; these are filed. */
+  blob?: Blob;
 }
 
 /** The loose tool arguments, made safe to run. */
@@ -57,7 +61,7 @@ export function jobsFrom(args: Record<string, unknown>): { medium: "video" | "im
  */
 export function pick(job: RenderJob, refs: string[]): { label: string; dataUrl: string }[] {
   if (!job.useReferences || !refs.length) return [];
-  const named = [...job.prompt.matchAll(/Subject\s+(\d+)/gi)].map((m) => Number(m[1]));
+  const named = [...job.prompt.matchAll(/@?\bSubject[\s-]*(\d+)\b/gi)].map((m) => Number(m[1]));
   const wanted = job.references?.length ? job.references : named.length ? named : refs.slice(0, 4).map((_, i) => i + 1);
   return [...new Set(wanted)]
     .filter((n) => refs[n - 1])
@@ -69,9 +73,14 @@ const VIDEO_ASPECTS = ["16:9", "9:16", "1:1"];
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-function base64ToUrl(b64: string, type: string): string {
+function base64ToBlob(b64: string, type: string): Blob {
   const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-  return URL.createObjectURL(new Blob([bytes], { type }));
+  return new Blob([bytes], { type });
+}
+
+/** Hand a finished blob to the caller as both a playable URL and the bytes. */
+function finished(blob: Blob): Partial<RenderState> {
+  return { status: "done", url: URL.createObjectURL(blob), blob };
 }
 
 async function post(url: string, body: unknown): Promise<Response> {
@@ -122,7 +131,7 @@ async function renderVideoLocal(job: RenderJob, refs: string[], update: (p: Part
     if (view.status === "done") {
       const file = await fetch(`${BRIDGE}/file/${id}`);
       if (!file.ok) throw new Error("The clip finished but couldn't be fetched from the local renderer.");
-      update({ status: "done", url: URL.createObjectURL(await file.blob()) });
+      update(finished(await file.blob()));
       return;
     }
     update({
@@ -151,7 +160,7 @@ async function renderVideo(job: RenderJob, refs: string[], update: (p: Partial<R
   };
   if (!res.ok || data.error) throw new Error(data.error ?? `The video service failed (${res.status}).`);
   if (data.mode === "inline" && data.videoBase64) {
-    update({ status: "done", url: base64ToUrl(data.videoBase64, "video/mp4") });
+    update(finished(base64ToBlob(data.videoBase64, "video/mp4")));
     return;
   }
   if (data.mode === "done") {
@@ -167,12 +176,12 @@ async function renderVideo(job: RenderJob, refs: string[], update: (p: Partial<R
     if (view.status === "error") throw new Error(view.error ?? "The render failed.");
     if (view.status === "done") {
       if (view.videoBase64) {
-        update({ status: "done", url: base64ToUrl(view.videoBase64, "video/mp4") });
+        update(finished(base64ToBlob(view.videoBase64, "video/mp4")));
         return;
       }
       const file = await post("/api/auteur/generate", { action: "download", taskId: data.taskId });
       if (!file.ok) throw new Error("The clip finished but couldn't be downloaded.");
-      update({ status: "done", url: URL.createObjectURL(await file.blob()) });
+      update(finished(await file.blob()));
       return;
     }
     update({ note: view.note || (view.status === "queued" ? "queued" : "rendering") });
@@ -188,7 +197,11 @@ async function renderImage(job: RenderJob, refs: string[], update: (p: Partial<R
   });
   const data = (await res.json().catch(() => ({}))) as { image?: string; refusal?: string; error?: string };
   if (data.image) {
-    update({ status: "done", url: data.image });
+    // A data URL cannot be filed, so keep the bytes as well as the preview.
+    const blob = await fetch(data.image)
+      .then((r) => r.blob())
+      .catch(() => null);
+    update(blob ? { status: "done", url: data.image, blob } : { status: "done", url: data.image });
     return;
   }
   throw new Error(data.refusal ?? data.error ?? `The image service failed (${res.status}).`);
@@ -213,6 +226,7 @@ export async function runRender(
     title: j.title,
     medium,
     status: "rendering",
+    prompt: j.prompt,
   }));
   onChange(states);
   const update = (i: number) => (p: Partial<RenderState>) => {
