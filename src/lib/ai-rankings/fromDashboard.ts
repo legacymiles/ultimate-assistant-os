@@ -25,9 +25,18 @@ import { resolveSiteUrl } from "./siteUrl";
 import { addTool, getData } from "./store";
 import type { Tool } from "./types";
 
-/** "AI Rankings", "ai ranking", "AI-Rankings" — however the folder was typed. */
+/**
+ * "AI Rankings", "ai ranking", "AI-Rankings", "ai rankings folder" — however
+ * the folder was typed.
+ *
+ * Deliberately a CONTAINS match, not an exact one. The first version demanded
+ * the exact words and the owner's real folder is called "ai rankings folder",
+ * so every entry in it silently lost its Sync button — the feature looked
+ * built and was unreachable. A folder with "ai ranking(s)" in its name is the
+ * AI Rankings folder; nothing else here is called that by accident.
+ */
 export function isRankingsName(name: string): boolean {
-  return /^ai\s*[-_]?\s*rankings?$/i.test(name.trim());
+  return /\bai[\s\-_]*rankings?\b/i.test(name.trim());
 }
 
 /** True for the AI Rankings folder and every folder nested inside it. */

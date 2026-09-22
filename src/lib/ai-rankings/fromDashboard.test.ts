@@ -10,11 +10,20 @@ const tool = (name: string, url = "") => ({ id: name, name, url }) as Tool;
 
 describe("the AI Rankings folder", () => {
   it("matches however the name was typed", () => {
-    for (const n of ["AI Rankings", "ai ranking", "AI-Rankings", " ai rankings "]) {
+    for (const n of [
+      "AI Rankings",
+      "ai ranking",
+      "AI-Rankings",
+      " ai rankings ",
+      // The owner's actual folder, which the exact-match version missed.
+      "ai rankings folder",
+      "AI Rankings (old)",
+    ]) {
       expect(isRankingsName(n)).toBe(true);
     }
-    expect(isRankingsName("AI Rankings old")).toBe(false);
     expect(isRankingsName("Rankings")).toBe(false);
+    expect(isRankingsName("AI tools")).toBe(false);
+    expect(isRankingsName("Thai rankings")).toBe(false);
   });
 
   it("covers the folder and everything nested inside it, nothing else", () => {
