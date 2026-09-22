@@ -4,13 +4,17 @@
 // Studio — the video and image workflows, as a wall of cards.
 //
 // Clicking a card adds it to the mix at the bottom; several can be mixed. The
-// mix is where a variant (E-commerce › Flat lay) and style keywords are chosen,
-// only for workflows that take them. "Start in chat" writes the mix as
-// @-mentions into the chat box, where Jarvis turns it into a production prompt.
-// The same @-mentions work typed straight into chat.
+// mix is where a variant (E-commerce › Flat lay), style keywords and the camera
+// deck (film setup, camera, colour, lighting, and the #camera-moves typed into
+// the idea box) are chosen. "Start in chat" writes the mix as @-mentions into
+// the chat box, where Jarvis turns it into a production prompt. The same @- and
+// #-mentions work typed straight into chat, and the camera deck follows across.
 // ---------------------------------------------------------------------------
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { bridgeStatus } from "@/lib/studio/render";
+import { CinemaBar } from "./CinemaDeck";
+import { useCinemaSelection } from "@/lib/studio/useCinema";
 import { Icon } from "../icons";
 import {
   CATEGORIES,
@@ -33,6 +37,20 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
   const [keywords, setKeywords] = useState<string[]>([]);
   const [custom, setCustom] = useState("");
   const [idea, setIdea] = useState("");
+  // The look is shared with Chat, so a camera set here is still set there.
+  const [cinema, setCinema] = useCinemaSelection();
+  // The free local video renderer on this PC (tools/studio-bridge).
+  const [local, setLocal] = useState<{ ok: boolean; wangp?: boolean; queue?: number } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const check = () => void bridgeStatus().then((s) => alive && setLocal(s));
+    check();
+    const t = setInterval(check, 20000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, []);
 
   const categories = CATEGORIES.filter((c) => c.medium === medium);
 
@@ -83,6 +101,8 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
     if (!picked.length) return;
     const mentions = picked.map((p) => `@${p.id}${p.variant ? `:${p.variant}` : ""}`).join(" ");
     const style = keywords.length ? `\nKeywords: ${keywords.join(", ")}` : "";
+    // The camera moves ride along inside `idea` as #tokens; the look travels on
+    // its own, shared with Chat through localStorage.
     onStartChat(`${mentions} ${idea.trim()}${style}`.trim());
     clear();
   };
@@ -113,6 +133,24 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
             </button>
           ))}
         </div>
+        {local && (
+          <span
+            className="flex items-center gap-1.5 rounded-full border border-line px-2 py-0.5 text-[11px] text-ink-muted"
+            title={
+              local.ok
+                ? "Videos render free on this PC with WanGP (Pinokio)."
+                : "Start tools/studio-bridge/start.cmd on your PC to render videos for free."
+            }
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${local.ok ? "bg-emerald-400" : "bg-ink-faint"}`}
+              aria-hidden
+            />
+            {local.ok
+              ? `Local renderer on${local.queue ? ` · ${local.queue} in queue` : ""}`
+              : "Local renderer off"}
+          </span>
+        )}
         <label className="ml-auto flex w-full items-center gap-1.5 rounded-lg border border-line bg-panel-2 px-2 py-1 sm:w-56">
           <Icon.Search width={12} height={12} className="text-ink-faint" />
           <input
@@ -248,6 +286,8 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
               </div>
             )}
 
+            <CinemaBar selection={cinema} onSelection={setCinema} text={idea} onText={setIdea} />
+
             <div className="flex items-end gap-2">
               <textarea
                 value={idea}
@@ -259,7 +299,7 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
                   }
                 }}
                 rows={2}
-                placeholder="Describe your idea: whose story, which product, what happens…"
+                placeholder="Describe your idea: whose story, which product, what happens…  (# for a camera move)"
                 className="min-h-[52px] flex-1 resize-none rounded-lg border border-line bg-panel-2 px-2.5 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-ink-faint focus:outline-none"
               />
               <button

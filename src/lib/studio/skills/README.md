@@ -22,8 +22,10 @@ the owner has seen and approved the final prompt.
 
 ## Real limits of the renderers (write the skill to fit them)
 
-- **Video**: one job = one clip of **4–15 seconds**, aspect `16:9`, `9:16` or `1:1`, 768P. The
-  model is MiniMax H3 (on the owner's RunPod). It accepts reference images of subjects/products
+- **Video**: one job = one clip of **4–15 seconds**, aspect `16:9`, `9:16` or `1:1`. The model is
+  MiniMax H3, rendered **free on the owner's PC** (Pinokio/WanGP via `tools/studio-bridge`, 832x480,
+  ~6 min per 5 s clip, one at a time) by default; `engine: "cloud"` (paid RunPod) only when the owner
+  explicitly asks. Keep batches small and default clips short — every clip costs the owner minutes. It accepts reference images of subjects/products
   ("Subject 1", "Subject 2" … in the order uploaded). It does NOT generate music tracks, readable
   on-screen text reliably, or clips longer than 15 s. Anything longer than 15 s is planned as a
   sequence of clips (several jobs), each ≤15 s, with continuity rules so they cut together; the

@@ -8,6 +8,7 @@ Claude reads these files to know who the owner is before answering anything abou
 | `context/about-me.md` | Who they are, what eats their week | New Dashboard → Export |
 | `context/about-business.md` | What they build, where money lands | New Dashboard → Export |
 | `context/priorities.md` | 90-day priorities | New Dashboard → Export |
+| `context/my-computer.md` | The owner's laptop specs and limits (6 GB VRAM, RAM upgrade plan) | Edit directly |
 | `references/voice.md` | Two pasted writing samples | New Dashboard → Export |
 | `connections.md` | Every system the AI OS can reach | New Dashboard → Export |
 | `decisions/log.md` | Append-only decisions and why | Append here directly, or log in the dashboard and re-export |

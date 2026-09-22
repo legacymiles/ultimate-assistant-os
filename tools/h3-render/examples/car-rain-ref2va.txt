@@ -1,0 +1,10 @@
+subject_definitions:
+<Subject 1> is the man from <Picture 1>, preserving his exact identity: shaved bald head, warm brown skin with light freckles, thick dark eyebrows, brown eyes, neat moustache, full dark goatee, and iced-out diamond grills on his teeth.
+summary:
+[reference generation] <Subject 1> sits alone in the driver's seat of a parked car on a grey rainy morning, smoking a cigarette in one quiet five-second shot.
+retention_analysis:
+<Subject 1> (appears in [Shot 1]): fully_preserved - his face, head shape, skin tone, freckles, eyebrows, eyes, moustache, goatee and diamond grills stay recognizable and unchanged; only the setting, clothing, lighting and action are new.
+detailed_description:
+The target video is a five-second cinematic, photorealistic single take inside a parked car on an overcast, rainy early morning. [Shot 1] <Subject 1> sits in the driver's seat wearing a dark hoodie, framed in a medium close-up from the passenger side with the rain-covered driver's side window behind him. Soft, cool grey daylight falls through the windshield and wraps his face, showing natural skin texture and the freckles across his cheeks. Raindrops streak and trickle down the side window, and the blurred street outside is washed in muted grey and faint green. He holds a lit cigarette between two fingers resting near the steering wheel. He slowly raises it to his lips, takes an unhurried drag as the tip glows orange, lowers his hand, and exhales a long soft cloud of smoke that drifts across the windshield and catches the grey light. His eyes stay calm and thoughtful, gazing out through the rain; a faint glint of the diamond grills shows as his lips part to exhale. The camera is subtly handheld, breathing gently with no cuts. Motion is slow, natural and physically coherent; his identity, face and proportions remain stable throughout.
+overall_soundscape: Steady rain drumming on the car roof and pattering on the glass, a faint crackle as the cigarette burns during the drag, a slow exhale, muffled distant traffic hiss on a wet road, and the quiet interior hum of a parked car.
+non_diegetic_music: none

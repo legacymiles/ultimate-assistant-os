@@ -76,3 +76,6 @@ __pycache__/
 # as gitignored, but it never was, so 7MB of stills sat untracked in the tree.
 docs/screenshots/
 tools/unreal-builder/builder.log
+
+# Studio bridge renders and reference photos (local only)
+/tools/studio-bridge/out/

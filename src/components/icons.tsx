@@ -161,6 +161,39 @@ export const Icon = {
       <path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4" />
     </svg>
   ),
+  Camera: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M3 8a2 2 0 0 1 2-2h2.5l1.2-2h6.6l1.2 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+      <circle cx="12" cy="12.5" r="3.5" />
+    </svg>
+  ),
+  Aperture: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 3v7.5M20.8 16.5l-6.5-3.8M3.2 16.5l6.5-3.8" />
+    </svg>
+  ),
+  Brush: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M9.5 14.5 3 21s3.5.5 5-1 1.5-5.5 1.5-5.5Z" />
+      <path d="M11 13 20.3 3.7a1.7 1.7 0 0 1 2.4 2.4L13.4 15.4" />
+      <path d="m9.5 14.5 4-1.4" />
+    </svg>
+  ),
+  Palette: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M12 3a9 9 0 0 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.1 0-.9.8-1.7 1.8-1.7H16a5 5 0 0 0 5-5c0-4-4-7.3-9-7.3Z" />
+      <circle cx="8" cy="11" r="1" />
+      <circle cx="12" cy="8" r="1" />
+      <circle cx="16" cy="11" r="1" />
+    </svg>
+  ),
+  Lamp: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M8 3h8l3 7H5Z" />
+      <path d="M12 10v5M9 21h6M12 21v-6" />
+    </svg>
+  ),
   ZoomIn: (p: SVGProps<SVGSVGElement>) => (
     <svg {...base(p)}>
       <circle cx="11" cy="11" r="7" />

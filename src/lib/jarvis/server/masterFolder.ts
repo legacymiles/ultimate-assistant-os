@@ -37,6 +37,7 @@ const REPO_FILES = [
   "aios/context/about-me.md",
   "aios/context/about-business.md",
   "aios/context/priorities.md",
+  "aios/context/my-computer.md",
   "aios/decisions/log.md",
 ];
 

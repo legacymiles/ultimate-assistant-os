@@ -27,6 +27,10 @@ import {
   searchMentions,
   type Mention,
 } from "@/lib/studio/workflows";
+import { CinemaBar, CinemaOutputRow } from "./CinemaDeck";
+import { MoveArt } from "./CinemaArt";
+import { useCinemaOutput, useCinemaSelection } from "@/lib/studio/useCinema";
+import { MOVE_PATTERN, moveById, moveQueryAt, movesIn, searchMoves, type CinemaMove } from "@/lib/studio/cinema";
 import { imageFiles, MAX_ATTACHMENTS, toAttachment, type Attachment } from "@/lib/jarvis/chatImages";
 import { useMemory } from "@/lib/jarvis/useMemory";
 import { answerText, type StudioForm } from "@/lib/studio/forms";
@@ -82,6 +86,14 @@ export function ChatTab({
   const [mentionIndex, setMentionIndex] = useState(0);
   const mentionOptions = useMemo(() => (mention ? searchMentions(mention.query, 8) : []), [mention]);
   const used = useMemo(() => mentionsIn(input), [input]);
+  /** The half-typed "#cra" at the caret, while the camera-move menu is open. */
+  const [moveMenu, setMoveMenu] = useState<{ start: number; caret: number; query: string } | null>(null);
+  const [moveIndex, setMoveIndex] = useState(0);
+  const moveOptions = useMemo(() => (moveMenu ? searchMoves(moveMenu.query, 8) : []), [moveMenu]);
+  /** The look, shared with the Studio tab; the moves live in the text. */
+  const [cinema, setCinema] = useCinemaSelection();
+  /** Aspect ratio and clip length, on the toolbar under the box. */
+  const [output, setOutput] = useCinemaOutput();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [proposals, setProposals] = useState<{ title: string; content: string }[]>([]);
@@ -147,21 +159,34 @@ export function ChatTab({
     const q = mentionQueryAt(el.value, caret);
     setMention(q ? { ...q, caret } : null);
     if (!q || q.query !== mention?.query) setMentionIndex(0);
+    const h = moveQueryAt(el.value, caret);
+    setMoveMenu(h ? { ...h, caret } : null);
+    if (!h || h.query !== moveMenu?.query) setMoveIndex(0);
+  };
+
+  /** Swap the half-typed token at the caret for a finished one. */
+  const replaceToken = (at: { start: number; caret: number }, inserted: string) => {
+    const before = input.slice(0, at.start);
+    const after = input.slice(at.caret).replace(/^\S*/, "");
+    const next = `${before}${inserted}${after.replace(/^\s/, "")}`;
+    setInput(next);
+    const caret = before.length + inserted.length;
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(caret, caret);
+    });
+  };
+
+  const chooseMove = (m: CinemaMove) => {
+    if (!moveMenu) return;
+    replaceToken(moveMenu, `#${m.id} `);
+    setMoveMenu(null);
   };
 
   const chooseMention = (m: Mention) => {
     if (!mention) return;
-    const before = input.slice(0, mention.start);
-    const after = input.slice(mention.caret).replace(/^\S*/, "");
-    const inserted = `@${m.token} `;
-    const next = `${before}${inserted}${after.replace(/^\s/, "")}`;
-    setInput(next);
+    replaceToken(mention, `@${m.token} `);
     setMention(null);
-    const at = before.length + inserted.length;
-    requestAnimationFrame(() => {
-      inputRef.current?.focus();
-      inputRef.current?.setSelectionRange(at, at);
-    });
   };
 
   const attach = async (files: File[]) => {
@@ -236,6 +261,18 @@ export function ChatTab({
                 .flatMap((t) => mentionsIn(t.text).map((m) => m.token)),
             ),
           ].slice(0, 6),
+          // The camera deck: the look from the chips, the moves from the text.
+          // Moves named in this message first, then earlier ones, so a follow-up
+          // ("make it slower") still knows how the camera was supposed to travel.
+          cinema,
+          output,
+          moves: [
+            ...new Set(
+              [asked, ...[...turns].reverse()]
+                .filter((t) => t.role === "you")
+                .flatMap((t) => movesIn(t.text).map((m) => m.id)),
+            ),
+          ].slice(0, 8),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           extraContext: [profileContext(profile), await dashboardDigest()].filter(Boolean).join("\n\n"),
         }),
@@ -550,6 +587,41 @@ export function ChatTab({
         className="border-t border-line bg-panel px-3 py-3"
       >
         <div className="relative mx-auto max-w-3xl rounded-xl border border-line bg-panel-2 transition focus-within:border-ink-faint">
+          {moveMenu && moveOptions.length > 0 && (
+            <ul
+              role="listbox"
+              aria-label="Camera moves"
+              className="absolute inset-x-0 bottom-full z-30 mb-2 max-h-80 overflow-y-auto rounded-xl border border-line bg-elevated p-1 shadow-[0_12px_32px_-8px_rgb(0_0_0/0.6)]"
+            >
+              <li className="px-2 pb-1 pt-1.5 text-[10px] text-ink-faint">
+                Camera moves · ↑↓ to move · Enter to add
+              </li>
+              {moveOptions.map((m, i) => (
+                <li key={m.id} role="option" aria-selected={i === moveIndex}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      chooseMove(m);
+                    }}
+                    onMouseEnter={() => setMoveIndex(i)}
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left ${
+                      i === moveIndex ? "bg-panel-2" : ""
+                    }`}
+                  >
+                    <span className="h-7 w-10 shrink-0 overflow-hidden rounded bg-canvas">
+                      <MoveArt glyph={m.glyph} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs text-ink">{m.name}</span>
+                      <span className="block truncate text-[11px] text-ink-faint">{m.note}</span>
+                    </span>
+                    <span className="shrink-0 text-[10px] text-ink-faint">{m.family}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
           {mention && mentionOptions.length > 0 && (
             <ul
               role="listbox"
@@ -629,6 +701,9 @@ export function ChatTab({
               ))}
             </ul>
           )}
+          <div className="px-2 pt-2">
+            <CinemaBar selection={cinema} onSelection={setCinema} text={input} onText={setInput} />
+          </div>
           <textarea
             ref={inputRef}
             value={input}
@@ -637,8 +712,29 @@ export function ChatTab({
               readMention(e.target);
             }}
             onClick={(e) => readMention(e.currentTarget)}
-            onBlur={() => setMention(null)}
+            onBlur={() => {
+              setMention(null);
+              setMoveMenu(null);
+            }}
             onKeyDown={(e) => {
+              if (moveMenu && moveOptions.length) {
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  const step = e.key === "ArrowDown" ? 1 : -1;
+                  setMoveIndex((i) => (i + step + moveOptions.length) % moveOptions.length);
+                  return;
+                }
+                if (e.key === "Enter" || e.key === "Tab") {
+                  e.preventDefault();
+                  chooseMove(moveOptions[moveIndex] ?? moveOptions[0]);
+                  return;
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setMoveMenu(null);
+                  return;
+                }
+              }
               if (mention && mentionOptions.length) {
                 if (e.key === "ArrowDown" || e.key === "ArrowUp") {
                   e.preventDefault();
@@ -693,8 +789,10 @@ export function ChatTab({
             >
               <Icon.Image width={14} height={14} /> Image
             </button>
-            <span className="hidden text-[11px] text-ink-faint sm:inline">
-              Enter to send · Shift+Enter for a new line · paste or drop images
+            <CinemaOutputRow output={output} onOutput={setOutput} />
+            <span className="hidden text-[11px] text-ink-faint lg:inline">
+              Enter to send · <kbd className="rounded border border-line px-1 font-mono text-[10px]">@</kbd> workflow ·{" "}
+              <kbd className="rounded border border-line px-1 font-mono text-[10px]">#</kbd> camera move
             </span>
             <button
               type="submit"
@@ -710,21 +808,31 @@ export function ChatTab({
   );
 }
 
-/** A sent message with its known @workflows drawn as tokens. */
+/** A sent message with its known @workflows and #camera moves drawn as tokens. */
 function withMentions(text: string) {
+  const found = [
+    ...[...text.matchAll(MENTION_PATTERN)].flatMap((m) => {
+      const hit = resolveMention(m[2]);
+      return hit ? [{ at: (m.index ?? 0) + m[1].length, raw: m[2], sigil: "@", label: hit.label, title: hit.workflow.blurb }] : [];
+    }),
+    ...[...text.matchAll(MOVE_PATTERN)].flatMap((m) => {
+      const hit = moveById(m[2].toLowerCase());
+      return hit ? [{ at: (m.index ?? 0) + m[1].length, raw: m[2], sigil: "#", label: hit.name, title: hit.note }] : [];
+    }),
+  ].sort((a, b) => a.at - b.at);
+
   const out: React.ReactNode[] = [];
   let last = 0;
-  for (const m of text.matchAll(MENTION_PATTERN)) {
-    const hit = resolveMention(m[2]);
-    if (!hit) continue;
-    const at = (m.index ?? 0) + m[1].length;
-    out.push(text.slice(last, at));
+  for (const t of found) {
+    if (t.at < last) continue;
+    out.push(text.slice(last, t.at));
     out.push(
-      <span key={at} className="rounded bg-ink/10 px-1 font-medium text-ink" title={hit.workflow.blurb}>
-        @{hit.label}
+      <span key={`${t.sigil}${t.at}`} className="rounded bg-ink/10 px-1 font-medium text-ink" title={t.title}>
+        {t.sigil}
+        {t.label}
       </span>,
     );
-    last = at + m[2].length + 1;
+    last = t.at + t.raw.length + 1;
   }
   out.push(text.slice(last));
   return out;

@@ -66,5 +66,10 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 
 - Be direct and concise. Lead with what needs action.
 - They like dense, database-style UIs over card grids.
+- **Every new app here gets a design skill, unasked.** Invoke it before writing any UI: `impeccable`
+  for app/tool UIs (the default for hub apps), `taste-skill` for landing/hero/public pages. Say which
+  one is driving the look. Never auto-pick a skill that costs money or renders footage
+  (`h3-scroll-world`, `scroll-world`, `scroll-craft`, `imagegen-frontend-*`, `image-to-code-skill`) —
+  those are opt-in only. Full rule: the global CLAUDE.md.
 - When a decision is made, offer to log it in `aios/decisions/log.md`.
 - Default Shift: for any new task, ask "to what extent could AI be leveraged here?"
