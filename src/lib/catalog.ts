@@ -251,6 +251,27 @@ export const PROJECTS: CatalogProject[] = [
     hue: [280, 200],
   },
   {
+    slug: "cook-connect",
+    title: "Cook Connect",
+    tag: "Cook together, then play each other",
+    category: "Apps",
+    overview:
+      "Cookbook Genie and Pod Play Connect, merged into one social app. Publish a cookbook, save the " +
+      "ones worth keeping, and search a directory of cooks by name, handle or city — then challenge any " +
+      "of them to spades or chess without leaving the page. A profile shows someone's cookbooks and " +
+      "their game record side by side, because here they are the same person. Two leaderboards keep " +
+      "score: players ranked on win rate, with a minimum-games qualifier so a 3–0 newcomer cannot top a " +
+      "40–25 season, and cookbooks ranked by how many people have saved them. Every table carries text " +
+      "chat and in-app WebRTC video, and computer players fill any empty seat so a game never waits for " +
+      "a fourth. Recipes are drafted by AI from one sentence and then fully editable. Runs on its own " +
+      "Supabase schema, or entirely in the browser with no keys — where two tabs can genuinely play " +
+      "each other.",
+    status: "live",
+    appUrl: "/apps/cook-connect",
+    iconStyle: "orbit",
+    hue: [24, 145],
+  },
+  {
     slug: "pod-play-connect",
     title: "Pod Play Connect",
     tag: "Communities · pods · live Spades",
