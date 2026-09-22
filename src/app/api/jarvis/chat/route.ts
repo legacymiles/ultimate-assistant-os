@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { runAgent } from "@/lib/jarvis/server/agent";
 import { connector } from "@/lib/jarvis/server/connectors";
-import { resolveMention, workflowBrief, type Mention } from "@/lib/studio/workflows";
+import { resolveMention, studioContext, type Mention } from "@/lib/studio/workflows";
+import { loadSkills } from "@/lib/studio/server/skills";
 
 // Reads the master folder from disk and the memory database per request.
 export const runtime = "nodejs";
-export const maxDuration = 120;
+// A Studio skill can write a long shot table in one answer.
+export const maxDuration = 300;
 
 interface Body {
   messages?: { role?: string; content?: string; images?: unknown }[];
@@ -46,13 +48,12 @@ function cleanImages(v: unknown): string[] {
   return v.filter((u): u is string => typeof u === "string" && u.length < 2_000_000 && IMAGE_URL.test(u));
 }
 
-function studioBlock(v: unknown): string {
-  if (!Array.isArray(v)) return "";
-  const picked = v
+function mentioned(v: unknown): Mention[] {
+  if (!Array.isArray(v)) return [];
+  return v
     .slice(0, 6)
     .map((t) => (typeof t === "string" ? resolveMention(t) : undefined))
     .filter((m): m is Mention => Boolean(m));
-  return workflowBrief(picked);
 }
 
 export async function POST(req: Request) {
@@ -96,6 +97,12 @@ export async function POST(req: Request) {
     }
   }
 
+  // Studio: the picked workflows' full skills, read from the catalog on disk.
+  const studio = mentioned(body.workflows);
+  const studioBlock = studio.length
+    ? studioContext(studio, await loadSkills(studio.map((m) => m.workflow.id)))
+    : "";
+
   try {
     const result = await runAgent({
       connectorTools,
@@ -103,8 +110,9 @@ export async function POST(req: Request) {
       messages,
       ownerName: (body.ownerName || "the owner").slice(0, 60),
       timezone: body.timezone,
-      extraContext: [body.extraContext?.slice(0, 10000), studioBlock(body.workflows), skillsBlock(body.skills)].filter(Boolean).join("\n\n"),
+      extraContext: [body.extraContext?.slice(0, 10000), studioBlock, skillsBlock(body.skills)].filter(Boolean).join("\n\n"),
       profileId: body.profileId,
+      studio: studio.length > 0,
     });
     return NextResponse.json(result);
   } catch (e) {

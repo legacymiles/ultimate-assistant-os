@@ -15,6 +15,8 @@
 // ---------------------------------------------------------------------------
 
 /** Where a memory came from. Drives both citations and the sphere's colours. */
+import type { StudioForm } from "@/lib/studio/forms";
+
 export type MemorySource =
   | "note" // typed into Jarvis by hand
   | "chat" // said in a conversation with Jarvis
@@ -109,6 +111,10 @@ export interface ChatTurn {
   did?: string;
   /** Thumbnails of pictures the owner attached (small JPEG data URLs). */
   images?: string[];
+  /** A Studio skill's form, asked with this Jarvis turn. */
+  form?: StudioForm;
+  /** The owner has submitted that form. */
+  formDone?: boolean;
 }
 
 export interface Conversation {

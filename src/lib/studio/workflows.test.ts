@@ -6,7 +6,7 @@ import {
   mentionQueryAt,
   mentionsIn,
   searchMentions,
-  workflowBrief,
+  studioContext,
 } from "./workflows";
 
 describe("studio workflows", () => {
@@ -47,11 +47,13 @@ describe("studio workflows", () => {
     expect(searchMentions("").every((m) => !m.variant)).toBe(true);
   });
 
-  it("gives Jarvis each brief, with the variant", () => {
-    const text = workflowBrief(mentionsIn("@e-commerce:flat-lay @music-video"));
-    expect(text).toContain("E-commerce › Flat lay");
+  it("gives Jarvis each skill, the variant, and who leads", () => {
+    const picked = mentionsIn("@e-commerce:flat-lay @music-video");
+    const text = studioContext(picked, new Map([["music-video", "# Music video\nFULL SKILL BODY"]]));
+    expect(text).toContain("SKILL 1 (LEADS): E-commerce › Flat lay");
     expect(text).toContain("Top-down arrangement");
-    expect(text).toContain("## Music video");
-    expect(workflowBrief([])).toBe("");
+    expect(text).toContain("FULL SKILL BODY");
+    expect(text).toContain("No full skill file yet");
+    expect(studioContext([])).toBe("");
   });
 });

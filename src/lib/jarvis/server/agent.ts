@@ -17,7 +17,8 @@ import "server-only";
 // ---------------------------------------------------------------------------
 
 import { aiEndpoint, aiFetch, DEFAULT_MODEL } from "@/lib/ai/provider";
-import { appOf, CORE_TOOLS, DASHBOARD_TOOLS, isReadOnly, summarise, toApiTools, type ToolSpec } from "../tools";
+import { appOf, CORE_TOOLS, DASHBOARD_TOOLS, isReadOnly, STUDIO_TOOLS, summarise, toApiTools, type ToolSpec } from "../tools";
+import { cleanForm, type StudioForm } from "@/lib/studio/forms";
 import type { Citation, MemorySource } from "../types";
 import { memoryContext, searchMemory, type MaybeContext } from "./memory";
 import { digest, repoFiles } from "./masterFolder";
@@ -55,6 +56,8 @@ export interface AgentResult {
   citations: Citation[];
   proposals: ProposedMemory[];
   pending: AgentPending | null;
+  /** A Studio skill is waiting on the owner's answers to this form. */
+  form?: StudioForm | null;
   /** Human notes about degraded capability, shown under the answer. */
   notices: string[];
   /** What the loop actually did, for the "did" line on a turn. */
@@ -102,6 +105,8 @@ export interface RunOptions {
   /** Runs a connector read tool. Required when connectorTools is non-empty. */
   runTool?: (name: string, args: Record<string, unknown>) => Promise<unknown>;
   profileId?: string;
+  /** A Studio skill is running: offer the form and render tools, allow long answers. */
+  studio?: boolean;
 }
 
 export async function runAgent(opts: RunOptions): Promise<AgentResult> {
@@ -141,7 +146,12 @@ export async function runAgent(opts: RunOptions): Promise<AgentResult> {
     (opts.extraContext ? `\n\nCONTEXT FOR THIS REQUEST:\n${opts.extraContext}` : "") +
     (ctx.available ? "" : "\n\nNOTE: your long-term memory database is unavailable right now. Say so if asked to remember or recall something.");
 
-  const tools = [...CORE_TOOLS, ...DASHBOARD_TOOLS, ...(opts.connectorTools ?? [])];
+  const tools = [
+    ...CORE_TOOLS,
+    ...DASHBOARD_TOOLS,
+    ...(opts.studio ? STUDIO_TOOLS : []),
+    ...(opts.connectorTools ?? []),
+  ];
   const messages: Record<string, unknown>[] = [
     { role: "system", content: system },
     ...opts.messages.map((m) => ({ role: m.role, content: toApiContent(m) })),
@@ -153,7 +163,8 @@ export async function runAgent(opts: RunOptions): Promise<AgentResult> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: DEFAULT_MODEL,
-        max_tokens: 1200,
+        // Studio skills write shot tables and full prompts; everything else stays short.
+        max_tokens: opts.studio ? 8000 : 1200,
         messages,
         tools: toApiTools(tools),
       }),
@@ -188,6 +199,22 @@ export async function runAgent(opts: RunOptions): Promise<AgentResult> {
         args = {};
       }
       const spec = tools.find((t) => t.name === name);
+
+      // A form pauses the loop: the owner answers it, and that answer is the next turn.
+      if (name === "studio_form" && opts.studio) {
+        const form = cleanForm(args);
+        if (form) {
+          return {
+            text: typeof message.content === "string" ? message.content.trim() : "",
+            citations,
+            proposals,
+            pending: null,
+            form,
+            notices,
+            did,
+          };
+        }
+      }
 
       // A write tool ends the loop. Nothing is executed here, ever.
       if (spec && !isReadOnly(spec)) {
