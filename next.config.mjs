@@ -13,7 +13,7 @@ const nextConfig = {
     // Jarvis reads the owner's master folder at request time, so those files
     // have to travel with the deployment — nothing imports them, so tracing
     // cannot infer it.
-    "/api/jarvis/**": ["./CLAUDE.md", "./aios/**/*.md"],
+    "/api/jarvis/**": ["./CLAUDE.md", "./aios/**/*.md", "./src/lib/studio/skills/*.md"],
   },
   // Pod Play Connect is a prebuilt Vite SPA in public/pod-play-connect (rebuild:
   // POD_BASE=/pod-play-connect/ vite build in its repo). Real files are served

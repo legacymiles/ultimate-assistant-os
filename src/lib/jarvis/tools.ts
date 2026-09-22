@@ -81,6 +81,11 @@ export function summarise(tool: string, args: Record<string, unknown>): string {
     const to = s("to") || s("recipient") || s("channel") || s("thread") || "";
     return `Send a message${to ? ` to ${to}` : ""}${s("subject") ? ` — "${s("subject")}"` : ""}.`;
   }
+  if (tool === "studio_generate") {
+    const jobs = Array.isArray(args.jobs) ? args.jobs.length : 0;
+    const medium = s("medium") === "image" ? "image" : "video clip";
+    return `Render ${jobs} ${medium}${jobs === 1 ? "" : "s"} from the Studio prompt${jobs === 1 ? "" : "s"} below.`;
+  }
   return `Run ${tool}.`;
 }
 
@@ -188,6 +193,86 @@ export const DASHBOARD_TOOLS: ToolSpec[] = [
 ];
 
 /** The OpenAI-compatible shape both providers accept. */
+/**
+ * Studio tools — only offered while a Studio skill is running.
+ *
+ * `studio_form` is neither a read nor a write: it pauses the loop and hands the
+ * owner a form (agent.ts returns it as `form`). `studio_generate` spends money,
+ * so it is an ordinary write: it stops for a yes and then runs in the browser
+ * (src/lib/studio/render.ts), where the reference photos are.
+ */
+export const STUDIO_TOOL_NAMES = ["studio_form", "studio_generate"];
+
+export const STUDIO_TOOLS: ToolSpec[] = [
+  {
+    name: "studio_form",
+    description:
+      "Show the owner an interactive form and wait for their answers. Use it for every question or " +
+      "choice a Studio skill asks for (the brief, picking a direction, uploading references). The " +
+      "conversation pauses until they submit; their answers come back as the next message.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Form title, e.g. 'Actor card'." },
+        intro: { type: "string", description: "One or two lines above the fields (optional)." },
+        fields: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              label: { type: "string" },
+              type: { type: "string", enum: ["text", "textarea", "choice", "multi", "image"] },
+              options: { type: "array", items: { type: "string" }, description: "For choice/multi." },
+              required: { type: "boolean" },
+              placeholder: { type: "string" },
+              default: { type: "string", description: "Pre-filled value; for multi, options joined by ' | '." },
+            },
+            required: ["id", "label", "type"],
+          },
+        },
+        submit_label: { type: "string" },
+      },
+      required: ["title", "fields"],
+    },
+    app: "studio",
+  },
+  {
+    name: "studio_generate",
+    description:
+      "Render the approved Studio prompt(s). Call only after the owner has seen and approved the " +
+      "final prompt. One job = one video clip (4-15 s) or one image. Reference photos the owner " +
+      "uploaded in this conversation are attached in upload order when use_references is true.",
+    parameters: {
+      type: "object",
+      properties: {
+        medium: { type: "string", enum: ["video", "image"] },
+        jobs: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: "Short label, e.g. 'Shot 1 — the hook'." },
+              prompt: { type: "string", description: "The full model-ready prompt for this clip or image." },
+              duration_sec: { type: "number", description: "Video only, 4-15." },
+              aspect_ratio: { type: "string", description: "16:9, 9:16 or 1:1 for video; images also 4:5, 3:4, 2:3, 3:2, 4:3, 21:9." },
+              use_references: { type: "boolean" },
+              references: {
+                type: "array",
+                items: { type: "number" },
+                description: "Which uploads this job gets, as Subject numbers (1 = first uploaded). Omit to attach all.",
+              },
+            },
+            required: ["title", "prompt"],
+          },
+        },
+      },
+      required: ["medium", "jobs"],
+    },
+    app: "studio",
+  },
+];
+
 export function toApiTools(tools: ToolSpec[]): unknown[] {
   return tools.map((t) => ({
     type: "function",

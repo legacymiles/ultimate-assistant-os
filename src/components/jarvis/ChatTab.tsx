@@ -29,6 +29,10 @@ import {
 } from "@/lib/studio/workflows";
 import { imageFiles, MAX_ATTACHMENTS, toAttachment, type Attachment } from "@/lib/jarvis/chatImages";
 import { useMemory } from "@/lib/jarvis/useMemory";
+import { answerText, type StudioForm } from "@/lib/studio/forms";
+import { runRender, type RenderState } from "@/lib/studio/render";
+import { Markdown } from "./Markdown";
+import { StudioFormCard, type FormSubmission } from "./StudioFormCard";
 import { SOURCE_LABEL, type ChatTurn, type Conversation, type JarvisStore, type PendingAction } from "@/lib/jarvis/types";
 import type { Profile } from "@/lib/new-dashboard/types";
 
@@ -39,6 +43,7 @@ interface AgentResponse {
   pending?: { tool: string; app: string; summary: string; args: Record<string, unknown> } | null;
   notices?: string[];
   did?: string[];
+  form?: StudioForm | null;
   error?: string;
 }
 
@@ -83,6 +88,8 @@ export function ChatTab({
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [acting, setActing] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  /** What an approved studio_generate is rendering, this session. */
+  const [renders, setRenders] = useState<RenderState[]>([]);
   const [dragging, setDragging] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -192,9 +199,9 @@ export function ChatTab({
     commit({ ...store, conversations: [next, ...store.conversations.slice(existing ? 1 : 0)] });
   };
 
-  const ask = async (text: string) => {
+  const ask = async (text: string, extra: Attachment[] = []) => {
     const question = text.trim();
-    const pictures = attachments;
+    const pictures = [...attachments, ...extra];
     if ((!question && !pictures.length) || busy) return;
     setInput("");
     setAttachments([]);
@@ -217,12 +224,7 @@ export function ChatTab({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: [...turns, asked].map((t) => ({
-            role: t.role === "you" ? "user" : "assistant",
-            content: t.text,
-            // After a reload only the thumbnails remain; they still beat nothing.
-            images: t.role === "you" ? (fullImages.current.get(t.id) ?? t.images ?? []) : [],
-          })),
+          messages: withImageBudget([...turns, asked], fullImages.current),
           ownerName: profile?.name ?? "",
           skills: skills.current,
           // Workflows named in this message first, then earlier ones, so a
@@ -251,6 +253,7 @@ export function ChatTab({
         at: new Date().toISOString(),
         citations: (data.citations ?? []).map((c) => ({ ...c, source: c.source })),
         did: (data.did ?? []).join(" · ") || undefined,
+        ...(data.form ? { form: data.form } : {}),
       };
       writeTurns((t) => [...t, answer]);
       setProposals(data.proposals ?? []);
@@ -278,6 +281,12 @@ export function ChatTab({
     if (!pending) return;
     setActing(true);
     try {
+      // Studio renders run from the browser, where the reference photos are.
+      if (pending.tool === "studio_generate") {
+        const result = await runRender(args, referenceImages(), setRenders);
+        setPending({ ...pending, status: "done", result });
+        return;
+      }
       // Folders, the owner's calendar and Lists are written from the browser.
       if (isDashboardTool(pending.tool)) {
         const result = await runDashboardTool(pending.tool, args);
@@ -301,6 +310,20 @@ export function ChatTab({
     } finally {
       setActing(false);
     }
+  };
+
+  /** Every picture the owner attached in this conversation, oldest first — Subject 1, 2, … */
+  const referenceImages = (): string[] =>
+    turns
+      .filter((t) => t.role === "you" && (t.images?.length || fullImages.current.has(t.id)))
+      .flatMap((t) => fullImages.current.get(t.id) ?? t.images ?? [])
+      .slice(0, 24);
+
+  /** The owner answered a Studio form: mark it, then send the answers as their next turn. */
+  const submitForm = (turnId: string, form: StudioForm, s: FormSubmission) => {
+    writeTurns((all) => all.map((t) => (t.id === turnId ? { ...t, formDone: true } : t)));
+    const counts = Object.fromEntries(Object.entries(s.images).map(([k, v]) => [k, v.length]));
+    void ask(answerText(form, s.values, counts), Object.values(s.images).flat());
   };
 
   const saveProposal = async (p: { title: string; content: string }) => {
@@ -402,10 +425,19 @@ export function ChatTab({
                     ))}
                   </div>
                 )}
-                {t.text && (
-                  <p className="whitespace-pre-wrap text-xs leading-relaxed text-ink">
-                    {t.role === "you" ? withMentions(t.text) : t.text}
-                  </p>
+                {t.text &&
+                  (t.role === "you" ? (
+                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-ink">{withMentions(t.text)}</p>
+                  ) : (
+                    <Markdown text={t.text} />
+                  ))}
+                {t.form && (
+                  <StudioFormCard
+                    form={t.form}
+                    done={Boolean(t.formDone) || t.id !== turns[turns.length - 1]?.id}
+                    busy={busy}
+                    onSubmit={(s) => submitForm(t.id, t.form!, s)}
+                  />
                 )}
                 {t.did && <p className="mt-1.5 text-[10px] text-ink-faint">{t.did}</p>}
                 {t.citations && t.citations.length > 0 && (
@@ -438,6 +470,43 @@ export function ChatTab({
               onConfirm={(args) => void act(args)}
               onCancel={() => setPending({ ...pending, status: "cancelled" })}
             />
+          )}
+
+          {renders.length > 0 && (
+            <ul className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2" aria-label="Studio renders">
+              {renders.map((r) => (
+                <li key={r.id} className="overflow-hidden rounded-xl border border-line bg-panel">
+                  <div className="grid aspect-video place-items-center bg-canvas">
+                    {r.status === "done" && r.url ? (
+                      r.medium === "video" ? (
+                        <video src={r.url} controls loop playsInline className="h-full w-full object-contain" />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={r.url} alt={r.title} className="h-full w-full object-contain" />
+                      )
+                    ) : r.status === "error" ? (
+                      <p className="px-3 text-center text-[11px] text-amber-400">{r.error}</p>
+                    ) : (
+                      <p className="animate-pulse text-[11px] text-ink-faint">
+                        {r.medium === "video" ? `Rendering${r.note ? ` · ${r.note}` : "…"}` : "Painting…"}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 px-2.5 py-1.5">
+                    <span className="min-w-0 flex-1 truncate text-[11px] text-ink">{r.title}</span>
+                    {r.status === "done" && r.url && (
+                      <a
+                        href={r.url}
+                        download={`${r.title.replace(/[^\w-]+/g, "-")}.${r.medium === "video" ? "mp4" : "png"}`}
+                        className="inline-flex items-center gap-1 text-[11px] text-ink-muted hover:text-ink"
+                      >
+                        <Icon.Download width={11} height={11} /> Save
+                      </a>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
 
           {proposals.length > 0 && (
@@ -659,4 +728,29 @@ function withMentions(text: string) {
   }
   out.push(text.slice(last));
   return out;
+}
+
+/**
+ * The conversation as the chat route receives it. Pictures are heavy and the
+ * platform caps a request at 4.5 MB, so only the newest four go at full size;
+ * older ones travel as thumbnails, and past eight they stay behind.
+ */
+function withImageBudget(turns: ChatTurn[], full: Map<string, string[]>) {
+  let fullLeft = 4;
+  let totalLeft = 8;
+  const out = [...turns].reverse().map((t) => {
+    if (t.role !== "you") return { role: "assistant", content: t.text, images: [] as string[] };
+    const big = full.get(t.id) ?? [];
+    const small = t.images ?? [];
+    const images: string[] = [];
+    for (let i = 0; i < Math.max(big.length, small.length) && totalLeft > 0; i += 1) {
+      const pick = fullLeft > 0 && big[i] ? big[i] : small[i];
+      if (!pick) continue;
+      if (pick === big[i]) fullLeft -= 1;
+      totalLeft -= 1;
+      images.push(pick);
+    }
+    return { role: "user", content: t.text, images };
+  });
+  return out.reverse();
 }

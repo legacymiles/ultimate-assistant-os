@@ -21,13 +21,16 @@ export type CategoryId =
   | "talk"
   | "ads"
   | "film"
+  | "performance"
+  | "camera"
   | "social"
   | "occasions"
   | "shoots"
   | "covers"
   | "commerce-images"
   | "cards"
-  | "restore";
+  | "restore"
+  | "design";
 
 export interface Category {
   id: CategoryId;
@@ -40,12 +43,15 @@ export const CATEGORIES: Category[] = [
   { id: "ads", medium: "video", label: "Ads & brand" },
   { id: "social", medium: "video", label: "Social" },
   { id: "film", medium: "video", label: "Film, music & games" },
+  { id: "performance", medium: "video", label: "Performance & action" },
+  { id: "camera", medium: "video", label: "Camera moves" },
   { id: "talk", medium: "video", label: "Talk & teach" },
   { id: "occasions", medium: "video", label: "Occasions" },
   { id: "shoots", medium: "image", label: "Photo shoots" },
   { id: "covers", medium: "image", label: "Covers & posters" },
   { id: "commerce-images", medium: "image", label: "Product images" },
   { id: "cards", medium: "image", label: "Cards & occasions" },
+  { id: "design", medium: "image", label: "Characters & design" },
   { id: "restore", medium: "image", label: "Fix & restore" },
 ];
 
@@ -217,6 +223,20 @@ export const WORKFLOWS: Workflow[] = [
     hue: 280,
   },
   {
+    id: "comedy-commercial",
+    name: "Comedy commercial",
+    medium: "video",
+    category: "ads",
+    blurb: "A product joke that lands without explaining itself",
+    brief:
+      "Build an original product-centred joke from a real audience tension: setup, rule, escalation, reaction, payoff, product reveal, tag — timed to the half second. The product must cause the payoff.",
+    format: "16:9 or 9:16 · 10–30 s",
+    keywords: ["deadpan", "absurdist", "physical", "observational", "gentle satire"],
+    motif: "spotlight",
+    hue: 55,
+    isNew: true,
+  },
+  {
     id: "ugc-ad",
     name: "UGC ads",
     medium: "video",
@@ -346,6 +366,19 @@ export const WORKFLOWS: Workflow[] = [
     isNew: true,
   },
   {
+    id: "luxury-fashion-walk",
+    name: "Luxury fashion walk",
+    medium: "video",
+    category: "ads",
+    blurb: "Campaign-grade runway and street walks",
+    brief:
+      "A model walking in the outfit, 15 s: fabric in motion, tracking and low-angle moves, texture close-ups, a final hold. The outfit stays exact in every shot.",
+    format: "9:16 + 16:9 · 15 s",
+    keywords: ["runway", "street", "editorial", "night", "minimal"],
+    motif: "letterbox",
+    hue: 300,
+  },
+  {
     id: "logo-reveal",
     name: "Logo reveals",
     medium: "video",
@@ -385,6 +418,19 @@ export const WORKFLOWS: Workflow[] = [
     keywords: ["cozy", "nostalgic", "film grain", "travel"],
     motif: "grid",
     hue: 20,
+  },
+  {
+    id: "outfit-try-on",
+    name: "Outfit try-on",
+    medium: "video",
+    category: "social",
+    blurb: "UGC-style try-on haul in the mirror",
+    brief:
+      "Vertical, phone-camera try-on: the creator shows each outfit, turns, reacts, points to details. Clothing matches the product photos exactly.",
+    format: "9:16 · 15 s",
+    keywords: ["haul", "get ready with me", "honest", "aesthetic"],
+    motif: "grid",
+    hue: 320,
   },
   {
     id: "seamless-loop",
@@ -466,6 +512,132 @@ export const WORKFLOWS: Workflow[] = [
     keywords: ["stylised", "photoreal", "anime", "pixel"],
     motif: "letterbox",
     hue: 120,
+  },
+
+  // ----- Performance & action --------------------------------------------------
+  {
+    id: "micro-expressions",
+    name: "Actor micro-expressions",
+    medium: "video",
+    category: "performance",
+    blurb: "Restraint equals tension — a face acting in 15 s",
+    brief:
+      "Film-grade micro-expression direction: emotion lives in the eyes, face muscles and breath, never in big movement. Timeline of 2–3 s slices, character prefix first, frozen ending.",
+    format: "16:9 · 15 s per take",
+    motif: "waveform",
+    hue: 350,
+    isNew: true,
+  },
+  {
+    id: "fight-choreography",
+    name: "Action fight choreography",
+    medium: "video",
+    category: "performance",
+    blurb: "Strike by strike, camera on every beat",
+    brief:
+      "Fights, duels, chases and clashes as explicit beat chains (strike → parry → counter → impact), camera motion motivated by each beat, visible environmental consequence on every big hit, ambient and impact sound only.",
+    format: "16:9 · 4–15 s per shot",
+    keywords: ["grounded", "wuxia", "anime", "superhero", "gritty", "stylised"],
+    motif: "flash",
+    hue: 15,
+    isNew: true,
+  },
+
+  // ----- Camera moves: signature techniques, made to mix with any workflow -------
+  {
+    id: "dolly-zoom",
+    name: "Dolly zoom",
+    medium: "video",
+    category: "camera",
+    blurb: "The subject holds still while the world stretches",
+    brief:
+      "A true dolly zoom: the camera travels along the lens axis while the zoom compensates the other way, so the subject keeps its size and the background expands or compresses. Baseline, effect, hold.",
+    format: "16:9 · 5–15 s",
+    keywords: ["dread", "realisation", "isolation", "product reveal"],
+    motif: "loop",
+    hue: 200,
+    isNew: true,
+  },
+  {
+    id: "bullet-time",
+    name: "Bullet time",
+    medium: "video",
+    category: "camera",
+    blurb: "Time freezes at the peak, the camera circles it",
+    brief:
+      "Real-time action reaches one readable peak and freezes completely; only the camera travels a 90–270° arc through suspended layers; then time resumes once.",
+    format: "16:9 · 10–15 s",
+    keywords: ["product", "food", "dance", "comic accident", "fashion"],
+    motif: "orbit",
+    hue: 185,
+    isNew: true,
+  },
+  {
+    id: "parallax-focus-relay",
+    name: "Parallax focus relay",
+    medium: "video",
+    category: "camera",
+    blurb: "One moving take, focus passed plane to plane",
+    brief:
+      "One continuous lateral or diagonal move across three depth planes; each sharp subject performs one action that hands focus to the next plane; near layers slide faster than far ones.",
+    format: "16:9 · 8–15 s",
+    keywords: ["craft", "team intro", "hospitality", "science", "food"],
+    motif: "rise",
+    hue: 160,
+  },
+  {
+    id: "object-lock-on",
+    name: "Object lock-on tracking",
+    medium: "video",
+    category: "camera",
+    blurb: "Catch a moving product, hold it, let it go",
+    brief:
+      "Acquire, lock, release: an independent camera intercepts a moving hero object, matches its speed and holds its size and screen position while the world streams past, then releases into a destination reveal.",
+    format: "16:9 · 8–15 s",
+    keywords: ["logistics", "travel", "sports gear", "packaging", "vehicle"],
+    motif: "orbit",
+    hue: 30,
+  },
+  {
+    id: "fpv-thread-the-needle",
+    name: "FPV thread the needle",
+    medium: "video",
+    category: "camera",
+    blurb: "A drone flight through tight gaps, one take",
+    brief:
+      "A continuous first-person flight through 2–4 ordered, offset openings with decisive pitch, geometry-matched banks, close edge parallax and safe clearance, ending on a clean reveal.",
+    format: "16:9 · 8–15 s",
+    keywords: ["venue", "architecture", "factory", "garden", "event intro"],
+    motif: "flash",
+    hue: 210,
+    isNew: true,
+  },
+  {
+    id: "snorricam",
+    name: "Snorricam",
+    medium: "video",
+    category: "camera",
+    blurb: "Camera bolted to the body, the world swings",
+    brief:
+      "A body-mounted camera, actor-facing or rear-facing: the face or shoulders stay locked in frame while every step and turn swings the world around them with matching bounce and roll.",
+    format: "9:16 or 16:9 · 5–15 s",
+    keywords: ["anxiety", "urgency", "comic overwhelm", "athletic", "entrance"],
+    motif: "waveform",
+    hue: 330,
+  },
+  {
+    id: "mechanical-transformation",
+    name: "Mechanical transformation",
+    medium: "video",
+    category: "camera",
+    blurb: "Any object unfolds into a machine and locks",
+    brief:
+      "Any object — truck, watch, cup, fruit — splits along real seams, slides, rotates, folds, telescopes and locks into a mechanical form in about three seconds, then performs one showcase action. Every part maps to a new one; no mass from nowhere.",
+    format: "16:9 · 6–10 s",
+    keywords: ["photoreal", "precision", "retro", "sci-fi", "toy-like"],
+    motif: "grid",
+    hue: 120,
+    isNew: true,
   },
 
   // ----- Talk & teach -----------------------------------------------------------
@@ -916,6 +1088,22 @@ export const WORKFLOWS: Workflow[] = [
     hue: 40,
   },
 
+  // ----- Images: characters & design -------------------------------------------
+  {
+    id: "character-sheet",
+    name: "Character design sheet",
+    medium: "image",
+    category: "design",
+    blurb: "Turnaround, expressions and poses for one character",
+    brief:
+      "A consistent character reference sheet: front/side/back turnaround, an expression row, key poses and a colour palette, so the character stays identical in every later video.",
+    format: "16:9 · 3 sheets",
+    keywords: ["anime", "3D animated", "realistic", "cartoon", "painterly"],
+    motif: "grid",
+    hue: 240,
+    isNew: true,
+  },
+
   // ----- Images: fix & restore -----------------------------------------------------
   {
     id: "photo-restore",
@@ -1014,22 +1202,41 @@ export function searchMentions(query: string, limit = 12): Mention[] {
   return scored.slice(0, limit).map((s) => s.m);
 }
 
-/** What Jarvis receives for the workflows in a message. */
-export function workflowBrief(mentions: Mention[]): string {
+/**
+ * What Jarvis receives while Studio skills are active: the operating rules,
+ * then each picked skill — its full skill file when one exists, otherwise the
+ * catalog's short brief — and the variant the owner chose.
+ */
+export function studioContext(mentions: Mention[], skills: Map<string, string> = new Map()): string {
   if (!mentions.length) return "";
-  const parts = mentions.map((m) => {
+  const lead = mentions[0];
+  const parts = mentions.map((m, i) => {
     const w = m.workflow;
-    const lines = [`## ${m.label} (${w.medium}, ${w.format})`, w.brief];
-    if (m.variant) lines.push(`Variant — ${m.variant.name}: ${m.variant.brief}`);
-    return lines.join("\n");
+    const head = `### SKILL ${i + 1}${i === 0 ? " (LEADS)" : ""}: ${m.label} — ${w.medium}, ${w.format}`;
+    const variant = m.variant ? `\nThe owner chose the variant "${m.variant.name}": ${m.variant.brief}` : "";
+    const keywords = w.keywords?.length ? `\nStyle keywords this workflow offers: ${w.keywords.join(", ")}.` : "";
+    const body =
+      skills.get(w.id) ?? `(No full skill file yet — work from this brief, in the same round structure.)\n${w.brief}`;
+    return `${head}${variant}${keywords}\n\n${body}`;
   });
   return [
-    "STUDIO WORKFLOWS THE OWNER PICKED — they are skills for making a video or image. Combine every one",
-    "listed into a single piece (a mix, not a list of separate outputs). Use any keywords the owner",
-    "wrote as the style. Reply with: a one-line concept, the shot or panel plan, then ONE paste-ready",
-    "generation prompt in a code block. Ask one short question only if something essential is missing",
-    "(e.g. which product, whose photo).",
+    "STUDIO MODE — the owner is making something with Studio skills. RUN the skill(s) below as written:",
+    "- Follow the rounds in order and pick up where this conversation is. A message starting \"[Form: …]\" is",
+    "  the owner's submitted answers to the form of that title — never ask for those answers again.",
+    "- Every question or choice goes through the studio_form tool, never plain text. Write any lead-in",
+    "  (e.g. your emotional read, the option explanations) as your message text in the same turn.",
+    "- Call studio_generate only after the owner approved the final prompt. Images the owner attached",
+    "  anywhere in this conversation are the references, in order (Subject 1, Subject 2, …).",
+    `- Several skills = ONE interaction: "${lead.label}" leads the rounds; fold the others' fields and rules`,
+    "  into the same forms and the same final output; never ask the same thing twice.",
+    "- Style keywords the owner wrote (e.g. \"Keywords: luxury, funny\") are binding.",
+    "- Studio output may be as long as the skill's template needs; the short-answer rule does not apply.",
     "",
     ...parts,
   ].join("\n");
+}
+
+/** The short, brief-only form (kept for places that only need the gist). */
+export function workflowBrief(mentions: Mention[]): string {
+  return studioContext(mentions);
 }

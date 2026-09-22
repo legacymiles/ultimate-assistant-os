@@ -83,7 +83,7 @@ export function ConfirmCard({
             disabled={busy}
             className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/90 px-2.5 py-1.5 text-xs font-medium text-black transition hover:bg-amber-400 disabled:opacity-60"
           >
-            <Icon.Check width={13} height={13} /> {busy ? "Doing it…" : "Yes, do it"}
+            <Icon.Check width={13} height={13} /> {action.tool === "studio_generate" ? (busy ? "Rendering…" : "Make it") : busy ? "Doing it…" : "Yes, do it"}
           </button>
           <button
             onClick={onCancel}
