@@ -8,7 +8,6 @@
 import { scopedKey } from "@/lib/sync/identity";
 import { QueryBuilder, loadDB, saveDB, uuid, nowIso, userIdForEmail, type Row } from "./db";
 import { LocalChannel, removeLocalChannel } from "./realtime";
-import { seedDemoWorld, seedGuest } from "./seed";
 
 const AUTH_KEY = "cook_connect_local_auth_v1";
 
@@ -63,11 +62,13 @@ function ensureProfile(user: LocalUser, displayName?: string) {
   saveDB(db);
 }
 
+/**
+ * Nothing is seeded. The owner's rule for this app is that it starts empty
+ * and stays empty until they put something in it, so provisioning creates a
+ * profile and nothing else — demo mode is an empty app, not a populated one.
+ */
 function provision(user: LocalUser, displayName?: string) {
-  seedDemoWorld();
   ensureProfile(user, displayName);
-  const profile = (loadDB().profiles ?? []).find((p) => p.id === user.id);
-  seedGuest(user.id, String(profile?.display_name ?? "You"));
 }
 
 const makeSession = (user: LocalUser) => ({ user, access_token: "local", token_type: "bearer" });
@@ -158,7 +159,7 @@ export function getLocalCookClient(): CookClient {
   return instance;
 }
 
-/** Wipes the demo world. Offered in settings so a stale seed is recoverable. */
+/** Clears everything this browser holds for Cook Connect. */
 export function resetLocalDemo() {
   try {
     localStorage.removeItem(scopedKey("cook_connect_local_db_v1"));
