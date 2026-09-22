@@ -22,6 +22,8 @@ export type CategoryId =
   | "ads"
   | "film"
   | "performance"
+  | "athletes"
+  | "events"
   | "camera"
   | "social"
   | "occasions"
@@ -46,6 +48,8 @@ export const CATEGORIES: Category[] = [
   { id: "social", medium: "video", label: "Social" },
   { id: "film", medium: "video", label: "Film, music & games" },
   { id: "performance", medium: "video", label: "Performance & action" },
+  { id: "athletes", medium: "video", label: "Athletes & sport" },
+  { id: "events", medium: "video", label: "Events & fashion" },
   { id: "camera", medium: "video", label: "Camera moves" },
   { id: "talk", medium: "video", label: "Talk & teach" },
   { id: "occasions", medium: "video", label: "Occasions" },
@@ -457,6 +461,215 @@ export const WORKFLOWS: Workflow[] = [
     ],
     motif: "grid",
     hue: 285,
+    isNew: true,
+  },
+
+  // ----- Athletes & sport -------------------------------------------------------
+  // Made FOR the athlete, not for a brand: no logo lockup, no campaign line, and
+  // the person in frame owns the footage. `sports-campaign` is the brand version
+  // of this territory and they mix deliberately, never by accident.
+  {
+    id: "workout-ad",
+    name: "Workout ad",
+    medium: "video",
+    category: "athletes",
+    blurb: "One workout, sold in fifteen seconds",
+    brief:
+      "Sell the feeling of the session, not the exercise list. Open mid-effort on the hardest rep, hold the form long enough to read, cut on the breath and the bar path. Sweat, chalk, plate noise and real strain; no smiling at the camera. End on the finished set, not a logo.",
+    format: "9:16 + 16:9 · 15–30 s",
+    keywords: ["high-energy", "gritty", "clean", "premium", "raw phone"],
+    variants: [
+      { id: "strength", name: "Strength", brief: "Barbell and rack work: bar bend, chalk, belt, the grind rep that slows and finishes." },
+      { id: "bodyweight", name: "Home bodyweight", brief: "No equipment in a real room: floor work, controlled tempo, one continuous space." },
+      { id: "running", name: "Running", brief: "Road or track: cadence, foot strike, breath fogging, distance eaten by the frame." },
+      { id: "hiit", name: "HIIT class", brief: "Group energy, a clock on the wall, rotation between stations, collective effort." },
+      { id: "conditioning", name: "Outdoor conditioning", brief: "Sleds, hills, sand or stairs, with weather and terrain doing the punishing." },
+      { id: "mobility", name: "Recovery and mobility", brief: "Slow, quiet, unglamorous: stretching, banded work, breathing, ice." },
+    ],
+    motif: "flash",
+    hue: 8,
+    isNew: true,
+  },
+  {
+    id: "training-montage",
+    name: "Training montage",
+    medium: "video",
+    category: "athletes",
+    blurb: "Warm-up to peak, one clip at a time",
+    brief:
+      "Three acts, in order: warm-up (cold, empty, alone), the grind (repetition, failure, small corrections), the performance (the thing it was all for). Time must visibly pass — light, weather, kit and body all change across the piece. Reuse one framing at the start and the end so the progress is measurable, not asserted.",
+    format: "16:9 · 45–90 s",
+    keywords: ["gritty", "epic", "inspiring", "vintage film", "cold"],
+    variants: [
+      { id: "solo", name: "Solo grind", brief: "One athlete, no crowd, no coach — the work nobody sees." },
+      { id: "team", name: "Team pre-season", brief: "A squad becoming a unit: drills in formation, collective exhaustion, one voice counting." },
+      { id: "comeback", name: "Back from injury", brief: "From rehab table to full speed; the brace, the limp and the first pain-free rep." },
+      { id: "fight-camp", name: "Fight camp", brief: "Weeks to a date: weigh-in clock, pads, sparring marks, the walk to the scales." },
+      { id: "rookie", name: "Rookie to starter", brief: "Last in the drill to first on the sheet; earning minutes rather than being given them." },
+      { id: "off-season", name: "Off-season", brief: "Empty facility, no fixtures, nobody watching — the months that decide the season." },
+    ],
+    motif: "rise",
+    hue: 35,
+    isNew: true,
+  },
+  {
+    id: "athlete-motivation",
+    name: "Athlete motivation film",
+    medium: "video",
+    category: "athletes",
+    blurb: "Discipline, struggle, payoff",
+    brief:
+      "Emotion carried by behaviour, never by a caption: the alarm before it rings, the empty seats, the taped hands, the held stare. Build discipline → doubt → decision → payoff, and make the payoff small and specific rather than a trophy. The quietest shot should be the loudest moment.",
+    format: "16:9 or 9:16 · 60–120 s",
+    keywords: ["cinematic", "emotional", "cold", "gritty", "hopeful", "dark"],
+    variants: [
+      { id: "manifesto", name: "Voiceover manifesto", brief: "A written first-person line running under the images, plain and unpoetic." },
+      { id: "silent", name: "No words", brief: "Sound design and picture only: breath, contact, room tone, no narration and no text." },
+      { id: "interview", name: "Interview-led", brief: "The athlete answering off-camera, the best sentence landing over the hardest image." },
+      { id: "letter", name: "Letter to a younger self", brief: "Addressed to who they were, cut against who they are now." },
+    ],
+    motif: "rise",
+    hue: 265,
+    isNew: true,
+  },
+  {
+    id: "game-day-hype",
+    name: "Game day hype",
+    medium: "video",
+    category: "athletes",
+    blurb: "Bus to tunnel to first whistle",
+    brief:
+      "Anticipation, and it must stop before the game. In order: arrival, the empty venue, kit laid out, headphones and taping, the room going quiet, the tunnel, the noise hitting, the first step onto the surface. Cut faster as it approaches; hold the last frame one beat too long.",
+    format: "9:16 · 30–60 s",
+    keywords: ["epic", "dark", "neon", "raw phone", "cinematic"],
+    variants: [
+      { id: "home-opener", name: "Home opener", brief: "Familiar building waking up: groundskeepers, lights coming on, the first fans in." },
+      { id: "rivalry", name: "Rivalry", brief: "Two colours in one frame, history on the walls, hostility as texture." },
+      { id: "final", name: "Championship", brief: "Everything heavier: covered logos, extra cameras, the weight of one result." },
+      { id: "debut", name: "Debut", brief: "First time in this shirt: name on the locker, unfamiliar corridors, nerves in the hands." },
+      { id: "away", name: "Away, hostile", brief: "Outnumbered: the wrong colour everywhere, a small travelling section, silence as the goal." },
+      { id: "senior-night", name: "Last home game", brief: "Ceremony before the contest; family in the stands, a room they will not enter again." },
+    ],
+    motif: "spotlight",
+    hue: 215,
+    isNew: true,
+  },
+  {
+    id: "impossible-trick",
+    name: "Impossible trick",
+    medium: "video",
+    category: "athletes",
+    blurb: "One move, made to look impossible",
+    brief:
+      "Everything serves ONE movement. Set it up so the difficulty is legible to someone who does not know the sport — show the gap, the height, the target — then execute in one unbroken take with the camera moving through the trick, not watching it. Land it and hold. Never cut on the moment of contact; cutting there reads as a cheat.",
+    format: "9:16 · 8–15 s",
+    keywords: ["epic", "bold", "neon", "raw phone", "bullet time", "cinematic"],
+    variants: [
+      { id: "skate", name: "Skate / BMX", brief: "Street or park: the run-up, the obstacle named by the framing, roll-away as proof." },
+      { id: "parkour", name: "Parkour", brief: "Architecture as apparatus: the drop shown before the jump so the risk is understood." },
+      { id: "basketball", name: "Basketball", brief: "Dunk or shot: rim height established, no cut between release and result." },
+      { id: "football", name: "Football freestyle", brief: "Ball never grounded: touches counted by the camera circling the athlete." },
+      { id: "gymnastics", name: "Gymnastics / tumbling", brief: "Rotation read fully: entry, air, and a landing held dead still." },
+      { id: "trick-shot", name: "Trick shot", brief: "An absurd line shown end to end in one take, because a cut would be a lie." },
+      { id: "martial-arts", name: "Martial arts", brief: "Kick or throw: contact and consequence in the same frame." },
+    ],
+    motif: "orbit",
+    hue: 300,
+    isNew: true,
+  },
+  {
+    id: "slow-motion-technique",
+    name: "Slow-motion technique",
+    medium: "video",
+    category: "athletes",
+    blurb: "One movement, read frame by frame",
+    brief:
+      "A teaching piece that happens to be beautiful. Take one movement and cover it from the angles that actually reveal it: the plane the power travels in, the joint that decides it, and the contact. High shutter so each frame is sharp rather than smeared, hard side light to model the muscle, and the whole thing slow enough to see the order things happen in. No commentary — the framing is the explanation.",
+    format: "16:9 · 20–45 s",
+    keywords: ["clean", "clinical", "premium", "dark", "high-speed"],
+    variants: [
+      { id: "sprint-start", name: "Sprint start", brief: "Blocks to third step: shin angle, ground contact time, head staying down." },
+      { id: "lift", name: "Olympic lift", brief: "Bar path as the subject: the second pull, the turnover, the catch." },
+      { id: "swing", name: "Golf / bat swing", brief: "Rotation sequence from the ground up, and the moment of contact isolated." },
+      { id: "combo", name: "Boxing combination", brief: "Weight transfer between punches, and what the feet do before the hands." },
+      { id: "swim", name: "Swim stroke", brief: "Above and below the line in the same piece: catch, pull, breath, recovery." },
+      { id: "throw", name: "Pitch / throw", brief: "Separation between hip and shoulder, arm lag, release and follow-through." },
+      { id: "kick", name: "Kick", brief: "Plant foot, hip rotation, contact point on the ball, and the shape that follows." },
+    ],
+    motif: "waveform",
+    hue: 180,
+    isNew: true,
+  },
+
+  // ----- Events & fashion -------------------------------------------------------
+  // Promoting a night, a launch or an experience with the grammar of a fashion
+  // campaign. All three share one hard constraint: the video model cannot spell,
+  // and an event lives or dies on its date, venue and name being correct — so
+  // every skill here separates the FILM from the DETAILS and says so out loud.
+  {
+    id: "event-editorial",
+    name: "Event editorial",
+    medium: "video",
+    category: "events",
+    blurb: "A night, shot like a magazine",
+    brief:
+      "Sell the feeling of being there, not the schedule. Composed editorial frames rather than candid coverage: one idea per shot, deliberate negative space for type, and a palette taken from the venue itself. Nothing documentary, nobody mugging at the lens, and no legible text in frame — the details are laid over afterwards.",
+    format: "9:16 + 4:5 · 15–30 s",
+    keywords: ["editorial", "luxury", "neon", "moody", "playful", "film grain"],
+    variants: [
+      { id: "club-night", name: "Club night", brief: "Low light, one strong colour, bodies as shape; heat, haze and movement over faces." },
+      { id: "launch", name: "Product launch", brief: "The object treated as the guest of honour: plinths, controlled light, people orbiting it." },
+      { id: "gallery", name: "Exhibition or gallery", brief: "White walls, daylight, quiet; the crowd composed like the work on the wall." },
+      { id: "rooftop", name: "Rooftop or garden", brief: "Golden hour into blue hour, city behind, glassware and wind in fabric." },
+      { id: "dinner", name: "Private dinner", brief: "One long table, candlelight, the room lit only by what is on it." },
+      { id: "pop-up", name: "Pop-up or market", brief: "Daylight, colour, signage as shape, movement through a crowded space." },
+    ],
+    motif: "confetti",
+    hue: 320,
+    isNew: true,
+  },
+  {
+    id: "event-fashion-film",
+    name: "Event fashion film",
+    medium: "video",
+    category: "events",
+    blurb: "Models, venue and outfits as one campaign",
+    brief:
+      "A campaign that happens to be set at an event: cast, looks, venue and atmosphere directed together so the clothes and the room belong to each other. Walk, turn, hold. Every look gets an establishing frame, a movement frame and a detail frame, and the same lighting logic runs through all of them.",
+    format: "9:16 + 16:9 · 30–60 s",
+    keywords: ["luxury", "editorial", "minimal", "bold", "vintage film", "monochrome"],
+    variants: [
+      { id: "runway", name: "Runway", brief: "A real walk: entrance, length of the room, turn, exit, shot from three fixed positions." },
+      { id: "presentation", name: "Static presentation", brief: "Models held in poses around a space while the camera moves instead of them." },
+      { id: "after-party", name: "After-party", brief: "The collection worn in motion at the party rather than on a stage." },
+      { id: "street-cast", name: "Street cast", brief: "Real people, real proportions, the venue's doorway as the backdrop." },
+      { id: "lookbook", name: "Moving lookbook", brief: "One neutral setup, each look entering, turning and leaving the same frame." },
+      { id: "campaign", name: "Campaign film", brief: "Narrative fragments with the clothes incidental, the way the best campaigns work." },
+    ],
+    motif: "letterbox",
+    hue: 30,
+    isNew: true,
+  },
+  {
+    id: "luxury-invitation-film",
+    name: "Luxury invitation film",
+    medium: "video",
+    category: "events",
+    blurb: "The details, delivered like a trailer",
+    brief:
+      "A short film that withholds almost everything: texture, light and one gesture, ending on the details. The film is atmosphere only — the name, date, venue and RSVP are typographic frames made separately and composited, because a video model cannot spell and an invitation with an invented date is worthless.",
+    format: "9:16 · 8–20 s",
+    keywords: ["luxury", "minimal", "moody", "gold", "monochrome", "film grain"],
+    variants: [
+      { id: "black-tie", name: "Black tie", brief: "Silk, low light, a hand on a stair rail; restraint as the whole aesthetic." },
+      { id: "fashion-week", name: "Fashion week", brief: "Fast, graphic, cold; a seating card and an empty front row." },
+      { id: "art-opening", name: "Art opening", brief: "Daylight on a white wall, one covered work, a curator's gloved hand." },
+      { id: "wedding", name: "Wedding", brief: "Warm, tactile, personal: paper, wax, flowers, two hands." },
+      { id: "product-reveal", name: "Product reveal", brief: "The object never shown whole — edge, reflection, shadow, then the date." },
+      { id: "members-club", name: "Members club", brief: "A door, a nod, a corridor; the promise that you had to be asked." },
+    ],
+    motif: "candle",
+    hue: 45,
     isNew: true,
   },
 
@@ -1031,6 +1244,30 @@ export const WORKFLOWS: Workflow[] = [
     keywords: ["royal", "renaissance", "superhero", "cartoon", "studio"],
     motif: "spotlight",
     hue: 45,
+  },
+
+  {
+    id: "athlete-photoshoot",
+    name: "Athlete photoshoot",
+    medium: "image",
+    category: "shoots",
+    blurb: "A whole editorial sports shoot, in one set",
+    brief:
+      "A complete shoot rather than six versions of one picture: a hero portrait, a peak-action frame, a texture detail, an environmental wide, a gear still and a graphic silhouette — each with its own lens, distance and light, all obviously the same athlete on the same day.",
+    format: "4:5 · 6 images",
+    keywords: ["editorial", "gritty", "premium", "moody", "high-key", "vintage sports"],
+    variants: [
+      { id: "studio", name: "Studio seamless", brief: "Controlled black or grey seamless, hard rim light, nothing in frame but the athlete." },
+      { id: "stadium-night", name: "Stadium at night", brief: "Empty stands, floodlights as the key, long lens compression, breath in cold air." },
+      { id: "gym", name: "Industrial gym", brief: "Chalk, steel, window light through grime, sweat catching the edge." },
+      { id: "golden", name: "Outdoor golden hour", brief: "Track, field or road with low raking sun, long shadows and warm skin." },
+      { id: "locker-room", name: "Locker room", brief: "Before or after, not during: fluorescent overhead, benches, tape, quiet." },
+      { id: "street", name: "Street court", brief: "Cage, chain net, city behind; daylight and a real neighbourhood." },
+      { id: "water", name: "Pool and water", brief: "Surface line, caustics, wet skin and goggles, shot both above and below." },
+    ],
+    motif: "spotlight",
+    hue: 20,
+    isNew: true,
   },
 
   // ----- Images: covers & posters ------------------------------------------------
