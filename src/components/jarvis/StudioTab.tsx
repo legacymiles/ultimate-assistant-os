@@ -3,10 +3,12 @@
 // ---------------------------------------------------------------------------
 // Studio — the video and image workflows, as a wall of cards.
 //
-// Clicking a card adds it to the mix at the bottom; several can be mixed. The
-// mix is where a variant (E-commerce › Flat lay), style keywords and the camera
-// deck (film setup, camera, colour, lighting, and the #camera-moves typed into
-// the idea box) are chosen. "Start in chat" writes the mix as @-mentions into
+// The composer sits on top and the wall of cards under it, because the prompt
+// is the thing being made and the cards are ingredients you reach down for.
+// Clicking a card mixes it in; several can be mixed. The composer is where a
+// variant (E-commerce › Flat lay), style keywords and the camera deck (film
+// setup, camera, style, colour, lighting, and the #camera-moves typed into the
+// box) are chosen. "Start in chat" writes the mix as @-mentions into
 // the chat box, where Jarvis turns it into a production prompt. The same @- and
 // #-mentions work typed straight into chat, and the camera deck follows across.
 // ---------------------------------------------------------------------------
@@ -162,6 +164,118 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
         </label>
       </div>
 
+      {/* The composer first, the wall under it: the prompt is the thing being
+          made, and the cards are the ingredients you reach down for. */}
+      <div className="border-b border-line bg-panel px-3 py-3">
+        <div className="mx-auto max-w-4xl rounded-2xl border border-line bg-panel-2 p-2">
+          <div className="flex flex-wrap items-center gap-1.5 px-1 pb-2 pt-1">
+            {pickedWorkflows.length === 0 ? (
+              <span className="text-[11px] text-ink-faint">
+                Pick a card below to mix it in — or just set the camera and describe the shot.
+              </span>
+            ) : (
+              <>
+                {pickedWorkflows.map(({ p, w }) => (
+                  <span
+                    key={p.id}
+                    className="st-card flex items-center gap-1.5 rounded-lg border border-line bg-panel py-1 pl-1 pr-1.5 text-xs text-ink"
+                    style={{ ["--h" as string]: w.hue }}
+                  >
+                    <span className="relative h-5 w-5 overflow-hidden rounded">
+                      <span className="st-art" aria-hidden />
+                    </span>
+                    {w.name}
+                    {w.variants && (
+                      <select
+                        value={p.variant}
+                        onChange={(e) =>
+                          setPicked((list) => list.map((x) => (x.id === p.id ? { ...x, variant: e.target.value } : x)))
+                        }
+                        aria-label={`${w.name} style`}
+                        className="rounded border border-line bg-panel-2 px-1 py-0.5 text-[11px] text-ink focus:outline-none"
+                      >
+                        <option value="">Any style</option>
+                        {w.variants.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <button
+                      onClick={() => toggle(w)}
+                      aria-label={`Remove ${w.name}`}
+                      className="text-ink-faint transition hover:text-ink"
+                    >
+                      <Icon.Close width={11} height={11} />
+                    </button>
+                  </span>
+                ))}
+                <button onClick={clear} className="px-1 text-[11px] text-ink-faint underline hover:text-ink">
+                  Clear
+                </button>
+              </>
+            )}
+          </div>
+
+          <CinemaBar selection={cinema} onSelection={setCinema} text={idea} onText={setIdea} />
+
+          <textarea
+            value={idea}
+            onChange={(e) => setIdea(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                start();
+              }
+            }}
+            rows={2}
+            placeholder="Describe the shot: whose story, which product, what happens…  (# for a camera move)"
+            className="mt-2 block max-h-48 min-h-[68px] w-full resize-none bg-transparent px-2 pt-1 text-[15px] leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
+          />
+
+          <div className="flex flex-wrap items-center gap-1.5 px-1 pb-1">
+            {takesKeywords &&
+              [...new Set([...suggested, ...keywords])].slice(0, 8).map((k) => (
+                <button
+                  key={k}
+                  onClick={() => toggleKeyword(k)}
+                  aria-pressed={keywords.includes(k)}
+                  className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
+                    keywords.includes(k)
+                      ? "border-ink-muted bg-ink text-canvas"
+                      : "border-line text-ink-muted hover:text-ink"
+                  }`}
+                >
+                  {k}
+                </button>
+              ))}
+            {takesKeywords && (
+              <input
+                value={custom}
+                onChange={(e) => setCustom(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addCustom();
+                  }
+                }}
+                onBlur={addCustom}
+                placeholder="+ keyword"
+                className="w-24 rounded-full border border-dashed border-line bg-transparent px-2 py-0.5 text-[11px] text-ink placeholder:text-ink-faint focus:border-ink-faint focus:outline-none"
+              />
+            )}
+            <button
+              onClick={start}
+              disabled={!picked.length && !idea.trim()}
+              className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-ink px-4 py-2 text-xs font-semibold text-canvas transition hover:opacity-90 disabled:opacity-40"
+            >
+              <Icon.Send width={13} height={13} /> Start in chat
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="sticky top-0 z-10 flex gap-1.5 overflow-x-auto border-b border-line-soft bg-canvas/90 px-3 py-2 backdrop-blur">
           {[{ id: "all" as const, label: "All" }, ...categories].map((c) => (
@@ -202,116 +316,6 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
         </div>
       </div>
 
-      <div className="border-t border-line bg-panel px-3 py-3">
-        {picked.length === 0 ? (
-          <p className="mx-auto max-w-4xl text-center text-xs text-ink-muted">
-            Pick one or more cards to mix them into one video or image, or type <kbd className="rounded border border-line px-1 font-mono text-[10px]">@</kbd> in Chat.
-          </p>
-        ) : (
-          <div className="mx-auto max-w-4xl space-y-2">
-            <ul className="flex flex-wrap items-center gap-1.5">
-              {pickedWorkflows.map(({ p, w }) => (
-                <li
-                  key={p.id}
-                  className="st-card flex items-center gap-1.5 rounded-lg border border-line bg-panel-2 py-1 pl-1 pr-1.5 text-xs text-ink"
-                  style={{ ["--h" as string]: w.hue }}
-                >
-                  <span className="relative h-5 w-5 overflow-hidden rounded">
-                    <span className="st-art" aria-hidden />
-                  </span>
-                  {w.name}
-                  {w.variants && (
-                    <select
-                      value={p.variant}
-                      onChange={(e) =>
-                        setPicked((list) => list.map((x) => (x.id === p.id ? { ...x, variant: e.target.value } : x)))
-                      }
-                      aria-label={`${w.name} style`}
-                      className="rounded border border-line bg-panel px-1 py-0.5 text-[11px] text-ink focus:outline-none"
-                    >
-                      <option value="">Any style</option>
-                      {w.variants.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  <button
-                    onClick={() => toggle(w)}
-                    aria-label={`Remove ${w.name}`}
-                    className="text-ink-faint transition hover:text-ink"
-                  >
-                    <Icon.Close width={11} height={11} />
-                  </button>
-                </li>
-              ))}
-              <li>
-                <button onClick={clear} className="px-1 text-[11px] text-ink-faint underline hover:text-ink">
-                  Clear
-                </button>
-              </li>
-            </ul>
-
-            {takesKeywords && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] text-ink-faint">Keywords</span>
-                {[...new Set([...suggested, ...keywords])].map((k) => (
-                  <button
-                    key={k}
-                    onClick={() => toggleKeyword(k)}
-                    aria-pressed={keywords.includes(k)}
-                    className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
-                      keywords.includes(k)
-                        ? "border-ink-muted bg-ink text-canvas"
-                        : "border-line text-ink-muted hover:text-ink"
-                    }`}
-                  >
-                    {k}
-                  </button>
-                ))}
-                <input
-                  value={custom}
-                  onChange={(e) => setCustom(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addCustom();
-                    }
-                  }}
-                  onBlur={addCustom}
-                  placeholder="+ your own"
-                  className="w-24 rounded-full border border-dashed border-line bg-transparent px-2 py-0.5 text-[11px] text-ink placeholder:text-ink-faint focus:border-ink-faint focus:outline-none"
-                />
-              </div>
-            )}
-
-            <CinemaBar selection={cinema} onSelection={setCinema} text={idea} onText={setIdea} />
-
-            <div className="flex items-end gap-2">
-              <textarea
-                value={idea}
-                onChange={(e) => setIdea(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    start();
-                  }
-                }}
-                rows={2}
-                placeholder="Describe your idea: whose story, which product, what happens…  (# for a camera move)"
-                className="min-h-[52px] flex-1 resize-none rounded-lg border border-line bg-panel-2 px-2.5 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-ink-faint focus:outline-none"
-              />
-              <button
-                onClick={start}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-line bg-ink px-3 py-2 text-xs font-medium text-canvas transition hover:opacity-90"
-              >
-                <Icon.Send width={13} height={13} /> Start in chat
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

@@ -16,6 +16,7 @@
 
 /** Where a memory came from. Drives both citations and the sphere's colours. */
 import type { StudioForm } from "@/lib/studio/forms";
+import type { UpdatesBlob } from "./updates";
 
 export type MemorySource =
   | "note" // typed into Jarvis by hand
@@ -199,6 +200,12 @@ export interface JarvisStore {
   actions: PendingAction[];
   /** Memory sources the owner has switched off in the Memory tab. */
   mutedSources: MemorySource[];
+  /**
+   * The Updates feed on the dashboard: which sources may speak, and how far
+   * the owner has read. No notification rows live here — the feed is derived
+   * from the data itself every time (see lib/jarvis/updates.ts).
+   */
+  updates: UpdatesBlob;
   /** ISO timestamp of the last master-folder sync, or "". */
   lastSync: string;
 }

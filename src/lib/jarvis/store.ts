@@ -8,6 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import { loadLocal, saveSynced } from "@/lib/sync/appState";
+import { coerceUpdates, emptyUpdates } from "./updates";
 import type { JarvisStore, Routine } from "./types";
 
 export const JARVIS_KEY = "jarvis";
@@ -84,6 +85,7 @@ export function emptyJarvis(): JarvisStore {
     routines: SEED_ROUTINES.map((r) => ({ ...r, id: uid(), runs: [] })),
     actions: [],
     mutedSources: [],
+    updates: emptyUpdates(),
     lastSync: "",
   };
 }
@@ -108,6 +110,7 @@ export function coerceStore(raw: unknown): JarvisStore {
     routines: arr(r.routines, base.routines).length ? arr(r.routines, base.routines) : base.routines,
     actions: arr(r.actions, base.actions),
     mutedSources: arr(r.mutedSources, base.mutedSources),
+    updates: coerceUpdates(r.updates),
     lastSync: typeof r.lastSync === "string" ? r.lastSync : "",
   };
 }

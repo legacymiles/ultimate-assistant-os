@@ -883,3 +883,17 @@ export function railHasArt(railId: string): boolean {
 export function MoveArt({ glyph }: { glyph: MoveGlyph }) {
   return <Scene glyph={glyph} />;
 }
+
+/**
+ * The thumbnail on a composer chip. It shows the owner's actual choice once
+ * they have made one; until then it shows a representative of that control,
+ * dimmed, so an untouched chip still says what it is for rather than going
+ * blank or repeating the same "nothing set" smear five times in a row.
+ */
+export const CHIP_PREVIEW: Record<string, { railId: string; optionId: string }> = {
+  film: { railId: "tempo", optionId: "tempo-dynamic" },
+  camera: { railId: "aperture", optionId: "ap-f28" },
+  style: { railId: "style", optionId: "style-papercraft" },
+  color: { railId: "grade", optionId: "grade-teal-orange" },
+  lighting: { railId: "light", optionId: "light-window" },
+};

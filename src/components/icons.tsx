@@ -49,6 +49,21 @@ export const Icon = {
       <path d="M5.4 5.5 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.4-6.5A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.8 1.5Z" />
     </svg>
   ),
+  Bell: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7Z" />
+      <path d="M13.7 20a2 2 0 0 1-3.4 0" />
+    </svg>
+  ),
+  BellOff: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M18.6 12.7C18.9 11.3 19 9.8 19 8" />
+      <path d="M6 8a6 6 0 0 1 9.3-5" />
+      <path d="M6 8c0 6-2 7-2 7h13" />
+      <path d="M13.7 20a2 2 0 0 1-3.4 0" />
+      <path d="m2 2 20 20" />
+    </svg>
+  ),
   File: (p: SVGProps<SVGSVGElement>) => (
     <svg {...base(p)}>
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
@@ -165,6 +180,11 @@ export const Icon = {
     <svg {...base(p)}>
       <path d="M3 8a2 2 0 0 1 2-2h2.5l1.2-2h6.6l1.2 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
       <circle cx="12" cy="12.5" r="3.5" />
+    </svg>
+  ),
+  Frame: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <rect x="2.5" y="5" width="19" height="14" rx="2" />
     </svg>
   ),
   Aperture: (p: SVGProps<SVGSVGElement>) => (

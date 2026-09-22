@@ -27,7 +27,7 @@ import {
   searchMentions,
   type Mention,
 } from "@/lib/studio/workflows";
-import { CinemaBar, CinemaOutputRow } from "./CinemaDeck";
+import { Chip, CinemaBar, CinemaOutputRow } from "./CinemaDeck";
 import { MoveArt } from "./CinemaArt";
 import { useCinemaOutput, useCinemaSelection } from "@/lib/studio/useCinema";
 import { MOVE_PATTERN, moveById, moveQueryAt, movesIn, searchMoves, type CinemaMove } from "@/lib/studio/cinema";
@@ -174,6 +174,24 @@ export function ChatTab({
     requestAnimationFrame(() => {
       inputRef.current?.focus();
       inputRef.current?.setSelectionRange(caret, caret);
+    });
+  };
+
+  /** The @ and # buttons do exactly what typing the character does. */
+  const insertSigil = (sigil: "@" | "#") => {
+    const el = inputRef.current;
+    const caret = el?.selectionStart ?? input.length;
+    const before = input.slice(0, caret);
+    const pad = before && !/\s$/.test(before) ? " " : "";
+    const next = `${before}${pad}${sigil}${input.slice(caret)}`;
+    setInput(next);
+    const at = before.length + pad.length + sigil.length;
+    requestAnimationFrame(() => {
+      const box = inputRef.current;
+      if (!box) return;
+      box.focus();
+      box.setSelectionRange(at, at);
+      readMention(box);
     });
   };
 
@@ -586,7 +604,7 @@ export function ChatTab({
         }}
         className="border-t border-line bg-panel px-3 py-3"
       >
-        <div className="relative mx-auto max-w-3xl rounded-xl border border-line bg-panel-2 transition focus-within:border-ink-faint">
+        <div className="relative mx-auto max-w-4xl rounded-2xl border border-line bg-panel-2 transition focus-within:border-ink-faint">
           {moveMenu && moveOptions.length > 0 && (
             <ul
               role="listbox"
@@ -702,7 +720,29 @@ export function ChatTab({
             </ul>
           )}
           <div className="px-2 pt-2">
-            <CinemaBar selection={cinema} onSelection={setCinema} text={input} onText={setInput} />
+            <CinemaBar
+              selection={cinema}
+              onSelection={setCinema}
+              text={input}
+              onText={setInput}
+              lead={
+                <Chip
+                  label="References"
+                  value={attachments.length ? `${attachments.length}/${MAX_ATTACHMENTS}` : ""}
+                  onClick={() => fileRef.current?.click()}
+                  art={null}
+                >
+                  {attachments[0] ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={attachments[0].thumb} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="grid h-full w-full place-items-center text-ink-faint">
+                      <Icon.Plus width={15} height={15} />
+                    </span>
+                  )}
+                </Chip>
+              }
+            />
           </div>
           <textarea
             ref={inputRef}
@@ -765,10 +805,14 @@ export function ChatTab({
               void attach(files);
             }}
             rows={2}
-            placeholder={attachments.length ? "Ask about the image…" : "Ask Jarvis…  (type @ for a video or image workflow)"}
-            className="block max-h-60 min-h-[64px] w-full resize-none bg-transparent px-3 pt-2.5 text-sm leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
+            placeholder={
+              attachments.length
+                ? "Describe the shot — the references are attached…"
+                : "Describe the shot…  @ for a workflow, # for a camera move"
+            }
+            className="block max-h-60 min-h-[76px] w-full resize-none bg-transparent px-3.5 pt-3.5 text-[15px] leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
           />
-          <div className="flex items-center gap-2 px-2 pb-2">
+          <div className="flex flex-wrap items-center gap-1.5 px-2 pb-2">
             <input
               ref={fileRef}
               type="file"
@@ -785,21 +829,38 @@ export function ChatTab({
               onClick={() => fileRef.current?.click()}
               disabled={attachments.length >= MAX_ATTACHMENTS}
               title="Add images (or paste / drop them)"
-              className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-ink-muted transition hover:bg-panel hover:text-ink disabled:opacity-50"
+              aria-label="Add images"
+              className="grid h-7 w-7 place-items-center rounded-lg border border-line text-ink-muted transition hover:border-ink-faint hover:text-ink disabled:opacity-40"
             >
-              <Icon.Image width={14} height={14} /> Image
+              <Icon.Plus width={14} height={14} />
             </button>
+            <button
+              type="button"
+              onClick={() => insertSigil("@")}
+              title="Add a Studio workflow"
+              aria-label="Add a Studio workflow"
+              className="grid h-7 w-7 place-items-center rounded-lg border border-line font-mono text-xs text-ink-muted transition hover:border-ink-faint hover:text-ink"
+            >
+              @
+            </button>
+            <button
+              type="button"
+              onClick={() => insertSigil("#")}
+              title="Add a camera move"
+              aria-label="Add a camera move"
+              className="grid h-7 w-7 place-items-center rounded-lg border border-line font-mono text-xs text-ink-muted transition hover:border-ink-faint hover:text-ink"
+            >
+              #
+            </button>
+            <span className="mx-0.5 h-5 w-px bg-line" aria-hidden />
             <CinemaOutputRow output={output} onOutput={setOutput} />
-            <span className="hidden text-[11px] text-ink-faint lg:inline">
-              Enter to send · <kbd className="rounded border border-line px-1 font-mono text-[10px]">@</kbd> workflow ·{" "}
-              <kbd className="rounded border border-line px-1 font-mono text-[10px]">#</kbd> camera move
-            </span>
+            <span className="hidden text-[11px] text-ink-faint xl:inline">Enter to send</span>
             <button
               type="submit"
               disabled={busy || (!input.trim() && !attachments.length)}
-              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-line bg-panel px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-panel-2 disabled:opacity-50"
+              className="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-ink px-4 py-2 text-xs font-semibold text-canvas transition hover:opacity-90 disabled:opacity-40"
             >
-              <Icon.Send width={13} height={13} /> Ask
+              <Icon.Send width={13} height={13} /> {busy ? "Working…" : "Send"}
             </button>
           </div>
         </div>

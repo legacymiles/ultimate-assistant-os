@@ -28,7 +28,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
-import { MoveArt, OptionArt, railHasArt } from "./CinemaArt";
+import { CHIP_PREVIEW, MoveArt, OptionArt, railHasArt } from "./CinemaArt";
 import {
   ASPECTS,
   CINEMA_GROUPS,
@@ -128,22 +128,34 @@ export function CinemaBar({
 
   return (
     <>
-      <div className="flex flex-wrap items-stretch gap-1.5" aria-label="Camera deck">
+      <div className="cin-deck flex items-stretch gap-1.5 overflow-x-auto pb-0.5" aria-label="Camera deck">
         {lead}
-        {CINEMA_GROUPS.map((g) => (
-          <Chip
-            key={g.id}
-            icon={GROUP_ICON[g.id]({ width: 14, height: 14 })}
-            label={g.label}
-            value={groupSummary(g, selection)}
-            onClick={() => setOpen(g.id === "film" ? "film/genre" : g.id)}
-          />
-        ))}
+        {CINEMA_GROUPS.map((g) => {
+          // The first rail the owner actually set is what the chip shows.
+          const shown = g.rails.find((r) => isSet(selection, r.id));
+          const option = shown ? optionById(selection[shown.id])! : null;
+          const fallback = CHIP_PREVIEW[g.id];
+          return (
+            <Chip
+              key={g.id}
+              label={g.label}
+              value={groupSummary(g, selection)}
+              onClick={() => setOpen(g.id === "film" ? "film/genre" : g.id)}
+              art={
+                <OptionArt
+                  railId={shown ? shown.id : fallback.railId}
+                  optionId={option ? option.id : fallback.optionId}
+                  cuts={option?.cuts ?? (shown ? undefined : optionById(fallback.optionId)?.cuts)}
+                />
+              }
+            />
+          );
+        })}
         <Chip
-          icon={<Icon.Move width={14} height={14} />}
           label="Movement"
           value={moves.map((m) => m.name).join(" → ")}
           onClick={() => setOpen("moves")}
+          art={<MoveArt glyph={moves[0]?.glyph ?? "orbit"} />}
         />
       </div>
 
@@ -163,16 +175,24 @@ export function CinemaBar({
   );
 }
 
-function Chip({
-  icon,
+/**
+ * One control on the composer. The thumbnail is the point: it is a picture of
+ * the setting itself, so the row reads as five decisions already made rather
+ * than five buttons that might do something.
+ */
+export function Chip({
+  art,
   label,
   value,
   onClick,
+  children,
 }: {
-  icon: React.ReactNode;
+  art: React.ReactNode;
   label: string;
   value: string;
-  onClick: () => void;
+  onClick?: () => void;
+  /** Rendered in place of the thumbnail — the References chip uses it. */
+  children?: React.ReactNode;
 }) {
   const on = Boolean(value);
   return (
@@ -180,16 +200,24 @@ function Chip({
       type="button"
       onClick={onClick}
       title={value ? `${label}: ${value}` : `Set ${label.toLowerCase()}`}
-      className={`group flex min-w-0 max-w-[13rem] items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition ${
+      className={`cin-chip group flex min-w-[8.5rem] flex-1 basis-[8.5rem] items-center gap-2 rounded-xl border p-1.5 text-left transition ${
         on
-          ? "border-ink-faint bg-panel-2 text-ink"
-          : "border-line bg-panel text-ink-muted hover:border-ink-faint hover:text-ink"
+          ? "border-ink-faint bg-panel-2"
+          : "border-line bg-panel hover:border-ink-faint hover:bg-panel-2"
       }`}
     >
-      <span className={`shrink-0 transition ${on ? "text-ink" : "text-ink-faint group-hover:text-ink-muted"}`}>{icon}</span>
-      <span className="min-w-0">
-        <span className="block text-[10px] uppercase leading-none tracking-[0.06em] text-ink-faint">{label}</span>
-        <span className={`mt-0.5 block truncate text-[11px] leading-tight ${on ? "text-ink" : "text-ink-faint"}`}>
+      <span
+        className={`relative block h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-canvas transition ${
+          on ? "" : "opacity-55 group-hover:opacity-80"
+        }`}
+      >
+        {children ?? art}
+      </span>
+      <span className="min-w-0 pr-1">
+        <span className="block truncate text-[10px] leading-none text-ink-faint">{label}</span>
+        <span
+          className={`mt-1 block truncate text-xs font-medium leading-tight ${on ? "text-ink" : "text-ink-muted group-hover:text-ink"}`}
+        >
           {value || "Auto"}
         </span>
       </span>
@@ -818,6 +846,7 @@ export function CinemaOutputRow({
     <>
       <Picker
         label="Aspect ratio"
+        icon={<Icon.Frame width={12} height={12} />}
         value={output.aspect ?? ""}
         placeholder="Ratio"
         options={ASPECTS}
@@ -826,6 +855,7 @@ export function CinemaOutputRow({
       />
       <Picker
         label="Clip length"
+        icon={<Icon.Clock width={12} height={12} />}
         value={output.duration ? String(output.duration) : ""}
         placeholder="Length"
         options={DURATIONS}
@@ -843,6 +873,7 @@ export function CinemaOutputRow({
  */
 function Picker({
   label,
+  icon,
   value,
   placeholder,
   options,
@@ -850,6 +881,7 @@ function Picker({
   onChange,
 }: {
   label: string;
+  icon: React.ReactNode;
   value: string;
   placeholder: string;
   options: OutputChoice[];
@@ -866,6 +898,7 @@ function Picker({
       }`}
     >
       <span className="sr-only">{label}</span>
+      <span className={on ? "text-ink-muted" : "text-ink-faint"}>{icon}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}

@@ -82,6 +82,13 @@ export interface JarvisUpdate {
   at: string;
   /** The phrase the row shows on the right: "12m ago", "in 40m". */
   when: string;
+  /**
+   * ISO start time, on the rows that are about something still to happen.
+   * These sort above everything else, soonest first: an appointment in
+   * 35 minutes belongs at the top of the feed, not filed by when it happened
+   * to enter the window. Presence of this field is what "upcoming" means.
+   */
+  startsAt?: string;
   /** Named only where the data records it. */
   who?: string;
   /** A MEMBER_COLOURS id, when the person has one. */
@@ -288,6 +295,7 @@ export function calendarUpdates(events: CalendarEvent[], aheadHours: number, now
       title: e.title,
       detail: e.time ? `starts ${e.time}${e.location ? ` · ${e.location}` : ""}` : "all day today",
       at: new Date(opens).toISOString(),
+      startsAt: new Date(start).toISOString(),
       when: until(start, now),
     });
   }
@@ -355,6 +363,9 @@ export interface Collected {
   updates: JarvisUpdate[];
   /** How many are newer than the seen watermark. */
   unread: number;
+  /** Which ones those are. Upcoming rows are pinned above older unread ones,
+   *  so position in the list no longer identifies them. */
+  unreadIds: Set<string>;
   /** Per source, how many rows survived — drives the filter chips. */
   counts: Record<UpdateSource, number>;
 }
@@ -383,18 +394,29 @@ export function collectUpdates(
       const t = Date.parse(u.at);
       return Number.isFinite(t) && t >= floor && !dismissed.has(u.id);
     })
-    .sort((a, b) => b.at.localeCompare(a.at))
+    .sort(byUrgency)
     .slice(0, MAX_ROWS);
 
   const counts = {} as Record<UpdateSource, number>;
   for (const s of UPDATE_SOURCES) counts[s] = 0;
-  let unread = 0;
+  const unreadIds = new Set<string>();
   for (const u of updates) {
     counts[u.source] += 1;
-    if (Number.isFinite(seen) && Date.parse(u.at) > seen) unread += 1;
+    if (!Number.isFinite(seen) || Date.parse(u.at) > seen) unreadIds.add(u.id);
   }
 
-  return { updates, unread, counts };
+  return { updates, unread: unreadIds.size, unreadIds, counts };
+}
+
+/**
+ * What is about to happen, then what just happened. Within each half the
+ * obvious order applies: soonest first above, newest first below.
+ */
+export function byUrgency(a: JarvisUpdate, b: JarvisUpdate): number {
+  if (a.startsAt && b.startsAt) return a.startsAt.localeCompare(b.startsAt);
+  if (a.startsAt) return -1;
+  if (b.startsAt) return 1;
+  return b.at.localeCompare(a.at);
 }
 
 export function isUnread(u: JarvisUpdate, state: UpdateState): boolean {
