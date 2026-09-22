@@ -1,6 +1,7 @@
 "use client";
 
 import { RowExtraContext } from "./rowExtra";
+import { RankingsFolderContext } from "./rankingsFolder";
 import { RankingsSyncButton } from "./RankingsSync";
 import { inRankingsFolder } from "@/lib/ai-rankings/fromDashboard";
 import { useMemo, useState } from "react";
@@ -418,11 +419,13 @@ export function FolderWorkspace({
               Rankings — it picks the section from the name. Green means it is already there.
             </p>
           )}
-          <RowExtraContext.Provider value={rowExtra}>
-            <div className="rounded-2xl border border-line bg-panel/40 px-4">
-              {visible.map(renderSection)}
-            </div>
-          </RowExtraContext.Provider>
+          <RankingsFolderContext.Provider value={syncable}>
+            <RowExtraContext.Provider value={rowExtra}>
+              <div className="rounded-2xl border border-line bg-panel/40 px-4">
+                {visible.map(renderSection)}
+              </div>
+            </RowExtraContext.Provider>
+          </RankingsFolderContext.Provider>
           {choices.length > 0 && folderId && (
             <div className="mt-2 flex">
               <AddSectionMenu choices={choices} onPick={pick} variant="inline" />
