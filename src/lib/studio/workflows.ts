@@ -26,6 +26,7 @@ export type CategoryId =
   | "events"
   | "creators"
   | "broadcast"
+  | "romance"
   | "camera"
   | "social"
   | "occasions"
@@ -54,6 +55,7 @@ export const CATEGORIES: Category[] = [
   { id: "events", medium: "video", label: "Events & fashion" },
   { id: "creators", medium: "video", label: "Creators & channels" },
   { id: "broadcast", medium: "video", label: "TV & radio" },
+  { id: "romance", medium: "video", label: "Romance & allure" },
   { id: "camera", medium: "video", label: "Camera moves" },
   { id: "talk", medium: "video", label: "Talk & teach" },
   { id: "occasions", medium: "video", label: "Occasions" },
@@ -908,6 +910,122 @@ export const WORKFLOWS: Workflow[] = [
     isNew: true,
   },
 
+  // ----- Romance & allure -------------------------------------------------------
+  // Adult editorial and romantic cinema. Every skill here works by suggestion —
+  // fabric, shadow, silhouette, the half-second before — because that is both the
+  // craft of the genre and the line these stay on. Adults only, the owner's own
+  // uploads or invented people, nothing explicit.
+  {
+    id: "romantic-film",
+    name: "Romantic film",
+    medium: "video",
+    category: "romance",
+    blurb: "Two people, and the space between them",
+    brief:
+      "Intimacy is proximity and attention, not action. Build the piece out of small physical facts — a hand that almost lands, a look held a beat past comfortable, someone turning away first — and let the room, the light and the weather carry the feeling. The best shot in a romantic film is usually the one where nothing happens.",
+    format: "16:9 · 30–90 s",
+    keywords: ["warm", "film grain", "melancholy", "golden", "rain", "quiet"],
+    variants: [
+      { id: "first-meeting", name: "First meeting", brief: "Strangers, one small accident, and the moment it becomes deliberate." },
+      { id: "long-love", name: "Years in", brief: "Two people who know each other completely; tenderness in routine." },
+      { id: "reunion", name: "Reunion", brief: "Time apart written on both of them; the first thirty seconds of seeing each other." },
+      { id: "goodbye", name: "The last day", brief: "Everything ordinary, done for the last time, and neither saying so." },
+      { id: "almost", name: "Almost", brief: "A connection that never resolves; the piece ends on the door closing." },
+      { id: "letter", name: "Read aloud", brief: "Words from one of them laid over the other's ordinary day." },
+    ],
+    motif: "candle",
+    hue: 350,
+    isNew: true,
+  },
+  {
+    id: "romantic-montage",
+    name: "Romantic montage",
+    medium: "video",
+    category: "romance",
+    blurb: "A relationship, cut to music",
+    brief:
+      "Moments rather than scenes: fragments that would mean nothing alone and everything in sequence. Cut on the music, keep every shot short, and let the chronology do the storytelling. One repeated image — the same doorway, the same coat, the same kitchen — is what turns a reel into a relationship.",
+    format: "9:16 or 16:9 · 20–60 s",
+    keywords: ["film grain", "warm", "nostalgic", "home video", "golden", "monochrome"],
+    variants: [
+      { id: "how-we-met", name: "How we met", brief: "The story told in order, from the first frame to now." },
+      { id: "anniversary", name: "Anniversary", brief: "One year or twenty, built around what has stayed the same." },
+      { id: "wedding-tease", name: "Wedding tease", brief: "The week before, shot as anticipation rather than ceremony." },
+      { id: "home-video", name: "Home video", brief: "Deliberately imperfect: camcorder texture, bad framing, real rooms." },
+      { id: "seasons", name: "A year", brief: "The same places through four seasons and two people changing in them." },
+      { id: "proposal", name: "The question", brief: "Everything before it, and nothing after." },
+    ],
+    motif: "confetti",
+    hue: 335,
+    isNew: true,
+  },
+  {
+    id: "seduction-film",
+    name: "Seduction film",
+    medium: "video",
+    category: "romance",
+    blurb: "Tension, held",
+    brief:
+      "Slow, stylish and entirely about anticipation. Restraint is the technique: long lenses, long takes, almost no cutting, and a camera that stays further away than it wants to be. Nothing explicit — the charge comes from proximity, eye contact, a hand that stops short, and the length of the silence.",
+    format: "16:9 · 15–45 s",
+    keywords: ["noir", "luxury", "moody", "monochrome", "neon", "film grain"],
+    variants: [
+      { id: "across-the-room", name: "Across a room", brief: "Two people at opposite ends of a crowded space and the camera between them." },
+      { id: "slow-dance", name: "Slow dance", brief: "One continuous take, one piece of music, almost no distance closed." },
+      { id: "hotel-bar", name: "Hotel bar", brief: "Low light, glassware, a conversation the camera never quite hears." },
+      { id: "getting-ready", name: "Getting ready", brief: "Two people dressing in separate rooms for the same evening." },
+      { id: "the-drive", name: "The drive", brief: "A car at night, two profiles, streetlights and nothing said." },
+      { id: "morning", name: "The morning after", brief: "Sunlight, coffee, borrowed clothes, and easy silence." },
+    ],
+    motif: "candle",
+    hue: 305,
+    isNew: true,
+  },
+  {
+    id: "noir-seduction",
+    name: "Noir seduction",
+    medium: "video",
+    category: "romance",
+    blurb: "Blinds, smoke and a bad idea",
+    brief:
+      "Classic noir grammar in service of romantic tension: one hard key through slatted blinds, faces half in darkness, rain on glass, cigarette smoke reading the light. Everyone in a noir wants something and nobody says what. Shot in black and white or a grade close to it, with the shadow doing most of the work.",
+    format: "16:9 · 20–45 s",
+    keywords: ["monochrome", "high-contrast", "rain", "smoke", "1940s", "neo-noir"],
+    variants: [
+      { id: "office", name: "The office", brief: "A desk, a bottle, a door with frosted glass, and someone arriving late." },
+      { id: "rain-street", name: "Rain outside", brief: "Wet asphalt, one streetlight, two people under one umbrella." },
+      { id: "club", name: "The club", brief: "A singer, a table at the back, and a look held across the room." },
+      { id: "apartment", name: "The apartment", brief: "Blinds, a fan, heat, and a conversation that circles." },
+      { id: "neo", name: "Neo-noir", brief: "Colour: neon through rain, cyan and magenta instead of grey." },
+      { id: "stairwell", name: "The stairwell", brief: "Verticals, shadows through a bannister, footsteps arriving." },
+    ],
+    motif: "letterbox",
+    hue: 220,
+    isNew: true,
+  },
+  {
+    id: "boudoir-film",
+    name: "Boudoir film",
+    medium: "video",
+    category: "romance",
+    blurb: "A portrait session, in motion",
+    brief:
+      "High-end boudoir made the way the good studios make it: it is a confidence portrait, shot for the subject rather than about them. Posing, fabric, window light and a camera that flatters. Everything is suggestion — silk, shadow, the edge of a shoulder — and the subject is always fully in control of the frame.",
+    format: "9:16 or 4:5 · 15–45 s",
+    keywords: ["luxury", "warm", "monochrome", "film grain", "window light", "editorial"],
+    variants: [
+      { id: "window", name: "Window light", brief: "One large window, linen, morning; the softest and most forgiving setup." },
+      { id: "hotel", name: "Hotel suite", brief: "Robe, city behind, mirrors used deliberately rather than decoratively." },
+      { id: "monochrome", name: "Black and white", brief: "Texture and edge only; grain, shadow and the line of a silhouette." },
+      { id: "vintage", name: "Vintage", brief: "1950s styling, soft-focus filter, satin and a low warm key." },
+      { id: "bridal", name: "Bridal", brief: "The morning of, robe and veil, shot as anticipation." },
+      { id: "studio", name: "Studio", brief: "Black seamless, one hard source, the body read as sculpture." },
+    ],
+    motif: "spotlight",
+    hue: 15,
+    isNew: true,
+  },
+
   // ----- Social -----------------------------------------------------------------
   {
     id: "social-content",
@@ -1445,6 +1563,72 @@ export const WORKFLOWS: Workflow[] = [
     hue: 355,
   },
   {
+    id: "couples-editorial",
+    name: "Couples editorial",
+    medium: "image",
+    category: "shoots",
+    blurb: "A full session, not four nice pictures",
+    brief:
+      "An editorial session for two: the formal portrait, the movement frame, the detail, the environmental wide, a frame of each of them alone, and a graphic. Several lenses, several distances, one continuous light. Distinct from @couple-shoot, which is the quick engagement-style set.",
+    format: "4:5 · 6 images",
+    keywords: ["editorial", "romantic", "moody", "golden", "monochrome", "film grain"],
+    variants: [
+      { id: "city-night", name: "City at night", brief: "Wet streets, shop light, the two of them small against architecture." },
+      { id: "golden", name: "Golden hour", brief: "Low sun, open ground, both rimmed and the background dissolved." },
+      { id: "home", name: "At home", brief: "Their own rooms, window light, coffee, unstyled." },
+      { id: "studio", name: "Studio", brief: "Seamless and one hard source; the relationship read as shape." },
+      { id: "water", name: "Coast", brief: "Wind, salt, flat horizon, no landmarks." },
+      { id: "monochrome", name: "Black and white", brief: "Texture and contact; hands, faces, cloth." },
+    ],
+    motif: "rise",
+    hue: 345,
+    isNew: true,
+  },
+  {
+    id: "sensual-photoshoot",
+    name: "Sensual editorial",
+    medium: "image",
+    category: "shoots",
+    blurb: "Fabric, light and the line of a pose",
+    brief:
+      "A luxury editorial built on elegance rather than exposure: how silk falls, how one hard source models a shoulder, where a hand rests, how a spine reads as a line. Implied throughout — negative space, shadow and cloth do the work, and the subject holds the frame.",
+    format: "4:5 · 6 images",
+    keywords: ["luxury", "editorial", "monochrome", "moody", "warm", "film grain"],
+    variants: [
+      { id: "silk", name: "Silk", brief: "One fabric, many states: draped, falling, pooled, wrapped." },
+      { id: "shadow", name: "Hard shadow", brief: "One source and a gobo; the body mapped by light and dark." },
+      { id: "water", name: "Water", brief: "Wet skin, surface line, caustics, everything catching." },
+      { id: "mirror", name: "Mirrors", brief: "Reflection and fragment; the subject seen indirectly." },
+      { id: "sculpture", name: "Sculptural", brief: "Black seamless, oiled light, the body composed as form." },
+      { id: "vintage", name: "Vintage glamour", brief: "1950s styling, soft focus, satin, a warm low key." },
+    ],
+    motif: "spotlight",
+    hue: 25,
+    isNew: true,
+  },
+  {
+    id: "forbidden-editorial",
+    name: "Forbidden editorial",
+    medium: "image",
+    category: "shoots",
+    blurb: "A fashion story about restraint",
+    brief:
+      "High-fashion narrative built on tension: someone somewhere they should not be, dressed for somewhere else, caught a second before or after. It is a story told in six frames where nothing is stated — the drama lives in the wrong location, the wrong clothes and the held expression.",
+    format: "4:5 · 6 images",
+    keywords: ["editorial", "moody", "high-contrast", "monochrome", "luxury", "grainy"],
+    variants: [
+      { id: "empty-grand", name: "Empty grand rooms", brief: "Marble, dust sheets, evening wear in a house with no people." },
+      { id: "after-hours", name: "After hours", brief: "A closed shop, a dark office, security lighting only." },
+      { id: "wrong-weather", name: "Wrong weather", brief: "Couture in rain, snow or mud; the clothes ruined and worn anyway." },
+      { id: "backstage", name: "Backstage", brief: "Corridors and service doors; the half-second before going on." },
+      { id: "getaway", name: "The getaway", brief: "A car, a coat, a road at night, nothing explained." },
+      { id: "masked", name: "Masked", brief: "Identity withheld by veil, shadow or crop in every frame." },
+    ],
+    motif: "letterbox",
+    hue: 275,
+    isNew: true,
+  },
+  {
     id: "maternity-shoot",
     name: "Maternity shoot",
     medium: "image",
@@ -1564,6 +1748,28 @@ export const WORKFLOWS: Workflow[] = [
     keywords: ["luxury", "surreal", "minimal", "pop art", "Swiss"],
     motif: "spotlight",
     hue: 280,
+  },
+  {
+    id: "teaser-poster-set",
+    name: "Trailer poster campaign",
+    medium: "image",
+    category: "covers",
+    blurb: "A poster campaign, not one poster",
+    brief:
+      "The full key-art set a film actually ships: a teaser that shows almost nothing, a character poster for each lead, and the final one-sheet. One visual idea runs through all of them. Every frame is built with the title, billing block and credits left as empty space, because that type is set in an editor. Distinct from @movie-poster, which is a single one-sheet.",
+    format: "27×40 · 4–6 images",
+    keywords: ["thriller", "horror", "romance", "sci-fi", "vintage", "A24"],
+    variants: [
+      { id: "teaser-first", name: "Teaser first", brief: "One object, one silhouette, almost no information; the rest follows it." },
+      { id: "character-set", name: "Character posters", brief: "One lead per sheet, identical treatment, colour-coded." },
+      { id: "one-sheet", name: "Final one-sheet", brief: "The full cast composite, the genre stated by composition alone." },
+      { id: "festival", name: "Festival", brief: "Illustrated, restrained, an idea rather than faces." },
+      { id: "retro", name: "Retro", brief: "Painted key art, period type space, montage composition." },
+      { id: "minimal", name: "Minimal", brief: "One graphic element carrying the whole campaign." },
+    ],
+    motif: "letterbox",
+    hue: 5,
+    isNew: true,
   },
   {
     id: "movie-poster",
