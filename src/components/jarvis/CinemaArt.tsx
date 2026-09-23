@@ -861,6 +861,86 @@ function StyleArt({ id }: { id: string }) {
 // One entry point: what should this option's tile show?
 // ---------------------------------------------------------------------------
 
+/**
+ * Options with a rendered frame in `public/studio/cinema/<id>.webp` — the same
+ * test scene below, photographed once per option with only that option changed,
+ * by the preview-icon skill's `cinema-tiles.mjs`.
+ *
+ * A photograph of the scene beats a drawing of it for everything the deck is
+ * actually asking you to compare — stock, glass, stop, grade, light, genre,
+ * decade, medium. It cannot beat the drawing for the two rails that are not
+ * pictures at all: Tempo is cut rhythm and Movement is a camera path, so those
+ * stay drawn and are deliberately absent from this list.
+ *
+ * Listed rather than derived from the id, so a tile never points at a file that
+ * is not there; anything unlisted keeps its SVG.
+ */
+export const TILE_PHOTOS = new Set<string>([
+  "genre-horror", "genre-noir", "genre-thriller",
+  "genre-scifi", "genre-fantasy", "genre-action",
+  "genre-western", "genre-romance", "genre-comedy",
+  "genre-doc", "genre-music-video", "genre-anime",
+  "genre-war", "genre-heist", "genre-supernatural",
+  "genre-sports", "era-1920s", "era-1940s",
+  "era-1950s", "era-1960s", "era-1970s",
+  "era-retro-future", "era-1980s", "era-1990s",
+  "era-2000s", "era-2010s", "era-present",
+  "era-near-future", "era-far-future", "cam-modern",
+  "cam-35mm", "cam-super16", "cam-8mm",
+  "cam-imax", "cam-vhs", "cam-hi8",
+  "cam-dv", "cam-dslr", "cam-phone",
+  "cam-webcam", "cam-cctv", "cam-bodycam",
+  "cam-drone", "cam-polaroid", "cam-bolex",
+  "cam-thermal", "cam-nightvision", "lens-anamorphic",
+  "lens-anamorphic-modern", "lens-warm-vintage", "lens-halation",
+  "lens-wide-24", "lens-ultrawide", "lens-fisheye",
+  "lens-normal-50", "lens-portrait-85", "lens-tele-135",
+  "lens-long-300", "lens-macro", "lens-probe",
+  "lens-tilt-shift", "lens-petzval", "lens-diffusion",
+  "lens-split-diopter", "lens-smeared", "ap-f14",
+  "ap-f2", "ap-f28", "ap-f56",
+  "ap-f11", "ap-f22", "style-cel-anime",
+  "style-anime-film", "style-saturday-cartoon", "style-cgi-family",
+  "style-cutout-satire", "style-rotoscope", "style-motion-comic",
+  "style-papercraft", "style-kart-racer", "style-pixel-16bit",
+  "style-low-poly-ps1", "style-voxel", "style-aaa-cinematic",
+  "style-isometric-sim", "style-fighting-game", "style-claymation",
+  "style-puppet-satire", "style-felt-stopmo", "style-brick-built",
+  "style-diorama", "style-marionette", "style-comic-inks",
+  "style-manga", "style-watercolour", "style-storybook",
+  "style-oil-painting", "style-woodcut", "style-pencil-sketch",
+  "style-collage", "style-folk-horror", "style-giallo",
+  "style-mockumentary", "style-found-footage", "style-silent-slapstick",
+  "style-wuxia", "style-vaporwave", "style-blueprint",
+  "style-xray", "style-silhouette", "style-neon-outline",
+  "grade-natural", "grade-teal-orange", "grade-bleach",
+  "grade-kodachrome", "grade-golden", "grade-mono",
+  "grade-high-con-mono", "grade-sepia", "grade-neon-noir",
+  "grade-pastel", "grade-steel", "grade-technicolor",
+  "grade-faded", "grade-infrared", "grade-duotone",
+  "grade-moonlit", "grade-earth", "grade-gasoline",
+  "grade-tropic", "grade-industrial", "grade-overtime",
+  "grade-circus", "light-window", "light-golden-hour",
+  "light-blue-hour", "light-overcast", "light-hard-noon",
+  "light-neon", "light-firelight", "light-candlelight",
+  "light-moonlight", "light-softbox", "light-rembrandt",
+  "light-silhouette", "light-toplight", "light-underlight",
+  "light-strobe", "light-caustics", "light-bulb",
+  "light-headlights", "light-screen",
+]);
+
+function TilePhoto({ id }: { id: string }) {
+  return (
+    <img
+      src={`/studio/cinema/${id}.webp`}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      className="h-full w-full object-cover"
+    />
+  );
+}
+
 export function OptionArt({
   railId,
   optionId,
@@ -871,6 +951,7 @@ export function OptionArt({
   cuts?: number[];
 }) {
   if (optionId.endsWith("-auto")) return <AutoArt />;
+  if (TILE_PHOTOS.has(optionId)) return <TilePhoto id={optionId} />;
   if (railId === "aperture") return <Iris f={F_STOPS[optionId] ?? 0} />;
   if (railId === "body") return <Scene stock={STOCKS[optionId]} />;
   if (railId === "lens") return <Scene glass={GLASSES[optionId]} />;
