@@ -62,6 +62,7 @@ import { Markdown } from "./Markdown";
 import { StudioFormCard, type FormSubmission } from "./StudioFormCard";
 import { StoryboardCard } from "./StoryboardCard";
 import { FilmProgress } from "./FilmProgress";
+import { ReferenceTile } from "./ReferenceTile";
 import { cancelFilm, startFilm, watchFilm, type FilmView } from "@/lib/studio/film";
 import { runtimeSec, type Storyboard } from "@/lib/studio/storyboard";
 import { SOURCE_LABEL, type ChatTurn, type Conversation, type JarvisStore, type PendingAction } from "@/lib/jarvis/types";
@@ -130,8 +131,11 @@ export function ChatTab({
   profile: Profile | null;
   /** A confirmed folder / calendar / list action ran; the shell re-reads. */
   onDashboardChanged?: () => void;
-  /** A message another tab (Studio) wants typed into the box, not sent. */
-  draft?: { text: string; nonce: number } | null;
+  /**
+   * A message another tab (Studio) wants typed into the box, not sent — with
+   * any references it collected, which land in the tray already attached.
+   */
+  draft?: { text: string; nonce: number; attachments?: Attachment[] } | null;
 }) {
   const memory = useMemory(store, commit);
   const [input, setInput] = useState("");
@@ -221,6 +225,17 @@ export function ChatTab({
   useEffect(() => {
     if (!draft) return;
     setInput(draft.text);
+    // Added to what is already in the tray rather than replacing it: coming
+    // back from Studio a second time should not silently drop the first trip.
+    // By id, and only what is missing — an effect that runs twice (React does,
+    // in development) must not put the same photo in the tray twice.
+    if (draft.attachments?.length) {
+      setAttachments((list) => {
+        const have = new Set(list.map((a) => a.id));
+        const missing = draft.attachments!.filter((a) => !have.has(a.id));
+        return missing.length ? [...list, ...missing].slice(0, MAX_ATTACHMENTS) : list;
+      });
+    }
     requestAnimationFrame(() => {
       const el = inputRef.current;
       if (!el) return;
@@ -1159,57 +1174,30 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
             <ul className="flex flex-wrap gap-2 px-3 pt-3" aria-label="References on this message">
               {attachments.map((a) => {
                 // Its row in the conversation's numbering — the thing an @token
-                // names. A picture is a Subject, a track is an Audio.
+                // names. A picture is a Subject, a track is an Audio; "3" and
+                // "A2" are two counters, so the badge says which it counts in.
                 const row = references.find((r) => r.id === a.id);
                 const token = row?.token.toLowerCase();
-                const lit = Boolean(token && (highlight === token || named.has(token)));
                 return (
-                  <li key={a.id} className="relative">
-                    <button
-                      type="button"
-                      onClick={() => row && setInput((t) => `${t}${t && !/\s$/.test(t) ? " " : ""}@${row.token} `)}
-                      onMouseEnter={() => {
-                        if (token) setHighlight(token);
-                      }}
-                      onMouseLeave={() => setHighlight(null)}
-                      title={
-                        row
-                          ? `Name this ${row.label} in the prompt${a.note ? `\n\n${a.note}` : ""}`
-                          : a.note ?? a.name
-                      }
-                      className={`block overflow-hidden rounded-lg border transition ${
-                        lit ? "border-accent ring-1 ring-accent" : "border-line hover:border-ink-faint"
-                      }`}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={a.thumb} alt={a.name} className="h-16 w-16 object-cover" />
-                    </button>
-                    {row && (
-                      <span
-                        className={`pointer-events-none absolute bottom-1 left-1 rounded px-1 py-px font-mono text-[9px] font-semibold transition ${
-                          lit ? "bg-accent text-canvas" : "bg-black/65 text-white"
-                        }`}
-                      >
-                        {/* "3" is Subject 3; "A2" is Audio 2. Two counters, so
-                            the badge has to say which one it is counting in. */}
-                        {row.kind === "audio" ? `A${row.n}` : row.n}
-                      </span>
-                    )}
-                    {(a.kind === "video" || a.kind === "audio") && (
-                      <span className="pointer-events-none absolute right-1 top-1 flex items-center gap-0.5 rounded bg-black/65 px-1 py-px text-[9px] text-white">
-                        {a.kind === "audio" && <Icon.Waveform width={8} height={8} />}
-                        {a.durationSec ? `${Math.round(a.durationSec)}s` : a.kind === "audio" ? "track" : "clip"}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setAttachments((list) => list.filter((x) => x.id !== a.id))}
-                      aria-label={`Remove ${a.name}`}
-                      className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full border border-line bg-panel text-ink-muted shadow-sm transition hover:text-ink"
-                    >
-                      <Icon.Close width={10} height={10} />
-                    </button>
-                  </li>
+                  <ReferenceTile
+                    key={a.id}
+                    attachment={a}
+                    {...(row ? { badge: row.kind === "audio" ? `A${row.n}` : String(row.n) } : {})}
+                    lit={Boolean(token && (highlight === token || named.has(token)))}
+                    title={
+                      row
+                        ? `Name this ${row.label} in the prompt${a.note ? `\n\n${a.note}` : ""}`
+                        : a.note ?? a.name
+                    }
+                    {...(row
+                      ? {
+                          onName: () =>
+                            setInput((t) => `${t}${t && !/\s$/.test(t) ? " " : ""}@${row.token} `),
+                          onHover: (on: boolean) => setHighlight(on && token ? token : null),
+                        }
+                      : {})}
+                    onRemove={() => setAttachments((list) => list.filter((x) => x.id !== a.id))}
+                  />
                 );
               })}
             </ul>
@@ -1319,15 +1307,17 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
                 e.target.value = "";
               }}
             />
+            {/* Named, not just a glyph: this is the control that answers "how do
+                I give it a photo, a clip or a song", and a bare + did not. */}
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
               disabled={attachments.length >= MAX_ATTACHMENTS}
               title="Add pictures, clips or a track (or paste / drop them)"
-              aria-label="Add references"
-              className="grid h-7 w-7 place-items-center rounded-lg border border-line text-ink-muted transition hover:border-ink-faint hover:text-ink disabled:opacity-40"
+              className="inline-flex h-7 items-center gap-1 rounded-lg border border-line px-2 text-[11px] text-ink-muted transition hover:border-ink-faint hover:text-ink disabled:opacity-40"
             >
               <Icon.Plus width={14} height={14} />
+              {attachments.length ? `${attachments.length}/${MAX_ATTACHMENTS}` : "Image, clip or audio"}
             </button>
             <button
               type="button"

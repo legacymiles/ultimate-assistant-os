@@ -11,6 +11,11 @@
 // box) are chosen. "Start in chat" writes the mix as @-mentions into
 // the chat box, where Jarvis turns it into a production prompt. The same @- and
 // #-mentions work typed straight into chat, and the camera deck follows across.
+//
+// References — a photo, a clip, a track — are collected HERE too, next to the
+// idea they belong to, and travel with it. They are not numbered yet: a
+// reference is "Subject 2" only once the conversation counts it, so the naming
+// happens where the count is known, and these tiles simply say what they are.
 // ---------------------------------------------------------------------------
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -20,6 +25,15 @@ import { StudioGallery } from "./StudioGallery";
 import { studioPlugins } from "@/lib/studio/plugins";
 import { useCinemaOutput, useCinemaSelection } from "@/lib/studio/useCinema";
 import { Icon } from "../icons";
+import { ReferenceTile } from "./ReferenceTile";
+import {
+  ACCEPT_REFERENCES,
+  MAX_ATTACHMENTS,
+  referenceFiles,
+  toAttachment,
+  type Attachment,
+} from "@/lib/jarvis/chatImages";
+import { uid } from "@/lib/jarvis/store";
 import {
   CATEGORIES,
   WORKFLOWS,
@@ -38,7 +52,11 @@ interface Picked {
   variant: string;
 }
 
-export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void }) {
+export function StudioTab({
+  onStartChat,
+}: {
+  onStartChat: (text: string, attachments: Attachment[]) => void;
+}) {
   const [medium, setMedium] = useState<Medium>("video");
   const [category, setCategory] = useState<CategoryId | "all">("all");
   const [query, setQuery] = useState("");
@@ -46,6 +64,11 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
   const [keywords, setKeywords] = useState<string[]>([]);
   const [custom, setCustom] = useState("");
   const [idea, setIdea] = useState("");
+  /** Pictures, clips and tracks for this shot, carried into chat with the idea. */
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [problem, setProblem] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   // The look is shared with Chat, so a camera set here is still set there.
   const [cinema, setCinema] = useCinemaSelection();
   const [output, setOutput] = useCinemaOutput();
@@ -112,6 +135,29 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
     setPicked([]);
     setKeywords([]);
     setIdea("");
+    setAttachments([]);
+    setProblem("");
+  };
+
+  /** Read the files into references, the same way the chat box does. */
+  const attach = async (files: File[]) => {
+    if (!files.length) return;
+    const room = MAX_ATTACHMENTS - attachments.length;
+    if (room <= 0) {
+      setProblem(`Up to ${MAX_ATTACHMENTS} references per shot.`);
+      return;
+    }
+    setProblem(files.length > room ? `Up to ${MAX_ATTACHMENTS} — I added the first ${room}.` : "");
+    const added: Attachment[] = [];
+    for (const f of files.slice(0, room)) {
+      try {
+        added.push(await toAttachment(f, uid()));
+      } catch (e) {
+        setProblem(e instanceof Error ? e.message : "Couldn't read that file.");
+      }
+    }
+    setAttachments((list) => [...list, ...added].slice(0, MAX_ATTACHMENTS));
+    ideaRef.current?.focus();
   };
 
   const readMention = (el: HTMLTextAreaElement) => {
@@ -143,7 +189,10 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
   };
 
   const start = () => {
-    if (!picked.length) return;
+    // A picked card, a typed idea or an attached reference — any one of them is
+    // something to start from. It used to demand a card, so an idea with a photo
+    // and no workflow pressed the button and nothing happened.
+    if (!picked.length && !idea.trim() && !attachments.length) return;
     // A workflow typed straight into the box is already an @token; only add the
     // ones picked from cards, so nothing is named twice.
     const typed = new Set(mentionsIn(idea).map((m) => m.workflow.id));
@@ -154,12 +203,34 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
     const style = keywords.length ? `\nKeywords: ${keywords.join(", ")}` : "";
     // The camera moves ride along inside `idea` as #tokens; the look travels on
     // its own, shared with Chat through localStorage.
-    onStartChat(`${mentions} ${idea.trim()}${style}`.trim());
+    onStartChat(`${mentions} ${idea.trim()}${style}`.trim(), attachments);
     clear();
   };
 
   return (
-    <div className="flex h-[calc(100dvh-49px)] flex-col">
+    <div
+      className="relative flex h-[calc(100dvh-49px)] flex-col"
+      onDragOver={(e) => {
+        if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        void attach(referenceFiles(e.dataTransfer));
+      }}
+    >
+      {dragging && (
+        <div className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-xl border border-dashed border-ink-faint bg-panel/85 backdrop-blur-sm">
+          <p className="flex items-center gap-2 text-sm text-ink">
+            <Icon.Image width={16} height={16} /> Drop pictures, clips or a track
+          </p>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2">
         <h2 className="text-xs font-semibold text-ink">Studio</h2>
         <span className="text-[11px] text-ink-faint">
@@ -234,7 +305,8 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
       </div>
 
       {view === "gallery" ? (
-        <StudioGallery onReuse={(prompt) => onStartChat(prompt)} />
+        // Reusing a finished piece carries its prompt, not this tray.
+        <StudioGallery onReuse={(prompt) => onStartChat(prompt, [])} />
       ) : view === "plugins" ? (
         <PluginsPane />
       ) : (
@@ -341,6 +413,23 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
                 ))}
               </ul>
             )}
+            {attachments.length > 0 && (
+              <ul className="flex flex-wrap gap-2 px-2 pt-2.5" aria-label="References for this shot">
+                {attachments.map((a) => (
+                  <ReferenceTile
+                    key={a.id}
+                    attachment={a}
+                    title={
+                      a.note
+                        ? `${a.name}\n\n${a.note}`
+                        : `${a.name} — attached to this shot; name it in chat`
+                    }
+                    onRemove={() => setAttachments((list) => list.filter((x) => x.id !== a.id))}
+                  />
+                ))}
+              </ul>
+            )}
+            {problem && <p className="px-2 pt-2 text-[11px] text-amber-400">{problem}</p>}
             <textarea
               ref={ideaRef}
               value={idea}
@@ -374,6 +463,12 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
                   start();
                 }
               }}
+              onPaste={(e) => {
+                const files = referenceFiles(e.clipboardData);
+                if (!files.length) return;
+                e.preventDefault();
+                void attach(files);
+              }}
               rows={2}
               placeholder="Describe the shot: whose story, which product, what happens…  (@ for a person or a workflow, # for a camera move)"
               className="mt-2 block max-h-48 min-h-[68px] w-full resize-none bg-transparent px-2 pt-1 text-[15px] leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
@@ -381,6 +476,31 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 px-1 pb-1">
+            {/* The reference control, first on the row and named: this is how a
+                photo, a clip or a song gets into the shot, and it travels with
+                the idea into chat. */}
+            <input
+              ref={fileRef}
+              type="file"
+              accept={ACCEPT_REFERENCES}
+              multiple
+              hidden
+              onChange={(e) => {
+                void attach(Array.from(e.target.files ?? []));
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={attachments.length >= MAX_ATTACHMENTS}
+              title="Add pictures, clips or a track (or paste / drop them)"
+              className="inline-flex h-7 items-center gap-1 rounded-lg border border-line px-2 text-[11px] text-ink-muted transition hover:border-ink-faint hover:text-ink disabled:opacity-40"
+            >
+              <Icon.Plus width={14} height={14} />
+              {attachments.length ? `${attachments.length}/${MAX_ATTACHMENTS}` : "Image, clip or audio"}
+            </button>
+            <span className="mx-0.5 h-5 w-px bg-line" aria-hidden />
             <CinemaOutputRow output={output} onOutput={setOutput} />
             <span className="mx-0.5 h-5 w-px bg-line" aria-hidden />
             {takesKeywords &&
@@ -415,7 +535,7 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
             )}
             <button
               onClick={start}
-              disabled={!picked.length && !idea.trim()}
+              disabled={!picked.length && !idea.trim() && !attachments.length}
               className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-ink px-4 py-2 text-xs font-semibold text-canvas transition hover:opacity-90 disabled:opacity-40"
             >
               <Icon.Send width={13} height={13} /> Start in chat
