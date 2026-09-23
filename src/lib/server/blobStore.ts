@@ -143,12 +143,26 @@ export function ensureBucket(bucket: string): Promise<boolean> {
  * A time-limited read link, for handing a private file to a third party that
  * must download it (a video model). Null on the file backend, where no outside
  * service could reach the file anyway.
+ *
+ * `downloadAs` asks Storage to answer with `Content-Disposition: attachment`
+ * under that filename. Pass it whenever a BROWSER is the one following the
+ * link: an `<a download>` is ignored cross-origin, so without this the tab
+ * simply navigates to the object and Chrome plays the audio instead of saving
+ * it — which is exactly what happened on the live site the first time a
+ * bridged download came back through Storage.
  */
-export async function signedBlobUrl(bucket: string, key: string, ttlSeconds: number): Promise<string | null> {
+export async function signedBlobUrl(
+  bucket: string,
+  key: string,
+  ttlSeconds: number,
+  downloadAs?: string,
+): Promise<string | null> {
   const db = remote();
   if (!db) return null;
   try {
-    const { data, error } = await db.storage.from(bucket).createSignedUrl(key, ttlSeconds);
+    const { data, error } = await db.storage
+      .from(bucket)
+      .createSignedUrl(key, ttlSeconds, downloadAs ? { download: downloadAs } : undefined);
     return error ? null : (data?.signedUrl ?? null);
   } catch {
     return null;

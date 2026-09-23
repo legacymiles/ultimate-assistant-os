@@ -404,7 +404,10 @@ export interface HuntResult {
   checked: SourceReport[];
 }
 
-export async function findCandidates(track: Track): Promise<HuntResult> {
+export async function findCandidates(
+  track: Track,
+  opts: { hasRunner?: boolean } = {},
+): Promise<HuntResult> {
   // Which YouTube search to run depends on whether this machine has yt-dlp,
   // so that answer is needed before the fan-out rather than alongside it.
   const engine = await ytdlpStatus().catch(() => null);
@@ -446,11 +449,14 @@ export async function findCandidates(track: Track): Promise<HuntResult> {
             ? undefined
             : engine.message
           : youtubeRows.length > 0
-            ? // The rows are real; only the fetching needs the PC. Saying this
-              // here is the difference between "broken" and "one setup step".
-              "These were found without yt-dlp, so they are listed but cannot be "
-              + "downloaded from this server. Set up the runner once in the “Your PC” "
-              + "tab and it will fetch whichever one you pick."
+            ? // The rows are real; only the fetching needs the PC. Once a
+              // runner exists that is no longer a caveat, and repeating it
+              // would tell the owner to set up something already working.
+              opts.hasRunner
+              ? "Found without yt-dlp and fetched by your PC — pick one and it goes to the runner."
+              : "These were found without yt-dlp, so they are listed but cannot be downloaded "
+                + "from this server. Set up the runner once in the “Your PC” tab and it will "
+                + "fetch whichever one you pick."
             : engine?.message,
       },
       { id: "apple", label: "Apple preview", ok: true, count: preview.length },

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { sessionUid } from "@/lib/mp3-download/server/auth";
+import { bridgeInfo } from "@/lib/mp3-download/server/bridge";
 import { findCandidates } from "@/lib/mp3-download/sources";
 import type { Track } from "@/lib/mp3-download/types";
 
@@ -20,7 +22,10 @@ export async function POST(request: Request) {
   }
 
   try {
-    return NextResponse.json(await findCandidates(track));
+    // Whether a runner exists changes what the YouTube row's note should say,
+    // and only this layer knows who is asking.
+    const bridge = await bridgeInfo(await sessionUid()).catch(() => null);
+    return NextResponse.json(await findCandidates(track, { hasRunner: bridge?.hasToken }));
   } catch {
     return NextResponse.json({
       candidates: [],

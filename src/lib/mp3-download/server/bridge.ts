@@ -277,7 +277,10 @@ export async function jobDownloadUrl(uid: string, jobId: string): Promise<string
   const job = await getJob(uid, jobId);
   if (!job?.key || job.state !== "done") return null;
   // Remote: a signed Storage link, straight from Supabase to the browser.
-  const signed = await signedBlobUrl(BUCKET, job.key, 3600);
+  // The filename matters twice — it names the saved file, and it is what makes
+  // Storage send Content-Disposition: attachment at all. Without it the link
+  // is just a media URL and the browser plays it instead of saving it.
+  const signed = await signedBlobUrl(BUCKET, job.key, 3600, job.filename);
   if (signed) return signed;
   // Local hub: no Storage, so the file route streams it from disk instead.
   return `/api/mp3-download/bridge/file?job=${encodeURIComponent(jobId)}`;
