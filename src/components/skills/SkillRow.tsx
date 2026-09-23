@@ -34,21 +34,22 @@ export function SkillRow({ skill, onOpen, onEdit, onDelete }: Props) {
         </p>
       </div>
 
-      {/* Row actions — hidden until hover/focus on wide screens. Featured and
-          Studio skills are built into the app, so they can't be edited or
-          deleted; Studio ones are edited by changing the workflow itself. */}
-      {skill.source !== "featured" && skill.source !== "studio" && (
-        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:transition sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(skill);
-            }}
-            className="rounded-lg border border-line p-1.5 text-ink-muted transition hover:bg-elevated hover:text-ink"
-            aria-label={`Edit ${skill.title}`}
-          >
-            <Icon.Edit width={15} height={15} />
-          </button>
+      {/* Row actions — hidden until hover/focus on wide screens. Every skill can
+          be edited: a built-in is a file, so editing one writes an editable copy
+          that takes its place. Only that copy can be deleted, which restores the
+          original — the built-in itself has nothing to delete. */}
+      <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:transition sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(skill);
+          }}
+          className="rounded-lg border border-line p-1.5 text-ink-muted transition hover:bg-elevated hover:text-ink"
+          aria-label={`Edit ${skill.title}`}
+        >
+          <Icon.Edit width={15} height={15} />
+        </button>
+        {skill.source !== "featured" && skill.source !== "studio" && (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -59,8 +60,8 @@ export function SkillRow({ skill, onOpen, onEdit, onDelete }: Props) {
           >
             <Icon.Trash width={15} height={15} />
           </button>
-        </div>
-      )}
+        )}
+      </div>
       <Icon.Chevron
         width={16}
         height={16}

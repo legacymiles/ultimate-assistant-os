@@ -159,6 +159,52 @@ export async function createSkill(draft: SkillDraft): Promise<Skill> {
   return rowToSkill(data as SkillRow);
 }
 
+/**
+ * Edit a built-in skill — a Studio agent or a featured one.
+ *
+ * Built-ins are files, not rows, so they cannot be updated in place. Instead
+ * this writes an ordinary editable skill carrying the SAME slug, and both merge
+ * helpers already prefer a real skill over a built-in with that slug, so the
+ * copy simply takes its place. Deleting the copy brings the original back,
+ * which is why nothing is ever lost by editing one.
+ */
+export async function forkSkill(base: Skill, draft: SkillDraft): Promise<Skill> {
+  const clean = normalize(draft);
+  const sb = getSupabaseBrowserClient();
+
+  if (!sb) {
+    const now = new Date().toISOString();
+    const skill: Skill = {
+      id: uid(),
+      ...clean,
+      source: "manual",
+      slug: base.slug,
+      origin: base.origin,
+      createdAt: now,
+      updatedAt: now,
+    };
+    lsWrite([skill, ...lsRead()]);
+    return skill;
+  }
+
+  const { data: userData } = await sb.auth.getUser();
+  const userId = userData.user?.id;
+  if (!userId) throw new Error("You must be signed in to edit a skill.");
+
+  const { data, error } = await sb
+    .from("skills")
+    .insert({ user_id: userId, source: "manual", slug: base.slug, origin: base.origin, ...clean })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return rowToSkill(data as SkillRow);
+}
+
+/** Built-in skills are files on disk; editing one forks it instead. */
+export function isBuiltIn(skill: Skill): boolean {
+  return skill.source === "studio" || skill.source === "featured";
+}
+
 export async function updateSkill(id: string, draft: SkillDraft): Promise<Skill> {
   const clean = normalize(draft);
   const sb = getSupabaseBrowserClient();

@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Icon } from "../icons";
 import {
   createSkill,
+  forkSkill,
+  isBuiltIn,
   deleteSkill,
   isCloudBacked,
   listSkills,
@@ -139,7 +141,14 @@ export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } =
   }, [skills, query, category, origin]);
 
   const handleSave = async (draft: SkillDraft) => {
-    if (editor?.mode === "edit") {
+    if (editor?.mode === "edit" && isBuiltIn(editor.skill)) {
+      // A built-in is a file, so editing it writes an editable copy that takes
+      // its place. Swap the row rather than appending, or both would show until
+      // the next load.
+      const fork = await forkSkill(editor.skill, draft);
+      setSkills((prev) => prev.map((s) => (s.id === editor.skill.id ? fork : s)));
+      setDetail((d) => (d && d.id === editor.skill.id ? fork : d));
+    } else if (editor?.mode === "edit") {
       const updated = await updateSkill(editor.skill.id, draft);
       setSkills((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
       setDetail((d) => (d && d.id === updated.id ? updated : d));
@@ -151,10 +160,24 @@ export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } =
   };
 
   const handleDelete = async (skill: Skill) => {
-    if (!window.confirm(`Delete “${skill.title}”? This can’t be undone.`)) return;
+    // A skill carrying a built-in slug is an edited copy: deleting it restores
+    // the original rather than losing anything, and the wording should say so.
+    const isCopy = Boolean(skill.slug?.startsWith("studio:")) || Boolean(skill.slug?.startsWith("github:"));
+    const message = isCopy
+      ? `Discard your edits to “${skill.title}”? The built-in version comes back.`
+      : `Delete “${skill.title}”? This can’t be undone.`;
+    if (!window.confirm(message)) return;
     await deleteSkill(skill.id);
     setSkills((prev) => prev.filter((s) => s.id !== skill.id));
     setDetail((d) => (d && d.id === skill.id ? null : d));
+    // The built-in reappears from the merge on the next load.
+    if (isCopy) {
+      try {
+        setSkills(await listSkills());
+      } catch {
+        /* the built-in returns on the next load */
+      }
+    }
   };
 
   return (
