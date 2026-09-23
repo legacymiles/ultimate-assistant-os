@@ -163,9 +163,9 @@ export async function ytdlpStatus(force = false): Promise<YtdlpStatus> {
     version: null,
     ffmpeg: false,
     message: isServerless()
-      ? "YouTube search runs yt-dlp on the machine serving this page, and this is the deployed "
-        + "site — so it is off here by design, not broken. Open the hub on your own PC and the "
-        + "YouTube rows appear. Everything else on this page works either way."
+      ? "yt-dlp is a program on your own machine and this page is served from a host that has "
+        + "none — so downloading happens on your PC, not here. Set the runner up once in the "
+        + "“Your PC” tab and this site will hand it the work."
       : "yt-dlp was not found from this server. Install it with `pip install -U yt-dlp` (or "
         + "`winget install yt-dlp.yt-dlp`). If it is already installed, its folder is probably "
         + "not on this terminal's PATH — set YTDLP_PATH in .env.local to the full path of "

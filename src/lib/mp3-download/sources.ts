@@ -13,9 +13,12 @@
 //             point: a row exists here only if somebody published the file for
 //             download, and the licence travels with it to the UI.
 //
-//             Plus YouTube, through yt-dlp on the owner's own machine. That
-//             source states no licence, so its rows say so rather than
-//             pretending otherwise. See ytdlp.ts.
+//             Plus YouTube. Where yt-dlp is installed it does the searching;
+//             where it is not — the deployed site — the results page is read
+//             directly, keylessly, so the rows still appear and the PC bridge
+//             fetches whichever one is chosen. That source states no licence,
+//             so its rows say so rather than pretending otherwise.
+//             See ytdlp.ts and youtubeSearch.ts.
 //
 // Everything degrades to an empty list rather than an error. One source being
 // slow or down must never take the page with it.
@@ -24,6 +27,7 @@
 import { cleanFileTitle, rank, scoreCandidate } from "./match";
 import type { Candidate, Licence, Track } from "./types";
 import { searchYouTube, ytdlpStatus } from "./ytdlp";
+import { searchYouTubeKeyless } from "./youtubeSearch";
 
 const UA = "UltimateAssistantOS/1.0 (hub mp3-download)";
 const TIMEOUT = 12_000;
@@ -401,17 +405,20 @@ export interface HuntResult {
 }
 
 export async function findCandidates(track: Track): Promise<HuntResult> {
-  const [archive, openverse, youtube, ytdlp] = await Promise.allSettled([
+  // Which YouTube search to run depends on whether this machine has yt-dlp,
+  // so that answer is needed before the fan-out rather than alongside it.
+  const engine = await ytdlpStatus().catch(() => null);
+  const searchYt = engine?.ok ? searchYouTube : searchYouTubeKeyless;
+
+  const [archive, openverse, youtube] = await Promise.allSettled([
     fromArchive(track),
     fromOpenverse(track),
-    searchYouTube(track),
-    ytdlpStatus(),
+    searchYt(track),
   ]);
 
   const archiveRows = archive.status === "fulfilled" ? archive.value : [];
   const openverseRows = openverse.status === "fulfilled" ? openverse.value : [];
   const youtubeRows = youtube.status === "fulfilled" ? youtube.value : [];
-  const engine = ytdlp.status === "fulfilled" ? ytdlp.value : null;
   const preview = applePreview(track);
 
   return {
@@ -431,10 +438,20 @@ export async function findCandidates(track: Track): Promise<HuntResult> {
       },
       {
         id: "youtube",
-        label: engine?.ok ? "YouTube · yt-dlp " + (engine.version ?? "") : "YouTube · yt-dlp",
-        ok: Boolean(engine?.ok) && youtube.status === "fulfilled",
+        label: engine?.ok ? "YouTube · yt-dlp " + (engine.version ?? "") : "YouTube",
+        ok: youtube.status === "fulfilled" && youtubeRows.length > 0,
         count: youtubeRows.length,
-        note: engine?.ok ? (engine.ffmpeg ? undefined : engine.message) : engine?.message,
+        note: engine?.ok
+          ? engine.ffmpeg
+            ? undefined
+            : engine.message
+          : youtubeRows.length > 0
+            ? // The rows are real; only the fetching needs the PC. Saying this
+              // here is the difference between "broken" and "one setup step".
+              "These were found without yt-dlp, so they are listed but cannot be "
+              + "downloaded from this server. Set up the runner once in the “Your PC” "
+              + "tab and it will fetch whichever one you pick."
+            : engine?.message,
       },
       { id: "apple", label: "Apple preview", ok: true, count: preview.length },
     ],

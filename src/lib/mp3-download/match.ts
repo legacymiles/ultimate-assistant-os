@@ -91,6 +91,20 @@ export function cleanFileTitle(name: string): string {
     .trim();
 }
 
+/**
+ * Titles that announce themselves as NOT the original recording.
+ *
+ * The artist check alone does not catch these: a cover called "The Weeknd -
+ * Blinding Lights (IMY2 Cover)" names the real artist in its own title, so it
+ * scored a perfect 100 on a live search and outranked the actual record. What
+ * gives it away is the word "cover", not the channel.
+ *
+ * Deliberately not a filter. A karaoke track or an instrumental is exactly
+ * what somebody sometimes wants; it just must never outrank the real thing.
+ */
+const VARIANT =
+  /\b(cover(ed)?\s*(by|version)?|karaoke|tribute|instrumental|acapella|a cappella|8d\s*audio|slowed|sped\s*up|nightcore|reverb|remake|piano\s*version|guitar\s*version|backing\s*track|made\s*famous\s*by)\b/i;
+
 export interface Scored {
   score: number;
   reasons: string[];
@@ -139,6 +153,14 @@ export function scoreCandidate(
 
   // A strong title over a wrong name is the signature of a cover version.
   if (artistHit < 0.34) score = Math.min(score, 62);
+
+  // And a title that says "cover" or "karaoke" is one even when it credits the
+  // original artist, which is how a cover reached 100 on a real search.
+  const variant = candidate.title.match(VARIANT);
+  if (variant) {
+    score = Math.min(score, 58);
+    reasons.push(`Says "${variant[0].trim().toLowerCase()}" — not the original recording`);
+  }
 
   return { score: Math.round(Math.max(0, Math.min(100, score))), reasons };
 }

@@ -117,6 +117,37 @@ describe("scoreCandidate", () => {
     expect(score).toBeGreaterThan(30);
   });
 
+  it("ranks a cover below the record even when it credits the real artist", () => {
+    const real = scoreCandidate(track, {
+      title: "The Weeknd - Blinding Lights (Official Audio)",
+      creator: "The Weeknd",
+      durationMs: track.durationMs,
+    });
+    const cover = scoreCandidate(track, {
+      title: "The Weeknd - Blinding Lights (IMY2 Cover)",
+      creator: "IMY2",
+      durationMs: track.durationMs,
+    });
+    expect(cover.score).toBeLessThan(real.score);
+    expect(cover.reasons.join(" ")).toContain("not the original recording");
+  });
+
+  it("marks the other not-the-record variants too", () => {
+    for (const title of [
+      "Blinding Lights (Karaoke Version)",
+      "Blinding Lights - Instrumental",
+      "The Weeknd - Blinding Lights (slowed + reverb)",
+      "Blinding Lights (8D AUDIO)",
+    ]) {
+      const { score } = scoreCandidate(track, {
+        title,
+        creator: "The Weeknd",
+        durationMs: track.durationMs,
+      });
+      expect(score).toBeLessThanOrEqual(58);
+    }
+  });
+
   it("finds the artist when the upload puts it in the title", () => {
     const inTitle = scoreCandidate(track, {
       title: "The Weeknd - Blinding Lights",
