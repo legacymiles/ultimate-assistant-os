@@ -15,11 +15,24 @@
 // ---------------------------------------------------------------------------
 
 import { spawn } from "node:child_process";
+import { existsSync, readdirSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { rank, scoreCandidate } from "./match";
 import type { Candidate, Licence, Track } from "./types";
+
+/**
+ * True on a deployed serverless host, where no binary of ours can ever exist.
+ *
+ * Worth knowing apart from "not installed": telling somebody to run
+ * `pip install` to fix a page served from Vercel is advice they cannot act on,
+ * and it reads as the app being broken rather than as this source being local
+ * by design.
+ */
+function isServerless(): boolean {
+  return Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+}
 
 /** Each entry is an argv: some installs only have the Python module. */
 const BINARY_CANDIDATES: string[][] = [
@@ -29,6 +42,56 @@ const BINARY_CANDIDATES: string[][] = [
   ["py", "-m", "yt_dlp"],
   ["python3", "-m", "yt_dlp"],
 ];
+
+/**
+ * Places a yt-dlp binary sits when PATH does not mention it.
+ *
+ * pip drops `yt-dlp.exe` into a per-user Scripts directory that Windows does
+ * not add to PATH, and it warns about exactly that at install time. A dev
+ * server started from a shell with a thinner PATH than the one that installed
+ * it then reports yt-dlp missing while the file is right there — which is how
+ * this was found. Looking on disk costs a few `existsSync` calls and removes a
+ * whole class of "it works for me" between two terminals on one machine.
+ */
+function discoverBinaries(): string[][] {
+  const found: string[][] = [];
+  const home = homedir();
+  const roots = [
+    process.env.APPDATA ? join(process.env.APPDATA, "Python") : "",
+    process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, "Programs", "Python") : "",
+    "C:\\",
+  ].filter(Boolean);
+
+  // Windows: <root>/Python3xx/Scripts/yt-dlp.exe
+  for (const root of roots) {
+    let versions: string[];
+    try {
+      versions = readdirSync(root).filter((d) => /^Python\d/i.test(d));
+    } catch {
+      continue;
+    }
+    for (const version of versions) {
+      const exe = join(root, version, "Scripts", "yt-dlp.exe");
+      if (existsSync(exe)) found.push([exe]);
+    }
+  }
+
+  // macOS and Linux, including a pipx or --user install.
+  for (const path of [
+    "/usr/local/bin/yt-dlp",
+    "/usr/bin/yt-dlp",
+    "/opt/homebrew/bin/yt-dlp",
+    join(home, ".local", "bin", "yt-dlp"),
+  ]) {
+    try {
+      if (existsSync(path)) found.push([path]);
+    } catch {
+      // An unreadable path is simply not a candidate.
+    }
+  }
+
+  return found;
+}
 
 export interface RunResult {
   code: number;
@@ -88,16 +151,25 @@ export async function ytdlpStatus(force = false): Promise<YtdlpStatus> {
   if (!force && cached && Date.now() - cached.at < 60_000) return cached.status;
 
   const configured = process.env.YTDLP_PATH?.trim();
-  const attempts = configured ? [[configured], ...BINARY_CANDIDATES] : BINARY_CANDIDATES;
+  const attempts = [
+    ...(configured ? [[configured]] : []),
+    ...BINARY_CANDIDATES,
+    ...discoverBinaries(),
+  ];
 
   let status: YtdlpStatus = {
     ok: false,
     argv: null,
     version: null,
     ffmpeg: false,
-    message:
-      "yt-dlp is not on this machine. Install it with `pip install -U yt-dlp` (or "
-      + "`winget install yt-dlp.yt-dlp`) and reload — the other sources work without it.",
+    message: isServerless()
+      ? "YouTube search runs yt-dlp on the machine serving this page, and this is the deployed "
+        + "site — so it is off here by design, not broken. Open the hub on your own PC and the "
+        + "YouTube rows appear. Everything else on this page works either way."
+      : "yt-dlp was not found from this server. Install it with `pip install -U yt-dlp` (or "
+        + "`winget install yt-dlp.yt-dlp`). If it is already installed, its folder is probably "
+        + "not on this terminal's PATH — set YTDLP_PATH in .env.local to the full path of "
+        + "yt-dlp.exe and restart the server. The other sources work without it.",
   };
 
   for (const argv of attempts) {
@@ -110,7 +182,7 @@ export async function ytdlpStatus(force = false): Promise<YtdlpStatus> {
         version: res.stdout.trim().split("\n")[0],
         ffmpeg,
         message: ffmpeg
-          ? "Ready."
+          ? "Ready — " + argv.join(" ")
           : "yt-dlp is here but ffmpeg is not, so audio cannot be converted to MP3. "
             + "Install ffmpeg, or take the original format.",
       };
