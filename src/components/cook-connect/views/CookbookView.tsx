@@ -7,10 +7,12 @@ import { useCook } from "../CookConnect";
 import { Columns } from "../Columns";
 import { loadRecipes, loadSaves, mySaves, toggleSave } from "@/lib/cook-connect/social";
 import type { Cookbook, Profile, Recipe } from "@/lib/cook-connect/types";
+import { createShare, loadSharesFor, revokeShare, shareUrl } from "@/lib/cook-connect/shares";
+import type { CookbookShare } from "@/lib/cook-connect/types";
 import {
-  Avatar, Button, EmptyState, Loading, Panel, SectionHead, Tag, cx,
+  Avatar, Button, EmptyState, Field, Input, Loading, Panel, SectionHead, Select, Tag, cx, relativeTime,
 } from "../ui";
-import { BookmarkIcon, ClockIcon, PlusIcon, SparkIcon } from "../icons";
+import { BookmarkIcon, ClockIcon, CloseIcon, PlusIcon, SendIcon, SparkIcon } from "../icons";
 
 export function CookbookView({ cookbookId }: { cookbookId: string }) {
   const { sb, userId, navigate, notify } = useCook();
@@ -21,6 +23,10 @@ export function CookbookView({ cookbookId }: { cookbookId: string }) {
   const [isSaved, setIsSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [shares, setShares] = useState<CookbookShare[]>([]);
+  const [shareEmail, setShareEmail] = useState("");
+  const [shareAccess, setShareAccess] = useState<"view" | "copy">("view");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -38,6 +44,7 @@ export function CookbookView({ cookbookId }: { cookbookId: string }) {
       setRecipes(rows);
       setSaves(all.byCookbook[cookbookId] ?? 0);
       setIsSaved(mine.has(cookbookId));
+      if (found.owner_id === userId) setShares(await loadSharesFor(sb, cookbookId));
     }
     setLoading(false);
   }, [sb, cookbookId, userId]);
@@ -69,6 +76,22 @@ export function CookbookView({ cookbookId }: { cookbookId: string }) {
     setSaves((n) => n + (isSaved ? -1 : 1));
     setBusy(false);
     notify(isSaved ? `Removed ${book.title} from your saves.` : `Saved ${book.title}.`);
+  };
+
+  const makeShare = async () => {
+    if (!userId || !book) return;
+    setBusy(true);
+    const { share, error } = await createShare(sb, userId, {
+      cookbook: book,
+      email: shareEmail || undefined,
+      accessLevel: shareAccess,
+    });
+    setBusy(false);
+    if (error || !share) { notify(`Could not make a link: ${error?.message ?? "unknown error"}`); return; }
+    setShares(await loadSharesFor(sb, cookbookId));
+    setShareEmail("");
+    void navigator.clipboard?.writeText(shareUrl(share.share_link_token));
+    notify("Share link made, and copied to your clipboard.");
   };
 
   return (
@@ -105,10 +128,16 @@ export function CookbookView({ cookbookId }: { cookbookId: string }) {
 
           <div className="flex shrink-0 items-center gap-1.5">
             {isMine ? (
-              <Button variant="primary" onClick={() => navigate({ page: "new-recipe", cookbookId })}>
-                <PlusIcon size={14} />
-                Add a recipe
-              </Button>
+              <>
+                <Button onClick={() => setSharing((s) => !s)}>
+                  <SendIcon size={14} />
+                  Share
+                </Button>
+                <Button variant="primary" onClick={() => navigate({ page: "new-recipe", cookbookId })}>
+                  <PlusIcon size={14} />
+                  Add a recipe
+                </Button>
+              </>
             ) : (
               <Button variant={isSaved ? "secondary" : "primary"} disabled={busy} onClick={() => void save()}>
                 <BookmarkIcon size={14} filled={isSaved} />
@@ -118,6 +147,95 @@ export function CookbookView({ cookbookId }: { cookbookId: string }) {
           </div>
         </div>
       </Panel>
+
+      {isMine && sharing && (
+        <Panel className="mb-4 border-[var(--cc-ember)]">
+          <SectionHead
+            title="Share this cookbook"
+            count={shares.length}
+            action={
+              <button
+                type="button"
+                onClick={() => setSharing(false)}
+                aria-label="Close sharing"
+                className="text-[var(--cc-ink-faint)] transition-colors hover:text-[var(--cc-ink)]"
+              >
+                <CloseIcon size={14} />
+              </button>
+            }
+          />
+          <div className="p-3">
+            <p className="mb-3 text-[12px] leading-relaxed text-[var(--cc-ink-muted)]">
+              A share link lets one person in, even when the cookbook is private. The first person to
+              open a link claims it, and it stops working for anyone else.
+            </p>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="min-w-[180px] flex-1">
+                <Field label="Who is it for" hint="Optional — just so you remember who you sent it to.">
+                  <Input
+                    value={shareEmail}
+                    onChange={(e) => setShareEmail(e.target.value)}
+                    placeholder="them@example.com"
+                    type="email"
+                  />
+                </Field>
+              </div>
+              <div className="w-[130px]">
+                <Field label="They can">
+                  <Select
+                    value={shareAccess}
+                    onChange={(e) => setShareAccess(e.target.value as "view" | "copy")}
+                  >
+                    <option value="view">Read it</option>
+                    <option value="copy">Read and copy</option>
+                  </Select>
+                </Field>
+              </div>
+              <Button variant="primary" disabled={busy} onClick={() => void makeShare()}>
+                Make a link
+              </Button>
+            </div>
+
+            {shares.length > 0 && (
+              <ul className="mt-3 border-t border-[var(--cc-line-soft)] pt-2">
+                {shares.map((sh) => (
+                  <li key={sh.id} className="flex items-center gap-2 py-1.5">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[12px]">
+                        {sh.shared_with_email || (sh.shared_with_user_id ? "Claimed" : "Not opened yet")}
+                      </span>
+                      <span className="block truncate text-[11px] text-[var(--cc-ink-faint)]">
+                        {sh.access_level === "copy" ? "Read and copy" : "Read"} · {relativeTime(sh.created_at)}
+                      </span>
+                    </span>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        void navigator.clipboard?.writeText(shareUrl(sh.share_link_token));
+                        notify("Link copied.");
+                      }}
+                    >
+                      Copy link
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await revokeShare(sb, sh.id);
+                        setShares(await loadSharesFor(sb, cookbookId));
+                        notify("That link no longer works.");
+                      }}
+                      aria-label="Revoke this link"
+                      className="shrink-0 rounded-md p-1 text-[var(--cc-ink-faint)] transition-colors hover:text-[var(--cc-loss)]"
+                    >
+                      <CloseIcon size={13} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Panel>
+      )}
 
       <Panel>
         <SectionHead title="Recipes" count={recipes.length} />

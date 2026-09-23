@@ -171,3 +171,65 @@ export function dmPartner(room: string, me: string): string | null {
   const [a, b] = room.slice(3).split(":");
   return a === me ? b : a;
 }
+
+/* ── The food journal ──────────────────────────────────────────── */
+
+export interface FavoriteCity {
+  id: string;
+  user_id: string;
+  name: string;
+  country: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface FavoriteRestaurant {
+  id: string;
+  user_id: string;
+  city_id: string;
+  name: string;
+  cuisine_type: string | null;
+  rating: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface FavoriteDish {
+  id: string;
+  user_id: string;
+  restaurant_id: string | null;
+  name: string;
+  rating: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
+/** One row of the per-city restaurant board, aggregated across everyone. */
+export interface CityStanding {
+  city: string;
+  restaurants: RestaurantStanding[];
+  fans: number;
+}
+
+export interface RestaurantStanding {
+  name: string;
+  city: string;
+  cuisine: string | null;
+  /** How many different people have it in their journal. */
+  fans: number;
+  avgRating: number;
+}
+
+/* ── Sharing ───────────────────────────────────────────────────── */
+
+export interface CookbookShare {
+  id: string;
+  cookbook_id: string;
+  shared_by: string;
+  shared_with_user_id: string | null;
+  shared_with_email: string | null;
+  share_link_token: string;
+  access_level: "view" | "copy";
+  expires_at: string | null;
+  created_at: string;
+}

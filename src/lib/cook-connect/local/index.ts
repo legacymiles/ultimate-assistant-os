@@ -6,7 +6,7 @@
 // it got.
 
 import { scopedKey } from "@/lib/sync/identity";
-import { QueryBuilder, loadDB, saveDB, uuid, nowIso, userIdForEmail, type Row } from "./db";
+import { DB_KEY, QueryBuilder, loadDB, saveDB, uuid, nowIso, userIdForEmail, type Row } from "./db";
 import { LocalChannel, removeLocalChannel } from "./realtime";
 
 const AUTH_KEY = "cook_connect_local_auth_v1";
@@ -162,7 +162,7 @@ export function getLocalCookClient(): CookClient {
 /** Clears everything this browser holds for Cook Connect. */
 export function resetLocalDemo() {
   try {
-    localStorage.removeItem(scopedKey("cook_connect_local_db_v1"));
+    localStorage.removeItem(scopedKey(DB_KEY));
     localStorage.removeItem(scopedKey(AUTH_KEY));
   } catch { /* private mode */ }
 }

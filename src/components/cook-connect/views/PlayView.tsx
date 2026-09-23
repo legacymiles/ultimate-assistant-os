@@ -17,6 +17,8 @@ import {
 } from "../ui";
 import { BotIcon, PlayIcon } from "../icons";
 import { LoungeDock } from "../play/LoungeDock";
+import { ActivityFeed } from "../social/ActivityFeed";
+import { OnlineRail } from "../social/OnlineRail";
 
 export function PlayView() {
   const { sb, userId, navigate, notify } = useCook();
@@ -70,10 +72,10 @@ export function PlayView() {
   };
 
   return (
-    <Columns rail={<LoungeDock />}>
+    <Columns rail={<><OnlineRail /><LoungeDock /></>}>
       <PageHead
         title="Play"
-        subtitle="Spades is four seats in two partnerships. Chess is two. Either way, empty seats can be filled by the computer so you never wait."
+        subtitle="Spades is four seats in two partnerships. Chess is two. Either way the computer fills empty seats, so you never wait for a fourth."
       />
 
       {mine.length > 0 && (
@@ -204,6 +206,10 @@ export function PlayView() {
           </ul>
         )}
       </Panel>
+
+      <div className="mt-4">
+        <ActivityFeed />
+      </div>
     </Columns>
   );
 }

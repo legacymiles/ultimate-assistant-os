@@ -139,6 +139,32 @@ export function CookConnect() {
     };
   }, [sb, ensureProfile]);
 
+  /**
+   * A share link lands here as ?share=<token>. Claim it once, open the
+   * cookbook, and take the token out of the address bar so a reload or a
+   * back button does not try to claim it again.
+   */
+  useEffect(() => {
+    if (!userId || typeof window === "undefined") return;
+    const token = new URLSearchParams(window.location.search).get("share");
+    if (!token) return;
+
+    void (async () => {
+      const { redeemShare } = await import("@/lib/cook-connect/shares");
+      const cookbookId = await redeemShare(sb, userId, token);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("share");
+      window.history.replaceState({}, "", url.toString());
+
+      if (cookbookId) {
+        setNotice("That cookbook is yours to read now — it's under Shared with you.");
+        navigate({ page: "cookbook", id: cookbookId });
+      } else {
+        setNotice("That share link has expired, or somebody else claimed it first.");
+      }
+    })();
+  }, [sb, userId, navigate]);
+
   // Who is online, app-wide. Drives the green dots and the challenge rail.
   useEffect(() => {
     if (!userId) return;
