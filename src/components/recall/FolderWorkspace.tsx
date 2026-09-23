@@ -4,6 +4,7 @@ import { RowExtraContext } from "./rowExtra";
 import { RankingsFolderContext } from "./rankingsFolder";
 import { RankingsSyncButton } from "./RankingsSync";
 import { inRankingsFolder } from "@/lib/ai-rankings/fromDashboard";
+import { backfillNote, backfillUrls, itemsNeedingUrl } from "@/lib/ai-rankings/backfillUrls";
 import { useMemo, useState } from "react";
 import { Icon } from "../icons";
 import {
@@ -222,6 +223,32 @@ export function FolderWorkspace({
     [syncable, onToast],
   );
 
+  // Entries saved before links were filled in automatically. Everything in the
+  // folder AND its sub-folders counts, because that is where the collection
+  // actually lives — the owner's sits almost entirely in sub-folders.
+  const linkless = useMemo(() => {
+    if (!syncable || !folderId) return [];
+    return itemsNeedingUrl(data.items, descendantFolderIds(data.folders, folderId));
+  }, [syncable, folderId, data.items, data.folders]);
+  const [filling, setFilling] = useState<{ done: number; total: number } | null>(null);
+
+  async function findMissingLinks() {
+    if (!linkless.length || filling) return;
+    setFilling({ done: 0, total: linkless.length });
+    try {
+      const result = await backfillUrls(linkless, (done, total, fresh) => {
+        setFilling({ done, total });
+        // Saved one at a time, so a row lights up as its link lands.
+        if (fresh.items) onData(fresh);
+      });
+      onToast(backfillNote(result));
+    } catch {
+      onToast("Couldn't finish that — the links found so far are saved.");
+    } finally {
+      setFilling(null);
+    }
+  }
+
   function renderSection(id: SectionId) {
     const meta = SECTION_META[id];
     const MetaIcon = meta.icon;
@@ -413,11 +440,27 @@ export function FolderWorkspace({
       ) : (
         <>
           {syncable && (
-            <p className="mb-2 flex items-center gap-1.5 text-[11px] text-ink-muted">
-              <Icon.Refresh width={11} height={11} className="shrink-0 text-brand" />
-              Press <span className="font-medium text-brand">Sync</span> on an entry to add it to AI
-              Rankings — it picks the section from the name. Green means it is already there.
-            </p>
+            <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <p className="flex items-center gap-1.5 text-[11px] text-ink-muted">
+                <Icon.Refresh width={11} height={11} className="shrink-0 text-brand" />
+                Press <span className="font-medium text-brand">Sync</span> on an entry to add it to
+                AI Rankings — it picks the section from the name. Green means it is already there.
+              </p>
+              {linkless.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => void findMissingLinks()}
+                  disabled={!!filling}
+                  title="Look up the site for every entry here that has no link, sub-folders included"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-brand/40 px-2 py-0.5 text-[11px] font-medium text-brand transition hover:bg-brand/10 disabled:opacity-60"
+                >
+                  <Icon.Globe width={11} height={11} className="shrink-0" />
+                  {filling
+                    ? `Finding links… ${filling.done}/${filling.total}`
+                    : `Find links for ${linkless.length} ${linkless.length === 1 ? "entry" : "entries"}`}
+                </button>
+              )}
+            </div>
           )}
           <RankingsFolderContext.Provider value={syncable}>
             <RowExtraContext.Provider value={rowExtra}>
