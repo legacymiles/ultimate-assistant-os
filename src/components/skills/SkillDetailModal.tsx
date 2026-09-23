@@ -80,7 +80,17 @@ export function SkillDetailModal({ skill, onClose, onEdit, onDelete }: Props) {
             {copied ? "Copied!" : "Copy prompt"}
           </button>
 
-          {skill.source === "featured" ? (
+          {skill.source === "studio" ? (
+            skill.sourceUrl && (
+              <a
+                href={skill.sourceUrl}
+                className="ml-auto inline-flex items-center gap-1.5 rounded-xl border border-line px-3.5 py-2 text-sm font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
+              >
+                <Icon.Film width={15} height={15} />
+                Open in Studio
+              </a>
+            )
+          ) : skill.source === "featured" ? (
             skill.sourceUrl && (
               <a
                 href={skill.sourceUrl}

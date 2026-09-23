@@ -26,6 +26,33 @@ function withFeatured(fetched: Skill[]): Skill[] {
   return [...extras, ...fetched];
 }
 
+/**
+ * The Studio agents, fetched once per page. They are built into the app like
+ * the featured skills, but their bodies are files on disk, so they arrive over
+ * a route rather than an import. A failure here is silent on purpose: the
+ * library still works, it just shows one fewer source.
+ */
+let studioCache: Promise<Skill[]> | null = null;
+
+function studioSkills(): Promise<Skill[]> {
+  if (typeof fetch === "undefined") return Promise.resolve([]);
+  studioCache ??= fetch("/api/skills/studio")
+    .then((r) => (r.ok ? r.json() : { skills: [] }))
+    .then((d) => (Array.isArray(d.skills) ? (d.skills as Skill[]) : []))
+    .catch(() => []);
+  return studioCache;
+}
+
+/** Same precedence as the featured merge: a real skill with that slug wins. */
+function withStudio(list: Skill[], studio: Skill[]): Skill[] {
+  const slugs = new Set(list.map((s) => s.slug).filter(Boolean));
+  const titles = new Set(list.map((s) => s.title.trim().toLowerCase()));
+  return [
+    ...list,
+    ...studio.filter((s) => !slugs.has(s.slug) && !titles.has(s.title.trim().toLowerCase())),
+  ];
+}
+
 function uid(): string {
   return "sk_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
@@ -89,14 +116,15 @@ function rowToSkill(row: SkillRow): Skill {
 // ----- Public API ----------------------------------------------------------
 export async function listSkills(): Promise<Skill[]> {
   const sb = getSupabaseBrowserClient();
-  if (!sb) return withFeatured(lsRead());
+  const studio = await studioSkills();
+  if (!sb) return withStudio(withFeatured(lsRead()), studio);
 
   const { data, error } = await sb
     .from("skills")
     .select("*")
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return withFeatured((data ?? []).map(rowToSkill));
+  return withStudio(withFeatured((data ?? []).map(rowToSkill)), studio);
 }
 
 export async function createSkill(draft: SkillDraft): Promise<Skill> {

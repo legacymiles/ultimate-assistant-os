@@ -5,7 +5,7 @@
 // user's Claude Code skill files (source: "claude-code").
 // ---------------------------------------------------------------------------
 
-export type SkillSource = "manual" | "claude-code" | "featured";
+export type SkillSource = "manual" | "claude-code" | "featured" | "studio";
 
 export interface Skill {
   id: string;
@@ -16,7 +16,8 @@ export interface Skill {
   body: string;
   /**
    * Where the skill came from. Manual skills are never overwritten by sync.
-   * "featured" skills are built into the app (read-only) and always present.
+   * "featured" and "studio" skills are built into the app (read-only) and
+   * always present — studio ones are the Studio tab's own agents.
    */
   source: SkillSource;
   /** Stable key for synced skills (folder name or "plugin:name"); null for manual. */

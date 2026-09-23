@@ -34,9 +34,10 @@ export function SkillRow({ skill, onOpen, onEdit, onDelete }: Props) {
         </p>
       </div>
 
-      {/* Row actions — hidden until hover/focus on wide screens. Featured
-          skills are built into the app, so they can't be edited or deleted. */}
-      {skill.source !== "featured" && (
+      {/* Row actions — hidden until hover/focus on wide screens. Featured and
+          Studio skills are built into the app, so they can't be edited or
+          deleted; Studio ones are edited by changing the workflow itself. */}
+      {skill.source !== "featured" && skill.source !== "studio" && (
         <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:transition sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
           <button
             onClick={(e) => {

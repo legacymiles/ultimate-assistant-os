@@ -21,10 +21,18 @@ import { DesignGuide } from "./DesignGuide";
 type EditorState = { mode: "add" } | { mode: "edit"; skill: Skill } | null;
 type SyncMsg = { kind: "ok" | "info" | "error"; text: string } | null;
 
-/** Sort: featured, then hand-added (newest), then Personal, then plugins A–Z. */
+/** Sort: featured, hand-added (newest), Studio agents, Personal, plugins A–Z. */
 function sortSkills(list: Skill[]): Skill[] {
   const rank = (s: Skill) =>
-    s.source === "featured" ? 0 : s.source === "manual" ? 1 : s.origin === "Personal" ? 2 : 3;
+    s.source === "featured"
+      ? 0
+      : s.source === "manual"
+        ? 1
+        : s.source === "studio"
+          ? 2
+          : s.origin === "Personal"
+            ? 3
+            : 4;
   return [...list].sort((a, b) => {
     const r = rank(a) - rank(b);
     if (r !== 0) return r;
