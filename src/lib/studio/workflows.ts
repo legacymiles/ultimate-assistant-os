@@ -25,6 +25,7 @@ export type CategoryId =
   | "athletes"
   | "events"
   | "creators"
+  | "influencers"
   | "broadcast"
   | "romance"
   | "camera"
@@ -54,6 +55,7 @@ export const CATEGORIES: Category[] = [
   { id: "athletes", medium: "video", label: "Athletes & sport" },
   { id: "events", medium: "video", label: "Events & fashion" },
   { id: "creators", medium: "video", label: "Creators & channels" },
+  { id: "influencers", medium: "video", label: "Influencers" },
   { id: "broadcast", medium: "video", label: "TV & radio" },
   { id: "romance", medium: "video", label: "Romance & allure" },
   { id: "camera", medium: "video", label: "Camera moves" },
@@ -688,7 +690,7 @@ export const WORKFLOWS: Workflow[] = [
     id: "vlog-influencer",
     name: "Vlog",
     medium: "video",
-    category: "creators",
+    category: "influencers",
     blurb: "A day, told to camera",
     brief:
       "Pieces to camera holding the story together and b-roll carrying everything else. Handheld, available light, the creator addressing the lens directly and moving while they talk. Cut on the sentence, never mid-clause. The strongest vlog shot is the one where they forget the camera is there.",
@@ -710,7 +712,7 @@ export const WORKFLOWS: Workflow[] = [
     id: "fitness-influencer",
     name: "Fitness creator",
     medium: "video",
-    category: "creators",
+    category: "influencers",
     blurb: "Form, routine and a reason to follow",
     brief:
       "The creator is the proof and the teacher at once: a piece to camera that sets up the session, the work shot so the form is actually legible, and a close that gives one usable cue. Never a montage of impressive reps with no instruction — that is a highlight, not a channel.",
@@ -732,7 +734,7 @@ export const WORKFLOWS: Workflow[] = [
     id: "youtube-influencer",
     name: "YouTube video",
     medium: "video",
-    category: "creators",
+    category: "influencers",
     blurb: "Hook, promise, payoff — built to be watched through",
     brief:
       "Retention is the craft. Open on the most interesting eight seconds you have, say what the video will deliver, then deliver it in a visible structure the viewer can feel progressing. Cut every time the frame stops earning its place. The thumbnail moment is a shot you plan, not one you find.",
@@ -748,6 +750,33 @@ export const WORKFLOWS: Workflow[] = [
     ],
     motif: "letterbox",
     hue: 355,
+    isNew: true,
+  },
+  // The reaction format, and the reason it is its own skill: the reactor is a
+  // CUT-OUT over the playing video, not one half of a split screen. Everything
+  // that makes it read — where the matte sits, the eyeline, the screen light
+  // spilling onto them, reacting on the video's beats and being still between —
+  // is compositing craft that no amount of "reaction video" in a prompt buys.
+  {
+    id: "reaction-video",
+    name: "Reaction",
+    medium: "video",
+    category: "influencers",
+    blurb: "Cut out over the video, reacting as it plays",
+    brief:
+      "The video plays full frame and the reactor is a matted cut-out standing in its dead space — no box, no border, never a split screen. Three things sell it and nothing else does: the eyeline goes to what they are watching rather than to the lens, the screen light spills onto them and changes colour as the video does, and the reactions land on the video’s beats with real stillness in between. Continuous mugging is the failure mode; the best reaction shot is the one where they forget to perform and just watch.",
+    format: "9:16 or 16:9 · 15 s–3 min",
+    keywords: ["raw phone", "clean", "high-energy", "cozy", "premium"],
+    variants: [
+      { id: "first-watch", name: "First watch", brief: "Genuine first viewing — the reactions are unplanned and the silences are left in." },
+      { id: "commentary", name: "Commentary", brief: "Pausing to talk over it, the cut-out taking more frame while they explain." },
+      { id: "expert", name: "Expert review", brief: "Someone qualified judging what is on screen, correcting it as it plays." },
+      { id: "duet", name: "Duet reply", brief: "Answering another creator’s video, addressing them rather than the camera." },
+      { id: "watch-along", name: "Watch along", brief: "Long-form, low-energy company — small reactions, long stretches of just watching." },
+      { id: "rank", name: "Rate it", brief: "A score or verdict delivered at the end, set up by the reactions before it." },
+    ],
+    motif: "letterbox",
+    hue: 22,
     isNew: true,
   },
   {
@@ -2222,7 +2251,7 @@ export const CARD_STILLS = new Set<string>([
   "athlete-motivation", "game-day-hype", "impossible-trick",
   "slow-motion-technique", "event-editorial", "event-fashion-film",
   "luxury-invitation-film", "vlog-influencer", "fitness-influencer",
-  "youtube-influencer", "joke-video", "street-interview",
+  "youtube-influencer", "reaction-video", "joke-video", "street-interview",
   "news-anchor", "sitcom-scene", "sitcom-intro",
   "podcast-show", "tutorial-steps", "romantic-film",
   "romantic-montage", "seduction-film", "noir-seduction",

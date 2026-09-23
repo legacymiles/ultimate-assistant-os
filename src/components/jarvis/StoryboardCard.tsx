@@ -6,7 +6,7 @@
 // Laid out the way a real one is, in named sections, because the sheet has to
 // answer four different questions and they are not the same question:
 //
-//   SHARED CHOICES  what is true of every frame — genre, look, glass, light,
+//   SHARED CHOICES  what is true of every frame — genre, look, camera, light,
 //                   grade, palette. Every field here is repeated VERBATIM into
 //                   every shot, which is the only reason a dozen separate
 //                   generations read as one film.
@@ -738,7 +738,7 @@ export function StoryboardCard({
           <Fact label="Wardrobe" value={board.wardrobe} onChange={(wardrobe) => set({ wardrobe })} placeholder="Exactly what everyone wears" />
           <Fact label="Light" value={board.lighting} onChange={(lighting) => set({ lighting })} placeholder="The light, unchanged all film" />
           <Fact label="Grade" value={board.grade} onChange={(grade) => set({ grade })} placeholder="The colour, unchanged all film" />
-          <Fact label="Glass" value={board.lens} onChange={(lens) => set({ lens })} placeholder="The lens set" />
+          <Fact label="Camera" value={board.lens} onChange={(lens) => set({ lens })} placeholder="The body and the lens set" />
           <Fact label="Look" value={board.look} onChange={(look) => set({ look })} placeholder="Live action, anime, 3D…" />
           <Fact label="Sound" value={board.soundscape} onChange={(soundscape) => set({ soundscape })} placeholder="What the scene sounds like" />
           <Fact label="Score" value={board.music} onChange={(music) => set({ music })} placeholder="The music under it, or none" />

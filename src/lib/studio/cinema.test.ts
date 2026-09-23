@@ -272,14 +272,20 @@ describe("the deck reaching a shot plan", () => {
     expect(spec()).toContain("Tempo      → the CUTTING");
   });
 
-  it("ranks style over genre, and genre over the light", () => {
+  it("ranks tempo first, then style, genre, era, light and the camera", () => {
     const s = spec();
-    expect(s.indexOf("1. STYLE")).toBeLessThan(s.indexOf("2. GENRE"));
-    expect(s.indexOf("2. GENRE")).toBeLessThan(s.indexOf("4. LIGHTING"));
+    const order = ["1. TEMPO", "2. STYLE", "3. GENRE", "4. ERA", "5. LIGHTING", "6. CAMERA"];
+    const at = order.map((k) => s.indexOf(k));
+    expect(at.every((i) => i > -1)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
   });
 
   it("says era mixes rather than competing", () => {
-    expect(spec()).toContain("3. ERA — mixes with nearly everything");
+    expect(spec()).toContain("4. ERA — mixes with nearly everything");
+  });
+
+  it("never calls the camera rails \"glass\"", () => {
+    expect(spec().toLowerCase()).not.toContain("glass");
   });
 
   it("warns that an unspecified move renders as an ordinary one", () => {
