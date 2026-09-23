@@ -45,6 +45,16 @@ describe("normalize", () => {
     expect(normalize("Savage Remix (feat. Beyoncé)")).toBe("savage remix");
     expect(normalize("Stay ft. Justin Bieber")).toBe("stay");
   });
+
+  it("drops the credit WITHOUT eating the song that follows it", () => {
+    // The bug this guards: a greedy credit pattern ran past "ft. ROSALÍA" and
+    // swallowed the title too, so every YouTube hit for a collaboration
+    // scored zero and the source table came back empty.
+    const folded = normalize("The Weeknd ft. ROSALÍA - Blinding Lights [Remix] (Official Lyric Video)");
+    expect(folded).toContain("blinding lights");
+    expect(folded).toContain("remix");
+    expect(folded).not.toContain("rosalia");
+  });
 });
 
 describe("coverage", () => {
@@ -95,6 +105,16 @@ describe("scoreCandidate", () => {
       durationMs: 600_000,
     });
     expect(reasons).toContain("Length is well off");
+  });
+
+  it("still matches a collaboration whose upload title carries a credit", () => {
+    const remix = { ...track, title: "Blinding Lights (Remix)", artist: "The Weeknd & ROSALÍA" };
+    const { score } = scoreCandidate(remix, {
+      title: "The Weeknd ft. ROSALÍA - Blinding Lights [Remix] (Official Lyric Video)",
+      creator: "The Weeknd",
+      durationMs: remix.durationMs,
+    });
+    expect(score).toBeGreaterThan(30);
   });
 
   it("finds the artist when the upload puts it in the title", () => {

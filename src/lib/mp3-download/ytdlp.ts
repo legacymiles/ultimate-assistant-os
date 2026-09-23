@@ -18,7 +18,7 @@ import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { scoreCandidate } from "./match";
+import { rank, scoreCandidate } from "./match";
 import type { Candidate, Licence, Track } from "./types";
 
 /** Each entry is an argv: some installs only have the Python module. */
@@ -169,7 +169,6 @@ export async function searchYouTube(track: Track, limit = 8): Promise<Candidate[
     const creator = entry.channel ?? entry.uploader ?? "Unknown channel";
     const durationMs = entry.duration ? Math.round(entry.duration * 1000) : null;
     const { score, reasons } = scoreCandidate(track, { title: entry.title, creator, durationMs });
-    if (score < 30) continue;
 
     out.push({
       id: "youtube:" + entry.id,
@@ -191,7 +190,17 @@ export async function searchYouTube(track: Track, limit = 8): Promise<Candidate[
       reasons,
     });
   }
-  return out;
+
+  // YouTube nearly always has the song, so an empty table here reads as a
+  // broken app rather than an honest "no". Rows that clear the bar are the
+  // answer; when none do, the three best are shown anyway with the scores
+  // they earned, so the owner can judge instead of being told nothing exists.
+  const confident = out.filter((c) => c.score >= 30);
+  if (confident.length > 0) return confident;
+  // Nothing convincing. Show the best few anyway rather than an empty table —
+  // but never a row that matched on nothing, which is what a mangled query or
+  // a song the site simply does not have looks like.
+  return rank(out.filter((c) => c.score >= 15)).slice(0, 3);
 }
 
 // --- pasted links ----------------------------------------------------------

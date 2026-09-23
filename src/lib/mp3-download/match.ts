@@ -15,8 +15,20 @@ import type { Candidate, Track } from "./types";
 const NOISE =
   /\b(remaster(ed)?|remastered\s*\d{4}|\d{4}\s*remaster|mono|stereo|deluxe|edition|bonus track|album version|single version|radio edit|explicit|clean|official (audio|video|music video)|lyrics?|hd|hq|full song|free download)\b/g;
 
-/** "feat. X", "ft X", "featuring X" — an artist credit, not part of the title. */
-const FEATURE = /\s*[([]?\s*(feat\.?|ft\.?|featuring|with)\s+[^)\]]*[)\]]?/gi;
+/**
+ * "feat. X" — an artist credit, not part of the title.
+ *
+ * Two patterns, because one greedy one is a trap. A single
+ * `[([]?…(feat|ft)…[^)\]]*` runs straight past the credit and swallows the
+ * song: "The Weeknd ft. ROSALÍA - Blinding Lights [Remix]" lost everything up
+ * to the first bracket and normalised to "the weeknd", so the real track
+ * scored zero against it and every YouTube hit for a collaboration was
+ * silently thrown away. The credit is removed, and nothing after it is.
+ */
+/** A whole bracketed credit: "(feat. X)", "[ft. X & Y]". */
+const FEATURE_BRACKETED = /[([{]\s*(?:feat\.?|ft\.?|featuring|with)\b[^)\]}]*[)\]}]?/gi;
+/** A bare credit: "… ft. X", stopping at the next delimiter, not the end. */
+const FEATURE_INLINE = /\s(?:feat\.?|ft\.?|featuring)\s+[^([{\-–—|,]*/gi;
 
 /**
  * Fold a title or artist to comparable tokens.
@@ -30,7 +42,8 @@ export function normalize(text: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(FEATURE, " ")
+    .replace(FEATURE_BRACKETED, " ")
+    .replace(FEATURE_INLINE, " ")
     .replace(/&/g, " and ")
     .replace(/[_\-–—/\.,'’"!?:;()[\]{}]/g, " ")
     .replace(NOISE, " ")
