@@ -411,4 +411,31 @@ export const Icon = {
       <path d="M11 6.5h10M11 15.5h10" />
     </svg>
   ),
+  Play: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M7 4.8v14.4l12-7.2Z" />
+    </svg>
+  ),
+  Pause: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M8.5 4.5v15M15.5 4.5v15" />
+    </svg>
+  ),
+  Rewind: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M6 5v14M19 5.5v13L9.5 12Z" />
+    </svg>
+  ),
+  Scissors: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <circle cx="6" cy="6" r="2.6" />
+      <circle cx="6" cy="18" r="2.6" />
+      <path d="M8.2 7.6 20 18M8.2 16.4 20 6" />
+    </svg>
+  ),
+  Waveform: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M3 10.5v3M7.5 6.5v11M12 3.5v17M16.5 7.5v9M21 10.5v3" />
+    </svg>
+  ),
 };

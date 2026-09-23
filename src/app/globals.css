@@ -2226,3 +2226,120 @@ video.dance-tile__player { object-fit: cover; }
     transition: none;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/*  Seedance Studio — the cutting room                                */
+/* ------------------------------------------------------------------ */
+
+/* The authored moment: the run of prompts closing up around a block that
+   was dragged to a new place. The block being dragged opts out, so it
+   stays under the pointer while its neighbours slide. */
+.sd-slide {
+  transition: left 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    width 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Trim grips stay out of the way until the block is under the cursor. */
+.sd-block:hover .sd-trim > span,
+.sd-trim:focus-visible > span {
+  opacity: 1;
+}
+.sd-block:hover .sd-split,
+.sd-split:focus-visible {
+  opacity: 1;
+}
+.sd-block:has(:focus-visible) {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* A render in flight: light travelling across the block, not a spinner —
+   the block itself is the progress indicator. */
+.sd-render {
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.16) 48%,
+    transparent 76%
+  );
+  background-size: 220% 100%;
+  animation: sdRender 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  pointer-events: none;
+}
+@keyframes sdRender {
+  from {
+    background-position: 140% 0;
+  }
+  to {
+    background-position: -40% 0;
+  }
+}
+
+.sd-sheet {
+  animation: sdSheet 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes sdSheet {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* The zoom slider is a browser default nobody designed; give it the
+   editor's own track and thumb. */
+.sd-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 14px;
+  background: transparent;
+  cursor: pointer;
+}
+.sd-range::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 3px;
+  background: var(--color-line);
+}
+.sd-range::-moz-range-track {
+  height: 3px;
+  border-radius: 3px;
+  background: var(--color-line);
+}
+.sd-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -4.5px;
+  height: 12px;
+  width: 12px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 1px 4px -1px rgba(0, 0, 0, 0.8);
+}
+.sd-range::-moz-range-thumb {
+  height: 12px;
+  width: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+.sd-range:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sd-slide {
+    transition: none;
+  }
+  .sd-render {
+    animation: none;
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .sd-sheet {
+    animation: none;
+  }
+}

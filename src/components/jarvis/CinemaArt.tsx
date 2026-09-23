@@ -17,6 +17,7 @@
 // rhythm itself, drawn as one bar per shot.
 // ---------------------------------------------------------------------------
 
+import { useId } from "react";
 import type { MoveGlyph } from "@/lib/studio/cinema";
 
 interface Look {
@@ -193,8 +194,14 @@ const F_STOPS: Record<string, number> = {
   "ap-f22": 22,
 };
 
-let seq = 0;
-const nextId = () => `ca${(seq += 1)}`;
+/**
+ * Gradient and filter ids have to be unique per instance AND identical between
+ * the server render and the client one. A module counter is neither: it starts
+ * at a different number on each, so every <defs> id mismatched on hydration.
+ * useId is stable across both; the colons it contains are stripped because
+ * these ids are also used inside url(#...).
+ */
+const useArtId = () => `ca${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
 // ---------------------------------------------------------------------------
 // The scene.
@@ -217,7 +224,7 @@ function Scene({
   glyph?: MoveGlyph;
   overlay?: React.ReactNode;
 }) {
-  const uid = nextId();
+  const uid = useArtId();
   const g = glass ?? {};
   const s = stock ?? {};
   const zoom = g.zoom ?? 1;
@@ -442,12 +449,14 @@ function Iris({ f }: { f: number }) {
   const open = f === 0 ? 0.55 : Math.max(0.08, Math.min(0.92, 1 - Math.log2(f / 1.4) / 5.2));
   const R = 30;
   const r = R * (0.1 + open * 0.78);
+  // Rounded, because Node and the browser do not agree on the last digit of a
+  // trig result: unrounded, every blade path mismatched on hydration.
+  const at = (angle: number, radius: number) =>
+    `${(50 + Math.cos(angle) * radius).toFixed(3)} ${(50 + Math.sin(angle) * radius).toFixed(3)}`;
   const blades = Array.from({ length: 6 }, (_, i) => {
     const a = (i * Math.PI) / 3;
     const b = a + Math.PI / 3;
-    return `M${50 + Math.cos(a) * R} ${50 + Math.sin(a) * R} L${50 + Math.cos(a) * r} ${50 + Math.sin(a) * r} L${
-      50 + Math.cos(b) * r
-    } ${50 + Math.sin(b) * r} L${50 + Math.cos(b) * R} ${50 + Math.sin(b) * R} Z`;
+    return `M${at(a, R)} L${at(a, r)} L${at(b, r)} L${at(b, R)} Z`;
   });
   return (
     <svg viewBox="0 0 100 100" className="h-full w-full" aria-hidden>
@@ -665,12 +674,13 @@ const STYLE_STOCK: Record<string, Stock> = {
 
 /** The scene, redrawn. One component, seven techniques. */
 function StyleArt({ id }: { id: string }) {
+  // Hoisted above every early return: it is a hook now, not a counter.
+  const uid = useArtId();
   const spec = STYLES[id];
   if (!spec) return <Scene />;
   const { t, look, line } = spec;
   if (t === "photo") return <Scene look={look} stock={STYLE_STOCK[id]} />;
 
-  const uid = nextId();
   const horizon = 44;
 
   // Pixel and voxel: the whole scene stepped onto a coarse grid.

@@ -413,15 +413,20 @@ export const PROJECTS: CatalogProject[] = [
   {
     slug: "seedance-studio",
     title: "Seedance Studio",
-    tag: "Seedance 2 prompt builder",
+    tag: "Music-video cutting room",
     category: "Video",
     overview:
-      "A CapCut-style prompt builder for Seedance 2. Drop a song on the audio track and lay out " +
-      "prompt segments on the video track below it — each with its own prompt, mood and video-effect " +
-      "dropdowns, and optional image/video references. Add segments with a +, reorder or delete them, " +
-      "then hit Generate to render each block into a video clip along the timeline and play the reel " +
-      "back with a scrubbing playhead. Wired to Seedance 2 through the Vercel AI Gateway (real video " +
-      "when AI_GATEWAY_API_KEY is set), with a graceful placeholder mode so the editor is fully usable offline.",
+      "A music-video editor with three lanes and one song. Video prompts run end to end under the " +
+      "track — add them with a +, drag to reorder, drag an edge to trim, and open any one to write " +
+      "its prompt, attach reference images and set the Studio camera deck: Film setup (genre, era, " +
+      "tempo), Camera, Movement as ordered #tokens, Style, Color palette and Lighting, all layered " +
+      "over a reel-wide direction every block inherits. The first image becomes that block's artwork, " +
+      "so the lane reads as a storyboard before anything is rendered. The song lane draws the real " +
+      "waveform, decoded in the browser. The lip-sync lane holds plain ranges — no prompts, just drag " +
+      "and trim them onto the seconds you want sung; whichever video prompts they land on turn amber " +
+      "and lip-sync to the audio, while the rest play under the music. Wired to Seedance 2 through " +
+      "the Vercel AI Gateway (real video when AI_GATEWAY_API_KEY is set), with graded stand-ins so " +
+      "the cutting room is fully usable offline.",
     status: "live",
     appUrl: "/apps/seedance-studio",
     iconStyle: "pulse",

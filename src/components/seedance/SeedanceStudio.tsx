@@ -1,103 +1,103 @@
 "use client";
 
+// ---------------------------------------------------------------------------
+// Seedance Studio — the cutting room.
+//
+// Video prompts run end to end under the song; lip-sync ranges say which
+// seconds get sung. All the geometry rules live in src/lib/seedance/reel.ts;
+// this file owns the state, the playhead and the renders.
+// ---------------------------------------------------------------------------
+
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { generateSegment, fileToMediaRef } from "@/lib/seedance/client";
-import { EDIT_MAX_DURATION, EDIT_MIN_DURATION } from "@/lib/seedance/constants";
-import { KEY as SEEDANCE_KEY, blankProject, blankSegment, loadProjects, saveProject } from "@/lib/seedance/repo";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { decodeSong, fileToMediaRef, renderBlock } from "@/lib/seedance/client";
+import { timecode } from "@/lib/seedance/constants";
+import {
+  DEFAULT_LIP_SEC,
+  MIN_LIP_SEC,
+  addBlock,
+  blankLip,
+  clampLip,
+  duplicateBlock,
+  firstFreeSlot,
+  layout,
+  placedAt,
+  removeBlock,
+  reorder,
+  resizeBlock,
+  songSec,
+  spanSec,
+} from "@/lib/seedance/reel";
+import { KEY as SEEDANCE_KEY, blankReel, loadReels, saveReel } from "@/lib/seedance/repo";
+import type { AspectRatio, Reel, VideoPrompt } from "@/lib/seedance/types";
 import { useRemotePull } from "@/lib/sync/useSync";
-import type { AspectRatio, SeedanceProject, Segment } from "@/lib/seedance/types";
+import type { CinemaSelection } from "@/lib/studio/cinema";
 import { Icon } from "../icons";
-import { Composer } from "./Composer";
-import { Inspector } from "./Inspector";
-import { PreviewPlayer } from "./PreviewPlayer";
-import { Timeline } from "./Timeline";
+import { PromptSheet, type SheetTarget } from "./PromptSheet";
+import { ShotList } from "./ShotList";
+import { Spine } from "./Spine";
+import { FilmPanel, Stage } from "./Stage";
 
 export function SeedanceStudio() {
-  const [project, setProject] = useState<SeedanceProject>(() => blankProject());
+  const [reel, setReel] = useState<Reel>(() => blankReel());
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [generatingAll, setGeneratingAll] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [playheadSec, setPlayheadSec] = useState(0);
+  const [renderingAll, setRenderingAll] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
-  const projectRef = useRef(project);
+  const reelRef = useRef(reel);
   useEffect(() => {
-    projectRef.current = project;
-  }, [project]);
+    reelRef.current = reel;
+  }, [reel]);
 
   const songInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // A reel saved on another device is pulled down, then the same restore
-  // logic below runs again against the settled localStorage copy.
+  // A reel saved on another device lands in localStorage first, then the same
+  // restore path below runs again against the settled copy.
   useRemotePull(SEEDANCE_KEY, () => {
-    const list = loadProjects();
-    if (list.length) {
-      setProject(list[0]);
-      setSelectedId(list[0].segments[0]?.id ?? null);
-    }
+    const list = loadReels();
+    if (list.length) setReel(list[0]);
   });
 
-  // Restore the most recent saved reel's structure on first mount.
   useEffect(() => {
-    const list = loadProjects();
-    if (list.length) {
-      setProject(list[0]);
-      setSelectedId(list[0].segments[0]?.id ?? null);
-    } else {
-      setSelectedId(projectRef.current.segments[0]?.id ?? null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const list = loadReels();
+    if (list.length) setReel(list[0]);
   }, []);
 
-  const totalSec = useMemo(
-    () => project.segments.reduce((s, seg) => s + seg.durationSec, 0),
-    [project.segments],
-  );
-  const renderedCount = useMemo(
-    () => project.segments.filter((s) => s.status === "done").length,
-    [project.segments],
-  );
+  const say = useCallback((msg: string) => {
+    setNotice(msg);
+    window.setTimeout(() => setNotice((n) => (n === msg ? null : n)), 3200);
+  }, []);
 
-  // Which segment is under the playhead.
-  const { currentSegment, currentIndex } = useMemo(() => {
-    let acc = 0;
-    for (let i = 0; i < project.segments.length; i++) {
-      const seg = project.segments[i];
-      if (playheadSec < acc + seg.durationSec || i === project.segments.length - 1) {
-        return { currentSegment: seg, currentIndex: i };
-      }
-      acc += seg.durationSec;
-    }
-    return { currentSegment: null as Segment | null, currentIndex: 0 };
-  }, [project.segments, playheadSec]);
-
-  const selected = project.segments.find((s) => s.id === selectedId) ?? null;
-  const selectedIndex = project.segments.findIndex((s) => s.id === selectedId);
+  const placed = useMemo(() => layout(reel), [reel]);
+  const total = spanSec(reel);
+  const current = useMemo(() => placedAt(reel, playheadSec), [reel, playheadSec]);
+  const renderedCount = reel.prompts.filter((b) => b.status === "done").length;
 
   // ----- playback ----------------------------------------------------------
-  // Timestamp-based so the rate is correct even if more than one interval ever
-  // ticks (e.g. React StrictMode double-mounts in dev): every tick derives the
-  // playhead from a fixed start time rather than incrementing.
+  // Timestamp-based, so the rate stays correct even if two intervals ever tick
+  // (React StrictMode double-mounts in dev).
   const startRef = useRef(0);
   useEffect(() => {
     if (!playing) return;
     startRef.current = performance.now() - playheadSec * 1000;
     const id = window.setInterval(() => {
       const elapsed = (performance.now() - startRef.current) / 1000;
-      if (elapsed >= totalSec) {
-        setPlayheadSec(totalSec);
+      if (elapsed >= total) {
+        setPlayheadSec(total);
         setPlaying(false);
         audioRef.current?.pause();
       } else {
         setPlayheadSec(Math.round(elapsed * 10) / 10);
       }
-    }, 100);
+    }, 80);
     return () => window.clearInterval(id);
-    // playheadSec is only read to resume; adding it would restart every tick.
+    // playheadSec is read once to resume; listing it would restart every tick.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, totalSec]);
+  }, [playing, total]);
 
   const togglePlay = () => {
     if (playing) {
@@ -105,109 +105,217 @@ export function SeedanceStudio() {
       audioRef.current?.pause();
       return;
     }
-    if (playheadSec >= totalSec) setPlayheadSec(0);
+    const from = playheadSec >= total ? 0 : playheadSec;
+    setPlayheadSec(from);
     setPlaying(true);
     const audio = audioRef.current;
-    if (audio && project.song?.url) {
-      audio.currentTime = playheadSec >= totalSec ? 0 : playheadSec;
+    if (audio && reel.song?.url) {
+      audio.currentTime = Math.min(from, songSec(reel));
       void audio.play().catch(() => {});
     }
   };
 
-  // ----- project mutations -------------------------------------------------
-  const patch = (p: Partial<SeedanceProject>) => setProject((prev) => ({ ...prev, ...p }));
-  const patchSegment = (id: string, sp: Partial<Segment>) =>
-    setProject((prev) => ({
-      ...prev,
-      segments: prev.segments.map((s) => (s.id === id ? { ...s, ...sp } : s)),
+  const scrub = (sec: number) => {
+    setPlayheadSec(Math.round(sec * 10) / 10);
+    const audio = audioRef.current;
+    if (audio && reel.song?.url) audio.currentTime = Math.min(sec, songSec(reel));
+  };
+
+  // ----- reel mutations ----------------------------------------------------
+  const patch = (p: Partial<Reel>) => setReel((r) => ({ ...r, ...p }));
+
+  const patchBlock = (id: string, bp: Partial<VideoPrompt>) =>
+    setReel((r) => ({
+      ...r,
+      prompts: r.prompts.map((b) => (b.id === id ? { ...b, ...bp } : b)),
     }));
 
-  const addSegment = () => {
-    const seg = { ...blankSegment(), mood: project.globalMood };
-    setProject((prev) => ({ ...prev, segments: [...prev.segments, seg] }));
-    setSelectedId(seg.id);
+  // Side effects (picking the new block, selecting it) stay out of the state
+  // updater — an updater has to be pure or StrictMode runs it twice.
+  const addPrompt = (afterIndex?: number) => {
+    const before = reelRef.current.prompts;
+    const next = addBlock(before, afterIndex);
+    setReel((r) => ({ ...r, prompts: next }));
+    const fresh = next.find((b) => !before.some((o) => o.id === b.id));
+    if (fresh) setSelectedId(fresh.id);
   };
 
-  const deleteSegment = (id: string) =>
-    setProject((prev) => {
-      const segments = prev.segments.filter((s) => s.id !== id);
-      if (selectedId === id) setSelectedId(segments[0]?.id ?? null);
-      return { ...prev, segments };
-    });
+  const resizePrompt = (index: number, durationSec: number) =>
+    setReel((r) => ({ ...r, prompts: resizeBlock(r.prompts, index, durationSec) }));
 
-  const resizeSegment = (id: string, durationSec: number) => {
-    const clamped = Math.min(EDIT_MAX_DURATION, Math.max(EDIT_MIN_DURATION, durationSec));
-    patchSegment(id, { durationSec: clamped });
+  const reorderPrompt = (index: number, to: number) =>
+    setReel((r) => ({ ...r, prompts: reorder(r.prompts, index, to) }));
+
+  const deletePrompt = (index: number) => {
+    const victim = reelRef.current.prompts[index];
+    setReel((r) => ({ ...r, prompts: removeBlock(r.prompts, index) }));
+    if (victim && selectedId === victim.id) setSelectedId(null);
   };
 
-  const moveSegment = (id: string, dir: -1 | 1) =>
-    setProject((prev) => {
-      const i = prev.segments.findIndex((s) => s.id === id);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= prev.segments.length) return prev;
-      const segments = [...prev.segments];
-      [segments[i], segments[j]] = [segments[j], segments[i]];
-      return { ...prev, segments };
-    });
+  const duplicatePrompt = (index: number) => {
+    const before = reelRef.current.prompts;
+    const next = duplicateBlock(before, index);
+    setReel((r) => ({ ...r, prompts: next }));
+    const fresh = next.find((b) => !before.some((o) => o.id === b.id));
+    if (fresh) setSelectedId(fresh.id);
+  };
 
-  const addRefs = async (segId: string, files: FileList) => {
+  const addRefs = async (id: string, files: FileList) => {
     const refs = await Promise.all(Array.from(files).map(fileToMediaRef));
-    setProject((prev) => ({
-      ...prev,
-      segments: prev.segments.map((s) =>
-        s.id === segId ? { ...s, refs: [...s.refs, ...refs] } : s,
-      ),
+    setReel((r) => ({
+      ...r,
+      prompts: r.prompts.map((b) => (b.id === id ? { ...b, refs: [...b.refs, ...refs] } : b)),
     }));
   };
 
-  const removeRef = (segId: string, refId: string) =>
-    setProject((prev) => ({
-      ...prev,
-      segments: prev.segments.map((s) =>
-        s.id === segId ? { ...s, refs: s.refs.filter((r) => r.id !== refId) } : s,
+  const removeRef = (id: string, refId: string) =>
+    setReel((r) => ({
+      ...r,
+      prompts: r.prompts.map((b) =>
+        b.id === id ? { ...b, refs: b.refs.filter((x) => x.id !== refId) } : b,
       ),
     }));
 
-  const onSongFile = (file: File) => {
-    patch({ song: { name: file.name, type: file.type, url: URL.createObjectURL(file) } });
+  // ----- the lip-sync lane -------------------------------------------------
+  const addLip = (atSec?: number) => {
+    const r = reelRef.current;
+    const span = spanSec(r);
+    let slot =
+      atSec === undefined ? firstFreeSlot(r.lipsync, span, DEFAULT_LIP_SEC) : null;
+    if (atSec !== undefined) {
+      const fit = clampLip(r.lipsync, "__new__", atSec, DEFAULT_LIP_SEC, span);
+      slot = fit.durationSec >= MIN_LIP_SEC ? fit : firstFreeSlot(r.lipsync, span, DEFAULT_LIP_SEC);
+    }
+    if (!slot) {
+      say("No room for another lip-sync range — trim one, or load a longer song.");
+      return;
+    }
+    const range = blankLip(slot.startSec, slot.durationSec);
+    setReel((cur) => ({ ...cur, lipsync: [...cur.lipsync, range] }));
+    setSelectedId(range.id);
   };
 
-  // ----- generation --------------------------------------------------------
-  const generateOne = async (id: string) => {
-    const cur = projectRef.current;
-    const seg = cur.segments.find((s) => s.id === id);
-    if (!seg) return;
-    patchSegment(id, { status: "generating", error: undefined });
-    const res = await generateSegment(cur, seg);
+  const moveLip = (id: string, startSec: number, durationSec: number) =>
+    setReel((r) => {
+      const fit = clampLip(r.lipsync, id, startSec, durationSec, spanSec(r));
+      return { ...r, lipsync: r.lipsync.map((x) => (x.id === id ? { ...x, ...fit } : x)) };
+    });
+
+  const nudgeLip = (id: string, delta: number) => {
+    const x = reelRef.current.lipsync.find((r) => r.id === id);
+    if (x) moveLip(id, x.startSec + delta, x.durationSec);
+  };
+
+  const deleteLip = (id: string) => {
+    setReel((r) => ({ ...r, lipsync: r.lipsync.filter((x) => x.id !== id) }));
+    setSelectedId((s) => (s === id ? null : s));
+  };
+
+  // ----- the song ----------------------------------------------------------
+  const onSongFile = async (file: File) => {
+    const url = URL.createObjectURL(file);
+    const decoded = await decodeSong(file);
+    const durationSec = Math.max(2, Math.round((decoded?.durationSec ?? 60) * 10) / 10);
+    setReel((r) => ({
+      ...r,
+      song: { name: file.name, type: file.type, url, durationSec, peaks: decoded?.peaks },
+      // A shorter song cannot hold ranges that used to fit, so they are pulled
+      // back inside it rather than sitting silently past the end.
+      lipsync: r.lipsync
+        .filter((x) => x.startSec < durationSec)
+        .map((x) => ({ ...x, durationSec: Math.min(x.durationSec, durationSec - x.startSec) })),
+    }));
+    if (!decoded) say("Loaded the song, but this browser could not decode it for a waveform.");
+  };
+
+  const clearSong = () =>
+    setReel((r) => {
+      if (r.song?.url) URL.revokeObjectURL(r.song.url);
+      return { ...r, song: null };
+    });
+
+  // ----- rendering ---------------------------------------------------------
+  const renderOne = useCallback(async (index: number) => {
+    const r = reelRef.current;
+    const ps = layout(r)[index];
+    if (!ps) return;
+    const id = ps.block.id;
+    patchBlock(id, { status: "generating", error: undefined });
+    const res = await renderBlock(r, ps);
     if (res.status === "done") {
-      patchSegment(id, {
+      patchBlock(id, {
         status: "done",
         engine: res.engine,
         videoUrl: res.videoUrl,
         posterHue: res.posterHue,
       });
     } else {
-      patchSegment(id, { status: "error", error: res.error });
+      patchBlock(id, { status: "error", error: res.error ?? "The render failed." });
     }
-  };
+  }, []);
 
-  const generateAll = async () => {
-    setGeneratingAll(true);
-    const ids = projectRef.current.segments.map((s) => s.id);
-    for (const id of ids) await generateOne(id);
-    setGeneratingAll(false);
+  const renderAll = async () => {
+    setRenderingAll(true);
+    for (let i = 0; i < reelRef.current.prompts.length; i++) await renderOne(i);
+    setRenderingAll(false);
   };
 
   const onSave = () => {
-    saveProject(projectRef.current);
+    saveReel(reelRef.current);
     setSaved(true);
     window.setTimeout(() => setSaved(false), 1600);
   };
 
+  // ----- the sheet ---------------------------------------------------------
+  const target: SheetTarget | null = useMemo(() => {
+    if (!selectedId) return null;
+    const ps = placed.find((p) => p.block.id === selectedId);
+    if (ps) return { kind: "prompt", placed: ps };
+    const range = reel.lipsync.find((x) => x.id === selectedId);
+    if (range) {
+      const coveredCount = placed.filter(
+        (p) =>
+          Math.min(p.startSec + p.durationSec, range.startSec + range.durationSec) -
+            Math.max(p.startSec, range.startSec) >
+          0,
+      ).length;
+      return { kind: "lip", range, coveredCount };
+    }
+    return null;
+  }, [selectedId, placed, reel.lipsync]);
+
+  // Selecting a block parks the playhead on it, so the stage shows what the
+  // sheet is editing without a second gesture.
+  useEffect(() => {
+    if (!target || playing) return;
+    const at = target.kind === "prompt" ? target.placed.startSec : target.range.startSec;
+    setPlayheadSec(at);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && /^(INPUT|TEXTAREA)$/.test(el.tagName)) return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        togglePlay();
+      } else if (e.key === "Escape" && selectedId) {
+        setSelectedId(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, playheadSec, selectedId, total]);
+
+  const selectedIndex =
+    target?.kind === "prompt" ? target.placed.index : -1;
+
   return (
-    <div className="flex min-h-dvh flex-col">
-      {/* Top bar */}
-      <div className="flex items-center gap-2 border-b border-line bg-panel px-3 py-2.5 sm:px-4">
+    <div className="flex h-dvh flex-col overflow-hidden bg-canvas">
+      {/* Top rail */}
+      <header className="flex items-center gap-2 border-b border-line bg-panel px-3 py-2">
         <Link
           href="/"
           className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
@@ -216,64 +324,125 @@ export function SeedanceStudio() {
           <Icon.ArrowLeft width={14} height={14} />
           <span className="hidden sm:inline">Hub</span>
         </Link>
-        <span className="ml-1 text-sm font-semibold text-ink">Seedance Studio</span>
-        <span className="ml-2 rounded-md bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
-          Seedance 2 · prompt builder
-        </span>
-      </div>
-
-      <div className="mx-auto w-full max-w-6xl space-y-3 px-3 py-4 sm:px-5">
-        <Composer
-          project={project}
-          generatingAll={generatingAll}
-          saved={saved}
-          onName={(name) => patch({ name })}
-          onBasePrompt={(basePrompt) => patch({ basePrompt })}
-          onGlobalMood={(globalMood) => patch({ globalMood })}
-          onAspect={(aspectRatio: AspectRatio) => patch({ aspectRatio })}
-          onGenerateAll={generateAll}
-          onSave={onSave}
+        <span className="hidden text-sm font-semibold text-ink sm:inline">Seedance Studio</span>
+        <input
+          value={reel.name}
+          onChange={(e) => patch({ name: e.target.value })}
+          aria-label="Reel name"
+          className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 py-1 text-sm font-medium text-ink outline-none transition hover:border-line focus:border-accent focus:bg-canvas"
         />
 
-        <Timeline
-          project={project}
-          selectedId={selectedId}
-          playheadSec={playheadSec}
-          onSelectSegment={setSelectedId}
-          onAddSegment={addSegment}
-          onDeleteSegment={deleteSegment}
-          onMoveSegment={moveSegment}
-          onResizeSegment={resizeSegment}
-          onPickSong={() => songInputRef.current?.click()}
-          onClearSong={() => patch({ song: null })}
-        />
+        {notice && (
+          <span className="hidden max-w-[320px] truncate rounded-md border border-line bg-panel-2 px-2 py-1 text-[10.5px] text-ink-muted md:inline">
+            {notice}
+          </span>
+        )}
 
-        <div className="grid gap-3 lg:grid-cols-[minmax(320px,360px)_1fr]">
-          <div className="min-h-[360px]">
-            <Inspector
-              segment={selected}
-              index={selectedIndex < 0 ? 0 : selectedIndex}
-              onChange={(sp) => selectedId && patchSegment(selectedId, sp)}
-              onAddRefs={(files) => selectedId && addRefs(selectedId, files)}
-              onRemoveRef={(refId) => selectedId && removeRef(selectedId, refId)}
-              onGenerate={() => selectedId && generateOne(selectedId)}
-              onDelete={() => selectedId && deleteSegment(selectedId)}
-            />
-          </div>
-          <div className="min-h-[360px]">
-            <PreviewPlayer
-              aspectRatio={project.aspectRatio}
-              currentSegment={currentSegment}
-              currentIndex={currentIndex}
+        <button
+          onClick={onSave}
+          className="rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
+        >
+          {saved ? "Saved" : "Save"}
+        </button>
+        <button
+          onClick={renderAll}
+          disabled={renderingAll || !reel.prompts.length}
+          // The label collapses to the icon on a phone, so the button has to
+          // carry its own name there.
+          aria-label={
+            renderingAll ? "Rendering the reel" : `Render all ${reel.prompts.length} prompts`
+          }
+          className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-canvas transition hover:bg-accent-2 disabled:opacity-50"
+        >
+          {renderingAll ? (
+            <Icon.Refresh width={13} height={13} className="animate-spin" />
+          ) : (
+            <Icon.Sparkles width={13} height={13} />
+          )}
+          <span className="hidden sm:inline">
+            {renderingAll ? "Rendering the reel…" : `Render all ${reel.prompts.length}`}
+          </span>
+        </button>
+      </header>
+
+      <div className="flex min-h-0 flex-1">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+          {/* Capped side by side, because the timeline is the point and the stage
+              must not push it below the fold. Stacked (narrow) the column
+              scrolls instead, so the cap would only squash both panels. */}
+          <div className="grid shrink-0 gap-3 lg:max-h-[300px] lg:grid-cols-[minmax(280px,340px)_1fr]">
+            <Stage
+              reel={reel}
+              placed={current}
               playing={playing}
               playheadSec={playheadSec}
-              totalSec={totalSec}
+              totalSec={total}
               renderedCount={renderedCount}
-              totalCount={project.segments.length}
+              totalCount={reel.prompts.length}
               onTogglePlay={togglePlay}
+              onRewind={() => scrub(0)}
+              onOpen={() => current && setSelectedId(current.block.id)}
+            />
+            <FilmPanel
+              reel={reel}
+              onDirection={(direction) => patch({ direction })}
+              onCinema={(cinema: CinemaSelection) => patch({ cinema })}
+              onAspect={(aspectRatio: AspectRatio) => patch({ aspectRatio })}
             />
           </div>
+
+          <Spine
+            reel={reel}
+            selectedId={selectedId}
+            playheadSec={playheadSec}
+            onScrub={scrub}
+            onSelect={setSelectedId}
+            onAddPrompt={addPrompt}
+            onResizePrompt={resizePrompt}
+            onReorderPrompt={reorderPrompt}
+            onDeletePrompt={deletePrompt}
+            onAddLip={addLip}
+            onMoveLip={moveLip}
+            onNudgeLip={nudgeLip}
+            onDeleteLip={deleteLip}
+            onPickSong={() => songInputRef.current?.click()}
+            onClearSong={clearSong}
+          />
+
+          <ShotList
+            reel={reel}
+            placed={placed}
+            selectedId={selectedId}
+            playheadSec={playheadSec}
+            onSelect={setSelectedId}
+            onRender={(i) => void renderOne(i)}
+            onAdd={() => addPrompt()}
+          />
         </div>
+
+        {target && (
+          <div className="fixed inset-0 z-50 bg-canvas lg:static lg:z-auto lg:w-[400px] lg:shrink-0 lg:bg-transparent">
+            <PromptSheet
+              reel={reel}
+              target={target}
+              onClose={() => setSelectedId(null)}
+              onPatch={(p) => target.kind === "prompt" && patchBlock(target.placed.block.id, p)}
+              onResize={(d) => selectedIndex >= 0 && resizePrompt(selectedIndex, d)}
+              onAddRefs={(files) =>
+                target.kind === "prompt" && void addRefs(target.placed.block.id, files)
+              }
+              onRemoveRef={(refId) =>
+                target.kind === "prompt" && removeRef(target.placed.block.id, refId)
+              }
+              onRender={() => selectedIndex >= 0 && void renderOne(selectedIndex)}
+              onDuplicate={() => selectedIndex >= 0 && duplicatePrompt(selectedIndex)}
+              onAddAfter={() => selectedIndex >= 0 && addPrompt(selectedIndex)}
+              onDelete={() => selectedIndex >= 0 && deletePrompt(selectedIndex)}
+              onMoveLip={(s, d) => target.kind === "lip" && moveLip(target.range.id, s, d)}
+              onDeleteLip={() => target.kind === "lip" && deleteLip(target.range.id)}
+            />
+          </div>
+        )}
       </div>
 
       {/* Hidden inputs / audio */}
@@ -283,11 +452,14 @@ export function SeedanceStudio() {
         accept="audio/*"
         className="hidden"
         onChange={(e) => {
-          if (e.target.files?.[0]) onSongFile(e.target.files[0]);
+          if (e.target.files?.[0]) void onSongFile(e.target.files[0]);
           e.target.value = "";
         }}
       />
-      {project.song?.url && <audio ref={audioRef} src={project.song.url} className="hidden" />}
+      {reel.song?.url && <audio ref={audioRef} src={reel.song.url} className="hidden" />}
+      <span className="sr-only" aria-live="polite">
+        {notice ?? `Playhead at ${timecode(playheadSec, true)}`}
+      </span>
     </div>
   );
 }

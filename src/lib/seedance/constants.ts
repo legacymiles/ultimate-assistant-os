@@ -1,110 +1,81 @@
 // ---------------------------------------------------------------------------
-// Seedance Studio — curated dropdown options. Each mood carries a hue so
-// placeholder clips (no API key) get a mood-appropriate colour, and so the
-// timeline reads at a glance.
+// Seedance Studio — the colour law, and the numbers.
+//
+// The timeline is read at a glance or it is not read at all, so exactly three
+// things carry colour and they never trade places:
+//
+//   cyan    the song, and the playhead riding it.
+//   amber   lip sync. The ranges on the lip-sync lane, and every video block
+//           one of them lands on — so "this shot sings" is the same colour in
+//           both lanes and you can see the alignment without reading a word.
+//   indigo  a video block playing under the music.
 // ---------------------------------------------------------------------------
 
-import type { AspectRatio, SegmentType } from "./types";
+import type { AspectRatio } from "./types";
 
-export interface MoodOption {
+export interface Skin {
   label: string;
   hue: number;
-  /** A short phrase appended to the Seedance prompt. */
-  phrase: string;
+  /** Block fill. */
+  fill: string;
+  /** Block border. */
+  edge: string;
+  /** Border on the selected block. */
+  edgeOn: string;
+  /** Label text on the block, and the lane header. */
+  text: string;
+  /** The lane's own strip behind the blocks. */
+  bed: string;
 }
 
-export const MOODS: MoodOption[] = [
-  { label: "Cinematic", hue: 210, phrase: "cinematic, dramatic lighting, shallow depth of field" },
-  { label: "Dramatic", hue: 8, phrase: "dramatic, bold contrast, intense shadows and highlights" },
-  { label: "Sad", hue: 220, phrase: "sad, desaturated blue tones, soft rain, slow and heavy" },
-  { label: "Melancholic", hue: 228, phrase: "melancholic, muted palette, wistful stillness" },
-  { label: "Bittersweet", hue: 275, phrase: "bittersweet, warm-cool contrast, tender and reflective" },
-  { label: "Dreamy", hue: 285, phrase: "dreamy, soft focus, ethereal haze, gentle glow" },
-  { label: "Romantic", hue: 345, phrase: "romantic, soft warm light, delicate bokeh" },
-  { label: "Nostalgic", hue: 35, phrase: "nostalgic, warm film look, golden hour grain" },
-  { label: "Hopeful", hue: 48, phrase: "hopeful, rising warm light, airy and uplifting" },
-  { label: "Euphoric", hue: 330, phrase: "euphoric, vibrant, glowing highlights, radiant" },
-  { label: "Energetic", hue: 20, phrase: "energetic, high-contrast, fast kinetic motion" },
-  { label: "Triumphant", hue: 42, phrase: "triumphant, epic golden light, sweeping and grand" },
-  { label: "Epic", hue: 200, phrase: "epic, vast scale, volumetric god rays" },
-  { label: "Tense", hue: 355, phrase: "tense, suspenseful, cold flicker, unease" },
-  { label: "Aggressive", hue: 0, phrase: "aggressive, harsh strobing, gritty and raw" },
-  { label: "Dark & Moody", hue: 255, phrase: "dark and moody, low-key lighting, deep shadows" },
-  { label: "Eerie", hue: 130, phrase: "eerie, sickly green cast, fog, unsettling calm" },
-  { label: "Mysterious", hue: 265, phrase: "mysterious, silhouettes, shafts of light in haze" },
-  { label: "Serene", hue: 172, phrase: "serene, calm pastel palette, slow graceful drift" },
-  { label: "Chill", hue: 188, phrase: "chill, cool relaxed tones, laid-back tempo" },
-  { label: "Playful", hue: 150, phrase: "playful, bright punchy colours, bouncy energy" },
-  { label: "Whimsical", hue: 300, phrase: "whimsical, storybook colours, magical sparkle" },
-  { label: "Surreal", hue: 312, phrase: "surreal, impossible geometry, otherworldly" },
+/** A video block that a lip-sync range lands on. */
+export const SINGS: Skin = {
+  label: "Lip sync",
+  hue: 36,
+  fill: "linear-gradient(176deg, hsl(36 92% 58% / 0.30), hsl(28 88% 44% / 0.16))",
+  edge: "hsl(36 90% 60% / 0.44)",
+  edgeOn: "hsl(38 96% 66%)",
+  text: "hsl(40 96% 78%)",
+  bed: "hsl(36 60% 50% / 0.05)",
+};
+
+/** A video block playing under the music. */
+export const PLAYS: Skin = {
+  label: "Video",
+  hue: 246,
+  fill: "linear-gradient(176deg, hsl(246 82% 68% / 0.24), hsl(256 70% 50% / 0.11))",
+  edge: "hsl(246 70% 70% / 0.36)",
+  edgeOn: "hsl(246 92% 76%)",
+  text: "hsl(248 88% 84%)",
+  bed: "hsl(246 60% 60% / 0.04)",
+};
+
+export const blockSkin = (lipSynced: boolean): Skin => (lipSynced ? SINGS : PLAYS);
+
+/** The hue a placeholder clip is painted with when there is no API key. */
+export const placeholderHue = (lipSynced: boolean): number => blockSkin(lipSynced).hue;
+
+export const ASPECT_RATIOS: { label: string; value: AspectRatio; note: string }[] = [
+  { label: "16:9", value: "16:9", note: "Wide" },
+  { label: "9:16", value: "9:16", note: "Vertical" },
+  { label: "1:1", value: "1:1", note: "Square" },
 ];
 
-export const EFFECTS: { label: string; phrase: string }[] = [
-  { label: "None", phrase: "" },
-  { label: "Slow motion", phrase: "silky slow motion, high frame rate" },
-  { label: "Speed ramp", phrase: "dynamic speed ramp from slow to fast" },
-  { label: "Crash zoom", phrase: "sudden crash zoom punch-in" },
-  { label: "Dolly zoom", phrase: "vertigo dolly-zoom, background warping" },
-  { label: "Orbit shot", phrase: "camera orbits 360 around the subject" },
-  { label: "Whip pan", phrase: "fast whip-pan motion blur transition" },
-  { label: "Dutch angle", phrase: "tilted dutch-angle framing" },
-  { label: "Fisheye", phrase: "wide fisheye lens distortion" },
-  { label: "Tilt-shift", phrase: "tilt-shift miniature, selective focus" },
-  { label: "Anamorphic flare", phrase: "anamorphic widescreen with blue lens flares" },
-  { label: "Film grain", phrase: "35mm film grain, halation, gate weave" },
-  { label: "VHS retro", phrase: "VHS tape artefacts, scanlines, chroma bleed" },
-  { label: "Datamosh", phrase: "datamosh pixel-melt glitch transitions" },
-  { label: "Glitch", phrase: "digital glitch, RGB split, signal tears" },
-  { label: "Infrared", phrase: "infrared thermal false-colour palette" },
-  { label: "Double exposure", phrase: "double-exposure blend of two scenes" },
-  { label: "Kaleidoscope", phrase: "kaleidoscopic mirrored symmetry" },
-  { label: "Prism refraction", phrase: "prismatic light refraction and rainbows" },
-  { label: "Light streaks", phrase: "long-exposure light streaks and trails" },
-  { label: "Strobe", phrase: "rhythmic strobe flashes on the beat" },
-  { label: "Freeze frame", phrase: "freeze-frame hit then resume motion" },
-  { label: "Liquid morph", phrase: "liquid morph, fluid shape-shifting" },
-  { label: "Particle burst", phrase: "particles dissolve and reform the frame" },
-  { label: "Ink bleed", phrase: "ink-bleed and paint-splash reveal" },
-];
+export const ASPECT_CSS: Record<AspectRatio, string> = {
+  "16:9": "16 / 9",
+  "9:16": "9 / 16",
+  "1:1": "1 / 1",
+};
 
-export const ASPECT_RATIOS: { label: string; value: AspectRatio }[] = [
-  { label: "16:9", value: "16:9" },
-  { label: "9:16", value: "9:16" },
-  { label: "1:1", value: "1:1" },
-];
-
-// Model clips are 5–10s; the editor allows a wider range for shaping the reel.
-export const SEEDANCE_MIN = 5;
-export const SEEDANCE_MAX = 10;
-export const EDIT_MIN_DURATION = 1;
-export const EDIT_MAX_DURATION = 15;
-export const DEFAULT_DURATION = 5;
-
-export function moodHue(label: string): number {
-  return MOODS.find((m) => m.label === label)?.hue ?? 195;
+/** mm:ss.t — the only time format in the app. */
+export function timecode(sec: number, tenths = false): string {
+  const clamped = Math.max(0, sec);
+  const m = Math.floor(clamped / 60);
+  const s = Math.floor(clamped % 60);
+  const base = `${m}:${String(s).padStart(2, "0")}`;
+  if (!tenths) return base;
+  return `${base}.${Math.floor((clamped % 1) * 10)}`;
 }
 
-/** Compose the full Seedance prompt from a segment + project-level base prompt. */
-export function composePrompt(opts: {
-  basePrompt: string;
-  prompt: string;
-  mood: string;
-  effect: string;
-  type?: SegmentType;
-}): string {
-  const parts: string[] = [];
-  if (opts.type === "lipsync") {
-    parts.push(
-      "a character singing along to the music, lip-synced, expressive mouth movements matching the lyrics and rhythm",
-    );
-  } else {
-    parts.push("cinematic b-roll footage");
-  }
-  if (opts.basePrompt.trim()) parts.push(opts.basePrompt.trim());
-  if (opts.prompt.trim()) parts.push(opts.prompt.trim());
-  const moodPhrase = MOODS.find((m) => m.label === opts.mood)?.phrase;
-  if (moodPhrase) parts.push(moodPhrase);
-  const effectPhrase = EFFECTS.find((e) => e.label === opts.effect)?.phrase;
-  if (effectPhrase) parts.push(effectPhrase);
-  return parts.join(", ");
-}
+export const secs = (sec: number): string =>
+  sec >= 10 || sec % 1 === 0 ? `${Math.round(sec)}s` : `${sec.toFixed(1)}s`;

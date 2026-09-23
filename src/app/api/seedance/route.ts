@@ -12,9 +12,14 @@ interface GenerateBody {
   durationSec?: number;
   image?: string | null;
   moodHue?: number;
+  /** True when the block is a lip-sync block rather than b-roll. */
+  lipsync?: boolean;
+  /** Where in the song the block sits — logged so a render is traceable. */
+  audioStartSec?: number | null;
 }
 
-// POST /api/seedance  { stage: "generate", prompt, aspectRatio, durationSec, image?, moodHue }
+// POST /api/seedance  { stage: "generate", prompt, aspectRatio, durationSec,
+//                       image?, moodHue, lipsync?, audioStartSec? }
 // Renders one clip with Seedance 2.0 via the Vercel AI Gateway when
 // AI_GATEWAY_API_KEY is set; otherwise returns a deterministic placeholder so
 // the editor is fully usable offline.
