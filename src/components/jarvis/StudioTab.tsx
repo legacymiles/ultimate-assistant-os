@@ -23,6 +23,7 @@ import { Icon } from "../icons";
 import {
   CATEGORIES,
   WORKFLOWS,
+  cardStill,
   mentionQueryAt,
   mentionsIn,
   searchMentions,
@@ -536,6 +537,7 @@ function PluginsPane() {
 
 function StudioCard({ w, picked, onToggle }: { w: Workflow; picked: boolean; onToggle: () => void }) {
   const video = useRef<HTMLVideoElement>(null);
+  const still = cardStill(w.id);
   return (
     <button
       onClick={onToggle}
@@ -549,6 +551,10 @@ function StudioCard({ w, picked, onToggle }: { w: Workflow; picked: boolean; onT
     >
       {w.preview?.video ? (
         <video ref={video} className="st-video" src={w.preview.video} poster={w.preview.poster} muted loop playsInline preload="none" />
+      ) : still ? (
+        // Lazy on purpose: 123 cards is 123 requests if they all load on paint,
+        // and only the first screenful is ever seen before a scroll.
+        <img src={still} alt="" loading="lazy" decoding="async" className="st-still" />
       ) : (
         <span className={`st-art st-m-${w.motif}`} aria-hidden>
           <i />

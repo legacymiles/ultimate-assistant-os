@@ -2173,6 +2173,64 @@ export function categoryOf(w: Workflow): Category {
   return CATEGORIES.find((c) => c.id === w.category)!;
 }
 
+/**
+ * Workflows with a rendered card still in `public/studio/cards/<id>.webp` — a
+ * photograph of the thing the workflow makes, generated free and locally by
+ * Flux 2 Klein through WanGP (the preview-icon skill's `studio-cards.mjs`).
+ *
+ * Listed rather than derived from the id, so a card only ever points at a file
+ * that exists; anything not listed falls back to its motif animation. Re-render
+ * the set and paste the script's list back here.
+ */
+export const CARD_STILLS = new Set<string>([
+  "story-to-video", "kids-story", "short-drama",
+  "religious-story", "scary-story", "cinematic-story",
+  "product-ad", "commercial", "ad-remake",
+  "comedy-commercial", "ugc-ad", "brand-film",
+  "promo", "automotive-ad", "sports-campaign",
+  "real-estate", "hero-product-reveal", "product-showcase",
+  "e-commerce", "luxury-fashion-walk", "logo-reveal",
+  "motion-graphics", "workout-ad", "training-montage",
+  "athlete-motivation", "game-day-hype", "impossible-trick",
+  "slow-motion-technique", "event-editorial", "event-fashion-film",
+  "luxury-invitation-film", "vlog-influencer", "fitness-influencer",
+  "youtube-influencer", "joke-video", "street-interview",
+  "news-anchor", "sitcom-scene", "sitcom-intro",
+  "podcast-show", "tutorial-steps", "romantic-film",
+  "romantic-montage", "seduction-film", "noir-seduction",
+  "boudoir-film", "social-content", "vlog-memories",
+  "outfit-try-on", "seamless-loop", "flash-montage",
+  "music-video", "film-trailer", "game-trailer",
+  "game-cutscene", "micro-expressions", "crisis-evasion",
+  "fight-choreography", "dolly-zoom", "bullet-time",
+  "parallax-focus-relay", "object-lock-on", "fpv-thread-the-needle",
+  "snorricam", "mechanical-transformation", "interview",
+  "explainer", "avatar-lip-sync", "instructional-motion",
+  "dance-tutorial", "asmr-cooking", "birthday-video",
+  "wedding", "anniversary", "baby",
+  "graduation", "retirement", "memorial",
+  "holiday-greeting", "year-in-review", "birthday-shoot",
+  "nine-variations", "headshots", "couple-shoot",
+  "couples-editorial", "sensual-photoshoot", "forbidden-editorial",
+  "maternity-shoot", "family-portrait", "family-photoshoot",
+  "pet-portrait", "athlete-photoshoot", "magazine-cover",
+  "pet-magazine-cover", "product-poster", "teaser-poster-set",
+  "movie-poster", "album-cover", "thumbnail",
+  "product-photos", "holiday-card", "invitation",
+  "memorial-portrait", "character-sheet", "ai-avatars",
+  "yearbook-photo", "fashion-lookbook", "food-photography",
+  "car-photoshoot", "logo-design", "brand-board",
+  "sticker-pack", "tattoo-design", "action-figure",
+  "phone-wallpaper", "storyboard-frames", "comic-page",
+  "childrens-book", "virtual-staging", "interior-redesign",
+  "twilight-exterior", "photo-restore", "colorize",
+]);
+
+/** The card's still, or null when it has not been rendered yet. */
+export function cardStill(id: string): string | null {
+  return CARD_STILLS.has(id) ? `/studio/cards/${id}.webp` : null;
+}
+
 /** Every @-able entry: each workflow, then each of its variants. */
 export const MENTIONS: Mention[] = WORKFLOWS.flatMap((w) => [
   { token: w.id, workflow: w, variant: null, label: w.name },
