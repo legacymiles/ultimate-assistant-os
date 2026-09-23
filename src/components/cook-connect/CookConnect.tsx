@@ -6,7 +6,7 @@
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useState,
 } from "react";
-import { getCookBackend } from "@/lib/cook-connect/client";
+import { getCookBackend, isSchemaMissing, SCHEMA_MISSING_MESSAGE } from "@/lib/cook-connect/client";
 import type { Profile } from "@/lib/cook-connect/types";
 import { CookShell } from "./CookShell";
 import { AuthView } from "./views/AuthView";
@@ -71,6 +71,8 @@ export function CookConnect() {
   const [history, setHistory] = useState<Route[]>([{ page: "play" }]);
   const [notice, setNotice] = useState<string | null>(null);
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
+  // Set when Supabase is configured but the `cook` schema is not reachable.
+  const [schemaMissing, setSchemaMissing] = useState(false);
 
   const route = history[history.length - 1];
 
@@ -89,7 +91,10 @@ export function CookConnect() {
    * every account created before this app did.
    */
   const ensureProfile = useCallback(async (id: string, email: string | null) => {
-    const { data } = await sb.from("profiles").select("*").eq("id", id).maybeSingle();
+    const { data, error } = await sb.from("profiles").select("*").eq("id", id).maybeSingle();
+    // Every screen reads this table, so if it is unreachable the whole app is.
+    // Saying so beats rendering a convincingly empty app.
+    if (isSchemaMissing(error)) { setSchemaMissing(true); return; }
     if (data) { setProfile(data as Profile); return; }
 
     const base = (email?.split("@")[0] ?? "cook").toLowerCase().replace(/[^a-z0-9_]/g, "") || "cook";
@@ -194,6 +199,38 @@ export function CookConnect() {
     return (
       <div className="cc flex min-h-screen items-center justify-center">
         <Loading label="Opening Cook Connect" />
+      </div>
+    );
+  }
+
+  if (schemaMissing) {
+    return (
+      <div className="cc flex min-h-screen items-center justify-center px-4 py-10">
+        <div className="w-full max-w-[34rem] rounded-[var(--cc-radius)] border border-[var(--cc-line)] bg-[var(--cc-panel)] p-5">
+          <h1 className="text-[18px] font-bold tracking-tight">One step left</h1>
+          <p className="mt-2 text-[13px] leading-relaxed text-[var(--cc-ink-muted)]">
+            {SCHEMA_MISSING_MESSAGE}
+          </p>
+          <ol className="mt-3 space-y-1.5 text-[13px] leading-relaxed text-[var(--cc-ink-muted)]">
+            <li>
+              <span className="cc-num mr-1.5 font-semibold text-[var(--cc-ember)]">1</span>
+              Run both migrations in the Supabase SQL editor.
+            </li>
+            <li>
+              <span className="cc-num mr-1.5 font-semibold text-[var(--cc-ember)]">2</span>
+              Settings &rarr; Data API &rarr; Exposed schemas &rarr; add{" "}
+              <code className="rounded bg-[var(--cc-panel-2)] px-1 py-0.5 font-mono text-[12px] text-[var(--cc-ink)]">cook</code>.
+            </li>
+            <li>
+              <span className="cc-num mr-1.5 font-semibold text-[var(--cc-ember)]">3</span>
+              Reload this page.
+            </li>
+          </ol>
+          <p className="mt-3 border-t border-[var(--cc-line-soft)] pt-3 text-[12px] leading-relaxed text-[var(--cc-ink-faint)]">
+            Step 2 is easy to miss. Without it PostgREST rejects every request with PGRST106 before it
+            looks at the tables, so the app cannot tell a missing schema from an empty one.
+          </p>
+        </div>
       </div>
     );
   }

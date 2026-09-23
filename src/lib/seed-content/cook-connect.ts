@@ -337,6 +337,32 @@ to move, not go with it.`,
     ),
     entry(
       "note",
+      "Sign in with Google",
+      `Google is enabled on the hub's Supabase project (kiiwaiwrfslqankcsnkf) — confirmed by reading
+/auth/v1/settings, which reports external.google = true. Cook Connect's Google button goes through
+the hub's existing /auth/callback route with ?next=/apps/cook-connect.
+
+History worth knowing: Google sign-in used to fail with "Unsupported provider: provider is not
+enabled" because Pod Play Connect pointed at Lovable's Supabase project, which this account cannot
+administer. That is fixed and unrelated to this app — but AuthView still special-cases that exact
+error message, because it reads like a code bug and is not one.
+
+The button is hidden behind a check in local mode: OAuth needs a real project.`,
+    ),
+    entry(
+      "note",
+      "PGRST106 hides whether the tables exist",
+      `Running the migrations is only half of it. Until "cook" is added under Settings -> Data API ->
+Exposed schemas, PostgREST answers EVERY request with PGRST106 before it looks at the tables — and
+it does this for the service role too, so there is no way to confirm from outside whether the SQL
+landed. The error text names the schemas that are exposed, which is the quickest diagnosis.
+
+CookConnect.tsx now detects this on load and renders a "One step left" screen naming the exact
+setting, because otherwise a correctly-installed app and a missing schema look identical: both are
+an empty app.`,
+    ),
+    entry(
+      "note",
       "Why this file exists",
       `Cook Connect shipped its first version missing several Cookbook Genie features, because the
 agent building it had no record of what had already been asked for. The owner's point:
