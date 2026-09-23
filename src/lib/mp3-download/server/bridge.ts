@@ -27,8 +27,15 @@ import type { GrabMode } from "../ytdlp";
 const DOC = "mp3-download-bridge";
 const BUCKET = "mp3-download";
 
-/** Straight through a function body; anything larger takes a signed link. */
-export const MAX_INLINE_BYTES = 8 * 1024 * 1024;
+/**
+ * The most this route will take in one request body.
+ *
+ * A deployed Vercel function caps at 4.5 MB. This said 8, which accepted a
+ * request the platform then rejected with a 413 before the handler ever ran —
+ * so the limit was a lie in the only place it mattered. Storage is the real
+ * path; this is the fallback for a hub that has none.
+ */
+export const MAX_INLINE_BYTES = 4 * 1024 * 1024;
 
 /** A job nobody collected is rubbish after this long. */
 const JOB_TTL_MS = 6 * 60 * 60_000;

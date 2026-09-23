@@ -27,8 +27,16 @@ const once = process.argv.includes("--once");
 const log = (...args) => console.log(new Date().toLocaleTimeString(), ...args);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Files over this go to Storage through a signed link, not through the site. */
-const INLINE_LIMIT = 8 * 1024 * 1024;
+/**
+ * The absolute most that can go through the site itself.
+ *
+ * A deployed Vercel function body caps at 4.5 MB. This was 8 MB, which meant
+ * an ordinary song — under 8 MB, so "small" — was sent inline and bounced with
+ * a 413, while a 10 MB one took the signed link and worked. The big file
+ * passing was what hid the bug. Storage is the path now whenever it exists;
+ * this is only the fallback for a hub that has none.
+ */
+const INLINE_LIMIT = 4 * 1024 * 1024;
 
 // --- finding yt-dlp ----------------------------------------------------------
 
@@ -135,51 +143,57 @@ async function reportFailure(jobId, error) {
 }
 
 /**
- * Send the finished file back, inline when it is small and through a signed
- * Storage link when it is not.
+ * Send the finished file back.
  *
- * A deployed function body caps at 4.5 MB, so a video must never travel
- * through the site itself. The signed link is the site's answer to that; a hub
- * with no Storage configured says 204 instead and takes the bytes inline.
+ * Storage first, always — not only for large files. The site is a serverless
+ * function whose whole request body caps at 4.5 MB, so "send it inline if it
+ * is smallish" is a trap: a four-minute song clears any sensible smallish
+ * threshold and still bounces with a 413. Going through Storage costs one
+ * extra round trip and works at every size.
+ *
+ * Inline is the fallback for a hub with no Storage at all, which answers 204
+ * to the signing request.
  */
 async function deliver(jobId, file) {
   const info = await stat(file.path);
 
-  if (info.size > INLINE_LIMIT) {
-    const signed = await hub("/api/mp3-download/runner/result", {
+  const signed = await hub("/api/mp3-download/runner/result", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ op: "sign", jobId }),
+  });
+
+  if (signed.status === 200) {
+    const { key, url } = await signed.json();
+    const put = await fetch(url, {
+      method: "PUT",
+      headers: { "content-type": file.contentType },
+      // A stream, so a 200 MB video never sits in this process's memory.
+      body: createReadStream(file.path),
+      duplex: "half",
+    });
+    if (!put.ok) throw new Error(`Storage refused the upload (${put.status}).`);
+
+    const done = await hub("/api/mp3-download/runner/result", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ op: "sign", jobId }),
+      body: JSON.stringify({ op: "done", jobId, key, bytes: info.size }),
     });
+    if (!done.ok) throw new Error(`Hub would not record the upload (${done.status}).`);
+    return info.size;
+  }
 
-    if (signed.status === 200) {
-      const { key, url } = await signed.json();
-      const put = await fetch(url, {
-        method: "PUT",
-        headers: { "content-type": file.contentType },
-        // A stream, so a 200 MB video never sits in this process's memory.
-        body: createReadStream(file.path),
-        duplex: "half",
-      });
-      if (!put.ok) throw new Error(`Storage refused the upload (${put.status}).`);
+  if (signed.status !== 204) {
+    const body = await signed.json().catch(() => ({}));
+    throw new Error(body.error ?? `Hub answered ${signed.status} when asked for an upload link.`);
+  }
 
-      const done = await hub("/api/mp3-download/runner/result", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ op: "done", jobId, key, bytes: info.size }),
-      });
-      if (!done.ok) throw new Error(`Hub would not record the upload (${done.status}).`);
-      return info.size;
-    }
-    // 204 means the hub has no Supabase Storage. Inline is all that is left,
-    // and this file is already past that limit, so say what would fix it
-    // rather than letting the upload bounce with a size error.
-    if (signed.status === 204) {
-      throw new Error(
-        `${(info.size / 1024 / 1024).toFixed(0)} MB is too big to send to a hub with no Storage. ` +
-          "Set SUPABASE_SERVICE_ROLE_KEY on that hub, or grab this one on the PC directly.",
-      );
-    }
+  // 204: no Storage on this hub, so the bytes have to go through the site.
+  if (info.size > INLINE_LIMIT) {
+    throw new Error(
+      `${(info.size / 1024 / 1024).toFixed(1)} MB cannot be sent to a hub with no Storage ` +
+        "(its request body caps at 4.5 MB). Set SUPABASE_SERVICE_ROLE_KEY on that hub.",
+    );
   }
 
   const form = new FormData();
