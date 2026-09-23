@@ -8,6 +8,25 @@
 // for this session (the conversation keeps the prompts, not the media).
 // ---------------------------------------------------------------------------
 
+// composite.ts reads BRIDGE back out of this file, so the two import each
+// other. Both only touch the other's exports inside function bodies, never
+// while the module is initialising, which is the case ESM resolves cleanly.
+import { CORNERS, composite, fileToDataUrl, type CompositePlacement, type Corner } from "./composite";
+
+/** The placement half of a composite, made safe. The bridge clamps the rest. */
+function placementFrom(raw: unknown): CompositePlacement | undefined {
+  const o = (raw ?? {}) as Record<string, unknown>;
+  const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : undefined);
+  const out: CompositePlacement = {
+    ...(CORNERS.includes(o.corner as Corner) ? { corner: o.corner as Corner } : {}),
+    ...(num(o.share) !== undefined ? { share: num(o.share) } : {}),
+    ...(num(o.inset) !== undefined ? { inset: num(o.inset) } : {}),
+    ...(typeof o.key === "string" ? { key: o.key } : {}),
+    ...(["base", "plate", "both"].includes(String(o.audio)) ? { audio: o.audio as "base" | "plate" | "both" } : {}),
+  };
+  return Object.keys(out).length ? out : undefined;
+}
+
 export interface RenderJob {
   title: string;
   prompt: string;
@@ -16,6 +35,13 @@ export interface RenderJob {
   useReferences?: boolean;
   /** 1-based Subject numbers this job gets; absent = every upload. */
   references?: number[];
+  /**
+   * Lay this clip over an attached video as a cut-out — the reaction format.
+   * The number is the Subject number of a CLIP in this conversation, and what
+   * renders here is the plate: the reactor alone on a flat key colour.
+   */
+  compositeOver?: number;
+  composite?: CompositePlacement;
 }
 
 /**
@@ -37,6 +63,13 @@ export interface CharacterRef {
 export interface RefPool {
   subjects: string[];
   characters: CharacterRef[];
+  /**
+   * The clips this conversation is holding, by the same Subject numbers the
+   * pictures use — a clip counts as a Subject because it is something a render
+   * can be pointed at. Only the current session has the bytes; a reloaded
+   * conversation keeps the poster frame and not the file.
+   */
+  clips?: { n: number; file: Blob }[];
 }
 
 export interface RenderState {
@@ -69,6 +102,11 @@ export function jobsFrom(args: Record<string, unknown>): { medium: "video" | "im
         references: Array.isArray(o.references)
           ? o.references.map(Number).filter((n) => Number.isInteger(n) && n >= 1).slice(0, 6)
           : undefined,
+        compositeOver:
+          Number.isInteger(Number(o.composite_over)) && Number(o.composite_over) >= 1
+            ? Number(o.composite_over)
+            : undefined,
+        composite: placementFrom(o.composite),
       };
     })
     .filter((j) => j.prompt);
@@ -200,6 +238,31 @@ async function renderVideoLocal(job: RenderJob, pool: RefPool, update: (p: Parti
     if (view.status === "done") {
       const file = await fetch(`${BRIDGE}/file/${id}`);
       if (!file.ok) throw new Error("The clip finished but couldn't be fetched from the local renderer.");
+      // For a reaction the plate is not the deliverable — the cut-out over the
+      // video is. The bridge still has the rendered plate, so it is named by
+      // job id rather than shipped back up and posted down again.
+      const over = job.compositeOver ? pool.clips?.find((c) => c.n === job.compositeOver) : undefined;
+      if (job.compositeOver && !over) {
+        throw new Error(
+          `This was to be laid over Subject ${job.compositeOver}, but that isn't a clip this session is holding. `
+          + "Re-attach the video and render again.",
+        );
+      }
+      if (over) {
+        update({ note: "local · laying the cut-out over the video" });
+        const { blob, view: done } = await composite({
+          base: await fileToDataUrl(over.file),
+          plateJob: id,
+          ...(job.composite ?? {}),
+        });
+        update({
+          ...finished(blob),
+          ...(done.cropped === false
+            ? { note: "placed from the whole plate — the reactor's own edges weren't found" }
+            : {}),
+        });
+        return;
+      }
       update(finished(await file.blob()));
       return;
     }

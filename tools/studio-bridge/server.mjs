@@ -42,6 +42,8 @@
 //   GET  /film/:id/file       the stitched film
 //   GET  /film/:id/shot/:n    one finished clip (1-based)
 //   POST /film/:id/cancel     stop after the shot in the machine
+//   POST /composite           { base, plate|plateJob, corner, share, … } → { id }
+//                             a cut-out matted over a video; polls on /job/:id like a clip
 // ---------------------------------------------------------------------------
 
 import http from "node:http";
@@ -271,13 +273,13 @@ async function generate({ id, prompt, refFiles = [], durationSec, aspectRatio, s
 
 // ----- the edit bay ---------------------------------------------------------
 
-function run(bin, args, { capture = false } = {}) {
+function run(bin, args, { capture = false, captureErr = false } = {}) {
   return new Promise((ok, fail) => {
     const p = spawn(bin, args, { windowsHide: true });
     let out = "";
     let err = "";
     p.stdout.on("data", (c) => (out += c));
-    p.stderr.on("data", (c) => (err += c.toString().slice(0, 2000)));
+    p.stderr.on("data", (c) => (err += captureErr ? c.toString() : c.toString().slice(0, 2000)));
     p.on("error", (e) =>
       fail(
         new Error(
@@ -288,7 +290,7 @@ function run(bin, args, { capture = false } = {}) {
       ),
     );
     p.on("close", (code) =>
-      code === 0 ? ok(capture ? out : "") : fail(new Error(`${bin} failed (${code}): ${err.trim().split("\n").pop() || "no output"}`)),
+      code === 0 ? ok(captureErr ? err : capture ? out : "") : fail(new Error(`${bin} failed (${code}): ${err.trim().split("\n").pop() || "no output"}`)),
     );
   });
 }
@@ -399,6 +401,181 @@ async function scoreFilm(film, track, out) {
   return out;
 }
 
+// ----- the edit bay: a cut-out over a video ----------------------------------
+//
+// The reaction format (src/lib/studio/skills/reaction-video.md): the source
+// video plays full frame and the rendered plate is matted over it — a cut-out
+// standing in the picture, never one half of a split screen.
+//
+// Both numbers that decide the result are easy to get wrong in a way that
+// still SUCCEEDS, which is why they are computed here instead of trusted:
+//
+//   THE HEIGHT is a share of the SOURCE's height, and the obvious
+//   `scale=-1:ih*0.32` reads `ih` as the PLATE's own height. A 480-tall plate
+//   over a 1920-tall video puts the reactor at 154px instead of 614, and
+//   ffmpeg reports nothing. So the base is probed and the scale is in pixels.
+//   (`scale2ref` does the arithmetic properly, but only with `ref_h` —
+//   `main_h` is the same trap again — and it is now deprecated.)
+//
+//   THE KEY is whatever green the renderer actually produced, which is never
+//   the textbook chroma value. Keying against a colour that is not in the
+//   picture removes nothing and, again, succeeds. So it is sampled.
+
+/** Where the cut-out stands. `i` is the inset, as a share of the frame width. */
+const CORNERS = {
+  "bottom-left": (i) => ({ x: `W*${i}`, y: "H-h" }),
+  "bottom-right": (i) => ({ x: `W-w-W*${i}`, y: "H-h" }),
+  "top-left": (i) => ({ x: `W*${i}`, y: `H*${i}` }),
+  "top-right": (i) => ({ x: `W-w-W*${i}`, y: `H*${i}` }),
+};
+
+async function videoSize(file) {
+  const out = await run(
+    FFPROBE,
+    ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", file],
+    { capture: true },
+  );
+  const [w, h] = out.trim().split("x").map(Number);
+  if (!w || !h || !Number.isFinite(w) || !Number.isFinite(h)) throw new Error("Couldn't read that video's size.");
+  return { w, h };
+}
+
+/**
+ * The key colour, sampled off the plate rather than assumed.
+ *
+ * Four corners, greenest wins: the subject is in the middle of the frame so a
+ * corner is background, but which corner is clear depends on where they stand.
+ * If nothing is convincingly green the plate is not keyable, and saying so
+ * beats laying a green rectangle over the owner's video.
+ */
+async function sampleKey(plate, dir) {
+  const { w, h } = await videoSize(plate);
+  const s = Math.max(4, Math.min(24, Math.round(Math.min(w, h) / 24)));
+  let best = null;
+  for (const [x, y] of [[0, 0], [w - s, 0], [0, h - s], [w - s, h - s]]) {
+    const raw = join(dir, `key-${x}x${y}.raw`);
+    await run(FFMPEG, [
+      "-y", "-hide_banner", "-loglevel", "error", "-i", plate,
+      "-vf", `crop=${s}:${s}:${x}:${y},scale=1:1`,
+      "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", raw,
+    ]);
+    const px = readFileSync(raw);
+    const greenness = px[1] - Math.max(px[0], px[2]);
+    if (!best || greenness > best.greenness) best = { r: px[0], g: px[1], b: px[2], greenness };
+  }
+  if (!best || best.greenness < 24) {
+    throw new Error(
+      "The plate has no green background to cut out of. Render the reactor against a flat chroma-green field, "
+      + "or send an explicit key colour.",
+    );
+  }
+  return `0x${[best.r, best.g, best.b].map((n) => n.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/**
+ * Where the reactor actually is inside the plate.
+ *
+ * Without this, `share` is the share of frame height the PLATE occupies and
+ * the reactor is whatever fraction of that they happen to fill — so a 16:9
+ * plate over a 9:16 video gets clamped to fit the width and the reactor
+ * arrives half the size that was asked for, with nothing reporting a problem.
+ *
+ * The key has already decided what is background, so the alpha channel IS the
+ * cut-out: cropdetect over it returns the box the reactor moves within across
+ * the whole clip. Returns null when it cannot tell, and the caller then scales
+ * the whole frame as before rather than refusing to composite.
+ */
+async function reactorBox(plate, key, similarity, blend) {
+  const chain = [
+    key ? `chromakey=${key}:${similarity}:${blend}` : null,
+    // alphaextract cannot pick its own format here, and chromakey's output
+    // has to be named for it or the graph fails to configure at all.
+    "format=yuva420p",
+    "alphaextract",
+    "format=gray",
+    "cropdetect=limit=0.08:round=2:reset=0",
+  ]
+    .filter(Boolean)
+    .join(",");
+  try {
+    // Three seconds covers the range of their movement, and cropdetect
+    // accumulates across frames rather than resetting.
+    const err = await run(
+      FFMPEG,
+      ["-hide_banner", "-v", "info", "-i", plate, "-vf", chain, "-frames:v", "72", "-f", "null", "-"],
+      { captureErr: true },
+    );
+    const all = [...err.matchAll(/crop=(\d+):(\d+):(\d+):(\d+)/g)];
+    if (!all.length) return null;
+    const [, w, h, x, y] = all[all.length - 1].map(Number);
+    return w > 8 && h > 8 ? { w, h, x, y } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function compose(id, job) {
+  const dir = join(OUT, "composites", id);
+  mkdirSync(dir, { recursive: true });
+  const base = saveDataUrl(join(dir, "base.mp4"), job.input.base);
+  const plate = job.input.plateJob
+    ? jobs.get(job.input.plateJob)?.file
+    : saveDataUrl(join(dir, "plate.mp4"), job.input.plate);
+  if (!base) throw new Error("The source video didn't arrive.");
+  if (!plate || !existsSync(plate)) throw new Error("The reactor plate didn't arrive.");
+
+  const { share, corner, inset, similarity, blend, audio } = job.input;
+  const baseSize = await videoSize(base);
+  const key = job.input.key === "none" ? null : job.input.key === "auto" ? await sampleKey(plate, dir) : job.input.key;
+  job.key = key;
+
+  // `share` is the REACTOR's share of the frame, so the plate is trimmed to
+  // the reactor first — otherwise the surrounding green counts toward their
+  // height and they arrive smaller than asked for.
+  const box = await reactorBox(plate, key, similarity, blend);
+  const plateSize = box ? { w: box.w, h: box.h } : await videoSize(plate);
+  job.cropped = Boolean(box);
+
+  // A share of the BASE height, in pixels, and never wider than the frame it
+  // is standing in. Even numbers only: an odd one breaks yuv420p.
+  let height = Math.round(baseSize.h * share);
+  const widthAt = (px) => Math.round((px * plateSize.w) / plateSize.h);
+  const room = Math.round(baseSize.w * (1 - 2 * inset));
+  if (widthAt(height) > room) height = Math.round((room * plateSize.h) / plateSize.w);
+  height = Math.max(2, height - (height % 2));
+  job.placed = { height, width: widthAt(height), of: baseSize };
+
+  const { x, y } = CORNERS[corner](inset);
+  const cut =
+    (key ? `chromakey=${key}:${similarity}:${blend},` : "")
+    + (box ? `crop=${box.w}:${box.h}:${box.x}:${box.y},` : "")
+    + (key ? "despill," : "");
+  // eof_action=pass: when the plate runs out the source keeps playing rather
+  // than the whole thing ending on the reactor's last frame.
+  const chains = [`[1:v]${cut}scale=-1:${height}[r]`, `[0:v][r]overlay=${x}:${y}:eof_action=pass[v]`];
+
+  const [baseHasAudio, plateHasAudio] = await Promise.all([hasAudio(base), hasAudio(plate)]);
+  const want = { base: baseHasAudio, plate: plateHasAudio, both: baseHasAudio || plateHasAudio }[audio];
+  const mixBoth = audio === "both" && baseHasAudio && plateHasAudio;
+  if (mixBoth) {
+    chains.push("[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]");
+  }
+  const track = !want ? [] : mixBoth ? ["-map", "[a]"] : ["-map", audio === "plate" && plateHasAudio ? "1:a" : "0:a"];
+
+  const out = join(dir, "out.mp4");
+  await run(FFMPEG, [
+    "-y", "-hide_banner", "-loglevel", "error",
+    "-i", base, "-i", plate,
+    "-filter_complex", chains.join(";"),
+    "-map", "[v]", ...track,
+    "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
+    ...(want ? ["-c:a", "aac", "-b:a", "192k"] : ["-an"]),
+    "-movflags", "+faststart",
+    out,
+  ]);
+  return out;
+}
+
 // ----- one clip at a time ----------------------------------------------------
 
 async function render(id, job) {
@@ -407,6 +584,33 @@ async function render(id, job) {
     .map((r, i) => ({ path: saveRef(id, i, r.dataUrl), label: r.label }))
     .filter((f) => f.path);
   return generate({ id, prompt, refFiles, durationSec, aspectRatio });
+}
+
+/**
+ * Composites run immediately rather than joining the queue: the queue exists
+ * because there is one GPU, and this never touches it. Waiting six minutes
+ * behind a render for a few seconds of ffmpeg would be a queue for its own
+ * sake.
+ */
+async function runComposite(id) {
+  const job = jobs.get(id);
+  job.status = "rendering";
+  job.started = Date.now();
+  console.log(`▶ ${id} — composite`);
+  try {
+    job.file = await compose(id, job);
+    job.status = "done";
+    console.log(
+      `✓ ${id} composite in ${Math.round((Date.now() - job.started) / 1000)}s — cut-out `
+      + `${job.placed.width}x${job.placed.height} over ${job.placed.of.w}x${job.placed.of.h}`
+      + `${job.key ? `, key ${job.key}` : ", alpha"}${job.cropped ? "" : " (whole frame — reactor bounds not found)"}`,
+    );
+  } catch (e) {
+    job.status = "error";
+    job.error = e instanceof Error ? e.message : String(e);
+    console.log(`✗ ${id}: ${job.error}`);
+  }
+  job.finished = Date.now();
 }
 
 async function pump() {
@@ -655,6 +859,47 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { id });
   }
 
+  if (req.method === "POST" && url.pathname === "/composite") {
+    let input;
+    try {
+      input = await readBody(req);
+    } catch (e) {
+      return json(res, e.message === "too large" ? 413 : 400, { error: e.message === "too large" ? "too large" : "bad json" });
+    }
+    if (typeof input.base !== "string" || !input.base.startsWith("data:video/")) {
+      return json(res, 400, { error: "base must be the source video as a data URL" });
+    }
+    const fromJob = typeof input.plateJob === "string" ? jobs.get(input.plateJob) : null;
+    if (input.plateJob && (!fromJob || fromJob.status !== "done")) {
+      return json(res, 400, { error: "that plate job isn't finished" });
+    }
+    if (!input.plateJob && (typeof input.plate !== "string" || !input.plate.startsWith("data:video/"))) {
+      return json(res, 400, { error: "plate must be a data URL, or plateJob the id of a finished render" });
+    }
+    const corner = CORNERS[input.corner] ? input.corner : "bottom-left";
+    const num = (v, lo, hi, d) => (Number.isFinite(Number(v)) ? Math.min(hi, Math.max(lo, Number(v))) : d);
+    const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    jobs.set(id, {
+      status: "queued",
+      kind: "composite",
+      input: {
+        base: input.base,
+        ...(input.plateJob ? { plateJob: input.plateJob } : { plate: input.plate }),
+        corner,
+        // A reactor under a tenth of the frame is unreadable and over half is
+        // not a cut-out any more; the default is the placement the skill uses.
+        share: num(input.share, 0.1, 0.5, 0.32),
+        inset: num(input.inset, 0, 0.3, 0.06),
+        similarity: num(input.similarity, 0.01, 0.5, 0.12),
+        blend: num(input.blend, 0, 0.5, 0.04),
+        key: typeof input.key === "string" && /^(auto|none|0x[0-9a-f]{6})$/i.test(input.key) ? input.key : "auto",
+        audio: ["base", "plate", "both"].includes(input.audio) ? input.audio : "both",
+      },
+    });
+    void runComposite(id);
+    return json(res, 200, { id });
+  }
+
   if (req.method === "POST" && url.pathname === "/film") {
     let input;
     try {
@@ -719,9 +964,13 @@ const server = http.createServer(async (req, res) => {
       ...(job.error ? { error: job.error } : {}),
       ...(job.started ? { seconds: Math.round(((job.finished ?? Date.now()) - job.started) / 1000) } : {}),
       // The page's ETA for a single clip comes from the same measured rate.
-      ...(job.status === "rendering"
+      // A composite has no frames to render and no rate to predict from — it is
+      // ffmpeg on finished files — so it reports none rather than borrowing the
+      // GPU's arithmetic and promising five minutes of nothing.
+      ...(job.status === "rendering" && job.kind !== "composite"
         ? { etaSeconds: Math.max(0, Math.round(framesFor(job.input.durationSec) * rate.secondsPerFrame - (Date.now() - job.started) / 1000)) }
         : {}),
+      ...(job.kind === "composite" ? { kind: "composite", ...(job.placed ? { placed: job.placed, key: job.key, cropped: job.cropped } : {}) } : {}),
     });
   }
   if (m && m[1] === "file") {

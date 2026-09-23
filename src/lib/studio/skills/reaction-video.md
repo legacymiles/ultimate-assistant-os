@@ -24,10 +24,18 @@ shot is the one where they forget to perform and just watch.
 
 ## What is actually rendered
 
-The renderer makes video; it does not composite. So the deliverable is the **reactor plate** — the
-performance rendered against a flat key colour so it can be cut out — plus the exact composite the
-owner runs over their source video. Say this plainly in Round 3 rather than implying one render
-produces the finished piece.
+You prompt for the **plate** — the reactor alone against a flat key colour, framed for the
+composite — and the local renderer keys it and lays it over the owner's video itself. Pass
+`composite_over` on the `studio_generate` job, set to the Subject number of the attached clip.
+What comes back is the finished piece, not the plate.
+
+So the prompt describes a person on a green field and nothing else. Never prompt for "a reaction
+video", for a screen inside the shot, or for two panels — those are the composite's job, and
+asking for them produces a picture of a reaction video rather than one.
+
+Two things this needs: the **local** renderer, because the composite is ffmpeg on this PC, and the
+clip still attached in **this** session — a reloaded conversation keeps a clip's poster frame, not
+its bytes. If either is missing, say so and use the manual recipe at the end of Round 3.
 
 If the owner has no source video and wants the whole thing invented, that is a different job:
 render the screen content as its own clip first, then the plate, then composite the two.
@@ -106,36 +114,38 @@ Deliver, in this order:
 
 **4. Reference map** — Subject N = the Nth uploaded image; the reactor is Subject 1.
 
-**5. The composite**, given as commands the owner can run, with the numbers filled in from the
-placement. Three steps, because two of the numbers have to be read off their own files first.
+**5. The composite settings**, as the `composite` object on the job — corner, `share`, `inset`,
+`audio` — restated in words so the owner sees the placement before it runs. `share` is the
+**reactor's** share of frame height: the renderer trims the plate to the reactor's own edges first,
+so the shape of the plate does not change how big they come out.
 
-Read the source's height, and the actual green the renderer produced — the plate will not be the
-textbook chroma value, and keying against a colour that is not in the picture removes nothing:
+Leave `key` unset. The renderer samples the real green off the plate, which matters because it
+never produces the textbook chroma value, and keying against a colour that is not in the picture
+removes nothing — silently.
+
+**Manual fallback**, only when the local renderer is unavailable or the clip is no longer attached.
+Two numbers have to be read off the files first:
 
 ```
 ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 source.mp4
 ffmpeg -v error -y -i plate.mp4 -vf "crop=8:8:4:4,scale=1:1" -frames:v 1 -f rawvideo -pix_fmt rgb24 - | xxd -p
 ```
 
-The second prints six hex digits: the average colour of the plate's top-left corner, which is the
-key. Then composite, with `<H32>` = 32 % of the source height (the placement's share), `0xRRGGBB`
-the sampled green:
+The second prints six hex digits — the plate's corner colour, which is the key. Then, with `<H32>`
+= 32 % of the **source** height in pixels:
 
 ```
-ffmpeg -i source.mp4 -i plate.mp4 -filter_complex \
-  "[1:v]chromakey=0xRRGGBB:0.12:0.04,despill,scale=-1:<H32>[r];[0:v][r]overlay=W*0.06:H-h" \
-  -c:a copy out.mp4
+ffmpeg -i source.mp4 -i plate.mp4 -filter_complex   "[1:v]chromakey=0xRRGGBB:0.12:0.04,despill,scale=-1:<H32>[r];[0:v][r]overlay=W*0.06:H-h"   -c:a copy out.mp4
 ```
 
-Say which number is which — `<H32>` is the reactor's height in pixels, `W*0.06` the inset from the
-left edge, `H-h` sits them on the bottom edge. Raise the `0.12` similarity if green fringes the
-hair; lower it if parts of the reactor go transparent.
+`W*0.06` is the inset from the left edge and `H-h` sits them on the bottom. Raise the `0.12`
+similarity if green fringes the hair; lower it if parts of the reactor go transparent.
 
-**Give the height in pixels, not as a fraction.** `scale=-1:ih*0.32` is wrong and fails silently:
-inside `scale`, `ih` is the *plate's* own height, not the source's, so a 480-tall plate over a
-1920-tall video puts the reactor at 154 px instead of 614 and the composite still succeeds. (The
-one-liner that does the arithmetic itself is `[k][0:v]scale2ref=-1:ref_h*0.32[r][base]` — `ref_h`,
-not `main_h`, which is the same trap — but ffmpeg now prints a deprecation warning for it.)
+**Give that height in pixels, never as a fraction.** `scale=-1:ih*0.32` is wrong and fails
+silently: inside `scale`, `ih` is the *plate's* own height, not the source's, so a 480-tall plate
+over a 1920-tall video puts the reactor at 154 px instead of 614 and the command still succeeds.
+(`scale2ref=-1:ref_h*0.32` does the arithmetic properly — `ref_h`, not `main_h`, which is the same
+trap again — but ffmpeg now deprecates the filter.)
 
 **6. Close** — "Upload the reactor's photo and the clip they're reacting to, and I'll render the
 plate." Send it with a `studio_form` carrying an `image` field `refs` and a `choice` `confirm`
@@ -145,7 +155,8 @@ plate." Send it with a `studio_form` carrying an `image` field `refs` and a `cho
 
 `studio_generate` with `medium: "video"`, one job for the plate, `duration_sec` from the brief
 (≤15 per clip — a longer reaction is rendered as consecutive plates and composited in order),
-`aspect_ratio` matching the source, `use_references: true` with the reactor as Subject 1.
+`aspect_ratio` matching the source, `use_references: true` with the reactor's photo, and
+`composite_over` set to the clip's Subject number, with the `composite` placement beside it.
 
 Render **one plate first** and check it against the quality gate before rendering the rest. On a
 failure change one variable only: green on the hair → simpler background instruction and no

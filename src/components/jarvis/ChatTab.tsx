@@ -491,6 +491,10 @@ export function ChatTab({
           subjects: referenceImages(),
           // Their faces come out of the library, not out of an upload box.
           characters: cast.map((c) => ({ token: c.token, name: c.name, images: c.images })),
+          // A composite has to lay the plate over a real video, and only this
+          // session holds one: a reloaded conversation keeps a clip's poster
+          // frame and not its bytes.
+          clips: attachedClips(),
         };
         const result = await runRender(args, pool, (states) => {
           setRenders(states);
@@ -534,6 +538,22 @@ export function ChatTab({
       setActing(false);
     }
   };
+
+  /**
+   * The clips this session is holding, numbered as Subjects.
+   *
+   * `references` counts pictures and clips together — a clip is a Subject
+   * because it is something a render can be pointed at — so the numbering here
+   * has to be read off that same list rather than counted separately, or a
+   * composite lays the plate over the wrong attachment.
+   */
+  const attachedClips = (): { n: number; file: Blob }[] =>
+    references
+      .filter((r) => r.kind === "video" && r.id)
+      .flatMap((r) => {
+        const file = attachments.find((a) => a.id === r.id)?.file;
+        return file ? [{ n: r.n, file }] : [];
+      });
 
   /** Every picture the owner attached in this conversation, oldest first — Subject 1, 2, … */
   const referenceImages = (): string[] =>

@@ -417,6 +417,44 @@ export const STUDIO_TOOLS: ToolSpec[] = [
                 items: { type: "number" },
                 description: "Which uploads this job gets, as Subject numbers (1 = first uploaded). Omit to attach all.",
               },
+              composite_over: {
+                type: "number",
+                description:
+                  "The reaction format: lay this clip over an attached VIDEO as a cut-out. The number is the "
+                  + "Subject number of a clip in this conversation. What you prompt for here is then the PLATE "
+                  + "— the reactor alone against a flat chroma-green field, framed for the composite — not the "
+                  + "finished piece; the local renderer keys it and lays it over that video. Never a split screen. "
+                  + "Only works on the local renderer, and only while the clip is still attached in this session.",
+              },
+              composite: {
+                type: "object",
+                description: "Where the cut-out stands. Every field is optional.",
+                properties: {
+                  corner: {
+                    type: "string",
+                    enum: ["bottom-left", "bottom-right", "top-left", "top-right"],
+                    description: "Put it in the source video's dead space — where nothing the viewer needs happens.",
+                  },
+                  share: {
+                    type: "number",
+                    description:
+                      "The REACTOR's share of the frame height, 0.1-0.5 (default 0.32). Measured on the reactor "
+                      + "themselves, not on the plate, so the plate's own shape does not change their size.",
+                  },
+                  inset: { type: "number", description: "Gap from the side edge, as a share of frame width (default 0.06)." },
+                  audio: {
+                    type: "string",
+                    enum: ["both", "base", "plate"],
+                    description: "Whose sound to keep. Default both — the video's audio plus the reactor's.",
+                  },
+                  key: {
+                    type: "string",
+                    description:
+                      "Leave unset: the renderer samples the real green off the plate. \"none\" if the plate "
+                      + "already has an alpha channel.",
+                  },
+                },
+              },
             },
             required: ["title", "prompt"],
           },
