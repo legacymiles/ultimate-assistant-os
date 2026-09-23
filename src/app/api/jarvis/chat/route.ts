@@ -3,6 +3,7 @@ import { runAgent } from "@/lib/jarvis/server/agent";
 import { connector } from "@/lib/jarvis/server/connectors";
 import { resolveMention, studioContext, type Mention } from "@/lib/studio/workflows";
 import { cinemaContext, cleanMoves, cleanOutput, cleanSelection, moveById } from "@/lib/studio/cinema";
+import { characterContext, cleanCharacters } from "@/lib/studio/characters";
 import { loadSkills } from "@/lib/studio/server/skills";
 
 // Reads the master folder from disk and the memory database per request.
@@ -24,6 +25,13 @@ interface Body {
   moves?: unknown;
   /** Aspect ratio and clip length, passed to studio_generate verbatim. */
   output?: unknown;
+  /**
+   * People from the owner's Photos tab that this message @-mentioned, with the
+   * character sheet each one carries. Unlike a workflow, this cannot be looked
+   * up here: the photo library lives in the browser, so the client sends it and
+   * cleanCharacters() is the trust boundary.
+   */
+  characters?: unknown;
 }
 
 /** The owner's installed skills as one prompt block, name + what it is for. */
@@ -117,6 +125,9 @@ export async function POST(req: Request) {
     cleanOutput(body.output),
   );
 
+  // Who the prompt is about, when the owner named someone from their library.
+  const castBlock = characterContext(cleanCharacters(body.characters));
+
   try {
     const result = await runAgent({
       connectorTools,
@@ -124,7 +135,11 @@ export async function POST(req: Request) {
       messages,
       ownerName: (body.ownerName || "the owner").slice(0, 60),
       timezone: body.timezone,
-      extraContext: [body.extraContext?.slice(0, 10000), studioBlock, shotBlock, skillsBlock(body.skills)].filter(Boolean).join("\n\n"),
+      // The cast comes before the skills: who the prompt is about outranks how
+      // the prompt is made, and it must not be the block that gets truncated.
+      extraContext: [body.extraContext?.slice(0, 10000), castBlock, studioBlock, shotBlock, skillsBlock(body.skills)]
+        .filter(Boolean)
+        .join("\n\n"),
       profileId: body.profileId,
       studio: studio.length > 0,
     });

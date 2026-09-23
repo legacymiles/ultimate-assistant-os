@@ -62,11 +62,13 @@
     ".next-preview-3245/types/**/*.ts",
     ".next-preview-3246/types/**/*.ts",
     ".next-preview-3247/types/**/*.ts",
+    ".next-preview-3250/types/**/*.ts",
+    ".next-preview-3251/types/**/*.ts",
     ".next-ssbuild/types/**/*.ts",
     ".next-verify/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-preview-3250/types/**/*.ts"
+    ".next-preview-3252/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

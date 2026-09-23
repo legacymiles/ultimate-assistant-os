@@ -84,10 +84,13 @@ export function CookbooksView() {
         title="Cookbooks"
         subtitle="Every cookbook anyone has published. Saving one keeps it on your shelf and pushes it up the leaderboard."
         action={
-          <Button variant="primary" onClick={() => navigate({ page: "new-cookbook" })}>
-            <PlusIcon size={14} />
-            New cookbook
-          </Button>
+          <span className="flex items-center gap-1.5">
+            <Button onClick={() => navigate({ page: "shared" })}>Shared with you</Button>
+            <Button variant="primary" onClick={() => navigate({ page: "new-cookbook" })}>
+              <PlusIcon size={14} />
+              New cookbook
+            </Button>
+          </span>
         }
       />
 

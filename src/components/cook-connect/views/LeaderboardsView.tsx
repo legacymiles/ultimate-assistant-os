@@ -17,6 +17,8 @@ import {
   Avatar, Button, EmptyState, Loading, Panel, SectionHead, Tag, TabStrip, cx,
 } from "../ui";
 import { BookmarkIcon, TrophyIcon } from "../icons";
+import { loadCityBoard } from "@/lib/cook-connect/journal";
+import type { CityStanding } from "@/lib/cook-connect/types";
 
 type GameFilter = "all" | "spades" | "chess";
 
@@ -25,16 +27,19 @@ export function LeaderboardsView() {
   const [players, setPlayers] = useState<PlayerRecord[]>([]);
   const [cookbooks, setCookbooks] = useState<CookbookStanding[]>([]);
   const [profiles, setProfiles] = useState<ProfileMap>({});
+  const [cityBoard, setCityBoard] = useState<CityStanding[]>([]);
   const [filter, setFilter] = useState<GameFilter>("all");
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const [board, books] = await Promise.all([
+    const [board, books, cityRows] = await Promise.all([
       loadPlayerLeaderboard(sb),
       loadCookbookLeaderboard(sb),
+      loadCityBoard(sb),
     ]);
     setPlayers(board);
     setCookbooks(books);
+    setCityBoard(cityRows);
     setProfiles(await loadProfiles(sb, [...board.map((r) => r.userId), ...books.map((b) => b.ownerId)]));
     setLoading(false);
   }, [sb]);
@@ -226,6 +231,57 @@ export function LeaderboardsView() {
             )}
           </Panel>
         </div>
+      )}
+
+      {!loading && (
+        <Panel className="mt-4">
+          <SectionHead title="Restaurants, by city" count={cityBoard.length} />
+          {cityBoard.length === 0 ? (
+            <EmptyState
+              icon={<TrophyIcon size={26} />}
+              title="No cities logged yet"
+              body="This board is built from everyone's journals. Write down a city and the places you liked, and they start counting here."
+              action={<Button variant="primary" onClick={() => navigate({ page: "journal" })}>Open your journal</Button>}
+            />
+          ) : (
+            <div className="divide-y divide-[var(--cc-line-soft)]">
+              {cityBoard.map((city) => (
+                <div key={city.city} className="px-3 py-2.5">
+                  <h3 className="mb-1.5 flex items-baseline gap-2 text-[13px] font-semibold">
+                    {city.city}
+                    <span className="cc-num text-[11px] font-normal text-[var(--cc-ink-faint)]">
+                      {city.restaurants.length} place{city.restaurants.length === 1 ? "" : "s"}
+                    </span>
+                  </h3>
+                  <ul>
+                    {city.restaurants.slice(0, 5).map((r, i) => (
+                      <li key={r.name} className="flex items-center gap-3 py-1">
+                        <span className={cx(
+                          "cc-num w-[20px] shrink-0 text-right text-[11px] font-semibold",
+                          i === 0 ? "text-[var(--cc-gold)]" : "text-[var(--cc-ink-faint)]",
+                        )}>
+                          {i + 1}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[12px] font-semibold">{r.name}</span>
+                          {r.cuisine && (
+                            <span className="block truncate text-[11px] text-[var(--cc-ink-faint)]">{r.cuisine}</span>
+                          )}
+                        </span>
+                        <span className="cc-num w-[52px] shrink-0 text-right text-[11px] text-[var(--cc-ink-muted)]">
+                          {r.fans} fan{r.fans === 1 ? "" : "s"}
+                        </span>
+                        <span className="cc-num w-[46px] shrink-0 text-right text-[12px] font-semibold text-[var(--cc-gold)]">
+                          {r.avgRating > 0 ? r.avgRating.toFixed(1) : "—"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </Panel>
       )}
     </Columns>
   );

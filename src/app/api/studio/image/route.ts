@@ -35,7 +35,12 @@ export async function POST(req: Request) {
     .map((r, i) => ({
       role: "person" as const,
       dataUrl: r.dataUrl as string,
-      label: typeof r.label === "string" && /^Subject \d+$/.test(r.label) ? r.label : `Subject ${i + 1}`,
+      // "Subject 3" for an upload, or a person's name when the prompt came from
+      // an @-mentioned character. A name is worth keeping: telling the model the
+      // third image is Brandy beats telling it the third image is the third image.
+      label: typeof r.label === "string" && /^[\p{L}\p{N} .'-]{1,40}$/u.test(r.label.trim())
+        ? r.label.trim()
+        : `Subject ${i + 1}`,
     }));
 
   if (!aiConfigured()) {

@@ -6,12 +6,15 @@ import {
   addPersonRef,
   createPerson,
   deletePerson,
+  MAX_PERSON_REFS,
   removePersonRef,
   updatePerson,
 } from "@/lib/recall/photos/store";
 import { ROLE_LABELS } from "@/lib/recall/photos/types";
 import type { Person, PersonRole, PhotosData } from "@/lib/recall/photos/types";
 import { invalidateContactSheet, toThumb } from "@/lib/recall/photos/vision";
+import { buildSheet, evidenceCount, sheetIsStale } from "@/lib/recall/photos/characters";
+import { characterToken } from "@/lib/studio/characters";
 
 // ---------------------------------------------------------------------------
 // People.
@@ -86,10 +89,14 @@ export function PeopleManager({ data, onData, onToast, onClose }: Props) {
         </div>
 
         <p className="mb-3 text-[11.5px] leading-relaxed text-ink-muted">
-          Name the people who matter and give each of them two or three clear photos of their face.
-          Dashboard builds those into a labelled reference sheet and shows it to the vision model
-          alongside every new photo, so it can answer &ldquo;which of these people is in this
-          picture?&rdquo; instead of guessing. Everything stays in your own storage.
+          Name the people who matter and give each of them up to {MAX_PERSON_REFS} clear photos of
+          their face &mdash; different angles, different hair, different years. Every one of them
+          goes onto a labelled reference sheet that is shown to the vision model alongside each new
+          photo, so it answers &ldquo;which of these people is this?&rdquo; instead of guessing.
+          Then press <strong className="font-semibold text-ink">Describe</strong> to have their
+          face written down: recognition gets told which features to compare, and you can
+          <span className="text-ink"> @their&#8209;name</span> in a Studio prompt to put them in a
+          video without uploading anything. Everything stays in your own storage.
         </p>
 
         {!hasSelf && data.people.length > 0 && (
@@ -174,10 +181,12 @@ function PersonCard({
     if (!files?.length) return;
     setBusy(true);
     let latest: PhotosData | null = null;
-    for (const file of Array.from(files).slice(0, 4)) {
-      // A square 256px crop is all the model needs to compare faces, and it
-      // keeps six references per person down to a few tens of kilobytes.
-      const url = await toThumb(file, 256);
+    for (const file of Array.from(files).slice(0, MAX_PERSON_REFS)) {
+      // 256px at high quality. This crop is not a thumbnail — it is the picture
+      // recognition later compares a stranger's face against, and JPEG artefacts
+      // land on exactly the fine detail (eyelids, a nose line, a hairline) that
+      // tells two relatives apart. A few extra kilobytes each is the right trade.
+      const url = await toThumb(file, 256, 0.9);
       if (url) latest = addPersonRef(person.id, url);
     }
     if (latest) onData(latest);
@@ -262,6 +271,132 @@ function PersonCard({
               </button>
             </span>
           ))}
+        </div>
+      )}
+
+      <CharacterPanel person={person} onData={onData} onToast={onToast} />
+    </div>
+  );
+}
+
+/**
+ * What the app has written down about this person.
+ *
+ * It sits on their card rather than behind a menu because it is the answer to
+ * the two things the owner actually asks of this screen: why a face is still not
+ * being recognised, and how to put this person in a video. One paragraph covers
+ * both, and the row above it says what the description was written from — so
+ * "add more photos, then rebuild" is a visible instruction rather than folklore.
+ */
+function CharacterPanel({
+  person,
+  onData,
+  onToast,
+}: {
+  person: Person;
+  onData: (d: PhotosData) => void;
+  onToast: (m: string) => void;
+}) {
+  const subject = { kind: "person" as const, person };
+  const [busy, setBusy] = useState(false);
+  const [warning, setWarning] = useState("");
+  const [open, setOpen] = useState(false);
+  const { refs, filed } = evidenceCount(subject);
+  const total = refs + filed;
+  const sheet = person.sheet ?? null;
+  const stale = sheetIsStale(subject);
+  const token = characterToken(person.name);
+
+  async function describe() {
+    setBusy(true);
+    setWarning("");
+    const result = await buildSheet(subject);
+    setBusy(false);
+    if (result.error) {
+      onToast(result.error);
+      return;
+    }
+    if (result.data) onData(result.data);
+    if (result.warning) setWarning(result.warning);
+    setOpen(true);
+    onToast(`${person.name} described from ${result.used} picture${result.used === 1 ? "" : "s"}`);
+  }
+
+  return (
+    <div className="mt-2.5 border-t border-line pt-2.5">
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] font-medium text-ink-muted">Character sheet</span>
+        {sheet ? (
+          <button
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className="inline-flex items-center gap-1 text-[11px] text-ink-faint transition hover:text-ink"
+          >
+            {open ? "Hide" : "Read"}
+            {/* A right chevron turns DOWN to open and back to the right to close.
+                Rotating it 180 would point it left, which reads as "go back". */}
+            <Icon.Chevron
+              width={11}
+              height={11}
+              className={`transition-transform ${open ? "rotate-90" : ""}`}
+            />
+          </button>
+        ) : (
+          <span className="text-[11px] text-ink-faint">not written yet</span>
+        )}
+        <span className="ml-auto text-[11px] text-ink-faint">
+          {total === 0
+            ? "no pictures to read"
+            : `${total} picture${total === 1 ? "" : "s"} known${filed ? ` (${filed} from their folders)` : ""}`}
+        </span>
+        <button
+          onClick={() => void describe()}
+          disabled={busy || total === 0}
+          className="shrink-0 rounded-lg border border-line px-2 py-1 text-[11px] text-ink-muted transition hover:border-amber-400/50 hover:text-amber-200 disabled:opacity-40"
+        >
+          {busy ? "Reading their photos…" : sheet ? "Rebuild" : "Describe"}
+        </button>
+      </div>
+
+      {stale && !busy && (
+        <p className="mt-1.5 text-[11px] text-amber-200/90">
+          There are more pictures of {person.name} now than the {sheet?.builtFrom} this was written
+          from. Rebuild to use them.
+        </p>
+      )}
+      {warning && (
+        <p className="mt-1.5 rounded-lg bg-amber-400/10 px-2 py-1.5 text-[11px] text-amber-200">
+          {warning}
+        </p>
+      )}
+
+      {sheet && open && (
+        <div className="mt-2 space-y-2">
+          <p className="text-[11.5px] leading-relaxed text-ink-muted">{sheet.appearance}</p>
+          {sheet.identifiers.length > 0 && (
+            <div>
+              <p className="mb-1 text-[10.5px] text-ink-faint">
+                Matched on these, because photographs cannot change them
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {sheet.identifiers.map((f) => (
+                  <span
+                    key={f}
+                    className="rounded-full border border-line px-2 py-0.5 text-[10.5px] text-ink-muted"
+                  >
+                    {f}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {sheet.wardrobe && (
+            <p className="text-[11px] text-ink-faint">Usually wears: {sheet.wardrobe}</p>
+          )}
+          <p className="text-[11px] text-ink-faint">
+            Write <span className="text-ink">@{token}</span> in a Studio prompt to put {person.name}
+            {" "}in a shot. Their face goes with it; you don&apos;t upload anything.
+          </p>
         </div>
       )}
     </div>

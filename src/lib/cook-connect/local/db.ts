@@ -13,7 +13,11 @@ export type Row = Record<string, unknown>;
 export type Result<T = unknown> = { data: T; error: { message: string; code?: string } | null };
 type DB = Record<string, Row[]>;
 
-export const DB_KEY = "cook_connect_local_db_v1";
+// v2 abandons anything stored under v1. The first build seeded a demo world
+// into this key; the owner asked for an app that is empty until they put
+// something in it, so browsers that already hold that seed start over rather
+// than carrying it forever.
+export const DB_KEY = "cook_connect_local_db_v2";
 
 /** Fires after any write, so the realtime shim can tell other tabs. */
 export type ChangeListener = (table: string, event: "INSERT" | "UPDATE" | "DELETE", row: Row) => void;

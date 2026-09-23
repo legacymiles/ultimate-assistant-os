@@ -10,8 +10,7 @@ import { getCookBackend } from "@/lib/cook-connect/client";
 import type { Profile } from "@/lib/cook-connect/types";
 import { CookShell } from "./CookShell";
 import { AuthView } from "./views/AuthView";
-import { FeedView } from "./views/FeedView";
-import { PeopleView } from "./views/PeopleView";
+import { ExploreView } from "./views/ExploreView";
 import { ProfileView } from "./views/ProfileView";
 import { CookbooksView } from "./views/CookbooksView";
 import { CookbookView } from "./views/CookbookView";
@@ -22,11 +21,12 @@ import { PlayView } from "./views/PlayView";
 import { SpadesRoom } from "./play/SpadesRoom";
 import { ChessRoom } from "./play/ChessRoom";
 import { LeaderboardsView } from "./views/LeaderboardsView";
+import { JournalView } from "./views/JournalView";
+import { SharedWithMeView } from "./views/SharedWithMeView";
 import { Loading, Notice } from "./ui";
 
 export type Route =
-  | { page: "feed" }
-  | { page: "people" }
+  | { page: "explore" }
   | { page: "profile"; userId: string }
   | { page: "cookbooks" }
   | { page: "cookbook"; id: string }
@@ -36,10 +36,12 @@ export type Route =
   | { page: "play" }
   | { page: "spades"; matchId: string }
   | { page: "chess"; matchId: string }
-  | { page: "leaderboards" };
+  | { page: "leaderboards" }
+  | { page: "journal" }
+  | { page: "shared" };
 
 /** The five destinations the nav rail offers. */
-export const NAV_PAGES = ["feed", "people", "cookbooks", "play", "leaderboards"] as const;
+export const NAV_PAGES = ["explore", "cookbooks", "play", "leaderboards"] as const;
 
 interface CookContextValue {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -65,7 +67,8 @@ export function CookConnect() {
   const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [ready, setReady] = useState(false);
-  const [history, setHistory] = useState<Route[]>([{ page: "feed" }]);
+  // Play is home: it carries the lobby and the activity feed together.
+  const [history, setHistory] = useState<Route[]>([{ page: "play" }]);
   const [notice, setNotice] = useState<string | null>(null);
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
 
@@ -136,6 +139,32 @@ export function CookConnect() {
     };
   }, [sb, ensureProfile]);
 
+  /**
+   * A share link lands here as ?share=<token>. Claim it once, open the
+   * cookbook, and take the token out of the address bar so a reload or a
+   * back button does not try to claim it again.
+   */
+  useEffect(() => {
+    if (!userId || typeof window === "undefined") return;
+    const token = new URLSearchParams(window.location.search).get("share");
+    if (!token) return;
+
+    void (async () => {
+      const { redeemShare } = await import("@/lib/cook-connect/shares");
+      const cookbookId = await redeemShare(sb, userId, token);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("share");
+      window.history.replaceState({}, "", url.toString());
+
+      if (cookbookId) {
+        setNotice("That cookbook is yours to read now — it's under Shared with you.");
+        navigate({ page: "cookbook", id: cookbookId });
+      } else {
+        setNotice("That share link has expired, or somebody else claimed it first.");
+      }
+    })();
+  }, [sb, userId, navigate]);
+
   // Who is online, app-wide. Drives the green dots and the challenge rail.
   useEffect(() => {
     if (!userId) return;
@@ -152,7 +181,7 @@ export function CookConnect() {
 
   const signOut = useCallback(async () => {
     await sb.auth.signOut();
-    setHistory([{ page: "feed" }]);
+    setHistory([{ page: "play" }]);
   }, [sb]);
 
   const value: CookContextValue = {
@@ -190,8 +219,7 @@ export function CookConnect() {
 
 function renderRoute(route: Route) {
   switch (route.page) {
-    case "feed": return <FeedView />;
-    case "people": return <PeopleView />;
+    case "explore": return <ExploreView />;
     case "profile": return <ProfileView userId={route.userId} />;
     case "cookbooks": return <CookbooksView />;
     case "cookbook": return <CookbookView cookbookId={route.id} />;
@@ -202,5 +230,7 @@ function renderRoute(route: Route) {
     case "spades": return <SpadesRoom matchId={route.matchId} />;
     case "chess": return <ChessRoom matchId={route.matchId} />;
     case "leaderboards": return <LeaderboardsView />;
+    case "journal": return <JournalView />;
+    case "shared": return <SharedWithMeView />;
   }
 }

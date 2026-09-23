@@ -20,36 +20,37 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { id: "feed", label: "Feed", route: { page: "feed" }, icon: FeedIcon },
-  { id: "people", label: "People", route: { page: "people" }, icon: PeopleIcon },
-  { id: "cookbooks", label: "Cookbooks", route: { page: "cookbooks" }, icon: BookIcon },
   { id: "play", label: "Play", route: { page: "play" }, icon: PlayIcon },
+  { id: "explore", label: "Explore", route: { page: "explore" }, icon: PeopleIcon },
+  { id: "cookbooks", label: "Cookbooks", route: { page: "cookbooks" }, icon: BookIcon },
+  { id: "journal", label: "Journal", route: { page: "journal" }, icon: FeedIcon },
   { id: "leaderboards", label: "Boards", route: { page: "leaderboards" }, icon: TrophyIcon },
 ];
 
 /** Which rail item a route belongs under, including its detail screens. */
 function sectionFor(route: Route): string {
   switch (route.page) {
-    case "feed": return "feed";
-    case "people":
-    case "profile": return "people";
+    case "explore":
+    case "profile": return "explore";
     case "cookbooks":
     case "cookbook":
     case "recipe":
     case "new-recipe":
-    case "new-cookbook": return "cookbooks";
+    case "new-cookbook":
+    case "shared": return "cookbooks";
     case "play":
     case "spades":
     case "chess": return "play";
+    case "journal": return "journal";
     case "leaderboards": return "leaderboards";
   }
 }
 
 const TITLES: Record<string, string> = {
-  feed: "Feed",
-  people: "People",
-  cookbooks: "Cookbooks",
   play: "Play",
+  explore: "Explore",
+  cookbooks: "Cookbooks",
+  journal: "Journal",
   leaderboards: "Leaderboards",
 };
 

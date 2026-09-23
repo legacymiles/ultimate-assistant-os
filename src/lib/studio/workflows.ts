@@ -24,6 +24,8 @@ export type CategoryId =
   | "performance"
   | "athletes"
   | "events"
+  | "creators"
+  | "broadcast"
   | "camera"
   | "social"
   | "occasions"
@@ -50,6 +52,8 @@ export const CATEGORIES: Category[] = [
   { id: "performance", medium: "video", label: "Performance & action" },
   { id: "athletes", medium: "video", label: "Athletes & sport" },
   { id: "events", medium: "video", label: "Events & fashion" },
+  { id: "creators", medium: "video", label: "Creators & channels" },
+  { id: "broadcast", medium: "video", label: "TV & radio" },
   { id: "camera", medium: "video", label: "Camera moves" },
   { id: "talk", medium: "video", label: "Talk & teach" },
   { id: "occasions", medium: "video", label: "Occasions" },
@@ -673,6 +677,237 @@ export const WORKFLOWS: Workflow[] = [
     isNew: true,
   },
 
+  // ----- Creators & channels ----------------------------------------------------
+  // Formats a person makes for their own channel. All of them are talking-head
+  // shaped, and NO model here generates speech — so every skill states that the
+  // voice is recorded or dubbed by the owner, and offers @avatar-lip-sync when
+  // the mouth has to match.
+  {
+    id: "vlog-influencer",
+    name: "Vlog",
+    medium: "video",
+    category: "creators",
+    blurb: "A day, told to camera",
+    brief:
+      "Pieces to camera holding the story together and b-roll carrying everything else. Handheld, available light, the creator addressing the lens directly and moving while they talk. Cut on the sentence, never mid-clause. The strongest vlog shot is the one where they forget the camera is there.",
+    format: "9:16 or 16:9 · 60 s–8 min",
+    keywords: ["raw phone", "cozy", "travel", "cinematic", "chaotic", "film grain"],
+    variants: [
+      { id: "day-in-life", name: "Day in the life", brief: "Wake to sleep, the ordinary rendered watchable by pace and honesty." },
+      { id: "travel", name: "Travel", brief: "Arrival, getting lost, the meal, the view nobody photographs well." },
+      { id: "studio-day", name: "Behind the work", brief: "Making the thing they are known for, shot between takes." },
+      { id: "errand", name: "Come with me", brief: "One small errand stretched into a whole piece by commentary." },
+      { id: "reset", name: "Reset day", brief: "Cleaning, cooking, laundry, lists — the genre that quietly outperforms everything." },
+      { id: "q-and-a", name: "Q&A while doing something", brief: "Answering questions with the hands busy, which is what makes it watchable." },
+    ],
+    motif: "waveform",
+    hue: 195,
+    isNew: true,
+  },
+  {
+    id: "fitness-influencer",
+    name: "Fitness creator",
+    medium: "video",
+    category: "creators",
+    blurb: "Form, routine and a reason to follow",
+    brief:
+      "The creator is the proof and the teacher at once: a piece to camera that sets up the session, the work shot so the form is actually legible, and a close that gives one usable cue. Never a montage of impressive reps with no instruction — that is a highlight, not a channel.",
+    format: "9:16 · 20–90 s",
+    keywords: ["high-energy", "clean", "gritty", "premium", "raw phone"],
+    variants: [
+      { id: "form-check", name: "Form check", brief: "One movement, the common error shown and then corrected, from the angle that reveals it." },
+      { id: "routine", name: "Routine", brief: "Three to five exercises in order, each held long enough to copy." },
+      { id: "myth", name: "Myth busted", brief: "A claim stated, then shown to be wrong with the body rather than with a caption." },
+      { id: "transformation", name: "Progress", brief: "Honest change over time, with the timescale stated and nothing exaggerated." },
+      { id: "day-of-eating", name: "Day of eating", brief: "Meals as they actually are, portioned on camera, no numbers claimed." },
+      { id: "gym-vlog", name: "Train with me", brief: "The whole session in real time, talking between sets." },
+    ],
+    motif: "flash",
+    hue: 100,
+    isNew: true,
+  },
+  {
+    id: "youtube-influencer",
+    name: "YouTube video",
+    medium: "video",
+    category: "creators",
+    blurb: "Hook, promise, payoff — built to be watched through",
+    brief:
+      "Retention is the craft. Open on the most interesting eight seconds you have, say what the video will deliver, then deliver it in a visible structure the viewer can feel progressing. Cut every time the frame stops earning its place. The thumbnail moment is a shot you plan, not one you find.",
+    format: "16:9 · 3–15 min",
+    keywords: ["clean", "high-energy", "cinematic", "raw phone", "premium"],
+    variants: [
+      { id: "challenge", name: "Challenge", brief: "A stated rule set, a clock or a counter, and a genuine chance of failure." },
+      { id: "review", name: "Review", brief: "The thing handled, tested and judged, with the verdict earned on camera." },
+      { id: "essay", name: "Video essay", brief: "An argument in chapters, illustrated rather than narrated over stock." },
+      { id: "build", name: "Build or make", brief: "Start, problem, solve, reveal — the oldest and most reliable shape." },
+      { id: "reaction", name: "First try", brief: "Genuine first attempt at something, with the failures left in." },
+      { id: "documentary", name: "Mini documentary", brief: "One subject, interviews and place, cut like a short film." },
+    ],
+    motif: "letterbox",
+    hue: 355,
+    isNew: true,
+  },
+  {
+    id: "joke-video",
+    name: "Comedy sketch",
+    medium: "video",
+    category: "creators",
+    blurb: "Setup, turn, button — in under a minute",
+    brief:
+      "Comedy is structure, not funny faces. A premise established in one shot, a turn that breaks it, and a button that ends the piece a beat earlier than expected. Shoot it straight and play it straight; the camera should never be in on the joke.",
+    format: "9:16 · 15–60 s",
+    keywords: ["deadpan", "chaotic", "raw phone", "cinematic", "absurd"],
+    variants: [
+      { id: "two-hander", name: "Two-hander", brief: "One straight person, one absurd person, one location, no cutting away." },
+      { id: "character", name: "Character piece", brief: "A single recognisable type played completely seriously." },
+      { id: "escalation", name: "Escalation", brief: "The same beat repeated three times, worse each time, then broken." },
+      { id: "voiceover", name: "Inner monologue", brief: "What they are thinking laid over what they are visibly doing." },
+      { id: "parody-format", name: "Format parody", brief: "A familiar kind of video — not a real show — played dead straight until it collapses." },
+      { id: "prank-free", name: "Misunderstanding", brief: "Two people in the same conversation about different things." },
+    ],
+    motif: "confetti",
+    hue: 50,
+    isNew: true,
+  },
+  {
+    id: "street-interview",
+    name: "Street interview",
+    medium: "video",
+    category: "creators",
+    blurb: "One question, a lot of strangers",
+    brief:
+      "One question, asked identically to everyone, with the answers carrying the whole piece. Handheld, mic in frame, real street behind. Cut hard between answers with no dead air, and put the best answer last rather than first. Everyone on camera is an invented participant, never a real member of the public.",
+    format: "9:16 · 30–90 s",
+    keywords: ["raw phone", "high-energy", "clean", "chaotic"],
+    variants: [
+      { id: "opinion", name: "Opinion", brief: "A harmless question with a spread of answers — best film, worst habit, biggest ick." },
+      { id: "knowledge", name: "Do you know", brief: "A general-knowledge question, played warmly rather than to humiliate." },
+      { id: "fashion", name: "Outfit check", brief: "What they are wearing and why, shot head to toe and then close." },
+      { id: "money-free", name: "Advice", brief: "One piece of advice from each person, ages varying deliberately." },
+      { id: "reaction", name: "Blind taste or listen", brief: "A genuine reaction to something they cannot see, caught in one take." },
+      { id: "kids", name: "Ask the young ones", brief: "Children answering an adult question, with parental presence implied in frame." },
+    ],
+    motif: "equalizer",
+    hue: 165,
+    isNew: true,
+  },
+
+  // ----- TV & radio -------------------------------------------------------------
+  // Broadcast grammar, made as fiction. Every one of these is built so it cannot
+  // be mistaken for a real programme: invented station, invented show, invented
+  // people, and nothing presented as a fact about the real world.
+  {
+    id: "news-anchor",
+    name: "News desk",
+    medium: "video",
+    category: "broadcast",
+    blurb: "An anchor, a desk, an invented station",
+    brief:
+      "Broadcast grammar shot as fiction: an anchor at a desk, studio depth behind, the lens at eye height and dead level, the delivery measured. The station, the programme and the story are invented, and the piece is built so nobody could mistake it for real coverage. Lower thirds and tickers are added in an editor, never rendered.",
+    format: "16:9 · 20–90 s",
+    keywords: ["clean", "premium", "retro", "local access", "satire"],
+    variants: [
+      { id: "studio", name: "Studio bulletin", brief: "Anchor at the desk, studio behind, the standard two-shot and single." },
+      { id: "field", name: "Field report", brief: "A reporter on location, handheld, wind on the mic, the scene behind them." },
+      { id: "two-anchor", name: "Two anchors", brief: "The hand-off between them, which is the tell that makes it read as broadcast." },
+      { id: "weather", name: "Weather", brief: "Presenter against a blank wall where a map goes in post." },
+      { id: "retro", name: "1970s broadcast", brief: "Tube camera softness, wood-veneer desk, heavy makeup, period framing." },
+      { id: "satire", name: "Obvious satire", brief: "Played straight but about something plainly absurd, so the joke is unmistakable." },
+    ],
+    motif: "grid",
+    hue: 210,
+    isNew: true,
+  },
+  {
+    id: "sitcom-scene",
+    name: "Sitcom scene",
+    medium: "video",
+    category: "broadcast",
+    blurb: "One set, three cameras, a laugh track",
+    brief:
+      "Multi-camera sitcom grammar: a standing set with a fourth wall, flat bright key light, characters entering and exiting through known doors, and blocking that keeps everyone facing out. Beats land and then pause for the laugh. It should look lit for an audience, because it is.",
+    format: "16:9 · 30–90 s",
+    keywords: ["90s", "warm", "retro", "modern single-cam", "absurd"],
+    variants: [
+      { id: "apartment", name: "The apartment", brief: "Sofa, kitchen counter, front door — the standing set that carries most sitcoms." },
+      { id: "workplace", name: "The workplace", brief: "Desks, a break room, a boss's office with a glass wall." },
+      { id: "diner", name: "The hangout", brief: "A booth, a counter, a regular's table that everyone gravitates to." },
+      { id: "family", name: "Family home", brief: "Stairs in shot, a kitchen table, and a door everyone slams." },
+      { id: "single-cam", name: "Single camera", brief: "No audience, handheld, natural light, the modern comedy look." },
+      { id: "mockumentary", name: "Mockumentary", brief: "The camera acknowledged, talking heads cut into the scene." },
+    ],
+    motif: "letterbox",
+    hue: 40,
+    isNew: true,
+  },
+  {
+    id: "sitcom-intro",
+    name: "Sitcom title sequence",
+    medium: "video",
+    category: "broadcast",
+    blurb: "The theme tune, and everyone's name",
+    brief:
+      "The opening titles: the cast introduced one at a time in a freeze or a turn to camera, a location montage that sets the city, and a repeating device that returns every episode. Built for a name card to sit beside each face — the card itself is added in an editor.",
+    format: "16:9 · 20–45 s",
+    keywords: ["90s", "warm", "retro", "modern", "animated"],
+    variants: [
+      { id: "freeze-frame", name: "Freeze frames", brief: "Each cast member caught mid-laugh and frozen, name card beside them." },
+      { id: "city-montage", name: "City montage", brief: "Landmarks, transit and streets, the cast appearing within them." },
+      { id: "couch", name: "The couch", brief: "Everyone arriving at one piece of furniture, one at a time." },
+      { id: "photo-album", name: "Photographs", brief: "Stills and home-movie fragments, warm and nostalgic." },
+      { id: "animated", name: "Animated titles", brief: "Illustrated versions of the cast moving through a stylised version of the set." },
+      { id: "cold-open", name: "Cold open into titles", brief: "A short scene that ends on the joke and hard-cuts into the theme." },
+    ],
+    motif: "confetti",
+    hue: 15,
+    isNew: true,
+  },
+  {
+    id: "podcast-show",
+    name: "Podcast / radio show",
+    medium: "video",
+    category: "broadcast",
+    blurb: "Mics, chairs and a room that sounds expensive",
+    brief:
+      "A show shot for clipping: two or three people around mics, each on their own camera, plus a wide that establishes the room. The set does the branding — the lighting, the backdrop, the mics — because the picture has to be recognisable at thumbnail size with the sound off.",
+    format: "16:9 + 9:16 clips · 30 s–3 min",
+    keywords: ["premium", "moody", "clean", "retro radio", "warm"],
+    variants: [
+      { id: "two-person", name: "Two-person", brief: "Host and guest across a table, each with a single, plus the wide." },
+      { id: "solo", name: "Solo monologue", brief: "One person, one mic, talking straight down the lens." },
+      { id: "panel", name: "Panel", brief: "Three or four, which needs a wide that actually works and a clear seating order." },
+      { id: "radio-booth", name: "Radio booth", brief: "On-air light, faders, headphones, the glass of the booth in shot." },
+      { id: "clip", name: "Vertical clip", brief: "One moment reframed for a feed, with room at the top for a caption." },
+      { id: "retro", name: "Old-time radio", brief: "Ribbon mic, period dress, a script in hand and a studio audience implied." },
+    ],
+    motif: "equalizer",
+    hue: 280,
+    isNew: true,
+  },
+  {
+    id: "tutorial-steps",
+    name: "Step-by-step tutorial",
+    medium: "video",
+    category: "talk",
+    blurb: "Hands, steps, and a result that works",
+    brief:
+      "Live-action how-to shot so it can be followed: an overhead or over-shoulder angle that shows what the hands are doing, one step per shot, each held long enough to copy, and the finished result at the end and at the start. Nothing is cut away at the moment the tricky part happens — that is the part they came for.",
+    format: "9:16 or 16:9 · 30 s–5 min",
+    keywords: ["clean", "cozy", "premium", "raw phone", "clinical"],
+    variants: [
+      { id: "kitchen", name: "Cooking", brief: "Overhead on the board, cuts to the pan, the plate at the start and the end." },
+      { id: "craft", name: "Craft or repair", brief: "Hands and tools, the awkward step shown in full, the fix proven at the end." },
+      { id: "beauty", name: "Beauty or grooming", brief: "Mirror logic: the face square on, product named by showing it, before and after." },
+      { id: "software", name: "On a screen", brief: "Screen recording with a hand or cursor leading the eye, held on each step." },
+      { id: "assembly", name: "Assembly", brief: "Parts laid out first, numbered steps, the finished object turned at the end." },
+      { id: "quick", name: "Under 30 seconds", brief: "Three steps maximum, no introduction, result in the first second." },
+    ],
+    motif: "grid",
+    hue: 155,
+    isNew: true,
+  },
+
   // ----- Social -----------------------------------------------------------------
   {
     id: "social-content",
@@ -1232,6 +1467,28 @@ export const WORKFLOWS: Workflow[] = [
     keywords: ["holiday", "classic", "outdoor", "matching outfits"],
     motif: "grid",
     hue: 30,
+  },
+  {
+    id: "family-photoshoot",
+    name: "Family photoshoot",
+    medium: "image",
+    category: "shoots",
+    blurb: "A whole session, not one group shot",
+    brief:
+      "A real session rather than a single line-up: the formal group, the generations, the parents alone, each child alone, a candid, and a detail. One location, one light, one wardrobe palette, so six different pictures read as one afternoon. Distinct from @family-portrait, which composites people who could not be in the same room.",
+    format: "4:5 · 6 images",
+    keywords: ["classic", "editorial", "warm", "outdoor", "studio", "film grain"],
+    variants: [
+      { id: "outdoor-golden", name: "Outdoor golden hour", brief: "Long grass or trees, low sun behind, everyone rimmed in warm light." },
+      { id: "home", name: "At home", brief: "Their own rooms and window light; the house as a character." },
+      { id: "studio", name: "Studio", brief: "Seamless backdrop, controlled soft light, nothing but the family in frame." },
+      { id: "beach", name: "Beach or water", brief: "Open sky, wind, bare feet, a horizon behind every frame." },
+      { id: "holiday", name: "Holiday", brief: "Seasonal but restrained: one colour note, no props competing with faces." },
+      { id: "generations", name: "Generations", brief: "Built around the oldest and youngest, with the frames pairing them." },
+    ],
+    motif: "spotlight",
+    hue: 28,
+    isNew: true,
   },
   {
     id: "pet-portrait",

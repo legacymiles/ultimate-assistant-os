@@ -66,7 +66,7 @@ export function ProfileView({ userId: targetId }: { userId: string }) {
           <EmptyState
             title="No such member"
             body="That profile has been removed, or the link was wrong."
-            action={<Button onClick={() => navigate({ page: "people" })}>Back to people</Button>}
+            action={<Button onClick={() => navigate({ page: "explore" })}>Back to people</Button>}
           />
         </Panel>
       </Columns>

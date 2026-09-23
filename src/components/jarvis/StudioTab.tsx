@@ -374,7 +374,7 @@ export function StudioTab({ onStartChat }: { onStartChat: (text: string) => void
                 }
               }}
               rows={2}
-              placeholder="Describe the shot: whose story, which product, what happens…  (@ for a workflow, # for a camera move)"
+              placeholder="Describe the shot: whose story, which product, what happens…  (@ for a person or a workflow, # for a camera move)"
               className="mt-2 block max-h-48 min-h-[68px] w-full resize-none bg-transparent px-2 pt-1 text-[15px] leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
             />
           </div>

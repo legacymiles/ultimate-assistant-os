@@ -8,6 +8,12 @@ import {
   amheVersions,
 } from "./seed-content/amhe";
 import {
+  cookConnectDetailed,
+  cookConnectFeatures,
+  cookConnectKnowledge,
+  cookConnectVersions,
+} from "./seed-content/cook-connect";
+import {
   recallDetailed,
   recallFeatures,
   recallKnowledge,
@@ -61,6 +67,14 @@ export function applyEnrichment(base: Project): boolean {
     }
     base.versions = versions;
     base.knowledge = amheKnowledge(projectId);
+    return true;
+  }
+
+  if (base.catalog_slug === "cook-connect") {
+    base.detailed = cookConnectDetailed();
+    base.features = cookConnectFeatures(projectId);
+    base.versions = cookConnectVersions(projectId);
+    base.knowledge = cookConnectKnowledge(projectId);
     return true;
   }
 

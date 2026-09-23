@@ -38,6 +38,10 @@ interface LegendEntry {
   role: string;
   /** What the user says belongs in this folder. */
   hint?: string;
+  /** How many tiles on the sheet show this subject. */
+  shots?: number;
+  /** The features of theirs that do not change between photographs. */
+  look?: string;
 }
 
 const isPerson = (l: LegendEntry) => (l.kind ?? "person") === "person";
@@ -101,8 +105,20 @@ function systemPrompt(
 ): string {
   const people = legend.filter(isPerson);
   const albums = legend.filter((l) => !isPerson(l));
+  // The roster is where recognition is won or lost. Each line says how many tiles
+  // to look at and, when the app has written a description of that person, which
+  // features to compare — the ones that outlast a haircut. A model told to look
+  // for "high round cheekbones, a gap in the upper teeth" identifies far more
+  // steadily than one left to judge by overall impression, which is the way two
+  // relatives end up with each other's name.
   const roster = people.length
-    ? people.map((l) => `  ${l.slot} = ${l.name} (${l.role})`).join("\n")
+    ? people
+        .map((l) => {
+          const shots = l.shots && l.shots > 1 ? `, ${l.shots} tiles` : "";
+          const look = l.look ? `\n      always true of them: ${l.look}` : "";
+          return `  ${l.slot} = ${l.name} (${l.role}${shots})${look}`;
+        })
+        .join("\n")
     : "  (nobody has been labelled yet)";
   // Folders the user has taught by example. Only mentioned when some exist, so
   // an unused feature never spends tokens or invites a match nobody asked for.
@@ -136,12 +152,25 @@ function systemPrompt(
     "whiteboards, documents, screenshots, product labels, parking bays, notes.\n\n" +
     "A photo can contain faces and still be \"info\" or \"event\" — route on what " +
     "the photo is FOR, not merely on whether a person is visible.\n\n" +
-    "IDENTIFYING PEOPLE — be conservative. Only list a slot number when the face " +
-    "genuinely matches that reference tile; a wrong label sends a photo to the " +
-    "wrong family folder and the user has to undo it. When unsure, leave them out " +
-    "and count them in unknownPeople instead. Give each match a confidence from " +
-    "0 to 1 and never report a match below 0.5. Count EVERY distinct person in " +
-    "the shot: matched ones in `people`, everyone else in `unknownPeople`.\n\n" +
+    "IDENTIFYING PEOPLE. Several tiles can show the SAME person from different " +
+    "angles, at different ages, with different hair — they all carry that " +
+    "person's slot number, and together they are the best evidence you have of " +
+    "what that person looks like. Compare against ALL of a person's tiles, not " +
+    "just the first one.\n" +
+    "Compare the things a photograph cannot change: the shape of the face and " +
+    "jaw, the set and spacing of the eyes, brow shape, the bridge and tip of the " +
+    "nose, the shape of the mouth and line of the teeth, ear shape, skin tone, " +
+    "moles and scars. Do NOT identify by hair, makeup, glasses, clothing, " +
+    "background or expression — those change between photographs, and matching " +
+    "on them is how two different people end up with the same name.\n" +
+    "Be conservative about the ANSWER, not about looking. A wrong label sends a " +
+    "photo to the wrong family folder and the user has to undo it. But refusing a " +
+    "face that plainly matches the tiles is a failure too: recognising their " +
+    "family is the reason they labelled anyone. Decide on the evidence, give each " +
+    "match a confidence from 0 to 1, and never report a match below 0.5. When you " +
+    "are genuinely unsure, leave them out and count them in unknownPeople " +
+    "instead. Count EVERY distinct person in the shot: matched ones in `people`, " +
+    "everyone else in `unknownPeople`.\n\n" +
     `EXISTING FOLDERS (reuse one for an "info" photo whenever it fits; only ` +
     `invent a path when nothing is close):\n${folders.join("\n") || "(none yet)"}\n\n` +
     `EXISTING TAGS:\n${tags.join(", ") || "(none yet)"}\n\n` +

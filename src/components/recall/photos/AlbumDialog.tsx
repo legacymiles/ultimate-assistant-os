@@ -5,6 +5,8 @@ import { Icon } from "../../icons";
 import { MAX_CATEGORY_REFS } from "@/lib/recall/photos/store";
 import { toThumb } from "@/lib/recall/photos/vision";
 import type { PhotoCategory, PhotosData } from "@/lib/recall/photos/types";
+import { buildSheet } from "@/lib/recall/photos/characters";
+import { characterToken } from "@/lib/studio/characters";
 
 // ---------------------------------------------------------------------------
 // Make a photo folder, or teach an existing one.
@@ -41,6 +43,56 @@ interface Props {
   onClose: () => void;
 }
 
+/**
+ * The written description of what a folder is about.
+ *
+ * The same character sheet a person gets, for the folders that are a subject
+ * rather than a rule — "My Truck", "My Sister". It reads its own saved copy
+ * rather than the dialog's draft, because a description can only be written from
+ * pictures that have actually been stored.
+ */
+function FolderSheet({ category }: { category: PhotoCategory }) {
+  const subject = { kind: "album" as const, category };
+  const [sheet, setSheet] = useState(category.sheet ?? null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const token = characterToken(category.name);
+
+  async function describe() {
+    setBusy(true);
+    setNote("");
+    const result = await buildSheet(subject);
+    setBusy(false);
+    if (result.error) return setNote(result.error);
+    setSheet(result.sheet);
+    if (result.warning) setNote(result.warning);
+  }
+
+  return (
+    <div className="mb-3 border-t border-line pt-2.5">
+      <div className="flex items-center gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
+          Description
+        </p>
+        <span className="text-[11px] text-ink-faint">
+          {sheet ? `@${token} in a Studio prompt` : "not written yet"}
+        </span>
+        <button
+          onClick={() => void describe()}
+          disabled={busy}
+          className="ml-auto rounded-lg border border-line px-2 py-1 text-[11px] text-ink-muted transition hover:border-amber-400/50 hover:text-amber-200 disabled:opacity-40"
+        >
+          {busy ? "Reading the pictures…" : sheet ? "Rebuild" : "Describe"}
+        </button>
+      </div>
+      {sheet && (
+        <p className="mt-1.5 text-[11px] leading-relaxed text-ink-muted">{sheet.appearance}</p>
+      )}
+      {note && <p className="mt-1.5 text-[11px] text-amber-200">{note}</p>}
+    </div>
+  );
+}
+
 export function AlbumDialog({ photos, category, takenNames, onSave, onDelete, onClose }: Props) {
   const [name, setName] = useState(category?.name ?? "");
   const [description, setDescription] = useState(category?.description ?? "");
@@ -68,7 +120,9 @@ export function AlbumDialog({ photos, category, takenNames, onSave, onDelete, on
     for (const f of files.slice(0, room)) {
       // Stored small and as a data URL: these ride along in every triage
       // request, so a full-size photo here would be paid for on every import.
-      const thumb = await toThumb(f, 256);
+      // High quality on purpose: this crop is what a new photo gets matched
+      // against, and JPEG mush on the fine detail is what makes a near-match miss.
+      const thumb = await toThumb(f, 256, 0.9);
       if (thumb) next.push(thumb);
     }
     setRefs((r) => [...r, ...next].slice(0, MAX_CATEGORY_REFS));
@@ -185,6 +239,13 @@ export function AlbumDialog({ photos, category, takenNames, onSave, onDelete, on
             </button>
           )}
         </div>
+
+        {/* A saved folder with examples can be described, exactly as a person can,
+            and then it is @-mentionable in a Studio prompt. Only offered once the
+            folder exists: there is nothing to attach a description to before that. */}
+        {category && (category.refs ?? []).length > 0 && (
+          <FolderSheet category={category} />
+        )}
 
         {/* Teach by who is in it */}
         {photos.people.length > 0 && (

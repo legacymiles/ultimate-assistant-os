@@ -20,6 +20,8 @@ import { createItem, getData } from "@/lib/recall/store";
 import { createEvent, getEvents } from "@/lib/recall/calendar/store";
 import { compareEvents, todayKey } from "@/lib/recall/calendar/types";
 import { listsApi } from "@/lib/recall/lists/client";
+import { getPhotos } from "@/lib/recall/photos/store";
+import { ROLE_LABELS } from "@/lib/recall/photos/types";
 import type { Folder } from "@/lib/recall/types";
 import type { Priority } from "@/lib/recall/lists/types";
 
@@ -61,6 +63,45 @@ export async function dashboardDigest(): Promise<string> {
   const out: string[] = [];
   const data = getData();
   const safe = data.items.filter((i) => i.kind !== "credential");
+
+  // WHO THE PEOPLE ARE. This block exists because of a question Jarvis could not
+  // answer: "who is Brandy?" The Photos tab knew — her name, her role, her face,
+  // the folder of her pictures — and none of it ever reached the chat, so he
+  // answered about a stranger or not at all. It leads the digest: a message is far
+  // more often about a person than about a folder count.
+  const photos = getPhotos();
+  if (photos.people.length) {
+    const counts = new Map<string, number>();
+    for (const i of safe) for (const id of i.people ?? []) counts.set(id, (counts.get(id) ?? 0) + 1);
+    const lines = photos.people.map((p) => {
+      const n = counts.get(p.id) ?? 0;
+      const bits = [
+        `- ${p.name} — ${ROLE_LABELS[p.role].toLowerCase()}`,
+        n ? `${n} photo${n === 1 ? "" : "s"} filed` : "no photos filed yet",
+        p.refs.length ? `${p.refs.length} reference face${p.refs.length === 1 ? "" : "s"}` : "no reference face",
+      ];
+      // The description is the part worth spending tokens on: it is the only
+      // thing here that answers "what does she look like?", and it is what a
+      // Studio prompt is written from.
+      const sheet = p.sheet?.appearance ? `\n    Looks like: ${p.sheet.appearance}` : "";
+      const note = p.notes ? `\n    Note: ${p.notes}` : "";
+      return `${bits.join(", ")}${note}${sheet}`;
+    });
+    out.push(
+      "PEOPLE THE OWNER HAS NAMED (from the Photos tab). These are real people in their life. " +
+        "Answer questions about them from this, and when the owner writes @their-name in a Studio " +
+        `prompt it means this person.\n${lines.join("\n")}`,
+    );
+  }
+
+  const described = photos.categories.filter((c) => c.sheet?.appearance);
+  if (described.length) {
+    out.push(
+      `PHOTO FOLDERS THE OWNER TAUGHT BY EXAMPLE (@-mentionable in Studio too):\n${described
+        .map((c) => `- ${c.name}: ${c.sheet?.appearance}`)
+        .join("\n")}`,
+    );
+  }
 
   if (data.folders.length) {
     const counts = new Map<string, number>();
@@ -123,7 +164,9 @@ export async function dashboardDigest(): Promise<string> {
     out.push("FAMILY LISTS: could not be read just now — do not assume they are empty.");
   }
 
-  return out.join("\n\n").slice(0, 7000);
+  // 8000, up from 7000: the people block earns the extra room, and the chat
+  // route still slices this whole context at 10000.
+  return out.join("\n\n").slice(0, 8000);
 }
 
 function str(args: Record<string, unknown>, key: string): string {

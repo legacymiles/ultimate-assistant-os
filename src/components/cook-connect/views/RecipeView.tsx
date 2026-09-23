@@ -9,9 +9,10 @@ import { useCook } from "../CookConnect";
 import { Columns } from "../Columns";
 import type { Profile, Recipe } from "@/lib/cook-connect/types";
 import {
-  Avatar, Button, EmptyState, Loading, Panel, SectionHead, Tag, cx,
+  Avatar, Button, EmptyState, Loading, Panel, SectionHead, Spinner, Tag, Textarea, cx,
 } from "../ui";
-import { ClockIcon, PeopleIcon } from "../icons";
+import { ClockIcon, PeopleIcon, SparkIcon } from "../icons";
+import { recipeImageUrl } from "@/components/cookbook/imageGen";
 
 /** Multiply an amount for a different number of servings, tidily. */
 function scaleAmount(amount: string, factor: number): string {
@@ -29,6 +30,9 @@ export function RecipeView({ recipeId, cookbookId }: { recipeId: string; cookboo
   const [loading, setLoading] = useState(true);
   const [serves, setServes] = useState<number | null>(null);
   const [done, setDone] = useState<Set<number>>(new Set());
+  const [note, setNote] = useState("");
+  const [revising, setRevising] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -67,6 +71,69 @@ export function RecipeView({ recipeId, cookbookId }: { recipeId: string; cookboo
 
   const isMine = recipe.author_id === userId;
   const total = (recipe.prep_time ?? 0) + (recipe.cook_time ?? 0);
+
+  /** Rewrite the saved recipe from a sentence, then store the result. */
+  const reviseWithAi = async () => {
+    if (!recipe || !note.trim()) return;
+    setRevising(true);
+    try {
+      const res = await fetch("/api/cook-connect/recipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "revise",
+          note,
+          recipe: {
+            title: recipe.title,
+            description: recipe.description ?? "",
+            ingredients: recipe.ingredients,
+            instructions: recipe.instructions,
+            tags: recipe.tags,
+            prep_time: recipe.prep_time ?? 0,
+            cook_time: recipe.cook_time ?? 0,
+            servings: recipe.servings,
+          },
+        }),
+      });
+      if (!res.ok) throw new Error(`Request failed (${res.status}).`);
+      const next = await res.json();
+
+      // A changed dish deserves a changed photo, but a changed cooking time
+      // does not, so the image is only remade when the title moved.
+      const titleChanged = next.title.trim() !== recipe.title.trim();
+      const patch = {
+        title: next.title,
+        description: next.description || null,
+        ingredients: next.ingredients,
+        instructions: next.instructions,
+        tags: next.tags,
+        prep_time: next.prep_time,
+        cook_time: next.cook_time,
+        servings: next.servings,
+        ...(titleChanged ? { image_url: recipeImageUrl(next.title, next.description) } : {}),
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = await sb.from("recipes").update(patch).eq("id", recipe.id);
+      if (error) { notify(`Could not save the rewrite: ${error.message}`); return; }
+      setNote("");
+      notify(next.offline ? "Rewritten offline — no AI key is set." : "Recipe rewritten.");
+      await load();
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Couldn't rewrite that.");
+    } finally {
+      setRevising(false);
+    }
+  };
+
+  const newPhoto = async () => {
+    if (!recipe) return;
+    setRegenerating(true);
+    const url = recipeImageUrl(recipe.title, recipe.description ?? "", "", "", Date.now() % 100000);
+    const { error } = await sb.from("recipes").update({ image_url: url }).eq("id", recipe.id);
+    setRegenerating(false);
+    if (error) { notify(`Could not save the photo: ${error.message}`); return; }
+    await load();
+  };
 
   const remove = async () => {
     await sb.from("recipes").delete().eq("id", recipe.id);
@@ -127,14 +194,50 @@ export function RecipeView({ recipeId, cookbookId }: { recipeId: string; cookboo
           </Panel>
 
           {isMine && (
-            <Panel>
-              <SectionHead title="Yours" />
-              <div className="p-3">
-                <Button variant="danger" className="w-full" onClick={() => void remove()}>
-                  Delete this recipe
-                </Button>
-              </div>
-            </Panel>
+            <>
+              <Panel>
+                <SectionHead title="Change it in words" />
+                <div className="space-y-2 p-3">
+                  <Textarea
+                    rows={3}
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="Make it vegan. Double it. Swap the cream for coconut milk."
+                    aria-label="What to change about this recipe"
+                  />
+                  <Button
+                    variant="primary"
+                    className="w-full"
+                    disabled={!note.trim() || revising}
+                    onClick={() => void reviseWithAi()}
+                  >
+                    {revising ? <Spinner size={14} /> : <SparkIcon size={14} />}
+                    {revising ? "Rewriting" : "Rewrite this recipe"}
+                  </Button>
+                  <p className="text-[11px] leading-relaxed text-[var(--cc-ink-faint)]">
+                    The recipe is replaced in place. If the dish would look different afterwards, the
+                    photo is remade too.
+                  </p>
+                </div>
+              </Panel>
+
+              <Panel>
+                <SectionHead title="Yours" />
+                <div className="space-y-2 p-3">
+                  <Button
+                    className="w-full"
+                    disabled={regenerating}
+                    onClick={() => void newPhoto()}
+                  >
+                    {regenerating ? <Spinner size={14} /> : null}
+                    New photo
+                  </Button>
+                  <Button variant="danger" className="w-full" onClick={() => void remove()}>
+                    Delete this recipe
+                  </Button>
+                </div>
+              </Panel>
+            </>
           )}
         </>
       }
