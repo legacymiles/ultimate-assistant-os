@@ -3,12 +3,16 @@ import {
   blankShot,
   castOf,
   cleanStoryboard,
+  boardBrief,
   etaSeconds,
   filmProgress,
+  fitRuntime,
   formatEta,
   framesFor,
   h3Form,
   normalise,
+  parseRuntime,
+  runtimeRange,
   runtimeSec,
   shotPrompt,
   timecode,
@@ -227,5 +231,89 @@ describe("editing", () => {
     const reordered = normalise({ ...b, shots: [b.shots[1], b.shots[0]] });
     expect(reordered.shots[0].link).toBe("open");
     expect(reordered.shots.map((s) => s.title)).toEqual(["Cut 1", "Cut 2"]);
+  });
+});
+
+describe("parseRuntime", () => {
+  it("reads the ways a runtime gets typed", () => {
+    expect(parseRuntime("45")).toBe(45);
+    expect(parseRuntime("0:45")).toBe(45);
+    expect(parseRuntime("1:30")).toBe(90);
+    expect(parseRuntime("90s")).toBe(90);
+    expect(parseRuntime("1m30s")).toBe(90);
+    expect(parseRuntime("2 min")).toBe(120);
+    expect(parseRuntime(" 60 ")).toBe(60);
+  });
+
+  it("refuses what is not a time, so a half-typed field does nothing", () => {
+    expect(parseRuntime("")).toBeNull();
+    expect(parseRuntime("1:")).toBeNull();
+    expect(parseRuntime("1:75")).toBeNull();
+    expect(parseRuntime("soon")).toBeNull();
+    expect(parseRuntime("m")).toBeNull();
+  });
+});
+
+describe("runtimeRange", () => {
+  it("is what H3's 4-15 s window allows across that many cuts", () => {
+    expect(runtimeRange(1)).toEqual({ min: 4, max: 15 });
+    expect(runtimeRange(12)).toEqual({ min: 48, max: 180 });
+    expect(runtimeRange(0)).toEqual({ min: 0, max: 0 });
+  });
+});
+
+describe("fitRuntime", () => {
+  it("hits the target exactly", () => {
+    const { min, max } = runtimeRange(board().shots.length);
+    for (let target = min; target <= max; target += 1) {
+      expect(runtimeSec(fitRuntime(board(), target))).toBe(target);
+    }
+  });
+
+  it("clamps to what these cuts can hold rather than inventing shots", () => {
+    const b = board();
+    const { min, max } = runtimeRange(b.shots.length);
+    expect(runtimeSec(fitRuntime(b, 1))).toBe(min);
+    expect(runtimeSec(fitRuntime(b, 10_000))).toBe(max);
+  });
+
+  it("keeps every shot inside H3's window", () => {
+    const { min, max } = runtimeRange(board().shots.length);
+    for (let target = min; target <= max; target += 1) {
+      for (const shot of fitRuntime(board(), target).shots) {
+        expect(shot.durationSec).toBeGreaterThanOrEqual(4);
+        expect(shot.durationSec).toBeLessThanOrEqual(15);
+      }
+    }
+  });
+
+  it("keeps the long shot the long one", () => {
+    const b = board();
+    b.shots[0].durationSec = 4;
+    b.shots[b.shots.length - 1].durationSec = 15;
+    const fitted = fitRuntime(b, runtimeSec(b) + 6);
+    expect(fitted.shots[fitted.shots.length - 1].durationSec).toBeGreaterThanOrEqual(
+      fitted.shots[0].durationSec,
+    );
+  });
+
+  it("changes nothing else about the sheet", () => {
+    const b = board();
+    const fitted = fitRuntime(b, 30);
+    expect(fitted.title).toBe(b.title);
+    expect(fitted.shots.map((s) => s.action)).toEqual(b.shots.map((s) => s.action));
+    expect(fitted.shots.map((s) => s.link)).toEqual(b.shots.map((s) => s.link));
+  });
+});
+
+describe("boardBrief", () => {
+  it("carries the film-wide fields a re-plan must not lose", () => {
+    const text = boardBrief(board());
+    const b = board();
+    expect(text).toContain(b.title);
+    expect(text).toContain(b.wardrobe);
+    expect(text).toContain(b.grade);
+    expect(text).toContain(b.shots[0].action);
+    expect(text).toContain(`${runtimeSec(b)} s total`);
   });
 });

@@ -281,7 +281,7 @@ export function StudioTab({
             title={
               local.ok
                 ? "Videos render free on this PC with WanGP (Pinokio)."
-                : "Start tools/studio-bridge/start.cmd on your PC to render videos for free."
+                : "Run tools/studio-bridge/install-autostart.cmd once on your PC and videos render here for free, from every sign-in on."
             }
           >
             <span

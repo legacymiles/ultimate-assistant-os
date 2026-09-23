@@ -17,7 +17,7 @@
 // owner's words are rendered instead of the weave, and the row says so.
 // ---------------------------------------------------------------------------
 
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import {
   MAX_SHOTS,
@@ -25,9 +25,12 @@ import {
   MIN_SHOT_SEC,
   blankShot,
   etaSeconds,
+  fitRuntime,
   formatEta,
   h3Form,
   normalise,
+  parseRuntime,
+  runtimeRange,
   runtimeSec,
   shotPrompt,
   timecode,
@@ -149,10 +152,113 @@ function Fact({
   );
 }
 
+/**
+ * The film's running time, as a field rather than a readout.
+ *
+ * Runtime is the first question anyone asks of a film and, on a shot plan, the
+ * one number you cannot type: it is the sum of a dozen little ones. So it is
+ * asked for here, before the render, and answered two ways — because they are
+ * two different edits. SPREAD is arithmetic on the cuts that already exist:
+ * instant, free, and it keeps every beat the owner wrote. RE-PLAN hands the
+ * sheet back to Jarvis to rewrite at the new length, which is the only way the
+ * number of cuts can change, and therefore the only way to reach a runtime
+ * these rows cannot hold.
+ */
+function Runtime({
+  board,
+  onChange,
+  onReplan,
+  disabled,
+}: {
+  board: Storyboard;
+  onChange: (b: Storyboard) => void;
+  onReplan?: (targetSec: number) => void;
+  disabled: boolean;
+}) {
+  const runtime = runtimeSec(board);
+  const [text, setText] = useState(() => timecode(runtime));
+  // The seconds can move from anywhere on this sheet — a shot's duration, a cut
+  // added, a row deleted — and the field must not keep showing the old total.
+  useEffect(() => setText(timecode(runtime)), [runtime]);
+
+  const target = parseRuntime(text);
+  const { min, max } = runtimeRange(board.shots.length);
+  const pending = target !== null && target !== runtime;
+  const reachable = target !== null && target >= min && target <= max;
+
+  const spread = () => {
+    if (!reachable || target === null) return;
+    onChange(fitRuntime(board, target));
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <label className="flex items-center gap-1.5 rounded-md border border-line bg-canvas px-1.5 py-1 transition focus-within:border-ink-faint">
+        <Icon.Clock width={11} height={11} className="shrink-0 text-ink-faint" />
+        <span className="text-[9.5px] uppercase tracking-[0.14em] text-ink-faint">Runtime</span>
+        <input
+          aria-label="Total running time of the film"
+          value={text}
+          disabled={disabled}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              spread();
+            }
+            if (e.key === "Escape") setText(timecode(runtime));
+          }}
+          inputMode="numeric"
+          className="w-12 bg-transparent text-right text-[11.5px] tabular-nums text-ink focus:outline-none disabled:text-ink-muted"
+        />
+      </label>
+
+      {pending ? (
+        <>
+          {reachable && (
+            <button
+              type="button"
+              onClick={spread}
+              className="rounded-md border border-line px-2 py-1 text-[10.5px] text-ink-muted transition hover:border-ink-faint hover:text-ink"
+            >
+              Spread over {board.shots.length} {board.shots.length === 1 ? "cut" : "cuts"}
+            </button>
+          )}
+          {onReplan && (
+            <button
+              type="button"
+              onClick={() => onReplan(target!)}
+              className="inline-flex items-center gap-1 rounded-md border border-accent/45 px-2 py-1 text-[10.5px] text-accent transition hover:bg-accent/10"
+            >
+              <Icon.Refresh width={10} height={10} />
+              Re-plan at {timecode(target!)}
+            </button>
+          )}
+          {!reachable && (
+            <span className="text-[10px] leading-tight text-ink-faint">
+              {board.shots.length} {board.shots.length === 1 ? "cut" : "cuts"} hold{" "}
+              <span className="tabular-nums">
+                {timecode(min)}–{timecode(max)}
+              </span>
+              . Re-planning changes how many there are.
+            </span>
+          )}
+        </>
+      ) : (
+        text !== timecode(runtime) &&
+        target === null && (
+          <span className="text-[10px] text-ink-faint">Seconds, or m:ss.</span>
+        )
+      )}
+    </div>
+  );
+}
+
 export function StoryboardCard({
   board,
   onChange,
   onRender,
+  onReplan,
   busy,
   done,
   soundtrack,
@@ -160,6 +266,8 @@ export function StoryboardCard({
   board: Storyboard;
   onChange: (b: Storyboard) => void;
   onRender: (b: Storyboard) => void;
+  /** Hand the sheet back to Jarvis to re-plan at a new running time. */
+  onReplan?: (b: Storyboard, targetSec: number) => void;
   /** A film from this sheet is already rendering. */
   busy: boolean;
   /** The sheet has been superseded — an older turn, or already shot. */
@@ -482,6 +590,14 @@ export function StoryboardCard({
           >
             <Icon.Plus width={11} height={11} /> Add a cut
           </button>
+        )}
+        {!done && (
+          <Runtime
+            board={board}
+            onChange={onChange}
+            disabled={busy}
+            {...(onReplan && !busy ? { onReplan: (sec: number) => onReplan(board, sec) } : {})}
+          />
         )}
         <p className="text-[10.5px] leading-tight text-ink-faint">
           {board.shots.length} {board.shots.length === 1 ? "clip" : "clips"} rendered in order on this PC and cut

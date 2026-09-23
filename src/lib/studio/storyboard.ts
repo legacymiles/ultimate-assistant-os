@@ -504,3 +504,116 @@ export function normalise(board: Storyboard): Storyboard {
   }));
   return { ...board, shots };
 }
+
+// ----- the runtime, as a thing the owner sets --------------------------------
+//
+// Running time is the first question anyone asks of a film and the last thing a
+// shot plan makes editable: it is the SUM of a dozen little numbers, so wanting
+// forty-five seconds means arithmetic across twelve rows. These four give the
+// sheet a total that can be typed into.
+//
+// Two ways to honour a new total, because they are genuinely different edits:
+// spreading it over the cuts that exist (arithmetic, instant, free), and asking
+// the model to re-plan (different cuts, rewritten beats). Only the second can
+// change how many cuts there are, so only the second can reach a runtime the
+// current row count cannot hold.
+
+/** "45", "0:45", "1:30", "90s", "1m30" → seconds. Null when it isn't a time. */
+export function parseRuntime(text: string): number | null {
+  const s = text.trim().toLowerCase();
+  if (!s) return null;
+  const clock = /^(\d{1,3}):([0-5]?\d)$/.exec(s);
+  if (clock) return Number(clock[1]) * 60 + Number(clock[2]);
+  const spoken = /^(?:(\d{1,3})\s*m(?:in(?:ute)?s?)?)?\s*(?:(\d{1,3})\s*s(?:ec(?:ond)?s?)?)?$/.exec(s);
+  if (spoken && (spoken[1] || spoken[2])) return Number(spoken[1] ?? 0) * 60 + Number(spoken[2] ?? 0);
+  const bare = /^\d{1,4}(?:\.\d+)?$/.exec(s);
+  if (bare) return Math.round(Number(s));
+  return null;
+}
+
+/** The runtimes a film of this many cuts can actually be. */
+export function runtimeRange(shotCount: number): { min: number; max: number } {
+  const n = Math.max(0, Math.min(MAX_SHOTS, Math.round(shotCount)));
+  return { min: n * MIN_SHOT_SEC, max: n * MAX_SHOT_SEC };
+}
+
+/**
+ * Re-time the cuts that exist so they add up to `targetSec`.
+ *
+ * Proportional, so a shot the owner deliberately made the long one stays the
+ * long one; the seconds that rounding drops are handed back biggest-remainder
+ * first, and each shot stays inside H3's 4–15 s window, which is why the result
+ * is clamped to `runtimeRange` rather than hitting any number asked for.
+ */
+export function fitRuntime(board: Storyboard, targetSec: number): Storyboard {
+  const n = board.shots.length;
+  if (!n) return board;
+  const { min, max } = runtimeRange(n);
+  const target = Math.round(Math.min(max, Math.max(min, targetSec)));
+  const current = runtimeSec(board);
+  const share = board.shots.map((s) => (current > 0 ? s.durationSec / current : 1 / n) * target);
+  const secs = share.map((v) => Math.min(MAX_SHOT_SEC, Math.max(MIN_SHOT_SEC, Math.floor(v))));
+  const order = share.map((v, i) => ({ i, frac: v - Math.floor(v) })).sort((a, b) => b.frac - a.frac);
+
+  let left = target - secs.reduce((t, v) => t + v, 0);
+  // Round-robin rather than dumping the remainder on one shot: a second here is
+  // 24 frames of render time, and piling them all on the first cut would quietly
+  // rewrite the rhythm the owner planned.
+  for (let pass = 0; left !== 0 && pass <= MAX_SHOT_SEC; pass += 1) {
+    let moved = false;
+    for (const { i } of order) {
+      if (left === 0) break;
+      const step = left > 0 ? 1 : -1;
+      const next = secs[i] + step;
+      if (next < MIN_SHOT_SEC || next > MAX_SHOT_SEC) continue;
+      secs[i] = next;
+      left -= step;
+      moved = true;
+    }
+    if (!moved) break;
+  }
+  return { ...board, shots: board.shots.map((s, i) => ({ ...s, durationSec: secs[i] })) };
+}
+
+/**
+ * The sheet as plain text, for a model that has to re-plan it.
+ *
+ * The board lives in this browser and never travelled to the route, so a
+ * re-plan that isn't handed the current sheet invents a second, different film.
+ */
+export function boardBrief(board: Storyboard): string {
+  const fact = (label: string, value: string) => (value.trim() ? `${label}: ${value.trim()}` : "");
+  return [
+    `TITLE: ${board.title}`,
+    fact("LOGLINE", board.logline),
+    fact("WORLD", board.world),
+    fact("LOOK", board.look),
+    `ASPECT: ${board.aspectRatio}`,
+    fact("LENS", board.lens),
+    fact("LIGHTING", board.lighting),
+    fact("GRADE", board.grade),
+    board.palette.length ? `PALETTE: ${board.palette.join(" ")}` : "",
+    fact("WARDROBE", board.wardrobe),
+    fact("SOUNDSCAPE", board.soundscape),
+    fact("MUSIC", board.music),
+    board.cast.length
+      ? `CAST:\n${board.cast
+          .map((c) => `  ${c.name}${c.subject ? ` (Subject ${c.subject})` : ""} — ${c.look}`)
+          .join("\n")}`
+      : "",
+    `SHOTS (${board.shots.length}, ${runtimeSec(board)} s total):`,
+    ...board.shots.map((s, i) =>
+      [
+        `  ${i + 1}. ${s.title} — ${s.durationSec}s, ${s.framing}, ${s.lensMm}mm, ${s.move}`,
+        i > 0 ? `, link ${s.link}` : "",
+        `\n     ACTION: ${s.action}`,
+        s.dialogue ? `\n     DIALOGUE: ${s.dialogue}` : "",
+        s.carry ? `\n     CARRY: ${s.carry}` : "",
+        s.endsOn ? `\n     ENDS ON: ${s.endsOn}` : "",
+        s.references.length ? `\n     REFS: ${s.references.map((n) => `Subject ${n}`).join(", ")}` : "",
+      ].join(""),
+    ),
+  ]
+    .filter(Boolean)
+    .join("\n");
+}

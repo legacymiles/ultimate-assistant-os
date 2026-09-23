@@ -170,7 +170,9 @@ export async function bridgeStatus(): Promise<{ ok: boolean; wangp?: boolean; qu
 async function renderVideoLocal(job: RenderJob, pool: RefPool, update: (p: Partial<RenderState>) => void): Promise<void> {
   if (!(await bridgeStatus()).ok) {
     throw new Error(
-      "The free local renderer isn't running on this PC. Double-click tools/studio-bridge/start.cmd, then press Make it again.",
+      "The free local renderer isn't running on this PC. Double-click "
+        + "tools/studio-bridge/install-autostart.cmd once — it starts the renderer now and again every time "
+        + "you sign in — then press Make it again.",
     );
   }
   const res = await fetch(`${BRIDGE}/video`, {

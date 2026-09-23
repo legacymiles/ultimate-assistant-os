@@ -1,12 +1,20 @@
 # studio-bridge — the free renderer and edit bay for Jarvis Studio
 
 ```cmd
-tools\studio-bridge\start.cmd
+tools\studio-bridge\install-autostart.cmd
 ```
 
-Leave the window open while you make videos. Jarvis runs on Vercel, which cannot
-reach this PC; the browser can, so the page posts jobs to `127.0.0.1:42010` and
-this renders them with MiniMax H3 in WanGP (the Pinokio install) for $0.
+**Run that once.** It starts the renderer now and again at every Windows sign-in,
+with no console window, so Studio's **Make the film** just works instead of
+telling you to go and start something. Undo it with `uninstall-autostart.cmd`.
+
+`start.cmd` still opens it in a visible window when you want to watch the log; a
+second copy finding the port already taken says so and exits rather than
+crashing. The hidden one writes to `out\bridge.log`.
+
+Jarvis runs on Vercel, which cannot reach this PC; the browser can, so the page
+posts jobs to `127.0.0.1:42010` and this renders them with MiniMax H3 in WanGP
+(the Pinokio install) for $0.
 
 ## The two jobs
 

@@ -110,7 +110,9 @@ export function filmPayload(req: FilmRequest): Record<string, unknown> {
 export class FilmError extends Error {}
 
 const OFFLINE =
-  "The free local renderer isn't running on this PC. Double-click tools/studio-bridge/start.cmd, then press Make the film again.";
+  "The free local renderer isn't running on this PC. Double-click "
+  + "tools/studio-bridge/install-autostart.cmd once — it starts the renderer now and again every time you "
+  + "sign in — then press Make the film again.";
 
 /** Queue the film. Resolves with the bridge's id for it. */
 export async function startFilm(req: FilmRequest): Promise<string> {

@@ -731,8 +731,21 @@ const server = http.createServer(async (req, res) => {
   json(res, 404, { error: "not found" });
 });
 
+// Since install-autostart.cmd starts one at login, double-clicking start.cmd
+// afterwards is the normal way to meet this — and finding one already running
+// is good news, not a crash.
+server.on("error", (e) => {
+  if (e.code === "EADDRINUSE") {
+    console.log(`A Studio bridge is already running on 127.0.0.1:${PORT}. Nothing to do.`);
+    process.exit(0);
+  }
+  throw e;
+});
+
 server.listen(PORT, "127.0.0.1", () => {
-  console.log(`Studio bridge on http://127.0.0.1:${PORT} — renders with WanGP (${WANGP_DIR}), free.`);
+  // Plain ASCII: this also goes to out\bridge.log when the hidden copy starts
+  // it, and a log full of mojibake is a log nobody reads.
+  console.log(`Studio bridge on http://127.0.0.1:${PORT} - renders with WanGP (${WANGP_DIR}), free.`);
   console.log(`Measured render rate: ${rate.secondsPerFrame.toFixed(2)} s/frame from ${rate.samples} shot(s).`);
-  console.log("Leave this window open while you make videos in Jarvis → Studio.");
+  console.log("Ready for Jarvis -> Studio. If this is a visible window, leave it open.");
 });

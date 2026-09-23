@@ -64,7 +64,7 @@ import { StoryboardCard } from "./StoryboardCard";
 import { FilmProgress } from "./FilmProgress";
 import { ReferenceTile } from "./ReferenceTile";
 import { cancelFilm, startFilm, watchFilm, type FilmView } from "@/lib/studio/film";
-import { runtimeSec, type Storyboard } from "@/lib/studio/storyboard";
+import { boardBrief, runtimeSec, timecode, type Storyboard } from "@/lib/studio/storyboard";
 import { SOURCE_LABEL, type ChatTurn, type Conversation, type JarvisStore, type PendingAction } from "@/lib/jarvis/types";
 import type { Profile } from "@/lib/new-dashboard/types";
 
@@ -344,7 +344,12 @@ export function ChatTab({
     commit({ ...store, conversations: [next, ...store.conversations.slice(existing ? 1 : 0)] });
   };
 
-  const ask = async (text: string, extra: Attachment[] = []) => {
+  /**
+   * `brief` is context the model needs but the conversation should not have to
+   * read — the shot sheet being re-planned, for instance, which lives in this
+   * browser and has never travelled to the route.
+   */
+  const ask = async (text: string, extra: Attachment[] = [], brief = "") => {
     const question = text.trim();
     const attached = [...attachments, ...extra];
     // Sound is split off here and never again mixed in with the pictures.
@@ -431,7 +436,7 @@ export function ChatTab({
           // travel with the message; the route clamps them on arrival.
           characters: cast.map(({ images: _images, avatar: _avatar, ...c }) => c),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          extraContext: [profileContext(profile), await dashboardDigest()].filter(Boolean).join("\n\n"),
+          extraContext: [profileContext(profile), await dashboardDigest(), brief].filter(Boolean).join("\n\n"),
         }),
       });
       const data = (await res.json()) as AgentResponse;
@@ -688,6 +693,33 @@ export function ChatTab({
     writeTurns((all) => all.map((t) => (t.id === turnId ? { ...t, storyboard: board } : t)));
 
   /**
+   * The owner wants the film a different length, and not by squeezing the cuts
+   * they have: a minute of story is a different plan from thirty seconds of it.
+   *
+   * So the sheet goes back to Jarvis with the new running time. The board lives
+   * in this browser and the route has never seen it, so it travels as context —
+   * word for word, because a re-plan handed a summary comes back a different
+   * film — while the turn the owner reads stays one line.
+   */
+  const replanBoard = (board: Storyboard, targetSec: number) =>
+    void ask(
+      `Re-cut “${board.title}” to ${timecode(targetSec)} — same film, re-planned so the shots add up.`,
+      [],
+      [
+        "THE OWNER IS RE-CUTTING A SHOT PLAN THEY ALREADY HAVE.",
+        `They want it ${targetSec} seconds long (${timecode(targetSec)}), and it is currently ${runtimeSec(board)}.`,
+        "Call studio_storyboard again with the SAME film: keep the title, logline, world, look, aspect "
+          + "ratio, lens, lighting, grade, palette, wardrobe, soundscape, music and cast VERBATIM, and keep "
+          + "the story beats in their order. Re-plan only the shots, so their duration_sec values add up to "
+          + `${targetSec} (each shot 4–15 s) — add, drop, split or merge cuts as the new length needs, and `
+          + "rewrite each action to fit the seconds it now has. Say in one line what you changed.",
+        "",
+        "THE CURRENT SHEET",
+        boardBrief(board),
+      ].join("\n"),
+    );
+
+  /**
    * Render a whole shot plan as one film.
    *
    * Everything happens here rather than on the server because everything it
@@ -875,6 +907,7 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
                     board={t.storyboard}
                     onChange={(b) => editBoard(t.id, b)}
                     onRender={(b) => void runFilm(t.id, b)}
+                    onReplan={replanBoard}
                     busy={Boolean(film && film.turnId === t.id && !film.result && !film.error)}
                     done={Boolean(film && film.turnId === t.id && film.result)}
                     {...(() => {
