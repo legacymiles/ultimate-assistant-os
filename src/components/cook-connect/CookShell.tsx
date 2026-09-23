@@ -4,6 +4,7 @@
 // The rail collapses to a bottom bar on a phone, because a 216px sidebar on a
 // 375px screen is most of the screen.
 
+import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { useCook, type Route } from "./CookConnect";
 import {
@@ -168,6 +169,19 @@ export function CookShell({ children }: { children: ReactNode }) {
             {TITLES[section]}
           </h1>
           <div className="ml-auto flex items-center gap-1.5">
+            {/* Out of the app entirely, back to the assistant. A real link, so
+                it leaves Cook Connect rather than moving inside it. */}
+            <Link
+              href="/apps/jarvis"
+              aria-label="Back to Jarvis"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--cc-line)]
+                         bg-[var(--cc-elevated)] px-3 py-1.5 text-[13px] font-semibold
+                         text-[var(--cc-ink-muted)] transition-colors duration-150
+                         hover:border-[#39405a] hover:text-[var(--cc-ink)]"
+            >
+              <BackIcon size={14} />
+              Jarvis
+            </Link>
             <Button variant="primary" onClick={() => navigate({ page: "play" })}>
               <PlayIcon size={14} />
               Start a game
