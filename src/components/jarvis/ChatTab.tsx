@@ -31,8 +31,26 @@ import { Chip, CinemaBar, CinemaOutputRow } from "./CinemaDeck";
 import { MoveArt } from "./CinemaArt";
 import { useCinemaOutput, useCinemaSelection } from "@/lib/studio/useCinema";
 import { MOVE_PATTERN, moveById, moveQueryAt, movesIn, searchMoves, type CinemaMove } from "@/lib/studio/cinema";
-import { ACCEPT_REFERENCES, imageFiles, MAX_ATTACHMENTS, toAttachment, type Attachment } from "@/lib/jarvis/chatImages";
-import { REFERENCE_PATTERN, referenceToken, referencesIn, searchReferences, type ReferenceMention } from "@/lib/studio/references";
+import {
+  ACCEPT_REFERENCES,
+  describedNotes,
+  isDescribed,
+  MAX_ATTACHMENTS,
+  referenceFiles,
+  toAttachment,
+  type Attachment,
+} from "@/lib/jarvis/chatImages";
+import {
+  pickTrack,
+  REFERENCE_PATTERN,
+  referenceToken,
+  referencesIn,
+  searchReferences,
+  TRACK_PATTERN,
+  trackToken,
+  tracksIn,
+  type ReferenceMention,
+} from "@/lib/studio/references";
 import { charactersIn, searchCharacters } from "@/lib/studio/characters";
 import { useCharacters, type Character } from "@/lib/studio/useCharacters";
 import { saveToGallery } from "@/lib/studio/gallery";
@@ -42,6 +60,10 @@ import { answerText, type StudioForm } from "@/lib/studio/forms";
 import { runRender, type RenderState } from "@/lib/studio/render";
 import { Markdown } from "./Markdown";
 import { StudioFormCard, type FormSubmission } from "./StudioFormCard";
+import { StoryboardCard } from "./StoryboardCard";
+import { FilmProgress } from "./FilmProgress";
+import { cancelFilm, startFilm, watchFilm, type FilmView } from "@/lib/studio/film";
+import { runtimeSec, type Storyboard } from "@/lib/studio/storyboard";
 import { SOURCE_LABEL, type ChatTurn, type Conversation, type JarvisStore, type PendingAction } from "@/lib/jarvis/types";
 import type { Profile } from "@/lib/new-dashboard/types";
 
@@ -53,10 +75,37 @@ interface AgentResponse {
   notices?: string[];
   did?: string[];
   form?: StudioForm | null;
+  storyboard?: Storyboard | null;
   error?: string;
 }
 
 /** What Jarvis should know about the owner without having to search for it. */
+/**
+ * How many tracks this conversation has already carried.
+ *
+ * Audio is numbered the way uploads are — "Audio 1" keeps meaning the first
+ * one attached — so a later turn has to continue the count rather than start
+ * a new one.
+ */
+function countAudio(turns: ChatTurn[]): number {
+  return turns.reduce((n, t) => n + (t.audio?.length ?? 0), 0);
+}
+
+/** As far as Subject numbers reach, which is as far as referenceImages() does. */
+const MAX_SUBJECTS = 24;
+/** Tracks kept nameable. Nobody picks a score for a cut out of more than this. */
+const MAX_TRACKS = 12;
+
+/** A file as a data URL, which is the only shape the local bridge takes. */
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((ok, fail) => {
+    const reader = new FileReader();
+    reader.onload = () => ok(String(reader.result));
+    reader.onerror = () => fail(new Error(`Couldn't read ${file.name || "that track"}.`));
+    reader.readAsDataURL(file);
+  });
+}
+
 function profileContext(p: Profile | null): string {
   if (!p) return "";
   const lines = [
@@ -99,8 +148,8 @@ export function ChatTab({
   const [cinema, setCinema] = useCinemaSelection();
   /** Aspect ratio and clip length, on the toolbar under the box. */
   const [output, setOutput] = useCinemaOutput();
-  /** Which reference the caret is currently naming, so its tile can light up. */
-  const [highlight, setHighlight] = useState<number | null>(null);
+  /** The reference token the caret is naming, lowercased, so its tile lights up. */
+  const [highlight, setHighlight] = useState<string | null>(null);
   /** Everyone the Photos tab knows well enough to put in a shot. */
   const { characters } = useCharacters();
   const [busy, setBusy] = useState(false);
@@ -111,6 +160,18 @@ export function ChatTab({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   /** What an approved studio_generate is rendering, this session. */
   const [renders, setRenders] = useState<RenderState[]>([]);
+  /**
+   * A film being rendered from a shot plan. There is one at a time on purpose:
+   * the PC has one GPU, and two films would simply queue behind each other
+   * while pretending otherwise.
+   */
+  const [film, setFilm] = useState<{
+    turnId: string;
+    id: string | null;
+    view: FilmView | null;
+    result: { url: string; blob: Blob } | null;
+    error: string;
+  } | null>(null);
   const [dragging, setDragging] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -118,6 +179,11 @@ export function ChatTab({
   // Full-size copies of pictures sent this session, by turn id. The saved turn
   // keeps only thumbnails, so this is what lets a follow-up still see them.
   const fullImages = useRef(new Map<string, string[]>());
+  // Audio the owner attached, newest last, each keeping the Audio number the
+  // conversation gave it — that number is how "@Audio2" finds this file again.
+  // The bytes stay here for the session so a film can be scored with a track
+  // they dropped in three turns ago.
+  const tracks = useRef<{ n: number; name: string; file: File }[]>([]);
   // The Skills tab's list (Supabase-synced), so Jarvis knows every skill on any
   // device — not only after a master-folder sync run on the owner's PC.
   const skills = useRef<{ name: string; about: string; from: string }[]>([]);
@@ -265,8 +331,21 @@ export function ChatTab({
 
   const ask = async (text: string, extra: Attachment[] = []) => {
     const question = text.trim();
-    const pictures = [...attachments, ...extra];
-    if ((!question && !pictures.length) || busy) return;
+    const attached = [...attachments, ...extra];
+    // Sound is split off here and never again mixed in with the pictures.
+    // Nothing downstream hears it, so it travels as the measured note written
+    // into the message text; putting a waveform in the image array instead
+    // would be handing a vision model a picture of a thing it cannot hear.
+    const pictures = attached.filter((a) => !isDescribed(a));
+    const heard = attached.filter(isDescribed);
+    if ((!question && !attached.length) || busy) return;
+    // Their numbers continue the conversation's count — the same count the notes
+    // are labelled with, so "@Audio2" and "[Audio 2]" are the same track.
+    const firstTrack = countAudio(turns) + 1;
+    heard.forEach((a, i) => {
+      if (a.file) tracks.current.push({ n: firstTrack + i, name: a.name, file: a.file });
+    });
+    const notes = describedNotes(heard, firstTrack);
     setInput("");
     setAttachments([]);
     setError("");
@@ -275,9 +354,30 @@ export function ChatTab({
     const asked: ChatTurn = {
       id: uid(),
       role: "you",
-      text: question,
+      text: [question, notes].filter(Boolean).join("\n\n"),
       at: new Date().toISOString(),
-      ...(pictures.length ? { images: pictures.map((p) => p.thumb) } : {}),
+      ...(pictures.length
+        ? {
+            images: pictures.map((p) => p.thumb),
+            // Kept so the @ menu can still call this one by name, and say it was
+            // a clip, long after the tile it was attached from is gone.
+            imageInfo: pictures.map((p) => ({
+              name: p.name,
+              kind: p.kind === "video" ? ("video" as const) : ("image" as const),
+              ...(p.durationSec ? { durationSec: p.durationSec } : {}),
+            })),
+          }
+        : {}),
+      ...(heard.length
+        ? {
+            audio: heard.map((a) => ({
+              thumb: a.thumb,
+              name: a.name,
+              ...(a.durationSec ? { durationSec: a.durationSec } : {}),
+              ...(a.note ? { note: a.note } : {}),
+            })),
+          }
+        : {}),
     };
     if (pictures.length) fullImages.current.set(asked.id, pictures.map((p) => p.full));
     writeTurns((t) => [...t, asked]);
@@ -333,6 +433,7 @@ export function ChatTab({
         citations: (data.citations ?? []).map((c) => ({ ...c, source: c.source })),
         did: (data.did ?? []).join(" · ") || undefined,
         ...(data.form ? { form: data.form } : {}),
+        ...(data.storyboard ? { storyboard: data.storyboard } : {}),
       };
       writeTurns((t) => [...t, answer]);
       setProposals(data.proposals ?? []);
@@ -421,41 +522,87 @@ export function ChatTab({
       .slice(0, 24);
 
   /**
-   * What "@Subject 3" can point at. The numbering is the conversation's, not
-   * the composer's: references already sent keep their number, and anything
-   * attached to this message continues the count. That is the same order
-   * render.ts hands the jobs, so a token always means the picture it shows.
+   * What "@Subject 3" and "@Audio 1" can point at.
+   *
+   * The numbering is the conversation's, not the composer's: references already
+   * sent keep their number and anything attached to this message continues the
+   * count. Pictures and tracks count separately, because they are spent
+   * separately — pictures in the order render.ts hands the jobs, tracks in the
+   * order the measured notes were labelled — so a token always means the one
+   * thing it shows.
    */
   const references: ReferenceMention[] = useMemo(() => {
     const out: ReferenceMention[] = [];
+    let seen = 0;
+    let heard = 0;
+    const look = (thumb: string, name: string, kind: "image" | "video", durationSec?: number, id?: string) => {
+      if (seen >= MAX_SUBJECTS) return;
+      seen += 1;
+      out.push({
+        n: seen,
+        token: referenceToken(seen),
+        label: `Subject ${seen}`,
+        kind,
+        thumb,
+        name,
+        ...(durationSec ? { durationSec } : {}),
+        ...(id ? { id } : {}),
+      });
+    };
+    const listen = (thumb: string, name: string, durationSec?: number, note?: string, id?: string) => {
+      if (heard >= MAX_TRACKS) return;
+      heard += 1;
+      out.push({
+        n: heard,
+        token: trackToken(heard),
+        label: `Audio ${heard}`,
+        kind: "audio",
+        thumb,
+        name,
+        ...(durationSec ? { durationSec } : {}),
+        ...(note ? { note } : {}),
+        ...(id ? { id } : {}),
+      });
+    };
     for (const t of turns) {
       if (t.role !== "you") continue;
-      for (const thumb of t.images ?? []) {
-        out.push({
-          n: out.length + 1,
-          token: referenceToken(out.length + 1),
-          label: `Subject ${out.length + 1}`,
-          kind: "image",
-          thumb,
-          name: `from an earlier message`,
-        });
-      }
+      (t.images ?? []).forEach((thumb, i) => {
+        // Turns saved before imageInfo existed say only that a picture was here.
+        const was = t.imageInfo?.[i];
+        look(thumb, was?.name ?? "from an earlier message", was?.kind ?? "image", was?.durationSec);
+      });
+      for (const a of t.audio ?? []) listen(a.thumb, a.name, a.durationSec, a.note);
     }
     for (const a of attachments) {
-      out.push({
-        n: out.length + 1,
-        token: referenceToken(out.length + 1),
-        label: `Subject ${out.length + 1}`,
-        kind: a.kind,
-        thumb: a.thumb,
-        name: a.name,
-      });
+      if (a.kind === "audio") listen(a.thumb, a.name, a.durationSec, a.note, a.id);
+      else look(a.thumb, a.name, a.kind === "video" ? "video" : "image", a.durationSec, a.id);
     }
-    return out.slice(0, 24);
+    return out;
   }, [turns, attachments]);
 
-  /** The references this draft already names, so their tiles can show it. */
-  const named = useMemo(() => referencesIn(input), [input]);
+  /** The reference tokens this draft already names, so their tiles can show it. */
+  const named = useMemo(
+    () =>
+      new Set([
+        ...referencesIn(input).map((n) => referenceToken(n).toLowerCase()),
+        ...tracksIn(input).map((n) => trackToken(n).toLowerCase()),
+      ]),
+    [input],
+  );
+
+  /**
+   * The owner's own words, newest first, with the draft at the front.
+   *
+   * This is what a named track is looked up in: "@Audio2" counts whether they
+   * have sent it yet or are still typing it above the Make the film button.
+   */
+  const saidNewestFirst = useMemo(
+    () => [input, ...[...turns].reverse().filter((t) => t.role === "you").map((t) => t.text)],
+    [input, turns],
+  );
+
+  /** The track a film would be scored with right now: the named one, else the newest. */
+  const scoringTrack = () => pickTrack(saidNewestFirst, tracks.current);
 
   /**
    * References win the @ menu when the half-typed word could be one, because
@@ -491,7 +638,8 @@ export function ChatTab({
     if (!mention) return [];
     const rows = [
       ...castOptions.map((character) => ({ key: `cast:${character.token}`, group: "cast" as const, character })),
-      ...refOptions.map((reference) => ({ key: `ref:${reference.n}`, group: "ref" as const, reference })),
+      // Keyed by token, not by number: Subject 1 and Audio 1 both count from one.
+      ...refOptions.map((reference) => ({ key: `ref:${reference.token}`, group: "ref" as const, reference })),
     ];
     // The catalog is long; it yields space to a match the owner's own library
     // produced, and takes the menu to itself when there is none.
@@ -519,6 +667,54 @@ export function ChatTab({
     CINEMA_GROUPS.map((g) => groupSummary(g, cinema))
       .filter(Boolean)
       .join(" · ");
+
+  /** The owner edited the sheet: the film is the sheet, so the turn keeps it. */
+  const editBoard = (turnId: string, board: Storyboard) =>
+    writeTurns((all) => all.map((t) => (t.id === turnId ? { ...t, storyboard: board } : t)));
+
+  /**
+   * Render a whole shot plan as one film.
+   *
+   * Everything happens here rather than on the server because everything it
+   * needs is here: the reference photos, the faces from the photo library, and
+   * the track the owner dropped in. The bridge on this PC does the rest — the
+   * shots in order, each continuous one chained onto the last frame of the one
+   * before it, and ffmpeg to cut them together.
+   */
+  const runFilm = async (turnId: string, board: Storyboard) => {
+    if (film && film.view && film.view.status !== "done" && film.view.status !== "error") return;
+    setError("");
+    setFilm({ turnId, id: null, view: null, result: null, error: "" });
+    const track = scoringTrack();
+    try {
+      const soundtrack = track ? await fileToDataUrl(track.file) : undefined;
+      const id = await startFilm({
+        board,
+        subjects: referenceImages(),
+        characters: cast.map((c) => ({ token: c.token, name: c.name, images: c.images })),
+        ...(soundtrack ? { soundtrack } : {}),
+      });
+      setFilm((f) => (f && f.turnId === turnId ? { ...f, id } : f));
+      const result = await watchFilm(id, (view) =>
+        setFilm((f) => (f && f.turnId === turnId ? { ...f, view } : f)),
+      );
+      setFilm((f) => (f && f.turnId === turnId ? { ...f, result } : f));
+      // Filed the moment it lands, so closing the tab cannot lose three hours.
+      void saveToGallery(result.blob, {
+        medium: "video",
+        title: board.title,
+        prompt: `${board.logline}
+
+${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
+        workflows: [...used.map((m) => m.label), ...cast.map((c) => c.name)],
+        spec: specLine(),
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "The film failed.";
+      setFilm((f) => (f && f.turnId === turnId ? { ...f, error: message } : f));
+      setError(message);
+    }
+  };
 
   /** The owner answered a Studio form: mark it, then send the answers as their next turn. */
   const submitForm = (turnId: string, form: StudioForm, s: FormSubmission) => {
@@ -552,13 +748,13 @@ export function ChatTab({
       onDrop={(e) => {
         e.preventDefault();
         setDragging(false);
-        void attach(imageFiles(e.dataTransfer));
+        void attach(referenceFiles(e.dataTransfer));
       }}
     >
       {dragging && (
         <div className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-xl border border-dashed border-ink-faint bg-panel/85 backdrop-blur-sm">
           <p className="flex items-center gap-2 text-sm text-ink">
-            <Icon.Image width={16} height={16} /> Drop images for Jarvis to look at
+            <Icon.Image width={16} height={16} /> Drop pictures, clips or a track
           </p>
         </div>
       )}
@@ -626,6 +822,25 @@ export function ChatTab({
                     ))}
                   </div>
                 )}
+                {t.audio && t.audio.length > 0 && (
+                  <ul className={`flex flex-wrap justify-end gap-1.5 ${t.text ? "mb-1.5" : ""}`}>
+                    {t.audio.map((a, i) => (
+                      <li
+                        key={i}
+                        title={a.note}
+                        className="overflow-hidden rounded-lg border border-line bg-panel"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={a.thumb} alt={`Waveform of ${a.name}`} className="block h-10 w-28 object-cover" />
+                        <span className="flex items-center gap-1 px-1.5 py-0.5 text-[9.5px] text-ink-faint">
+                          <Icon.Waveform width={9} height={9} />
+                          <span className="min-w-0 flex-1 truncate">{a.name}</span>
+                          {a.durationSec ? <span className="tabular-nums">{Math.round(a.durationSec)}s</span> : null}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {t.text &&
                   (t.role === "you" ? (
                     <p className="whitespace-pre-wrap text-xs leading-relaxed text-ink">{withMentions(t.text)}</p>
@@ -639,6 +854,46 @@ export function ChatTab({
                     busy={busy}
                     onSubmit={(s) => submitForm(t.id, t.form!, s)}
                   />
+                )}
+                {t.storyboard && (
+                  <StoryboardCard
+                    board={t.storyboard}
+                    onChange={(b) => editBoard(t.id, b)}
+                    onRender={(b) => void runFilm(t.id, b)}
+                    busy={Boolean(film && film.turnId === t.id && !film.result && !film.error)}
+                    done={Boolean(film && film.turnId === t.id && film.result)}
+                    {...(() => {
+                      // Which track, by number, so a sheet never quietly scores
+                      // itself with the wrong one of two.
+                      const score = scoringTrack();
+                      return score ? { soundtrack: `Audio ${score.n} · ${score.name}` } : {};
+                    })()}
+                  />
+                )}
+                {film && film.turnId === t.id && (film.view || film.error) && (
+                  <div className="mt-2">
+                    {film.view ? (
+                      <FilmProgress
+                        view={film.view}
+                        film={film.result}
+                        onCancel={film.id ? () => void cancelFilm(film.id!) : undefined}
+                        {...(film.result
+                          ? {
+                              onSave: () => {
+                                const a = document.createElement("a");
+                                a.href = film.result!.url;
+                                a.download = `${t.storyboard?.title.replace(/[^\w-]+/g, "-") || "film"}.mp4`;
+                                a.click();
+                              },
+                            }
+                          : {})}
+                      />
+                    ) : (
+                      <p className="rounded-xl border border-line bg-panel px-3 py-2 text-[11px] text-amber-400">
+                        {film.error || "Starting the local renderer…"}
+                      </p>
+                    )}
+                  </div>
                 )}
                 {t.did && <p className="mt-1.5 text-[10px] text-ink-faint">{t.did}</p>}
                 {t.citations && t.citations.length > 0 && (
@@ -813,7 +1068,7 @@ export function ChatTab({
                         }}
                         onMouseEnter={() => {
                           setMentionIndex(i);
-                          setHighlight(row.group === "ref" ? row.reference.n : null);
+                          setHighlight(row.group === "ref" ? row.reference.token.toLowerCase() : null);
                         }}
                         onMouseLeave={() => setHighlight(null)}
                         className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left ${
@@ -824,22 +1079,7 @@ export function ChatTab({
                         {row.group === "cast" ? (
                           <CastRow character={row.character} />
                         ) : row.group === "ref" ? (
-                          <>
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={row.reference.thumb} alt="" className="h-8 w-10 shrink-0 rounded object-cover" />
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-xs text-ink">{row.reference.label}</span>
-                              <span className="block truncate text-[11px] text-ink-faint">{row.reference.name}</span>
-                            </span>
-                            <span className="flex shrink-0 items-center gap-1 text-[10px] capitalize text-ink-faint">
-                              {row.reference.kind === "video" ? (
-                                <Icon.Film width={11} height={11} />
-                              ) : (
-                                <Icon.Image width={11} height={11} />
-                              )}
-                              {row.reference.kind}
-                            </span>
-                          </>
+                          <RefRow reference={row.reference} />
                         ) : (
                           <>
                             <span className="relative h-7 w-6 shrink-0 overflow-hidden rounded">
@@ -918,17 +1158,25 @@ export function ChatTab({
           {attachments.length > 0 && (
             <ul className="flex flex-wrap gap-2 px-3 pt-3" aria-label="References on this message">
               {attachments.map((a) => {
-                // Its conversation number, which is what @Subject N points at.
-                const n = references.find((r) => r.thumb === a.thumb)?.n;
-                const lit = n !== undefined && (highlight === n || named.includes(n));
+                // Its row in the conversation's numbering — the thing an @token
+                // names. A picture is a Subject, a track is an Audio.
+                const row = references.find((r) => r.id === a.id);
+                const token = row?.token.toLowerCase();
+                const lit = Boolean(token && (highlight === token || named.has(token)));
                 return (
                   <li key={a.id} className="relative">
                     <button
                       type="button"
-                      onClick={() => n !== undefined && setInput((t) => `${t}${t && !/\s$/.test(t) ? " " : ""}@Subject${n} `)}
-                      onMouseEnter={() => n !== undefined && setHighlight(n)}
+                      onClick={() => row && setInput((t) => `${t}${t && !/\s$/.test(t) ? " " : ""}@${row.token} `)}
+                      onMouseEnter={() => {
+                        if (token) setHighlight(token);
+                      }}
                       onMouseLeave={() => setHighlight(null)}
-                      title={n !== undefined ? `Name this Subject ${n} in the prompt` : a.name}
+                      title={
+                        row
+                          ? `Name this ${row.label} in the prompt${a.note ? `\n\n${a.note}` : ""}`
+                          : a.note ?? a.name
+                      }
                       className={`block overflow-hidden rounded-lg border transition ${
                         lit ? "border-accent ring-1 ring-accent" : "border-line hover:border-ink-faint"
                       }`}
@@ -936,18 +1184,21 @@ export function ChatTab({
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={a.thumb} alt={a.name} className="h-16 w-16 object-cover" />
                     </button>
-                    {n !== undefined && (
+                    {row && (
                       <span
                         className={`pointer-events-none absolute bottom-1 left-1 rounded px-1 py-px font-mono text-[9px] font-semibold transition ${
                           lit ? "bg-accent text-canvas" : "bg-black/65 text-white"
                         }`}
                       >
-                        {n}
+                        {/* "3" is Subject 3; "A2" is Audio 2. Two counters, so
+                            the badge has to say which one it is counting in. */}
+                        {row.kind === "audio" ? `A${row.n}` : row.n}
                       </span>
                     )}
-                    {a.kind === "video" && (
-                      <span className="pointer-events-none absolute right-1 top-1 rounded bg-black/65 px-1 py-px text-[9px] text-white">
-                        {a.durationSec ? `${a.durationSec}s` : "clip"}
+                    {(a.kind === "video" || a.kind === "audio") && (
+                      <span className="pointer-events-none absolute right-1 top-1 flex items-center gap-0.5 rounded bg-black/65 px-1 py-px text-[9px] text-white">
+                        {a.kind === "audio" && <Icon.Waveform width={8} height={8} />}
+                        {a.durationSec ? `${Math.round(a.durationSec)}s` : a.kind === "audio" ? "track" : "clip"}
                       </span>
                     )}
                     <button
@@ -1043,7 +1294,7 @@ export function ChatTab({
               }
             }}
             onPaste={(e) => {
-              const files = imageFiles(e.clipboardData);
+              const files = referenceFiles(e.clipboardData);
               if (!files.length) return;
               e.preventDefault();
               void attach(files);
@@ -1051,8 +1302,8 @@ export function ChatTab({
             rows={2}
             placeholder={
               attachments.length
-                ? "Describe the shot — the references are attached…"
-                : "Describe the shot…  @ for a person or a workflow, # for a camera move"
+                ? "Describe the shot — @ names a reference you attached…"
+                : "Describe the shot…  @ for a person, a reference or a workflow, # for a camera move"
             }
             className="block max-h-60 min-h-[76px] w-full resize-none bg-transparent px-3.5 pt-3.5 text-[15px] leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
           />
@@ -1072,8 +1323,8 @@ export function ChatTab({
               type="button"
               onClick={() => fileRef.current?.click()}
               disabled={attachments.length >= MAX_ATTACHMENTS}
-              title="Add images (or paste / drop them)"
-              aria-label="Add images"
+              title="Add pictures, clips or a track (or paste / drop them)"
+              aria-label="Add references"
               className="grid h-7 w-7 place-items-center rounded-lg border border-line text-ink-muted transition hover:border-ink-faint hover:text-ink disabled:opacity-40"
             >
               <Icon.Plus width={14} height={14} />
@@ -1081,8 +1332,8 @@ export function ChatTab({
             <button
               type="button"
               onClick={() => insertSigil("@")}
-              title="Add a Studio workflow"
-              aria-label="Add a Studio workflow"
+              title="Name a person, a reference or a workflow"
+              aria-label="Name a person, a reference or a workflow"
               className="grid h-7 w-7 place-items-center rounded-lg border border-line font-mono text-xs text-ink-muted transition hover:border-ink-faint hover:text-ink"
             >
               @
@@ -1166,6 +1417,57 @@ function CastRow({ character }: { character: Character }) {
   );
 }
 
+/**
+ * One reference in the @ menu.
+ *
+ * The second line is what makes the row worth reading. For a picture it is the
+ * file; for a clip, its length; for a track, the facts the browser actually
+ * measured and the model was actually told. A row that said only "Audio 2"
+ * would leave the owner guessing which of two songs they were about to score a
+ * three-hour render with.
+ */
+function RefRow({ reference }: { reference: ReferenceMention }) {
+  const detail =
+    [
+      reference.name,
+      reference.durationSec ? `${Math.round(reference.durationSec)}s` : "",
+      measured(reference.note),
+    ]
+      .filter(Boolean)
+      .join(" · ") || "attached to this conversation";
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={reference.thumb} alt="" className="h-8 w-10 shrink-0 rounded object-cover" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs text-ink">{reference.label}</span>
+        <span className="block truncate text-[11px] text-ink-faint">{detail}</span>
+      </span>
+      <span className="flex shrink-0 items-center gap-1 text-[10px] capitalize text-ink-faint">
+        {reference.kind === "audio" ? (
+          <Icon.Waveform width={11} height={11} />
+        ) : reference.kind === "video" ? (
+          <Icon.Film width={11} height={11} />
+        ) : (
+          <Icon.Image width={11} height={11} />
+        )}
+        {reference.kind === "audio" ? "track" : reference.kind}
+      </span>
+    </>
+  );
+}
+
+/** The two lines of a measured audio note a one-line menu row has room for. */
+function measured(note?: string): string {
+  if (!note) return "";
+  return note
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.startsWith("Tempo:") || l.startsWith("Key:"))
+    .map((l) => l.replace(/\s*\(confidence[^)]*\)/, ""))
+    .join(" · ");
+}
+
 /** A sent message with its known @workflows and #camera moves drawn as tokens. */
 function withMentions(text: string) {
   // `at` is where the token starts in the source and `len` is how much of the
@@ -1185,13 +1487,28 @@ function withMentions(text: string) {
       const at = (m.index ?? 0) + m[1].length;
       return [{ at, len: m[2].length + 1, shown: `#${hit.name}`, title: hit.note }];
     }),
+    // The sigil goes INSIDE the chip when the owner typed one, the way a
+    // workflow's does: "@Subject2" is one token on screen, not an @ sitting
+    // outside a box. A bare "Subject 2", which is what a skill writes, has none.
     ...[...text.matchAll(REFERENCE_PATTERN)].map((m) => {
-      const lead = m[0].startsWith("@") ? 1 : 0;
+      const lead = m[0].startsWith("@") ? "@" : "";
       return {
-        at: (m.index ?? 0) + lead,
-        len: m[0].length - lead,
-        shown: `Subject ${m[1]}`,
+        at: m.index ?? 0,
+        len: m[0].length,
+        shown: `${lead}Subject ${m[1]}`,
         title: "One of your uploads",
+      };
+    }),
+    // This also catches the "[Audio 2]" label on a measured note, which is the
+    // point: the label and the token are the same track, and reading as the
+    // same chip is how that stops being something to take on trust.
+    ...[...text.matchAll(TRACK_PATTERN)].map((m) => {
+      const lead = m[0].startsWith("@") ? "@" : "";
+      return {
+        at: m.index ?? 0,
+        len: m[0].length,
+        shown: `${lead}Audio ${m[1]}`,
+        title: "One of the tracks you attached",
       };
     }),
   ].sort((a, b) => a.at - b.at);

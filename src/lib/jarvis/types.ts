@@ -16,6 +16,7 @@
 
 /** Where a memory came from. Drives both citations and the sphere's colours. */
 import type { StudioForm } from "@/lib/studio/forms";
+import type { Storyboard } from "@/lib/studio/storyboard";
 import type { UpdatesBlob } from "./updates";
 
 export type MemorySource =
@@ -112,10 +113,27 @@ export interface ChatTurn {
   did?: string;
   /** Thumbnails of pictures the owner attached (small JPEG data URLs). */
   images?: string[];
+  /**
+   * What each entry of `images` is, by the same index: the file's name, and
+   * whether the picture is a photograph or a frame grabbed out of a clip. It is
+   * there so the @ menu can still call a reference by its name three turns
+   * later; turns saved before it existed have none, so nothing may depend on it
+   * beyond the label.
+   */
+  imageInfo?: { name: string; kind: "image" | "video"; durationSec?: number }[];
+  /**
+   * Sound the owner attached. It is kept apart from the pictures because it is
+   * not one: nothing in the chat hears it, so what reached the model was the
+   * measured note, and the waveform here is only so the owner can see which
+   * track a turn was carrying.
+   */
+  audio?: { thumb: string; name: string; durationSec?: number; note?: string }[];
   /** A Studio skill's form, asked with this Jarvis turn. */
   form?: StudioForm;
   /** The owner has submitted that form. */
   formDone?: boolean;
+  /** A shot plan for one continuous film, laid out with this turn and editable. */
+  storyboard?: Storyboard;
 }
 
 export interface Conversation {

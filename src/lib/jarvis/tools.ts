@@ -207,7 +207,7 @@ export const DASHBOARD_TOOLS: ToolSpec[] = [
  * so it is an ordinary write: it stops for a yes and then runs in the browser
  * (src/lib/studio/render.ts), where the reference photos are.
  */
-export const STUDIO_TOOL_NAMES = ["studio_form", "studio_generate"];
+export const STUDIO_TOOL_NAMES = ["studio_form", "studio_storyboard", "studio_generate"];
 
 export const STUDIO_TOOLS: ToolSpec[] = [
   {
@@ -241,6 +241,79 @@ export const STUDIO_TOOLS: ToolSpec[] = [
       },
       required: ["title", "fields"],
     },
+    app: "studio",
+  },
+  {
+    name: "studio_storyboard",
+    description:
+      "Lay a film out as a shot plan the owner can edit, then render as ONE continuous film. Use this "
+      + "whenever the piece is longer than a single clip, has more than one shot, or tells a story — not "
+      + "studio_generate, which makes unrelated takes. Every shot is rendered in order on the owner's own "
+      + "GPU and cut together automatically, so the plan is the film. Like a form, this pauses the "
+      + "conversation: the owner edits the sheet and presses Make the film themselves.\n\n"
+      + "Write it like a call sheet, and remember that each shot is a SEPARATE generation that has never "
+      + "seen the others. What holds them together is that the film-wide fields (world, wardrobe, "
+      + "lighting, grade, lens, look) are repeated into every shot word for word — so write each of them "
+      + "once, concretely and visually, and never contradict them in a shot's action. Set link to "
+      + "'continuous' when a shot is literally the same take carrying on (it is rendered from the last "
+      + "frame of the shot before it, so it must open exactly where that one ended), and 'cut' for a new "
+      + "angle in the same scene. Always fill ends_on: it is what the next shot is told to open on.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "The film's title." },
+        logline: { type: "string", description: "One sentence: what happens." },
+        world: { type: "string", description: "One sentence fingerprinting the location and its texture; repeated into every shot." },
+        look: { type: "string", description: "e.g. 'live action, anamorphic 2.39, photorealistic'." },
+        aspect_ratio: { type: "string", enum: ["16:9", "9:16", "1:1"] },
+        lens: { type: "string", description: "The glass used all film, e.g. 'anamorphic prime set'." },
+        lighting: { type: "string", description: "The light, unchanged across shots." },
+        grade: { type: "string", description: "The colour grade, unchanged across shots." },
+        palette: { type: "array", items: { type: "string" }, description: "4-6 hex colours." },
+        wardrobe: { type: "string", description: "Exactly what everyone wears; the single most common continuity break." },
+        soundscape: { type: "string", description: "The diegetic sound world of the whole film." },
+        music: { type: "string", description: "The score, or 'none'." },
+        cast: {
+          type: "array",
+          description: "Everyone who must look identical in every shot they appear in.",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              name: { type: "string", description: "Short and in caps, as a call sheet writes it: 'FATHER'." },
+              look: { type: "string", description: "Face, build, hair, skin, marks — what a frame must keep." },
+              subject: { type: "number", description: "The upload that shows them, as a Subject number (1 = first uploaded)." },
+            },
+            required: ["name", "look"],
+          },
+        },
+        shots: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              title: { type: "string", description: "'Cut 3 — the turn'." },
+              duration_sec: { type: "number", description: "4-15. H3 cannot render longer in one go." },
+              lens_mm: { type: "number" },
+              aperture: { type: "string" },
+              move: { type: "string", description: "'slow push-in', 'handheld track', 'static'." },
+              framing: { type: "string", description: "'wide', 'medium', 'close-up', 'insert'." },
+              action: { type: "string", description: "What physically happens across these seconds." },
+              dialogue: { type: "string", description: "One spoken line at most; H3 lip-syncs it." },
+              link: { type: "string", enum: ["continuous", "cut"], description: "Ignored on the first shot." },
+              carry: { type: "string", description: "Props, blocking, damage or weather that must survive from the shot before." },
+              ends_on: { type: "string", description: "The frame this shot finishes on. The next shot is told to open on it." },
+              references: { type: "array", items: { type: "number" }, description: "Subject numbers whose faces this shot needs." },
+            },
+            required: ["title", "action", "duration_sec"],
+          },
+        },
+      },
+      required: ["title", "shots"],
+    },
+    // Nothing is rendered by laying out a plan; the owner starts that.
+    readOnlyHint: true,
     app: "studio",
   },
   {

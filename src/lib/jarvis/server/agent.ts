@@ -19,6 +19,7 @@ import "server-only";
 import { aiEndpoint, aiFetch, DEFAULT_MODEL } from "@/lib/ai/provider";
 import { appOf, CORE_TOOLS, DASHBOARD_TOOLS, isReadOnly, STUDIO_TOOLS, summarise, toApiTools, type ToolSpec } from "../tools";
 import { cleanForm, type StudioForm } from "@/lib/studio/forms";
+import { cleanStoryboard, type Storyboard } from "@/lib/studio/storyboard";
 import type { Citation, MemorySource } from "../types";
 import { memoryContext, searchMemory, type MaybeContext } from "./memory";
 import { digest, repoFiles } from "./masterFolder";
@@ -58,6 +59,8 @@ export interface AgentResult {
   pending: AgentPending | null;
   /** A Studio skill is waiting on the owner's answers to this form. */
   form?: StudioForm | null;
+  /** A shot plan for the owner to edit, then render as one film. */
+  storyboard?: Storyboard | null;
   /** Human notes about degraded capability, shown under the answer. */
   notices: string[];
   /** What the loop actually did, for the "did" line on a turn. */
@@ -216,6 +219,23 @@ export async function runAgent(opts: RunOptions): Promise<AgentResult> {
         }
       }
 
+      // A shot plan pauses the loop too: it is the owner's to edit, and only
+      // they start the render. Nothing is spent until they press the button.
+      if (name === "studio_storyboard" && opts.studio) {
+        const storyboard = cleanStoryboard(args);
+        if (storyboard) {
+          return {
+            text: typeof message.content === "string" ? message.content.trim() : "",
+            citations,
+            proposals,
+            pending: null,
+            storyboard,
+            notices,
+            did,
+          };
+        }
+      }
+
       // A write tool ends the loop. Nothing is executed here, ever.
       if (spec && !isReadOnly(spec)) {
         return {
@@ -279,6 +299,13 @@ export async function runAgent(opts: RunOptions): Promise<AgentResult> {
           did.push(`proposed a memory: "${title}"`);
         }
         result = { ok: true, note: "Shown to the owner for review. Not saved yet." };
+      } else if (name === "studio_storyboard") {
+        // It only reaches here when the board had no usable shot in it.
+        result = {
+          error:
+            "That shot plan had no shots in it. Send `shots` as an array, each with a title, an action and a "
+            + "duration_sec between 4 and 15.",
+        };
       } else if (spec && opts.runTool) {
         try {
           result = await opts.runTool(name, args);

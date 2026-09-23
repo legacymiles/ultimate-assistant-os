@@ -2361,3 +2361,11 @@ video.dance-tile__player { object-fit: cover; }
     animation: none;
   }
 }
+
+/* The sheen that crosses a film's progress bar. A render can sit on one shot
+   for six minutes, so the bar needs a sign of life that is not a lie about
+   progress: the fill says how far in, this only says "still going". */
+@keyframes filmsheen {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(400%); }
+}
