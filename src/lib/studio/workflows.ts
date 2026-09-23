@@ -1287,6 +1287,20 @@ export const WORKFLOWS: Workflow[] = [
     hue: 120,
     isNew: true,
   },
+  {
+    id: "split-screen",
+    name: "Split screen",
+    medium: "video",
+    category: "camera",
+    blurb: "Several threads at once, in one grid that never moves",
+    brief:
+      "Parallel storytelling: the story's own characters, places and actions are laid out in a fixed grid so several threads run at once. One panel = one narrative unit, ownership never switches, nothing is invented to fill a panel. Optionally one eyeline-triggered split instead.",
+    format: "16:9 or 9:16 · 5–15 s",
+    keywords: ["parallel lives", "phone call", "before and after", "multi-cam", "process steps"],
+    motif: "grid",
+    hue: 265,
+    isNew: true,
+  },
 
   // ----- Talk & teach -----------------------------------------------------------
   {
