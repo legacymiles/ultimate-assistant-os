@@ -22,6 +22,7 @@ import { SpadesRoom } from "./play/SpadesRoom";
 import { ChessRoom } from "./play/ChessRoom";
 import { LeaderboardsView } from "./views/LeaderboardsView";
 import { JournalView } from "./views/JournalView";
+import { GroupView } from "./views/GroupView";
 import { SharedWithMeView } from "./views/SharedWithMeView";
 import { Loading, Notice } from "./ui";
 
@@ -38,6 +39,7 @@ export type Route =
   | { page: "chess"; matchId: string }
   | { page: "leaderboards" }
   | { page: "journal" }
+  | { page: "group"; id: string }
   | { page: "shared" };
 
 /** The five destinations the nav rail offers. */
@@ -268,6 +270,7 @@ function renderRoute(route: Route) {
     case "chess": return <ChessRoom matchId={route.matchId} />;
     case "leaderboards": return <LeaderboardsView />;
     case "journal": return <JournalView />;
+    case "group": return <GroupView groupId={route.id} />;
     case "shared": return <SharedWithMeView />;
   }
 }

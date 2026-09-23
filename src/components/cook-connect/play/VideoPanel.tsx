@@ -62,7 +62,9 @@ function Tile({
   );
 }
 
-export function VideoPanel({ room, title = "Video" }: { room: string; title?: string }) {
+export function VideoPanel({
+  room, title = "Video", invitation = "Talk face to face while you play.",
+}: { room: string; title?: string; invitation?: string }) {
   const { sb, profile } = useCook();
   const call = useVideoCall(sb, profile, room);
   const { joined, joining, error, othersInCall } = call;
@@ -88,7 +90,7 @@ export function VideoPanel({ room, title = "Video" }: { room: string; title?: st
           )}>
             {error ?? (waiting > 0
               ? `${othersInCall.map((p) => p.name).join(", ")} ${waiting === 1 ? "is" : "are"} on video.`
-              : "Talk face to face while you play.")}
+              : invitation)}
           </p>
           <Button variant="primary" className="shrink-0" disabled={joining} onClick={() => void call.join()}>
             {joining ? <Spinner size={13} /> : <VideoIcon size={13} />}

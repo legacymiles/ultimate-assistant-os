@@ -18,6 +18,7 @@ import {
   Avatar, Button, EmptyState, Loading, Panel, SearchField, SectionHead, Tag, TabStrip, cx,
 } from "../ui";
 import { BookIcon, BookmarkIcon, PeopleIcon, PlayIcon, SearchIcon } from "../icons";
+import { GroupsPanel } from "../social/GroupsPanel";
 
 type Scope = "online" | "all" | "following" | "followers";
 
@@ -32,6 +33,8 @@ export function ExploreView() {
   const [saveCounts, setSaveCounts] = useState<Record<string, number>>({});
   const [graph, setGraph] = useState({ following: new Set<string>(), followers: new Set<string>() });
   const [expanded, setExpanded] = useState<string | null>(null);
+  // Explore covers both halves of "who else is here": people, and groups.
+  const [half, setHalf] = useState<"people" | "groups">("people");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -121,9 +124,24 @@ export function ExploreView() {
     <Columns>
       <PageHead
         title="Explore"
-        subtitle="Everyone on Cook Connect. Search by name, handle or city, see who is around right now, look through what they cook, and pull them into a game."
+        subtitle={
+          half === "people"
+            ? "Everyone on Cook Connect. Search by name, handle or city, see who is around right now, look through what they cook, and pull them into a game."
+            : "Groups are rooms with a subject — people who cook the same way, and one conversation between them. Joining opens its chat and its video room."
+        }
+        action={
+          <TabStrip
+            tabs={[
+              { id: "people" as const, label: "People" },
+              { id: "groups" as const, label: "Groups" },
+            ]}
+            active={half}
+            onChange={setHalf}
+          />
+        }
       />
 
+      {half === "groups" ? <GroupsPanel /> : (
       <Panel>
         <div className="flex flex-wrap items-center gap-2 border-b border-[var(--cc-line)] p-2">
           <div className="min-w-[200px] flex-1">
@@ -317,8 +335,9 @@ export function ExploreView() {
           </>
         )}
       </Panel>
+      )}
 
-      {!loading && people.length <= 1 && (
+      {half === "people" && !loading && people.length <= 1 && (
         <p className="mt-3 text-[12px] leading-relaxed text-[var(--cc-ink-faint)]">
           <Tag>Quiet</Tag>{" "}
           Cook Connect starts empty on purpose — nothing is here until you or someone else puts it

@@ -164,6 +164,12 @@ export function cookConnectFeatures(projectId: string): Feature[] {
       + "the first person to open it claims it and it stops working for anyone else.",
     ),
     feature(
+      "Groups and group chat",
+      "Interest groups carried over from Pod Play Connect, with the cooking slant: join a group and "
+      + "its chat and video room open. Only members can read or post, enforced by RLS through "
+      + "cook.is_group_member, not just by the screen. Member counts are derived, not stored.",
+    ),
+    feature(
       "Works with no keys",
       "localStorage backend with a BroadcastChannel realtime shim, so two tabs can play each other "
       + "offline. Starts empty, like the real thing.",
@@ -360,6 +366,31 @@ landed. The error text names the schemas that are exposed, which is the quickest
 CookConnect.tsx now detects this on load and renders a "One step left" screen naming the exact
 setting, because otherwise a correctly-installed app and a missing schema look identical: both are
 an empty app.`,
+    ),
+    entry(
+      "documentation",
+      "Groups were excluded, then wanted",
+      `In the first round the owner was asked directly whether to carry groups/pods across and did not
+pick them. Later: "it should have spads, chess, video chat, group chat etc."
+
+So groups came in on the third pass. Two things were deliberately NOT copied from Pod Play:
+  - the emoji per group — Cook Connect draws its own icons and uses a stored hue instead
+  - member_count as a column, incremented client-side. It drifts the moment a join half-fails.
+    The count is read from cook.group_members on every load.
+
+Group rooms are 'group:<id>' in the same messages table as the lounge, tables and DMs.`,
+    ),
+    entry(
+      "bug_report",
+      "An app that cannot reach its schema shows the sign-in screen forever",
+      `Worth knowing because it looked like missing features. When Supabase is configured but "cook" is
+not in the exposed schemas, the profiles query fails, ensureProfile returns without setting a
+profile, and the render falls through to \`!userId || !profile\` — the sign-in screen. A signed-in
+person sees a login form and concludes the app is empty or broken.
+
+CookConnect.tsx now checks isSchemaMissing() on that query and renders the "One step left" screen
+instead. If a future change makes the profile load fail for some other reason, make sure it fails
+loudly rather than falling back to AuthView.`,
     ),
     entry(
       "note",

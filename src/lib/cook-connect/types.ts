@@ -162,6 +162,7 @@ export const rooms = {
   match: (matchId: string) => `match:${matchId}`,
   /** Sorted so both people derive the same key. */
   dm: (a: string, b: string) => `dm:${[a, b].sort().join(":")}`,
+  group: (groupId: string) => `group:${groupId}`,
 };
 
 export const isDmRoom = (room: string): boolean => room.startsWith("dm:");
@@ -233,3 +234,31 @@ export interface CookbookShare {
   expires_at: string | null;
   created_at: string;
 }
+
+/* ── Groups ────────────────────────────────────────────────────── */
+
+export interface Group {
+  id: string;
+  name: string;
+  description: string | null;
+  /** 0-359, so a group keeps the same colour everywhere. */
+  hue: number;
+  created_by: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface GroupMember {
+  id: string;
+  group_id: string;
+  user_id: string;
+  joined_at: string;
+}
+
+/** A group with the counts the list needs, so a row is one object. */
+export interface GroupSummary extends Group {
+  members: number;
+  joined: boolean;
+}
+
+export const isGroupRoom = (room: string): boolean => room.startsWith("group:");

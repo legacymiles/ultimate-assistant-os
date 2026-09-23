@@ -324,7 +324,11 @@ export function useRelativeTime(iso: string): string {
 }
 
 export function relativeTime(iso: string, now = Date.now()): string {
-  const diff = now - new Date(iso).getTime();
+  const at = new Date(iso).getTime();
+  // A row written by a backend that did not set the column would otherwise
+  // render the words "Invalid Date" straight into the page.
+  if (!Number.isFinite(at)) return "";
+  const diff = now - at;
   const mins = Math.round(diff / 60_000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;

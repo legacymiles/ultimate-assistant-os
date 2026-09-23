@@ -31,7 +31,8 @@ const NAV: NavItem[] = [
 function sectionFor(route: Route): string {
   switch (route.page) {
     case "explore":
-    case "profile": return "explore";
+    case "profile":
+    case "group": return "explore";
     case "cookbooks":
     case "cookbook":
     case "recipe":
