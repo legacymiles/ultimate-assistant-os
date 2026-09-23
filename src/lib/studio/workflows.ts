@@ -1193,15 +1193,29 @@ export const WORKFLOWS: Workflow[] = [
 
   // ----- Camera moves: signature techniques, made to mix with any workflow -------
   {
-    id: "dolly-zoom",
-    name: "Dolly zoom",
+    id: "hitchcock-dolly-zoom",
+    name: "Hitchcock dolly zoom",
     medium: "video",
     category: "camera",
     blurb: "The subject holds still while the world stretches",
     brief:
-      "A true dolly zoom: the camera travels along the lens axis while the zoom compensates the other way, so the subject keeps its size and the background expands or compresses. Baseline, effect, hold.",
+      "The compensated inverse move: the camera travels along the lens axis while the zoom works against it, so the subject keeps its size and the background perspective expands or compresses violently. Baseline, effect, hold.",
     format: "16:9 · 5–15 s",
     keywords: ["dread", "realisation", "isolation", "product reveal"],
+    motif: "loop",
+    hue: 215,
+    isNew: true,
+  },
+  {
+    id: "dolly-zoom",
+    name: "Push in / pull out",
+    medium: "video",
+    category: "camera",
+    blurb: "The camera simply moves closer, or away",
+    brief:
+      "A plain dolly on a fixed lens: the camera physically travels toward the subject or away from it, so perspective stays natural and a foreground element proves the travel. No zoom at any point. Hold, move, land.",
+    format: "16:9 · 4–15 s",
+    keywords: ["arrival", "realisation", "reveal", "solitude"],
     motif: "loop",
     hue: 200,
     isNew: true,
