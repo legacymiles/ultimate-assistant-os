@@ -288,6 +288,28 @@ export const PROJECTS: CatalogProject[] = [
     hue: [268, 320],
   },
   {
+    slug: "mp3-download",
+    title: "MP3 Download",
+    tag: "Find the song, prove it, take it",
+    category: "Music",
+    overview:
+      "Search a song, confirm it is the right recording, then download a file of it. The middle "
+      + "step is the whole app: every other downloader is a URL box and a button, which is how you "
+      + "end up with a cover, a sped-up edit or a lyric video with a nine-second intro. Here the "
+      + "catalogue names the recording first — album, year, length and thirty seconds of the actual "
+      + "audio — and only then are the sources searched, with every candidate scored against what "
+      + "you confirmed rather than against the words you typed. Files come from the Internet "
+      + "Archive, the Creative Commons catalogues that Openverse indexes (Jamendo, Freesound, "
+      + "ccMixter, Wikimedia), and YouTube through yt-dlp when that binary is on the machine. Rows "
+      + "are grouped by what you are actually allowed to do with them, because the licence is the "
+      + "one fact you cannot hear by pressing play, and the library keeps that provenance "
+      + "permanently along with the credit lines a Creative Commons track obliges.",
+    status: "live",
+    appUrl: "/apps/mp3-download",
+    iconStyle: "waves",
+    hue: [268, 190],
+  },
+  {
     slug: "music-classified",
     title: "Music Classified",
     tag: "Your favourite songs, filed by how they hit",

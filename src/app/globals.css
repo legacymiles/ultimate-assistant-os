@@ -2120,3 +2120,109 @@ video.dance-tile__player { object-fit: cover; }
 /* The deck is one row that scrolls sideways; the scrollbar is furniture here. */
 .cin-deck { scrollbar-width: none; }
 .cin-deck::-webkit-scrollbar { display: none; }
+
+/* ------------------------------------------------------------------ */
+/*  MP3 Download — the browser surfaces this app does not draw itself  */
+/* ------------------------------------------------------------------ */
+
+/* Selection, caret and focus are part of the page. Left at the browser's
+   defaults they belong to no design system, and on a dark surface the stock
+   selection blue is the one thing that looks borrowed. */
+.mp3dl ::selection {
+  background: color-mix(in oklab, var(--color-brand) 38%, transparent);
+  color: var(--color-ink);
+}
+.mp3dl input,
+.mp3dl textarea {
+  caret-color: var(--color-brand);
+}
+
+/* The scrubber. Native range inputs are unstyleable except part by part, and
+   a default one under a piece of album art reads as an unfinished page. */
+.mp3dl-scrub {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 16px;
+  background: transparent;
+  cursor: pointer;
+}
+.mp3dl-scrub::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--color-brand) 0 var(--played, 0%),
+    var(--color-line) var(--played, 0%) 100%
+  );
+}
+.mp3dl-scrub::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--color-brand) 0 var(--played, 0%),
+    var(--color-line) var(--played, 0%) 100%
+  );
+}
+.mp3dl-scrub::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  margin-top: -4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--color-ink);
+  box-shadow: 0 2px 6px -1px rgb(0 0 0 / 0.65);
+  transition: transform 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mp3dl-scrub:hover::-webkit-slider-thumb,
+.mp3dl-scrub:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.25);
+}
+.mp3dl-scrub::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-ink);
+  box-shadow: 0 2px 6px -1px rgb(0 0 0 / 0.65);
+}
+.mp3dl-scrub:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--color-brand) 70%, transparent);
+  outline-offset: 4px;
+  border-radius: 999px;
+}
+
+/* The one authored moment: confirming a song locks it in. The dossier arrives
+   out of focus and settles, which is what "this is now decided" looks like.
+   Every frame is legible — it never animates from invisible. */
+@keyframes mp3dl-lock {
+  from {
+    transform: translateY(-8px) scale(0.985);
+    filter: blur(7px);
+    opacity: 0.55;
+  }
+  to {
+    transform: none;
+    filter: blur(0);
+    opacity: 1;
+  }
+}
+.mp3dl-locked {
+  animation: mp3dl-lock 460ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* The spine between the three stages fills as they complete. */
+.mp3dl-spine {
+  transition: width 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mp3dl-locked {
+    animation: none;
+  }
+  .mp3dl-spine {
+    transition: none;
+  }
+}

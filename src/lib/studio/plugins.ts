@@ -10,7 +10,7 @@
 import { PROJECTS, type CatalogProject } from "@/lib/catalog";
 
 /** The slugs allowed in, in the order they should appear. */
-export const PLUGIN_SLUGS = ["gods-eye-view", "cook-connect", "cookbook-genie"] as const;
+export const PLUGIN_SLUGS = ["mp3-download", "gods-eye-view", "cook-connect", "cookbook-genie"] as const;
 
 export interface StudioPlugin {
   slug: string;
@@ -32,6 +32,10 @@ function firstSentence(text: string): string {
 }
 
 const WHY: Record<string, string> = {
+  "mp3-download":
+    "The soundtrack half of Studio. Confirm the exact recording a workflow is cut to, then pull a "
+    + "file of it with its licence recorded — so a finished piece never ships on audio nobody can "
+    + "account for.",
   "gods-eye-view":
     "Real satellite, aircraft and camera feeds to shoot from, or to grab a location plate no stock library has.",
   "cook-connect":
