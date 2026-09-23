@@ -9,11 +9,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  downloadLink,
+  grabAnywhere,
   probeLink,
+  type BridgeInfo,
   type GrabMode,
   type LinkProbe,
   type Saved,
+  type YtdlpStatus,
 } from "@/lib/mp3-download/client";
 import { formatBytes, formatDuration } from "@/lib/mp3-download/match";
 import { cn } from "@/lib/utils";
@@ -23,15 +25,17 @@ import { LicenceChip } from "./bits";
 const LOOKS_LIKE_URL = /^https?:\/\/\S+$/i;
 
 export function LinkGrab({
-  engineReady,
-  engineMessage,
+  engine,
+  bridge,
   sites,
   initialUrl,
   onGrabbed,
   onNote,
 }: {
-  engineReady: boolean;
-  engineMessage: string;
+  /** This hub's own yt-dlp, when it has one. */
+  engine: (YtdlpStatus & { sites?: string[] }) | null;
+  /** The owner's PC, which stands in for it on the deployed site. */
+  bridge: BridgeInfo | null;
   sites: string[];
   /** A URL pasted into the search box on the other tab, handed over. */
   initialUrl: string;
@@ -43,7 +47,13 @@ export function LinkGrab({
   const [reading, setReading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<GrabMode | null>(null);
+  const [stage, setStage] = useState<string | null>(null);
   const [got, setGot] = useState<GrabMode[]>([]);
+
+  // Reading a link needs yt-dlp too, so the field is usable whenever EITHER
+  // this server has it or the PC does.
+  const viaPc = !engine?.ok && Boolean(bridge?.hasToken);
+  const usable = Boolean(engine?.ok) || viaPc;
   const field = useRef<HTMLInputElement>(null);
   const seq = useRef(0);
 
@@ -84,15 +94,31 @@ export function LinkGrab({
     if (!probe) return;
     setBusy(mode);
     setError(null);
+    setStage(null);
     try {
-      const saved = await downloadLink(probe, mode);
+      const saved = await grabAnywhere(
+        { url: probe.pageUrl, mode, title: probe.title, creator: probe.creator },
+        engine,
+        bridge,
+        (state) =>
+          setStage(
+            state === "queued"
+              ? bridge?.online
+                ? "Sent to your PC."
+                : "Queued — your PC is not listening yet, this starts when it is."
+              : state === "running"
+                ? "Your PC is fetching it."
+                : null,
+          ),
+      );
       setGot((prev) => [...prev, mode]);
       onGrabbed(probe, saved, mode);
       onNote("Saved " + saved.filename);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "yt-dlp could not fetch that one.");
+      setError(err instanceof Error ? err.message : "That could not be fetched.");
     } finally {
       setBusy(null);
+      setStage(null);
     }
   };
 
@@ -136,14 +162,14 @@ export function LinkGrab({
             spellCheck={false}
             placeholder="https://www.youtube.com/watch?v=…"
             aria-label="Paste a video or audio link"
-            disabled={!engineReady}
+            disabled={!usable}
             className="w-full rounded-xl border border-line bg-panel py-3 pl-9 pr-3 text-[13.5px] text-ink shadow-[0_10px_30px_-22px_rgb(0_0_0_/_1)] transition placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:opacity-50"
           />
         </div>
         <button
           type="button"
           onClick={() => void read(url)}
-          disabled={!engineReady || reading || !url.trim()}
+          disabled={!usable || reading || !url.trim()}
           className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-line bg-panel-2 px-4 py-3 text-[13px] font-semibold text-ink transition hover:border-brand/50 hover:bg-brand/10 disabled:opacity-40 disabled:hover:border-line disabled:hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/70 sm:py-0"
         >
           {reading ? (
@@ -157,12 +183,19 @@ export function LinkGrab({
         </button>
       </div>
 
-      {!engineReady ? (
+      {!usable ? (
         <p className="mt-3 rounded-lg border border-amber-400/30 bg-amber-400/[0.07] px-3 py-2.5 text-[12.5px] leading-relaxed text-amber-200">
-          {engineMessage}
+          {engine?.message ?? "yt-dlp is not available here."} Or set it up once on your own machine
+          in the <span className="font-semibold">Your PC</span> tab, and this page will hand it the
+          work.
         </p>
       ) : (
         <p className="mt-2 text-[11.5px] leading-relaxed text-ink-muted">
+          {viaPc && (
+            <span className="text-ink">
+              Fetched by your PC{bridge?.online ? "" : " — which is not listening right now"}.{" "}
+            </span>
+          )}
           {sites.slice(0, 10).join(" · ")}
           {sites.length > 10 ? " and a few more." : "."} One video per link — a playlist or a
           channel is turned away.
@@ -234,6 +267,13 @@ export function LinkGrab({
                 <LicenceChip licence={probe.licence} />
               </div>
 
+              {probe.partial && (
+                <p className="mt-3 text-[11.5px] leading-snug text-ink-muted">
+                  Read from {probe.siteLabel} itself, because this server has no yt-dlp — so the
+                  length and the stated licence are unknown until your PC fetches it.
+                </p>
+              )}
+
               {probe.isLive && (
                 <p className="mt-3 text-[12px] leading-snug text-amber-300">
                   This is a live stream. It has no end, so a download will run until the timeout.
@@ -272,8 +312,11 @@ export function LinkGrab({
 
               {busy && (
                 <p className="mt-2.5 text-[11.5px] leading-snug text-ink-muted">
-                  Downloading and converting on this machine. A long video takes a minute or two,
-                  and the file saves itself when it is done.
+                  {stage ??
+                    (viaPc
+                      ? "Handing it to your PC…"
+                      : "Downloading and converting on this machine.")}{" "}
+                  A long video takes a minute or two, and the file saves itself when it is done.
                 </p>
               )}
             </div>

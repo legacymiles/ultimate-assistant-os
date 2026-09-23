@@ -15,11 +15,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   downloadCandidate,
-  downloadViaYtdlp,
+  fetchBridgeInfo,
   fetchYtdlpStatus,
   fileUrlFor,
+  grabAnywhere,
   huntSources,
   searchSongs,
+  type BridgeInfo,
   type GrabMode,
   type HuntResult,
   type LinkProbe,
@@ -45,13 +47,14 @@ import { LinkGrab } from "./LinkGrab";
 import { ResultsTable } from "./ResultsTable";
 import { SourceTable } from "./SourceTable";
 import { usePlayer } from "./usePlayer";
+import { YourPc } from "./YourPc";
 
 const EXAMPLES = ["Moonlight Sonata", "Take Five Brubeck", "Rhapsody in Blue"];
 
 /** A pasted address, as opposed to the name of a song. */
 const LOOKS_LIKE_URL = /^https?:\/\/\S+$/i;
 
-type Tab = "find" | "link" | "library";
+type Tab = "find" | "link" | "pc" | "library";
 
 export function Mp3Download() {
   const [tab, setTab] = useState<Tab>("find");
@@ -75,6 +78,7 @@ export function Mp3Download() {
 
   const [grabs, setGrabs] = useState<Grab[]>([]);
   const [engine, setEngine] = useState<(YtdlpStatus & { sites?: string[] }) | null>(null);
+  const [bridge, setBridge] = useState<BridgeInfo | null>(null);
   /** A link the owner pasted into the search box, on its way to the paste tab. */
   const [handover, setHandover] = useState("");
   const player = usePlayer();
@@ -93,6 +97,18 @@ export function Mp3Download() {
       .then(setEngine)
       .catch(() => void fetchYtdlpStatus().then(setEngine).catch(() => undefined));
   }, []);
+
+  const readBridge = useCallback(() => {
+    void fetchBridgeInfo().then(setBridge).catch(() => undefined);
+  }, []);
+  useEffect(readBridge, [readBridge]);
+
+  /** Where a YouTube grab will actually happen, in one word for the UI. */
+  const grabHost: "here" | "pc" | "nowhere" = engine?.ok
+    ? "here"
+    : bridge?.hasToken
+      ? "pc"
+      : "nowhere";
 
   const stage = confirmed ? 3 : picked ? 2 : 1;
 
@@ -213,7 +229,27 @@ export function Mp3Download() {
     try {
       const saved =
         candidate.provider === "youtube"
-          ? await downloadViaYtdlp(confirmed, candidate.fileUrl)
+          ? await grabAnywhere(
+              {
+                url: candidate.fileUrl,
+                mode: "audio",
+                title: confirmed.title,
+                creator: confirmed.artist,
+                track: confirmed,
+              },
+              engine,
+              bridge,
+              (state) =>
+                setNote(
+                  state === "queued"
+                    ? bridge?.online
+                      ? "Sent to your PC…"
+                      : "Queued — waiting for your PC to wake up."
+                    : state === "running"
+                      ? "Your PC is fetching it…"
+                      : "",
+                ),
+            )
           : await downloadCandidate(confirmed, candidate);
       remember(saved.filename, saved.bytes);
     } catch (err) {
@@ -280,13 +316,15 @@ export function Mp3Download() {
 
       {tab === "link" ? (
         <LinkGrab
-          engineReady={engine?.ok ?? true}
-          engineMessage={engine?.message ?? ""}
+          engine={engine}
+          bridge={bridge}
           sites={engine?.sites ?? []}
           initialUrl={handover}
           onGrabbed={rememberLink}
           onNote={setNote}
         />
+      ) : tab === "pc" ? (
+        <YourPc engineOk={engine?.ok ?? false} onNote={setNote} onChanged={readBridge} />
       ) : tab === "library" ? (
         <Library
           grabs={grabs}
@@ -463,6 +501,7 @@ function TopBar({
           [
             { id: "find", label: "Find a song", icon: <Icon.Search width={12} height={12} /> },
             { id: "link", label: "Paste a link", icon: <Icon.Link width={12} height={12} /> },
+            { id: "pc", label: "Your PC", icon: <Icon.Server width={12} height={12} /> },
             {
               id: "library",
               label: "Library",

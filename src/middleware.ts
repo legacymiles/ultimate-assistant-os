@@ -47,6 +47,9 @@ const TOKEN_AUTH_PATHS = new Set([
   "/api/video-studio/runner/progress",
   "/api/video-studio/runner/clip",
   "/api/video-studio/runner/fail",
+  "/api/mp3-download/runner/claim",
+  "/api/mp3-download/runner/result",
+  "/api/mp3-download/runner/fail",
 ]);
 
 /** Stamp (or clear) the account id the browser is allowed to render as. */

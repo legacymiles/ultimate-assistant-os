@@ -105,6 +105,8 @@ export interface LinkProbe {
   licence: Licence;
   isLive: boolean;
   approxBytes: number | null;
+  /** Read from the host's oEmbed, not yt-dlp: no duration, no stated licence. */
+  partial?: boolean;
 }
 
 export type GrabMode = "audio" | "video";
@@ -197,4 +199,121 @@ export function downloadViaYtdlp(track: Track, url: string): Promise<Saved> {
 /** The paste-box path: the site's own title names the file. */
 export function downloadLink(probe: LinkProbe, mode: GrabMode): Promise<Saved> {
   return grab({ url: probe.pageUrl, title: probe.title, creator: probe.creator, mode });
+}
+
+// --- the PC bridge -----------------------------------------------------------
+//
+// On the deployed site yt-dlp does not exist, so a YouTube grab is handed to
+// the runner on the owner's PC instead. The page does not need to know which
+// world it is in: `grabAnywhere` uses the local engine when there is one and
+// the bridge when there is not.
+
+export interface BridgeInfo {
+  hasToken: boolean;
+  lastSeen: string | null;
+  online: boolean;
+  pending: number;
+}
+
+export async function fetchBridgeInfo(): Promise<BridgeInfo> {
+  const res = await fetch("/api/mp3-download/bridge");
+  if (!res.ok) throw new Error("Could not read the bridge status.");
+  return (await res.json()) as BridgeInfo;
+}
+
+export async function mintRunnerToken(): Promise<string> {
+  const res = await fetch("/api/mp3-download/bridge", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ op: "mint" }),
+  });
+  const data = (await res.json()) as { token?: string; error?: string };
+  if (!res.ok || !data.token) throw new Error(data.error ?? "Could not make a token.");
+  return data.token;
+}
+
+interface JobStatus {
+  state: "queued" | "running" | "done" | "failed";
+  filename: string;
+  bytes: number | null;
+  error: string | null;
+  href: string | null;
+}
+
+/**
+ * Queue a grab on the PC and wait for the file.
+ *
+ * Polling rather than a socket: the whole job usually takes under a minute and
+ * a poll survives a phone locking, a tab sleeping and a serverless function
+ * that cannot hold a connection open anyway. `onProgress` exists so the page
+ * can say "waiting for your PC" instead of spinning silently.
+ */
+export async function grabViaBridge(
+  input: { url: string; mode: GrabMode; title: string; creator: string },
+  onProgress?: (state: JobStatus["state"], online: boolean) => void,
+): Promise<Saved> {
+  const queued = await fetch("/api/mp3-download/bridge", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ op: "queue", ...input }),
+  });
+  const start = (await queued.json()) as { jobId?: string; online?: boolean; error?: string };
+  if (!queued.ok || !start.jobId) throw new Error(start.error ?? "Could not reach your PC.");
+
+  onProgress?.("queued", Boolean(start.online));
+
+  const deadline = Date.now() + 10 * 60_000;
+  let seen: JobStatus["state"] = "queued";
+
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 2_000));
+
+    const res = await fetch(`/api/mp3-download/bridge?job=${encodeURIComponent(start.jobId)}`);
+    if (!res.ok) throw new Error("That job disappeared.");
+    const job = (await res.json()) as JobStatus;
+
+    if (job.state !== seen) {
+      seen = job.state;
+      onProgress?.(job.state, true);
+    }
+
+    if (job.state === "failed") throw new Error(job.error ?? "Your PC could not fetch it.");
+    if (job.state === "done" && job.href) {
+      saveToDisk(job.href, job.filename);
+      return { filename: job.filename, bytes: job.bytes };
+    }
+  }
+
+  throw new Error("Your PC did not finish in ten minutes. Is the runner still running?");
+}
+
+/**
+ * Grab a URL whichever way this hub can.
+ *
+ * Local engine first — it is faster and needs nothing running. Otherwise the
+ * bridge. The error when neither is available names both ways out rather than
+ * leaving the owner to guess.
+ */
+export async function grabAnywhere(
+  input: { url: string; mode: GrabMode; title: string; creator: string; track?: Track },
+  engine: { ok: boolean; message: string } | null,
+  bridge: BridgeInfo | null,
+  onProgress?: (state: JobStatus["state"], online: boolean) => void,
+): Promise<Saved> {
+  if (engine?.ok) {
+    return grab({
+      url: input.url,
+      track: input.track,
+      title: input.title,
+      creator: input.creator,
+      mode: input.mode,
+    });
+  }
+  if (bridge?.hasToken) {
+    return grabViaBridge(input, onProgress);
+  }
+  throw new Error(
+    (engine?.message ?? "yt-dlp is not available on this server.") +
+      " Or set up the PC bridge in the “Your PC” tab and it will fetch this for you.",
+  );
 }
