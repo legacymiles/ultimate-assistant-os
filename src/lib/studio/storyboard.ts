@@ -43,6 +43,33 @@ export interface CastMember {
   look: string;
   /** The upload that shows them, as a conversation Subject number. */
   subject: number | null;
+  /**
+   * The shot a character stops looking like `look` and starts looking like
+   * `turnsInto` — 1-based, so `2` means "from Cut 2 onward".
+   *
+   * Without this the cast is a set of constants, and a film whose whole premise
+   * is that someone CHANGES has nowhere to put the change: the look is repeated
+   * verbatim into every shot precisely so it cannot drift, which silently makes
+   * a transformation impossible to express. A horror film is mostly this field.
+   */
+  turnsAt: number | null;
+  /** What they become at `turnsAt`, written like `look`: a whole appearance. */
+  turnsInto: string;
+}
+
+/**
+ * One timed beat inside a shot.
+ *
+ * A shot described as a paragraph gives H3 no clock, and it fills the seconds
+ * it was given with whatever it likes — which is how six and a half seconds
+ * became a family standing still. A beat list is a clock: something is due at
+ * 0 s, something else at 2 s, and the shot has to keep moving to meet them.
+ */
+export interface Beat {
+  /** Seconds from the start of THIS shot. */
+  at: number;
+  /** What happens at that second. One clause, present tense. */
+  text: string;
 }
 
 export interface Shot {
@@ -55,10 +82,29 @@ export interface Shot {
   aperture: string;
   /** "slow push-in", "handheld track", "static". Free text: the deck is wide. */
   move: string;
+  /**
+   * What the camera physically DOES — the geometry behind the name in `move`.
+   *
+   * `move` is a label, and a label is all a video model gets told unless the
+   * mechanics travel with it: "dolly zoom" renders as a zoom, because a zoom is
+   * what the words mean on their own. The skills that own these moves already
+   * write the mechanics down — travel distance, the focal length at each end,
+   * what stays locked — and this is the field that carries them to the render
+   * instead of dropping them on the floor.
+   */
+  cameraNote: string;
   /** "medium", "close-up", "wide". */
   framing: string;
+  /**
+   * Where this shot is. Same string as the shot before = the same room, and
+   * the prompt says so; a different string is a real scene change, declared on
+   * the sheet rather than discovered in the finished cut.
+   */
+  location: string;
   /** What physically happens across these seconds. */
   action: string;
+  /** The clock inside the shot. Empty is allowed; a long shot without one isn't. */
+  beats: Beat[];
   /** "NAME: line", or empty. */
   dialogue: string;
   link: ShotLink;
@@ -70,6 +116,20 @@ export interface Shot {
   references: number[];
   /** Set once the owner hand-edits the woven prompt; then it wins outright. */
   prompt?: string;
+  /**
+   * The drawn board for this cut — a thumbnail, not the full render.
+   *
+   * A film costs an hour of this PC's GPU and cannot be skimmed until it is
+   * finished, which makes every fault a whole hour late. A drawn panel costs
+   * seconds and shows the fault now: the wrong room, the wrong light, a cut
+   * that plainly does not follow the one above it.
+   *
+   * Kept small on purpose. The board is saved into the synced conversation, so
+   * a full-size generation here would push megabytes per film across devices —
+   * the same reason chat attachments sync as thumbnails and keep the full copy
+   * in the session only.
+   */
+  panel?: string;
 }
 
 export interface Storyboard {
@@ -79,6 +139,17 @@ export interface Storyboard {
   world: string;
   /** "live action, anamorphic, sunlit". */
   look: string;
+  /**
+   * The genre doctrine — how this film is shot, framed and paced, in one
+   * paragraph, straight off the camera deck's Genre rail.
+   *
+   * It is separate from `look` (what the world is made of), `lighting` (where
+   * the light is) and `grade` (what colour it is) because it governs all three
+   * plus the framing and the cutting. A film whose genre never reaches the
+   * board is graded by whatever the location suggests, which is how a horror
+   * film came out looking like a life-insurance advert.
+   */
+  mood: string;
   aspectRatio: AspectRatio;
   /** "ANAMORPHIC PRIME SET" — the same glass all the way through. */
   lens: string;
@@ -115,6 +186,27 @@ export const MAX_SHOTS = 24;
 /** The conversation numbers uploads 1…24; a reference outside that is a typo. */
 export const MAX_SUBJECT = 24;
 
+/** At most this many beats in one shot: a beat every ~1.5 s at H3's longest. */
+export const MAX_BEATS = 10;
+
+/**
+ * The model's beat list, ordered and made safe.
+ *
+ * Kept in time order whatever order it arrived in, because the list is read as
+ * a timeline: a beat out of sequence tells the render to go backwards.
+ */
+function beatList(v: unknown): Beat[] {
+  if (!Array.isArray(v)) return [];
+  const out: Beat[] = [];
+  for (const b of v.slice(0, MAX_BEATS * 2)) {
+    const r = (b ?? {}) as Record<string, unknown>;
+    const text = str(r.text ?? r.action ?? r.beat, 300);
+    if (!text) continue;
+    out.push({ at: num(r.at ?? r.t ?? r.second, 0, MAX_SHOT_SEC, 0), text });
+  }
+  return out.sort((a, b) => a.at - b.at).slice(0, MAX_BEATS);
+}
+
 function subjectNumbers(v: unknown, max: number): number[] {
   if (!Array.isArray(v)) return [];
   const seen = v.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= MAX_SUBJECT);
@@ -133,11 +225,18 @@ export function cleanStoryboard(raw: unknown): Storyboard | null {
     const r = (c ?? {}) as Record<string, unknown>;
     const name = str(r.name, 60);
     if (!name) continue;
+    const turnsInto = str(r.turns_into ?? r.turnsInto, 1000);
+    const turnsAt = num(r.turns_at ?? r.turnsAt, 1, MAX_SHOTS, 0);
     cast.push({
       id: str(r.id, 40).replace(/[^a-zA-Z0-9_-]/g, "") || `cast-${cast.length + 1}`,
       name,
       look: str(r.look ?? r.description, 1000),
       subject: subjectNumbers([r.subject], 1)[0] ?? null,
+      // A turn needs both halves. A shot number with nothing to turn into is a
+      // character who changes into their own description; a new look with no
+      // shot number never arrives. Either alone is dropped.
+      turnsAt: turnsInto && turnsAt >= 1 ? Math.round(turnsAt) : null,
+      turnsInto: turnsAt >= 1 ? turnsInto : "",
     });
   }
 
@@ -155,14 +254,20 @@ export function cleanStoryboard(raw: unknown): Storyboard | null {
       lensMm: num(r.lens_mm ?? r.lensMm, 8, 300, 35),
       aperture: str(r.aperture, 20) || "f/2.8",
       move: str(r.move, 80) || "static",
+      cameraNote: str(r.camera_note ?? r.cameraNote ?? r.camera, 900),
       framing: str(r.framing, 60) || "medium",
+      location: str(r.location, 160),
       action,
+      beats: beatList(r.beats),
       dialogue: str(r.dialogue, 600),
       link: linkOf(r.link, shots.length),
       carry: str(r.carry, 600),
       endsOn: str(r.ends_on ?? r.endsOn, 400),
       references: subjectNumbers(r.references, 6),
       ...(str(r.prompt, 6000) ? { prompt: str(r.prompt, 6000) } : {}),
+      // Only ever set by this browser, never by the model — but a board can be
+      // re-read after it was saved, and a drawn panel should survive that.
+      ...(typeof r.panel === "string" && r.panel.startsWith("data:image/") ? { panel: r.panel } : {}),
     });
   }
   if (!shots.length) return null;
@@ -174,6 +279,7 @@ export function cleanStoryboard(raw: unknown): Storyboard | null {
     logline: str(o.logline, 400),
     world: str(o.world, 800),
     look: str(o.look, 300) || "live action, cinematic, photorealistic",
+    mood: str(o.mood ?? o.genre, 900),
     aspectRatio: (ASPECTS as string[]).includes(str(o.aspect_ratio ?? o.aspectRatio, 10))
       ? (str(o.aspect_ratio ?? o.aspectRatio, 10) as AspectRatio)
       : "16:9",
@@ -246,6 +352,9 @@ const clause = (label: string, text: string): string => (text ? `${label} ${text
 /** The film's fixed facts, written the same way into every single shot. */
 function bible(board: Storyboard): string {
   return (
+    // The genre leads, because it governs the three lines under it: a grade
+    // described without it gets rendered as whatever the location suggests.
+    clause("The genre and how it is shot:", board.mood) +
     clause("The world of the film:", board.world) +
     clause("Wardrobe, unchanged for the whole film:", board.wardrobe) +
     clause("Lighting, unchanged:", board.lighting) +
@@ -255,9 +364,66 @@ function bible(board: Storyboard): string {
   );
 }
 
-/** Camera, in the one sentence H3 reads best. */
+/**
+ * How a character looks in shot `index` — their original look, or what they
+ * turned into, if the turn has already happened by then.
+ */
+export function lookAt(member: CastMember, index: number): string {
+  const turned = member.turnsAt !== null && index + 1 >= member.turnsAt;
+  return turned ? member.turnsInto || member.look : member.look;
+}
+
+/** Everyone whose transformation lands in exactly this shot. */
+function turningHere(board: Storyboard, index: number): CastMember[] {
+  return board.cast.filter((c) => c.turnsAt !== null && c.turnsAt === index + 1);
+}
+
+/**
+ * The turn, said out loud in the shot it happens in.
+ *
+ * On every later shot the new look is simply stated as fact by `lookAt`, which
+ * is what keeps it stable. But the shot where it CHANGES has to describe the
+ * change as an event, or the render opens on the new look and the audience
+ * never sees anyone become anything.
+ */
+function transformation(board: Storyboard, index: number): string {
+  const turning = turningHere(board, index);
+  if (!turning.length) return "";
+  return (
+    turning
+      .map(
+        (c) =>
+          `IN THIS SHOT ${c.name} CHANGES, on camera, from ${c.look.replace(/\.\s*$/, "") || "how they looked before"} `
+          + `into: ${c.turnsInto.replace(/\.\s*$/, "")}. The change is visible as it happens and is complete before `
+          + "the shot ends; it is the same body and the same clothes throughout, so the person stays recognisable.",
+      )
+      .join(" ") + " "
+  );
+}
+
+/**
+ * Camera, in the one sentence H3 reads best — plus the geometry, when the shot
+ * carries any.
+ *
+ * The note goes AFTER the summary and before the action, in its own sentences,
+ * because that is where a mechanical instruction survives: buried in the prose
+ * it reads as description, and a video model renders description as vibe.
+ */
 function cameraLine(shot: Shot): string {
-  return `The camera is a ${shot.lensMm}mm ${shot.aperture} ${shot.framing}, ${shot.move}, with no cuts.`;
+  const head = `The camera is a ${shot.lensMm}mm ${shot.aperture} ${shot.framing}, ${shot.move}, with no cuts.`;
+  if (!shot.cameraNote) return head;
+  return `${head} The camera move, exactly: ${shot.cameraNote.replace(/\.\s*$/, "")}.`;
+}
+
+/** The clock inside the shot, as the timeline H3 reads better than prose. */
+function beatLine(shot: Shot): string {
+  if (!shot.beats.length) return "";
+  const rows = shot.beats.map((b, i) => {
+    const end = shot.beats[i + 1]?.at ?? shot.durationSec;
+    const span = end > b.at ? `${b.at.toFixed(1)}–${end.toFixed(1)}s` : `${b.at.toFixed(1)}s`;
+    return `${span}: ${b.text.replace(/\.\s*$/, "")}`;
+  });
+  return `The shot runs to this clock, and something is happening at every moment of it — ${rows.join("; ")}. `;
 }
 
 /** What binds this shot to the one before it — the whole point of the file. */
@@ -274,12 +440,48 @@ function continuity(board: Storyboard, index: number): string {
     ? `The previous shot ended on: ${prev.endsOn.replace(/\.\s*$/, "")}. `
     : `The previous shot was: ${prev.action.replace(/\.\s*$/, "")}. `;
   const carried = shot.carry ? `These carry over exactly: ${shot.carry.replace(/\.\s*$/, "")}. ` : "";
-  return shot.link === "continuous"
-    ? `${from}This shot CONTINUES that take with no cut: it opens on exactly that frame and carries the motion `
-      + `straight on — same position, same light, same weather, same moment in time. Do not restart the action, do not `
-      + `change location, do not cut away. ${carried}`
-    : `${from}This shot is a MATCHED CUT: a new camera angle on the same scene moments later. The same people in the `
-      + `same wardrobe, the same location, the same light and the same grade — only the camera has moved. ${carried}`;
+  // A move to a new room is a fact about the film, so it is stated as one.
+  // Left implicit, a video model treats "the same scene" as a suggestion and
+  // the location drifts on any cut whose action mentions somewhere else.
+  const moved = Boolean(shot.location && prev.location && shot.location !== prev.location);
+  const here = shot.location.replace(/\.\s*$/, "");
+
+  if (shot.link === "continuous") {
+    // A take that moves is not a contradiction — it is a chase. The camera
+    // follows someone out of one room and into the next without cutting, which
+    // is precisely the shape this pipeline exists to render. What it may not
+    // do is jump: the new place has to be somewhere you can physically get to
+    // from the old one, and the move has to happen ON SCREEN.
+    const place = !shot.location
+      ? ""
+      : moved
+        ? `The take TRAVELS: it opens in ${prev.location.replace(/\.\s*$/, "")} and moves through into ${here} `
+          + "within this same unbroken shot, the camera following. The two places are physically connected and the "
+          + "journey between them is visible — no jump, no dissolve, no change of time of day or weather. "
+        : `The location is unchanged: ${here}. `;
+    return (
+      `${from}This shot CONTINUES that take with no cut: it opens on exactly that frame and carries the motion `
+      + "straight on — same position, same light, same moment in time. Do not restart the action and do not cut away. "
+      + (moved ? "" : "Do not change location. ")
+      + `${place}${carried}`
+    );
+  }
+
+  const place = !shot.location
+    ? ""
+    : moved
+      ? `This shot MOVES to a new place: ${here}. It is the same film minutes later — the same people, wardrobe, `
+        + "light and grade travel with them. "
+      : `The location is unchanged: ${here}. `;
+  return (
+    `${from}This shot is a MATCHED CUT: a new camera angle on the same action, moments later. The same people in the `
+    + "same wardrobe, the same light and the same grade — only the camera has moved. "
+    + (moved
+      ? ""
+      : "Do not change room, building, time of day or weather, and do not re-stage the scene: this is the same "
+        + "continuous piece of time seen from somewhere else. ")
+    + `${place}${carried}`
+  );
 }
 
 /** The sentence a shot ends on, so the next one has somewhere to start. */
@@ -325,8 +527,10 @@ export function shotPrompt(board: Storyboard, index: number, opts: AttachedRefs 
   const body =
     `[Shot 1] ${bible(board)}${continuity(board, index)}`
     + `${shot.action.replace(/\.\s*$/, "")}. `
+    + `${transformation(board, index)}${beatLine(shot)}`
     + `${cameraLine(shot)} ${spoken(shot)}${ending(shot)}`
-    + `Motion is slow, natural and physically coherent; identity, proportions and wardrobe stay stable throughout. `
+    + `Motion is natural and physically coherent, with real weight and momentum; identity, proportions and wardrobe `
+    + `stay stable throughout. `
     + NO_ARTEFACTS;
 
   const tail = [
@@ -351,14 +555,30 @@ export function shotPrompt(board: Storyboard, index: number, opts: AttachedRefs 
     const who = board.cast.find((c) => c.name === name) ?? cast[i];
     const label = `<Subject ${i + 1}>`;
     const picture = `<Picture ${i + 1}>`;
+    // The photo shows who they were. By this shot they may be someone else —
+    // so the definition describes the look this shot needs, and says that the
+    // picture is there for the bone structure rather than the surface.
+    const now = who ? lookAt(who, index) : "";
+    const changed = Boolean(who && now !== who.look);
     return who
-      ? `${label} is ${who.name}, the person in ${picture}${who.look ? ` — ${who.look.replace(/\.\s*$/, "")}` : ""}, `
-        + "preserving their exact identity: face, skin tone, hair, build, distinguishing marks and accessories."
+      ? `${label} is ${who.name}, the person in ${picture}${now ? ` — ${now.replace(/\.\s*$/, "")}` : ""}, `
+        + (changed
+          ? "keeping the face, bone structure, build and proportions of the photograph exactly, while the condition "
+            + "described above is what is actually on screen in this shot."
+          : "preserving their exact identity: face, skin tone, hair, build, distinguishing marks and accessories.")
       : `${label} is ${name ? `${name}, ` : ""}the subject in ${picture}, preserving their exact identity, features, `
         + "proportions and details.";
   });
   const retention = labels.map((name, i) => {
     const who = board.cast.find((c) => c.name === name) ?? cast[i];
+    const changed = Boolean(who && lookAt(who, index) !== who.look);
+    if (changed && who) {
+      return (
+        `<Subject ${i + 1}> (${who.name}) (appears in [Shot 1]): partially_preserved - the face, bone structure, `
+        + "build and proportions of the photograph are unchanged and must stay recognisable; the skin, eyes, hair "
+        + "and bearing are as described in this shot, not as in the photograph."
+      );
+    }
     return (
       `<Subject ${i + 1}>${who ? ` (${who.name})` : ""} (appears in [Shot 1]): fully_preserved - identity, face, hair `
       + `and proportions are unchanged, and the wardrobe stays exactly as described; only the camera angle, the light `
@@ -378,6 +598,46 @@ export function shotPrompt(board: Storyboard, index: number, opts: AttachedRefs 
     `The target video is a ${secs}-second ${board.look} single take. ${body}`,
     ...tail,
   ].join("\n");
+}
+
+/**
+ * What to draw for one cut's panel.
+ *
+ * Deliberately not the render prompt. That one is written for a video model
+ * over several seconds and spends most of its length on continuity clauses a
+ * still cannot show. This asks for one frame, at the moment the cut is really
+ * about, in the film's own light and grade — so a row of them reads as the
+ * film and a break in it is visible at a glance.
+ */
+export function panelPrompt(board: Storyboard, index: number): string {
+  const shot = board.shots[index];
+  if (!shot) return "";
+  // The panel shows the shot at work, so it is drawn on the beat that carries
+  // it — the middle one, where the action has started and is not yet over.
+  const beat = shot.beats.length ? shot.beats[Math.floor(shot.beats.length / 2)].text : "";
+  const who = board.cast
+    .filter((c) => shot.references.includes(c.subject ?? -1))
+    .map((c) => `${c.name} (${lookAt(c, index).replace(/\.\s*$/, "")})`)
+    .join("; ");
+  return [
+    `A single cinematic film frame — one storyboard panel, shot ${index + 1} of ${board.shots.length}.`,
+    board.mood ? `Genre and how it is shot: ${board.mood}` : "",
+    `Look: ${board.look}. Shot on ${board.lens}, ${shot.lensMm}mm ${shot.aperture}, ${shot.framing}.`,
+    board.lighting ? `Lighting: ${board.lighting}.` : "",
+    board.grade ? `Colour grade: ${board.grade}.` : "",
+    board.palette.length ? `Palette: ${board.palette.join(", ")}.` : "",
+    shot.location ? `Location: ${shot.location}.` : "",
+    board.world ? `The world: ${board.world}` : "",
+    who ? `In frame: ${who}.` : "",
+    board.wardrobe ? `Wardrobe: ${board.wardrobe}` : "",
+    `The moment: ${beat || shot.action}`,
+    shot.cameraNote ? `The camera: ${shot.cameraNote}` : "",
+    "Photographic, in focus, composed as a real frame from this film. No text, captions, borders, "
+    + "watermarks, panel numbers, split screens or storyboard sketch lines — this is a photograph of "
+    + "the shot, not a drawing of it.",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 /** Every shot's prompt, in order — what the sheet shows before a render runs. */
@@ -482,13 +742,43 @@ export function blankShot(board: Storyboard, index: number): Shot {
     lensMm: prev?.lensMm ?? 35,
     aperture: prev?.aperture ?? "f/2.8",
     move: "static",
+    cameraNote: "",
     framing: "medium",
+    // A new cut belongs where the last one was until someone says otherwise —
+    // an empty location on a sheet that has them reads as a scene change.
+    location: prev?.location ?? "",
     action: "",
+    beats: [],
     dialogue: "",
     link: index === 0 ? "open" : "cut",
     carry: "",
     endsOn: "",
     references: prev ? [...prev.references] : [],
+  };
+}
+
+/**
+ * A board saved before these fields existed, made whole.
+ *
+ * Shot plans live in the owner's conversation, which outlives any one version
+ * of this file: a film planned last month has no `beats`, no `location` and no
+ * `mood`, and reading one of those as an array is a crash in the middle of
+ * their chat. Everything added here has an empty default, so an old sheet
+ * simply opens with the new columns blank.
+ */
+export function hydrate(board: Storyboard): Storyboard {
+  return {
+    ...board,
+    mood: board.mood ?? "",
+    palette: board.palette ?? [],
+    cast: (board.cast ?? []).map((c) => ({ ...c, turnsAt: c.turnsAt ?? null, turnsInto: c.turnsInto ?? "" })),
+    shots: (board.shots ?? []).map((s) => ({
+      ...s,
+      cameraNote: s.cameraNote ?? "",
+      location: s.location ?? "",
+      beats: s.beats ?? [],
+      references: s.references ?? [],
+    })),
   };
 }
 
@@ -503,6 +793,90 @@ export function normalise(board: Storyboard): Storyboard {
     title: /^Cut \d+$/.test(s.title) ? `Cut ${i + 1}` : s.title,
   }));
   return { ...board, shots };
+}
+
+// ----- reading the plan back before it costs an hour -------------------------
+//
+// Everything wrong with a film made this way is legible in the sheet: the
+// clips arrive an hour later, and by then the only remedy is to render it
+// again. These are the faults that actually produced a bad cut, checked
+// against the plan while it is still free to change.
+
+export interface BoardNote {
+  /** Which row it is about, 0-based; -1 for the film as a whole. */
+  shot: number;
+  severity: "warn" | "info";
+  text: string;
+}
+
+/** How long a shot can go without a beat before it renders as a held pose. */
+const DEAD_AIR_SEC = 7;
+
+export function boardNotes(board: Storyboard): BoardNote[] {
+  const notes: BoardNote[] = [];
+  const n = board.shots.length;
+
+  if (!board.mood) {
+    notes.push({ shot: -1, severity: "warn", text: "No genre set — the grade will drift to whatever the location suggests." });
+  }
+
+  // The fault that turns a film into a reel: almost nothing chained. A cut is
+  // a legitimate choice, so this only speaks up when the film is nearly all
+  // cuts, which is the shape that reads as separate clips rather than a scene.
+  const joins = n - 1;
+  const chained = board.shots.filter((_, i) => isChained(board, i)).length;
+  if (joins >= 3 && chained <= Math.floor(joins / 4)) {
+    notes.push({
+      shot: -1,
+      severity: "warn",
+      text:
+        `${joins - chained} of ${joins} joins are hard cuts. Each one is rendered cold from the photos, so the room, `
+        + "the light and the time of day are re-invented every time. Mark the ones that are the same take "
+        + "“same take” and they open on the real last frame instead.",
+    });
+  }
+
+  board.shots.forEach((shot, i) => {
+    const prev = i > 0 ? board.shots[i - 1] : null;
+
+    if (shot.durationSec >= DEAD_AIR_SEC && !shot.beats.length) {
+      notes.push({
+        shot: i,
+        severity: "warn",
+        text: `${shot.durationSec}s with no beats — long shots without a clock render as a held pose.`,
+      });
+    }
+
+    // A named move with no mechanics is the dolly-zoom failure exactly: the
+    // label alone renders as the ordinary move the words describe.
+    if (!shot.cameraNote && /dolly.?zoom|vertigo|zolly|crash|whip|snorricam|parallax/i.test(shot.move)) {
+      notes.push({
+        shot: i,
+        severity: "warn",
+        text: `“${shot.move}” has no camera geometry — without it this renders as an ordinary move.`,
+      });
+    }
+
+    // A continuous take that changes location is a travelling shot, not a
+    // fault — running out of one room into the next is the whole point. It is
+    // worth pointing at, because the two places have to be connected and the
+    // journey has to be on screen, but it is not a warning.
+    if (prev && shot.link === "continuous" && shot.location && prev.location && shot.location !== prev.location) {
+      notes.push({
+        shot: i,
+        severity: "info",
+        text:
+          `One take travelling from ${prev.location} into ${shot.location} — they must be physically connected, and `
+          + "the journey between them is rendered on screen.",
+      });
+    }
+
+    if (!shot.endsOn && i < n - 1) {
+      notes.push({ shot: i, severity: "info", text: "No “ends on” — the next shot is told nothing to open on." });
+    }
+  });
+
+  return notes;
 }
 
 // ----- the runtime, as a thing the owner sets --------------------------------
@@ -588,6 +962,7 @@ export function boardBrief(board: Storyboard): string {
     fact("LOGLINE", board.logline),
     fact("WORLD", board.world),
     fact("LOOK", board.look),
+    fact("MOOD", board.mood),
     `ASPECT: ${board.aspectRatio}`,
     fact("LENS", board.lens),
     fact("LIGHTING", board.lighting),
@@ -598,7 +973,11 @@ export function boardBrief(board: Storyboard): string {
     fact("MUSIC", board.music),
     board.cast.length
       ? `CAST:\n${board.cast
-          .map((c) => `  ${c.name}${c.subject ? ` (Subject ${c.subject})` : ""} — ${c.look}`)
+          .map(
+            (c) =>
+              `  ${c.name}${c.subject ? ` (Subject ${c.subject})` : ""} — ${c.look}`
+              + (c.turnsAt !== null ? `\n    TURNS at cut ${c.turnsAt} into: ${c.turnsInto}` : ""),
+          )
           .join("\n")}`
       : "",
     `SHOTS (${board.shots.length}, ${runtimeSec(board)} s total):`,
@@ -606,7 +985,10 @@ export function boardBrief(board: Storyboard): string {
       [
         `  ${i + 1}. ${s.title} — ${s.durationSec}s, ${s.framing}, ${s.lensMm}mm, ${s.move}`,
         i > 0 ? `, link ${s.link}` : "",
+        s.location ? `\n     WHERE: ${s.location}` : "",
+        s.cameraNote ? `\n     CAMERA: ${s.cameraNote}` : "",
         `\n     ACTION: ${s.action}`,
+        s.beats.length ? `\n     BEATS: ${s.beats.map((b) => `${b.at}s ${b.text}`).join(" | ")}` : "",
         s.dialogue ? `\n     DIALOGUE: ${s.dialogue}` : "",
         s.carry ? `\n     CARRY: ${s.carry}` : "",
         s.endsOn ? `\n     ENDS ON: ${s.endsOn}` : "",

@@ -128,6 +128,45 @@ protagonist and key evasions stay recognisable. No background music.]
 If the frame is still unknown, send a `studio_form` with a `choice` `aspect` (16:9 default · 9:16 ·
 1:1) and an `image` field `refs` for the character photo if none was uploaded.
 
+## In a film — when this is a sequence, not one clip
+
+A chase, a pursuit or an escape that runs longer than 15 seconds is not four candidates. It is one
+continuous action cut into H3-sized pieces, and it goes through `studio_storyboard`, not
+`studio_generate`. The rounds above still run; what changes is where the answers land.
+
+**The sequence is one take.** Every shot after the first is `link: "continuous"` — each opens on the
+real last frame of the one before it. A hard `cut` in the middle of a chase re-invents the room, the
+light and the running speed, and the sequence stops being a chase and becomes a reel. Use a cut only
+where you genuinely want the audience to feel one, and then say in the `carry` field exactly what
+must survive it.
+
+**One hazard per shot.** A hazard needs 2.5–4 s to read: warning, then arrival, then evasion, then
+consequence. Two in a five-second clip renders as neither.
+
+**The six elements become the clock.** This is the whole mapping — write the hazard as `beats`, not
+as a paragraph, because a shot given seconds and no clock spends them on a held pose:
+
+| Element | Where it goes |
+|---|---|
+| Warning | a beat at 0 s — the sound, the shadow, the sag, the crowd's head turning |
+| Source | `camera_note` — which side of frame, what depth, how high |
+| Trajectory | a beat: the object crossing, with the direction named |
+| Evasion | a beat, and the loudest thing in `action`: the duck, slide, dive, roll |
+| Near miss | the same beat as the evasion — the distance in centimetres, to which body part |
+| Consequence | the last beat, and the next shot's `carry` — where it lands and what it leaves |
+
+**`location` stays the same string** for the whole pursuit until the character genuinely leaves the
+building. When they do, that shot and only that shot names the new place.
+
+**The protagonist is never still.** This is the failure this skill exists to prevent, and the one it
+keeps losing to: a hazard arrives, the camera watches, and the character stands and takes it. Write
+the evasion as the largest movement in the shot, with an anticipation beat before it — they see it,
+*then* they move. If a shot's `action` does not contain a verb the body does, the shot is wrong.
+
+**The damage accumulates.** Shot N's `carry` names shot N-1's wreckage by object: the fallen shelf,
+the spilled water, the swinging lamp, the dust in the air. A house that repairs itself between shots
+is the clearest possible tell that these were separate generations.
+
 ## Generation rules
 
 `studio_generate` with `medium: "video"`, one job per candidate (default 4, genuinely different
@@ -136,6 +175,19 @@ hazard carriers or evasion choreography), `duration_sec` from the brief (≤15 p
 check each candidate item by item; rewrite only the explicit problem and retry at most 3 times. If
 the subject keeps deforming, trajectories stay unreadable or the take keeps breaking, **reduce the
 hazard count** — never hide problems with more explosions.
+
+## Where this goes wrong
+
+Read a finished clip against these before offering it. Each one has a single repair.
+
+| What you see | What caused it | Repair |
+|---|---|---|
+| The character stands and watches the hazard land | The evasion was described but never staged | Make the evasion the shot's main action and give it an anticipation beat |
+| The hazard drifts down like a leaf | No mass stated | Name the weight and the material, and say it accelerates |
+| You cannot tell how close it came | No near-miss distance | State it in centimetres, to a named body part |
+| The room is tidy again next shot | Nothing in `carry` | List the wreckage by object |
+| It reads as separate clips | The joins are `cut` | Chain the sequence `continuous` |
+| Nothing feels at stake | Every beat at the same intensity | Escalate the scale of each hazard and hold ~0.6 s of slow motion on one near miss only |
 
 ## Global constraints
 

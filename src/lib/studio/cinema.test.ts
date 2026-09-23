@@ -138,7 +138,10 @@ describe("what the model receives", () => {
   it("does not number a single move", () => {
     const spec = cinemaContext({}, [moveById("static")!]);
     expect(spec).toContain("The camera move:");
-    expect(spec).not.toContain("1. ");
+    // The move itself, not the prose around it: the spec numbers its
+    // precedence order too, and that list is not a list of moves.
+    expect(spec).toContain(`- ${moveById("static")!.name}:`);
+    expect(spec).not.toContain(`1. ${moveById("static")!.name}`);
   });
 });
 
@@ -242,5 +245,44 @@ describe("length beyond one clip", () => {
     expect(spec).toContain("at most 15 seconds");
     // The thing that makes the clips usable together.
     expect(spec).toContain("cut together");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The deck has to reach a FILM, not only a single clip. Every setting the
+// owner touched gets a field on the shot plan, and when two of them pull
+// against each other the spec says which one wins the pixels.
+// ---------------------------------------------------------------------------
+
+describe("the deck reaching a shot plan", () => {
+  const spec = () =>
+    cinemaContext(
+      { genre: "genre-horror", style: "style-folk-horror", light: "light-practical", era: "era-70s" },
+      [],
+    );
+
+  it("tells the planner which board field each rail becomes", () => {
+    const s = spec();
+    for (const field of ["`mood`", "`look`", "`lighting`", "`grade`", "`lens`", "`camera_note`"]) {
+      expect(s).toContain(field);
+    }
+  });
+
+  it("puts tempo on the cutting rather than on the look", () => {
+    expect(spec()).toContain("Tempo      → the CUTTING");
+  });
+
+  it("ranks style over genre, and genre over the light", () => {
+    const s = spec();
+    expect(s.indexOf("1. STYLE")).toBeLessThan(s.indexOf("2. GENRE"));
+    expect(s.indexOf("2. GENRE")).toBeLessThan(s.indexOf("4. LIGHTING"));
+  });
+
+  it("says era mixes rather than competing", () => {
+    expect(spec()).toContain("3. ERA — mixes with nearly everything");
+  });
+
+  it("warns that an unspecified move renders as an ordinary one", () => {
+    expect(spec()).toContain("comes back a plain zoom");
   });
 });

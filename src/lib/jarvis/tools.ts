@@ -252,12 +252,29 @@ export const STUDIO_TOOLS: ToolSpec[] = [
       + "GPU and cut together automatically, so the plan is the film. Like a form, this pauses the "
       + "conversation: the owner edits the sheet and presses Make the film themselves.\n\n"
       + "Write it like a call sheet, and remember that each shot is a SEPARATE generation that has never "
-      + "seen the others. What holds them together is that the film-wide fields (world, wardrobe, "
+      + "seen the others. What holds them together is that the film-wide fields (mood, world, wardrobe, "
       + "lighting, grade, lens, look) are repeated into every shot word for word — so write each of them "
-      + "once, concretely and visually, and never contradict them in a shot's action. Set link to "
-      + "'continuous' when a shot is literally the same take carrying on (it is rendered from the last "
-      + "frame of the shot before it, so it must open exactly where that one ended), and 'cut' for a new "
-      + "angle in the same scene. Always fill ends_on: it is what the next shot is told to open on.",
+      + "once, concretely and visually, and never contradict them in a shot's action.\n\n"
+      + "CONTINUITY IS THE WHOLE JOB, and it is decided by four fields:\n"
+      + "- link. 'continuous' renders the shot from the LAST FRAME of the one before it, so the join is "
+      + "not a match — it is the same frame, and it is the only thing that makes separate generations "
+      + "look like one take. 'cut' starts cold from the reference photos and re-invents the room, the "
+      + "light and the time of day. Default to 'continuous' inside a scene and reserve 'cut' for a real "
+      + "change of angle you want the audience to feel. ONE CONTINUOUS ACTION — a chase, a fall, a run "
+      + "through a house — is a chain of 'continuous' shots, never a series of cuts.\n"
+      + "- location. Name the room or place on every shot. Same string as the shot before means the "
+      + "prompt forbids re-staging; a different string is declared as a real move. Leave it out and a "
+      + "cut will wander outdoors on its own.\n"
+      + "- ends_on. Always fill it: it is literally what the next shot is told to open on.\n"
+      + "- carry. Props, damage, weather and blocking that must survive the join.\n\n"
+      + "Two more fields decide whether a shot is any good:\n"
+      + "- beats. A timed clock inside the shot. A shot given seconds and no clock fills them with a "
+      + "held pose — give any shot over about 6 s a beat roughly every 2 s.\n"
+      + "- camera_note. The mechanics behind the name in `move`. A move named and not specified renders "
+      + "as the ordinary move its words describe.\n\n"
+      + "If someone TRANSFORMS during the film, that is cast[].turns_at and turns_into — not a line in "
+      + "an action. `look` is repeated verbatim into every shot so it cannot drift, which means a change "
+      + "written anywhere else silently never happens.",
     parameters: {
       type: "object",
       properties: {
@@ -265,6 +282,15 @@ export const STUDIO_TOOLS: ToolSpec[] = [
         logline: { type: "string", description: "One sentence: what happens." },
         world: { type: "string", description: "One sentence fingerprinting the location and its texture; repeated into every shot." },
         look: { type: "string", description: "e.g. 'live action, anamorphic 2.39, photorealistic'." },
+        mood: {
+          type: "string",
+          description:
+            "The genre and how it is shot, in one paragraph — dread, warmth, grit, whatever the film is. Take it from "
+            + "the camera panel's Genre when the owner set one; otherwise write it from the genre they described, and "
+            + "if they named none, from what the story actually is. Never leave it empty. It governs the lighting, "
+            + "the grade and the framing, so it is repeated into every shot ahead of them — without it the film is "
+            + "graded like whatever its location suggests, and a horror film set in a family house comes out sunlit.",
+        },
         aspect_ratio: { type: "string", enum: ["16:9", "9:16", "1:1"] },
         lens: { type: "string", description: "The glass used all film, e.g. 'anamorphic prime set'." },
         lighting: { type: "string", description: "The light, unchanged across shots." },
@@ -283,6 +309,18 @@ export const STUDIO_TOOLS: ToolSpec[] = [
               name: { type: "string", description: "Short and in caps, as a call sheet writes it: 'FATHER'." },
               look: { type: "string", description: "Face, build, hair, skin, marks — what a frame must keep." },
               subject: { type: "number", description: "The upload that shows them, as a Subject number (1 = first uploaded)." },
+              turns_at: {
+                type: "number",
+                description:
+                  "The cut number (1-based) where this character stops looking like `look`. Only for a real "
+                  + "on-screen transformation — infection, possession, injury, age, a mask coming off.",
+              },
+              turns_into: {
+                type: "string",
+                description:
+                  "What they become from turns_at onward, written as fully as `look`. The face and build stay "
+                  + "theirs; describe the skin, eyes, hair, bearing and damage that are new.",
+              },
             },
             required: ["name", "look"],
           },
@@ -298,8 +336,36 @@ export const STUDIO_TOOLS: ToolSpec[] = [
               lens_mm: { type: "number" },
               aperture: { type: "string" },
               move: { type: "string", description: "'slow push-in', 'handheld track', 'static'." },
+              camera_note: {
+                type: "string",
+                description:
+                  "What the camera physically DOES — the geometry behind the name in `move`. Travel distance in "
+                  + "metres, the focal length at each end, what stays locked in frame, what the background does, "
+                  + "where the camera is relative to the subject. Required for any named trick move (dolly zoom, "
+                  + "whip pan, crash-in, Snorricam, parallax): the name alone renders as an ordinary move.",
+              },
               framing: { type: "string", description: "'wide', 'medium', 'close-up', 'insert'." },
+              location: {
+                type: "string",
+                description:
+                  "The room or place, short and reusable: 'the living room', 'the upstairs hallway'. Repeat the "
+                  + "same string while the scene stays put — that is what stops a cut wandering somewhere else.",
+              },
               action: { type: "string", description: "What physically happens across these seconds." },
+              beats: {
+                type: "array",
+                description:
+                  "The clock inside this shot — what is happening at each second, so the seconds are not filled "
+                  + "with a held pose. Give any shot over ~6 s a beat roughly every 2 s.",
+                items: {
+                  type: "object",
+                  properties: {
+                    at: { type: "number", description: "Seconds from the start of THIS shot." },
+                    text: { type: "string", description: "One clause, present tense: what happens at that second." },
+                  },
+                  required: ["at", "text"],
+                },
+              },
               dialogue: { type: "string", description: "One spoken line at most; H3 lip-syncs it." },
               link: { type: "string", enum: ["continuous", "cut"], description: "Ignored on the first shot." },
               carry: { type: "string", description: "Props, blocking, damage or weather that must survive from the shot before." },

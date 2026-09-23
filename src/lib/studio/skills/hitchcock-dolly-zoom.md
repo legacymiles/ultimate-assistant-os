@@ -111,6 +111,43 @@ shot." — `studio_form` with `image` field `refs` and a `choice` `confirm` (Ren
   and optionally a reaction. Only the middle job carries the effect; the others repeat the same
   wardrobe, light and lens description so they cut together. Say that the owner assembles them.
 
+## In a film — when the dolly zoom is one shot among many
+
+When the beat lives inside a longer piece, the film is laid out with `studio_storyboard` and the
+effect belongs to exactly ONE shot. Everything above still decides what that shot is; this says
+where it lands on the board.
+
+**The geometry goes in `camera_note`, never in `move` alone.** `move` is a label, and a label is all
+the render is told unless the mechanics travel with it — "dolly zoom" on its own comes back a plain
+zoom, every time, because a plain zoom is what those words mean. Write `camera_note` as the spec:
+
+> Camera on rails on the subject's axis, chest height. It dollies IN 2 m, from 4 m to 2 m, while the
+> lens simultaneously widens from a 50 mm to a 25 mm field of view, so the subject's head stays the
+> same size and in the same place in frame from first frame to last. Focus stays locked on the
+> subject's eyes. The corridor walls and the doorways behind them rush outward and away. No cut, no
+> orbit, no pan, no digital crop, no second zoom.
+
+**`framing` is the framing at BOTH ends**, because it does not change — that is the effect. Put the
+start and end of the *background*, not the subject, in `ends_on`.
+
+**Give it its own shot, 5–8 s, and let it be still.** The move needs a stable baseline, one
+uninterrupted travel, and a hold on the transformed perspective. Beats: `0 s` the baseline and the
+trigger landing; `1.5 s` the move running; `5 s` holding the warped background. Nothing else happens
+in this shot.
+
+**The shot's `action` is almost empty on purpose.** A blink, a swallow, breath stopping, a hand
+lowering. Walking, turning or a big gesture hides the geometry and the effect dies. Put the drama in
+the shots either side.
+
+**The shots either side are ordinary coverage** with the same wardrobe, light, lens and `location`,
+so they cut together. The shot before should end on the trigger — the thing that is realised — and
+the dolly-zoom shot's `carry` names it.
+
+**A dolly zoom needs somewhere to go.** If the `location` is a small room with a flat wall behind the
+subject, the effect has no depth to warp and will not read. Say so, and put the shot in the deepest
+line of sight the location has: a hallway, a staircase, a doorway through to another room, a window
+with a street behind it.
+
 ## Craft reference library
 
 **The geometry.** Subject size stays constant while focal length ÷ distance stays constant. Halve

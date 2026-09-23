@@ -4,6 +4,7 @@ import {
   castOf,
   cleanStoryboard,
   boardBrief,
+  boardNotes,
   etaSeconds,
   filmProgress,
   fitRuntime,
@@ -315,5 +316,153 @@ describe("boardBrief", () => {
     expect(text).toContain(b.grade);
     expect(text).toContain(b.shots[0].action);
     expect(text).toContain(`${runtimeSec(b)} s total`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The faults that actually produced a bad cut, each pinned to a test.
+// ---------------------------------------------------------------------------
+
+describe("the genre reaches every shot", () => {
+  it("weaves the mood into each prompt, ahead of the light and the grade", () => {
+    const b = cleanStoryboard({ ...raw, mood: "Horror: dread built from what is out of frame." })!;
+    for (let i = 0; i < b.shots.length; i += 1) {
+      expect(shotPrompt(b, i)).toContain("Horror: dread built from what is out of frame");
+    }
+    const p = shotPrompt(b, 0);
+    expect(p.indexOf("Horror:")).toBeLessThan(p.indexOf("shattered canopy gold"));
+  });
+
+  it("says so when a film has no genre at all", () => {
+    expect(boardNotes(board()).some((n) => /No genre set/.test(n.text))).toBe(true);
+  });
+});
+
+describe("a character who changes", () => {
+  const turning = () =>
+    cleanStoryboard({
+      ...raw,
+      cast: [{ id: "f", name: "FATHER", look: "a calm man", subject: 1, turns_at: 2, turns_into: "grey, clouded eyes" }],
+      shots: [raw.shots[0], { ...raw.shots[1], link: "cut", references: [1] }],
+    })!;
+
+  it("keeps the original look before the turn", () => {
+    expect(shotPrompt(turning(), 0)).toContain("a calm man");
+    expect(shotPrompt(turning(), 0)).not.toContain("grey, clouded eyes");
+  });
+
+  it("describes the turn as an event in the shot it happens in", () => {
+    const p = shotPrompt(turning(), 1);
+    expect(p).toContain("FATHER CHANGES");
+    expect(p).toContain("grey, clouded eyes");
+  });
+
+  it("loosens retention on a turned subject so the new look is not overruled", () => {
+    expect(shotPrompt(turning(), 1)).toContain("partially_preserved");
+    expect(shotPrompt(board(), 0)).toContain("fully_preserved");
+  });
+
+  it("drops a half-written turn rather than changing someone into nothing", () => {
+    const b = cleanStoryboard({ ...raw, cast: [{ name: "FATHER", look: "a calm man", turns_at: 2 }] })!;
+    expect(b.cast[0].turnsAt).toBeNull();
+  });
+});
+
+describe("the camera's mechanics", () => {
+  it("carries the geometry into the prompt, not just the move's name", () => {
+    const b = cleanStoryboard({
+      ...raw,
+      shots: [{ ...raw.shots[0], move: "dolly zoom", camera_note: "dolly in 2 m while the lens goes 50mm to 25mm" }],
+    })!;
+    expect(shotPrompt(b, 0)).toContain("dolly in 2 m while the lens goes 50mm to 25mm");
+  });
+
+  it("flags a named trick move that arrived with no geometry", () => {
+    const b = cleanStoryboard({ ...raw, shots: [{ ...raw.shots[0], move: "hitchcock dolly zoom" }] })!;
+    expect(boardNotes(b).some((n) => /no camera geometry/.test(n.text))).toBe(true);
+  });
+});
+
+describe("the clock inside a shot", () => {
+  it("writes the beats as a timeline with spans", () => {
+    const b = cleanStoryboard({
+      ...raw,
+      shots: [{ ...raw.shots[0], duration_sec: 6, beats: [{ at: 2, text: "he stops" }, { at: 0, text: "he wades" }] }],
+    })!;
+    const p = shotPrompt(b, 0);
+    expect(p).toContain("0.0–2.0s: he wades");
+    expect(p).toContain("2.0–6.0s: he stops");
+  });
+
+  it("flags a long shot with nothing scheduled in it", () => {
+    const b = cleanStoryboard({ ...raw, shots: [{ ...raw.shots[0], duration_sec: 12 }] })!;
+    expect(boardNotes(b).some((n) => /no beats/.test(n.text))).toBe(true);
+  });
+});
+
+describe("where a shot is", () => {
+  it("forbids re-staging on a cut that stays put", () => {
+    const b = cleanStoryboard({
+      ...raw,
+      shots: [{ ...raw.shots[0], location: "the hallway" }, { ...raw.shots[1], link: "cut", location: "the hallway" }],
+    })!;
+    expect(shotPrompt(b, 1)).toContain("Do not change room, building, time of day or weather");
+    expect(shotPrompt(b, 1)).toContain("The location is unchanged: the hallway");
+  });
+
+  it("states a real move instead of letting it happen by accident", () => {
+    const b = cleanStoryboard({
+      ...raw,
+      shots: [{ ...raw.shots[0], location: "the hallway" }, { ...raw.shots[1], link: "cut", location: "the front lawn" }],
+    })!;
+    expect(shotPrompt(b, 1)).toContain("MOVES to a new place: the front lawn");
+    expect(shotPrompt(b, 1)).not.toContain("Do not change room");
+  });
+
+  it("renders a take that travels between rooms as one journey, not a jump", () => {
+    const b = cleanStoryboard({
+      ...raw,
+      shots: [
+        { ...raw.shots[0], location: "the hallway" },
+        { ...raw.shots[1], link: "continuous", location: "the front lawn" },
+      ],
+    })!;
+    const p = shotPrompt(b, 1);
+    expect(p).toContain("The take TRAVELS: it opens in the hallway and moves through into the front lawn");
+    // The contradiction that a naive weave produces: telling the same shot to
+    // stay put AND to move. A travelling take must never be told both.
+    expect(p).not.toContain("Do not change location");
+    const note = boardNotes(b).find((n) => /One take travelling/.test(n.text));
+    expect(note?.severity).toBe("info");
+  });
+
+  it("still pins a continuous shot that stays put", () => {
+    const b = cleanStoryboard({
+      ...raw,
+      shots: [
+        { ...raw.shots[0], location: "the hallway" },
+        { ...raw.shots[1], link: "continuous", location: "the hallway" },
+      ],
+    })!;
+    expect(shotPrompt(b, 1)).toContain("Do not change location");
+  });
+});
+
+describe("a film that is really a pile of clips", () => {
+  it("counts the cold joins and says what they cost", () => {
+    const b = cleanStoryboard({
+      ...raw,
+      shots: [0, 1, 2, 3, 4].map((i) => ({ title: `Cut ${i + 1}`, action: "something", link: "cut" })),
+    })!;
+    const note = boardNotes(b).find((n) => /hard cuts/.test(n.text));
+    expect(note?.text).toContain("4 of 4 joins are hard cuts");
+  });
+
+  it("stays quiet about a film that is mostly one take", () => {
+    const b = cleanStoryboard({
+      ...raw,
+      shots: [0, 1, 2, 3, 4].map((i) => ({ title: `Cut ${i + 1}`, action: "something", link: "continuous" })),
+    })!;
+    expect(boardNotes(b).some((n) => /hard cuts/.test(n.text))).toBe(false);
   });
 });

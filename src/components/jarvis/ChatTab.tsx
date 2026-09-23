@@ -64,7 +64,8 @@ import { StoryboardCard } from "./StoryboardCard";
 import { FilmProgress } from "./FilmProgress";
 import { ReferenceTile } from "./ReferenceTile";
 import { cancelFilm, startFilm, watchFilm, type FilmView } from "@/lib/studio/film";
-import { boardBrief, runtimeSec, timecode, type Storyboard } from "@/lib/studio/storyboard";
+import { boardBrief, hydrate, runtimeSec, timecode, type Storyboard } from "@/lib/studio/storyboard";
+import type { PanelFace } from "@/lib/studio/panels";
 import { SOURCE_LABEL, type ChatTurn, type Conversation, type JarvisStore, type PendingAction } from "@/lib/jarvis/types";
 import type { Profile } from "@/lib/new-dashboard/types";
 
@@ -682,6 +683,22 @@ export function ChatTab({
     return charactersIn(said, characters).slice(0, 6);
   }, [input, turns, characters]);
 
+  /**
+   * The faces a shot plan can show and draw with — the conversation's uploads
+   * under the Subject numbers the sheet refers to them by, then anyone the
+   * owner @-mentioned out of the photo library, under their name.
+   */
+  const sheetFaces = useMemo(
+    (): PanelFace[] => [
+      ...referenceImages().map((dataUrl, i) => ({ label: `Subject ${i + 1}`, dataUrl })),
+      ...cast.flatMap((c) => (c.images[0] ? [{ label: c.name, dataUrl: c.images[0] }] : [])),
+    ],
+    // referenceImages() reads the same turns this depends on; the cast is
+    // derived from them too, so both move together.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [turns, cast],
+  );
+
   /** A one-line read of the camera deck, filed with anything rendered. */
   const specLine = (): string =>
     CINEMA_GROUPS.map((g) => groupSummary(g, cinema))
@@ -904,7 +921,8 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
                 )}
                 {t.storyboard && (
                   <StoryboardCard
-                    board={t.storyboard}
+                    board={hydrate(t.storyboard)}
+                    faces={sheetFaces}
                     onChange={(b) => editBoard(t.id, b)}
                     onRender={(b) => void runFilm(t.id, b)}
                     onReplan={replanBoard}
