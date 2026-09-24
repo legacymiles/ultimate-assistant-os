@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { pick } from "./render";
 import {
+  draftSource,
+  MAX_SUBJECTS,
+  MAX_TRACKS,
+  numberReferences,
   pickTrack,
   REFERENCE_PATTERN,
   referenceToken,
@@ -9,6 +13,7 @@ import {
   TRACK_PATTERN,
   trackToken,
   tracksIn,
+  turnSources,
   type ReferenceMention,
 } from "./references";
 
@@ -189,5 +194,88 @@ describe("app plugins", () => {
     for (const slug of PLUGIN_SLUGS) {
       expect(PROJECTS.some((p) => p.slug === slug)).toBe(true);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The numbering itself, which three composers now share. A token typed in the
+// Studio idea box has to mean the same file as the same token typed in chat,
+// so what is tested here is that the count comes from the CONVERSATION and not
+// from whichever tray happens to be on screen.
+// ---------------------------------------------------------------------------
+
+describe("counting a conversation's uploads", () => {
+  it("counts pictures and tracks apart, so neither renumbers the other", () => {
+    const out = numberReferences([
+      { kind: "image", thumb: "a", name: "a.jpg" },
+      { kind: "audio", thumb: "b", name: "b.mp3" },
+      { kind: "video", thumb: "c", name: "c.mp4" },
+      { kind: "audio", thumb: "d", name: "d.mp3" },
+    ]);
+    expect(out.map((r) => r.token)).toEqual(["Subject1", "Audio1", "Subject2", "Audio2"]);
+    expect(out.map((r) => r.label)).toEqual(["Subject 1", "Audio 1", "Subject 2", "Audio 2"]);
+  });
+
+  it("continues the count rather than restarting it for a new composer", () => {
+    // Three pictures already sent; the idea box adds a fourth. It must be
+    // Subject 4 — the number the render will hand the job — not Subject 1.
+    const sent = turnSources([
+      { role: "you", images: ["1", "2"], imageInfo: [{ name: "one.jpg", kind: "image" }] },
+      { role: "jarvis", images: ["rendered"] },
+      { role: "you", images: ["3"] },
+    ]);
+    const drafting = [draftSource({ id: "x", kind: "image", thumb: "4", name: "four.jpg" })];
+    const out = numberReferences([...sent, ...drafting]);
+    expect(out.map((r) => r.token)).toEqual(["Subject1", "Subject2", "Subject3", "Subject4"]);
+    // Only the one still in the tray carries an id, so only its tile finds a row.
+    expect(out.filter((r) => r.id).map((r) => r.token)).toEqual(["Subject4"]);
+  });
+
+  it("leaves what Jarvis rendered back out of the numbering", () => {
+    expect(turnSources([{ role: "jarvis", images: ["a", "b"] }])).toEqual([]);
+  });
+
+  it("reads a clip as a clip and keeps an audio note", () => {
+    const out = numberReferences(
+      turnSources([
+        {
+          role: "you",
+          images: ["frame"],
+          imageInfo: [{ name: "take.mp4", kind: "video", durationSec: 12 }],
+          audio: [{ thumb: "wave", name: "song.mp3", durationSec: 200, note: "Tempo: 120 BPM" }],
+        },
+      ]),
+    );
+    expect(out[0]).toMatchObject({ token: "Subject1", kind: "video", durationSec: 12 });
+    expect(out[1]).toMatchObject({ token: "Audio1", kind: "audio", note: "Tempo: 120 BPM" });
+  });
+
+  it("stops where the render stops rather than promising numbers nothing takes", () => {
+    const many = numberReferences([
+      ...Array.from({ length: MAX_SUBJECTS + 4 }, (_, i) => ({
+        kind: "image" as const,
+        thumb: String(i),
+        name: `${i}.jpg`,
+      })),
+      ...Array.from({ length: MAX_TRACKS + 3 }, (_, i) => ({
+        kind: "audio" as const,
+        thumb: String(i),
+        name: `${i}.mp3`,
+      })),
+    ]);
+    expect(many.filter((r) => r.kind === "image")).toHaveLength(MAX_SUBJECTS);
+    expect(many.filter((r) => r.kind === "audio")).toHaveLength(MAX_TRACKS);
+  });
+
+  it("gives the menu something to find every numbered upload by", () => {
+    const out = numberReferences([
+      { kind: "image", thumb: "a", name: "beach.jpg" },
+      { kind: "audio", thumb: "b", name: "theme.mp3" },
+    ]);
+    expect(searchReferences("subject", out).map((r) => r.token)).toEqual(["Subject1"]);
+    expect(searchReferences("aud", out).map((r) => r.token)).toEqual(["Audio1"]);
+    expect(searchReferences("beach", out).map((r) => r.token)).toEqual(["Subject1"]);
+    // A bare number means the number, in both families.
+    expect(searchReferences("1", out).map((r) => r.token)).toEqual(["Subject1", "Audio1"]);
   });
 });

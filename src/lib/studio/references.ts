@@ -115,3 +115,128 @@ export function pickTrack<T extends { n: number }>(texts: string[], tracks: T[])
   }
   return tracks[tracks.length - 1];
 }
+
+// ---------------------------------------------------------------------------
+// Counting a conversation's uploads.
+//
+// The numbering used to be written out inside the chat component, which meant
+// the Studio idea box — a composer for the same conversation — had no way to
+// know what "@Subject 3" would mean, and so could not offer it. Three surfaces
+// now count with the same two functions, so a token always names the same file
+// wherever it is typed.
+// ---------------------------------------------------------------------------
+
+/** As far as Subject numbers reach, which is as far as the render hands pictures. */
+export const MAX_SUBJECTS = 24;
+/** Tracks kept nameable. Nobody picks a score for a cut out of more than this. */
+export const MAX_TRACKS = 12;
+
+/** One upload, before the conversation has counted it. */
+export interface ReferenceSource {
+  kind: ReferenceKind;
+  thumb: string;
+  name: string;
+  durationSec?: number;
+  note?: string;
+  /** Set only while it is still in a composer, so its tile can find its row. */
+  id?: string;
+}
+
+/**
+ * Give every upload the name the prompt calls it by.
+ *
+ * Pictures and tracks count separately, because they are spent separately —
+ * pictures in the order render.ts hands the jobs, tracks in the order the
+ * measured notes were labelled — so dropping a photo never renumbers the
+ * soundtrack.
+ */
+export function numberReferences(sources: ReferenceSource[]): ReferenceMention[] {
+  const out: ReferenceMention[] = [];
+  let seen = 0;
+  let heard = 0;
+  for (const s of sources) {
+    const audio = s.kind === "audio";
+    if (audio ? heard >= MAX_TRACKS : seen >= MAX_SUBJECTS) continue;
+    let n: number;
+    if (audio) {
+      heard += 1;
+      n = heard;
+    } else {
+      seen += 1;
+      n = seen;
+    }
+    out.push({
+      n,
+      token: audio ? trackToken(n) : referenceToken(n),
+      label: audio ? `Audio ${n}` : `Subject ${n}`,
+      kind: s.kind,
+      thumb: s.thumb,
+      name: s.name,
+      ...(s.durationSec ? { durationSec: s.durationSec } : {}),
+      ...(s.note ? { note: s.note } : {}),
+      ...(s.id ? { id: s.id } : {}),
+    });
+  }
+  return out;
+}
+
+/** The shape of a saved Jarvis turn, as far as its uploads go. */
+export interface TurnUploads {
+  role: string;
+  images?: string[];
+  imageInfo?: { name: string; kind: "image" | "video"; durationSec?: number }[];
+  audio?: { thumb: string; name: string; durationSec?: number; note?: string }[];
+}
+
+/**
+ * The uploads a conversation has already carried, oldest first.
+ *
+ * Only the owner's own turns count: a picture Jarvis rendered back is an
+ * answer, not a reference, and numbering it would shift every token the owner
+ * has already typed.
+ */
+export function turnSources(turns: TurnUploads[]): ReferenceSource[] {
+  const out: ReferenceSource[] = [];
+  for (const t of turns) {
+    if (t.role !== "you") continue;
+    (t.images ?? []).forEach((thumb, i) => {
+      // Turns saved before imageInfo existed say only that a picture was here.
+      const was = t.imageInfo?.[i];
+      out.push({
+        thumb,
+        name: was?.name ?? "from an earlier message",
+        kind: was?.kind ?? "image",
+        ...(was?.durationSec ? { durationSec: was.durationSec } : {}),
+      });
+    });
+    for (const a of t.audio ?? []) {
+      out.push({
+        kind: "audio",
+        thumb: a.thumb,
+        name: a.name,
+        ...(a.durationSec ? { durationSec: a.durationSec } : {}),
+        ...(a.note ? { note: a.note } : {}),
+      });
+    }
+  }
+  return out;
+}
+
+/** An upload still in a composer, as something the numbering can take. */
+export function draftSource(a: {
+  id: string;
+  kind: ReferenceKind;
+  thumb: string;
+  name: string;
+  durationSec?: number;
+  note?: string;
+}): ReferenceSource {
+  return {
+    id: a.id,
+    kind: a.kind,
+    thumb: a.thumb,
+    name: a.name,
+    ...(a.durationSec ? { durationSec: a.durationSec } : {}),
+    ...(a.note ? { note: a.note } : {}),
+  };
+}

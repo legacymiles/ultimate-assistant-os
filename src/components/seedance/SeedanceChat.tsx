@@ -48,15 +48,11 @@ import { useCinemaOutput } from "@/lib/studio/useCinema";
 import { moveQueryAt, movesIn, searchMoves, type CinemaSelection } from "@/lib/studio/cinema";
 import { CinemaBar } from "../jarvis/CinemaDeck";
 import { ASPECT_RATIOS } from "@/lib/seedance/constants";
-import { mentionQueryAt, mentionsIn, searchMentions, type Mention } from "@/lib/studio/workflows";
-import { charactersIn, searchCharacters } from "@/lib/studio/characters";
-import { useCharacters, type Character } from "@/lib/studio/useCharacters";
-import {
-  referenceToken,
-  searchReferences,
-  trackToken,
-  type ReferenceMention,
-} from "@/lib/studio/references";
+import { mentionQueryAt, mentionsIn } from "@/lib/studio/workflows";
+import { charactersIn } from "@/lib/studio/characters";
+import { useCharacters } from "@/lib/studio/useCharacters";
+import { draftSource, numberReferences, type ReferenceMention } from "@/lib/studio/references";
+import { atRowsFor, MentionMenu, type AtRow } from "../jarvis/MentionMenu";
 import { bridgeStatus } from "@/lib/studio/render";
 import { cancelFilm, startFilm, watchFilm, type FilmView } from "@/lib/studio/film";
 import { cleanScore, toStoryboard, type Score } from "@/lib/seedance/score";
@@ -182,38 +178,13 @@ export function SeedanceChat({
   }, [songFile]);
 
   // ----- references, numbered across the conversation -----------------------
-  const references = useMemo((): ReferenceMention[] => {
-    const all = [...turns.flatMap((t) => t.attachments ?? []), ...attachments];
-    let subject = 0;
-    let track = 0;
-    return all.map((a) => {
-      if (a.kind === "audio") {
-        track += 1;
-        return {
-          n: track,
-          token: trackToken(track),
-          label: `Audio ${track}`,
-          kind: "audio" as const,
-          thumb: a.thumb,
-          name: a.name,
-          id: a.id,
-          durationSec: a.durationSec,
-          note: a.note,
-        };
-      }
-      subject += 1;
-      return {
-        n: subject,
-        token: referenceToken(subject),
-        label: `Subject ${subject}`,
-        kind: a.kind,
-        thumb: a.thumb,
-        name: a.name,
-        id: a.id,
-        durationSec: a.durationSec,
-      };
-    });
-  }, [turns, attachments]);
+  const references = useMemo(
+    (): ReferenceMention[] =>
+      numberReferences(
+        [...turns.flatMap((t) => t.attachments ?? []), ...attachments].map(draftSource),
+      ),
+    [turns, attachments],
+  );
 
   const subjectUrls = useMemo(
     () =>
@@ -229,38 +200,44 @@ export function SeedanceChat({
   );
   const [menuIndex, setMenuIndex] = useState(0);
 
-  const options = useMemo(() => {
-    if (!menu) return [] as { key: string; label: string; note: string; insert: string }[];
-    if (menu.kind === "hash") {
-      return searchMoves(menu.query, 6).map((m) => ({
-        key: m.id,
-        label: m.name,
-        note: m.note,
-        insert: `#${m.id}`,
-      }));
+  /**
+   * The @ menu is the same one Chat and Studio show — the people, then this
+   * conversation's own uploads with their thumbnails, then the workflows. It
+   * used to be a flat list of names with the uploads last and no pictures,
+   * which is the one group you cannot recognise by its label alone.
+   */
+  const atRows = useMemo<AtRow[]>(
+    () => (menu?.kind === "at" ? atRowsFor(menu.query, characters, references) : []),
+    [menu, characters, references],
+  );
+
+  /** The # menu stays its own thing: a camera move has nothing to picture. */
+  const moveOptions = useMemo(
+    () => (menu?.kind === "hash" ? searchMoves(menu.query, 6) : []),
+    [menu],
+  );
+
+  const menuCount = menu?.kind === "hash" ? moveOptions.length : atRows.length;
+
+  const chooseAtRow = (row: AtRow | undefined) => {
+    if (!row) return;
+    const token =
+      row.group === "cast"
+        ? row.character.token
+        : row.group === "ref"
+          ? row.reference.token
+          : row.mention.token;
+    choose(`@${token}`);
+  };
+
+  const chooseAt = (i: number) => {
+    if (menu?.kind === "hash") {
+      const move = moveOptions[i];
+      if (move) choose(`#${move.id}`);
+      return;
     }
-    const people = searchCharacters(menu.query, characters, 3).map((c: Character) => ({
-      key: `c-${c.token}`,
-      label: c.name,
-      note: c.role || `${c.pictures} picture${c.pictures === 1 ? "" : "s"}`,
-      insert: `@${c.token}`,
-    }));
-    const workflows = searchMentions(menu.query, 5).map((m: Mention) => ({
-      key: `w-${m.token}`,
-      label: m.label,
-      note: m.workflow.blurb,
-      insert: `@${m.token}`,
-    }));
-    const refs = searchReferences(menu.query, references)
-      .slice(0, 3)
-      .map((r) => ({
-        key: `r-${r.token}`,
-        label: r.label,
-        note: r.note ? r.note.split("\n")[0] : r.name,
-        insert: `@${r.token}`,
-      }));
-    return [...people, ...workflows, ...refs];
-  }, [menu, characters, references]);
+    chooseAtRow(atRows[i]);
+  };
 
   const readMenu = (el: HTMLTextAreaElement) => {
     const caret = el.selectionStart ?? el.value.length;
@@ -662,24 +639,36 @@ export function SeedanceChat({
         {problem && <p className="mb-1 text-[10px] text-[#ffb4a0]">{problem}</p>}
 
         <div className="relative">
-          {menu && options.length > 0 && (
+          {menu?.kind === "at" && (
+            <MentionMenu
+              rows={atRows}
+              index={menuIndex}
+              onIndex={setMenuIndex}
+              onChoose={chooseAtRow}
+            />
+          )}
+          {menu?.kind === "hash" && moveOptions.length > 0 && (
             <ul
               role="listbox"
+              aria-label="Camera moves"
               className="absolute bottom-full left-0 z-30 mb-1 max-h-60 w-full overflow-y-auto rounded-xl border border-line bg-panel-2 py-1 shadow-lg shadow-black/50"
             >
-              {options.map((o, i) => (
-                <li key={o.key}>
+              {moveOptions.map((m, i) => (
+                <li key={m.id}>
                   <button
                     role="option"
                     aria-selected={i === menuIndex}
                     onMouseEnter={() => setMenuIndex(i)}
-                    onClick={() => choose(o.insert)}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      choose(`#${m.id}`);
+                    }}
                     className={`block w-full px-2.5 py-1.5 text-left transition ${
                       i === menuIndex ? "bg-panel text-ink" : "text-ink-muted hover:text-ink"
                     }`}
                   >
-                    <span className="block truncate text-[11px] font-medium">{o.label}</span>
-                    <span className="block truncate text-[10px] text-ink-faint">{o.note}</span>
+                    <span className="block truncate text-[11px] font-medium">{m.name}</span>
+                    <span className="block truncate text-[10px] text-ink-faint">{m.note}</span>
                   </button>
                 </li>
               ))}
@@ -715,20 +704,20 @@ export function SeedanceChat({
               }}
               onClick={(e) => readMenu(e.currentTarget)}
               onKeyDown={(e) => {
-                if (menu && options.length) {
+                if (menu && menuCount) {
                   if (e.key === "ArrowDown") {
                     e.preventDefault();
-                    setMenuIndex((i) => (i + 1) % options.length);
+                    setMenuIndex((i) => (i + 1) % menuCount);
                     return;
                   }
                   if (e.key === "ArrowUp") {
                     e.preventDefault();
-                    setMenuIndex((i) => (i - 1 + options.length) % options.length);
+                    setMenuIndex((i) => (i - 1 + menuCount) % menuCount);
                     return;
                   }
                   if (e.key === "Enter" || e.key === "Tab") {
                     e.preventDefault();
-                    choose(options[menuIndex].insert);
+                    chooseAt(menuIndex);
                     return;
                   }
                   if (e.key === "Escape") {
@@ -744,7 +733,7 @@ export function SeedanceChat({
               rows={3}
               placeholder={
                 timeline
-                  ? "What should the film be? @skill, @person, #camera-move…"
+                  ? "What should the film be? @skill, @person, @Subject1, #camera-move…"
                   : "Drop a song in first — I measure it here."
               }
               className="min-h-[58px] flex-1 resize-y rounded-xl border border-line bg-panel-2 px-2.5 py-1.5 text-[12px] text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"

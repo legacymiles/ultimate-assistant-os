@@ -41,17 +41,20 @@ import {
   type Attachment,
 } from "@/lib/jarvis/chatImages";
 import {
+  draftSource,
+  numberReferences,
   pickTrack,
   REFERENCE_PATTERN,
   referenceToken,
   referencesIn,
-  searchReferences,
   TRACK_PATTERN,
   trackToken,
   tracksIn,
+  turnSources,
   type ReferenceMention,
 } from "@/lib/studio/references";
-import { charactersIn, searchCharacters } from "@/lib/studio/characters";
+import { atRowsFor, MentionMenu, rowToken, type AtRow } from "./MentionMenu";
+import { charactersIn } from "@/lib/studio/characters";
 import { useCharacters, type Character } from "@/lib/studio/useCharacters";
 import { saveToGallery } from "@/lib/studio/gallery";
 import { groupSummary, movesIn as movesInText, optionById, CINEMA_GROUPS } from "@/lib/studio/cinema";
@@ -95,10 +98,6 @@ function countAudio(turns: ChatTurn[]): number {
   return turns.reduce((n, t) => n + (t.audio?.length ?? 0), 0);
 }
 
-/** As far as Subject numbers reach, which is as far as referenceImages() does. */
-const MAX_SUBJECTS = 24;
-/** Tracks kept nameable. Nobody picks a score for a cut out of more than this. */
-const MAX_TRACKS = 12;
 
 /** A file as a data URL, which is the only shape the local bridge takes. */
 function fileToDataUrl(file: File): Promise<string> {
@@ -612,54 +611,10 @@ export function ChatTab({
    * order the measured notes were labelled — so a token always means the one
    * thing it shows.
    */
-  const references: ReferenceMention[] = useMemo(() => {
-    const out: ReferenceMention[] = [];
-    let seen = 0;
-    let heard = 0;
-    const look = (thumb: string, name: string, kind: "image" | "video", durationSec?: number, id?: string) => {
-      if (seen >= MAX_SUBJECTS) return;
-      seen += 1;
-      out.push({
-        n: seen,
-        token: referenceToken(seen),
-        label: `Subject ${seen}`,
-        kind,
-        thumb,
-        name,
-        ...(durationSec ? { durationSec } : {}),
-        ...(id ? { id } : {}),
-      });
-    };
-    const listen = (thumb: string, name: string, durationSec?: number, note?: string, id?: string) => {
-      if (heard >= MAX_TRACKS) return;
-      heard += 1;
-      out.push({
-        n: heard,
-        token: trackToken(heard),
-        label: `Audio ${heard}`,
-        kind: "audio",
-        thumb,
-        name,
-        ...(durationSec ? { durationSec } : {}),
-        ...(note ? { note } : {}),
-        ...(id ? { id } : {}),
-      });
-    };
-    for (const t of turns) {
-      if (t.role !== "you") continue;
-      (t.images ?? []).forEach((thumb, i) => {
-        // Turns saved before imageInfo existed say only that a picture was here.
-        const was = t.imageInfo?.[i];
-        look(thumb, was?.name ?? "from an earlier message", was?.kind ?? "image", was?.durationSec);
-      });
-      for (const a of t.audio ?? []) listen(a.thumb, a.name, a.durationSec, a.note);
-    }
-    for (const a of attachments) {
-      if (a.kind === "audio") listen(a.thumb, a.name, a.durationSec, a.note, a.id);
-      else look(a.thumb, a.name, a.kind === "video" ? "video" : "image", a.durationSec, a.id);
-    }
-    return out;
-  }, [turns, attachments]);
+  const references: ReferenceMention[] = useMemo(
+    () => numberReferences([...turnSources(turns), ...attachments.map(draftSource)]),
+    [turns, attachments],
+  );
 
   /** The reference tokens this draft already names, so their tiles can show it. */
   const named = useMemo(
@@ -686,47 +641,14 @@ export function ChatTab({
   const scoringTrack = () => pickTrack(saidNewestFirst, tracks.current);
 
   /**
-   * References win the @ menu when the half-typed word could be one, because
-   * pointing at your own upload is the more common intent and the workflow
-   * list is long enough to bury it.
+   * One menu behind the @, three kinds of thing in it — the people the Photos
+   * library knows, the uploads this conversation is holding, and the workflow
+   * catalog. Built where every composer can build it the same way.
    */
-  const refOptions = useMemo(
-    () => (mention ? searchReferences(mention.query, references).slice(0, 8) : []),
-    [mention, references],
+  const atRows = useMemo<AtRow[]>(
+    () => (mention ? atRowsFor(mention.query, characters, references) : []),
+    [mention, characters, references],
   );
-
-  /**
-   * The people the half-typed @ could mean. They lead the menu, above uploads
-   * and workflows: naming your own sister is a more common intent than either,
-   * and she is the one thing in the list that cannot be found any other way.
-   */
-  const castOptions = useMemo(
-    () => (mention ? searchCharacters(mention.query, characters, 6) : []),
-    [mention, characters],
-  );
-
-  /**
-   * One menu behind the @, three kinds of thing in it.
-   *
-   * They used to be two mutually exclusive lists: uploads if any matched, else
-   * workflows. That was already a coin toss the owner could not see, and adding
-   * people would have made it a three-way one. So the rows are concatenated in
-   * order of how specific they are — the people you know, then the pictures in
-   * this conversation, then the catalog — under one highlight, which also gives
-   * uploads the arrow-key selection they never had.
-   */
-  const atRows = useMemo(() => {
-    if (!mention) return [];
-    const rows = [
-      ...castOptions.map((character) => ({ key: `cast:${character.token}`, group: "cast" as const, character })),
-      // Keyed by token, not by number: Subject 1 and Audio 1 both count from one.
-      ...refOptions.map((reference) => ({ key: `ref:${reference.token}`, group: "ref" as const, reference })),
-    ];
-    // The catalog is long; it yields space to a match the owner's own library
-    // produced, and takes the menu to itself when there is none.
-    const workflows = mentionOptions.slice(0, rows.length ? 4 : 8);
-    return [...rows, ...workflows.map((m) => ({ key: `wf:${m.token}`, group: "wf" as const, mention: m }))];
-  }, [mention, castOptions, refOptions, mentionOptions]);
 
   const chooseAtRow = (row: (typeof atRows)[number] | undefined) => {
     if (!row) return;
@@ -1245,72 +1167,14 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
               ))}
             </ul>
           )}
-          {mention && atRows.length > 0 && (
-            <ul
-              role="listbox"
-              aria-label="People, references and workflows"
-              className="absolute inset-x-0 bottom-full z-30 mb-2 max-h-80 overflow-y-auto rounded-xl border border-line bg-elevated p-1 shadow-[0_12px_32px_-8px_rgb(0_0_0/0.6)]"
-            >
-              {atRows.map((row, i) => {
-                const head =
-                  i === 0 || atRows[i - 1].group !== row.group ? GROUP_LABEL[row.group] : null;
-                const on = i === mentionIndex;
-                return (
-                  <li key={row.key}>
-                    {head && (
-                      <p className="px-2 pb-1 pt-1.5 text-[10px] text-ink-faint">
-                        {head}
-                        {i === 0 ? " · ↑↓ to move · Enter to add" : ""}
-                      </p>
-                    )}
-                    <span role="option" aria-selected={on}>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          chooseAtRow(row);
-                        }}
-                        onMouseEnter={() => {
-                          setMentionIndex(i);
-                          setHighlight(row.group === "ref" ? row.reference.token.toLowerCase() : null);
-                        }}
-                        onMouseLeave={() => setHighlight(null)}
-                        className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left ${
-                          row.group === "wf" ? "st-card " : ""
-                        }${on ? "bg-panel-2" : ""}`}
-                        style={row.group === "wf" ? { ["--h" as string]: row.mention.workflow.hue } : undefined}
-                      >
-                        {row.group === "cast" ? (
-                          <CastRow character={row.character} />
-                        ) : row.group === "ref" ? (
-                          <RefRow reference={row.reference} />
-                        ) : (
-                          <>
-                            <span className="relative h-7 w-6 shrink-0 overflow-hidden rounded">
-                              <span className="st-art" aria-hidden />
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-xs text-ink">{row.mention.label}</span>
-                              <span className="block truncate text-[11px] text-ink-faint">
-                                {row.mention.variant ? row.mention.variant.brief : row.mention.workflow.blurb}
-                              </span>
-                            </span>
-                            <span className="flex shrink-0 items-center gap-1 text-[10px] capitalize text-ink-faint">
-                              {row.mention.workflow.medium === "video" ? (
-                                <Icon.Film width={11} height={11} />
-                              ) : (
-                                <Icon.Image width={11} height={11} />
-                              )}
-                              {row.mention.workflow.medium}
-                            </span>
-                          </>
-                        )}
-                      </button>
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+          {mention && (
+            <MentionMenu
+              rows={atRows}
+              index={mentionIndex}
+              onIndex={setMentionIndex}
+              onChoose={chooseAtRow}
+              onHighlight={setHighlight}
+            />
           )}
           {/* Who is in the shot, above the workflows: the cast of a prompt is more
               interesting than the recipe, and a chip that says "no sheet" is the
@@ -1541,110 +1405,6 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
       </form>
     </div>
   );
-}
-
-/** Section headings in the @ menu, in the order the rows appear. */
-const GROUP_LABEL: Record<"cast" | "ref" | "wf", string> = {
-  cast: "People and characters from Photos",
-  ref: "References in this conversation",
-  wf: "Studio workflows",
-};
-
-/**
- * One person in the @ menu.
- *
- * The second line is the whole reason this row is useful: it says how many
- * pictures of them the library holds and whether a description has been written
- * yet. Without it "@Brandy" is a name the owner has to trust; with it they can
- * see that she is described from five photos, and see when she is not, which is
- * the moment to go and press Describe rather than the moment to wonder why the
- * clip looks like someone else.
- */
-function CastRow({ character }: { character: Character }) {
-  const described = Boolean(character.appearance);
-  return (
-    <>
-      {character.avatar ? (
-        /* eslint-disable-next-line @next/next/no-img-element */
-        <img src={character.avatar} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
-      ) : (
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-panel-2 text-[11px] font-semibold text-ink-muted">
-          {character.name.slice(0, 1).toUpperCase()}
-        </span>
-      )}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs text-ink">{character.name}</span>
-        <span className="block truncate text-[11px] text-ink-faint">
-          {[
-            character.role,
-            `${character.pictures} photo${character.pictures === 1 ? "" : "s"}`,
-            described ? "described" : "not described yet",
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </span>
-      </span>
-      <span
-        className={`flex shrink-0 items-center gap-1 text-[10px] ${
-          described ? "text-emerald-300/80" : "text-amber-300/80"
-        }`}
-      >
-        {described ? <Icon.Check width={11} height={11} /> : <Icon.Bulb width={11} height={11} />}
-        {described ? "sheet" : "no sheet"}
-      </span>
-    </>
-  );
-}
-
-/**
- * One reference in the @ menu.
- *
- * The second line is what makes the row worth reading. For a picture it is the
- * file; for a clip, its length; for a track, the facts the browser actually
- * measured and the model was actually told. A row that said only "Audio 2"
- * would leave the owner guessing which of two songs they were about to score a
- * three-hour render with.
- */
-function RefRow({ reference }: { reference: ReferenceMention }) {
-  const detail =
-    [
-      reference.name,
-      reference.durationSec ? `${Math.round(reference.durationSec)}s` : "",
-      measured(reference.note),
-    ]
-      .filter(Boolean)
-      .join(" · ") || "attached to this conversation";
-  return (
-    <>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={reference.thumb} alt="" className="h-8 w-10 shrink-0 rounded object-cover" />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs text-ink">{reference.label}</span>
-        <span className="block truncate text-[11px] text-ink-faint">{detail}</span>
-      </span>
-      <span className="flex shrink-0 items-center gap-1 text-[10px] capitalize text-ink-faint">
-        {reference.kind === "audio" ? (
-          <Icon.Waveform width={11} height={11} />
-        ) : reference.kind === "video" ? (
-          <Icon.Film width={11} height={11} />
-        ) : (
-          <Icon.Image width={11} height={11} />
-        )}
-        {reference.kind === "audio" ? "track" : reference.kind}
-      </span>
-    </>
-  );
-}
-
-/** The two lines of a measured audio note a one-line menu row has room for. */
-function measured(note?: string): string {
-  if (!note) return "";
-  return note
-    .split("\n")
-    .map((l) => l.trim())
-    .filter((l) => l.startsWith("Tempo:") || l.startsWith("Key:"))
-    .map((l) => l.replace(/\s*\(confidence[^)]*\)/, ""))
-    .join(" · ");
 }
 
 /** A sent message with its known @workflows and #camera moves drawn as tokens. */

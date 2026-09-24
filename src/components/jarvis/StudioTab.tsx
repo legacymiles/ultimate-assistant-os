@@ -16,9 +16,12 @@
 // follows across.
 //
 // References — a photo, a clip, a track — are collected HERE too, next to the
-// idea they belong to, and travel with it. They are not numbered yet: a
-// reference is "Subject 2" only once the conversation counts it, so the naming
-// happens where the count is known, and these tiles simply say what they are.
+// idea they belong to, and travel with it. They ARE numbered here now. The
+// number used to be withheld on the grounds that only the conversation could
+// know it; but the conversation is this tab's own conversation, so the count is
+// knowable, and withholding it meant dropping a photo in and then having no way
+// to say which one you meant. So the tiles carry their Subject / Audio badge and
+// the @ menu offers them by name, with their thumbnail, above the catalog.
 // ---------------------------------------------------------------------------
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -46,12 +49,23 @@ import {
   cardStill,
   mentionQueryAt,
   mentionsIn,
-  searchMentions,
   type CategoryId,
   type Medium,
   type Mention,
   type Workflow,
 } from "@/lib/studio/workflows";
+import {
+  draftSource,
+  numberReferences,
+  referenceToken,
+  referencesIn,
+  trackToken,
+  tracksIn,
+  turnSources,
+  type ReferenceMention,
+} from "@/lib/studio/references";
+import { useCharacters } from "@/lib/studio/useCharacters";
+import { atRowsFor, MentionMenu, type AtRow } from "./MentionMenu";
 
 interface Picked {
   id: string;
@@ -99,7 +113,42 @@ export function StudioTab({
   const [mention, setMention] = useState<{ start: number; caret: number; query: string } | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
   const ideaRef = useRef<HTMLTextAreaElement>(null);
-  const mentionOptions = useMemo(() => (mention ? searchMentions(mention.query, 8) : []), [mention]);
+  /** The reference token the caret is naming, lowercased, so its tile lights up. */
+  const [highlight, setHighlight] = useState<string | null>(null);
+  /** Everyone the Photos tab knows well enough to put in a shot. */
+  const { characters } = useCharacters();
+
+  /**
+   * What "@Subject 3" and "@Audio 1" mean in this box.
+   *
+   * The numbering is the CONVERSATION's, not the tray's: Studio and Chat write
+   * into the same conversation, so a shot started after three photos have
+   * already been sent gets Subject 4 — the number the render will actually use.
+   * Read off the store rather than the tray for exactly that reason.
+   */
+  const references: ReferenceMention[] = useMemo(
+    () =>
+      numberReferences([
+        ...turnSources(store.conversations[0]?.turns ?? []),
+        ...attachments.map(draftSource),
+      ]),
+    [store.conversations, attachments],
+  );
+
+  /** The reference tokens this idea already names, so their tiles can show it. */
+  const named = useMemo(
+    () =>
+      new Set([
+        ...referencesIn(idea).map((n) => referenceToken(n).toLowerCase()),
+        ...tracksIn(idea).map((n) => trackToken(n).toLowerCase()),
+      ]),
+    [idea],
+  );
+
+  const atRows = useMemo<AtRow[]>(
+    () => (mention ? atRowsFor(mention.query, characters, references) : []),
+    [mention, characters, references],
+  );
   // The free local video renderer on this PC (tools/studio-bridge).
   const [local, setLocal] = useState<{ ok: boolean; wangp?: boolean; queue?: number } | null>(null);
   useEffect(() => {
@@ -188,26 +237,42 @@ export function StudioTab({
     if (!q || q.query !== mention?.query) setMentionIndex(0);
   };
 
-  /** Picking from the @ menu types the token AND ticks the card, so the two
-   *  ways of choosing a workflow never disagree. */
-  const chooseMention = (m: Mention) => {
+  /** Swap the half-typed "@kid" at the caret for a finished token. */
+  const insertMention = (token: string) => {
     if (!mention) return;
     const before = idea.slice(0, mention.start);
     const after = idea.slice(mention.caret).replace(/^\S*/, "");
-    const inserted = `@${m.token} `;
+    const inserted = `@${token} `;
     setIdea(`${before}${inserted}${after.replace(/^\s/, "")}`);
     setMention(null);
-    setPicked((list) =>
-      list.some((p) => p.id === m.workflow.id)
-        ? list
-        : [...list, { id: m.workflow.id, variant: m.variant?.id ?? "" }],
-    );
     const at = before.length + inserted.length;
     requestAnimationFrame(() => {
       ideaRef.current?.focus();
       ideaRef.current?.setSelectionRange(at, at);
     });
   };
+
+  /** Picking a workflow from the @ menu types the token AND ticks the card, so
+   *  the two ways of choosing one never disagree. */
+  const chooseMention = (m: Mention) => {
+    insertMention(m.token);
+    setPicked((list) =>
+      list.some((p) => p.id === m.workflow.id)
+        ? list
+        : [...list, { id: m.workflow.id, variant: m.variant?.id ?? "" }],
+    );
+  };
+
+  /** A person and an upload only have to be named; nothing gets ticked. */
+  const chooseAtRow = (row: AtRow | undefined) => {
+    if (!row) return;
+    if (row.group === "wf") chooseMention(row.mention);
+    else insertMention(row.group === "cast" ? row.character.token : row.reference.token);
+  };
+
+  /** Type a reference's own token at the end of the idea, from its tile. */
+  const nameReference = (token: string) =>
+    setIdea((t) => `${t}${t && !/\s$/.test(t) ? " " : ""}@${token} `);
 
   const start = () => {
     // A picked card, a typed idea or an attached reference — any one of them is
@@ -431,65 +496,45 @@ export function StudioTab({
           <CinemaBar selection={cinema} onSelection={setCinema} text={idea} onText={setIdea} />
 
           <div className="relative">
-            {mention && mentionOptions.length > 0 && (
-              <ul
-                role="listbox"
-                aria-label="Studio workflows"
-                className="absolute inset-x-0 bottom-full z-30 mb-2 max-h-72 overflow-y-auto rounded-xl border border-line bg-elevated p-1 shadow-[0_12px_32px_-8px_rgb(0_0_0/0.6)]"
-              >
-                <li className="px-2 pb-1 pt-1.5 text-[10px] text-ink-faint">
-                  Studio workflows · ↑↓ to move · Enter to add
-                </li>
-                {mentionOptions.map((m, i) => (
-                  <li key={m.token} role="option" aria-selected={i === mentionIndex}>
-                    <button
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        chooseMention(m);
-                      }}
-                      onMouseEnter={() => setMentionIndex(i)}
-                      className={`st-card flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left ${
-                        i === mentionIndex ? "bg-panel-2" : ""
-                      }`}
-                      style={{ ["--h" as string]: m.workflow.hue }}
-                    >
-                      <span className="relative h-7 w-6 shrink-0 overflow-hidden rounded">
-                        <span className="st-art" aria-hidden />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-xs text-ink">{m.label}</span>
-                        <span className="block truncate text-[11px] text-ink-faint">
-                          {m.variant ? m.variant.brief : m.workflow.blurb}
-                        </span>
-                      </span>
-                      <span className="flex shrink-0 items-center gap-1 text-[10px] capitalize text-ink-faint">
-                        {m.workflow.medium === "video" ? (
-                          <Icon.Film width={11} height={11} />
-                        ) : (
-                          <Icon.Image width={11} height={11} />
-                        )}
-                        {m.workflow.medium}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+            {mention && (
+              <MentionMenu
+                rows={atRows}
+                index={mentionIndex}
+                onIndex={setMentionIndex}
+                onChoose={chooseAtRow}
+                onHighlight={setHighlight}
+                placement="below"
+              />
             )}
             {attachments.length > 0 && (
               <ul className="flex flex-wrap gap-2 px-2 pt-2.5" aria-label="References for this shot">
-                {attachments.map((a) => (
-                  <ReferenceTile
-                    key={a.id}
-                    attachment={a}
-                    title={
-                      a.note
-                        ? `${a.name}\n\n${a.note}`
-                        : `${a.name} — attached to this shot; name it in chat`
-                    }
-                    onRemove={() => setAttachments((list) => list.filter((x) => x.id !== a.id))}
-                  />
-                ))}
+                {attachments.map((a) => {
+                  // Its row in the conversation's numbering — the thing an
+                  // @token names. A picture is a Subject, a track is an Audio;
+                  // "3" and "A2" are two counters, so the badge says which.
+                  const row = references.find((r) => r.id === a.id);
+                  const token = row?.token.toLowerCase();
+                  return (
+                    <ReferenceTile
+                      key={a.id}
+                      attachment={a}
+                      {...(row ? { badge: row.kind === "audio" ? `A${row.n}` : String(row.n) } : {})}
+                      lit={Boolean(token && (highlight === token || named.has(token)))}
+                      title={
+                        row
+                          ? `Name this ${row.label} in the shot${a.note ? `\n\n${a.note}` : ""}`
+                          : (a.note ?? a.name)
+                      }
+                      {...(row
+                        ? {
+                            onName: () => nameReference(row.token),
+                            onHover: (on: boolean) => setHighlight(on && token ? token : null),
+                          }
+                        : {})}
+                      onRemove={() => setAttachments((list) => list.filter((x) => x.id !== a.id))}
+                    />
+                  );
+                })}
               </ul>
             )}
             {problem && <p className="px-2 pt-2 text-[11px] text-amber-400">{problem}</p>}
@@ -503,16 +548,16 @@ export function StudioTab({
               onClick={(e) => readMention(e.currentTarget)}
               onBlur={() => setMention(null)}
               onKeyDown={(e) => {
-                if (mention && mentionOptions.length) {
+                if (mention && atRows.length) {
                   if (e.key === "ArrowDown" || e.key === "ArrowUp") {
                     e.preventDefault();
                     const step = e.key === "ArrowDown" ? 1 : -1;
-                    setMentionIndex((i) => (i + step + mentionOptions.length) % mentionOptions.length);
+                    setMentionIndex((i) => (i + step + atRows.length) % atRows.length);
                     return;
                   }
                   if (e.key === "Enter" || e.key === "Tab") {
                     e.preventDefault();
-                    chooseMention(mentionOptions[mentionIndex] ?? mentionOptions[0]);
+                    chooseAtRow(atRows[mentionIndex] ?? atRows[0]);
                     return;
                   }
                   if (e.key === "Escape") {
@@ -533,7 +578,7 @@ export function StudioTab({
                 void attach(files);
               }}
               rows={2}
-              placeholder="Describe the shot: whose story, which product, what happens…  (@ for a person or a workflow, # for a camera move)"
+              placeholder="Describe the shot: whose story, which product, what happens…  (@ for a person, an upload or a workflow, # for a camera move)"
               className="mt-2 block max-h-48 min-h-[68px] w-full resize-none bg-transparent px-2 pt-1 text-[15px] leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
             />
           </div>
