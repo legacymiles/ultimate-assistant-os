@@ -143,16 +143,6 @@ export function Jarvis() {
   );
 
   const [talking, setTalking] = useState(false);
-  /** A message Studio hands to Chat; the nonce lets the same text be sent twice. */
-  // What Studio hands to Chat: the idea as text, and the references it
-  // collected as the files themselves — they cannot ride in a string, and
-  // re-picking them in the chat box would be the owner doing it twice.
-  const [chatDraft, setChatDraft] = useState<{
-    text: string;
-    nonce: number;
-    attachments?: Attachment[];
-  } | null>(null);
-
   // The ball inside the voice window needs the same memories the Memory tab
   // draws. One empty store instance keeps the hook's inputs stable before the
   // real store has loaded.
@@ -338,10 +328,10 @@ export function Jarvis() {
           )}
           {tab === "studio" && (
             <StudioTab
-              onStartChat={(text, attachments) => {
-                setChatDraft({ text, nonce: Date.now(), attachments });
-                go("chat");
-              }}
+              store={store}
+              commit={commit}
+              profile={profile}
+              onDashboardChanged={dash.refresh}
             />
           )}
           {tab === "skills" && <SkillsLibrary chromeless />}
@@ -356,7 +346,6 @@ export function Jarvis() {
               commit={commit}
               profile={profile}
               onDashboardChanged={dash.refresh}
-              draft={chatDraft}
             />
           )}
           {tab === "inbox" && <InboxTab store={store} commit={commit} profile={profile} />}

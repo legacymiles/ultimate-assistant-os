@@ -126,6 +126,7 @@ export function ChatTab({
   profile,
   onDashboardChanged,
   draft,
+  embedded,
 }: {
   store: JarvisStore;
   commit: (s: JarvisStore) => void;
@@ -137,6 +138,15 @@ export function ChatTab({
    * any references it collected, which land in the tray already attached.
    */
   draft?: { text: string; nonce: number; attachments?: Attachment[] } | null;
+  /**
+   * Rendered inside another tab rather than as the Chat tab itself.
+   *
+   * Studio hosts this so a generation never moves the owner off the tab they
+   * started on; the only difference is who owns the height. Embedded, the
+   * parent has already taken its own chrome out of the viewport, so measuring
+   * against the viewport again would push the composer off the bottom.
+   */
+  embedded?: boolean;
 }) {
   const memory = useMemory(store, commit);
   const [input, setInput] = useState("");
@@ -820,7 +830,7 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
 
   return (
     <div
-      className="relative flex h-[calc(100dvh-49px)] flex-col"
+      className={`relative flex flex-col ${embedded ? "h-full min-h-0" : "h-[calc(100dvh-49px)]"}`}
       onDragOver={(e) => {
         if (!Array.from(e.dataTransfer.types).includes("Files")) return;
         e.preventDefault();

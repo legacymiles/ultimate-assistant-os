@@ -166,22 +166,55 @@ async function posterFor(blob: Blob, medium: "video" | "image"): Promise<string 
     video.muted = true;
     video.playsInline = true;
     video.preload = "metadata";
-    const ready = await new Promise<boolean>((resolve) => {
-      const done = () => resolve(true);
-      video.onloadeddata = done;
-      video.onseeked = done;
-      video.onerror = () => resolve(false);
-      video.src = url;
-      // A frame a little in is more representative than a black first frame.
-      video.currentTime = 0.4;
-      setTimeout(() => resolve(video.readyState >= 2), 4000);
-    });
-    if (!ready || !video.videoWidth) return undefined;
-    return draw(video, video.videoWidth, video.videoHeight);
+    const seek = (to: number) =>
+      new Promise<boolean>((resolve) => {
+        const done = () => resolve(true);
+        video.onloadeddata = done;
+        video.onseeked = done;
+        video.onerror = () => resolve(false);
+        if (!video.src) video.src = url;
+        video.currentTime = to;
+        setTimeout(() => resolve(video.readyState >= 2), 4000);
+      });
+    // The first frame, because that is what the clip opens on and what the
+    // owner is looking for when they scan the grid for a piece they made.
+    if (!(await seek(0)) || !video.videoWidth) return undefined;
+    // Unless it opens on black — a card showing a black rectangle tells them
+    // nothing, and a clip that fades up has several of them.
+    if (!isBlackFrame(video)) return draw(video, video.videoWidth, video.videoHeight);
+    const first = draw(video, video.videoWidth, video.videoHeight);
+    return (await seek(0.4)) ? draw(video, video.videoWidth, video.videoHeight) ?? first : first;
   } catch {
     return undefined;
   } finally {
     URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * Is the frame currently on this video effectively black?
+ *
+ * Read straight off the video element, not off the JPEG that was just drawn
+ * from it: an `Image` assigned a data URL is not `complete` until a decode
+ * task has run, so a check that waits for that would answer "fine" every time
+ * and the fallback below it would never fire — a safeguard that only looks
+ * like one. Drawing a video frame to a canvas is synchronous, so this is not.
+ */
+function isBlackFrame(video: HTMLVideoElement): boolean {
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = 16;
+    canvas.height = 16;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return false;
+    ctx.drawImage(video, 0, 0, 16, 16);
+    const { data } = ctx.getImageData(0, 0, 16, 16);
+    let sum = 0;
+    for (let i = 0; i < data.length; i += 4) sum += data[i] + data[i + 1] + data[i + 2];
+    // Mean channel value across the frame. Under ~6/255 is black to the eye.
+    return sum / (data.length / 4) / 3 < 6;
+  } catch {
+    return false;
   }
 }
 

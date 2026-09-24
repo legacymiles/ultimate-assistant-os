@@ -8,9 +8,12 @@
 // Clicking a card mixes it in; several can be mixed. The composer is where a
 // variant (E-commerce › Flat lay), style keywords and the camera deck (film
 // setup, camera, style, colour, lighting, and the #camera-moves typed into the
-// box) are chosen. "Start in chat" writes the mix as @-mentions into
-// the chat box, where Jarvis turns it into a production prompt. The same @- and
-// #-mentions work typed straight into chat, and the camera deck follows across.
+// box) are chosen. "Start" writes the mix as @-mentions into a conversation
+// that runs HERE, on this tab: the forms, the shot plan, the renders and the
+// replies all belong to the thing being made, so moving the owner to the Chat
+// tab to watch them was moving them away from the wall they were working from.
+// The same @- and #-mentions work typed straight into chat, and the camera deck
+// follows across.
 //
 // References — a photo, a clip, a track — are collected HERE too, next to the
 // idea they belong to, and travel with it. They are not numbered yet: a
@@ -22,6 +25,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { bridgeStatus } from "@/lib/studio/render";
 import { CinemaBar, CinemaOutputRow } from "./CinemaDeck";
 import { StudioGallery } from "./StudioGallery";
+import { ChatTab } from "./ChatTab";
+import type { JarvisStore } from "@/lib/jarvis/types";
+import type { Profile } from "@/lib/new-dashboard/types";
 import { studioPlugins } from "@/lib/studio/plugins";
 import { useCinemaOutput, useCinemaSelection } from "@/lib/studio/useCinema";
 import { Icon } from "../icons";
@@ -53,9 +59,15 @@ interface Picked {
 }
 
 export function StudioTab({
-  onStartChat,
+  store,
+  commit,
+  profile,
+  onDashboardChanged,
 }: {
-  onStartChat: (text: string, attachments: Attachment[]) => void;
+  store: JarvisStore;
+  commit: (s: JarvisStore) => void;
+  profile: Profile | null;
+  onDashboardChanged?: () => void;
 }) {
   const [medium, setMedium] = useState<Medium>("video");
   const [category, setCategory] = useState<CategoryId | "all">("all");
@@ -74,6 +86,15 @@ export function StudioTab({
   const [output, setOutput] = useCinemaOutput();
   /** The wall of workflows, what has been made, or the allowed add-on apps. */
   const [view, setView] = useState<"browse" | "gallery" | "plugins">("browse");
+  /**
+   * The conversation this Studio has going, if any.
+   *
+   * It runs HERE. Studio used to hand the mix to the Chat tab and move the
+   * owner there, which meant the forms, the shot plan and the renders all
+   * happened somewhere other than the tab they started on — and the wall of
+   * workflows they were working from was two clicks away the whole time.
+   */
+  const [session, setSession] = useState<{ text: string; nonce: number; attachments?: Attachment[] } | null>(null);
   /** The half-typed "@kid" in the idea box. */
   const [mention, setMention] = useState<{ start: number; caret: number; query: string } | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
@@ -203,9 +224,51 @@ export function StudioTab({
     const style = keywords.length ? `\nKeywords: ${keywords.join(", ")}` : "";
     // The camera moves ride along inside `idea` as #tokens; the look travels on
     // its own, shared with Chat through localStorage.
-    onStartChat(`${mentions} ${idea.trim()}${style}`.trim(), attachments);
+    setSession({ text: `${mentions} ${idea.trim()}${style}`.trim(), nonce: Date.now(), attachments });
     clear();
   };
+
+  // A session in progress takes the whole tab: the forms, the shot plan, the
+  // renders and the replies all belong to the thing being made, and the wall
+  // of workflows is one click behind them rather than another tab away.
+  if (session) {
+    return (
+      <div className="flex h-[calc(100dvh-49px)] flex-col">
+        <div className="flex shrink-0 items-center gap-2 border-b border-line bg-panel px-3 py-1.5">
+          <button
+            type="button"
+            onClick={() => setSession(null)}
+            className="inline-flex items-center gap-1 rounded-lg border border-line px-2 py-1 text-[11px] text-ink-muted transition hover:border-ink-faint hover:text-ink"
+          >
+            <Icon.ArrowLeft width={11} height={11} /> Workflows
+          </button>
+          <p className="min-w-0 flex-1 truncate text-[11px] text-ink-faint">
+            {session.text || "Studio"}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setSession(null);
+              setView("gallery");
+            }}
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-line px-2 py-1 text-[11px] text-ink-muted transition hover:border-ink-faint hover:text-ink"
+          >
+            <Icon.Layers width={11} height={11} /> Gallery
+          </button>
+        </div>
+        <div className="min-h-0 flex-1">
+          <ChatTab
+            store={store}
+            commit={commit}
+            profile={profile}
+            embedded
+            draft={session}
+            {...(onDashboardChanged ? { onDashboardChanged } : {})}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -306,7 +369,7 @@ export function StudioTab({
 
       {view === "gallery" ? (
         // Reusing a finished piece carries its prompt, not this tray.
-        <StudioGallery onReuse={(prompt) => onStartChat(prompt, [])} />
+        <StudioGallery onReuse={(prompt) => setSession({ text: prompt, nonce: Date.now() })} />
       ) : view === "plugins" ? (
         <PluginsPane />
       ) : (
@@ -538,7 +601,7 @@ export function StudioTab({
               disabled={!picked.length && !idea.trim() && !attachments.length}
               className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-ink px-4 py-2 text-xs font-semibold text-canvas transition hover:opacity-90 disabled:opacity-40"
             >
-              <Icon.Send width={13} height={13} /> Start in chat
+              <Icon.Send width={13} height={13} /> Start
             </button>
           </div>
         </div>
