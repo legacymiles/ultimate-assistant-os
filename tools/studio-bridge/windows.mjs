@@ -39,14 +39,27 @@ export function exposureGains(shots, maxGain = 0.1) {
 }
 
 /**
+ * Hand the last `blendAfter` frames of a window over to the seam.
+ *
+ * They are not dropped — they come back as a blended segment of the same
+ * length — so `frames + blendAfter` is what the shot still occupies. A window
+ * too short to give any up keeps them all rather than disappearing.
+ */
+function split(frames, blendAfter) {
+  const give = frames > blendAfter + 1 ? blendAfter : 0;
+  return { frames: frames - give, blendAfter: give };
+}
+
+/**
  * The window to take out of every clip, in frames.
  *
  * `shots` are the ones that actually rendered, in cut order, each with the
  * reading handover.mjs took of it. `slotFrames(shot)` returns the exact length
  * a shot must come out as, or 0 when it may run to its natural end.
  */
-export function stitchWindows(shots, { slotFrames = () => 0, maxGain = 0.1 } = {}) {
+export function stitchWindows(shots, { slotFrames = () => 0, maxGain = 0.1, blendFrames = 0 } = {}) {
   const gains = exposureGains(shots, maxGain);
+  const last = shots.length - 1;
   return shots.map((s, i) => {
     const read = s.read ?? {};
     const total = read.frames || 0;
@@ -61,6 +74,18 @@ export function stitchWindows(shots, { slotFrames = () => 0, maxGain = 0.1 } = {
     // is a preference rather than a correction.
     const warmUp = continued ? 0 : (read.headTrim || 0);
     const slot = Math.max(0, Math.round(slotFrames(s, i) || 0));
+    // The suite's Stitch Ready / Final Clip distinction: an intermediate shot is
+    // trimmed at its handover boundary, but the LAST shot keeps its complete
+    // landing. Nothing follows it, so there is no seam to protect — and a film
+    // that ends by cutting away mid-gesture reads as a file that ran out.
+    const tail = i === last ? 0 : (read.tailFrames || 0);
+    // The last few frames of this shot are replaced by a blend with the next
+    // clip's copy of the same moments, so they leave this shot's own body and
+    // come back as their own segment. The timeline length does not change.
+    const nextContinued = i < last && Boolean(shots[i + 1]?.chained);
+    const blendAfter = nextContinued
+      ? Math.max(0, Math.min(blendFrames, (shots[i + 1]?.overlap || 0)))
+      : 0;
 
     if (slot) {
       // A film cut to a song has no spare frames: a clip that comes up short
@@ -69,11 +94,13 @@ export function stitchWindows(shots, { slotFrames = () => 0, maxGain = 0.1 } = {
       // of whatever surplus H3 happened to hand us.
       const spare = Math.max(0, total - duplicated - slot);
       const from = duplicated + Math.min(warmUp, spare);
-      return { from, frames: Math.min(slot, Math.max(1, total - from)), gain: gains[i] };
+      const frames = Math.min(slot, Math.max(1, total - from));
+      return { from, ...split(frames, blendAfter), gain: gains[i] };
     }
     // Otherwise the shot ends where it really ends — the same boundary the next
     // shot continued from, so both halves of the join agree about where it was.
     const from = duplicated + warmUp;
-    return { from, frames: Math.max(1, total - from - (read.tailFrames || 0)), gain: gains[i] };
+    const frames = Math.max(1, total - from - tail);
+    return { from, ...split(frames, blendAfter), gain: gains[i] };
   });
 }

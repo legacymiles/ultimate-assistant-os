@@ -235,7 +235,19 @@ function framesFor(seconds) {
  * the model to know which way everything was travelling, cheap enough that a
  * chained shot only costs about a minute and a half of extra GPU time.
  */
-const OVERLAP = Number(process.env.STUDIO_OVERLAP || 18);
+const OVERLAP = Number(process.env.STUDIO_OVERLAP || 35);
+
+/**
+ * The seam settings, straight off Herrgott's recommended v1.4 baseline.
+ *
+ * 4 frames of video and 15 ms of audio, blending the two renderings of the
+ * moments the outgoing and incoming shots have in common. Set STUDIO_BLEND=0 to
+ * cut hard instead — on this pipeline the two renderings are much closer than
+ * they are in his (WanGP hands the previous clip's real frames forward rather
+ * than decoding a second latent), so this is worth A/B-ing rather than assuming.
+ */
+const BLEND_FRAMES = Number(process.env.STUDIO_BLEND ?? 4);
+const DECLICK_MS = Number(process.env.STUDIO_DECLICK ?? 15);
 
 const RESOLUTION = { "16:9": "832x480", "9:16": "480x832", "1:1": "640x640" };
 
@@ -379,6 +391,58 @@ async function handoverClip(clip, endFrame, frames, to) {
   ]);
   if (!existsSync(to)) throw new Error("Couldn't cut the handover out of the previous shot.");
   return to;
+}
+
+/**
+ * The seam between two shots of one take, as Herrgott's suite makes it.
+ *
+ * Not a dissolve. The last `n` frames of the outgoing shot and the last `n`
+ * frames of the incoming shot's duplicated head are THE SAME MOMENTS, rendered
+ * and decoded twice, so blending them washes out the difference between the two
+ * decodes without softening any motion. The segment is exactly `n` frames long
+ * and replaces `n` frames of the outgoing shot, so the film's length is
+ * untouched — which is the whole reason it can be done at all.
+ *
+ * The curve is theirs: a raised cosine, so the handover starts and ends flat
+ * instead of stepping at either end.
+ *
+ * Audio gets the same treatment over a much shorter window — 15 ms, a de-click
+ * rather than a crossfade, because a long blend on speech smears it.
+ */
+async function blendSeam(a, b, { aFrom, n, bHeadEnd, declickMs = 15 }, to) {
+  const alpha = (i) => (n <= 1 ? 0.5 : 0.5 - 0.5 * Math.cos((Math.PI * i) / (n - 1)));
+  // ffmpeg evaluates this per frame; A and B are the two pictures' pixel
+  // values. N is documented as starting at 0 and does not — measured here it
+  // arrives as 1 on the first frame, which without the offset shifts the whole
+  // ramp forward and makes the last frame fall BACK toward the outgoing shot
+  // instead of landing on the incoming one. That is a visible hitch at the one
+  // moment this exists to smooth, so the offset is not cosmetic.
+  const curve = n <= 1 ? "0.5" : `(0.5-0.5*cos(PI*(N-1)/${n - 1}))`;
+  const secs = (f) => (f / FPS).toFixed(5);
+  const d = Math.min(declickMs / 1000, n / FPS);
+  const parts = [
+    `[0:v]trim=start_frame=${aFrom}:end_frame=${aFrom + n},setpts=PTS-STARTPTS[av]`,
+    `[1:v]trim=start_frame=${bHeadEnd - n}:end_frame=${bHeadEnd},setpts=PTS-STARTPTS[bv]`,
+    `[av][bv]blend=all_expr='A*(1-${curve})+B*${curve}'[v]`,
+    // The outgoing sound runs the whole segment and only lets go at the very end.
+    `[0:a]atrim=start=${secs(aFrom)}:end=${secs(aFrom + n)},asetpts=PTS-STARTPTS,`
+    + `afade=t=out:st=${(n / FPS - d).toFixed(5)}:d=${d.toFixed(5)}:curve=tri[aa]`,
+    // The incoming sound is only the few milliseconds of its reused head that
+    // land on the same instant, held back so the two meet exactly at the join.
+    `[1:a]atrim=start=${(bHeadEnd / FPS - d).toFixed(5)}:end=${secs(bHeadEnd)},asetpts=PTS-STARTPTS,`
+    + `afade=t=in:d=${d.toFixed(5)}:curve=tri,adelay=${Math.round((n / FPS - d) * 1000)}:all=1[ba]`,
+    "[aa][ba]amix=inputs=2:duration=first:normalize=0[a]",
+  ];
+  await run(FFMPEG, [
+    "-y", "-hide_banner", "-loglevel", "error", "-i", a, "-i", b,
+    "-filter_complex", parts.join(";"),
+    "-map", "[v]", "-map", "[a]",
+    // Near-lossless: this is four frames sitting at the most scrutinised moment
+    // in the film, and it is about to be re-encoded once more by the concat.
+    "-c:v", "libx264", "-crf", "10", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+    "-c:a", "aac", "-b:a", "192k", "-r", String(FPS), to,
+  ]);
+  return { file: to, frames: n, firstAlpha: alpha(0), lastAlpha: alpha(n - 1) };
 }
 
 async function hasAudio(clip) {
@@ -910,15 +974,35 @@ async function renderFilm(id) {
   film.current = film.shots.length;
   film.status = "stitching";
   try {
-    const cut = await stitch(
-      done.map((s) => s.file),
-      stitchWindows(done, {
-        // A score's clips are cut back to the slots they were planned for; an
-        // ordinary film's run to wherever each shot really ends.
-        slotFrames: (s) => (film.audioMode === "master" ? Math.round(s.durationSec * FPS) : 0),
-      }),
-      join(dir, "film-cut.mp4"),
-    );
+    const windows = stitchWindows(done, {
+      // A score's clips are cut back to the slots they were planned for; an
+      // ordinary film's run to wherever each shot really ends.
+      slotFrames: (s) => (film.audioMode === "master" ? Math.round(s.durationSec * FPS) : 0),
+      blendFrames: BLEND_FRAMES,
+    });
+
+    // Every shot's body, and between the ones that run together, the blended
+    // frames they share. Built as its own list because a blend is a segment of
+    // the film in its own right, not a property of either shot.
+    const segments = [];
+    const windowsOut = [];
+    for (const [i, w] of windows.entries()) {
+      segments.push(done[i].file);
+      windowsOut.push({ from: w.from, frames: w.frames, gain: w.gain });
+      if (!w.blendAfter) continue;
+      const seam = await blendSeam(
+        done[i].file,
+        done[i + 1].file,
+        { aFrom: w.from + w.frames, n: w.blendAfter, bHeadEnd: done[i + 1].overlap, declickMs: DECLICK_MS },
+        join(dir, `seam-${i + 1}.mp4`),
+      );
+      segments.push(seam.file);
+      // The blend is already the two shots averaged, so it takes the gain of
+      // the run it sits inside — which both of them share anyway.
+      windowsOut.push({ from: 0, frames: seam.frames, gain: w.gain });
+    }
+
+    const cut = await stitch(segments, windowsOut, join(dir, "film-cut.mp4"));
     film.file = !film.soundtrackFile
       ? cut
       : film.audioMode === "master"

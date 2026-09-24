@@ -11,14 +11,14 @@ type Shot = {
   durationSec?: number;
   read?: { frames?: number; headTrim?: number; tailFrames?: number; meanLuma?: number };
 };
-type Window = { from: number; frames: number; gain: number };
+type Window = { from: number; frames: number; gain: number; blendAfter: number };
 
 // The module is plain ESM with no types — it is kept dependency-free so it can
 // be copied straight into any pipeline — so the shape it is used with is
 // declared here instead.
 const stitchWindows = windows.stitchWindows as unknown as (
   shots: Shot[],
-  opts?: { slotFrames?: (shot: Shot, index: number) => number; maxGain?: number },
+  opts?: { slotFrames?: (shot: Shot, index: number) => number; maxGain?: number; blendFrames?: number },
 ) => Window[];
 const exposureGains = windows.exposureGains as unknown as (shots: Shot[], maxGain?: number) => number[];
 
@@ -43,10 +43,24 @@ describe("stitchWindows", () => {
     expect(a.frames).toBe(158 - 11);
   });
 
-  it("ends a shot where it really ends, not where its file does", () => {
-    const [a] = stitchWindows([shot({ frames: 226, headTrim: 3, tailFrames: 26 })]);
+  it("ends an intermediate shot where it really ends, not where its file does", () => {
+    const [a] = stitchWindows([
+      shot({ frames: 226, headTrim: 3, tailFrames: 26 }),
+      shot({ frames: 124 }),
+    ]);
     expect(a.from).toBe(3);
     expect(a.frames).toBe(226 - 3 - 26);
+  });
+
+  it("lets the LAST shot keep its landing, because nothing follows it", () => {
+    // The suite's Stitch Ready / Final Clip distinction. There is no seam to
+    // protect at the end of a film, and cutting away mid-gesture reads as a
+    // file that ran out rather than as an ending.
+    const [, b] = stitchWindows([
+      shot({ frames: 124 }),
+      shot({ frames: 226, headTrim: 3, tailFrames: 26 }),
+    ]);
+    expect(b.frames).toBe(226 - 3);
   });
 
   it("never lets the first shot be treated as continued, whatever it claims", () => {
@@ -120,5 +134,44 @@ describe("exposureGains", () => {
   it("leaves a film with nothing to match against alone", () => {
     const gains = exposureGains([shot({ meanLuma: 0.2 }), shot({ meanLuma: 0.5 }, { chained: true })]);
     expect(gains).toEqual([1, 1]);
+  });
+});
+
+describe("the seam between two shots of one take", () => {
+  it("hands the last frames of a shot over to the blend, keeping the length", () => {
+    const w = stitchWindows(
+      [shot({ frames: 158 }), shot({ frames: 124 }, { chained: true, overlap: 35 })],
+      { blendFrames: 4 },
+    );
+    expect(w[0].blendAfter).toBe(4);
+    // 4 frames leave the body and come back as their own segment, so the shot
+    // still occupies exactly what it did before.
+    expect(w[0].frames + w[0].blendAfter).toBe(158);
+    expect(w[1].blendAfter).toBe(0);
+  });
+
+  it("does not blend across a cut — there are no shared moments to blend", () => {
+    const w = stitchWindows(
+      [shot({ frames: 158 }), shot({ frames: 124 })],
+      { blendFrames: 4 },
+    );
+    expect(w[0].blendAfter).toBe(0);
+  });
+
+  it("never asks for more blend than the incoming shot's head can supply", () => {
+    const w = stitchWindows(
+      [shot({ frames: 158 }), shot({ frames: 124 }, { chained: true, overlap: 2 })],
+      { blendFrames: 4 },
+    );
+    expect(w[0].blendAfter).toBe(2);
+  });
+
+  it("is off when nobody asked for it", () => {
+    const w = stitchWindows([
+      shot({ frames: 158 }),
+      shot({ frames: 124 }, { chained: true, overlap: 35 }),
+    ]);
+    expect(w[0].blendAfter).toBe(0);
+    expect(w[0].frames).toBe(158);
   });
 });
