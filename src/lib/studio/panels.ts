@@ -13,14 +13,15 @@
 // What is kept is a THUMBNAIL. The board is saved into the synced conversation,
 // so full-size frames here would push megabytes per film between the owner's
 // devices; the chat's own attachments already sync as thumbnails for exactly
-// this reason. A panel is looked at in a 200-pixel column, so 480 across is
-// already generous.
+// this reason. A frame is now read on the full-page sheet, in a card around
+// 360 pixels wide, so 640 across is the honest size: half that was visibly
+// soft at the size the sheet actually shows it.
 // ---------------------------------------------------------------------------
 
 import { panelPrompt, type Storyboard } from "./storyboard";
 
-/** Long edge of the panel that is kept. Twice the column it is read in. */
-const PANEL_EDGE = 480;
+/** Long edge of the panel that is kept. Nearly twice the card it is read in. */
+const PANEL_EDGE = 640;
 const PANEL_QUALITY = 0.72;
 
 /** A face the panel should draw, resolved by the caller from the conversation. */

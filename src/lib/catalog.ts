@@ -413,10 +413,25 @@ export const PROJECTS: CatalogProject[] = [
   {
     slug: "seedance-studio",
     title: "Seedance Studio",
-    tag: "Music-video cutting room",
+    tag: "Audio-driven video engine",
     category: "Video",
     overview:
-      "A music-video editor with three lanes and one song. Video prompts run end to end under the " +
+      "An audio-driven video engine: drop a song and the film is cut TO it, not laid over it. " +
+      "The track is decoded in the browser and never uploaded — tempo, bar lines, sections, energy " +
+      "and the exact moments it drops are all measured locally and free. A listening model " +
+      "transcribes the words with their times (or paste your own lyrics and have them timed), and " +
+      "then Jarvis's Studio chat — the same @-mentioned workflows, the same people out of your " +
+      "Photos library, the same camera deck, the same uploads — plans the film as a SCORE: a shot " +
+      "sheet where every cut is pinned to a second of the track, snapped to a measured bar line, " +
+      "and landing on the drops. Lip-sync ranges say which seconds are sung to camera, and on those " +
+      "cuts the words outrank the prompt: the performer is on camera, mouthing those exact words, " +
+      "and the visual idea becomes the world around them. The board is editable after the plan and " +
+      "after the render — move a cut, split it, lock it, toggle whether it sings, rewrite the woven " +
+      "prompt, or render one cut on its own before committing the queue — with a second board " +
+      "showing just the cuts that sing. The film renders free on the owner's own GPU, every clip " +
+      "trimmed back to its planned slot so the picture cannot drift, and the song laid over it at " +
+      "full level as the master. The original three-lane cutting room is still there behind a " +
+      "toggle. Video prompts run end to end under the " +
       "track — add them with a +, drag to reorder, drag an edge to trim, and open any one to write " +
       "its prompt, attach reference images and set the Studio camera deck: Film setup (genre, era, " +
       "tempo), Camera, Movement as ordered #tokens, Style, Color palette and Lighting, all layered " +

@@ -207,7 +207,7 @@ export const DASHBOARD_TOOLS: ToolSpec[] = [
  * so it is an ordinary write: it stops for a yes and then runs in the browser
  * (src/lib/studio/render.ts), where the reference photos are.
  */
-export const STUDIO_TOOL_NAMES = ["studio_form", "studio_storyboard", "studio_generate"];
+export const STUDIO_TOOL_NAMES = ["studio_form", "studio_storyboard", "studio_score", "studio_generate"];
 
 export const STUDIO_TOOLS: ToolSpec[] = [
   {
@@ -379,6 +379,203 @@ export const STUDIO_TOOLS: ToolSpec[] = [
       required: ["title", "shots"],
     },
     // Nothing is rendered by laying out a plan; the owner starts that.
+    readOnlyHint: true,
+    app: "studio",
+  },
+  {
+    name: "studio_score",
+    description:
+      "Cut a film TO A PIECE OF AUDIO. Use this — never studio_storyboard — whenever the owner has "
+      + "attached a song, a rap, a voiceover, a podcast or any other track and wants a video built "
+      + "around it. The audio is the clock: you are given its real measurements (tempo, bar lines, "
+      + "sections, energy, the exact moments it drops) and its words with timings, and every cut you "
+      + "write has a TIME ON THAT CLOCK rather than a length of its own.\n\n"
+      + "Like a form, this pauses the conversation: the owner edits the board and starts the render "
+      + "themselves. Nothing is spent by planning.\n\n"
+      + "HOW A SHOT'S LENGTH WORKS, because it is the one thing that is different here. You do not set "
+      + "durations. You set `at_sec`, and a shot runs until the NEXT shot's `at_sec` (the last runs to "
+      + "the end of the track). So consecutive cuts must be 4 to 15 seconds apart — closer and the "
+      + "renderer cannot make the clip, further and it cannot either. Start the first shot at 0.0 or "
+      + "the song opens on black.\n\n"
+      + "WHAT MAKES THIS AUDIO-DRIVEN RATHER THAN CLIPS OVER A SONG:\n"
+      + "- Put your cuts ON the measured bar lines you were given. Not near them — on them, to the "
+      + "hundredth of a second. A cut 200 ms off the beat reads as a mistake.\n"
+      + "- Cut on the DROPS. Those timestamps are where the arrangement arrives, and a cut landing "
+      + "exactly there is most of what makes an edit feel professional.\n"
+      + "- Do NOT cut on every beat or every accent. Long shots through a verse, shorter ones through a "
+      + "chorus; pace is how the edit breathes. A cut every two seconds is a slideshow.\n"
+      + "- Every shot must say in `because` what in the audio put it there — the line it covers, the "
+      + "drop it lands on, the section it belongs to. A shot that cannot say is a shot you invented "
+      + "rather than heard.\n"
+      + "- A shot covering a lyric must be ABOUT that lyric — what it MEANS. \"She walked in the club "
+      + "and everybody turned around\" is a woman entering, heads turning, the camera following her — "
+      + "not a generic nightclub. Decide which lines earn a literal image and which are better carried "
+      + "by the scene they are already in. Do not literally visualise every word.\n\n"
+      + "LIP SYNC. `lipsync` is a list of ranges of the SONG where someone is singing or speaking to "
+      + "camera. Any shot that overlaps one becomes a performance shot, and on those shots the sung "
+      + "words OUTRANK everything else you wrote: the performer will be on camera with their face and "
+      + "mouth large and unobstructed, and the shot's own action is demoted to the setting around them. "
+      + "So put a lip-sync range where you actually want a performance, keep them on the vocal lines "
+      + "you were given, and make sure those shots name someone from `cast` — otherwise the render has "
+      + "no face to put the words in. Do not make the whole song a performance; a music video cuts "
+      + "between the singer and everything else.\n\n"
+      + "CONTINUITY is the same job as any film and is carried by the same four fields — `link` "
+      + "('continuous' renders a shot from the LAST FRAME of the one before it, which is the only thing "
+      + "that makes separate generations look like one take), `location` (the same string means the "
+      + "same place and forbids re-staging), `ends_on` (always fill it; the next shot opens on it) and "
+      + "`carry`. The film-wide fields (world, mood, look, wardrobe, lighting, grade, lens) are "
+      + "repeated into every shot word for word, so write each one once, concretely, and never "
+      + "contradict it in an action. `places` and `cast` are the location and character bibles: name a "
+      + "place or a person once, describe them fully, then refer to them by name in shots.\n\n"
+      + "Give any shot over about 6 seconds `beats` — a clock inside it, roughly one every 2 s — or the "
+      + "renderer fills the seconds with a held pose.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "The film's title." },
+        mode: {
+          type: "string",
+          enum: ["music-video", "lyric-video", "story", "voiceover", "reaction", "cinematic"],
+          description:
+            "music-video: lyrics drive cinematic scenes. lyric-video: typography lands on the words. "
+            + "story: one continuous narrative. voiceover: visuals illustrate what is said. reaction: "
+            + "visuals answer the spoken content. cinematic: abstract visuals answer rhythm and emotion.",
+        },
+        logline: { type: "string", description: "One sentence: what happens across the whole piece." },
+        story: {
+          type: "string",
+          description:
+            "The arc in a few sentences — the story bible. Where it starts, what changes, where it "
+            + "ends. This is what stops a music video being a mood board with cuts in it.",
+        },
+        world: { type: "string", description: "One sentence fingerprinting the world and its texture; repeated into every shot." },
+        look: { type: "string", description: "e.g. 'live action, anamorphic 2.39, photorealistic'." },
+        mood: {
+          type: "string",
+          description:
+            "The genre and how it is shot, in one paragraph. Take it from the audio's own measured "
+            + "character (tempo, key, brightness, dynamics) and from what the words are about. Never "
+            + "leave it empty — it governs the lighting, the grade and the framing of every shot.",
+        },
+        aspect_ratio: { type: "string", enum: ["16:9", "9:16", "1:1"] },
+        lens: { type: "string", description: "The glass used throughout, e.g. 'anamorphic prime set'." },
+        lighting: { type: "string", description: "The light, unchanged across shots." },
+        grade: { type: "string", description: "The colour grade, unchanged across shots." },
+        palette: { type: "array", items: { type: "string" }, description: "4-6 hex colours." },
+        wardrobe: { type: "string", description: "Exactly what everyone wears; the most common continuity break." },
+        soundscape: { type: "string", description: "The diegetic sound world. The real track is laid under the cut automatically." },
+        cast: {
+          type: "array",
+          description: "Everyone who must look identical in every shot they appear in — the character bible.",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              name: { type: "string", description: "Short and in caps, as a call sheet writes it: 'MAYA'." },
+              look: { type: "string", description: "Face, build, hair, skin, marks — what a frame must keep." },
+              subject: { type: "number", description: "The upload that shows them, as a Subject number (1 = first uploaded)." },
+              turns_at: { type: "number", description: "The cut number (1-based) where they stop looking like `look`, for a real on-screen transformation." },
+              turns_into: { type: "string", description: "What they become from turns_at onward, written as fully as `look`." },
+            },
+            required: ["name", "look"],
+          },
+        },
+        places: {
+          type: "array",
+          description:
+            "The location bible. Describe each place once, fully, then name it in shots — a shot whose "
+            + "`location` matches a name here inherits this description instead of re-inventing the room.",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              name: { type: "string", description: "Short and reusable: 'the stairwell', 'the car'." },
+              look: { type: "string", description: "Surfaces, light sources, weather, clutter — what a frame must keep." },
+            },
+            required: ["name", "look"],
+          },
+        },
+        lipsync: {
+          type: "array",
+          description:
+            "Ranges of the SONG that are sung or spoken to camera. Use the vocal line timings you were "
+            + "given. A shot overlapping one becomes a performance shot where the words outrank the "
+            + "prompt, so place these deliberately.",
+          items: {
+            type: "object",
+            properties: {
+              start_sec: { type: "number", description: "Seconds into the track." },
+              duration_sec: { type: "number", description: "How long the performance lasts." },
+            },
+            required: ["start_sec", "duration_sec"],
+          },
+        },
+        shots: {
+          type: "array",
+          description:
+            "The cuts, in time order. Consecutive `at_sec` values must be 4-15 seconds apart, and the "
+            + "first should be 0.",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              title: { type: "string", description: "'Cut 3 — the headlights'." },
+              at_sec: {
+                type: "number",
+                description:
+                  "Where this cut starts in the track, in seconds, to two decimals. Put it on one of "
+                  + "the measured bar lines or drops you were given. This is the ONLY timing field — "
+                  + "the shot runs until the next one starts.",
+              },
+              action: {
+                type: "string",
+                description:
+                  "What physically happens across the shot. On a shot that overlaps a lip-sync range "
+                  + "this is the SETTING the performance happens in, not a shot of its own.",
+              },
+              because: {
+                type: "string",
+                description:
+                  "What in the audio put this cut here: the lyric it covers and what that lyric means, "
+                  + "the drop it lands on, or the section it belongs to. Required.",
+              },
+              framing: { type: "string", description: "'wide', 'medium', 'close-up', 'insert'." },
+              move: { type: "string", description: "'slow push-in', 'handheld track', 'static'." },
+              camera_note: {
+                type: "string",
+                description:
+                  "The geometry behind the name in `move` — travel distance, focal length at each end, "
+                  + "what stays locked. Required for any named trick move; the name alone renders as an "
+                  + "ordinary move.",
+              },
+              lens_mm: { type: "number" },
+              aperture: { type: "string" },
+              location: { type: "string", description: "The place. Match a `places` name to inherit its description." },
+              cast: { type: "array", items: { type: "string" }, description: "The `cast` names in this shot." },
+              beats: {
+                type: "array",
+                description: "The clock inside this shot. Any shot over ~6 s needs a beat roughly every 2 s.",
+                items: {
+                  type: "object",
+                  properties: {
+                    at: { type: "number", description: "Seconds from the start of THIS shot." },
+                    text: { type: "string", description: "One clause, present tense." },
+                  },
+                  required: ["at", "text"],
+                },
+              },
+              link: { type: "string", enum: ["continuous", "cut"], description: "Ignored on the first shot." },
+              carry: { type: "string", description: "Props, blocking, damage or weather that must survive from the shot before." },
+              ends_on: { type: "string", description: "The frame this shot finishes on. The next shot is told to open on it." },
+              references: { type: "array", items: { type: "number" }, description: "Subject numbers whose faces this shot needs." },
+            },
+            required: ["title", "at_sec", "action", "because"],
+          },
+        },
+      },
+      required: ["title", "shots"],
+    },
+    // Laying out a plan renders nothing; the owner starts that.
     readOnlyHint: true,
     app: "studio",
   },

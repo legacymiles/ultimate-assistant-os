@@ -19,16 +19,21 @@
 //
 //              1. The prompts already carry the continuity (see
 //                 src/lib/studio/storyboard.ts — the page writes them).
-//              2. A shot marked "continuous" is rendered from the LAST FRAME of
-//                 the shot before it (H3 FL2VA with a start image), so the join
-//                 is not a match, it is the same frame. WanGP shares exactly one
-//                 frame with a start image, so the edit drops that duplicate.
+//              2. A shot marked "continuous" is CONTINUED from the shot before
+//                 it: handover.mjs reads where that shot really ended, a short
+//                 run of its real frames is cut out there, and WanGP hands
+//                 those frames to H3 as temporal context. Motion and sound
+//                 cross the join instead of restarting, which a single still
+//                 frame can never make them do.
 //              3. ffmpeg cuts the finished clips together — frame-accurate, one
-//                 pass, one encode — and lays the owner's track underneath.
+//                 pass, one encode — dropping each clip's duplicated handover
+//                 head, its warm-up, and its landing, holding exposure steady
+//                 across the cuts, and laying the owner's track underneath.
 //
-//            (WanGP can also continue from a whole source video, image_prompt_
-//            type "V". A start frame is used instead because exactly one frame
-//            is shared, which is the only version this edit can trim precisely.)
+//            The boundary handover.mjs finds is used TWICE and must be: it is
+//            both the last frame of a shot the audience sees and the last frame
+//            the next shot continues from. If those two ever disagree, the film
+//            continues from a moment nobody watched.
 //
 // One GPU, so renders run one at a time in arrival order. WanGP's MCP server is
 // started on demand if it isn't already running on :42004.
@@ -60,6 +65,8 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { analyzeClip, probeClip } from "./handover.mjs";
+import { stitchWindows } from "./windows.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "out");
@@ -123,7 +130,14 @@ function learnRate(seconds, frames) {
 
 let sessionId = null;
 let rpcId = 0;
-function rpc(method, params, notify = false) {
+/**
+ * `timeoutMs` is 0 for a generation, which legitimately holds the request open
+ * for many minutes. Everything else gets a deadline: WanGP can wedge — a client
+ * that dies mid-render leaves a session it never finishes answering — and
+ * without one, a question as small as "are you there?" hangs forever, which the
+ * page reads as the whole renderer being dead rather than busy.
+ */
+function rpc(method, params, notify = false, timeoutMs = 0) {
   const body = JSON.stringify(notify ? { jsonrpc: "2.0", method, params } : { jsonrpc: "2.0", id: ++rpcId, method, params });
   const headers = {
     "Content-Type": "application/json",
@@ -147,17 +161,28 @@ function rpc(method, params, notify = false) {
       });
     });
     // A render holds the request open for many minutes.
-    req.setTimeout(0);
+    req.setTimeout(timeoutMs);
+    if (timeoutMs) {
+      req.on("timeout", () => {
+        req.destroy(new Error(`WanGP didn't answer ${method} within ${Math.round(timeoutMs / 1000)}s.`));
+      });
+    }
     req.on("error", fail);
     req.end(body);
   });
 }
 
+/** Is WanGP answering? A probe, so it gets a short deadline rather than none. */
 async function wangpUp() {
   try {
     sessionId = null;
-    await rpc("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "studio-bridge", version: "1" } });
-    await rpc("notifications/initialized", {}, true);
+    await rpc(
+      "initialize",
+      { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "studio-bridge", version: "1" } },
+      false,
+      8000,
+    );
+    await rpc("notifications/initialized", {}, true, 8000);
     return true;
   } catch {
     return false;
@@ -193,10 +218,24 @@ function ensureWanGP() {
 
 // H3 wants 107 + 17k frames at 24 fps.
 const FPS = 24;
+const MAX_FRAMES = 107 + 17 * 14; // 345, a shade over 14 s — H3's ceiling here.
+/** The smallest window H3 will actually render that holds `frames`. */
+const gridFrames = (frames) =>
+  Math.min(MAX_FRAMES, 107 + 17 * Math.max(0, Math.ceil((frames - 107) / 17)));
 function framesFor(seconds) {
-  const want = Math.round(Math.min(15, Math.max(4, seconds || 5)) * FPS);
-  return 107 + 17 * Math.max(0, Math.ceil((want - 107) / 17));
+  return gridFrames(Math.round(Math.min(15, Math.max(4, seconds || 5)) * FPS));
 }
+
+/**
+ * How many frames of the previous shot a continuation carries.
+ *
+ * WanGP's sliding window takes 1 + 17k, and the overlap is real temporal
+ * context: the model sees those frames and continues the motion in them instead
+ * of starting from rest. 18 frames is three quarters of a second — enough for
+ * the model to know which way everything was travelling, cheap enough that a
+ * chained shot only costs about a minute and a half of extra GPU time.
+ */
+const OVERLAP = Number(process.env.STUDIO_OVERLAP || 18);
 
 const RESOLUTION = { "16:9": "832x480", "9:16": "480x832", "1:1": "640x640" };
 
@@ -234,19 +273,27 @@ const flat = (t) => String(t).replace(/\s*\r?\n+\s*/g, " ").trim();
 /**
  * One H3 generation.
  *
- * `startFrame` chains this clip onto the one before it: WanGP shares exactly
- * one frame with a start image, so the new clip opens on the old clip's last
- * frame and the edit drops the duplicate.
+ * `chain` continues this clip from the one before it. It is a short run of the
+ * previous clip's real frames, not a still: WanGP hands those frames to H3 as
+ * temporal context, so motion and sound cross the join instead of restarting.
+ * They come back at the head of the new clip, and the edit drops them.
+ *
+ * Because the overlap is spent on context rather than on new film, the window
+ * asked for is the wanted length PLUS the overlap — otherwise every chained
+ * shot lands short, and on a film cut to music that shortfall compounds.
  */
-async function generate({ id, prompt, refFiles = [], durationSec, aspectRatio, startFrame = null }) {
+async function generate({ id, prompt, refFiles = [], durationSec, aspectRatio, chain = null }) {
   await ensureWanGP();
-  const withRefs = refFiles.length > 0 && !startFrame;
+  const withRefs = refFiles.length > 0 && !chain;
+  const frames = chain
+    ? gridFrames(framesFor(durationSec) + chain.overlap)
+    : framesFor(durationSec);
   const labels = refFiles.map((f, i) => `image ${i + 1} is ${f.label || `Subject ${i + 1}`}`).join("; ");
   const source = {
     model_type: withRefs ? "minimax_h3_ref2va_pruned" : "minimax_h3_fl2va_pruned",
     prompt: flat(withRefs && labels ? `${prompt} Reference images: ${labels}. Keep each one's identity and details exactly.` : prompt),
     resolution: RESOLUTION[aspectRatio] || RESOLUTION["16:9"],
-    video_length: framesFor(durationSec),
+    video_length: frames,
     seed: Math.floor(Math.random() * 2 ** 31),
     num_inference_steps: 4,
     guidance_scale: 1,
@@ -255,7 +302,17 @@ async function generate({ id, prompt, refFiles = [], durationSec, aspectRatio, s
     activated_loras: [withRefs ? TURBO_REF2VA : TURBO_FL2VA],
     config: "gguf_q2_k,int8_convrot,lower_ram",
     ...(withRefs ? { image_refs: refFiles.map((f) => resolve(f.path)), video_prompt_type: "I" } : {}),
-    ...(startFrame ? { image_start: [resolve(startFrame)], image_prompt_type: "S" } : {}),
+    ...(chain
+      ? {
+        video_source: resolve(chain.source),
+        // Counted from frame 0 of the source, which is why the handover is cut
+        // into its own file rather than pointing at the whole previous clip.
+        keep_frames_video_source: String(chain.overlap),
+        sliding_window_overlap: chain.overlap,
+        sliding_window_size: frames,
+        image_prompt_type: "V",
+      }
+      : {}),
   };
   const r = await rpc("tools/call", { name: "wangp_generate", arguments: { action: "generate", arguments: { source } } });
   const text = (r?.result?.content ?? []).map((c) => c.text).join("\n");
@@ -295,12 +352,32 @@ function run(bin, args, { capture = false, captureErr = false } = {}) {
   });
 }
 
-/** The exact frame a clip ends on — the next shot's opening frame. */
-async function lastFrame(clip, to) {
-  // -sseof seeks from the end; -update keeps overwriting, so the file left
-  // behind is the final decoded frame rather than the first of the tail.
-  await run(FFMPEG, ["-y", "-hide_banner", "-loglevel", "error", "-sseof", "-0.3", "-i", clip, "-update", "1", "-q:v", "2", to]);
-  if (!existsSync(to)) throw new Error("Couldn't read the last frame of the previous shot.");
+/**
+ * The handover: the last `frames` frames of a clip, ending where the clip
+ * really ends rather than where its file does.
+ *
+ * H3 does not stop a clip, it lands one — the ending decelerates and can settle
+ * into a repeated final image. Hand the next shot a single still frame from
+ * inside that landing and it opens on a picture that has already stopped, so
+ * the model has no motion to continue and invents its own. A run of real frames
+ * carries velocity, and carries the audio with it, which one frame can never do.
+ *
+ * `endFrame` comes from handover.mjs and is the SAME frame the visible clip is
+ * trimmed to. If those two ever disagree, the next shot continues from a moment
+ * the audience never saw.
+ */
+async function handoverClip(clip, endFrame, frames, to) {
+  const from = Math.max(0, endFrame - frames + 1);
+  await run(FFMPEG, [
+    "-y", "-hide_banner", "-loglevel", "error", "-i", clip,
+    "-vf", `trim=start_frame=${from}:end_frame=${endFrame + 1},setpts=PTS-STARTPTS`,
+    "-af", `atrim=start=${(from / FPS).toFixed(4)}:end=${((endFrame + 1) / FPS).toFixed(4)},asetpts=PTS-STARTPTS`,
+    // Near-lossless: this is temporal context for a generation, so its own
+    // compression artefacts would be handed straight to the next shot.
+    "-c:v", "libx264", "-crf", "12", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+    "-c:a", "aac", "-b:a", "192k", to,
+  ]);
+  if (!existsSync(to)) throw new Error("Couldn't cut the handover out of the previous shot.");
   return to;
 }
 
@@ -319,13 +396,37 @@ async function hasAudio(clip) {
 /**
  * Cut the finished clips together.
  *
- * One ffmpeg pass, one encode: trimming per clip and concatenating in the same
- * filter graph is the only way to drop the shared frame of a chained shot
- * frame-accurately. `trims[i]` is how many frames to drop off the front of clip
- * i — 1 for a chained shot, 0 for a cut.
+ * One ffmpeg pass, one encode: trimming, exposure-matching and concatenating in
+ * the same filter graph is the only way to do all three frame-accurately and
+ * still pay for a single encode.
+ *
+ * `windows[i]` says what to use of clip i:
+ *
+ *   from    frames to drop off the front. The duplicated handover head of a
+ *           chained shot, or the warm-up of a shot that starts something —
+ *           H3 spends its opening frames establishing before anything moves,
+ *           and a film cut on file boundaries stalls at every join because of
+ *           it.
+ *   frames  how many to keep after that (0 = to the end). This is where the
+ *           landing gets dropped, and where a film cut to a song gets every
+ *           clip pulled back to the slot it was planned for: H3 renders in
+ *           whole latent windows (107 frames, then 17 at a time), so a clip
+ *           asked for as 5.00 s comes back as 5.167 s. Invisible once; over a
+ *           dozen shots it puts the picture most of a second behind the music.
+ *   gain    a flat RGB gain, to hold exposure steady across a cut. Separately
+ *           generated clips drift in brightness — measured on a real film,
+ *           consecutive shots ran 0.24 → 0.40 → 0.28 mean luma, so the film
+ *           visibly pumped at every join. Shots inside one continuous run share
+ *           a gain, so a correction can never introduce a step where the
+ *           picture was already unbroken.
  */
-async function stitch(clips, trims, out) {
-  if (clips.length === 1 && !trims[0]) {
+async function stitch(clips, windows, out) {
+  const win = (i) => ({ from: 0, frames: 0, gain: 1, ...(windows[i] || {}) });
+  const untouched = clips.every((_, i) => {
+    const w = win(i);
+    return !w.from && !w.frames && Math.abs(w.gain - 1) < 0.005;
+  });
+  if (clips.length === 1 && untouched) {
     copyFileSync(clips[0], out);
     return out;
   }
@@ -341,10 +442,23 @@ async function stitch(clips, trims, out) {
   const parts = [];
   const streams = [];
   clips.forEach((_, i) => {
-    const drop = trims[i] > 0;
-    const vTrim = drop ? `trim=start_frame=${trims[i]},` : "";
-    const aTrim = drop ? `atrim=start=${(trims[i] / FPS).toFixed(4)},` : "";
-    parts.push(`[${i}:v]${vTrim}setpts=PTS-STARTPTS,fps=${FPS}[v${i}]`);
+    const w = win(i);
+    const from = w.from > 0 ? Math.round(w.from) : 0;
+    // A length is expressed as an end FRAME rather than a duration, because the
+    // concat downstream is frame-based and a fractional duration would round
+    // differently in the video and the audio halves of the same segment.
+    const want = w.frames > 0 ? Math.max(1, Math.round(w.frames)) : 0;
+    const vTrim = from || want ? `trim=${from ? `start_frame=${from}` : ""}${
+      from && want ? ":" : ""
+    }${want ? `end_frame=${from + want}` : ""},` : "";
+    const aTrim = from || want ? `atrim=${from ? `start=${(from / FPS).toFixed(4)}` : ""}${
+      from && want ? ":" : ""
+    }${want ? `end=${((from + want) / FPS).toFixed(4)}` : ""},` : "";
+    // A flat multiplier on all three channels: an exposure correction, not a
+    // grade. Anything big enough to need more than this is a shot that came out
+    // wrong, and pushing it further only crushes or blows it.
+    const g = Math.abs(w.gain - 1) < 0.005 ? "" : `colorchannelmixer=rr=${w.gain.toFixed(4)}:gg=${w.gain.toFixed(4)}:bb=${w.gain.toFixed(4)},`;
+    parts.push(`[${i}:v]${vTrim}${g}setpts=PTS-STARTPTS,fps=${FPS}[v${i}]`);
     parts.push(audio[i] ? `[${i}:a]${aTrim}asetpts=PTS-STARTPTS[a${i}]` : `[${nullIndex}:a]asetpts=PTS-STARTPTS[a${i}]`);
     streams.push(`[v${i}][a${i}]`);
   });
@@ -368,6 +482,35 @@ async function stitch(clips, trims, out) {
   return out;
 }
 
+/**
+ * Read a finished clip: where it really ends, its warm-up, its exposure, and
+ * whether it is a shot at all.
+ *
+ * Diagnostics must never be able to lose a film. If the read fails — no ffmpeg,
+ * a clip that will not decode — the film falls back to using the whole clip as
+ * it always did, which is the behaviour this replaced and is merely worse, not
+ * broken.
+ */
+async function readEnding(clip) {
+  try {
+    const { _firstFrameGray, _lastFrameGray, ...read } = await analyzeClip(clip);
+    return read;
+  } catch (e) {
+    console.log(`  (couldn't read ${clip}: ${e instanceof Error ? e.message : e})`);
+    const { frames } = await probeClip(clip).catch(() => ({ frames: 0 }));
+    return {
+      frames,
+      handoverEndFrame: Math.max(0, frames - 1),
+      tailFrames: 0,
+      headTrim: 0,
+      meanLuma: 0,
+      dead: false,
+      reason: "unread",
+      motion: {},
+    };
+  }
+}
+
 async function durationOf(file) {
   try {
     const out = await run(FFPROBE, ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file], { capture: true });
@@ -376,6 +519,40 @@ async function durationOf(file) {
   } catch {
     return 0;
   }
+}
+
+/**
+ * Lay the owner's track OVER the finished film, as the master.
+ *
+ * The other mode (`scoreFilm`, below) treats the track as a bed: ducked to a
+ * third, looped to fit, mixed under whatever sound the clips generated. That is
+ * right for a film that happens to have music on it and exactly wrong for a
+ * film that was cut TO a piece of audio — there the track is not
+ * accompaniment, it is the thing the picture was measured against, so it plays
+ * at its own level, unlooped, from the second the film starts at, and the
+ * clips' own invented audio is dropped rather than fighting it.
+ *
+ * `-shortest` is the safety net: picture and track were planned to the same
+ * length, and if a lost shot made the cut shorter, the file ends with the
+ * picture instead of running on over black.
+ */
+async function masterFilm(film, track, out, fromSec = 0) {
+  const from = Number.isFinite(fromSec) && fromSec > 0 ? fromSec : 0;
+  await run(FFMPEG, [
+    "-y", "-hide_banner", "-loglevel", "error",
+    "-i", film,
+    ...(from ? ["-ss", from.toFixed(3)] : []),
+    "-i", track,
+    "-map", "0:v",
+    "-map", "1:a",
+    "-c:v", "copy",
+    "-c:a", "aac",
+    "-b:a", "256k",
+    "-shortest",
+    "-movflags", "+faststart",
+    out,
+  ]);
+  return out;
 }
 
 /** Lay the owner's track under the finished film, leaving H3's own sound audible. */
@@ -666,10 +843,17 @@ async function renderFilm(id) {
     film.current = i;
     console.log(`▶ ${id} shot ${i + 1}/${film.shots.length} — ${shot.link}, ${shot.durationSec}s`);
     try {
-      // A chained shot opens on the frame the last one closed on. Without a
-      // previous clip there is nothing to chain to, so it falls back to a cut.
-      const chain = shot.link === "continuous" && previousClip;
-      const startFrame = chain ? await lastFrame(previousClip, join(dir, `link-${i}.jpg`)) : null;
+      // A chained shot continues the one before it from where that shot really
+      // ended — the boundary its own reading produced, not the end of its file.
+      // Without a previous clip there is nothing to continue, so it falls back
+      // to a cut.
+      const previous = shot.link === "continuous" ? previousClip : null;
+      const chain = previous
+        ? {
+          source: await handoverClip(previous.file, previous.read.handoverEndFrame, OVERLAP, join(dir, `link-${i}.mp4`)),
+          overlap: OVERLAP,
+        }
+        : null;
       const refFiles = (shot.refs ?? [])
         .map((r, k) => ({ path: saveRef(`${id}-${i}`, k, r.dataUrl), label: r.label }))
         .filter((f) => f.path);
@@ -679,23 +863,38 @@ async function renderFilm(id) {
         refFiles,
         durationSec: shot.durationSec,
         aspectRatio: film.aspectRatio,
-        startFrame,
+        chain,
       });
       const kept = join(dir, `shot-${i + 1}.mp4`);
       copyFileSync(clip, kept);
       shot.file = kept;
-      shot.chained = Boolean(startFrame);
+      shot.chained = Boolean(chain);
+      shot.overlap = chain ? chain.overlap : 0;
+      // Read the finished clip once, here, while it is the only thing going on:
+      // where it really ends, how long it takes to get moving, how bright it is,
+      // and whether anything happened in it at all. The edit needs all four, and
+      // so does the next shot.
+      shot.read = await readEnding(kept);
+      if (shot.read.dead) {
+        shot.warning = "This shot barely moves — H3 made a still picture of the scene rather than "
+          + "something happening in it. Give it an action that has to finish inside the shot, name a "
+          + "camera move, and render it again.";
+        console.log(`! ${id} shot ${i + 1} barely moves (${shot.read.motion.whole})`);
+      }
       shot.status = "done";
       shot.seconds = Math.round((Date.now() - shot.startedAt) / 1000);
-      learnRate(shot.seconds, framesFor(shot.durationSec));
-      previousClip = kept;
-      console.log(`✓ ${id} shot ${i + 1} in ${shot.seconds}s${startFrame ? " (chained)" : ""}`);
+      learnRate(shot.seconds, framesFor(shot.durationSec) + (chain ? chain.overlap : 0));
+      previousClip = shot;
+      console.log(
+        `✓ ${id} shot ${i + 1} in ${shot.seconds}s${chain ? ` (continued from ${chain.overlap}f)` : ""}`
+        + ` — ends at ${shot.read.handoverEndFrame}/${shot.read.frames} (${shot.read.reason})`,
+      );
     } catch (e) {
       shot.status = "error";
       shot.error = e instanceof Error ? e.message : String(e);
       console.log(`✗ ${id} shot ${i + 1}: ${shot.error}`);
       // A lost shot must not lose the film: the rest still renders, and the
-      // edit cuts what landed. The next shot has no frame to chain from.
+      // edit cuts what landed. The next shot has nothing to continue from.
       previousClip = null;
     }
   }
@@ -713,12 +912,18 @@ async function renderFilm(id) {
   try {
     const cut = await stitch(
       done.map((s) => s.file),
-      // Only a chained shot shares a frame with the one before it, and only
-      // when that shot is actually the one it follows in the finished cut.
-      done.map((s, i) => (i > 0 && s.chained ? 1 : 0)),
+      stitchWindows(done, {
+        // A score's clips are cut back to the slots they were planned for; an
+        // ordinary film's run to wherever each shot really ends.
+        slotFrames: (s) => (film.audioMode === "master" ? Math.round(s.durationSec * FPS) : 0),
+      }),
       join(dir, "film-cut.mp4"),
     );
-    film.file = film.soundtrackFile ? await scoreFilm(cut, film.soundtrackFile, join(dir, "film.mp4")) : cut;
+    film.file = !film.soundtrackFile
+      ? cut
+      : film.audioMode === "master"
+        ? await masterFilm(cut, film.soundtrackFile, join(dir, "film.mp4"), film.soundtrackFromSec)
+        : await scoreFilm(cut, film.soundtrackFile, join(dir, "film.mp4"));
     film.status = "done";
     console.log(`✓ ${id} cut together: ${done.length} shot(s) → ${film.file}`);
   } catch (e) {
@@ -789,6 +994,9 @@ function filmView(id) {
             ? Math.min(97, Math.round(((Date.now() - s.startedAt) / 1000 / (framesFor(s.durationSec) * rate.secondsPerFrame)) * 100))
             : 0,
       error: s.error,
+      // A shot that rendered fine and still has nothing happening in it is not
+      // an error, and the owner should not have to find it by watching.
+      warning: s.warning,
     })),
   };
 }
@@ -928,6 +1136,11 @@ const server = http.createServer(async (req, res) => {
       status: "queued",
       current: 0,
       soundtrackFile: saveTrack(dir, input.soundtrack),
+      // "master" = the film was cut TO this track (Seedance Studio): the track
+      // plays at its own level and every clip is trimmed to its planned slot.
+      // Anything else keeps the old behaviour, a bed ducked under the clips.
+      audioMode: input.audioMode === "master" ? "master" : "under",
+      soundtrackFromSec: Math.max(0, Number(input.soundtrackFromSec) || 0),
     });
     filmQueue.push(id);
     void pumpFilms();

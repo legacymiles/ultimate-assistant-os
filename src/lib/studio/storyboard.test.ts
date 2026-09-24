@@ -466,3 +466,45 @@ describe("a film that is really a pile of clips", () => {
     expect(boardNotes(b).some((n) => /hard cuts/.test(n.text))).toBe(false);
   });
 });
+
+describe("a continued shot still knows who is in it", () => {
+  // A continued shot is handed real frames of the people and gets no reference
+  // photos, which is right — but it used to carry the world, the wardrobe and
+  // the action while never once saying WHO was on screen. Over a run of them
+  // the faces had nothing holding them.
+  it("names the cast and carries their description, with no photo attached", () => {
+    const b = cleanStoryboard(raw)!;
+    expect(h3Form(b, 1)).toBe("fl2va");
+    const p = shotPrompt(b, 1);
+    expect(p).toContain("FATHER");
+    expect(p).toContain("shaved head");
+  });
+
+  it("describes someone who has already transformed as they are now, not as their photo", () => {
+    const b = cleanStoryboard({
+      ...raw,
+      cast: [{ ...raw.cast[0], turns_at: 1, turns_into: "hollow-eyed, grey-skinned, jaw slack" }],
+      shots: [raw.shots[0], { ...raw.shots[1], link: "continuous", references: [1] }],
+    })!;
+    const p = shotPrompt(b, 1);
+    expect(p).toContain("hollow-eyed");
+    expect(p).not.toContain("wet shoulders");
+  });
+
+  it("falls back to the whole cast when a continued shot names nobody", () => {
+    const b = cleanStoryboard({
+      ...raw,
+      shots: [raw.shots[0], { ...raw.shots[1], link: "continuous", references: [] }],
+    })!;
+    expect(shotPrompt(b, 1)).toContain("FATHER");
+  });
+
+  it("does not describe the cast twice on the reference path", () => {
+    const b = cleanStoryboard(raw)!;
+    expect(h3Form(b, 0)).toBe("ref2va");
+    const p = shotPrompt(b, 0);
+    // subject_definitions already describes everyone at length there; a second
+    // pass would only crowd out the shot itself.
+    expect(p.match(/The people in this shot are the same people/g)).toBeNull();
+  });
+});

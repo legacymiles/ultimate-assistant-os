@@ -66,11 +66,17 @@
     ".next-preview-3251/types/**/*.ts",
     ".next-preview-3252/types/**/*.ts",
     ".next-preview-3253/types/**/*.ts",
+    ".next-preview-3261/types/**/*.ts",
+    ".next-preview-3262/types/**/*.ts",
+    ".next-preview-3277/types/**/*.ts",
     ".next-ssbuild/types/**/*.ts",
+    ".next-verify-cx/types/**/*.ts",
+    ".next-verify-sheet/types/**/*.ts",
+    ".next-verify-studio/types/**/*.ts",
     ".next-verify/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-preview-3277/types/**/*.ts"
+    ".next-preview-3254/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

@@ -5,6 +5,8 @@ import { resolveMention, studioContext, type Mention } from "@/lib/studio/workfl
 import { cinemaContext, cleanMoves, cleanOutput, cleanSelection, moveById } from "@/lib/studio/cinema";
 import { characterContext, cleanCharacters } from "@/lib/studio/characters";
 import { loadSkills } from "@/lib/studio/server/skills";
+import { cleanTimeline, timelineBrief } from "@/lib/seedance/audio/timeline";
+import { scoreRules } from "@/lib/seedance/score";
 
 // Reads the master folder from disk and the memory database per request.
 export const runtime = "nodejs";
@@ -32,6 +34,19 @@ interface Body {
    * cleanCharacters() is the trust boundary.
    */
   characters?: unknown;
+  /**
+   * The measured timeline of a track the owner attached, when this is an
+   * audio-driven job (Seedance Studio).
+   *
+   * Sent as structured measurements, not as prose, for the same reason the
+   * workflows are sent as tokens: the client may not write the prompt. The
+   * numbers are computed in the owner's browser from their own file — the audio
+   * itself never leaves their machine — so they arrive here as a claim, are
+   * clamped by cleanTimeline, and only then turned into a brief.
+   */
+  audio?: unknown;
+  /** Which kind of piece the audio is being cut into. */
+  audioMode?: unknown;
 }
 
 /** The owner's installed skills as one prompt block, name + what it is for. */
@@ -128,6 +143,12 @@ export async function POST(req: Request) {
   // Who the prompt is about, when the owner named someone from their library.
   const castBlock = characterContext(cleanCharacters(body.characters));
 
+  // The track, when there is one. This block leads the context for an
+  // audio-driven job: the clock outranks the craft, because every cut's time is
+  // measured against it.
+  const timeline = cleanTimeline(body.audio);
+  const audioBlock = timeline ? [timelineBrief(timeline), scoreRules(timeline, body.audioMode)].join("\n\n") : "";
+
   try {
     const result = await runAgent({
       connectorTools,
@@ -135,9 +156,17 @@ export async function POST(req: Request) {
       messages,
       ownerName: (body.ownerName || "the owner").slice(0, 60),
       timezone: body.timezone,
-      // The cast comes before the skills: who the prompt is about outranks how
-      // the prompt is made, and it must not be the block that gets truncated.
-      extraContext: [body.extraContext?.slice(0, 10000), castBlock, studioBlock, shotBlock, skillsBlock(body.skills)]
+      // The audio comes first, then the cast, then the skills: the clock
+      // outranks who is in the shot, which outranks how the shot is made, and
+      // none of the three may be the block that gets truncated.
+      extraContext: [
+        audioBlock,
+        body.extraContext?.slice(0, 10000),
+        castBlock,
+        studioBlock,
+        shotBlock,
+        skillsBlock(body.skills),
+      ]
         .filter(Boolean)
         .join("\n\n"),
       profileId: body.profileId,

@@ -417,7 +417,19 @@ function cameraLine(shot: Shot): string {
 
 /** The clock inside the shot, as the timeline H3 reads better than prose. */
 function beatLine(shot: Shot): string {
-  if (!shot.beats.length) return "";
+  // Without a clock, H3 is happy to render the scene as a photograph that
+  // happens to last a few seconds. Measured on two finished films: three shots
+  // of about six and a half seconds each came back with no movement in them at
+  // all — roughly a quarter of the running time, and no amount of work on the
+  // joins can rescue a film made partly of stills. So a shot with no beats is
+  // still told that its action has to start and finish inside its own seconds.
+  if (!shot.beats.length) {
+    return (
+      `The action starts within the first half-second and visibly finishes before the ${Math.round(shot.durationSec)} `
+      + "seconds are up, so this is something happening rather than a picture of a scene: at every moment of the shot "
+      + "somebody or something is in the middle of a movement. "
+    );
+  }
   const rows = shot.beats.map((b, i) => {
     const end = shot.beats[i + 1]?.at ?? shot.durationSec;
     const span = end > b.at ? `${b.at.toFixed(1)}–${end.toFixed(1)}s` : `${b.at.toFixed(1)}s`;
@@ -502,6 +514,31 @@ const NO_ARTEFACTS =
   + "this is one single continuous camera take.";
 
 /** The cast this shot actually attaches, in Subject order. */
+/**
+ * Who is in this shot, in words.
+ *
+ * A continued shot gets no reference photos on purpose — it is handed real
+ * frames of the people, and a photo on top of that is a second answer to the
+ * same question. But dropping the photos also dropped the only place anybody
+ * was DESCRIBED: a continued shot used to carry the world, the wardrobe and
+ * the action, and never say who was in it. Across a run of them the faces had
+ * nothing holding them, which is the drift the reference photos exist to stop.
+ *
+ * The description is free and cannot compete with the picture, so it goes in
+ * every shot. `lookAt` is what reads it, so a cast member who has already
+ * transformed is described as they are NOW rather than as their photograph.
+ */
+function castLine(board: Storyboard, index: number): string {
+  const named = castOf(board, index);
+  const who = named.length ? named : board.cast;
+  if (!who.length) return "";
+  const rows = who.map((c) => `${c.name} is ${lookAt(c, index).replace(/\.\s*$/, "")}`);
+  return (
+    `The people in this shot are the same people as in the shot before, and these are the words for them: `
+    + `${rows.join("; ")}. Their faces, bone structure, build and proportions do not change. `
+  );
+}
+
 export function castOf(board: Storyboard, index: number): CastMember[] {
   const shot = board.shots[index];
   if (!shot) return [];
@@ -539,9 +576,12 @@ export function shotPrompt(board: Storyboard, index: number, opts: AttachedRefs 
   ];
 
   if (h3Form(board, index, opts) === "fl2va") {
+    // The cast goes in here and not in `body`, because the reference path below
+    // already describes everyone at length in `subject_definitions` — saying it
+    // twice there would only crowd out the shot itself.
     return [
       `integrated_multimodal_description: A ${secs}-second ${board.look} single take — shot ${n} of ${of} of one `
-      + `continuous film. ${body}`,
+      + `continuous film. ${castLine(board, index)}${body}`,
       ...tail,
     ].join("\n");
   }

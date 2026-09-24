@@ -81,16 +81,46 @@ async function scanPlugins(root: string): Promise<ScannedSkill[]> {
   return results.filter((s): s is ScannedSkill => s !== null);
 }
 
+/**
+ * The skills committed into this repo: `skills/<name>/SKILL.md`.
+ *
+ * This is the only source that survives a deploy. `~/.claude` exists on the
+ * owner's PC and nowhere else, so on Vercel the two scans above find nothing
+ * and the Skills tab used to come back empty — which is the opposite of what
+ * a library is for. `scripts/sync-skills.mjs` mirrors the SKILL.md of every
+ * personal skill in here, so what the owner sees in the Toolbox is the same
+ * list whether they opened the hub on this machine or on their phone.
+ */
+async function scanRepo(): Promise<ScannedSkill[]> {
+  const dir = path.join(process.cwd(), "skills");
+  let entries: string[];
+  try {
+    entries = await readdir(dir);
+  } catch {
+    return [];
+  }
+  const results = await Promise.all(
+    entries.map((name) => readSkillFile(path.join(dir, name, "SKILL.md"), name, "Personal")),
+  );
+  return results.filter((s): s is ScannedSkill => s !== null);
+}
+
 export async function GET() {
   const root = claudeHome();
-  const [personal, plugins] = await Promise.all([
+  const [personal, plugins, repo] = await Promise.all([
     scanPersonal(root),
     scanPlugins(root),
+    scanRepo(),
   ]);
-  const skills = [...personal, ...plugins];
 
-  // "available" tells the client whether this server can see the skill files at
-  // all (true locally, false when deployed to the cloud).
-  const available = skills.length > 0;
-  return NextResponse.json({ available, skills });
+  // The live copy on this PC wins over the committed mirror: a skill edited
+  // this morning should read as it is now, not as it was when it was last
+  // synced. Plugin skills keep their `<plugin>:<name>` slug and never collide.
+  const bySlug = new Map<string, ScannedSkill>();
+  for (const s of [...repo, ...personal, ...plugins]) bySlug.set(s.slug, s);
+  const skills = [...bySlug.values()].sort((a, b) => a.title.localeCompare(b.title));
+
+  // "available" tells the client whether this server can see any skill files at
+  // all. With the repo mirror committed it is true on the deployed hub too.
+  return NextResponse.json({ available: skills.length > 0, skills });
 }

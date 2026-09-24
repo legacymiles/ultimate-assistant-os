@@ -36,10 +36,22 @@ import { Icon } from "../icons";
 import { PromptSheet, type SheetTarget } from "./PromptSheet";
 import { ShotList } from "./ShotList";
 import { Spine } from "./Spine";
-import { FilmPanel, Stage } from "./Stage";
+import { Stage } from "./Stage";
+import { SeedanceChat } from "./SeedanceChat";
+import { ScoreSheet } from "./ScoreSheet";
+import { placeShots, type Score } from "@/lib/seedance/score";
 
 export function SeedanceStudio() {
   const [reel, setReel] = useState<Reel>(() => blankReel());
+  /**
+   * The shot plan the director wrote, when there is one.
+   *
+   * It is kept beside the reel rather than inside it because the two answer
+   * different questions: the reel is what renders, the score is why. But the
+   * REEL is the source of truth for anything both of them know about — see
+   * `liveScore`.
+   */
+  const [score, setScore] = useState<Score | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [playheadSec, setPlayheadSec] = useState(0);
@@ -228,6 +240,49 @@ export function SeedanceStudio() {
     if (!decoded) say("Loaded the song, but this browser could not decode it for a waveform.");
   };
 
+  /**
+   * The director's plan, laid onto the timeline.
+   *
+   * This is the hook-up: a score's cuts become the video-prompt blocks and its
+   * lip-sync ranges become the lip-sync lane, so the plan lands in the three
+   * lanes the owner already knows how to edit instead of living in a sheet of
+   * its own. After this, dragging a lip-sync range on the timeline is what
+   * decides which cuts sing — there is no second copy to disagree with.
+   */
+  const applyScore = useCallback((next: Score) => {
+    const placed = placeShots(next);
+    setScore(next);
+    setReel((r) => ({
+      ...r,
+      name: next.name || r.name,
+      direction: next.logline || r.direction,
+      aspectRatio: next.aspectRatio,
+      prompts: placed.map((p) => ({
+        id: p.shot.id,
+        prompt: p.shot.action,
+        cinema: {},
+        refs: [],
+        durationSec: p.durationSec,
+        status: "idle" as const,
+      })),
+      lipsync: next.lipsync.map((l) => ({ ...l })),
+    }));
+    setSelectedId(null);
+  }, []);
+
+  /**
+   * The score as it stands NOW — its own fields, but the timeline's lip sync.
+   *
+   * Without this the sheet and the lanes drift apart the first time a range is
+   * dragged: the sheet would still be describing the plan as written, while the
+   * film renders what the timeline says. One of them has to win, and it is the
+   * one the owner is actually editing.
+   */
+  const liveScore = useMemo(
+    () => (score ? { ...score, lipsync: reel.lipsync } : null),
+    [score, reel.lipsync],
+  );
+
   const clearSong = () =>
     setReel((r) => {
       if (r.song?.url) URL.revokeObjectURL(r.song.url);
@@ -370,7 +425,7 @@ export function SeedanceStudio() {
           {/* Capped side by side, because the timeline is the point and the stage
               must not push it below the fold. Stacked (narrow) the column
               scrolls instead, so the cap would only squash both panels. */}
-          <div className="grid shrink-0 gap-3 lg:max-h-[300px] lg:grid-cols-[minmax(280px,340px)_1fr]">
+          <div className="grid shrink-0 gap-3 lg:max-h-[420px] lg:grid-cols-[minmax(280px,340px)_1fr]">
             <Stage
               reel={reel}
               placed={current}
@@ -383,9 +438,10 @@ export function SeedanceStudio() {
               onRewind={() => scrub(0)}
               onOpen={() => current && setSelectedId(current.block.id)}
             />
-            <FilmPanel
+            <SeedanceChat
               reel={reel}
-              onDirection={(direction) => patch({ direction })}
+              onScore={applyScore}
+              onSong={onSongFile}
               onCinema={(cinema: CinemaSelection) => patch({ cinema })}
               onAspect={(aspectRatio: AspectRatio) => patch({ aspectRatio })}
             />
@@ -408,6 +464,16 @@ export function SeedanceStudio() {
             onPickSong={() => songInputRef.current?.click()}
             onClearSong={clearSong}
           />
+
+          {liveScore && (
+            <ScoreSheet
+              score={liveScore}
+              reel={reel}
+              onChange={setScore}
+              onSelectShot={setSelectedId}
+              onRenderShot={(i) => void renderOne(i)}
+            />
+          )}
 
           <ShotList
             reel={reel}

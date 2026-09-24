@@ -61,6 +61,8 @@ import { runRender, type RenderState } from "@/lib/studio/render";
 import { Markdown } from "./Markdown";
 import { StudioFormCard, type FormSubmission } from "./StudioFormCard";
 import { StoryboardCard } from "./StoryboardCard";
+import { StoryboardSheet } from "./StoryboardSheet";
+import { SheetDirector } from "./SheetDirector";
 import { FilmProgress } from "./FilmProgress";
 import { ReferenceTile } from "./ReferenceTile";
 import { cancelFilm, startFilm, watchFilm, type FilmView } from "@/lib/studio/film";
@@ -187,6 +189,18 @@ export function ChatTab({
     result: { url: string; blob: Blob } | null;
     error: string;
   } | null>(null);
+  /**
+   * The shot plan that currently has the page.
+   *
+   * A shot plan is a production document — a dozen frames, a cast, the
+   * constants repeated into every cut — and it was being read inside a chat
+   * bubble, which is a call sheet folded into a wallet. So when one arrives it
+   * takes the whole pane, with the director docked beside it; "Conversation"
+   * puts it back in the transcript, where it stays as the record of the turn.
+   */
+  const [sheet, setSheet] = useState<string | null>(null);
+  /** The newest board already opened, so re-opening is the owner's decision. */
+  const opened = useRef<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -223,6 +237,22 @@ export function ChatTab({
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [turns.length, busy]);
+
+  // A shot plan that has just been written opens on the sheet, once. Coming
+  // back to a conversation that already holds one does not re-take the page —
+  // the transcript is what you asked for then.
+  useEffect(() => {
+    const id = [...turns].reverse().find((t) => t.storyboard)?.id ?? "";
+    if (opened.current === null) {
+      // First render of an existing conversation: note where it was up to
+      // without taking the page for a plan the owner wrote yesterday.
+      opened.current = id;
+      return;
+    }
+    if (opened.current === id || !id) return;
+    opened.current = id;
+    setSheet(id);
+  }, [turns]);
 
   // The box grows with what is typed, up to a point, then scrolls.
   useEffect(() => {
@@ -828,6 +858,67 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
     commit({ ...store, conversations: store.conversations.slice(1) });
   };
 
+  // ---- the sheet, when it has the page ----
+  const sheetTurn = sheet ? turns.find((t) => t.id === sheet && t.storyboard) : undefined;
+  if (sheetTurn?.storyboard) {
+    const score = scoringTrack();
+    const running = film && film.turnId === sheetTurn.id;
+    // Anything that needs an answer while the sheet has the page shows in the
+    // director column — a confirmation the owner cannot see is a dead session.
+    const aside =
+      (running && (film.view || film.error)) || pending || error ? (
+        <div className="space-y-2">
+          {running && film.view && (
+            <FilmProgress
+              view={film.view}
+              film={film.result}
+              onCancel={film.id ? () => void cancelFilm(film.id!) : undefined}
+              {...(film.result
+                ? {
+                    onSave: () => {
+                      const a = document.createElement("a");
+                      a.href = film.result!.url;
+                      a.download = `${sheetTurn.storyboard?.title.replace(/[^\w-]+/g, "-") || "film"}.mp4`;
+                      a.click();
+                    },
+                  }
+                : {})}
+            />
+          )}
+          {running && !film.view && film.error && <p className="text-[11px] text-amber-400">{film.error}</p>}
+          {pending && (
+            <ConfirmCard
+              action={pending}
+              busy={acting}
+              onConfirm={(args) => void act(args)}
+              onCancel={() => setPending({ ...pending, status: "cancelled" })}
+            />
+          )}
+          {error && <p className="text-[11px] text-amber-400">{error}</p>}
+        </div>
+      ) : null;
+    return (
+      <div className={embedded ? "h-full min-h-0" : "h-[calc(100dvh-49px)]"}>
+        <StoryboardSheet
+          board={hydrate(sheetTurn.storyboard)}
+          faces={sheetFaces}
+          onChange={(b) => editBoard(sheetTurn.id, b)}
+          onRender={(b) => void runFilm(sheetTurn.id, b)}
+          onReplan={replanBoard}
+          busy={Boolean(running && !film.result && !film.error)}
+          done={Boolean(running && film.result)}
+          onBack={() => setSheet(null)}
+          {...(score ? { soundtrack: `Audio ${score.n} · ${score.name}` } : {})}
+          director={
+            <SheetDirector turns={turns} busy={busy} onSend={(text) => void ask(text)}>
+              {aside}
+            </SheetDirector>
+          }
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className={`relative flex flex-col ${embedded ? "h-full min-h-0" : "h-[calc(100dvh-49px)]"}`}
@@ -888,14 +979,20 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
           </div>
         )}
 
-        <div className="mx-auto max-w-2xl space-y-3">
+        {/* The column is the page, not a 672-pixel slot in the middle of it:
+            what lands in this conversation is as often a shot plan, a contact
+            sheet or a render as it is a paragraph, and those were being read
+            through a letterbox. Prose keeps its own measure (a jarvis reply is
+            capped at 76 characters a line inside the bubble) so the width goes
+            to the things that need it. */}
+        <div className="mx-auto w-full max-w-[1120px] space-y-3">
           {turns.map((t) => (
             <div key={t.id} className={t.role === "you" ? "flex justify-end" : ""}>
               <div
                 className={
                   t.role === "you"
-                    ? "max-w-[85%] rounded-xl rounded-br-sm bg-panel-2 px-3 py-2 text-xs text-ink"
-                    : "max-w-[92%] rounded-xl rounded-bl-sm border border-line bg-panel px-3 py-2"
+                    ? "max-w-[68ch] rounded-xl rounded-br-sm bg-panel-2 px-3 py-2 text-xs text-ink"
+                    : "w-full rounded-xl rounded-bl-sm border border-line bg-panel px-3 py-2"
                 }
               >
                 {t.role === "jarvis" && (
@@ -939,7 +1036,9 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
                   (t.role === "you" ? (
                     <p className="whitespace-pre-wrap text-xs leading-relaxed text-ink">{withMentions(t.text)}</p>
                   ) : (
-                    <Markdown text={t.text} />
+                    <div className="max-w-[76ch]">
+                      <Markdown text={t.text} />
+                    </div>
                   ))}
                 {t.form && (
                   <StudioFormCard
@@ -948,6 +1047,15 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
                     busy={busy}
                     onSubmit={(s) => submitForm(t.id, t.form!, s)}
                   />
+                )}
+                {t.storyboard && (
+                  <button
+                    type="button"
+                    onClick={() => setSheet(t.id)}
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[11px] font-medium text-ink-muted transition hover:border-ink-faint hover:text-ink"
+                  >
+                    <Icon.Frame width={12} height={12} /> Open the full sheet
+                  </button>
                 )}
                 {t.storyboard && (
                   <StoryboardCard
@@ -1101,7 +1209,7 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
         }}
         className="border-t border-line bg-panel px-3 py-3"
       >
-        <div className="relative mx-auto max-w-4xl rounded-2xl border border-line bg-panel-2 transition focus-within:border-ink-faint">
+        <div className="relative mx-auto w-full max-w-[1120px] rounded-2xl border border-line bg-panel-2 transition focus-within:border-ink-faint">
           {moveMenu && moveOptions.length > 0 && (
             <ul
               role="listbox"

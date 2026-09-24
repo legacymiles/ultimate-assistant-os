@@ -1,0 +1,91 @@
+/* ---------------------------------------------------------------------------
+   The few things the score sheet needs that the Smart Shot sheet has no use
+   for. Everything else — the paper, the sections, the cut cards, the editable
+   fields — comes from smart-shot.css, so the two sheets stay one house style.
+
+   Colour law, same as the timeline it sits under: cyan is the song, amber is
+   lip sync, indigo is a cut playing under the music.
+   --------------------------------------------------------------------------- */
+
+/* A cut's frame. The Smart Shot sheet draws a panel here; a score usually has
+   no drawn panel yet, so the frame holds the clip once one is rendered and the
+   shot's length until then. */
+.sd-frame video,
+.sd-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ----- the song map -------------------------------------------------------
+   The sheet's floor plan. Three strips on one axis: what the arrangement is
+   doing, the track with its drops, and where every cut falls on it. */
+
+.ss-songmap {
+  margin-top: 4px;
+}
+
+.ss-songmap-sections {
+  position: relative;
+  height: 14px;
+}
+
+.ss-songmap-sections span {
+  position: absolute;
+  top: 0;
+  height: 14px;
+  overflow: hidden;
+  padding-left: 3px;
+  border-left: 1px solid var(--color-line, #262a38);
+  font-size: 9px;
+  line-height: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint, #6b7385);
+  white-space: nowrap;
+}
+
+.ss-songmap-track {
+  position: relative;
+  height: 34px;
+  border-radius: 4px;
+  background: hsl(190 60% 50% / 0.07);
+}
+
+/* A measured moment. A drop is thicker and brighter than an accent, because
+   one is where the arrangement arrives and the other is a loud hit. */
+.ss-songmap-track i {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  background: hsl(190 80% 70% / 0.4);
+}
+
+.ss-songmap-track i.is-drop {
+  width: 2px;
+  background: #00cae0;
+}
+
+/* A cut, on the song. */
+.ss-songmap-track b {
+  position: absolute;
+  top: 6px;
+  height: 22px;
+  overflow: hidden;
+  border: 1px solid hsl(246 70% 70% / 0.45);
+  border-radius: 3px;
+  background: hsl(246 82% 68% / 0.22);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 20px;
+  text-align: center;
+  color: hsl(248 88% 84%);
+}
+
+.ss-songmap-track b.is-sings {
+  border-color: hsl(36 90% 60% / 0.55);
+  background: hsl(36 92% 58% / 0.3);
+  color: hsl(40 96% 78%);
+}

@@ -61,6 +61,17 @@ export interface AgentResult {
   form?: StudioForm | null;
   /** A shot plan for the owner to edit, then render as one film. */
   storyboard?: Storyboard | null;
+  /**
+   * An audio-driven shot plan, passed through as the director wrote it.
+   *
+   * Deliberately NOT validated here, unlike a storyboard: a score's every shot
+   * time is only meaningful against the measured timeline of the track, and that
+   * timeline lives in the browser (it was computed from the owner's own file by
+   * Web Audio and never uploaded). So `cleanScore` — which is the trust boundary
+   * — runs on the client, where the clock it has to check against exists. This
+   * value is raw model output and nothing may render or persist it unchecked.
+   */
+  score?: unknown;
   /** Human notes about degraded capability, shown under the answer. */
   notices: string[];
   /** What the loop actually did, for the "did" line on a turn. */
@@ -236,6 +247,22 @@ export async function runAgent(opts: RunOptions): Promise<AgentResult> {
         }
       }
 
+      // A score pauses the loop for the same reason a storyboard does: the plan
+      // is the owner's to edit, and only they start the render.
+      if (name === "studio_score" && opts.studio) {
+        if (args && typeof args === "object" && Array.isArray((args as { shots?: unknown }).shots)) {
+          return {
+            text: typeof message.content === "string" ? message.content.trim() : "",
+            citations,
+            proposals,
+            pending: null,
+            score: args,
+            notices,
+            did,
+          };
+        }
+      }
+
       // A write tool ends the loop. Nothing is executed here, ever.
       if (spec && !isReadOnly(spec)) {
         return {
@@ -305,6 +332,13 @@ export async function runAgent(opts: RunOptions): Promise<AgentResult> {
           error:
             "That shot plan had no shots in it. Send `shots` as an array, each with a title, an action and a "
             + "duration_sec between 4 and 15.",
+        };
+      } else if (name === "studio_score") {
+        // Likewise: it only reaches here when there were no shots to place.
+        result = {
+          error:
+            "That score had no shots in it. Send `shots` as an array, each with a title, an at_sec on the "
+            + "track's clock, an action and a `because`. Consecutive at_sec values must be 4-15 seconds apart.",
         };
       } else if (spec && opts.runTool) {
         try {

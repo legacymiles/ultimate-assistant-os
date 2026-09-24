@@ -28,6 +28,13 @@ export interface FilmShotView {
   seconds: number;
   percent: number;
   error?: string;
+  /**
+   * The shot rendered, and there is still something wrong with it — above all
+   * a shot that barely moves, which H3 produces when it is given a scene to
+   * depict rather than an action to perform. Not an error: the clip is in the
+   * film, and the owner is the one who decides whether to render it again.
+   */
+  warning?: string;
   /** Filled in here, not by the bridge: the clip, once it has been fetched. */
   url?: string;
 }
@@ -82,6 +89,19 @@ export interface FilmRequest {
   characters: CharacterRef[];
   /** An audio reference the owner attached, laid under the finished cut. */
   soundtrack?: string;
+  /**
+   * How the track relates to the picture.
+   *
+   * "under" (the default) is a bed: ducked, looped to fit, mixed beneath
+   * whatever sound the clips generated. "master" is for a film that was cut TO
+   * the track — Seedance Studio's scores — where the track plays at its own
+   * level and unlooped, the clips' own audio is dropped, and every clip is
+   * trimmed back to the slot it was planned for so the picture cannot drift
+   * away from the music it was measured against.
+   */
+  audioMode?: "under" | "master";
+  /** Which second of the track the film starts at. Master mode only. */
+  soundtrackFromSec?: number;
 }
 
 /** The exact payload the bridge is sent — pulled out so it can be tested. */
@@ -91,6 +111,8 @@ export function filmPayload(req: FilmRequest): Record<string, unknown> {
     title: board.title,
     aspectRatio: board.aspectRatio,
     ...(req.soundtrack ? { soundtrack: req.soundtrack } : {}),
+    ...(req.audioMode === "master" ? { audioMode: "master" } : {}),
+    ...(req.soundtrackFromSec ? { soundtrackFromSec: req.soundtrackFromSec } : {}),
     shots: board.shots.map((shot, i) => {
       // The references are resolved first so the prompt can name the pictures
       // that are really going with it — H3's subject_definitions section is

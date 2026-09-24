@@ -161,6 +161,11 @@ export function FilmProgress({
                   actually in the machine is the brightest line in the list. */}
               {s.error ? (
                 <span className="mt-0.5 block text-[10px] leading-snug text-amber-400">{s.error}</span>
+              ) : s.warning ? (
+                // A shot can render perfectly and still have nothing happening
+                // in it. That is worth saying here rather than leaving the owner
+                // to find it by watching the finished film.
+                <span className="mt-0.5 block text-[10px] leading-snug text-ink-muted">{s.warning}</span>
               ) : (
                 <span className="mt-1.5 block h-[3px] w-full overflow-hidden rounded-full bg-line-soft">
                   <span

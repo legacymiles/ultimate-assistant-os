@@ -1,0 +1,1087 @@
+/* ------------------------------------------------------------------ */
+/*  The shot plan, as paper.                                          */
+/*                                                                    */
+/*  A call sheet is not app chrome. It is a document a crew reads,    */
+/*  marks up and shoots from, so it is printed here on paper and lit  */
+/*  by the dark studio around it — the same material Smart Shot       */
+/*  Videos uses, because the two are the same document.               */
+/*                                                                    */
+/*  Everything is scoped under .jb-sheet so the hub's tokens, and     */
+/*  every other Jarvis tab, stay exactly as they were.                */
+/* ------------------------------------------------------------------ */
+
+.jb-sheet {
+  --pa: #f7f6f2; /* paper */
+  --pa-2: #eeece5; /* paper, one shade down */
+  --pa-3: #e4e1d7; /* a filled cell */
+  --pa-line: #cfcdc4;
+  --pa-line-2: #dedbd2;
+  --pa-ink: #1b1b1b;
+  --pa-ink-2: #4a4a48;
+  --pa-ink-3: #6a6862;
+  --pa-mark: #b2402a; /* the pen the director marks up with */
+  --pa-mark-soft: rgba(178, 64, 42, 0.09);
+  --pa-blue: #2f5d8c; /* the blue pencil: continuity */
+  --pa-mono: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 356px;
+  height: 100%;
+  min-height: 0;
+  background: var(--color-canvas);
+}
+
+.jb-sheet *,
+.jb-sheet *::before,
+.jb-sheet *::after {
+  box-sizing: border-box;
+}
+
+/* ----- the scroller the paper sits in ----- */
+.jb-scroll {
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 14px 16px 40px;
+  scrollbar-color: #33363f var(--color-canvas);
+  scrollbar-width: thin;
+}
+.jb-scroll::-webkit-scrollbar {
+  width: 11px;
+}
+.jb-scroll::-webkit-scrollbar-track {
+  background: var(--color-canvas);
+}
+.jb-scroll::-webkit-scrollbar-thumb {
+  background: #33363f;
+  border: 3px solid var(--color-canvas);
+  border-radius: 99px;
+}
+.jb-scroll::-webkit-scrollbar-thumb:hover {
+  background: #474b57;
+}
+
+/* ----- the bar above the paper (dark, part of the app) ----- */
+.jb-bar {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: -14px -16px 12px;
+  padding: 9px 16px;
+  background: color-mix(in srgb, var(--color-canvas) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--color-line);
+}
+.jb-bar-title {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.jb-bar-title b {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.01em;
+}
+.jb-bar-title span {
+  font-size: 11px;
+  color: var(--color-ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.jb-dark-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--color-line);
+  background: transparent;
+  color: var(--color-ink-muted);
+  font: inherit;
+  font-size: 11px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+.jb-dark-btn:hover:not(:disabled) {
+  color: var(--color-ink);
+  border-color: var(--color-ink-faint);
+  background: var(--color-panel-2);
+}
+.jb-dark-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.jb-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: var(--color-ink);
+  color: var(--color-canvas);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+.jb-go:hover:not(:disabled) {
+  opacity: 0.88;
+}
+.jb-go:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ----- the paper ----- */
+.jb-paper {
+  max-width: 1500px;
+  margin: 0 auto;
+  background: var(--pa);
+  color: var(--pa-ink);
+  padding: 20px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35), 0 26px 70px -18px rgba(0, 0, 0, 0.75);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.jb-paper ::selection {
+  background: var(--pa-mark);
+  color: #fff;
+}
+.jb-paper :focus-visible {
+  outline: 2px solid var(--pa-mark);
+  outline-offset: 1px;
+}
+
+/* ----- masthead ----- */
+.jb-mast {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  border-bottom: 2px solid var(--pa-ink);
+  padding-bottom: 10px;
+}
+.jb-mast-l {
+  min-width: 0;
+  flex: 1 1 340px;
+}
+.jb-mast .jb-title {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.12;
+  text-transform: uppercase;
+}
+.jb-mast .jb-logline {
+  font-size: 13.5px;
+  color: var(--pa-ink-2);
+  font-style: italic;
+  max-width: 62ch;
+}
+.jb-mast-r {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.jb-stat {
+  text-align: right;
+}
+.jb-stat > b {
+  display: block;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.jb-stat > span {
+  display: block;
+  font-family: var(--pa-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pa-ink-3);
+  margin-top: 3px;
+}
+
+/* ----- a named band ----- */
+.jb-band {
+  border: 1px solid var(--pa-line);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.jb-band > h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 6px 10px;
+  background: var(--pa-2);
+  border-bottom: 1px solid var(--pa-line);
+  font-family: var(--pa-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--pa-ink);
+}
+.jb-band > h3 em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--pa-ink-3);
+  letter-spacing: 0.1em;
+}
+.jb-band > h3 .jb-band-tools {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.jb-band-body {
+  padding: 10px;
+  min-width: 0;
+}
+
+/* ----- shared choices: the constants, in a ruled grid ----- */
+.jb-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 0;
+  border-top: 1px solid var(--pa-line-2);
+  border-left: 1px solid var(--pa-line-2);
+}
+.jb-fact {
+  border-right: 1px solid var(--pa-line-2);
+  border-bottom: 1px solid var(--pa-line-2);
+  padding: 6px 9px 7px;
+  min-width: 0;
+}
+.jb-fact.is-wide {
+  grid-column: 1 / -1;
+}
+.jb-k {
+  display: block;
+  font-family: var(--pa-mono);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--pa-ink-3);
+  margin-bottom: 1px;
+}
+.jb-stat > .jb-swatches,
+.jb-swatches {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  vertical-align: middle;
+}
+.jb-swatches span {
+  width: 15px;
+  height: 15px;
+  border-radius: 2px;
+  border: 1px solid var(--pa-line);
+}
+
+/* ----- editable text, which is all of it ----- */
+.jb-ed {
+  display: block;
+  width: 100%;
+  font: inherit;
+  color: var(--pa-ink);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin: 0 -4px;
+  resize: none;
+  overflow: hidden;
+  transition: background 0.12s, border-color 0.12s;
+}
+.jb-ed::placeholder {
+  color: #6f6c64;
+  font-style: italic;
+}
+.jb-ed:hover:not(:disabled) {
+  border-color: var(--pa-line);
+}
+.jb-ed:focus {
+  outline: none;
+  border-color: var(--pa-ink-3);
+  background: #fff;
+}
+.jb-ed:disabled {
+  cursor: default;
+}
+.jb-ed.jb-title {
+  font-size: 26px;
+  font-weight: 700;
+}
+.jb-ed.jb-logline {
+  font-size: 13.5px;
+}
+.jb-ed.jb-small {
+  font-size: 12px;
+  color: var(--pa-ink-2);
+  line-height: 1.45;
+}
+.jb-ed.jb-name {
+  font-family: var(--pa-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.jb-ed.jb-body {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* ----- cast ----- */
+.jb-cast {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.jb-castmember {
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+.jb-face {
+  width: 92px;
+  height: 92px;
+  flex: none;
+  border: 1px solid var(--pa-line);
+  background: var(--pa-3);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  font-family: var(--pa-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--pa-ink-3);
+}
+.jb-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.jb-turn {
+  margin-top: 5px;
+  border-left: 1px solid var(--pa-mark);
+  background: var(--pa-mark-soft);
+  padding: 4px 7px;
+}
+.jb-turn-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--pa-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pa-mark);
+}
+.jb-turn-head input {
+  width: 30px;
+  font: inherit;
+  font-size: 11px;
+  text-align: right;
+  color: var(--pa-mark);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.jb-turn-head input:hover {
+  border-color: var(--pa-line);
+}
+.jb-turn-head input:focus {
+  outline: none;
+  border-color: var(--pa-mark);
+  background: #fff;
+}
+
+/* ----- the storyboard: big panels in a grid ----- */
+.jb-cuts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 14px;
+}
+.jb-cut {
+  border: 1px solid var(--pa-line);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #fff;
+  scroll-margin-top: 96px;
+}
+.jb-cut:focus-visible {
+  outline: 2px solid var(--pa-mark);
+  outline-offset: 2px;
+}
+.jb-cut-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 6px 5px 0;
+  border-bottom: 1px solid var(--pa-line);
+  background: var(--pa-2);
+}
+.jb-cutno {
+  background: var(--pa-ink);
+  color: var(--pa);
+  font-family: var(--pa-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 4px 8px;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  font-variant-numeric: tabular-nums;
+}
+.jb-join {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--pa-line);
+  background: #fff;
+  color: var(--pa-ink-3);
+  font-family: var(--pa-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 99px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: color 0.15s, border-color 0.15s;
+}
+.jb-join:hover:not(:disabled) {
+  color: var(--pa-ink);
+  border-color: var(--pa-ink-3);
+}
+.jb-join.is-same {
+  color: var(--pa-blue);
+  border-color: var(--pa-blue);
+}
+.jb-join:disabled {
+  cursor: default;
+}
+.jb-cut-tools {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 3px;
+}
+.jb-tool {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--pa-ink-3);
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.jb-tool:hover:not(:disabled) {
+  color: var(--pa-ink);
+  border-color: var(--pa-line);
+  background: #fff;
+}
+.jb-tool:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* the frame itself — the reason this page exists */
+.jb-frame {
+  position: relative;
+  background: var(--pa-3);
+  border-bottom: 1px solid var(--pa-line);
+  overflow: hidden;
+}
+.jb-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: jbFrameIn 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes jbFrameIn {
+  from {
+    opacity: 0;
+    transform: scale(1.015);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jb-frame img {
+    animation: none;
+  }
+}
+.jb-frame-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  /* Along the bottom, not in the middle: the draw pill owns the centre of an
+     empty frame and the two were printing on top of each other. */
+  place-items: end center;
+  padding-bottom: 10px;
+  gap: 5px;
+  font-family: var(--pa-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pa-ink-3);
+  /* the empty frame reads as a slate, not as a broken image */
+  background-image: linear-gradient(135deg, rgba(0, 0, 0, 0.035) 25%, transparent 25%, transparent 50%,
+      rgba(0, 0, 0, 0.035) 50%, rgba(0, 0, 0, 0.035) 75%, transparent 75%);
+  background-size: 14px 14px;
+}
+.jb-draw {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.18s, color 0.18s;
+}
+.jb-draw span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--pa-ink);
+  color: var(--pa);
+  font-family: var(--pa-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 7px 12px;
+  border-radius: 99px;
+  opacity: 0;
+  transform: translateY(5px);
+  transition: opacity 0.18s, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.jb-frame:hover .jb-draw,
+.jb-draw:focus-visible {
+  background: rgba(20, 20, 20, 0.42);
+}
+.jb-frame:hover .jb-draw span,
+.jb-draw:focus-visible span {
+  opacity: 1;
+  transform: none;
+}
+.jb-frame.is-empty .jb-draw span {
+  opacity: 1;
+  transform: none;
+}
+.jb-busy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  background: rgba(247, 246, 242, 0.78);
+  backdrop-filter: blur(2px);
+  font-family: var(--pa-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pa-ink-2);
+}
+.jb-spin {
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid var(--pa-ink-3);
+  border-top-color: transparent;
+  border-radius: 99px;
+  animation: jbSpin 0.72s linear infinite;
+}
+@keyframes jbSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* the call sheet under the frame */
+.jb-cut-body {
+  padding: 8px 9px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.jb-spec {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  font-family: var(--pa-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pa-ink-2);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--pa-line-2);
+}
+.jb-num {
+  display: inline-flex;
+  align-items: baseline;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  transition: border-color 0.12s;
+}
+.jb-num:hover {
+  border-color: var(--pa-line);
+}
+.jb-num:focus-within {
+  border-color: var(--pa-ink-3);
+  background: #fff;
+}
+.jb-num input {
+  width: 30px;
+  font: inherit;
+  text-align: right;
+  background: transparent;
+  border: 0;
+  color: var(--pa-ink);
+  font-variant-numeric: tabular-nums;
+  padding: 1px 0;
+}
+.jb-num input:focus {
+  outline: none;
+}
+.jb-num input::-webkit-outer-spin-button,
+.jb-num input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+.jb-num i {
+  font-style: normal;
+  color: var(--pa-ink-3);
+  padding: 0 3px 0 1px;
+}
+.jb-dot {
+  color: #a8a59b;
+}
+/* framing and move sit ON the spec line, so they shrink rather than claim a
+   row each the way a full-width field would. */
+.jb-caps {
+  width: auto;
+  flex: 1 1 9ch;
+  min-width: 8ch;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.35;
+  font-family: var(--pa-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pa-ink-2);
+}
+.jb-where {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-family: var(--pa-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pa-ink-2);
+}
+.jb-where.is-moved {
+  color: var(--pa-mark);
+}
+.jb-where .jb-ed {
+  font-family: var(--pa-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: inherit;
+}
+
+/* beats — the clock inside a shot */
+.jb-beats {
+  border-left: 1px solid var(--pa-line);
+  padding-left: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.jb-beat {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.jb-beat-t {
+  display: inline-flex;
+  align-items: baseline;
+  flex: none;
+  border: 1px solid transparent;
+  border-radius: 3px;
+}
+.jb-beat-t:hover {
+  border-color: var(--pa-line);
+}
+.jb-beat-t:focus-within {
+  border-color: var(--pa-ink-3);
+  background: #fff;
+}
+.jb-beat-t input {
+  width: 26px;
+  font: inherit;
+  font-family: var(--pa-mono);
+  font-size: 10px;
+  text-align: right;
+  background: transparent;
+  border: 0;
+  color: var(--pa-blue);
+  font-variant-numeric: tabular-nums;
+}
+.jb-beat-t input:focus {
+  outline: none;
+}
+.jb-beat-t input::-webkit-outer-spin-button,
+.jb-beat-t input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+.jb-beat-t span {
+  font-family: var(--pa-mono);
+  font-size: 9px;
+  color: var(--pa-ink-3);
+  padding-right: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.jb-beat .jb-ed {
+  font-size: 11.5px;
+  color: var(--pa-ink-2);
+}
+.jb-beat .jb-tool {
+  opacity: 0;
+}
+.jb-beat:hover .jb-tool,
+.jb-beat .jb-tool:focus-visible {
+  opacity: 1;
+}
+
+.jb-pairs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 2px 10px;
+}
+
+.jb-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--pa-ink-3);
+  font-family: var(--pa-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 2px 0;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.jb-mini:hover:not(:disabled) {
+  color: var(--pa-ink);
+}
+.jb-mini:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.jb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--pa-line);
+  background: #fff;
+  color: var(--pa-ink-2);
+  font-family: var(--pa-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.jb-chip:hover:not(:disabled) {
+  color: var(--pa-ink);
+  border-color: var(--pa-ink-3);
+}
+.jb-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.jb-prompt {
+  width: 100%;
+  font-family: var(--pa-mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--pa-ink-2);
+  background: var(--pa-2);
+  border: 1px solid var(--pa-line);
+  border-radius: 3px;
+  padding: 8px 9px;
+  resize: vertical;
+  min-height: 150px;
+}
+.jb-prompt:focus {
+  outline: none;
+  border-color: var(--pa-ink-3);
+  background: #fff;
+}
+
+/* ----- continuity ----- */
+.jb-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.jb-note {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--pa-ink-2);
+}
+.jb-note-jump {
+  flex: none;
+  font: inherit;
+  font-family: var(--pa-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--pa-ink-3);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--pa-line);
+  padding: 0;
+  margin-right: 6px;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.jb-note-jump:hover {
+  color: var(--pa-ink);
+}
+.jb-note b {
+  flex: none;
+  font-family: var(--pa-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--pa-ink-3);
+  border-bottom: 1px solid var(--pa-line);
+  cursor: pointer;
+  background: none;
+  border-width: 0 0 1px;
+  padding: 0;
+  transition: color 0.15s;
+}
+.jb-note b:hover {
+  color: var(--pa-ink);
+}
+.jb-note.is-warn::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--pa-mark);
+  flex: none;
+  transform: translateY(-1px);
+}
+.jb-note::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--pa-line);
+  flex: none;
+  transform: translateY(-1px);
+}
+
+/* ----- the foot of the sheet ----- */
+.jb-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-top: 2px solid var(--pa-ink);
+  padding-top: 11px;
+}
+.jb-runtime {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--pa-line);
+  background: #fff;
+  padding: 5px 9px;
+  border-radius: 4px;
+}
+.jb-runtime:focus-within {
+  border-color: var(--pa-ink-3);
+}
+.jb-runtime input {
+  width: 46px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+  background: transparent;
+  border: 0;
+  color: var(--pa-ink);
+  font-variant-numeric: tabular-nums;
+}
+.jb-runtime input:focus {
+  outline: none;
+}
+.jb-paper-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--pa-line);
+  background: #fff;
+  color: var(--pa-ink-2);
+  font: inherit;
+  font-size: 11.5px;
+  padding: 6px 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.jb-paper-btn:hover:not(:disabled) {
+  color: var(--pa-ink);
+  border-color: var(--pa-ink-3);
+}
+.jb-paper-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.jb-paper-btn.is-mark {
+  color: var(--pa-mark);
+  border-color: color-mix(in srgb, var(--pa-mark) 45%, transparent);
+}
+.jb-hint {
+  font-size: 11.5px;
+  color: var(--pa-ink-3);
+  line-height: 1.45;
+}
+.jb-hint b {
+  font-weight: 600;
+  color: var(--pa-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.jb-shoot {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: var(--pa-ink);
+  color: var(--pa);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+.jb-shoot:hover:not(:disabled) {
+  background: #000;
+}
+.jb-shoot:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.jb-shoot:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ----- the director, docked ----- */
+.jb-director {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--color-line);
+  background: var(--color-panel);
+}
+
+/* ----- narrow ----- */
+@media (max-width: 1180px) {
+  .jb-sheet {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .jb-director {
+    border-left: 0;
+    border-top: 1px solid var(--color-line);
+    max-height: 46vh;
+  }
+}
+@media (max-width: 720px) {
+  .jb-scroll {
+    padding: 12px 10px 32px;
+  }
+  /* The bar was taking three rows of a phone screen to repeat what the
+     masthead says two centimetres lower. */
+  .jb-bar-title span {
+    display: none;
+  }
+  .jb-director {
+    max-height: 34vh;
+  }
+  .jb-bar {
+    margin: -12px -10px 10px;
+    padding: 8px 10px;
+  }
+  .jb-paper {
+    padding: 13px;
+  }
+  .jb-mast .jb-title,
+  .jb-ed.jb-title {
+    font-size: 21px;
+  }
+  .jb-cuts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
