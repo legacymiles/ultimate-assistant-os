@@ -267,6 +267,24 @@ export const STUDIO_TOOLS: ToolSpec[] = [
       + "cut will wander outdoors on its own.\n"
       + "- ends_on. Always fill it: it is literally what the next shot is told to open on.\n"
       + "- carry. Props, damage, weather and blocking that must survive the join.\n\n"
+      + "TWO RULES THAT DECIDE WHETHER IT IS A FILM AT ALL. They hold for every genre, and they hold "
+      + "whether or not the owner touched the camera panel:\n"
+      + "- NO SHOT IS A HELD POSE. Every shot's action names something that physically CHANGES inside "
+      + "its own seconds — true at the end, not true at the start. A shot written as a situation that "
+      + "merely exists ('a baby sits in a living room') renders as a still photograph, because that is "
+      + "literally what it asked for. Write the event, not the scene: 'the baby stops drinking and "
+      + "turns toward the hallway'.\n"
+      + "- EVERY CUT COSTS SOMETHING. Shot N leaves the protagonist worse off, or closer to the thing, "
+      + "or with one fewer way out, than shot N-1. If you cannot say what a shot took away, it is a "
+      + "held pose with a camera move on it and the film has no shape. A film that ends where it began "
+      + "has not happened.\n\n"
+      + "GENRE DECIDES THE STORY, NOT ONLY THE LOOK. `mood` is where it lands, so write `mood` as what "
+      + "HAPPENS as well as how it is shot: what the opposing force does and how it behaves wrongly, "
+      + "what the protagonist registers and loses, how the pressure rises, and how it is allowed to "
+      + "end. A horror film planned as a sunlit family scene and then graded dark is a correctly graded "
+      + "film of the wrong story. If the camera panel set a Genre you will have been given its full "
+      + "doctrine — follow it. If the owner only described one in words, write the same obligations "
+      + "yourself from the genre they named.\n\n"
       + "Two more fields decide whether a shot is any good:\n"
       + "- beats. A timed clock inside the shot. A shot given seconds and no clock fills them with a "
       + "held pose — give any shot over about 6 s a beat roughly every 2 s.\n"
@@ -285,11 +303,15 @@ export const STUDIO_TOOLS: ToolSpec[] = [
         mood: {
           type: "string",
           description:
-            "The genre and how it is shot, in one paragraph — dread, warmth, grit, whatever the film is. Take it from "
-            + "the camera panel's Genre when the owner set one; otherwise write it from the genre they described, and "
-            + "if they named none, from what the story actually is. Never leave it empty. It governs the lighting, "
-            + "the grade and the framing, so it is repeated into every shot ahead of them — without it the film is "
-            + "graded like whatever its location suggests, and a horror film set in a family house comes out sunlit.",
+            "The genre doctrine, in one paragraph: BOTH how the film is shot AND what it obliges to happen. Take it "
+            + "from the camera panel's Genre when the owner set one; otherwise write it from the genre they "
+            + "described, and if they named none, from what the story actually is. Never leave it empty.\n"
+            + "Half of it is the look — dread, warmth, grit — and it governs the lighting, the grade and the "
+            + "framing, so it is repeated into every shot ahead of them. The other half is the story: what the "
+            + "opposing force does and how its behaviour is wrong, what the protagonist registers and loses, how the "
+            + "pressure rises cut by cut, and how the film is allowed to end. Write the second half as concretely as "
+            + "the first. A genre that reaches only the grade gives you a horror film set in a family house that "
+            + "comes out sunlit — or, once it is graded, a dark-looking film in which nothing frightening happens.",
         },
         aspect_ratio: { type: "string", enum: ["16:9", "9:16", "1:1"] },
         lens: { type: "string", description: "The glass used all film, e.g. 'anamorphic prime set'." },

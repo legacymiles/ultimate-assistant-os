@@ -380,11 +380,43 @@
   letter-spacing: 0.1em;
   color: var(--pa-ink-3);
 }
+.jb-face {
+  position: relative;
+}
 .jb-face img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+}
+/*
+ * Draw this character's reference sheet. It sits along the bottom of the tile
+ * rather than beside it, because the tile IS the thing it fills — and it stays
+ * visible rather than appearing on hover: an empty tile on a film this long is
+ * a blocker, so the way to clear it must not be hidden.
+ */
+.jb-face-draw {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  font-family: var(--pa-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--pa);
+  background: rgba(27, 27, 27, 0.82);
+  border: 0;
+  padding: 4px 0;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.jb-face-draw:hover:not(:disabled) {
+  background: var(--pa-ink);
+}
+.jb-face-draw:disabled {
+  background: rgba(27, 27, 27, 0.45);
+  cursor: default;
 }
 .jb-turn {
   margin-top: 5px;
@@ -928,6 +960,30 @@
   flex: none;
   transform: translateY(-1px);
 }
+/*
+ * A blocker is what the director circles in red: the same pen as a warning,
+ * pressed harder. It reads at a glance against its neighbours by SHAPE as well
+ * as colour — a filled square, not a dot — so the distinction survives a
+ * greyscale print and a red-green colour deficiency, which a second hue would
+ * not.
+ */
+.jb-note.is-block {
+  color: var(--pa-ink);
+  background: var(--pa-mark-soft);
+  box-shadow: inset 1px 0 0 var(--pa-mark);
+  padding: 4px 8px 4px 7px;
+  margin-left: -8px;
+  border-radius: 0 2px 2px 0;
+}
+.jb-note.is-block::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 0;
+  background: var(--pa-mark);
+  flex: none;
+  transform: translateY(-1px);
+}
 .jb-note::before {
   content: "";
   width: 5px;
@@ -1010,6 +1066,61 @@
   color: var(--pa-ink-2);
   font-variant-numeric: tabular-nums;
 }
+/*
+ * Why the film cannot be shot yet, said where the owner is about to commit.
+ * It sits in the footer's flow rather than over it: an hour of GPU is worth a
+ * sentence, not a modal.
+ */
+.jb-stop {
+  flex-basis: 100%;
+  order: -1;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--pa-ink-2);
+  background: var(--pa-mark-soft);
+  box-shadow: inset 1px 0 0 var(--pa-mark);
+  padding: 8px 12px;
+  border-radius: 0 3px 3px 0;
+}
+.jb-stop-n {
+  font-family: var(--pa-mono);
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--pa);
+  background: var(--pa-mark);
+  padding: 1px 6px;
+  border-radius: 2px;
+  transform: translateY(-1px);
+}
+.jb-stop button {
+  font: inherit;
+  font-weight: 600;
+  color: var(--pa-mark);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  padding: 0;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.jb-stop button:hover {
+  opacity: 0.7;
+}
+
+/* Blocked: still live, because it is what takes the owner to the findings. */
+.jb-shoot.is-blocked,
+.jb-shoot[aria-describedby] {
+  background: var(--pa-ink-3);
+}
+.jb-shoot[aria-describedby]:hover:not(:disabled) {
+  background: var(--pa-ink-2);
+}
+
 .jb-shoot {
   margin-left: auto;
   display: inline-flex;
@@ -1084,4 +1195,10 @@
   .jb-cuts {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* The set plate reads as a location still, so it is framed wide, not square. */
+.jb-face.jb-plate {
+  width: 164px;
+  height: 92px;
 }

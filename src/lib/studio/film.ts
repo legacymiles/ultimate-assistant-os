@@ -15,7 +15,7 @@
 // ---------------------------------------------------------------------------
 
 import { BRIDGE, bridgeStatus, type CharacterRef } from "./render";
-import { isChained, shotPrompt, type Storyboard } from "./storyboard";
+import { inventedIn, isChained, needsPlate, shotPrompt, type Storyboard } from "./storyboard";
 
 export interface FilmShotView {
   n: number;
@@ -80,6 +80,27 @@ function refsFor(
       if (c.images[0]) out.push({ label: c.name, dataUrl: c.images[0] });
     }
   }
+  // Anyone the film INVENTED who is in this shot. Without their drawn sheet the
+  // face is held by the `look` sentence alone, which across a dozen separate
+  // generations is how a character quietly becomes someone else.
+  //
+  // This runs whether or not an upload was already attached, because the common
+  // case is MIXED — one face photographed, the rest invented — and stopping at
+  // the first picture found would anchor the photographed one and abandon
+  // everybody else.
+  for (const c of inventedIn(board, index)) {
+    if (c.sheet) out.push({ label: c.name, dataUrl: c.sheet });
+  }
+  // A film with a single invented character usually never writes their name in
+  // the action — it is obvious who it is about. One sheet, so no ambiguity.
+  if (!out.length) {
+    const solo = board.cast.filter((c) => c.subject === null && c.sheet);
+    if (solo.length === 1) out.push({ label: solo[0].name, dataUrl: solo[0].sheet! });
+  }
+  // The set, last, so the faces keep the first reference slots. A shot that
+  // opens cold otherwise dresses the room from the words for it, which is how
+  // a hallway became a living room between two cuts.
+  if (needsPlate(board, index)) out.push({ label: "THE SET", dataUrl: board.plate! });
   return out.slice(0, 6);
 }
 

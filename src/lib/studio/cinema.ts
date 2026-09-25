@@ -29,6 +29,18 @@ export interface CinemaOption {
   note: string;
   /** What the model actually reads. Written as direction, not as a label. */
   prompt: string;
+  /**
+   * Genres only: what this genre obliges the STORY to contain.
+   *
+   * `prompt` is cinematography — framing, light, colour — and for every other
+   * rail that is the whole job. A genre is not a look: it decides what the
+   * antagonist does, what the protagonist registers, how the pressure moves and
+   * how it is allowed to end. Written as look alone it reaches the grade and
+   * nothing else, which is how a horror film came back as a sunlit family
+   * video: correctly framed, correctly graded, and not a horror film, because
+   * nothing frightening was ever planned to happen in it.
+   */
+  story?: string;
   /** Palettes only: the swatch strip under the tile, shadows first. */
   colors?: string[];
   /** Tempo only: the relative length of each shot, drawn as the cut rhythm. */
@@ -59,22 +71,173 @@ export interface CinemaGroup {
 
 const GENRE: CinemaOption[] = [
   { id: "genre-auto", name: "Auto", note: "Let the story pick", prompt: "" },
-  { id: "genre-horror", name: "Horror", note: "Dread in the negative space", prompt: "Horror: dread built from what is out of frame, oppressive negative space, the subject small inside it, a held beat too long before anything moves." },
-  { id: "genre-noir", name: "Film noir", note: "Venetian blinds and guilt", prompt: "Film noir: hard single-source key, deep crushed shadows, slatted light across faces, fog and wet asphalt, every face half in darkness." },
-  { id: "genre-thriller", name: "Thriller", note: "Tight, withheld, coiled", prompt: "Thriller: tight framing that withholds information, subjects pressed to the edge of frame, cold restrained palette, tension carried by stillness." },
-  { id: "genre-scifi", name: "Sci-fi", note: "Scale, glass and cold light", prompt: "Science fiction: engineered surfaces, enormous scale against a human figure, cold practical light sources, clean volumetric haze." },
-  { id: "genre-fantasy", name: "Fantasy", note: "Painterly, mythic, tall", prompt: "Fantasy: painterly mythic imagery, tall vertical compositions, god rays through canopy or cathedral, saturated earth and jewel tones." },
-  { id: "genre-action", name: "Action", note: "Weight, impact, consequence", prompt: "Action: physical weight and consequence in every movement, impacts that shake the frame, debris and dust in the air, muscular contrasty light." },
-  { id: "genre-western", name: "Western", note: "Horizon, dust, patience", prompt: "Western: a low horizon under an enormous sky, dust hanging in raking light, patient wide framing, sun-bleached earth tones." },
-  { id: "genre-romance", name: "Romance", note: "Warm, close, unhurried", prompt: "Romance: warm soft light wrapping faces, shallow focus that isolates two people, unhurried framing, skin tones lifted and golden." },
-  { id: "genre-comedy", name: "Comedy", note: "Bright, flat, legible", prompt: "Comedy: bright even light, flat legible staging where the joke is always visible, clean saturated colour, nothing hidden in shadow." },
-  { id: "genre-doc", name: "Documentary", note: "Found, not staged", prompt: "Documentary: available light only, imperfect handheld framing that reacts rather than anticipates, real locations, nothing staged or polished." },
-  { id: "genre-music-video", name: "Music video", note: "Style over continuity", prompt: "Music video: style over continuity, bold colour, performance energy to camera, every frame designed as an image rather than a link in a story." },
-  { id: "genre-anime", name: "Anime", note: "Cel-shaded, expressive", prompt: "Anime: cel-shaded forms, bold clean line work, expressive exaggerated motion, painted background art, speed lines on fast movement." },
-  { id: "genre-war", name: "War", note: "Grit, chaos, desaturation", prompt: "War: desaturated grit, smoke and ash in the air, chaotic unstable framing, cold steel and mud palette." },
-  { id: "genre-heist", name: "Heist", note: "Cool, precise, geometric", prompt: "Heist: precise geometric compositions, cool controlled palette, competence shown through clean tight inserts of hands and mechanisms." },
-  { id: "genre-supernatural", name: "Supernatural", note: "Something is wrong", prompt: "Supernatural: something subtly wrong in an ordinary space, unmotivated light source, unnatural stillness, colour draining toward one hue." },
-  { id: "genre-sports", name: "Sports", note: "Effort at high shutter", prompt: "Sports: high shutter speed crispness, sweat and breath visible, long-lens compression from the sideline, stadium light flaring." },
+  {
+    id: "genre-horror",
+    name: "Horror",
+    note: "Dread in the negative space",
+    // "a held beat too long before anything moves" used to end this line, and a
+    // planner obeyed it exactly: the opening shot of a real film was a frozen
+    // photograph for six and a half seconds. The beat is still held — but the
+    // thing the frame was hiding now has to move.
+    prompt: "Horror: dread built from what is out of frame, oppressive negative space, the subject small inside it, the frame holding a beat too long and then the thing it was hiding moves.",
+    story:
+      "The threat is never fully shown in good light — it is known by BEHAVIOUR: movement at the wrong "
+      + "speed, a head that tracks too late and then too fast, a body doing something a body should not. "
+      + "Show a part before the whole, a sound before the part. The protagonist must visibly register it "
+      + "— fear is on a face and in dropped, abandoned, broken things, never merely implied by the score. "
+      + "Every cut takes an option away: the pressure rises and never resets. It does not end in relief. "
+      + "The trap closes, or the escape is revealed as none.",
+  },
+  {
+    id: "genre-noir",
+    name: "Film noir",
+    note: "Venetian blinds and guilt",
+    prompt: "Film noir: hard single-source key, deep crushed shadows, slatted light across faces, fog and wet asphalt, every face half in darkness.",
+    story:
+      "Everyone wants something and lies about it. The protagonist is already compromised when the film "
+      + "starts and makes it worse by acting; every new fact arrives as a betrayal rather than a clue. "
+      + "It ends in loss wearing the shape of a result — nobody is redeemed and nothing is clean.",
+  },
+  {
+    id: "genre-thriller",
+    name: "Thriller",
+    note: "Tight, withheld, coiled",
+    prompt: "Thriller: tight framing that withholds information, subjects pressed to the edge of frame, cold restrained palette, tension carried by stillness.",
+    story:
+      "The audience knows something the protagonist does not, and the film spends that gap deliberately. "
+      + "Every scene either shortens the time left or narrows the way out; competence is answered with a "
+      + "harder problem, never with safety. It ends when the pressure breaks, not when it is soothed.",
+  },
+  {
+    id: "genre-scifi",
+    name: "Sci-fi",
+    note: "Scale, glass and cold light",
+    prompt: "Science fiction: engineered surfaces, enormous scale against a human figure, cold practical light sources, clean volumetric haze.",
+    story:
+      "One rule of this world is different from ours. State it early, obey it absolutely, and make the "
+      + "story the consequence of that rule reaching a person — the idea has to cost somebody something "
+      + "physical. Scale is felt against a body in frame, never described in words.",
+  },
+  {
+    id: "genre-fantasy",
+    name: "Fantasy",
+    note: "Painterly, mythic, tall",
+    prompt: "Fantasy: painterly mythic imagery, tall vertical compositions, god rays through canopy or cathedral, saturated earth and jewel tones.",
+    story:
+      "A mythic want, an ordeal that tests it, and a price paid in the world's own currency. Wonder is "
+      + "shown through a person reacting to it rather than through the thing itself. The rules of the "
+      + "magic are fixed early and never bend to rescue the plot.",
+  },
+  {
+    id: "genre-action",
+    name: "Action",
+    note: "Weight, impact, consequence",
+    prompt: "Action: physical weight and consequence in every movement, impacts that shake the frame, debris and dust in the air, muscular contrasty light.",
+    story:
+      "Every beat is a physical problem solved physically, and the consequence persists — damage, dirt "
+      + "and exhaustion carry between shots and nothing resets. Escalation is geographic: the space keeps "
+      + "getting worse to be in. Stakes are established in a body before they are stated in dialogue.",
+  },
+  {
+    id: "genre-western",
+    name: "Western",
+    note: "Horizon, dust, patience",
+    prompt: "Western: a low horizon under an enormous sky, dust hanging in raking light, patient wide framing, sun-bleached earth tones.",
+    story:
+      "The land and the waiting are antagonists as much as any person is. A code is stated, tested, and "
+      + "enforced at cost. Violence is brief, late and final — the time before it is spent on stillness, "
+      + "which is what makes the movement mean anything.",
+  },
+  {
+    id: "genre-romance",
+    name: "Romance",
+    note: "Warm, close, unhurried",
+    prompt: "Romance: warm soft light wrapping faces, shallow focus that isolates two people, unhurried framing, skin tones lifted and golden.",
+    story:
+      "Two people want each other and something specific and named keeps them apart — never a "
+      + "misunderstanding a single sentence would fix. Intimacy escalates through what each risks "
+      + "admitting out loud. The ending answers the want, either way, and commits to the answer.",
+  },
+  {
+    id: "genre-comedy",
+    name: "Comedy",
+    note: "Bright, flat, legible",
+    prompt: "Comedy: bright even light, flat legible staging where the joke is always visible, clean saturated colour, nothing hidden in shadow.",
+    story:
+      "Somebody wants something badly and is precisely the wrong person to get it. Escalation is by "
+      + "commitment — each attempt is more elaborate and less wise than the last. The audience stays "
+      + "ahead of the character, and the joke is always visible in frame rather than hidden for a reveal.",
+  },
+  {
+    id: "genre-doc",
+    name: "Documentary",
+    note: "Found, not staged",
+    prompt: "Documentary: available light only, imperfect handheld framing that reacts rather than anticipates, real locations, nothing staged or polished.",
+    story:
+      "Nothing is staged, so the story is found: a real person doing a real thing while the camera "
+      + "reacts a beat late and misses things. Structure comes from what actually happens, and the "
+      + "subject is allowed to be inconvenient or dull. No triumphant resolution unless one occurred.",
+  },
+  {
+    id: "genre-music-video",
+    name: "Music video",
+    note: "Style over continuity",
+    prompt: "Music video: style over continuity, bold colour, performance energy to camera, every frame designed as an image rather than a link in a story.",
+    story:
+      "The track is the structure — verse, chorus, drop — and continuity serves the image rather than "
+      + "the other way round. Performance to camera is the spine. Narrative fragments recur as motifs "
+      + "and are never obliged to resolve into a plot.",
+  },
+  {
+    id: "genre-anime",
+    name: "Anime",
+    note: "Cel-shaded, expressive",
+    prompt: "Anime: cel-shaded forms, bold clean line work, expressive exaggerated motion, painted background art, speed lines on fast movement.",
+    story:
+      "Emotion is external: it shows in posture, in speed, and in the world itself reacting. Escalation "
+      + "comes by revealing capability or stakes, with one still beat held immediately before the largest "
+      + "movement. Conviction — someone deciding something and meaning it — is the real subject.",
+  },
+  {
+    id: "genre-war",
+    name: "War",
+    note: "Grit, chaos, desaturation",
+    prompt: "War: desaturated grit, smoke and ash in the air, chaotic unstable framing, cold steel and mud palette.",
+    story:
+      "There is no protagonist-shaped safety. Objectives are arbitrary and expensive, and competence "
+      + "does not guarantee survival. Escalation is attrition: people and materiel are subtracted and do "
+      + "not come back. It ends with cost accounted for, not with victory celebrated.",
+  },
+  {
+    id: "genre-heist",
+    name: "Heist",
+    note: "Cool, precise, geometric",
+    prompt: "Heist: precise geometric compositions, cool controlled palette, competence shown through clean tight inserts of hands and mechanisms.",
+    story:
+      "A plan is stated clearly so the audience can watch it break. Each member is one specific "
+      + "competence; each complication is the plan meeting reality. The pleasure lives in the gap between "
+      + "what the audience was shown and what was actually being done.",
+  },
+  {
+    id: "genre-supernatural",
+    name: "Supernatural",
+    note: "Something is wrong",
+    prompt: "Supernatural: something subtly wrong in an ordinary space, unmotivated light source, unnatural stillness, colour draining toward one hue.",
+    story:
+      "An ordinary world with one thing quietly wrong, and the wrongness spreads rather than attacks. "
+      + "The protagonist's account of it is doubted by someone who should believe them. Escalation is the "
+      + "ordinary rules failing one at a time; the explanation is withheld and may never fully arrive.",
+  },
+  {
+    id: "genre-sports",
+    name: "Sports",
+    note: "Effort at high shutter",
+    prompt: "Sports: high shutter speed crispness, sweat and breath visible, long-lens compression from the sideline, stadium light flaring.",
+    story:
+      "A measurable goal, a clock, and an opponent who is genuinely better at something. Escalation is "
+      + "by round, each contest costing more than the last. The outcome is earned in preparation the "
+      + "audience actually saw, and losing is a permitted ending.",
+  },
 ];
 
 const ERA: CinemaOption[] = [
@@ -605,6 +768,10 @@ export function cinemaContext(
   );
   const style = rails.find((r) => r.rail.id === "style");
   const rest = rails.filter((r) => r.rail.id !== "style");
+  // The genre is listed with the rest for its look, and again on its own below
+  // for its story — those are two different jobs and only one of them was ever
+  // being done.
+  const genre = rails.find((r) => r.rail.id === "genre" && r.option.story);
   const delivery = outputBlock(output);
   if (!rails.length && !moves.length && !delivery.length) return "";
 
@@ -630,7 +797,7 @@ export function cinemaContext(
     "the owner touched has a field; none of them may be dropped:",
     "",
     "  Tempo      → the CUTTING: how long shots are and how many beats each one holds",
-    "  Style      → `look`          Genre  → `mood`         Lighting → `lighting`",
+    "  Style      → `look`          Genre  → `mood` AND THE STORY         Lighting → `lighting`",
     "  Palette    → `grade` + `palette`                     Era      → `look` and `lens`",
     "  Camera body → `lens`         Lens   → `lens`         Aperture → every shot's `aperture`",
     "  Moves      → the shot that carries them: name in `move`, mechanics in `camera_note`",
@@ -682,6 +849,32 @@ export function cinemaContext(
       "Only when a setting is genuinely impossible inside the style (film grain on a blueprint) do",
       "you drop it, and then you say which one and why in your message text, in one line. Never",
       "quietly render a photograph because the combination looked awkward.",
+    );
+  }
+
+  if (genre) {
+    lines.push(
+      "",
+      `THE GENRE — ${genre.option.name}. A genre is not a look, and this is the half that keeps`,
+      "getting lost: graded correctly and planned as though no genre were set, a film comes back",
+      "looking right and being the wrong film. These are obligations on WHAT HAPPENS:",
+      "",
+      genre.option.story!,
+      "",
+      "They are met in the fields the plan already has, not in adjectives:",
+      "  what the threat or opposing force DOES        → each shot's `action` and `beats`",
+      "  how it changes on screen                      → cast `turns_at` / `turns_into`",
+      "  what the protagonist registers and loses      → `action`, and `carry` for what stays lost",
+      "  the pressure rising                           → the ORDER of the shots, their lengths, `carry`",
+      "  how it is allowed to end                      → the last shot's `action` and `ends_on`",
+      "",
+      "Two rules that follow, and that a plan is wrong without:",
+      "- NO SHOT IS A HELD POSE. Every shot names something that physically changes inside its own",
+      "  seconds — a state that is true at the end and was not true at the start. A shot written as a",
+      "  situation that merely exists renders as a still photograph, because that is what it asked for.",
+      "- EVERY CUT COSTS SOMETHING. Shot N must leave the protagonist worse off, or closer to the",
+      "  thing, or with one fewer way out, than shot N-1. If you cannot say what a shot took away,",
+      "  it is a held pose with a camera move on it and the film has no shape.",
     );
   }
 

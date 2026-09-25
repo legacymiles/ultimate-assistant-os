@@ -70,3 +70,93 @@ describe("filmPayload", () => {
     ).toBe("data:audio/mpeg;base64,DDD");
   });
 });
+
+// The defect behind two unusable films: a cast the film invented had no
+// picture at all, so every cut re-imagined the face from the words.
+describe("a cast the film invented", () => {
+  const SHEET = "data:image/jpeg;base64,SHEET";
+  const invented = (sheet?: string): Storyboard =>
+    cleanStoryboard({
+      title: "The clearing",
+      wardrobe: "olive work coat",
+      cast: [{ id: "c1", name: "WALKER", look: "late 30s, lean", subject: null, ...(sheet ? { sheet } : {}) }],
+      shots: [
+        { title: "Cut 1", action: "he stops", duration_sec: 5, references: [], link: "open" },
+        { title: "Cut 2", action: "he runs", duration_sec: 5, references: [], link: "continuous" },
+        { title: "Cut 3", action: "he turns", duration_sec: 5, references: [], link: "cut" },
+      ],
+    })!;
+
+  const refsOf = (b: Storyboard) =>
+    (filmPayload({ board: b, subjects: [], characters: [] }).shots as { refs: unknown[] }[]).map((s) => s.refs.length);
+
+  it("goes out with no picture on any shot when nothing was drawn", () => {
+    expect(refsOf(invented())).toEqual([0, 0, 0]);
+  });
+
+  it("attaches the drawn sheet to every shot that is not chained", () => {
+    // Shot 2 is continuous: it opens on real frames of shot 1, and a picture on
+    // top of that is a second answer to the same question.
+    expect(refsOf(invented(SHEET))).toEqual([1, 0, 1]);
+  });
+
+  it("attaches the sheet itself, labelled with the character's name", () => {
+    const shots = filmPayload({ board: invented(SHEET), subjects: [], characters: [] }).shots as {
+      refs: { label: string; dataUrl: string }[];
+      prompt: string;
+    }[];
+    expect(shots[0].refs[0]).toEqual({ label: "WALKER", dataUrl: SHEET });
+    // ...and the prompt names the picture that is really going with it.
+    expect(shots[0].prompt).toContain("WALKER");
+  });
+
+  it("prefers a real upload over a drawn sheet — never both", () => {
+    const board = cleanStoryboard({
+      title: "T",
+      cast: [{ id: "c1", name: "WALKER", look: "lean", subject: 1, sheet: SHEET }],
+      shots: [{ title: "Cut 1", action: "he stops", duration_sec: 5, references: [1], link: "open" }],
+    })!;
+    const refs = (filmPayload({ board, subjects: ["data:image/jpeg;base64,REAL"], characters: [] }).shots as {
+      refs: { dataUrl: string }[];
+    }[])[0].refs;
+    expect(refs).toHaveLength(1);
+    expect(refs[0].dataUrl).toBe("data:image/jpeg;base64,REAL");
+  });
+});
+
+// The case this film actually is: one face photographed, the rest invented.
+// Stopping at the first picture found anchors the baby and abandons everyone
+// else — which is the same drift, just harder to see.
+describe("a mixed cast", () => {
+  const SHEET = "data:image/jpeg;base64,MOTHERSHEET";
+  const mixed = (action: string): Storyboard =>
+    cleanStoryboard({
+      title: "Milk",
+      cast: [
+        { id: "b", name: "BABY", look: "one year old", subject: 1 },
+        { id: "m", name: "MOTHER", look: "grey-skinned, jaw slack", subject: null, sheet: SHEET },
+      ],
+      shots: [{ title: "Cut 1", action, duration_sec: 5, references: [1], link: "open" }],
+    })!;
+
+  const refs = (b: Storyboard) =>
+    (filmPayload({ board: b, subjects: ["data:image/jpeg;base64,BABY"], characters: [] }).shots as {
+      refs: { label: string }[];
+    }[])[0].refs.map((r) => r.label);
+
+  it("attaches the invented sheet alongside the upload when the shot names her", () => {
+    expect(refs(mixed("The baby drops the bottle as MOTHER steps into the doorway."))).toEqual(["BABY", "MOTHER"]);
+  });
+
+  it("leaves her out of a shot that does not name her", () => {
+    expect(refs(mixed("The baby drops the bottle and turns toward the hallway."))).toEqual(["BABY"]);
+  });
+
+  it("matches the name whatever case the action is written in", () => {
+    expect(refs(mixed("The baby drops the bottle as his mother steps into the doorway."))).toEqual(["BABY", "MOTHER"]);
+  });
+
+  it("does not match a name that is only part of a longer word", () => {
+    expect(refs(mixed("The baby drops the bottle and the mothership hums overhead."))).toEqual(["BABY"]);
+  });
+});

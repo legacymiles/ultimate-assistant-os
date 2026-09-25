@@ -185,6 +185,29 @@ export const WORKFLOWS: Workflow[] = [
     hue: 0,
   },
   {
+    // ---- pipeline experiments -------------------------------------------
+    // Each of these is a whole way of BUILDING a stitched film, kept as a
+    // workflow so a pipeline that worked can be picked again and one that did
+    // not can be read and argued with. They differ in shape — shot length, how
+    // shots join, what gets anchored — not in subject.
+    id: "long-take-chain",
+    name: "Long-take chain",
+    medium: "video",
+    category: "stories",
+    blurb: "Few long shots, chained — the fewest joins a film can have",
+    brief:
+      "Build the film out of the LONGEST shots H3 will render (12–15 s), not the shortest, because "
+      + "every defect in a stitched film happens at a join: three 15 s shots have two joins where eight "
+      + "5 s shots have seven. Open once on Ref2VA with the cast sheets and the set plate attached, then "
+      + "stay on FL2VA (`continuous`) for as long as the action really is continuous, cutting back to a "
+      + "referenced shot only when the story needs a new angle or the chain has run to two. Let each "
+      + "shot's beat list do the work a cut would have done.",
+    format: "16:9 · 12–15 s per shot, 2 joins per minute",
+    motif: "letterbox",
+    hue: 195,
+    isNew: true,
+  },
+  {
     id: "cinematic-story",
     name: "Cinematic story",
     medium: "video",
@@ -250,6 +273,34 @@ export const WORKFLOWS: Workflow[] = [
     keywords: ["deadpan", "absurdist", "physical", "observational", "gentle satire"],
     motif: "spotlight",
     hue: 55,
+    isNew: true,
+  },
+  {
+    id: "90s-commercial",
+    name: "90s commercial ad",
+    medium: "video",
+    category: "ads",
+    blurb: "A spot that could have aired in the break, 1990–1999",
+    brief:
+      "Reconstruct a 1990s TV spot: pick the part of the decade and the capture medium (35mm "
+      + "telecine, Betacam SP, 16mm, worn VHS dub), then write the era as physical fact — period "
+      + "wardrobe, props, cars and packaging, plus the artefacts of that medium (video gain, chroma "
+      + "bleed on reds, blooming highlights, halation, interlace). Locked tripod, servo-zoom moves, "
+      + "DVE squeeze wipes and freeze-frames, chunky extruded supers, a period VO archetype. "
+      + "Composed for 4:3 inside a 1:1 render. Original pastiche only — never a real 90s brand, "
+      + "jingle, mascot or celebrity.",
+    format: "1:1 composed for 4:3 · 15, 30 or 60 s",
+    keywords: TONE,
+    variants: [
+      { id: "toy", name: "Toy spot", brief: "Camera at kid height on a carpet or bedroom floor, fast cuts of kids playing and reacting, a demo of the toy's one trick, freeze-frame with a burst-in super, and the disclaimer along the bottom." },
+      { id: "fast-food", name: "Fast food", brief: "Glamour macro of steam, melt and sizzle, a booth of friends laughing, a tray hero, and a value price in a yellow starburst." },
+      { id: "dealership", name: "Local dealership", brief: "Blown-out daylight on a car lot, flags and balloons, the price written on a windshield, a fast-talk local voice, a hard end date." },
+      { id: "studio-pitch", name: "Studio pitch", brief: "Presenter direct to camera on a seamless gradient cyc, the product turning on a chrome riser, squeeze wipe to the demo, price starburst, 1-800 number held five seconds." },
+      { id: "hero-glamour", name: "Hero glamour", brief: "No dialogue: smoke-lit black stage, a single hard key raking the product, a slow orbit or crane, library music, one tagline card." },
+      { id: "psa", name: "PSA", brief: "16mm, one hard source, a held silence, a single plain domestic image that carries the whole message, one line of type at the end." },
+    ],
+    motif: "flash",
+    hue: 330,
     isNew: true,
   },
   {

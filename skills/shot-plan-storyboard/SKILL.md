@@ -36,6 +36,74 @@ brief + uploads ──▶ PLANNER (one vision LLM call, strict JSON)
                     DIRECTOR CHAT ──▶ revised plan ──▶ redraw only what changed
 ```
 
+## 0. Who writes the plan
+
+This skill draws the sheet. It does **not** decide what the film is.
+
+**`film-plan` writes the plan** — the rounds that interview a short prompt into a spine, the
+ledger that places every resource, the precedence ladder, the sound fields, and the gate. It
+hands over one `Storyboard` object. Everything below takes that object as given and turns it into
+a document the owner can read and edit.
+
+Run `film-plan` first whenever the film is being planned at all. Run this skill alone only when a
+plan already exists and needs drawing, redrawing or restyling.
+
+The planner described in §1 and `references/planner.md` is the *fallback* for a standalone build
+with no `film-plan` in the loop — one vision call that produces the same object. Where the two
+differ, `film-plan` wins, because it is the one that asks the owner.
+
+## THE SHEET IS NOT DONE UNTIL ALL OF THIS EXISTS
+
+Read this before you build anything and again before you say a sheet is finished. A storyboard
+that is missing any of it is not a short storyboard — it is an **unfinished** one, and the parts
+that get dropped are always the same parts, because they are the ones that take work.
+
+Every line below is a panel or a field on the real sheet. Tick them off literally.
+
+**Header strip** — cut count · aspect · lighting note · lens note · palette swatches WITH their
+names · an environment fingerprint sentence.
+
+**Section 1 — Character / product reference.** For EVERY character and hero object:
+- the six-panel turnaround on plain white (front, three-quarter, back, portrait, profile, detail)
+- a palette swatch row taken from that character
+- an appearance description that states skin tone, age, build, hair and face
+- a separate wardrobe description
+
+**Section 2 — Environment / set design.** All five, not one:
+- the **location plate** — the set, empty, wide
+- the **top-down floor plan**, drawn, with a NUMBERED marker per cut showing where the camera
+  stands and which way it points, plus a legend reading `1 Cut 1: HANDHELD` and so on
+- a **side elevation** for any cut whose move is vertical or an arc
+- **set notes** — the depth planes, the atmos, the practical light, how the space is dressed
+- **props** — the actual list, every object the action touches
+
+**Section 3 — Storyboard.** One card per cut, in order: the frame, a monospace spec line
+(`24mm anamorphic | f/2.8 | 4s | HANDHELD | WIDE`), and the action description.
+
+**Section 4 — Lighting / mood / style.** All five:
+- four **lighting stills** with captions naming the key, the rim, the fill and the reflections
+- **mood keywords**
+- a **style essence** sentence
+- **cinematography notes** — format, glass, apertures, grain, contrast, what is banned
+- **sound** — the soundscape, and the score or `none`
+
+### The two rules that make it correct rather than merely complete
+
+**The floor plan is not decoration.** It is the only part of the sheet that proves the cuts
+describe ONE space. A film whose camera positions cannot be drawn on a single plan is a film
+whose room changes between shots — and drawing them is how you find that out for free, before the
+render. If two cuts cannot both be marked on one plan, the plan is wrong, not the drawing.
+
+**Every prop in the action must be in the plate and on the props list.** A hazard, a piece of
+furniture, a thing that falls — if it is not in the room when the room is drawn empty, it appears
+from nowhere, and an audience sees that instantly. Measured the hard way: a hall dresser written
+into `world` and toppled in shot 2, while the plate had been drawn from an earlier `world` that
+had no dresser in it. The object materialised.
+
+**Corollary — the plate goes stale.** Change `world`, the location list or the props and the plate
+is wrong until it is redrawn. Redraw it before anything is drawn FROM it, because everything else
+on the sheet inherits its mistakes.
+
 ## 1. One plan is the source of truth
 
 The plan is a single JSON object: title, palette, characters, products, environments, set notes,
@@ -107,11 +175,32 @@ Two rules people get wrong:
 
 → `references/sheet-ui.md` for the section-by-section layout and the CSS that carries the look.
 
-## 4. One generation, not one per cut
+## 4. One generation — up to the model's window, and not beyond
 
-The finished film is **a single video generation** whose prompt contains a `[Shot 1] … [Shot N]`
-block per cut, and whose references are the character/product sheets, the set plate and the composed
-sheet PNG. That is what keeps the cuts in one world. Per-cut rendering exists only as a retake of a
+**The boundary, stated once so nothing downstream has to guess it:**
+
+| Total runtime | Shape |
+|---|---|
+| **≤ the model's window** (15 s for H3 and Seedance 2.0) | **ONE generation.** All the cuts go in one prompt as a `[Shot 1] … [Shot N]` block and the model cuts internally. |
+| **longer** | **One generation per shot**, chained on `link` and stitched. |
+
+Inside the window, one generation is strictly better and it is what this skill is for: there is
+only one render, so there is nothing for identity to drift *between*. OpenArt Smart Shot is
+exactly this — 5 cuts of 2–4 s inside a single 15 s render — and it is why its faces hold through
+a wide-to-macro cut that would break a stitched film.
+
+Past the window it stops being available. A 90-second film is a dozen generations however it is
+prompted, and the sheet's job changes: it is no longer one brief but twelve, sharing the film-wide
+fields verbatim. Continuity then belongs to `h3-scene-continuity`, and the plan must already carry
+its constraints (`film-plan` Part 7): shots generated longer than their slot, chains capped at 2,
+anchors every few shots.
+
+Choose by runtime, say which you chose, and never treat per-shot rendering as a degraded version
+of the single generation — they are two different films' worth of machinery.
+
+**The single generation.** Its prompt contains a `[Shot 1] … [Shot N]` block per cut, and its
+references are the character/product sheets, the set plate and the composed sheet PNG. That is
+what keeps the cuts in one world. Per-cut rendering inside the window exists only as a retake of a
 single beat.
 
 Modern video models read a production brief, not a caption: subject definitions, a summary, a

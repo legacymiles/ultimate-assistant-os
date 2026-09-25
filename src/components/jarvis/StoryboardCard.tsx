@@ -27,7 +27,8 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
-import { drawPanel, type PanelFace } from "@/lib/studio/panels";
+import { drawCastSheet, drawPanel, type PanelFace } from "@/lib/studio/panels";
+import { blockers } from "@/lib/studio/preflight";
 import {
   MAX_SHOTS,
   MAX_SHOT_SEC,
@@ -460,6 +461,8 @@ function CastTile({
   shotCount,
   onChange,
   onRemoveTurn,
+  onDraw,
+  drawing,
   disabled,
 }: {
   member: Storyboard["cast"][number];
@@ -467,18 +470,39 @@ function CastTile({
   shotCount: number;
   onChange: (patch: Partial<Storyboard["cast"][number]>) => void;
   onRemoveTurn: () => void;
+  /** Draw this invented character's reference sheet. Absent once anchored. */
+  onDraw?: () => void;
+  drawing?: boolean;
   disabled: boolean;
 }) {
+  // What will actually hold this face at render time: their upload, or the
+  // sheet drawn for them.
+  const anchor = face?.dataUrl ?? member.sheet;
   return (
     <div className="flex gap-2">
-      <div className="h-11 w-11 shrink-0 overflow-hidden rounded-md border border-line bg-panel-2">
-        {face ? (
+      <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-md border border-line bg-panel-2">
+        {anchor ? (
           // eslint-disable-next-line @next/next/no-img-element -- a data URL from this browser
-          <img src={face.dataUrl} alt={member.name} className="h-full w-full object-cover" />
+          <img src={anchor} alt={member.name} className="h-full w-full object-cover" />
         ) : (
           <span className="grid h-full w-full place-items-center text-[9px] tabular-nums text-ink-faint">
             {member.subject ? `S${member.subject}` : "—"}
           </span>
+        )}
+        {onDraw && !disabled && (
+          <button
+            type="button"
+            onClick={onDraw}
+            disabled={drawing || !member.look.trim()}
+            title={
+              member.look.trim()
+                ? "Draw a reference sheet so every shot keeps this face"
+                : "Describe them first — the sheet is drawn from their look"
+            }
+            className="absolute inset-x-0 bottom-0 bg-ink/80 py-[3px] text-[8px] uppercase tracking-[0.12em] text-canvas transition hover:bg-ink disabled:bg-ink/40"
+          >
+            {drawing ? "…" : member.sheet ? "Redraw" : "Draw"}
+          </button>
         )}
       </div>
       <div className="min-w-0 flex-1">
@@ -558,14 +582,30 @@ function Notes({ notes, onJump }: { notes: BoardNote[]; onJump: (shot: number) =
   return (
     <ul className="space-y-1">
       {notes.map((note, i) => (
-        <li key={i} className="flex items-start gap-1.5">
+        <li
+          key={i}
+          className={`flex items-start gap-1.5 ${
+            // A blocker is what stops an hour of GPU, so it reads louder than
+            // the advice around it — by shape as well as colour, which survives
+            // a red-green deficiency where a second hue would not.
+            note.severity === "block" ? "-mx-1.5 rounded bg-rose-500/10 px-1.5 py-1" : ""
+          }`}
+        >
           <span
             aria-hidden
-            className={`mt-[5px] h-1 w-1 shrink-0 rounded-full ${
-              note.severity === "warn" ? "bg-amber-400" : "bg-ink-faint"
+            className={`mt-[5px] h-1 w-1 shrink-0 ${
+              note.severity === "block"
+                ? "bg-rose-400"
+                : note.severity === "warn"
+                  ? "rounded-full bg-amber-400"
+                  : "rounded-full bg-ink-faint"
             }`}
           />
-          <p className="text-[10.5px] leading-snug text-ink-muted">
+          <p
+            className={`text-[10.5px] leading-snug ${
+              note.severity === "block" ? "text-rose-100" : "text-ink-muted"
+            }`}
+          >
             {note.shot >= 0 && (
               <button
                 type="button"
@@ -609,11 +649,17 @@ export function StoryboardCard({
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const [drawing, setDrawing] = useState<string[]>([]);
+  const [castDrawing, setCastDrawing] = useState<string[]>([]);
   const [drawError, setDrawError] = useState("");
   const runtime = runtimeSec(board);
   const eta = useMemo(() => etaSeconds(board), [board]);
-  const notes = useMemo(() => boardNotes(board), [board]);
+  // The pre-flight gate, ahead of the advisory notes. The card can start a
+  // render just as the full sheet can, so it has to stop one just as the full
+  // sheet does — a gate with a second way in is not a gate.
+  const stops = useMemo(() => blockers(board), [board]);
+  const notes = useMemo(() => [...stops, ...boardNotes(board)], [stops, board]);
   const rows = useRef(new Map<string, HTMLLIElement>());
+  const notesBlock = useRef<HTMLDivElement>(null);
 
   const set = (patch: Partial<Storyboard>) => onChange({ ...board, ...patch });
   const setShot = (i: number, patch: Partial<Shot>) =>
@@ -626,6 +672,32 @@ export function StoryboardCard({
   // which is a board from before the other four panels arrived.
   const latest = useRef(board);
   latest.current = board;
+
+  /**
+   * Draw one invented character's reference sheet.
+   *
+   * Against `latest.current`, like the panels: the request takes seconds and
+   * the owner keeps typing, so writing back onto a captured board would throw
+   * their edits away.
+   */
+  const drawCast = useCallback(
+    async (index: number) => {
+      const member = latest.current.cast[index];
+      if (!member) return;
+      setDrawError("");
+      setCastDrawing((d) => [...new Set([...d, member.id])]);
+      try {
+        const sheet = await drawCastSheet(latest.current, member);
+        const b = latest.current;
+        onChange({ ...b, cast: b.cast.map((c) => (c.id === member.id ? { ...c, sheet } : c)) });
+      } catch (e) {
+        setDrawError(e instanceof Error ? e.message : "That reference sheet could not be drawn.");
+      } finally {
+        setCastDrawing((d) => d.filter((x) => x !== member.id));
+      }
+    },
+    [onChange],
+  );
 
   const draw = useCallback(
     async (indices: number[]) => {
@@ -680,6 +752,10 @@ export function StoryboardCard({
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
     el?.focus?.();
   };
+
+  /** A blocked render button takes the owner to what is blocking it. */
+  const showStops = () =>
+    notesBlock.current?.scrollIntoView({ behavior: "smooth", block: "center" });
 
   /** Every distinct place the film visits, in the order it visits them. */
   const places = useMemo(
@@ -787,7 +863,14 @@ export function StoryboardCard({
                   const face =
                     faces.find((f) => f.label === member.name) ??
                     faces.find((f) => f.label === `Subject ${member.subject}`);
-                  return face ? { face } : {};
+                  // Only an invented character needs one drawn; an upload is
+                  // already the anchor.
+                  return {
+                    ...(face ? { face } : {}),
+                    ...(face || member.subject !== null
+                      ? {}
+                      : { onDraw: () => void drawCast(i), drawing: castDrawing.includes(member.id) }),
+                  };
                 })()}
               />
             ))}
@@ -1120,9 +1203,11 @@ export function StoryboardCard({
 
       {/* ---- 3 · continuity ---- */}
       {notes.length > 0 && (
-        <Section n={board.cast.length > 0 ? 3 : 2} title="Continuity">
-          <Notes notes={notes} onJump={jump} />
-        </Section>
+        <div ref={notesBlock}>
+          <Section n={board.cast.length > 0 ? 3 : 2} title="Continuity">
+            <Notes notes={notes} onJump={jump} />
+          </Section>
+        </div>
       )}
 
       {/* ---- what it will cost in time, and the one button ---- */}
@@ -1148,14 +1233,39 @@ export function StoryboardCard({
           {board.shots.length} {board.shots.length === 1 ? "clip" : "clips"} rendered in order on this PC and cut
           together — <span className="tabular-nums text-ink-muted">about {formatEta(eta).replace(" left", "")}</span>.
         </p>
+        {stops.length > 0 && !busy && !done && (
+          <p className="order-first w-full rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[10.5px] leading-snug text-rose-100/90 shadow-[inset_1px_0_0_theme(colors.rose.400)]">
+            <span className="mr-1.5 rounded bg-rose-400/90 px-1.5 py-px text-[10px] font-semibold tabular-nums text-canvas">
+              {stops.length}
+            </span>
+            {stops.length === 1 ? "thing in this plan " : "things in this plan "}
+            cannot become the film it describes. Fixing them now is free; finding out after the render
+            costs {formatEta(eta).replace(" left", "")}.{" "}
+            <button
+              type="button"
+              onClick={showStops}
+              className="font-semibold text-rose-200 underline decoration-rose-300/60 underline-offset-2 transition hover:text-white"
+            >
+              Show me
+            </button>
+          </p>
+        )}
         <button
           type="button"
-          onClick={() => onRender(board)}
+          onClick={() => (stops.length ? showStops() : onRender(board))}
           disabled={busy || done || !board.shots.some((s) => s.action.trim())}
-          className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-ink px-4 py-2 text-xs font-semibold text-canvas transition hover:opacity-90 disabled:opacity-40"
+          className={`ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold transition hover:opacity-90 disabled:opacity-40 ${
+            stops.length && !busy && !done ? "bg-ink-faint text-canvas" : "bg-ink text-canvas"
+          }`}
         >
           <Icon.Film width={13} height={13} />
-          {busy ? "Rendering…" : done ? "Shot" : "Make the film"}
+          {busy
+            ? "Rendering…"
+            : done
+              ? "Shot"
+              : stops.length
+                ? `${stops.length} to fix first`
+                : "Make the film"}
         </button>
       </footer>
     </section>

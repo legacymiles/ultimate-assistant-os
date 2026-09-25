@@ -5,6 +5,8 @@ import {
   cleanStoryboard,
   boardBrief,
   boardNotes,
+  oneTake,
+  scoreFor,
   etaSeconds,
   filmProgress,
   fitRuntime,
@@ -506,5 +508,66 @@ describe("a continued shot still knows who is in it", () => {
     // subject_definitions already describes everyone at length there; a second
     // pass would only crowd out the shot itself.
     expect(p.match(/The people in this shot are the same people/g)).toBeNull();
+  });
+});
+
+describe("the score across cuts", () => {
+  const withMusic = (links: ("open" | "continuous" | "cut")[]) =>
+    cleanStoryboard({
+      ...raw,
+      music: "Low sustained cello, no percussion until the turn.",
+      shots: links.map((link, i) => ({ ...raw.shots[0], id: `s${i}`, link })),
+    } as unknown as Record<string, unknown>)!;
+
+  it("keeps the score when the whole film is one take", () => {
+    const board = withMusic(["open", "continuous", "continuous"]);
+    expect(oneTake(board)).toBe(true);
+    expect(scoreFor(board)).toMatch(/cello/);
+    expect(shotPrompt(board, 1)).toMatch(/non_diegetic_music: Low sustained cello/);
+  });
+
+  // Each shot would otherwise generate its own performance of the description,
+  // so the film would change music at every join.
+  it("drops the score from the shots as soon as there is a hard cut", () => {
+    const board = withMusic(["open", "cut", "continuous"]);
+    expect(oneTake(board)).toBe(false);
+    expect(scoreFor(board)).toBe("none");
+    expect(shotPrompt(board, 0)).toMatch(/non_diegetic_music: none/);
+  });
+
+  it("says so on the sheet rather than dropping it silently", () => {
+    const notes = boardNotes(withMusic(["open", "cut"]));
+    expect(notes.some((n) => n.text.includes("under the finished cut"))).toBe(true);
+    // ...and stays quiet when there was never a score to drop.
+    expect(boardNotes(withMusic(["open", "continuous"])).some((n) => n.text.includes("under the finished cut"))).toBe(false);
+  });
+
+  it("leaves a deliberate none alone", () => {
+    const board = cleanStoryboard({ ...raw, music: "none" } as unknown as Record<string, unknown>)!;
+    expect(scoreFor(board)).toBe("none");
+    expect(boardNotes(board).some((n) => n.text.includes("under the finished cut"))).toBe(false);
+  });
+});
+
+describe("framing survives the trust boundary", () => {
+  // A compensated move states its framing at both ends; cutting that in half
+  // takes the effect out of the prompt without saying so.
+  it("keeps a two-ended framing whole", () => {
+    const framing =
+      "medium close-up at the start and medium close-up at the end — his size in frame does not change, and that is the entire effect";
+    const b = cleanStoryboard({
+      ...raw,
+      shots: [{ ...raw.shots[0], framing }],
+    } as unknown as Record<string, unknown>)!;
+    expect(b.shots[0].framing).toBe(framing);
+    expect(shotPrompt(b, 0)).toContain("that is the entire effect");
+  });
+
+  it("still clamps something absurd", () => {
+    const b = cleanStoryboard({
+      ...raw,
+      shots: [{ ...raw.shots[0], framing: "x".repeat(900) }],
+    } as unknown as Record<string, unknown>)!;
+    expect(b.shots[0].framing.length).toBe(220);
   });
 });

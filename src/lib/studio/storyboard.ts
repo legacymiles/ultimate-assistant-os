@@ -55,6 +55,23 @@ export interface CastMember {
   turnsAt: number | null;
   /** What they become at `turnsAt`, written like `look`: a whole appearance. */
   turnsInto: string;
+  /**
+   * A drawn character sheet for someone the film INVENTED — a turnaround on
+   * plain white, generated once from `look`.
+   *
+   * It exists because a prompt-only film had nothing holding its faces. A shot
+   * is anchored by the pictures attached to it, and those came only from the
+   * owner's uploads (`subject`) or their photo library; a cast with neither got
+   * an empty reference list on every cut, so identity was carried by the `look`
+   * sentence alone. Across a dozen separately-generated shots that is not
+   * enough, and it is exactly the drift that made the first two films unusable.
+   *
+   * Drawn once per character, not per shot: one picture, reused by every cut
+   * they appear in, which is what makes it an anchor rather than another
+   * generation free to wander. Stored as a thumbnail like `Shot.panel`, because
+   * the board is saved into the synced conversation.
+   */
+  sheet?: string;
 }
 
 /**
@@ -162,6 +179,21 @@ export interface Storyboard {
   soundscape: string;
   /** Score under the whole film, or "none" — H3 asks for it by name. */
   music: string;
+  /**
+   * The set, drawn empty and wide — the environment's answer to a cast sheet.
+   *
+   * Faces were anchored by a picture and the ROOM was not, so every shot that
+   * started cold re-invented the house: furniture moved, a hallway became a
+   * living room, and an adult standing at the far end of it in one shot was
+   * beside the child in the next. A description cannot hold a space, for the
+   * same reason it cannot hold a face.
+   *
+   * Drawn once from `world` with nobody in it, and attached to every shot that
+   * opens cold, so each one is dressed from the same room rather than from the
+   * words for it. A continued shot does not get it — it already has the room,
+   * in frames.
+   */
+  plate?: string;
   cast: CastMember[];
   shots: Shot[];
 }
@@ -237,6 +269,10 @@ export function cleanStoryboard(raw: unknown): Storyboard | null {
       // shot number never arrives. Either alone is dropped.
       turnsAt: turnsInto && turnsAt >= 1 ? Math.round(turnsAt) : null,
       turnsInto: turnsAt >= 1 ? turnsInto : "",
+      // Survives a save and re-read, the same way a drawn panel does. Only a
+      // data URL: the model writes this field back when it revises a plan, and
+      // a remote URL there would be a reference nobody vetted.
+      ...(typeof r.sheet === "string" && r.sheet.startsWith("data:image/") ? { sheet: r.sheet } : {}),
     });
   }
 
@@ -255,7 +291,12 @@ export function cleanStoryboard(raw: unknown): Storyboard | null {
       aperture: str(r.aperture, 20) || "f/2.8",
       move: str(r.move, 80) || "static",
       cameraNote: str(r.camera_note ?? r.cameraNote ?? r.camera, 900),
-      framing: str(r.framing, 60) || "medium",
+      // 60 was enough for "medium" and nothing else. A compensated move states
+      // the framing at BOTH ends — that is what makes it the effect rather than
+      // a zoom — and a dolly zoom's "his size in frame does not change, and
+      // that is the entire effect" was being cut off mid-word, silently, on its
+      // way into the prompt.
+      framing: str(r.framing, 220) || "medium",
       location: str(r.location, 160),
       action,
       beats: beatList(r.beats),
@@ -293,6 +334,10 @@ export function cleanStoryboard(raw: unknown): Storyboard | null {
     wardrobe: str(o.wardrobe, 600),
     soundscape: str(o.soundscape, 400),
     music: str(o.music, 300) || "none",
+    // Drawn in this browser and written back onto the board, like a panel or a
+    // cast sheet. Only a data URL: the model rewrites this object when it
+    // re-plans, and a remote URL here would be a reference nobody vetted.
+    ...(typeof o.plate === "string" && o.plate.startsWith("data:image/") ? { plate: o.plate } : {}),
     cast,
     shots,
   };
@@ -343,6 +388,40 @@ export function h3Form(board: Storyboard, index: number, opts: AttachedRefs = {}
   if (!shot) return "fl2va";
   if (isChained(board, index)) return "fl2va";
   return attachedCount(board, index, opts) > 0 ? "ref2va" : "fl2va";
+}
+
+/**
+ * True when the whole film is rendered as one unbroken run of audio.
+ *
+ * One generation obviously is. So is a film whose every join is `continuous`,
+ * because a chained shot is handed the previous clip's real frames as context
+ * and the SOUND crosses that join with them — measured, and the reason chaining
+ * beats a still frame.
+ *
+ * A hard cut has no such bridge: the next clip's audio is generated from
+ * nothing.
+ */
+export function oneTake(board: Storyboard): boolean {
+  return board.shots.length > 0 && board.shots.every((_, i) => i === 0 || isChained(board, i));
+}
+
+/**
+ * The score, as this shot's prompt should ask for it.
+ *
+ * A film-wide `music` line is a DESCRIPTION, and every shot that reads it
+ * generates its own performance of that description. Across one take that is
+ * fine — there is only one generation of it. Across a film with cuts it is a
+ * different cello in every shot, restarting at each join, which is the sound of
+ * a reel rather than a film.
+ *
+ * So past the first hard cut the shots are asked for no score at all. They
+ * still generate their diegetic sound, which is *supposed* to change at a cut,
+ * and the score is laid under the finished edit instead (the bridge's
+ * `soundtrack`, ducked) where it is one continuous recording.
+ */
+export function scoreFor(board: Storyboard): string {
+  if (!board.music || board.music.trim().toLowerCase() === "none") return "none";
+  return oneTake(board) ? board.music : "none";
 }
 
 // ----- the weave -------------------------------------------------------------
@@ -548,6 +627,30 @@ export function castOf(board: Storyboard, index: number): CastMember[] {
 }
 
 /**
+ * The invented members of the cast who are in this shot.
+ *
+ * `references` is a list of upload NUMBERS, so somebody the film invented can
+ * never appear in it — there is no photograph to number. Without another way of
+ * saying who is on screen, a mixed film (one face uploaded, the rest invented)
+ * attaches the upload and nothing else, and the invented characters are
+ * re-imagined shot by shot exactly as if no sheet had been drawn.
+ *
+ * So they are named the way a call sheet names them: a character is in the shot
+ * when the shot's own writing says their name. Cast names are shouted in caps
+ * for precisely this reason, which makes the match reliable and makes the rule
+ * something the owner can see and control by typing.
+ */
+export function inventedIn(board: Storyboard, index: number): CastMember[] {
+  const shot = board.shots[index];
+  if (!shot) return [];
+  const said = `${shot.title} ${shot.action} ${shot.beats.map((b) => b.text).join(" ")} ${shot.carry} ${shot.endsOn}`;
+  return board.cast.filter((c) => {
+    if (c.subject !== null || !c.name) return false;
+    return new RegExp(`\\b${c.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(said);
+  });
+}
+
+/**
  * The prompt one shot is rendered from, in H3's own sections.
  *
  * An owner-edited prompt wins whole: once they have rewritten it, re-weaving
@@ -572,7 +675,7 @@ export function shotPrompt(board: Storyboard, index: number, opts: AttachedRefs 
 
   const tail = [
     `overall_soundscape: ${board.soundscape || "The natural sound of the scene, in stereo."}`,
-    `non_diegetic_music: ${board.music || "none"}`,
+    `non_diegetic_music: ${scoreFor(board)}`,
   ];
 
   if (h3Form(board, index, opts) === "fl2va") {
@@ -678,6 +781,84 @@ export function panelPrompt(board: Storyboard, index: number): string {
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+/**
+ * Draw one member of the cast as a reference sheet.
+ *
+ * A turnaround on plain white, deliberately NOT a frame from the film: it is
+ * evidence of what this person looks like, and every styling choice that makes
+ * a good film frame — a grade, a mood, a lens — makes a worse reference. The
+ * shot it anchors supplies all of that.
+ *
+ * It is drawn from `look` at shot 1, never from a later transformation. A
+ * character who turns into something else at cut 4 still needs the face they
+ * started with held steady; the turn is carried by the prompt's CHANGES clause.
+ */
+export function castSheetPrompt(board: Storyboard, member: CastMember): string {
+  return [
+    `A character reference sheet for ${member.name}, on a plain flat white background.`,
+    "Six panels in a clean grid, the same person in every one, evenly lit with soft neutral studio light:",
+    "full-body front, full-body three-quarter, full-body back, head-and-shoulders portrait,",
+    "head profile, and a close detail of their clothing.",
+    `Who they are: ${member.look.replace(/\.\s*$/, "")}.`,
+    board.wardrobe ? `Wardrobe: ${board.wardrobe.replace(/\.\s*$/, "")}.` : "",
+    board.look.match(/anime|animation|cel|illustrat|3d render|stop.?motion|comic/i)
+      ? `Drawn in the film's own medium: ${board.look}.`
+      : "Photographic, sharp, neutral colour — a casting reference, not a film still.",
+    "Identical face, hair, build and clothing in all six panels.",
+    "No text, no labels, no captions, no panel numbers, no borders, no watermark,",
+    "no scenery, no props, no dramatic lighting and no colour grade.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/** Everyone who still has no picture holding their face. */
+export function unanchored(board: Storyboard): CastMember[] {
+  return board.cast.filter((c) => c.subject === null && !c.sheet);
+}
+
+/**
+ * Draw the set, empty and wide — the room's equivalent of a cast sheet.
+ *
+ * Deliberately unpeopled: the moment a figure is in it, the plate stops being
+ * evidence about the space and starts competing with the cast sheets over who
+ * is on screen. It carries the geography, the light and the dressing, and
+ * nothing else.
+ */
+export function platePrompt(board: Storyboard): string {
+  const places = [...new Set(board.shots.map((s) => s.location).filter(Boolean))];
+  return [
+    "A wide establishing photograph of an EMPTY set, with no people in it at all.",
+    board.world ? `The place: ${board.world.replace(/\.\s*$/, "")}.` : "",
+    places.length > 1
+      ? `One continuous space containing all of: ${places.join("; ")} — show how they connect.`
+      : places[0]
+        ? `The space: ${places[0]}.`
+        : "",
+    board.lighting ? `Lighting: ${board.lighting.replace(/\.\s*$/, "")}.` : "",
+    board.grade ? `Colour grade: ${board.grade.replace(/\.\s*$/, "")}.` : "",
+    board.palette.length ? `Palette: ${board.palette.join(", ")}.` : "",
+    board.look ? `Shot as: ${board.look}.` : "",
+    "Nobody in frame. No people, no figures, no silhouettes, no reflections of people.",
+    "No text, captions, borders, watermarks or floor-plan lines — this is a photograph of the",
+    "location as the film will see it, taken before the cast arrived.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/**
+ * Does this shot need the set plate attached?
+ *
+ * Only a shot that opens cold. A continued shot is handed real frames of the
+ * room it is already standing in, and adding a photograph of that room on top
+ * is the same mistake as adding reference photos to a chained shot: two
+ * answers to one question, and the model splits the difference.
+ */
+export function needsPlate(board: Storyboard, index: number): boolean {
+  return Boolean(board.plate) && !isChained(board, index);
 }
 
 /** Every shot's prompt, in order — what the sheet shows before a render runs. */
@@ -845,7 +1026,13 @@ export function normalise(board: Storyboard): Storyboard {
 export interface BoardNote {
   /** Which row it is about, 0-based; -1 for the film as a whole. */
   shot: number;
-  severity: "warn" | "info";
+  /**
+   * `block` is the pre-flight gate: a plan that cannot become the film it
+   * describes, so the render button will not start. It is raised in
+   * `preflight.ts`, never here — the notes below are advice, and advice that
+   * can stop a render stops being read.
+   */
+  severity: "block" | "warn" | "info";
   text: string;
 }
 
@@ -858,6 +1045,22 @@ export function boardNotes(board: Storyboard): BoardNote[] {
 
   if (!board.mood) {
     notes.push({ shot: -1, severity: "warn", text: "No genre set — the grade will drift to whatever the location suggests." });
+  }
+
+  // The score is dropped from the shot prompts the moment the film has a hard
+  // cut, because each shot would otherwise generate its own performance of it
+  // and the film would change music at every join. Said out loud: a score that
+  // silently disappears is the same failure as a genre that never arrives.
+  if (board.music && board.music.trim().toLowerCase() !== "none" && !oneTake(board)) {
+    notes.push({
+      shot: -1,
+      severity: "info",
+      text:
+        `Each shot is generated separately, so a score asked for in all of them comes back as a different `
+        + `recording in each one. “${board.music.slice(0, 40)}${board.music.length > 40 ? "…" : ""}” is therefore `
+        + `left out of the shots and belongs under the finished cut instead — attach a track and it is mixed `
+        + `beneath the film in one piece. The shots still make their own sound, which is meant to change at a cut.`,
+    });
   }
 
   // The fault that turns a film into a reel: almost nothing chained. A cut is

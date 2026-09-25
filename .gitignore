@@ -77,5 +77,10 @@ __pycache__/
 docs/screenshots/
 tools/unreal-builder/builder.log
 
+# Panels and cast sheets dumped out of a Studio session to be looked at. The
+# route that writes them (src/app/api/dumpimages) is local debug scaffolding and
+# is deliberately not committed: it would be an unauthenticated write endpoint.
+public/__dump/
+
 # Studio bridge renders and reference photos (local only)
 /tools/studio-bridge/out/

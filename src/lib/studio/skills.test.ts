@@ -6,14 +6,47 @@ import { pick } from "./render";
 import { WORKFLOWS } from "./workflows";
 
 const DIR = path.join(__dirname, "skills");
-const files = readdirSync(DIR).filter((f) => f.endsWith(".md") && f !== "README.md");
+
+/**
+ * Files in this folder that are NOT workflows.
+ *
+ * A workflow skill is a card the owner picks and runs as rounds. `film-plan` is
+ * the doctrine underneath all of them — where each resource lands, what the
+ * render gate refuses, how sound is decided — so it loads on every Studio
+ * request rather than being chosen, and it has no rounds of its own to follow.
+ * Anything added here must be loaded deliberately by a route, because nothing
+ * else will ever read it.
+ */
+const DOCTRINE = new Set(["film-plan"]);
+
+const all = readdirSync(DIR).filter((f) => f.endsWith(".md") && f !== "README.md");
+const files = all.filter((f) => !DOCTRINE.has(f.replace(/\.md$/, "")));
 
 describe("studio skill files", () => {
-  it("exist for every workflow, and every file belongs to one", () => {
+  it("exist for every workflow, and every file is a workflow or declared doctrine", () => {
     const ids = new Set(WORKFLOWS.map((w) => w.id));
     const have = new Set(files.map((f) => f.replace(/\.md$/, "")));
     expect([...ids].filter((id) => !have.has(id))).toEqual([]);
     expect([...have].filter((id) => !ids.has(id))).toEqual([]);
+  });
+
+  it("has a file for every declared doctrine", () => {
+    const have = new Set(all.map((f) => f.replace(/\.md$/, "")));
+    expect([...DOCTRINE].filter((id) => !have.has(id))).toEqual([]);
+  });
+
+  // The doctrine is prose, not rounds, so it gets its own contract: it must
+  // carry the rules the board is written against, because the whole reason it
+  // is loaded is that a plan written without them reaches the grade and
+  // nothing else.
+  it("film-plan states the rules a board is written against", () => {
+    const text = readFileSync(path.join(DIR, "film-plan.md"), "utf8");
+    expect(text).toMatch(/^# /);
+    expect(text).toContain("studio_form");
+    for (const rule of ["soundscape", "Seedance Studio", "held pose", "endsOn", "2.5 words"]) {
+      expect(text).toContain(rule);
+    }
+    expect(text.split(/\s+/).length).toBeGreaterThan(700);
   });
 
   for (const f of files) {

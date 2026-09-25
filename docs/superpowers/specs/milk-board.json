@@ -1,0 +1,331 @@
+{
+  "title": "Milk",
+  "logline": "A baby looks up from his bottle and understands that the two people in the hallway are no longer his parents.",
+  "world": "A cramped suburban family house on a grey overcast afternoon — one long hallway running front to back with doorways in a line off it, toys and a tipped-over beaker on the carpet, curtains half drawn in every room.",
+  "look": "live action, photoreal, anamorphic 2.39, 35mm film grain",
+  "mood": "Domestic horror played absolutely straight. The camera holds a beat too long on everything; the frame is too wide for a child alone in it; the house is staged, lit and graded as a threat from the very first frame. Nothing here is cute, funny, whimsical or sweet — no toy-advert warmth, no bright nursery colour, no smiling, no comedy. The two adults move wrong: far too still, then far too fast.",
+  "aspectRatio": "16:9",
+  "lens": "ANAMORPHIC PRIME SET",
+  "lighting": "Flat overcast daylight through half-drawn curtains and nothing else. Hard pale shafts lying across the floor, deep unlit corners, no fill light, not one lamp switched on anywhere in the house.",
+  "grade": "Desaturated and cold — green-grey in the shadows, the warmth drained out of the skin, crushed blacks, and a single surviving red in the baby's shirt.",
+  "palette": [
+    "#1b1f1a",
+    "#4a5347",
+    "#8d8b80",
+    "#c9c3b4",
+    "#7d1f18"
+  ],
+  "wardrobe": "The baby in a heather-grey knit zip cardigan over a red and black buffalo-check collared shirt. MOTHER and FATHER in creased house clothes — a washed-out t-shirt and jeans, a shapeless cardigan — smeared dark at the cuffs and the collar.",
+  "soundscape": "The house's own sound and nothing else: a fridge humming two rooms away, wind pushing at the windows, the wet suck and rattle of a bottle teat, bare feet slapping on wood, a beaker rolling across tile, plaster and glass coming down, and the dry clicking breath of two adults who are not breathing right.",
+  "music": "none",
+  "cast": [
+    {
+      "id": "c-baby",
+      "name": "BABY",
+      "look": "A one-year-old boy. Warm dark brown skin, close-cut black hair with a soft rounded hairline, wide round dark brown eyes, full cheeks, small neat ears, a serious unsmiling mouth. Solid and low to the ground, unsteady on his feet.",
+      "subject": 1,
+      "turnsAt": null,
+      "turnsInto": ""
+    },
+    {
+      "id": "c-mother",
+      "name": "MOTHER",
+      "look": "A Black woman in her early thirties, the baby's mother — warm dark brown skin now drained grey-green and ashen, dark natural hair pulled back and coming loose at the temples, the ordinary bones of a young mother's face gone slack, eyes flat and filmed over with no light in them, lower jaw hanging slightly open and wet, dark staining down her chin and both cuffs. Recognisably this baby's mother and unmistakably not alive.",
+      "subject": null,
+      "turnsAt": null,
+      "turnsInto": ""
+    },
+    {
+      "id": "c-father",
+      "name": "FATHER",
+      "look": "A Black man in his mid thirties, the baby's father — warm dark brown skin now drained grey-green and ashen, close-cut black hair, a short beard, tall and heavy through the shoulders, a jaw that sits wrong and slack, eyes flat and filmed over, dark staining down the front of his t-shirt, hands hanging too long and too still at his sides until they move. Recognisably this baby's father and unmistakably not alive.",
+      "subject": null,
+      "turnsAt": null,
+      "turnsInto": ""
+    }
+  ],
+  "shots": [
+    {
+      "id": "s1",
+      "title": "Cut 1 — the last quiet second",
+      "durationSec": 6,
+      "lensMm": 32,
+      "aperture": "f/2",
+      "move": "static",
+      "cameraNote": "Locked off on a low tripod at the baby's own eye height. It does not move at all for six seconds. The stillness is the point: the only thing in the frame that changes is him.",
+      "framing": "wide — the child small and low in the frame with the mouth of the hallway open behind him",
+      "location": "the living room",
+      "action": "The baby stops sucking, lets the bottle tilt away from his mouth, and turns his head toward the hallway, where MOTHER and FATHER are standing much too still in the dark.",
+      "beats": [
+        {
+          "at": 0,
+          "text": "he drinks, eyes half closed, entirely unaware"
+        },
+        {
+          "at": 2.5,
+          "text": "the sucking stops and the teat slips out of his mouth"
+        },
+        {
+          "at": 4.5,
+          "text": "his head turns away from camera toward the hallway"
+        }
+      ],
+      "dialogue": "",
+      "link": "open",
+      "carry": "",
+      "endsOn": "the baby's head turned away from camera toward the dark hallway mouth, the bottle gone slack in both hands",
+      "references": [
+        1
+      ]
+    },
+    {
+      "id": "s2",
+      "title": "Cut 2 — he understands",
+      "durationSec": 8,
+      "lensMm": 24,
+      "aperture": "f/2.8",
+      "move": "Hitchcock dolly zoom — dolly OUT while zooming IN",
+      "cameraNote": "Camera on rails on the baby's own optical axis at his eye height. It dollies straight BACK 2.4 m, from 1.2 m to 3.6 m, while the lens simultaneously narrows from a 24 mm to a 72 mm field of view, so his head stays exactly the same size and in exactly the same place in frame from the first frame to the last, within ten percent. Focus stays locked on his eyes throughout. The hallway behind him compresses and stacks up, and the two adults at the far end of it swell forward and crowd in over his shoulders without taking a single step. Three beats: one second stable, five seconds of one uninterrupted synchronised move, two seconds holding the compressed perspective. No cut, no orbit, no pan, no roll, no shake, no digital crop and no second zoom.",
+      "framing": "medium close-up at the start and medium close-up at the end — his size in frame does not change, and that is the entire effect",
+      "location": "the living room",
+      "action": "The baby's face falls as he understands, his grip opens, and the bottle drops out of his hands and thuds onto the carpet.",
+      "beats": [
+        {
+          "at": 0,
+          "text": "held still, his eyes on them, nothing moving"
+        },
+        {
+          "at": 1.5,
+          "text": "the move begins and the hallway starts to stack up behind him"
+        },
+        {
+          "at": 5,
+          "text": "his mouth opens and no sound comes out"
+        },
+        {
+          "at": 6.5,
+          "text": "his fingers open and the bottle falls away out of frame"
+        }
+      ],
+      "dialogue": "",
+      "link": "cut",
+      "carry": "the bottle, still in his hands at the start of this shot",
+      "endsOn": "his face filling the frame with MOTHER and FATHER compressed huge and close behind both shoulders, his hands now empty",
+      "references": [
+        1
+      ]
+    },
+    {
+      "id": "s3",
+      "title": "Cut 3 — he runs",
+      "durationSec": 5,
+      "lensMm": 28,
+      "aperture": "f/2.8",
+      "move": "close frontal backward tracking",
+      "cameraNote": "Handheld, low, at the child's chest height, tracking backwards ahead of him and holding the same distance from him the whole way. Restrained continuous shake because it is a running handheld take, not a heavy shake. Motion blur on the walls rushing past while his face stays readable. The camera never passes through him, a wall or a doorway.",
+      "framing": "medium, low, frontal",
+      "location": "the hallway",
+      "action": "The baby scrambles up off the carpet and runs at the camera, unsteady and arms wide, and behind him MOTHER lurches out of the doorway after him.",
+      "beats": [
+        {
+          "at": 0,
+          "text": "he gets his feet under him and pushes up"
+        },
+        {
+          "at": 1.5,
+          "text": "first running steps, arms wide for balance"
+        },
+        {
+          "at": 3,
+          "text": "MOTHER comes out of the doorway behind him and starts after him"
+        }
+      ],
+      "dialogue": "",
+      "link": "cut",
+      "carry": "no bottle now, and the same hallway he was looking down",
+      "endsOn": "him mid-stride in the middle of the hallway with MOTHER three steps behind him and closing",
+      "references": [
+        1
+      ]
+    },
+    {
+      "id": "s4",
+      "title": "Cut 4 — the slip",
+      "durationSec": 5,
+      "lensMm": 28,
+      "aperture": "f/2.8",
+      "move": "the same backward track, dropping to floor level as he falls",
+      "cameraNote": "The same continuous handheld backward track, unbroken from the shot before. As he goes down the camera drops with him to floor level rather than cutting — one move, one take, the axis and travel direction unchanged. About 0.6 s of slow motion as the framed picture comes off the wall behind him, then straight back to normal speed. One short shake on that impact only.",
+      "framing": "low and close as he goes down",
+      "location": "the hallway",
+      "action": "His bare foot hits the spilled beaker of milk and skids out from under him, and he goes down on his side and slides along the floor into the skirting board.",
+      "beats": [
+        {
+          "at": 0,
+          "text": "his foot hits the milk and skids"
+        },
+        {
+          "at": 1.5,
+          "text": "he goes down on his side"
+        },
+        {
+          "at": 3,
+          "text": "he slides along the floor into the skirting board"
+        },
+        {
+          "at": 4,
+          "text": "further up the hallway a framed picture drops off the wall and lands flat on the carpet"
+        }
+      ],
+      "dialogue": "",
+      "link": "continuous",
+      "carry": "MOTHER still behind him and closing, and the same stretch of hallway",
+      "endsOn": "him flat on his side against the skirting board with MOTHER's legs entering the top of the frame",
+      "references": []
+    },
+    {
+      "id": "s5",
+      "title": "Cut 5 — up, and through",
+      "durationSec": 5,
+      "lensMm": 28,
+      "aperture": "f/2.8",
+      "move": "the track continues, rising off the floor with him",
+      "cameraNote": "Still the same unbroken handheld take, rising off the floor with him and swinging to follow him through the kitchen doorway without passing through the door frame. Axis, travel direction and landmarks stay continuous with the shot before. No cut.",
+      "framing": "low, rising to medium",
+      "location": "the hallway",
+      "action": "He gets a hand under himself and shoves off the skirting board just as MOTHER's hands come down where his head was, and he breaks through the kitchen doorway.",
+      "beats": [
+        {
+          "at": 0,
+          "text": "he gets a hand under himself and pushes"
+        },
+        {
+          "at": 1.5,
+          "text": "MOTHER's hands hit the floor beside him, missing"
+        },
+        {
+          "at": 3,
+          "text": "he is up and moving again"
+        },
+        {
+          "at": 4,
+          "text": "he goes through the kitchen doorway"
+        }
+      ],
+      "dialogue": "",
+      "link": "continuous",
+      "carry": "the broken glass and spilled milk behind him, and MOTHER a body-length back",
+      "endsOn": "him crossing the kitchen threshold with MOTHER filling the doorway behind him",
+      "references": []
+    },
+    {
+      "id": "s6",
+      "title": "Cut 6 — the kitchen",
+      "durationSec": 5,
+      "lensMm": 35,
+      "aperture": "f/2.8",
+      "move": "parallel side tracking",
+      "cameraNote": "A new angle. The camera tracks parallel to him along the kitchen units at his height so the room reads clearly left to right, with the back door visible at the end of the lane from the very first frame. Steady, with only a small shake. The camera never passes through the units or the table.",
+      "framing": "medium wide, profile",
+      "location": "the kitchen",
+      "action": "He runs the length of the kitchen and FATHER rises out from behind the units straight into his path, so he cuts sideways and goes under the table.",
+      "beats": [
+        {
+          "at": 0,
+          "text": "he runs the lane toward the back door"
+        },
+        {
+          "at": 2,
+          "text": "FATHER comes up from behind the counter into his path"
+        },
+        {
+          "at": 3.5,
+          "text": "he cuts hard sideways"
+        },
+        {
+          "at": 4.5,
+          "text": "he goes under the kitchen table"
+        }
+      ],
+      "dialogue": "",
+      "link": "cut",
+      "carry": "wet feet from the milk, and MOTHER coming through the doorway behind him",
+      "endsOn": "him under the kitchen table with FATHER's hands sweeping the tabletop above him and sending plates down onto the floor",
+      "references": [
+        1
+      ]
+    },
+    {
+      "id": "s7",
+      "title": "Cut 7 — the dresser",
+      "durationSec": 5,
+      "lensMm": 28,
+      "aperture": "f/2.8",
+      "move": "the track continues low, following him out",
+      "cameraNote": "Unbroken from the shot before: the camera stays low and follows him out from under the table in one continuous move. Motion blur on the falling dresser, and about 0.6 s of slow motion as the crockery bursts past him, then back to normal speed. The camera never passes through the table or the dresser.",
+      "framing": "low, close",
+      "location": "the kitchen",
+      "action": "He crawls out the far side of the table as FATHER hauls the dresser over, and it comes down across the table behind him.",
+      "beats": [
+        {
+          "at": 0,
+          "text": "he crawls out from under the far side of the table"
+        },
+        {
+          "at": 1.5,
+          "text": "the dresser starts to go over above and behind him"
+        },
+        {
+          "at": 3,
+          "text": "it lands across the table"
+        },
+        {
+          "at": 4,
+          "text": "he is still moving as the crockery bursts around him"
+        }
+      ],
+      "dialogue": "",
+      "link": "continuous",
+      "carry": "both of them behind him now, and the wrecked kitchen",
+      "endsOn": "him at the back door with his hand reaching up for the handle, the dresser down and both adults climbing over it",
+      "references": []
+    },
+    {
+      "id": "s8",
+      "title": "Cut 8 — out",
+      "durationSec": 6,
+      "lensMm": 40,
+      "aperture": "f/4",
+      "move": "static",
+      "cameraNote": "The camera is outside in the garden, locked off and wide, looking back at the house. It is the first still frame since cut two and the first open air in the film, and it does not move. The back door is small in the frame.",
+      "framing": "wide, from outside the house",
+      "location": "the back garden",
+      "action": "The back door bursts open and the baby comes out into the flat grey daylight and keeps going, and behind him the door swings back and the house goes still.",
+      "beats": [
+        {
+          "at": 0,
+          "text": "the back door bursts open"
+        },
+        {
+          "at": 1.5,
+          "text": "he comes out into the daylight, still running"
+        },
+        {
+          "at": 3.5,
+          "text": "he crosses the grass away from the house"
+        },
+        {
+          "at": 5,
+          "text": "the door swings shut behind him and nothing comes out after him"
+        }
+      ],
+      "dialogue": "",
+      "link": "cut",
+      "carry": "wet feet, glass dust on his cardigan, and the house behind him",
+      "endsOn": "",
+      "references": [
+        1
+      ]
+    }
+  ]
+}

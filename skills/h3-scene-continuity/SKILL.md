@@ -18,6 +18,33 @@ The single idea underneath everything here:
 
 Everything below follows from that.
 
+## Step 0 — which half of this skill are you in?
+
+This skill is two skills, and running the wrong half is wasted work.
+
+| You have | You are in | Read |
+|---|---|---|
+| **A plan, no clips yet** | the plan-time half | the four constraints below, then go back to `film-plan` |
+| **Rendered clips** | the post-render half | everything from Step 1 down |
+
+**It is not a middle step.** A pipeline that runs this skill between planning and storyboarding
+does nothing, because there is nothing to measure. Continuity is decided at *both ends* of the
+render and never in the middle.
+
+**The plan-time half** — four things that cannot be fixed after the fact, because they are facts
+about the plan. They live in `film-plan` Part 7; they are repeated here so this skill is not the
+place they get lost:
+
+1. **Generate longer than the slot.** The warm-up gets trimmed and trimming costs duration, so
+   a shot that must play for 5 s is planned at 6. (§2)
+2. **Cap continued chains at 2.** A continued shot takes no reference photos, so a longer run has
+   nothing holding identity. (§4)
+3. **Anchor every few shots, not every shot.** (§4)
+4. **Anchors and trimming ship together or not at all** — end-frame anchors are what *create*
+   landings. (§2)
+
+Everything else here needs mp4s.
+
 ## Step 1 — measure, before changing anything
 
 Do not guess which defect you have. Run the bundled reporter on the clips of a
@@ -41,6 +68,7 @@ sections**.
 | per-clip `luma` wandering between shots | **Exposure drift** | §5 |
 | `B start-motion` ≪ `A end-motion` at a join | **Motion is not crossing the join** | §3 |
 | identity/clothing/set changing down a chain | **Drift** | §4 |
+| a visible tick at an otherwise continuous join | **Decode seam** | §7 |
 
 A worked example of reading a real report — including the measurements that
 produced the ordering of the fixes below — is in
@@ -188,6 +216,40 @@ Detect it (`report` flags it), then re-render with:
 
 Do not try to fix a dead shot in the edit.
 
+### §7. Blend the two renderings at the seam
+
+Worth understanding properly, because it looks like a crossfade and is not one.
+
+At a continuous join, the outgoing shot's last *n* frames and the last *n*
+frames of the incoming shot's duplicated head are **the same moments, rendered
+and decoded twice**. Blending those two versions of one instant hides the
+difference between the two decodes without softening any motion — there is no
+second piece of content to double-expose. And because the blended frames replace
+frames rather than being inserted, **the timeline length does not change**,
+which is the only reason this is safe to do at all.
+
+The Suite's recipe: n = 4 frames of video on a raised cosine
+(`alpha = 0.5 − 0.5·cos(π·t)`, t from 0 to 1), plus a 15 ms equal-gain audio
+de-click over the time-corresponding audio. Audio gets a much shorter window on
+purpose: a long blend on speech smears it.
+
+How much this buys depends entirely on how far apart the two renderings are, so
+measure before assuming:
+
+- **Decoding two latents separately (ComfyUI)** — the intended case. The same
+  frames come back visibly different and the blend earns its place.
+- **Handing the previous clip's real frames forward (WanGP `video_source`)** —
+  measured at **0.4% mean pixel difference**, i.e. re-encode noise. The blend is
+  harmless but close to pointless. Keep it switchable rather than assumed.
+
+One implementation trap, if you build this in ffmpeg rather than on tensors:
+`blend`'s `N` is documented as starting at 0 and (measured on ffmpeg 9.0.1)
+arrives as **1** on the first frame. Without a `(N-1)` offset the whole ramp
+shifts and the final frame falls *back* toward the outgoing shot instead of
+landing on the incoming one — a visible hitch at exactly the moment the blend
+exists to smooth. Verify the curve against a black-to-white pair before trusting
+it: you want `0.000, 0.247, 0.749, 1.000`, monotonic.
+
 ## Prompting a continued shot
 
 Continuation prompts fail in a specific way: they re-describe the scene, so the
@@ -207,12 +269,10 @@ Write a continued shot as **a transition, not a scene**:
 
 ## What not to do
 
-- **Do not crossfade a continuous join.** A dissolve between two clips that are
+- **Do not dissolve a continuous join.** A dissolve between two clips that are
   supposed to be one unbroken take double-exposes the motion and announces the
-  seam you were hiding. A few frames of crossfade are for *decode* seams between
-  separately decoded segments of one continuous take; a hard cut is right for an
-  actual cut. Audio is the exception — a very short de-click (~15 ms) at the join
-  is worth it.
+  seam you were hiding. A hard cut is right for an actual cut. What the
+  Continuation Suite does at a continuous join is *not* a dissolve — see §7.
 - **Do not chain every shot.** A film needs cuts. Continuity means a cut lands
   somewhere believable, not that there are no cuts.
 - **Do not chase the seam when the shots are the problem.** Dead shots, wrong
@@ -245,3 +305,13 @@ matching trim/exposure arithmetic, with tests in
   measurements behind the fix ordering.
 - `references/backends.md` — exact continuation parameters for WanGP, ComfyUI
   (H3 Infinite Continuation Suite) and hosted H3 endpoints, plus H3's frame grid.
+
+## Related skills
+
+**`film-plan`** writes the plan and owns the plan-time half of this skill (Step 0).
+**`shot-plan-storyboard`** draws that plan as the sheet the owner edits. All three read one
+`Storyboard` object; none of them may hold a second description of the film.
+
+One boundary worth carrying over from `film-plan` Part 6: **a film inside the model's window
+(≤15 s) is a single generation and has no joins at all.** This skill's whole subject only exists
+past that line. Do not stitch a film that never needed stitching.

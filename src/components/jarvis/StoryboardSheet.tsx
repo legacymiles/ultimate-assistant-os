@@ -37,7 +37,8 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
-import { drawPanel, type PanelFace } from "@/lib/studio/panels";
+import { drawCastSheet, drawPanel, drawPlate, type PanelFace } from "@/lib/studio/panels";
+import { blockers } from "@/lib/studio/preflight";
 import {
   MAX_SHOTS,
   MAX_SHOT_SEC,
@@ -341,6 +342,8 @@ function CastTile({
   shotCount,
   onChange,
   onRemoveTurn,
+  onDraw,
+  drawing,
   disabled,
 }: {
   member: Storyboard["cast"][number];
@@ -348,16 +351,37 @@ function CastTile({
   shotCount: number;
   onChange: (patch: Partial<Storyboard["cast"][number]>) => void;
   onRemoveTurn: () => void;
+  /** Draw this invented character's reference sheet. Absent once anchored. */
+  onDraw?: () => void;
+  drawing?: boolean;
   disabled: boolean;
 }) {
+  // What the film will actually hold this face with: their upload if there is
+  // one, otherwise the sheet drawn for them.
+  const anchor = face?.dataUrl ?? member.sheet;
   return (
     <div className="jb-castmember">
       <div className="jb-face">
-        {face ? (
+        {anchor ? (
           // eslint-disable-next-line @next/next/no-img-element -- a data URL from this browser
-          <img src={face.dataUrl} alt={member.name} />
+          <img src={anchor} alt={member.name} />
         ) : (
           <span>{member.subject ? `S${member.subject}` : "—"}</span>
+        )}
+        {onDraw && !disabled && (
+          <button
+            type="button"
+            className="jb-face-draw"
+            onClick={onDraw}
+            disabled={drawing || !member.look.trim()}
+            title={
+              member.look.trim()
+                ? "Draw a reference sheet so every shot keeps this face"
+                : "Describe them first — the sheet is drawn from their look"
+            }
+          >
+            {drawing ? "Drawing…" : member.sheet ? "Redraw" : "Draw"}
+          </button>
         )}
       </div>
       <div style={{ minWidth: 0, flex: 1 }}>
@@ -521,7 +545,10 @@ function Notes({ notes, onJump }: { notes: BoardNote[]; onJump: (shot: number) =
   return (
     <div className="jb-notes">
       {notes.map((note, i) => (
-        <p key={i} className={`jb-note ${note.severity === "warn" ? "is-warn" : ""}`}>
+        <p
+          key={i}
+          className={`jb-note ${note.severity === "block" ? "is-block" : note.severity === "warn" ? "is-warn" : ""}`}
+        >
           <span style={{ minWidth: 0 }}>
             {note.shot >= 0 && (
               <button type="button" className="jb-note-jump" onClick={() => onJump(note.shot)}>
@@ -568,11 +595,19 @@ export function StoryboardSheet({
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const [drawing, setDrawing] = useState<string[]>([]);
+  const [castDrawing, setCastDrawing] = useState<string[]>([]);
+  const [plateDrawing, setPlateDrawing] = useState(false);
   const [drawError, setDrawError] = useState("");
   const runtime = runtimeSec(board);
   const eta = useMemo(() => etaSeconds(board), [board]);
-  const notes = useMemo(() => boardNotes(board), [board]);
+  // The pre-flight gate first, then the advisory notes. A film costs the better
+  // part of an hour on this PC's GPU and cannot be skimmed until it is
+  // finished, so a plan that cannot become the film it describes is stopped
+  // here, where fixing it is free.
+  const stops = useMemo(() => blockers(board), [board]);
+  const notes = useMemo(() => [...stops, ...boardNotes(board)], [stops, board]);
   const cards = useRef(new Map<string, HTMLElement>());
+  const notesBand = useRef<HTMLDivElement>(null);
 
   const set = (patch: Partial<Storyboard>) => onChange({ ...board, ...patch });
   const setShot = (i: number, patch: Partial<Shot>) =>
@@ -615,6 +650,49 @@ export function StoryboardSheet({
     [faces, onChange],
   );
 
+  /**
+   * Draw one invented character's reference sheet.
+   *
+   * Written against `latest.current` for the same reason the panels are: the
+   * request takes seconds, the owner keeps typing, and writing back onto the
+   * board this closure captured would throw their edits away.
+   */
+  const drawCast = useCallback(
+    async (index: number) => {
+      const member = latest.current.cast[index];
+      if (!member) return;
+      setDrawError("");
+      setCastDrawing((d) => [...new Set([...d, member.id])]);
+      try {
+        const sheet = await drawCastSheet(latest.current, member);
+        const board = latest.current;
+        onChange({
+          ...board,
+          cast: board.cast.map((c) => (c.id === member.id ? { ...c, sheet } : c)),
+        });
+      } catch (e) {
+        setDrawError(e instanceof Error ? e.message : "That reference sheet could not be drawn.");
+      } finally {
+        setCastDrawing((d) => d.filter((x) => x !== member.id));
+      }
+    },
+    [onChange],
+  );
+
+  /** Draw the set plate — the room, empty, so every cold shot is dressed from it. */
+  const drawSet = useCallback(async () => {
+    setDrawError("");
+    setPlateDrawing(true);
+    try {
+      const plate = await drawPlate(latest.current);
+      onChange({ ...latest.current, plate });
+    } catch (e) {
+      setDrawError(e instanceof Error ? e.message : "The set could not be drawn.");
+    } finally {
+      setPlateDrawing(false);
+    }
+  }, [onChange]);
+
   const addShot = (at: number) =>
     onChange(
       normalise({
@@ -639,6 +717,14 @@ export function StoryboardSheet({
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
     el?.focus?.();
   };
+
+  /**
+   * What the render button does while the plan is blocked: take the owner to
+   * the list of what is stopping it. A button that is simply dead tells them
+   * nothing, and the notes already carry each finding and its own jump link.
+   */
+  const showStops = () =>
+    notesBand.current?.scrollIntoView({ behavior: "smooth", block: "center" });
 
   /** Every distinct place the film visits, in the order it visits them. */
   const places = useMemo(
@@ -683,11 +769,18 @@ export function StoryboardSheet({
           <button
             type="button"
             className="jb-go"
-            onClick={() => onRender(board)}
+            onClick={() => (stops.length ? showStops() : onRender(board))}
             disabled={busy || done || !board.shots.some((s) => s.action.trim())}
+            title={stops.length ? "The plan has to be fixed before it can be shot" : undefined}
           >
             <Icon.Film width={13} height={13} />
-            {busy ? "Rendering…" : done ? "Shot" : "Make the film"}
+            {busy
+              ? "Rendering…"
+              : done
+                ? "Shot"
+                : stops.length
+                  ? `${stops.length} to fix first`
+                  : "Make the film"}
           </button>
         </div>
 
@@ -793,13 +886,58 @@ export function StoryboardSheet({
                       const face =
                         faces.find((f) => f.label === member.name) ??
                         faces.find((f) => f.label === `Subject ${member.subject}`);
-                      return face ? { face } : {};
+                      // Only an invented character needs one drawn: an upload
+                      // already is the anchor, and a second picture of the same
+                      // person is two answers to one question.
+                      return {
+                        ...(face ? { face } : {}),
+                        ...(face || member.subject !== null
+                          ? {}
+                          : { onDraw: () => void drawCast(i), drawing: castDrawing.includes(member.id) }),
+                      };
                     })()}
                   />
                 ))}
               </div>
             </Band>
           )}
+
+          {/* ---- the set ---- */}
+          <Band title="The set" count={board.plate ? "drawn" : "nothing is holding the room"}>
+            <div className="jb-castmember">
+              <div className="jb-face jb-plate">
+                {board.plate ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- a data URL from this browser
+                  <img src={board.plate} alt="The set, empty" />
+                ) : (
+                  <span>—</span>
+                )}
+                {!done && (
+                  <button
+                    type="button"
+                    className="jb-face-draw"
+                    onClick={() => void drawSet()}
+                    disabled={plateDrawing || !board.world.trim()}
+                    title={
+                      board.world.trim()
+                        ? "Draw the location empty and wide, so every cut is dressed from the same room"
+                        : "Describe the world first — the plate is drawn from it"
+                    }
+                  >
+                    {plateDrawing ? "Drawing…" : board.plate ? "Redraw" : "Draw"}
+                  </button>
+                )}
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <p className="jb-name">THE LOCATION, EMPTY</p>
+                <p className="jb-small" style={{ margin: 0 }}>
+                  {board.plate
+                    ? "Attached to every shot that opens cold, the same way a cast sheet is — so each one is dressed from this room rather than from the words for it. A continued shot does not get it: it already has the room, in frames."
+                    : "Faces are held by a picture and the room is not, so every shot that starts cold re-invents it — furniture moves, a hallway becomes a living room, and someone at the far end of it turns up beside you in the next shot."}
+                </p>
+              </div>
+            </div>
+          </Band>
 
           {/* ---- the storyboard ---- */}
           <Band
@@ -1088,9 +1226,14 @@ export function StoryboardSheet({
 
           {/* ---- continuity ---- */}
           {notes.length > 0 && (
-            <Band title="Continuity" count={`${notes.length} to look at`}>
-              <Notes notes={notes} onJump={jump} />
-            </Band>
+            <div ref={notesBand}>
+              <Band
+                title="Continuity"
+                count={stops.length ? `${stops.length} to fix` : `${notes.length} to look at`}
+              >
+                <Notes notes={notes} onJump={jump} />
+              </Band>
+            </div>
           )}
 
           {/* ---- the foot: what it costs, and the one button ---- */}
@@ -1112,14 +1255,32 @@ export function StoryboardSheet({
               {board.shots.length} {board.shots.length === 1 ? "clip" : "clips"} rendered in order on this PC and
               cut together — <b>about {formatEta(eta).replace(" left", "")}</b>.
             </p>
+            {stops.length > 0 && !busy && !done && (
+              <p className="jb-stop" id="jb-stop-why">
+                <span className="jb-stop-n">{stops.length}</span>
+                {stops.length === 1 ? "thing in this plan " : "things in this plan "}
+                cannot become the film it describes. Fixing them now is free; finding out after the
+                render costs {formatEta(eta).replace(" left", "")}.{" "}
+                <button type="button" onClick={showStops}>
+                  Show me
+                </button>
+              </p>
+            )}
             <button
               type="button"
               className="jb-shoot"
-              onClick={() => onRender(board)}
+              onClick={() => (stops.length ? showStops() : onRender(board))}
               disabled={busy || done || !board.shots.some((s) => s.action.trim())}
+              aria-describedby={stops.length ? "jb-stop-why" : undefined}
             >
               <Icon.Film width={14} height={14} />
-              {busy ? "Rendering…" : done ? "Shot" : "Make the film"}
+              {busy
+                ? "Rendering…"
+                : done
+                  ? "Shot"
+                  : stops.length
+                    ? `${stops.length} to fix first`
+                    : "Make the film"}
             </button>
           </footer>
         </div>

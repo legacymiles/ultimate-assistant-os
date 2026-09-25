@@ -145,6 +145,45 @@ describe("what the model receives", () => {
   });
 });
 
+// A genre that reaches only the grade produces a correctly-lit film of the
+// wrong story — the failure that made these tests exist.
+describe("the genre doctrine", () => {
+  const GENRES = CINEMA_GROUPS.flatMap((g) => g.rails).find((r) => r.id === "genre")!.options;
+
+  it("gives every real genre a story, not only a look", () => {
+    const missing = GENRES.filter((o) => o.id !== "genre-auto" && !o.story).map((o) => o.id);
+    expect(missing).toEqual([]);
+  });
+
+  it("keeps the story off every other rail", () => {
+    const strays = ALL_OPTIONS.filter((o) => o.story && !o.id.startsWith("genre-")).map((o) => o.id);
+    expect(strays).toEqual([]);
+  });
+
+  it("says what happens, not how it is lit", () => {
+    const spec = cinemaContext({ genre: "genre-horror" }, []);
+    expect(spec).toContain(optionById("genre-horror")!.story!);
+    expect(spec).toContain("obligations on WHAT HAPPENS");
+    // The two rules that stop a held pose and a flat film.
+    expect(spec).toContain("NO SHOT IS A HELD POSE");
+    expect(spec).toContain("EVERY CUT COSTS SOMETHING");
+  });
+
+  it("still carries the genre's look alongside its story", () => {
+    const spec = cinemaContext({ genre: "genre-horror" }, []);
+    expect(spec).toContain(optionById("genre-horror")!.prompt);
+  });
+
+  it("stays silent when the genre is left on Auto", () => {
+    expect(cinemaContext({ genre: "genre-auto" }, [])).not.toContain("obligations on WHAT HAPPENS");
+  });
+
+  it("no longer asks horror to hold a beat on nothing", () => {
+    // This exact clause planned a six-second frozen opening shot.
+    expect(optionById("genre-horror")!.prompt).not.toContain("before anything moves");
+  });
+});
+
 describe("output settings", () => {
   it("keeps only ratios and lengths the renderers accept", () => {
     expect(cleanOutput({ aspect: "16:9", duration: 10 })).toEqual({ aspect: "16:9", duration: 10 });

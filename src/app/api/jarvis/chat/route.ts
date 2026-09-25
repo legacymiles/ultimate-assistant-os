@@ -4,7 +4,7 @@ import { connector } from "@/lib/jarvis/server/connectors";
 import { resolveMention, studioContext, type Mention } from "@/lib/studio/workflows";
 import { cinemaContext, cleanMoves, cleanOutput, cleanSelection, moveById } from "@/lib/studio/cinema";
 import { characterContext, cleanCharacters } from "@/lib/studio/characters";
-import { loadSkills } from "@/lib/studio/server/skills";
+import { loadSkill, loadSkills } from "@/lib/studio/server/skills";
 import { cleanTimeline, timelineBrief } from "@/lib/seedance/audio/timeline";
 import { scoreRules } from "@/lib/seedance/score";
 
@@ -132,6 +132,14 @@ export async function POST(req: Request) {
     ? studioContext(studio, await loadSkills(studio.map((m) => m.workflow.id)))
     : "";
 
+  // The planning doctrine under every workflow: what lands in which field of
+  // the board, what the render gate will refuse, and how sound is decided. It
+  // is not a workflow the owner picks — a film planned without it is a film
+  // whose settings reached the grade and nothing else — so it loads whenever
+  // Studio is running and leads the Studio block it governs.
+  const filmPlan = studio.length ? await loadSkill("film-plan") : null;
+  const planBlock = filmPlan ? `### HOW A FILM IS PLANNED HERE — read before the skills below\n\n${filmPlan}` : "";
+
   // The camera deck. Only ids cross the wire; the direction each one stands for
   // is read from the catalog here, so the client can never write the prompt.
   const shotBlock = cinemaContext(
@@ -163,6 +171,7 @@ export async function POST(req: Request) {
         audioBlock,
         body.extraContext?.slice(0, 10000),
         castBlock,
+        planBlock,
         studioBlock,
         shotBlock,
         skillsBlock(body.skills),
