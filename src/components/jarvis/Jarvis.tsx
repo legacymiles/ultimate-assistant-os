@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Icon } from "../icons";
 import { NewDashboard } from "../new-dashboard/NewDashboard";
 import { CalendarTab } from "./CalendarTab";
-import { ChatTab } from "./ChatTab";
+import { AgentChatTab } from "./AgentChatTab";
 import { StudioTab } from "./StudioTab";
 import type { Attachment } from "@/lib/jarvis/chatImages";
 import { InboxTab } from "./InboxTab";
@@ -170,7 +170,9 @@ export function Jarvis() {
 
   if (!store) return <div className="min-h-dvh" />;
 
-  const turns = store.conversations[0]?.turns ?? [];
+  // Voice is the Chat tab spoken aloud, so it reads and writes that tab's
+  // transcript — not Studio's, which is a different agent doing a different job.
+  const turns = store.chat?.turns ?? [];
 
   /** The one client-side path to a real action, used by chat and by voice. */
   const runAction = async (action: { tool: string }, args: Record<string, unknown>): Promise<string> => {
@@ -196,11 +198,11 @@ export function Jarvis() {
       { id: uid(), role: "you", text: question, at: now, spoken: true },
       { id: uid(), role: "jarvis", text: answer, at: now, spoken: true },
     ];
-    const existing = store.conversations[0];
+    const existing = store.chat;
     const next: Conversation = existing
       ? { ...existing, turns: [...existing.turns, ...pair], updatedAt: now }
-      : { id: uid(), title: "Conversation", startedAt: now, updatedAt: now, turns: pair };
-    commit({ ...store, conversations: [next, ...store.conversations.slice(existing ? 1 : 0)] });
+      : { id: uid(), title: "Chat", startedAt: now, updatedAt: now, turns: pair };
+    commit({ ...store, chat: next });
   };
 
   const railButton = (t: RailTab, nested: boolean) => {
@@ -341,7 +343,7 @@ export function Jarvis() {
           {tab === "memory" && <MemoryTab store={store} commit={commit} />}
           {tab === "profile" && <NewDashboard chromeless />}
           {tab === "chat" && (
-            <ChatTab
+            <AgentChatTab
               store={store}
               commit={commit}
               profile={profile}
@@ -374,7 +376,7 @@ export function Jarvis() {
                 content: p.content,
                 source: "chat" as const,
                 origin: "a spoken conversation",
-                conversationId: store.conversations[0]?.id ?? "",
+                conversationId: store.chat?.id ?? "",
                 createdAt: new Date().toISOString(),
               })),
               ...store.proposals,

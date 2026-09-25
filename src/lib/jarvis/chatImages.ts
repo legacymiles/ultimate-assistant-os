@@ -220,6 +220,21 @@ export function referenceFiles(list: DataTransfer | null): File[] {
 export const ACCEPT_REFERENCES = "image/*,video/*,audio/*";
 
 /**
+ * Pictures only, out of a paste or a drop.
+ *
+ * The Chat tab takes these and nothing else: a clip or a track there would be
+ * a promise it cannot keep — nothing on that tab watches or listens, and the
+ * render that could use them lives on Studio.
+ */
+export function imageFiles(list: DataTransfer | null): File[] {
+  if (!list) return [];
+  return Array.from(list.files).filter((f) => f.type.startsWith("image/"));
+}
+
+/** What the Chat tab's file picker accepts. */
+export const ACCEPT_IMAGES = "image/*";
+
+/**
  * The line a turn carries for every reference the model cannot perceive.
  *
  * It rides in the message text rather than beside it, because that is the only

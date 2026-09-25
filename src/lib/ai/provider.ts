@@ -34,6 +34,17 @@ export interface AiEndpoint {
 /** The default model, when a route does not name its own. */
 export const DEFAULT_MODEL = "anthropic/claude-opus-5";
 
+/**
+ * DeepSeek, for the surfaces that ARE DeepSeek — the Jarvis Chat tab.
+ *
+ * This particular one because it is the only DeepSeek that reads pictures as
+ * well as calling tools; the pro and older flash builds are text-only, and a
+ * chat you can drop a photo into needs both. It is named in full rather than as
+ * "deepseek" so `modelChain` below leaves it alone: a model that is the point of
+ * the surface must not be swapped for the owner's general pick.
+ */
+export const DEEPSEEK_MODEL = "deepseek/deepseek-v4.1-flash";
+
 /** The gateway's URL, also the honest default when nothing is configured. */
 const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
 

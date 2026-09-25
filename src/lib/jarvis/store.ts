@@ -80,6 +80,7 @@ export function emptyJarvis(): JarvisStore {
     memories: [],
     proposals: [],
     conversations: [],
+    chat: null,
     messages: [],
     events: [],
     routines: SEED_ROUTINES.map((r) => ({ ...r, id: uid(), runs: [] })),
@@ -104,6 +105,8 @@ export function coerceStore(raw: unknown): JarvisStore {
     memories: arr(r.memories, base.memories),
     proposals: arr(r.proposals, base.proposals),
     conversations: arr(r.conversations, base.conversations),
+    // A store written before the Chat tab had its own transcript has none.
+    chat: r.chat && typeof r.chat === "object" && Array.isArray(r.chat.turns) ? r.chat : null,
     messages: arr(r.messages, base.messages),
     events: arr(r.events, base.events),
     // A store saved before the routines existed still gets them.

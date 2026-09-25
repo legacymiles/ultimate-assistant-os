@@ -100,8 +100,25 @@ TODAY
 MASTER FOLDER — {owner}'s Claude Code context, always loaded:
 {master}`;
 
+/**
+ * What the Chat tab's agent is told on top of the assistant prompt.
+ *
+ * The difference is not personality, it is how far it may go on its own: this
+ * one is expected to chain tools until the question is actually answered, and
+ * to say what it did. Rule 2 does not bend - a write still stops the loop and
+ * waits for a yes - so "act" here means read, gather and draft, never send.
+ */
+const AGENT = `HOW YOU WORK ON THIS TAB
+- You are the owner's general agent here, not a chatbot. Work the question: decide what you need, call the tools you need, read what comes back, and call more if the answer still has a hole in it.
+- Chain tools without asking permission to look something up. Asking "shall I search your memory?" wastes a turn - search it.
+- When a picture is attached, read it and answer about what is actually in it.
+- Video, shot plans and renders are not yours: they live on the Studio tab. If the owner asks for a film, a shot or a clip here, say so in one line and point them there. Do not write shot lists.
+- Do not pad. If the answer is one sentence, send one sentence.`;
+
 /** The one place the model list, temperature and turn cap live. */
 const MAX_ROUNDS = 6;
+/** An agent chains tools; the same cap would cut it off mid-job. */
+const AGENT_ROUNDS = 10;
 
 interface ToolCall {
   id: string;
@@ -121,6 +138,21 @@ export interface RunOptions {
   profileId?: string;
   /** A Studio skill is running: offer the form and render tools, allow long answers. */
   studio?: boolean;
+  /**
+   * The Chat tab's agent: chain tools further, and say so. Never set with
+   * `studio` - they are two jobs on two tabs, and a prompt told to do both
+   * does neither.
+   */
+  agent?: boolean;
+  /**
+   * The model to think with, when the caller pins one.
+   *
+   * Left unset, the request asks for the hub's general model and the owner's
+   * pick on the front page answers it. A caller that names one here is saying
+   * this surface IS that model - the Chat tab is DeepSeek - so it must name a
+   * model the provider passes through untouched (modelChain, provider.ts).
+   */
+  model?: string;
 }
 
 export async function runAgent(opts: RunOptions): Promise<AgentResult> {
@@ -157,6 +189,7 @@ export async function runAgent(opts: RunOptions): Promise<AgentResult> {
     SYSTEM.replaceAll("{owner}", opts.ownerName || "the owner")
       .replace("{today}", today)
       .replace("{master}", master || "(no master-folder files were readable on this deployment)") +
+    (opts.agent ? `\n\n${AGENT}` : "") +
     (opts.extraContext ? `\n\nCONTEXT FOR THIS REQUEST:\n${opts.extraContext}` : "") +
     (ctx.available ? "" : "\n\nNOTE: your long-term memory database is unavailable right now. Say so if asked to remember or recall something.");
 
@@ -171,14 +204,18 @@ export async function runAgent(opts: RunOptions): Promise<AgentResult> {
     ...opts.messages.map((m) => ({ role: m.role, content: toApiContent(m) })),
   ];
 
-  for (let round = 0; round < MAX_ROUNDS; round += 1) {
+  const rounds = opts.agent ? AGENT_ROUNDS : MAX_ROUNDS;
+  for (let round = 0; round < rounds; round += 1) {
     const res = await aiFetch({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: DEFAULT_MODEL,
-        // Studio skills write shot tables and full prompts; everything else stays short.
-        max_tokens: opts.studio ? 8000 : 1200,
+        model: opts.model || DEFAULT_MODEL,
+        // Studio skills write shot tables and full prompts; everything else
+        // stays short. An agent gets more room than a one-shot answer: it
+        // chains tool rounds, and a model that thinks first spends part of
+        // this budget on that.
+        max_tokens: opts.studio ? 8000 : opts.agent ? 4000 : 1200,
         messages,
         tools: toApiTools(tools),
       }),
@@ -288,6 +325,9 @@ export async function runAgent(opts: RunOptions): Promise<AgentResult> {
         const query = typeof args.query === "string" ? args.query : "";
         const limit = Math.min(20, Math.max(1, Number(args.limit) || 8));
         if (!ctx.available) {
+          // Said out loud rather than swallowed: a trace that shows nothing
+          // reads as an agent that looked nothing up, and it did look.
+          did.push(`tried to search memory for "${query}" — the database is unavailable`);
           result = { error: "The memory database is unavailable on this device.", memories: [] };
         } else {
           try {
@@ -364,7 +404,7 @@ export async function runAgent(opts: RunOptions): Promise<AgentResult> {
     citations,
     proposals,
     pending: null,
-    notices: [...notices, `Stopped after ${MAX_ROUNDS} tool rounds.`],
+    notices: [...notices, `Stopped after ${rounds} tool rounds.`],
     did,
   };
 }

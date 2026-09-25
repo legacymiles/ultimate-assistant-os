@@ -134,6 +134,14 @@ export interface ChatTurn {
   formDone?: boolean;
   /** A shot plan for one continuous film, laid out with this turn and editable. */
   storyboard?: Storyboard;
+  /**
+   * What the agent actually did to get this answer, one line per step.
+   *
+   * `did` says the same thing in a sentence and predates this; the list is what
+   * the Chat tab draws as a trace, because "searched memory, read your folders,
+   * drafted the event" is three things the owner can check separately.
+   */
+  steps?: string[];
 }
 
 export interface Conversation {
@@ -212,6 +220,16 @@ export interface JarvisStore {
   memories: Memory[];
   proposals: MemoryProposal[];
   conversations: Conversation[];
+  /**
+   * The Chat tab's own conversation, and the only one it writes.
+   *
+   * It is kept apart from `conversations` — which Studio owns — because the two
+   * are different agents with different jobs: the Chat tab is a general agent
+   * that reads memory and drafts actions, Studio plans and renders film. One
+   * transcript holding both would feed a shot table to the assistant and a
+   * calendar draft to the director.
+   */
+  chat: Conversation | null;
   messages: InboxMessage[];
   events: CalEvent[];
   routines: Routine[];

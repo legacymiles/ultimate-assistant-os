@@ -1,7 +1,12 @@
 "use client";
 
 // ---------------------------------------------------------------------------
-// Talking to Jarvis.
+// The Studio director: talking to Jarvis about a film.
+//
+// This composer belongs to the Studio tab and only to it — workflows, the
+// camera deck, the cast, references and tracks, the shot plan and the render.
+// The Chat tab is a different agent with a different job and its own component
+// (AgentChatTab), so nothing here has to stay general.
 //
 // A conversation is a list of turns, each of Jarvis's carrying the memories it
 // used. Three things appear under an answer when they exist, and each is the
@@ -866,7 +871,7 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
         </div>
       )}
       <div className="flex items-center gap-2 border-b border-line px-3 py-2">
-        <h2 className="text-xs font-semibold text-ink">Chat</h2>
+        <h2 className="text-xs font-semibold text-ink">Studio director</h2>
         <span className="text-[11px] text-ink-faint">
           {memory.remote ? `${memory.memories.length} memories, meaning search` : "local memory only"}
         </span>
@@ -880,7 +885,7 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
         {turns.length === 0 && (
           <div className="mx-auto max-w-lg py-8 text-center">
-            <p className="text-sm text-ink">Ask me something.</p>
+            <p className="text-sm text-ink">Tell me the shot.</p>
             <p className="mt-1 text-xs text-ink-muted">
               I answer from what I actually know — your memories, your master Claude folder and your
               profile — and I name my sources. If I don&apos;t know, I say so.
