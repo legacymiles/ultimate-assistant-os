@@ -26,6 +26,20 @@ import type { GraphNode } from "@/lib/jarvis/memoryClient";
 const btn =
   "inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink disabled:opacity-50";
 
+/**
+ * Why the list is empty - which is never "nothing has happened yet".
+ *
+ * An empty memory has three different causes and three different answers, and
+ * the one sentence that fits all three ("no memories yet") is the reason this
+ * tab could sit empty for days with a hundred skills on disk.
+ */
+export function emptyReason(m: { remote: boolean; canSync: boolean; loading: boolean }): string {
+  if (m.loading) return "Reading your memory…";
+  if (!m.remote) return "Memory is local to this device right now, and nothing is saved here yet.";
+  if (m.canSync) return "Nothing yet — the master-folder sync is running, or has nothing to read.";
+  return "Nothing yet. Write one above, or open Jarvis on your PC to pull your Claude folder in.";
+}
+
 /** The ball's nodes, from whichever memory store is live. */
 export function nodesFrom(memories: Memory[], muted: MemorySource[], cap = 2000): GraphNode[] {
   return memories
@@ -207,9 +221,11 @@ export function MemoryTab({
               <Icon.Refresh width={13} height={13} /> {syncing ? "Syncing…" : "Sync master folder"}
             </button>
             <p className="text-[10px] leading-relaxed text-ink-faint">
-              {memory.canSync
-                ? "Reads CLAUDE.md, aios/ and your Claude Code memory files from this PC."
-                : "On this machine only CLAUDE.md and aios/ are readable — run Jarvis on your PC to include your Claude Code memory files."}
+              {memory.autoSync
+                ? memory.autoSync
+                : memory.canSync
+                  ? "Runs itself every six hours on this PC: CLAUDE.md, aios/, your Claude Code memory files and your skills."
+                  : "On this machine only CLAUDE.md and aios/ are readable — open Jarvis on your PC to pull in your Claude Code memory files and skills."}
             </p>
           </div>
         </aside>
@@ -248,11 +264,20 @@ export function MemoryTab({
           <span className="text-[11px] text-ink-faint">{shown.length} shown</span>
         </div>
         {shown.length === 0 ? (
-          <p className="px-3 py-4 text-xs text-ink-muted">
-            {query.trim()
-              ? "Nothing matches. Jarvis would rather show nothing than guess."
-              : "No memories yet. Write one above, or sync your master folder."}
-          </p>
+          <div className="px-3 py-4">
+            <p className="text-xs text-ink-muted">
+              {query.trim()
+                ? "Nothing matches. Jarvis would rather show nothing than guess."
+                : emptyReason(memory)}
+            </p>
+            {!query.trim() && !memory.canSync && memory.remote && (
+              <p className="mt-1.5 max-w-[68ch] text-[11px] leading-relaxed text-ink-faint">
+                Your skills and the memory files Claude Code writes live in ~/.claude on your PC, and only
+                a Jarvis running there can read them. Open this tab on your machine once and they load
+                themselves — after that they are in your account and readable from anywhere, including here.
+              </p>
+            )}
+          </div>
         ) : (
           <ul className="divide-y divide-line-soft">
             {shown.map((m) => (

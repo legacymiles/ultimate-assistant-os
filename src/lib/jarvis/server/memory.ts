@@ -57,10 +57,20 @@ export interface SaveInput {
 }
 
 /**
- * Write memories. Rows with an `externalId` are upserted, so re-syncing the
- * master folder updates the notes that changed instead of duplicating them.
- * A missing embedding is not an error — the row still exists and is findable
- * by words.
+ * Write memories. Rows with an `externalId` replace the row that already
+ * carries it, so re-syncing the master folder updates the notes that changed
+ * instead of duplicating them. A missing embedding is not an error — the row
+ * still exists and is findable by words.
+ *
+ * Why this is a lookup and two writes rather than one upsert: the unique index
+ * on (user_id, source, external_id) is PARTIAL — `where external_id is not
+ * null` — and Postgres refuses to infer a partial index for ON CONFLICT unless
+ * the statement repeats its predicate, which PostgREST has no way to send. The
+ * upsert that used to be here therefore failed every single time with 42P10,
+ * "no unique or exclusion constraint matching the ON CONFLICT specification",
+ * and that is why the Memory tab sat empty next to a hundred skills on disk.
+ * Making the index total (supabase/migrations/20260925…) removes the cause;
+ * this path is written so that it is correct either way.
  */
 export async function saveMemories(ctx: MemoryContext, inputs: SaveInput[]): Promise<{ saved: number; embedded: boolean }> {
   if (!inputs.length) return { saved: 0, embedded: false };
@@ -86,12 +96,31 @@ export async function saveMemories(ctx: MemoryContext, inputs: SaveInput[]): Pro
 
   let saved = 0;
   if (withKey.length) {
-    const { data, error } = await ctx.db
+    // Which of these the owner already has, by the key that identifies the file.
+    const { data: found, error: lookupError } = await ctx.db
       .from("jarvis_memories")
-      .upsert(withKey, { onConflict: "user_id,source,external_id" })
-      .select("id");
-    if (error) throw new Error(error.message);
-    saved += data?.length ?? 0;
+      .select("id,source,external_id")
+      .eq("user_id", ctx.userId)
+      .in("external_id", withKey.map((r) => r.external_id as string));
+    if (lookupError) throw new Error(lookupError.message);
+    const key = (r: { source: string; external_id: string | null }) => `${r.source}\u0000${r.external_id}`;
+    const existing = new Map<string, string>(
+      ((found ?? []) as { id: string; source: string; external_id: string | null }[]).map((r) => [key(r), r.id]),
+    );
+
+    const fresh = withKey.filter((r) => !existing.has(key(r)));
+    for (const row of withKey) {
+      const id = existing.get(key(row));
+      if (!id) continue;
+      const { error } = await ctx.db.from("jarvis_memories").update(row).eq("id", id);
+      if (error) throw new Error(error.message);
+      saved += 1;
+    }
+    if (fresh.length) {
+      const { data, error } = await ctx.db.from("jarvis_memories").insert(fresh).select("id");
+      if (error) throw new Error(error.message);
+      saved += data?.length ?? 0;
+    }
   }
   if (withoutKey.length) {
     const { data, error } = await ctx.db.from("jarvis_memories").insert(withoutKey).select("id");

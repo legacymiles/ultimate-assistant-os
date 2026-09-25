@@ -14,7 +14,7 @@
 // offline still exists — on this device — and is honestly labelled.
 // ---------------------------------------------------------------------------
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addMemory, searchMemories, type NewMemory } from "./memoryClient";
 import type { JarvisStore, Memory, MemorySource } from "./types";
 
@@ -41,6 +41,13 @@ export interface UseMemory {
   loading: boolean;
   /** Can this machine see the owner's ~/.claude folder? */
   canSync: boolean;
+  /**
+   * What the automatic master-folder sync did on this machine, when it ran.
+   *
+   * Empty everywhere else - off the owner's PC there is nothing to read, and
+   * an empty string is how the UI knows not to claim otherwise.
+   */
+  autoSync: string;
   save: (input: NewMemory) => Promise<string>;
   remove: (id: string) => Promise<void>;
   search: (query: string, k?: number) => Promise<Memory[]>;
@@ -48,11 +55,31 @@ export interface UseMemory {
   refresh: () => Promise<void>;
 }
 
+/**
+ * How long a master-folder sync is good for.
+ *
+ * The files it reads are the owner's notes and skills, which change over a day
+ * of work, not over minutes - and each sync embeds every file it saved, which
+ * costs. Six hours means opening Jarvis in the morning picks up yesterday's
+ * work without re-embedding a hundred files every time a tab mounts.
+ */
+const SYNC_EVERY_MS = 6 * 3600_000;
+
+/**
+ * One automatic sync per page load, no matter how many components ask.
+ *
+ * Several mount `useMemory` at once (the shell, the Chat tab, the Memory tab),
+ * and each would otherwise fire its own POST at the same moment - the same
+ * hundred files, embedded three times over.
+ */
+let autoSyncRun = false;
+
 export function useMemory(store: JarvisStore, commit: (s: JarvisStore) => void): UseMemory {
   const [rows, setRows] = useState<RemoteRow[] | null>(null);
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(true);
   const [canSync, setCanSync] = useState(false);
+  const [autoSync, setAutoSync] = useState("");
 
   const refresh = useCallback(async () => {
     try {
@@ -168,5 +195,30 @@ export function useMemory(store: JarvisStore, commit: (s: JarvisStore) => void):
     return `Synced ${data.saved} files — ${data.repo ?? 0} from the repo, ${data.local ?? 0} from your Claude folder.`;
   }, [refresh]);
 
-  return { memories, remote, reason, loading, canSync, save, remove, search, syncMasterFolder, refresh };
+  /**
+   * On the owner's PC, pull the master folder in without being asked.
+   *
+   * The reason this exists: ~/.claude — a hundred skills and every memory file
+   * Claude Code has written — can only be read by a server running on that
+   * machine. Off the PC the button is disabled and the tab stays empty, so a
+   * sync that has to be found and pressed is a sync that never happens. The
+   * Skills Library already learned this and scans on mount; memory now does the
+   * same, and the store remembers when, so it is once every six hours rather
+   * than once per tab.
+   */
+  const storeRef = useRef(store);
+  storeRef.current = store;
+  useEffect(() => {
+    if (loading || !remote || !canSync || autoSyncRun) return;
+    const last = Date.parse(storeRef.current.lastSync || "");
+    if (Number.isFinite(last) && Date.now() - last < SYNC_EVERY_MS) return;
+    autoSyncRun = true;
+    void (async () => {
+      const said = await syncMasterFolder();
+      setAutoSync(said);
+      commit({ ...storeRef.current, lastSync: new Date().toISOString() });
+    })();
+  }, [loading, remote, canSync, syncMasterFolder, commit]);
+
+  return { memories, remote, reason, loading, canSync, autoSync, save, remove, search, syncMasterFolder, refresh };
 }
