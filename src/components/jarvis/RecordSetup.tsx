@@ -44,6 +44,8 @@ export interface RecordSetup {
   error: string;
   /** Downloaded, and now watching for the extension to appear. */
   waiting: boolean;
+  /** A dead token was silently replaced on this visit. Worth one line. */
+  healed: boolean;
   token: string | null;
   download: () => Promise<void>;
   connect: () => Promise<void>;
@@ -64,6 +66,7 @@ export function useRecordSetup(): RecordSetup {
   const [busy, setBusy] = useState<Busy>("");
   const [error, setError] = useState("");
   const [waiting, setWaiting] = useState(false);
+  const [healed, setHealed] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   /** A freshly loaded copy is handed a token once, not on every re-render. */
   const adopted = useRef(false);
@@ -125,18 +128,33 @@ export function useRecordSetup(): RecordSetup {
     };
   }, [waiting, look]);
 
-  // An extension that is here but empty-handed — a copy loaded straight out of
-  // the repo — is handed a token without being asked. There is nothing to
-  // weigh: it holds no connection that minting a new one could break.
+  // An extension that is here but cannot get in is fixed rather than reported.
+  //
+  // Two ways it happens: a copy loaded straight out of the repo, which was never
+  // given a token, and a copy whose token was replaced by a later download
+  // somewhere. Both look like a dead end to the owner and both have the same
+  // one-line repair, so doing it and saying so beats asking.
+  //
+  // Once per page load, because minting a token takes it away from every other
+  // browser: two hubs open side by side each heal once and the last one wins,
+  // rather than trading the connection back and forth forever. An extension
+  // pointed at a DIFFERENT hub is left alone entirely — that is a decision, not
+  // a fault.
   useEffect(() => {
-    if (!extension?.installed || extension.configured || adopted.current) return;
+    if (!extension?.installed || adopted.current) return;
+    if (extension.configured && extension.works) return;
+    if (extension.hubUrl && extension.hubUrl !== window.location.origin) return;
+    const replacing = extension.configured;
     adopted.current = true;
     void (async () => {
       try {
         const fresh = await mintToken();
         const failed = await configureExtension(fresh);
         if (failed) setError(failed);
-        else await look();
+        else {
+          if (replacing) setHealed(true);
+          await look();
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Could not hand the extension a token.");
       }
@@ -213,6 +231,7 @@ export function useRecordSetup(): RecordSetup {
     busy,
     error,
     waiting,
+    healed,
     token,
     download,
     connect,
@@ -331,7 +350,7 @@ function Steps({ waiting }: { waiting: boolean }) {
  * sits inside a section that has one already.
  */
 export function RecordSetupPanel({ setup, frame = false }: { setup: RecordSetup; frame?: boolean }) {
-  const { account, extension, ready, elsewhere, stale, busy, error, waiting, token } = setup;
+  const { account, extension, ready, elsewhere, stale, busy, error, waiting, healed, token } = setup;
   const [openSteps, setOpenSteps] = useState(false);
   const missing = extension !== null && !extension.installed;
   // Instructions for a thing that has already happened are clutter, so the
@@ -451,6 +470,18 @@ export function RecordSetupPanel({ setup, frame = false }: { setup: RecordSetup;
 
       {error && (
         <p className="border-t border-line-soft px-3 py-2 text-[11px] leading-relaxed text-rose-300">{error}</p>
+      )}
+
+      {/* Said once, because a connection quietly replacing itself is the kind of
+          thing that should be visible even when it went right. */}
+      {healed && !error && (
+        <p className="flex items-start gap-1.5 border-t border-line-soft px-3 py-2 text-[11px] leading-relaxed text-ink-faint">
+          <Icon.Check className="mt-0.5 h-3 w-3 shrink-0 text-core" />
+          <span>
+            This browser was holding a key that had been replaced, so it has been given a working one. Any other
+            computer you had set up will need its own <span className="text-ink-muted">Reconnect</span>.
+          </span>
+        </p>
       )}
 
       {/* One authored move: the steps unroll rather than appear. */}
