@@ -360,6 +360,7 @@ export function Jarvis() {
               commit={commit}
               profile={profile}
               onDashboardChanged={dash.refresh}
+              onOpenRecord={() => go("record")}
             />
           )}
           {tab === "inbox" && <InboxTab store={store} commit={commit} profile={profile} />}

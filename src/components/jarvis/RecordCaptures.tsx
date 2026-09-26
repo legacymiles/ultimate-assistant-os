@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Icon } from "../icons";
+import { RecordSetupPanel, useRecordSetup } from "./RecordSetup";
 import { addEntry, setField, updateEntry } from "@/lib/jarvis/record/store";
 import { FIELD_BY_KEY, labelForKey, parseKey, type LifeRecord } from "@/lib/jarvis/record/types";
 
@@ -53,46 +54,23 @@ export function RecordCaptures({
   onChange: (r: LifeRecord) => void;
 }) {
   const [captures, setCaptures] = useState<Capture[] | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [connected, setConnected] = useState<boolean | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [dropped, setDropped] = useState<Record<string, string[]>>({});
+  // Whether the extension is in this browser, and everything it takes to put it
+  // there, all of which lives in RecordSetup.
+  const setup = useRecordSetup();
 
   const refresh = useCallback(async () => {
     try {
-      const [cap, tok] = await Promise.all([
-        fetch("/api/jarvis/record/capture").then((r) => r.json()),
-        fetch("/api/jarvis/record/token").then((r) => r.json()),
-      ]);
+      const cap = await fetch("/api/jarvis/record/capture").then((r) => r.json());
       setCaptures(Array.isArray(cap.captures) ? cap.captures : []);
-      setConnected(cap.captures !== undefined ? Boolean(tok.connected) : null);
     } catch {
       setCaptures([]);
-      setConnected(null);
     }
   }, []);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  const connect = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/jarvis/record/token", { method: "POST" });
-      const data = (await res.json()) as { token?: string; error?: string };
-      if (!res.ok || !data.token) throw new Error(data.error ?? "Could not mint a token.");
-      setToken(data.token);
-      setConnected(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not mint a token.");
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const drop = async (id: string) => {
     setCaptures((cs) => (cs ?? []).filter((c) => c.id !== id));
@@ -147,61 +125,19 @@ export function RecordCaptures({
             here. Nothing enters your Record until you keep it.
           </p>
         </div>
-        {connected === false && (
-          <button type="button" className={btn} disabled={busy} onClick={connect}>
-            <Icon.Link className="h-3.5 w-3.5" />
-            {busy ? "Connecting…" : "Connect your browser"}
-          </button>
-        )}
-        {connected === true && !token && (
-          <button type="button" className={btn} disabled={busy} onClick={connect}>
-            <Icon.Refresh className="h-3.5 w-3.5" />
-            New token
-          </button>
-        )}
       </header>
 
-      {error && <p className="border-t border-line-soft px-3 py-2 text-xs text-rose-300">{error}</p>}
-
-      {token && (
-        <div className="border-t border-line-soft px-3 py-3">
-          <p className="text-xs text-ink-muted">
-            Paste this into the extension's options, with your hub&apos;s address. It is shown once —
-            mint a new one any time, which stops the old one working.
-          </p>
-          <div className="mt-2 flex items-center gap-2">
-            <code className="min-w-0 flex-1 truncate rounded-lg border border-line bg-canvas px-2.5 py-2 font-mono text-xs text-ink">
-              {token}
-            </code>
-            <button
-              type="button"
-              className={btnPrimary}
-              onClick={() => {
-                void navigator.clipboard.writeText(token).then(() => {
-                  setCopied(true);
-                  window.setTimeout(() => setCopied(false), 2500);
-                });
-              }}
-            >
-              <Icon.Copy className="h-3.5 w-3.5" />
-              {copied ? "Copied" : "Copy"}
-            </button>
-          </div>
-          <p className="mt-2 text-[11px] leading-snug text-ink-faint">
-            The extension is in <code className="text-ink-muted">extension/jarvis-record</code> of
-            this repo. Load it once at <code className="text-ink-muted">chrome://extensions</code> →
-            Developer mode → Load unpacked.
-          </p>
-        </div>
-      )}
+      <div className="border-t border-line-soft">
+        <RecordSetupPanel setup={setup} />
+      </div>
 
       {captures === null ? (
         <p className="border-t border-line-soft px-3 py-3 text-xs text-ink-faint">Checking…</p>
       ) : !captures.length ? (
         <p className="border-t border-line-soft px-3 py-3 text-xs text-ink-faint">
-          {connected
+          {setup.ready
             ? "Nothing waiting. Fill in an application, then press Save in the extension."
-            : "Connect your browser and the applications you fill in will start feeding this."}
+            : "Once the extension is in, the applications you fill in start feeding this."}
         </p>
       ) : (
         <ul>

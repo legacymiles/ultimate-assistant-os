@@ -22,6 +22,7 @@ import { Icon } from "../icons";
 import { ConfirmCard } from "./ConfirmCard";
 import { Markdown } from "./Markdown";
 import { SOURCE_COLOR } from "./MemoryCore";
+import { Lamp, RecordSetupDock, useRecordSetup } from "./RecordSetup";
 import { traceLines, withImageBudget } from "@/lib/jarvis/agentChat";
 import { ACCEPT_IMAGES, imageFiles, MAX_ATTACHMENTS, toAttachment, type Attachment } from "@/lib/jarvis/chatImages";
 import { dashboardDigest, isDashboardTool, runDashboardTool } from "@/lib/jarvis/dashboardBridge";
@@ -71,14 +72,22 @@ export function AgentChatTab({
   commit,
   profile,
   onDashboardChanged,
+  onOpenRecord,
 }: {
   store: JarvisStore;
   commit: (s: JarvisStore) => void;
   profile: Profile | null;
   /** A confirmed folder / calendar / list action ran; the shell re-reads. */
   onDashboardChanged?: () => void;
+  /** Leave for the Record tab, from the Record button on the composer. */
+  onOpenRecord?: () => void;
 }) {
   const memory = useMemory(store, commit);
+  // Record's browser extension is set up from here as well as from its own tab:
+  // remembering that an application needs filling in happens mid-sentence, not
+  // on the way to a tab.
+  const record = useRecordSetup();
+  const [recordOpen, setRecordOpen] = useState(false);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -482,6 +491,13 @@ export function AgentChatTab({
         }}
         className="border-t border-line bg-panel px-3 py-3"
       >
+        {recordOpen && (
+          <RecordSetupDock
+            setup={record}
+            onClose={() => setRecordOpen(false)}
+            onOpenRecord={onOpenRecord}
+          />
+        )}
         <div className="agc-composer mx-auto w-full max-w-[760px] rounded-2xl border border-line bg-panel-2 transition">
           {attachments.length > 0 && (
             <ul className="flex flex-wrap gap-2 px-3 pt-3" aria-label="Pictures on this message">
@@ -547,6 +563,20 @@ export function AgentChatTab({
             >
               <Icon.Image width={13} height={13} />
               {attachments.length ? `${attachments.length}/${MAX_PICTURES}` : "Picture"}
+            </button>
+            <button
+              type="button"
+              aria-expanded={recordOpen}
+              onClick={() => setRecordOpen((v) => !v)}
+              title={
+                record.ready
+                  ? "Your browser feeds the Record. Open it."
+                  : "Set up Record in this browser"
+              }
+              className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-line px-2 text-[11px] text-ink-muted transition hover:border-ink-faint hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+            >
+              <Lamp tone={record.ready ? "on" : record.extension === null ? "pending" : "off"} />
+              Record
             </button>
             <span className="hidden text-[11px] text-ink-faint sm:inline">Enter to send</span>
             <button

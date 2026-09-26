@@ -14,6 +14,9 @@ const nextConfig = {
     // have to travel with the deployment — nothing imports them, so tracing
     // cannot infer it.
     "/api/jarvis/**": ["./CLAUDE.md", "./aios/**/*.md", "./src/lib/studio/skills/*.md"],
+    // The Record extension is zipped up and handed to the browser at request
+    // time, so its source has to travel with the deployment too.
+    "/api/jarvis/record/extension": ["./extension/jarvis-record/*"],
   },
   // Pod Play Connect is a prebuilt Vite SPA in public/pod-play-connect (rebuild:
   // POD_BASE=/pod-play-connect/ vite build in its repo). Real files are served

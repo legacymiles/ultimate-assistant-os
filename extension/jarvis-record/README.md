@@ -6,15 +6,35 @@ application from what it already knows.
 A web page cannot see what you type on another website — that is the origin boundary the whole web
 rests on. This extension is the one thing that legitimately crosses it.
 
-## Install it once
+## Install it from Jarvis, not from here
 
-1. In Jarvis → **Record** → **Connect your browser**, press the button and copy the token. It is
-   shown once; minting a new one stops the old one working.
-2. Go to `chrome://extensions`, turn on **Developer mode**, press **Load unpacked**, and choose
-   this folder. (Edge: `edge://extensions`. Brave: `brave://extensions`.)
-3. The options page opens on install. Paste your hub's address and the token.
-   - Deployed: `https://your-hub.vercel.app`
-   - Local: `http://localhost:3240`
+Go to Jarvis → **Record** (or press **Record** on the Chat tab's composer) and press **Set up in one
+click**. You get this folder as a zip with a `config.js` already holding your hub's address and a
+token minted a second earlier, and a `manifest.json` narrowed to that one origin.
+
+Then the two steps Chrome keeps for itself, and nothing else:
+
+1. Run **Install on Windows.cmd** from the download. It parks the extension in
+   `%LOCALAPPDATA%\Jarvis Record` — an unpacked extension is read off disk forever, so it must not
+   live in Downloads — puts that path on your clipboard, and opens `chrome://extensions`.
+2. Developer mode on, **Load unpacked**, paste.
+
+There is no third step. No token to copy, no options page to open, and nothing to press in Jarvis
+afterwards: `connect.js` answers a ping on your hub's origin, so the Record tab notices the
+extension and says so by itself.
+
+Chrome has not allowed a web page to install an extension since 2018, and no page may open
+`chrome://extensions`. Those two clicks are permanently yours; everything that used to surround them
+is gone.
+
+### Loading this folder straight from the repo
+
+It works, but it knows nothing: no hub, no token. On install it opens its options page. Mint a token
+in Jarvis → Record → *Setting it up by hand instead*, and paste it there with your hub's address
+(deployed: `https://your-hub.vercel.app`, local: `http://localhost:3240`).
+
+Easier: load it, then open your hub. Jarvis sees an extension with no token and hands it one without
+being asked.
 
 ## Using it
 
@@ -29,12 +49,16 @@ Always read the form before you submit it. The extension prepares applications; 
 
 ## What it can reach
 
-Nothing, until you press one of those buttons.
+Your own hub, and — only while you are pressing one of those buttons — the tab you are on.
 
-There is no background script watching your browsing and no list of sites it runs on. The content
-script is injected on a click, under `activeTab` — a permission Chrome grants for that one tab and
-revokes when you navigate away. That is a property of `manifest.json`, not a promise in a README:
-there is no `content_scripts` block to run anything automatically.
+The content script that runs automatically, `connect.js`, is matched to your hub's origin and no
+other site, and is only capable of two things: marking the page so Jarvis can see the extension is
+installed, and accepting a hub address and token from it. A ping is answered with *whether* a token
+exists, never with the token, so a page on your hub can replace the connection but cannot read it.
+
+Nothing runs on the sites you fill in until you click. `content.js` is injected on that click under
+`activeTab` — a permission Chrome grants for one tab and revokes when you navigate away. That is a
+property of `manifest.json`, not a promise in a README.
 
 It reads form fields. It never reads a password, a hidden input, a file picker or a CAPTCHA.
 
@@ -70,11 +94,16 @@ with holes in it.
 
 | File | What it does |
 |---|---|
-| `manifest.json` | MV3. No `content_scripts` — nothing runs on its own. |
-| `content.js` | Runs inside the page: reads fields, finds labels, fills values. |
+| `manifest.json` | MV3. One content script, on your hub only; nothing runs on other sites. |
+| `content.js` | Runs inside an application page, on a click: reads fields, finds labels, fills values. |
 | `popup.js` | The only thing that starts a read. Injects `content.js`, talks to Jarvis. |
+| `connect.js` | Runs on your hub only. Lets Jarvis see the extension and hand it a token. |
+| `config.js` | The hub and token the download was built with. Empty in the repo copy. |
 | `options.js` | Hub address, token, and the numbers that stay on this computer. |
-| `background.js` | Opens the options page on install. Nothing else, deliberately. |
+| `background.js` | Adopts `config.js` on install, or opens the options page. Nothing else. |
+
+The zip is assembled by `src/app/api/jarvis/record/extension/route.ts`, which rewrites `config.js`
+and narrows the manifest to the requesting origin.
 
 ## The one subtle thing in here
 
