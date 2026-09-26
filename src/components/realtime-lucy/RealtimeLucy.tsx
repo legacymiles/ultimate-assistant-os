@@ -4,6 +4,17 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { connectLucy, fetchHealth, type LucyConnection } from "@/lib/realtime-lucy/client";
+import {
+  BRIDGE_DOWN,
+  LS_BRIDGE,
+  LUCY_BRIDGE,
+  bridgeBase,
+  lastLogLine,
+  launcherStatus,
+  startEngine,
+  stopEngine,
+  type LauncherStatus,
+} from "@/lib/realtime-lucy/launcher";
 import { createSegmenter, type Segmenter } from "@/lib/realtime-lucy/segmenter";
 import {
   DEFAULT_SERVER_URL,
@@ -59,6 +70,12 @@ export function RealtimeLucy() {
   const [maskError, setMaskError] = useState("");
   const [maskCoverage, setMaskCoverage] = useState<number | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  // The one button: the launcher on the PC with the GPU, as this page sees it.
+  const [launcher, setLauncher] = useState<LauncherStatus | null>(null);
+  const [bridgeDown, setBridgeDown] = useState(false);
+  const [booting, setBooting] = useState(false);
+  const [bootNote, setBootNote] = useState("");
+  const [bridgeUrl, setBridgeUrl] = useState(LUCY_BRIDGE);
 
   const camRef = useRef<HTMLVideoElement>(null);
   const outRef = useRef<HTMLVideoElement>(null);
@@ -73,6 +90,7 @@ export function RealtimeLucy() {
   useEffect(() => {
     setServerUrl(readLS(LS_URL, DEFAULT_SERVER_URL));
     setToken(readLS(LS_TOKEN, ""));
+    setBridgeUrl(bridgeBase());
   }, []);
 
   // Poll the server's /health while not streaming so the status dot is honest.
@@ -81,19 +99,40 @@ export function RealtimeLucy() {
       const h = await fetchHealth(serverUrl, token || undefined);
       setHealth(h);
       setHealthError("");
+      return h;
     } catch (err) {
       setHealth(null);
       setHealthError((err as Error).message);
+      return null;
     }
   }, [serverUrl, token]);
 
+  // With the engine down, ask the launcher instead: it knows whether it is
+  // starting, whether the install is even there, and why the last start died.
+  const checkLauncher = useCallback(async () => {
+    try {
+      const s = await launcherStatus();
+      setLauncher(s);
+      setBridgeDown(false);
+      return s;
+    } catch {
+      setLauncher(null);
+      setBridgeDown(true);
+      return null;
+    }
+  }, []);
+
   useEffect(() => {
-    void checkHealth();
+    const poll = async () => {
+      const h = await checkHealth();
+      if (!h?.ready) await checkLauncher();
+    };
+    void poll();
     const id = setInterval(() => {
-      if (phase !== "streaming") void checkHealth();
+      if (phase !== "streaming") void poll();
     }, 5000);
     return () => clearInterval(id);
-  }, [checkHealth, phase]);
+  }, [checkHealth, checkLauncher, phase]);
 
   const persist = (url: string, tok: string) => {
     try {
@@ -198,6 +237,77 @@ export function RealtimeLucy() {
   }, [serverUrl, token, startCamera, prompt, strength, condMode, onMessage]);
 
   useEffect(() => () => disconnect(), [disconnect]);
+
+  // One press, the whole way: start the engine on the PC with the GPU, wait for
+  // the model to land on the card, then turn the camera on and go live. Before
+  // this the page could only ever say "run this command", which is why it read
+  // as broken — the client was fine, nothing was generating.
+  const boot = useCallback(async () => {
+    setError("");
+    setBooting(true);
+    setBootNote("checking the engine on this PC…");
+    try {
+      let h = await checkHealth();
+      if (!h) {
+        setBootNote("starting the engine — this loads the model onto the card");
+        await startEngine();
+      }
+      // The Python process answers /health within a second or two; the model
+      // itself takes 20–30 s more, and a cold first prompt about a minute.
+      const deadline = Date.now() + 5 * 60_000;
+      while (!h?.ready && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 2000));
+        h = await checkHealth();
+        if (h?.error) throw new Error(h.error);
+        if (h) {
+          setBootNote("streaming the DiT, the VAE and the T5 onto the card…");
+        } else {
+          // A start that died (no venv, out of memory, a bad flag) must surface
+          // as an error here instead of spinning for five minutes.
+          const s = await checkLauncher();
+          if (s?.exited) {
+            throw new Error(
+              s.exited.message || lastLogLine(s.log) || `the engine stopped (exit code ${s.exited.code})`,
+            );
+          }
+          setBootNote("waiting for the engine to answer…");
+        }
+      }
+      if (!h?.ready) throw new Error("the engine did not come up within five minutes — see tools/studio-bridge/out/lucy.log");
+      setBootNote("going live…");
+      await connect();
+    } catch (err) {
+      const message = (err as Error).message;
+      setError(
+        message === BRIDGE_DOWN
+          ? "Can't reach the launcher on this PC. It runs the GPU server for this page; start it once with tools\\studio-bridge\\install-autostart.cmd and it will be there at every login."
+          : message,
+      );
+    } finally {
+      setBooting(false);
+      setBootNote("");
+    }
+  }, [checkHealth, checkLauncher, connect]);
+
+  // Handing the card back matters on a 6 GB laptop: the model holds ~5.2 GB for
+  // as long as it is loaded, whether or not anything is streaming.
+  const shutdownEngine = useCallback(async () => {
+    disconnect();
+    setError("");
+    setBooting(true);
+    setBootNote("stopping the engine…");
+    try {
+      await stopEngine();
+      await checkHealth();
+      await checkLauncher();
+    } catch (err) {
+      const message = (err as Error).message;
+      setError(message === BRIDGE_DOWN ? "Can't reach the launcher on this PC." : message);
+    } finally {
+      setBooting(false);
+      setBootNote("");
+    }
+  }, [checkHealth, checkLauncher, disconnect]);
 
   // Live controls.
   const applyPrompt = (override?: string) => {
@@ -322,6 +432,9 @@ export function RealtimeLucy() {
   const ready = !!health?.ready;
   const streaming = phase === "streaming";
   const busy = phase === "connecting" || phase === "opening";
+  // Starting counts whether this tab pressed the button or another one did.
+  const starting = booting || (!online && !!launcher?.starting);
+  const notInstalled = !!launcher && !launcher.installed;
   const realtimeFactor = stats.gen_fps !== undefined ? stats.gen_fps / MODEL_FPS : undefined;
 
   return (
@@ -336,14 +449,22 @@ export function RealtimeLucy() {
         </Link>
         <span className="text-sm font-semibold text-ink">Realtime Lucy</span>
         <span className="ml-auto inline-flex items-center gap-2 text-xs text-ink-faint">
-          <span className="rl-dot" data-on={online ? (ready ? "true" : "warn") : "false"} aria-hidden />
+          <span
+            className="rl-dot"
+            data-on={online ? (ready ? "true" : "warn") : starting ? "warn" : "false"}
+            aria-hidden
+          />
           {online
             ? ready
               ? `Lucy server online · ${health?.gpu ?? "GPU"} · ${health?.model ?? ""}`
               : health?.error
                 ? `Lucy server: model failed to load`
                 : "Lucy server online · model loading…"
-            : "Lucy server offline"}
+            : starting
+              ? "Starting the engine on this PC…"
+              : bridgeDown
+                ? "Engine offline · launcher unreachable"
+                : "Engine offline · press Start Lucy"}
         </span>
       </header>
 
@@ -404,18 +525,30 @@ export function RealtimeLucy() {
             {!streaming && !busy && (
               <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 px-8 text-center">
                 <p className="text-sm font-semibold text-ink">
-                  {!online
-                    ? "No GPU server — nothing is being generated"
-                    : !ready
-                      ? "Model loading on the GPU…"
-                      : "Server ready — press Go live"}
+                  {starting
+                    ? bootNote || "Starting the engine…"
+                    : !online
+                      ? notInstalled
+                        ? "The model isn't installed on this PC yet"
+                        : bridgeDown
+                          ? "Can't reach the launcher on this PC"
+                          : "Engine off — press Start Lucy"
+                      : !ready
+                        ? "Model loading on the GPU…"
+                        : "Server ready — press Go live"}
                 </p>
                 <p className="max-w-sm text-[11px] leading-relaxed text-ink-faint">
-                  {!online
-                    ? "This page is only the client. Until the Lucy server is running on the PC with the GPU, the camera on the left is all there is and the prompt has nothing to change. Start it with the command at the bottom of this page."
-                    : !ready
-                      ? "The 1.3B DiT, the VAE and the T5 are being streamed onto the card. This takes 20–30 seconds; the first uncached prompt adds about a minute more."
-                      : "Every frame here will be generated by the model. The prompt only takes effect once the stream is live — editing it before then changes nothing."}
+                  {starting
+                    ? "The server is coming up on the GPU. Loading the 1.3B DiT, the VAE and the T5 takes 20–30 seconds; the stream starts by itself the moment it is ready."
+                    : !online
+                      ? notInstalled
+                        ? "The Python environment and the weights live outside this repo and aren't there yet. tools/realtime-lucy/README.md has the one-time install."
+                        : bridgeDown
+                          ? "This page is only the WebRTC client; something on the PC has to run the model. That is the studio bridge, and it isn't answering — start it once with install-autostart.cmd (see below) and it will be there at every login."
+                          : "This page is only the client — nothing generates until the model is running on the GPU. Start Lucy does the whole thing: start the engine, wait for it, and go live."
+                      : !ready
+                        ? "The 1.3B DiT, the VAE and the T5 are being streamed onto the card. This takes 20–30 seconds; the first uncached prompt adds about a minute more."
+                        : "Every frame here will be generated by the model. The prompt only takes effect once the stream is live — editing it before then changes nothing."}
                 </p>
               </div>
             )}
@@ -549,11 +682,11 @@ export function RealtimeLucy() {
               {!streaming && !busy ? (
                 <button
                   type="button"
-                  onClick={() => void connect()}
-                  disabled={!online}
+                  onClick={() => (ready ? void connect() : void boot())}
+                  disabled={starting || notInstalled}
                   className="rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_30px_-10px] shadow-brand transition hover:brightness-110 disabled:opacity-50"
                 >
-                  Go live
+                  {starting ? "Starting…" : ready ? "Go live" : "Start Lucy"}
                 </button>
               ) : (
                 <button
@@ -584,10 +717,26 @@ export function RealtimeLucy() {
                   </button>
                 </>
               )}
+              {online && !streaming && !busy && !starting && (
+                <button
+                  type="button"
+                  onClick={() => void shutdownEngine()}
+                  title="Unload the model and hand the VRAM back to the rest of the PC"
+                  className="rounded-xl border border-line px-4 py-2.5 text-sm font-medium text-ink-muted transition hover:bg-elevated hover:text-ink"
+                >
+                  Stop the engine
+                </button>
+              )}
               <span className="text-xs text-ink-faint">
-                {!online
-                  ? "Start the Lucy server on the PC with the GPU (see below)."
-                  : streaming
+                {starting
+                  ? bootNote || "Starting the engine on the GPU…"
+                  : !online
+                    ? notInstalled
+                      ? "Not installed on this PC yet — see tools/realtime-lucy/README.md."
+                      : bridgeDown
+                        ? "The launcher on this PC isn't answering (see below)."
+                        : "Start Lucy starts the engine on this PC and goes live by itself."
+                    : streaming
                     ? promptBusy
                       ? "A prompt the model has not seen before is run through the T5 once — about 50 s on this GPU, then it is cached on disk and instant forever after."
                       : "Hold W A S D or the arrow keys to move the model's camera."
@@ -620,6 +769,28 @@ export function RealtimeLucy() {
                   />
                   <span className="text-[10px] text-ink-faint">
                     Leave empty to go through this site&apos;s proxy (LUCY_SERVER_URL on the host).
+                  </span>
+                </label>
+                <label className="flex flex-col gap-1 text-[11px] text-ink-muted">
+                  Launcher (the PC that starts the engine)
+                  <input
+                    value={bridgeUrl}
+                    onChange={(e) => setBridgeUrl(e.target.value)}
+                    onBlur={() => {
+                      try {
+                        const v = bridgeUrl.trim().replace(/\/+$/, "");
+                        if (v) localStorage.setItem(LS_BRIDGE, v);
+                        else localStorage.removeItem(LS_BRIDGE);
+                      } catch {
+                        /* private mode */
+                      }
+                      void checkLauncher();
+                    }}
+                    placeholder={LUCY_BRIDGE}
+                    className="rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-xs text-ink outline-none focus:border-brand/60"
+                  />
+                  <span className="text-[10px] text-ink-faint">
+                    The studio bridge on the PC with the GPU. Start Lucy asks this to run the engine.
                   </span>
                 </label>
                 <label className="flex flex-col gap-1 text-[11px] text-ink-muted">
@@ -726,19 +897,41 @@ export function RealtimeLucy() {
         </section>
 
         <section className="rounded-2xl border border-line bg-panel p-4 text-xs text-ink-muted">
-          <h2 className="mb-2 text-sm font-semibold text-ink">Run the server on the PC with the GPU</h2>
+          <h2 className="mb-2 text-sm font-semibold text-ink">What the button does, and what to do if it can&apos;t</h2>
           <p className="mb-2">
-            The model runs in <code className="rounded bg-canvas px-1 py-0.5 font-mono text-[11px]">tools/realtime-lucy</code>{" "}
-            (a modified LingBot-World-V2 causal-fast pipeline; see its README for install and the CC BY-NC-SA 4.0 licence).
-            Once it prints <em>engine ready</em>, this page can go live:
+            <strong className="text-ink">Start Lucy</strong> asks the studio bridge — the small server already running
+            on this PC for Jarvis Studio — to start{" "}
+            <code className="rounded bg-canvas px-1 py-0.5 font-mono text-[11px]">tools/realtime-lucy</code> on the GPU,
+            waits for the model to land on the card, and goes live by itself. The engine is not started at login on
+            purpose: it holds about 5.2 GB of VRAM the whole time it is loaded, so{" "}
+            <strong className="text-ink">Stop the engine</strong> gives the card back.
+          </p>
+          <p className="mb-2">
+            {bridgeDown
+              ? "The bridge is not answering right now, which is why the button can't do it. Run this once — it starts it now and at every login:"
+              : "If the bridge is ever not running, this installs and starts it — once, then at every login:"}
           </p>
           <pre className="overflow-x-auto rounded-xl border border-line bg-canvas p-3 font-mono text-[11px] text-ink">
+            {`tools\\studio-bridge\\install-autostart.cmd`}
+          </pre>
+          {launcher?.log && !ready && (
+            <>
+              <p className="mt-2">Last lines from the engine&apos;s own log ({`tools/studio-bridge/out/lucy.log`}):</p>
+              <pre className="mt-1 max-h-32 overflow-auto rounded-xl border border-line bg-canvas p-3 font-mono text-[10px] leading-relaxed text-ink-muted">
+                {launcher.log.trim()}
+              </pre>
+            </>
+          )}
+          <p className="mt-3">
+            To start it by hand instead (a window you can watch, on this PC or a bigger GPU box):
+          </p>
+          <pre className="mt-1 overflow-x-auto rounded-xl border border-line bg-canvas p-3 font-mono text-[11px] text-ink">
             {`powershell -File tools/realtime-lucy/start.ps1`}
           </pre>
           <p className="mt-2">
-            That script picks the resolution your card can actually hold and starts the server. Size matters more than
-            anything else here: on a 6 GB laptop GPU the 384×288 config allocates ~7.2 GB, the driver spills it into
-            system RAM and one chunk takes <strong>21 seconds</strong> instead of 2.6 — which looks exactly like
+            That script picks the resolution your card can actually hold — the same one the button uses. Size matters
+            more than anything else here: on a 6 GB laptop GPU the 384×288 config allocates ~7.2 GB, the driver spills
+            it into system RAM and one chunk takes <strong>21 seconds</strong> instead of 2.6 — which looks exactly like
             &ldquo;the prompt does nothing&rdquo;. To choose by hand:
           </p>
           <pre className="mt-2 overflow-x-auto rounded-xl border border-line bg-canvas p-3 font-mono text-[11px] text-ink">
