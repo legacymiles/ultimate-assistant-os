@@ -50,6 +50,11 @@ const TOKEN_AUTH_PATHS = new Set([
   "/api/mp3-download/runner/claim",
   "/api/mp3-download/runner/result",
   "/api/mp3-download/runner/fail",
+  // The Record browser extension. It runs inside other people's websites, so
+  // it has no session here and is authenticated by its own token instead.
+  "/api/jarvis/record/capture/push",
+  "/api/jarvis/record/snapshot/pull",
+  "/api/jarvis/record/map",
 ]);
 
 /** Stamp (or clear) the account id the browser is allowed to render as. */

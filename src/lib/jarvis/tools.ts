@@ -66,6 +66,23 @@ export function summarise(tool: string, args: Record<string, unknown>): string {
   if (tool === "dashboard_add_event") {
     return `Add "${s("title")}" to your calendar on ${s("date")}${s("time") ? ` at ${s("time")}` : ""}, with a reminder.`;
   }
+  if (tool === "record_set") {
+    // Named, not counted: "save 3 facts" is exactly the summary that gets
+    // waved through, and this card is the only gate before a wrong date of
+    // birth becomes the one every future form is filled from.
+    const fields = args.fields && typeof args.fields === "object" ? (args.fields as Record<string, unknown>) : {};
+    const named = Object.entries(fields)
+      .filter(([, v]) => typeof v === "string" && v.trim())
+      .map(([k, v]) => `${k} = ${String(v).slice(0, 40)}`);
+    const entries = Array.isArray(args.entries) ? args.entries.length : 0;
+    const parts = [
+      ...named.slice(0, 4),
+      named.length > 4 ? `and ${named.length - 4} more` : "",
+      entries ? `${entries} new ${entries === 1 ? "entry" : "entries"}` : "",
+    ].filter(Boolean);
+    if (!parts.length) return "Write nothing to your Life Record.";
+    return `Save to your Life Record: ${parts.join(", ")}.`;
+  }
   const bare = tool.includes(".") ? tool.slice(tool.indexOf(".") + 1) : tool;
   if (/event/i.test(bare) && /create|add|schedule|book/i.test(bare)) {
     const when = [s("start"), s("date"), s("start_time")].filter(Boolean)[0] ?? "";
@@ -195,6 +212,49 @@ export const DASHBOARD_TOOLS: ToolSpec[] = [
       required: ["title", "date"],
     },
     app: "calendar",
+  },
+  {
+    name: "record_set",
+    description:
+      "Write facts into the owner's Life Record — the structured store the CONTEXT block calls THE " +
+      "OWNER'S LIFE RECORD, holding what an application asks for: legal name, date of birth, " +
+      "address, household, income, work history, schools, references, documents. Use it whenever " +
+      "the owner states one of those facts in conversation, so they never have to say it twice. " +
+      "Send `fields` for single values (key from the record, e.g. legal_last, county, " +
+      "monthly_gross) and `entries` for a job, a household member, a school, a reference, an " +
+      "income source or a document. Never write a value they did not give you, never write a " +
+      "Social Security or ID number (those are entered on the Record tab, not through you), and " +
+      "put existing values in only when they are correcting one.",
+    parameters: {
+      type: "object",
+      properties: {
+        fields: {
+          type: "object",
+          description: "Record key to value, e.g. {\"county\":\"Maricopa\",\"household_size\":\"4\"}.",
+          additionalProperties: { type: "string" },
+        },
+        entries: {
+          type: "array",
+          description: "New rows in a repeating group.",
+          items: {
+            type: "object",
+            properties: {
+              group: {
+                type: "string",
+                enum: ["jobs", "household_members", "education", "references", "income_other", "documents"],
+              },
+              values: { type: "object", additionalProperties: { type: "string" } },
+            },
+            required: ["group", "values"],
+          },
+        },
+        because: {
+          type: "string",
+          description: "Where this came from, in a few words: 'you said it just now', 'from your résumé'.",
+        },
+      },
+    },
+    app: "record",
   },
 ];
 

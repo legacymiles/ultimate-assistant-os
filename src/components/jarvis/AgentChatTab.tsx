@@ -25,6 +25,8 @@ import { SOURCE_COLOR } from "./MemoryCore";
 import { traceLines, withImageBudget } from "@/lib/jarvis/agentChat";
 import { ACCEPT_IMAGES, imageFiles, MAX_ATTACHMENTS, toAttachment, type Attachment } from "@/lib/jarvis/chatImages";
 import { dashboardDigest, isDashboardTool, runDashboardTool } from "@/lib/jarvis/dashboardBridge";
+import { recordDigest } from "@/lib/jarvis/record/digest";
+import { getRecord } from "@/lib/jarvis/record/store";
 import { uid } from "@/lib/jarvis/store";
 import { useMemory } from "@/lib/jarvis/useMemory";
 import { SOURCE_LABEL, type ChatTurn, type Conversation, type JarvisStore, type PendingAction } from "@/lib/jarvis/types";
@@ -198,7 +200,7 @@ export function AgentChatTab({
           messages: withImageBudget([...turns, asked], fullImages.current),
           ownerName: profile?.name ?? "",
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          extraContext: [profileContext(profile), await dashboardDigest()].filter(Boolean).join("\n\n"),
+          extraContext: [recordDigest(getRecord()), profileContext(profile), await dashboardDigest()].filter(Boolean).join("\n\n"),
         }),
       });
       const data = (await res.json()) as AgentResponse;

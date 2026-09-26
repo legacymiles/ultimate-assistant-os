@@ -20,6 +20,7 @@ import type { Attachment } from "@/lib/jarvis/chatImages";
 import { InboxTab } from "./InboxTab";
 import { DashboardTab } from "./DashboardTab";
 import { MemoryTab } from "./MemoryTab";
+import { RecordTab } from "./RecordTab";
 import { RoutinesTab } from "./RoutinesTab";
 import { VoiceModal } from "./VoiceModal";
 import { isDashboardTool, runDashboardTool } from "@/lib/jarvis/dashboardBridge";
@@ -43,7 +44,7 @@ import type { ChatTurn, Conversation, JarvisStore } from "@/lib/jarvis/types";
 
 export type TabId =
   | "dashboard" | "chat" | "inbox" | "calendar" | "studio"
-  | "folders" | "photos" | "lists"
+  | "folders" | "photos" | "lists" | "record"
   | "memory" | "routines" | "skills" | "tools" | "profile" | "plugins" | "settings";
 
 type RailTab = { id: TabId; label: string; icon: keyof typeof Icon };
@@ -70,6 +71,7 @@ const GROUPS: { title: string; items: (RailTab | { toolbox: RailTab[] })[] }[] =
   {
     title: "Your stuff",
     items: [
+      { id: "record", label: "Record", icon: "Shield" },
       { id: "folders", label: "Folders", icon: "Folder" },
       { id: "photos", label: "Photos", icon: "Image" },
       { id: "lists", label: "Lists", icon: "ListChecks" },
@@ -323,6 +325,7 @@ export function Jarvis() {
           {(tab === "folders" || tab === "photos") && (
             <Recall section={tab} onSection={go} />
           )}
+          {tab === "record" && <RecordTab />}
           {tab === "lists" && (
             <div className="p-3 sm:p-4">
               <ListsBoard />

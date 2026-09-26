@@ -3,7 +3,9 @@ rem ---------------------------------------------------------------------------
 rem Start the Jarvis Studio renderer at login, and start it now.
 rem
 rem Run this once. After it, Studio's "Make the film" works on this PC without
-rem anyone remembering to open a window first. Undo it with uninstall-autostart.
+rem anyone remembering to open a window first, and Realtime Lucy's "Start Lucy"
+rem button has something here to start the GPU server with. Undo it with
+rem uninstall-autostart.
 rem ---------------------------------------------------------------------------
 setlocal
 set "HERE=%~dp0"
@@ -31,4 +33,5 @@ powershell -NoProfile -Command "for($i=0;$i -lt 20;$i++){ try { Invoke-RestMetho
 
 echo.
 echo Done. It will start again every time you sign in to Windows.
+echo /apps/realtime-lucy can now start its GPU server from the page as well.
 pause

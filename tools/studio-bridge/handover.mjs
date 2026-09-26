@@ -32,6 +32,13 @@ const FFPROBE = process.env.FFPROBE_PATH || "ffprobe";
 const EDGE = 192;
 
 export const DEFAULTS = {
+  /** Only trust the presence signal when the shot opened this "skinny" — i.e.
+   *  somebody was genuinely close to camera. Measured: an empty room is ~0.013. */
+  skinConfident: 0.08,
+  /** The end has lost the subject when it falls below this share of the opening. */
+  skinLostShare: 0.35,
+  /** Never pull the handover back past this share of the clip. */
+  presenceFloor: 0.5,
   // --- the landing ---------------------------------------------------------
   analysisWindow: 96,
   /** A landing must run this long to count, so a held beat is not a lock. */
@@ -307,7 +314,65 @@ export async function analyzeClip(clip, opts = {}) {
     reason = tailTrim ? "settling" : "running";
   }
   tailTrim = Math.min(tailTrim, Math.max(0, count - 1 - o.freezeHold));
-  const handoverEndFrame = count - 1 - tailTrim;
+  const settledEndFrame = count - 1 - tailTrim;
+
+  // ---- is anyone still in the frame? -------------------------------------
+  //
+  // The whole point of a handover is that the next shot inherits the CAST,
+  // and a continued shot takes no reference pictures — so whoever is in these
+  // frames is the only thing holding identity. Measured the hard way: a shot
+  // whose camera drifted off the child and settled on an empty living room
+  // handed over 1.5 s of furniture, and the next shot, with nothing to
+  // inherit and no photographs, invented an entirely different family.
+  //
+  // Motion cannot see this. An empty room with a moving camera measures as a
+  // perfectly healthy shot, which is exactly why the old detector passed it.
+  //
+  // So: count skin. In YCbCr, skin of every tone falls in a narrow Cb/Cr
+  // window while almost nothing else in a room does — it is angle-independent
+  // and needs no model, no extra asset and no alignment. It is a heuristic,
+  // not a face detector: it answers "is there a person on screen", not "is it
+  // the right person".
+  const skin = new Float64Array(count);
+  for (let f = 0; f < count; f++) {
+    const base = f * per;
+    let hits = 0;
+    for (let p = 0; p < pixels; p++) {
+      const i = base + p * 3;
+      const r = raw[i], g = raw[i + 1], b = raw[i + 2];
+      const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+      const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+      if (cb >= 77 && cb <= 127 && cr >= 133 && cr <= 173) hits++;
+    }
+    skin[f] = hits / pixels;
+  }
+
+  // Calibration, measured, and the reason this only ever fires when it is sure:
+  // an EMPTY room in a real house reads about 0.013 here, because warm wood,
+  // lamp shades and carpet sit inside the same Cb/Cr window as skin. A close-up
+  // of three faces reads 0.19 — fourteen times that, unmistakable. But a small
+  // child in a WIDE shot reads 0.022, which is indistinguishable from the
+  // furniture. So this signal can prove a close-up emptied out; it cannot see a
+  // toddler across a living room, and pretending otherwise would pull good
+  // handovers backwards for no reason.
+  //
+  // Therefore: act only on a clip that clearly HAD somebody close and clearly
+  // lost them. Anything less confident is reported and left alone.
+  const openingPeak = Math.max(...skin.slice(0, Math.max(1, Math.floor(count * 0.25))));
+  const confidentSubject = openingPeak >= o.skinConfident;
+  const endLost = skin[settledEndFrame] < openingPeak * o.skinLostShare;
+
+  let presenceEndFrame = settledEndFrame;
+  if (confidentSubject && endLost) {
+    const floorFrame = Math.floor(count * o.presenceFloor);
+    while (presenceEndFrame > floorFrame
+      && skin[presenceEndFrame] < openingPeak * o.skinLostShare) presenceEndFrame--;
+  }
+
+  const drifted = presenceEndFrame < settledEndFrame;
+  // Nobody recoverable in the back half of a clip that definitely had someone.
+  const noCast = confidentSubject && endLost && !drifted;
+  const handoverEndFrame = presenceEndFrame;
 
   // ---- the warm-up -------------------------------------------------------
   // The head is warm-up for as long as the clip has not yet reached a fair
@@ -343,6 +408,18 @@ export async function analyzeClip(clip, opts = {}) {
     lockStartFrame,
     /** Where the clip really ends, and where the next shot takes its cue from. */
     handoverEndFrame,
+    /** Where it would have ended on motion alone, ignoring who is in frame. */
+    settledEndFrame,
+    /** Fraction of the handover frame that reads as skin — the presence signal. */
+    skinAtHandover: Number(skin[handoverEndFrame].toFixed(4)),
+    /** The camera drifted off the cast, so the handover was pulled back to find them. */
+    drifted,
+    /**
+     * Nobody is in the back half of this clip at all. A continued shot chained
+     * off it inherits an empty room and will invent its own cast, so the
+     * caller must re-render rather than chain.
+     */
+    noCast,
     tailFrames: tailTrim,
     tailSeconds: Number((tailTrim / fps).toFixed(3)),
     confidence: Number(confidence.toFixed(3)),

@@ -38,7 +38,7 @@
 // One GPU, so renders run one at a time in arrival order. WanGP's MCP server is
 // started on demand if it isn't already running on :42004.
 //
-//   GET  /health              { ok, wangp, queue, rate }
+//   GET  /health              { ok, wangp, queue, rate, quality }
 //   POST /video               { prompt, refs, durationSec, aspectRatio } → { id }
 //   GET  /job/:id             { status, position?, error?, seconds? }
 //   GET  /file/:id            the MP4
@@ -49,6 +49,13 @@
 //   POST /film/:id/cancel     stop after the shot in the machine
 //   POST /composite           { base, plate|plateJob, corner, share, … } → { id }
 //                             a cut-out matted over a video; polls on /job/:id like a clip
+//
+// It also starts the OTHER thing on this PC that a page cannot start itself —
+// the Realtime Lucy GPU server, so /apps/realtime-lucy is one button:
+//
+//   GET  /lucy/status         { installed, running, ready, starting, error, log }
+//   POST /lucy/start          spawn it (tools/realtime-lucy/start.ps1)
+//   POST /lucy/stop           kill it and hand the VRAM back
 // ---------------------------------------------------------------------------
 
 import http from "node:http";
@@ -251,6 +258,77 @@ const DECLICK_MS = Number(process.env.STUDIO_DECLICK ?? 15);
 
 const RESOLUTION = { "16:9": "832x480", "9:16": "480x832", "1:1": "640x640" };
 
+/**
+ * What to ask WanGP for. In two-phase mode the request is the FINAL size and
+ * WanGP halves it for phase 1, so doubling the known-good size here keeps phase
+ * 1 exactly where it has always rendered and makes phase 2 pure gain.
+ */
+function outputSize(aspectRatio) {
+  const base = RESOLUTION[aspectRatio] || RESOLUTION["16:9"];
+  if (!TWO_PHASE) return base;
+  const [w, h] = base.split("x").map(Number);
+  return `${w * 2}x${h * 2}`;
+}
+
+/**
+ * Sampling quality. Every axis of this render was set to its cheapest value at
+ * once, which is why the footage read as test footage rather than as film:
+ *
+ *   weights      rank-8 PRUNED 20B        (the full model is 33B)
+ *   sampler      4-step turbo LoRA        (WanGP's own H3 default is 20 steps)
+ *   resolution   832x480, one phase       (H3 has a learned 3D latent upscaler)
+ *   text encoder Qwen3-VL-32B at GGUF Q2_K (the 2-bit rung of four)
+ *
+ * None of that is the engine being bad. It is the engine being run in preview
+ * mode on five axes simultaneously.
+ *
+ *   turbo  what we have been shipping. 4 steps, 832x480, one phase. Fast.
+ *   hi     20 steps, NO turbo LoRA, two-phase to 1664x960 through the learned
+ *          upscaler. Everything it needs is already on disk.
+ *   pdd    8-step PDD distillation, one phase. Reuses the same 20 GB weights
+ *          (`URLs: minimax_h3_<arch>_pruned`) plus a small module it downloads.
+ *          PDD locks guidance to one phase, so it cannot be combined with "hi".
+ *
+ * STUDIO_QUALITY=turbo|hi|pdd.
+ */
+const QUALITY = process.env.STUDIO_QUALITY || "turbo";
+const PDD = QUALITY === "pdd";
+/**
+ * Two-phase generation. Phase 1 renders at half the requested size and phase 2
+ * is a genuine learned enhancement pass over it, not a resize — H3 ships
+ * `minimax_h3_latent_upscaler_3d_bf16.safetensors` for exactly this and it is
+ * already downloaded. H3_TWO_PHASE_SCALE is 2.0 in WanGP, so asking for
+ * 1664x960 puts phase 1 on the 832x480 that is known to render cleanly here and
+ * then enhances it, rather than gambling a new phase-1 resolution.
+ *
+ * Phase 2 runs its own fixed 3-step sigma schedule (H3_PHASE_2_SIGMAS) with a
+ * phase-two turbo LoRA WanGP loads by itself, so it costs no step budget and
+ * needs no LoRA of ours.
+ */
+const TWO_PHASE = QUALITY === "hi";
+/**
+ * WanGP's H3 default is 20, and the turbo LoRA exists to cut that to 4. Steps
+ * are close to linear in render time, so this is the dial to turn when a run has
+ * to fit in an evening: STUDIO_STEPS=10 is a real middle rung, not a fudge.
+ * PDD ignores it — its schedule is fixed at 8 by the distillation.
+ */
+const STEPS = PDD ? 8 : Number(process.env.STUDIO_STEPS) || (TWO_PHASE ? 20 : 4);
+/**
+ * The turbo LoRA is a FOUR-step distillation, so it belongs to a four-step
+ * schedule and nothing else. Raising STUDIO_STEPS therefore drops it on its own
+ * rather than leaving a 4-step shortcut sampling a 10-step trajectory — that
+ * combination renders worse than either end and would read as "more steps did
+ * not help".
+ */
+const USE_TURBO = !PDD && !TWO_PHASE && STEPS <= 4;
+/**
+ * The text encoder is Qwen3-VL-32B and it is what turns the prompt into
+ * conditioning, so its quantization is prompt ADHERENCE, not picture quality.
+ * Only the 2-bit rung is on disk; gguf_q4_k_m and nvfp4_awq are downloads.
+ * STUDIO_TEXT_ENCODER=gguf_q2_k|gguf_q4_k_m|nvfp4_awq|bf16.
+ */
+const TEXT_ENCODER = process.env.STUDIO_TEXT_ENCODER || "gguf_q2_k";
+
 const TURBO_REF2VA =
   "https://huggingface.co/DeepBeepMeep/MiniMax-H3/resolve/main/loras/minimax_h3_lightx2v_ref2v_turbo_4step_alpha8_v0.1_bf16.safetensors";
 const TURBO_FL2VA =
@@ -294,26 +372,45 @@ const flat = (t) => String(t).replace(/\s*\r?\n+\s*/g, " ").trim();
  * asked for is the wanted length PLUS the overlap — otherwise every chained
  * shot lands short, and on a film cut to music that shortfall compounds.
  */
-async function generate({ id, prompt, refFiles = [], durationSec, aspectRatio, chain = null }) {
+async function generate({ id, prompt, refFiles = [], durationSec, aspectRatio, chain = null, startImage = null }) {
   await ensureWanGP();
-  const withRefs = refFiles.length > 0 && !chain;
+  // A start image is literally the first frame of the output, so it is not a
+  // suggestion the model can weigh against others the way a reference is.
+  // Chaining wins over it (real frames beat one still), and it wins over
+  // references (you cannot both start from this picture and re-compose the
+  // shot around a pile of others).
+  // A start image can travel WITH a video continuation: image_prompt_type is a
+  // flag string over TSEVL, not one value ("VE" and "SE" are documented), so
+  // "SV" is start-frame plus video-source. Together they give the next shot the
+  // composition AND the motion it is continuing.
+  const withStart = Boolean(startImage);
+  const withRefs = refFiles.length > 0 && !chain && !withStart;
   const frames = chain
     ? gridFrames(framesFor(durationSec) + chain.overlap)
     : framesFor(durationSec);
   const labels = refFiles.map((f, i) => `image ${i + 1} is ${f.label || `Subject ${i + 1}`}`).join("; ");
   const source = {
-    model_type: withRefs ? "minimax_h3_ref2va_pruned" : "minimax_h3_fl2va_pruned",
+    model_type: `minimax_h3_${withRefs ? "ref2va" : "fl2va"}_pruned${PDD ? "_pdd" : ""}`,
     prompt: flat(withRefs && labels ? `${prompt} Reference images: ${labels}. Keep each one's identity and details exactly.` : prompt),
-    resolution: RESOLUTION[aspectRatio] || RESOLUTION["16:9"],
+    resolution: outputSize(aspectRatio),
     video_length: frames,
     seed: Math.floor(Math.random() * 2 ** 31),
-    num_inference_steps: 4,
+    num_inference_steps: STEPS,
     guidance_scale: 1,
     flow_shift: 12,
+    // Phase 2 only exists when this is 2; switch_threshold is the noise level
+    // it takes over at, and 0.9035 is WanGP's measured default for H3.
+    ...(TWO_PHASE ? { guidance_phases: 2, switch_threshold: 0.9035 } : {}),
     loras_multipliers: "1.0",
-    activated_loras: [withRefs ? TURBO_REF2VA : TURBO_FL2VA],
-    config: "gguf_q2_k,int8_convrot,lower_ram",
+    // The turbo LoRA is trained FOR 4 steps, so it belongs to the 4-step path
+    // only. PDD brings its own distillation module through the model
+    // definition, and "hi" spends real steps instead of a shortcut — stacking
+    // turbo on either would fight the schedule it is sampling against.
+    ...(USE_TURBO ? { activated_loras: [withRefs ? TURBO_REF2VA : TURBO_FL2VA] } : {}),
+    config: `${TEXT_ENCODER},int8_convrot,lower_ram`,
     ...(withRefs ? { image_refs: refFiles.map((f) => resolve(f.path)), video_prompt_type: "I" } : {}),
+    // An array, not a path: WanGP takes a list here.
+    ...(withStart ? { image_start: [resolve(startImage)] } : {}),
     ...(chain
       ? {
         video_source: resolve(chain.source),
@@ -322,9 +419,10 @@ async function generate({ id, prompt, refFiles = [], durationSec, aspectRatio, c
         keep_frames_video_source: String(chain.overlap),
         sliding_window_overlap: chain.overlap,
         sliding_window_size: frames,
-        image_prompt_type: "V",
       }
       : {}),
+    // Set last, from what was actually supplied, so the two can combine.
+    ...(withStart || chain ? { image_prompt_type: `${withStart ? "S" : ""}${chain ? "V" : ""}` } : {}),
   };
   const r = await rpc("tools/call", { name: "wangp_generate", arguments: { action: "generate", arguments: { source } } });
   const text = (r?.result?.content ?? []).map((c) => c.text).join("\n");
@@ -905,23 +1003,60 @@ async function renderFilm(id) {
     shot.status = "rendering";
     shot.startedAt = Date.now();
     film.current = i;
-    console.log(`▶ ${id} shot ${i + 1}/${film.shots.length} — ${shot.link}, ${shot.durationSec}s`);
+    console.log(`▶ ${id} shot ${i + 1}/${film.shots.length} — ${shot.link}, ${shot.durationSec}s${shot.startFrame ? ", from a start frame" : ""}`);
     try {
       // A chained shot continues the one before it from where that shot really
       // ended — the boundary its own reading produced, not the end of its file.
       // Without a previous clip there is nothing to continue, so it falls back
       // to a cut.
       const previous = shot.link === "continuous" ? previousClip : null;
-      const chain = previous
+      // Two ways to continue, and they are not the same trade.
+      //
+      //   "video" hands over OVERLAP real frames: motion and audio cross the
+      //     join, the seam is invisible and the next shot needs no warm-up —
+      //     but you are stuck with whatever the previous clip ended on. When a
+      //     shot drifted onto an empty room, the next one inherited furniture
+      //     and invented a new cast.
+      //
+      //   "frame" hands over ONE frame, as a start image. The next shot starts
+      //     from rest, but you get to CHOOSE the frame — the last one where the
+      //     subject is actually visible — instead of taking the ending you were
+      //     given.
+      //
+      // STUDIO_CHAIN picks. Default "frame": being able to choose the handover
+      // is worth more than a free warm-up when identity keeps getting lost.
+      // "both" does NOT work: WanGP's docs say image_prompt_type flags combine
+      // ("VE", "SE" are documented) but "SV" crashes inside its own generation
+      // path — `cannot access local variable 'source_overlap'`. So it is one or
+      // the other, and "video" wins on measurement: the seam is invisible, the
+      // next generation needs no warm-up, and motion AND audio cross the join.
+      // "frame" trades all of that for the ability to choose the handover, which
+      // only matters when the previous generation ends badly — and that is a
+      // planning problem, fixed by making it end on the subject.
+      const chainMode = previous ? (process.env.STUDIO_CHAIN || "video") : null;
+      const chain = previous && (chainMode === "video" || chainMode === "both")
         ? {
           source: await handoverClip(previous.file, previous.read.handoverEndFrame, OVERLAP, join(dir, `link-${i}.mp4`)),
           overlap: OVERLAP,
         }
         : null;
+      // The frame the previous shot really ended on, with whoever is in it.
+      const carriedFrame = previous && (chainMode === "frame" || chainMode === "both")
+        ? await frameAt(previous.file, previous.read.handoverEndFrame, join(dir, `start-${i}.png`))
+        : null;
       const refFiles = (shot.refs ?? [])
         .map((r, k) => ({ path: saveRef(`${id}-${i}`, k, r.dataUrl), label: r.label }))
         .filter((f) => f.path);
-      const clip = await generate({
+      // An explicit start frame from the caller wins; otherwise the frame
+      // carried out of the previous shot.
+      // Never alongside a video chain: "SV" crashes WanGP.
+      const startImage = chain
+        ? null
+        : (shot.startFrame ? saveRef(`${id}-${i}`, "start", shot.startFrame) : null) ?? carriedFrame;
+      const clip = shot.reuse
+        ? (console.log(`= ${id} shot ${i + 1} reused from ${shot.reuse}`), shot.reuse)
+        : await generate({
+        ...(startImage ? { startImage } : {}),
         id: `${id}-${i}`,
         prompt: shot.prompt,
         refFiles,
@@ -932,7 +1067,8 @@ async function renderFilm(id) {
       const kept = join(dir, `shot-${i + 1}.mp4`);
       copyFileSync(clip, kept);
       shot.file = kept;
-      shot.chained = Boolean(chain);
+      shot.chained = Boolean(chain) || Boolean(carriedFrame);
+      shot.chainMode = chain && carriedFrame ? "both" : chain ? "video" : carriedFrame ? "frame" : "none";
       shot.overlap = chain ? chain.overlap : 0;
       // Read the finished clip once, here, while it is the only thing going on:
       // where it really ends, how long it takes to get moving, how bright it is,
@@ -1085,6 +1221,126 @@ function filmView(id) {
   };
 }
 
+// ----- Realtime Lucy, started when the page asks ----------------------------
+//
+// /apps/realtime-lucy is only a WebRTC client. With no GPU server running the
+// page shows the webcam, nothing is generated, and it reads as "the prompt does
+// nothing". A page cannot spawn a process, so it asks this bridge — already
+// running on this PC for Studio — to start one. That is the whole of the page's
+// one button.
+//
+// The model holds ~5.2 GB of VRAM while it is up, so it is deliberately NOT
+// started at login: it starts when the page asks, and /lucy/stop hands the card
+// back to whatever else wants it.
+
+const LUCY_PORT = Number(process.env.LUCY_PORT || 8765);
+const LUCY_DIR = resolve(HERE, "..", "realtime-lucy");
+const LUCY_START = join(LUCY_DIR, "start.ps1");
+// The venv and the 18 GB of weights live outside the repo, so OneDrive never
+// tries to sync them (tools/realtime-lucy/README.md).
+const LUCY_PY = join(process.env.USERPROFILE || "", "realtime-lucy", "venv", "Scripts", "python.exe");
+const LUCY_LOG = join(OUT, "lucy.log");
+
+let lucy = null; // { pid, startedAt, exit: null | { code, message? } }
+
+/** Ask the Lucy server itself. Short deadline — the page polls this. */
+async function lucyHealth(timeoutMs = 2500) {
+  try {
+    const res = await fetch(`http://127.0.0.1:${LUCY_PORT}/health`, { signal: AbortSignal.timeout(timeoutMs) });
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+function lucyLogTail(bytes = 1200) {
+  try {
+    return readFileSync(LUCY_LOG, "utf8").slice(-bytes);
+  } catch {
+    return "";
+  }
+}
+
+function startLucy() {
+  if (lucy && lucy.exit === null) return { pid: lucy.pid, already: true };
+  if (!existsSync(LUCY_PY)) {
+    throw new Error(`No Python environment at ${LUCY_PY} — the one-time install is in tools/realtime-lucy/README.md.`);
+  }
+  if (!existsSync(LUCY_START)) throw new Error(`Missing ${LUCY_START}.`);
+  // A fresh log per start: when this fails the owner wants THIS run's reason.
+  writeFileSync(LUCY_LOG, `--- starting Lucy on port ${LUCY_PORT} at ${new Date().toISOString()}\n`);
+  const log = openSync(LUCY_LOG, "a");
+  // Through start.ps1 on purpose: it owns the one setting that decides whether
+  // this works at all. On a 6 GB card the 384x288 config spills into system RAM
+  // and a chunk takes 21 s instead of 2.6 — which looks like a broken app, not
+  // a slow one. That choice stays in one place.
+  //
+  // NOT detached, unlike WanGP above. Measured: `detached: true` on a
+  // powershell.exe child hands the script to a new console, our own pid exits 0
+  // within a second, the log file stays empty and taskkill on that pid leaves
+  // the real process running. The bridge would then report "the engine stopped"
+  // while the model was in fact loading. Attached, the log fills, the exit code
+  // is the script's own, and the pid is the tree we can actually kill.
+  const child = spawn(
+    "powershell.exe",
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", LUCY_START, "-Port", String(LUCY_PORT)],
+    { cwd: LUCY_DIR, stdio: ["ignore", log, log], windowsHide: true },
+  );
+  const state = { pid: child.pid, startedAt: Date.now(), exit: null };
+  lucy = state;
+  child.on("exit", (code) => {
+    state.exit = { code };
+  });
+  child.on("error", (e) => {
+    state.exit = { code: -1, message: e.message };
+  });
+  child.unref();
+  console.log(`Starting Realtime Lucy (pid ${child.pid}) — log in out/lucy.log`);
+  return { pid: child.pid, already: false };
+}
+
+/** Kill it however it was started: our own tree, then whatever holds the port. */
+async function stopLucy() {
+  const kill = (bin, args) =>
+    new Promise((done) => {
+      const p = spawn(bin, args, { windowsHide: true, stdio: "ignore" });
+      p.on("error", () => done(false));
+      p.on("close", (code) => done(code === 0));
+    });
+  if (lucy && lucy.exit === null && lucy.pid) {
+    // /T because the model runs in powershell's python child, not in powershell.
+    await kill("taskkill.exe", ["/PID", String(lucy.pid), "/T", "/F"]);
+  }
+  lucy = null;
+  await kill("powershell.exe", [
+    "-NoProfile",
+    "-Command",
+    `$p=(Get-NetTCPConnection -LocalPort ${LUCY_PORT} -State Listen -ErrorAction SilentlyContinue).OwningProcess; if($p){ $p | Select-Object -Unique | ForEach-Object { Stop-Process -Id $_ -Force } }`,
+  ]);
+  return !(await lucyHealth(1500));
+}
+
+/** Everything the page needs to decide what its one button says. */
+async function lucyStatus() {
+  const health = await lucyHealth();
+  return {
+    installed: existsSync(LUCY_PY),
+    python: LUCY_PY,
+    port: LUCY_PORT,
+    running: !!health,
+    ready: !!health?.ready,
+    starting: !!lucy && lucy.exit === null && !health,
+    // A start that died (no venv, CUDA out of memory, a bad flag) must not read
+    // as "still loading" forever — but a server that is answering is up, whatever
+    // the last spawn did.
+    exited: health ? null : (lucy?.exit ?? null),
+    startedAt: lucy?.startedAt ?? null,
+    error: health?.error || lucy?.exit?.message || null,
+    log: lucyLogTail(),
+    health,
+  };
+}
+
 // ----- HTTP ----------------------------------------------------------------
 
 function cors(req, res) {
@@ -1130,10 +1386,30 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, {
       ok: true,
       wangp: await wangpUp(),
+      quality: QUALITY,
       queue: queue.length + (working ? 1 : 0) + filmQueue.length + (filming ? 1 : 0),
       rate: Math.round(rate.secondsPerFrame * 100) / 100,
       films: films.size,
     });
+  }
+
+  // Realtime Lucy's one button: the page asks, this starts the GPU server.
+  if (req.method === "GET" && url.pathname === "/lucy/status") {
+    return json(res, 200, await lucyStatus());
+  }
+
+  if (req.method === "POST" && url.pathname === "/lucy/start") {
+    try {
+      // Answer the moment it is spawned; the page watches Lucy's own /health
+      // for the 20–30 s of model loading that follows.
+      return json(res, 200, { ...startLucy(), starting: true });
+    } catch (e) {
+      return json(res, 500, { error: e.message });
+    }
+  }
+
+  if (req.method === "POST" && url.pathname === "/lucy/stop") {
+    return json(res, 200, { stopped: await stopLucy() });
   }
 
   if (req.method === "POST" && url.pathname === "/video") {
@@ -1208,6 +1484,14 @@ const server = http.createServer(async (req, res) => {
         durationSec: Math.min(15, Math.max(4, Number(s.durationSec) || 5)),
         link: i > 0 && s.link === "continuous" ? "continuous" : "cut",
         refs: Array.isArray(s.refs) ? s.refs.slice(0, 6) : [],
+        // The composition this shot opens on, as a picture. Unlike a
+        // reference, the model has no say in it: it IS frame one.
+        startFrame: typeof s.startFrame === "string" && s.startFrame.startsWith("data:image/") ? s.startFrame : null,
+        // An already-rendered clip for this shot. Iterating on the LAST
+        // generation of a film should not cost a re-render of the first one:
+        // three of today's runs spent 25 minutes each re-making a clip that was
+        // already on disk and already good.
+        reuse: typeof s.reuse === "string" && existsSync(s.reuse) ? s.reuse : null,
         status: "queued",
       }));
     if (!shots.length) return json(res, 400, { error: "a film needs at least one shot with a prompt" });
@@ -1295,3 +1579,24 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`Measured render rate: ${rate.secondsPerFrame.toFixed(2)} s/frame from ${rate.samples} shot(s).`);
   console.log("Ready for Jarvis -> Studio. If this is a visible window, leave it open.");
 });
+
+/**
+ * One frame out of a clip, as a PNG — the handover, when it travels as a still.
+ *
+ * Seeks by time rather than using a `select` filter: a filter expression needs
+ * its comma escaped, the escape has to survive both the shell and a JS template
+ * literal, and when it does not ffmpeg reads the comma as a filter separator and
+ * fails with "Filter not found". Output-side `-ss` is frame-accurate and has
+ * nothing to escape.
+ */
+async function frameAt(clip, frame, to) {
+  await run(FFMPEG, [
+    "-y", "-hide_banner", "-loglevel", "error",
+    "-i", clip, "-ss", (frame / FPS).toFixed(4), "-frames:v", "1",
+    // PNG, because this becomes the literal first frame of the next generation
+    // and JPEG artefacts would be generated forward into it.
+    "-c:v", "png", to,
+  ]);
+  if (!existsSync(to)) throw new Error("Couldn't take the handover frame out of the previous shot.");
+  return to;
+}

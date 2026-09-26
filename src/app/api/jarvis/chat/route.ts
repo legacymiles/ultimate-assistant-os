@@ -169,7 +169,10 @@ export async function POST(req: Request) {
       // none of the three may be the block that gets truncated.
       extraContext: [
         audioBlock,
-        body.extraContext?.slice(0, 10000),
+        // 18000, up from 10000: the Chat tab now leads this with the Life
+        // Record, and 10000 truncated it together with the dashboard digest
+        // that used to be the whole of it.
+        body.extraContext?.slice(0, 18000),
         castBlock,
         planBlock,
         studioBlock,

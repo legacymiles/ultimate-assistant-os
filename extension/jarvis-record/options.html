@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Jarvis Record — settings</title>
+    <style>
+      :root {
+        --canvas: #0a0b0f;
+        --panel: #12141c;
+        --panel-2: #181b25;
+        --line: #262a38;
+        --line-soft: #1e222e;
+        --ink: #e9ecf3;
+        --ink-muted: #9aa3b5;
+        --ink-faint: #6b7385;
+        --brand: #6366f1;
+        --brand-2: #4f46e5;
+        --core: #22c55e;
+        --bad: #fb7185;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 40px 24px 64px;
+        background: var(--canvas);
+        color: var(--ink);
+        font: 14px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      ::selection { background: rgba(99, 102, 241, 0.35); }
+      main { max-width: 620px; margin: 0 auto; }
+      h1 { margin: 0 0 4px; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+      .lede { margin: 0 0 28px; color: var(--ink-muted); font-size: 13px; max-width: 62ch; }
+      section {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel);
+        padding: 16px 18px;
+        margin-bottom: 14px;
+      }
+      h2 { margin: 0 0 3px; font-size: 14px; font-weight: 600; }
+      .hint { margin: 0 0 12px; color: var(--ink-faint); font-size: 12px; line-height: 1.55; max-width: 64ch; }
+      label { display: block; margin-bottom: 5px; color: var(--ink-muted); font-size: 12px; }
+      input {
+        width: 100%;
+        padding: 9px 11px;
+        margin-bottom: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--canvas);
+        color: var(--ink);
+        font: inherit;
+        font-size: 13px;
+        transition: border-color 0.14s ease, box-shadow 0.14s ease;
+      }
+      input:focus {
+        outline: none;
+        border-color: var(--brand);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+      }
+      input::placeholder { color: var(--ink-faint); }
+      button {
+        padding: 9px 16px;
+        border: 1px solid var(--brand);
+        border-radius: 8px;
+        background: var(--brand);
+        color: #fff;
+        font: inherit;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        transition: background 0.14s ease;
+      }
+      button:hover { background: var(--brand-2); }
+      button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+      button.quiet {
+        background: transparent;
+        border-color: var(--line);
+        color: var(--ink-muted);
+        font-weight: 500;
+      }
+      button.quiet:hover { background: var(--panel-2); color: var(--ink); }
+      .saved { margin-left: 12px; color: var(--core); font-size: 12px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+      .note {
+        display: flex;
+        gap: 9px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel);
+        padding: 14px 16px;
+        color: var(--ink-faint);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      .note strong { color: var(--ink-muted); font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Jarvis Record</h1>
+      <p class="lede">
+        Saves what you type into job and benefits applications, and fills the next one from what it
+        already knows.
+      </p>
+
+      <section>
+        <h2>Connection</h2>
+        <p class="hint">
+          Mint the token in Jarvis → Record → Connect your browser. It is shown once.
+        </p>
+        <label for="hubUrl">Your hub</label>
+        <input id="hubUrl" type="url" placeholder="https://your-hub.vercel.app" />
+        <label for="token">Token</label>
+        <input id="token" type="password" placeholder="Paste the token from Jarvis" />
+        <button id="save">Save</button>
+        <span class="saved" id="saved"></span>
+      </section>
+
+      <section>
+        <h2>Numbers that stay on this computer</h2>
+        <p class="hint">
+          These are never sent to your hub and never reach an AI — Jarvis strips them before
+          anything is stored. They live here, in this browser, so the extension can still type them
+          into a form. Leave them empty and it will simply skip those fields.
+        </p>
+        <div class="grid">
+          <div>
+            <label for="ssn">Social Security number</label>
+            <input id="ssn" type="password" placeholder="000-00-0000" />
+          </div>
+          <div>
+            <label for="medicaid_id">Medicaid / member ID</label>
+            <input id="medicaid_id" type="password" placeholder="Optional" />
+          </div>
+          <div>
+            <label for="license_number">Driver's licence number</label>
+            <input id="license_number" type="password" placeholder="Optional" />
+          </div>
+        </div>
+        <button id="saveSecrets">Save on this computer</button>
+        <button id="clearSecrets" class="quiet" style="margin-left: 8px">Erase them</button>
+        <span class="saved" id="savedSecrets"></span>
+      </section>
+
+      <p class="note">
+        <span>
+          <strong>What this extension can reach.</strong> Nothing, until you click its button on a
+          page. There is no background script watching your browsing and no list of sites it runs
+          on — each read is granted for one tab, by one click, and expires when you navigate away.
+          It reads form fields and it never touches a password, a payment field or a CAPTCHA.
+        </span>
+      </p>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>

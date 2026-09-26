@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Jarvis Record",
+  "version": "1.0.0",
+  "description": "Save what you type into job and benefits applications to your Jarvis Life Record, and fill the next one from it.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["http://localhost:3240/*", "https://*/*"],
+  "action": { "default_popup": "popup.html", "default_title": "Jarvis Record" },
+  "background": { "service_worker": "background.js" },
+  "options_page": "options.html",
+  "icons": { "128": "icon.png" }
+}

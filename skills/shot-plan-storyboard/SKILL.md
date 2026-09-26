@@ -52,6 +52,30 @@ The planner described in §1 and `references/planner.md` is the *fallback* for a
 with no `film-plan` in the loop — one vision call that produces the same object. Where the two
 differ, `film-plan` wins, because it is the one that asks the owner.
 
+## The storyboard frame is not previz — it is a render input
+
+The single most useful thing measured across four films: **a drawn frame attached to the
+generation as an `attribute_transfer` reference controls the composition that prose could not.**
+
+Three films asked, in prose, for a wide with a child small and low in frame and two figures at the
+end of a hallway. Three films returned a close-up with an adult beside him. The fourth attached
+the drawn frame as `<Subject 5>` — *"its composition, framing, blocking and light are the target
+look; it is a still, so motion comes from the description"* — and frame one was exactly the wide.
+
+So the panel is not a picture of a film you hope to get. It is **frame one of the film**, and the
+sheet is only honest if it is drawn from the same anchors the render will use: the cast sheets,
+the set plate, and everything else attached to that shot. A panel drawn from prose while the
+render is fed pictures predicts a film that will not happen.
+
+Two consequences:
+
+- **Draw a frame for every shot that opens cold**, not just for the sheet's sake. Each one is that
+  shot's composition lock. Shots that are chained inherit their composition from real frames and
+  do not need one.
+- **The frame pins second one, and nothing pins second fifteen.** Over a long take the camera
+  drifts away from the composition it started in. That is an argument for more shots with more
+  frames, not fewer and longer ones — see `film-plan` on shot length.
+
 ## THE SHEET IS NOT DONE UNTIL ALL OF THIS EXISTS
 
 Read this before you build anything and again before you say a sheet is finished. A storyboard

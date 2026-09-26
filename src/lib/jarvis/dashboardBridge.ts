@@ -25,7 +25,11 @@ import { ROLE_LABELS } from "@/lib/recall/photos/types";
 import type { Folder } from "@/lib/recall/types";
 import type { Priority } from "@/lib/recall/lists/types";
 
-export const DASHBOARD_TOOL_NAMES = ["dashboard_add_note", "dashboard_add_event", "lists_add_item"];
+// record_set rides in this list because it is the same kind of thing: a write
+// the agent may only propose, executed here in the browser because that is
+// where the store lives. Its digest is NOT in dashboardDigest() — the Life
+// Record belongs in the Chat tab's context, not in Studio's.
+export const DASHBOARD_TOOL_NAMES = ["dashboard_add_note", "dashboard_add_event", "lists_add_item", "record_set"];
 
 export function isDashboardTool(name: string): boolean {
   return DASHBOARD_TOOL_NAMES.includes(name);
@@ -234,5 +238,76 @@ export async function runDashboardTool(name: string, args: Record<string, unknow
     return `Added to ${list.name}${args.private === true ? " (private)" : ""}.`;
   }
 
+  if (name === "record_set") {
+    return runRecordSet(args);
+  }
+
   throw new Error(`Unknown dashboard action ${name}.`);
+}
+
+/**
+ * Write what the owner just confirmed into the Life Record.
+ *
+ * Sensitive keys are refused here even though they are also withheld from the
+ * prompt. The prompt rule keeps Jarvis from KNOWING a Social Security number;
+ * this one keeps him from writing one — and the two failures are different, so
+ * they need two guards. A model that hallucinates an SSN into record_set must
+ * bounce off something, not land in the store the owner trusts most.
+ */
+async function runRecordSet(args: Record<string, unknown>): Promise<string> {
+  const { getRecord, saveRecord, setField, addEntry } = await import("./record/store");
+  const { isSensitive, groupById } = await import("./record/types");
+
+  let record = getRecord();
+  const origin = str(args, "because") || "Jarvis, from your conversation";
+  const wrote: string[] = [];
+  const refused: string[] = [];
+
+  const fields = args.fields && typeof args.fields === "object" ? (args.fields as Record<string, unknown>) : {};
+  for (const [key, raw] of Object.entries(fields)) {
+    const value = typeof raw === "string" ? raw.trim() : "";
+    if (!value) continue;
+    if (isSensitive(key)) {
+      refused.push(key);
+      continue;
+    }
+    const before = record;
+    record = setField(record, key, value, "jarvis", origin);
+    if (record !== before && record.fields[key]) wrote.push(key);
+  }
+
+  if (Array.isArray(args.entries)) {
+    for (const item of args.entries.slice(0, 12)) {
+      const e = (item ?? {}) as Record<string, unknown>;
+      const groupId = typeof e.group === "string" ? e.group : "";
+      const group = groupById(groupId);
+      if (!group) continue;
+      const values: Record<string, string> = {};
+      if (e.values && typeof e.values === "object") {
+        for (const [k, v] of Object.entries(e.values as Record<string, unknown>)) {
+          if (typeof v !== "string" || !v.trim()) continue;
+          if (isSensitive(k, groupId)) {
+            refused.push(`${group.singular} ${k}`);
+            continue;
+          }
+          values[k] = v.trim();
+        }
+      }
+      if (!Object.keys(values).length) continue;
+      record = addEntry(record, groupId, values, "jarvis", origin);
+      wrote.push(`a ${group.singular}`);
+    }
+  }
+
+  if (!wrote.length) {
+    return refused.length
+      ? `Nothing saved. ${refused.join(", ")} can only be entered by you, on the Record tab.`
+      : "Nothing to save — none of those were record fields.";
+  }
+
+  saveRecord(record);
+  const tail = refused.length
+    ? ` ${refused.join(", ")} was left out — enter that yourself on the Record tab.`
+    : "";
+  return `Saved ${wrote.length} to your Life Record.${tail}`;
 }

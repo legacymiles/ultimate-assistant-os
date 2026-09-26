@@ -23,6 +23,29 @@ posts jobs to `127.0.0.1:42010` and this renders them with MiniMax H3 in WanGP
 | `POST /video` | One clip. What the **Make it** button on a `studio_generate` has always used. |
 | `POST /film` | A whole shot plan, rendered **in order** and cut together into one continuous film. What **Make the film** on a storyboard uses. |
 
+## …and the other thing a page can't do for itself
+
+`/apps/realtime-lucy` is only a WebRTC client: something on this PC has to be
+running the world model, and a web page cannot start a process. So this bridge
+starts it too.
+
+| | what it does |
+|---|---|
+| `GET /lucy/status` | `{ installed, running, ready, starting, exited, error, log }` — everything the page's one button needs to know. |
+| `POST /lucy/start` | Runs `tools/realtime-lucy/start.ps1`, which picks the size this card can hold. Answers as soon as it is spawned; the model takes 20–30 s more, which the page watches on Lucy's own `/health`. |
+| `POST /lucy/stop` | Kills it — our process tree first, then whatever still holds port 8765, so a server you started by hand stops too. |
+
+The engine is deliberately **not** started at login: it holds about 5.2 GB of
+VRAM the whole time it is loaded, and WanGP wants that card as well. Its output
+goes to `out\lucy.log`, fresh on every start, and the page shows the tail of it
+when the engine isn't up.
+
+One trap, measured: that child is spawned **without** `detached: true`, unlike
+WanGP's. Detached, a `powershell.exe` child hands the script to a new console —
+our pid exits 0 within a second, the log stays empty, and `taskkill` on that pid
+leaves the real process running, so the bridge would report "the engine stopped"
+while the model was in fact loading.
+
 ## How a film is made to look like one take
 
 Three things, and it needs all three:

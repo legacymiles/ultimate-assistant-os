@@ -62,6 +62,26 @@ hf download robbyant/lingbot-world-v2-14b-causal-fast --include "Wan2.1_VAE.pth"
 
 ## Run
 
+Normally you don't: **/apps/realtime-lucy starts it itself.** The page's *Start
+Lucy* button asks the studio bridge (`tools/studio-bridge`, already running on
+this PC for Jarvis Studio) to run `start.ps1`, waits for the model to land on
+the card, and goes live. *Stop the engine* kills it again and hands the ~5.2 GB
+of VRAM back — which is why it is not started at login. The bridge's side is
+three routes:
+
+```
+GET  http://127.0.0.1:42010/lucy/status   { installed, running, ready, starting, error, log }
+POST http://127.0.0.1:42010/lucy/start
+POST http://127.0.0.1:42010/lucy/stop
+```
+
+If the bridge itself isn't running, nothing can start the engine — the page says
+so and points at `tools\studio-bridge\install-autostart.cmd`, which starts it
+now and at every login.
+
+To run it by hand instead (another PC, a bigger card, or a window you want to
+watch):
+
 ```powershell
 powershell -File tools/realtime-lucy/start.ps1
 ```

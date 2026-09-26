@@ -1,4 +1,4 @@
-# Long-take chain
+# Long-take chain — multi-cut generations
 
 A way of BUILDING a stitched film, not a subject for one. Any story can be shot this way; what
 this workflow fixes is the *shape* — how long each shot runs, how shots join, and what is anchored
@@ -16,7 +16,8 @@ climbed 21% end to end. Every one of those happened at a join.
 
 | | The ordinary way | Long-take chain |
 |---|---|---|
-| Shot length | 4–6 s, whatever the beat needs | **12–15 s**, the top of H3's window |
+| The unit | a shot | **a 15 s generation holding 3–5 timed cuts** |
+| Cuts per render | 1 | **3–5** |
 | Joins in 45 s | seven | **two** |
 | Default `link` | `cut` | **`continuous`** |
 | Anchored by picture | faces | **faces AND the set** |
@@ -66,9 +67,14 @@ film.
 
 ## Global constraints
 
-**Shot length.** Plan at 12–15 s. Drop below that only when the CUT is the point: a reaction, a
-hard insert, a beat that has to land alone. A shot that is short for no reason is a join you chose
-to pay for.
+**Fill the generation.** Plan every render at 15 s, and fill it with three to five timed cuts —
+H3 cuts internally when the prompt is written as `[Shot N] 0.0–4.0s.` blocks. A cut inside a
+generation costs nothing: identity, room, grade and light are automatically consistent because it
+is one render. A 15-second single take is a clip; a 15-second generation with four cuts is a film.
+
+The old version of this workflow said to plan long SHOTS. That was wrong in a specific way — it
+minimised joins by making each render one continuous take, which bought fewer joins at the cost of
+having no edit at all. Cut freely *inside* the render; be miserly with the number of renders.
 
 **Beats do the cutting.** A 15-second shot needs a beat roughly every 2 seconds — seven of them.
 That list is what a long shot uses instead of cuts: something is due at 0 s, something else at

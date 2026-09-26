@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Jarvis Record</title>
+    <style>
+      /* The hub's own tokens, so the popup is visibly part of Jarvis rather
+         than a browser dialog that happens to sit next to it. */
+      :root {
+        --canvas: #0a0b0f;
+        --panel: #12141c;
+        --panel-2: #181b25;
+        --line: #262a38;
+        --line-soft: #1e222e;
+        --ink: #e9ecf3;
+        --ink-muted: #9aa3b5;
+        --ink-faint: #6b7385;
+        --brand: #6366f1;
+        --brand-2: #4f46e5;
+        --core: #22c55e;
+        --warn: #fbbf24;
+        --bad: #fb7185;
+      }
+      * { box-sizing: border-box; }
+      body {
+        width: 340px;
+        margin: 0;
+        padding: 14px;
+        background: var(--canvas);
+        color: var(--ink);
+        font: 13px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      ::selection { background: rgba(99, 102, 241, 0.35); }
+      h1 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .sub { margin: 3px 0 12px; color: var(--ink-faint); font-size: 11px; }
+      .site {
+        color: var(--ink-muted);
+        font-size: 11px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      button {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        padding: 9px 12px;
+        margin-bottom: 7px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--panel);
+        color: var(--ink);
+        font: inherit;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+      }
+      button:hover:not(:disabled) { background: var(--panel-2); border-color: var(--ink-faint); }
+      button:active:not(:disabled) { transform: translateY(1px); }
+      button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+      button:disabled { opacity: 0.45; cursor: not-allowed; }
+      button.primary {
+        background: var(--brand);
+        border-color: var(--brand);
+        color: #fff;
+        font-weight: 600;
+      }
+      button.primary:hover:not(:disabled) { background: var(--brand-2); border-color: var(--brand-2); }
+      .status {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--line-soft);
+        font-size: 11.5px;
+        line-height: 1.55;
+        color: var(--ink-muted);
+        min-height: 18px;
+      }
+      .status.good { color: var(--core); }
+      .status.warn { color: var(--warn); }
+      .status.bad { color: var(--bad); }
+      .setup {
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--panel);
+        color: var(--ink-muted);
+        font-size: 11.5px;
+        line-height: 1.6;
+      }
+      .setup a { color: var(--brand); }
+      ul { margin: 6px 0 0; padding-left: 16px; color: var(--ink-faint); font-size: 11px; }
+      li { margin-bottom: 2px; }
+      .hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <h1>Jarvis Record</h1>
+    <p class="sub site" id="site">…</p>
+
+    <div id="setup" class="setup hidden">
+      Not connected yet. Open <strong>Jarvis → Record → Connect your browser</strong>, copy the
+      token, and paste it into this extension's options.
+      <button id="openOptions" style="margin-top: 9px">Open options</button>
+    </div>
+
+    <div id="main" class="hidden">
+      <button id="save" class="primary">Save what I typed here</button>
+      <button id="fill">Fill this form from my Record</button>
+      <p class="status" id="status">Nothing is read from this page until you press one of these.</p>
+      <ul id="detail"></ul>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
