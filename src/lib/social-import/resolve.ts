@@ -2,7 +2,7 @@
 // A pasted link in, everything we can legally see about that post out:
 // caption, author, cover image, and — when one is reachable — the video itself.
 //
-// App-agnostic. Cookbook Genie turns a SocialPost into a recipe; any other app
+// App-agnostic. Cook Connect turns a SocialPost into a recipe; any other app
 // can turn the same SocialPost into a workout, a product, a travel spot.
 //
 // What each platform gives an anonymous server (verified 2026-09-13):

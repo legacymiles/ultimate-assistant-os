@@ -217,23 +217,6 @@ export const PROJECTS: CatalogProject[] = [
     hue: [258, 190],
   },
   {
-    slug: "voice-studio",
-    title: "Voice Studio",
-    tag: "Text → speech + voice clone",
-    category: "AI",
-    overview:
-      "Give your words a voice. Type anything in 80+ languages and hear it spoken, or clone a " +
-      "voice from a 10–30s clip — upload a file or record from your mic — and make it say whatever " +
-      "you type. Adjust speed, pick MP3 or WAV, and download the result; every clip is kept in a " +
-      "local history you can replay. Powered by fish-speech (state-of-the-art open TTS + voice " +
-      "cloning) through the fish.audio API, with the browser's built-in voices as a free, no-key " +
-      "fallback and a swappable backend that can point at your own self-hosted server.",
-    status: "live",
-    appUrl: "/apps/voice-studio",
-    iconStyle: "waves",
-    hue: [190, 280],
-  },
-  {
     slug: "website-redesigner",
     title: "Website Redesigner",
     tag: "URL → redesign + build prompt",
@@ -256,7 +239,7 @@ export const PROJECTS: CatalogProject[] = [
     tag: "Cook together, then play each other",
     category: "Apps",
     overview:
-      "Cookbook Genie and Pod Play Connect, merged into one social app. Publish a cookbook, save the " +
+      "A cookbook and a card table in one social app. Publish a cookbook, save the " +
       "ones worth keeping, and search a directory of cooks by name, handle or city — then challenge any " +
       "of them to spades or chess without leaving the page. A profile shows someone's cookbooks and " +
       "their game record side by side, because here they are the same person. Two leaderboards keep " +
@@ -363,52 +346,6 @@ export const PROJECTS: CatalogProject[] = [
     appUrl: "/apps/music-creator",
     iconStyle: "waves",
     hue: [268, 199],
-  },
-  {
-    slug: "soundprint",
-    title: "Soundprint",
-    tag: "Reference → Suno prompt",
-    category: "Music",
-    overview:
-      "Make songs that sound like other songs. Describe the sound you're chasing — down to a " +
-      "single section, like an intro you loved before the drums ruined it — and Soundprint writes " +
-      "the two prompts you paste into Suno: the style prompt and the lyrics prompt. Drop the audio " +
-      "in and it genuinely listens: tempo, key, brightness, dynamics and whether percussion is even " +
-      "playing are measured straight off the waveform in your browser, then a model of your choice " +
-      "(Gemini, Claude, Qwen, GPT and more) turns those measurements into a producer-grade style " +
-      "breakdown across 250+ genres. Create the song on Suno, paste the share link back, and the " +
-      "real track plays right in the app — and naming a singer converts them into a usable vocal profile.",
-    status: "live",
-    appUrl: "/apps/soundprint",
-    iconStyle: "waves",
-    hue: [286, 196],
-  },
-  {
-    slug: "auteur",
-    title: "Auteur",
-    tag: "AI film studio for MiniMax H3",
-    category: "Video",
-    overview:
-      "An AI filmmaking studio, not a prompt box. Type the film in plain language, pick a template " +
-      "(short film, music video, commercial, trailer, UGC ad, fashion film…) and a genre (romance, " +
-      "horror, comedy, noir…), and drop in references: a face that must stay the same, a location, a " +
-      "product, a style frame, a track. The AI Director develops the idea into a concept, a cast with " +
-      "continuity sheets, the worlds it happens in and a visual style, then breaks it into scenes and " +
-      "a shot list with camera, lighting, action, expression and what must match the previous shot. " +
-      "Every shot becomes a card on a storyboard you can reorder, duplicate, edit and delete, and each " +
-      "carries its own MiniMax H3 brief — composed from the whole project's context in H3's real " +
-      "format (a [Shot 1] production brief with a prose camera move, named <Subject N> references, a " +
-      "soundscape and a music line), invisible to most people and one click away for anyone who wants " +
-      "to read or edit it. Generate renders through MiniMax's v2 API (or the Vercel AI Gateway), " +
-      "polls the task and stores the clip in the browser; retakes are plain sentences — \"closer\", " +
-      "\"darker\", \"change her outfit\", \"make him look angry, keep everything else\" — turned into " +
-      "a patch on the shot so nothing else moves, and every take is kept. A timeline plays the active " +
-      "takes in order under a music track. With no key at all it still plans, boards, retakes and cuts " +
-      "with animatics, so the whole workflow is usable before a single frame is paid for.",
-    status: "live",
-    appUrl: "/apps/auteur",
-    iconStyle: "aurora",
-    hue: [40, 20],
   },
   {
     slug: "seedance-studio",
@@ -537,22 +474,6 @@ export const PROJECTS: CatalogProject[] = [
     appUrl: "/apps/fire-reveal",
     iconStyle: "pulse",
     hue: [22, 40],
-  },
-  {
-    slug: "cookbook-genie",
-    title: "Cookbook Genie",
-    tag: "Social AI cookbook",
-    category: "AI",
-    overview:
-      "A social AI cookbook platform. Generate recipes from natural-language prompts with free AI-generated food " +
-      "photos, then publish cookbooks other members can discover, star and follow. Browse a Discover feed, climb a " +
-      "global cookbook leaderboard ranked by stars and shares, and check a per-city restaurant leaderboard built from " +
-      "everyone's food journals. Includes AI recipe editing, serving scaling, protein/meal/cuisine tags, user profiles " +
-      "with following, and link/email sharing. Runs fully in-browser as a live demo, or on Supabase for real multi-user auth.",
-    status: "live",
-    appUrl: "/apps/cookbook-genie",
-    iconStyle: "waves",
-    hue: [28, 45],
   },
   {
     slug: "ea-feature-list",

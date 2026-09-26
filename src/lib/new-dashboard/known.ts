@@ -14,8 +14,8 @@ export const OWNER_SUGGESTED_INTAKE: Omit<Intake, "q2"> = {
   q1:
     "I build AI-powered apps and tools with Claude Code, and collect them in one hub — the " +
     "Ultimate Assistant OS (Next.js on Vercel + Supabase), which is also my portfolio. ~30 apps: " +
-    "AI video (Auteur, Smart Shot, Seedance Studio), music (Music Creator, Soundprint, Music " +
-    "Classified), a second brain (Dashboard/Recall), games (Game Creator for Unreal, 3D Studio), " +
+    "AI video (Jarvis Studio, Smart Shot, Seedance Studio), music (Music Creator, Music " +
+    "Classified), a second brain (Jarvis/Dashboard), games (Game Creator for Unreal, 3D Studio), " +
     "trading (Expert Advisor feature specs) and more. Mostly for myself and my family right now; " +
     "the portfolio shows what I can build.",
   q3: [

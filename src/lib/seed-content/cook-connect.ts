@@ -24,10 +24,10 @@ Source lives in \`src/components/cook-connect/\` and \`src/lib/cook-connect/\`, 
 
 ## 1. The two apps it replaces, and the rule about them
 
-- **Cookbook Genie** (\`/apps/cookbook-genie\`) — the AI cookbook app.
+- **Cookbook Genie** — the AI cookbook app. Removed from the hub on 26 Sep 2026, once the merge had proved itself.
 - **Pod Play Connect** (\`/pod-play-connect\`) — the Vite SPA with spades, chess, chat and video.
 
-**Neither may be deleted until the owner says so.** They keep their routes, their code and their data. This was an explicit instruction and it has not been lifted. Ask before removing either.
+**Neither could be deleted until the owner said so.** That was lifted for Cookbook Genie on 26 Sep 2026 — it is off the hub and its pages are deleted. Pod Play Connect keeps its route, its code and its data: ask before removing it.
 
 ---
 
@@ -231,11 +231,12 @@ export function cookConnectKnowledge(projectId: string): KnowledgeEntry[] {
   return [
     entry(
       "documentation",
-      "Do not delete Cookbook Genie or Pod Play Connect",
+      "Cookbook Genie is gone; Pod Play Connect stays",
       `The owner's words: "dont delete the 2 apps until i like the merge and say delete the other 2."
 
-Both still run untouched — /apps/cookbook-genie and /pod-play-connect, on their own code and their
-own data. This has not been lifted. Ask before removing either.`,
+That day came on 26 Sep 2026: Cookbook Genie was taken off the hub and its pages deleted, and the
+Dashboard's photo-to-recipe destination now files into Cook Connect instead. /pod-play-connect still
+runs untouched on its own code and its own data — ask before removing it.`,
     ),
     entry(
       "documentation",

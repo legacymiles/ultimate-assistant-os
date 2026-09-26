@@ -83,12 +83,12 @@ describe("Cookbook destination — validation", () => {
 
 describe("Cookbook destination — which cookbook", () => {
   it("defaults to the From Photos cookbook when none was named", () => {
-    expect(d.preview(d.parse(FULL)!).where).toBe("Cookbook Genie › From Photos");
+    expect(d.preview(d.parse(FULL)!).where).toBe("Cook Connect › From Photos");
   });
 
   it("shows the cookbook the user named, before anything is saved", () => {
     expect(d.preview(d.parse({ ...FULL, cookbook: "Desserts" })!).where).toBe(
-      "Cookbook Genie › Desserts",
+      "Cook Connect › Desserts",
     );
   });
 

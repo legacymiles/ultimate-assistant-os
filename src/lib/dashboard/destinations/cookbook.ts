@@ -1,23 +1,24 @@
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { getLocalCookbookClient } from "@/components/cookbook/localClient";
+import { getCookBackend, isSchemaMissing, SCHEMA_MISSING_MESSAGE } from "@/lib/cook-connect/client";
+import { recipeImageUrl } from "@/components/cook-connect/imageGen";
 import { closestPlace } from "../places";
 import type { Destination } from "./types";
 
 // ---------------------------------------------------------------------------
-// Photo of a recipe → a recipe in Cookbook Genie.
+// Photo of a recipe → a recipe in Cook Connect.
 //
 // The obvious camera-roll case: a handwritten card, a page of a cookbook, a
 // menu, a dish someone posted. This is the destination most likely to earn its
 // keep, because a recipe photo is otherwise dead weight in a camera roll — you
 // can see it, but you cannot search it or cook from it on a phone in a kitchen.
 //
-// Cookbook Genie has no store module: it talks to Supabase (or a localStorage
-// shim with the same query-builder shape) from inside its components. So this
-// destination uses THAT SAME CLIENT rather than reaching into its storage key,
-// which keeps the app's own rules — ids, timestamps, the local/remote split —
-// in the one place that owns them.
+// Cook Connect owns the recipe now — it absorbed Cookbook Genie, which is no
+// longer in the hub. It has no store module: its views talk to a backend that
+// is either Supabase pinned to the `cook` schema or an in-browser shim with
+// the same shape. So this destination goes through THAT SAME BACKEND rather
+// than reaching into its storage key, which keeps the app's own rules — ids,
+// timestamps, the local/remote split — in the one place that owns them.
 //
-// The row shape is Cookbook Genie's, not ours: RecipeView renders
+// The row shape is Cook Connect's, not ours: RecipeView renders
 // `{ing.amount} {ing.unit} {ing.name}` and `{inst.text}`. Writing plain strings
 // — as the first version of this file did — produced blank ingredient and step
 // rows, because every one of those properties was undefined.
@@ -31,7 +32,7 @@ import type { Destination } from "./types";
 
 const INBOX_COOKBOOK = "From Photos";
 
-/** Cookbook Genie's own ingredient row, as RecipeView and scale() read it. */
+/** Cook Connect's own ingredient row, as RecipeView and scale() read it. */
 export interface Ingredient {
   name: string;
   /** A string, not a number: scale() parseFloats it and passes non-numbers through. */
@@ -39,7 +40,7 @@ export interface Ingredient {
   unit: string;
 }
 
-/** Cookbook Genie's own step row. */
+/** Cook Connect's own step row. */
 export interface Instruction {
   step: number;
   text: string;
@@ -60,10 +61,9 @@ export interface RecipeFields {
 }
 
 /**
- * The slice of the client this destination touches. Both the Supabase client
- * and the local shim implement it — notably getSession, which is the only
- * session call the shim has (it has no getUser) and the one Cookbook Genie
- * itself uses.
+ * The slice of the backend this destination touches. Both the Supabase client
+ * and the local shim implement it — notably getSession, which is the session
+ * call Cook Connect's own views use.
  */
 type CookbookClient = {
   auth: {
@@ -74,14 +74,14 @@ type CookbookClient = {
 };
 
 function cookbookClient(): CookbookClient {
-  // Same client the app itself uses: Supabase when configured, the
-  // localStorage shim otherwise. Never the storage key directly.
-  return (getSupabaseBrowserClient() ?? getLocalCookbookClient()) as unknown as CookbookClient;
+  // Same backend the app itself uses: Supabase on the `cook` schema when
+  // configured, the in-browser shim otherwise. Never the storage key directly.
+  return getCookBackend().sb as CookbookClient;
 }
 
 /**
  * The signed-in cook. On the shim, getSession provisions the guest on first
- * visit exactly as opening Cookbook Genie would, so filing a recipe does not
+ * visit exactly as opening Cook Connect would, so filing a recipe does not
  * require having opened that app first.
  */
 async function ownerOf(sb: CookbookClient): Promise<string | null> {
@@ -90,12 +90,20 @@ async function ownerOf(sb: CookbookClient): Promise<string | null> {
 }
 
 async function ownCookbooks(sb: CookbookClient, ownerId: string): Promise<{ id: string; name: string }[]> {
-  const { data, error } = await sb.from("cookbooks").select("id,name").eq("owner_id", ownerId);
-  if (error) throw new Error(`Could not open Cookbook Genie: ${error.message ?? error}`);
+  // Cook Connect's column is `title`, not `name`. The rest of this file speaks
+  // in names, so the rename happens here and nowhere else.
+  const { data, error } = await sb.from("cookbooks").select("id,title").eq("owner_id", ownerId);
+  if (error) {
+    throw new Error(
+      isSchemaMissing(error)
+        ? SCHEMA_MISSING_MESSAGE
+        : `Could not open Cook Connect: ${error.message ?? error}`,
+    );
+  }
   return Array.isArray(data)
-    ? (data as { id?: string; name?: string }[])
-        .filter((c) => c?.id && c?.name)
-        .map((c) => ({ id: c.id as string, name: c.name as string }))
+    ? (data as { id?: string; title?: string }[])
+        .filter((c) => c?.id && c?.title)
+        .map((c) => ({ id: c.id as string, name: c.title as string }))
     : [];
 }
 
@@ -144,8 +152,8 @@ export function instructionList(v: unknown): Instruction[] {
 
 export const cookbookDestination: Destination<RecipeFields> = {
   id: "cookbook",
-  label: "Cookbook Genie",
-  appSlug: "cookbook-genie",
+  label: "Cook Connect",
+  appSlug: "cook-connect",
 
   hint:
     '"cookbook" — the photo is a RECIPE: a handwritten card, a page from a ' +
@@ -232,7 +240,7 @@ export const cookbookDestination: Destination<RecipeFields> = {
 
     return {
       title: f.title,
-      where: `Cookbook Genie › ${f.cookbook || INBOX_COOKBOOK}`,
+      where: `Cook Connect › ${f.cookbook || INBOX_COOKBOOK}`,
       lines,
       unverified: f.incomplete
         ? "Ingredients or steps look cut off — check it before cooking from this"
@@ -250,7 +258,7 @@ export const cookbookDestination: Destination<RecipeFields> = {
     const sb = cookbookClient();
     const ownerId = await ownerOf(sb);
     if (!ownerId) {
-      throw new Error("Cookbook Genie is signed out — open it, sign in, then file this again.");
+      throw new Error("Cook Connect is signed out — open it, sign in, then file this again.");
     }
 
     // The named cookbook, as the SAME cookbook under another spelling when one
@@ -269,9 +277,10 @@ export const cookbookDestination: Destination<RecipeFields> = {
         .from("cookbooks")
         .insert({
           id: newId,
-          name: wanted,
-          description: "Recipes read out of photos by Dashboard.",
           owner_id: ownerId,
+          title: wanted,
+          description: "Recipes read out of photos by Dashboard.",
+          cover_url: null,
           privacy: "private",
         });
       if (makeErr) throw new Error(`Could not create “${wanted}”: ${makeErr.message ?? makeErr}`);
@@ -282,17 +291,35 @@ export const cookbookDestination: Destination<RecipeFields> = {
     // Supabase reports a failed insert in the return value rather than by
     // throwing. Unchecked, a refused save counted as filed and the photo left
     // the queue with nothing to show for it.
+    // Recipes are ordered inside a cookbook by `position`, so a filed one goes
+    // on the end rather than sharing position 0 with whatever is already there.
+    const { data: already } = await sb.from("recipes").select("id").eq("cookbook_id", cookbookId);
+    const position = Array.isArray(already) ? already.length : 0;
+
     const { error: insErr } = await sb.from("recipes").insert({
       cookbook_id: cookbookId,
+      author_id: ownerId,
       title: f.title,
-      description: f.description,
+      description: f.description || null,
       ingredients: f.ingredients,
       instructions: f.instructions,
+      tags: f.dietaryTags,
+      // A recipe read off a photo has no photo of the finished dish, and a
+      // cookbook of blank tiles reads as broken. Same free generator the
+      // in-app recipe editor falls back to.
+      image_url: recipeImageUrl(f.title, f.description),
       prep_time: f.prepTime ?? null,
       cook_time: f.cookTime ?? null,
-      servings: f.servings ?? null,
-      dietary_tags: f.dietaryTags,
+      // NOT NULL with a default of 4 — passing null would be refused outright.
+      servings: f.servings ?? 4,
+      position,
     });
-    if (insErr) throw new Error(`Cookbook Genie refused the recipe: ${insErr.message ?? insErr}`);
+    if (insErr) {
+      throw new Error(
+        isSchemaMissing(insErr)
+          ? SCHEMA_MISSING_MESSAGE
+          : `Cook Connect refused the recipe: ${insErr.message ?? insErr}`,
+      );
+    }
   },
 };

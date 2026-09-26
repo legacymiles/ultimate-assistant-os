@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// The one recipe shape Cookbook Genie stores, and every way of producing it
+// The one recipe shape a hub cookbook stores, and every way of producing it
 // without a model: normalising model output, reading a creator's schema.org
 // Recipe, and a caption heuristic for when no AI key is configured.
 //

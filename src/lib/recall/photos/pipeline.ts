@@ -323,7 +323,7 @@ export async function approvePhotos(args: ApproveArgs): Promise<ApproveResult> {
     const a = p.analysis;
     try {
       // The other-app write goes FIRST. It is the one step here that can fail for
-      // a reason outside this app — signed out of Cookbook Genie, say — and when
+      // a reason outside this app — signed out of Cook Connect, say — and when
       // it ran after the Dashboard item was created, a failure left the photo
       // filed here AND still queued, so pressing "File it" again made a duplicate.
       // Now a failed destination writes nothing and a retry is clean.

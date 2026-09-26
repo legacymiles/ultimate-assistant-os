@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { useCook } from "../CookConnect";
 import { Columns, PageHead } from "../Columns";
 import { recordActivity } from "@/lib/cook-connect/social";
-import { recipeImageUrl } from "@/components/cookbook/imageGen";
+import { recipeImageUrl } from "@/components/cook-connect/imageGen";
 import type { Ingredient, Step } from "@/lib/cook-connect/types";
 import {
   Button, Field, Input, Panel, SectionHead, Spinner, Tag, Textarea, cx,

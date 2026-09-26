@@ -74,7 +74,7 @@ const SEED: Omit<KitModel, "id">[] = [
     role: "Cinematic AI video",
     modelId: "minimax/minimax-h3",
     via: "RunPod endpoint",
-    note: "Auteur, Smart Shot Videos, Video Studio Arena.",
+    note: "Jarvis Studio, Smart Shot Videos, Video Studio Arena.",
   },
   {
     name: "Seedance 2.0",

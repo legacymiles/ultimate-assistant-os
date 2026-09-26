@@ -12,7 +12,7 @@ import {
   Avatar, Button, EmptyState, Loading, Panel, SectionHead, Spinner, Tag, Textarea, cx,
 } from "../ui";
 import { ClockIcon, PeopleIcon, SparkIcon } from "../icons";
-import { recipeImageUrl } from "@/components/cookbook/imageGen";
+import { recipeImageUrl } from "@/components/cook-connect/imageGen";
 
 /** Multiply an amount for a different number of servings, tidily. */
 function scaleAmount(amount: string, factor: number): string {

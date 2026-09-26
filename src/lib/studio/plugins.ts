@@ -1,10 +1,12 @@
 // ---------------------------------------------------------------------------
-// App plugins — hub apps the owner has allowed into Studio.
+// App plugins — the finished apps, moved out of the hub and into Jarvis.
 //
-// These are not Studio workflows and they are not copies: each one is a whole
-// app that already lives in the hub (src/lib/catalog.ts) and stays there. This
-// file is only the allowlist, so a plugin's name, blurb and URL have exactly
-// one home and cannot drift. Allowing another one is adding a slug.
+// A plugin is not a copy. The app still has exactly one definition, in the hub
+// catalog (src/lib/catalog.ts), and still runs at its own route; what moves is
+// where the owner goes looking for it. So this file is only the allowlist, and
+// it is also the rule that keeps the two places from showing the same app
+// twice: a slug listed here leaves the hub grid (`hubProjects`) and appears in
+// Jarvis instead. Moving another finished app across is adding a slug.
 // ---------------------------------------------------------------------------
 
 import { PROJECTS, type CatalogProject } from "@/lib/catalog";
@@ -13,9 +15,13 @@ import { PROJECTS, type CatalogProject } from "@/lib/catalog";
 export const PLUGIN_SLUGS = [
   "seedance-studio",
   "mp3-download",
+  "image-studio",
+  "tiktok-dances",
   "gods-eye-view",
+  "game-creator",
+  "website-redesigner",
+  "ai-rankings",
   "cook-connect",
-  "cookbook-genie",
 ] as const;
 
 export interface StudioPlugin {
@@ -47,13 +53,29 @@ const WHY: Record<string, string> = {
     "The soundtrack half of Studio. Confirm the exact recording a workflow is cut to, then pull a "
     + "file of it with its licence recorded — so a finished piece never ships on audio nobody can "
     + "account for.",
+  "image-studio":
+    "Where a frame gets made before it moves. Its specialist agents keep a face across a whole set of "
+    + "stills, so the first frame a video workflow is handed is already the person and the look you "
+    + "meant, rather than something the video model guessed at.",
+  "tiktok-dances":
+    "The move itself, verified. Every tile is a real dance that actually plays, with the song and the "
+    + "year attached — so a dance workflow is pointed at footage that exists instead of a name a model "
+    + "invented.",
   "gods-eye-view":
     "Real satellite, aircraft and camera feeds to shoot from, or to grab a location plate no stock library has.",
+  "game-creator":
+    "The one plugin that renders nothing and builds something. Describe a game and Unreal on this PC "
+    + "builds it, playtests it and packages it — and the screenshots it takes from the player's eye are "
+    + "plates a workflow can shoot from.",
+  "website-redesigner":
+    "For the work that ends on a page. Point it at a site, keep what the site does, and take away three "
+    + "redesign directions and a build prompt — so a finished film or image has somewhere worth living.",
+  "ai-rankings":
+    "The written case for which model to reach for. Cost, whether it runs on your own machine, and "
+    + "whether it needs a key you hold — with your own notes as the reason a tool keeps its rank.",
   "cook-connect":
     "Recipes written well enough to hand straight to a food-photography or ASMR workflow, and a table to "
     + "play somebody at while a render runs.",
-  "cookbook-genie":
-    "Recipes with the dish described well enough to hand straight to a food-photography or ASMR workflow.",
 };
 
 export function studioPlugins(): StudioPlugin[] {
@@ -75,4 +97,19 @@ export function studioPlugins(): StudioPlugin[] {
       },
     ];
   });
+}
+
+/** Whether this app has moved to Jarvis and should no longer sit in the hub. */
+export function isPlugin(slug: string): boolean {
+  return (PLUGIN_SLUGS as readonly string[]).includes(slug);
+}
+
+/**
+ * What the hub itself shows. The catalog keeps every app — the detail pages,
+ * the routes and the plugin cards all read from it — but an app that has moved
+ * into Jarvis stops being a tile here, so the hub is the things that have not
+ * moved rather than a second copy of the list.
+ */
+export function hubProjects(): CatalogProject[] {
+  return PROJECTS.filter((p) => !isPlugin(p.slug));
 }
