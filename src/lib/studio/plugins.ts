@@ -14,7 +14,7 @@ import { PROJECTS, type CatalogProject } from "@/lib/catalog";
 /** The slugs allowed in, in the order they should appear. */
 export const PLUGIN_SLUGS = [
   "seedance-studio",
-  "mp3-download",
+  "jarvis-audio-studio",
   "image-studio",
   "tiktok-dances",
   "gods-eye-view",
@@ -49,10 +49,12 @@ const WHY: Record<string, string> = {
     + "this one starts from the track — it measures the tempo, the bar lines, the sections and the "
     + "drops, transcribes the words, and cuts the film TO them, with the lip-sync ranges outranking "
     + "the prompt on any shot that sings.",
-  "mp3-download":
-    "The soundtrack half of Studio. Confirm the exact recording a workflow is cut to, then pull a "
-    + "file of it with its licence recorded — so a finished piece never ships on audio nobody can "
-    + "account for.",
+  "jarvis-audio-studio":
+    "The soundtrack half of Studio, all three parts of it. Confirm the exact recording a workflow is "
+    + "cut to and pull a file of it with its licence recorded, so a finished piece never ships on "
+    + "audio nobody can account for; read back what a track actually is — tempo, key, energy — when a "
+    + "workflow needs to be cut to it; or write and render the song itself when nothing that exists "
+    + "fits the film.",
   "image-studio":
     "Where a frame gets made before it moves. Its specialist agents keep a face across a whole set of "
     + "stills, so the first frame a video workflow is handed is already the person and the look you "

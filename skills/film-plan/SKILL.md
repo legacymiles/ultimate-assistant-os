@@ -1,6 +1,6 @@
 ---
 name: film-plan
-description: Interview a short prompt into a complete multi-shot film plan, then gate it before any GPU time. Runs as numbered rounds — inventory, spine, cast, sound, board — each asked as a form, so a one-line idea becomes a plan with nothing assumed. Places EVERY resource the owner handed over (the written idea, uploaded photos and saved character faces, reference videos, a music or voice track, the camera panel, chosen workflows, the output spec) into a named field of one Storyboard object, or declines it out loud. Use this WHENEVER a film, video, short, ad, music video, trailer or any multi-shot sequence is being planned in Jarvis Studio, Smart Shot Videos, Seedance Studio or any AI video pipeline; whenever someone attaches assets and asks for a video; whenever a storyboard, shot plan or board is being built, re-planned or edited; and above all whenever a finished film came back ignoring something that was set — a genre that only reached the colour grade, a face that drifted into someone else, a track the cuts ignored, an attached photo that never appeared on screen, a shot that rendered as a frozen photograph, a film that came back silent. Also use it as the pre-flight gate immediately before rendering.
+description: Interview a short prompt into a complete multi-shot film plan, then gate it before any GPU time. Runs as numbered rounds — inventory, spine, cast, sound, board — each asked as a form, so a one-line idea becomes a plan with nothing assumed. Places EVERY resource the owner handed over (the written idea, uploaded photos and saved character faces, reference videos, a music or voice track, the camera panel, chosen workflows, the output spec) into a named field of one Storyboard object, or declines it out loud. Use this WHENEVER a film, video, short, ad, music video, trailer or any multi-shot sequence is being planned in Jarvis Studio, Smart Shot Videos, Music Video Studio or any AI video pipeline; whenever someone attaches assets and asks for a video; whenever a storyboard, shot plan or board is being built, re-planned or edited; and above all whenever a finished film came back ignoring something that was set — a genre that only reached the colour grade, a face that drifted into someone else, a track the cuts ignored, an attached photo that never appeared on screen, a shot that rendered as a frozen photograph, a film that came back silent. Also use it as the pre-flight gate immediately before rendering.
 ---
 
 # Film plan
@@ -275,9 +275,9 @@ Rules:
 - **Never claim to have heard anything.** When the owner attaches a track it arrives as measured
   numbers (tempo, key, tone), not as a listen. Use the measurements; do not describe the music.
 
-### The one exception — Seedance Studio
+### The one exception — Music Video Studio
 
-**Seedance Studio is the music-video workflow: the owner's track is the master.** There, and only
+**Music Video Studio is the music-video workflow: the owner's track is the master.** There, and only
 there, the attached audio outranks everything, the film is cut *to* it, and the model's own audio
 is not used — the track is laid under the finished film. That is what "the clock" means in §5 and
 it is the only mode it fires in.
@@ -293,7 +293,7 @@ makes.
 When two resources pull against each other, this is the order. Higher wins the pixels; lower is
 expressed *through* it rather than dropped. Dropping is the failure — re-expression is the job.
 
-0. **THE CLOCK — only in Seedance Studio, or whenever the owner attached a track they want the
+0. **THE CLOCK — only in Music Video Studio, or whenever the owner attached a track they want the
    film cut to.** It is measured reality, not taste, and nothing negotiates with it: every cut's
    length is its distance to the next musical event. **Most films have no clock. Skip straight to
    1 and do not invent one.**
@@ -409,7 +409,7 @@ What the script cannot check, you check by reading:
 | The film ends where it began | No cut was made to cost anything; there is no pressure curve |
 | The film came back silent, or wrongly scored | `soundscape` / `music` left empty — the model was never told, so it chose |
 | A spoken line is cut off | The line was longer than the shot; audio never generated cannot be recovered later |
-| The picture drifts off the song | Shots planned by feel instead of measured against the track (Seedance Studio only) |
+| The picture drifts off the song | Shots planned by feel instead of measured against the track (Music Video Studio only) |
 | A named camera move renders plain | `move` was named and `cameraNote` left empty — the label alone reads as the ordinary move |
 | The sheet and the film describe different shoots | Something other than the plan held a description |
 | Every setting was used and it still feels generic | The resources were listed rather than ranked; nothing was allowed to win |

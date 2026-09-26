@@ -1,7 +1,7 @@
 "use client";
 
 // ---------------------------------------------------------------------------
-// Seedance Studio — the cutting room.
+// Music Video Studio — the cutting room.
 //
 // Video prompts run end to end under the song; lip-sync ranges say which
 // seconds get sung. All the geometry rules live in src/lib/seedance/reel.ts;
@@ -379,7 +379,7 @@ export function SeedanceStudio() {
           <Icon.ArrowLeft width={14} height={14} />
           <span className="hidden sm:inline">Hub</span>
         </Link>
-        <span className="hidden text-sm font-semibold text-ink sm:inline">Seedance Studio</span>
+        <span className="hidden text-sm font-semibold text-ink sm:inline">Music Video Studio</span>
         <input
           value={reel.name}
           onChange={(e) => patch({ name: e.target.value })}

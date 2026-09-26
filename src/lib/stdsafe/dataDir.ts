@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// STD Safe — where the server-side files live.
+// Tap Safe — where the server-side files live.
 //
 // The store file and the uploaded lab reports. Same shape as Recall's, with its
 // own env var: these two apps should be movable to different volumes, and a

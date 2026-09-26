@@ -81,7 +81,7 @@ const SEED: Omit<KitModel, "id">[] = [
     role: "Timeline-driven video",
     modelId: "bytedance/seedance-2.0",
     via: "Vercel AI Gateway",
-    note: "Seedance Studio.",
+    note: "Music Video Studio.",
   },
   {
     name: "text-embedding-3-small",

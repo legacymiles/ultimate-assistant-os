@@ -32,19 +32,19 @@ const LOADERS: Record<string, React.ComponentType<ToolProps>> = {
   "artist-voice": dynamic(() => import("./tools/ArtistVoice").then((m) => m.ArtistVoice), { ssr: false }),
 };
 
-export function MusicCreator() {
+export function MusicCreator({ embedded = false }: { embedded?: boolean } = {}) {
   return (
     <StudioProvider>
-      <Shell />
+      <Shell embedded={embedded} />
     </StudioProvider>
   );
 }
 
-function Shell() {
+function Shell({ embedded }: { embedded: boolean }) {
   const { view } = useStudio();
   return (
     <div className="mc">
-      <Header />
+      <Header embedded={embedded} />
       <main className="mc-main">
         {view.kind === "home" && <Home />}
         {view.kind === "projects" && <Projects />}
@@ -55,7 +55,7 @@ function Shell() {
   );
 }
 
-function Header() {
+function Header({ embedded }: { embedded: boolean }) {
   const { view, go, server, checkingServer, refreshServer, projects, voices } = useStudio();
   const tool = view.kind === "tool" ? toolById(view.toolId) : null;
 
@@ -73,18 +73,24 @@ function Header() {
     <header className="mc-head">
       <div className="mc-head-l">
         {view.kind === "home" ? (
-          <Link href="/" className="mc-back" aria-label="Back to the hub">
-            <Icon.ArrowLeft width={14} height={14} />
-          </Link>
+          // Embedded, the way back out is the shell's own bar; a second link to
+          // the hub here would be two answers to one question.
+          embedded ? null : (
+            <Link href="/" className="mc-back" aria-label="Back to the hub">
+              <Icon.ArrowLeft width={14} height={14} />
+            </Link>
+          )
         ) : (
           <button type="button" className="mc-back" onClick={() => go({ kind: "home" })} aria-label="Back to the studio">
             <Icon.ArrowLeft width={14} height={14} />
           </button>
         )}
         <div className="mc-brand-w">
-          <div className="mc-brand">
-            MUSIC <span>CREATOR</span>
-          </div>
+          {!embedded && (
+            <div className="mc-brand">
+              MUSIC <span>CREATOR</span>
+            </div>
+          )}
           <div className="mc-tag">{tool ? tool.tagline : "a studio of music tools"}</div>
         </div>
       </div>

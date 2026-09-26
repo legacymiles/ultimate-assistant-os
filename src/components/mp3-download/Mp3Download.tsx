@@ -56,7 +56,7 @@ const LOOKS_LIKE_URL = /^https?:\/\/\S+$/i;
 
 type Tab = "find" | "link" | "pc" | "library";
 
-export function Mp3Download() {
+export function Mp3Download({ embedded = false }: { embedded?: boolean } = {}) {
   const [tab, setTab] = useState<Tab>("find");
 
   const [query, setQuery] = useState("");
@@ -295,7 +295,7 @@ export function Mp3Download() {
 
   return (
     <div className="mp3dl flex min-h-dvh flex-col bg-canvas">
-      <TopBar tab={tab} setTab={setTab} libraryCount={grabs.length} />
+      <TopBar tab={tab} setTab={setTab} libraryCount={grabs.length} embedded={embedded} />
 
       {/* The rail describes the search flow's three steps. On the paste tab and
           in the library there are no steps, and a progress bar for a journey
@@ -479,24 +479,33 @@ function TopBar({
   tab,
   setTab,
   libraryCount,
+  embedded,
 }: {
   tab: Tab;
   setTab: (t: Tab) => void;
   libraryCount: number;
+  /** Inside Jarvis Audio Studio the shell owns the hub link and the wordmark. */
+  embedded?: boolean;
 }) {
   return (
     <div className="flex items-center gap-2 border-b border-line bg-panel px-3 py-2.5 sm:px-4">
-      <Link
-        href="/"
-        className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/70"
-        aria-label="Back to hub"
-      >
-        <Icon.ArrowLeft width={14} height={14} />
-        <span className="hidden sm:inline">Hub</span>
-      </Link>
-      <span className="ml-1 whitespace-nowrap text-sm font-semibold text-ink">MP3 Download</span>
+      {!embedded && (
+        <>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/70"
+            aria-label="Back to hub"
+          >
+            <Icon.ArrowLeft width={14} height={14} />
+            <span className="hidden sm:inline">Hub</span>
+          </Link>
+          <span className="ml-1 whitespace-nowrap text-sm font-semibold text-ink">MP3 Download</span>
+        </>
+      )}
 
-      <nav className="ml-auto flex items-center gap-1" aria-label="Sections">
+      {/* With the hub link and wordmark gone, the tabs start the row instead of
+          hugging a right edge with nothing opposite them. */}
+      <nav className={cn("flex items-center gap-1", !embedded && "ml-auto")} aria-label="Sections">
         {(
           [
             { id: "find", label: "Find a song", icon: <Icon.Search width={12} height={12} /> },

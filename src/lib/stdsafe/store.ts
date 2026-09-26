@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// STD Safe — server-side store.
+// Tap Safe — server-side store.
 //
 // One JSON file, following the pattern recall/lists/store.ts established. This
 // data cannot live in the browser: the whole feature is that a second person,

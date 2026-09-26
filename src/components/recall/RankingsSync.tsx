@@ -32,9 +32,7 @@ export function RankingsSyncButton({
     return (
       <button
         type="button"
-        onClick={() => {
-          window.location.hash = "rankings";
-        }}
+        onClick={() => window.open("/apps/ai-rankings", "_blank", "noreferrer")}
         title={`On the board as “${onBoard.name}” — open AI Rankings`}
         className="inline-flex max-w-[45%] shrink-0 items-center gap-1 rounded-md border border-emerald-400/30 bg-emerald-500/15 px-1.5 py-0.5 text-[10.5px] font-medium text-emerald-200 transition hover:bg-emerald-500/25"
       >

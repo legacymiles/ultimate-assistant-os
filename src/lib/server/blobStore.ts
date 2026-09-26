@@ -2,7 +2,7 @@
 // Server-owned binary files.
 //
 // The document counterpart of docStore.ts, for the bytes that do not fit in a
-// JSON row: STD Safe's uploaded lab reports. Same split — a local directory in
+// JSON row: Tap Safe's uploaded lab reports. Same split — a local directory in
 // development, a private Supabase Storage bucket once a service-role key is
 // configured, chosen the same way so the two never disagree about which host
 // they are on.
@@ -55,7 +55,7 @@ async function ensureDir(dir: string): Promise<boolean> {
  *
  * `localDir` is where the file backend puts it. The key is used verbatim as
  * the object path, so callers are responsible for it being a safe relative
- * path — the STD Safe callers validate that before ever getting here.
+ * path — the Tap Safe callers validate that before ever getting here.
  */
 export async function putBlob(
   bucket: string,

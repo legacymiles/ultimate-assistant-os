@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Seedance Studio — client helpers: the render call, waveform decoding, and
+// Music Video Studio — client helpers: the render call, waveform decoding, and
 // turning a dropped file into a reference.
 // ---------------------------------------------------------------------------
 

@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Seedance Studio — local persistence.
+// Music Video Studio — local persistence.
 //
 // Mirrors the hub's local-first pattern (see src/lib/repo). Only the STRUCTURE
 // of a reel is persisted — prompts, deck selections, durations, lip-sync

@@ -115,7 +115,7 @@ export interface FilmRequest {
    *
    * "under" (the default) is a bed: ducked, looped to fit, mixed beneath
    * whatever sound the clips generated. "master" is for a film that was cut TO
-   * the track — Seedance Studio's scores — where the track plays at its own
+   * the track — Music Video Studio's scores — where the track plays at its own
    * level and unlooped, the clips' own audio is dropped, and every clip is
    * trimmed back to the slot it was planned for so the picture cannot drift
    * away from the music it was measured against.

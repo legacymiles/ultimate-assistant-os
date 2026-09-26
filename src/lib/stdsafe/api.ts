@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// STD Safe — shared route plumbing.
+// Tap Safe — shared route plumbing.
 //
 // Every route funnels through withCaller, so no handler can forget to resolve
 // one, and every StdSafeError becomes its own status rather than a 500.

@@ -1,11 +1,8 @@
-import { MusicClassified } from "@/components/music-classified/MusicClassified";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Music Classified · Ultimate Assistant OS",
-  description:
-    "File your favourite songs by energy level 1–10, genre and sub-genre, with AI descriptions of how each one sounds and how to make something like it.",
-};
-
+// Music Classified is now the Classify studio inside Jarvis Audio Studio. The route
+// stays alive because links to it exist — in the owner's bookmarks, in Jarvis's
+// toolkit, in earlier notes — and a merge should not turn those into 404s.
 export default function Page() {
-  return <MusicClassified />;
+  redirect("/apps/jarvis-audio-studio?section=classify");
 }

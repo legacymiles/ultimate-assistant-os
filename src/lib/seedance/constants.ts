@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Seedance Studio — the colour law, and the numbers.
+// Music Video Studio — the colour law, and the numbers.
 //
 // The timeline is read at a glance or it is not read at all, so exactly three
 // things carry colour and they never trade places:

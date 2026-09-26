@@ -32,7 +32,7 @@ function hueStyle(hue: number): React.CSSProperties {
   return { "--h": hue } as React.CSSProperties;
 }
 
-export function MusicClassified() {
+export function MusicClassified({ embedded = false }: { embedded?: boolean } = {}) {
   const [lib, setLib] = useState<Library>(EMPTY);
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<Tab>("library");
@@ -431,13 +431,17 @@ export function MusicClassified() {
             <Icon.Sidebar width={15} height={15} />
           </button>
 
-          <div className="mcl-brand">
-            <span className="mcl-mark" aria-hidden />
-            <span className="mcl-brand__text">
-              <span className="mcl-brand__name">Music Classified</span>
-              <span className="mcl-brand__sub">Every song, filed by energy</span>
-            </span>
-          </div>
+          {/* Inside Jarvis Audio Studio the shell's bar carries the wordmark,
+              and a second one a row below it would only compete with it. */}
+          {!embedded && (
+            <div className="mcl-brand">
+              <span className="mcl-mark" aria-hidden />
+              <span className="mcl-brand__text">
+                <span className="mcl-brand__name">Music Classified</span>
+                <span className="mcl-brand__sub">Every song, filed by energy</span>
+              </span>
+            </div>
+          )}
 
           <div className="mcl-tabs" role="tablist">
             {(
@@ -469,9 +473,11 @@ export function MusicClassified() {
           </div>
 
           <div className="mcl-top__actions">
-            <Link href="/" className="mcl-iconbtn" title="Back to the hub" aria-label="Back to the hub">
-              <Icon.Home width={15} height={15} />
-            </Link>
+            {!embedded && (
+              <Link href="/" className="mcl-iconbtn" title="Back to the hub" aria-label="Back to the hub">
+                <Icon.Home width={15} height={15} />
+              </Link>
+            )}
             <div className="mcl-menu">
               <button
                 onClick={() => setMenuOpen((v) => !v)}

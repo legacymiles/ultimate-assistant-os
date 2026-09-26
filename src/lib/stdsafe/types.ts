@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// STD Safe — domain types.
+// Tap Safe — domain types.
 //
 // Client-safe: no node: imports. The components read INFECTIONS, the label maps
 // and the tier thresholds straight from here, and the server derives status from

@@ -1,10 +1,24 @@
 {
-  "generatedAt": "2026-09-24T20:50:44.458Z",
+  "generatedAt": "2026-09-26T15:48:25.439Z",
   "tools": [
     {
       "id": "OpenRouter",
       "kind": "service",
       "sites": [
+        {
+          "file": "scripts/sync-memory.mjs",
+          "line": 164,
+          "scope": "other",
+          "app": null,
+          "label": "scripts"
+        },
+        {
+          "file": "scripts/sync-memory.mjs",
+          "line": 271,
+          "scope": "other",
+          "app": null,
+          "label": "scripts"
+        },
         {
           "file": "src/app/api/cookbook/import-from-link/route.ts",
           "line": 131,
@@ -23,21 +37,21 @@
           "file": "src/app/api/music-classified/blueprint/route.ts",
           "line": 25,
           "scope": "route",
-          "app": "music-classified",
+          "app": "jarvis-audio-studio",
           "label": "/api/music-classified"
         },
         {
           "file": "src/app/api/music-classified/describe/route.ts",
           "line": 24,
           "scope": "route",
-          "app": "music-classified",
+          "app": "jarvis-audio-studio",
           "label": "/api/music-classified"
         },
         {
           "file": "src/app/api/music-classified/listen/route.ts",
           "line": 96,
           "scope": "route",
-          "app": "music-classified",
+          "app": "jarvis-audio-studio",
           "label": "/api/music-classified"
         },
         {
@@ -83,20 +97,6 @@
           "label": "image-studio"
         },
         {
-          "file": "src/components/soundprint/Soundprint.tsx",
-          "line": 251,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        },
-        {
-          "file": "src/components/soundprint/Soundprint.tsx",
-          "line": 255,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        },
-        {
           "file": "src/lib/ai/models.ts",
           "line": 36,
           "scope": "global",
@@ -105,14 +105,14 @@
         },
         {
           "file": "src/lib/ai/provider.ts",
-          "line": 43,
+          "line": 54,
           "scope": "global",
           "app": null,
           "label": "Hub-wide"
         },
         {
           "file": "src/lib/ai/provider.ts",
-          "line": 44,
+          "line": 55,
           "scope": "global",
           "app": null,
           "label": "Hub-wide"
@@ -147,7 +147,7 @@
         },
         {
           "file": "src/lib/jarvis/server/agent.ts",
-          "line": 135,
+          "line": 168,
           "scope": "app",
           "app": "jarvis",
           "label": "jarvis"
@@ -172,34 +172,6 @@
           "scope": "app",
           "app": "dashboard",
           "label": "dashboard"
-        },
-        {
-          "file": "src/lib/soundprint/models.ts",
-          "line": 5,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        },
-        {
-          "file": "src/lib/soundprint/models.ts",
-          "line": 6,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        },
-        {
-          "file": "src/lib/soundprint/providers.ts",
-          "line": 6,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        },
-        {
-          "file": "src/lib/soundprint/providers.ts",
-          "line": 24,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
         },
         {
           "file": "src/lib/studio3d/director/heuristic.ts",
@@ -275,236 +247,10 @@
         "gods-eye-view",
         "image-studio",
         "jarvis",
-        "music-classified",
+        "jarvis-audio-studio",
         "seedance-studio",
         "smart-shot-videos",
         "social-personas",
-        "soundprint",
-        "tiktok-dances",
-        "video-studio-arena"
-      ]
-    },
-    {
-      "id": "Vercel AI Gateway",
-      "kind": "service",
-      "sites": [
-        {
-          "file": "src/app/api/ai-rankings/classify/route.ts",
-          "line": 18,
-          "scope": "route",
-          "app": "ai-rankings",
-          "label": "/api/ai-rankings"
-        },
-        {
-          "file": "src/app/api/auteur/director/route.ts",
-          "line": 23,
-          "scope": "route",
-          "app": "auteur",
-          "label": "/api/auteur"
-        },
-        {
-          "file": "src/app/api/blueprint/route.ts",
-          "line": 26,
-          "scope": "route",
-          "app": "prompt-architect",
-          "label": "/api/blueprint"
-        },
-        {
-          "file": "src/app/api/cookbook/generate-recipe-image/route.ts",
-          "line": 10,
-          "scope": "route",
-          "app": "cookbook-genie",
-          "label": "/api/cookbook"
-        },
-        {
-          "file": "src/app/api/cookbook/generate-recipe-image/route.ts",
-          "line": 35,
-          "scope": "route",
-          "app": "cookbook-genie",
-          "label": "/api/cookbook"
-        },
-        {
-          "file": "src/app/api/dance-studio/generations/route.ts",
-          "line": 35,
-          "scope": "route",
-          "app": "tiktok-dances",
-          "label": "/api/dance-studio"
-        },
-        {
-          "file": "src/app/api/fno/extract/route.ts",
-          "line": 52,
-          "scope": "route",
-          "app": null,
-          "label": "/api/fno"
-        },
-        {
-          "file": "src/app/api/ingest/route.ts",
-          "line": 58,
-          "scope": "route",
-          "app": null,
-          "label": "/api/ingest"
-        },
-        {
-          "file": "src/app/api/seedance/route.ts",
-          "line": 24,
-          "scope": "route",
-          "app": "seedance-studio",
-          "label": "/api/seedance"
-        },
-        {
-          "file": "src/app/api/std-safe/parse/route.ts",
-          "line": 67,
-          "scope": "route",
-          "app": "std-safe",
-          "label": "/api/std-safe"
-        },
-        {
-          "file": "src/components/ai-rankings/DetailPanel.tsx",
-          "line": 238,
-          "scope": "app",
-          "app": "ai-rankings",
-          "label": "ai-rankings"
-        },
-        {
-          "file": "src/components/smart-shot/VideoStage.tsx",
-          "line": 47,
-          "scope": "app",
-          "app": "smart-shot-videos",
-          "label": "smart-shot-videos"
-        },
-        {
-          "file": "src/components/soundprint/Soundprint.tsx",
-          "line": 267,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        },
-        {
-          "file": "src/lib/ai-rankings/classify.ts",
-          "line": 5,
-          "scope": "app",
-          "app": "ai-rankings",
-          "label": "ai-rankings"
-        },
-        {
-          "file": "src/lib/ai/provider.ts",
-          "line": 38,
-          "scope": "global",
-          "app": null,
-          "label": "Hub-wide"
-        },
-        {
-          "file": "src/lib/ai/provider.ts",
-          "line": 48,
-          "scope": "global",
-          "app": null,
-          "label": "Hub-wide"
-        },
-        {
-          "file": "src/lib/auteur/server/video/index.ts",
-          "line": 29,
-          "scope": "app",
-          "app": "auteur",
-          "label": "auteur"
-        },
-        {
-          "file": "src/lib/catalog.ts",
-          "line": 443,
-          "scope": "other",
-          "app": null,
-          "label": "src/lib"
-        },
-        {
-          "file": "src/lib/dance-studio/server/providers/gateway.ts",
-          "line": 39,
-          "scope": "app",
-          "app": "tiktok-dances",
-          "label": "tiktok-dances"
-        },
-        {
-          "file": "src/lib/dance-studio/server/providers/gateway.ts",
-          "line": 42,
-          "scope": "app",
-          "app": "tiktok-dances",
-          "label": "tiktok-dances"
-        },
-        {
-          "file": "src/lib/dance-studio/server/providers/index.ts",
-          "line": 22,
-          "scope": "app",
-          "app": "tiktok-dances",
-          "label": "tiktok-dances"
-        },
-        {
-          "file": "src/lib/friends-night-out/sources/aiSweep.ts",
-          "line": 35,
-          "scope": "app",
-          "app": "friends-night-out",
-          "label": "friends-night-out"
-        },
-        {
-          "file": "src/lib/recall/agent.ts",
-          "line": 60,
-          "scope": "app",
-          "app": "dashboard",
-          "label": "dashboard"
-        },
-        {
-          "file": "src/lib/seed-content/recall.ts",
-          "line": 129,
-          "scope": "lib",
-          "app": null,
-          "label": "seed-content"
-        },
-        {
-          "file": "src/lib/soundprint/heuristics.ts",
-          "line": 4,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        },
-        {
-          "file": "src/lib/soundprint/models.ts",
-          "line": 7,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        },
-        {
-          "file": "src/lib/soundprint/providers.ts",
-          "line": 35,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        },
-        {
-          "file": "src/lib/soundprint/providers.ts",
-          "line": 36,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        },
-        {
-          "file": "src/lib/video-studio/methods/h3/server.ts",
-          "line": 25,
-          "scope": "app",
-          "app": "video-studio-arena",
-          "label": "video-studio-arena"
-        }
-      ],
-      "url": "https://vercel.com/docs/ai-gateway",
-      "reach": "global",
-      "apps": [
-        "ai-rankings",
-        "auteur",
-        "cookbook-genie",
-        "dashboard",
-        "friends-night-out",
-        "prompt-architect",
-        "seedance-studio",
-        "smart-shot-videos",
-        "soundprint",
-        "std-safe",
         "tiktok-dances",
         "video-studio-arena"
       ]
@@ -516,6 +262,20 @@
         {
           "file": "scripts/dev-preview.mjs",
           "line": 43,
+          "scope": "other",
+          "app": null,
+          "label": "scripts"
+        },
+        {
+          "file": "scripts/sync-memory.mjs",
+          "line": 135,
+          "scope": "other",
+          "app": null,
+          "label": "scripts"
+        },
+        {
+          "file": "scripts/sync-memory.mjs",
+          "line": 136,
           "scope": "other",
           "app": null,
           "label": "scripts"
@@ -667,100 +427,170 @@
       ]
     },
     {
-      "id": "fish.audio",
+      "id": "Vercel AI Gateway",
       "kind": "service",
       "sites": [
         {
-          "file": "src/app/api/tts/route.ts",
-          "line": 8,
-          "scope": "route",
-          "app": null,
-          "label": "/api/tts"
-        },
-        {
-          "file": "src/app/api/tts/route.ts",
+          "file": "src/app/api/ai-rankings/classify/route.ts",
           "line": 18,
           "scope": "route",
+          "app": "ai-rankings",
+          "label": "/api/ai-rankings"
+        },
+        {
+          "file": "src/app/api/blueprint/route.ts",
+          "line": 26,
+          "scope": "route",
+          "app": "prompt-architect",
+          "label": "/api/blueprint"
+        },
+        {
+          "file": "src/app/api/dance-studio/generations/route.ts",
+          "line": 35,
+          "scope": "route",
+          "app": "tiktok-dances",
+          "label": "/api/dance-studio"
+        },
+        {
+          "file": "src/app/api/fno/extract/route.ts",
+          "line": 52,
+          "scope": "route",
           "app": null,
-          "label": "/api/tts"
+          "label": "/api/fno"
         },
         {
-          "file": "src/components/voice-studio/ClonePanel.tsx",
-          "line": 109,
-          "scope": "app",
-          "app": "voice-studio",
-          "label": "voice-studio"
+          "file": "src/app/api/ingest/route.ts",
+          "line": 58,
+          "scope": "route",
+          "app": null,
+          "label": "/api/ingest"
         },
         {
-          "file": "src/components/voice-studio/ClonePanel.tsx",
-          "line": 110,
-          "scope": "app",
-          "app": "voice-studio",
-          "label": "voice-studio"
+          "file": "src/app/api/seedance/route.ts",
+          "line": 24,
+          "scope": "route",
+          "app": "seedance-studio",
+          "label": "/api/seedance"
         },
         {
-          "file": "src/components/voice-studio/VoiceStudio.tsx",
-          "line": 325,
-          "scope": "app",
-          "app": "voice-studio",
-          "label": "voice-studio"
+          "file": "src/app/api/std-safe/parse/route.ts",
+          "line": 67,
+          "scope": "route",
+          "app": "std-safe",
+          "label": "/api/std-safe"
         },
         {
-          "file": "src/components/voice-studio/VoiceStudio.tsx",
-          "line": 613,
+          "file": "src/components/ai-rankings/DetailPanel.tsx",
+          "line": 238,
           "scope": "app",
-          "app": "voice-studio",
-          "label": "voice-studio"
+          "app": "ai-rankings",
+          "label": "ai-rankings"
+        },
+        {
+          "file": "src/components/smart-shot/VideoStage.tsx",
+          "line": 47,
+          "scope": "app",
+          "app": "smart-shot-videos",
+          "label": "smart-shot-videos"
+        },
+        {
+          "file": "src/lib/ai-rankings/classify.ts",
+          "line": 5,
+          "scope": "app",
+          "app": "ai-rankings",
+          "label": "ai-rankings"
+        },
+        {
+          "file": "src/lib/ai/provider.ts",
+          "line": 49,
+          "scope": "global",
+          "app": null,
+          "label": "Hub-wide"
+        },
+        {
+          "file": "src/lib/ai/provider.ts",
+          "line": 59,
+          "scope": "global",
+          "app": null,
+          "label": "Hub-wide"
+        },
+        {
+          "file": "src/lib/auteur/server/video/index.ts",
+          "line": 29,
+          "scope": "app",
+          "app": "auteur",
+          "label": "auteur"
         },
         {
           "file": "src/lib/catalog.ts",
-          "line": 229,
+          "line": 334,
           "scope": "other",
           "app": null,
           "label": "src/lib"
         },
         {
-          "file": "src/lib/jarvis/useVoice.ts",
-          "line": 8,
+          "file": "src/lib/dance-studio/server/providers/gateway.ts",
+          "line": 39,
           "scope": "app",
-          "app": "jarvis",
-          "label": "jarvis"
+          "app": "tiktok-dances",
+          "label": "tiktok-dances"
         },
         {
-          "file": "src/lib/new-dashboard/known.ts",
-          "line": 26,
+          "file": "src/lib/dance-studio/server/providers/gateway.ts",
+          "line": 42,
           "scope": "app",
-          "app": "new-dashboard",
-          "label": "new-dashboard"
+          "app": "tiktok-dances",
+          "label": "tiktok-dances"
         },
         {
-          "file": "src/lib/voice-studio/msgpack.ts",
-          "line": 4,
+          "file": "src/lib/dance-studio/server/providers/index.ts",
+          "line": 22,
           "scope": "app",
-          "app": "voice-studio",
-          "label": "voice-studio"
+          "app": "tiktok-dances",
+          "label": "tiktok-dances"
         },
         {
-          "file": "src/lib/voice-studio/speech.ts",
-          "line": 6,
+          "file": "src/lib/friends-night-out/sources/aiSweep.ts",
+          "line": 35,
           "scope": "app",
-          "app": "voice-studio",
-          "label": "voice-studio"
+          "app": "friends-night-out",
+          "label": "friends-night-out"
         },
         {
-          "file": "src/lib/voice-studio/types.ts",
+          "file": "src/lib/recall/agent.ts",
           "line": 60,
           "scope": "app",
-          "app": "voice-studio",
-          "label": "voice-studio"
+          "app": "dashboard",
+          "label": "dashboard"
+        },
+        {
+          "file": "src/lib/seed-content/recall.ts",
+          "line": 129,
+          "scope": "lib",
+          "app": null,
+          "label": "seed-content"
+        },
+        {
+          "file": "src/lib/video-studio/methods/h3/server.ts",
+          "line": 25,
+          "scope": "app",
+          "app": "video-studio-arena",
+          "label": "video-studio-arena"
         }
       ],
-      "url": "https://fish.audio",
-      "reach": "shared",
+      "url": "https://vercel.com/docs/ai-gateway",
+      "reach": "global",
       "apps": [
-        "jarvis",
-        "new-dashboard",
-        "voice-studio"
+        "ai-rankings",
+        "auteur",
+        "dashboard",
+        "friends-night-out",
+        "prompt-architect",
+        "seedance-studio",
+        "smart-shot-videos",
+        "std-safe",
+        "tiktok-dances",
+        "video-studio-arena"
       ]
     },
     {
@@ -771,7 +601,7 @@
           "file": "src/app/api/music-creator/[...path]/route.ts",
           "line": 59,
           "scope": "route",
-          "app": "music-creator",
+          "app": "jarvis-audio-studio",
           "label": "/api/music-creator"
         },
         {
@@ -806,8 +636,8 @@
           "file": "src/lib/music-creator/pod.ts",
           "line": 6,
           "scope": "app",
-          "app": "music-creator",
-          "label": "music-creator"
+          "app": "jarvis-audio-studio",
+          "label": "jarvis-audio-studio"
         },
         {
           "file": "src/lib/video-studio/methods/h3/server.ts",
@@ -849,7 +679,7 @@
       "reach": "shared",
       "apps": [
         "auteur",
-        "music-creator",
+        "jarvis-audio-studio",
         "smart-shot-videos",
         "video-studio-arena"
       ]
@@ -1000,43 +830,43 @@
           "file": "src/app/api/music-creator/[...path]/route.ts",
           "line": 8,
           "scope": "route",
-          "app": "music-creator",
+          "app": "jarvis-audio-studio",
           "label": "/api/music-creator"
         },
         {
           "file": "src/app/api/music-creator/[...path]/route.ts",
           "line": 59,
           "scope": "route",
-          "app": "music-creator",
+          "app": "jarvis-audio-studio",
           "label": "/api/music-creator"
         },
         {
           "file": "src/components/music-creator/parts.tsx",
           "line": 156,
           "scope": "app",
-          "app": "music-creator",
-          "label": "music-creator"
+          "app": "jarvis-audio-studio",
+          "label": "jarvis-audio-studio"
         },
         {
           "file": "src/lib/music-creator/library.ts",
           "line": 59,
           "scope": "app",
-          "app": "music-creator",
-          "label": "music-creator"
+          "app": "jarvis-audio-studio",
+          "label": "jarvis-audio-studio"
         },
         {
           "file": "src/lib/music-creator/pod.ts",
           "line": 16,
           "scope": "app",
-          "app": "music-creator",
-          "label": "music-creator"
+          "app": "jarvis-audio-studio",
+          "label": "jarvis-audio-studio"
         },
         {
           "file": "src/lib/music-creator/pod.ts",
           "line": 96,
           "scope": "app",
-          "app": "music-creator",
-          "label": "music-creator"
+          "app": "jarvis-audio-studio",
+          "label": "jarvis-audio-studio"
         },
         {
           "file": "tools/music-creator/runpod/setup.mjs",
@@ -1056,7 +886,62 @@
       "url": null,
       "reach": "single",
       "apps": [
-        "music-creator"
+        "jarvis-audio-studio"
+      ]
+    },
+    {
+      "id": "fish.audio",
+      "kind": "service",
+      "sites": [
+        {
+          "file": "src/app/api/tts/route.ts",
+          "line": 8,
+          "scope": "route",
+          "app": null,
+          "label": "/api/tts"
+        },
+        {
+          "file": "src/app/api/tts/route.ts",
+          "line": 18,
+          "scope": "route",
+          "app": null,
+          "label": "/api/tts"
+        },
+        {
+          "file": "src/lib/jarvis/useVoice.ts",
+          "line": 8,
+          "scope": "app",
+          "app": "jarvis",
+          "label": "jarvis"
+        },
+        {
+          "file": "src/lib/new-dashboard/known.ts",
+          "line": 27,
+          "scope": "app",
+          "app": "new-dashboard",
+          "label": "new-dashboard"
+        },
+        {
+          "file": "src/lib/voice-studio/msgpack.ts",
+          "line": 4,
+          "scope": "app",
+          "app": "voice-studio",
+          "label": "voice-studio"
+        },
+        {
+          "file": "src/lib/voice-studio/types.ts",
+          "line": 60,
+          "scope": "app",
+          "app": "voice-studio",
+          "label": "voice-studio"
+        }
+      ],
+      "url": "https://fish.audio",
+      "reach": "shared",
+      "apps": [
+        "jarvis",
+        "new-dashboard",
+        "voice-studio"
       ]
     },
     {
@@ -1067,7 +952,7 @@
           "file": "src/app/api/music-classified/listen/route.ts",
           "line": 20,
           "scope": "route",
-          "app": "music-classified",
+          "app": "jarvis-audio-studio",
           "label": "/api/music-classified"
         },
         {
@@ -1095,42 +980,8 @@
       "url": "https://openrouter.ai/google/gemini-3.8-flash",
       "reach": "global",
       "apps": [
-        "music-classified",
+        "jarvis-audio-studio",
         "seedance-studio"
-      ]
-    },
-    {
-      "id": "anthropic/claude-sonnet-5",
-      "kind": "model",
-      "sites": [
-        {
-          "file": "src/lib/gods-eye/agent.ts",
-          "line": 18,
-          "scope": "app",
-          "app": "gods-eye-view",
-          "label": "gods-eye-view"
-        },
-        {
-          "file": "src/lib/image-studio/agents.ts",
-          "line": 36,
-          "scope": "app",
-          "app": "image-studio",
-          "label": "image-studio"
-        },
-        {
-          "file": "src/lib/soundprint/models.ts",
-          "line": 130,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        }
-      ],
-      "url": "https://openrouter.ai/anthropic/claude-sonnet-5",
-      "reach": "shared",
-      "apps": [
-        "gods-eye-view",
-        "image-studio",
-        "soundprint"
       ]
     },
     {
@@ -1153,7 +1004,7 @@
         },
         {
           "file": "src/components/realtime-lucy/RealtimeLucy.tsx",
-          "line": 622,
+          "line": 792,
           "scope": "app",
           "app": "realtime-lucy",
           "label": "realtime-lucy"
@@ -1253,6 +1104,32 @@
       "apps": []
     },
     {
+      "id": "anthropic/claude-sonnet-5",
+      "kind": "model",
+      "sites": [
+        {
+          "file": "src/lib/gods-eye/agent.ts",
+          "line": 18,
+          "scope": "app",
+          "app": "gods-eye-view",
+          "label": "gods-eye-view"
+        },
+        {
+          "file": "src/lib/image-studio/agents.ts",
+          "line": 36,
+          "scope": "app",
+          "app": "image-studio",
+          "label": "image-studio"
+        }
+      ],
+      "url": "https://openrouter.ai/anthropic/claude-sonnet-5",
+      "reach": "shared",
+      "apps": [
+        "gods-eye-view",
+        "image-studio"
+      ]
+    },
+    {
       "id": "google/gemini-3.1-flash-image",
       "kind": "model",
       "sites": [
@@ -1302,6 +1179,31 @@
       "apps": [
         "auteur",
         "tiktok-dances"
+      ]
+    },
+    {
+      "id": "openai/text-embedding-3-small",
+      "kind": "model",
+      "sites": [
+        {
+          "file": "scripts/sync-memory.mjs",
+          "line": 157,
+          "scope": "other",
+          "app": null,
+          "label": "scripts"
+        },
+        {
+          "file": "src/lib/jarvis/server/embed.ts",
+          "line": 16,
+          "scope": "app",
+          "app": "jarvis",
+          "label": "jarvis"
+        }
+      ],
+      "url": "https://openrouter.ai/openai/text-embedding-3-small",
+      "reach": "single",
+      "apps": [
+        "jarvis"
       ]
     },
     {
@@ -1357,24 +1259,6 @@
       ]
     },
     {
-      "id": "anthropic/claude-opus-4.8",
-      "kind": "model",
-      "sites": [
-        {
-          "file": "src/lib/soundprint/models.ts",
-          "line": 90,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        }
-      ],
-      "url": "https://openrouter.ai/anthropic/claude-opus-4.8",
-      "reach": "single",
-      "apps": [
-        "soundprint"
-      ]
-    },
-    {
       "id": "bytedance/seedance-2.0",
       "kind": "model",
       "sites": [
@@ -1390,24 +1274,6 @@
       "reach": "single",
       "apps": [
         "seedance-studio"
-      ]
-    },
-    {
-      "id": "deepseek/deepseek-v4-pro",
-      "kind": "model",
-      "sites": [
-        {
-          "file": "src/lib/soundprint/models.ts",
-          "line": 146,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        }
-      ],
-      "url": "https://openrouter.ai/deepseek/deepseek-v4-pro",
-      "reach": "single",
-      "apps": [
-        "soundprint"
       ]
     },
     {
@@ -1429,40 +1295,20 @@
       ]
     },
     {
-      "id": "google/gemini-2.5-pro",
+      "id": "deepseek/deepseek-v4.1-flash",
       "kind": "model",
       "sites": [
         {
-          "file": "src/lib/soundprint/models.ts",
-          "line": 122,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
+          "file": "src/lib/ai/provider.ts",
+          "line": 46,
+          "scope": "global",
+          "app": null,
+          "label": "Hub-wide"
         }
       ],
-      "url": "https://openrouter.ai/google/gemini-2.5-pro",
-      "reach": "single",
-      "apps": [
-        "soundprint"
-      ]
-    },
-    {
-      "id": "google/gemini-3-pro-preview",
-      "kind": "model",
-      "sites": [
-        {
-          "file": "src/lib/soundprint/models.ts",
-          "line": 82,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        }
-      ],
-      "url": "https://openrouter.ai/google/gemini-3-pro-preview",
-      "reach": "single",
-      "apps": [
-        "soundprint"
-      ]
+      "url": "https://openrouter.ai/deepseek/deepseek-v4.1-flash",
+      "reach": "global",
+      "apps": []
     },
     {
       "id": "google/gemini-3.1-pro-preview-customtools",
@@ -1480,42 +1326,6 @@
       "reach": "single",
       "apps": [
         "game-creator"
-      ]
-    },
-    {
-      "id": "google/gemini-3.5-flash",
-      "kind": "model",
-      "sites": [
-        {
-          "file": "src/lib/soundprint/models.ts",
-          "line": 162,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        }
-      ],
-      "url": "https://openrouter.ai/google/gemini-3.5-flash",
-      "reach": "single",
-      "apps": [
-        "soundprint"
-      ]
-    },
-    {
-      "id": "google/gemma-4-31b-it:free",
-      "kind": "model",
-      "sites": [
-        {
-          "file": "src/lib/soundprint/models.ts",
-          "line": 48,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        }
-      ],
-      "url": "https://openrouter.ai/google/gemma-4-31b-it:free",
-      "reach": "single",
-      "apps": [
-        "soundprint"
       ]
     },
     {
@@ -1537,24 +1347,6 @@
       ]
     },
     {
-      "id": "moonshotai/kimi-k3",
-      "kind": "model",
-      "sites": [
-        {
-          "file": "src/lib/soundprint/models.ts",
-          "line": 154,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        }
-      ],
-      "url": "https://openrouter.ai/moonshotai/kimi-k3",
-      "reach": "single",
-      "apps": [
-        "soundprint"
-      ]
-    },
-    {
       "id": "NASA FIRMS",
       "kind": "service",
       "sites": [
@@ -1570,78 +1362,6 @@
       "reach": "single",
       "apps": [
         "gods-eye-view"
-      ]
-    },
-    {
-      "id": "openai/gpt-5.5",
-      "kind": "model",
-      "sites": [
-        {
-          "file": "src/lib/soundprint/models.ts",
-          "line": 114,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        }
-      ],
-      "url": "https://openrouter.ai/openai/gpt-5.5",
-      "reach": "single",
-      "apps": [
-        "soundprint"
-      ]
-    },
-    {
-      "id": "openai/gpt-image-1",
-      "kind": "model",
-      "sites": [
-        {
-          "file": "src/app/api/cookbook/generate-recipe-image/route.ts",
-          "line": 27,
-          "scope": "route",
-          "app": "cookbook-genie",
-          "label": "/api/cookbook"
-        }
-      ],
-      "url": "https://openrouter.ai/openai/gpt-image-1",
-      "reach": "single",
-      "apps": [
-        "cookbook-genie"
-      ]
-    },
-    {
-      "id": "openai/gpt-oss-20b:free",
-      "kind": "model",
-      "sites": [
-        {
-          "file": "src/lib/soundprint/models.ts",
-          "line": 64,
-          "scope": "app",
-          "app": "soundprint",
-          "label": "soundprint"
-        }
-      ],
-      "url": "https://openrouter.ai/openai/gpt-oss-20b:free",
-      "reach": "single",
-      "apps": [
-        "soundprint"
-      ]
-    },
-    {
-      "id": "openai/text-embedding-3-small",
-      "kind": "model",
-      "sites": [
-        {
-          "file": "src/lib/jarvis/server/embed.ts",
-          "line": 16,
-          "scope": "app",
-          "app": "jarvis",
-          "label": "jarvis"
-        }
-      ],
-      "url": "https://openrouter.ai/openai/text-embedding-3-small",
-      "reach": "single",
-      "apps": [
-        "jarvis"
       ]
     },
     {

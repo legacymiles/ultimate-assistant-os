@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// STD Safe — the uploaded report files.
+// Tap Safe — the uploaded report files.
 //
 // These are the most sensitive bytes in the app: a real lab report carries a
 // full legal name, a date of birth and a medical record number alongside the

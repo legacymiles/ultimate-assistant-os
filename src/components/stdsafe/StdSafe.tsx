@@ -1,7 +1,7 @@
 "use client";
 
 // ---------------------------------------------------------------------------
-// STD Safe — the shell.
+// Tap Safe — the shell.
 //
 // Holds the one dashboard object every mutation returns, so no component ever
 // patches state by hand and the status card, the timeline and the inbox cannot
@@ -389,7 +389,7 @@ function TopBar({ right }: { right?: React.ReactNode }) {
           <span className="h-4 w-px bg-line" aria-hidden />
           <span className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
-            <span className="text-[14px] font-semibold tracking-tight text-ink">STD Safe</span>
+            <span className="text-[14px] font-semibold tracking-tight text-ink">Tap Safe</span>
           </span>
         </div>
         {right}

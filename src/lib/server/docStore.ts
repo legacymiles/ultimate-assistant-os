@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // One JSON document, owned by the server.
 //
-// STD Safe and the Recall Lists board both keep their entire state as a single
+// Tap Safe and the Recall Lists board both keep their entire state as a single
 // document that the server owns and guards. Neither can use app_state: that
 // table is keyed by viewer and readable by that viewer, and these documents are
 // shared, multi-party, and full of things one participant must not see.

@@ -392,9 +392,7 @@ export function ToolsTab() {
             (ranked ? (
               <button
                 type="button"
-                onClick={() => {
-                  window.location.hash = "rankings";
-                }}
+                onClick={() => window.open("/apps/ai-rankings", "_blank", "noreferrer")}
                 title={`On the AI Rankings board under ${ranked.group} › ${ranked.category}`}
                 className={`${iconBtn} text-emerald-300/80 hover:text-emerald-200`}
                 aria-label={`${displayName(r.id)} is on the AI Rankings board`}

@@ -42,7 +42,8 @@ round, and say what you took as given.
    character, invented or not.** Whatever it leaves out, the model fills in with its own default,
    and the default does not know your film: a sheet drawn from "a woman in her early thirties, the
    baby's mother" came back white beside a Black baby. A relationship is not a description. If two
-   characters are family, say so in BOTH their looks.
+   subjects are related in any way — family, a matched set, the same model in two colours — say so
+   in BOTH descriptions, because the model has no idea they belong together unless you write it.
    **But past two shots an invented face needs a drawn anchor.** Every shot is generated
    separately, so a face held only by words is re-imagined by each one and quietly becomes someone
    else — the single reason a long prompt-only film comes back inconsistent. The sheet draws one
@@ -106,7 +107,7 @@ accident, is a planning failure, not a model limitation. So:
 - When the owner attaches a track it arrives as measured numbers, not a listen. Use them; never
   claim to have heard it.
 
-**The one exception: Seedance Studio.** There the owner's track is the master, the film is cut to
+**The one exception: Music Video Studio.** There the owner's track is the master, the film is cut to
 it, and the model's own audio is not used. That is the only mode where an attached track outranks
 everything else. Every other film has no clock — do not invent one.
 
@@ -126,7 +127,7 @@ Higher wins the pixels; lower is re-expressed *through* it rather than dropped.
    frame one.
 6. **Era**, then **lighting / palette**, then **camera**.
 
-*(A track, in Seedance Studio only, sits above all of these.)* **Moves never compete** — they mix
+*(A track, in Music Video Studio only, sits above all of these.)* **Moves never compete** — they mix
 with everything, in the order the owner wrote them. When something genuinely cannot survive
 (golden-hour light under a horror genre), say which one you set aside and why, in one line.
 
@@ -167,7 +168,7 @@ with everything, in the order the owner wrote them. When something genuinely can
   space any better than it can hold a face: measured on a real film, a hallway became a living
   room between two cuts, and an adult at the far end of it in one shot was beside the child in the
   next.
-- **Every cut needs a picture of whoever is in it** — an upload, a saved character, or the drawn
+- **Every cut needs a picture of whatever is in it** — an upload, a saved character, or the drawn
   cast sheet. A cut with nobody attached starts cold and invents the face from the words.
 - **One continuous action is a chain, not a series of cuts.** A chase, a fall, a run through a
   building: `continuous` shots sharing one `location`. Cuts are for when the audience should feel
@@ -194,35 +195,84 @@ continuous, cutting back to a referenced shot only when the story needs a new an
 has run to two.** A film that is mostly `cut` re-invents its own set once per shot, and that is
 exactly what it looks like.
 
-## One generation, or many
+## The unit is a 15-second GENERATION, not a shot
 
-| Runtime | Shape |
+**Measured, and it supersedes everything this skill used to say about shot length.** H3 cuts
+inside a single generation: one 15-second render given four timed `[Shot N]` blocks came back with
+four genuinely distinct shots — a wide, a close-up, a wider re-frame with the threat advancing,
+and an exterior. One render, no stitching, no join.
+
+That changes the arithmetic, because **everything that goes wrong in a stitched film goes wrong at
+a join, and a cut inside a generation is not a join.**
+
+| | cuts | generations | joins |
+|---|---|---|---|
+| Eight 5 s shots chained | 8 | 8 | 7 |
+| Three 15 s shots chained | 3 | 3 | 2 |
+| **Three 15 s generations of four cuts** | **12** | **3** | **2** |
+
+The third row is four times the film for the same risk as the second. So:
+
+> **Plan in generations. Fill each to 15 seconds with three to five timed cuts. Use as few
+> generations as the runtime allows.**
+
+A 45-second film is **three generations**, not nine shots. A 15-second film is **one generation**
+with no joins at all — nothing to drift between, nothing to hand over, no exposure step.
+
+### Inside a generation, a cut is free
+
+Identity, room, grade, wardrobe and light are automatically consistent across cuts in one
+generation, because it is one render. You do not pay for a cut with drift. So cut whenever the
+story wants a new angle: a reaction earns its own close-up, an escape earns its own exterior. A
+15-second single take with a slow push-in is not a film, it is a clip — and that is exactly what
+planning *shots* instead of *cuts* produces.
+
+Write each cut as a timed block, and put descriptive detail in the FIRST block only:
+
+```
+[Shot 1] 0.0–4.0s.  <framing, lens, who, where, look>  <camera sentence>  <what changes>
+[Shot 2] 4.0–7.0s.  <framing, lens>                    <camera sentence>  <what changes>
+```
+
+Later cuts name the subject and stop. That restraint is what leaves room for four cuts in one
+prompt.
+
+### Between generations, everything gets expensive again
+
+A join is where the room can change, the cast can drift, the exposure can step and the audio can
+restart. Everything below about handover applies **only between generations** — never between
+cuts.
+
+So the planning question is never "how long should this shot be". It is **"how few generations can
+this film be, and what are the cuts inside each one"**.
+
+### Whatever the next shot must inherit has to be IN FRAME when this one ends
+
+A `continuous` shot takes **no reference pictures** — it inherits from the handed-over frames and
+nothing else. So whatever the next shot is *about* has to still be on screen when this one ends.
+
+What that is depends entirely on the film, and it is usually not a cast:
+
+| The film is about | `endsOn` must hold |
 |---|---|
-| **≤ 15 s** | ONE generation — the cuts go inside one prompt and the model cuts internally. Nothing for identity to drift between. |
-| **longer** | One generation per shot, chained on `link` and stitched. |
+| One person | them — their face or body, legibly |
+| Two or more people | the ones the next shot needs, not necessarily all of them |
+| A product, a car, a dish | the object, at an angle the next shot can continue from |
+| A place — a street, a room, a landscape | the part of it the next shot moves through |
+| A process — pouring, building, burning | the state it has reached |
 
-Choose by runtime and **say which you chose**, because it changes what the owner is approving: a
-15-second plan is approved once, a ninety-second plan shot by shot.
+Measured: a shot that drifted onto an empty room handed over 1.5 seconds of furniture, and the
+next shot, with nothing to inherit and no photographs, invented an entirely new cast. The same
+failure with a product is a different bottle; with a location it is a different building.
 
-### Make the shots LONG. This is the single biggest lever you have.
+So `endsOn` names the subject and where it is — *"his face filling the frame"*, *"the bottle
+still upright in the spill, label to camera"*, *"the alley mouth dead ahead"* — never just a mood
+or a composition, unless the next shot is a `cut` carrying its own references.
 
-**H3's window is 4–15 seconds, so plan at the top of it, not the bottom.** Every join is a place
-the film can break — the room is re-invented, a face drifts, the exposure steps, the audio
-restarts. A 45-second film is either:
-
-- **eight 5-second shots → seven joins**, or
-- **three 15-second shots → two joins.**
-
-Same film, a quarter of the risk, a third of the renders. Everything that goes wrong in a stitched
-film goes wrong *at the joins*, so the way to make one good is to have fewer of them.
-
-A shot is only short when the CUT is the point — a reaction, a hard insert, a beat that must land
-alone. Otherwise let one shot carry a whole stretch of the story, with its `beats` list doing the
-work the cuts would have done. A 15-second shot with seven beats is ONE generation; the same
-content as three cuts is three generations and two joins.
-
-Measured on a real film: eight 5-second shots gave a character who teleported across a cut, a room
-that changed between shots, and a 21% exposure climb — all of it at the joins.
+The detector reports `drifted` and `noCast` when it can tell, but it is a **people-only backstop**
+built on skin tone: it cannot see a product, a landscape or a vehicle leave frame at all, and even
+with people it only sees a subject who was close to camera. **The plan is the guarantee; the
+detector is a lucky catch.**
 
 ## The gate
 

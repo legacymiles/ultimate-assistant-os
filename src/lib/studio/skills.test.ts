@@ -43,7 +43,7 @@ describe("studio skill files", () => {
     const text = readFileSync(path.join(DIR, "film-plan.md"), "utf8");
     expect(text).toMatch(/^# /);
     expect(text).toContain("studio_form");
-    for (const rule of ["soundscape", "Seedance Studio", "held pose", "endsOn", "2.5 words"]) {
+    for (const rule of ["soundscape", "Music Video Studio", "held pose", "endsOn", "2.5 words"]) {
       expect(text).toContain(rule);
     }
     expect(text.split(/\s+/).length).toBeGreaterThan(700);

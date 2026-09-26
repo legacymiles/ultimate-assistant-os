@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CATEGORIES, PROJECTS, type Category } from "@/lib/catalog";
+import { CATEGORIES, type Category } from "@/lib/catalog";
+import { hubProjects } from "@/lib/studio/plugins";
 import { Icon } from "../icons";
 import { ProjectCard } from "./ProjectCard";
 
@@ -29,7 +30,8 @@ export function HubHome() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return PROJECTS.filter((p) => {
+    // The finished apps have moved into Jarvis; the hub is what is left.
+    return hubProjects().filter((p) => {
       if (filter !== "All" && p.category !== filter) return false;
       if (!q) return true;
       return (

@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// STD Safe — the browser's side of the API.
+// Tap Safe — the browser's side of the API.
 //
 // Every mutating call answers with the whole dashboard, so the components never
 // patch local state by hand. One shape in, one shape out: the status card, the

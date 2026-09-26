@@ -97,7 +97,7 @@ export const PROJECTS: CatalogProject[] = [
   },
   {
     slug: "std-safe",
-    title: "STD Safe",
+    title: "Tap Safe",
     tag: "Provable results, honest about what they don't prove",
     category: "Apps",
     overview:
@@ -271,85 +271,39 @@ export const PROJECTS: CatalogProject[] = [
     hue: [268, 320],
   },
   {
-    slug: "mp3-download",
-    title: "MP3 Download",
-    tag: "Find the song, prove it, take it",
+    slug: "jarvis-audio-studio",
+    title: "Jarvis Audio Studio",
+    tag: "Find it, file it, make it",
     category: "Music",
     overview:
-      "Search a song, confirm it is the right recording, then download a file of it. The middle "
-      + "step is the whole app: every other downloader is a URL box and a button, which is how you "
-      + "end up with a cover, a sped-up edit or a lyric video with a nine-second intro. Here the "
-      + "catalogue names the recording first — album, year, length and thirty seconds of the actual "
-      + "audio — and only then are the sources searched, with every candidate scored against what "
-      + "you confirmed rather than against the words you typed. Files come from the Internet "
-      + "Archive, the Creative Commons catalogues that Openverse indexes (Jamendo, Freesound, "
-      + "ccMixter, Wikimedia), and YouTube through yt-dlp when that binary is on the machine. Rows "
-      + "are grouped by what you are actually allowed to do with them, because the licence is the "
-      + "one fact you cannot hear by pressing play, and the library keeps that provenance "
-      + "permanently along with the credit lines a Creative Commons track obliges.",
+      "Three music studios behind one switcher, because they were always three halves of the same "
+      + "job: get the recording, understand it, make the next one. FIND searches a song, names the "
+      + "exact recording first — album, year, length and thirty seconds of the real audio — and only "
+      + "then hunts a file for it, scoring every candidate against what you confirmed rather than the "
+      + "words you typed, so you stop ending up with a cover, a sped-up edit or a lyric video with a "
+      + "nine-second intro. Files come from the Internet Archive, the Creative Commons catalogues "
+      + "Openverse indexes, and roughly twenty sites through yt-dlp, grouped by what the licence "
+      + "actually lets you do with them. CLASSIFY is the private catalogue: paste a name or a link and "
+      + "it measures tempo and key off the preview in your own browser, files the song on a 1–10 "
+      + "energy ladder into a genre and a sub-genre, and describes it in whichever voice you asked "
+      + "for — plain English, producer, music theory, DJ, dancer — including a style prompt of that "
+      + "exact recording an AI song generator can follow. Upload your own audio and a listening model "
+      + "hears it rather than guessing from the filename. CREATE is the production side: write the "
+      + "brief, watch it become a style line and a lyric sheet, and render a real 48 kHz song on YuE2 "
+      + "— which plans before it plays, so the melody and chords come back as a score you can edit and "
+      + "re-render instead of rerolling the dice. A voice you save once is cloned, isolated from the "
+      + "music it arrived in, and kept in a library that never has to process that artist again. "
+      + "Switching studio never leaves the app or drops what you were holding, and every one of them "
+      + "works with no keys set: the catalogue, the measuring, the writing and the score editing all "
+      + "run locally, and only rendering asks for a GPU — which it says plainly when it is not there.",
     status: "live",
-    appUrl: "/apps/mp3-download",
-    iconStyle: "waves",
-    hue: [268, 190],
-  },
-  {
-    slug: "music-classified",
-    title: "Music Classified",
-    tag: "Your favourite songs, filed by how they hit",
-    category: "Music",
-    overview:
-      "A private catalogue of the songs you love, organised by what they actually sound like. Type a " +
-      "song name or paste a YouTube, Apple Music or Spotify link; it confirms the exact recording " +
-      "against the music catalogue, measures the tempo and key off the 30-second preview right in " +
-      "your browser, and files it on a 1–10 energy ladder — 1 still and ambient, 10 mosh-pit hype — " +
-      "then into a genre playlist inside that level and a sub-genre inside that. Reuses the " +
-      "playlist names you already have so R&B never splits into three spellings. Before it runs you " +
-      "pick how you want it described: plain English, producer, songwriter, music theory, DJ, vibe, " +
-      "dancer, or a recipe for making one like it with a ready style prompt — and any song can be " +
-      "re-described another way later. Each filing says how sure it is. Any playlist can be turned " +
-      "into a blueprint: what its songs have in common, written as a guide to making the next one. " +
-      "Star any song and filter to just your favorites — across every level or one number at a time. " +
-      "A second tab, My Music, is for the songs you make: upload audio, name the artist, and an " +
-      "audio-capable model actually listens to each file while tempo and key are measured in the " +
-      "browser — then it's filed the same way, browsed by artist, and any artist's songs can be " +
-      "turned into a blueprint of their sound. Every song also gets a style prompt: at most 1,000 " +
-      "characters describing that exact recording — tempo, key, drums, bass, harmony, the vocal and how " +
-      "it's treated, how the arrangement moves — in words an AI song generator can follow, with no " +
-      "names or lyrics, checked by a quality gate and rewritten if it misses. One click copies it. " +
-      "Library songs are only names and words; uploads " +
-      "stay on the device they came from. Local-first, synced across devices.",
-    status: "live",
-    appUrl: "/apps/music-classified",
-    iconStyle: "waves",
-    hue: [250, 40],
-  },
-  {
-    slug: "music-creator",
-    title: "Music Creator",
-    tag: "A studio, not a generate button",
-    category: "Music",
-    overview:
-      "A music creation studio built as a container for tools that have no reason to look alike. Song Creator is " +
-      "full-song production: write the brief, watch it become the style line and the lyric sheet, then render a real " +
-      "48 kHz stereo song — vocals and accompaniment — on YuE2. Because YuE2 plans before it plays, the melody and " +
-      "chords come back as a score you can actually read, which is what makes the rest possible: Remix / Stems edits " +
-      "that score and re-renders it, so a reharmonisation is a musical edit rather than another roll of the dice. " +
-      "Mashup is the honest kind: SheetSage2 transcribes one recording's melody, and YuE2 performs that melody in a " +
-      "second song's world — the tune crosses over, the original singer and recording do not. Hook Creator chases one " +
-      "earworm across several seeds so takes can be compared side by side. Artist Voice Studio finds a voice, isolates " +
-      "it from the music it arrived in, cuts the five seconds worth cloning, and saves it to a Voice Library that never " +
-      "has to process that artist again — then performs your words in it with AuK and mixes them over the bed. AuK is " +
-      "a speech model, so that vocal is spoken or rapped, never sung, and the app says so where the choice is made. " +
-      "The writing, planning, score editing and library all run with no GPU at all; rendering needs a 24 GB card, " +
-      "which the studio points at over a URL and reports honestly when it is not there.",
-    status: "live",
-    appUrl: "/apps/music-creator",
+    appUrl: "/apps/jarvis-audio-studio",
     iconStyle: "waves",
     hue: [268, 199],
   },
   {
     slug: "seedance-studio",
-    title: "Seedance Studio",
+    title: "Music Video Studio",
     tag: "Audio-driven video engine",
     category: "Video",
     overview:

@@ -27,8 +27,8 @@ import { ReminderBanner } from "./ReminderBanner";
 import { Recall } from "../recall/Recall";
 import { ListsBoard } from "../recall/lists/ListsBoard";
 import { SkillsLibrary } from "../skills/SkillsLibrary";
-import { AiRankings } from "../ai-rankings/AiRankings";
 import { ToolsTab } from "./ToolsTab";
+import { PluginsTab } from "./PluginsTab";
 import { SettingsTab } from "./SettingsTab";
 import { toCalEvent, useDashboardCalendar } from "@/lib/jarvis/useDashboardCalendar";
 import { loadLocal } from "@/lib/sync/appState";
@@ -44,7 +44,7 @@ import type { ChatTurn, Conversation, JarvisStore } from "@/lib/jarvis/types";
 export type TabId =
   | "dashboard" | "chat" | "inbox" | "calendar" | "studio"
   | "folders" | "photos" | "lists"
-  | "memory" | "routines" | "skills" | "tools" | "rankings" | "profile" | "settings";
+  | "memory" | "routines" | "skills" | "tools" | "profile" | "plugins" | "settings";
 
 type RailTab = { id: TabId; label: string; icon: keyof typeof Icon };
 
@@ -84,10 +84,10 @@ const GROUPS: { title: string; items: (RailTab | { toolbox: RailTab[] })[] }[] =
         toolbox: [
           { id: "skills", label: "Skills", icon: "Sparkles" },
           { id: "tools", label: "Tools", icon: "Layers" },
-          { id: "rankings", label: "AI Rankings", icon: "Star" },
         ],
       },
       { id: "profile", label: "Profile", icon: "Users" },
+      { id: "plugins", label: "App plugins", icon: "Launch" },
       { id: "settings", label: "Settings", icon: "Settings" },
     ],
   },
@@ -338,7 +338,7 @@ export function Jarvis() {
           )}
           {tab === "skills" && <SkillsLibrary chromeless />}
           {tab === "tools" && <ToolsTab />}
-          {tab === "rankings" && <AiRankings embedded />}
+          {tab === "plugins" && <PluginsTab />}
           {tab === "settings" && <SettingsTab go={go} updates={updates} />}
           {tab === "memory" && <MemoryTab store={store} commit={commit} />}
           {tab === "profile" && <NewDashboard chromeless />}

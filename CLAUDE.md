@@ -44,13 +44,14 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 | `gods-eye-view` | `gods-eye` |
 | `kart-showcase` | `kart` |
 | `multi-order-calculator` | `calculator` |
-| `std-safe` | `stdsafe` |
+| `std-safe` | `stdsafe` (the app is called **Tap Safe**; the slug, routes and Supabase bucket keep the old name so existing reports and share codes survive) |
 | `ea-feature-list` | `ea` (lib: `ea-features`) |
 | `website-redesigner` | `redesigner` |
-| `seedance-studio` | `seedance` |
+| `seedance-studio` | `seedance` (the app is called **Music Video Studio**; slug unchanged) |
 | `smart-shot-videos` | `smart-shot` |
 | `video-studio-arena` | `video-studio` (engines: `src/lib/video-studio/methods/<id>/`) |
 | `skills-library` | `skills` |
+| `jarvis-audio-studio` | `jarvis-audio-studio` (the shell) + `mp3-download`, `music-classified`, `music-creator` (its three studios, each still its own folder). `/apps/{mp3-download,music-classified,music-creator}` redirect in with `?section=` |
 | `slippery-escape` | `slippery` |
 | `projects-timeline` | `src/components/AppShell.tsx` + `src/lib/repo` (the original app; `README.md` describes it) |
 

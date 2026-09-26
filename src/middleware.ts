@@ -154,7 +154,7 @@ export async function middleware(request: NextRequest) {
   }
   if (!owner) {
     // A Friends Night Out member (or anyone who signed up) is not the owner.
-    // They get FNO and nothing else — never STD Safe, Dashboard, the AI proxy.
+    // They get FNO and nothing else — never Tap Safe, Dashboard, the AI proxy.
     if (isApi) {
       return setUidCookie(
         NextResponse.json({ error: "This endpoint is private." }, { status: 403 }),

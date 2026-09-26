@@ -36,7 +36,7 @@ interface Body {
   characters?: unknown;
   /**
    * The measured timeline of a track the owner attached, when this is an
-   * audio-driven job (Seedance Studio).
+   * audio-driven job (Music Video Studio).
    *
    * Sent as structured measurements, not as prose, for the same reason the
    * workflows are sent as tokens: the client may not write the prompt. The

@@ -47,7 +47,7 @@ const LOW_CREDIT = 2;
 const KEYS: KeyStatus[] = [
   { name: "OPENROUTER_API_KEY", set: false, usedBy: "AI in most apps; other LLMs in Game Creator" },
   { name: "AI_GATEWAY_API_KEY", set: false, usedBy: "AI fallback; video in Seedance, Dance Studio, Video Studio Arena" },
-  { name: "SUPABASE_SERVICE_ROLE_KEY", set: false, usedBy: "Server storage: Game Creator, STD Safe, Recall lists, this panel" },
+  { name: "SUPABASE_SERVICE_ROLE_KEY", set: false, usedBy: "Server storage: Game Creator, Tap Safe, Recall lists, this panel" },
   { name: "FISH_API_KEY", set: false, usedBy: "Jarvis's speaking voice (fish.audio)" },
   { name: "RUNPOD_API_KEY", set: false, usedBy: "Music Creator GPU" },
   { name: "MINIMAX_API_KEY", set: false, usedBy: "MiniMax H3 video (Dance Studio, Smart Shot, Jarvis Studio)" },

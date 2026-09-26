@@ -1,11 +1,8 @@
-import { Mp3Download } from "@/components/mp3-download/Mp3Download";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "MP3 Download · Ultimate Assistant OS",
-  description:
-    "Search a song, confirm it is the right recording, then download a file of it — from the Internet Archive, the Creative Commons catalogues, or YouTube through yt-dlp, with the licence on every row.",
-};
-
+// MP3 Download is now the Find studio inside Jarvis Audio Studio. The route
+// stays alive because links to it exist — in the owner's bookmarks, in Jarvis's
+// toolkit, in earlier notes — and a merge should not turn those into 404s.
 export default function Page() {
-  return <Mp3Download />;
+  redirect("/apps/jarvis-audio-studio?section=find");
 }

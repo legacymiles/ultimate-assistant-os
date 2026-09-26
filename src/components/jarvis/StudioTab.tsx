@@ -31,7 +31,6 @@ import { StudioGallery } from "./StudioGallery";
 import { ChatTab } from "./ChatTab";
 import type { JarvisStore } from "@/lib/jarvis/types";
 import type { Profile } from "@/lib/new-dashboard/types";
-import { studioPlugins } from "@/lib/studio/plugins";
 import { useCinemaOutput, useCinemaSelection } from "@/lib/studio/useCinema";
 import { Icon } from "../icons";
 import { ReferenceTile } from "./ReferenceTile";
@@ -99,7 +98,7 @@ export function StudioTab({
   const [cinema, setCinema] = useCinemaSelection();
   const [output, setOutput] = useCinemaOutput();
   /** The wall of workflows, what has been made, or the allowed add-on apps. */
-  const [view, setView] = useState<"browse" | "gallery" | "plugins">("browse");
+  const [view, setView] = useState<"browse" | "gallery">("browse");
   /**
    * The conversation this Studio has going, if any.
    *
@@ -368,7 +367,6 @@ export function StudioTab({
           {([
             { id: "browse", label: "Workflows", icon: <Icon.Grid width={12} height={12} /> },
             { id: "gallery", label: "Gallery", icon: <Icon.Folder width={12} height={12} /> },
-            { id: "plugins", label: "App plugins", icon: <Icon.Toolbox width={12} height={12} /> },
           ] as const).map((v) => (
             <button
               key={v.id}
@@ -435,8 +433,6 @@ export function StudioTab({
       {view === "gallery" ? (
         // Reusing a finished piece carries its prompt, not this tray.
         <StudioGallery onReuse={(prompt) => setSession({ text: prompt, nonce: Date.now() })} />
-      ) : view === "plugins" ? (
-        <PluginsPane />
       ) : (
         <>
       {/* The composer first, the wall under it: the prompt is the thing being
@@ -693,72 +689,6 @@ export function StudioTab({
       </div>
         </>
       )}
-    </div>
-  );
-}
-
-/**
- * Add-on apps the owner has allowed into Studio. They are not workflows and
- * they are not copies — each one still lives in the hub, and this is a door to
- * it, opened in a new tab so a half-written prompt is never lost.
- */
-function PluginsPane() {
-  const plugins = studioPlugins();
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
-      <div className="mx-auto max-w-4xl">
-        <h3 className="text-sm font-semibold text-ink">App plugins</h3>
-        <p className="mt-0.5 text-[11px] text-ink-muted">
-          Other apps from the hub, allowed in here because they feed the work. They open in their own tab and stay
-          exactly where they were.
-        </p>
-
-        {plugins.length === 0 ? (
-          <p className="py-12 text-center text-xs text-ink-muted">No plugins allowed yet.</p>
-        ) : (
-          <ul className="mt-4 grid gap-2.5 sm:grid-cols-2">
-            {plugins.map((p) => (
-              <li key={p.slug}>
-                <a
-                  href={p.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="st-card group flex h-full gap-3 rounded-xl border border-line bg-panel p-3 transition hover:-translate-y-0.5 hover:border-ink-faint"
-                  style={{ ["--h" as string]: p.hue }}
-                >
-                  <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg">
-                    <span className="st-art st-m-orbit" aria-hidden>
-                      <i />
-                      <i />
-                      <i />
-                      <i />
-                      <i />
-                      <i />
-                    </span>
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1.5">
-                      <span className="truncate text-sm font-semibold text-ink">{p.title}</span>
-                      {p.status === "coming-soon" && (
-                        <span className="rounded border border-line px-1 py-px text-[9px] uppercase tracking-wide text-ink-faint">
-                          Soon
-                        </span>
-                      )}
-                      <Icon.Launch
-                        width={12}
-                        height={12}
-                        className="ml-auto shrink-0 text-ink-faint transition group-hover:text-ink"
-                      />
-                    </span>
-                    <span className="mt-0.5 block text-[11px] text-ink-muted">{p.tag}</span>
-                    {p.why && <span className="mt-1.5 block text-[11px] leading-snug text-ink-faint">{p.why}</span>}
-                  </span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
     </div>
   );
 }

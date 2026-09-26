@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// STD Safe — reading a lab report.
+// Tap Safe — reading a lab report.
 //
 // Pure string work, no node: imports, so the check script can exercise it
 // directly. Whoever calls this has already turned a PDF into text.

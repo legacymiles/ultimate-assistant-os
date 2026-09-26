@@ -1,0 +1,420 @@
+/* ===========================================================================
+   Jarvis Audio Studio — the one chrome three studios share.
+
+   Three apps were built at different times against different palettes: Find
+   and Classify already drew on the hub's tokens, while Create carried its own
+   darker ground and a violet accent. Read one after the other they announced
+   that they were three apps. The fix is not a repaint of three codebases —
+   it is one gray family and one accent, declared here and inherited down, so
+   each studio keeps its own layout and loses only its private colour scheme.
+
+   Everything is scoped under `.jas`. Nothing here leaks into the hub, and the
+   three studios still run standalone at their old routes with their original
+   look intact.
+   =========================================================================== */
+
+.jas {
+  /* One ladder of surfaces, one gray family, tinted cool to match the hub. */
+  --jas-canvas: var(--color-canvas);
+  --jas-panel: var(--color-panel);
+  --jas-panel-2: var(--color-panel-2);
+  --jas-line: var(--color-line);
+  --jas-line-2: #333849;
+  --jas-ink: var(--color-ink);
+  --jas-ink-2: var(--color-ink-muted);
+  --jas-ink-3: var(--color-ink-faint);
+
+  /* One accent. The studios used to hold three. */
+  --jas-accent: var(--color-brand);
+  --jas-accent-2: var(--color-brand-2);
+
+  /* Shadows carry the ground's hue rather than neutral black, so nothing
+     looks pasted onto the page. */
+  --jas-shadow: 0 18px 44px -28px rgb(6 8 18 / 0.95);
+  --jas-shadow-lift: 0 26px 60px -34px rgb(6 8 18 / 1);
+
+  /* Softer on the containers, tighter on what sits inside them. */
+  --jas-r-lg: 14px;
+  --jas-r: 10px;
+  --jas-r-sm: 7px;
+
+  --jas-bar: 52px;
+
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--jas-canvas);
+  color: var(--jas-ink);
+}
+
+.jas *,
+.jas *::before,
+.jas *::after {
+  box-sizing: border-box;
+}
+
+/* A near-black ground swallows the browser's own focus ring. */
+.jas :focus-visible {
+  outline: 2px solid var(--jas-accent);
+  outline-offset: 2px;
+  border-radius: var(--jas-r-sm);
+}
+
+/* Keyboard users should not have to walk the switcher to reach a studio. */
+.jas-skip {
+  position: absolute;
+  left: 8px;
+  top: -60px;
+  z-index: 60;
+  padding: 8px 14px;
+  border-radius: var(--jas-r);
+  background: var(--jas-accent);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: top 160ms ease;
+}
+.jas-skip:focus {
+  top: 8px;
+}
+
+/* --- The bar ------------------------------------------------------------ */
+
+.jas-bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: var(--jas-bar);
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--jas-canvas) 82%, transparent);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  /* The 1px inner highlight is what makes a blurred surface read as glass
+     rather than as a grey box with a blur behind it. */
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    0 1px 0 var(--jas-line);
+}
+
+.jas-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  padding: 7px 11px 7px 9px;
+  border-radius: var(--jas-r);
+  border: 1px solid var(--jas-line);
+  background: var(--jas-panel);
+  color: var(--jas-ink-2);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    color 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    transform 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.jas-back:hover {
+  color: var(--jas-ink);
+  border-color: var(--jas-line-2);
+  background: var(--jas-panel-2);
+}
+.jas-back:active {
+  transform: scale(0.97);
+}
+.jas-back svg {
+  transition: transform 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.jas-back:hover svg {
+  transform: translateX(-2px);
+}
+
+/* --- Wordmark ----------------------------------------------------------- */
+
+.jas-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex: none;
+}
+.jas-mark {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background:
+    radial-gradient(circle at 34% 28%, color-mix(in srgb, var(--jas-accent) 55%, transparent) 0%, transparent 62%),
+    linear-gradient(160deg, #1b2032 0%, #12141c 100%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.07),
+    0 4px 14px -8px var(--jas-accent);
+  color: var(--jas-accent);
+}
+.jas-brand-t {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.12;
+  min-width: 0;
+}
+.jas-brand-n {
+  font-size: 13px;
+  font-weight: 600;
+  /* Negative tracking gives a small wordmark the density of a set logo. */
+  letter-spacing: -0.015em;
+  color: var(--jas-ink);
+  white-space: nowrap;
+}
+.jas-brand-n em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--jas-ink-3);
+}
+.jas-brand-s {
+  font-size: 10.5px;
+  color: var(--jas-ink-3);
+  white-space: nowrap;
+}
+
+/* --- The switcher ------------------------------------------------------- */
+/*  A segmented control, not three cards: switching studio is one decision
+    among three, and three cards would say it is three destinations.        */
+
+.jas-switch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 auto;
+  padding: 3px;
+  border-radius: 12px;
+  border: 1px solid var(--jas-line);
+  background: var(--jas-panel);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.03);
+}
+
+/* One pane that slides, so the eye follows the move instead of re-finding it. */
+.jas-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 9px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--jas-accent) 26%, transparent) 0%,
+    color-mix(in srgb, var(--jas-accent) 15%, transparent) 100%
+  );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--jas-accent) 45%, transparent),
+    0 6px 18px -12px var(--jas-accent);
+  transition:
+    left 420ms cubic-bezier(0.22, 1, 0.24, 1),
+    width 420ms cubic-bezier(0.22, 1, 0.24, 1);
+  pointer-events: none;
+}
+
+.jas-seg {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--jas-ink-3);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 200ms ease,
+    transform 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.jas-seg:hover {
+  color: var(--jas-ink-2);
+}
+.jas-seg:active {
+  transform: scale(0.97);
+}
+.jas-seg[aria-current="true"] {
+  color: var(--jas-ink);
+  font-weight: 600;
+}
+.jas-seg svg {
+  flex: none;
+  opacity: 0.75;
+}
+.jas-seg[aria-current="true"] svg {
+  opacity: 1;
+  color: var(--jas-accent);
+}
+.jas-seg-l {
+  display: inline;
+}
+/* What the studio does, for someone who has not met the three names before. */
+.jas-seg-h {
+  display: none;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--jas-ink-3);
+}
+
+/* --- Right slot --------------------------------------------------------- */
+
+.jas-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  margin-left: auto;
+}
+.jas-count {
+  font-variant-numeric: tabular-nums;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--jas-panel-2);
+  color: var(--jas-ink-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+/* --- The mounted studio ------------------------------------------------- */
+
+.jas-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  animation: jas-in 260ms cubic-bezier(0.22, 1, 0.24, 1);
+}
+@keyframes jas-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jas-stage {
+    animation: none;
+  }
+  .jas-thumb {
+    transition: none;
+  }
+}
+
+/* Each studio was written to own the viewport. Inside the shell it owns what
+   is left of it instead — set here rather than in three components, so the
+   standalone routes keep working unchanged. */
+.jas-stage > .mcl,
+.jas-stage > .mc,
+.jas-stage > .mp3dl {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  background: transparent;
+}
+.jas-stage > .mcl {
+  overflow: hidden;
+}
+
+/* --- Create, re-pointed at the shared palette --------------------------- */
+/*  The one studio that carried its own colours. Overriding the tokens it
+    already reads means every surface, border and button inside it moves to
+    the shared palette without a single component being touched.            */
+
+.jas .mc {
+  --mc-bg: transparent;
+  --mc-panel: var(--jas-panel);
+  --mc-panel-2: var(--jas-panel-2);
+  --mc-line: var(--jas-line);
+  --mc-line-2: var(--jas-line-2);
+  --mc-ink: var(--jas-ink);
+  --mc-ink-2: var(--jas-ink-2);
+  --mc-ink-3: var(--jas-ink-3);
+  --mc-go: var(--jas-accent);
+  --mc-go-2: var(--jas-accent-2);
+  font-size: 13.5px;
+}
+/* Its own sticky header is gone; the shell's bar is the only one now, so the
+   studio's second row must not try to sit under a bar that is not there. */
+.jas .mc-main {
+  padding-top: 0;
+}
+
+/* --- Second row --------------------------------------------------------- */
+/*  Each studio keeps its own controls, one step down the hierarchy from the
+    switcher: which studio, then where in it.                               */
+
+.jas-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--jas-line);
+  background: var(--jas-panel);
+}
+
+@media (max-width: 900px) {
+  .jas-bar {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .jas-switch {
+    order: 3;
+    width: 100%;
+    margin: 0;
+  }
+  .jas-seg {
+    flex: 1;
+    justify-content: center;
+  }
+  .jas-right {
+    order: 2;
+  }
+}
+@media (max-width: 560px) {
+  .jas-brand-s {
+    display: none;
+  }
+  .jas-seg {
+    padding: 7px 8px;
+  }
+}
+@media (min-width: 1180px) {
+  /* Room enough to say what each studio is for. */
+  .jas-seg-h::before {
+    content: "· ";
+  }
+  .jas-seg-h {
+    display: inline;
+  }
+}
+
+/* Create's hero ran a violet-to-cyan-to-amber sweep across its second line —
+   three accents in one sentence, which is exactly what made the studios look
+   like separate products. One accent, fading out, keeps the emphasis and drops
+   the rainbow. */
+.jas .mc-hero h1 em {
+  background: linear-gradient(
+    92deg,
+    var(--jas-accent) 0%,
+    color-mix(in srgb, var(--jas-accent) 62%, var(--jas-ink)) 58%,
+    var(--jas-ink-2) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+}

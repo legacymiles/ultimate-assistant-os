@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// STD Safe — deriving a status from records.
+// Tap Safe — deriving a status from records.
 //
 // Pure and client-safe on purpose. The owner's own card, the preview shown
 // before approving a request, and the view the other person finally sees all

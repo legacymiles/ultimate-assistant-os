@@ -14,13 +14,14 @@ export const OWNER_SUGGESTED_INTAKE: Omit<Intake, "q2"> = {
   q1:
     "I build AI-powered apps and tools with Claude Code, and collect them in one hub — the " +
     "Ultimate Assistant OS (Next.js on Vercel + Supabase), which is also my portfolio. ~30 apps: " +
-    "AI video (Jarvis Studio, Smart Shot, Seedance Studio), music (Music Creator, Music " +
-    "Classified), a second brain (Jarvis/Dashboard), games (Game Creator for Unreal, 3D Studio), " +
+    "AI video (Jarvis Studio, Smart Shot, Music Video Studio), music (Jarvis Audio Studio — " +
+    "find, classify and create), a second brain (Jarvis/Dashboard), games (Game Creator for " +
+    "Unreal, 3D Studio), " +
     "trading (Expert Advisor feature specs) and more. Mostly for myself and my family right now; " +
     "the portfolio shows what I can build.",
   q3: [
     "Organise my Claude Code folder into an AI OS so any session finds things fast — by Oct 31",
-    "Get Music Creator running end-to-end on a RunPod GPU (YuE2 + voice cloning)",
+    "Get Jarvis Audio Studio's Create side rendering end-to-end on a RunPod GPU (YuE2 + voice cloning)",
     "Launch New Dashboard and onboard 3 other people onto their own AI OS",
   ],
   q4: "No revenue yet — the hub is a portfolio. Paid APIs (OpenRouter, Vercel, Supabase, RunPod, fish.audio) are the costs to track.",

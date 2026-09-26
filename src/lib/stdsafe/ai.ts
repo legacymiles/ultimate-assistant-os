@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// STD Safe — optional AI assist for reading a report.
+// Tap Safe — optional AI assist for reading a report.
 //
 // The heuristic parser in parse.ts is the default path and works with no key.
 // The model is here for the case the parser genuinely cannot cover: a phone

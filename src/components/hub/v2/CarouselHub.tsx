@@ -16,7 +16,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { PROJECTS, type CatalogProject } from "@/lib/catalog";
+import { type CatalogProject } from "@/lib/catalog";
+import { hubProjects } from "@/lib/studio/plugins";
 import { Icon } from "../../icons";
 import { PanelFace } from "./PanelFace";
 import { panelAngle, useCarousel } from "./useCarousel";
@@ -33,7 +34,7 @@ const FADE_DEGREES = 85;
 const PERSPECTIVE = 1500;
 
 export function CarouselHub() {
-  const projects = useMemo(() => PROJECTS, []);
+  const projects = useMemo(() => hubProjects(), []);
   const count = projects.length;
   const { state, tuning, bind, nudge, goTo, wasDragged, attachStage } = useCarousel({ count });
 

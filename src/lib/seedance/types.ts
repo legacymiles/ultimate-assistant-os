@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Seedance Studio — a music-video cutting room.
+// Music Video Studio — a music-video cutting room.
 //
 // Three lanes, and only three:
 //

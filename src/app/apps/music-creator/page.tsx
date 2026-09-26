@@ -1,12 +1,8 @@
-import { MusicCreator } from "@/components/music-creator/MusicCreator";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Music Creator · Ultimate Assistant OS",
-  description:
-    "A music creation studio: write, plan and render full songs with YuE2, mash up a melody with another sound, " +
-    "and keep cloned voices in a library that only has to be built once.",
-};
-
+// Music Creator is now the Create studio inside Jarvis Audio Studio. The route
+// stays alive because links to it exist — in the owner's bookmarks, in Jarvis's
+// toolkit, in earlier notes — and a merge should not turn those into 404s.
 export default function Page() {
-  return <MusicCreator />;
+  redirect("/apps/jarvis-audio-studio?section=create");
 }

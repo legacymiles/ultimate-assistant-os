@@ -188,12 +188,18 @@ describe("app plugins", () => {
     }
   });
 
-  it("keeps them in the hub rather than moving them", async () => {
+  // A plugin has ONE definition, in the catalog, and ONE place it is offered
+  // from. Losing the first turns the card into a dead slug; losing the second
+  // is the duplicate the move was meant to end.
+  it("keeps every plugin in the catalog and out of the hub", async () => {
     const { PROJECTS } = await import("@/lib/catalog");
-    const { PLUGIN_SLUGS } = await import("./plugins");
+    const { PLUGIN_SLUGS, hubProjects } = await import("./plugins");
+    const hub = hubProjects().map((p) => p.slug);
     for (const slug of PLUGIN_SLUGS) {
       expect(PROJECTS.some((p) => p.slug === slug)).toBe(true);
+      expect(hub).not.toContain(slug);
     }
+    expect(hub.length).toBe(PROJECTS.length - PLUGIN_SLUGS.length);
   });
 });
 

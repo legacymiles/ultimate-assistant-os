@@ -47,7 +47,7 @@ export function AuthPanel({ onSignedIn }: { onSignedIn: (dashboard: Dashboard) =
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-8 px-6 py-14 lg:grid-cols-[1.1fr_1fr] lg:py-20">
       <div>
-        <p className="mb-3 text-xs uppercase tracking-[0.2em] text-ink-faint">STD Safe</p>
+        <p className="mb-3 text-xs uppercase tracking-[0.2em] text-ink-faint">Tap Safe</p>
         <h1 className="text-4xl font-semibold leading-[1.1] tracking-tight text-ink">
           Your test results, <span className="text-emerald-300">provable</span> — and honest about
           what they do not prove.

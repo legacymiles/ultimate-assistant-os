@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// STD Safe — who is asking.
+// Tap Safe — who is asking.
 //
 // One principal: a signed-up user. There is no admin here on purpose — nobody
 // should hold a key that opens everyone's results, and the owner of the host

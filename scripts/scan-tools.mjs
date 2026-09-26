@@ -67,6 +67,10 @@ const FOLDER_TO_SLUG = {
   seedance: "seedance-studio", "smart-shot": "smart-shot-videos",
   "video-studio": "video-studio-arena", skills: "skills-library",
   slippery: "slippery-escape", repo: "projects-timeline",
+  // The three studios merged into Jarvis Audio Studio keep their own folders;
+  // their tools belong to the app they are now part of.
+  "mp3-download": "jarvis-audio-studio", "music-classified": "jarvis-audio-studio",
+  "music-creator": "jarvis-audio-studio",
 };
 
 // Files that configure the hub as a whole rather than any one app.
