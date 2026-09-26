@@ -93,6 +93,27 @@ title Jarvis Record - install
 
 set "DEST=%LOCALAPPDATA%\Jarvis Record"
 
+rem Double-clicking this from inside the zip window is the one way the whole
+rem thing goes wrong quietly: Windows unpacks ONLY the file you clicked, to a
+rem temporary folder, so there is nothing beside this script to copy and the
+rem install ends up empty while reporting success. Refuse instead.
+if not exist "%~dp0manifest.json" (
+  echo.
+  echo   Stop - this is running from inside the zip.
+  echo.
+  echo   Windows only unpacked this one file, so the extension itself is not
+  echo   here and there is nothing to install yet.
+  echo.
+  echo   Close this window, then:
+  echo.
+  echo     1. Right-click jarvis-record.zip and choose "Extract All..."
+  echo     2. Open the folder it creates
+  echo     3. Run "Install on Windows" again from inside THAT folder
+  echo.
+  pause
+  exit /b 1
+)
+
 echo Putting the extension somewhere permanent:
 echo    %DEST%
 echo.
@@ -103,28 +124,56 @@ echo.
 
 if not exist "%DEST%" mkdir "%DEST%" >nul 2>&1
 xcopy "%~dp0*" "%DEST%" /E /I /Y /Q >nul
-if errorlevel 1 (
-  echo Could not copy the files. Move this folder somewhere else and run it again.
+del "%DEST%\Install on Windows.cmd" >nul 2>&1
+
+rem Trust the result, not the exit code: what matters is that the browser will
+rem find a manifest there.
+if not exist "%DEST%\manifest.json" (
+  echo   The copy did not work - nothing arrived at
+  echo      %DEST%
+  echo.
+  echo   Move the unzipped folder somewhere simple, such as your Desktop, and
+  echo   run this again. Or skip this script entirely: in chrome://extensions,
+  echo   turn on Developer mode, press Load unpacked, and choose the unzipped
+  echo   folder yourself.
+  echo.
   pause
   exit /b 1
 )
-del "%DEST%\Install on Windows.cmd" >nul 2>&1
 
 powershell -NoProfile -Command "Set-Clipboard -Value '%DEST%'" >nul 2>&1
-echo Done. The folder's path is on your clipboard.
+
+rem "start chrome" depends on a PATH entry that often is not there. The browser
+rem registers its real location under App Paths, so ask for that.
+set "BROWSER="
+set "PAGE=chrome://extensions/"
+for /f "tokens=2,*" %%a in ('reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe" /ve 2^>nul ^| find "REG_SZ"') do set "BROWSER=%%b"
+if not defined BROWSER (
+  for /f "tokens=2,*" %%a in ('reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe" /ve 2^>nul ^| find "REG_SZ"') do set "BROWSER=%%b"
+  if defined BROWSER set "PAGE=edge://extensions/"
+)
+
+echo Done. The extension is installed and its folder path is on your clipboard.
 echo.
 echo Two steps left, and only the browser can do them:
 echo.
-echo    1. Turn on Developer mode, top right.
-echo    2. Press Load unpacked, and paste the path into the folder picker.
-echo.
-echo Opening the extensions page now.
+echo    1. Turn on Developer mode - the switch at the top right.
+echo    2. Press "Load unpacked", then paste ^(Ctrl+V^) into the folder picker
+echo       and press Select Folder.
 echo.
 
-start chrome "chrome://extensions/" 2>nul || start msedge "edge://extensions/" 2>nul || echo Open chrome://extensions yourself - the path is on your clipboard.
+if defined BROWSER (
+  echo Opening the extensions page now.
+  start "" "%BROWSER%" "%PAGE%"
+) else (
+  echo Open chrome://extensions yourself - the path is already on your clipboard.
+)
 
-echo Jarvis handles the rest. The Record tab will say connected on its own.
-timeout /t 15 >nul 2>&1
+echo.
+echo Then go back to Jarvis. The Record tab will say connected on its own -
+echo there is nothing to type in and nothing else to press.
+echo.
+pause
 `;
 
 const READ_ME = `Jarvis Record
@@ -133,11 +182,17 @@ const READ_ME = `Jarvis Record
 This folder IS the extension, and it already knows your hub and carries its own
 token. There is nothing to paste and no options page to fill in.
 
+FIRST: unzip it
+---------------
+Right-click jarvis-record.zip and choose "Extract All...". Do not run anything
+straight from the zip window - Windows unpacks only the single file you click,
+so the installer would find nothing to install.
+
 Windows, the short way
 ----------------------
-Double-click "Install on Windows.cmd". It moves the extension somewhere
-permanent, copies that path to your clipboard, and opens the extensions page.
-Then: Developer mode on, Load unpacked, paste.
+From the UNZIPPED folder, double-click "Install on Windows.cmd". It moves the
+extension somewhere permanent, copies that path to your clipboard, and opens the
+extensions page. Then: Developer mode on, Load unpacked, paste.
 
 Any browser, by hand
 --------------------

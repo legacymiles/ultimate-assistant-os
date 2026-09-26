@@ -15,8 +15,16 @@
 
 export interface ExtensionState {
   installed: boolean;
-  /** It has a hub address and a token, so it can reach this hub. */
+  /** It holds a hub address and a token. */
   configured: boolean;
+  /**
+   * That token still opens the door.
+   *
+   * Separate from `configured` because minting a token anywhere kills every
+   * older one — download the extension on a second computer and the first one
+   * is holding a dead key while still believing it is connected.
+   */
+  works: boolean;
   version?: string;
   hubUrl?: string;
 }
@@ -29,10 +37,11 @@ interface Reply {
   version?: string;
   hubUrl?: string;
   configured?: boolean;
+  works?: boolean;
   error?: string;
 }
 
-const NOT_INSTALLED: ExtensionState = { installed: false, configured: false };
+const NOT_INSTALLED: ExtensionState = { installed: false, configured: false, works: false };
 
 /**
  * The content script stamps the document at document_start, so this is true
@@ -44,7 +53,14 @@ export function extensionMark(): string | null {
   return document.documentElement.getAttribute("data-jarvis-record");
 }
 
-/** Post one message and wait for its answer. Silence means not installed. */
+/**
+ * Post one message and wait for its answer. Silence means not installed.
+ *
+ * The window is generous because a ping now costs the extension one round trip
+ * to the hub — it is answering whether its token still WORKS, not just whether
+ * it has one. Nothing waits on this: the page only pings at all when the
+ * content script has already stamped the document.
+ */
 function ask(payload: Record<string, unknown>, timeout: number): Promise<Reply | null> {
   if (typeof window === "undefined") return Promise.resolve(null);
   const id = `jr-${Math.random().toString(36).slice(2)}`;
@@ -72,12 +88,13 @@ function ask(payload: Record<string, unknown>, timeout: number): Promise<Reply |
   });
 }
 
-export async function pingExtension(timeout = 700): Promise<ExtensionState> {
+export async function pingExtension(timeout = 4000): Promise<ExtensionState> {
   const reply = await ask({ type: "ping" }, timeout);
   if (!reply || reply.type !== "pong") return NOT_INSTALLED;
   return {
     installed: true,
     configured: Boolean(reply.configured),
+    works: Boolean(reply.works),
     version: reply.version,
     hubUrl: reply.hubUrl,
   };

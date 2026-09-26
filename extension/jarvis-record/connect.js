@@ -25,6 +25,29 @@ function reply(to, payload) {
   window.postMessage({ jarvisRecord: 1, direction: "up", to, ...payload }, window.location.origin);
 }
 
+/**
+ * Does the token still open the door?
+ *
+ * Holding a token and holding a WORKING token are different things: minting one
+ * anywhere — another computer, another download — kills every older one. Without
+ * this the page would happily say "connected" while every save came back 401,
+ * which is the worst of both answers. The snapshot is the cheapest authenticated
+ * read there is, and carries nothing sensitive.
+ */
+async function stillWorks(hubUrl, token) {
+  try {
+    const res = await fetch(`${hubUrl}/api/jarvis/record/snapshot/pull`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    // Only a refusal is a no. A hub that is down or offline says nothing about
+    // whether the token is good, so it is not called stale.
+    return res.status === 401 ? false : true;
+  } catch {
+    return true;
+  }
+}
+
 window.addEventListener("message", async (event) => {
   if (event.source !== window) return;
   const msg = event.data;
@@ -33,7 +56,14 @@ window.addEventListener("message", async (event) => {
   try {
     if (msg.type === "ping") {
       const { hubUrl, token } = await chrome.storage.local.get(["hubUrl", "token"]);
-      reply(msg.id, { type: "pong", version: VERSION, configured: Boolean(token), hubUrl: hubUrl || "" });
+      const works = token && hubUrl ? await stillWorks(hubUrl, token) : false;
+      reply(msg.id, {
+        type: "pong",
+        version: VERSION,
+        configured: Boolean(token),
+        works,
+        hubUrl: hubUrl || "",
+      });
       return;
     }
 

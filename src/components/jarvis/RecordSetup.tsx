@@ -34,10 +34,12 @@ export interface RecordSetup {
   account: boolean | null;
   /** null until the first look at this browser. */
   extension: ExtensionState | null;
-  /** Installed here, holding a token, and pointed at this hub. */
+  /** Installed here, holding a working token, and pointed at this hub. */
   ready: boolean;
   /** It holds a token, but for a different hub. */
   elsewhere: string | null;
+  /** It holds a token this hub no longer accepts — minting one kills the rest. */
+  stale: boolean;
   busy: Busy;
   error: string;
   /** Downloaded, and now watching for the extension to appear. */
@@ -77,7 +79,9 @@ export function useRecordSetup(): RecordSetup {
   const look = useCallback(async (): Promise<ExtensionState> => {
     // The content script stamps the document at document_start, so its absence
     // is already conclusive and there is no ping to wait out.
-    const state = extensionMark() ? await pingExtension() : { installed: false, configured: false };
+    const state = extensionMark()
+      ? await pingExtension()
+      : { installed: false, configured: false, works: false };
     setExtension(state);
     return state;
   }, []);
@@ -196,12 +200,16 @@ export function useRecordSetup(): RecordSetup {
     extension?.installed && extension.configured && extension.hubUrl && extension.hubUrl !== origin
       ? extension.hubUrl
       : null;
+  // Not auto-fixed, unlike an extension with no token at all: a second browser
+  // quietly minting itself a working key would take the first one's away.
+  const stale = Boolean(extension?.installed && extension.configured && !extension.works && !elsewhere);
 
   return {
     account,
     extension,
-    ready: Boolean(extension?.installed && extension.configured && !elsewhere),
+    ready: Boolean(extension?.installed && extension.configured && extension.works && !elsewhere),
     elsewhere,
+    stale,
     busy,
     error,
     waiting,
@@ -264,29 +272,45 @@ function CopyChip({ text, label }: { text: string; label: string }) {
   );
 }
 
-/** The two steps Chrome keeps for itself, and the live word on where they got to. */
+/** A numbered step. The numbers are the information here — order is the point. */
+function Step({ n, children }: { n: number; children: React.ReactNode }) {
+  return (
+    <li className="flex gap-2.5">
+      <span className="mt-px w-3 shrink-0 text-right font-mono text-[10px] tabular-nums text-ink-faint">{n}</span>
+      <span>{children}</span>
+    </li>
+  );
+}
+
+/**
+ * Unzip, install, load. The first step looks skippable and is not: double-
+ * clicking the installer inside the zip window makes Windows unpack that one
+ * file alone, so it finds nothing to copy. The installer now refuses that, but
+ * the instruction has to say it too.
+ */
 function Steps({ waiting }: { waiting: boolean }) {
   return (
     <ol className="space-y-2 text-[11px] leading-relaxed text-ink-muted">
-      <li className="flex gap-2.5">
-        <span className="mt-px w-3 shrink-0 text-right font-mono text-[10px] tabular-nums text-ink-faint">1</span>
-        <span>
-          Open the download and run <span className="font-medium text-ink">Install on Windows.cmd</span>. It parks the
-          extension somewhere permanent and puts that folder on your clipboard.
-          <span className="mt-0.5 block text-ink-faint">
-            Rather not run it? Then just move the unzipped folder out of Downloads yourself — a browser reads an
-            unpacked extension off disk forever, so the folder has to stay put.
-          </span>
+      <Step n={1}>
+        <span className="font-medium text-ink">Unzip it first.</span> Right-click{" "}
+        <span className="text-ink">jarvis-record.zip</span> → <span className="text-ink">Extract All</span>.
+        <span className="mt-0.5 block text-ink-faint">
+          Running anything straight from the zip window does nothing: Windows only unpacks the one file you click.
         </span>
-      </li>
-      <li className="flex gap-2.5">
-        <span className="mt-px w-3 shrink-0 text-right font-mono text-[10px] tabular-nums text-ink-faint">2</span>
-        <span>
-          In <CopyChip text={CHROME_URL} label="the extensions page address" />, turn on{" "}
-          <span className="font-medium text-ink">Developer mode</span>, press{" "}
-          <span className="font-medium text-ink">Load unpacked</span>, and paste the folder.
+      </Step>
+      <Step n={2}>
+        From the unzipped folder, run <span className="font-medium text-ink">Install on Windows.cmd</span>. It parks the
+        extension somewhere permanent, copies that path, and opens the extensions page.
+        <span className="mt-0.5 block text-ink-faint">
+          Rather not run it? Then move the unzipped folder out of Downloads yourself — a browser reads an unpacked
+          extension off disk forever, so it has to stay put — and do step 3 with that folder.
         </span>
-      </li>
+      </Step>
+      <Step n={3}>
+        In <CopyChip text={CHROME_URL} label="the extensions page address" />, turn on{" "}
+        <span className="font-medium text-ink">Developer mode</span> (top right), press{" "}
+        <span className="font-medium text-ink">Load unpacked</span>, and paste the folder.
+      </Step>
       <li className="flex items-center gap-2 pt-0.5 text-ink-faint">
         <Lamp tone={waiting ? "pending" : "off"} />
         <span>
@@ -307,7 +331,7 @@ function Steps({ waiting }: { waiting: boolean }) {
  * sits inside a section that has one already.
  */
 export function RecordSetupPanel({ setup, frame = false }: { setup: RecordSetup; frame?: boolean }) {
-  const { account, extension, ready, elsewhere, busy, error, waiting, token } = setup;
+  const { account, extension, ready, elsewhere, stale, busy, error, waiting, token } = setup;
   const [openSteps, setOpenSteps] = useState(false);
   const missing = extension !== null && !extension.installed;
   // Instructions for a thing that has already happened are clutter, so the
@@ -318,21 +342,25 @@ export function RecordSetupPanel({ setup, frame = false }: { setup: RecordSetup;
     ? "This browser is connected"
     : elsewhere
       ? "The extension here is pointed at another hub"
-      : extension === null
-        ? "Checking this browser"
-        : extension.installed
-          ? "The extension is here but has no token"
-          : account
-            ? "Connected in another browser, not this one"
-            : "The extension is not in this browser yet";
+      : stale
+        ? "The extension here is holding a token this hub no longer accepts"
+        : extension === null
+          ? "Checking this browser"
+          : extension.installed
+            ? "The extension is here but has no token"
+            : account
+              ? "Connected in another browser, not this one"
+              : "The extension is not in this browser yet";
 
   const aside = ready
     ? `${extension?.version ? `v${extension.version} · ` : ""}the applications you fill in feed your Record`
     : elsewhere
       ? elsewhere
-      : extension?.installed
-        ? "handing it one now"
-        : "one download, then two clicks in the browser";
+      : stale
+        ? "downloading it again anywhere replaces the old one"
+        : extension?.installed
+          ? "handing it one now"
+          : "one download, then two clicks in the browser";
 
   return (
     <div className={frame ? "rounded-xl border border-line bg-panel" : ""}>
@@ -375,6 +403,17 @@ export function RecordSetupPanel({ setup, frame = false }: { setup: RecordSetup;
             <button type="button" className={loud} disabled={busy !== ""} onClick={() => void setup.connect()}>
               <Icon.Link className="h-3.5 w-3.5" />
               {busy === "connect" ? "Pointing it here…" : "Point it at this hub"}
+            </button>
+          ) : stale ? (
+            <button
+              type="button"
+              className={loud}
+              title="Gives this browser a working token. Any other browser still holding one stops working."
+              disabled={busy !== ""}
+              onClick={() => void setup.connect()}
+            >
+              <Icon.Refresh className="h-3.5 w-3.5" />
+              {busy === "connect" ? "Reconnecting…" : "Reconnect this browser"}
             </button>
           ) : extension?.installed ? (
             <button type="button" className={quiet} disabled={busy !== ""} onClick={() => void setup.connect()}>
