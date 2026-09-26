@@ -6,6 +6,7 @@ import { Icon } from "../icons";
 import { connectLucy, fetchHealth, type LucyConnection } from "@/lib/realtime-lucy/client";
 import {
   BRIDGE_DOWN,
+  BRIDGE_STALE,
   LS_BRIDGE,
   LUCY_BRIDGE,
   bridgeBase,
@@ -73,6 +74,7 @@ export function RealtimeLucy() {
   // The one button: the launcher on the PC with the GPU, as this page sees it.
   const [launcher, setLauncher] = useState<LauncherStatus | null>(null);
   const [bridgeDown, setBridgeDown] = useState(false);
+  const [bridgeStale, setBridgeStale] = useState(false);
   const [booting, setBooting] = useState(false);
   const [bootNote, setBootNote] = useState("");
   const [bridgeUrl, setBridgeUrl] = useState(LUCY_BRIDGE);
@@ -114,10 +116,13 @@ export function RealtimeLucy() {
       const s = await launcherStatus();
       setLauncher(s);
       setBridgeDown(false);
+      setBridgeStale(false);
       return s;
-    } catch {
+    } catch (err) {
+      const stale = (err as Error).message === BRIDGE_STALE;
       setLauncher(null);
-      setBridgeDown(true);
+      setBridgeStale(stale);
+      setBridgeDown(!stale);
       return null;
     }
   }, []);
@@ -281,7 +286,9 @@ export function RealtimeLucy() {
       setError(
         message === BRIDGE_DOWN
           ? "Can't reach the launcher on this PC. It runs the GPU server for this page; start it once with tools\\studio-bridge\\install-autostart.cmd and it will be there at every login."
-          : message,
+          : message === BRIDGE_STALE
+            ? "The bridge on this PC is running an older build, from before it could start Lucy. Stop it (tools\\studio-bridge\\uninstall-autostart.cmd), then start it again (install-autostart.cmd) — a second copy can't help while the first still holds the port."
+            : message,
       );
     } finally {
       setBooting(false);
@@ -302,7 +309,13 @@ export function RealtimeLucy() {
       await checkLauncher();
     } catch (err) {
       const message = (err as Error).message;
-      setError(message === BRIDGE_DOWN ? "Can't reach the launcher on this PC." : message);
+      setError(
+        message === BRIDGE_DOWN
+          ? "Can't reach the launcher on this PC."
+          : message === BRIDGE_STALE
+            ? "The bridge on this PC is running an older build, from before it could start Lucy."
+            : message,
+      );
     } finally {
       setBooting(false);
       setBootNote("");
@@ -462,9 +475,11 @@ export function RealtimeLucy() {
                 : "Lucy server online · model loading…"
             : starting
               ? "Starting the engine on this PC…"
-              : bridgeDown
-                ? "Engine offline · launcher unreachable"
-                : "Engine offline · press Start Lucy"}
+              : bridgeStale
+                ? "Engine offline · the launcher here is an old build"
+                : bridgeDown
+                  ? "Engine offline · launcher unreachable"
+                  : "Engine offline · press Start Lucy"}
         </span>
       </header>
 
@@ -530,9 +545,11 @@ export function RealtimeLucy() {
                     : !online
                       ? notInstalled
                         ? "The model isn't installed on this PC yet"
-                        : bridgeDown
-                          ? "Can't reach the launcher on this PC"
-                          : "Engine off — press Start Lucy"
+                        : bridgeStale
+                          ? "The launcher here is an older build"
+                          : bridgeDown
+                            ? "Can't reach the launcher on this PC"
+                            : "Engine off — press Start Lucy"
                       : !ready
                         ? "Model loading on the GPU…"
                         : "Server ready — press Go live"}
@@ -543,9 +560,11 @@ export function RealtimeLucy() {
                     : !online
                       ? notInstalled
                         ? "The Python environment and the weights live outside this repo and aren't there yet. tools/realtime-lucy/README.md has the one-time install."
-                        : bridgeDown
-                          ? "This page is only the WebRTC client; something on the PC has to run the model. That is the studio bridge, and it isn't answering — start it once with install-autostart.cmd (see below) and it will be there at every login."
-                          : "This page is only the client — nothing generates until the model is running on the GPU. Start Lucy does the whole thing: start the engine, wait for it, and go live."
+                        : bridgeStale
+                          ? "The studio bridge is running here, but from a build made before it could start Lucy. Stop it and start it again (see below) — a second copy can't take over while the first holds the port."
+                          : bridgeDown
+                            ? "This page is only the WebRTC client; something on the PC has to run the model. That is the studio bridge, and it isn't answering — start it once with install-autostart.cmd (see below) and it will be there at every login."
+                            : "This page is only the client — nothing generates until the model is running on the GPU. Start Lucy does the whole thing: start the engine, wait for it, and go live."
                       : !ready
                         ? "The 1.3B DiT, the VAE and the T5 are being streamed onto the card. This takes 20–30 seconds; the first uncached prompt adds about a minute more."
                         : "Every frame here will be generated by the model. The prompt only takes effect once the stream is live — editing it before then changes nothing."}
@@ -733,9 +752,11 @@ export function RealtimeLucy() {
                   : !online
                     ? notInstalled
                       ? "Not installed on this PC yet — see tools/realtime-lucy/README.md."
-                      : bridgeDown
-                        ? "The launcher on this PC isn't answering (see below)."
-                        : "Start Lucy starts the engine on this PC and goes live by itself."
+                      : bridgeStale
+                        ? "The launcher here predates Lucy — restart it (see below)."
+                        : bridgeDown
+                          ? "The launcher on this PC isn't answering (see below)."
+                          : "Start Lucy starts the engine on this PC and goes live by itself."
                     : streaming
                     ? promptBusy
                       ? "A prompt the model has not seen before is run through the T5 once — about 50 s on this GPU, then it is cached on disk and instant forever after."
@@ -907,12 +928,16 @@ export function RealtimeLucy() {
             <strong className="text-ink">Stop the engine</strong> gives the card back.
           </p>
           <p className="mb-2">
-            {bridgeDown
-              ? "The bridge is not answering right now, which is why the button can't do it. Run this once — it starts it now and at every login:"
-              : "If the bridge is ever not running, this installs and starts it — once, then at every login:"}
+            {bridgeStale
+              ? "The bridge running here was started before it knew how to start Lucy, so the button can't use it. Stop it first, then start it again — the second command also makes it start at every login:"
+              : bridgeDown
+                ? "The bridge is not answering right now, which is why the button can't do it. Run this once — it starts it now and at every login:"
+                : "If the bridge is ever not running, this installs and starts it — once, then at every login:"}
           </p>
           <pre className="overflow-x-auto rounded-xl border border-line bg-canvas p-3 font-mono text-[11px] text-ink">
-            {`tools\\studio-bridge\\install-autostart.cmd`}
+            {bridgeStale
+              ? `tools\\studio-bridge\\uninstall-autostart.cmd\ntools\\studio-bridge\\install-autostart.cmd`
+              : `tools\\studio-bridge\\install-autostart.cmd`}
           </pre>
           {launcher?.log && !ready && (
             <>

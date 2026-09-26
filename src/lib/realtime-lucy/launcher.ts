@@ -26,6 +26,10 @@ export function bridgeBase() {
 
 /** Thrown when the bridge itself is not running — a different fix to show. */
 export const BRIDGE_DOWN = "bridge-down";
+/** Thrown when it IS running, but from a build that predates the Lucy routes.
+ *  Worth telling apart: starting a second copy won't help, because the port is
+ *  taken by the old one — it has to be stopped first. */
+export const BRIDGE_STALE = "bridge-stale";
 
 export interface LauncherStatus {
   /** Is the Python env + weights install present on that PC at all? */
@@ -53,6 +57,13 @@ async function ask(path: string, method: "GET" | "POST", timeoutMs = 10_000) {
     });
   } catch {
     throw new Error(BRIDGE_DOWN);
+  }
+  if (res.status === 404) {
+    // An older bridge answers /health and 404s everything Lucy needs.
+    const alive = await fetch(`${bridgeBase()}/health`, { cache: "no-store", signal: AbortSignal.timeout(15_000) })
+      .then((r) => r.ok)
+      .catch(() => false);
+    throw new Error(alive ? BRIDGE_STALE : BRIDGE_DOWN);
   }
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) throw new Error(typeof body.error === "string" ? body.error : `${path} ${res.status}`);
