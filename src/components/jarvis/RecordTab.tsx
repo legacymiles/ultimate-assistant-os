@@ -450,13 +450,19 @@ function Intake({
           dragging ? "bg-brand/10 ring-2 ring-inset ring-brand/50" : ""
         }`}
       >
-        <Icon.File className={`h-4 w-4 shrink-0 ${dragging ? "text-brand" : "text-ink-faint"}`} />
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-ink">Fill this in from a document</h3>
-          <p className="mt-0.5 max-w-[70ch] text-[11px] leading-snug text-ink-faint">
-            Photograph a pay stub, an old résumé, a lease, an insurance card or a benefits letter. Jarvis reads
-            what is printed and proposes it — you confirm each value before it is saved.
-          </p>
+        {/* Icon and sentence stay one unit that owns the whole line on a phone;
+            the two buttons wrap under it rather than squeezing it into a column. */}
+        <div className="flex w-full min-w-0 items-start gap-3 sm:w-auto sm:flex-1 sm:items-center">
+          <Icon.File
+            className={`mt-0.5 h-4 w-4 shrink-0 sm:mt-0 ${dragging ? "text-brand" : "text-ink-faint"}`}
+          />
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-ink">Fill this in from a document</h3>
+            <p className="mt-0.5 max-w-[70ch] text-[11px] leading-snug text-ink-faint">
+              Photograph a pay stub, an old résumé, a lease, an insurance card or a benefits letter. Jarvis
+              reads what is printed and proposes it — you confirm each value before it is saved.
+            </p>
+          </div>
         </div>
         <input
           ref={input}
@@ -469,13 +475,15 @@ function Intake({
             e.target.value = "";
           }}
         />
-        <button type="button" className={btn} disabled={busy} onClick={() => input.current?.click()}>
-          <Icon.Upload className="h-3.5 w-3.5" />
-          {busy ? "Reading…" : "Choose a picture"}
-        </button>
-        <button type="button" className={btn} disabled={busy} onClick={() => setPasting((p) => !p)}>
-          Paste text
-        </button>
+        <div className="flex items-center gap-3 sm:ml-auto">
+          <button type="button" className={btn} disabled={busy} onClick={() => input.current?.click()}>
+            <Icon.Upload className="h-3.5 w-3.5" />
+            {busy ? "Reading…" : "Choose a picture"}
+          </button>
+          <button type="button" className={btn} disabled={busy} onClick={() => setPasting((p) => !p)}>
+            Paste text
+          </button>
+        </div>
       </div>
 
       {pasting && (
@@ -512,11 +520,11 @@ function Intake({
       {queue.length > 0 && (
         <div className="border-t border-line">
           <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-            <p className="text-xs text-ink-muted">
+            <p className="w-full min-w-0 text-xs text-ink-muted sm:w-auto sm:flex-1">
               {document ? <span className="text-ink">{document}</span> : "That document"} — {queue.length} to
               confirm. Check each against the quote before you keep it.
             </p>
-            <div className="flex gap-2">
+            <div className="flex gap-2 sm:ml-auto">
               <button type="button" className={btn} onClick={() => setQueue([])}>
                 Discard all
               </button>
