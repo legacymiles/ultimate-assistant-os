@@ -32,6 +32,10 @@ next-env.d.ts
 *.png
 !src/**/*.png
 !public/**/*.png
+# The browser extension's icon is source, not a screenshot: leaving it out means
+# the deployed hub builds a download whose manifest points at a file that is not
+# there, and Chrome refuses to load the whole extension over it.
+!extension/**/*.png
 .claude/
 
 

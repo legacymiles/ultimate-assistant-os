@@ -54,12 +54,23 @@ async function sources(dir: string): Promise<ZipEntry[]> {
  * connect bridge runs on your hub and nowhere else, and the extension can fetch
  * your hub and nothing else.
  */
-function retarget(raw: string, origin: string): string {
+function retarget(raw: string, origin: string, present: Set<string>): string {
   const manifest = JSON.parse(raw) as Record<string, unknown> & {
     content_scripts?: { matches: string[] }[];
+    icons?: Record<string, string>;
   };
   manifest.host_permissions = [`${origin}/*`];
   for (const script of manifest.content_scripts ?? []) script.matches = [`${origin}/*`];
+
+  // A manifest that names a file which is not in the folder makes Chrome refuse
+  // the WHOLE extension — "Could not load icon 'icon.png'" and nothing installs.
+  // An icon is decoration; being unable to install is not. So if the picture did
+  // not travel (it is gitignored by a blanket *.png rule on some checkouts, and
+  // therefore absent from a deployed host), drop the claim rather than the
+  // extension, and let Chrome use its default.
+  if (manifest.icons && Object.values(manifest.icons).some((f) => !present.has(f))) {
+    delete manifest.icons;
+  }
   return `${JSON.stringify(manifest, null, 2)}\n`;
 }
 
@@ -250,9 +261,10 @@ export async function POST(req: Request) {
   const token = await mintToken(await sessionUid());
   if (!token) return storageFailed();
 
+  const present = new Set(files.map((f) => f.name));
   const entries: ZipEntry[] = files.map((file) => {
     if (file.name === "manifest.json") {
-      return { name: file.name, body: retarget(file.body.toString("utf8"), origin) };
+      return { name: file.name, body: retarget(file.body.toString("utf8"), origin, present) };
     }
     if (file.name === "config.js") return { name: file.name, body: config(origin, token) };
     return file;
