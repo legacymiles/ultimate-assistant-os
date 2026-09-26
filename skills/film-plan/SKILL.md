@@ -218,7 +218,7 @@ file is authoritative; this is the shape, so you can write a valid plan without 
 }
 ```
 
-Five rules govern the writing, whatever the resources:
+Six rules govern the writing, whatever the resources:
 
 1. **The film-wide fields are repeated word for word into every shot.** `mood`, `world`,
    `wardrobe`, `lighting`, `grade`, `lens`, `look` — that repetition is the only reason a dozen
@@ -236,6 +236,13 @@ Five rules govern the writing, whatever the resources:
    beat list fills them with whatever it likes, which is usually nothing.
 5. **Ids are stable.** A revision returns the whole plan keeping the ids it did not change —
    that is what lets `shot-plan-storyboard` redraw only the stale panels instead of everything.
+6. **A look field is decided, never defaulted.** `lensMm`, `aperture`, `move`, `lighting`,
+   `grade` and `palette` are filled with a value you can defend in one clause — *"85mm, because
+   she is alone in a room full of people"*. `35` on every shot is not a lens decision, it is the
+   absence of one, and `"soft cinematic lighting"` is a request for the model to choose, which it
+   does, flatly. **This is the rule that decides whether the film comes back basic**, and it is
+   the only one with no visible symptom until the render exists —
+   read `references/cinematography.md` before filling them.
 
 ---
 
@@ -406,6 +413,8 @@ What the script cannot check, you check by reading:
 | A named camera move renders plain | `move` was named and `cameraNote` left empty — the label alone reads as the ordinary move |
 | The sheet and the film describe different shoots | Something other than the plan held a description |
 | Every setting was used and it still feels generic | The resources were listed rather than ranked; nothing was allowed to win |
+| Nothing is wrong with it and it looks like stock footage | The look fields were defaulted, not decided — rule 6, and `references/cinematography.md` |
+| A planned lighting change never happened | It was written as a second lighting description; only an event in `action` renders |
 | The owner was asked six forms for a 12-second clip | Rounds were run at full length on a short film — see Part 1 |
 
 ## Reference files
@@ -413,6 +422,7 @@ What the script cannot check, you check by reading:
 | File | Read it when |
 |---|---|
 | `references/resources.md` | Placing any single resource — the per-type rules in depth |
+| `references/cinematography.md` | Filling any look field — lens, light, blocking, move, colour, coverage. **Read it whenever a film came back "basic", flat or generic** |
 | `references/preflight.md` | Reading the gate's findings, or checking a plan by hand |
 
 Related skills: **shot-plan-storyboard** draws this plan as the editable sheet and owns the
