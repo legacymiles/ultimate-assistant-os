@@ -39,7 +39,13 @@ const STEPS: { id: Step; label: string }[] = [
 
 type SaveState = "idle" | "saving" | "saved";
 
-export function Blueprint() {
+/**
+ * `chromeless` drops the hub button when Prompt Architect is a tab inside
+ * Jarvis's Toolbox — the rail is already the way back. The bar it sat in stays:
+ * the aurora header below says what the tool DOES, and inside an assistant with
+ * a dozen tabs the name is the thing you need to still see.
+ */
+export function Blueprint({ chromeless = false }: { chromeless?: boolean } = {}) {
   const [step, setStep] = useState<Step>("intake");
   const [maxIdx, setMaxIdx] = useState(0);
 
@@ -195,17 +201,19 @@ export function Blueprint() {
   const filenameBase = useMemo(() => slugify(overview.one_liner) || "blueprint", [overview.one_liner]);
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className={cn("flex flex-col", chromeless ? "min-h-0" : "min-h-dvh")}>
       {/* Top bar */}
       <div className="flex items-center gap-2 border-b border-line bg-panel px-3 py-2.5 sm:px-4">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
-          aria-label="Back to hub"
-        >
-          <Icon.ArrowLeft width={14} height={14} />
-          <span className="hidden sm:inline">Hub</span>
-        </Link>
+        {!chromeless && (
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
+            aria-label="Back to hub"
+          >
+            <Icon.ArrowLeft width={14} height={14} />
+            <span className="hidden sm:inline">Hub</span>
+          </Link>
+        )}
         <span className="ml-1 text-sm font-semibold text-ink">Prompt Architect</span>
         <span className="ml-2 rounded-md bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand">
           Idea → Prompt

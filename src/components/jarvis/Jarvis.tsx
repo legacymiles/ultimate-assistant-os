@@ -29,6 +29,8 @@ import { Recall } from "../recall/Recall";
 import { ListsBoard } from "../recall/lists/ListsBoard";
 import { SkillsLibrary } from "../skills/SkillsLibrary";
 import { ToolsTab } from "./ToolsTab";
+import { AppShell } from "../AppShell";
+import { Blueprint } from "../blueprint/Blueprint";
 import { PluginsTab } from "./PluginsTab";
 import { SettingsTab } from "./SettingsTab";
 import { toCalEvent, useDashboardCalendar } from "@/lib/jarvis/useDashboardCalendar";
@@ -45,14 +47,17 @@ import type { ChatTurn, Conversation, JarvisStore } from "@/lib/jarvis/types";
 export type TabId =
   | "dashboard" | "chat" | "inbox" | "calendar" | "studio"
   | "folders" | "photos" | "lists" | "record"
-  | "memory" | "routines" | "skills" | "tools" | "profile" | "plugins" | "settings";
+  | "memory" | "routines" | "skills" | "tools" | "architect" | "timeline"
+  | "profile" | "plugins" | "settings";
 
 type RailTab = { id: TabId; label: string; icon: keyof typeof Icon };
 
 /**
  * The rail. Folders, Photos and Lists are the old Dashboard app, moved in whole
  * — there is one dashboard now, and it is this one. Toolbox is a folder in the
- * rail rather than a tab: it opens to Skills, Tools and AI Rankings.
+ * rail rather than a tab: it opens to Skills, Tools, and the two hub apps that
+ * are reached for mid-thought rather than gone to — Prompt Architect and the
+ * Projects Timeline, both mounted here rather than linked out to.
  */
 const GROUPS: { title: string; items: (RailTab | { toolbox: RailTab[] })[] }[] = [
   {
@@ -86,6 +91,8 @@ const GROUPS: { title: string; items: (RailTab | { toolbox: RailTab[] })[] }[] =
         toolbox: [
           { id: "skills", label: "Skills", icon: "Sparkles" },
           { id: "tools", label: "Tools", icon: "Layers" },
+          { id: "architect", label: "Architect", icon: "Bulb" },
+          { id: "timeline", label: "Timeline", icon: "Flag" },
         ],
       },
       { id: "profile", label: "Profile", icon: "Users" },
@@ -341,6 +348,8 @@ export function Jarvis() {
           )}
           {tab === "skills" && <SkillsLibrary chromeless />}
           {tab === "tools" && <ToolsTab />}
+          {tab === "architect" && <Blueprint chromeless />}
+          {tab === "timeline" && <AppShell chromeless />}
           {tab === "plugins" && <PluginsTab />}
           {tab === "settings" && <SettingsTab go={go} updates={updates} />}
           {tab === "memory" && <MemoryTab store={store} commit={commit} />}

@@ -27,7 +27,7 @@ Source lives in \`src/components/cook-connect/\` and \`src/lib/cook-connect/\`, 
 - **Cookbook Genie** — the AI cookbook app. Removed from the hub on 26 Sep 2026, once the merge had proved itself.
 - **Pod Play Connect** (\`/pod-play-connect\`) — the Vite SPA with spades, chess, chat and video.
 
-**Neither could be deleted until the owner said so.** That was lifted for Cookbook Genie on 26 Sep 2026 — it is off the hub and its pages are deleted. Pod Play Connect keeps its route, its code and its data: ask before removing it.
+**Neither could be deleted until the owner said so.** That was lifted for Cookbook Genie on 26 Sep 2026 — it is off the hub and its pages are deleted. Pod Play Connect came off the hub the same day: its catalog entry is gone, so it has no tile and no detail page, but the app itself still runs at \`/pod-play-connect\` on its own bundle and its own \`pod\` data — ask before deleting those.
 
 ---
 
@@ -231,12 +231,14 @@ export function cookConnectKnowledge(projectId: string): KnowledgeEntry[] {
   return [
     entry(
       "documentation",
-      "Cookbook Genie is gone; Pod Play Connect stays",
+      "Both source apps are off the hub; Pod Play Connect's data stays",
       `The owner's words: "dont delete the 2 apps until i like the merge and say delete the other 2."
 
 That day came on 26 Sep 2026: Cookbook Genie was taken off the hub and its pages deleted, and the
-Dashboard's photo-to-recipe destination now files into Cook Connect instead. /pod-play-connect still
-runs untouched on its own code and its own data — ask before removing it.`,
+Dashboard's photo-to-recipe destination now files into Cook Connect instead. Pod Play Connect left the
+hub later the same day — no tile, no detail page — but only the catalog entry went. The bundle in
+public/, the rewrite that serves it and the \`pod\` schema behind it are untouched, so /pod-play-connect
+still runs for anyone holding the link. Ask before deleting those.`,
     ),
     entry(
       "documentation",

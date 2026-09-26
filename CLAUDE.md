@@ -62,6 +62,7 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 - The Vercel AI Gateway free tier serves no Anthropic model — keep OpenRouter as the default.
 - Apps must work with no keys set (local demo mode, offline fallback). A missing key degrades visibly, never 500s.
 - Private apps holding the owner's data go in `UNPREVIEWABLE` in `catalog.ts` so the hub carousel never frames them.
+- Moving a finished app off the hub and into Jarvis is one edit, in `src/lib/studio/plugins.ts`: add the slug to `PLUGIN_SLUGS` (a card on Jarvis › App plugins that opens the app in its own tab) or to `TOOLBOX_SLUGS` (a tab mounted inside Jarvis › Toolbox, wired to a component in `jarvis/Jarvis.tsx`). `hubProjects()` is the catalog minus both, so the two places cannot show the same app twice. Keep the catalog entry — deleting it is what silently killed the old Cookbook Genie card.
 
 ## How to work with the owner
 

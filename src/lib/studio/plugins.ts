@@ -1,12 +1,20 @@
 // ---------------------------------------------------------------------------
-// App plugins — the finished apps, moved out of the hub and into Jarvis.
+// The apps that have moved out of the hub and into Jarvis.
 //
-// A plugin is not a copy. The app still has exactly one definition, in the hub
+// Neither kind is a copy. The app still has exactly one definition, in the hub
 // catalog (src/lib/catalog.ts), and still runs at its own route; what moves is
-// where the owner goes looking for it. So this file is only the allowlist, and
-// it is also the rule that keeps the two places from showing the same app
+// where the owner goes looking for it. So this file is only the allowlists, and
+// they are also the rule that keeps the two places from showing the same app
 // twice: a slug listed here leaves the hub grid (`hubProjects`) and appears in
 // Jarvis instead. Moving another finished app across is adding a slug.
+//
+// There are two ways in, and the difference is whether you leave Jarvis to use
+// the app. A PLUGIN is a door out: its card on the App plugins page opens the
+// whole app in its own tab, because it is a place you go and work for a while.
+// A TOOLBOX app opens inside Jarvis, in the rail's Toolbox folder next to
+// Skills and Tools, because it is something you reach for mid-thought and then
+// carry on — and leaving the assistant to use it is the friction that stops you
+// reaching for it at all.
 // ---------------------------------------------------------------------------
 
 import { PROJECTS, type CatalogProject } from "@/lib/catalog";
@@ -23,6 +31,16 @@ export const PLUGIN_SLUGS = [
   "ai-rankings",
   "cook-connect",
 ] as const;
+
+/**
+ * The apps that open INSIDE Jarvis, as tabs in the Toolbox folder.
+ *
+ * The rail draws these, with its own label and icon, in src/components/jarvis/
+ * Jarvis.tsx — a tab needs a component to mount, which an allowlist of slugs
+ * cannot supply. What lives here is the half the hub needs to know: that these
+ * two are no longer tiles on the front page.
+ */
+export const TOOLBOX_SLUGS = ["prompt-architect", "projects-timeline"] as const;
 
 export interface StudioPlugin {
   slug: string;
@@ -101,9 +119,19 @@ export function studioPlugins(): StudioPlugin[] {
   });
 }
 
-/** Whether this app has moved to Jarvis and should no longer sit in the hub. */
+/** Whether this app is offered as a card on Jarvis's App plugins page. */
 export function isPlugin(slug: string): boolean {
   return (PLUGIN_SLUGS as readonly string[]).includes(slug);
+}
+
+/** Whether this app opens inside Jarvis, as a tab in the Toolbox folder. */
+export function isToolboxApp(slug: string): boolean {
+  return (TOOLBOX_SLUGS as readonly string[]).includes(slug);
+}
+
+/** Whether this app has moved to Jarvis, either way, and has left the hub. */
+export function inJarvis(slug: string): boolean {
+  return isPlugin(slug) || isToolboxApp(slug);
 }
 
 /**
@@ -113,5 +141,5 @@ export function isPlugin(slug: string): boolean {
  * moved rather than a second copy of the list.
  */
 export function hubProjects(): CatalogProject[] {
-  return PROJECTS.filter((p) => !isPlugin(p.slug));
+  return PROJECTS.filter((p) => !inJarvis(p.slug));
 }

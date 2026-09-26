@@ -255,22 +255,6 @@ export const PROJECTS: CatalogProject[] = [
     hue: [24, 145],
   },
   {
-    slug: "pod-play-connect",
-    title: "Pod Play Connect",
-    tag: "Communities · pods · live Spades",
-    category: "Apps",
-    overview:
-      "A social app for interest communities and real-time activity pods — join curated groups (Spades, " +
-      "Basketball, Brunch, Study Sessions), form pods, and play full multiplayer Spades with bidding, " +
-      "tricks and live scoring. Includes optional video verification and peer-governed safety. Built as a " +
-      "Vite + React + Supabase app (auth, realtime), served from the hub as a prebuilt bundle.",
-    status: "live",
-    // Prebuilt Vite bundle in public/pod-play-connect (SPA rewrite in next.config.mjs).
-    appUrl: "/pod-play-connect",
-    iconStyle: "orbit",
-    hue: [268, 320],
-  },
-  {
     slug: "jarvis-audio-studio",
     title: "Jarvis Audio Studio",
     tag: "Find it, file it, make it",

@@ -10,7 +10,14 @@ import { Icon } from "./icons";
 import { ProjectView } from "./ProjectView";
 import { Sidebar } from "./Sidebar";
 
-export function AppShell() {
+/**
+ * `chromeless` fits the timeline inside Jarvis's Toolbox tab: the hub button
+ * goes (the rail is the way back) and the shell stops claiming the whole
+ * viewport, so its own sidebar and the rail sit side by side instead of the
+ * page scrolling twice. The heights subtract Jarvis's chrome — its top bar
+ * everywhere, plus the horizontal rail it folds into below md.
+ */
+export function AppShell({ chromeless = false }: { chromeless?: boolean } = {}) {
   const init = useStore((s) => s.init);
   const loading = useStore((s) => s.loading);
   const error = useStore((s) => s.error);
@@ -24,7 +31,11 @@ export function AppShell() {
   }, [init]);
 
   return (
-    <div className="flex h-dvh overflow-hidden">
+    <div
+      className={`flex overflow-hidden ${
+        chromeless ? "h-[calc(100dvh-90px)] md:h-[calc(100dvh-49px)]" : "h-dvh"
+      }`}
+    >
       {/* Desktop sidebar */}
       <aside className="hidden w-80 shrink-0 border-r border-line md:block">
         <Sidebar />
@@ -47,14 +58,16 @@ export function AppShell() {
       <main className="flex min-w-0 flex-1 flex-col">
         {/* Top bar — hub link on all sizes, mobile menu on small screens */}
         <div className="flex items-center gap-2 border-b border-line bg-panel px-3 py-2.5 sm:px-4">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
-            aria-label="Back to hub"
-          >
-            <Icon.ArrowLeft width={14} height={14} />
-            <span className="hidden sm:inline">Hub</span>
-          </Link>
+          {!chromeless && (
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
+              aria-label="Back to hub"
+            >
+              <Icon.ArrowLeft width={14} height={14} />
+              <span className="hidden sm:inline">Hub</span>
+            </Link>
+          )}
           <button
             onClick={() => setDrawer(true)}
             className="rounded-lg border border-line p-1.5 text-ink-muted md:hidden"
