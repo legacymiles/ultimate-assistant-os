@@ -8,7 +8,6 @@ export type Category =
   | "Image"
   | "Video"
   | "Music"
-  | "Trading"
   | "Automation"
   | "Websites"
   | "Apps"
@@ -19,7 +18,6 @@ export const CATEGORIES: Category[] = [
   "Image",
   "Video",
   "Music",
-  "Trading",
   "Automation",
   "Websites",
   "Apps",
@@ -338,22 +336,6 @@ export const PROJECTS: CatalogProject[] = [
     hue: [248, 280],
   },
   {
-    slug: "multi-order-calculator",
-    title: "Multi-Order Calculator",
-    tag: "MT4 basket math",
-    category: "Trading",
-    overview:
-      "A professional multi-order basket P/L calculator for MT4 XAUUSD (gold). " +
-      "Add unlimited Buy / Sell orders at different lot sizes and entry prices and " +
-      "see total basket profit, weighted average entry, break-even, $/point and $/pip " +
-      "update live as you type. Includes a reverse mode (desired profit → required exit) " +
-      "and an interactive profit curve so traders can verify a basket before placing it.",
-    status: "live",
-    appUrl: "/apps/multi-order-calculator",
-    iconStyle: "rings",
-    hue: [42, 18],
-  },
-  {
     slug: "gods-eye-view",
     title: "God's Eye View",
     tag: "A spy-satellite view of the real, live planet",
@@ -412,21 +394,6 @@ export const PROJECTS: CatalogProject[] = [
     appUrl: "/apps/fire-reveal",
     iconStyle: "pulse",
     hue: [22, 40],
-  },
-  {
-    slug: "ea-feature-list",
-    title: "Expert Advisor Feature List",
-    tag: "Tagged EA spec vault",
-    category: "Trading",
-    overview:
-      "Every Expert Advisor feature spec in one organised, searchable place. Each feature gets a " +
-      "plain-English summary and a set of tags — position management, risk control, trailing stop, " +
-      "entry logic — so you can filter down to exactly the behaviour you're thinking about. Open any " +
-      "feature to read the full spec verbatim and copy it in one click, ready to hand to a build agent.",
-    status: "live",
-    appUrl: "/apps/ea-feature-list",
-    iconStyle: "mesh",
-    hue: [40, 24],
   },
   {
     slug: "image-studio",
@@ -515,23 +482,6 @@ export const PROJECTS: CatalogProject[] = [
     appUrl: "/apps/social-personas",
     iconStyle: "orbit",
     hue: [330, 200],
-  },
-  {
-    slug: "amhe",
-    title: "Adaptive Mission Hedge Engine",
-    tag: "Kalshi + MT4 hedge bot",
-    category: "Trading",
-    overview:
-      "A combined Kalshi + MT4 risk management system. The Kalshi position expresses a market opinion; " +
-      "the MT4 Expert Advisor adaptively builds and manages a hedge against the rare scenario where that " +
-      "opinion is wrong. Five tightly integrated engines — Mission, Market Context, Adaptive Exposure, " +
-      "Harvest, and Recovery — plus Position Governance (legacy/working classification, trailing stop, " +
-      "partial close, breakeven lock), a Milestone Monitor with alerts and screenshots, and transparent " +
-      "Statistical Learning via CSV trade logging. Semi-autonomous: you set the mission, the EA handles the rest.",
-    status: "live",
-    appUrl: "/apps/projects-timeline",
-    iconStyle: "orbit",
-    hue: [40, 22],
   },
   {
     slug: "game-creator",
