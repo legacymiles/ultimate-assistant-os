@@ -1,4 +1,4 @@
-import type { AspectRatio, CameraMove, Framing, LookId, Quality, UploadRole } from "./types";
+import type { AspectRatio, CameraAngle, CameraMove, Framing, LookId, Quality, UploadRole } from "./types";
 
 export const CUT_COUNTS = [3, 4, 5, 6] as const;
 /** H3 renders one generation of 4–15 s; the film is that one generation. */
@@ -79,6 +79,8 @@ export const MOVES: CameraMove[] = [
 ];
 
 export const FRAMINGS: Framing[] = ["extreme wide", "wide", "medium", "two-shot", "close-up", "extreme close-up", "macro", "insert"];
+
+export const ANGLES: CameraAngle[] = ["low", "eye-level", "high", "top-down", "over-the-shoulder"];
 
 export const LENSES = [24, 35, 40, 50, 75, 85, 90, 100, 135];
 export const APERTURES = ["f/1.4", "f/2", "f/2.4", "f/2.8", "f/4", "f/5.6"];

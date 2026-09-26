@@ -41,6 +41,7 @@ export function planToJson(plan: Plan, brief: Brief): Record<string, unknown> {
       durationSec: c.durationSec,
       move: c.move,
       framing: c.framing,
+      angle: c.angle,
       description: c.description,
       action: c.action,
       dialogue: c.dialogue,

@@ -141,7 +141,9 @@ export function cutFramePrompt(plan: Plan, cut: PlanCut, brief: Brief, refs: Pan
   const products = cut.productIds.map((id) => plan.products.find((p) => p.id === id)).filter(Boolean);
   const env = plan.environments.find((e) => e.id === cut.environmentId) ?? plan.environments[0];
   const prompt = [
-    `Storyboard frame for ${cut.title}: a single cinematic still, ${cut.framing} shot on a ${cut.lensMm}mm lens at ${cut.aperture}.`,
+    // The panel is a render input, not previz — so it is drawn from the same angle the
+    // shot is rendered from, or the sheet and the film describe different shoots.
+    `Storyboard frame for ${cut.title}: a single cinematic still, ${cut.framing} shot${cut.angle === "eye-level" ? "" : ` from a ${cut.angle} angle`} on a ${cut.lensMm}mm lens at ${cut.aperture}.`,
     cut.description,
     cast.length ? cast.map((c) => `${c!.name}: ${c!.look}${c!.wardrobe ? `, wearing ${c!.wardrobe}` : ""}.`).join(" ") : "",
     products.length ? products.map((p) => `${p!.name}: ${p!.description}.`).join(" ") : "",

@@ -9,15 +9,17 @@ import { clampCutCount } from "../constants";
 import type { Brief, Upload } from "../types";
 import { normalisePlan, type NormaliseInput } from "./schema";
 
-const PROGRESSION: { lens: number; aperture: string; move: string; framing: string; verb: string }[] = [
-  { lens: 50, aperture: "f/2", move: "dolly-in", framing: "wide", verb: "establishes" },
-  { lens: 100, aperture: "f/2.8", move: "track", framing: "macro", verb: "glides across" },
-  { lens: 75, aperture: "f/2", move: "rack-focus", framing: "close-up", verb: "closes on" },
-  { lens: 50, aperture: "f/2.4", move: "arc", framing: "medium", verb: "circles" },
-  { lens: 40, aperture: "f/2", move: "crane-up", framing: "wide", verb: "rises above" },
-  { lens: 35, aperture: "f/2.8", move: "static", framing: "wide", verb: "holds on" },
-  { lens: 85, aperture: "f/2", move: "push-in", framing: "close-up", verb: "pushes toward" },
-  { lens: 24, aperture: "f/4", move: "pull-out", framing: "extreme wide", verb: "leaves" },
+// No two neighbours share both a size and an angle — two cuts alike on both read
+// as one shot that glitched, and the angle is the cheaper of the two to change.
+const PROGRESSION: { lens: number; aperture: string; move: string; framing: string; angle: string; verb: string }[] = [
+  { lens: 50, aperture: "f/2", move: "dolly-in", framing: "wide", angle: "eye-level", verb: "establishes" },
+  { lens: 100, aperture: "f/2.8", move: "track", framing: "macro", angle: "top-down", verb: "glides across" },
+  { lens: 75, aperture: "f/2", move: "rack-focus", framing: "close-up", angle: "eye-level", verb: "closes on" },
+  { lens: 50, aperture: "f/2.4", move: "arc", framing: "medium", angle: "low", verb: "circles" },
+  { lens: 40, aperture: "f/2", move: "crane-up", framing: "wide", angle: "high", verb: "rises above" },
+  { lens: 35, aperture: "f/2.8", move: "static", framing: "wide", angle: "eye-level", verb: "holds on" },
+  { lens: 85, aperture: "f/2", move: "push-in", framing: "close-up", angle: "low", verb: "pushes toward" },
+  { lens: 24, aperture: "f/4", move: "pull-out", framing: "extreme wide", angle: "high", verb: "leaves" },
 ];
 
 function beats(prompt: string, n: number): string[] {
@@ -100,6 +102,7 @@ export function heuristicPlan(brief: Brief, uploads: Upload[], id: NormaliseInpu
       aperture: p.aperture,
       move: p.move,
       framing: p.framing,
+      angle: p.angle,
       description: `${p.framing} shot ${p.verb} ${subject} — ${beat.replace(/[.,;]$/, "")}.`,
       action: beat,
       dialogue: "",

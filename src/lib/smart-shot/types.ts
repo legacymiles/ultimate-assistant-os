@@ -98,6 +98,13 @@ export type CameraMove =
 
 export type Framing = "extreme wide" | "wide" | "medium" | "two-shot" | "close-up" | "extreme close-up" | "macro" | "insert";
 
+/**
+ * Camera height and tilt. Separate from `framing`, which only carries size.
+ * Measured across 72 prompts behind curated H3 clips, angle words outrun focal
+ * lengths about four to one — it is the cheapest way to make two cuts differ.
+ */
+export type CameraAngle = "low" | "eye-level" | "high" | "top-down" | "over-the-shoulder";
+
 export interface PlanCut {
   id: string;
   /** "Cut 1". Renumbered on reorder. */
@@ -110,6 +117,8 @@ export interface PlanCut {
   durationSec: number;
   move: CameraMove;
   framing: Framing;
+  /** Where the camera sits. "eye-level" is the neutral one and is left unsaid in the prompt. */
+  angle: CameraAngle;
   /** The beat, as the sheet caption reads it. */
   description: string;
   /** What the subject physically does across the clip. */

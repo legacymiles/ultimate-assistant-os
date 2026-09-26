@@ -417,6 +417,7 @@ export function useStudio(): Studio {
         durationSec: Math.max(2, Math.round(ref.current.brief.totalSec / (plan.cuts.length + 1))),
         move: "static",
         framing: "medium",
+        angle: "eye-level",
         description: "New cut — describe what the frame shows.",
         action: "",
         dialogue: "",

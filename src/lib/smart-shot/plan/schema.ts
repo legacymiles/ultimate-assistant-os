@@ -9,7 +9,7 @@
 // ---------------------------------------------------------------------------
 
 import { APERTURES, FRAMINGS, MOVES, clampCutCount, clampTotal, perCutSeconds } from "../constants";
-import type { Brief, CameraMove, Framing, Plan, PlanCharacter, PlanCut, PlanEnvironment, PlanProduct, Upload } from "../types";
+import type { Brief, CameraAngle, CameraMove, Framing, Plan, PlanCharacter, PlanCut, PlanEnvironment, PlanProduct, Upload } from "../types";
 
 export const PLAN_JSON_SHAPE = `{
   "title": "short film or brand title",
@@ -54,6 +54,7 @@ export const PLAN_JSON_SHAPE = `{
       "durationSec": 4,
       "move": "dolly-in",
       "framing": "wide",
+      "angle": "low | eye-level | high | top-down | over-the-shoulder — where the camera sits, not its size",
       "description": "what the audience sees, as a storyboard caption: framing, who/what, where, what happens, light",
       "action": "what the subject physically does across the cut, in order",
       "dialogue": "",
@@ -120,6 +121,15 @@ function framing(v: unknown): Framing {
   if (/insert|detail/.test(s)) return "insert";
   if (/wide|full/.test(s)) return "wide";
   return "medium";
+}
+
+function angle(v: unknown): CameraAngle {
+  const s = str(v).toLowerCase();
+  if (/over.?the.?shoulder|ots\b/.test(s)) return "over-the-shoulder";
+  if (/top.?down|overhead|bird|god.?s.?eye|straight down/.test(s)) return "top-down";
+  if (/low|worm|up at|from below/.test(s)) return "low";
+  if (/high|down at|from above|elevated/.test(s)) return "high";
+  return "eye-level";
 }
 
 function aperture(v: unknown): string {
@@ -284,6 +294,7 @@ export function normalisePlan(raw: Record<string, unknown>, input: NormaliseInpu
       durationSec: Math.max(2, Math.min(15, Math.round(num(c?.durationSec ?? c?.duration, each)))),
       move: move(c?.move ?? c?.camera),
       framing: framing(c?.framing),
+      angle: angle(c?.angle ?? c?.cameraAngle ?? c?.height),
       description: str(c?.description),
       action: str(c?.action),
       dialogue: str(c?.dialogue),
@@ -305,6 +316,9 @@ export function normalisePlan(raw: Record<string, unknown>, input: NormaliseInpu
       durationSec: each,
       move: n === want ? "arc" : n === 1 ? "dolly-in" : n % 2 ? "push-in" : "track",
       framing: n === 1 ? "wide" : n === want ? "medium" : n % 2 ? "close-up" : "macro",
+      // Pair the angle with the size so a padded cut still differs from its neighbour
+      // on two axes rather than only on the lens.
+      angle: n === 1 ? "low" : n === want ? "high" : n % 2 ? "eye-level" : "top-down",
       description: `Beat ${n} of the story.`,
       action: "",
       dialogue: "",

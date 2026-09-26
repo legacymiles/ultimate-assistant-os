@@ -107,11 +107,30 @@ describe("H3 brief", () => {
     expect(out.text).toContain("<Subject 1> is GIRL");
     expect(out.text).toContain("Retention: fully_preserved");
     expect(out.text).toContain("[Shot 1]");
-    expect(out.text).toContain("A close-up shot on a 100mm lens at f/2 frames GIRL (<Subject 1>)");
+    expect(out.text).toContain("A close-up shot on a 100mm long lens at f/2 frames GIRL (<Subject 1>)");
     expect(out.text).toContain("(S1) GIRL says: <d>[English] Wait.</d>");
     expect(out.text).not.toMatch(/\[Push in\]/);
     expect(out.text).not.toContain("shot plan sheet"); // a single cut never attaches the sheet
     expect(out.references).toHaveLength(3);
+  });
+
+  // H3 reads the lens as words, not as numbers: across 72 prompts behind curated
+  // clips, 4% name a focal length and none names an aperture, while 42% state
+  // depth of field in words. The numbers stay for the sheet; the words must ship.
+  it("says the lens and the depth of field in words, not only in numbers", () => {
+    const shallow = composeH3Prompt(plan, { ...cut, lensMm: 28, aperture: "f/1.4" }, brief, media).text;
+    expect(shallow).toContain("28mm wide-angle lens");
+    expect(shallow).toContain("shallow depth of field");
+
+    const deep = composeH3Prompt(plan, { ...cut, lensMm: 135, aperture: "f/5.6" }, brief, media).text;
+    expect(deep).toContain("135mm telephoto lens");
+    expect(deep).toContain("deep focus");
+  });
+
+  it("names the angle except at eye-level, which is the neutral one", () => {
+    expect(composeH3Prompt(plan, { ...cut, angle: "low" }, brief, media).text).toContain("from a low angle,");
+    expect(composeH3Prompt(plan, { ...cut, angle: "over-the-shoulder" }, brief, media).text).toContain(", over the shoulder,");
+    expect(composeH3Prompt(plan, { ...cut, angle: "eye-level" }, brief, media).text).not.toContain("eye-level angle");
   });
 
   it("the whole film is one generation with a [Shot N] block per cut and the sheet attached", () => {

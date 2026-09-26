@@ -11,7 +11,7 @@
 import { useRef, useState } from "react";
 import { DirectorChat } from "./DirectorChat";
 import { Icon } from "../icons";
-import { APERTURES, FRAMINGS, LENSES, MOVES } from "@/lib/smart-shot/constants";
+import { ANGLES, APERTURES, FRAMINGS, LENSES, MOVES } from "@/lib/smart-shot/constants";
 import { panelFor } from "@/lib/smart-shot/panels";
 import type { Panel, PanelKind, Plan, PlanCut } from "@/lib/smart-shot/types";
 import type { Studio } from "./studio";
@@ -291,7 +291,7 @@ function CutCard({ s, cut, index, total, plan }: { s: Studio; cut: PlanCut; inde
       </div>
       <PanelImg s={s} kind="cut" targetId={cut.id} />
       <div className="ss-cut-spec">
-        {cut.lensMm}mm anamorphic | {cut.aperture} | {cut.durationSec}s | {cut.move.toUpperCase()} | {cut.framing.toUpperCase()}
+        {cut.lensMm}mm anamorphic | {cut.aperture} | {cut.durationSec}s | {cut.move.toUpperCase()} | {cut.framing.toUpperCase()} | {cut.angle.toUpperCase()}
       </div>
       <Editable value={cut.description} className="ss-small" multiline onChange={(description) => s.updateCut(cut.id, { description })} />
       {open && (
@@ -332,6 +332,16 @@ function CutCard({ s, cut, index, total, plan }: { s: Studio; cut: PlanCut; inde
               {FRAMINGS.map((f) => (
                 <option key={f} value={f}>
                   {f}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Angle
+            <select value={cut.angle} onChange={(e) => s.updateCut(cut.id, { angle: e.target.value as PlanCut["angle"] })}>
+              {ANGLES.map((a) => (
+                <option key={a} value={a}>
+                  {a}
                 </option>
               ))}
             </select>

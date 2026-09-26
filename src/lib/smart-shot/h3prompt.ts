@@ -20,7 +20,7 @@
 // ---------------------------------------------------------------------------
 
 import { lookById } from "./constants";
-import type { Brief, CameraMove, Framing, Plan, PlanCut } from "./types";
+import type { Brief, CameraAngle, CameraMove, Framing, Plan, PlanCut } from "./types";
 
 /** One file attached to the render, in send order. */
 export interface H3Reference {
@@ -82,9 +82,35 @@ function speed(move: CameraMove, durationSec: number): "slow" | "medium" | "fast
   return "slow";
 }
 
-function framingProse(f: Framing, lensMm: number, aperture: string): string {
+/**
+ * The lens, in the words the model actually reads.
+ *
+ * Measured across 72 prompts behind curated MiniMax H3 clips: 4% name a focal
+ * length (and only ever 50 or 85), NONE names an aperture, while 42% state depth
+ * of field in words. The numbers stay — they drive the sheet, the panels and the
+ * owner's own reasoning — but a shot that reaches the model carrying only
+ * numbers has left its look to the model, which renders flat.
+ */
+function lensWord(lensMm: number): string {
+  if (lensMm <= 24) return "ultra-wide";
+  if (lensMm <= 35) return "wide-angle";
+  if (lensMm <= 58) return "normal";
+  if (lensMm <= 100) return "long";
+  return "telephoto";
+}
+
+function depthWord(aperture: string): string {
+  const f = Number(aperture.replace(/[^\d.]/g, ""));
+  if (!Number.isFinite(f) || f <= 2) return "shallow depth of field";
+  if (f <= 4) return "moderate depth of field";
+  return "deep focus";
+}
+
+function framingProse(f: Framing, lensMm: number, aperture: string, angle: CameraAngle): string {
   const name = f === "insert" ? "An insert" : f === "two-shot" ? "A two-shot" : f === "macro" ? "A macro shot" : `A ${f} shot`;
-  return `${name} on a ${lensMm}mm lens at ${aperture}`;
+  // eye-level is the neutral choice; naming it every cut spends characters and says nothing.
+  const from = angle === "eye-level" ? "" : angle === "over-the-shoulder" ? ", over the shoulder," : `, from a ${angle} angle,`;
+  return `${name}${from} on a ${lensMm}mm ${lensWord(lensMm)} lens at ${aperture}`;
 }
 
 export function cameraSentence(cut: PlanCut, focus: string): string {
@@ -239,7 +265,7 @@ function shotBlock(plan: Plan, cut: PlanCut, n: number, brief: Brief, labelFor: 
     ? ` in ${env.name}${envLabel ? ` (<${envLabel}>)` : ""}${opening ? `, ${firstSentences(env.description, 2)}${env.timeOfDay ? `, ${clean(env.timeOfDay)}` : ""}` : ""}`
     : "";
   const style = opening ? `${look.style}. ` : "";
-  b.push(`[Shot ${n}] ${style}${framingProse(cut.framing, cut.lensMm, cut.aperture)} frames ${subject}${where}, ${cut.durationSec} seconds.`);
+  b.push(`[Shot ${n}] ${style}${framingProse(cut.framing, cut.lensMm, cut.aperture, cut.angle)} frames ${subject}${where}, ${cut.durationSec} seconds, ${depthWord(cut.aperture)}.`);
   if (opening) {
     if (plan.paletteNote) b.push(`Palette: ${clean(plan.paletteNote)}.`);
     const light = plan.lighting[0]?.caption;
@@ -325,7 +351,7 @@ export function composeH3Prompt(plan: Plan, cut: PlanCut, brief: Brief, media: H
   const text = sections(plan, [cut], refs, description, summary);
   const notes = [
     `Mode: ${refs.length ? `reference-to-video (${refs.length} image${refs.length === 1 ? "" : "s"})` : "text-to-video"}`,
-    `${cut.lensMm}mm · ${cut.aperture} · ${cut.framing} · ${cut.move}`,
+    `${cut.lensMm}mm · ${cut.aperture} · ${cut.framing} · ${cut.angle} · ${cut.move}`,
     block.spoken ? "Dialogue is lip-synced by H3" : "No dialogue",
   ].join("\n");
   return { text, cameraLine: block.cameraLine, references: refs, notes };
