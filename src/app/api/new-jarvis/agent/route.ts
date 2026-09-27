@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { aiEndpoint, aiFetch, DEFAULT_MODEL } from "@/lib/ai/provider";
-import { sanitizeAssistant, toApiTools, toolsFor, type AgentTool } from "@/lib/new-jarvis/agentTools";
+import { modelFailure, sanitizeAssistant, toApiTools, toolsFor, type AgentTool } from "@/lib/new-jarvis/agentTools";
 
 // ---------------------------------------------------------------------------
 // One step of New Jarvis's agent loop.
@@ -168,8 +168,10 @@ export async function POST(req: Request) {
     });
 
     if (!res.ok) {
-      const detail = (await res.text()).slice(0, 300);
-      return NextResponse.json({ error: `The model refused the request (${res.status}). ${detail}` }, { status: 502 });
+      // The detail goes to the log, where it is worth having. It does not go
+      // to the owner, who cannot act on a provider schema path.
+      console.error(`[new-jarvis] model ${res.status}:`, (await res.text()).slice(0, 2_000));
+      return NextResponse.json({ error: modelFailure(res.status) }, { status: 502 });
     }
 
     const data = (await res.json()) as {
@@ -198,8 +200,10 @@ export async function POST(req: Request) {
       }
       return NextResponse.json({
         toolCall: { id: c.id, name: c.function.name, args },
-        // The page echoes this back verbatim on the next round. See clean().
-        assistant: message,
+        // The page echoes this back on the next round (see clean()). Sanitised
+        // here as well, so the loop holds even for a caller that replays it
+        // without going through clean() first.
+        assistant: sanitizeAssistant(message as Record<string, unknown>),
         text: typeof message?.content === "string" ? message.content : "",
         model: DEFAULT_MODEL,
       });
@@ -211,8 +215,11 @@ export async function POST(req: Request) {
       model: DEFAULT_MODEL,
     });
   } catch (e) {
+    // Same rule as the !res.ok path above: the exception is for the log, and
+    // "fetch failed" is not a thing the owner can act on either.
+    console.error("[new-jarvis] model call threw:", e);
     return NextResponse.json(
-      { error: `Could not reach the model (${e instanceof Error ? e.message : "unknown error"}).` },
+      { error: "Could not reach the AI provider. Nothing on your PC was touched — run this again in a moment." },
       { status: 502 },
     );
   }

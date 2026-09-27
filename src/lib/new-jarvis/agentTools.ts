@@ -274,3 +274,36 @@ export function sanitizeAssistant<T extends Record<string, unknown>>(message: T)
   }
   return out as Partial<T>;
 }
+
+/**
+ * What the owner is told when the model call fails.
+ *
+ * The provider's own payload is not an error message. Concatenating it into a
+ * sentence hands over a schema path like `messages.2.reasoning` — which names
+ * neither the problem nor the recovery, and is the exact failure "degrade,
+ * never fail" exists to forbid. The detail belongs in the server log, where it
+ * is useful; the block gets one line in the product's voice.
+ */
+export function modelFailure(status: number): string {
+  if (status === 401 || status === 403) {
+    return "The AI provider rejected the key. Check OPENROUTER_API_KEY, then run this again.";
+  }
+  if (status === 402) {
+    return "The AI provider is out of credit. Top it up and run this again.";
+  }
+  if (status === 429) {
+    return "The AI provider is rate-limiting this key. Wait a moment and run it again.";
+  }
+  if (status === 408 || status === 504) {
+    return "The model took too long to answer. Running it again usually works.";
+  }
+  if (status >= 500) {
+    return "The AI provider is having trouble. Nothing on your PC was touched — run this again in a minute.";
+  }
+  if (status === 400) {
+    // A 400 is ours, not theirs. Say so rather than implying the owner did
+    // something wrong, and say what survived.
+    return "This run hit a bad request building the next step, so it stopped here. The steps above already ran; the details are in the server log.";
+  }
+  return `The model could not be reached (${status}). The steps above already ran.`;
+}

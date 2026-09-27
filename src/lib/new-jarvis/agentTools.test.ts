@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { routeFor, sanitizeAssistant, toolsFor } from "./agentTools";
+import { modelFailure, routeFor, sanitizeAssistant, toolsFor } from "./agentTools";
 
 describe("toolsFor", () => {
   it("offers nothing the bridge cannot actually do", () => {
@@ -48,5 +48,29 @@ describe("sanitizeAssistant", () => {
     expect(out.content).toBe("");
     expect(out.done).toBe(false);
     expect(out.n).toBe(0);
+  });
+});
+
+describe("modelFailure", () => {
+  it("never leaks the provider's payload", () => {
+    for (const s of [400, 401, 402, 429, 500, 502, 504, 418]) {
+      const m = modelFailure(s);
+      expect(m).not.toMatch(/invalid_request_error|\{|\}|param|messages\./);
+      expect(m.length).toBeGreaterThan(20);
+    }
+  });
+
+  it("names the recovery, not just the problem", () => {
+    expect(modelFailure(401)).toContain("OPENROUTER_API_KEY");
+    expect(modelFailure(402)).toMatch(/credit/i);
+    expect(modelFailure(429)).toMatch(/again/i);
+  });
+
+  it("reassures that a failed round did not touch the machine", () => {
+    expect(modelFailure(503)).toMatch(/Nothing on your PC/);
+  });
+
+  it("does not blame the owner for a 400", () => {
+    expect(modelFailure(400)).toMatch(/steps above already ran/);
   });
 });
