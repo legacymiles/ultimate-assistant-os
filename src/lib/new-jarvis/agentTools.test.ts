@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { modelFailure, routeFor, sanitizeAssistant, toolsFor } from "./agentTools";
+import { isHubTool, modelFailure, routeFor, sanitizeAssistant, toolsFor } from "./agentTools";
 
 describe("toolsFor", () => {
   it("offers nothing the bridge cannot actually do", () => {
@@ -9,8 +9,29 @@ describe("toolsFor", () => {
     expect(names).not.toContain("files_read");
   });
 
-  it("offers nothing at all when the agent is down", () => {
-    expect(toolsFor({})).toHaveLength(0);
+  // The point of the hub tools: remembering something the owner just told you
+  // must not depend on whether a local agent happens to be running.
+  it("keeps the owner's own stores when the agent is down", () => {
+    const names = toolsFor({}).map((t) => t.name);
+    expect(names).toContain("propose_memory");
+    expect(names).toContain("record_set");
+    expect(names).toContain("lists_add_item");
+    expect(names.every((n) => isHubTool(n))).toBe(true);
+  });
+
+  it("offers no PC tool when the agent is down", () => {
+    const names = toolsFor({}).map((t) => t.name);
+    for (const n of ["shell_run", "browser_open", "files_read", "system_windows", "page_fields"]) {
+      expect(names, n).not.toContain(n);
+    }
+  });
+
+  it("offers capture only through the bridge, but saving always", () => {
+    expect(toolsFor({ browser: true }).map((t) => t.name)).toContain("page_fields");
+    // record_capture is a hub tool: it writes from what the tab already holds,
+    // so it survives the agent stopping between the read and the save.
+    expect(isHubTool("record_capture")).toBe(true);
+    expect(isHubTool("page_fields")).toBe(false);
   });
 });
 
@@ -22,6 +43,11 @@ describe("routeFor", () => {
 
   it("returns nothing for a tool the model invented", () => {
     expect(routeFor("send_email")).toBe("");
+  });
+
+  it("routes a hub tool to the page, not the bridge", () => {
+    expect(routeFor("record_capture")).toBe("hub/record_capture");
+    expect(routeFor("propose_memory")).toBe("hub/propose_memory");
   });
 });
 
@@ -61,6 +87,9 @@ describe("modelFailure", () => {
   });
 
   it("names the recovery, not just the problem", () => {
+    // OpenRouter answers 401 when the balance is gone, so the 401 copy has to
+    // name credit first or it sends the owner to check a working key.
+    expect(modelFailure(401)).toMatch(/balance|credit/i);
     expect(modelFailure(401)).toContain("OPENROUTER_API_KEY");
     expect(modelFailure(402)).toMatch(/credit/i);
     expect(modelFailure(429)).toMatch(/again/i);

@@ -72,6 +72,14 @@ export function forModel(result: Record<string, unknown>): string {
       copy.screenshot = "taken, and shown to the owner";
       continue;
     }
+    // Field values from page_fields. The page hands them to this tab so the
+    // owner can capture them; the model is given keys, labels and masked
+    // previews and never the values themselves. The tab strips these before
+    // they ever reach a step result, and this is the second lock on that door.
+    if (k === "values") {
+      copy.values = "held in your browser, not shown to the model";
+      continue;
+    }
     if (typeof v === "string" && v.length > 12_000) {
       copy[k] = `${v.slice(0, 12_000)}\n… (${v.length - 12_000} more characters not shown)`;
       continue;

@@ -170,6 +170,60 @@ function ResultView({ step }: { step: Step }) {
     return <PageFrame url={s("url")} title={s("title")} text={s("text")} controls={els.length} />;
   }
 
+  if (step.tool === "page_fields") {
+    const fields = Array.isArray(r.fields) ? (r.fields as Record<string, unknown>[]) : [];
+    return (
+      <div className="space-y-2">
+        <div className="max-h-72 overflow-auto rounded-md border border-line-soft">
+          <table className="w-full border-collapse text-left">
+            <thead className="sticky top-0 bg-panel-2">
+              <tr className="text-[10px] uppercase tracking-wide text-ink-muted">
+                <th className="px-3 py-1.5 font-medium">Field</th>
+                <th className="px-3 py-1.5 font-medium">On the page</th>
+              </tr>
+            </thead>
+            <tbody className="font-mono text-[11.5px]">
+              {fields.map((f, i) => (
+                <tr key={i} className="border-t border-line-soft">
+                  <td className="px-3 py-1 text-ink">
+                    {String(f.label || f.key)}
+                    {f.secret ? <span className="ml-1.5 text-[10px] text-ink-muted">secret</span> : null}
+                  </td>
+                  <td className="px-3 py-1 text-ink-muted" data-num>
+                    {f.filled ? String(f.preview) : <span className="text-ink-faint">empty</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {fields.length === 0 && <p className="px-3 py-2 text-xs text-ink-muted">No form fields on that page.</p>}
+        </div>
+        {/* The whole reason this renderer exists: the owner has to be able to
+            see that the values stayed here. */}
+        <p className="px-1 text-[11px] leading-relaxed text-ink-muted">
+          Values are held in this browser only — shown masked here, and never sent to the model. It can name a field
+          to save; it cannot read one.
+        </p>
+      </div>
+    );
+  }
+
+  if (step.tool === "record_capture") {
+    const saved = Array.isArray(r.saved) ? (r.saved as string[]) : [];
+    const skipped = Array.isArray(r.skipped) ? (r.skipped as string[]) : [];
+    return (
+      <div className="rounded-md border border-line-soft px-3 py-2">
+        <p className="text-xs text-ink">
+          Saved to your Life Record: <span className="font-mono text-core">{saved.join(", ") || "nothing"}</span>
+        </p>
+        {skipped.length > 0 && (
+          <p className="mt-1 text-[11px] text-ink-muted">Left alone: {skipped.join(", ")}</p>
+        )}
+        <p className="mt-1 text-[11px] text-ink-muted">Written here on your PC. The values were not sent anywhere.</p>
+      </div>
+    );
+  }
+
   if (step.tool === "files_list") {
     const entries = Array.isArray(r.entries) ? (r.entries as Record<string, unknown>[]) : [];
     return (

@@ -47,7 +47,9 @@ import { loadLocal, saveLocal } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
 import { STORE_KEY, emptyStore } from "@/lib/new-dashboard/model";
 import type { DashboardStore, Profile } from "@/lib/new-dashboard/types";
-import { JARVIS_KEY, loadJarvis, saveJarvis } from "@/lib/jarvis/store";
+import { JARVIS_KEY, loadJarvis, saveJarvis, uid } from "@/lib/jarvis/store";
+import { isDashboardTool, runDashboardTool } from "@/lib/jarvis/dashboardBridge";
+import { captureToRecord, FieldStash } from "@/lib/new-jarvis/capture";
 import type { JarvisStore } from "@/lib/jarvis/types";
 import { useDashboardCalendar } from "@/lib/jarvis/useDashboardCalendar";
 
@@ -152,6 +154,15 @@ export function NewJarvis() {
   // A gate is a promise the block's buttons resolve. Keeping the resolver here
   // rather than in the block means a run survives the owner switching tabs
   // mid-gate: the block is unmounted, the promise is not.
+  /**
+   * Field values a page handed this tab, for the life of the tab only.
+   *
+   * Never written into a block, never persisted, never sent upstream. This is
+   * the thing that lets the assistant save what it reads without a model ever
+   * being shown the value.
+   */
+  const stash = useRef(new FieldStash());
+
   const gateResolvers = useRef(new Map<string, (yes: boolean) => void>());
   const aborts = useRef(new Map<string, AbortController>());
 
@@ -180,6 +191,100 @@ export function NewJarvis() {
     },
     onCommand: (text) => submitRef.current(text, "voice"),
   });
+
+
+  /**
+   * One tool call, sent wherever it actually runs.
+   *
+   * Hub tools touch the owner's own stores in this tab and work with the local
+   * agent stopped; bridge tools need the PC. `page_fields` is the one call that
+   * is both: the bridge reads it, and its values are peeled off here so they
+   * never reach a block, a saved ledger, or a model.
+   */
+  const runTool = useCallback(
+    async (route: string, args: Record<string, unknown>): Promise<Record<string, unknown>> => {
+      if (route === "browser/fields") {
+        const res = await bridge.run(route, args);
+        const values = (res.values ?? {}) as Record<string, string>;
+        stash.current.put(values);
+        const { values: _dropped, ...rest } = res;
+        return { ...rest, held: Object.keys(values).length };
+      }
+
+      if (!route.startsWith("hub/")) return bridge.run(route, args);
+
+      const tool = route.slice(4);
+
+      if (tool === "record_capture") {
+        const map = (args.map ?? {}) as Record<string, string>;
+        const pageKeys = Object.keys(map);
+        if (!pageKeys.length) throw new Error("No fields were named.");
+        const { values, missing } = stash.current.take(pageKeys);
+        if (!Object.keys(values).length) {
+          throw new Error(
+            stash.current.size === 0
+              ? "Nothing is held from a page — call page_fields first."
+              : `None of those keys are on the page that was read. It has: ${stash.current.keys().slice(0, 12).join(", ")}`,
+          );
+        }
+        // Page key → Record key, so what is written is named the way the
+        // Record names it, not the way some form did.
+        const intoRecord: Record<string, string> = {};
+        for (const [pageKey, value] of Object.entries(values)) {
+          const recordKey = String(map[pageKey] ?? "").trim();
+          if (recordKey) intoRecord[recordKey] = value;
+        }
+        const origin = String(args.because ?? "").trim() || "Jarvis, from a page you had open";
+        const out = await captureToRecord({ values: intoRecord, origin });
+        if (!out.written.length) {
+          // A key the Record does not have matches no field and writes
+          // nothing — which from outside looks exactly like the feature being
+          // broken. Name the real ones so the next attempt lands.
+          const { RECORD_KEYS } = await import("@/lib/new-jarvis/agentTools");
+          throw new Error(
+            `None of those are Record fields, so nothing was saved. Valid keys: ${RECORD_KEYS.join(", ")}`,
+          );
+        }
+        return {
+          saved: out.written,
+          skipped: [...out.skipped, ...missing],
+          note: "Written locally. The values were not sent anywhere.",
+        };
+      }
+
+      if (tool === "propose_memory") {
+        const title = String(args.title ?? "").trim();
+        const content = String(args.content ?? "").trim();
+        if (!title || !content) throw new Error("A memory needs a title and something to remember.");
+        const current = loadJarvis();
+        commit({
+          ...current,
+          proposals: [
+            {
+              id: uid(),
+              title,
+              content,
+              source: "chat" as const,
+              origin: String(args.origin ?? "").trim() || "New Jarvis",
+              conversationId: current.chat?.id ?? "",
+              createdAt: new Date().toISOString(),
+            },
+            ...current.proposals,
+          ],
+        });
+        return { proposed: title, note: "Waiting for your yes on the Memory tab." };
+      }
+
+      if (isDashboardTool(tool)) {
+        const said = await runDashboardTool(tool, args);
+        dash.refresh();
+        return { done: said };
+      }
+
+      throw new Error(`New Jarvis does not know how to run ${route}.`);
+    },
+    [bridge, commit, dash],
+  );
 
   const submit = useCallback(
     async (rawText?: string, source: Block["source"] = "typed") => {
@@ -217,7 +322,7 @@ export function NewJarvis() {
             if (!res.ok) throw new Error(data.error ?? `The agent answered ${res.status}.`);
             return data;
           },
-          runTool: (route, args) => bridge.run(route, args),
+          runTool,
           askGate: (gate: Gate) =>
             new Promise<boolean>((resolve) => {
               gateResolvers.current.set(block.id, resolve);
@@ -236,7 +341,7 @@ export function NewJarvis() {
       }
       void bridge.refresh();
     },
-    [bridge, historyFor, input, mode, patch, profile?.name, voice],
+    [bridge, historyFor, input, mode, patch, profile?.name, runTool, voice],
   );
 
   useEffect(() => {

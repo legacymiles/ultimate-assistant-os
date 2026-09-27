@@ -21,7 +21,7 @@ export type BlockSource = "typed" | "voice" | "routine";
 export type Mode = "ask" | "do" | "browse" | "run";
 
 export const MODES: { id: Mode; label: string; hint: string }[] = [
-  { id: "ask", label: "Ask", hint: "Answer from memory and context. Touches nothing." },
+  { id: "ask", label: "Ask", hint: "Answer from what it knows. Can remember; cannot touch your PC." },
   { id: "do", label: "Do", hint: "Work the job end to end, using whatever it needs." },
   { id: "browse", label: "Browse", hint: "Drive the browser: open, read, click, fill." },
   { id: "run", label: "Run", hint: "Run it on this PC and show the output." },

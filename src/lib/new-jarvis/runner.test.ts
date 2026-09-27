@@ -37,6 +37,15 @@ describe("forModel", () => {
     expect(out).toContain("not shown");
   });
 
+  // The capture path's whole promise is that a value read off a page reaches
+  // the Record without a model seeing it. This is the last lock on that door.
+  it("never sends page field values back", () => {
+    const out = forModel({ ok: true, fields: [{ key: "acct", preview: "••••4821" }], values: { acct: "12345678" } });
+    expect(out).not.toContain("12345678");
+    expect(out).toContain("not shown to the model");
+    expect(out).toContain("acct");
+  });
+
   it("drops the bookkeeping the model has no use for", () => {
     expect(forModel({ ok: true, ms: 12, url: "a" })).not.toContain('"ms"');
   });

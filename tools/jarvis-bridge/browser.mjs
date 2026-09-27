@@ -20,6 +20,7 @@
 
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { fieldIsSecret, hideCompletely, mask, redactText } from "./redact.mjs";
 
 const HEADLESS = process.env.JARVIS_BRIDGE_HEADLESS === "1";
 
@@ -188,12 +189,85 @@ export async function readTab({ tabId, maxChars = 20_000 }) {
     return { text: (main.innerText || "").slice(0, limit), elements };
   }, maxChars);
 
+  // Scrubbed here, before it crosses out of this process. See redact.mjs for
+  // why this is a filter and not a guarantee.
+  const scrubbed = redactText(snapshot.text);
+  const elements = snapshot.elements.map((el) => {
+    if (el.value === undefined) return el;
+    if (fieldIsSecret({ name: el.name, type: el.type })) {
+      const hide = hideCompletely({ name: el.name, type: el.type });
+      return { ...el, value: el.value ? mask(el.value, { tail: !hide }) : "", masked: true };
+    }
+    return { ...el, value: redactText(el.value).text };
+  });
+
   return {
     tabId: idOf(page),
     url: page.url(),
     title: await page.title().catch(() => ""),
-    ...snapshot,
+    text: scrubbed.text,
+    // Named, not silent: a model told nothing will report the page as having
+    // contained no such value, which is a different and worse untruth.
+    redacted: scrubbed.redacted,
+    elements,
   };
+}
+
+/**
+ * The form on this page, as names and shapes — never as values.
+ *
+ * This is the half of capture that keeps the owner's rule intact. The VALUES
+ * are returned to the page that asked (the owner's own tab, over loopback) and
+ * the runner strips them before anything is sent to a model, exactly as it
+ * strips a screenshot. The model is given the key, the label, whether the
+ * field is filled and a masked preview — enough to decide WHICH field is worth
+ * keeping, and never enough to know what it says.
+ */
+export async function fieldsTab({ tabId }) {
+  const page = pageOf(tabId);
+  const found = await page.evaluate(() => {
+    const label = (el) => {
+      const aria = el.getAttribute("aria-label");
+      if (aria) return aria.trim();
+      if (el.labels && el.labels[0]) return el.labels[0].textContent.trim();
+      const ph = el.getAttribute("placeholder");
+      if (ph) return ph.trim();
+      return el.getAttribute("name") || el.getAttribute("id") || "";
+    };
+    const out = [];
+    let n = 0;
+    for (const el of document.querySelectorAll("input, select, textarea")) {
+      const type = (el.getAttribute("type") || el.tagName).toLowerCase();
+      if (type === "hidden" || type === "submit" || type === "button") continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) continue;
+      n += 1;
+      out.push({
+        key: el.getAttribute("name") || el.getAttribute("id") || `field_${n}`,
+        label: label(el),
+        kind: type,
+        value: String(el.value ?? ""),
+      });
+      if (n >= 120) break;
+    }
+    return out;
+  });
+
+  const fields = [];
+  const values = {};
+  for (const f of found) {
+    values[f.key] = f.value;
+    fields.push({
+      key: f.key,
+      label: f.label,
+      kind: f.kind,
+      filled: f.value.length > 0,
+      preview: mask(f.value, { tail: !hideCompletely({ name: f.key, type: f.kind, label: f.label }) }),
+      secret: fieldIsSecret({ name: f.key, type: f.kind, label: f.label }),
+    });
+  }
+
+  return { tabId: idOf(page), url: page.url(), fields, values };
 }
 
 /** Find the locator a request names, by ref first and text only as a fallback. */

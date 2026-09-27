@@ -78,6 +78,49 @@ describe("classify", () => {
     expect(classify({ route: "files/list", args: { path: "C:/" } }).confirm).toBe(false);
   });
 
+  it("lets it look at a form without asking", () => {
+    expect(classify({ route: "browser/fields", args: {} }).confirm).toBe(false);
+  });
+
+  it("gates a capture and names the Record fields, never the values", () => {
+    const v = classify({
+      route: "hub/record_capture",
+      args: { map: { acct: "council_tax_account", ref: "council_tax_ref" }, because: "the council page" },
+    });
+    expect(v.confirm).toBe(true);
+    expect(v.risk).toBe("grave");
+    expect(v.summary).toContain("council_tax_account");
+    expect(v.why).toMatch(/neither the model nor any server/);
+  });
+
+  // "Save 3 fields" is exactly the summary somebody waves through.
+  it("does not reduce a capture to a count", () => {
+    const v = classify({ route: "hub/record_capture", args: { map: { a: "home_address", b: "employer" } } });
+    expect(v.summary).toContain("home_address");
+    expect(v.summary).toContain("employer");
+    expect(v.summary).not.toMatch(/2 fields/);
+  });
+
+  it("gates writing the Record and shows what would be written", () => {
+    const v = classify({ route: "hub/record_set", args: { fields: { employer: "Acme Ltd" } } });
+    expect(v.confirm).toBe(true);
+    expect(v.summary).toContain("employer = Acme Ltd");
+  });
+
+  // A proposal is not a write — the Memory tab is its gate, and a second one
+  // in front of a thing that only asks trains you to click through both.
+  it("does not gate a memory proposal", () => {
+    const v = classify({ route: "hub/propose_memory", args: { title: "Prefers dense UIs" } });
+    expect(v.confirm).toBe(false);
+    expect(v.summary).toContain("Prefers dense UIs");
+  });
+
+  it("gates notes, lists and calendar entries like the old assistant did", () => {
+    expect(classify({ route: "hub/dashboard_add_note", args: { title: "x" } }).confirm).toBe(true);
+    expect(classify({ route: "hub/lists_add_item", args: { text: "milk" } }).confirm).toBe(true);
+    expect(classify({ route: "hub/dashboard_add_event", args: { title: "x", date: "2026-10-01" } }).confirm).toBe(true);
+  });
+
   it("gates a route nobody classified", () => {
     const v = classify({ route: "something/new", args: {} });
     expect(v.confirm).toBe(true);

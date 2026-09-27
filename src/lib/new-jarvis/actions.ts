@@ -39,6 +39,7 @@ const READ_ROUTES = new Set([
   "browser/tabs",
   "browser/screenshot",
   "browser/scroll",
+  "browser/fields",
   "files/list",
   "files/read",
   "system/windows",
@@ -125,6 +126,8 @@ export function classify(op: BridgeOp): Verdict {
   switch (route) {
     case "browser/read":
       return free("Read the page.");
+    case "browser/fields":
+      return free("Look at the form on this page.");
     case "browser/tabs":
       return free("List the open tabs.");
     case "browser/screenshot":
@@ -204,6 +207,58 @@ export function classify(op: BridgeOp): Verdict {
         "act",
         `Copy "${truncate(String(args.text ?? ""), 40)}" to the clipboard.`,
         "This replaces what you had copied.",
+      );
+
+    // --- the owner's own stores -------------------------------------------
+    // Same rule the old assistant set: a write to their data waits for a yes.
+    // A proposal does not, because the Memory tab is already its gate — and a
+    // second gate in front of a thing that only asks would train them to click
+    // through both.
+    case "hub/propose_memory":
+      return free(`Suggest a memory: "${truncate(String(args.title ?? ""), 50)}".`);
+
+    case "hub/record_capture": {
+      const map = args.map && typeof args.map === "object" ? (args.map as Record<string, unknown>) : {};
+      const into = Object.values(map).map((v) => String(v));
+      // Named, never counted, and never valued. "Save 3 fields" is exactly the
+      // summary that gets waved through; the value is not shown because this
+      // is the path whose entire point is that nothing has seen it.
+      const list = into.slice(0, 4).join(", ") + (into.length > 4 ? `, and ${into.length - 4} more` : "");
+      return gate(
+        "grave",
+        `Save ${list || "those fields"} from this page into your Life Record.`,
+        "Taken straight from the page — neither the model nor any server sees these values.",
+      );
+    }
+
+    case "hub/record_set": {
+      const fields = args.fields && typeof args.fields === "object" ? (args.fields as Record<string, unknown>) : {};
+      const named = Object.entries(fields)
+        .filter(([, v]) => typeof v === "string" && v.trim())
+        .map(([k, v]) => `${k} = ${truncate(String(v), 40)}`);
+      const shown = named.slice(0, 4).join(", ") + (named.length > 4 ? `, and ${named.length - 4} more` : "");
+      return gate("act", `Save to your Life Record: ${shown || "nothing"}.`, "This is what future forms get filled from.");
+    }
+
+    case "hub/dashboard_add_note":
+      return gate(
+        "act",
+        `Save a note "${truncate(String(args.title ?? ""), 40)}"${args.folder ? ` in ${String(args.folder)}` : ""}.`,
+        "",
+      );
+
+    case "hub/lists_add_item":
+      return gate(
+        "act",
+        `Add "${truncate(String(args.text ?? ""), 45)}" to your ${String(args.list || "To-Do")} list.`,
+        "",
+      );
+
+    case "hub/dashboard_add_event":
+      return gate(
+        "act",
+        `Put "${truncate(String(args.title ?? ""), 40)}" on your calendar on ${String(args.date ?? "")}${args.time ? ` at ${String(args.time)}` : ""}.`,
+        "",
       );
 
     case "browser/close":

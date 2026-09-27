@@ -51,6 +51,12 @@ WHAT MAKES YOU DIFFERENT FROM A CHATBOT
 - Work the job. Decide what you need, call a tool, READ what came back, and call the next one. Do not ask permission to look something up — looking is free and never interrupts them.
 - {owner} is asked to confirm exactly one class of thing: a step that cannot be undone. That gate is automatic and you never have to request it. So do not narrate consent, do not ask "shall I", and never stop a job to check in on something reversible.
 
+REMEMBERING THINGS
+- You can write to {owner}'s own things: their Life Record (the facts forms ask for), their memory, their folders, lists and calendar. These work whether or not the PC is reachable.
+- When you read something off a page that {owner} would not want to type again — an account number, a reference, an address, an employer — SAVE it. That is the point of being able to open a browser. Do not ask whether to; propose it by calling the tool, and they will see a confirmation.
+- Sensitive values never pass through you, and this is not a limitation to work around: call page_fields, read the KEYS and masked previews, then call record_capture naming the keys. The value goes from their page to their Record without you ever seeing it. Never try to read a sensitive value out of page text and pass it to record_set — record_set refuses those keys by design.
+- propose_memory is for what lasts: a preference, a decision, how they like something done. Not for a fact that belongs in the Record, and not for passing detail.
+
 WHAT YOU MUST NOT DO
 - Never type a password, a card number, a bank account or a government ID into anything. If a task needs one, stop and say that {owner} has to type it themselves.
 - Never invent a result. If a tool failed or returned nothing, say that. A page you could not read is not a page that was empty.
@@ -65,7 +71,7 @@ HOW YOU ANSWER
 TODAY: {today}`;
 
 const MODE_NOTES: Record<string, string> = {
-  ask: "MODE: Ask. Answer from what you know and what they have told you. You have no tools this turn — do not offer to run anything, just answer.",
+  ask: "MODE: Ask. Answer from what you know and what they have told you. You cannot touch the PC this turn — no browser, no shell, no files. You CAN still save to their Record, memory, folders, lists and calendar.",
   do: "MODE: Do. The full job, end to end, with whatever tools it takes. Chain them until it is actually done.",
   browse:
     "MODE: Browse. Work in the browser. Always browser_read before you click or type — refs only exist after a read, and they go stale the moment the page changes. After any click that navigates, read again before deciding anything.",
@@ -134,7 +140,9 @@ export async function POST(req: Request) {
   const caps = body.capabilities ?? {};
   // Ask mode is the one that deliberately has none: a turn that cannot reach
   // the machine is the only turn nobody has to read a gate for.
-  const tools: AgentTool[] = mode === "ask" ? [] : toolsFor(caps);
+  // Ask loses the PC, not the owner's own stores: remembering something they
+  // just told you must not depend on whether a local agent happens to be up.
+  const tools: AgentTool[] = mode === "ask" ? toolsFor({}) : toolsFor(caps);
 
   const owner = (body.ownerName || "the owner").slice(0, 60);
   const today = new Date().toLocaleString("en-GB", {
@@ -148,7 +156,7 @@ export async function POST(req: Request) {
     BASE.replace(/\{owner\}/g, owner).replace("{today}", today),
     MODE_NOTES[mode],
     offline.length && mode !== "ask"
-      ? `SWITCHED OFF RIGHT NOW: ${offline.join(", ")}. You have no tools for these. If the job needs one, say which and stop.`
+      ? `SWITCHED OFF RIGHT NOW: ${offline.join(", ")}. You have no tools for these, but you can still save to their Record, memory, folders, lists and calendar. If the job needs a switched-off one, say which and stop.`
       : "",
     body.context ? `CONTEXT FOR THIS REQUEST:\n${body.context.slice(0, 8_000)}` : "",
   ]

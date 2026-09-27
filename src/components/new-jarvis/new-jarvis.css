@@ -189,7 +189,9 @@
 .nj-wave span {
   width: 3px;
   height: var(--nj-wave-h);
-  border-radius: 2px;
+  /* Full, not a 2px one-off outside the scale: on a 3px bar the radius clamps
+     to a capsule either way, so the system's value costs nothing. */
+  border-radius: 9999px;
   background: var(--color-ink-faint);
   transform-origin: center;
   transition: transform 90ms linear, background-color var(--nj-fast) var(--nj-ease);

@@ -20,7 +20,8 @@
 //   GET  /status                      everything the page's panels draw
 //   POST /shell                       { command, cwd?, shell?, timeoutMs? }
 //   POST /browser/open                { url?, tabId? }
-//   POST /browser/read                { tabId? }          → text + refs
+//   POST /browser/read                { tabId? }          → redacted text + refs
+//   POST /browser/fields              { tabId? }          → field names + values
 //   POST /browser/click               { tabId?, ref|selector|text }
 //   POST /browser/type                { tabId?, ref, value, submit? }
 //   POST /browser/press               { tabId?, key }
@@ -83,6 +84,9 @@ const ROUTES = {
   "POST /browser/open": (b) => browser.openTab({ ...b, profileDir: PROFILE }),
   "POST /browser/tabs": async () => ({ tabs: await browser.listTabs() }),
   "POST /browser/read": (b) => browser.readTab(b),
+  // Field NAMES to the model, field VALUES to the owner's own tab only. The
+  // runner strips `values` before anything is sent upstream.
+  "POST /browser/fields": (b) => browser.fieldsTab(b),
   "POST /browser/click": (b) => browser.clickTab(b),
   "POST /browser/type": (b) => browser.typeTab(b),
   "POST /browser/press": (b) => browser.pressTab(b),
