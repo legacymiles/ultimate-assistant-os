@@ -104,7 +104,7 @@ export function CommandLine({
               title={m.hint}
               aria-pressed={mode === m.id}
               className={`rounded px-1.5 py-0.5 text-[10.5px] font-medium uppercase tracking-wide transition ${
-                mode === m.id ? "bg-brand-2 text-white" : "text-ink-muted hover:bg-elevated hover:text-ink"
+                mode === m.id ? "bg-brand-2 text-white hover:bg-[var(--nj-brand-press)]" : "text-ink-muted hover:bg-elevated hover:text-ink"
               }`}
             >
               {m.label}

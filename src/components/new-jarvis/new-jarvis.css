@@ -14,6 +14,15 @@
      `font-mono` utility inside this surface resolves through here, so one line
      is the difference between the design's named voice and Consolas. */
   --font-mono: var(--font-nj-mono), "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /*
+    The pressed value for every primary action.
+
+    Hovering a primary control used to go from brand-2 to brand — which moved
+    white text from 6.3:1 back to 4.48:1 exactly while the pointer was on it,
+    relocating the contrast breach rather than removing it. Hover goes DARKER,
+    derived from the token rather than invented beside it.
+  */
+  --nj-brand-press: color-mix(in oklab, var(--color-brand-2) 82%, black);
   --nj-rail: 56px;
   --nj-aside: 300px;
   --nj-ease: cubic-bezier(0.16, 1, 0.3, 1);
@@ -188,8 +197,11 @@
 /* At rest the wave is a low, legible line — not a dashed rule. The previous
    attempt raised the bars 2px and dimmed them to about 1.8:1, which made the
    exact problem it was meant to fix worse. */
+/* A null state should not be the brightest object in its column. Between the
+   two ink values: loud enough to read as a wave, quiet enough to match the
+   "Not listening" underneath it. */
 .nj-wave[data-state="off"] span {
-  background: var(--color-ink-muted);
+  background: color-mix(in oklab, var(--color-ink-muted) 55%, var(--color-ink-faint));
 }
 .nj-wave[data-state="hearing"] span {
   background: var(--color-core);

@@ -326,7 +326,7 @@ function GateCard({ gate, onAnswer }: { gate: Gate; onAnswer: (yes: boolean) => 
         <button
           type="button"
           onClick={() => onAnswer(true)}
-          className="rounded-md bg-brand-2 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-brand"
+          className="rounded-md bg-brand-2 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[var(--nj-brand-press)]"
         >
           Do it
         </button>

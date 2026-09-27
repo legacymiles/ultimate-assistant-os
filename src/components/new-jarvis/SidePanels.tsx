@@ -61,7 +61,7 @@ export function VoicePanel({
     // At rest the bars still have to read as a wave. Scaled to their true
     // silence they became thirteen 4px dots — a dotted rule, not an
     // instrument that is listening.
-    const floor = state === "off" ? 0.2 : 0.06;
+    const floor = state === "off" ? 0.15 : 0.06;
     return Math.max(floor, Math.min(1, h / BAR_HEIGHT));
   });
 
@@ -259,7 +259,7 @@ export function BridgePanel({
                     setOpen(false);
                   }}
                   disabled={!token.trim()}
-                  className="rounded bg-brand-2 px-2 py-1 text-[11px] font-medium text-white transition hover:bg-brand disabled:opacity-30"
+                  className="rounded bg-brand-2 px-2 py-1 text-[11px] font-medium text-white transition hover:bg-[var(--nj-brand-press)] disabled:opacity-30"
                 >
                   Pair
                 </button>
