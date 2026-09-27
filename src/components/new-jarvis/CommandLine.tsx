@@ -104,7 +104,7 @@ export function CommandLine({
               title={m.hint}
               aria-pressed={mode === m.id}
               className={`rounded px-1.5 py-0.5 text-[10.5px] font-medium uppercase tracking-wide transition ${
-                mode === m.id ? "bg-brand text-white" : "text-ink-faint hover:bg-elevated hover:text-ink-muted"
+                mode === m.id ? "bg-brand text-white" : "text-ink-muted hover:bg-elevated hover:text-ink"
               }`}
             >
               {m.label}
@@ -132,7 +132,7 @@ export function CommandLine({
                 : "Ask, or tell it what to do…"
           }
           aria-label="Command"
-          className="order-4 min-w-0 basis-full resize-none overflow-hidden bg-transparent py-0.5 font-mono text-[13px] leading-relaxed text-ink outline-none placeholder:text-ink-faint sm:order-2 sm:basis-0 sm:flex-1"
+          className="order-4 min-w-0 basis-full resize-none overflow-hidden bg-transparent py-0.5 font-mono text-[13px] leading-relaxed text-ink outline-none placeholder:text-ink-muted sm:order-2 sm:basis-0 sm:flex-1"
         />
 
         <button
@@ -148,7 +148,7 @@ export function CommandLine({
           }
           className={`order-2 ml-auto shrink-0 rounded-md p-1.5 transition sm:order-3 sm:ml-0 ${
             voiceState === "off"
-              ? "text-ink-faint hover:bg-elevated hover:text-ink"
+              ? "text-ink-muted hover:bg-elevated hover:text-ink"
               : hearing
                 ? "bg-core/15 text-core"
                 : "bg-brand/15 text-brand"
@@ -162,14 +162,18 @@ export function CommandLine({
           type="button"
           onClick={onSubmit}
           disabled={!value.trim() || busy}
-          title="Send"
-          className="order-3 shrink-0 rounded-md p-1.5 text-ink-faint transition hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-30 sm:order-4"
+          title={busy ? "Working…" : "Send"}
+          className="order-3 shrink-0 rounded-md p-1.5 text-ink-muted transition hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-30 sm:order-4"
         >
-          <Icon.Send width={15} height={15} />
-          <span className="sr-only">Send</span>
+          {busy ? (
+            <Icon.Refresh width={15} height={15} className="animate-spin [animation-duration:1.4s]" />
+          ) : (
+            <Icon.Send width={15} height={15} />
+          )}
+          <span className="sr-only">{busy ? "Working" : "Send"}</span>
         </button>
       </div>
-      <p className="mt-1 px-1 text-[10.5px] text-ink-faint">
+      <p className="mt-1 px-1 text-[10.5px] text-ink-muted">
         {MODES.find((m) => m.id === mode)?.hint}
       </p>
     </div>

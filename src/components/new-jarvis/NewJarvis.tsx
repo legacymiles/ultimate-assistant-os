@@ -28,6 +28,7 @@ import { useBridge } from "@/lib/new-jarvis/useBridge";
 import { useWakeVoice } from "@/lib/new-jarvis/useWakeVoice";
 import { runBlock, type WireMessage } from "@/lib/new-jarvis/runner";
 import { MAX_LIVE_BLOCKS, newBlock, type Block, type Gate, type Mode } from "@/lib/new-jarvis/types";
+import { BLOCKS_KEY, revive, slim } from "@/lib/new-jarvis/persist";
 
 // The owner's existing surfaces, mounted whole.
 import { Recall } from "../recall/Recall";
@@ -42,7 +43,7 @@ import { SkillsLibrary } from "../skills/SkillsLibrary";
 import { ToolsTab } from "../jarvis/ToolsTab";
 import { PluginsTab } from "../jarvis/PluginsTab";
 
-import { loadLocal } from "@/lib/sync/appState";
+import { loadLocal, saveLocal } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
 import { STORE_KEY, emptyStore } from "@/lib/new-dashboard/model";
 import type { DashboardStore, Profile } from "@/lib/new-dashboard/types";
@@ -84,6 +85,48 @@ export function NewJarvis() {
   const [panelsOpen, setPanelsOpen] = useState(false);
 
   const bridge = useBridge();
+
+  // The ledger is kept, because the whole argument of this surface is that a
+  // block from an hour ago is still there. Deliberately device-local rather
+  // than synced: a block records what was done from THIS browser to THIS
+  // machine, and a phone showing a ledger of steps it cannot re-run would be
+  // a worse lie than no ledger at all.
+  const loaded = useRef(false);
+  useEffect(() => {
+    setBlocks(revive(loadLocal<unknown>(BLOCKS_KEY, [])));
+    loaded.current = true;
+  }, []);
+  const blocksRef = useRef<Block[]>([]);
+  useEffect(() => {
+    blocksRef.current = blocks;
+    if (!loaded.current) return;
+    // A running block patches its steps many times a second, so while work is
+    // in flight the write is debounced — the cost of recording history must
+    // not land in the middle of doing it. The moment everything settles the
+    // write is immediate, because a debounce there loses the finished answer
+    // to a reload one tick later, and the block comes back looking abandoned.
+    const live = blocks.some((b) => b.status === "running" || b.status === "waiting");
+    if (!live) {
+      saveLocal(BLOCKS_KEY, slim(blocks));
+      return;
+    }
+    const t = setTimeout(() => saveLocal(BLOCKS_KEY, slim(blocksRef.current)), 800);
+    return () => clearTimeout(t);
+  }, [blocks]);
+
+  // A tab closed mid-run still gets its ledger written. pagehide is the one
+  // event that fires reliably on a real close, a navigation and an iOS
+  // background — unload does not.
+  useEffect(() => {
+    const flush = () => {
+      if (loaded.current) saveLocal(BLOCKS_KEY, slim(blocksRef.current));
+    };
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, []);
 
   // --- the owner's stores, exactly as /apps/jarvis reads them --------------
   const [store, setStore] = useState<JarvisStore | null>(null);
@@ -254,12 +297,12 @@ export function NewJarvis() {
           <span className="hidden sm:inline">Hub</span>
         </Link>
         <span className="text-sm font-semibold text-ink">New Jarvis</span>
-        <span className="hidden text-xs text-ink-faint sm:inline">
+        <span className="hidden text-xs text-ink-muted sm:inline">
           · {profile ? `${profile.name}'s assistant` : "the console"}
         </span>
         <Link
           href="/apps/jarvis"
-          className="ml-auto rounded-lg border border-line px-2 py-1 text-[11px] text-ink-faint transition hover:bg-panel-2 hover:text-ink-muted"
+          className="ml-auto rounded-lg border border-line px-2 py-1 text-[11px] text-ink-muted transition hover:bg-panel-2 hover:text-ink"
         >
           Old Jarvis
         </Link>
@@ -280,7 +323,7 @@ export function NewJarvis() {
                 title={t.label}
                 aria-current={on ? "page" : undefined}
                 className={`group relative mx-1.5 flex flex-col items-center gap-0.5 rounded-md py-1.5 transition ${
-                  on ? "bg-elevated text-ink" : "text-ink-faint hover:bg-panel-2 hover:text-ink-muted"
+                  on ? "bg-elevated text-ink" : "text-ink-muted hover:bg-panel-2 hover:text-ink"
                 }`}
               >
                 <I width={15} height={15} />
@@ -304,7 +347,7 @@ export function NewJarvis() {
             heard={voice.heard}
             micSupported={voice.supported}
             onMic={voice.toggle}
-            busy={false}
+            busy={running}
           />
 
           {/* On a phone the right-hand column is gone, and with it the only
@@ -323,7 +366,7 @@ export function NewJarvis() {
               <span className="text-[11px] text-ink-muted">
                 {voice.listening ? "Voice on" : "Voice off"}
               </span>
-              <span className="text-[11px] text-ink-faint">·</span>
+              <span className="text-[11px] text-ink-faint" aria-hidden>·</span>
               <span className="text-[11px] text-ink-muted" data-num>
                 {bridge.health.up && bridge.health.paired
                   ? `${readyCount} of 4 ready on this PC`
@@ -334,7 +377,7 @@ export function NewJarvis() {
               <Icon.Chevron
                 width={11}
                 height={11}
-                className={`ml-auto text-ink-faint transition-transform ${panelsOpen ? "rotate-90" : ""}`}
+                className={`ml-auto text-ink-muted transition-transform ${panelsOpen ? "rotate-90" : ""}`}
                 aria-hidden
               />
             </button>
@@ -366,7 +409,13 @@ export function NewJarvis() {
             {tab === "console" ? (
               <div className="space-y-2 p-3">
                 {blocks.length === 0 ? (
-                  <Empty paired={bridge.health.paired && bridge.health.up} />
+                  <Empty
+                    paired={bridge.health.paired && bridge.health.up}
+                    onPick={(text) => {
+                      setInput(text);
+                      document.querySelector<HTMLTextAreaElement>(".nj-command textarea")?.focus();
+                    }}
+                  />
                 ) : (
                   blocks.map((b) => (
                     <BlockView
@@ -381,7 +430,7 @@ export function NewJarvis() {
                 )}
               </div>
             ) : !store ? (
-              <div className="p-6 text-xs text-ink-faint">Loading your things…</div>
+              <div className="p-6 text-xs text-ink-muted">Loading your things…</div>
             ) : (
               <>
                 {(tab === "folders" || tab === "photos") && (
@@ -442,15 +491,18 @@ export function NewJarvis() {
  * commands the owner can read and reuse, and an honest line about what is
  * reachable right now.
  */
-function Empty({ paired }: { paired: boolean }) {
+function Empty({ paired, onPick }: { paired: boolean; onPick: (text: string) => void }) {
   const examples = [
     "what did I decide about the hub's AI provider?",
     "open my Vercel dashboard and tell me if the last deploy failed",
     "which node processes are running, and how much memory each",
     "read tools/jarvis-bridge/README.md and summarise what it does",
   ];
+  // Flush left, on the same x as the command line and every block. Centred, it
+  // was the one thing on the surface that did not line up with the column it
+  // belongs to.
   return (
-    <div className="mx-auto max-w-xl px-2 py-10">
+    <div className="max-w-2xl py-8">
       <p className="text-sm text-ink">
         Ask it something, or tell it what to do. Say <span className="font-mono text-brand">&ldquo;Jarvis&rdquo;</span>{" "}
         and it listens.
@@ -461,12 +513,23 @@ function Empty({ paired }: { paired: boolean }) {
       </p>
       <ul className="mt-5 space-y-1.5">
         {examples.map((e) => (
-          <li key={e} className="rounded-md border border-line-soft bg-panel px-3 py-2 font-mono text-[11.5px] text-ink-muted">
-            {e}
+          <li key={e}>
+            {/* The one moment the surface teaches itself. These used to look
+                exactly like input fields and do nothing when clicked. */}
+            <button
+              type="button"
+              onClick={() => onPick(e)}
+              className="group flex w-full items-center gap-2 rounded-md border border-line-soft bg-panel px-3 py-2 text-left font-mono text-[11.5px] text-ink-muted transition hover:border-line hover:bg-panel-2 hover:text-ink"
+            >
+              <span className="flex-1">{e}</span>
+              <span className="shrink-0 text-[10px] uppercase tracking-wide text-ink-muted opacity-0 transition group-hover:opacity-100">
+                use
+              </span>
+            </button>
           </li>
         ))}
       </ul>
-      <p className="mt-5 text-[11px] leading-relaxed text-ink-faint">
+      <p className="mt-5 text-[11px] leading-relaxed text-ink-muted">
         {paired
           ? "This PC is reachable, so the last three will actually run."
           : "The last three need the local agent on your PC. Without it, it can still think, remember and answer — it just cannot touch the machine."}

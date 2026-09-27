@@ -90,6 +90,33 @@ export function Markdown({ text }: { text: string }) {
       continue;
     }
 
+    // Blockquote. Without this, "> " ships literally — and an answer that
+    // quotes a page back (which every browser_read answer does) arrives as a
+    // column of stray angle brackets.
+    if (/^\s*>\s?/.test(line)) {
+      const body: string[] = [];
+      while (i < lines.length && /^\s*>\s?/.test(lines[i])) {
+        body.push(lines[i].replace(/^\s*>\s?/, ""));
+        i += 1;
+      }
+      const id = key();
+      blocks.push(
+        <blockquote
+          key={id}
+          className="my-2 border-l-2 border-line pl-3 text-ink-muted"
+        >
+          {body.map((b, bi) =>
+            b.trim() ? (
+              <p key={bi} className="my-0.5">
+                {inline(b, `${id}-${bi}`)}
+              </p>
+            ) : null,
+          )}
+        </blockquote>,
+      );
+      continue;
+    }
+
     if (/^\s*\|.*\|\s*$/.test(line)) {
       const rows: string[][] = [];
       while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {

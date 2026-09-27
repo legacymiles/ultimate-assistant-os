@@ -10,6 +10,10 @@
    --------------------------------------------------------------------------- */
 
 .nj {
+  /* Bind the hub's mono token to the face the page actually loads. Every
+     `font-mono` utility inside this surface resolves through here, so one line
+     is the difference between the design's named voice and Consolas. */
+  --font-mono: var(--font-nj-mono), "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --nj-rail: 56px;
   --nj-aside: 300px;
   --nj-ease: cubic-bezier(0.16, 1, 0.3, 1);
@@ -56,13 +60,21 @@
   transition: border-color var(--nj-fast) var(--nj-ease),
     box-shadow var(--nj-fast) var(--nj-ease);
 }
+/*
+  Armed is a LEFT EDGE, not a ring.
+
+  It used to be a full indigo border, which is pixel-for-pixel what the
+  keyboard focus ring draws on the same control — two different meanings
+  wearing one appearance, and an empty unfocused field reading as ready to
+  send. Armed now thickens and lights the left edge only; focus keeps the ring.
+*/
 .nj-command[data-armed="true"] {
-  border-color: color-mix(in oklab, var(--color-brand) 70%, var(--color-line));
-  box-shadow: 0 1px 0 0 color-mix(in oklab, var(--color-brand) 22%, transparent),
-    0 8px 24px -18px color-mix(in oklab, var(--color-brand) 60%, transparent);
+  border-color: color-mix(in oklab, var(--color-brand) 32%, var(--color-line));
+  box-shadow: inset 2px 0 0 0 var(--color-brand);
 }
 .nj-command[data-hearing="true"] {
-  border-color: color-mix(in oklab, var(--color-core) 60%, var(--color-line));
+  border-color: color-mix(in oklab, var(--color-core) 45%, var(--color-line));
+  box-shadow: inset 2px 0 0 0 var(--color-core);
 }
 
 /* --- a block ------------------------------------------------------------- */
@@ -111,11 +123,25 @@
 .nj-ledger::before {
   content: "";
   position: absolute;
-  left: 9px;
+  /* Dot centre: 6px offset + 1px of its own padding + 3.5px radius. The rail
+     has to sit under the dots it carries, not one pixel beside them. */
+  left: 10px;
   top: 6px;
   bottom: 6px;
   width: 1px;
   background: var(--color-line);
+}
+
+/* The ledger's own waiting state: a hollow ring that breathes, so the gap
+   between a finished step and the next one says "still working" instead of
+   leaving a ticking number as the only sign of life. */
+.nj-pending {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-brand);
+  flex: none;
+  animation: nj-pulse 1.4s var(--nj-ease) infinite;
 }
 
 .nj-dot {
@@ -159,6 +185,9 @@
   transform-origin: center;
   transition: transform 90ms linear, background-color var(--nj-fast) var(--nj-ease);
 }
+.nj-wave[data-state="off"] span {
+  opacity: 0.45;
+}
 .nj-wave[data-state="hearing"] span {
   background: var(--color-core);
 }
@@ -173,6 +202,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .nj-step,
+  .nj-pending,
   .nj-dot[data-live="true"] {
     animation: none;
   }

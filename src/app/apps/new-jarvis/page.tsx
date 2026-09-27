@@ -1,5 +1,18 @@
 import type { Metadata } from "next";
+import { JetBrains_Mono } from "next/font/google";
 import { NewJarvis } from "@/components/new-jarvis/NewJarvis";
+
+// The surface's design names JetBrains Mono as the voice of every command,
+// path, ref, count and elapsed time. The hub's --font-mono token asks for it
+// first, but asking is not loading: nothing on this machine or on the deployed
+// site has that face, so every one of those strings was falling through to
+// Consolas. Loading it here is what makes the token true.
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-nj-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "New Jarvis",
@@ -8,5 +21,9 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <NewJarvis />;
+  return (
+    <div className={mono.variable}>
+      <NewJarvis />
+    </div>
+  );
 }

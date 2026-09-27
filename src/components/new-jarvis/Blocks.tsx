@@ -47,10 +47,67 @@ function Mono({ text, tone = "ink" }: { text: string; tone?: "ink" | "muted" | "
   );
 }
 
+/** Does this output want reading as a diff rather than as a wall of grey? */
+export function looksLikeDiff(text: string): boolean {
+  const lines = text.split("\n").slice(0, 60);
+  if (lines.some((l) => l.startsWith("@@ ") || l.startsWith("diff --git "))) return true;
+  const marked = lines.filter((l) => /^[+-]/.test(l)).length;
+  return marked >= 3 && marked / Math.max(1, lines.length) > 0.25;
+}
+
+/**
+ * A diff, coloured per line.
+ *
+ * `git diff` is a command this surface allows without a gate, so diffs arrive
+ * often. Printed as one undifferentiated grey block, the one thing the owner
+ * opened it to see — what changed — is the thing they then have to find.
+ */
+function Diff({ text }: { text: string }) {
+  return (
+    <div className="max-h-72 overflow-auto rounded-md border border-line-soft bg-canvas py-1 font-mono text-[11.5px] leading-relaxed">
+      {text.split("\n").map((line, i) => {
+        const tone = line.startsWith("+++") || line.startsWith("---") || line.startsWith("diff ")
+          ? "text-ink-muted"
+          : line.startsWith("@@")
+            ? "text-brand"
+            : line.startsWith("+")
+              ? "text-core bg-core/8"
+              : line.startsWith("-")
+                ? "text-[#f87171] bg-[#ef4444]/8"
+                : "text-ink-muted";
+        return (
+          <div key={i} className={`whitespace-pre-wrap break-words px-3 ${tone}`}>
+            {line || " "}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The page, framed as a page: its address above what it said. */
+function PageFrame({ url, title, text, controls }: { url: string; title: string; text: string; controls: number }) {
+  return (
+    <div className="overflow-hidden rounded-md border border-line-soft">
+      <div className="flex items-center gap-2 border-b border-line-soft bg-panel-2 px-2.5 py-1.5">
+        <Icon.Globe width={11} height={11} className="shrink-0 text-ink-muted" aria-hidden />
+        <span className="truncate font-mono text-[11px] text-ink-muted">{url}</span>
+        {title && <span className="ml-auto shrink-0 truncate text-[10.5px] text-ink-muted">{title}</span>}
+      </div>
+      <pre className="nj-mono max-h-64 overflow-auto whitespace-pre-wrap break-words bg-canvas px-3 py-2 font-mono text-[11.5px] leading-relaxed text-ink-muted">
+        {text || "The page had no readable text."}
+      </pre>
+      <p className="border-t border-line-soft bg-panel-2 px-2.5 py-1 text-[10.5px] text-ink-muted" data-num>
+        {controls} control{controls === 1 ? "" : "s"} it can reach
+      </p>
+    </div>
+  );
+}
+
 function KeyRow({ k, v }: { k: string; v: string }) {
   return (
     <div className="flex gap-3 border-b border-line-soft py-1 last:border-0">
-      <span className="w-24 shrink-0 font-mono text-[11px] text-ink-faint">{k}</span>
+      <span className="w-24 shrink-0 font-mono text-[11px] text-ink-muted">{k}</span>
       <span className="min-w-0 break-words font-mono text-[11.5px] text-ink-muted" data-num>
         {v}
       </span>
@@ -63,12 +120,20 @@ function ResultView({ step }: { step: Step }) {
   const s = (k: string) => (typeof r[k] === "string" ? (r[k] as string) : "");
 
   if (step.status === "refused") {
-    return <p className="px-3 py-2 text-xs text-ink-faint">You said no, so nothing ran.</p>;
+    return <p className="px-3 py-2 text-xs text-ink-muted">You said no, so nothing ran.</p>;
   }
   if (step.status === "failed") {
     return <Mono text={step.error ?? "It failed."} tone="bad" />;
   }
   if (step.status !== "ok") return null;
+
+  if (r.pngDropped === true) {
+    return (
+      <p className="px-3 py-2 text-xs text-ink-muted">
+        The picture was taken, and was not kept when this block was saved.
+      </p>
+    );
+  }
 
   // A picture, of the screen or of a page.
   if (typeof r.png === "string") {
@@ -88,10 +153,10 @@ function ResultView({ step }: { step: Step }) {
     const code = r.exitCode;
     return (
       <div className="space-y-2">
-        {out && <Mono text={out} />}
+        {out && (looksLikeDiff(out) ? <Diff text={out} /> : <Mono text={out} />)}
         {err && <Mono text={err} tone="bad" />}
-        {!out && !err && <p className="px-3 py-2 text-xs text-ink-faint">It printed nothing.</p>}
-        <p className="px-1 text-[11px] text-ink-faint" data-num>
+        {!out && !err && <p className="px-3 py-2 text-xs text-ink-muted">It printed nothing.</p>}
+        <p className="px-1 text-[11px] text-ink-muted" data-num>
           {r.timedOut ? "Timed out and was stopped." : `Exit ${code === null ? "?" : String(code)}`}
           {typeof r.ms === "number" ? ` · ${ms(r.ms)}` : ""}
           {r.truncated ? " · output truncated" : ""}
@@ -102,15 +167,7 @@ function ResultView({ step }: { step: Step }) {
 
   if (step.tool === "browser_read") {
     const els = Array.isArray(r.elements) ? (r.elements as Record<string, unknown>[]) : [];
-    return (
-      <div className="space-y-2">
-        <p className="truncate px-1 font-mono text-[11px] text-ink-faint">{s("url")}</p>
-        <Mono text={s("text") || "The page had no readable text."} tone="muted" />
-        <p className="px-1 text-[11px] text-ink-faint" data-num>
-          {els.length} control{els.length === 1 ? "" : "s"} it can reach
-        </p>
-      </div>
-    );
+    return <PageFrame url={s("url")} title={s("title")} text={s("text")} controls={els.length} />;
   }
 
   if (step.tool === "files_list") {
@@ -119,7 +176,7 @@ function ResultView({ step }: { step: Step }) {
       <div className="max-h-72 overflow-auto rounded-md border border-line-soft">
         <table className="w-full border-collapse text-left">
           <thead className="sticky top-0 bg-panel-2">
-            <tr className="text-[10px] uppercase tracking-wide text-ink-faint">
+            <tr className="text-[10px] uppercase tracking-wide text-ink-muted">
               <th className="px-3 py-1.5 font-medium">Name</th>
               <th className="px-3 py-1.5 font-medium">Size</th>
               <th className="px-3 py-1.5 font-medium">Changed</th>
@@ -135,14 +192,14 @@ function ResultView({ step }: { step: Step }) {
                 <td className="px-3 py-1 text-ink-muted" data-num>
                   {typeof e.size === "number" ? e.size.toLocaleString() : "—"}
                 </td>
-                <td className="px-3 py-1 text-ink-faint" data-num>
+                <td className="px-3 py-1 text-ink-muted" data-num>
                   {typeof e.modified === "string" ? e.modified.slice(0, 10) : "—"}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {entries.length === 0 && <p className="px-3 py-2 text-xs text-ink-faint">That folder is empty.</p>}
+        {entries.length === 0 && <p className="px-3 py-2 text-xs text-ink-muted">That folder is empty.</p>}
       </div>
     );
   }
@@ -150,7 +207,7 @@ function ResultView({ step }: { step: Step }) {
   if (step.tool === "files_read") {
     return (
       <div className="space-y-2">
-        <p className="truncate px-1 font-mono text-[11px] text-ink-faint">{s("path")}</p>
+        <p className="truncate px-1 font-mono text-[11px] text-ink-muted">{s("path")}</p>
         <Mono text={s("text")} />
       </div>
     );
@@ -164,7 +221,7 @@ function ResultView({ step }: { step: Step }) {
           <tbody>
             {ws.map((w, i) => (
               <tr key={i} className="border-b border-line-soft last:border-0">
-                <td className="px-3 py-1 text-ink-faint" data-num>{String(w.pid)}</td>
+                <td className="px-3 py-1 text-ink-muted" data-num>{String(w.pid)}</td>
                 <td className="px-3 py-1 text-ink-muted">{String(w.process)}</td>
                 <td className="px-3 py-1 text-ink">{String(w.title)}</td>
               </tr>
@@ -179,7 +236,7 @@ function ResultView({ step }: { step: Step }) {
   const rows = Object.entries(r).filter(
     ([k, v]) => k !== "ok" && (typeof v === "string" || typeof v === "number" || typeof v === "boolean"),
   );
-  if (!rows.length) return <p className="px-3 py-2 text-xs text-ink-faint">Done.</p>;
+  if (!rows.length) return <p className="px-3 py-2 text-xs text-ink-muted">Done.</p>;
   return (
     <div className="rounded-md border border-line-soft px-3 py-1">
       {rows.map(([k, v]) => (
@@ -191,9 +248,15 @@ function ResultView({ step }: { step: Step }) {
 
 // --- steps ----------------------------------------------------------------
 
-function StepRow({ step }: { step: Step }) {
+function StepRow({ step, autoOpen }: { step: Step; autoOpen: boolean }) {
+  // Opening the last result automatically is the difference between the
+  // composition's promise — the result inline, at full size — and a row you
+  // have to go and click. Once the owner touches a row, their choice wins and
+  // the surface stops deciding for them.
   const [open, setOpen] = useState(false);
+  const [touched, setTouched] = useState(false);
   const hasResult = step.status === "ok" || step.status === "failed";
+  const shown = hasResult && (touched ? open : autoOpen);
 
   return (
     <li className="nj-step relative pl-6">
@@ -201,21 +264,25 @@ function StepRow({ step }: { step: Step }) {
         <StatusDot status={step.status} />
       </span>
       <div className="flex items-baseline gap-2">
-        <span className="font-mono text-[11px] text-ink-faint" data-num>
+        <span className="font-mono text-[11px] text-ink-muted" data-num>
           {step.n}
         </span>
         <button
           type="button"
-          onClick={() => hasResult && setOpen((o) => !o)}
+          onClick={() => {
+            if (!hasResult) return;
+            setTouched(true);
+            setOpen(!shown);
+          }}
           disabled={!hasResult}
           className={`min-w-0 flex-1 text-left text-xs ${
-            step.status === "refused" ? "text-ink-faint line-through" : "text-ink-muted"
+            step.status === "refused" ? "text-ink-muted line-through" : "text-ink-muted"
           } ${hasResult ? "hover:text-ink" : "cursor-default"}`}
         >
           {step.summary}
         </button>
         {step.ms !== undefined && (
-          <span className="shrink-0 font-mono text-[10.5px] text-ink-faint" data-num>
+          <span className="shrink-0 font-mono text-[10.5px] text-ink-muted" data-num>
             {ms(step.ms)}
           </span>
         )}
@@ -223,17 +290,17 @@ function StepRow({ step }: { step: Step }) {
           <Icon.Chevron
             width={11}
             height={11}
-            className={`shrink-0 text-ink-faint transition-transform ${open ? "rotate-90" : ""}`}
+            className={`shrink-0 text-ink-muted transition-transform ${shown ? "rotate-90" : ""}`}
             aria-hidden
           />
         )}
       </div>
-      {open && (
+      {shown && (
         <div className="mt-1.5 mb-1">
           <ResultView step={step} />
         </div>
       )}
-      {step.status === "failed" && !open && (
+      {step.status === "failed" && !shown && (
         <p className="mt-0.5 text-[11px] text-[#f87171]">{step.error}</p>
       )}
     </li>
@@ -249,7 +316,7 @@ function GateCard({ gate, onAnswer }: { gate: Gate; onAnswer: (yes: boolean) => 
   useEffect(() => el?.focus(), [el]);
 
   return (
-    <div className="m-3 rounded-md border border-[#f59e0b]/45 bg-panel-2 p-3">
+    <div className="border-t border-[#f59e0b]/45 bg-[#f59e0b]/[0.06] px-3 py-3">
       <p className="flex items-start gap-2 text-sm text-ink">
         <Icon.Shield width={15} height={15} className="mt-0.5 shrink-0 text-[#f59e0b]" aria-hidden />
         <span>{gate.summary}</span>
@@ -300,6 +367,12 @@ export function BlockView({
   }, [block.status]);
 
   const live = block.status === "running" || block.status === "waiting";
+  // Only once the block has settled: opening each result as it lands would
+  // make the ledger jump under the owner while they are reading it.
+  const autoOpenId = live
+    ? ""
+    : [...block.steps].reverse().find((s) => s.status === "ok" || s.status === "failed")?.id ?? "";
+  const thinking = block.status === "running" && block.steps.every((s) => s.status !== "running" && s.status !== "waiting");
 
   return (
     <article className="nj-block" data-status={block.status}>
@@ -313,16 +386,16 @@ export function BlockView({
         >
           <span className="block break-words font-mono text-[12.5px] leading-snug text-ink">{block.command}</span>
         </button>
-        <span className="shrink-0 font-mono text-[10.5px] uppercase tracking-wide text-ink-faint">{block.mode}</span>
+        <span className="shrink-0 font-mono text-[10.5px] uppercase tracking-wide text-ink-muted">{block.mode}</span>
         {block.source === "voice" && <Icon.Mic width={12} height={12} className="shrink-0 text-ink-faint" aria-hidden />}
-        <span className="shrink-0 font-mono text-[10.5px] text-ink-faint" data-num>
+        <span className="shrink-0 font-mono text-[10.5px] text-ink-muted" data-num>
           {ms(elapsed(block))}
         </span>
         {live ? (
           <button
             type="button"
             onClick={onStop}
-            className="shrink-0 rounded px-1.5 py-0.5 text-[10.5px] text-ink-faint transition hover:bg-elevated hover:text-ink"
+            className="shrink-0 rounded px-1.5 py-0.5 text-[10.5px] text-ink-muted transition hover:bg-elevated hover:text-ink"
           >
             Stop
           </button>
@@ -331,7 +404,7 @@ export function BlockView({
             type="button"
             onClick={onRerun}
             title="Run it again"
-            className="shrink-0 rounded px-1 py-0.5 text-ink-faint transition hover:bg-elevated hover:text-ink"
+            className="shrink-0 rounded px-1 py-0.5 text-ink-muted transition hover:bg-elevated hover:text-ink"
           >
             <Icon.Refresh width={12} height={12} />
             <span className="sr-only">Run it again</span>
@@ -344,8 +417,19 @@ export function BlockView({
           {block.steps.length > 0 && (
             <ol className="nj-ledger space-y-1.5 border-t border-line-soft px-3 py-2">
               {block.steps.map((s) => (
-                <StepRow key={s.id} step={s} />
+                <StepRow key={s.id} step={s} autoOpen={s.id === autoOpenId} />
               ))}
+              {/* The gap between a finished step and the next one is where a
+                  run looks stalled: five done rows, a ticking number, and
+                  nothing saying the model is still deciding. */}
+              {thinking && (
+                <li className="nj-step relative pl-6">
+                  <span className="absolute left-[6px] top-[7px] rounded-full bg-panel p-[1px]">
+                    <span className="nj-pending" aria-hidden />
+                  </span>
+                  <span className="text-xs text-ink-muted">Working out the next step…</span>
+                </li>
+              )}
             </ol>
           )}
 
@@ -368,7 +452,7 @@ export function BlockView({
 
           {block.status === "running" && !block.steps.length && !block.answer && (
             <div className="border-t border-line-soft px-3 py-2.5">
-              <p className="text-xs text-ink-faint">Working out what to do…</p>
+              <p className="text-xs text-ink-muted">Working out what to do…</p>
             </div>
           )}
         </>
