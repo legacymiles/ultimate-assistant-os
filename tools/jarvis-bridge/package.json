@@ -1,0 +1,14 @@
+{
+  "name": "jarvis-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "New Jarvis's local agent — the half of the assistant that can touch this PC.",
+  "scripts": {
+    "start": "node server.mjs",
+    "install-browser": "playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

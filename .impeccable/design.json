@@ -1,0 +1,288 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-26T00:00:00.000Z",
+  "title": "Design System: Ultimate Assistant OS",
+  "extensions": {
+    "colorMeta": {
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Void",
+        "canonical": "oklch(12% 0.012 268)",
+        "tonalRamp": ["oklch(15% 0.012 268)", "oklch(26% 0.012 268)", "oklch(37% 0.012 268)", "oklch(48% 0.012 268)", "oklch(59% 0.012 268)", "oklch(70% 0.012 268)", "oklch(82% 0.012 268)", "oklch(95% 0.012 268)"]
+      },
+      "panel": {
+        "role": "neutral",
+        "displayName": "Panel",
+        "canonical": "oklch(18% 0.014 268)",
+        "tonalRamp": ["oklch(15% 0.014 268)", "oklch(26% 0.014 268)", "oklch(37% 0.014 268)", "oklch(48% 0.014 268)", "oklch(59% 0.014 268)", "oklch(70% 0.014 268)", "oklch(82% 0.014 268)", "oklch(95% 0.014 268)"]
+      },
+      "panel-2": {
+        "role": "neutral",
+        "displayName": "Panel Raised",
+        "canonical": "oklch(22% 0.015 268)",
+        "tonalRamp": ["oklch(15% 0.015 268)", "oklch(26% 0.015 268)", "oklch(37% 0.015 268)", "oklch(48% 0.015 268)", "oklch(59% 0.015 268)", "oklch(70% 0.015 268)", "oklch(82% 0.015 268)", "oklch(95% 0.015 268)"]
+      },
+      "elevated": {
+        "role": "neutral",
+        "displayName": "Elevated",
+        "canonical": "oklch(25% 0.016 268)",
+        "tonalRamp": ["oklch(15% 0.016 268)", "oklch(26% 0.016 268)", "oklch(37% 0.016 268)", "oklch(48% 0.016 268)", "oklch(59% 0.016 268)", "oklch(70% 0.016 268)", "oklch(82% 0.016 268)", "oklch(95% 0.016 268)"]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "oklch(30% 0.018 268)",
+        "tonalRamp": ["oklch(15% 0.018 268)", "oklch(26% 0.018 268)", "oklch(37% 0.018 268)", "oklch(48% 0.018 268)", "oklch(59% 0.018 268)", "oklch(70% 0.018 268)", "oklch(82% 0.018 268)", "oklch(95% 0.018 268)"]
+      },
+      "line-soft": {
+        "role": "neutral",
+        "displayName": "Hairline Soft",
+        "canonical": "oklch(25% 0.013 268)",
+        "tonalRamp": ["oklch(15% 0.013 268)", "oklch(26% 0.013 268)", "oklch(37% 0.013 268)", "oklch(48% 0.013 268)", "oklch(59% 0.013 268)", "oklch(70% 0.013 268)", "oklch(82% 0.013 268)", "oklch(95% 0.013 268)"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(93% 0.008 268)",
+        "tonalRamp": ["oklch(15% 0.008 268)", "oklch(26% 0.008 268)", "oklch(37% 0.008 268)", "oklch(48% 0.008 268)", "oklch(59% 0.008 268)", "oklch(70% 0.008 268)", "oklch(82% 0.008 268)", "oklch(95% 0.008 268)"]
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Ink Muted",
+        "canonical": "oklch(70% 0.024 265)",
+        "tonalRamp": ["oklch(15% 0.024 265)", "oklch(26% 0.024 265)", "oklch(37% 0.024 265)", "oklch(48% 0.024 265)", "oklch(59% 0.024 265)", "oklch(70% 0.024 265)", "oklch(82% 0.024 265)", "oklch(95% 0.024 265)"]
+      },
+      "ink-faint": {
+        "role": "neutral",
+        "displayName": "Ink Faint",
+        "canonical": "oklch(54% 0.026 265)",
+        "tonalRamp": ["oklch(15% 0.026 265)", "oklch(26% 0.026 265)", "oklch(37% 0.026 265)", "oklch(48% 0.026 265)", "oklch(59% 0.026 265)", "oklch(70% 0.026 265)", "oklch(82% 0.026 265)", "oklch(95% 0.026 265)"]
+      },
+      "brand": {
+        "role": "primary",
+        "displayName": "Armed Indigo",
+        "canonical": "oklch(58.5% 0.203 277)",
+        "tonalRamp": ["oklch(20% 0.203 277)", "oklch(31% 0.203 277)", "oklch(42% 0.203 277)", "oklch(53% 0.203 277)", "oklch(64% 0.203 277)", "oklch(74% 0.16 277)", "oklch(85% 0.10 277)", "oklch(95% 0.04 277)"]
+      },
+      "brand-2": {
+        "role": "primary",
+        "displayName": "Action Indigo",
+        "canonical": "oklch(51.3% 0.232 277)",
+        "tonalRamp": ["oklch(20% 0.232 277)", "oklch(31% 0.232 277)", "oklch(42% 0.232 277)", "oklch(53% 0.232 277)", "oklch(64% 0.20 277)", "oklch(74% 0.16 277)", "oklch(85% 0.10 277)", "oklch(95% 0.04 277)"]
+      },
+      "brand-press": {
+        "role": "primary",
+        "displayName": "Pressed Indigo",
+        "canonical": "color-mix(in oklab, #4f46e5 82%, black)",
+        "tonalRamp": ["oklch(18% 0.20 277)", "oklch(27% 0.20 277)", "oklch(36% 0.20 277)", "oklch(45% 0.20 277)", "oklch(54% 0.20 277)", "oklch(66% 0.17 277)", "oklch(80% 0.11 277)", "oklch(93% 0.045 277)"]
+      },
+      "core": {
+        "role": "secondary",
+        "displayName": "Up Green",
+        "canonical": "oklch(72.3% 0.192 150)",
+        "tonalRamp": ["oklch(22% 0.10 150)", "oklch(33% 0.13 150)", "oklch(44% 0.16 150)", "oklch(55% 0.18 150)", "oklch(66% 0.19 150)", "oklch(77% 0.17 150)", "oklch(87% 0.11 150)", "oklch(95% 0.05 150)"]
+      },
+      "core-2": {
+        "role": "secondary",
+        "displayName": "Up Green Deep",
+        "canonical": "oklch(62.7% 0.17 150)",
+        "tonalRamp": ["oklch(20% 0.09 150)", "oklch(31% 0.12 150)", "oklch(42% 0.15 150)", "oklch(53% 0.17 150)", "oklch(63% 0.17 150)", "oklch(75% 0.15 150)", "oklch(86% 0.10 150)", "oklch(95% 0.045 150)"]
+      },
+      "support": {
+        "role": "secondary",
+        "displayName": "Thinking Blue",
+        "canonical": "oklch(62.3% 0.214 259)",
+        "tonalRamp": ["oklch(21% 0.11 259)", "oklch(32% 0.15 259)", "oklch(43% 0.18 259)", "oklch(54% 0.20 259)", "oklch(65% 0.21 259)", "oklch(76% 0.16 259)", "oklch(86% 0.10 259)", "oklch(95% 0.04 259)"]
+      },
+      "support-2": {
+        "role": "secondary",
+        "displayName": "Thinking Blue Deep",
+        "canonical": "oklch(54.6% 0.215 262)",
+        "tonalRamp": ["oklch(19% 0.11 262)", "oklch(29% 0.15 262)", "oklch(39% 0.18 262)", "oklch(49% 0.21 262)", "oklch(60% 0.20 262)", "oklch(72% 0.16 262)", "oklch(84% 0.10 262)", "oklch(94% 0.04 262)"]
+      },
+      "state-waiting": {
+        "role": "tertiary",
+        "displayName": "Waiting Amber",
+        "canonical": "oklch(76.9% 0.166 70)",
+        "tonalRamp": ["oklch(25% 0.09 70)", "oklch(36% 0.12 70)", "oklch(47% 0.14 70)", "oklch(58% 0.16 70)", "oklch(69% 0.17 70)", "oklch(80% 0.15 70)", "oklch(89% 0.10 70)", "oklch(96% 0.04 70)"]
+      },
+      "state-failed": {
+        "role": "tertiary",
+        "displayName": "Refused Red",
+        "canonical": "oklch(63.7% 0.237 25)",
+        "tonalRamp": ["oklch(22% 0.12 25)", "oklch(33% 0.16 25)", "oklch(44% 0.20 25)", "oklch(55% 0.23 25)", "oklch(66% 0.23 25)", "oklch(77% 0.16 25)", "oklch(87% 0.10 25)", "oklch(95% 0.04 25)"]
+      },
+      "state-failed-ink": {
+        "role": "tertiary",
+        "displayName": "Refused Red Ink",
+        "canonical": "oklch(70.4% 0.191 22)",
+        "tonalRamp": ["oklch(24% 0.11 22)", "oklch(35% 0.14 22)", "oklch(46% 0.17 22)", "oklch(57% 0.19 22)", "oklch(68% 0.19 22)", "oklch(79% 0.15 22)", "oklch(88% 0.09 22)", "oklch(96% 0.04 22)"]
+      },
+      "accent-cyan": {
+        "role": "tertiary",
+        "displayName": "Editor Cyan (app-scoped)",
+        "canonical": "oklch(75.6% 0.131 206)",
+        "tonalRamp": ["oklch(24% 0.07 206)", "oklch(35% 0.09 206)", "oklch(46% 0.11 206)", "oklch(57% 0.12 206)", "oklch(68% 0.13 206)", "oklch(79% 0.12 206)", "oklch(88% 0.08 206)", "oklch(96% 0.03 206)"]
+      },
+      "accent-cyan-2": {
+        "role": "tertiary",
+        "displayName": "Editor Cyan Deep (app-scoped)",
+        "canonical": "oklch(64.1% 0.115 210)",
+        "tonalRamp": ["oklch(22% 0.06 210)", "oklch(33% 0.08 210)", "oklch(44% 0.10 210)", "oklch(55% 0.11 210)", "oklch(64% 0.115 210)", "oklch(76% 0.10 210)", "oklch(87% 0.07 210)", "oklch(95% 0.03 210)"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Rare. A hub front page or an app's own landing header. A working surface does not have one." },
+      "title": { "displayName": "Title", "purpose": "The name of the surface, and section headings. The largest type on a normal screen." },
+      "body": { "displayName": "Body", "purpose": "Answers and prose — anything written in sentences by a person or a model." },
+      "dense": { "displayName": "Dense", "purpose": "The workhorse row: step summaries, list items, secondary controls. Most of the interface." },
+      "mono": { "displayName": "Mono", "purpose": "Commands, paths, shell output, diffs, table cells, IDs, counts, elapsed times. Always tabular figures." },
+      "label": { "displayName": "Label", "purpose": "Panel headings, table column headers, mode chips, metadata. Uppercase and tracked so it reads as a classification." },
+      "micro": { "displayName": "Micro", "purpose": "Rail captions and sub-labels where the word only disambiguates an icon." }
+    },
+    "shadows": [
+      { "name": "armed-edge", "value": "inset 2px 0 0 0 var(--color-brand)", "purpose": "This control has content and is ready to fire. Paired with a border mixed 32% toward brand." },
+      { "name": "hearing-edge", "value": "inset 2px 0 0 0 var(--color-core)", "purpose": "This control is currently taking dictation." },
+      { "name": "selected-edge", "value": "inset 2px 0 0 var(--color-brand)", "purpose": "The incumbent selected-nav-item and selected-table-row marker the armed edge is derived from." },
+      { "name": "none", "value": "none", "purpose": "The default, and the rule. Depth is tonal; there is no drop shadow in the component layer." }
+    ],
+    "motion": [
+      { "name": "nj-ease", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "The only easing curve. Exponential ease-out: fast departure, long settle." },
+      { "name": "nj-fast", "value": "160ms", "purpose": "State transitions — border, background, colour, icon rotation." },
+      { "name": "nj-slow", "value": "220ms", "purpose": "Arrival. A step row settling into the ledger." },
+      { "name": "nj-step-in", "value": "@keyframes nj-step-in { from { transform: translateY(-3px); opacity: 0.55; } to { transform: none; opacity: 1; } }", "purpose": "New content arrives already visible and travels the last few pixels. Fading up from zero is the spinner's grammar." },
+      { "name": "nj-pulse", "value": "@keyframes nj-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } } — 1.4s infinite", "purpose": "A live or waiting indicator. Opacity only, so it composites." },
+      { "name": "wave-tick", "value": "transform 90ms linear", "purpose": "A per-frame level meter. Scales one fixed height; never resizes the element." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one decision on screen. The only white-on-colour fill in the system, and it is rationed.",
+      "html": "<button class=\"ds-btn-primary\">Do it</button>",
+      "css": ".ds-btn-primary { background: var(--color-brand-2, #4f46e5); color: #fff; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 12px; font-weight: 500; padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; transition: background 160ms cubic-bezier(0.16,1,0.3,1); } .ds-btn-primary:hover { background: color-mix(in oklab, var(--color-brand-2, #4f46e5) 82%, black); } .ds-btn-primary:focus-visible { outline: 2px solid var(--color-brand, #6366f1); outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.3; cursor: not-allowed; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "The default for everything that is not the one decision — every icon button, every toolbar control.",
+      "html": "<button class=\"ds-btn-ghost\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 12a9 9 0 1 0 3-6.7L3 8\"/><path d=\"M3 3v5h5\"/></svg><span>Run it again</span></button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; gap: 6px; background: transparent; color: var(--color-ink-muted, #9aa3b5); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 12px; padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; transition: background 160ms cubic-bezier(0.16,1,0.3,1), color 160ms cubic-bezier(0.16,1,0.3,1); } .ds-btn-ghost:hover { background: var(--color-elevated, #1d212d); color: var(--color-ink, #e9ecf3); } .ds-btn-ghost:focus-visible { outline: 2px solid var(--color-brand, #6366f1); outline-offset: 2px; }"
+    },
+    {
+      "name": "Mode Chips",
+      "kind": "chip",
+      "refersTo": "chip-mode",
+      "description": "A small uppercase segmented control. Selected is a brand-2 fill; unselected is bare ink-muted.",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip\">Ask</button><button class=\"ds-chip is-on\" aria-pressed=\"true\">Do</button><button class=\"ds-chip\">Browse</button><button class=\"ds-chip\">Run</button></div>",
+      "css": ".ds-chips { display: flex; gap: 2px; } .ds-chip { background: transparent; color: var(--color-ink-muted, #9aa3b5); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10.5px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.025em; padding: 2px 6px; border: none; border-radius: 4px; cursor: pointer; transition: background 160ms cubic-bezier(0.16,1,0.3,1), color 160ms cubic-bezier(0.16,1,0.3,1); } .ds-chip:hover { background: var(--color-elevated, #1d212d); color: var(--color-ink, #e9ecf3); } .ds-chip.is-on { background: var(--color-brand-2, #4f46e5); color: #fff; } .ds-chip.is-on:hover { background: color-mix(in oklab, var(--color-brand-2, #4f46e5) 82%, black); } .ds-chip:focus-visible { outline: 2px solid var(--color-brand, #6366f1); outline-offset: 2px; }"
+    },
+    {
+      "name": "Command Line",
+      "kind": "input",
+      "refersTo": "command-line",
+      "description": "A field is a hole in the panel, not a tile on it. Armed is a lit left edge; focus is the outline ring — two meanings, two appearances.",
+      "html": "<div class=\"ds-cmd is-armed\"><input class=\"ds-cmd__field\" value=\"open example.com and tell me what the page says\" aria-label=\"Command\" /></div>",
+      "css": ".ds-cmd { display: flex; align-items: center; background: var(--color-canvas, #0a0b0f); border: 1px solid var(--color-line, #262a38); border-radius: 8px; padding: 8px 10px; transition: border-color 160ms cubic-bezier(0.16,1,0.3,1), box-shadow 160ms cubic-bezier(0.16,1,0.3,1); } .ds-cmd.is-armed { border-color: color-mix(in oklab, var(--color-brand, #6366f1) 32%, var(--color-line, #262a38)); box-shadow: inset 2px 0 0 0 var(--color-brand, #6366f1); } .ds-cmd__field { flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: var(--color-ink, #e9ecf3); font-family: \"JetBrains Mono\", ui-monospace, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.625; caret-color: var(--color-brand, #6366f1); } .ds-cmd__field::placeholder { color: var(--color-ink-muted, #9aa3b5); } .ds-cmd__field::selection { background: color-mix(in oklab, var(--color-brand, #6366f1) 38%, transparent); color: var(--color-ink, #e9ecf3); } .ds-cmd:focus-within { outline: 2px solid var(--color-brand, #6366f1); outline-offset: 2px; border-radius: 8px; }"
+    },
+    {
+      "name": "Block with Step Ledger",
+      "kind": "custom",
+      "refersTo": "panel-strip",
+      "description": "The system's one composite object: a request in mono with its elapsed time, a numbered ledger hanging off a hairline spine, and results rendered inline. The strip's border is the status channel; its fill never changes.",
+      "html": "<article class=\"ds-block is-running\"><header class=\"ds-block__head\"><span class=\"ds-dot ds-dot--brand\"></span><span class=\"ds-block__cmd\">open example.com and tell me what the page says</span><span class=\"ds-block__meta\">DO</span><span class=\"ds-block__meta ds-num\">9.0 s</span></header><ol class=\"ds-ledger\"><li class=\"ds-step\"><span class=\"ds-step__cap\"><span class=\"ds-dot ds-dot--core\"></span></span><span class=\"ds-step__n ds-num\">1</span><span class=\"ds-step__sum\">Open example.com.</span><span class=\"ds-step__ms ds-num\">3.0 s</span></li><li class=\"ds-step\"><span class=\"ds-step__cap\"><span class=\"ds-dot ds-dot--core\"></span></span><span class=\"ds-step__n ds-num\">2</span><span class=\"ds-step__sum\">Read the page.</span><span class=\"ds-step__ms ds-num\">25 ms</span></li><li class=\"ds-step\"><span class=\"ds-step__cap\"><span class=\"ds-pending\"></span></span><span class=\"ds-step__sum ds-step__sum--wait\">Working out the next step…</span></li></ol></article>",
+      "css": "@keyframes ds-step-in { from { transform: translateY(-3px); opacity: 0.55; } to { transform: none; opacity: 1; } } @keyframes ds-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } } .ds-block { background: var(--color-panel, #12141c); border: 1px solid var(--color-line, #262a38); border-radius: 10px; font-family: ui-sans-serif, system-ui, sans-serif; } .ds-block.is-running { border-color: color-mix(in oklab, var(--color-brand, #6366f1) 34%, var(--color-line, #262a38)); } .ds-block.is-waiting { border-color: color-mix(in oklab, #f59e0b 44%, var(--color-line, #262a38)); } .ds-block.is-failed { border-color: color-mix(in oklab, #ef4444 34%, var(--color-line, #262a38)); } .ds-block__head { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; } .ds-block__cmd { flex: 1; min-width: 0; font-family: \"JetBrains Mono\", ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.375; color: var(--color-ink, #e9ecf3); word-break: break-word; } .ds-block__meta { flex: none; font-family: \"JetBrains Mono\", ui-monospace, Menlo, Consolas, monospace; font-size: 10.5px; color: var(--color-ink-muted, #9aa3b5); text-transform: uppercase; letter-spacing: 0.025em; } .ds-num { font-variant-numeric: tabular-nums; font-feature-settings: \"tnum\" 1; } .ds-ledger { position: relative; list-style: none; margin: 0; padding: 8px 12px; border-top: 1px solid var(--color-line-soft, #1e222e); display: flex; flex-direction: column; gap: 6px; } .ds-ledger::before { content: \"\"; position: absolute; left: 22px; top: 14px; bottom: 14px; width: 1px; background: var(--color-line, #262a38); } .ds-step { position: relative; display: flex; align-items: baseline; gap: 8px; padding-left: 24px; animation: ds-step-in 220ms cubic-bezier(0.16,1,0.3,1); } .ds-step__cap { position: absolute; left: 6px; top: 5px; background: var(--color-panel, #12141c); padding: 1px; border-radius: 50%; line-height: 0; } .ds-step__n { font-family: \"JetBrains Mono\", ui-monospace, Menlo, Consolas, monospace; font-size: 11px; color: var(--color-ink-muted, #9aa3b5); } .ds-step__sum { flex: 1; min-width: 0; font-size: 12px; color: var(--color-ink-muted, #9aa3b5); } .ds-step__ms { flex: none; font-family: \"JetBrains Mono\", ui-monospace, Menlo, Consolas, monospace; font-size: 10.5px; color: var(--color-ink-muted, #9aa3b5); } .ds-dot { display: block; width: 7px; height: 7px; border-radius: 50%; } .ds-dot--brand { background: var(--color-brand, #6366f1); animation: ds-pulse 1.4s cubic-bezier(0.16,1,0.3,1) infinite; } .ds-dot--core { background: var(--color-core, #22c55e); } .ds-pending { display: block; width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--color-brand, #6366f1); animation: ds-pulse 1.4s cubic-bezier(0.16,1,0.3,1) infinite; } @media (prefers-reduced-motion: reduce) { .ds-step, .ds-dot--brand, .ds-pending { animation: none; } }"
+    },
+    {
+      "name": "Confirm Gate",
+      "kind": "custom",
+      "refersTo": "panel-strip",
+      "description": "Appended inside the block it belongs to. Amber means one thing only: this is waiting on you. The refusal is the focused control, because the default for something irreversible should change nothing.",
+      "html": "<div class=\"ds-gate\"><p class=\"ds-gate__line\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"ds-gate__icon\"><path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\"/></svg><span>Write C:/Users/honey/nj-gate-demo.txt.</span></p><p class=\"ds-gate__why\">This replaces whatever is in that file.</p><div class=\"ds-gate__acts\"><button class=\"ds-btn-primary\">Do it</button><button class=\"ds-btn-outline\">No</button></div></div>",
+      "css": ".ds-gate { border-top: 1px solid color-mix(in oklab, #f59e0b 45%, transparent); background: color-mix(in oklab, #f59e0b 6%, transparent); padding: 12px; font-family: ui-sans-serif, system-ui, sans-serif; } .ds-gate__line { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-size: 14px; color: var(--color-ink, #e9ecf3); } .ds-gate__icon { flex: none; margin-top: 2px; color: #f59e0b; } .ds-gate__why { margin: 4px 0 0 23px; font-size: 12px; color: var(--color-ink-muted, #9aa3b5); } .ds-gate__acts { display: flex; gap: 8px; margin: 12px 0 0 23px; } .ds-btn-primary { background: var(--color-brand-2, #4f46e5); color: #fff; font-size: 12px; font-weight: 500; padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; transition: background 160ms cubic-bezier(0.16,1,0.3,1); } .ds-btn-primary:hover { background: color-mix(in oklab, var(--color-brand-2, #4f46e5) 82%, black); } .ds-btn-outline { background: transparent; color: var(--color-ink-muted, #9aa3b5); font-size: 12px; font-weight: 500; padding: 6px 12px; border: 1px solid var(--color-line, #262a38); border-radius: 6px; cursor: pointer; transition: background 160ms cubic-bezier(0.16,1,0.3,1), color 160ms cubic-bezier(0.16,1,0.3,1); } .ds-btn-outline:hover { background: var(--color-elevated, #1d212d); color: var(--color-ink, #e9ecf3); } .ds-gate button:focus-visible { outline: 2px solid var(--color-brand, #6366f1); outline-offset: 2px; }"
+    },
+    {
+      "name": "Capability Row",
+      "kind": "custom",
+      "refersTo": "panel-strip",
+      "description": "The Reason-Not-A-Colour rule made literal: a dot, a word, and beneath it either what this can do in plain language or the exact reason it cannot.",
+      "html": "<section class=\"ds-caps\"><h2 class=\"ds-caps__head\">This PC</h2><ul class=\"ds-caps__list\"><li><div class=\"ds-cap\"><span class=\"ds-dot ds-dot--core\"></span><span class=\"ds-cap__label ds-cap__label--on\">Browser</span><span class=\"ds-cap__state\">ready</span></div><p class=\"ds-cap__why\">opens pages, reads them, clicks and fills</p></li><li><div class=\"ds-cap\"><span class=\"ds-dot ds-dot--off\"></span><span class=\"ds-cap__label\">Shell</span><span class=\"ds-cap__state\">off</span></div><p class=\"ds-cap__why\">the local agent is not running</p></li></ul></section>",
+      "css": ".ds-caps { background: var(--color-panel, #12141c); padding: 12px; font-family: ui-sans-serif, system-ui, sans-serif; } .ds-caps__head { margin: 0 0 8px; font-size: 10.5px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.025em; color: var(--color-ink-muted, #9aa3b5); } .ds-caps__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; } .ds-cap { display: flex; align-items: center; gap: 8px; } .ds-cap__label { font-size: 11.5px; color: var(--color-ink-muted, #9aa3b5); } .ds-cap__label--on { color: var(--color-ink, #e9ecf3); } .ds-cap__state { margin-left: auto; font-size: 10px; color: var(--color-ink-muted, #9aa3b5); } .ds-cap__why { margin: 2px 0 0 15px; font-size: 10.5px; line-height: 1.375; color: var(--color-ink-muted, #9aa3b5); } .ds-dot { display: block; width: 7px; height: 7px; border-radius: 50%; } .ds-dot--core { background: var(--color-core, #22c55e); } .ds-dot--off { background: color-mix(in oklab, var(--color-ink-faint, #6b7385) 50%, transparent); }"
+    },
+    {
+      "name": "Rail Item",
+      "kind": "nav",
+      "refersTo": "rail-item",
+      "description": "A 56px icon rail, icon over caption. The word costs eight pixels and is worth more than them. A pulsing brand dot marks a section with work in flight.",
+      "html": "<nav class=\"ds-rail\" aria-label=\"Sections\"><button class=\"ds-rail__item is-on\" aria-current=\"page\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"11\" width=\"18\" height=\"10\" rx=\"2\"/><circle cx=\"12\" cy=\"5\" r=\"2\"/><path d=\"M12 7v4M8 16h.01M16 16h.01\"/></svg><span>Console</span><span class=\"ds-rail__live\"></span></button><button class=\"ds-rail__item\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2z\"/></svg><span>Folders</span></button></nav>",
+      "css": "@keyframes ds-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } } .ds-rail { display: flex; flex-direction: column; gap: 2px; width: 56px; padding: 8px 0; background: var(--color-panel, #12141c); border-right: 1px solid var(--color-line, #262a38); font-family: ui-sans-serif, system-ui, sans-serif; } .ds-rail__item { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 0 6px; padding: 6px 0; background: transparent; color: var(--color-ink-muted, #9aa3b5); border: none; border-radius: 6px; cursor: pointer; transition: background 160ms cubic-bezier(0.16,1,0.3,1), color 160ms cubic-bezier(0.16,1,0.3,1); } .ds-rail__item span { font-size: 9.5px; line-height: 1; } .ds-rail__item:hover { background: var(--color-panel-2, #181b25); color: var(--color-ink, #e9ecf3); } .ds-rail__item.is-on { background: var(--color-elevated, #1d212d); color: var(--color-ink, #e9ecf3); } .ds-rail__item:focus-visible { outline: 2px solid var(--color-brand, #6366f1); outline-offset: 2px; } .ds-rail__live { position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--color-brand, #6366f1); animation: ds-pulse 1.4s cubic-bezier(0.16,1,0.3,1) infinite; } @media (prefers-reduced-motion: reduce) { .ds-rail__live { animation: none; } }"
+    },
+    {
+      "name": "Data Table",
+      "kind": "custom",
+      "refersTo": "table-header",
+      "description": "The default way to show a list of records, and the thing a card grid is not allowed to replace. Sticky panel-2 header, mono rows, line-soft dividers, tabular numerals aligned on their digits.",
+      "html": "<div class=\"ds-table-wrap\"><table class=\"ds-table\"><thead><tr><th>Name</th><th>Size</th><th>Changed</th></tr></thead><tbody><tr><td class=\"ds-table__name\">browser.mjs</td><td class=\"ds-num\">11,238</td><td class=\"ds-num\">2026-09-24</td></tr><tr><td class=\"ds-table__name\">server.mjs</td><td class=\"ds-num\">9,811</td><td class=\"ds-num\">2026-09-26</td></tr><tr><td class=\"ds-table__name\"><span class=\"ds-table__dir\">/</span>out</td><td class=\"ds-num\">—</td><td class=\"ds-num\">2026-09-20</td></tr></tbody></table></div>",
+      "css": ".ds-table-wrap { max-height: 288px; overflow: auto; border: 1px solid var(--color-line-soft, #1e222e); border-radius: 6px; } .ds-table { width: 100%; border-collapse: collapse; text-align: left; } .ds-table thead th { position: sticky; top: 0; background: var(--color-panel-2, #181b25); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.025em; color: var(--color-ink-muted, #9aa3b5); padding: 6px 12px; white-space: nowrap; } .ds-table tbody td { font-family: \"JetBrains Mono\", ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; color: var(--color-ink-muted, #9aa3b5); padding: 4px 12px; border-top: 1px solid var(--color-line-soft, #1e222e); white-space: nowrap; } .ds-table__name { color: var(--color-ink, #e9ecf3) !important; } .ds-table__dir { color: var(--color-ink-faint, #6b7385); } .ds-num { font-variant-numeric: tabular-nums; font-feature-settings: \"tnum\" 1; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Night Console",
+    "overview": "This is a dark room with an instrument in it. The canvas is near-black (#0a0b0f) and almost nothing on it is coloured — panels are separated from the canvas by two or three points of lightness and a one-pixel hairline, never by a shadow and never by a card. Colour does not decorate here; it reports. When something on this surface goes indigo, green, amber or red, a machine is telling you its state, and that is the only reason those hues ever appear.\n\nThe register is dense and factual. The whole working type ramp lives between 9.5px and 14px, and the single largest thing on a typical screen is a 14px semibold word. That is not an accident of scale — it is the product's stated position: the one person who uses this reads fast, knows the domain, and would rather see forty real values than eight pretty cards. Monospace carries the other half of the argument. Every command, path, ref, count and elapsed time is set in JetBrains Mono with tabular figures, so a column of numbers can be compared by eye instead of re-measured; prose is set in the system sans so the two never get confused for one another.\n\nThe world rejects two things by name. It rejects the card grid as a way of browsing — that was tried once in the AI Rankings app and had to be rebuilt as a table. And it rejects depth-as-rank: there is not one shadow utility in the entire component layer, because a raised surface implies an importance the data has not earned. Depth is tonal (canvas → panel → panel-2 → elevated) and boundaries are hairlines.",
+    "keyCharacteristics": [
+      "Near-black canvas with four tonal surface steps, separated by 1px hairlines",
+      "A working type ramp that tops out at 14px; display type is exceptional, not structural",
+      "Monospace with tabular figures for every machine fact; sans for every human sentence",
+      "One indigo for what is armed or current; green/amber/red strictly for state",
+      "Flat by construction — no drop shadows in the component layer",
+      "Tables and bordered strips over cards and grids"
+    ],
+    "rules": [
+      { "name": "The State-Only Rule", "body": "Green, amber and red are reserved for machine state — reachable, waiting on you, failed. If a hue is being chosen because it looks good next to the one beside it, the wrong palette is open. Neutrals and one indigo carry everything else.", "section": "colors" },
+      { "name": "The Darker-On-Hover Rule", "body": "A filled control's hover state is derived from its rest colour by mixing toward black, never by stepping to the lighter sibling. Moving brand-2 to brand on hover relocates a contrast breach to the exact moment the pointer is on the control; brand-press removes it.", "section": "colors" },
+      { "name": "The Ink Budget Rule", "body": "ink is for the thing being read right now. If a screen has more than a handful of ink strings on it, the hierarchy has collapsed and everything is shouting — demote the rest to ink-muted.", "section": "colors" },
+      { "name": "The Reason-Not-A-Colour Rule", "body": "A status indicator never carries meaning alone. Every dot is accompanied by a word, and every off state is accompanied by the reason it is off in a plain sentence. A red dot sends the owner to a log file; \"the local agent is not running\" sends them to the fix.", "section": "colors" },
+      { "name": "The Machine Voice Rule", "body": "If a string came out of a machine and a human would have to compare it to another string — a command, a path, a ref, a count, an elapsed time, a file size, a PID — it is monospace with tabular figures. If a human wrote it, it is sans. There is no third case.", "section": "typography" },
+      { "name": "The Fourteen-Pixel Ceiling Rule", "body": "On a working surface, 14px semibold is the top of the ramp. Reaching for 20px or 24px to signal importance is the card-grid instinct wearing different clothes; signal importance with position and colour instead.", "section": "typography" },
+      { "name": "The Loaded-Not-Asked Rule", "body": "Naming a font in a token does not load it. --font-mono asked for JetBrains Mono for a long time while every string on every machine quietly fell through to Consolas. A surface that names a face must load it (next/font) and bind it into the token, or the design's named voice is fiction.", "section": "typography" },
+      { "name": "The Nothing-Scrolls-Away Rule", "body": "Exactly one region scrolls. If a status, a capability list or the input itself can leave the screen, the arrangement has failed regardless of how it looks at rest.", "section": "layout" },
+      { "name": "The Same-X Rule", "body": "Every element in a column shares its left edge — the command line, each block, the empty state, the section headings. Centring one thing \"because it's the empty state\" makes it the only object on the surface that does not line up with the column it belongs to.", "section": "layout" },
+      { "name": "The Flat-By-Construction Rule", "body": "Surfaces never lift. If two things need separating, step the tone or draw a hairline; if something needs marking, light its edge from inside. A drop shadow in a new component is a bug, not a style choice.", "section": "elevation" },
+      { "name": "The Two-Hairlines Rule", "body": "line for the edge of a thing, line-soft for the edges inside it. Never the reverse, and never two line borders adjacent.", "section": "shapes" },
+      { "name": "The No-Nesting Rule", "body": "A bordered strip contains sections, not other strips. If content needs a second frame, give it a line-soft inset pane on canvas — a hole, not a tile.", "section": "shapes" },
+      { "name": "The Settle-Don't-Fade Rule", "body": "New content enters at full opacity and travels the last few pixels. If it fades up from zero, it reads as a loading state even after it has loaded.", "section": "components" },
+      { "name": "The One-Curve Rule", "body": "cubic-bezier(0.16, 1, 0.3, 1), 160ms or 220ms. A second easing curve on a surface is a second opinion about what kind of machine this is.", "section": "components" }
+    ],
+    "dos": [
+      "Do take every colour from the @theme block in src/app/globals.css. It is the single source; a new hex in a component is a bug unless it is a documented state value.",
+      "Do set every command, path, ref, count, size and elapsed time in JetBrains Mono with tabular figures, and load the face rather than only naming it in a token.",
+      "Do separate surfaces by tone and a 1px hairline: line for a container's own edge, line-soft for everything inside it.",
+      "Do make hover on a filled control go darker, using color-mix(… , black) from the rest colour rather than a lighter sibling.",
+      "Do pair every status indicator with a word, and every off state with the specific reason it is off and the command that fixes it.",
+      "Do keep the whole working ramp between 9.5px and 14px, and reach for position, weight and colour before size.",
+      "Do declare :focus-visible once at a surface's root (2px brand, 2px offset) so every control is reachable and visible by keyboard.",
+      "Do let new content arrive at full opacity and settle, on the one curve, at 160 or 220ms — and disable it under prefers-reduced-motion.",
+      "Do render a machine result as what it is: a table as a table, a diff coloured per line, a picture as a picture.",
+      "Do pin the things that say where am I, what can I do and what is running, and scroll exactly one region."
+    ],
+    "donts": [
+      "Don't add a drop shadow. There is not one in the component layer; depth is tonal. box-shadow is permitted only as the inset left-edge state marker.",
+      "Don't build a card grid to browse records. It was rejected once already and rebuilt as a table. Dense rows, real values, one screen.",
+      "Don't nest a bordered strip inside a bordered strip. Use a line-soft inset pane on canvas when content needs its own frame.",
+      "Don't use green, amber or red for anything that is not machine state, and don't use brand to make something look important rather than to mark it as armed or current.",
+      "Don't use ink for body text in bulk. Most text on a screen is ink-muted; ink is for the thing being read right now.",
+      "Don't let a focus ring and a state indicator wear the same appearance. Armed is a lit left edge; focus is the outline ring. Two meanings in one appearance means neither reads.",
+      "Don't print JSON at a person, and don't flatten a multi-step run into one sentence. The steps and their outputs are the product.",
+      "Don't introduce a second easing curve, a second radius scale, or a font size outside the ramp because one component \"needs\" it.",
+      "Don't animate height, width or top on anything that runs continuously — scale and translate a fixed box instead.",
+      "Don't copy the glows, pill radii or saturated pinks and cyans from the mcl-* and ds-* blocks in globals.css. Those are individual apps' local vocabularies, not this system."
+    ]
+  }
+}
