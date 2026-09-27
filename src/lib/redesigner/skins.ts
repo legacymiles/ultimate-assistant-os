@@ -33,6 +33,34 @@ export type FontKey = "black" | "grotesk" | "mono" | "serif" | "sans" | "syne";
  */
 export type FieldMode = "glow" | "ink" | "off";
 
+/**
+ * The page's composition — not a theme, an arrangement. Each one puts the same
+ * content in a different structure, because that is what separates a design
+ * skill's work from its palette.
+ *
+ * - `console`   the house: rail, oversized hero, a bordered instrument panel.
+ * - `sheet`     a printed spec sheet: masthead, ticker, label/value rows.
+ * - `editorial` one narrow measure, serif headline, the form written as prose.
+ * - `atelier`   agency: centred stage, floating capsule, soft offset cards.
+ * - `workbench` an app shell: sidebar of steps, toolbar, dense result table.
+ * - `reel`      letterboxed title card, slate panel, results as a filmstrip.
+ * - `lab`       full-bleed field, giant type, glass panels off-axis, collage.
+ */
+export type LayoutId =
+  | "console"
+  | "sheet"
+  | "editorial"
+  | "atelier"
+  | "workbench"
+  | "reel"
+  | "lab";
+
+/** How the page arrives when the layout changes. One authored moment each. */
+export type MotionId = "rise" | "cut" | "blur" | "lift" | "snap" | "wipe" | "mask";
+
+/** What is behind everything. The shader is only one of the answers. */
+export type BackdropId = "field" | "paper" | "dots" | "bloom" | "bars" | "flat";
+
 export interface Skin {
   /** Design-skill name, or "house" for the page's own direction. */
   id: string;
@@ -77,6 +105,9 @@ export interface Skin {
   /** Grain + scanlines, 0..1. */
   texture: number;
 
+  layout: LayoutId;
+  motion: MotionId;
+  backdrop: BackdropId;
   hero: "left" | "center";
   /** Does the result grid refuse to sit level? */
   stagger: boolean;
@@ -93,6 +124,9 @@ type Family = Omit<Skin, "id" | "note">;
 
 const VOID: Family = {
   family: "void",
+  layout: "console",
+  motion: "rise",
+  backdrop: "field",
   void: "#050505",
   ink: "#f5f5f5",
   sig: "#ff4d2e",
@@ -121,6 +155,9 @@ const VOID: Family = {
 const TERMINAL: Family = {
   ...VOID,
   family: "terminal",
+  layout: "sheet",
+  motion: "cut",
+  backdrop: "field",
   void: "#e7e4dc",
   ink: "#101010",
   sig: "#d0260f",
@@ -143,6 +180,9 @@ const TERMINAL: Family = {
 
 const PAPER: Family = {
   family: "paper",
+  layout: "editorial",
+  motion: "blur",
+  backdrop: "paper",
   void: "#f6f3ec",
   ink: "#191713",
   sig: "#a4522f",
@@ -170,6 +210,9 @@ const PAPER: Family = {
 
 const STUDIO: Family = {
   family: "studio",
+  layout: "atelier",
+  motion: "lift",
+  backdrop: "bloom",
   void: "#faf7f2",
   ink: "#15141a",
   sig: "#2f5d50",
@@ -197,6 +240,9 @@ const STUDIO: Family = {
 
 const PRODUCT: Family = {
   family: "product",
+  layout: "workbench",
+  motion: "snap",
+  backdrop: "dots",
   void: "#0b0c10",
   ink: "#eef1f7",
   sig: "#5b9dff",
@@ -212,7 +258,7 @@ const PRODUCT: Family = {
   titleLead: 1,
   shadow: "0 22px 50px -30px rgba(0, 0, 0, 0.85)",
   blur: 14,
-  grid: 0.22,
+  grid: 0,
   field: "glow",
   fieldOpacity: 0.4,
   energy: 0.3,
@@ -224,6 +270,9 @@ const PRODUCT: Family = {
 
 const CINEMA: Family = {
   family: "cinema",
+  layout: "reel",
+  motion: "wipe",
+  backdrop: "bars",
   void: "#0a0806",
   ink: "#f1e9dc",
   sig: "#dfa04a",
@@ -251,6 +300,9 @@ const CINEMA: Family = {
 
 const NEON: Family = {
   family: "neon",
+  layout: "lab",
+  motion: "mask",
+  backdrop: "field",
   void: "#04050f",
   ink: "#e9ecff",
   sig: "#4cf0d0",
@@ -299,6 +351,8 @@ const ENTRIES: Record<string, Entry> = {
   },
   "exploded-showcase": {
     base: CINEMA,
+    layout: "lab",
+    motion: "mask",
     sig: "#ff7a35",
     void: "#0b0a09",
     display: "syne",
@@ -321,6 +375,9 @@ const ENTRIES: Record<string, Entry> = {
   },
   "real-estate-reveal": {
     base: CINEMA,
+    layout: "atelier",
+    motion: "blur",
+    backdrop: "bloom",
     sig: "#c9a468",
     void: "#0c0b09",
     note: "Luxury listing: brass on near-black, serif headline, wide tracking, centred.",
@@ -383,6 +440,9 @@ const ENTRIES: Record<string, Entry> = {
   },
   "gpt-tasteskill": {
     base: NEON,
+    layout: "sheet",
+    motion: "snap",
+    backdrop: "flat",
     sig: "#c8ff2f",
     void: "#0a0a0a",
     radius: 4,
@@ -399,6 +459,9 @@ const ENTRIES: Record<string, Entry> = {
   },
   "stitch-skill": {
     base: PAPER,
+    layout: "workbench",
+    motion: "snap",
+    backdrop: "dots",
     sig: "#8a3d6b",
     radius: 0,
     border: 1,
@@ -420,6 +483,9 @@ const ENTRIES: Record<string, Entry> = {
   },
   brandkit: {
     base: STUDIO,
+    layout: "sheet",
+    motion: "cut",
+    backdrop: "flat",
     sig: "#111111",
     void: "#f2efe9",
     display: "black",
@@ -443,6 +509,7 @@ const ENTRIES: Record<string, Entry> = {
   },
   "web-artifacts-builder": {
     base: PRODUCT,
+    backdrop: "flat",
     sig: "#e2e8f0",
     void: "#0f1115",
     radius: 8,
@@ -450,6 +517,8 @@ const ENTRIES: Record<string, Entry> = {
   },
   "web-design-guidelines": {
     base: PRODUCT,
+    backdrop: "flat",
+    motion: "snap",
     sig: "#ffffff",
     void: "#000000",
     radius: 6,
@@ -459,6 +528,8 @@ const ENTRIES: Record<string, Entry> = {
   },
   "clone-site": {
     base: TERMINAL,
+    layout: "workbench",
+    motion: "snap",
     sig: "#1b4dd8",
     void: "#eceae5",
     note: "Measure-first: blueprint blue on newsprint, everything annotated, nothing invented.",
@@ -487,6 +558,9 @@ const ENTRIES: Record<string, Entry> = {
   },
   hyperframes: {
     base: VOID,
+    layout: "reel",
+    motion: "wipe",
+    backdrop: "bars",
     sig: "#a0ff1f",
     void: "#0a0a0a",
     radius: 2,
@@ -495,6 +569,9 @@ const ENTRIES: Record<string, Entry> = {
   },
   "preview-icon": {
     base: VOID,
+    layout: "workbench",
+    motion: "snap",
+    backdrop: "dots",
     sig: "#00e5ff",
     void: "#070709",
     radius: 6,
