@@ -71,6 +71,28 @@ export interface CatalogProject {
 
 export const PROJECTS: CatalogProject[] = [
   {
+    slug: "new-jarvis",
+    title: "New Jarvis",
+    tag: "The assistant that can actually reach your computer",
+    category: "AI",
+    overview:
+      "The same memory, folders, photos, lists, calendar and Record as Jarvis — the identical data, read " +
+      "through a console instead of a chat. Every request, typed or spoken, becomes a block: exactly what " +
+      "you said, a numbered ledger of every step it took, and what each step actually returned, rendered as " +
+      "the thing it is — a table, a page, a screenshot, a command's real output. Nothing is flattened into " +
+      "\"Done\" and nothing scrolls away; a block from an hour ago is still there and still re-runnable. " +
+      "Voice is always on rather than a button you press: it waits for its name, hears the sentence after " +
+      "it, and can be talked over mid-answer — with an echo test so it never replies to itself. " +
+      "The part no web assistant has: a local agent on the PC, so it drives a real Chromium that keeps your " +
+      "logins, runs shell commands, reads and writes files, lists and focuses windows, and sees the screen. " +
+      "It reads freely and stops for a yes on the one class of step that cannot be undone. With the agent " +
+      "off it still thinks, remembers and answers, and says plainly which capability is missing.",
+    status: "live",
+    appUrl: "/apps/new-jarvis",
+    iconStyle: "pulse",
+    hue: [225, 160],
+  },
+  {
     slug: "jarvis",
     title: "Jarvis",
     tag: "A personal assistant with a real memory",
@@ -556,7 +578,7 @@ export function getProject(slug: string): CatalogProject | null {
  * for whoever IS signed in, put their own real data on a public-facing spinning
  * panel. Neither is wanted, so they keep the animated icon instead.
  */
-const UNPREVIEWABLE = new Set(["dashboard", "jarvis", "projects-timeline", "social-personas"]);
+const UNPREVIEWABLE = new Set(["dashboard", "jarvis", "new-jarvis", "projects-timeline", "social-personas"]);
 
 /**
  * The preview a carousel panel should mount, or null for the animated icon.

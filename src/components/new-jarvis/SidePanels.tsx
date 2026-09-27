@@ -1,0 +1,250 @@
+"use client";
+
+// ---------------------------------------------------------------------------
+// The right column, which never leaves.
+//
+// Two panels, and between them they answer the question the old Jarvis could
+// never answer without being asked: what can this assistant actually do right
+// now? The wave says whether it is listening. The capability rows say whether
+// it can reach this machine, one line per capability with its own reason when
+// it cannot — because "offline" as a single red dot sends the owner to a log
+// file, and a sentence sends them to the fix.
+// ---------------------------------------------------------------------------
+
+import { useState } from "react";
+import { Icon } from "../icons";
+import type { BridgeHealth } from "@/lib/new-jarvis/bridge";
+import type { VoiceState } from "@/lib/new-jarvis/useWakeVoice";
+
+const BAR_COUNT = 13;
+/** Must match --nj-wave-h in new-jarvis.css; the bars scale against it. */
+const BAR_HEIGHT = 52;
+
+export function VoicePanel({
+  state,
+  level,
+  heard,
+  error,
+  supported,
+  onToggle,
+  speakReplies,
+  onSpeakReplies,
+}: {
+  state: VoiceState;
+  level: number;
+  heard: string;
+  error: string;
+  supported: boolean;
+  onToggle: () => void;
+  speakReplies: boolean;
+  onSpeakReplies: (v: boolean) => void;
+}) {
+  const label =
+    state === "off"
+      ? "Not listening"
+      : state === "waiting"
+        ? 'Waiting for "Jarvis"'
+        : state === "hearing"
+          ? "Listening"
+          : state === "thinking"
+            ? "Thinking"
+            : "Speaking";
+
+  // A fixed bar set whose heights follow the live level, tallest in the middle
+  // so the shape reads as a voice rather than a chart. Expressed as a scale of
+  // one fixed height, so the wave composites instead of relayouting thirteen
+  // elements every frame.
+  const scales = Array.from({ length: BAR_COUNT }, (_, i) => {
+    const centre = 1 - Math.abs(i - (BAR_COUNT - 1) / 2) / ((BAR_COUNT - 1) / 2);
+    const idle = state === "off" ? 0 : 0.1;
+    const h = 4 + (idle + level * (0.35 + centre * 0.65)) * 48;
+    return Math.max(0.06, Math.min(1, h / BAR_HEIGHT));
+  });
+
+  return (
+    <section className="border-b border-line px-3 py-3">
+      <div className="flex items-center gap-2">
+        <h2 className="text-[10.5px] font-medium uppercase tracking-wide text-ink-faint">Voice</h2>
+        <button
+          type="button"
+          onClick={onToggle}
+          disabled={!supported}
+          className={`ml-auto rounded px-1.5 py-0.5 text-[10.5px] font-medium transition ${
+            state === "off"
+              ? "text-ink-faint hover:bg-elevated hover:text-ink"
+              : "bg-core/15 text-core hover:bg-core/25"
+          } disabled:cursor-not-allowed disabled:opacity-40`}
+        >
+          {state === "off" ? "Turn on" : "On"}
+        </button>
+      </div>
+
+      <div className="nj-wave mt-2" data-state={state} aria-hidden>
+        {scales.map((s, i) => (
+          <span key={i} style={{ transform: `scaleY(${s.toFixed(3)})` }} />
+        ))}
+      </div>
+
+      <p className="mt-1 text-center text-[11px] text-ink-muted" aria-live="polite">
+        {label}
+      </p>
+
+      {heard && (
+        <p className="mt-2 rounded border border-line-soft bg-canvas px-2 py-1.5 font-mono text-[11px] leading-snug text-ink">
+          {heard}
+        </p>
+      )}
+
+      {!supported && (
+        <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
+          This browser has no speech recognition. Chrome, Edge and Safari do — everything else here still works.
+        </p>
+      )}
+      {error && <p className="mt-2 text-[11px] leading-relaxed text-[#f87171]">{error}</p>}
+
+      <label className="mt-2.5 flex cursor-pointer items-center gap-2 text-[11px] text-ink-muted">
+        <input
+          type="checkbox"
+          checked={speakReplies}
+          onChange={(e) => onSpeakReplies(e.target.checked)}
+          className="h-3 w-3 accent-[var(--color-brand)]"
+        />
+        Speak answers aloud
+      </label>
+    </section>
+  );
+}
+
+const CAPS: { key: "shell" | "files" | "system" | "browser"; label: string; what: string }[] = [
+  { key: "browser", label: "Browser", what: "opens pages, reads them, clicks and fills" },
+  { key: "shell", label: "Shell", what: "runs commands and reads the output" },
+  { key: "files", label: "Files", what: "lists folders, reads and writes files" },
+  { key: "system", label: "System", what: "windows, apps, the screen, the clipboard" },
+];
+
+export function BridgePanel({
+  health,
+  ready,
+  hasToken,
+  onPair,
+  onUnpair,
+  onRefresh,
+}: {
+  health: BridgeHealth;
+  ready: boolean;
+  hasToken: boolean;
+  onPair: (token: string) => void;
+  onUnpair: () => void;
+  onRefresh: () => void;
+}) {
+  const [token, setToken] = useState("");
+  const [open, setOpen] = useState(false);
+  const caps = health.capabilities;
+  const usable = health.up && health.paired;
+
+  return (
+    <section className="px-3 py-3">
+      <div className="flex items-center gap-2">
+        <h2 className="text-[10.5px] font-medium uppercase tracking-wide text-ink-faint">This PC</h2>
+        <button
+          type="button"
+          onClick={onRefresh}
+          title="Check again"
+          className="ml-auto rounded p-0.5 text-ink-faint transition hover:bg-elevated hover:text-ink"
+        >
+          <Icon.Refresh width={11} height={11} />
+          <span className="sr-only">Check again</span>
+        </button>
+      </div>
+
+      {!ready ? (
+        <p className="mt-2 text-[11px] text-ink-faint">Checking…</p>
+      ) : (
+        <>
+          <ul className="mt-2 space-y-1">
+            {CAPS.map((c) => {
+              const on = usable && caps?.[c.key] === true;
+              return (
+                <li key={c.key} className="flex items-center gap-2">
+                  <span className={`nj-dot ${on ? "bg-core" : "bg-ink-faint/50"}`} aria-hidden />
+                  <span className={`text-[11.5px] ${on ? "text-ink" : "text-ink-faint"}`}>{c.label}</span>
+                  <span className="ml-auto text-[10px] text-ink-faint">{on ? "ready" : "off"}</span>
+                </li>
+              );
+            })}
+          </ul>
+
+          {/* The reason, not just the colour. */}
+          {!health.up && (
+            <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
+              The local agent is not running. Start it with{" "}
+              <code className="font-mono text-ink-muted">tools\jarvis-bridge\install.cmd</code>, once — after that it
+              starts itself at sign-in.
+            </p>
+          )}
+          {health.up && !health.paired && (
+            <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
+              Running, but not paired with this browser. Run{" "}
+              <code className="font-mono text-ink-muted">pair.cmd</code> on the PC, or paste its token below.
+            </p>
+          )}
+          {usable && caps?.browser === false && caps.browserWhy && (
+            <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">{caps.browserWhy}</p>
+          )}
+          {usable && (
+            <p className="mt-2 text-[10.5px] text-ink-faint" data-num>
+              agent {health.version}
+              {health.browserRunning ? " · browser open" : ""}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            className="mt-2 text-[10.5px] text-ink-faint underline-offset-2 transition hover:text-ink-muted hover:underline"
+          >
+            {hasToken ? "Re-pair or unpair" : "Paste a token"}
+          </button>
+
+          {open && (
+            <div className="mt-2 space-y-2">
+              <input
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="Token from the agent's window"
+                spellCheck={false}
+                className="w-full rounded border border-line bg-canvas px-2 py-1 font-mono text-[11px] text-ink outline-none placeholder:text-ink-faint"
+              />
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onPair(token.trim());
+                    setToken("");
+                    setOpen(false);
+                  }}
+                  disabled={!token.trim()}
+                  className="rounded bg-brand px-2 py-1 text-[11px] font-medium text-white transition hover:bg-brand-2 disabled:opacity-30"
+                >
+                  Pair
+                </button>
+                {hasToken && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onUnpair();
+                      setOpen(false);
+                    }}
+                    className="rounded border border-line px-2 py-1 text-[11px] text-ink-muted transition hover:bg-elevated hover:text-ink"
+                  >
+                    Unpair
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}

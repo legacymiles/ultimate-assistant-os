@@ -1,0 +1,182 @@
+/* ---------------------------------------------------------------------------
+   New Jarvis — the block console.
+
+   The hub's tokens are inherited whole (globals.css @theme); nothing here
+   invents a colour. What this file owns is the handful of things Tailwind
+   classes cannot express: the live wave, the step ledger's rail, and the
+   browser surfaces that ship with defaults belonging to no design system —
+   selection, caret, focus ring, scrollbar, and the numerals in every elapsed
+   time on screen.
+   --------------------------------------------------------------------------- */
+
+.nj {
+  --nj-rail: 56px;
+  --nj-aside: 300px;
+  --nj-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --nj-fast: 160ms;
+  --nj-slow: 220ms;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-canvas);
+}
+
+/* Data is read by comparing digits down a column; proportional figures make
+   "1,204 ms" and "998 ms" line up wrongly and the eye has to re-measure. */
+.nj [data-num],
+.nj time,
+.nj .nj-mono {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.nj ::selection {
+  background: color-mix(in oklab, var(--color-brand) 38%, transparent);
+  color: var(--color-ink);
+}
+
+.nj input,
+.nj textarea {
+  caret-color: var(--color-brand);
+}
+
+/* One focus ring for the whole surface, keyboard-only, on the palette. A
+   surface fully operable by keyboard needs the ring to be visible on every
+   control, including the ones sitting on panel rather than canvas. */
+.nj :focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* --- the command line ---------------------------------------------------- */
+
+.nj-command {
+  transition: border-color var(--nj-fast) var(--nj-ease),
+    box-shadow var(--nj-fast) var(--nj-ease);
+}
+.nj-command[data-armed="true"] {
+  border-color: color-mix(in oklab, var(--color-brand) 70%, var(--color-line));
+  box-shadow: 0 1px 0 0 color-mix(in oklab, var(--color-brand) 22%, transparent),
+    0 8px 24px -18px color-mix(in oklab, var(--color-brand) 60%, transparent);
+}
+.nj-command[data-hearing="true"] {
+  border-color: color-mix(in oklab, var(--color-core) 60%, var(--color-line));
+}
+
+/* --- a block ------------------------------------------------------------- */
+
+.nj-block {
+  border: 1px solid var(--color-line);
+  background: var(--color-panel);
+  border-radius: 10px;
+}
+.nj-block[data-status="running"] {
+  border-color: color-mix(in oklab, var(--color-brand) 34%, var(--color-line));
+}
+.nj-block[data-status="waiting"] {
+  border-color: color-mix(in oklab, #f59e0b 44%, var(--color-line));
+}
+.nj-block[data-status="failed"] {
+  border-color: color-mix(in oklab, #ef4444 34%, var(--color-line));
+}
+
+/*
+  A step arrives already visible and settles into place.
+
+  Fading in from nothing is the spinner's grammar: it says "wait". A ledger
+  being kept says "this happened", which is what a run actually is — so the row
+  is at full opacity from its first frame and only travels the last few pixels.
+*/
+@keyframes nj-step-in {
+  from {
+    transform: translateY(-3px);
+    opacity: 0.55;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.nj-step {
+  animation: nj-step-in var(--nj-slow) var(--nj-ease);
+}
+
+/* The ledger's spine: one hairline every step hangs off, so a six-step run
+   reads as one run rather than six unrelated rows. */
+.nj-ledger {
+  position: relative;
+}
+.nj-ledger::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: var(--color-line);
+}
+
+.nj-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+
+@keyframes nj-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.nj-dot[data-live="true"] {
+  animation: nj-pulse 1.4s var(--nj-ease) infinite;
+}
+
+/* --- the wave ------------------------------------------------------------ */
+
+.nj-wave {
+  --nj-wave-h: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 56px;
+}
+/*
+  The bars are one fixed height scaled by transform, never resized.
+
+  Thirteen bars re-measuring their height sixty times a second is thirteen
+  layout passes per frame for a decoration that sits next to a running agent —
+  the one moment on this surface where the main thread is already busy. Scale
+  composites instead.
+*/
+.nj-wave span {
+  width: 3px;
+  height: var(--nj-wave-h);
+  border-radius: 2px;
+  background: var(--color-ink-faint);
+  transform-origin: center;
+  transition: transform 90ms linear, background-color var(--nj-fast) var(--nj-ease);
+}
+.nj-wave[data-state="hearing"] span {
+  background: var(--color-core);
+}
+.nj-wave[data-state="speaking"] span {
+  background: var(--color-brand);
+}
+.nj-wave[data-state="thinking"] span {
+  background: var(--color-support);
+}
+
+/* --- reduced motion ------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .nj-step,
+  .nj-dot[data-live="true"] {
+    animation: none;
+  }
+  .nj-wave span {
+    transition: none;
+  }
+}

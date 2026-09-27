@@ -1,0 +1,378 @@
+"use client";
+
+// ---------------------------------------------------------------------------
+// One block, and everything inside it.
+//
+// The block is the surface's whole argument: a request, the numbered steps it
+// took, and what each step actually returned, kept on screen instead of being
+// flattened into a sentence. So the result of a step is RENDERED — a shell
+// command shows its output as output, a folder listing shows as a table, a
+// screenshot shows as a picture — rather than printed as JSON. A run you have
+// to decode is a run you stop reading, and then the ledger has bought nothing.
+// ---------------------------------------------------------------------------
+
+import { useEffect, useState } from "react";
+import { Icon } from "../icons";
+import { Markdown } from "../jarvis/Markdown";
+import type { Block, Gate, Step } from "@/lib/new-jarvis/types";
+import { elapsed } from "@/lib/new-jarvis/types";
+
+const ms = (n: number | undefined) => (n === undefined ? "" : n < 1000 ? `${n} ms` : `${(n / 1000).toFixed(1)} s`);
+
+function StatusDot({ status }: { status: Step["status"] | Block["status"] }) {
+  const colour =
+    status === "ok" || status === "done"
+      ? "bg-core"
+      : status === "failed"
+        ? "bg-[#ef4444]"
+        : status === "refused" || status === "stopped"
+          ? "bg-ink-faint"
+          : status === "waiting"
+            ? "bg-[#f59e0b]"
+            : "bg-brand";
+  const live = status === "running";
+  return <span className={`nj-dot ${colour}`} data-live={live} aria-hidden />;
+}
+
+// --- results --------------------------------------------------------------
+
+function Mono({ text, tone = "ink" }: { text: string; tone?: "ink" | "muted" | "bad" }) {
+  const colour = tone === "bad" ? "text-[#f87171]" : tone === "muted" ? "text-ink-muted" : "text-ink";
+  return (
+    <pre
+      className={`nj-mono max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md border border-line-soft bg-canvas px-3 py-2 font-mono text-[11.5px] leading-relaxed ${colour}`}
+    >
+      {text}
+    </pre>
+  );
+}
+
+function KeyRow({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex gap-3 border-b border-line-soft py-1 last:border-0">
+      <span className="w-24 shrink-0 font-mono text-[11px] text-ink-faint">{k}</span>
+      <span className="min-w-0 break-words font-mono text-[11.5px] text-ink-muted" data-num>
+        {v}
+      </span>
+    </div>
+  );
+}
+
+function ResultView({ step }: { step: Step }) {
+  const r = (step.result ?? {}) as Record<string, unknown>;
+  const s = (k: string) => (typeof r[k] === "string" ? (r[k] as string) : "");
+
+  if (step.status === "refused") {
+    return <p className="px-3 py-2 text-xs text-ink-faint">You said no, so nothing ran.</p>;
+  }
+  if (step.status === "failed") {
+    return <Mono text={step.error ?? "It failed."} tone="bad" />;
+  }
+  if (step.status !== "ok") return null;
+
+  // A picture, of the screen or of a page.
+  if (typeof r.png === "string") {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={`data:image/png;base64,${r.png}`}
+        alt={step.tool === "system_screenshot" ? "The screen" : `The page at ${s("url")}`}
+        className="w-full rounded-md border border-line-soft"
+      />
+    );
+  }
+
+  if (step.tool === "shell_run") {
+    const out = s("stdout").trim();
+    const err = s("stderr").trim();
+    const code = r.exitCode;
+    return (
+      <div className="space-y-2">
+        {out && <Mono text={out} />}
+        {err && <Mono text={err} tone="bad" />}
+        {!out && !err && <p className="px-3 py-2 text-xs text-ink-faint">It printed nothing.</p>}
+        <p className="px-1 text-[11px] text-ink-faint" data-num>
+          {r.timedOut ? "Timed out and was stopped." : `Exit ${code === null ? "?" : String(code)}`}
+          {typeof r.ms === "number" ? ` · ${ms(r.ms)}` : ""}
+          {r.truncated ? " · output truncated" : ""}
+        </p>
+      </div>
+    );
+  }
+
+  if (step.tool === "browser_read") {
+    const els = Array.isArray(r.elements) ? (r.elements as Record<string, unknown>[]) : [];
+    return (
+      <div className="space-y-2">
+        <p className="truncate px-1 font-mono text-[11px] text-ink-faint">{s("url")}</p>
+        <Mono text={s("text") || "The page had no readable text."} tone="muted" />
+        <p className="px-1 text-[11px] text-ink-faint" data-num>
+          {els.length} control{els.length === 1 ? "" : "s"} it can reach
+        </p>
+      </div>
+    );
+  }
+
+  if (step.tool === "files_list") {
+    const entries = Array.isArray(r.entries) ? (r.entries as Record<string, unknown>[]) : [];
+    return (
+      <div className="max-h-72 overflow-auto rounded-md border border-line-soft">
+        <table className="w-full border-collapse text-left">
+          <thead className="sticky top-0 bg-panel-2">
+            <tr className="text-[10px] uppercase tracking-wide text-ink-faint">
+              <th className="px-3 py-1.5 font-medium">Name</th>
+              <th className="px-3 py-1.5 font-medium">Size</th>
+              <th className="px-3 py-1.5 font-medium">Changed</th>
+            </tr>
+          </thead>
+          <tbody className="font-mono text-[11.5px]">
+            {entries.map((e, i) => (
+              <tr key={i} className="border-t border-line-soft">
+                <td className="px-3 py-1 text-ink">
+                  {e.dir ? <span className="text-ink-faint">/</span> : null}
+                  {String(e.name)}
+                </td>
+                <td className="px-3 py-1 text-ink-muted" data-num>
+                  {typeof e.size === "number" ? e.size.toLocaleString() : "—"}
+                </td>
+                <td className="px-3 py-1 text-ink-faint" data-num>
+                  {typeof e.modified === "string" ? e.modified.slice(0, 10) : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {entries.length === 0 && <p className="px-3 py-2 text-xs text-ink-faint">That folder is empty.</p>}
+      </div>
+    );
+  }
+
+  if (step.tool === "files_read") {
+    return (
+      <div className="space-y-2">
+        <p className="truncate px-1 font-mono text-[11px] text-ink-faint">{s("path")}</p>
+        <Mono text={s("text")} />
+      </div>
+    );
+  }
+
+  if (step.tool === "system_windows") {
+    const ws = Array.isArray(r.windows) ? (r.windows as Record<string, unknown>[]) : [];
+    return (
+      <div className="max-h-72 overflow-auto rounded-md border border-line-soft">
+        <table className="w-full border-collapse text-left font-mono text-[11.5px]">
+          <tbody>
+            {ws.map((w, i) => (
+              <tr key={i} className="border-b border-line-soft last:border-0">
+                <td className="px-3 py-1 text-ink-faint" data-num>{String(w.pid)}</td>
+                <td className="px-3 py-1 text-ink-muted">{String(w.process)}</td>
+                <td className="px-3 py-1 text-ink">{String(w.title)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  // Everything else: the fields that matter, as a table rather than JSON.
+  const rows = Object.entries(r).filter(
+    ([k, v]) => k !== "ok" && (typeof v === "string" || typeof v === "number" || typeof v === "boolean"),
+  );
+  if (!rows.length) return <p className="px-3 py-2 text-xs text-ink-faint">Done.</p>;
+  return (
+    <div className="rounded-md border border-line-soft px-3 py-1">
+      {rows.map(([k, v]) => (
+        <KeyRow key={k} k={k} v={String(v)} />
+      ))}
+    </div>
+  );
+}
+
+// --- steps ----------------------------------------------------------------
+
+function StepRow({ step }: { step: Step }) {
+  const [open, setOpen] = useState(false);
+  const hasResult = step.status === "ok" || step.status === "failed";
+
+  return (
+    <li className="nj-step relative pl-6">
+      <span className="absolute left-[6px] top-[7px] rounded-full bg-panel p-[1px]">
+        <StatusDot status={step.status} />
+      </span>
+      <div className="flex items-baseline gap-2">
+        <span className="font-mono text-[11px] text-ink-faint" data-num>
+          {step.n}
+        </span>
+        <button
+          type="button"
+          onClick={() => hasResult && setOpen((o) => !o)}
+          disabled={!hasResult}
+          className={`min-w-0 flex-1 text-left text-xs ${
+            step.status === "refused" ? "text-ink-faint line-through" : "text-ink-muted"
+          } ${hasResult ? "hover:text-ink" : "cursor-default"}`}
+        >
+          {step.summary}
+        </button>
+        {step.ms !== undefined && (
+          <span className="shrink-0 font-mono text-[10.5px] text-ink-faint" data-num>
+            {ms(step.ms)}
+          </span>
+        )}
+        {hasResult && (
+          <Icon.Chevron
+            width={11}
+            height={11}
+            className={`shrink-0 text-ink-faint transition-transform ${open ? "rotate-90" : ""}`}
+            aria-hidden
+          />
+        )}
+      </div>
+      {open && (
+        <div className="mt-1.5 mb-1">
+          <ResultView step={step} />
+        </div>
+      )}
+      {step.status === "failed" && !open && (
+        <p className="mt-0.5 text-[11px] text-[#f87171]">{step.error}</p>
+      )}
+    </li>
+  );
+}
+
+// --- the gate -------------------------------------------------------------
+
+function GateCard({ gate, onAnswer }: { gate: Gate; onAnswer: (yes: boolean) => void }) {
+  // Focus the refusal, not the approval: the default action on a gate for
+  // something that cannot be undone should be the one that changes nothing.
+  const [el, setEl] = useState<HTMLButtonElement | null>(null);
+  useEffect(() => el?.focus(), [el]);
+
+  return (
+    <div className="m-3 rounded-md border border-[#f59e0b]/45 bg-panel-2 p-3">
+      <p className="flex items-start gap-2 text-sm text-ink">
+        <Icon.Shield width={15} height={15} className="mt-0.5 shrink-0 text-[#f59e0b]" aria-hidden />
+        <span>{gate.summary}</span>
+      </p>
+      {gate.why && <p className="mt-1 pl-[23px] text-xs text-ink-muted">{gate.why}</p>}
+      <div className="mt-3 flex gap-2 pl-[23px]">
+        <button
+          type="button"
+          onClick={() => onAnswer(true)}
+          className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white transition hover:bg-brand-2"
+        >
+          Do it
+        </button>
+        <button
+          ref={setEl}
+          type="button"
+          onClick={() => onAnswer(false)}
+          className="rounded-md border border-line px-3 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-elevated hover:text-ink"
+        >
+          No
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// --- the block ------------------------------------------------------------
+
+export function BlockView({
+  block,
+  onAnswerGate,
+  onRerun,
+  onStop,
+  onToggle,
+}: {
+  block: Block;
+  onAnswerGate: (yes: boolean) => void;
+  onRerun: () => void;
+  onStop: () => void;
+  onToggle: () => void;
+}) {
+  // Elapsed time ticks while it runs, and stops the moment it does.
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (block.status !== "running" && block.status !== "waiting") return;
+    const t = setInterval(() => tick((n) => n + 1), 200);
+    return () => clearInterval(t);
+  }, [block.status]);
+
+  const live = block.status === "running" || block.status === "waiting";
+
+  return (
+    <article className="nj-block" data-status={block.status}>
+      <header className="flex items-start gap-2 px-3 py-2">
+        <StatusDot status={block.status} />
+        <button
+          type="button"
+          onClick={onToggle}
+          className="min-w-0 flex-1 text-left"
+          aria-expanded={!block.collapsed}
+        >
+          <span className="block break-words font-mono text-[12.5px] leading-snug text-ink">{block.command}</span>
+        </button>
+        <span className="shrink-0 font-mono text-[10.5px] uppercase tracking-wide text-ink-faint">{block.mode}</span>
+        {block.source === "voice" && <Icon.Mic width={12} height={12} className="shrink-0 text-ink-faint" aria-hidden />}
+        <span className="shrink-0 font-mono text-[10.5px] text-ink-faint" data-num>
+          {ms(elapsed(block))}
+        </span>
+        {live ? (
+          <button
+            type="button"
+            onClick={onStop}
+            className="shrink-0 rounded px-1.5 py-0.5 text-[10.5px] text-ink-faint transition hover:bg-elevated hover:text-ink"
+          >
+            Stop
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onRerun}
+            title="Run it again"
+            className="shrink-0 rounded px-1 py-0.5 text-ink-faint transition hover:bg-elevated hover:text-ink"
+          >
+            <Icon.Refresh width={12} height={12} />
+            <span className="sr-only">Run it again</span>
+          </button>
+        )}
+      </header>
+
+      {!block.collapsed && (
+        <>
+          {block.steps.length > 0 && (
+            <ol className="nj-ledger space-y-1.5 border-t border-line-soft px-3 py-2">
+              {block.steps.map((s) => (
+                <StepRow key={s.id} step={s} />
+              ))}
+            </ol>
+          )}
+
+          {block.gate && <GateCard gate={block.gate} onAnswer={onAnswerGate} />}
+
+          {block.answer && (
+            <div className="border-t border-line-soft px-3 py-2.5 text-[13px] leading-relaxed text-ink">
+              {/* The model writes markdown whether or not you ask it to, so
+                  rendering it as plain text ships literal ** around the one
+                  number the owner actually wanted. */}
+              <Markdown text={block.answer} />
+            </div>
+          )}
+
+          {block.error && (
+            <div className="border-t border-line-soft px-3 py-2.5">
+              <p className="text-[13px] leading-relaxed text-[#f87171]">{block.error}</p>
+            </div>
+          )}
+
+          {block.status === "running" && !block.steps.length && !block.answer && (
+            <div className="border-t border-line-soft px-3 py-2.5">
+              <p className="text-xs text-ink-faint">Working out what to do…</p>
+            </div>
+          )}
+        </>
+      )}
+    </article>
+  );
+}
