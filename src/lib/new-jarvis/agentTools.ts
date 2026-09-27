@@ -298,12 +298,15 @@ export function modelFailure(status: number): string {
     return "The model took too long to answer. Running it again usually works.";
   }
   if (status >= 500) {
-    return "The AI provider is having trouble. Nothing on your PC was touched — run this again in a minute.";
+    // Scoped to the round that failed, not to the run. This sentence can land
+    // under a ledger showing three completed shell steps, and an unscoped
+    // "nothing was touched" would contradict what is on screen.
+    return "The AI provider is having trouble, so this run stopped here. The steps above already ran; nothing new was touched. Try again in a minute.";
   }
   if (status === 400) {
     // A 400 is ours, not theirs. Say so rather than implying the owner did
     // something wrong, and say what survived.
     return "This run hit a bad request building the next step, so it stopped here. The steps above already ran; the details are in the server log.";
   }
-  return `The model could not be reached (${status}). The steps above already ran.`;
+  return `The model could not be reached (${status}). The steps above already ran; try this one again.`;
 }

@@ -66,8 +66,18 @@ describe("modelFailure", () => {
     expect(modelFailure(429)).toMatch(/again/i);
   });
 
-  it("reassures that a failed round did not touch the machine", () => {
-    expect(modelFailure(503)).toMatch(/Nothing on your PC/);
+  // The clause has to scope itself to the failed round: it can land under a
+  // ledger showing three completed shell steps, and an unscoped "nothing was
+  // touched" would contradict what is on screen right above it.
+  it("scopes its reassurance to the round, not the run", () => {
+    expect(modelFailure(503)).toMatch(/steps above already ran/);
+    expect(modelFailure(503)).toMatch(/nothing new was touched/);
+  });
+
+  it("always offers a next move", () => {
+    for (const s of [400, 401, 402, 429, 500, 504, 418]) {
+      expect(modelFailure(s), String(s)).toMatch(/again|Check|Top it up|server log/);
+    }
   });
 
   it("does not blame the owner for a 400", () => {

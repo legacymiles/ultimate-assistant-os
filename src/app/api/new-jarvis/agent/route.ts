@@ -219,7 +219,7 @@ export async function POST(req: Request) {
     // "fetch failed" is not a thing the owner can act on either.
     console.error("[new-jarvis] model call threw:", e);
     return NextResponse.json(
-      { error: "Could not reach the AI provider. Nothing on your PC was touched — run this again in a moment." },
+      { error: "Could not reach the AI provider, so this run stopped here. The steps above already ran; nothing new was touched. Try again in a moment." },
       { status: 502 },
     );
   }
