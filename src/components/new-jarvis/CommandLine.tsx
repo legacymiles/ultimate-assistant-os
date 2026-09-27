@@ -104,7 +104,7 @@ export function CommandLine({
               title={m.hint}
               aria-pressed={mode === m.id}
               className={`rounded px-1.5 py-0.5 text-[10.5px] font-medium uppercase tracking-wide transition ${
-                mode === m.id ? "bg-brand text-white" : "text-ink-muted hover:bg-elevated hover:text-ink"
+                mode === m.id ? "bg-brand-2 text-white" : "text-ink-muted hover:bg-elevated hover:text-ink"
               }`}
             >
               {m.label}
@@ -161,8 +161,8 @@ export function CommandLine({
         <button
           type="button"
           onClick={onSubmit}
-          disabled={!value.trim() || busy}
-          title={busy ? "Working…" : "Send"}
+          disabled={!value.trim()}
+          title={busy ? "Send — something is already running, this starts another block" : "Send"}
           className="order-3 shrink-0 rounded-md p-1.5 text-ink-muted transition hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-30 sm:order-4"
         >
           {busy ? (

@@ -61,7 +61,7 @@ export function VoicePanel({
     // At rest the bars still have to read as a wave. Scaled to their true
     // silence they became thirteen 4px dots — a dotted rule, not an
     // instrument that is listening.
-    const floor = state === "off" ? 0.12 : 0.06;
+    const floor = state === "off" ? 0.2 : 0.06;
     return Math.max(floor, Math.min(1, h / BAR_HEIGHT));
   });
 
@@ -106,19 +106,21 @@ export function VoicePanel({
       )}
       {error && <p className="mt-2 text-[11px] leading-relaxed text-[#f87171]">{error}</p>}
 
-      {/* A bordered toggle in the surface's own vocabulary. The raw checkbox
-          this replaces was the one control here wearing the operating
-          system's shape among otherwise bordered chips and buttons. */}
+      {/* A bordered checkbox in the surface's own vocabulary, replacing the one
+          UA-shaped control on the surface. Announced as a checkbox because it
+          is drawn as one — a square with a tick told to call itself a switch
+          hands screen-reader users a different control from the one everyone
+          else sees. */}
       <button
         type="button"
-        role="switch"
+        role="checkbox"
         aria-checked={speakReplies}
         onClick={() => onSpeakReplies(!speakReplies)}
         className="mt-2.5 flex w-full items-center gap-2 rounded-md border border-line px-2 py-1.5 text-left text-[11px] text-ink-muted transition hover:bg-elevated hover:text-ink"
       >
         <span
           className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[3px] border transition ${
-            speakReplies ? "border-brand bg-brand text-white" : "border-line text-transparent"
+            speakReplies ? "border-brand-2 bg-brand-2 text-white" : "border-line text-transparent"
           }`}
           aria-hidden
         >
@@ -257,7 +259,7 @@ export function BridgePanel({
                     setOpen(false);
                   }}
                   disabled={!token.trim()}
-                  className="rounded bg-brand px-2 py-1 text-[11px] font-medium text-white transition hover:bg-brand-2 disabled:opacity-30"
+                  className="rounded bg-brand-2 px-2 py-1 text-[11px] font-medium text-white transition hover:bg-brand disabled:opacity-30"
                 >
                   Pair
                 </button>

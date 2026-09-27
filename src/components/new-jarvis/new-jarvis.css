@@ -185,8 +185,11 @@
   transform-origin: center;
   transition: transform 90ms linear, background-color var(--nj-fast) var(--nj-ease);
 }
+/* At rest the wave is a low, legible line — not a dashed rule. The previous
+   attempt raised the bars 2px and dimmed them to about 1.8:1, which made the
+   exact problem it was meant to fix worse. */
 .nj-wave[data-state="off"] span {
-  opacity: 0.45;
+  background: var(--color-ink-muted);
 }
 .nj-wave[data-state="hearing"] span {
   background: var(--color-core);

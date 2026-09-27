@@ -178,8 +178,8 @@ function ResultView({ step }: { step: Step }) {
           <thead className="sticky top-0 bg-panel-2">
             <tr className="text-[10px] uppercase tracking-wide text-ink-muted">
               <th className="px-3 py-1.5 font-medium">Name</th>
-              <th className="px-3 py-1.5 font-medium">Size</th>
-              <th className="px-3 py-1.5 font-medium">Changed</th>
+              <th className="whitespace-nowrap px-3 py-1.5 font-medium">Size</th>
+              <th className="hidden whitespace-nowrap px-3 py-1.5 font-medium sm:table-cell">Changed</th>
             </tr>
           </thead>
           <tbody className="font-mono text-[11.5px]">
@@ -189,10 +189,10 @@ function ResultView({ step }: { step: Step }) {
                   {e.dir ? <span className="text-ink-faint">/</span> : null}
                   {String(e.name)}
                 </td>
-                <td className="px-3 py-1 text-ink-muted" data-num>
+                <td className="whitespace-nowrap px-3 py-1 text-ink-muted" data-num>
                   {typeof e.size === "number" ? e.size.toLocaleString() : "—"}
                 </td>
-                <td className="px-3 py-1 text-ink-muted" data-num>
+                <td className="hidden whitespace-nowrap px-3 py-1 text-ink-muted sm:table-cell" data-num>
                   {typeof e.modified === "string" ? e.modified.slice(0, 10) : "—"}
                 </td>
               </tr>
@@ -326,7 +326,7 @@ function GateCard({ gate, onAnswer }: { gate: Gate; onAnswer: (yes: boolean) => 
         <button
           type="button"
           onClick={() => onAnswer(true)}
-          className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white transition hover:bg-brand-2"
+          className="rounded-md bg-brand-2 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-brand"
         >
           Do it
         </button>
