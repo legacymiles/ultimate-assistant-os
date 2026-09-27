@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { aiEndpoint, aiFetch, DEFAULT_MODEL } from "@/lib/ai/provider";
-import { toApiTools, toolsFor, type AgentTool } from "@/lib/new-jarvis/agentTools";
+import { sanitizeAssistant, toApiTools, toolsFor, type AgentTool } from "@/lib/new-jarvis/agentTools";
 
 // ---------------------------------------------------------------------------
 // One step of New Jarvis's agent loop.
@@ -90,7 +90,10 @@ function clean(messages: WireMessage[]): WireMessage[] {
     .map((m) => {
       const role: WireRole = m.role === "assistant" ? "assistant" : m.role === "tool" ? "tool" : "user";
       if (role === "assistant") {
-        const rest = { ...(m as Record<string, unknown>) };
+        // Keep every field the provider sent, minus the ones it left null —
+        // see sanitizeAssistant. Echoing `reasoning: null` back is rejected
+        // outright and takes the whole run with it.
+        const rest = sanitizeAssistant({ ...(m as Record<string, unknown>) });
         delete rest.role;
         if (typeof rest.content === "string") rest.content = rest.content.slice(0, 24_000);
         return { ...rest, role } as WireMessage;

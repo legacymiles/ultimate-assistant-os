@@ -250,3 +250,27 @@ export function toApiTools(tools: AgentTool[]): unknown[] {
     function: { name: t.name, description: t.description, parameters: t.parameters },
   }));
 }
+
+/**
+ * An assistant turn, safe to send back to the provider.
+ *
+ * Echoing the provider's own message verbatim is what makes a client-driven
+ * tool loop work at all (a rebuilt one loses the fields a Responses-API
+ * provider matches its tool result against). But verbatim includes the keys it
+ * set to null — `reasoning` is the one seen in the wild — and sending those
+ * back is rejected with "Invalid input: expected string, received null" at
+ * `messages.N.reasoning`, which kills the run several steps in, after real work
+ * has already happened.
+ *
+ * So: keep every key the provider sent, drop the ones it left null. That is
+ * narrower than rebuilding the message and it fixes the only thing wrong with
+ * echoing it.
+ */
+export function sanitizeAssistant<T extends Record<string, unknown>>(message: T): Partial<T> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(message)) {
+    if (v === null) continue;
+    out[k] = v;
+  }
+  return out as Partial<T>;
+}
