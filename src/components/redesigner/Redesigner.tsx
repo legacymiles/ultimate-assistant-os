@@ -1,12 +1,18 @@
 "use client";
 
 // ---------------------------------------------------------------------------
-// Website Redesigner — "Experimental WebGL" direction.
+// Website Redesigner — "Experimental WebGL" direction, worn over any skin.
 //
-// The behaviour is unchanged from the previous skin: same state, same POST to
-// /api/redesign, same skill-picker semantics, same result rendering. What is
-// new is the shell: a full-bleed shader field seeded by the URL you are
-// typing, a console instead of a card, and a staggered result grid.
+// The shell is a full-bleed shader field seeded by the URL you are typing, a
+// console instead of a card, and a staggered result grid.
+//
+// The page also WEARS the design skill you pick. Choosing one in the dropdown
+// (or stepping the rail's ← →) re-skins everything — surface, ink, accent,
+// the three type voices, radii, rule weight, casing, shadow, grid, the
+// shader's polarity and energy, hero alignment, density. Reading "warm
+// monochrome, typographic contrast" tells you nothing about a skill; watching
+// the console turn into warm paper with a serif headline tells you in half a
+// second. That is the whole point: judge the skills by looking at them.
 //
 // Motion rule for this file: nothing animates through React state. The field
 // and the pointer effects are driven imperatively (see FingerprintField and
@@ -17,6 +23,13 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_SKILLS, type Direction, type RedesignResult } from "@/lib/redesigner/engine";
 import { fingerprint, hexToRgb } from "@/lib/redesigner/fingerprint";
+import {
+  fieldParams,
+  skinFor,
+  skinVars,
+  SKIN_ORDER,
+  type Skin,
+} from "@/lib/redesigner/skins";
 import { Icon } from "../icons";
 import {
   CustomCursor,
@@ -26,10 +39,18 @@ import {
   useReducedMotion,
   useTilt,
 } from "./interactions";
-import { FingerprintField, type FieldHandle, type FieldPhase } from "./FingerprintField";
+import {
+  FingerprintField,
+  type FieldHandle,
+  type FieldPaint,
+  type FieldPhase,
+} from "./FingerprintField";
 import "./redesigner.css";
 
 const SAMPLES = ["stripe.com", "linear.app", "vercel.com"];
+
+/** The stepper walks the house skin plus every skill, in roster order. */
+const SKIN_WALK = ["house", ...SKIN_ORDER];
 
 export function Redesigner() {
   const [url, setUrl] = useState("");
@@ -37,6 +58,9 @@ export function Redesigner() {
   const [ownSite, setOwnSite] = useState(false);
   const [sourcePath, setSourcePath] = useState("");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  // Hovering a row in the menu shows that skin without committing to it, so
+  // the list can be flicked through like a contact sheet.
+  const [previewSkill, setPreviewSkill] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RedesignResult | null>(null);
@@ -48,6 +72,48 @@ export function Redesigner() {
 
   const fp = useMemo(() => fingerprint(url), [url]);
   const phase: FieldPhase = loading ? "forge" : result ? "done" : "idle";
+
+  // The first pick owns the frame — the same rule the build prompt uses — so
+  // it is the skill the page wears. A hover outranks it, and only visually.
+  const skinId = previewSkill ?? selectedSkills[0] ?? null;
+  const skin = skinFor(skinId);
+  const paint = useMemo<FieldPaint>(() => {
+    const f = fieldParams(skin);
+    return {
+      base: hexToRgb(f.base) ?? [0.02, 0.02, 0.02],
+      sig: hexToRgb(f.sig) ?? [1, 0.3, 0.18],
+      polarity: f.polarity,
+      energy: f.energy,
+      texture: f.texture,
+    };
+  }, [skin]);
+
+  // ← → in the rail, and [ ] on the keyboard, walk the whole roster. Judging
+  // which skill designs best is a flicking motion, not a form-filling one.
+  function stepSkin(dir: 1 | -1) {
+    setPreviewSkill(null);
+    // Functional update, because a held-down bracket fires faster than React
+    // re-renders — reading selectedSkills here would walk the same step twice.
+    setSelectedSkills((prev) => {
+      const at = SKIN_WALK.indexOf(prev[0] ?? "house");
+      const next = SKIN_WALK[(at + dir + SKIN_WALK.length) % SKIN_WALK.length];
+      return next === "house" ? [] : [next];
+    });
+  }
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "[" && e.key !== "]") return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      // Never steal a bracket from someone typing a URL or a note.
+      if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      e.preventDefault();
+      stepSkin(e.key === "]" ? 1 : -1);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   // Once results land, the three palettes bleed into the field — the page ends
   // up wearing the answer it just produced.
@@ -103,15 +169,23 @@ export function Redesigner() {
   return (
     <div
       className="rdx"
+      style={skinVars(skin)}
+      data-skin={skin.id}
+      data-hero={skin.hero}
+      data-stagger={skin.stagger ? "1" : "0"}
+      data-field={skin.field}
       onPointerDown={(e) => field.current?.ripple(e.clientX, e.clientY)}
     >
-      {reduced ? <div className="rdx-field-static" /> : (
+      {reduced || skin.field === "off" ? (
+        <div className="rdx-field-static" />
+      ) : (
         <FingerprintField
           ref={field}
           seed={fp.seed}
           turbulence={fp.turbulence}
           phase={phase}
           cells={cells}
+          paint={paint}
         />
       )}
       <div className="rdx-scrim" aria-hidden />
@@ -127,6 +201,7 @@ export function Redesigner() {
           </Link>
           <span className="rdx-rail-title">Website Redesigner</span>
           <span className="rdx-rail-spacer" />
+          <SkinBar skin={skin} onStep={stepSkin} />
           <span className="rdx-state" data-live={loading ? "1" : "0"}>
             <span className="rdx-dot" />
             {stateLabel}
@@ -255,7 +330,13 @@ export function Redesigner() {
                 <span className="rdx-label-idx">04</span>
                 <span>Design skills</span>
               </p>
-              <SkillPicker selected={selectedSkills} onChange={setSelectedSkills} />
+              <SkillPicker
+                selected={selectedSkills}
+                onChange={setSelectedSkills}
+                skin={skin}
+                preview={previewSkill}
+                onPreview={setPreviewSkill}
+              />
             </div>
           </form>
 
@@ -451,16 +532,27 @@ function DirectionCard({
 }
 
 /**
- * Multi-select design-skill dropdown. Each pick closes the menu (the user's
- * ask): reopen it to see what's already chosen — highlighted with a check —
- * and add or remove one more. Nothing picked = the engine chooses per direction.
+ * Multi-select design-skill dropdown — and the page's style switch.
+ *
+ * Each pick closes the menu (the user's ask): reopen it to see what's already
+ * chosen — highlighted with a check — and add or remove one more. Nothing
+ * picked = the engine chooses per direction, and the page wears its own skin.
+ *
+ * Hovering or keyboard-focusing a row skins the whole page behind the open
+ * menu without committing, so the roster can be flicked through and compared.
  */
 function SkillPicker({
   selected,
   onChange,
+  skin,
+  preview,
+  onPreview,
 }: {
   selected: string[];
   onChange: (next: string[]) => void;
+  skin: Skin;
+  preview: string | null;
+  onPreview: (next: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -481,11 +573,17 @@ function SkillPicker({
     };
   }, [open]);
 
+  // A closed menu can never leave the page wearing a skin nobody chose.
+  useEffect(() => {
+    if (!open) onPreview(null);
+  }, [open, onPreview]);
+
   function toggle(name: string) {
     // Keep roster order, so "the first skill owns the frame" stays predictable.
     const next = selected.includes(name)
       ? selected.filter((s) => s !== name)
       : DEFAULT_SKILLS.map((s) => s.name).filter((n) => n === name || selected.includes(n));
+    onPreview(null);
     onChange(next);
     setOpen(false); // one pick per open — reopen to mix in another
   }
@@ -515,26 +613,54 @@ function SkillPicker({
           </button>
 
           {open && (
-            <div role="listbox" aria-multiselectable className="rdx-menu">
-              <p className="rdx-menu-head">Pick one — reopen to mix in more</p>
-              {DEFAULT_SKILLS.map((skill) => {
-                const on = selected.includes(skill.name);
+            <div
+              role="listbox"
+              aria-multiselectable
+              className="rdx-menu"
+              onMouseLeave={() => onPreview(null)}
+            >
+              <p className="rdx-menu-head">
+                <span>Hover to try it on</span>
+                <span style={{ marginLeft: "auto", opacity: 0.7 }}>click to keep</span>
+              </p>
+              {DEFAULT_SKILLS.map((entry) => {
+                const on = selected.includes(entry.name);
+                const look = skinFor(entry.name);
                 return (
                   <button
-                    key={skill.name}
+                    key={entry.name}
                     type="button"
                     role="option"
                     aria-selected={on}
-                    onClick={() => toggle(skill.name)}
+                    onClick={() => toggle(entry.name)}
+                    onMouseEnter={() => onPreview(entry.name)}
+                    onFocus={() => onPreview(entry.name)}
                     className="rdx-opt"
                     data-on={on ? "1" : "0"}
+                    data-preview={preview === entry.name ? "1" : "0"}
                   >
                     <span className="rdx-opt-mark">
                       {on && <Icon.Check width={9} height={9} />}
                     </span>
+                    {/* The row carries that skin's real surface, ink and
+                        accent, so the list is comparable before you commit. */}
+                    <span className="rdx-opt-swatch" aria-hidden>
+                      <span
+                        className="rdx-opt-chip"
+                        style={{ backgroundColor: look.void }}
+                      />
+                      <span
+                        className="rdx-opt-chip"
+                        style={{ backgroundColor: look.ink }}
+                      />
+                      <span
+                        className="rdx-opt-chip"
+                        style={{ backgroundColor: look.sig }}
+                      />
+                    </span>
                     <span style={{ minWidth: 0 }}>
-                      <span className="rdx-opt-name">{skill.name}</span>
-                      <span className="rdx-opt-desc">{skill.description}</span>
+                      <span className="rdx-opt-name">{entry.name}</span>
+                      <span className="rdx-opt-desc">{entry.description}</span>
                     </span>
                   </button>
                 );
@@ -563,14 +689,54 @@ function SkillPicker({
         )}
       </div>
 
+      {/* What you are looking at, named. The page is the sample. */}
+      <p className="rdx-skin-note">
+        <b>{preview ? "trying on" : "wearing"} · {skin.family}</b>
+        <span>{skin.note}</span>
+      </p>
+
       <p className="rdx-hint">
         {selected.length > 1
-          ? `Every direction blends all ${selected.length} — ${selected[0]} owns the frame, the rest add their signature moves.`
+          ? `Every direction blends all ${selected.length} — ${selected[0]} owns the frame and skins this page, the rest add their signature moves.`
           : selected.length === 1
-            ? "Every direction uses this skill. Reopen the menu to mix in another."
-            : "Leave empty and each direction picks its own skill."}
+            ? "Every direction uses this skill, and the page is wearing it. Reopen the menu to mix in another."
+            : "Leave empty and each direction picks its own skill. Hover the menu — or press [ and ] — to see what each one looks like."}
       </p>
     </div>
+  );
+}
+
+/**
+ * The rail's skin stepper. One place that always says which design skill the
+ * page is currently wearing, and two keys' worth of travel to the next one.
+ */
+function SkinBar({ skin, onStep }: { skin: Skin; onStep: (dir: 1 | -1) => void }) {
+  const house = skin.id === "house";
+  return (
+    <span className="rdx-skinbar">
+      <button
+        type="button"
+        onClick={() => onStep(-1)}
+        className="rdx-step"
+        aria-label="Previous design skill (left bracket)"
+        title="Previous skin  ["
+      >
+        <Icon.ArrowLeft width={11} height={11} />
+      </button>
+      <span className="rdx-skin-name" data-house={house ? "1" : "0"}>
+        <span className="rdx-skin-chip" aria-hidden />
+        {house ? "house skin" : skin.id}
+      </span>
+      <button
+        type="button"
+        onClick={() => onStep(1)}
+        className="rdx-step"
+        aria-label="Next design skill (right bracket)"
+        title="Next skin  ]"
+      >
+        <Icon.ArrowRight width={11} height={11} />
+      </button>
+    </span>
   );
 }
 

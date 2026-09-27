@@ -1,9 +1,13 @@
 /* ------------------------------------------------------------------ */
-/*  Website Redesigner — "Experimental WebGL" direction.               */
+/*  Website Redesigner — skinnable shell.                              */
 /*                                                                     */
 /*  Everything is scoped under .rdx so the hub's own indigo tokens are */
-/*  untouched. Three colours only: void, ink, signal. The signal       */
-/*  (#FF4D2E) is rationed — it marks the live thing and nothing else.  */
+/*  untouched. Three colours are authored — void, ink, signal — and    */
+/*  every other value is mixed from them, so a light skin gets light   */
+/*  hairlines and a dark one dark ones without a second table.         */
+/*                                                                     */
+/*  The defaults below ARE the house skin. src/lib/redesigner/skins.ts */
+/*  overwrites them inline when a design skill is picked.              */
 /* ------------------------------------------------------------------ */
 
 .rdx {
@@ -13,23 +17,61 @@
 
   /* Ink steps are the SAME hue as ink, just dimmed — keeps the page
      achromatic so the one accent actually lands. */
-  --ink-2: rgba(245, 245, 245, 0.74);
-  --ink-3: rgba(245, 245, 245, 0.56);
-  --ink-4: rgba(245, 245, 245, 0.42);
+  /* The dimming ladder. A light skin overrides these six percentages (see
+     skinVars) because faded ink dies much faster on paper than on void. */
+  --a2: 74%;
+  --a3: 58%;
+  --a4: 46%;
+  --l1: 13%;
+  --l2: 26%;
+  --l3: 7%;
 
-  --panel: rgba(245, 245, 245, 0.028);
-  --panel-2: rgba(245, 245, 245, 0.055);
-  --line: rgba(245, 245, 245, 0.11);
-  --line-2: rgba(245, 245, 245, 0.2);
-  --sig-wash: rgba(255, 77, 46, 0.12);
-  --sig-line: rgba(255, 77, 46, 0.42);
+  --ink-2: color-mix(in srgb, var(--ink) var(--a2), transparent);
+  --ink-3: color-mix(in srgb, var(--ink) var(--a3), transparent);
+  --ink-4: color-mix(in srgb, var(--ink) var(--a4), transparent);
 
-  --display: var(--font-rdx-display), "Archivo Black", "Arial Black", Impact,
-    system-ui, sans-serif;
-  --body: var(--font-rdx-body), ui-sans-serif, system-ui, -apple-system,
+  --panel: color-mix(in srgb, var(--ink) 3%, transparent);
+  --panel-2: color-mix(in srgb, var(--ink) 6%, transparent);
+  --line: color-mix(in srgb, var(--ink) var(--l1), transparent);
+  --line-2: color-mix(in srgb, var(--ink) var(--l2), transparent);
+  --hair: color-mix(in srgb, var(--ink) var(--l3), transparent);
+  --sig-wash: color-mix(in srgb, var(--sig) 14%, transparent);
+  --sig-line: color-mix(in srgb, var(--sig) 45%, transparent);
+
+  /* Surfaces. --veil sits over the field, --surface is opaque (menus
+     must never let the shader through their own text). */
+  --veil: color-mix(in srgb, var(--void) 68%, transparent);
+  --veil-2: color-mix(in srgb, var(--void) 55%, transparent);
+  --surface: color-mix(in srgb, var(--void) 95%, var(--ink));
+  --deep: color-mix(in srgb, var(--void) 96%, var(--ink));
+
+  /* Type. The six faces are loaded by the route; a skin only chooses. */
+  --f-black: var(--font-rdx-display), "Archivo Black", system-ui, sans-serif;
+  --f-grotesk: var(--font-rdx-body), ui-sans-serif, system-ui, sans-serif;
+  --f-mono: var(--font-rdx-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --f-serif: var(--font-rdx-serif), ui-serif, Georgia, "Times New Roman", serif;
+  --f-sans: var(--font-rdx-sans), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", sans-serif;
-  --mono: var(--font-rdx-mono), "JetBrains Mono", ui-monospace, SFMono-Regular,
-    Menlo, Consolas, monospace;
+  --f-syne: var(--font-rdx-syne), var(--font-rdx-body), ui-sans-serif, sans-serif;
+
+  --display: var(--f-black);
+  --body: var(--f-grotesk);
+  --mono: var(--f-mono);
+
+  /* Shape, texture and rhythm — the axes a skin actually moves. */
+  --radius: 0px;
+  --radius-sm: 0px;
+  --bw: 1px;
+  --case: uppercase;
+  --track: 0.16em;
+  --title-case: uppercase;
+  --title-track: -0.035em;
+  --title-lead: 0.88;
+  --shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.9);
+  --blur: 18px;
+  --grid-op: 0.5;
+  --field-op: 1;
+  --pad: 1;
 
   --gut: clamp(1rem, 4vw, 4.5rem);
 
@@ -42,6 +84,35 @@
   line-height: 1.55;
   isolation: isolate;
   overflow-x: clip;
+  /* The skin change is one move, not thirty: every surface inherits these
+     two and the whole page crossfades together. */
+  transition: background-color 0.55s cubic-bezier(0.2, 0.9, 0.2, 1),
+    color 0.55s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+/* Browser surfaces belong to the skin too. */
+.rdx ::selection {
+  background: var(--sig);
+  color: var(--void);
+}
+.rdx input,
+.rdx textarea {
+  caret-color: var(--sig);
+}
+.rdx * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}
+.rdx *::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+.rdx *::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border-radius: 999px;
+}
+.rdx *::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .rdx *,
@@ -61,6 +132,8 @@
 
 .rdx-field {
   position: fixed;
+  opacity: var(--field-op);
+  transition: opacity 0.6s ease;
   inset: 0;
   z-index: 0;
   display: block;
@@ -79,12 +152,12 @@
   background:
     radial-gradient(
       70% 90% at 22% 8%,
-      rgba(255, 77, 46, 0.22),
+      color-mix(in srgb, var(--sig) 22%, transparent),
       transparent 62%
     ),
     radial-gradient(
       60% 80% at 88% 22%,
-      rgba(255, 77, 46, 0.09),
+      color-mix(in srgb, var(--sig) 9%, transparent),
       transparent 60%
     ),
     var(--void);
@@ -97,13 +170,18 @@
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  opacity: 0.5;
+  opacity: var(--grid-op);
+  transition: opacity 0.6s ease;
   background-image: linear-gradient(
       to right,
-      rgba(245, 245, 245, 0.045) 1px,
+      color-mix(in srgb, var(--ink) 9%, transparent) 1px,
       transparent 1px
     ),
-    linear-gradient(to bottom, rgba(245, 245, 245, 0.03) 1px, transparent 1px);
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--ink) 6%, transparent) 1px,
+      transparent 1px
+    );
   background-size: 8.3333% 140px;
   mask-image: linear-gradient(to bottom, #000 0%, transparent 78%);
 }
@@ -115,20 +193,24 @@
   pointer-events: none;
   background: linear-gradient(
       to right,
-      rgba(5, 5, 5, 0.93) 0%,
-      rgba(5, 5, 5, 0.74) 34%,
-      rgba(5, 5, 5, 0.2) 66%,
-      rgba(5, 5, 5, 0) 100%
+      color-mix(in srgb, var(--void) 93%, transparent) 0%,
+      color-mix(in srgb, var(--void) 74%, transparent) 34%,
+      color-mix(in srgb, var(--void) 20%, transparent) 66%,
+      transparent 100%
     ),
-    linear-gradient(to bottom, rgba(5, 5, 5, 0.6) 0%, rgba(5, 5, 5, 0) 28%);
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--void) 60%, transparent) 0%,
+      transparent 28%
+    );
 }
 @media (max-width: 900px) {
   .rdx-scrim {
     background: linear-gradient(
       to bottom,
-      rgba(5, 5, 5, 0.86) 0%,
-      rgba(5, 5, 5, 0.6) 34%,
-      rgba(5, 5, 5, 0.45) 100%
+      color-mix(in srgb, var(--void) 86%, transparent) 0%,
+      color-mix(in srgb, var(--void) 60%, transparent) 34%,
+      color-mix(in srgb, var(--void) 45%, transparent) 100%
     );
   }
 }
@@ -194,13 +276,13 @@
   align-items: center;
   gap: 1rem;
   padding: 0.85rem var(--gut);
-  border-bottom: 1px solid var(--line);
-  background: rgba(5, 5, 5, 0.55);
-  backdrop-filter: blur(14px);
+  border-bottom: var(--bw) solid var(--line);
+  background: var(--veil-2);
+  backdrop-filter: blur(calc(var(--blur) * 0.8));
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  letter-spacing: var(--track);
+  text-transform: var(--case);
 }
 
 .rdx-back {
@@ -287,8 +369,8 @@
   color: var(--sig);
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
+  letter-spacing: calc(var(--track) + 0.06em);
+  text-transform: var(--case);
 }
 .rdx-eyebrow::after {
   content: "";
@@ -303,9 +385,9 @@
   font-family: var(--display);
   font-weight: 400;
   font-size: clamp(2.2rem, 5.3vw, 6rem);
-  line-height: 0.88;
-  letter-spacing: -0.035em;
-  text-transform: uppercase;
+  line-height: var(--title-lead);
+  letter-spacing: var(--title-track);
+  text-transform: var(--title-case);
 }
 .rdx-title-line {
   display: block;
@@ -313,7 +395,7 @@
 /* The second line is outlined — the redesign hasn't happened yet. */
 .rdx-title-out {
   color: transparent;
-  -webkit-text-stroke: 1px rgba(245, 245, 245, 0.3);
+  -webkit-text-stroke: 1px color-mix(in srgb, var(--ink) 34%, transparent);
   transition: -webkit-text-stroke-color 0.5s ease, color 0.5s ease;
 }
 .rdx-title:hover .rdx-title-out,
@@ -341,8 +423,8 @@
   align-self: end;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: var(--track);
+  text-transform: var(--case);
 }
 @media (min-width: 1024px) {
   .rdx-readout {
@@ -355,11 +437,11 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 0.5rem 0;
-  border-top: 1px solid var(--line);
+  border-top: var(--bw) solid var(--line);
   color: var(--ink-3);
 }
 .rdx-readout-row:last-child {
-  border-bottom: 1px solid var(--line);
+  border-bottom: var(--bw) solid var(--line);
 }
 .rdx-readout-val {
   color: var(--ink);
@@ -385,14 +467,20 @@
 }
 
 .rdx-console {
-  border: 1px solid var(--line-2);
-  background: rgba(5, 5, 5, 0.66);
-  backdrop-filter: blur(18px);
+  border: var(--bw) solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--veil);
+  backdrop-filter: blur(var(--blur));
+  box-shadow: var(--shadow);
+  /* No overflow:hidden here — the skill menu is an absolutely positioned
+     child of a block inside this console, and clipping the console clips the
+     menu down to one row. The blocks carry no background, so a rounded skin
+     loses nothing by leaving the corners unclipped. */
 }
 
 .rdx-block {
-  border-bottom: 1px solid var(--line);
-  padding: 1.1rem clamp(1rem, 2.5vw, 1.75rem);
+  border-bottom: var(--bw) solid var(--line);
+  padding: calc(1.1rem * var(--pad)) clamp(1rem, 2.5vw, 1.75rem);
 }
 .rdx-block:last-child {
   border-bottom: 0;
@@ -406,8 +494,8 @@
   margin: 0 0 0.6rem;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  letter-spacing: calc(var(--track) + 0.02em);
+  text-transform: var(--case);
   color: var(--ink-3);
 }
 .rdx-label-idx {
@@ -445,7 +533,7 @@
   min-width: 0;
   padding: 0.5rem 0 0.6rem;
   border: 0;
-  border-bottom: 1px solid var(--line-2);
+  border-bottom: var(--bw) solid var(--line-2);
   background: none;
   color: var(--ink);
   font-family: var(--mono);
@@ -471,14 +559,15 @@
   overflow: hidden;
   min-width: 11.5rem;
   padding: 0.9rem 1.5rem;
-  border: 1px solid var(--sig);
+  border: var(--bw) solid var(--sig);
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--sig);
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 500;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  letter-spacing: calc(var(--track) + 0.02em);
+  text-transform: var(--case);
   transition: color 0.3s ease, opacity 0.2s ease;
   will-change: transform;
 }
@@ -543,8 +632,8 @@
   color: var(--ink-2);
   font-family: var(--mono);
   font-size: 10.5px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: var(--track);
+  text-transform: var(--case);
 }
 .rdx-check input {
   position: absolute;
@@ -558,7 +647,8 @@
   justify-content: center;
   width: 15px;
   height: 15px;
-  border: 1px solid var(--line-2);
+  border: var(--bw) solid var(--line-2);
+  border-radius: calc(var(--radius-sm) * 0.5);
   color: var(--void);
   transition: background 0.2s ease, border-color 0.2s ease;
 }
@@ -586,7 +676,7 @@
   min-width: 14rem;
   padding: 0.45rem 0;
   border: 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: var(--bw) solid var(--line);
   background: none;
   color: var(--ink);
   font-family: var(--mono);
@@ -617,7 +707,8 @@
   align-items: center;
   gap: 0.6rem;
   padding: 0.45rem 0.75rem;
-  border: 1px solid var(--line-2);
+  border: var(--bw) solid var(--line-2);
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--ink-2);
   font-family: var(--mono);
@@ -648,22 +739,26 @@
   max-height: min(27rem, 58vh);
   overflow-y: auto;
   overscroll-behavior: contain;
-  border: 1px solid var(--line-2);
-  background: #0a0a0a;
-  box-shadow: 0 30px 70px -20px #000;
+  border: var(--bw) solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
 }
 .rdx-menu-head {
   position: sticky;
   top: 0;
   z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
   padding: 0.6rem 0.85rem;
-  border-bottom: 1px solid var(--line);
-  background: #0a0a0a;
+  border-bottom: var(--bw) solid var(--line);
+  background: var(--surface);
   color: var(--ink-4);
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  letter-spacing: var(--track);
+  text-transform: var(--case);
 }
 .rdx-opt {
   display: flex;
@@ -671,7 +766,7 @@
   width: 100%;
   padding: 0.6rem 0.85rem;
   border: 0;
-  border-bottom: 1px solid rgba(245, 245, 245, 0.045);
+  border-bottom: 1px solid var(--hair);
   background: none;
   text-align: left;
   transition: background 0.15s ease;
@@ -690,7 +785,8 @@
   width: 14px;
   height: 14px;
   margin-top: 2px;
-  border: 1px solid var(--line-2);
+  border: var(--bw) solid var(--line-2);
+  border-radius: calc(var(--radius-sm) * 0.5);
   color: var(--void);
 }
 .rdx-opt[data-on="1"] .rdx-opt-mark {
@@ -719,7 +815,8 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.3rem 0.5rem 0.3rem 0.6rem;
-  border: 1px solid var(--sig-line);
+  border: var(--bw) solid var(--sig-line);
+  border-radius: var(--radius-sm);
   background: var(--sig-wash);
   color: var(--sig);
   font-family: var(--mono);
@@ -746,8 +843,8 @@
   color: var(--ink-4);
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: var(--track);
+  text-transform: var(--case);
   text-decoration: underline;
   text-underline-offset: 3px;
   transition: color 0.2s ease;
@@ -773,8 +870,8 @@
   margin-top: 1.5rem;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  letter-spacing: var(--track);
+  text-transform: var(--case);
   color: var(--ink-4);
 }
 .rdx-sample {
@@ -782,7 +879,8 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.35rem 0.7rem;
-  border: 1px solid var(--line);
+  border: var(--bw) solid var(--line);
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--ink-2);
   font: inherit;
@@ -803,7 +901,8 @@
   gap: 0.6rem;
   margin-top: 1rem;
   padding: 0.7rem 0.9rem;
-  border: 1px solid var(--sig-line);
+  border: var(--bw) solid var(--sig-line);
+  border-radius: var(--radius-sm);
   background: var(--sig-wash);
   color: var(--sig);
   font-family: var(--mono);
@@ -818,8 +917,8 @@
 }
 
 .rdx-analysis {
-  border-top: 1px solid var(--line-2);
-  border-bottom: 1px solid var(--line);
+  border-top: var(--bw) solid var(--line-2);
+  border-bottom: var(--bw) solid var(--line);
   padding: 1.5rem 0;
 }
 .rdx-analysis-top {
@@ -836,20 +935,21 @@
   font-size: clamp(1.35rem, 3.2vw, 2.4rem);
   font-weight: 400;
   line-height: 1;
-  letter-spacing: -0.02em;
-  text-transform: uppercase;
+  letter-spacing: var(--title-track);
+  text-transform: var(--title-case);
 }
 .rdx-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
   padding: 0.25rem 0.5rem;
-  border: 1px solid var(--line-2);
+  border: var(--bw) solid var(--line-2);
+  border-radius: var(--radius-sm);
   color: var(--ink-3);
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: var(--track);
+  text-transform: var(--case);
 }
 .rdx-badge[data-kind="ai"] {
   border-color: var(--sig-line);
@@ -857,7 +957,7 @@
   color: var(--sig);
 }
 .rdx-badge[data-kind="warn"] {
-  border-color: rgba(245, 245, 245, 0.3);
+  border-color: color-mix(in srgb, var(--ink) 30%, transparent);
   color: var(--ink-2);
   letter-spacing: 0.06em;
   text-transform: none;
@@ -875,8 +975,8 @@
   color: var(--ink-4);
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
+  letter-spacing: calc(var(--track) + 0.04em);
+  text-transform: var(--case);
 }
 .rdx-func-list {
   display: flex;
@@ -907,11 +1007,12 @@
     gap: 1.75rem;
     align-items: start;
   }
-  /* The stagger — the grid refuses to sit level. */
-  .rdx-card:nth-child(2) {
+  /* The stagger — the grid refuses to sit level. Calm skins do sit level;
+     a level grid is the point of them. */
+  .rdx[data-stagger="1"] .rdx-card:nth-child(2) {
     margin-top: 3.25rem;
   }
-  .rdx-card:nth-child(3) {
+  .rdx[data-stagger="1"] .rdx-card:nth-child(3) {
     margin-top: 6.5rem;
   }
 }
@@ -919,9 +1020,12 @@
 .rdx-card {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--line);
-  background: rgba(5, 5, 5, 0.6);
-  backdrop-filter: blur(12px);
+  border: var(--bw) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--veil);
+  backdrop-filter: blur(calc(var(--blur) * 0.7));
+  box-shadow: var(--shadow);
+  overflow: hidden;
   transition: border-color 0.3s ease;
 }
 .rdx-card:hover {
@@ -940,8 +1044,8 @@
 .rdx-card-top {
   position: relative;
   overflow: hidden;
-  padding: 1.1rem 1.1rem 0.9rem;
-  border-bottom: 1px solid var(--line);
+  padding: calc(1.1rem * var(--pad)) 1.1rem calc(0.9rem * var(--pad));
+  border-bottom: var(--bw) solid var(--line);
 }
 .rdx-card-num {
   position: absolute;
@@ -951,7 +1055,7 @@
   font-size: 3.25rem;
   line-height: 0.85;
   color: transparent;
-  -webkit-text-stroke: 1px rgba(245, 245, 245, 0.34);
+  -webkit-text-stroke: 1px color-mix(in srgb, var(--ink) 34%, transparent);
   pointer-events: none;
   user-select: none;
 }
@@ -963,8 +1067,8 @@
   font-size: clamp(1.15rem, 2vw, 1.5rem);
   font-weight: 400;
   line-height: 0.95;
-  letter-spacing: -0.02em;
-  text-transform: uppercase;
+  letter-spacing: var(--title-track);
+  text-transform: var(--title-case);
 }
 .rdx-swatches {
   position: relative;
@@ -975,7 +1079,8 @@
 .rdx-swatch {
   width: 1.65rem;
   height: 1.65rem;
-  border: 1px solid rgba(245, 245, 245, 0.16);
+  border: 1px solid color-mix(in srgb, var(--ink) 16%, transparent);
+  border-radius: calc(var(--radius-sm) * 0.5);
   transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
   will-change: transform;
 }
@@ -997,7 +1102,7 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  padding: 1rem 1.1rem 1.1rem;
+  padding: calc(1rem * var(--pad)) 1.1rem calc(1.1rem * var(--pad));
 }
 .rdx-pitch {
   margin: 0;
@@ -1015,14 +1120,14 @@
   display: flex;
   gap: 0.75rem;
   padding: 0.4rem 0;
-  border-top: 1px solid rgba(245, 245, 245, 0.06);
+  border-top: 1px solid var(--hair);
 }
 .rdx-spec-key {
   flex-shrink: 0;
   width: 3.1rem;
   color: var(--ink-4);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: var(--track);
+  text-transform: var(--case);
 }
 .rdx-spec-val {
   min-width: 0;
@@ -1033,6 +1138,7 @@
   display: inline-block;
   margin: 0 0.25rem 0.25rem 0;
   padding: 0.1rem 0.35rem;
+  border-radius: calc(var(--radius-sm) * 0.6);
   background: var(--sig-wash);
   color: var(--sig);
 }
@@ -1059,13 +1165,14 @@
   justify-content: center;
   gap: 0.5rem;
   padding: 0.6rem 0.75rem;
-  border: 1px solid var(--line-2);
+  border: var(--bw) solid var(--line-2);
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--ink);
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  letter-spacing: var(--track);
+  text-transform: var(--case);
   transition: color 0.3s ease, border-color 0.3s ease;
 }
 .rdx-copy > * {
@@ -1101,7 +1208,8 @@
   align-items: center;
   justify-content: center;
   width: 2.35rem;
-  border: 1px solid var(--line-2);
+  border: var(--bw) solid var(--line-2);
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--ink-2);
   transition: color 0.2s ease, border-color 0.2s ease;
@@ -1122,8 +1230,9 @@
   overflow: auto;
   margin: 0.75rem 0 0;
   padding: 0.85rem;
-  border: 1px solid var(--line);
-  background: #020202;
+  border: var(--bw) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--deep);
   color: var(--ink-2);
   font-family: var(--mono);
   font-size: 10.5px;
@@ -1163,6 +1272,183 @@
   transform: none;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Skins — what changes when you pick a design skill.                 */
+/*                                                                     */
+/*  Almost everything above already reads a token, so this section is  */
+/*  only for the moves a variable cannot make: alignment, and the      */
+/*  crossfade that makes a skin change read as one gesture.            */
+/* ------------------------------------------------------------------ */
+
+.rdx-rail,
+.rdx-console,
+.rdx-card,
+.rdx-menu,
+.rdx-prompt,
+.rdx-go,
+.rdx-pick,
+.rdx-copy,
+.rdx-expand,
+.rdx-sample,
+.rdx-box,
+.rdx-tag {
+  transition: background-color 0.55s cubic-bezier(0.2, 0.9, 0.2, 1),
+    border-color 0.55s cubic-bezier(0.2, 0.9, 0.2, 1),
+    color 0.3s ease, border-radius 0.45s cubic-bezier(0.2, 0.9, 0.2, 1),
+    box-shadow 0.55s ease;
+}
+
+/* Centred hero — the agency/cinema families put the headline on the axis
+   instead of against the left rule. */
+@media (min-width: 1024px) {
+  .rdx[data-hero="center"] .rdx-hero-head {
+    grid-column: 2 / 12;
+    text-align: center;
+  }
+  .rdx[data-hero="center"] .rdx-readout {
+    grid-column: 1 / -1;
+    margin-top: clamp(2rem, 5vh, 3rem);
+  }
+  .rdx[data-hero="center"] .rdx-readout-row,
+  .rdx[data-hero="center"] .rdx-readout-note {
+    max-width: 22rem;
+    margin-inline: auto;
+  }
+  .rdx[data-hero="center"] .rdx-readout-note {
+    text-align: center;
+  }
+}
+.rdx[data-hero="center"] .rdx-eyebrow {
+  justify-content: center;
+}
+.rdx[data-hero="center"] .rdx-eyebrow::after {
+  display: none;
+}
+.rdx[data-hero="center"] .rdx-lede {
+  margin-inline: auto;
+}
+
+/* ----- the skin bar ------------------------------------------------ */
+/*  Judging which skill designs best means flipping between them fast, */
+/*  so the rail carries a stepper: ← → walks the roster, the name says */
+/*  what you are looking at, and ESC-less "house" returns to base.     */
+
+.rdx-skinbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding-right: 0.9rem;
+  margin-right: 0.15rem;
+  border-right: var(--bw) solid var(--line);
+}
+@media (max-width: 720px) {
+  .rdx-skinbar {
+    order: 3;
+    flex-basis: 100%;
+    padding: 0.55rem 0 0;
+    margin: 0;
+    border-right: 0;
+    border-top: var(--bw) solid var(--line);
+  }
+  .rdx-rail {
+    flex-wrap: wrap;
+  }
+}
+
+.rdx-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: var(--bw) solid var(--line);
+  border-radius: calc(var(--radius-sm) * 0.6);
+  background: none;
+  color: var(--ink-3);
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+.rdx-step:hover {
+  color: var(--sig);
+  border-color: var(--sig-line);
+}
+.rdx-step svg {
+  display: block;
+}
+
+.rdx-skin-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 10.5rem;
+  color: var(--ink-2);
+  font-family: var(--mono);
+  letter-spacing: var(--track);
+  text-transform: none;
+}
+.rdx-skin-name[data-house="0"] {
+  color: var(--sig);
+}
+.rdx-skin-chip {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
+  border-radius: calc(var(--radius-sm) * 0.5);
+  background: var(--sig);
+}
+
+/* ----- palette dots in the menu ------------------------------------ */
+/*  The option list is a contact sheet: three dots per row are that     */
+/*  skin's real surface, ink and accent, so the menu itself is          */
+/*  comparable before you commit to anything.                           */
+
+.rdx-opt-swatch {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 2px;
+  margin-top: 3px;
+}
+.rdx-opt-chip {
+  width: 9px;
+  height: 14px;
+  border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+}
+.rdx-opt-chip + .rdx-opt-chip {
+  border-left: 0;
+}
+
+/* Previewing (hover / keyboard walk) is a lighter mark than chosen: the
+   row warms, the name takes the accent, nothing moves. */
+.rdx-opt[data-preview="1"] {
+  background: var(--sig-wash);
+}
+.rdx-opt[data-preview="1"] .rdx-opt-name {
+  color: var(--sig);
+}
+
+/* The note under the picker: what this skin actually looks like, in the
+   owner's own terms, so the comparison is a read and not a vibe. */
+.rdx-skin-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.6rem;
+  margin: 0.7rem 0 0;
+  padding: 0.6rem 0 0;
+  border-top: var(--bw) solid var(--line);
+  color: var(--ink-2);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.rdx-skin-note b {
+  color: var(--sig);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: var(--track);
+  text-transform: var(--case);
+  white-space: nowrap;
+}
+
 /* ----- reduced motion: the toy switches off, the content does not --- */
 
 @media (prefers-reduced-motion: reduce) {
@@ -1188,3 +1474,10 @@
     -webkit-text-stroke-color: transparent;
   }
 }
+
+/* A skin swap must still be legible when the field is off: the page keeps
+   its own paper colour rather than showing the void behind a dead canvas. */
+.rdx[data-field="off"] .rdx-field-static {
+  background: var(--void);
+}
+

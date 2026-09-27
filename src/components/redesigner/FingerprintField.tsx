@@ -24,6 +24,20 @@ export interface FieldHandle {
   ripple: (clientX: number, clientY: number) => void;
 }
 
+/** The active skin, as the shader needs it. See lib/redesigner/skins.ts. */
+export interface FieldPaint {
+  /** Page surface, [r,g,b] 0..1 — the field paints ON this, never under it. */
+  base: [number, number, number];
+  /** Accent, [r,g,b] 0..1. */
+  sig: [number, number, number];
+  /** 1 = filaments glow on a dark surface, 0 = they bite into a light one. */
+  polarity: number;
+  /** Overall gain, 0..1. */
+  energy: number;
+  /** Grain + scanlines, 0..1. */
+  texture: number;
+}
+
 export interface FingerprintFieldProps {
   /** 0..100, from `fingerprint(url).seed`. 0 = the resting field. */
   seed: number;
@@ -31,6 +45,8 @@ export interface FingerprintFieldProps {
   phase: FieldPhase;
   /** Up to 3 [r,g,b] (0..1) cells that bleed in once results land. */
   cells: Array<[number, number, number]>;
+  /** The skin currently on the page. Eased, so a skin swap crossfades. */
+  paint: FieldPaint;
 }
 
 const RIPPLES = 4;
@@ -56,6 +72,11 @@ uniform vec2  uMouse;      // 0..1
 uniform vec3  uRip[${RIPPLES}];   // x, y (0..1), age in seconds; age < 0 = free
 uniform vec3  uCellCol[3];
 uniform vec2  uCellPos[3];
+uniform vec3  uBase;       // page surface under the field
+uniform vec3  uSig;        // accent
+uniform float uPol;        // 1 = additive glow, 0 = ink into a light surface
+uniform float uEnergy;     // overall gain
+uniform float uTex;        // grain + scanlines
 
 float hash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
@@ -117,39 +138,53 @@ void main() {
   float gG = pow(max(1.0 - abs(e), 0.0), k);
   float gB = pow(max(1.0 - abs(e - split), 0.0), k);
 
-  const vec3 SIG = vec3(1.0, 0.302, 0.180);
+  vec3 SIG = uSig;
 
-  vec3 col = vec3(0.0196);
+  // Everything the field draws is accumulated as one "mark", so the skin can
+  // decide at the end whether marks are light added to a dark page or ink
+  // taken out of a pale one. Two very different materials, one pass.
+  vec3 mark = vec3(0.0);
+
   // ember body
-  col += SIG * 0.115 * smoothstep(0.52, 1.05, n) * (0.5 + 0.45 * uCharge + 0.6 * uForge);
-  // filaments
-  float gain = 0.17 + 0.85 * uCharge + 0.55 * uForge;
-  col += vec3(gR, gG * 0.62, gB * 0.42) * SIG.r * gain;
-  col.g += gG * 0.11 * gain;
+  mark += SIG * 0.115 * smoothstep(0.52, 1.05, n) * (0.5 + 0.45 * uCharge + 0.6 * uForge);
+
+  // Filaments. The per-channel ridge offset is the chromatic aberration, and
+  // the +0.2 floor keeps it visible when the accent has a near-zero channel.
+  float gain = (0.17 + 0.85 * uCharge + 0.55 * uForge) * (0.35 + 0.95 * uEnergy);
+  mark += (SIG * 0.8 + 0.2) * vec3(gR, gG * 0.72, gB * 0.52) * gain;
 
   // Ring highlight on top of the displacement, so the shockwave reads.
-  col += SIG * max(wave, 0.0) * 0.22;
+  mark += SIG * max(wave, 0.0) * 0.22;
 
   // A slow scan sweep while the field is resting — the cheapest surprise.
   float sweepY = fract(uTime * 0.055) * 1.35 - 0.18;
-  col += vec3(0.55, 0.55, 0.58) * exp(-pow((uv.y - sweepY) * 26.0, 2.0)) * 0.05 * uIdleAmt;
+  mark += vec3(0.55, 0.55, 0.58) * exp(-pow((uv.y - sweepY) * 26.0, 2.0)) * 0.05 * uIdleAmt;
 
-  // Scanlines while forging.
-  col *= 1.0 - 0.13 * uForge * step(0.5, fract(gl_FragCoord.y * 0.22 - uTime * 2.4));
+  // Pointer warmth.
+  mark += SIG * 0.055 * exp(-distance(p, vec2(uMouse.x * asp, uMouse.y)) * 4.5);
 
   // The three direction palettes bleed in once the answer is on screen.
   for (int i = 0; i < 3; i++) {
     vec2 cp = vec2(uCellPos[i].x * asp, uCellPos[i].y);
     float d = distance(p, cp);
-    col += uCellCol[i] * exp(-d * d * 6.5) * 0.38 * uDone;
+    mark += uCellCol[i] * exp(-d * d * 6.5) * 0.38 * uDone;
   }
 
-  // Pointer warmth.
-  col += SIG * 0.055 * exp(-distance(p, vec2(uMouse.x * asp, uMouse.y)) * 4.5);
+  float amt = clamp(max(max(mark.r, mark.g), mark.b), 0.0, 1.0);
+  vec3 glow = uBase + mark;
+  // Ink: the same structure, darkened toward a deep version of the accent, so
+  // the filaments read as printed lines instead of a blown-out highlight.
+  vec3 ink = mix(uBase, SIG * 0.42, amt * 0.92);
+  vec3 col = mix(ink, glow, uPol);
 
-  // Grain, then a heavy vignette so the type always has somewhere to sit.
-  col += (hash(gl_FragCoord.xy + fract(uTime) * 97.0) - 0.5) * 0.022;
-  col *= 1.0 - 0.72 * pow(min(length(uv - 0.5) * 1.25, 1.0), 1.9);
+  // Scanlines while forging, and only for skins that own texture.
+  col *= 1.0 - 0.13 * uForge * uTex * step(0.5, fract(gl_FragCoord.y * 0.22 - uTime * 2.4));
+
+  // Grain, then a vignette so the type always has somewhere to sit. A light
+  // surface gets a gentle one; multiplying it down would look like dirt.
+  col += (hash(gl_FragCoord.xy + fract(uTime) * 97.0) - 0.5) * 0.03 * uTex;
+  float vig = pow(min(length(uv - 0.5) * 1.25, 1.0), 1.9);
+  col = mix(mix(col, uBase * 0.94, vig * 0.4), col * (1.0 - 0.72 * vig), uPol);
 
   gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
@@ -161,7 +196,13 @@ function compile(gl: WebGLRenderingContext, type: number, src: string) {
   gl.shaderSource(sh, src);
   gl.compileShader(sh);
   if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-    console.error("[FingerprintField]", gl.getShaderInfoLog(sh));
+    // Name the stage and say when the context died under us — a bare null info
+    // log means the context went away, not that the GLSL is wrong.
+    console.error(
+      "[FingerprintField]",
+      type === gl.VERTEX_SHADER ? "vertex" : "fragment",
+      gl.isContextLost() ? "context lost" : gl.getShaderInfoLog(sh),
+    );
     gl.deleteShader(sh);
     return null;
   }
@@ -169,13 +210,13 @@ function compile(gl: WebGLRenderingContext, type: number, src: string) {
 }
 
 export const FingerprintField = forwardRef<FieldHandle, FingerprintFieldProps>(
-  function FingerprintField({ seed, turbulence, phase, cells }, ref) {
+  function FingerprintField({ seed, turbulence, phase, cells, paint }, ref) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     // Everything the render loop reads lives in refs: the loop must never be a
     // reason to re-render React, and uniforms must not restart the animation.
-    const target = useRef({ seed, turbulence, phase, cells });
-    target.current = { seed, turbulence, phase, cells };
+    const target = useRef({ seed, turbulence, phase, cells, paint });
+    target.current = { seed, turbulence, phase, cells, paint };
 
     const api = useRef({
       charge: 0,
@@ -257,6 +298,11 @@ export const FingerprintField = forwardRef<FieldHandle, FingerprintFieldProps>(
         rip: u("uRip"),
         cellCol: u("uCellCol"),
         cellPos: u("uCellPos"),
+        base: u("uBase"),
+        sig: u("uSig"),
+        pol: u("uPol"),
+        energy: u("uEnergy"),
+        tex: u("uTex"),
       };
 
       // Cells sit at fixed points that roughly track the three result cards.
@@ -288,7 +334,20 @@ export const FingerprintField = forwardRef<FieldHandle, FingerprintFieldProps>(
       }
       window.addEventListener("pointermove", onMove, { passive: true });
 
-      const eased = { forge: 0, done: 0, seed, turb: turbulence, idle: 0 };
+      // The skin eases in too: switching design skills should feel like the
+      // material changing, not like a slide.
+      const eased = {
+        forge: 0,
+        done: 0,
+        seed,
+        turb: turbulence,
+        idle: 0,
+        base: [...paint.base] as [number, number, number],
+        sig: [...paint.sig] as [number, number, number],
+        pol: paint.polarity,
+        energy: paint.energy,
+        tex: paint.texture,
+      };
       const cellBuf = new Float32Array(9);
       let raf = 0;
       let last = performance.now();
@@ -310,6 +369,13 @@ export const FingerprintField = forwardRef<FieldHandle, FingerprintFieldProps>(
         eased.done = lerp(eased.done, t.phase === "done" ? 1 : 0, 2.0);
         eased.seed = lerp(eased.seed, t.seed, 4.5);
         eased.turb = lerp(eased.turb, t.turbulence, 3.0);
+        for (let i = 0; i < 3; i++) {
+          eased.base[i] = lerp(eased.base[i], t.paint.base[i], 2.6);
+          eased.sig[i] = lerp(eased.sig[i], t.paint.sig[i], 2.6);
+        }
+        eased.pol = lerp(eased.pol, t.paint.polarity, 2.6);
+        eased.energy = lerp(eased.energy, t.paint.energy, 2.6);
+        eased.tex = lerp(eased.tex, t.paint.texture, 2.6);
 
         a.charge = Math.max(0, a.charge - dt * 1.25);
         a.mouse.x = lerp(a.mouse.x, a.mouse.tx, 3.5);
@@ -344,6 +410,11 @@ export const FingerprintField = forwardRef<FieldHandle, FingerprintFieldProps>(
         gl!.uniform2f(L.mouse, a.mouse.x, a.mouse.y);
         gl!.uniform3fv(L.rip, a.ripples);
         gl!.uniform3fv(L.cellCol, cellBuf);
+        gl!.uniform3f(L.base, eased.base[0], eased.base[1], eased.base[2]);
+        gl!.uniform3f(L.sig, eased.sig[0], eased.sig[1], eased.sig[2]);
+        gl!.uniform1f(L.pol, eased.pol);
+        gl!.uniform1f(L.energy, eased.energy);
+        gl!.uniform1f(L.tex, eased.tex);
         gl!.drawArrays(gl!.TRIANGLES, 0, 3);
       }
       raf = requestAnimationFrame(frame);
@@ -369,7 +440,11 @@ export const FingerprintField = forwardRef<FieldHandle, FingerprintFieldProps>(
         gl.deleteProgram(prog);
         gl.deleteShader(vs);
         gl.deleteShader(fs);
-        gl.getExtension("WEBGL_lose_context")?.loseContext();
+        // Deliberately NOT loseContext(): a canvas keeps handing back the same
+        // context object, so killing it here means the next mount of this same
+        // element — StrictMode in dev, a Fast Refresh, a remount in prod —
+        // compiles against a dead context and the field silently never draws.
+        // Dropping the GL objects above is the part that actually frees memory.
       };
       // Mounts once: every changing value is read through a ref.
       // eslint-disable-next-line react-hooks/exhaustive-deps
