@@ -361,25 +361,6 @@
   }
 }
 
-.rdx-eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin: 0 0 clamp(1rem, 3vh, 2rem);
-  color: var(--sig);
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: calc(var(--track) + 0.06em);
-  text-transform: var(--case);
-}
-.rdx-eyebrow::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  max-width: 10rem;
-  background: linear-gradient(to right, var(--sig-line), transparent);
-}
-
 .rdx-title {
   margin: 0;
   font-family: var(--display);
@@ -497,9 +478,6 @@
   letter-spacing: calc(var(--track) + 0.02em);
   text-transform: var(--case);
   color: var(--ink-3);
-}
-.rdx-label-idx {
-  color: var(--sig);
 }
 .rdx-label-hint {
   margin-left: auto;
@@ -692,16 +670,6 @@
 
 /* ----- skill picker ------------------------------------------------ */
 
-.rdx-picker {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.6rem;
-}
-.rdx-pick-wrap {
-  position: relative;
-}
-
 .rdx-pick {
   display: inline-flex;
   align-items: center;
@@ -851,13 +819,6 @@
 }
 .rdx-clear:hover {
   color: var(--ink);
-}
-
-.rdx-hint {
-  margin: 0.7rem 0 0;
-  color: var(--ink-4);
-  font-size: 11.5px;
-  line-height: 1.5;
 }
 
 /* ----- samples ----------------------------------------------------- */
@@ -1318,42 +1279,14 @@
     text-align: center;
   }
 }
-.rdx[data-hero="center"] .rdx-eyebrow {
-  justify-content: center;
-}
-.rdx[data-hero="center"] .rdx-eyebrow::after {
-  display: none;
-}
 .rdx[data-hero="center"] .rdx-lede {
   margin-inline: auto;
 }
 
-/* ----- the skin bar ------------------------------------------------ */
-/*  Judging which skill designs best means flipping between them fast, */
-/*  so the rail carries a stepper: ← → walks the roster, the name says */
-/*  what you are looking at, and ESC-less "house" returns to base.     */
-
-.rdx-skinbar {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding-right: 0.9rem;
-  margin-right: 0.15rem;
-  border-right: var(--bw) solid var(--line);
-}
-@media (max-width: 720px) {
-  .rdx-skinbar {
-    order: 3;
-    flex-basis: 100%;
-    padding: 0.55rem 0 0;
-    margin: 0;
-    border-right: 0;
-    border-top: var(--bw) solid var(--line);
-  }
-  .rdx-rail {
-    flex-wrap: wrap;
-  }
-}
+/* ----- the stepper ------------------------------------------------- */
+/*  Lives in the dock (layouts.css) and walks the roster one skill at a */
+/*  time. The button itself is shaped here so every composition's own   */
+/*  radius and rule weight reach it.                                    */
 
 .rdx-step {
   display: inline-flex;
@@ -1373,28 +1306,6 @@
 }
 .rdx-step svg {
   display: block;
-}
-
-.rdx-skin-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  min-width: 10.5rem;
-  color: var(--ink-2);
-  font-family: var(--mono);
-  letter-spacing: var(--track);
-  text-transform: none;
-}
-.rdx-skin-name[data-house="0"] {
-  color: var(--sig);
-}
-.rdx-skin-chip {
-  width: 9px;
-  height: 9px;
-  flex-shrink: 0;
-  border: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
-  border-radius: calc(var(--radius-sm) * 0.5);
-  background: var(--sig);
 }
 
 /* ----- palette dots in the menu ------------------------------------ */
@@ -1428,27 +1339,6 @@
 
 /* The note under the picker: what this skin actually looks like, in the
    owner's own terms, so the comparison is a read and not a vibe. */
-.rdx-skin-note {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.2rem 0.6rem;
-  margin: 0.7rem 0 0;
-  padding: 0.6rem 0 0;
-  border-top: var(--bw) solid var(--line);
-  color: var(--ink-2);
-  font-size: 11.5px;
-  line-height: 1.5;
-}
-.rdx-skin-note b {
-  color: var(--sig);
-  font-family: var(--mono);
-  font-size: 10.5px;
-  font-weight: 400;
-  letter-spacing: var(--track);
-  text-transform: var(--case);
-  white-space: nowrap;
-}
-
 /* ----- reduced motion: the toy switches off, the content does not --- */
 
 @media (prefers-reduced-motion: reduce) {

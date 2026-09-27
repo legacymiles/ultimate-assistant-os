@@ -1,0 +1,1232 @@
+/* ------------------------------------------------------------------ */
+/*  Website Redesigner — the seven compositions.                       */
+/*                                                                     */
+/*  redesigner.css owns the tokens and the house (console) look. This  */
+/*  file owns everything that makes a design skill's page a DIFFERENT  */
+/*  page: its structure, its background material, its entrance, and    */
+/*  the shape its results take.                                        */
+/*                                                                     */
+/*  Every rule is scoped to .rdx[data-layout="…"], so the seven never  */
+/*  argue with each other, and the dock below is scoped to nothing —   */
+/*  it is the one element all seven share, in the same place.          */
+/* ------------------------------------------------------------------ */
+
+/* ================================================================== */
+/*  The dock — the control that never moves                           */
+/* ================================================================== */
+
+.rdx-dock {
+  position: fixed;
+  left: clamp(0.75rem, 2vw, 1.75rem);
+  bottom: clamp(0.75rem, 2vw, 1.75rem);
+  z-index: 80;
+  width: min(23rem, calc(100vw - 1.5rem));
+  padding: 0.7rem 0.8rem 0.75rem;
+  border: var(--bw) solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.75);
+  font-family: var(--mono);
+  transition: background-color 0.55s cubic-bezier(0.2, 0.9, 0.2, 1),
+    border-color 0.55s cubic-bezier(0.2, 0.9, 0.2, 1),
+    border-radius 0.45s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.rdx-dock-top {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
+.rdx-dock .rdx-pick {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  gap: 0.5rem;
+}
+.rdx-pick-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.rdx-pick-chip {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  border-radius: calc(var(--radius-sm) * 0.5);
+  background: var(--sig);
+}
+
+.rdx-dock .rdx-step {
+  width: 26px;
+}
+
+.rdx-dock-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.5rem;
+  margin: 0.55rem 0 0;
+  color: var(--ink-3);
+  font-family: var(--body);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.rdx-dock-note b {
+  color: var(--sig);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: var(--track);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.rdx-dock-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+/* The menu opens upward: the dock lives at the bottom of the viewport. */
+.rdx-dock .rdx-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: auto;
+  bottom: calc(100% + 0.45rem);
+  width: auto;
+  max-height: min(30rem, 62vh);
+}
+.rdx-opt-layout {
+  margin-left: 0.45rem;
+  padding: 0 0.28rem;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--ink-4);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Every composition leaves room for the dock rather than sliding under it. */
+.rdx-stage {
+  padding-bottom: clamp(9rem, 16vh, 13rem);
+}
+
+@media (max-width: 640px) {
+  .rdx-dock {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    border-width: var(--bw) 0 0;
+    border-radius: 0;
+  }
+}
+
+/* ================================================================== */
+/*  Backdrops — the material behind the page                          */
+/* ================================================================== */
+
+.rdx-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--void);
+}
+
+/* Paper: press grain and a faint fibre, nothing else. */
+.rdx-bg-paper::before,
+.rdx-bg-paper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.rdx-bg-paper::before {
+  background-image: radial-gradient(
+      circle at 50% 0%,
+      color-mix(in srgb, var(--ink) 4%, transparent),
+      transparent 55%
+    ),
+    repeating-linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--ink) 2.5%, transparent) 0 1px,
+      transparent 1px 3px
+    );
+}
+.rdx-bg-paper::after {
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/></filter><rect width='140' height='140' filter='url(%23n)' opacity='0.22'/></svg>");
+  mix-blend-mode: multiply;
+}
+
+/* Dots: a measured grid, the way a tool draws one. */
+.rdx-bg-dots::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--ink) 13%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+  mask-image: radial-gradient(120% 90% at 50% 0%, #000 30%, transparent 78%);
+}
+
+/* Bloom: two slow lights under cream. Expensive, quiet, never a gradient bar. */
+.rdx-bloom {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.55;
+}
+.rdx-bloom-1 {
+  top: -14vh;
+  left: -6vw;
+  width: 46vw;
+  height: 46vw;
+  background: color-mix(in srgb, var(--sig) 42%, transparent);
+  animation: rdxDrift1 34s ease-in-out infinite;
+}
+.rdx-bloom-2 {
+  right: -10vw;
+  bottom: -18vh;
+  width: 52vw;
+  height: 52vw;
+  background: color-mix(in srgb, var(--ink) 16%, transparent);
+  animation: rdxDrift2 41s ease-in-out infinite;
+}
+@keyframes rdxDrift1 {
+  50% {
+    transform: translate3d(6vw, 4vh, 0) scale(1.12);
+  }
+}
+@keyframes rdxDrift2 {
+  50% {
+    transform: translate3d(-5vw, -3vh, 0) scale(0.92);
+  }
+}
+
+/* Bars: a projector throw plus grain — the room, not the film. */
+.rdx-bg-bars {
+  background:
+    radial-gradient(
+      70% 55% at 50% 38%,
+      color-mix(in srgb, var(--sig) 14%, transparent),
+      transparent 70%
+    ),
+    var(--void);
+}
+.rdx-projector {
+  position: absolute;
+  inset: 0;
+  opacity: 0.45;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23g)' opacity='0.3'/></svg>");
+  animation: rdxGrain 0.8s steps(2) infinite;
+}
+@keyframes rdxGrain {
+  50% {
+    transform: translate3d(-2%, 1%, 0);
+  }
+}
+
+/* ================================================================== */
+/*  Entrances — one authored moment per composition                   */
+/* ================================================================== */
+
+@media (prefers-reduced-motion: no-preference) {
+  .rdx-stage[data-motion="rise"] > * {
+    animation: rdxRise 0.72s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  .rdx-stage[data-motion="blur"] > * {
+    animation: rdxBlurIn 0.95s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  .rdx-stage[data-motion="lift"] > * {
+    animation: rdxLift 0.8s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  .rdx-stage[data-motion="snap"] > * {
+    animation: rdxSnap 0.22s cubic-bezier(0.2, 0.9, 0.2, 1) backwards;
+  }
+  .rdx-stage[data-motion="cut"] > * {
+    animation: rdxCut 0.42s steps(6, end) backwards;
+  }
+  .rdx-stage[data-motion="wipe"] > * {
+    animation: rdxWipe 0.85s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  .rdx-stage[data-motion="mask"] > * {
+    animation: rdxMask 0.9s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  .rdx-stage > *:nth-child(2) {
+    animation-delay: 0.07s;
+  }
+  .rdx-stage > *:nth-child(3) {
+    animation-delay: 0.14s;
+  }
+  .rdx-stage > *:nth-child(4) {
+    animation-delay: 0.21s;
+  }
+}
+
+@keyframes rdxRise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 22px, 0);
+  }
+}
+@keyframes rdxBlurIn {
+  from {
+    opacity: 0;
+    filter: blur(16px);
+    transform: translate3d(0, 10px, 0);
+  }
+}
+@keyframes rdxLift {
+  from {
+    opacity: 0;
+    transform: scale(0.955) translate3d(0, 18px, 0);
+  }
+}
+@keyframes rdxSnap {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 5px, 0);
+  }
+}
+@keyframes rdxCut {
+  from {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes rdxWipe {
+  from {
+    opacity: 0;
+    clip-path: inset(48% 0 48% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes rdxMask {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+    transform: translate3d(0, 30px, 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* ================================================================== */
+/*  2. sheet — a printed requisition form                             */
+/* ================================================================== */
+
+.rdx[data-layout="sheet"] .rdx-masthead {
+  display: flex;
+  align-items: baseline;
+  gap: 1.25rem;
+  padding: 0.9rem var(--gut);
+  border-bottom: 2px solid var(--ink);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: var(--track);
+  text-transform: uppercase;
+}
+.rdx-masthead-title {
+  margin: 0;
+  flex: 1;
+  font-family: var(--display);
+  font-size: clamp(1rem, 2.2vw, 1.5rem);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.rdx-ticker {
+  overflow: hidden;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--line-2);
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.rdx-ticker span {
+  display: inline-block;
+  animation: rdxTick 42s linear infinite;
+}
+@keyframes rdxTick {
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rdx-ticker span {
+    animation: none;
+  }
+}
+
+.rdx-sheet {
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: clamp(1.5rem, 4vh, 3rem) var(--gut) 0;
+}
+.rdx-sheet-head {
+  display: grid;
+  gap: 0.75rem 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid var(--ink);
+}
+@media (min-width: 900px) {
+  .rdx-sheet-head {
+    grid-template-columns: minmax(0, 1fr) 22rem;
+    align-items: end;
+  }
+}
+.rdx-sheet-kicker {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--sig);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.rdx-sheet-title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(2rem, 5vw, 4.4rem);
+  font-weight: 400;
+  line-height: var(--title-lead);
+  letter-spacing: var(--title-track);
+  text-transform: var(--title-case);
+}
+.rdx-sheet-abstract {
+  margin: 0;
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.rdx-rows {
+  border-bottom: 2px solid var(--ink);
+}
+.rdx-row {
+  display: grid;
+  gap: 0.35rem 1.5rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--line-2);
+}
+@media (min-width: 760px) {
+  .rdx-row {
+    grid-template-columns: 11rem minmax(0, 1fr);
+    align-items: start;
+  }
+}
+.rdx-row:last-child {
+  border-bottom: 0;
+}
+.rdx-row-key {
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: var(--track);
+  text-transform: uppercase;
+  padding-top: 0.35rem;
+}
+.rdx-row-val {
+  min-width: 0;
+}
+.rdx[data-layout="sheet"] .rdx-readout {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 14rem));
+  gap: 0 1.5rem;
+}
+
+/* Results as newspaper columns: rules between, nothing floating. */
+.rdx[data-layout="sheet"] .rdx-cards {
+  gap: 0;
+  border-top: 2px solid var(--ink);
+}
+@media (min-width: 900px) {
+  .rdx[data-layout="sheet"] .rdx-cards {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+  }
+  .rdx[data-layout="sheet"] .rdx-card + .rdx-card {
+    border-left: 1px solid var(--line-2);
+  }
+}
+.rdx[data-layout="sheet"] .rdx-card {
+  border: 0;
+  border-bottom: 1px solid var(--line-2);
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  background: none;
+  padding: 0 0 1rem;
+}
+.rdx[data-layout="sheet"] .rdx-card-top {
+  border-bottom: 1px solid var(--line-2);
+  margin: 0 1rem;
+  padding-inline: 0;
+}
+.rdx[data-layout="sheet"] .rdx-card-body {
+  padding-inline: 1rem;
+}
+.rdx[data-layout="sheet"] .rdx-analysis {
+  border-top: 0;
+}
+
+/* ================================================================== */
+/*  3. editorial — one measure, set in serif                          */
+/* ================================================================== */
+
+.rdx-measure {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: clamp(3rem, 12vh, 8rem) var(--gut) 0;
+}
+.rdx-ed-title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(2.4rem, 6vw, 4.6rem);
+  font-weight: 400;
+  line-height: 0.98;
+  letter-spacing: -0.022em;
+  text-wrap: balance;
+}
+.rdx-ed-lede {
+  max-width: 34em;
+  margin: 1.75rem 0 0;
+  color: var(--ink-2);
+  font-size: 1.0625rem;
+  line-height: 1.68;
+}
+.rdx-ed-lede::first-letter {
+  float: left;
+  margin: 0.14em 0.12em 0 0;
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 3.1em;
+  line-height: 0.76;
+}
+
+/* The form is written, not built: label, rule, label, rule. */
+.rdx-ed-form {
+  margin-top: clamp(2.5rem, 6vh, 4rem);
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line-2);
+}
+.rdx-ed-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.75rem;
+  margin: 0 0 1.1rem;
+  font-family: var(--display);
+  font-size: clamp(1.15rem, 2.6vw, 1.7rem);
+  line-height: 1.5;
+}
+.rdx-ed-label {
+  color: var(--ink-3);
+  font-style: italic;
+}
+.rdx-ed-input {
+  flex: 1;
+  min-width: 12rem;
+  padding: 0 0 0.15rem;
+  border: 0;
+  border-bottom: 1px solid var(--line-2);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  transition: border-color 0.25s ease;
+}
+.rdx-ed-input::placeholder {
+  color: var(--ink-4);
+}
+.rdx-ed-input:focus {
+  outline: none;
+  border-bottom-color: var(--sig);
+}
+.rdx-ed-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.75rem;
+}
+
+/* Directions read as entries in a journal, numbered in the margin. */
+.rdx-entries {
+  margin-top: 2.5rem;
+}
+.rdx-entry {
+  display: grid;
+  gap: 0.35rem 1.5rem;
+  padding: 2rem 0;
+  border-top: 1px solid var(--line-2);
+}
+@media (min-width: 720px) {
+  .rdx-entry {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+}
+.rdx-entry-num {
+  margin: 0;
+  color: var(--sig);
+  font-family: var(--display);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.rdx-entry-name {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(1.4rem, 3vw, 2.1rem);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+.rdx-entry-pitch {
+  max-width: 62ch;
+  margin: 0.7rem 0 0;
+  color: var(--ink-2);
+  font-size: 1rem;
+  line-height: 1.66;
+}
+.rdx-entry-meta {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.2rem 1rem;
+  margin: 1.1rem 0 0;
+  font-size: 12px;
+}
+.rdx-entry-meta dt {
+  color: var(--ink-4);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding-top: 0.18rem;
+}
+.rdx-entry-meta dd {
+  margin: 0;
+  color: var(--ink-2);
+}
+.rdx-entry-bar {
+  display: flex;
+  height: 6px;
+  margin-top: 1.1rem;
+  max-width: 18rem;
+}
+.rdx-entry-bar span {
+  flex: 1;
+}
+.rdx-entry-links {
+  display: flex;
+  gap: 1.25rem;
+  margin: 1.1rem 0 0;
+}
+.rdx-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--line-2);
+  transition: color 0.2s ease, text-decoration-color 0.2s ease;
+}
+.rdx-link:hover {
+  color: var(--sig);
+  text-decoration-color: var(--sig);
+}
+.rdx-link[data-done="1"] {
+  color: var(--sig);
+}
+
+/* ================================================================== */
+/*  4. atelier — centred stage, one floating capsule                  */
+/* ================================================================== */
+
+.rdx-stagearea {
+  max-width: 62rem;
+  margin: 0 auto;
+  padding: clamp(3rem, 11vh, 7rem) var(--gut) 0;
+  text-align: center;
+}
+.rdx-at-title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(2.5rem, 6.5vw, 5.2rem);
+  font-weight: 700;
+  line-height: 0.96;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+.rdx-at-title em {
+  display: block;
+  color: var(--sig);
+  font-style: italic;
+  font-weight: 400;
+}
+.rdx-at-lede {
+  max-width: 44ch;
+  margin: 1.5rem auto 0;
+  color: var(--ink-2);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+}
+
+.rdx-capsule-wrap {
+  max-width: 46rem;
+  margin: clamp(2.5rem, 6vh, 4rem) auto 0;
+}
+.rdx-capsule {
+  padding: 0.65rem 0.65rem 0.65rem 1.5rem;
+  border: var(--bw) solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--void) 88%, var(--ink));
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+.rdx[data-layout="atelier"] .rdx-capsule .rdx-url {
+  border-bottom: 0;
+  font-family: var(--body);
+  font-size: 1.0625rem;
+}
+.rdx[data-layout="atelier"] .rdx-go {
+  border-radius: 999px;
+  padding-inline: 1.75rem;
+}
+.rdx-capsule-more {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 0.9rem;
+  padding: 1.15rem 1.5rem 1.25rem;
+  border: var(--bw) solid var(--line);
+  border-radius: calc(var(--radius) * 1.4);
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+  text-align: left;
+}
+
+/* Two up, the second dropped — a portfolio spread, not a row of tiles. */
+@media (min-width: 900px) {
+  .rdx[data-layout="atelier"] .rdx-cards {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
+    text-align: left;
+  }
+  .rdx[data-layout="atelier"] .rdx-card:nth-child(2) {
+    margin-top: 4.5rem;
+  }
+  .rdx[data-layout="atelier"] .rdx-card:nth-child(3) {
+    margin-top: -2rem;
+  }
+}
+.rdx[data-layout="atelier"] .rdx-card {
+  text-align: left;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.rdx[data-layout="atelier"] .rdx-card:hover {
+  transform: translate3d(0, -6px, 0);
+  box-shadow: 0 40px 80px -40px color-mix(in srgb, var(--ink) 55%, transparent);
+}
+.rdx[data-layout="atelier"] .rdx-card-top {
+  padding: 1.6rem 1.5rem 1.35rem;
+}
+.rdx[data-layout="atelier"] .rdx-card-body {
+  padding: 1.35rem 1.5rem 1.5rem;
+}
+.rdx[data-layout="atelier"] .rdx-analysis {
+  text-align: left;
+}
+
+/* ================================================================== */
+/*  5. workbench — an app shell                                       */
+/* ================================================================== */
+
+.rdx-shellgrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 100dvh;
+}
+@media (min-width: 900px) {
+  .rdx-shellgrid {
+    grid-template-columns: 15.5rem minmax(0, 1fr);
+  }
+}
+/* Same reason: the work column holds a table wider than a phone. */
+.rdx-work,
+.rdx-side {
+  min-width: 0;
+}
+
+.rdx-side {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1rem 1.1rem;
+  border-bottom: var(--bw) solid var(--line);
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+}
+@media (min-width: 900px) {
+  .rdx-side {
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    border-bottom: 0;
+    border-right: var(--bw) solid var(--line);
+    /* The dock is anchored to this corner of the viewport; the sidebar's own
+       footer has to end above it rather than under it. */
+    padding-bottom: 13rem;
+  }
+}
+.rdx-side-title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.rdx-steps {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rdx-step-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: var(--radius-sm);
+  color: var(--ink-3);
+  font-size: 12.5px;
+}
+.rdx-step-item[data-done="1"] {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+.rdx-step-n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 9px;
+}
+.rdx-step-item[data-done="1"] .rdx-step-n {
+  border-color: var(--sig);
+  background: var(--sig);
+  color: var(--void);
+}
+.rdx-side-foot {
+  margin-top: auto;
+}
+
+.rdx-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.7rem clamp(1rem, 3vw, 2rem);
+  border-bottom: var(--bw) solid var(--line);
+  background: var(--veil);
+  backdrop-filter: blur(var(--blur));
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: var(--track);
+  text-transform: var(--case);
+}
+.rdx-work-title {
+  color: var(--ink);
+}
+.rdx-workbody {
+  padding: clamp(1.25rem, 3vh, 2rem) clamp(1rem, 3vw, 2rem) 0;
+}
+
+.rdx-panel {
+  display: grid;
+  gap: 1.1rem;
+  max-width: 54rem;
+  padding: 1.25rem;
+  border: var(--bw) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--veil);
+}
+/* NOT .rdx-field — that class is the WebGL canvas, and reusing it here put
+   every form control under `position: fixed; inset: 0`. */
+.rdx-wb-field .rdx-label {
+  margin-bottom: 0.45rem;
+}
+
+/* Results as records, not cards. */
+.rdx-tablewrap {
+  margin-top: 1.5rem;
+  overflow-x: auto;
+  border: var(--bw) solid var(--line);
+  border-radius: var(--radius);
+}
+.rdx-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.rdx-table th {
+  padding: 0.55rem 0.75rem;
+  border-bottom: var(--bw) solid var(--line);
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  color: var(--ink-4);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.rdx-tr {
+  border-bottom: 1px solid var(--hair);
+  transition: background 0.15s ease;
+}
+.rdx-tr:hover,
+.rdx-tr[data-open="1"] {
+  background: var(--panel-2);
+}
+.rdx-td {
+  padding: 0.7rem 0.75rem;
+  vertical-align: top;
+  color: var(--ink-2);
+}
+.rdx-td-idx {
+  width: 2.5rem;
+  color: var(--ink-4);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.rdx-td-name {
+  display: block;
+  color: var(--ink);
+  font-weight: 500;
+}
+.rdx-td-sub {
+  display: block;
+  max-width: 46ch;
+  margin-top: 0.2rem;
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.rdx-td-skill,
+.rdx-td-type {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+.rdx-td-act {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+.rdx[data-layout="workbench"] .rdx-td-act .rdx-copy {
+  flex: 0 0 auto;
+  padding: 0.35rem 0.6rem;
+}
+.rdx[data-layout="workbench"] .rdx-expand {
+  width: 1.9rem;
+  height: 1.9rem;
+}
+.rdx-td-full {
+  padding-top: 0;
+}
+.rdx[data-layout="workbench"] .rdx-swatches {
+  margin: 0;
+}
+.rdx[data-layout="workbench"] .rdx-swatch {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+/* ================================================================== */
+/*  6. reel — letterbox, title card, filmstrip                        */
+/* ================================================================== */
+
+.rdx-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  height: clamp(1.5rem, 4vh, 3rem);
+  background: color-mix(in srgb, var(--void) 60%, #000);
+  pointer-events: none;
+}
+.rdx-bar-top {
+  top: 0;
+}
+.rdx-bar-bottom {
+  bottom: 0;
+}
+.rdx-rail-reel {
+  margin-top: clamp(1.5rem, 4vh, 3rem);
+  border-bottom: 0;
+  background: none;
+  backdrop-filter: none;
+}
+
+.rdx-reel {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: clamp(2rem, 7vh, 5rem) var(--gut) 0;
+}
+.rdx-titlecard {
+  padding: clamp(2rem, 7vh, 4.5rem) 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  text-align: center;
+}
+.rdx-reel-kicker {
+  margin: 0 0 1.25rem;
+  color: var(--sig);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+}
+.rdx-reel-title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(2.2rem, 7vw, 5.5rem);
+  font-weight: 400;
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.rdx-reel-sub {
+  margin: 0.9rem 0 0;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+}
+
+.rdx-slate {
+  max-width: 48rem;
+  margin: clamp(2rem, 5vh, 3.5rem) auto 0;
+  border: var(--bw) solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--void) 72%, transparent);
+  backdrop-filter: blur(var(--blur));
+}
+.rdx-slate-row {
+  display: grid;
+  gap: 0.4rem 1rem;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--line);
+}
+@media (min-width: 700px) {
+  .rdx-slate-row {
+    grid-template-columns: 5rem minmax(0, 1fr);
+    align-items: center;
+  }
+}
+.rdx-slate-row:last-child {
+  border-bottom: 0;
+}
+.rdx-slate-key {
+  color: var(--ink-4);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+/* Three frames on a strip, sprockets top and bottom. */
+.rdx[data-layout="reel"] .rdx-cards {
+  display: flex;
+  gap: 1.25rem;
+  margin-top: 2rem;
+  padding: 1.15rem 0;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  background-image: repeating-linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--ink) 22%, transparent) 0 10px,
+      transparent 10px 26px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--ink) 22%, transparent) 0 10px,
+      transparent 10px 26px
+    );
+  background-size: 100% 5px, 100% 5px;
+  background-position: 0 0, 0 100%;
+  background-repeat: no-repeat;
+}
+.rdx[data-layout="reel"] .rdx-card {
+  flex: 0 0 min(23rem, 82vw);
+  margin-top: 0 !important;
+  scroll-snap-align: center;
+}
+.rdx[data-layout="reel"] .rdx-card-top {
+  aspect-ratio: 16 / 7;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+/* ================================================================== */
+/*  7. lab — full bleed, giant type, panels off-axis                  */
+/* ================================================================== */
+
+.rdx-lab {
+  max-width: 82rem;
+  margin: 0 auto;
+  padding: clamp(2rem, 8vh, 6rem) var(--gut) 0;
+}
+.rdx-lab-title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(3rem, 12vw, 9rem);
+  font-weight: 800;
+  line-height: 0.84;
+  letter-spacing: -0.045em;
+}
+.rdx-lab-title span {
+  display: block;
+}
+.rdx-lab-title-2 {
+  margin-left: clamp(1rem, 12vw, 9rem);
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--sig);
+}
+.rdx-lab-lede {
+  max-width: 38ch;
+  margin: clamp(1.5rem, 4vh, 2.5rem) 0 0;
+  margin-left: auto;
+  color: var(--ink-2);
+  font-size: 1rem;
+  line-height: 1.65;
+  text-align: right;
+}
+
+.rdx-glass {
+  position: relative;
+  z-index: 2;
+  padding: 1.2rem 1.35rem;
+  border: var(--bw) solid color-mix(in srgb, var(--ink) 18%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--void) 55%, transparent);
+  backdrop-filter: blur(var(--blur)) saturate(140%);
+  box-shadow: var(--shadow);
+}
+.rdx-glass-a {
+  display: grid;
+  gap: 0.9rem;
+  max-width: 44rem;
+  margin-top: clamp(2rem, 6vh, 3.5rem);
+  transform: rotate(-0.8deg);
+}
+.rdx-glass-b {
+  display: grid;
+  gap: 1rem;
+  max-width: 30rem;
+  margin: -1.25rem 0 0 auto;
+  transform: rotate(0.9deg);
+}
+@media (max-width: 760px) {
+  .rdx-glass-a,
+  .rdx-glass-b {
+    transform: none;
+    margin-inline: 0;
+    max-width: none;
+  }
+  .rdx-glass-b {
+    margin-top: 1rem;
+  }
+  .rdx-lab-lede {
+    margin-left: 0;
+    text-align: left;
+  }
+}
+
+/* Directions as a collage: overlapped, angled, raised on approach. */
+@media (min-width: 1000px) {
+  .rdx[data-layout="lab"] .rdx-cards {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+  }
+  .rdx[data-layout="lab"] .rdx-card {
+    transition: transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .rdx[data-layout="lab"] .rdx-card:nth-child(1) {
+    transform: rotate(-1.4deg);
+    z-index: 3;
+  }
+  .rdx[data-layout="lab"] .rdx-card:nth-child(2) {
+    margin: 2.5rem -1.75rem 0;
+    transform: rotate(0.9deg);
+    z-index: 2;
+  }
+  .rdx[data-layout="lab"] .rdx-card:nth-child(3) {
+    margin-top: 5rem;
+    transform: rotate(-0.6deg);
+    z-index: 1;
+  }
+  .rdx[data-layout="lab"] .rdx-card:hover {
+    transform: translate3d(0, -8px, 0) rotate(0deg);
+    z-index: 5;
+  }
+}
+
+/* ================================================================== */
+/*  Shared trims                                                      */
+/* ================================================================== */
+
+/* The samples row and errors belong to every composition, so they stay
+   centred wherever the composition is centred. */
+.rdx[data-layout="atelier"] .rdx-samples,
+.rdx[data-layout="reel"] .rdx-samples {
+  justify-content: center;
+}
+
+.rdx[data-layout="editorial"] .rdx-analysis-title,
+.rdx[data-layout="atelier"] .rdx-analysis-title {
+  text-transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rdx-stage > *,
+  .rdx-bloom,
+  .rdx-projector {
+    animation: none !important;
+  }
+}
