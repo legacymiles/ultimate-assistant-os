@@ -120,8 +120,11 @@ export function RecipeEditorView({ cookbookId }: { cookbookId: string }) {
       });
       const data = await res.json();
       if (!res.ok || data.error) {
+        // Some failures already name the way out ("…upload the video"); don't
+        // say it twice.
+        const said = /upload|paste/i.test(String(data.error ?? ""));
         setError(
-          data.needsHelp
+          data.needsHelp && !said
             ? `${data.error} Paste the caption underneath, or upload the video itself.`
             : data.error || `The import failed (${res.status}).`,
         );
@@ -302,7 +305,7 @@ export function RecipeEditorView({ cookbookId }: { cookbookId: string }) {
             <div className="space-y-3 p-3">
               <Field
                 label="Link"
-                hint="In TikTok, Instagram or YouTube tap Share → Copy link, then paste it here."
+                hint="In TikTok, Instagram, Facebook or YouTube tap Share → Copy link, then paste it here."
               >
                 <Input
                   value={link}

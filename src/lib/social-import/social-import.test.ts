@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { metaTags } from "./jsonld";
 import { parseLink, youTubeId } from "./platform";
+import { postId, servedTheWrongPage } from "./resolve";
 import { isPrivateAddress } from "./safeFetch";
 
 describe("parseLink", () => {
@@ -62,5 +63,30 @@ describe("metaTags", () => {
     const tags = metaTags(`<meta content="Tom &amp; Jerry&#39;s" property="og:title"><meta name="description" content='x'>`);
     expect(tags["og:title"]).toBe("Tom & Jerry's");
     expect(tags.description).toBe("x");
+  });
+});
+
+describe("servedTheWrongPage", () => {
+  // Observed 2026-09-27 with an anonymous browser user-agent.
+  it("catches Facebook answering with its own Video landing page", () => {
+    const url = new URL("https://www.facebook.com/watch/?v=1093831212018805");
+    expect(postId(url)).toBe("1093831212018805");
+    expect(servedTheWrongPage(url, "https://www.facebook.com/watch/")).toBe(true);
+  });
+
+  it("accepts the real post, even when Facebook renames the shape", () => {
+    // A /videos/ link whose og:url comes back as the /reel/ form.
+    const url = new URL("https://www.facebook.com/cnn/videos/10155529876156509/");
+    expect(servedTheWrongPage(url, "https://www.facebook.com/reel/10155529876156509/")).toBe(false);
+  });
+
+  it("reads a pfbid permalink as the id", () => {
+    const url = new URL("https://www.facebook.com/permalink.php?story_fbid=pfbid0fqQuVEQyXRa&id=100068861234290");
+    expect(postId(url)).toBe("pfbid0fqQuVEQyXRa");
+  });
+
+  it("stays out of the way when there is no id, or no og:url to compare", () => {
+    expect(servedTheWrongPage(new URL("https://www.instagram.com/reel/C_CXETzxJc3/"), "https://www.instagram.com/")).toBe(false);
+    expect(servedTheWrongPage(new URL("https://www.facebook.com/watch/?v=1093831212018805"), undefined)).toBe(false);
   });
 });

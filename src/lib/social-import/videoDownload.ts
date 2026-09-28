@@ -57,6 +57,8 @@ export interface DownloadedVideo {
   contentType: string;
   via: Strategy;
   title: string;
+  /** The post's own text, when the strategy could read it. */
+  caption: string;
   author: string;
   thumbnailUrl: string | null;
   durationSec: number | null;
@@ -86,7 +88,7 @@ function sniff(bytes: Buffer): string | null {
   return null;
 }
 
-const empty = { title: "", author: "", thumbnailUrl: null, durationSec: null, width: null, height: null };
+const empty = { title: "", caption: "", author: "", thumbnailUrl: null, durationSec: null, width: null, height: null };
 
 async function grab(url: string, maxBytes: number): Promise<Buffer | null> {
   const got = await fetchBytes(url, { maxBytes, timeoutMs: 120_000, accept: "video/mp4,video/*;q=0.9,*/*;q=0.5" });
@@ -99,7 +101,7 @@ async function viaTikwm(url: URL, maxBytes: number): Promise<Found | null> {
   if (!d?.play) return null;
   const bytes = await grab(new URL(String(d.play), "https://www.tikwm.com").href, maxBytes);
   if (!bytes) return null;
-  return { ...empty, bytes, title: String(d.title ?? ""), author: String(d.author?.nickname ?? ""), thumbnailUrl: d.cover ?? null, durationSec: Number(d.duration) || null };
+  return { ...empty, bytes, title: String(d.title ?? ""), caption: String(d.title ?? ""), author: String(d.author?.nickname ?? ""), thumbnailUrl: d.cover ?? null, durationSec: Number(d.duration) || null };
 }
 
 async function viaFxTwitter(url: URL, maxBytes: number): Promise<Found | null> {
@@ -114,6 +116,7 @@ async function viaFxTwitter(url: URL, maxBytes: number): Promise<Found | null> {
   return {
     bytes,
     title: String(json.tweet.text ?? "").slice(0, 120),
+    caption: String(json.tweet.text ?? ""),
     author: String(json.tweet.author?.name ?? ""),
     thumbnailUrl: best.thumbnail_url ?? null,
     durationSec: Number(best.duration) || null,
@@ -152,12 +155,12 @@ async function viaPage(url: URL, maxBytes: number): Promise<Found | null> {
   if (!video || !/^https?:\/\//i.test(video)) return null;
   const bytes = await grab(video, maxBytes);
   if (!bytes) return null;
-  return { ...empty, bytes, title: meta["og:title"] ?? "", thumbnailUrl: meta["og:image"] ?? null };
+  return { ...empty, bytes, title: meta["og:title"] ?? "", caption: meta["og:description"] ?? "", thumbnailUrl: meta["og:image"] ?? null };
 }
 
 async function viaYtDlp(url: URL, platform: Platform, maxBytes: number): Promise<Found> {
   const v = await ytDlpDownload(url.href, platform, { maxBytes });
-  return { bytes: v.bytes, title: v.title, author: v.uploader, thumbnailUrl: v.thumbnail, durationSec: v.durationSec, width: v.width, height: v.height };
+  return { bytes: v.bytes, title: v.title, caption: v.description, author: v.uploader, thumbnailUrl: v.thumbnail, durationSec: v.durationSec, width: v.width, height: v.height };
 }
 
 export async function downloadVideo(url: URL, platform: Platform, { maxBytes }: { maxBytes: number }): Promise<DownloadedVideo> {

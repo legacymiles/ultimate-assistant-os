@@ -7,16 +7,19 @@ import {
   recipeFromStructured,
 } from "@/lib/cookbook/recipe";
 import { findByType } from "@/lib/social-import/jsonld";
-import { PLATFORM_LABEL } from "@/lib/social-import/platform";
+import { PLATFORM_LABEL, parseLink } from "@/lib/social-import/platform";
 import { NotALinkError, emptyPost, resolveSocialPost, type SocialPost } from "@/lib/social-import/resolve";
 import { BlockedUrlError, fetchImageDataUrl } from "@/lib/social-import/safeFetch";
 import { understandPost } from "@/lib/social-import/understand";
+import { VideoUnavailableError, downloadVideo } from "@/lib/social-import/videoDownload";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 /** ~20 MB of video once base64'd. */
 const MAX_DATA_URL_CHARS = 28_000_000;
+/** What the video model accepts; base64 inflates it by a third on the way out. */
+const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
 
 const SYSTEM =
   "You turn cooking videos and food posts into accurate, cookable recipes. You watch the " +
@@ -69,11 +72,52 @@ export async function POST(req: Request) {
     post.linked.map((l) => findByType(l.jsonLd, "Recipe")).find(Boolean) ??
     null;
 
+  // Facebook, Instagram, X and Pinterest hand an anonymous page fetch no video
+  // at all, and Facebook routinely hands it nothing whatsoever — which is why a
+  // pasted Facebook link used to come back empty. So when the page alone didn't
+  // produce the video, ask the real downloader, which knows how to ask each site
+  // properly (yt-dlp → cobalt → the page's own video tag). Its bytes then reach
+  // the model by the same door as a video the user uploaded.
+  //
+  // Only when it would otherwise be guessing: a creator's own schema.org recipe
+  // is authoritative, so a blog that published one is already answered and pays
+  // nothing for this.
+  let upload = videoDataUrl;
+  let videoProblem: { message: string; needsLogin: boolean } | null = null;
+  const parsed = link ? parseLink(link) : null;
+  const worthDownloading = Boolean(parsed) && !upload && !post.video && !structured
+    && (parsed!.platform !== "web" || post.pageText.length < 400);
+  if (worthDownloading) {
+    try {
+      const got = await downloadVideo(parsed!.url, parsed!.platform, { maxBytes: MAX_VIDEO_BYTES });
+      upload = `data:${got.contentType};base64,${got.bytes.toString("base64")}`;
+      post.trail.push(...got.trail);
+      post.title ||= got.title;
+      post.author ||= got.author;
+      post.thumbnailUrl ??= got.thumbnailUrl;
+      post.durationSec ??= got.durationSec;
+      if (got.caption && !post.caption) {
+        post.caption = got.caption;
+        post.trail.push("Read the caption off the download.");
+      }
+    } catch (err) {
+      if (err instanceof VideoUnavailableError) {
+        post.trail.push(...err.trail);
+        videoProblem = { message: err.message, needsLogin: err.needsLogin };
+      } else {
+        console.error("[import-from-link] video download failed:", err);
+        post.trail.push("Couldn't download the video from that link.");
+      }
+    }
+  }
+
   const label = post.platform === "upload" ? "your upload" : PLATFORM_LABEL[post.platform];
-  if (!post.caption && !post.pageText && !post.video && !videoDataUrl && !structured) {
+  if (!post.caption && !post.pageText && !post.video && !upload && !structured) {
     return fail(
       422,
-      `${label} didn't let us see that post — it's probably private or needs a login. Paste the caption or upload the video instead.`,
+      videoProblem
+        ? videoProblem.message
+        : `${label} didn't let us see that post — it's probably private or needs a login. Paste the caption or upload the video instead.`,
       { needsHelp: true, trail: post.trail }
     );
   }
@@ -87,7 +131,7 @@ export async function POST(req: Request) {
         post,
         system: SYSTEM,
         task: buildTask(structured),
-        uploadDataUrl: videoDataUrl || undefined,
+        uploadDataUrl: upload || undefined,
         imageDataUrl: cover,
       });
       if (u.data?.is_recipe === false) {
@@ -95,7 +139,7 @@ export async function POST(req: Request) {
       }
       const recipe = normalizeRecipe(u.data);
       if (recipe.ingredients.length && recipe.instructions.length) {
-        if ((post.video || videoDataUrl) && !u.watchedVideo) {
+        if ((post.video || upload) && !u.watchedVideo) {
           post.trail.push("Couldn't watch the video, so this was built from the caption.");
         }
         return NextResponse.json({

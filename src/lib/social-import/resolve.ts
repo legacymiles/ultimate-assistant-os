@@ -154,6 +154,29 @@ async function resolveYouTube(url: URL): Promise<SocialPost> {
   return post;
 }
 
+/**
+ * The id of the post a link points at: a Facebook numeric id, a `pfbid…`
+ * permalink, or nothing when the shape has neither.
+ */
+export function postId(url: URL): string | null {
+  const where = `${url.pathname}${url.search}`;
+  return where.match(/pfbid[A-Za-z0-9]+/)?.[0] ?? where.match(/\d{8,}/)?.[0] ?? null;
+}
+
+/**
+ * Facebook answers an anonymous request for one specific post with its generic
+ * landing page: 200 OK, real-looking Open Graph tags, none of them about the
+ * post. Verified 2026-09-27 — facebook.com/watch/?v=<id> comes back with
+ * og:url=facebook.com/watch/ and "Video is the place to enjoy videos and shows
+ * together", which reads exactly like a caption to whatever consumes it.
+ * Believing that is worse than admitting we saw nothing, so the post's id has
+ * to survive the round trip before its tags are trusted.
+ */
+export function servedTheWrongPage(url: URL, ogUrl: string | undefined): boolean {
+  const id = postId(url);
+  return Boolean(id && ogUrl && !ogUrl.includes(id));
+}
+
 async function resolvePage(url: URL, platform: Platform): Promise<SocialPost> {
   const post = emptyPost(url.href, platform);
   const label = PLATFORM_LABEL[platform];
@@ -164,6 +187,10 @@ async function resolvePage(url: URL, platform: Platform): Promise<SocialPost> {
   }
 
   const meta = metaTags(html);
+  if (platform !== "web" && servedTheWrongPage(url, meta["og:url"])) {
+    post.trail.push(`${label} answered with its own landing page instead of that post, so nothing on it was used.`);
+    return post;
+  }
   post.title = meta["og:title"] ?? meta["twitter:title"] ?? titleTag(html);
   post.caption = meta["og:description"] ?? meta["twitter:description"] ?? meta["description"] ?? "";
   post.thumbnailUrl = meta["og:image"] ?? meta["twitter:image"] ?? null;

@@ -146,6 +146,8 @@ export interface YtDlpVideo {
   bytes: Buffer;
   ext: string;
   title: string;
+  /** The post's own text. On Facebook and Instagram this is the caption. */
+  description: string;
   uploader: string;
   durationSec: number | null;
   thumbnail: string | null;
@@ -170,6 +172,18 @@ const FORMAT = [
 
 const LOGIN_HINT = /sign in|log ?in|login|cookies|confirm you.?re not a bot|private|age.?restricted|rate.?limit|not available in your country|registered users/i;
 
+/**
+ * Facebook and Instagram never tell a server to log in. They answer with a
+ * normal-looking page that simply has the video data stripped out of it, and
+ * yt-dlp reports that as a parse failure. Verified 2026-09-27: one public
+ * Facebook video extracted fine while another, just as public, came back with
+ * no `playable_url` anywhere in 527 KB of HTML. On those two sites a parse
+ * failure IS the login wall, and saying so is the difference between a dead
+ * end and a next step.
+ */
+const WALLED = new Set<Platform>(["facebook", "instagram"]);
+const WALL_HINT = /cannot parse data|no video formats|unable to extract|unsupported url/i;
+
 export async function ytDlpDownload(url: string, platform: Platform, opts: { maxBytes: number; timeoutMs?: number }): Promise<YtDlpVideo> {
   const bin = await ytDlpBinary();
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ytdlp-"));
@@ -187,7 +201,7 @@ export async function ytDlpDownload(url: string, platform: Platform, opts: { max
       "--js-runtimes", `node:${process.execPath}`,
       "-f", FORMAT,
       "-o", path.join(dir, "video.%(ext)s"),
-      "--print", "after_move:%(.{title,uploader,duration,thumbnail,width,height,ext,filepath})j",
+      "--print", "after_move:%(.{title,description,uploader,duration,thumbnail,width,height,ext,filepath})j",
     ];
     const cookies = await cookiesFor(platform);
     if (cookies) {
@@ -205,7 +219,8 @@ export async function ytDlpDownload(url: string, platform: Platform, opts: { max
       if (e.killed) throw new YtDlpError("yt-dlp took too long.");
       const line = (e.stderr ?? "").split("\n").reverse().find((l) => l.includes("ERROR")) ?? e.message;
       const message = line.replace(/^.*?ERROR:\s*/, "").replace(/\[[^\]]+\]\s*[\w-]+:\s*/, "").trim();
-      throw new YtDlpError(message.slice(0, 300) || "yt-dlp failed.", LOGIN_HINT.test(message) && !cookies);
+      const walled = LOGIN_HINT.test(message) || (WALLED.has(platform) && WALL_HINT.test(message));
+      throw new YtDlpError(message.slice(0, 300) || "yt-dlp failed.", walled && !cookies);
     }
 
     const info = JSON.parse(stdout.trim().split("\n").pop() || "{}") as Record<string, unknown>;
@@ -216,6 +231,7 @@ export async function ytDlpDownload(url: string, platform: Platform, opts: { max
       bytes,
       ext: String(info.ext ?? path.extname(filepath).slice(1)),
       title: String(info.title ?? ""),
+      description: String(info.description ?? ""),
       uploader: String(info.uploader ?? ""),
       durationSec: Number(info.duration) || null,
       thumbnail: typeof info.thumbnail === "string" ? info.thumbnail : null,
