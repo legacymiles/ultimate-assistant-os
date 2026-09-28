@@ -25,9 +25,18 @@ Useful flags: `--json` (full metadata as JSON), `--audio` (mp3 instead of
 video), `--max-height 720`, `--max-bytes 20000000`, `--cookies-from-browser chrome`,
 `--check` (report the toolchain and exit).
 
-Everything lands as **H.264 in an .mp4** unless you ask for audio. That is
-deliberate: it is what editors, transcribers and video models accept without a
-re-encode, and it means a caller never has to branch on what came back.
+Everything lands in an **.mp4 container**, and H.264 inside it wherever the
+site offers one — measured on Instagram, TikTok, YouTube and Dailymotion.
+Facebook is the exception today and returns VP9. Container is a guarantee;
+codec is best-effort, because a site that publishes only VP9 leaves nothing to
+prefer.
+
+That preference is ranked (`-S vcodec:h264`) rather than filtered
+(`-f [vcodec^=avc1]`), and the distinction is load-bearing — see `formatFor`'s
+note in the script. A filter excludes any format that does not *declare* its
+codec or height, and on Instagram and Facebook the progressive H.264 files
+declare neither while the VP9 DASH streams declare both. Filtering therefore
+selects the worse codec, which is exactly what it did before it was measured.
 
 ## Before blaming a site, run the preflight
 
@@ -58,19 +67,27 @@ common failures are local and masquerade as the site blocking you:
 **1. The toolchain is incomplete.** See above. Symptom: one or two sites fail
 while the rest are fine. Fix it locally; do not add fallbacks.
 
-**2. The site wants to know who you are.** Instagram, Vimeo and most modern
-Facebook posts return nothing to an anonymous program no matter how you ask.
-There is no user-agent trick and no mirror that fixes this — cookies are the
-only answer. Read `references/cookies.md`; it is a two-minute job.
+**2. The site wants to know who you are.** Vimeo and many Facebook posts return
+nothing to an anonymous program no matter how you ask. There is no user-agent
+trick and no mirror that fixes this — cookies are the only answer. Read
+`references/cookies.md`; it is a two-minute job.
 
 Recognising it matters because the errors do not say "log in":
 
 | What you see | Site | What it means |
 |---|---|---|
-| `Cannot parse data` | Facebook, Instagram | the page came back with the video stripped out |
-| `Instagram sent an empty media response` | Instagram | signed-out visitors get nothing |
+| `Cannot parse data` | Facebook | the page came back with the video stripped out |
 | `The web client only works when logged-in` | Vimeo | says it plainly |
 | `Unexpected response from webpage request` | TikTok | usually missing `curl_cffi`, not a wall |
+| `Instagram sent an empty media response` | Instagram | **check the URL is real before concluding anything** |
+
+That last row is a trap worth internalising. Instagram is *not* generally
+walled — public reels and posts download fine with no cookies at all. But it
+answers "no such post" and "you are not signed in" with the same empty
+response, so testing a URL you typed rather than copied makes a working site
+look permanently blocked. This skill's own platform notes shipped that exact
+wrong conclusion once. Confirm the link opens in a browser before believing the
+error.
 
 `grab.mjs` already makes this call for you and exits **2** with a plain-English
 sentence when cookies are what's needed (exit **1** is any other failure), so a
@@ -105,6 +122,24 @@ keeping:
   those breakages — it also needs no `curl_cffi`.
 - **X/Twitter** falls back to `api.fxtwitter.com`, which reads a public post's
   media with no API key.
+
+## A second engine: cobalt
+
+When a site does break, the fastest real fix is a different implementation.
+[cobalt](https://github.com/imputnet/cobalt) is one, and `grab.mjs` already
+falls through to it:
+
+```bash
+node scripts/grab.mjs "<url>" --cobalt http://localhost:9000/
+```
+
+It has to be an instance you run — the public `api.cobalt.tools` is behind a
+Turnstile challenge and its docs rule out third-party use. Standing one up is
+`pnpm install` and `node src/cobalt` with a single env var, and once
+`COBALT_API_URL` is set the hub picks it up too with no code change.
+`references/cobalt.md` has the commands and the one pnpm flag you will
+otherwise trip over. Note it does not bypass sign-in — cobalt has its own
+cookies file for the same reason yt-dlp does.
 
 ## Keeping it working
 

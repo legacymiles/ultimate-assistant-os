@@ -149,16 +149,28 @@ function cookieArgs(opts) {
    serves, and what every editor and video model accepts without a re-encode.
    A single stream also needs no ffmpeg to merge. */
 
-function formatFor(maxHeight) {
-  const h = maxHeight ? `[height<=${maxHeight}]` : "";
-  return [
-    `b[ext=mp4][vcodec^=avc1]${h}`,        // one file, already H.264/mp4
-    `bv[ext=mp4][vcodec^=avc1]${h}+ba[ext=m4a]`,
-    `b[ext=mp4]${h}`,
-    `bv*${h}+ba`,
-    `b${h}`,
-    "bv*+ba/b",                             // last resort: whatever exists
-  ].join("/");
+/**
+ * Ranking, not filtering. This was the subtle one.
+ *
+ * The obvious approach — a long `-f` chain of `[vcodec^=avc1][height<=N]`
+ * alternatives — quietly loses, two ways at once. A `height<=N` filter throws
+ * away every format that does not DECLARE a height, and on Instagram and
+ * Facebook the progressive H.264 files declare nothing while the DASH streams
+ * declare a height and are VP9 — so the cap actively selects the worse codec.
+ * And a `[vcodec^=avc1]` filter cannot match a format whose codec the site
+ * never states, which is those same progressive files.
+ *
+ * `-S` ranks instead of excluding, so an unknown or oversized format stays
+ * eligible and simply loses to a better one. Codec is listed before resolution
+ * deliberately: an H.264 720p that every tool opens beats a 1080p HEVC that
+ * half of them choke on. Measured — the chain gave HEVC on TikTok and VP9 on
+ * Facebook while an H.264 rendition sat right there in the list.
+ *
+ * The height is therefore a strong preference rather than a hard ceiling. Use
+ * --max-bytes when you need a guarantee.
+ */
+function sortFor(maxHeight) {
+  return `vcodec:h264,${maxHeight ? `res:${maxHeight},` : "res,"}ext:mp4:m4a,br`;
 }
 
 function run(argv, args, timeoutMs) {
@@ -188,7 +200,8 @@ async function viaYtDlp(url, opts) {
     // Anything that has to be merged lands as mp4, so a caller never has to
     // wonder whether it got .webm or .mkv this time.
     "--merge-output-format", "mp4",
-    "-f", formatFor(opts.maxHeight),
+    "-f", "bv*+ba/b",
+    "-S", sortFor(opts.maxHeight),
     "-o", path.join(opts.outDir, "%(title).80B [%(id)s].%(ext)s"),
     "--print", "after_move:%(.{id,title,description,uploader,uploader_url,duration,thumbnail,width,height,ext,filepath,webpage_url})j",
     ...cookieArgs(opts),
@@ -298,11 +311,22 @@ async function viaFxTwitter(url, opts) {
   };
 }
 
-/** Your own cobalt instance (github.com/imputnet/cobalt). The public one
- *  forbids third-party use, so this only runs when COBALT_API_URL is set. */
+/**
+ * cobalt (github.com/imputnet/cobalt) — a second, independently maintained
+ * extractor. Genuinely worth having: when a site ships a change, cobalt and
+ * yt-dlp rarely break on the same day, so the one that still works covers the
+ * other. Verified 2026-09-27 on a local instance against TikTok, YouTube,
+ * Facebook and Instagram.
+ *
+ * It has to be YOUR instance. The public api.cobalt.tools is gated behind a
+ * Cloudflare Turnstile challenge and its own docs say hosted instances are
+ * "not intended to be used in other projects without explicit permission" —
+ * so `--cobalt` points at one you run. It is `pnpm install && pnpm start` in
+ * cobalt/api with one env var; see references/cobalt.md.
+ */
 async function viaCobalt(url, opts) {
-  const api = process.env.COBALT_API_URL;
-  if (!api) throw new Error("not configured (set COBALT_API_URL to your own instance)");
+  const api = opts.cobalt || process.env.COBALT_API_URL;
+  if (!api) throw new Error("no instance (pass --cobalt <url> or set COBALT_API_URL; see references/cobalt.md)");
   const headers = { accept: "application/json", "content-type": "application/json" };
   if (process.env.COBALT_API_KEY) headers.authorization = `Api-Key ${process.env.COBALT_API_KEY}`;
   const res = await fetch(api, {
@@ -367,6 +391,7 @@ export async function grab(input, options = {}) {
     maxBytes: options.maxBytes ?? null,
     cookies: options.cookies ?? null,
     cookiesFromBrowser: options.cookiesFromBrowser ?? null,
+    cobalt: options.cobalt ?? null,
     timeoutMs: options.timeoutMs ?? 300_000,
     extra: options.extra ?? [],
   };
@@ -411,6 +436,7 @@ function parseArgs(argv) {
     else if (a === "--max-bytes") opts.maxBytes = Number(argv[++i]);
     else if (a === "--cookies") opts.cookies = argv[++i];
     else if (a === "--cookies-from-browser") opts.cookiesFromBrowser = argv[++i];
+    else if (a === "--cobalt") opts.cobalt = argv[++i];
     else if (a === "--timeout") opts.timeoutMs = Number(argv[++i]) * 1000;
     else opts._.push(a);
   }
@@ -436,7 +462,7 @@ if (isMain) {
         ff = "available";
       } catch { /* left as missing */ }
       console.log(`ffmpeg        ${ff}`);
-      console.log(`cobalt        ${process.env.COBALT_API_URL ? "configured" : "not configured (optional)"}`);
+      console.log(`cobalt        ${process.env.COBALT_API_URL ? `configured (${process.env.COBALT_API_URL})` : "not configured (optional second extractor — references/cobalt.md)"}`);
       process.exit(imp ? 0 : 1);
     } catch (e) {
       console.error(e.message);
@@ -456,6 +482,7 @@ if (isMain) {
   --max-bytes <n>               refuse anything larger
   --cookies-from-browser <b>    chrome | firefox | edge | brave | safari
   --cookies <file>              a cookies.txt instead
+  --cobalt <url>                your own cobalt instance as a second extractor
   --timeout <seconds>           default 300
   --json                        print metadata as JSON
   --check                       report the toolchain and exit`);

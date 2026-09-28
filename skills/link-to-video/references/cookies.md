@@ -1,8 +1,12 @@
 # Cookies — the only real unlock
 
-Instagram, Vimeo and most Facebook posts are not blocking you. They are asking
-who you are, and a signed-out program has no answer. No user-agent string,
-mirror or proxy changes that. Cookies do, every time.
+Vimeo, many Facebook posts, and anything on a private account are not blocking
+you. They are asking who you are, and a signed-out program has no answer. No
+user-agent string, mirror or proxy changes that. Cookies do, every time.
+
+**Instagram is not in that list.** Public reels and posts download with no
+cookies at all — see `platforms.md`. Reach for cookies on Instagram only for a
+private account, or when you are being rate limited after a run of downloads.
 
 There are two ways to supply them. Prefer the first.
 

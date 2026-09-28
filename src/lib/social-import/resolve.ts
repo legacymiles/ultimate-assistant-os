@@ -200,7 +200,10 @@ async function resolvePage(url: URL, platform: Platform): Promise<SocialPost> {
   if (platform === "web") post.pageText = htmlToText(html);
 
   if (platform !== "web" && !post.caption && !post.video) {
-    post.trail.push(`${label} hides that post from anyone who isn't logged in.`);
+    // Say what happened, not what it proves. The downloader runs after this and
+    // often gets the video anyway — Instagram's public reels do — so claiming a
+    // login wall here puts a false sentence in a trail the user reads.
+    post.trail.push(`${label}'s page gave nothing to a signed-out visitor.`);
   } else {
     if (post.caption) post.trail.push(platform === "web" ? "Read the page." : "Read the caption.");
     if (post.video) post.trail.push("Found the video file.");
