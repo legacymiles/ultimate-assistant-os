@@ -88,3 +88,7 @@ public/__dump/
 
 # Studio bridge renders and reference photos (local only)
 /tools/studio-bridge/out/
+
+# cobalt is cloned, not vendored (tools/cobalt/install.mjs)
+/tools/cobalt/app/
+/tools/cobalt/out/

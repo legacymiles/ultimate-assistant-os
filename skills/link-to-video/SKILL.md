@@ -23,7 +23,10 @@ works in a pipeline.
 
 Useful flags: `--json` (full metadata as JSON), `--audio` (mp3 instead of
 video), `--max-height 720`, `--max-bytes 20000000`, `--cookies-from-browser chrome`,
-`--check` (report the toolchain and exit).
+`--cobalt <url>` (second engine), `--check` (report the toolchain and exit).
+
+On a machine that has never done this before, run `node scripts/setup.mjs`
+first — it names what is missing and offers to install it.
 
 Everything lands in an **.mp4 container**, and H.264 inside it wherever the
 site offers one — measured on Instagram, TikTok, YouTube and Dailymotion.
@@ -123,23 +126,80 @@ keeping:
 - **X/Twitter** falls back to `api.fxtwitter.com`, which reads a public post's
   media with no API key.
 
+## Setting a machine up
+
+```bash
+node scripts/setup.mjs             # what is missing, and the exact fix
+node scripts/setup.mjs --install   # install the Python side for me
+```
+
+This is the one place that knows the whole toolchain, so nobody has to remember
+four separate things. It reports yt-dlp, impersonation, ffmpeg and cobalt, and
+exits non-zero when something required is missing — usable as a preflight in a
+script.
+
 ## A second engine: cobalt
 
 When a site does break, the fastest real fix is a different implementation.
-[cobalt](https://github.com/imputnet/cobalt) is one, and `grab.mjs` already
-falls through to it:
+[cobalt](https://github.com/imputnet/cobalt) is one, and `grab.mjs` falls
+through to it:
 
 ```bash
-node scripts/grab.mjs "<url>" --cobalt http://localhost:9000/
+node scripts/grab.mjs "<url>" --cobalt http://localhost:42030/
 ```
 
-It has to be an instance you run — the public `api.cobalt.tools` is behind a
-Turnstile challenge and its docs rule out third-party use. Standing one up is
-`pnpm install` and `node src/cobalt` with a single env var, and once
-`COBALT_API_URL` is set the hub picks it up too with no code change.
-`references/cobalt.md` has the commands and the one pnpm flag you will
-otherwise trip over. Note it does not bypass sign-in — cobalt has its own
-cookies file for the same reason yt-dlp does.
+It has to be an instance you run — `api.cobalt.tools` is behind a Turnstile
+challenge and its docs rule out third-party use. `references/cobalt.md` has the
+non-Docker install and the one pnpm flag you will otherwise trip over.
+
+**In the Ultimate Assistant OS hub it is already installed**: `tools/cobalt`
+(`install.cmd`, then `install-autostart.cmd` to start it at login) with
+`COBALT_API_URL=http://localhost:42030/` in `.env.local`. Every app picks it up
+with no code change.
+
+Be honest about what it is: a second implementation, not an exemption from
+sign-in. It has its own `cookies.json` for the same reason yt-dlp has
+`--cookies`, and on a Facebook post yt-dlp could not read, cobalt agreed it
+needed an account.
+
+## Adding link import to an app
+
+The thing users want is almost never "a video file" — it is *the post, turned
+into whatever this app stores*: a recipe, a workout, a product, a travel spot.
+That splits cleanly, and keeping the split is what lets the next app reuse this
+instead of rebuilding it.
+
+**In the hub, do not call `grab.mjs`.** The server-side equivalent already
+lives in `src/lib/social-import/` and is deliberately app-agnostic:
+
+| | |
+|---|---|
+| `resolve.ts` | link → caption, author, thumbnail, page metadata (`resolveSocialPost`) |
+| `videoDownload.ts` | link → the video file (`downloadVideo`: yt-dlp → cobalt → og:video) |
+| `understand.ts` | post + your prompt → structured JSON, with a model that actually watches the video (`understandPost`) |
+| `ytdlp.ts` | binary resolution, cookies, and fetching a checksummed release on a host where nothing is pre-installed — which is what makes this work on Vercel |
+
+A new app's route is thin, because all three shared pieces are doing the work:
+resolve the link, download the video when the page gave none, hand both to
+`understandPost` with a task describing *your* JSON shape, and normalise the
+result. `src/app/api/cookbook/import-from-link/route.ts` is the worked example —
+roughly 150 lines, most of it the recipe-specific prompt.
+
+Three things that route learned the hard way, worth copying rather than
+rediscovering:
+
+- **Surface the trail.** Every step appends a plain sentence to `post.trail`.
+  Showing it turns "import failed" into "Facebook only shows this to logged-in
+  accounts", which is the difference between a dead end and a next step.
+- **Degrade, never 500.** No AI key, no video, a private post — each should
+  produce something editable plus an honest note. The caption alone is often
+  enough.
+- **Do not trust page metadata.** See the decoy section above.
+
+If a third app needs this, that is the moment to lift the shared half of that
+route into `src/lib/social-import/` and leave only the prompt and the
+normaliser in each app — not before, because two examples is when the shape of
+the abstraction is actually visible.
 
 ## Keeping it working
 

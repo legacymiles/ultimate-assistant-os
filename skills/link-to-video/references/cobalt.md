@@ -54,17 +54,21 @@ their example.
 ## Using it
 
 ```bash
-node scripts/grab.mjs "<url>" --cobalt http://localhost:9000/
+node scripts/grab.mjs "<url>" --cobalt http://localhost:42030/
 ```
 
 Or set `COBALT_API_URL` once and every run picks it up. `grab.mjs` tries yt-dlp
 first and falls through to cobalt, so a configured instance costs nothing until
 yt-dlp fails.
 
-**In the hub**, `src/lib/social-import/videoDownload.ts` already reads
-`COBALT_API_URL` (and `COBALT_API_KEY`) and already has cobalt in the ladder for
-every platform. Setting that one variable in `.env.local` turns it on for Cook
-Connect, Dance Studio and everything else — no code change.
+**In the Ultimate Assistant OS hub this is already done.** `tools/cobalt` holds
+the installer and the startup scripts, and `.env.local` points at
+`http://localhost:42030/` (42030 rather than cobalt's default 9000, which
+collides with too much; it sits with the hub's other local services). Run
+`tools\cobalt\install.cmd` then `tools\cobalt\install-autostart.cmd` on a new
+machine. `src/lib/social-import/videoDownload.ts` already reads `COBALT_API_URL`
+and `COBALT_API_KEY` and already has cobalt in the ladder for every platform, so
+Cook Connect, Dance Studio and everything else pick it up with no code change.
 
 ## It is not a way around sign-in
 
@@ -77,8 +81,9 @@ is a second implementation, not an exemption.
 
 ## Keeping it running
 
-It is a long-lived local service, so if you want it always available, give it
-the same treatment as the other `tools/` helpers in this repo — a startup task
-rather than a terminal you remember to open. Left unmanaged it simply will not
-be there when something falls through to it, and the fallback silently reports
-"no instance".
+It is a long-lived local service, so it gets the same treatment as the other
+`tools/` helpers: a Startup shortcut that launches it hidden and logs to
+`out/cobalt.log`, installed by `install-autostart.cmd` and removed by
+`uninstall-autostart.cmd`. Left to a terminal someone remembers to open, it
+simply will not be there when something falls through to it, and the fallback
+reports "no instance" without anyone noticing it was meant to be there.
