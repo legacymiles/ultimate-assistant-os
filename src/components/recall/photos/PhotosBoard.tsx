@@ -44,6 +44,14 @@ import { useRemotePull } from "@/lib/sync/useSync";
 import { ReviewQueue, type NewAlbum } from "./ReviewQueue";
 import { PeopleManager } from "./PeopleManager";
 import { IphoneSources } from "./IphoneSources";
+import { VideosBoard } from "./VideosBoard";
+import {
+  ensureVideosRoot,
+  importVideos,
+  isVideoFile,
+  isVideoItem,
+  VIDEOS_ROOT,
+} from "@/lib/recall/photos/videos";
 import { gatherKnownPlaces } from "@/lib/dashboard/destinations/registry";
 
 // ---------------------------------------------------------------------------
@@ -101,7 +109,7 @@ export function PhotosBoard({
    * the view that answers "where did that go" without having to remember which
    * album the sorting chose — it reads straight through the folder tree.
    */
-  const [view, setView] = useState<"folders" | "all">("folders");
+  const [view, setView] = useState<"folders" | "all" | "videos">("folders");
   /** Open with null to create a folder, or with a category to teach one. */
   const [albumEdit, setAlbumEdit] = useState<{ category: PhotoCategory | null } | null>(null);
   /** The user's instructions for what they are importing, read by the agent. */
@@ -129,10 +137,35 @@ export function PhotosBoard({
   const root = data.folders.find(
     (f) => f.parentId === null && (f.role === "photos" || f.name.toLowerCase() === PHOTOS_ROOT.toLowerCase()),
   );
+  /**
+   * The photo albums — every child of Photos EXCEPT the Videos branch.
+   *
+   * Videos is a child folder like any other so that search, the folder
+   * workspace and the Drive backup treat it as one. It is left out here because
+   * this list is the album list: a "Videos" tile reading "empty" beside
+   * Me & My Son would be wrong twice over — the clips are not photos, so they
+   * are not counted, and its rules are not people rules.
+   */
   const subFolders = useMemo(
-    () => (root ? childFolders(data.folders, root.id) : []),
+    () =>
+      root
+        ? childFolders(data.folders, root.id).filter(
+            (f) => f.name.toLowerCase() !== VIDEOS_ROOT.toLowerCase(),
+          )
+        : [],
     [data.folders, root],
   );
+  /** Clips in the Videos branch — the count on the view switch. */
+  const totalVideos = useMemo(() => {
+    const videos = root
+      ? childFolders(data.folders, root.id).find(
+          (f) => f.name.toLowerCase() === VIDEOS_ROOT.toLowerCase(),
+        )
+      : null;
+    if (!videos) return 0;
+    const ids = descendantFolderIds(data.folders, videos.id);
+    return data.items.filter((i) => i.folderId && ids.has(i.folderId) && isVideoItem(i)).length;
+  }, [data.folders, data.items, root]);
 
   /**
    * Photos counted THROUGH the tree, not just the folder itself.
@@ -209,7 +242,39 @@ export function PhotosBoard({
    */
   async function runImport(incoming: File[]) {
     if (!incoming.length) return;
-    let files = incoming;
+
+    /*
+     * Videos in the batch are FILED, not refused.
+     *
+     * Every way into this screen — the camera roll, a drop, the Drive picker,
+     * the iPhone Shortcut — hands over whatever the person selected, and a
+     * phone album does not separate the stills from the clips. This used to
+     * count them as "skipped (not images)", which is a silent loss dressed up
+     * as a message: the clip they meant to bring in simply was not there
+     * afterwards. They cannot be read, captioned or sorted by face, so they go
+     * straight into Photos › Videos and the toast says where.
+     */
+    const clips = incoming.filter(isVideoFile);
+    if (clips.length) {
+      setBusy(`Storing ${clips.length} ${clips.length === 1 ? "video" : "videos"}…`);
+      const { folderId } = ensureVideosRoot();
+      if (folderId) {
+        const res = await importVideos({
+          files: clips,
+          folderId,
+          onProgress: (p) => setBusy(`Storing video ${p.index} of ${p.total} — ${p.name}`),
+        });
+        onData(getData());
+        const failed = res.failed.length ? ` · ${res.failed[0].name}: ${res.failed[0].reason}` : "";
+        onToast(
+          `${res.added} ${res.added === 1 ? "video" : "videos"} filed under Photos › ${VIDEOS_ROOT}${failed}`,
+        );
+      }
+      setBusy(null);
+    }
+
+    let files = incoming.filter((f) => !isVideoFile(f));
+    if (!files.length) return;
     const note = instruction.trim();
     setPlanNote(null);
 
@@ -553,13 +618,14 @@ export function PhotosBoard({
           <p className="text-[11px] text-ink-muted">
             {totalPhotos} filed · {tiles.length} {tiles.length === 1 ? "folder" : "folders"} ·{" "}
             {photos.people.length} {photos.people.length === 1 ? "person" : "people"} labelled
+            {totalVideos > 0 && ` · ${totalVideos} ${totalVideos === 1 ? "clip" : "clips"}`}
           </p>
         </div>
 
         <input
           ref={fileRef}
           type="file"
-          accept="image/*"
+          accept="image/*,video/*"
           multiple
           className="hidden"
           onChange={(e) => {
@@ -622,6 +688,7 @@ export function PhotosBoard({
         <button
           onClick={() => fileRef.current?.click()}
           disabled={Boolean(busy)}
+          title="Pick anything from your camera roll — videos in the selection are filed under Photos › Videos"
           className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3 py-2 text-[13px] font-semibold text-black transition hover:bg-amber-400 disabled:opacity-40"
         >
           <Icon.Upload width={15} height={15} />
@@ -740,9 +807,9 @@ export function PhotosBoard({
         onCreateAlbum={(id, album) => createAlbum(id, album)}
       />
 
-      {/* Folders, or the whole library at once */}
+      {/* Folders, the whole library at once, or the video branch */}
       <div className="mb-2 flex items-center gap-1">
-        {(["folders", "all"] as const).map((v) => (
+        {(["folders", "all", "videos"] as const).map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}
@@ -751,12 +818,23 @@ export function PhotosBoard({
               (view === v ? "bg-amber-400/15 text-amber-200" : "text-ink-faint hover:text-ink")
             }
           >
-            {v === "folders" ? "Folders" : `All photos (${totalPhotos})`}
+            {v === "folders"
+              ? "Folders"
+              : v === "all"
+                ? `All photos (${totalPhotos})`
+                : `Videos (${totalVideos})`}
           </button>
         ))}
       </div>
 
-      {view === "all" ? (
+      {view === "videos" ? (
+        <VideosBoard
+          data={data}
+          onData={onData}
+          onToast={onToast}
+          onNavigate={onNavigate}
+        />
+      ) : view === "all" ? (
         allPhotos.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-line bg-panel/40 px-6 py-14 text-center">
             <Icon.Image width={28} height={28} className="mx-auto mb-3 text-ink-faint" />

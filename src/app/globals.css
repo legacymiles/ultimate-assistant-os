@@ -2369,3 +2369,12 @@ video.dance-tile__player { object-fit: cover; }
   from { transform: translateX(-100%); }
   to { transform: translateX(400%); }
 }
+
+/* Photos › Videos. One focus declaration for the whole surface: the clip wall
+   is browsed by keyboard as much as by pointer, and a tile whose only state was
+   a hover brightness is invisible to anyone arrowing through it. */
+.vidb :focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
