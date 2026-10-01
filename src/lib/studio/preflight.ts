@@ -171,14 +171,19 @@ export function preflight(board: Storyboard): Finding[] {
   // shots that passes; over a film it is how a character becomes someone else
   // halfway through. One drawn sheet, attached to every shot they are in, is
   // what turns a description into an anchor.
-  if (shots.length > 2) {
+  // Two is already enough. The threshold was 3, and it is why the check sat
+  // silent through a two-generation film whose second half lost the cast: drift
+  // happens BETWEEN separately generated clips, so the moment there is more
+  // than one generation there is somewhere to drift. A single generation cannot
+  // drift from itself, which is the only case this skips.
+  if (shots.length > 1) {
     for (const c of unanchored(board)) {
       add(
         "error",
         "the plan",
         `Nothing is holding ${c.name}'s face.`,
         `${c.name} was invented rather than uploaded, and across ${shots.length} separately generated `
-        + "shots a face described only in words drifts into someone else. Draw their reference sheet on "
+        + "clips a face described only in words drifts into someone else. Draw their reference sheet on "
         + "the sheet's cast row — it is one picture, and every shot they appear in is anchored to it.",
       );
     }

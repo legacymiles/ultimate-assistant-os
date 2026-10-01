@@ -5,6 +5,27 @@ description: Build the Smart Shot Videos storyboard process — a brief plus ref
 
 # Shot-plan storyboard
 
+> ### Which skill is this?
+>
+> **This is JARVIS STUDIO'S IN-APP PLANNING FLOW** — the owner types an idea in the Studio tab,
+> attaches photos, and expects a storyboard sheet and a render gate back.
+>
+> | | job |
+> |---|---|
+> | `film-plan` | brief + resources -> one Storyboard object, plus the pre-flight gate |
+> | `shot-plan-storyboard` | draw that object as the editable paper sheet |
+>
+> **It does NOT decide how a prompt is worded, nor how a film longer than a few shots holds
+> together.** Both belong to the video prompting stack — `h3-long-story` for the shape of a
+> film across minutes, `h3-cinematic-prompt` for the sentences, `h3-prompt` for the format, `h3-stitched-film` for
+> how many clips and how they chain, `h3-scene-continuity` to measure the result.
+>
+> Measured, and worth being honest about: the one film planned end-to-end through this flow came
+> back mediocre, while the clips that worked were written directly with the stack. This flow
+> earns its place by turning resources into a plan a person can EDIT, not by making the picture
+> better. Use it for that, and let the stack write the words.
+
+
 This is the process behind **Smart Shot Videos** (`/apps/smart-shot-videos` in the Ultimate Assistant
 OS hub) — the one that got it right. It turns one line of brief plus a few photos into a production
 document a real shoot would recognise, and then into a video that actually matches it.

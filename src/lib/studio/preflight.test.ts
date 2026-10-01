@@ -3,6 +3,9 @@ import { blocked, preflight, summary, type Finding } from "./preflight";
 import { cleanStoryboard, type Shot, type Storyboard } from "./storyboard";
 
 /** A plan that passes cleanly, so each test can break exactly one thing. */
+/** Stands in for a drawn cast sheet; preflight only cares that there is one. */
+const SHEET = "data:image/jpeg;base64,AAAA";
+
 function board(over: Partial<Storyboard> = {}): Storyboard {
   const clean = cleanStoryboard({
     title: "The clearing",
@@ -18,7 +21,7 @@ function board(over: Partial<Storyboard> = {}): Storyboard {
     palette: ["#12170f", "#3c4a34", "#8b8674", "#d6cfc0"],
     soundscape: "Wind in high branches, no birds, boots on needle floor.",
     music: "none",
-    cast: [{ id: "c1", name: "WALKER", look: "late 30s, lean, dark beard", subject: null }],
+    cast: [{ id: "c1", name: "WALKER", look: "late 30s, lean, dark beard", subject: null, sheet: SHEET }],
     shots: [shot({ id: "s1", link: "open" }), shot({ id: "s2", link: "cut" })],
     ...over,
   } as unknown as Record<string, unknown>);
@@ -142,7 +145,7 @@ describe("preflight", () => {
   // cannot be told to keep a face it was never given.
   it("does not demand references for a cast with no uploads", () => {
     const findings = preflight(board({
-      cast: [{ id: "c1", name: "WALKER", look: "late 30s, lean", subject: null }],
+      cast: [{ id: "c1", name: "WALKER", look: "late 30s, lean", subject: null, sheet: SHEET }],
       shots: [shot({ link: "open", references: [] }), shot({ link: "cut", references: [] })],
     } as unknown as Partial<Storyboard>));
     expect(has(findings, "starts cold")).toBe(false);
@@ -260,12 +263,21 @@ describe("anchoring an invented cast", () => {
     expect(has(findings, "holding WALKER's face")).toBe(false);
   });
 
-  // A two-shot film is not where identity drifts, and demanding a drawn sheet
-  // for one would be a gate that cries wolf.
-  it("does not ask for a sheet on a short film", () => {
+  // Only a ONE-generation film is safe without a sheet, because a single render
+  // cannot drift from itself. This threshold was 3, and a real two-generation
+  // film lost its whole cast in the second half while the gate stayed silent.
+  it("does not ask for a sheet on a single-generation film", () => {
+    const findings = preflight(
+      board({ cast: [{ id: "c1", name: "WALKER", look: "lean", subject: null }], shots: [shot({ link: "open" })] } as unknown as Partial<Storyboard>),
+    );
+    expect(has(findings, "holding WALKER's face")).toBe(false);
+  });
+
+  it("asks for a sheet as soon as there are two generations to drift between", () => {
     const findings = preflight(
       board({ cast: [{ id: "c1", name: "WALKER", look: "lean", subject: null }], shots: [shot(), shot()] } as unknown as Partial<Storyboard>),
     );
-    expect(has(findings, "holding WALKER's face")).toBe(false);
+    expect(has(findings, "holding WALKER's face")).toBe(true);
+    expect(blocked(findings)).toBe(true);
   });
 });

@@ -418,6 +418,28 @@ export const PROJECTS: CatalogProject[] = [
     hue: [22, 40],
   },
   {
+    slug: "h3-experiments",
+    title: "H3 Experiments",
+    tag: "Which skill actually makes a good film",
+    category: "Video",
+    overview:
+      "A lab ledger for video. Every skill that can drive a render shows as a folder; inside it are " +
+      "the films it actually produced and the skill's own description, so the comparison is between " +
+      "skills rather than between half-remembered attempts. A brief is the controlled variable — the " +
+      "same short story goes to every skill, and the runs line up underneath it. Each run is a single " +
+      "dense row that is also the film: hover and it plays in place, drag across it and the row's " +
+      "width becomes the timeline, so twenty takes compare in twenty seconds without opening a single " +
+      "player. Rate a run good, mixed or bad, tag what went wrong from a fixed vocabulary — identity " +
+      "drift, style break, dead shot, bad join — and the tags are counted per skill, which turns one " +
+      "bad film into a pattern worth fixing. The Queue pane lists every skill that has never rendered " +
+      "a given brief, so work that has not been done is visible instead of remembered. Skills are read " +
+      "off disk, so adding one to the library adds it here.",
+    status: "live",
+    appUrl: "/apps/h3-experiments",
+    iconStyle: "waves",
+    hue: [190, 280],
+  },
+  {
     slug: "image-studio",
     title: "Image Studio",
     tag: "Specialist image agents",

@@ -5,6 +5,25 @@ description: Make a film built from many generated video clips read as ONE conti
 
 # H3 scene continuity
 
+> ### Which skill is this?
+>
+> **This is part of the VIDEO PROMPTING STACK** — five skills that decide what actually gets sent
+> to the model. Everything good measured so far came through these.
+>
+> | | job |
+> |---|---|
+> | `h3-long-story` | the whole film — scenes, casting, continuity across minutes |
+> | `h3-cinematic-prompt` | **the sentences** — plain caption style, camera, the look |
+> | `h3-prompt` | the model's section format and which mode applies |
+> | `h3-stitched-film` | how many clips, how they chain, the action budget |
+> | `h3-scene-continuity` | measure what came back (`continuity.mjs`) |
+>
+> **Not to be confused with** `film-plan` and `shot-plan-storyboard`, which are Jarvis Studio's
+> in-app planning flow: a brief plus photos becomes a Storyboard object, a drawn sheet and a
+> render gate. That is a different job. A film planned there still has its prompts written by
+> this stack.
+
+
 A film assembled from generated clips looks assembled for reasons that are
 specific, separate, and **measurable**. Fixing the wrong one wastes hours of GPU
 time, so this skill measures first and fixes second.

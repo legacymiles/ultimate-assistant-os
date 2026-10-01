@@ -5,6 +5,25 @@ description: Turn a plan and its attached pictures into the prompt a video model
 
 # H3 prompt
 
+> ### Which skill is this?
+>
+> **This is part of the VIDEO PROMPTING STACK** — five skills that decide what actually gets sent
+> to the model. Everything good measured so far came through these.
+>
+> | | job |
+> |---|---|
+> | `h3-long-story` | the whole film — scenes, casting, continuity across minutes |
+> | `h3-cinematic-prompt` | **the sentences** — plain caption style, camera, the look |
+> | `h3-prompt` | the model's section format and which mode applies |
+> | `h3-stitched-film` | how many clips, how they chain, the action budget |
+> | `h3-scene-continuity` | measure what came back (`continuity.mjs`) |
+>
+> **Not to be confused with** `film-plan` and `shot-plan-storyboard`, which are Jarvis Studio's
+> in-app planning flow: a brief plus photos becomes a Storyboard object, a drawn sheet and a
+> render gate. That is a different job. A film planned there still has its prompts written by
+> this stack.
+
+
 This is the format and the discipline behind `src/lib/smart-shot/h3prompt.ts` in the Ultimate
 Assistant OS hub — the implementation that was verified against the real OpenArt Smart Shot
 output. Read that file when a detail here is ambiguous; it is the source, and it is deterministic
