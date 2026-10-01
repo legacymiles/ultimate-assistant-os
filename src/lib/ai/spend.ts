@@ -52,6 +52,15 @@ export interface CallRecord {
   premium?: boolean;
   /** Set when the call failed, so a wall of errors is visible without costing anything. */
   failed?: boolean;
+  /**
+   * Models that refused before this one answered.
+   *
+   * Recorded here rather than read out of the cooldown map because that map is
+   * per module instance — Next bundles each route separately, so a map written
+   * by the chat route is invisible to the panel route. The ledger is a document,
+   * so a rung that is refusing shows up wherever the ledger is read.
+   */
+  skipped?: { model: string; status?: number; why: string }[];
 }
 
 /** A rolled-up past day. UTC, and only used for the history strip. */
@@ -157,6 +166,8 @@ export interface RecordInput {
   plan?: RoutePlan | null;
   app?: string;
   failed?: boolean;
+  /** What refused on the way here. */
+  skipped?: { model: string; status?: number; why: string }[];
 }
 
 /**
@@ -191,6 +202,7 @@ export function recordCall(input: RecordInput): void {
       if (input.app) record.app = input.app.slice(0, 60);
       if (premium) record.premium = true;
       if (input.failed) record.failed = true;
+      if (input.skipped?.length) record.skipped = input.skipped.slice(0, 4);
 
       pending.push(record);
       const urgent = premium || cost >= 0.25;

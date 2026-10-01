@@ -116,13 +116,17 @@ export const ROUTER_MODELS: RouterModel[] = [
     why: "Anything with audio in it, because it listens and it is free.",
   },
   {
+    // v4.1-flash specifically: it is the only DeepSeek that reads pictures as
+    // well as calling tools. The pro and older flash builds are text-only, and
+    // every surface that lands on this rung — a chat you can drop a photo into,
+    // a storyboard built from references — needs both.
     id: "deepseek/deepseek-v4.1-flash",
     label: "DeepSeek V4.1 Flash",
     tier: "harder",
     reads: ["text", "image"],
     json: true,
     context: 1_048_576,
-    price: [0.0198, 0.396],
+    price: [0.03, 0.5],
     rank: 2,
     why: "A bit more complicated than the free tier should answer, or strict JSON was asked for.",
   },
@@ -173,9 +177,25 @@ export function routerModel(id: string): RouterModel | undefined {
   return ROUTER_MODELS.find((m) => m.id === id);
 }
 
-/** Models sorted the way a retry should walk them: cheapest capable first, Jev last. */
+/**
+ * What a model costs HERE, per million tokens of this hub's actual traffic.
+ *
+ * Prompt and completion are not weighted equally, because this hub's calls are
+ * not: a Jarvis agent turn measured 5,066 prompt tokens against 3 completion
+ * tokens, since every request carries the memory, folders, lists and tool
+ * instructions and most answers are a sentence. Summing the two as though they
+ * were balanced ranked MiMo-V2.6-Flash ($0.14/$0.28) below DeepSeek V4.1 Flash
+ * ($0.03/$0.50) — exactly backwards for a prompt-heavy call, where DeepSeek is
+ * four times cheaper.
+ *
+ * Four-to-one rather than the measured thousand-to-one: a long answer should
+ * still count for something, and the ordering is stable anywhere in between.
+ */
+const PROMPT_WEIGHT = 4;
+
 function byCost(a: RouterModel, b: RouterModel): number {
-  const cost = (m: RouterModel) => (m.price ? m.price[0] + m.price[1] : Number.MAX_SAFE_INTEGER);
+  const cost = (m: RouterModel) =>
+    m.price ? m.price[0] * PROMPT_WEIGHT + m.price[1] : Number.MAX_SAFE_INTEGER;
   return cost(a) - cost(b);
 }
 
@@ -187,12 +207,21 @@ export interface RouteRequest {
   /** response_format asked for a JSON object or schema. */
   json: boolean;
   /**
-   * Characters of actual TEXT. Never counts a base64 image: that would make
-   * every photo look like a novel and route it to the reasoning model.
+   * Characters of what the OWNER wrote — the conversation, not the scaffolding.
+   *
+   * Never counts a base64 image: that would make every photo look like a novel
+   * and route it to the reasoning model. And never counts the system prompt,
+   * which is the same mistake one level up: the Jarvis agent sends roughly
+   * 20,000 characters of memory, folders, lists and tool instructions with every
+   * request, so counting it made "Reply with exactly: ok" score as a harder task
+   * than anything the free rung would ever be allowed to answer.
    */
   chars: number;
+  /** The system prompt's size. Kept apart so it counts toward FITTING but not toward DIFFICULTY. */
+  systemChars: number;
   /** Largest answer the caller will accept, when it said. */
   maxTokens: number;
+  /** Turns in the conversation, system prompt excluded for the same reason. */
   messages: number;
   tools: boolean;
   /** reasoning_effort, when the caller set one. */
@@ -208,10 +237,14 @@ type Part = { type?: string; text?: string };
 export function readRequest(body: Record<string, unknown>): RouteRequest {
   const need = new Set<Modality>();
   let chars = 0;
-  const messages = Array.isArray(body.messages) ? (body.messages as { content?: unknown }[]) : [];
-  for (const msg of messages) {
+  let systemChars = 0;
+  const all = Array.isArray(body.messages) ? (body.messages as { role?: string; content?: unknown }[]) : [];
+  const messages = all.filter((m) => m?.role !== "system" && m?.role !== "developer");
+  for (const msg of all) {
+    const scaffolding = msg?.role === "system" || msg?.role === "developer";
     if (typeof msg?.content === "string") {
-      chars += msg.content.length;
+      if (scaffolding) systemChars += msg.content.length;
+      else chars += msg.content.length;
       continue;
     }
     if (!Array.isArray(msg?.content)) continue;
@@ -220,7 +253,10 @@ export function readRequest(body: Record<string, unknown>): RouteRequest {
       else if (part?.type === "input_audio") need.add("audio");
       else if (part?.type === "video_url") need.add("video");
       else if (part?.type === "file") need.add("file");
-      else if (part?.type === "text") chars += (part.text ?? "").length;
+      else if (part?.type === "text") {
+        if (scaffolding) systemChars += (part.text ?? "").length;
+        else chars += (part.text ?? "").length;
+      }
     }
   }
 
@@ -234,6 +270,7 @@ export function readRequest(body: Record<string, unknown>): RouteRequest {
     need: [...need],
     json,
     chars,
+    systemChars,
     maxTokens: Number(body.max_tokens ?? body.max_completion_tokens ?? 0) || 0,
     messages: messages.length,
     tools: Array.isArray(body.tools) && body.tools.length > 0,
@@ -298,9 +335,15 @@ export function isLong(req: RouteRequest): boolean {
   return Boolean(req.hint?.long) || req.maxTokens >= 16_000 || req.chars > 120_000;
 }
 
-/** Tokens this request will roughly occupy: four characters a token, plus the answer. */
+/**
+ * Tokens this request will roughly occupy: four characters a token, plus the
+ * answer.
+ *
+ * Counts the system prompt, unlike the difficulty heuristic — it does not make
+ * the work harder, but it absolutely has to fit in the window.
+ */
 function sizeOf(req: RouteRequest): number {
-  return Math.ceil(req.chars / 4) + req.maxTokens;
+  return Math.ceil((req.chars + req.systemChars) / 4) + req.maxTokens;
 }
 
 /** Can this model actually serve this request? Modality, JSON and room, all three. */

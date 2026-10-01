@@ -118,6 +118,15 @@ export function RouterTab() {
   const freeToday = todays.filter((c) => c.cost === 0 && !c.failed).length;
   const failedToday = todays.filter((c) => c.failed).length;
   const loaded = report !== null;
+  // Which rungs are actually refusing, derived from the calls themselves rather
+  // than from a cooldown map this route cannot see. Newest reason wins.
+  const benched = new Map<string, { why: string; times: number }>();
+  for (const call of report?.recent ?? []) {
+    for (const s of call.skipped ?? []) {
+      const seen = benched.get(s.model);
+      benched.set(s.model, { why: s.why, times: (seen?.times ?? 0) + 1 });
+    }
+  }
   const left = report?.account?.remaining;
   const dry = left !== undefined && left <= 0;
   const low = left !== undefined && left > 0 && left <= 2;
@@ -274,6 +283,14 @@ export function RouterTab() {
                     <span className="mt-0.5 block font-mono text-[10px] text-ink-faint">
                       {rule.model.context.toLocaleString()} ctx
                     </span>
+                    {/* A rung that is refusing is skipped silently by the router.
+                        Saying so here is the difference between "free is cheap"
+                        and "free is not answering today". */}
+                    {benched.get(rule.model.id) && (
+                      <span className="mt-1 block text-[10px] leading-snug text-amber-300/90">
+                        Refused {benched.get(rule.model.id)!.times}&times; — {benched.get(rule.model.id)!.why}
+                      </span>
+                    )}
                   </td>
                   <td className={`${cell} font-mono text-[11px] tracking-wider text-ink-muted`}>{readsLine(rule.model)}</td>
                   <td className={cell}>

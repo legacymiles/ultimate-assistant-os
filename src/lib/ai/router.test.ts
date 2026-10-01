@@ -77,6 +77,41 @@ describe("reading a request", () => {
 });
 
 describe("how hard it is", () => {
+  // The flaw this guards: the Jarvis agent sends ~20,000 characters of memory,
+  // folders, lists and tool instructions with EVERY request. Counted as task
+  // size, that scored "Reply with exactly: ok" as harder than anything the free
+  // rung was allowed to answer, so the agent tab could never reach it.
+  it("does not count the system prompt as task difficulty", () => {
+    const req = readRequest(
+      body({
+        messages: [
+          { role: "system", content: text(20_000) },
+          { role: "user", content: "Reply with exactly: ok" },
+        ],
+      }),
+    );
+    expect(req.systemChars).toBe(20_000);
+    expect(req.chars).toBe(22);
+    expect(difficultyOf(req)).toBe("simple");
+    expect(planRoute(req).models[0]).toBe("qwen/qwen3.8-27b:free");
+  });
+
+  // It still has to FIT, though — that is a different question from how hard it is.
+  it("counts the system prompt toward fitting in the window", () => {
+    const req = readRequest(
+      body({ messages: [{ role: "system", content: text(1_400_000) }, { role: "user", content: "hi" }] }),
+    );
+    expect(difficultyOf(req)).toBe("simple");
+    expect(planRoute(req).models[0]).not.toBe("qwen/qwen3.8-27b:free");
+  });
+
+  it("does not let the system prompt count as a long conversation either", () => {
+    const req = readRequest(
+      body({ messages: [{ role: "system", content: "s" }, { role: "user", content: "hi" }] }),
+    );
+    expect(req.messages).toBe(1);
+  });
+
   it("treats ordinary short work as simple", () => {
     expect(difficultyOf(readRequest(body()))).toBe("simple");
   });
@@ -251,6 +286,16 @@ describe("retries", () => {
     const p = plan();
     expect(p.models.length).toBeGreaterThan(1);
     expect(p.models[1]).not.toBe(p.models[0]);
+  });
+});
+
+describe("what a model costs here", () => {
+  // Measured: a Jarvis agent turn is 5,066 prompt tokens against 3 completion.
+  // Summing the two prices equally ranked MiMo ($0.14/$0.28) below DeepSeek
+  // ($0.03/$0.50), which is backwards for every call this hub actually makes.
+  it("ranks a prompt-heavy model cheaper even when its completion price is higher", () => {
+    const p = plan({ response_format: { type: "json_object" } });
+    expect(p.models[0]).toBe("deepseek/deepseek-v4.1-flash");
   });
 });
 

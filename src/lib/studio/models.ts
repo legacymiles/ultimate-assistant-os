@@ -59,10 +59,10 @@ export const STUDIO_MODELS: StudioModel[] = [
     id: "deepseek/deepseek-v4.1-flash",
     label: "DeepSeek V4.1 Flash",
     reads: ["image"],
-    price: [0.0198, 0.396],
+    price: [0.03, 0.5],
     json: true,
     context: 1_048_576,
-    note: "Two cents a million. The workhorse when the free one refuses or a strict board is needed.",
+    note: "Three cents a million. The workhorse when the free one refuses or a strict board is needed.",
   },
   {
     id: "openai/gpt-6-luna-pro",

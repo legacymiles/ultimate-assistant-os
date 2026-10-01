@@ -26,6 +26,7 @@ import { planRoute, readRequest, type RoutePlan, type TaskHint } from "./router"
 import { cachedSettings, loadSettings, recordError, recordOk, type ProviderId } from "./settings";
 import { recordCall, usageOf, type RawUsage } from "./spend";
 import { troubleBody, type Attempt } from "./trouble";
+import { markRefused, skipCooling } from "./cooldown";
 
 export interface AiEndpoint {
   url: string;
@@ -54,17 +55,6 @@ export const DEFAULT_MODEL = "anthropic/claude-opus-5";
  * of OpenRouter credit disappeared into calls nobody chose.
  */
 export const UNPICKED_MODEL = DEFAULT_FALLBACKS[0];
-
-/**
- * DeepSeek, for the surfaces that ARE DeepSeek — the Jarvis Chat tab.
- *
- * This particular one because it is the only DeepSeek that reads pictures as
- * well as calling tools; the pro and older flash builds are text-only, and a
- * chat you can drop a photo into needs both. It is named in full rather than as
- * "deepseek" so `modelChain` below leaves it alone: a model that is the point of
- * the surface must not be swapped for the owner's general pick.
- */
-export const DEEPSEEK_MODEL = "deepseek/deepseek-v4.1-flash";
 
 /** The gateway's URL, also the honest default when nothing is configured. */
 const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
@@ -175,6 +165,9 @@ export async function aiFetch(init: RequestInit = {}): Promise<Response> {
       else {
         const message = await describe(res);
         attempts.push({ model: usedModel, provider: ep.provider, status: res.status, message });
+        // A refusal that is about the MODEL benches it for a while, so the next
+        // call does not pay the same failed request to learn the same thing.
+        markRefused(usedModel, res.status, message);
         if (retryable(res.status)) recordError(ep.provider, { status: res.status, message });
       }
       return res;
@@ -217,8 +210,9 @@ export async function aiFetch(init: RequestInit = {}): Promise<Response> {
     usedModel = model;
     const res = await viaProviders((ep) => sendable(call.body, model, ep.provider));
     if (res instanceof Response && (res.ok || res.status === 413)) {
+      const skipped = attempts.map((a) => ({ model: a.model, status: a.status, why: a.message }));
       return meter(res, (usage) =>
-        recordCall({ model, provider: usedProvider, usage, plan: call.plan, app: call.app }),
+        recordCall({ model, provider: usedProvider, usage, plan: call.plan, app: call.app, skipped }),
       );
     }
     last = res;
@@ -417,7 +411,7 @@ async function planCall(raw: BodyInit | null | undefined): Promise<PlannedCall |
     const need = mediaIn(body);
     const readable: string[] = [];
     for (const m of declared) if (await canRead(m, need).catch(() => true)) readable.push(m);
-    if (readable.length) return { body, models: readable, plan: null, app };
+    if (readable.length) return { body, models: skipCooling(readable), plan: null, app };
     // Nothing they picked can read this request; the router finds something that
     // can rather than sending it somewhere it is guaranteed to fail.
   }
@@ -436,7 +430,8 @@ async function planCall(raw: BodyInit | null | undefined): Promise<PlannedCall |
   }
 
   const plan = planRoute(readRequest(hint ? { ...body, task: hint } : body));
-  return { body, models: plan.models, plan, app };
+  // The plan is what the rules say; this is what is actually answering today.
+  return { body, models: skipCooling(plan.models), plan, app };
 }
 
 /**

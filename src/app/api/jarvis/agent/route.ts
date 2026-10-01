@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { DEEPSEEK_MODEL } from "@/lib/ai/provider";
 import { runAgent } from "@/lib/jarvis/server/agent";
 import { connector } from "@/lib/jarvis/server/connectors";
 
@@ -12,9 +11,19 @@ import { connector } from "@/lib/jarvis/server/connectors";
 // Everything a general agent needs is already in the loop: memory, the owner's
 // folders and lists, and whatever apps they have connected.
 //
-// One model, named: DeepSeek. Not the owner's front-page pick, because this
-// surface is the DeepSeek agent rather than "a chat that happens to use a
-// model" — swapping it silently would make the tab a different thing.
+// No model is pinned here any more. It used to name DeepSeek outright, on the
+// reasoning that this surface WAS the DeepSeek agent rather than "a chat that
+// happens to use a model" — and the cost of that was a tab that could never
+// reach the free rung, on the owner's own instruction that free should answer
+// anything it can. The router decides now (src/lib/ai/router.ts), which for an
+// ordinary question means the free model, and escalates on what the request
+// actually carries.
+//
+// Safe to free precisely because this is the acting agent: a weaker model that
+// picks the wrong tool does not act on it. Writes stop the loop and come back as
+// a pending action for the owner to confirm (src/lib/jarvis/tools.ts is
+// deliberately pessimistic), so the failure mode is a confirm card that looks
+// wrong, not something that left without permission.
 // ---------------------------------------------------------------------------
 
 export const runtime = "nodejs";
@@ -90,13 +99,16 @@ export async function POST(req: Request) {
       extraContext: body.extraContext?.slice(0, 10000),
       profileId: body.profileId,
       agent: true,
-      model: DEEPSEEK_MODEL,
+      task: { app: "Jarvis chat" },
     });
-    return NextResponse.json({ ...result, model: DEEPSEEK_MODEL });
+    // The answering model is deliberately not reported back: it varies per
+    // request now, nothing on this tab reads it, and Toolbox › Router already
+    // lists every call with the model that took it and what it cost.
+    return NextResponse.json(result);
   } catch (e) {
     // A failure here must read as a failure, never as an answer.
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "I couldn't reach DeepSeek, and it gave no reason." },
+      { error: e instanceof Error ? e.message : "I couldn't reach the model, and it gave no reason." },
       { status: 502 },
     );
   }

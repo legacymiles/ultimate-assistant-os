@@ -46,6 +46,8 @@ export interface SpendCall {
   app?: string;
   premium?: boolean;
   failed?: boolean;
+  /** Models that refused before this one answered. */
+  skipped?: { model: string; status?: number; why: string }[];
 }
 
 export interface SpendFeed {
