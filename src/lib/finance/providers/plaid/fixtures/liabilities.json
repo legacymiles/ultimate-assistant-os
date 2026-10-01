@@ -1,0 +1,36 @@
+{
+  "_comment": "Trimmed /liabilities/get response. Note cc-amex-001 has a credit record and cc-visa-002 does NOT — Plaid's liabilities coverage is US-first, so a card outside it must fall back to typed dates rather than inventing any.",
+  "accounts": [],
+  "item": { "item_id": "item-sandbox-001" },
+  "liabilities": {
+    "credit": [
+      {
+        "account_id": "cc-amex-001",
+        "aprs": [
+          {
+            "apr_percentage": 15.24,
+            "apr_type": "balance_transfer_apr",
+            "balance_subject_to_apr": 0,
+            "interest_charge_amount": 0
+          },
+          {
+            "apr_percentage": 27.95,
+            "apr_type": "purchase_apr",
+            "balance_subject_to_apr": 410.0,
+            "interest_charge_amount": 0
+          }
+        ],
+        "is_overdue": false,
+        "last_payment_amount": 200.0,
+        "last_payment_date": "2026-09-27",
+        "last_statement_issue_date": "2026-09-07",
+        "last_statement_balance": 410.0,
+        "minimum_payment_amount": 25.0,
+        "next_payment_due_date": "2026-10-04"
+      }
+    ],
+    "mortgage": null,
+    "student": null
+  },
+  "request_id": "req-liabilities-001"
+}

@@ -1,0 +1,67 @@
+{
+  "_comment": "Trimmed but structurally faithful /accounts/get response. Includes a credit card, a current account, and a student loan that must be DROPPED rather than mis-typed.",
+  "accounts": [
+    {
+      "account_id": "cc-amex-001",
+      "balances": {
+        "available": 1580.0,
+        "current": 420.75,
+        "iso_currency_code": "USD",
+        "limit": 2000.0,
+        "unofficial_currency_code": null
+      },
+      "mask": "4421",
+      "name": "Plaid Credit Card",
+      "official_name": "Plaid Diamond 12.5% APR Interest Credit Card",
+      "subtype": "credit card",
+      "type": "credit"
+    },
+    {
+      "account_id": "dep-checking-001",
+      "balances": {
+        "available": 1210.4,
+        "current": 1310.4,
+        "iso_currency_code": "USD",
+        "limit": null,
+        "unofficial_currency_code": null
+      },
+      "mask": "0000",
+      "name": "Plaid Checking",
+      "official_name": "Plaid Gold Standard 0% Interest Checking",
+      "subtype": "checking",
+      "type": "depository"
+    },
+    {
+      "account_id": "cc-visa-002",
+      "balances": {
+        "available": null,
+        "current": 85.5,
+        "iso_currency_code": "GBP",
+        "limit": 1000.0,
+        "unofficial_currency_code": null
+      },
+      "mask": "9912",
+      "name": "UK Visa",
+      "official_name": null,
+      "subtype": "credit card",
+      "type": "credit"
+    },
+    {
+      "account_id": "loan-student-001",
+      "balances": {
+        "available": null,
+        "current": 12000.0,
+        "iso_currency_code": "USD",
+        "limit": null,
+        "unofficial_currency_code": null
+      },
+      "mask": "7777",
+      "name": "Plaid Student Loan",
+      "official_name": null,
+      "subtype": "student",
+      "type": "loan"
+    }
+  ],
+  "item": { "item_id": "item-sandbox-001", "institution_id": "ins_109508" },
+  "request_id": "req-accounts-001"
+}
