@@ -21,6 +21,7 @@ import { fold } from "./fold";
 import { matchOccurrences } from "./match";
 import { allOccurrences } from "./occurrences";
 import { spend } from "./spend";
+import { transferIds } from "./transfers";
 import type { SpendReport } from "./spend";
 import type {
   Account,
@@ -50,12 +51,18 @@ export interface Reconciled {
   occurrences: Occurrence[];
   matched: Matched[];
   matchedTxnIds: Set<string>;
+  /** Ids excluded as movements between the owner's own accounts. */
+  transfers: Set<string>;
   findings: Finding[];
   spend: SpendReport;
 }
 
 export function reconcile(input: ReconcileInput): Reconciled {
   const txns = fold(input.txns);
+  // Computed once on the folded feed and handed to both consumers: spend must
+  // not count a card payment, and findings must not call two PARTIAL card
+  // payments a duplicate charge.
+  const transfers = transferIds(txns, input.accounts);
   const occurrences = allOccurrences(input.bills, input.from, input.to);
   const { matched, unmatchedTxns, matchedTxnIds } = matchOccurrences(
     occurrences,
@@ -68,6 +75,7 @@ export function reconcile(input: ReconcileInput): Reconciled {
     occurrences,
     matched,
     matchedTxnIds,
+    transfers,
     findings: findings({
       matched,
       unmatchedTxns,
@@ -75,6 +83,7 @@ export function reconcile(input: ReconcileInput): Reconciled {
       accounts: input.accounts,
       settings: input.settings,
       today: input.today,
+      transfers,
     }),
     spend: spend({
       txns,
@@ -82,6 +91,7 @@ export function reconcile(input: ReconcileInput): Reconciled {
       matchedTxnIds,
       settings: input.settings,
       today: input.today,
+      transfers,
     }),
   };
 }

@@ -38,12 +38,20 @@ export interface FindingsInput {
   accounts: Account[];
   settings: FinanceSettings;
   today: Day;
+  /**
+   * Ids that are one leg of a movement between the owner's own accounts, from
+   * ./transfers. Excluded from duplicate detection: the owner pays cards in
+   * CHUNKS, so two equal partial payments days apart are the normal case and
+   * would otherwise fire an urgent "charged twice".
+   */
+  transfers?: Set<string>;
 }
 
 const fmt = (n: number) => n.toFixed(2);
 
 export function findings(input: FindingsInput): Finding[] {
   const { matched, unmatchedTxns, bills, accounts, settings, today } = input;
+  const transfers = input.transfers ?? new Set<string>();
   const out: Finding[] = [];
   const leadDays = Math.max(...settings.leadDays, 0);
   const billById = new Map(bills.map((b) => [b.id, b]));
@@ -58,6 +66,8 @@ export function findings(input: FindingsInput): Finding[] {
   const groups = new Map<string, Txn[]>();
   for (const t of everyTxn) {
     if (t.amount <= 0) continue;
+    // Moving your own money twice is not being charged twice.
+    if (transfers.has(t.id)) continue;
     if (cents(t.amount) < cents(settings.duplicateMinAmount)) continue;
     if (settings.multiChargePayees.some((p) => p === t.merchantNorm)) continue;
     const gk = `${t.accountId}|${t.merchantNorm}|${cents(t.amount)}`;
@@ -147,6 +157,7 @@ export function findings(input: FindingsInput): Finding[] {
   const byMerchant = new Map<string, Txn[]>();
   for (const t of unmatchedTxns) {
     if (t.amount <= 0) continue;
+    if (transfers.has(t.id)) continue;
     if (bills.some((b) => matchesAny(t.merchantNorm, b.matchers))) continue;
     const g = byMerchant.get(t.merchantNorm);
     if (g) g.push(t);

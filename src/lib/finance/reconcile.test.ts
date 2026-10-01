@@ -116,3 +116,113 @@ describe("reconcile", () => {
     expect(r.occurrences).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Partial card payments. The owner clears cards in CHUNKS, not in full, so two
+// equal payments days apart are the normal case — not a double charge, and not
+// spending. Both exclusions are driven by one transfer set computed in
+// reconcile, which is why they are tested here rather than in either module.
+// ---------------------------------------------------------------------------
+
+const CURRENT: Account = {
+  id: "bank",
+  name: "Monzo",
+  mask: "1234",
+  type: "depository",
+  currency: "GBP",
+  countInSpend: true,
+  balanceCurrent: 1500,
+};
+
+describe("reconcile — partial card payments", () => {
+  const input = {
+    bills: [],
+    accounts: [CARD, CURRENT],
+    settings: defaultSettings(),
+    today: "2026-09-30",
+    from: "2026-09-01",
+    to: "2026-10-31",
+  };
+
+  /** One chunk: money out of the current account, in against the card. */
+  const chunk = (n: string, date: string, amount: number): Txn[] => [
+    txn({
+      id: `out-${n}`,
+      accountId: "bank",
+      date,
+      amount,
+      merchantNorm: "amex payment",
+      category: null,
+    }),
+    txn({
+      id: `in-${n}`,
+      accountId: "card",
+      date,
+      amount: -amount,
+      merchantNorm: "payment received",
+      category: null,
+    }),
+  ];
+
+  it("does not call two equal partial payments a duplicate charge", () => {
+    const r = reconcile({
+      ...input,
+      txns: [...chunk("a", "2026-09-03", 200), ...chunk("b", "2026-09-06", 200)],
+    });
+    expect(r.findings.map((f) => f.kind)).not.toContain("duplicate-charge");
+  });
+
+  it("does not count either payment as spending", () => {
+    const r = reconcile({
+      ...input,
+      txns: [
+        ...chunk("a", "2026-09-28", 200),
+        ...chunk("b", "2026-09-30", 200),
+        txn({ id: "food", date: "2026-09-30", amount: 24, merchantNorm: "tesco" }),
+      ],
+    });
+    expect(r.spend.week.total).toBe(24);
+    expect(r.spend.week.excludedTransfers).toBe(4);
+  });
+
+  it("pairs three chunks in order rather than arbitrarily", () => {
+    const r = reconcile({
+      ...input,
+      txns: [
+        ...chunk("a", "2026-09-10", 150),
+        ...chunk("b", "2026-09-20", 150),
+        ...chunk("c", "2026-09-29", 150),
+      ],
+    });
+    expect(r.transfers.size).toBe(6);
+    expect(r.findings.map((f) => f.kind)).not.toContain("duplicate-charge");
+  });
+
+  it("does not read a run of partial payments as an undeclared subscription", () => {
+    // Three evenly-spaced equal amounts is exactly the unplanned-recurring
+    // shape, so transfers have to be excluded there too.
+    const r = reconcile({
+      ...input,
+      txns: [
+        ...chunk("a", "2026-07-10", 150),
+        ...chunk("b", "2026-08-10", 150),
+        ...chunk("c", "2026-09-10", 150),
+      ],
+    });
+    expect(r.findings.map((f) => f.kind)).not.toContain("unplanned-recurring");
+  });
+
+  it("still catches a genuine double charge on the card itself", () => {
+    // The exclusion must not have blunted the detector it was protecting.
+    const r = reconcile({
+      ...input,
+      txns: [
+        ...chunk("a", "2026-09-03", 200),
+        txn({ id: "d1", date: "2026-09-12", amount: 42.5, merchantNorm: "argos" }),
+        txn({ id: "d2", date: "2026-09-13", amount: 42.5, merchantNorm: "argos" }),
+      ],
+    });
+    const dup = r.findings.find((f) => f.kind === "duplicate-charge");
+    expect(dup?.txnIds.sort()).toEqual(["d1", "d2"]);
+  });
+});

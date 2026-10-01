@@ -18,19 +18,10 @@
 // than leaving the owner to wonder.
 // ---------------------------------------------------------------------------
 
-import { addDays, diffDays, startOfWeek } from "./dates";
-import { cents, fromCents, sameAmount, sum } from "./money";
+import { addDays, startOfWeek } from "./dates";
+import { cents, fromCents, sum } from "./money";
+import { transferIds } from "./transfers";
 import type { Account, Day, FinanceSettings, Txn } from "./types";
-
-/** Categories that are a movement of the owner's own money, not spending. */
-const TRANSFER_CATEGORIES = [
-  "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT",
-  "TRANSFER_IN",
-  "TRANSFER_OUT",
-];
-
-/** How far apart the two legs of one transfer may land. */
-const PAIR_WINDOW_DAYS = 3;
 
 /** How many payees the top-merchants list shows. */
 const TOP_MERCHANTS = 8;
@@ -67,36 +58,8 @@ export interface SpendInput {
   today: Day;
   /** Overrides the week window. */
   window?: { from: Day; to: Day };
-}
-
-/** Ids of transactions that are one leg of a transfer between own accounts. */
-function transferIds(txns: Txn[], accounts: Account[]): Set<string> {
-  const own = new Set(accounts.map((a) => a.id));
-  const ids = new Set<string>();
-
-  for (const t of txns) {
-    if (t.category && TRANSFER_CATEGORIES.includes(t.category)) ids.add(t.id);
-  }
-
-  // Pair an outflow on one own account against an inflow on another.
-  const outs = txns.filter((t) => t.amount > 0 && own.has(t.accountId) && !ids.has(t.id));
-  const ins = txns.filter((t) => t.amount < 0 && own.has(t.accountId) && !ids.has(t.id));
-  const usedIn = new Set<string>();
-  for (const out of outs) {
-    const leg = ins.find(
-      (i) =>
-        !usedIn.has(i.id) &&
-        i.accountId !== out.accountId &&
-        sameAmount(Math.abs(i.amount), out.amount) &&
-        Math.abs(diffDays(out.date, i.date)) <= PAIR_WINDOW_DAYS,
-    );
-    if (leg) {
-      usedIn.add(leg.id);
-      ids.add(out.id);
-      ids.add(leg.id);
-    }
-  }
-  return ids;
+  /** Precomputed by reconcile, so the pairing runs once per pass. */
+  transfers?: Set<string>;
 }
 
 function windowOf(txns: Txn[], from: Day, to: Day, excluded: number): SpendWindow {
@@ -117,7 +80,7 @@ export function spend(input: SpendInput): SpendReport {
   const { txns, accounts, matchedTxnIds, settings, today } = input;
   const counted = new Map(accounts.map((a) => [a.id, a.countInSpend]));
 
-  const transfers = transferIds(txns, accounts);
+  const transfers = input.transfers ?? transferIds(txns, accounts);
   const eligible = txns.filter(
     (t) =>
       t.removedAt === null &&
