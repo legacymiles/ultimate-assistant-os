@@ -71,8 +71,30 @@ a different surface for a folder the app itself manages. Finance uses the same s
 
 ### Surface layout
 
-Dense, database-style, built with the **`impeccable`** skill (the standing rule for app and
-tool UIs). Five panes inside the folder:
+Dense, database-style, built with the **`interactive-web-studio`** skill — now the one default
+for everything user-facing. Its own guidance governs how it applies here: fintech sits low on
+the intensity dial ("avoid anything that reads as unstable"), and its invention playbook says
+conservative briefs dial invention to micro-scale, one tasteful signature interaction rather
+than a game world. So the surface gets **one** mechanic, and the mechanic is the data:
+
+> **The time rail.** A draggable horizontal spine — today at the left seam, 60 days to the
+> right. Bills sit on it as weighted markers. Pulling the rail forward scrubs time, and the
+> account balances above it deplete as each bill lands, so the owner watches the money go
+> before it goes. It answers the question actually under "when are my bills due": will I be
+> short before payday.
+>
+> Three supporting moments, each carrying information rather than decoration: hovering a bill
+> threads it to the account it is paid from and dims that row by the amount; scrubbing past a
+> card's closing date seals its ring and ignites its due marker, showing the statement cycle as
+> cause and effect; a duplicate charge appears as two notches where the rhythm says one, so the
+> anomaly is visible before it is read. Today's seam pulses slowly. Pending charges shimmer,
+> because they are genuinely provisional — the motion encodes a property of the data.
+>
+> The dominant emotion is **control**, never wonder. Under `prefers-reduced-motion` the rail
+> degrades to a static table with a date field: scrubbing is a reward layer, and every number
+> is reachable without it.
+
+Five panes inside the folder:
 
 1. **Due** — the next 60 days of plan occurrences and card dates as one sorted table:
    what, from which account, how much, when, paid or not, autopay or not.
@@ -475,7 +497,8 @@ spend panel with no bank connected.
 ## 12. Ship order
 
 **Phase 1 — the whole promise, US.**
-Migration and RLS. Folder `role: "finance"` and the five-pane surface (`impeccable`). Bill
+Migration and RLS. Folder `role: "finance"` and the five-pane surface with the time rail
+(`interactive-web-studio`). Bill
 form and plan ledger. Plaid link, `/transactions/sync`, `/liabilities/get`, signature-verified
 webhook. `fold` → `occurrences` → `match` → `findings`. Alerts pane. Calendar layer and
 reminders. `finance` Updates source. Cron route and Resend digest. Settings. Spend engine,
@@ -558,7 +581,8 @@ Two places, deliberately:
   surface the owner already opens. Clicking it opens the Spend pane.
 
 Chart work uses the **`dataviz`** skill, per the standing rule that charts get it; the
-surrounding surface stays **`impeccable`**.
+surrounding surface stays **`interactive-web-studio`**, and the spend series is the same
+rail mirrored backwards: spend behind the seam, obligations ahead of it, one grammar.
 
 ## 14. MCP server over the finance data
 
