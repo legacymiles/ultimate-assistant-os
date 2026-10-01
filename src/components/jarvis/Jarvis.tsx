@@ -28,6 +28,7 @@ import { ReminderBanner } from "./ReminderBanner";
 import { Recall } from "../recall/Recall";
 import { ListsBoard } from "../recall/lists/ListsBoard";
 import { SkillsLibrary } from "../skills/SkillsLibrary";
+import { RouterTab } from "./RouterTab";
 import { ToolsTab } from "./ToolsTab";
 import { AppShell } from "../AppShell";
 import { Blueprint } from "../blueprint/Blueprint";
@@ -47,7 +48,7 @@ import type { ChatTurn, Conversation, JarvisStore } from "@/lib/jarvis/types";
 export type TabId =
   | "dashboard" | "chat" | "inbox" | "calendar" | "studio"
   | "folders" | "photos" | "lists" | "record"
-  | "memory" | "routines" | "skills" | "tools" | "architect" | "timeline"
+  | "memory" | "routines" | "skills" | "tools" | "router" | "architect" | "timeline"
   | "profile" | "plugins" | "settings";
 
 type RailTab = { id: TabId; label: string; icon: keyof typeof Icon };
@@ -91,6 +92,7 @@ const GROUPS: { title: string; items: (RailTab | { toolbox: RailTab[] })[] }[] =
         toolbox: [
           { id: "skills", label: "Skills", icon: "Sparkles" },
           { id: "tools", label: "Tools", icon: "Layers" },
+          { id: "router", label: "Router", icon: "Target" },
           { id: "architect", label: "Architect", icon: "Bulb" },
           { id: "timeline", label: "Timeline", icon: "Flag" },
         ],
@@ -348,6 +350,7 @@ export function Jarvis() {
           )}
           {tab === "skills" && <SkillsLibrary chromeless />}
           {tab === "tools" && <ToolsTab />}
+          {tab === "router" && <RouterTab />}
           {tab === "architect" && <Blueprint chromeless />}
           {tab === "timeline" && <AppShell chromeless />}
           {tab === "plugins" && <PluginsTab />}

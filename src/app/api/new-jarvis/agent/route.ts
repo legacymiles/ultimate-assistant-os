@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { aiEndpoint, aiFetch, DEFAULT_MODEL } from "@/lib/ai/provider";
-import { modelFailure, sanitizeAssistant, toApiTools, toolsFor, type AgentTool } from "@/lib/new-jarvis/agentTools";
+import { aiEndpoint, aiFetch, describeFailure, DEFAULT_MODEL } from "@/lib/ai/provider";
+import { runNote, sanitizeAssistant, toApiTools, toolsFor, type AgentTool } from "@/lib/new-jarvis/agentTools";
 
 // ---------------------------------------------------------------------------
 // One step of New Jarvis's agent loop.
@@ -176,10 +176,14 @@ export async function POST(req: Request) {
     });
 
     if (!res.ok) {
-      // The detail goes to the log, where it is worth having. It does not go
-      // to the owner, who cannot act on a provider schema path.
-      console.error(`[new-jarvis] model ${res.status}:`, (await res.text()).slice(0, 2_000));
-      return NextResponse.json({ error: modelFailure(res.status) }, { status: 502 });
+      // This used to show the owner nothing, on the reasoning that a provider
+      // schema path is not actionable. True of a schema path, wrong about the
+      // common case: "every model refused, three for no credit" is the most
+      // actionable sentence there is, and withholding it left the owner staring
+      // at a run that stopped for no stated reason.
+      const why = await describeFailure(res);
+      console.error(`[new-jarvis] model ${res.status}:`, why);
+      return NextResponse.json({ error: `${why} ${runNote(res.status)}` }, { status: 502 });
     }
 
     const data = (await res.json()) as {

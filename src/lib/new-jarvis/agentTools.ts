@@ -450,32 +450,27 @@ export function sanitizeAssistant<T extends Record<string, unknown>>(message: T)
  * never fail" exists to forbid. The detail belongs in the server log, where it
  * is useful; the block gets one line in the product's voice.
  */
-export function modelFailure(status: number): string {
-  if (status === 401 || status === 403) {
-    // Measured, not assumed: OpenRouter answers 401 for an exhausted balance,
-    // not 402, so a message that only mentions the key sends the owner to
-    // check a key that is perfectly fine.
-    return "The AI provider turned the request away — usually an empty balance, sometimes the key. Check the OpenRouter credit first, then OPENROUTER_API_KEY in .env.local.";
-  }
-  if (status === 402) {
-    return "The AI provider is out of credit. Top it up and run this again.";
-  }
-  if (status === 429) {
-    return "The AI provider is rate-limiting this key. Wait a moment and run it again.";
-  }
-  if (status === 408 || status === 504) {
-    return "The model took too long to answer. Running it again usually works.";
-  }
-  if (status >= 500) {
-    // Scoped to the round that failed, not to the run. This sentence can land
-    // under a ledger showing three completed shell steps, and an unscoped
-    // "nothing was touched" would contradict what is on screen.
-    return "The AI provider is having trouble, so this run stopped here. The steps above already ran; nothing new was touched. Try again in a minute.";
-  }
-  if (status === 400) {
+/**
+ * What this failure means FOR THIS RUN, on top of why it happened.
+ *
+ * The cause now comes from the router's own diagnosis (describeFailure in
+ * src/lib/ai/provider.ts), which knows which models were tried and what each one
+ * said — this used to duplicate that badly, from a status code alone, and could
+ * only ever describe the last attempt.
+ *
+ * What is left here is the part only this surface knows: a run is a ledger of
+ * steps that already happened, and the owner reading an error under three
+ * completed shell steps needs to be told those steps still stand.
+ */
+export function runNote(status: number): string {
+  if (status === 408 || status === 504) return "Running it again usually works.";
+  if (status === 400 || status === 422) {
     // A 400 is ours, not theirs. Say so rather than implying the owner did
     // something wrong, and say what survived.
-    return "This run hit a bad request building the next step, so it stopped here. The steps above already ran; the details are in the server log.";
+    return "That is a fault in how the next step was built, not something you did. The steps above already ran; the details are in the server log.";
   }
-  return `The model could not be reached (${status}). The steps above already ran; try this one again.`;
+  // Scoped to the round that failed, not to the run. This sentence can land
+  // under a ledger showing three completed shell steps, and an unscoped
+  // "nothing was touched" would contradict what is on screen.
+  return "This run stopped here. The steps above already ran; nothing new was touched.";
 }

@@ -52,6 +52,16 @@ import {
   type GroupId,
   type OutputChoice,
 } from "@/lib/studio/cinema";
+import {
+  DEFAULT_STUDIO_CHAIN,
+  MAX_CHAIN,
+  STUDIO_MODELS,
+  priceLabel,
+  reorderChain,
+  studioModel,
+  toggleInChain,
+} from "@/lib/studio/models";
+import { useStudioModels } from "@/lib/studio/useCinema";
 
 const GROUP_ICON: Record<GroupId, (p: { width: number; height: number }) => React.ReactNode> = {
   film: (p) => <Icon.Film {...p} />,
@@ -90,6 +100,7 @@ const NAV: NavEntry[] = [
   { id: "film/genre", label: "Genre", group: "film", rail: "genre", sub: true },
   { id: "film/era", label: "Era", group: "film", rail: "era", sub: true },
   { id: "film/tempo", label: "Tempo", group: "film", rail: "tempo", sub: true },
+  { id: "film/models", label: "Models", group: "film", sub: true },
   { id: "camera", label: "Camera", group: "camera" },
   { id: "moves", label: "Movement", group: "moves", sub: true },
   { id: "style", label: "Style", group: "style" },
@@ -99,10 +110,18 @@ const NAV: NavEntry[] = [
 
 const navOf = (id: Section) => NAV.find((n) => n.id === id) ?? NAV[0];
 
+/** Has the owner moved the model chain off the order it ships with? */
+function chainChanged(chain: string[]): boolean {
+  return chain.length !== DEFAULT_STUDIO_CHAIN.length || chain.some((id, i) => id !== DEFAULT_STUDIO_CHAIN[i]);
+}
+
 /** Is anything set in whatever this entry is responsible for? */
-function touched(entry: NavEntry, selection: CinemaSelection, moves: CinemaMove[]): boolean {
+function touched(entry: NavEntry, selection: CinemaSelection, moves: CinemaMove[], chain: string[]): boolean {
+  if (entry.id === "film/models") return chainChanged(chain);
   if (entry.group === "moves") return moves.length > 0;
   const rails = groupById(entry.group).rails;
+  // The Film setup group's own dot must not light up just because the chain moved:
+  // the chip summarises the look, and the chain is not part of the look.
   return (entry.rail ? rails.filter((r) => r.id === entry.rail) : rails).some((r) => isSet(selection, r.id));
 }
 
@@ -126,6 +145,9 @@ export function CinemaBar({
 }) {
   const [open, setOpen] = useState<Section | null>(null);
   const moves = useMemo(() => movesIn(text), [text]);
+  // Read here rather than threaded down from every host: it is a device-local
+  // preference kept in sync by its own event, exactly like the output settings.
+  const [chain, setChain] = useStudioModels();
 
   return (
     <>
@@ -170,6 +192,8 @@ export function CinemaBar({
           moves={moves}
           onAddMove={(id) => onText(withMove(text, id))}
           onRemoveMove={(id) => onText(withoutMove(text, id))}
+          chain={chain}
+          onChain={setChain}
         />
       )}
     </>
@@ -239,6 +263,8 @@ function CinemaDialog({
   moves,
   onAddMove,
   onRemoveMove,
+  chain,
+  onChain,
 }: {
   section: Section;
   onSection: (s: Section) => void;
@@ -248,6 +274,8 @@ function CinemaDialog({
   moves: CinemaMove[];
   onAddMove: (id: string) => void;
   onRemoveMove: (id: string) => void;
+  chain: string[];
+  onChain: (chain: string[]) => void;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -299,6 +327,10 @@ function CinemaDialog({
 
   /** "Reset all" clears only what this pane is responsible for. */
   const reset = () => {
+    if (here.id === "film/models") {
+      onChain(DEFAULT_STUDIO_CHAIN);
+      return;
+    }
     if (here.group === "moves") {
       moves.forEach((m) => onRemoveMove(m.id));
       return;
@@ -308,7 +340,8 @@ function CinemaDialog({
     onSelection(next);
   };
 
-  const dirty = touched({ ...here, rail: undefined }, selection, moves);
+  const dirty =
+    here.id === "film/models" ? chainChanged(chain) : touched({ ...here, rail: undefined }, selection, moves, chain);
   const title = here.group === "moves" ? "Camera" : groupById(here.group).label;
 
   return (
@@ -371,7 +404,7 @@ function CinemaDialog({
                     <span className="shrink-0">{GROUP_ICON[n.group as GroupId]({ width: 13, height: 13 })}</span>
                   )}
                   <span className="truncate">{n.label}</span>
-                  {touched(n, selection, moves) && (
+                  {touched(n, selection, moves, chain) && (
                     <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
                   )}
                 </button>
@@ -397,7 +430,9 @@ function CinemaDialog({
           </div>
 
           <div className="min-h-0 overflow-y-auto">
-            {here.group === "moves" ? (
+            {here.id === "film/models" ? (
+              <ModelsPane chain={chain} onChain={onChain} />
+            ) : here.group === "moves" ? (
               <MovementPane moves={moves} onAdd={onAddMove} onRemove={onRemoveMove} />
             ) : here.rail ? (
               <CarouselPane
@@ -411,6 +446,131 @@ function CinemaDialog({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Models: who is doing the thinking, and in what order.
+//
+// A ladder rather than a carousel, because the ORDER is the setting. Every other
+// rail in this deck is one choice out of many; this one is four choices at once
+// whose sequence decides which model answers when the one above it refuses.
+// A carousel would hide exactly the thing being set.
+//
+// Every row states what it reads and what it costs, because those two facts are
+// the whole reason to move one. A model that cannot hear a track is the wrong
+// first choice for a music video no matter how good it is at prose.
+// ---------------------------------------------------------------------------
+
+function ModelsPane({ chain, onChain }: { chain: string[]; onChain: (c: string[]) => void }) {
+  const off = STUDIO_MODELS.filter((m) => !chain.includes(m.id));
+
+  return (
+    <div className="flex h-full flex-col p-4">
+      <h3 className="text-sm font-semibold text-ink">Model chain</h3>
+      <p className="mt-0.5 text-[11px] leading-relaxed text-ink-muted">
+        Tried top to bottom. When one is out of credit, rate limited, down, or cannot read a reference you attached, the
+        next one takes the work.
+      </p>
+
+      <ol className="mt-4 flex flex-col gap-1">
+        {chain.map((id, i) => {
+          const model = studioModel(id);
+          if (!model) return null;
+          const free = model.price[0] === 0 && model.price[1] === 0;
+          return (
+            <li
+              key={id}
+              className="flex items-center gap-2.5 rounded-lg border border-line bg-panel-2/50 py-1.5 pl-2 pr-1.5"
+              // The lit left edge is the deck's own marker for "this is the one
+              // in play" — here it marks the model that actually answers.
+              style={i === 0 ? { boxShadow: "inset 2px 0 0 0 var(--color-accent)" } : undefined}
+            >
+              <span className="w-4 shrink-0 text-center font-mono text-[11px] tabular-nums text-ink-faint">{i + 1}</span>
+
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="text-xs font-medium text-ink">{model.label}</span>
+                  {i === 0 && <span className="text-[10px] uppercase tracking-wide text-accent">answers first</span>}
+                </span>
+                <span className="mt-0.5 block text-[10.5px] leading-snug text-ink-faint">{model.note}</span>
+              </span>
+
+              <span className="hidden shrink-0 text-right sm:block">
+                <span className={`block font-mono text-[10.5px] tabular-nums ${free ? "text-emerald-300/90" : "text-ink-muted"}`}>
+                  {priceLabel(model)}
+                </span>
+                <span className="mt-0.5 block font-mono text-[10px] uppercase tracking-wider text-ink-faint">
+                  {["image", "audio", "video", "file"].filter((r) => model.reads.includes(r as never)).join(" ") || "text only"}
+                </span>
+              </span>
+
+              <span className="flex shrink-0 flex-col">
+                <button
+                  type="button"
+                  onClick={() => onChain(reorderChain(chain, id, -1))}
+                  disabled={i === 0}
+                  aria-label={`Move ${model.label} up`}
+                  className="grid h-4 w-5 place-items-center rounded text-ink-faint transition hover:bg-elevated hover:text-ink disabled:opacity-25 disabled:hover:bg-transparent"
+                >
+                  <Icon.Chevron width={9} height={9} className="-rotate-90" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChain(reorderChain(chain, id, 1))}
+                  disabled={i === chain.length - 1}
+                  aria-label={`Move ${model.label} down`}
+                  className="grid h-4 w-5 place-items-center rounded text-ink-faint transition hover:bg-elevated hover:text-ink disabled:opacity-25 disabled:hover:bg-transparent"
+                >
+                  <Icon.Chevron width={9} height={9} className="rotate-90" />
+                </button>
+              </span>
+
+              <button
+                type="button"
+                onClick={() => onChain(toggleInChain(chain, id))}
+                disabled={chain.length === 1}
+                title={chain.length === 1 ? "The chain cannot be empty" : `Take ${model.label} out of the chain`}
+                aria-label={`Take ${model.label} out of the chain`}
+                className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-ink-faint transition hover:bg-elevated hover:text-ink disabled:opacity-25 disabled:hover:bg-transparent"
+              >
+                <Icon.Close width={10} height={10} />
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+
+      {off.length > 0 && (
+        <div className="mt-3">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-ink-faint">
+            Not in the chain{chain.length >= MAX_CHAIN && " — every model is already in it"}
+          </p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {off.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => onChain(toggleInChain(chain, m.id))}
+                disabled={chain.length >= MAX_CHAIN}
+                title={m.note}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2 py-1 text-[11px] text-ink-muted transition hover:border-ink-faint hover:bg-panel-2 hover:text-ink disabled:pointer-events-none disabled:opacity-35"
+              >
+                <Icon.Plus width={9} height={9} />
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* The expectation the word "model" sets here is the wrong one, and it is
+          cheaper to say so than to let a film come back and be blamed on this. */}
+      <p className="mt-auto pt-4 text-[10.5px] leading-relaxed text-ink-faint">
+        These plan and read — the shot list, the prompts, your reference photos, a clip, a track. They do not draw:
+        stills still render free on your PC with Flux 2 Klein and video still goes to H3, whatever is picked here.
+      </p>
     </div>
   );
 }

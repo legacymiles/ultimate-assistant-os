@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isHubTool, modelFailure, routeFor, sanitizeAssistant, toolsFor } from "./agentTools";
+import { isHubTool, routeFor, runNote, sanitizeAssistant, toolsFor } from "./agentTools";
 
 describe("toolsFor", () => {
   it("offers nothing the bridge cannot actually do", () => {
@@ -77,39 +77,35 @@ describe("sanitizeAssistant", () => {
   });
 });
 
-describe("modelFailure", () => {
-  it("never leaks the provider's payload", () => {
+describe("runNote", () => {
+  // WHY it failed now comes from the router's diagnosis, which knows which
+  // models were tried and what each one said — see src/lib/ai/trouble.ts and its
+  // tests, which own the credit/key/rate-limit wording this block used to.
+  // What is left here is the part only a run can state.
+  it("never invents a payload of its own", () => {
     for (const s of [400, 401, 402, 429, 500, 502, 504, 418]) {
-      const m = modelFailure(s);
+      const m = runNote(s);
       expect(m).not.toMatch(/invalid_request_error|\{|\}|param|messages\./);
       expect(m.length).toBeGreaterThan(20);
     }
-  });
-
-  it("names the recovery, not just the problem", () => {
-    // OpenRouter answers 401 when the balance is gone, so the 401 copy has to
-    // name credit first or it sends the owner to check a working key.
-    expect(modelFailure(401)).toMatch(/balance|credit/i);
-    expect(modelFailure(401)).toContain("OPENROUTER_API_KEY");
-    expect(modelFailure(402)).toMatch(/credit/i);
-    expect(modelFailure(429)).toMatch(/again/i);
   });
 
   // The clause has to scope itself to the failed round: it can land under a
   // ledger showing three completed shell steps, and an unscoped "nothing was
   // touched" would contradict what is on screen right above it.
   it("scopes its reassurance to the round, not the run", () => {
-    expect(modelFailure(503)).toMatch(/steps above already ran/);
-    expect(modelFailure(503)).toMatch(/nothing new was touched/);
+    expect(runNote(503)).toMatch(/steps above already ran/);
+    expect(runNote(503)).toMatch(/nothing new was touched/);
   });
 
   it("always offers a next move", () => {
     for (const s of [400, 401, 402, 429, 500, 504, 418]) {
-      expect(modelFailure(s), String(s)).toMatch(/again|Check|Top it up|server log/);
+      expect(runNote(s), String(s)).toMatch(/again|steps above already ran/);
     }
   });
 
   it("does not blame the owner for a 400", () => {
-    expect(modelFailure(400)).toMatch(/steps above already ran/);
+    expect(runNote(400)).toMatch(/not something you did/);
+    expect(runNote(400)).toMatch(/steps above already ran/);
   });
 });

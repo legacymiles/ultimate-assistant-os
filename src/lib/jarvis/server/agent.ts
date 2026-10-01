@@ -16,7 +16,8 @@ import "server-only";
 //      pretending or failing.
 // ---------------------------------------------------------------------------
 
-import { aiEndpoint, aiFetch, DEFAULT_MODEL } from "@/lib/ai/provider";
+import { aiEndpoint, aiFetch, describeFailure, DEFAULT_MODEL } from "@/lib/ai/provider";
+import type { TaskHint } from "@/lib/ai/router";
 import { appOf, CORE_TOOLS, DASHBOARD_TOOLS, isReadOnly, STUDIO_TOOLS, summarise, toApiTools, type ToolSpec } from "../tools";
 import { cleanForm, type StudioForm } from "@/lib/studio/forms";
 import { cleanStoryboard, type Storyboard } from "@/lib/studio/storyboard";
@@ -154,6 +155,12 @@ export interface RunOptions {
    * model the provider passes through untouched (modelChain, provider.ts).
    */
   model?: string;
+  /**
+   * The router's hint for this call: which app is asking, and the surface's own
+   * model chain when it has one (the Studio's Film setup deck). Stripped from the
+   * body before it reaches a provider - see planCall in src/lib/ai/provider.ts.
+   */
+  task?: TaskHint;
 }
 
 export async function runAgent(opts: RunOptions): Promise<AgentResult> {
@@ -212,6 +219,7 @@ export async function runAgent(opts: RunOptions): Promise<AgentResult> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: opts.model || DEFAULT_MODEL,
+        ...(opts.task ? { task: opts.task } : {}),
         // Studio skills write shot tables and full prompts; everything else
         // stays short. An agent gets more room than a one-shot answer: it
         // chains tool rounds, and a model that thinks first spends part of
@@ -222,8 +230,10 @@ export async function runAgent(opts: RunOptions): Promise<AgentResult> {
       }),
     });
     if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      throw new Error(`AI ${res.status}${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+      // The provider's raw JSON truncated at 200 characters used to land in front
+      // of the owner, routinely cut off mid-token. describeFailure returns the
+      // diagnosis aiFetch wrote: which models were tried and what stopped each.
+      throw new Error(await describeFailure(res));
     }
     const data = await res.json();
     const message = data?.choices?.[0]?.message ?? {};

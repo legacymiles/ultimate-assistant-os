@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { modelId, saveSettings, type BuilderRoute, type ProviderChoice } from "@/lib/ai/settings";
 
-// PUT /api/ai/settings { choice?, fallback?, model?, fallbackModels?, builder?, builderFallback? }
+// PUT /api/ai/settings { choice?, fallback?, model?, fallbackModels?, router?, builder?, builderFallback? }
 // model: null = each app's own default.
 // The hub's AI switch. Unknown values are ignored rather than rejected.
 
@@ -22,10 +22,11 @@ export async function PUT(req: Request) {
     patch.model = body.model === null ? null : modelId(body.model);
   }
   if (Array.isArray(body.fallbackModels)) patch.fallbackModels = body.fallbackModels.map(modelId).filter((m): m is string => Boolean(m)).slice(0, 3);
+  if (typeof body.router === "boolean") patch.router = body.router;
   if (BUILDERS.includes(body.builder as BuilderRoute)) patch.builder = body.builder as BuilderRoute;
   if (typeof body.builderFallback === "boolean") patch.builderFallback = body.builderFallback;
   const saved = await saveSettings(patch);
   if (!saved) return NextResponse.json({ error: "Could not save the AI settings (storage unavailable)." }, { status: 503 });
-  const { choice, fallback, model, fallbackModels, builder, builderFallback } = saved;
-  return NextResponse.json({ settings: { choice, fallback, model, fallbackModels, builder, builderFallback } });
+  const { choice, fallback, model, fallbackModels, router, builder, builderFallback } = saved;
+  return NextResponse.json({ settings: { choice, fallback, model, fallbackModels, router, builder, builderFallback } });
 }

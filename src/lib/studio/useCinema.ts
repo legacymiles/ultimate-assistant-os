@@ -17,6 +17,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { cleanOutput, cleanSelection, type CinemaOutput, type CinemaSelection } from "./cinema";
+import { cleanStudioChain, DEFAULT_STUDIO_CHAIN } from "./models";
 
 const KEY = "jarvis.cinema.v1";
 const EVENT = "jarvis-cinema-change";
@@ -96,4 +97,59 @@ export function useCinemaOutput(): [CinemaOutput, (o: CinemaOutput) => void] {
   }, []);
 
   return [output, save];
+}
+
+// ---------------------------------------------------------------------------
+// The model chain — which brains plan the film, in order.
+//
+// Its own store rather than a rail inside the selection, because every rail in
+// CinemaSelection contributes its `prompt` text to the film and this one must
+// not: "use DeepSeek" is a routing decision, and a model reading it as direction
+// would put the word DeepSeek into the shot. Same localStorage-and-event pattern
+// as the two above, so the Studio tab and the Chat tab never disagree about it.
+// ---------------------------------------------------------------------------
+
+const MODELS_KEY = "jarvis.studio.models.v1";
+const MODELS_EVENT = "jarvis-studio-models-change";
+
+function readChain(): string[] {
+  try {
+    const raw = localStorage.getItem(MODELS_KEY);
+    // Never stored yet is not the same as deliberately emptied: an absent key
+    // means the owner has not touched this, so they get the default order.
+    if (raw === null) return DEFAULT_STUDIO_CHAIN;
+    return cleanStudioChain(JSON.parse(raw));
+  } catch {
+    return DEFAULT_STUDIO_CHAIN;
+  }
+}
+
+export function useStudioModels(): [string[], (chain: string[]) => void] {
+  // Starts on the default rather than empty so the first paint shows the real
+  // chain instead of flashing "the router decides" and then correcting itself.
+  const [chain, set] = useState<string[]>(DEFAULT_STUDIO_CHAIN);
+
+  useEffect(() => {
+    set(readChain());
+    const sync = () => set(readChain());
+    window.addEventListener(MODELS_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(MODELS_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+
+  const save = useCallback((next: string[]) => {
+    const clean = cleanStudioChain(next);
+    set(clean);
+    try {
+      localStorage.setItem(MODELS_KEY, JSON.stringify(clean));
+    } catch {
+      // A blocked store only costs the owner their order on the next reload.
+    }
+    window.dispatchEvent(new CustomEvent(MODELS_EVENT));
+  }, []);
+
+  return [chain, save];
 }

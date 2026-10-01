@@ -11,8 +11,13 @@ import {
   markAllRead,
   photoUpdates,
   recordNotified,
+  spendUpdates,
   toNotify,
   until,
+  localDay,
+  money,
+  type SpendCall,
+  type SpendFeed,
   type UpdateInputs,
 } from "./updates";
 import type { BoardPayload, ListItem } from "@/lib/recall/lists/types";
@@ -71,6 +76,7 @@ function inputs(patch: Partial<UpdateInputs> = {}): UpdateInputs {
     photoFolderIds: new Set<string>(),
     proposals: [],
     actions: [],
+    spend: null,
     ...patch,
   };
 }
@@ -326,5 +332,105 @@ describe("until", () => {
     expect(until(NOW + 40 * 60_000, NOW)).toBe("in 40m");
     expect(until(NOW + 3 * 3600_000, NOW)).toBe("in 3h");
     expect(until(NOW - 1000, NOW)).toBe("now");
+  });
+});
+
+describe("spendUpdates", () => {
+  const call = (over: Partial<SpendCall> = {}): SpendCall => ({
+    at: new Date(NOW - 60_000).toISOString(),
+    model: "qwen/qwen3.8-27b:free",
+    cost: 0,
+    ...over,
+  });
+  const feed = (over: Partial<SpendFeed> = {}): SpendFeed => ({ recent: [], account: null, ...over });
+
+  it("says nothing at all when the ledger could not be read", () => {
+    expect(spendUpdates(null, NOW)).toEqual([]);
+  });
+
+  it("names the expensive model by name, which is the row the owner asked for", () => {
+    const rows = spendUpdates(
+      feed({ recent: [call({ model: "anthropic/claude-opus-5", cost: 0.42, premium: true, app: "Jarvis chat" })] }),
+      NOW,
+    );
+    const premium = rows.find((r) => r.id.startsWith("spend:premium:"));
+    expect(premium?.title).toBe("OpenRouter used Claude Opus 5");
+    expect(premium?.detail).toBe("$0.42 · Jarvis chat");
+  });
+
+  it("marks an estimated charge as one rather than presenting it as measured", () => {
+    const rows = spendUpdates(
+      feed({ recent: [call({ model: "anthropic/claude-opus-5", cost: 0.4, premium: true, estimated: true })] }),
+      NOW,
+    );
+    expect(rows.find((r) => r.id.startsWith("spend:premium:"))?.detail).toContain("(estimated)");
+  });
+
+  it("summarises a burst instead of filling the feed with it", () => {
+    const many = Array.from({ length: 10 }, (_, i) =>
+      call({ at: new Date(NOW - i * 60_000).toISOString(), model: "anthropic/claude-opus-5", cost: 0.1, premium: true }),
+    );
+    const rows = spendUpdates(feed({ recent: many }), NOW);
+    expect(rows.filter((r) => r.id.startsWith("spend:premium:"))).toHaveLength(6);
+    const more = rows.find((r) => r.id.startsWith("spend:premium-more:"));
+    expect(more?.title).toBe("4 more calls went to an expensive model");
+  });
+
+  it("adds up today's calls and counts the free ones", () => {
+    const rows = spendUpdates(
+      feed({ recent: [call(), call(), call({ cost: 0.05 }), call({ cost: 0, failed: true })] }),
+      NOW,
+    );
+    const day = rows.find((r) => r.id.startsWith("spend:day:"));
+    expect(day?.title).toBe("$0.05 on AI today");
+    expect(day?.detail).toBe("4 calls · 2 free · 1 failed");
+  });
+
+  it("says so plainly when a whole day cost nothing", () => {
+    const day = spendUpdates(feed({ recent: [call(), call()] }), NOW).find((r) => r.id.startsWith("spend:day:"));
+    expect(day?.title).toBe("No AI spend today");
+  });
+
+  // A failed call is not a free call: it bought nothing.
+  it("leaves yesterday's calls out of today's total", () => {
+    const rows = spendUpdates(
+      feed({ recent: [call({ at: new Date(NOW - 40 * 3600_000).toISOString(), cost: 5 }), call({ cost: 0.01 })] }),
+      NOW,
+    );
+    expect(rows.find((r) => r.id.startsWith("spend:day:"))?.detail).toBe("1 call");
+  });
+
+  it("raises the credit row only when the account is nearly or actually empty", () => {
+    const rows = (remaining: number) =>
+      spendUpdates(feed({ account: { credits: 20, used: 20 - remaining, remaining } }), NOW).map((r) => r.id);
+    expect(rows(10)).not.toContain("spend:credit:low");
+    expect(rows(1.5)).toContain("spend:credit:low");
+    expect(rows(-0.15)).toContain("spend:credit:out");
+  });
+
+  it("keeps one stable id per day, so dismissing it sticks while its number moves", () => {
+    const first = spendUpdates(feed({ recent: [call({ cost: 0.01 })] }), NOW).find((r) => r.id.startsWith("spend:day:"));
+    const later = spendUpdates(feed({ recent: [call({ cost: 0.01 }), call({ cost: 0.02 })] }), NOW).find((r) =>
+      r.id.startsWith("spend:day:"),
+    );
+    expect(first!.id).toBe(later!.id);
+    expect(first!.title).not.toBe(later!.title);
+  });
+});
+
+describe("money and the local day", () => {
+  it("shows fractions of a cent, because that is the size of most of these calls", () => {
+    expect(money(0)).toBe("$0");
+    expect(money(0.0004)).toBe("$0.0004");
+    expect(money(0.42)).toBe("$0.42");
+    expect(money(0.4257)).toBe("$0.426");
+    expect(money(12.5)).toBe("$12.50");
+  });
+
+  // The reason the ledger hands over raw calls: a UTC bucket would file an
+  // evening call under tomorrow for anyone west of Greenwich.
+  it("buckets on the browser's own calendar day", () => {
+    const local = new Date(2026, 8, 30, 23, 30);
+    expect(localDay(local.toISOString())).toBe("2026-09-30");
   });
 });

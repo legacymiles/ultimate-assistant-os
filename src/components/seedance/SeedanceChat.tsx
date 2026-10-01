@@ -44,7 +44,7 @@ import {
   type Attachment,
 } from "@/lib/jarvis/chatImages";
 import { answerText, type StudioForm } from "@/lib/studio/forms";
-import { useCinemaOutput } from "@/lib/studio/useCinema";
+import { useCinemaOutput, useStudioModels } from "@/lib/studio/useCinema";
 import { moveQueryAt, movesIn, searchMoves, type CinemaSelection } from "@/lib/studio/cinema";
 import { CinemaBar } from "../jarvis/CinemaDeck";
 import { ASPECT_RATIOS } from "@/lib/seedance/constants";
@@ -124,6 +124,7 @@ export function SeedanceChat({
 
   const [output] = useCinemaOutput();
   const cinema = reel.cinema;
+  const [modelChain] = useStudioModels();
   const { characters } = useCharacters();
 
   const [filmView, setFilmView] = useState<FilmView | null>(null);
@@ -327,6 +328,9 @@ export function SeedanceChat({
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           workflows: [...new Set(["music-video", ...mentionsIn(sent).map((m) => m.token)])],
           cinema,
+          // Film setup › Models, same chain the Studio uses: one place decides
+          // which model plans a film, wherever the film is being planned.
+          models: modelChain,
           moves: movesIn(sent).map((m) => m.id),
           output,
           characters: named.map((c) => ({

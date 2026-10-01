@@ -174,6 +174,12 @@ export function UpdatesPanel({ api, go }: { api: UpdatesApi; go: (t: TabId) => v
         </div>
       </header>
 
+      {api.spendError && (
+        <p role="status" className="border-b border-line-soft px-3 py-2 text-[11px] text-amber-300">
+          {api.spendError} So what the AI has cost today is missing here — not zero.
+        </p>
+      )}
+
       {api.boardError && (
         <p className="border-b border-line-soft px-3 py-2 text-[11px] text-amber-300">
           The family board could not be read just now, so Lists updates are missing here — not empty.

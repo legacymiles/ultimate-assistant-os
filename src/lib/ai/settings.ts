@@ -39,6 +39,15 @@ export interface AiSettings {
   model: string | null;
   /** Tried in order when the chosen model fails (down, unsupported request, can't read the images). */
   fallbackModels: string[];
+  /**
+   * Route each call by what it contains (src/lib/ai/router.ts) instead of
+   * sending everything to one model.
+   *
+   * Only consulted when `model` is null: picking a model by hand IS the way to
+   * turn the router off for a single model, and this switch is for the owner who
+   * wants neither — the old behaviour of one cheap default for everything.
+   */
+  router: boolean;
   builder: BuilderRoute;
   /** Claude plan failed (limit, credit, login) → retry that build through OpenRouter. */
   builderFallback: boolean;
@@ -51,6 +60,7 @@ export const DEFAULT_SETTINGS: AiSettings = {
   fallback: true,
   model: null,
   fallbackModels: DEFAULT_FALLBACKS,
+  router: true,
   builder: "plan",
   builderFallback: true,
   lastError: {},
@@ -87,6 +97,7 @@ function normalise(raw: Partial<AiSettings> | null): AiSettings {
     fallbackModels: Array.isArray(r.fallbackModels)
       ? r.fallbackModels.map(modelId).filter((m): m is string => Boolean(m)).slice(0, 3)
       : DEFAULT_FALLBACKS,
+    router: r.router !== false,
     builder: r.builder === "openrouter" ? "openrouter" : "plan",
     builderFallback: r.builderFallback !== false,
     lastError: r.lastError ?? {},
@@ -133,7 +144,9 @@ function choicesOf(s: AiSettings): Choices {
 
 let chain: Promise<unknown> = Promise.resolve();
 
-export function saveSettings(patch: Partial<Pick<AiSettings, "choice" | "fallback" | "model" | "fallbackModels" | "builder" | "builderFallback">>) {
+export function saveSettings(
+  patch: Partial<Pick<AiSettings, "choice" | "fallback" | "model" | "fallbackModels" | "router" | "builder" | "builderFallback">>,
+) {
   const run = chain.then(async (): Promise<AiSettings | null> => {
     const stored = await readDoc<AiSettings>(DOC, dataDir()).catch(() => null);
     // Never build a save on top of defaults because one read failed.

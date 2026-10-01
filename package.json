@@ -9,7 +9,8 @@
     "lint": "next lint",
     "dev:preview": "node scripts/dev-preview.mjs 3210",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:router": "node scripts/check-router.mjs"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.80",

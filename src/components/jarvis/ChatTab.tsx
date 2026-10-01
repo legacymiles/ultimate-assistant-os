@@ -34,7 +34,7 @@ import {
 } from "@/lib/studio/workflows";
 import { Chip, CinemaBar, CinemaOutputRow } from "./CinemaDeck";
 import { MoveArt } from "./CinemaArt";
-import { useCinemaOutput, useCinemaSelection } from "@/lib/studio/useCinema";
+import { useCinemaOutput, useCinemaSelection, useStudioModels } from "@/lib/studio/useCinema";
 import { MOVE_PATTERN, moveById, moveQueryAt, movesIn, searchMoves, type CinemaMove } from "@/lib/studio/cinema";
 import {
   ACCEPT_REFERENCES,
@@ -169,6 +169,8 @@ export function ChatTab({
   const [cinema, setCinema] = useCinemaSelection();
   /** Aspect ratio and clip length, on the toolbar under the box. */
   const [output, setOutput] = useCinemaOutput();
+  // Film setup › Models. Which model answers, and the order the rest are tried in.
+  const [modelChain] = useStudioModels();
   /** The reference token the caret is naming, lowercased, so its tile lights up. */
   const [highlight, setHighlight] = useState<string | null>(null);
   /** Everyone the Photos tab knows well enough to put in a shot. */
@@ -470,6 +472,7 @@ export function ChatTab({
           // ("make it slower") still knows how the camera was supposed to travel.
           cinema,
           output,
+          models: modelChain,
           moves: [
             ...new Set(
               [asked, ...[...turns].reverse()]
@@ -812,7 +815,11 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
                 : {})}
             />
           )}
-          {running && !film.view && film.error && <p className="text-[11px] text-amber-400">{film.error}</p>}
+          {running && !film.view && film.error && (
+            <p role="alert" className="text-[11px] leading-relaxed text-red-400">
+              {film.error}
+            </p>
+          )}
           {pending && (
             <ConfirmCard
               action={pending}
@@ -821,7 +828,11 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
               onCancel={() => setPending({ ...pending, status: "cancelled" })}
             />
           )}
-          {error && <p className="text-[11px] text-amber-400">{error}</p>}
+          {error && (
+            <p role="alert" className="text-[11px] leading-relaxed text-red-400">
+              {error}
+            </p>
+          )}
         </div>
       ) : null;
     return (
@@ -1072,7 +1083,7 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
                         <img src={r.url} alt={r.title} className="h-full w-full object-contain" />
                       )
                     ) : r.status === "error" ? (
-                      <p className="px-3 text-center text-[11px] text-amber-400">{r.error}</p>
+                      <p role="alert" className="px-3 text-center text-[11px] text-red-400">{r.error}</p>
                     ) : (
                       <p className="animate-pulse text-[11px] text-ink-faint">
                         {r.medium === "video" ? `Rendering${r.note ? ` · ${r.note}` : "…"}` : "Painting…"}
@@ -1124,7 +1135,11 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
             </div>
           )}
 
-          {error && <p className="text-[11px] text-amber-400">{error}</p>}
+          {error && (
+            <p role="alert" className="text-[11px] leading-relaxed text-red-400">
+              {error}
+            </p>
+          )}
           <div ref={endRef} />
         </div>
       </div>

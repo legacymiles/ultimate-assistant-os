@@ -96,7 +96,7 @@ export async function POST(req: Request) {
   } catch (e) {
     // A failure here must read as a failure, never as an answer.
     return NextResponse.json(
-      { error: `I couldn't reach DeepSeek (${e instanceof Error ? e.message : "unknown error"}).` },
+      { error: e instanceof Error ? e.message : "I couldn't reach DeepSeek, and it gave no reason." },
       { status: 502 },
     );
   }

@@ -31,6 +31,7 @@ import {
   UPDATE_LABEL,
   type Collected,
   type JarvisUpdate,
+  type SpendFeed,
   type UpdateSettings,
 } from "./updates";
 import type { CalendarEvent } from "@/lib/recall/calendar/types";
@@ -53,6 +54,8 @@ export interface UpdatesApi extends Collected {
   seenAt: string;
   /** Why the board could not be read, or "". Never treated as "no updates". */
   boardError: string;
+  /** Why the AI ledger could not be read, or "". Never treated as "no spend". */
+  spendError: string;
   markRead: () => void;
   dismiss: (id: string) => void;
   clearAll: () => void;
@@ -67,6 +70,14 @@ export function useUpdates(
 ): UpdatesApi {
   const [board, setBoard] = useState<BoardPayload | null>(null);
   const [boardError, setBoardError] = useState("");
+  // The AI ledger. On the server like the board, so polled with it — and for
+  // the same reason: what the AI cost while you were on another tab is exactly
+  // what you want to know on coming back.
+  const [spend, setSpend] = useState<SpendFeed | null>(null);
+  // Same rule as boardError: a ledger that could not be read is MISSING, not
+  // empty, and saying so is the difference between "you spent nothing today" and
+  // "nobody knows what you spent today".
+  const [spendError, setSpendError] = useState("");
   const [ready, setReady] = useState(false);
   // Starts empty rather than reading storage during render: this hook renders
   // on the server too, where there is no localStorage.
@@ -91,6 +102,21 @@ export function useUpdates(
         setBoardError(e instanceof Error ? e.message : "The family board could not be read.");
       })
       .finally(() => setReady(true));
+    fetch("/api/ai/spend", { cache: "no-store" })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`The AI ledger answered ${r.status}.`);
+        return (await r.json()) as SpendFeed;
+      })
+      .then((f) => {
+        setSpend(f);
+        setSpendError("");
+      })
+      .catch((e: unknown) => {
+        // The rest of the feed carries on without it; the line below says why
+        // the spend rows are gone rather than letting them read as "no spend".
+        setSpend(null);
+        setSpendError(e instanceof Error ? e.message : "The AI ledger could not be read.");
+      });
     setRecall(getData());
   }, []);
 
@@ -138,6 +164,7 @@ export function useUpdates(
         photoFolderIds,
         proposals: store?.proposals ?? [],
         actions: store?.actions ?? [],
+        spend,
       },
       settings,
       state,
@@ -146,7 +173,7 @@ export function useUpdates(
     // `tick` is the clock: it is in the deps precisely so time passing
     // recomputes the feed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [board, events, recall.items, photoFolderIds, store?.proposals, store?.actions, settings, state, tick]);
+  }, [board, spend, events, recall.items, photoFolderIds, store?.proposals, store?.actions, settings, state, tick]);
 
   // ----- pop-ups -----------------------------------------------------------
   useEffect(() => {
@@ -230,6 +257,7 @@ export function useUpdates(
     ready,
     seenAt: state?.seenAt ?? "",
     boardError,
+    spendError,
     markRead,
     dismiss,
     clearAll,

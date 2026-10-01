@@ -31,9 +31,31 @@ import type { BoardPayload } from "@/lib/recall/lists/types";
 import type { Item } from "@/lib/recall/types";
 import type { MemoryProposal, PendingAction } from "./types";
 
-export type UpdateSource = "lists" | "calendar" | "photos" | "memory" | "actions";
+/**
+ * The shape /api/ai/spend answers with, named here rather than imported so this
+ * module stays free of server code — src/lib/ai/spend.ts is server-only.
+ */
+export interface SpendCall {
+  at: string;
+  model: string;
+  cost: number;
+  estimated?: boolean;
+  promptTokens?: number;
+  completionTokens?: number;
+  tier?: string;
+  app?: string;
+  premium?: boolean;
+  failed?: boolean;
+}
 
-export const UPDATE_SOURCES: UpdateSource[] = ["lists", "calendar", "photos", "memory", "actions"];
+export interface SpendFeed {
+  recent: SpendCall[];
+  account: { credits: number; used: number; remaining: number } | null;
+}
+
+export type UpdateSource = "lists" | "calendar" | "photos" | "memory" | "actions" | "spend";
+
+export const UPDATE_SOURCES: UpdateSource[] = ["lists", "calendar", "photos", "memory", "actions", "spend"];
 
 export const UPDATE_LABEL: Record<UpdateSource, string> = {
   lists: "Lists",
@@ -41,6 +63,7 @@ export const UPDATE_LABEL: Record<UpdateSource, string> = {
   photos: "Photos",
   memory: "Memory",
   actions: "Waiting on you",
+  spend: "AI spend",
 };
 
 /** What each source is allowed to tell you, in the owner's terms. */
@@ -50,6 +73,7 @@ export const UPDATE_ABOUT: Record<UpdateSource, string> = {
   photos: "Photos arrive from your phone.",
   memory: "Jarvis has something he would like to remember.",
   actions: "An action is sitting on the confirm card, unanswered.",
+  spend: "What the AI cost today, and any call that went to an expensive model.",
 };
 
 /** The dot beside a row. Same hues as the memory core, so the app reads as one. */
@@ -59,6 +83,7 @@ export const UPDATE_COLOR: Record<UpdateSource, string> = {
   photos: "#ff9f7f", // coral
   memory: "#8b8cff", // violet
   actions: "#ffd479", // amber
+  spend: "#7fd4ff", // ice
 };
 
 /** Which tab a row opens. */
@@ -68,6 +93,7 @@ export const UPDATE_TAB: Record<UpdateSource, string> = {
   photos: "photos",
   memory: "memory",
   actions: "chat",
+  spend: "router",
 };
 
 export interface JarvisUpdate {
@@ -140,6 +166,8 @@ export interface UpdateInputs {
   photoFolderIds: Set<string>;
   proposals: MemoryProposal[];
   actions: PendingAction[];
+  /** Every AI call the hub recently made, or null when it could not be read. */
+  spend: SpendFeed | null;
 }
 
 /** Ids kept per list before the oldest are forgotten. */
@@ -357,6 +385,120 @@ export function actionUpdates(actions: PendingAction[], now: number): JarvisUpda
     }));
 }
 
+// ----- AI spend ------------------------------------------------------------
+
+/**
+ * The calendar day an instant falls on HERE, in the browser's timezone.
+ *
+ * The whole reason the ledger hands over raw calls instead of daily totals: the
+ * server runs in UTC, so a total bucketed there files the owner's evening work
+ * under tomorrow. Bucketing in the browser is the only way "today" means his
+ * today.
+ */
+export function localDay(iso: string, now: Date = new Date()): string {
+  const d = new Date(iso);
+  const day = Number.isNaN(d.getTime()) ? now : d;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
+}
+
+/** Dollars, at the precision the number deserves. Fractions of a cent matter here. */
+export function money(n: number): string {
+  if (n === 0) return "$0";
+  if (n < 0.01) return `$${n.toFixed(4)}`;
+  // Round to a tenth of a cent, then drop the trailing zero it usually leaves:
+  // $0.42 rather than $0.420, while $0.425 keeps its third place.
+  if (n < 1) return `$${Number(n.toFixed(3))}`;
+  return `$${n.toFixed(2)}`;
+}
+
+/** "Claude Opus 5" out of "anthropic/claude-opus-5". */
+function modelName(id: string): string {
+  const tail = id.includes("/") ? id.slice(id.indexOf("/") + 1) : id;
+  return tail
+    .replace(/:free$/, " (free)")
+    .replace(/[-_]/g, " ")
+    .replace(/\b([a-z])/g, (m) => m.toUpperCase());
+}
+
+/** At most this many expensive-model rows before they are summarised instead. */
+const MAX_PREMIUM_ROWS = 6;
+
+/**
+ * What the AI cost, as news.
+ *
+ * Three kinds of row, and only three: an expensive model answered something (the
+ * one the owner asked to be told about by name), what today has cost so far, and
+ * the account running dry. Anything more and the feed becomes an accounting
+ * report, which is what the Toolbox page is for.
+ */
+export function spendUpdates(feed: SpendFeed | null, now: number): JarvisUpdate[] {
+  if (!feed) return [];
+  const out: JarvisUpdate[] = [];
+  const today = localDay(new Date(now).toISOString(), new Date(now));
+
+  const premium = feed.recent.filter((c) => c.premium && !c.failed).reverse();
+  for (const call of premium.slice(0, MAX_PREMIUM_ROWS)) {
+    const where = call.app ? ` · ${call.app}` : "";
+    out.push({
+      id: `spend:premium:${call.at}:${call.model}`,
+      source: "spend",
+      title: `OpenRouter used ${modelName(call.model)}`,
+      detail: `${money(call.cost)}${call.estimated ? " (estimated)" : ""}${where}`,
+      at: call.at,
+      when: ago(call.at, now),
+    });
+  }
+  if (premium.length > MAX_PREMIUM_ROWS) {
+    const rest = premium.slice(MAX_PREMIUM_ROWS);
+    const cost = rest.reduce((sum, c) => sum + c.cost, 0);
+    out.push({
+      id: `spend:premium-more:${rest[0].at}`,
+      source: "spend",
+      title: `${rest.length} more calls went to an expensive model`,
+      detail: `${money(cost)} between them`,
+      at: rest[0].at,
+      when: ago(rest[0].at, now),
+    });
+  }
+
+  const todays = feed.recent.filter((c) => localDay(c.at, new Date(now)) === today);
+  if (todays.length > 0) {
+    const cost = todays.reduce((sum, c) => sum + c.cost, 0);
+    const free = todays.filter((c) => c.cost === 0 && !c.failed).length;
+    const failed = todays.filter((c) => c.failed).length;
+    const parts = [`${todays.length} ${todays.length === 1 ? "call" : "calls"}`];
+    if (free) parts.push(`${free} free`);
+    if (failed) parts.push(`${failed} failed`);
+    out.push({
+      id: `spend:day:${today}`,
+      source: "spend",
+      title: cost === 0 ? "No AI spend today" : `${money(cost)} on AI today`,
+      detail: parts.join(" · "),
+      // The newest call, so the row rises again as the day's number moves.
+      at: todays[todays.length - 1].at,
+      when: ago(todays[todays.length - 1].at, now),
+    });
+  }
+
+  // Not spending, but the one thing that makes every paid model stop answering,
+  // and the owner looks here rather than at the front page.
+  const left = feed.account?.remaining;
+  if (left !== undefined && left <= 2) {
+    const out_ = left <= 0;
+    out.push({
+      id: `spend:credit:${out_ ? "out" : "low"}`,
+      source: "spend",
+      title: out_ ? "OpenRouter credit has run out" : `OpenRouter credit is low: ${money(left)} left`,
+      detail: out_ ? "Paid models will refuse until you top up. Free models still answer." : "Top up before the paid rungs stop.",
+      at: new Date(now).toISOString(),
+      when: "now",
+    });
+  }
+
+  return out;
+}
+
 // ----- assembly ------------------------------------------------------------
 
 export interface Collected {
@@ -383,6 +525,7 @@ export function collectUpdates(
     ...(on("photos") ? photoUpdates(inputs.items, inputs.photoFolderIds, now) : []),
     ...(on("memory") ? memoryUpdates(inputs.proposals, now) : []),
     ...(on("actions") ? actionUpdates(inputs.actions, now) : []),
+    ...(on("spend") ? spendUpdates(inputs.spend, now) : []),
   ];
 
   const floor = now - settings.windowDays * 86_400_000;

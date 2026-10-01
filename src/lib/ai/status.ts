@@ -1,5 +1,5 @@
 import "server-only";
-import { DEFAULT_MODEL, aiEndpoint, endpointFor } from "./provider";
+import { UNPICKED_MODEL, aiEndpoint, endpointFor } from "./provider";
 import { loadSettings, type AiSettings, type ProviderEvent, type ProviderId } from "./settings";
 import { builderInfo, listGames } from "@/lib/game-creator/store";
 
@@ -32,7 +32,7 @@ export interface KeyStatus {
 }
 
 export interface AiStatus {
-  settings: Pick<AiSettings, "choice" | "fallback" | "model" | "fallbackModels" | "builder" | "builderFallback">;
+  settings: Pick<AiSettings, "choice" | "fallback" | "model" | "fallbackModels" | "router" | "builder" | "builderFallback">;
   /** The model apps use when the owner has not picked one. */
   defaultModel: string;
   providers: ProviderStatus[];
@@ -151,10 +151,14 @@ export async function aiStatus(uid: string): Promise<AiStatus> {
       fallback: settings.fallback,
       model: settings.model,
       fallbackModels: settings.fallbackModels,
+      router: settings.router,
       builder: settings.builder,
       builderFallback: settings.builderFallback,
     },
-    defaultModel: DEFAULT_MODEL,
+    // What "App defaults" in the picker actually calls. It used to report the
+    // sentinel (Opus), which read as "your apps are using Opus" — the opposite
+    // of what happens.
+    defaultModel: UNPICKED_MODEL,
     providers,
     builder,
     keys,

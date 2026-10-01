@@ -4,6 +4,7 @@ import { connector } from "@/lib/jarvis/server/connectors";
 import { resolveMention, studioContext, type Mention } from "@/lib/studio/workflows";
 import { cinemaContext, cleanMoves, cleanOutput, cleanSelection, moveById } from "@/lib/studio/cinema";
 import { characterContext, cleanCharacters } from "@/lib/studio/characters";
+import { cleanStudioChain } from "@/lib/studio/models";
 import { loadSkill, loadSkills } from "@/lib/studio/server/skills";
 import { cleanTimeline, timelineBrief } from "@/lib/seedance/audio/timeline";
 import { scoreRules } from "@/lib/seedance/score";
@@ -25,6 +26,14 @@ interface Body {
   /** The camera deck: rail id -> option id, and the ordered camera-move ids. */
   cinema?: unknown;
   moves?: unknown;
+  /**
+   * The deck's model chain (Film setup > Models), in the owner's order.
+   *
+   * Cleaned against the known list here rather than trusted: this decides which
+   * model a request is sent to, so an arbitrary string from the client would be
+   * a way to spend the owner's credit on anything in the catalogue.
+   */
+  models?: unknown;
   /** Aspect ratio and clip length, passed to studio_generate verbatim. */
   output?: unknown;
   /**
@@ -183,12 +192,16 @@ export async function POST(req: Request) {
         .join("\n\n"),
       profileId: body.profileId,
       studio: studio.length > 0,
+      task: { app: studio.length ? "Jarvis Studio" : "Jarvis chat", models: cleanStudioChain(body.models) },
     });
     return NextResponse.json(result);
   } catch (e) {
     // A failure here must read as a failure, never as an answer.
     return NextResponse.json(
-      { error: `I couldn't reach the model (${e instanceof Error ? e.message : "unknown error"}).` },
+      // The thrown message is already the diagnosis (describeFailure in
+      // runAgent), so it is shown as-is rather than wrapped in a sentence that
+      // buries it in parentheses.
+      { error: e instanceof Error ? e.message : "I couldn't reach the model, and it gave no reason." },
       { status: 502 },
     );
   }
