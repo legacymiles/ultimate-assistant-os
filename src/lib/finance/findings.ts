@@ -28,8 +28,34 @@ import type {
 
 /** How many charges from one payee make a rhythm rather than a coincidence. */
 const RECURRING_MIN = 3;
-/** How far apart two gaps may be and still count as "evenly spaced". */
-const SPACING_SLOP = 4;
+/**
+ * How far apart two gaps may be and still count as "evenly spaced".
+ *
+ * Tightened from 4 to 2 after running the engine over a real Plaid feed: at 4,
+ * an ordinary eating-out habit qualified as a subscription.
+ */
+const SPACING_SLOP = 2;
+/**
+ * Categories where a repeating charge is a habit, not a subscription.
+ *
+ * A real feed produced "McDonald's looks like a subscription you have not
+ * listed". Three similar charges a month apart describes lunch as well as it
+ * describes Netflix, so where the provider tells us what kind of merchant it
+ * is, that settles it.
+ */
+const NOT_SUBSCRIPTIONS = [
+  "FOOD_AND_DRINK",
+  "TRANSPORTATION",
+  "GENERAL_MERCHANDISE",
+  // Money moving, or arriving. A salary every month is not a subscription.
+  "INCOME",
+  "BANK_FEES",
+];
+/**
+ * The most of these worth showing at once. Eleven info rows is not a list of
+ * findings, it is a reason to stop reading the feed.
+ */
+const MAX_RECURRING = 5;
 
 export interface FindingsInput {
   matched: Matched[];
@@ -154,6 +180,8 @@ export function findings(input: FindingsInput): Finding[] {
   }
 
   // ----- subscriptions nobody declared ------------------------------------
+  // Collected separately so the loudest few can be kept and the rest dropped.
+  const recurring: Finding[] = [];
   const byMerchant = new Map<string, Txn[]>();
   for (const t of unmatchedTxns) {
     if (t.amount <= 0) continue;
@@ -166,10 +194,14 @@ export function findings(input: FindingsInput): Finding[] {
   for (const [merchant, group] of byMerchant) {
     if (group.length < RECURRING_MIN) continue;
     const byDate = [...group].sort((a, b) => (a.date < b.date ? -1 : 1));
-    // Same amount within 5%, which is how a subscription behaves.
     const first = byDate[0];
-    const sameish = byDate.every((t) => withinTolerance(t.amount, first.amount, 0, 5));
-    if (!sameish) continue;
+    // IDENTICAL to the cent. A subscription bills the same figure every time;
+    // a habit does not. Allowing 5% here was what let a coffee shop through.
+    if (!byDate.every((t) => cents(t.amount) === cents(first.amount))) continue;
+    // Too small to be worth a word either way.
+    if (cents(first.amount) < cents(settings.recurringMinAmount)) continue;
+    // A restaurant charged monthly is lunch, not a subscription.
+    if (NOT_SUBSCRIPTIONS.some((c) => (first.category ?? "").startsWith(c))) continue;
     const gaps: number[] = [];
     for (let i = 1; i < byDate.length; i += 1) {
       gaps.push(diffDays(byDate[i - 1].date, byDate[i].date));
@@ -177,12 +209,12 @@ export function findings(input: FindingsInput): Finding[] {
     const even = gaps.every((g) => Math.abs(g - gaps[0]) <= SPACING_SLOP);
     if (!even || gaps[0] < 5) continue;
     const ids = byDate.map((t) => t.id).sort();
-    out.push({
+    recurring.push({
       kind: "unplanned-recurring",
       fingerprint: `unplanned-recurring|${first.accountId}|${merchant}`,
       severity: "info",
       title: `${merchant} looks like a subscription you have not listed`,
-      why: `${byDate.length} charges of about ${fmt(first.amount)}, roughly every ${gaps[0]} days, most recently ${byDate[byDate.length - 1].date}. It is not on your bills.`,
+      why: `${byDate.length} charges of exactly ${fmt(first.amount)}, every ${gaps[0]} days or so, most recently ${byDate[byDate.length - 1].date}. It is not on your bills.`,
       amount: first.amount,
       currency: first.currency,
       billId: null,
@@ -191,6 +223,11 @@ export function findings(input: FindingsInput): Finding[] {
       at: byDate[byDate.length - 1].date,
     });
   }
+
+  // Biggest first, capped: these are informational, and a flood of them buries
+  // the urgent rows that are the point of the feed.
+  recurring.sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0));
+  out.push(...recurring.slice(0, MAX_RECURRING));
 
   // ----- cards -------------------------------------------------------------
   for (const a of accounts) {

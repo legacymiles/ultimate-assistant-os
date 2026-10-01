@@ -153,6 +153,8 @@ export interface FinanceSettings {
   emailKinds: AlertKind[];
   quietHoursStart: number;
   quietHoursEnd: number;
+  /** Below this, a repeating charge is not worth calling a subscription. */
+  recurringMinAmount: number;
   /** 0 = Sunday, 1 = Monday. */
   weekStartsOn: number;
   currencyDisplay: string | null;
@@ -167,6 +169,7 @@ export function defaultSettings(): FinanceSettings {
     emailKinds: ["duplicate-charge", "missed-bill", "card-due-soon"],
     quietHoursStart: 22,
     quietHoursEnd: 7,
+    recurringMinAmount: 3,
     weekStartsOn: 1,
     currencyDisplay: null,
   };

@@ -23,12 +23,27 @@ import { diffDays } from "./dates";
 import { sameAmount } from "./money";
 import type { Account, Txn } from "./types";
 
-/** Provider categories that mean "the owner's own money moved". */
-export const TRANSFER_CATEGORIES = [
-  "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT",
-  "TRANSFER_IN",
-  "TRANSFER_OUT",
-];
+/**
+ * Category PREFIXES that mean "the owner's own money moved".
+ *
+ * Prefixes, not exact names, because Plaid's categories are hierarchical and
+ * matching the full detailed string misses its siblings. A real sandbox feed
+ * made this concrete: a credit-card payment arrived as
+ * LOAN_PAYMENTS_OTHER_PAYMENT rather than LOAN_PAYMENTS_CREDIT_CARD_PAYMENT,
+ * so an exact list let a 2,078.50 card payment be counted as SPENDING. The
+ * account transfers came through as TRANSFER_OUT_ACCOUNT_TRANSFER and missed
+ * for the same reason.
+ *
+ * LOAN_PAYMENTS covers mortgage and loan payments too, which is intended:
+ * paying a loan is not discretionary spending either.
+ */
+export const TRANSFER_CATEGORY_PREFIXES = ["LOAN_PAYMENTS", "TRANSFER_IN", "TRANSFER_OUT"];
+
+/** Does a provider category mean money moved rather than was spent? */
+export function isTransferCategory(category: string | null): boolean {
+  if (!category) return false;
+  return TRANSFER_CATEGORY_PREFIXES.some((p) => category.startsWith(p));
+}
 
 /** How far apart the two legs of one transfer may land. */
 const PAIR_WINDOW_DAYS = 3;
@@ -46,7 +61,7 @@ export function transferIds(txns: Txn[], accounts: Account[]): Set<string> {
   const ids = new Set<string>();
 
   for (const t of txns) {
-    if (t.category && TRANSFER_CATEGORIES.includes(t.category)) ids.add(t.id);
+    if (isTransferCategory(t.category)) ids.add(t.id);
   }
 
   // Pair an outflow on one own account against an inflow on another. Sorted by

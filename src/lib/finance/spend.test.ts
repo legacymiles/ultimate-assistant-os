@@ -212,3 +212,58 @@ describe("spend — the two windows", () => {
     expect(r.series.every((p) => p.total === 0)).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Found by running the engine over a REAL Plaid sandbox feed. Plaid's
+// categories are hierarchical, and matching the detailed string exactly missed
+// its siblings — so a 2,078.50 credit-card payment labelled
+// LOAN_PAYMENTS_OTHER_PAYMENT was counted as spending.
+// ---------------------------------------------------------------------------
+describe("spend — transfer categories match by prefix, not exact name", () => {
+  it("excludes a card payment labelled LOAN_PAYMENTS_OTHER_PAYMENT", () => {
+    const r = spend({
+      ...base,
+      txns: [txn({ id: "pay", amount: 2078.5, category: "LOAN_PAYMENTS_OTHER_PAYMENT" })],
+    });
+    expect(r.today.total).toBe(0);
+    expect(r.today.excludedTransfers).toBe(1);
+  });
+
+  it("excludes TRANSFER_OUT_ACCOUNT_TRANSFER", () => {
+    const r = spend({
+      ...base,
+      txns: [txn({ id: "x", amount: 1000, category: "TRANSFER_OUT_ACCOUNT_TRANSFER" })],
+    });
+    expect(r.today.total).toBe(0);
+  });
+
+  it("excludes TRANSFER_IN_DEPOSIT", () => {
+    const r = spend({
+      ...base,
+      txns: [txn({ id: "x", amount: 5850, category: "TRANSFER_IN_DEPOSIT" })],
+    });
+    expect(r.today.total).toBe(0);
+  });
+
+  it("excludes a mortgage payment, which is not discretionary spending either", () => {
+    const r = spend({
+      ...base,
+      txns: [txn({ id: "x", amount: 900, category: "LOAN_PAYMENTS_MORTGAGE_PAYMENT" })],
+    });
+    expect(r.today.total).toBe(0);
+  });
+
+  // The filter must not swallow ordinary purchases that merely start similarly.
+  it("still counts a real purchase", () => {
+    const r = spend({
+      ...base,
+      txns: [txn({ id: "x", amount: 42, category: "GENERAL_MERCHANDISE_SUPERSTORES" })],
+    });
+    expect(r.today.total).toBe(42);
+  });
+
+  it("still counts a transaction with no category at all", () => {
+    const r = spend({ ...base, txns: [txn({ id: "x", amount: 42, category: null })] });
+    expect(r.today.total).toBe(42);
+  });
+});

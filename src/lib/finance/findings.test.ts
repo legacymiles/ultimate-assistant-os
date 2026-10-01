@@ -335,6 +335,82 @@ describe("unplanned-recurring", () => {
     expect(kinds(out)).not.toContain("unplanned-recurring");
   });
 
+
+  // Tightened after running the engine over a real Plaid feed, which produced
+  // eleven of these including McDonald's, Starbucks and KFC. Three similar
+  // charges a month apart describes lunch as well as it describes Netflix.
+  it("does not fire when the amounts merely resemble each other", () => {
+    const out = findings(
+      ctx({
+        bills: [],
+        unmatchedTxns: [
+          txn({ id: "c1", date: "2026-07-10", merchantNorm: "cafe", amount: 4.33 }),
+          txn({ id: "c2", date: "2026-08-10", merchantNorm: "cafe", amount: 4.4 }),
+          txn({ id: "c3", date: "2026-09-10", merchantNorm: "cafe", amount: 4.35 }),
+        ],
+      }),
+    );
+    expect(kinds(out)).not.toContain("unplanned-recurring");
+  });
+
+  it("fires when the amounts are identical to the cent", () => {
+    const out = findings(ctx({ bills: [], unmatchedTxns: monthly("adobe", 19.99) }));
+    expect(kinds(out)).toContain("unplanned-recurring");
+  });
+
+  it("ignores a repeating charge too small to be worth mentioning", () => {
+    const out = findings(ctx({ bills: [], unmatchedTxns: monthly("newsstand", 1.5) }));
+    expect(kinds(out)).not.toContain("unplanned-recurring");
+  });
+
+  it("ignores a food and drink payee however regular it looks", () => {
+    const out = findings(
+      ctx({
+        bills: [],
+        unmatchedTxns: monthly("mcdonald s", 12).map((t) => ({
+          ...t,
+          category: "FOOD_AND_DRINK_FAST_FOOD",
+        })),
+      }),
+    );
+    expect(kinds(out)).not.toContain("unplanned-recurring");
+  });
+
+  it("ignores transport and general retail too", () => {
+    for (const category of ["TRANSPORTATION_TAXIS_AND_RIDE_SHARES", "GENERAL_MERCHANDISE_SUPERSTORES"]) {
+      const out = findings(
+        ctx({ bills: [], unmatchedTxns: monthly("somewhere", 30).map((t) => ({ ...t, category })) }),
+      );
+      expect(kinds(out)).not.toContain("unplanned-recurring");
+    }
+  });
+
+  it("rejects spacing that wanders by more than a couple of days", () => {
+    const out = findings(
+      ctx({
+        bills: [],
+        unmatchedTxns: [
+          txn({ id: "s1", date: "2026-07-10", merchantNorm: "adobe", amount: 19.99 }),
+          txn({ id: "s2", date: "2026-08-10", merchantNorm: "adobe", amount: 19.99 }),
+          txn({ id: "s3", date: "2026-09-14", merchantNorm: "adobe", amount: 19.99 }),
+        ],
+      }),
+    );
+    expect(kinds(out)).not.toContain("unplanned-recurring");
+  });
+
+  it("shows at most five, largest first, so the feed cannot flood", () => {
+    const many = Array.from({ length: 9 }, (_, i) =>
+      monthly(`service${i}`, 10 + i).map((t) => ({ ...t, id: `${t.id}-${i}` })),
+    ).flat();
+    const out = findings(ctx({ bills: [], unmatchedTxns: many }));
+    const rec = out.filter((f) => f.kind === "unplanned-recurring");
+    expect(rec).toHaveLength(5);
+    // The 18.00 one must be in; the 10.00 one must not.
+    expect(rec[0].amount).toBe(18);
+    expect(rec.map((f) => f.amount)).not.toContain(10);
+  });
+
   it("does not fire when a bill already covers the payee", () => {
     const out = findings(
       ctx({
