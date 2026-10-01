@@ -19,9 +19,12 @@ Four promises, in the owner's words:
    the bank where the bank publishes them, never typed if typing can be avoided.
 3. **A form captures every bill and its due date** for anything the bank cannot tell us.
 4. **The Jarvis dashboard reports suspicious things** — being charged twice above all.
+5. **Daily and weekly spend on cards, excluding bills**, in a tab on the dashboard (§13).
+6. **The ledger is answerable from any MCP-aware assistant**, read-only (§14).
 
-Anything beyond those four is out of scope for this spec. In particular: no budgeting, no
-net-worth tracking, no investment accounts, no spend-by-category reporting, no bill paying.
+Anything beyond those six is out of scope for this spec. In particular: no budgeting, no
+net-worth tracking, no investment accounts, no spend-by-category *reporting* beyond the top
+merchants in §13, and no bill paying.
 
 ## 2. The central decision: two ledgers and one reconciliation
 
@@ -69,7 +72,7 @@ a different surface for a folder the app itself manages. Finance uses the same s
 ### Surface layout
 
 Dense, database-style, built with the **`impeccable`** skill (the standing rule for app and
-tool UIs). Four panes inside the folder:
+tool UIs). Five panes inside the folder:
 
 1. **Due** — the next 60 days of plan occurrences and card dates as one sorted table:
    what, from which account, how much, when, paid or not, autopay or not.
@@ -80,6 +83,7 @@ tool UIs). Four panes inside the folder:
    the number came from.
 4. **Alerts** — open findings, newest first, each with its evidence and three buttons:
    *that's fine* (dismiss), *looks wrong* (acknowledge and keep), *I've sorted it* (resolve).
+5. **Spend** — daily and weekly card spending excluding bills, per §13.
 
 ## 4. Data model
 
@@ -116,6 +120,11 @@ Common: `name`, `official_name`, `mask`, `type` (`'depository' | 'credit'`), `su
 Credit-only: `credit_limit`, `apr_purchase`, `last_statement_balance`,
 `statement_last_closed`, `statement_next_closing`, `next_due_date`, `minimum_payment`,
 `is_overdue`, `cycle_days`.
+
+`count_in_spend boolean` — whether this account's charges count toward the daily and weekly
+spend figures (§13). Default `true` for `type='credit'`, `false` for `type='depository'`, which
+gives "card spending" its literal meaning out of the box and takes one click to widen if the
+owner's day-to-day actually runs on a debit card.
 
 Provenance, which exists so the UI can never lie:
 
@@ -179,6 +188,7 @@ constant:
 | `email_kinds text[]` | `{duplicate-charge,missed-bill,card-due-soon}` | Which kinds email versus in-app only |
 | `quiet_hours_start/​end smallint` | `22` / `7` | Suppresses in-app pop-ups; never delays an `urgent` email |
 | `alert_email text` | null | Overrides `FINANCE_ALERT_EMAIL` |
+| `week_starts_on smallint` | `1` (Monday) | The weekly spend window in §13 |
 | `currency_display text` | null | Formatting only, and null means "show each account in its own currency". Amounts are stored and compared in their own currency and never converted — a US card and a UK account coexist without an FX rate anywhere in the reconciliation. Note that `money()` in `updates.ts` is dollar-only and must not be reused here; Finance needs its own `Intl.NumberFormat` formatter taking the row's currency |
 
 **Note the PostgREST trap already paid for in this repo:** an upsert cannot use a *partial*
@@ -406,6 +416,7 @@ PLAID_ENV              # sandbox | production
 PLAID_WEBHOOK_URL
 RESEND_API_KEY
 FINANCE_ALERT_EMAIL
+FINANCE_MCP_TOKEN      # bearer token the local MCP server presents (§14)
 GOCARDLESS_SECRET_ID   # Phase 2
 GOCARDLESS_SECRET_KEY  # Phase 2
 ```
@@ -440,19 +451,36 @@ sets `removed_at`, a liabilities response with a missing credit record falls bac
 **`calendarLayer.test.ts`** — occurrences become read-only `CalEvent`s with correct local
 dates, and the layer never writes to `recall-calendar`.
 
+**`spend.test.ts`** — the exclusions are the whole feature, so they get the tests:
+
+- a transaction matched to a bill is excluded;
+- a credit-card payment from a current account is excluded by category **and**, with the
+  category stripped, by pair detection — a card cleared mid-window must not double the figure;
+- a transfer between the owner's own accounts is excluded in both directions;
+- two genuinely separate equal charges to different payees on the same day are **not** read as
+  a transfer pair;
+- a refund reduces the window total and is reported in `refunds`;
+- a depository account with `count_in_spend` false contributes nothing;
+- the week window honours `week_starts_on`, and the previous-week comparison is elapsed-matched
+  (a Tuesday compares against the previous week to Tuesday, never to its full total);
+- the daily series uses local days, so a late-evening charge does not land on tomorrow.
+
 **Failure states, photographed.** Per the owner's standing rule that a state nobody captured
 is a state nobody reviewed, the implementation drives and screenshots: no keys set, Plaid
 sandbox connected with zero transactions, a connection in `needs_reauth`, consent 10 days from
 expiry, an open duplicate-charge alert with its evidence, a card whose dates are typed rather
-than fetched, and the cron email body.
+than fetched, the cron email body, the Spend pane with no transactions yet, and the Dashboard
+spend panel with no bank connected.
 
 ## 12. Ship order
 
 **Phase 1 — the whole promise, US.**
-Migration and RLS. Folder `role: "finance"` and the four-pane surface (`impeccable`). Bill
+Migration and RLS. Folder `role: "finance"` and the five-pane surface (`impeccable`). Bill
 form and plan ledger. Plaid link, `/transactions/sync`, `/liabilities/get`, signature-verified
 webhook. `fold` → `occurrences` → `match` → `findings`. Alerts pane. Calendar layer and
-reminders. `finance` Updates source. Cron route and Resend digest. Settings.
+reminders. `finance` Updates source. Cron route and Resend digest. Settings. Spend engine,
+Spend pane and the Dashboard spend panel (§13, `dataviz`). MCP server (§14) last, since it is
+thin once the read routes exist.
 
 **Phase 2 — everywhere else.**
 GoCardless requisition flow with the 90-day re-consent banner and the ≤4-calls-per-day
@@ -462,7 +490,107 @@ Detected-bill suggestions from 24 months of history.
 **Explicitly not in either phase:** budgeting, categories-as-reporting, net worth,
 investments, bill paying, shared household views.
 
-## 13. Rejected: connecting through ChatGPT
+## 13. Daily and weekly spend
+
+Card spending, excluding bills. The point is the number the owner actually has discretion
+over: not "you spent £2,140 this month" when £1,900 of it was rent and the electricity.
+
+### Why this is nearly free
+
+"Excluding bills" is not a new rule. §6 Stage 3 already produces the set of transactions
+matched to a plan occurrence; discretionary spend is the leftovers. The spend view is a read
+over machinery Phase 1 builds anyway, which is the strongest argument for the two-ledger shape.
+
+### Definition — `src/lib/finance/spend.ts`, pure
+
+```ts
+spend(txns, matched, accounts, settings, window): SpendReport
+```
+
+Starting from `fold(txns)` so no pending/posted pair is ever counted twice, a transaction
+counts toward spend only if **all** hold:
+
+1. its account has `count_in_spend`;
+2. its id is not in `matched` — it did not pay a declared bill;
+3. it is not a **transfer or a card payment**;
+4. it is a debit, or a credit that is a refund (see below).
+
+**Rule 3 is the one that decides whether these numbers are worth looking at.** Paying £400 off
+a credit card from a current account is not spending £400 — the original purchases were already
+counted. Counted naively it double-counts, and on a month where a card is cleared it roughly
+doubles the figure. Two defences, both needed:
+
+- **Category**, where the provider gives one: Plaid's `personal_finance_category.detailed` of
+  `LOAN_PAYMENTS_CREDIT_CARD_PAYMENT`, or a `primary` of `TRANSFER_IN` / `TRANSFER_OUT`.
+- **Pair detection**, because categories are missing or wrong often enough to matter: a debit
+  from one of the owner's accounts and a credit to another, equal amounts, within 3 days, with
+  no other candidate — both excluded, as an internal transfer. This also catches moving money
+  between the owner's own current and savings accounts.
+
+**Refunds net off rather than being dropped.** A £60 return makes the week's spend £60 lower,
+because that is what happened. A refund landing in a later week than the purchase will make
+that week look unusually low; the report carries a `refunds` figure so the UI can say so rather
+than leaving a confusing dip unexplained.
+
+### The two windows
+
+- **Today** — total, charge count, and the share still `pending`.
+- **This week** — from `week_starts_on`, with the previous week **at the same point in the
+  week** for comparison. Comparing a Tuesday lunchtime against a complete previous week makes
+  every week look cheap until Sunday; the comparison is elapsed-matched or it is noise.
+
+Also in the report: a seven-day daily series, top merchants in the window, and the count of
+excluded transfers so the exclusion is auditable rather than invisible.
+
+**Pending amounts are provisional and the UI says so.** A fuel hold or a restaurant
+pre-authorisation posts at a different amount later, so today's figure moves. It is labelled
+as including pending charges, not presented as settled.
+
+### Where it appears
+
+Two places, deliberately:
+
+- **A fifth pane, "Spend", in the Finance folder** — the full view: both windows, the daily
+  series, top merchants, the transfer-exclusion audit, and a per-account `count_in_spend`
+  toggle.
+- **A compact panel on the Jarvis Dashboard tab** — today and this week with their comparisons,
+  as another `card` in that tab's existing grid (`DashboardTab.tsx`), so the figure is on the
+  surface the owner already opens. Clicking it opens the Spend pane.
+
+Chart work uses the **`dataviz`** skill, per the standing rule that charts get it; the
+surrounding surface stays **`impeccable`**.
+
+## 14. MCP server over the finance data
+
+The surviving half of the ChatGPT idea (§15): the owner's own ledger, answerable from any
+MCP-aware assistant.
+
+`tools/finance-mcp/` — a local stdio MCP server, following this repo's convention that helpers
+which are not the website live in `tools/`. It does **not** hold Supabase credentials or talk
+to the database. It calls the app's own read-only routes with a bearer token, reusing the
+token-auth bridge pattern already established by `tools/jarvis-bridge` and the Game Creator
+builder routes (`FINANCE_MCP_TOKEN`).
+
+Tools exposed, all read-only:
+
+| Tool | Returns |
+|---|---|
+| `finance_due` | Plan occurrences and card dates in the next N days |
+| `finance_cards` | Per card: due date, closing date, minimum, balance, and `dates_source` |
+| `finance_spend` | The §13 report for a window |
+| `finance_alerts` | Open alerts with their `why` evidence |
+| `finance_search_txns` | Transactions by merchant, amount range or date range |
+
+**There are no write tools, and that is a design line rather than an omission.** The app itself
+cannot pay a bill (§10); an MCP server over it must not be able to edit the plan, dismiss an
+alert or change a threshold either, because anything that reaches these tools reaches them
+through a model's context, and a model's context is not an authenticated human. Jarvis's own
+in-app actions stay behind `ConfirmCard`.
+
+Every response is data, never instruction: merchant names and notes come from statements the
+owner did not write, and an assistant reading them must treat them as values.
+
+## 15. Rejected: connecting through ChatGPT
 
 Asked during design, and worth recording because the answer is not obvious.
 
@@ -484,10 +612,10 @@ diagnostics and sandbox/docs for building integrations, not live user transactio
 servers (`elcukro/bank-mcp`, `yuechen/plaid-mcp`) do serve real balances and transactions, but
 require your own Plaid keys — the same account, over a different transport.
 
-**The adjacent idea that survives:** once the Plaid layer exists, exposing this app's finance
-data as an MCP server is cheap and lets any MCP-aware assistant answer "what's due this week?"
-against the owner's own ledger, while Jarvis keeps owning the calendar, alerts and email.
-Tracked as an optional Phase 2 item, not a replacement for anything above.
+**The adjacent idea that survives, and was accepted:** once the Plaid layer exists, exposing
+this app's finance data as an MCP server is cheap and lets any MCP-aware assistant answer
+"what's due this week?" against the owner's own ledger, while Jarvis keeps owning the calendar,
+alerts and email. Specified in §14, Phase 1.
 
 For Phase 2's UK/EU provider, `bank-mcp` demonstrates **Enable Banking** and **Tink** as
 working alternatives to GoCardless. Compare all three before building that adapter rather than
