@@ -1,6 +1,6 @@
 # Personal Finance — Engines Implementation Plan (1 of 5)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build the pure reconciliation and spend engines, their date/money helpers, and the database schema for the Personal Finance folder — everything that decides *what is true*, with no network, no UI and no API keys.
 
@@ -9,6 +9,9 @@
 **Tech Stack:** TypeScript, vitest (`npx vitest run <path>`), Supabase/Postgres for the schema. No new npm dependencies.
 
 **Spec:** `docs/superpowers/specs/2026-09-30-personal-finance-design.md` — §4 (data model), §6 (reconciliation), §13 (spend).
+
+**Status: COMPLETE** — 141 tests passing (`npx vitest run src/lib/finance`), commit `9cdce6d`.
+The migration SQL is written but has NOT yet been run against Supabase; the owner pastes it.
 
 **Plans that follow this one:** 2 — Plaid provider, sync and webhook. 3 — the folder surface and the time rail. 4 — calendar layer, Updates source, cron and email. 5 — the MCP server.
 
@@ -48,7 +51,7 @@ Files are split by pipeline stage rather than by layer, so each is small enough 
 **Files:**
 - Create: `src/lib/finance/types.ts`
 
-- [ ] **Step 1: Write the types file**
+- [x] **Step 1: Write the types file**
 
 ```ts
 // ---------------------------------------------------------------------------
@@ -226,12 +229,12 @@ export function defaultSettings(): FinanceSettings {
 }
 ```
 
-- [ ] **Step 2: Verify it compiles**
+- [x] **Step 2: Verify it compiles**
 
 Run: `npx tsc --noEmit -p tsconfig.json`
 Expected: no errors mentioning `src/lib/finance/types.ts`. (Other pre-existing errors in the repo are not this task's concern; grep the output for `finance`.)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/lib/finance/types.ts
@@ -246,7 +249,7 @@ git commit -m "Finance: the shared types, and the two conventions that are load-
 - Create: `src/lib/finance/dates.ts`
 - Test: `src/lib/finance/dates.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -349,12 +352,12 @@ describe("todayKey", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/lib/finance/dates.test.ts`
 Expected: FAIL — "Failed to resolve import ./dates".
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```ts
 // ---------------------------------------------------------------------------
@@ -439,12 +442,12 @@ export function withinRange(day: Day, from: Day, to: Day): boolean {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/lib/finance/dates.test.ts`
 Expected: PASS, 20 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/finance/dates.ts src/lib/finance/dates.test.ts
@@ -459,7 +462,7 @@ git commit -m "Finance: day-string arithmetic that survives month ends and DST"
 - Create: `src/lib/finance/money.ts`
 - Test: `src/lib/finance/money.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -519,12 +522,12 @@ describe("withinTolerance", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/lib/finance/money.test.ts`
 Expected: FAIL — "Failed to resolve import ./money".
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```ts
 // ---------------------------------------------------------------------------
@@ -575,12 +578,12 @@ export function withinTolerance(
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/lib/finance/money.test.ts`
 Expected: PASS, 12 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/finance/money.ts src/lib/finance/money.test.ts
@@ -595,7 +598,7 @@ git commit -m "Finance: compare money in integer cents, never as floats"
 - Create: `src/lib/finance/merchant.ts`
 - Test: `src/lib/finance/merchant.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -649,12 +652,12 @@ describe("matchesAny", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/lib/finance/merchant.test.ts`
 Expected: FAIL — "Failed to resolve import ./merchant".
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```ts
 // ---------------------------------------------------------------------------
@@ -720,12 +723,12 @@ export function matchesAny(merchantNorm: string, matchers: string[]): boolean {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/lib/finance/merchant.test.ts`
 Expected: PASS, 12 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/finance/merchant.ts src/lib/finance/merchant.test.ts
@@ -746,7 +749,7 @@ into a posted one: it removes the pending row and adds a **new** row carrying
 duplicate-charge alert fires constantly — the failure that makes the whole feature
 untrustworthy.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -830,12 +833,12 @@ describe("fold", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/lib/finance/fold.test.ts`
 Expected: FAIL — "Failed to resolve import ./fold".
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```ts
 // ---------------------------------------------------------------------------
@@ -867,12 +870,12 @@ export function fold(txns: Txn[]): Txn[] {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/lib/finance/fold.test.ts`
 Expected: PASS, 8 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/finance/fold.ts src/lib/finance/fold.test.ts
@@ -887,7 +890,7 @@ git commit -m "Finance: fold pending into posted, or every purchase looks like a
 - Create: `src/lib/finance/occurrences.ts`
 - Test: `src/lib/finance/occurrences.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -1057,12 +1060,12 @@ describe("occurrences — guards", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/lib/finance/occurrences.test.ts`
 Expected: FAIL — "Failed to resolve import ./occurrences".
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```ts
 // ---------------------------------------------------------------------------
@@ -1161,12 +1164,12 @@ export function allOccurrences(bills: Bill[], from: Day, to: Day): Occurrence[] 
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/lib/finance/occurrences.test.ts`
 Expected: PASS, 16 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/finance/occurrences.ts src/lib/finance/occurrences.test.ts
@@ -1181,7 +1184,7 @@ git commit -m "Finance: expand cadences without letting a February clamp compoun
 - Create: `src/lib/finance/match.ts`
 - Test: `src/lib/finance/match.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -1347,12 +1350,12 @@ describe("matchOccurrences", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/lib/finance/match.test.ts`
 Expected: FAIL — "Failed to resolve import ./match".
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```ts
 // ---------------------------------------------------------------------------
@@ -1441,12 +1444,12 @@ export function matchOccurrences(
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/lib/finance/match.test.ts`
 Expected: PASS, 17 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/finance/match.ts src/lib/finance/match.test.ts
@@ -1461,7 +1464,7 @@ git commit -m "Finance: match charges to bills best-first, so October is not rea
 - Create: `src/lib/finance/findings.ts`
 - Test: `src/lib/finance/findings.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -1897,12 +1900,12 @@ describe("fingerprints", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/lib/finance/findings.test.ts`
 Expected: FAIL — "Failed to resolve import ./findings".
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```ts
 // ---------------------------------------------------------------------------
@@ -2142,12 +2145,12 @@ export function findings(input: FindingsInput): Finding[] {
 Note the unused import guard: `sameAmount` is **not** imported above — grouping uses
 `cents()` directly. If your editor auto-adds it, remove it; an unused import fails lint.
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/lib/finance/findings.test.ts`
 Expected: PASS, 31 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/finance/findings.ts src/lib/finance/findings.test.ts
@@ -2162,7 +2165,7 @@ git commit -m "Finance: findings that name their evidence, with fingerprints tha
 - Create: `src/lib/finance/spend.ts`
 - Test: `src/lib/finance/spend.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -2374,12 +2377,12 @@ describe("spend — the two windows", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/lib/finance/spend.test.ts`
 Expected: FAIL — "Failed to resolve import ./spend".
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```ts
 // ---------------------------------------------------------------------------
@@ -2555,12 +2558,12 @@ export function spend(input: SpendInput): SpendReport {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/lib/finance/spend.test.ts`
 Expected: PASS, 17 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/finance/spend.ts src/lib/finance/spend.test.ts
@@ -2575,7 +2578,7 @@ git commit -m "Finance: spend excluding bills, and the transfer rule that stops 
 - Create: `src/lib/finance/reconcile.ts`
 - Test: `src/lib/finance/reconcile.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -2698,12 +2701,12 @@ describe("reconcile", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/lib/finance/reconcile.test.ts`
 Expected: FAIL — "Failed to resolve import ./reconcile".
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```ts
 // ---------------------------------------------------------------------------
@@ -2786,17 +2789,17 @@ export function reconcile(input: ReconcileInput): Reconciled {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/lib/finance/reconcile.test.ts`
 Expected: PASS, 6 tests.
 
-- [ ] **Step 5: Run the whole finance suite**
+- [x] **Step 5: Run the whole finance suite**
 
 Run: `npx vitest run src/lib/finance`
 Expected: PASS, 10 files, ~150 tests.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/lib/finance/reconcile.ts src/lib/finance/reconcile.test.ts
@@ -2810,7 +2813,7 @@ git commit -m "Finance: compose the pipeline, fold first"
 **Files:**
 - Create: `supabase/migrations/20260930000000_jarvis_finance.sql`
 
-- [ ] **Step 1: Write the migration**
+- [x] **Step 1: Write the migration**
 
 ```sql
 -- ============================================================================
@@ -3055,7 +3058,7 @@ begin
 end $$;
 ```
 
-- [ ] **Step 2: Check the SQL parses**
+- [x] **Step 2: Check the SQL parses**
 
 This repo has no local Postgres, so the check is a read-through against the three
 documented traps rather than an execution:
@@ -3070,7 +3073,7 @@ Expected: `6`
 Run: `grep -n "fingerprint_idx" -A2 supabase/migrations/20260930000000_jarvis_finance.sql`
 Expected: two lines, the second ending `(user_id, fingerprint);` with no `where`.
 
-- [ ] **Step 3: Copy the SQL to the clipboard for the owner**
+- [x] **Step 3: Copy the SQL to the clipboard for the owner**
 
 The owner runs migrations by hand in the Supabase SQL editor. Make that one paste:
 
@@ -3082,7 +3085,7 @@ Then tell them: the SQL is on the clipboard, paste it into the Supabase SQL edit
 project `kiiwaiwrfslqankcsnkf` and run it. Do not claim the tables exist until they
 confirm it ran.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add supabase/migrations/20260930000000_jarvis_finance.sql
