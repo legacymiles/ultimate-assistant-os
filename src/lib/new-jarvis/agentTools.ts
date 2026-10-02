@@ -320,6 +320,63 @@ export const AGENT_TOOLS: AgentTool[] = [
       required: ["fields"],
     },
   },
+  // --- the vault ----------------------------------------------------------
+  // The owner's Obsidian vault is the source of truth for everything they
+  // wrote on purpose, so these rank above memory search when the question is
+  // about their own notes, plans or decisions.
+  {
+    name: "vault_note",
+    kind: "bridge",
+    route: "vault/peek",
+    needs: "files",
+    description:
+      "Read one note from the owner's Obsidian vault, by its vault-relative path (e.g. 'topics/Zone Recovery.md'). "
+      + "Returns the note's full markdown including its frontmatter. Use this when you know which note you want; "
+      + "search memory first if you do not.",
+    parameters: {
+      type: "object",
+      properties: { path: str("Vault-relative path, with the .md extension.") },
+      required: ["path"],
+    },
+  },
+  {
+    name: "vault_append",
+    kind: "bridge",
+    route: "vault/append",
+    needs: "files",
+    description:
+      "Add text to the END of an existing note in the vault. This is the safe way to write: nothing already in "
+      + "the note is changed or removed. Use it to log something under a note that already exists. To create a "
+      + "NEW note use vault_write. Never use it to 'update' a note by appending a corrected copy — say what "
+      + "changed instead.",
+    parameters: {
+      type: "object",
+      properties: {
+        path: str("Vault-relative path of the note to add to."),
+        text: str("Markdown to add. It goes after everything already there."),
+      },
+      required: ["path", "text"],
+    },
+  },
+  {
+    name: "vault_write",
+    kind: "bridge",
+    route: "vault/write",
+    needs: "files",
+    description:
+      "Create a new note in the vault at a path that does not exist yet. Write real markdown: frontmatter with a "
+      + "title, then the body, and [[wikilinks]] to the notes it relates to — the links are what put it on the "
+      + "owner's graph, so a note with none is a note they will not find again. It will NOT overwrite an existing "
+      + "note; if one is already there you are told so and nothing is written.",
+    parameters: {
+      type: "object",
+      properties: {
+        path: str("Vault-relative path, ending .md. Put it in inbox/, notes/, people/, topics/ or decisions/."),
+        text: str("The whole note, as markdown."),
+      },
+      required: ["path", "text"],
+    },
+  },
   {
     name: "propose_memory",
     kind: "hub",

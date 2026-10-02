@@ -22,6 +22,19 @@ export interface RemoteMemory {
   content: string;
   origin: string;
   capturedAt: string;
+  /**
+   * The stable key this row mirrors — a vault-relative path, a file path, a
+   * message id. Selected because the knowledge graph is keyed by vault path,
+   * not by row id: without it there is no way to tell which note a row is.
+   */
+  externalId?: string | null;
+  /**
+   * Derived extras. `hash` is what lets a sweep skip an unchanged file,
+   * `links` carries the resolved wikilink targets that become graph edges, and
+   * `pending` marks a note captured away from the PC and not yet on disk.
+   */
+  meta?: Record<string, unknown> | null;
+  tags?: string[];
 }
 
 export interface MemoryContext {
@@ -62,21 +75,76 @@ export interface SaveInput {
  * instead of duplicating them. A missing embedding is not an error — the row
  * still exists and is findable by words.
  *
- * Why this is a lookup and two writes rather than one upsert: the unique index
- * on (user_id, source, external_id) is PARTIAL — `where external_id is not
- * null` — and Postgres refuses to infer a partial index for ON CONFLICT unless
- * the statement repeats its predicate, which PostgREST has no way to send. The
- * upsert that used to be here therefore failed every single time with 42P10,
- * "no unique or exclusion constraint matching the ON CONFLICT specification",
- * and that is why the Memory tab sat empty next to a hundred skills on disk.
- * Making the index total (supabase/migrations/20260925…) removes the cause;
- * this path is written so that it is correct either way.
+ * ## The hash gate
+ *
+ * A keyed input carrying `meta.hash` is compared against the hash already
+ * stored, and an unchanged row is skipped entirely — not re-embedded, not
+ * rewritten. Without this, every sync re-embeds every file: invisible at the
+ * couple of hundred files the master folder holds, and the difference between
+ * viable and impossible once a vault of a few thousand notes points at it.
+ *
+ * ## Why one upsert and not a lookup plus a write per row
+ *
+ * It used to be a lookup followed by `await update()` per existing row — up to
+ * twenty serialized round trips per batch, inside a route with a 300-second
+ * ceiling. The reason was real but is now historical: the unique index on
+ * (user_id, source, external_id) was PARTIAL (`where external_id is not null`)
+ * and Postgres refuses to infer a partial index for ON CONFLICT unless the
+ * statement repeats its predicate, which PostgREST cannot send. Every upsert
+ * failed with 42P10 and that is why the Memory tab sat empty next to a hundred
+ * skills on disk. `supabase/migrations/20260925…` made the index total
+ * specifically so this could become one statement, and now it is. Rows with a
+ * null `external_id` never conflict — NULLs are distinct in a unique index — so
+ * the same statement handles both halves.
  */
-export async function saveMemories(ctx: MemoryContext, inputs: SaveInput[]): Promise<{ saved: number; embedded: boolean }> {
-  if (!inputs.length) return { saved: 0, embedded: false };
-  const vectors = await embed(inputs.map((i) => `${i.title}\n\n${i.content}`));
+export async function saveMemories(
+  ctx: MemoryContext,
+  inputs: SaveInput[],
+): Promise<{ saved: number; skipped: number; embedded: boolean }> {
+  if (!inputs.length) return { saved: 0, skipped: 0, embedded: false };
 
-  const rows = inputs.map((i, n) => ({
+  const keyed = inputs.filter((i) => i.externalId);
+  let unchanged = new Set<string>();
+
+  if (keyed.length) {
+    // Scoped by source as well as key. Without it this over-fetches rows from
+    // other sources that happen to share a path — harmless, but it is the
+    // lookup a vault and the master folder would collide in.
+    const sources = [...new Set(keyed.map((i) => i.source))];
+    const { data: found, error } = await ctx.db
+      .from("jarvis_memories")
+      .select("source,external_id,meta")
+      .eq("user_id", ctx.userId)
+      .eq("profile_id", ctx.profileId)
+      .in("source", sources)
+      .in("external_id", keyed.map((i) => i.externalId as string));
+    if (error) throw new Error(error.message);
+
+    const hashes = new Map<string, string>();
+    for (const row of (found ?? []) as { source: string; external_id: string; meta: Record<string, unknown> | null }[]) {
+      const hash = typeof row.meta?.hash === "string" ? row.meta.hash : "";
+      if (hash) hashes.set(`${row.source}\u0000${row.external_id}`, hash);
+    }
+
+    unchanged = new Set(
+      keyed
+        .filter((i) => {
+          const hash = typeof i.meta?.hash === "string" ? i.meta.hash : "";
+          return hash && hashes.get(`${i.source}\u0000${i.externalId}`) === hash;
+        })
+        .map((i) => `${i.source}\u0000${i.externalId}`),
+    );
+  }
+
+  const todo = inputs.filter((i) => !i.externalId || !unchanged.has(`${i.source}\u0000${i.externalId}`));
+  const skipped = inputs.length - todo.length;
+  if (!todo.length) return { saved: 0, skipped, embedded: false };
+
+  // Embedding happens AFTER the gate, so an unchanged file costs nothing.
+  const vectors = await embed(todo.map((i) => `${i.title}\n\n${i.content}`));
+  const now = new Date().toISOString();
+
+  const rows = todo.map((i, n) => ({
     user_id: ctx.userId,
     profile_id: ctx.profileId,
     source: i.source,
@@ -87,47 +155,17 @@ export async function saveMemories(ctx: MemoryContext, inputs: SaveInput[]): Pro
     meta: i.meta ?? {},
     external_id: i.externalId ?? null,
     embedding: vectors?.[n] ?? null,
-    captured_at: i.capturedAt ?? new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    captured_at: i.capturedAt ?? now,
+    updated_at: now,
   }));
 
-  const withKey = rows.filter((r) => r.external_id !== null);
-  const withoutKey = rows.filter((r) => r.external_id === null);
+  const { data, error } = await ctx.db
+    .from("jarvis_memories")
+    .upsert(rows, { onConflict: "user_id,source,external_id" })
+    .select("id");
+  if (error) throw new Error(error.message);
 
-  let saved = 0;
-  if (withKey.length) {
-    // Which of these the owner already has, by the key that identifies the file.
-    const { data: found, error: lookupError } = await ctx.db
-      .from("jarvis_memories")
-      .select("id,source,external_id")
-      .eq("user_id", ctx.userId)
-      .in("external_id", withKey.map((r) => r.external_id as string));
-    if (lookupError) throw new Error(lookupError.message);
-    const key = (r: { source: string; external_id: string | null }) => `${r.source}\u0000${r.external_id}`;
-    const existing = new Map<string, string>(
-      ((found ?? []) as { id: string; source: string; external_id: string | null }[]).map((r) => [key(r), r.id]),
-    );
-
-    const fresh = withKey.filter((r) => !existing.has(key(r)));
-    for (const row of withKey) {
-      const id = existing.get(key(row));
-      if (!id) continue;
-      const { error } = await ctx.db.from("jarvis_memories").update(row).eq("id", id);
-      if (error) throw new Error(error.message);
-      saved += 1;
-    }
-    if (fresh.length) {
-      const { data, error } = await ctx.db.from("jarvis_memories").insert(fresh).select("id");
-      if (error) throw new Error(error.message);
-      saved += data?.length ?? 0;
-    }
-  }
-  if (withoutKey.length) {
-    const { data, error } = await ctx.db.from("jarvis_memories").insert(withoutKey).select("id");
-    if (error) throw new Error(error.message);
-    saved += data?.length ?? 0;
-  }
-  return { saved, embedded: vectors !== null };
+  return { saved: data?.length ?? rows.length, skipped, embedded: vectors !== null };
 }
 
 export interface SearchResult {
@@ -199,20 +237,84 @@ export async function searchMemory(
 export async function listMemories(ctx: MemoryContext, limit = 2000): Promise<RemoteMemory[]> {
   const { data, error } = await ctx.db
     .from("jarvis_memories")
-    .select("id, source, title, content, origin, captured_at")
+    // external_id and meta are selected because the knowledge graph is keyed by
+    // vault path and draws its edges from meta.links. Without them a listed row
+    // cannot be matched to a note, and every node is an island.
+    .select("id, source, title, content, origin, captured_at, external_id, meta, tags")
     .eq("user_id", ctx.userId)
     .eq("profile_id", ctx.profileId)
     .order("captured_at", { ascending: false })
     .limit(limit);
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r: { id: string; source: MemorySource; title: string; content: string; origin: string; captured_at: string }) => ({
-    id: r.id,
-    source: r.source,
-    title: r.title,
-    content: r.content,
-    origin: r.origin,
-    capturedAt: r.captured_at,
-  }));
+  return (data ?? []).map(
+    (r: {
+      id: string;
+      source: MemorySource;
+      title: string;
+      content: string;
+      origin: string;
+      captured_at: string;
+      external_id: string | null;
+      meta: Record<string, unknown> | null;
+      tags: string[] | null;
+    }) => ({
+      id: r.id,
+      source: r.source,
+      title: r.title,
+      content: r.content,
+      origin: r.origin,
+      capturedAt: r.captured_at,
+      externalId: r.external_id,
+      meta: r.meta,
+      tags: r.tags ?? [],
+    }),
+  );
+}
+
+/** Just the key and hash of every row for one source — what a sweep diffs against. */
+export async function listKeys(ctx: MemoryContext, source: MemorySource): Promise<{ externalId: string; hash: string; id: string }[]> {
+  const { data, error } = await ctx.db
+    .from("jarvis_memories")
+    .select("id, external_id, meta")
+    .eq("user_id", ctx.userId)
+    .eq("profile_id", ctx.profileId)
+    .eq("source", source)
+    .not("external_id", "is", null);
+  if (error) throw new Error(error.message);
+  return (data ?? [])
+    .filter((r: { external_id: string | null }) => r.external_id)
+    .map((r: { id: string; external_id: string; meta: Record<string, unknown> | null }) => ({
+      id: r.id,
+      externalId: r.external_id,
+      hash: typeof r.meta?.hash === "string" ? r.meta.hash : "",
+    }));
+}
+
+/** Delete rows by their external key, for the reconciling half of a sweep. */
+export async function deleteByKeys(ctx: MemoryContext, source: MemorySource, keys: string[]): Promise<number> {
+  if (!keys.length) return 0;
+  const { data, error } = await ctx.db
+    .from("jarvis_memories")
+    .delete()
+    .eq("user_id", ctx.userId)
+    .eq("profile_id", ctx.profileId)
+    .eq("source", source)
+    .in("external_id", keys)
+    .select("id");
+  if (error) throw new Error(error.message);
+  return data?.length ?? 0;
+}
+
+/** What source a row belongs to, so the delete route can refuse to delete a mirror of a real file. */
+export async function sourceOf(ctx: MemoryContext, id: string): Promise<MemorySource | null> {
+  const { data, error } = await ctx.db
+    .from("jarvis_memories")
+    .select("source")
+    .eq("id", id)
+    .eq("user_id", ctx.userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data?.source as MemorySource | undefined) ?? null;
 }
 
 export async function deleteMemory(ctx: MemoryContext, id: string): Promise<void> {

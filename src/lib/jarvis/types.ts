@@ -20,9 +20,15 @@ import type { Storyboard } from "@/lib/studio/storyboard";
 import type { UpdatesBlob } from "./updates";
 
 export type MemorySource =
+  // A note in the owner's Obsidian vault. The vault on disk is the source of
+  // truth; a memory row with this source is a searchable MIRROR of a file, not
+  // the file itself — which is why deleting one is refused and has to happen in
+  // Obsidian. It ranks above every other source, because it is the only one the
+  // owner authored deliberately.
+  | "vault"
   | "note" // typed into Jarvis by hand
   | "chat" // said in a conversation with Jarvis
-  | "master-folder" // CLAUDE.md, aios/*, ~/.claude memory files
+  | "master-folder" // CLAUDE.md and aios/* — the repo files that ship with the deploy
   | "skill" // a Claude Code skill the owner has
   | "file" // an uploaded document
   | "email" // pulled from a connected inbox
@@ -30,6 +36,7 @@ export type MemorySource =
   | "profile"; // derived from the Four-Cs intake
 
 export const MEMORY_SOURCES: MemorySource[] = [
+  "vault",
   "note",
   "chat",
   "master-folder",
@@ -42,6 +49,7 @@ export const MEMORY_SOURCES: MemorySource[] = [
 
 /** Human labels for the source filter list. */
 export const SOURCE_LABEL: Record<MemorySource, string> = {
+  vault: "Vault",
   note: "Notes",
   chat: "Conversations",
   "master-folder": "Master folder",

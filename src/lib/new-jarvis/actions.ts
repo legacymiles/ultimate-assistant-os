@@ -42,6 +42,9 @@ const READ_ROUTES = new Set([
   "browser/fields",
   "files/list",
   "files/read",
+  "vault/scan",
+  "vault/read",
+  "vault/peek",
   "system/windows",
   "system/info",
   "system/screenshot",
@@ -101,6 +104,11 @@ export function commandOnlyReads(command: string): boolean {
 function truncate(text: string, n = 70): string {
   const s = String(text ?? "").replace(/\s+/g, " ").trim();
   return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+}
+
+/** "12" from a list of twelve, "" from anything that is not a list. For a readable summary. */
+function countOf(value: unknown): string {
+  return Array.isArray(value) ? String(value.length) : "";
 }
 
 function hostOf(url: unknown): string {
@@ -208,6 +216,47 @@ export function classify(op: BridgeOp): Verdict {
         `Copy "${truncate(String(args.text ?? ""), 40)}" to the clipboard.`,
         "This replaces what you had copied.",
       );
+
+    // --- the vault ---------------------------------------------------------
+    // These MUST be classified explicitly. Without a case here they fall to
+    // the default branch, which gates every unrecognised route — and a sweep
+    // of a two-thousand-note vault would then ask the owner for permission two
+    // thousand times. Reading the vault is reading the owner's own notes on
+    // their own machine, which is the least alarming thing this bridge does.
+    case "vault/scan":
+      return free("Look through your vault for notes that have changed.");
+
+    case "vault/read":
+      return free(`Read ${countOf(args.paths) || "some"} notes from your vault.`);
+
+    case "vault/peek":
+      return free(`Check what is in ${truncate(String(args.path ?? "a note"), 50)}.`);
+
+    case "vault/append":
+      // Appending cannot destroy anything: the existing text is kept and the
+      // new text goes after it. That is the whole reason the outbox allows it.
+      return gate(
+        "act",
+        `Add to ${truncate(String(args.path ?? "a note"), 50)} in your vault.`,
+        "Added to the end — nothing already in the note is changed.",
+      );
+
+    case "vault/write": {
+      // A create is ordinary; replacing a note that exists is the one vault
+      // operation that can lose the owner's own writing, so it is grave. The
+      // flag has to be explicit, which is what makes the distinction real
+      // rather than a guess about intent.
+      const replacing = args.overwrite === true;
+      return gate(
+        replacing ? "grave" : "act",
+        replacing
+          ? `Replace everything in ${truncate(String(args.path ?? "a note"), 50)}.`
+          : `Write a new note at ${truncate(String(args.path ?? ""), 50)} in your vault.`,
+        replacing
+          ? "This overwrites a note you already have. Obsidian has no undo for a file replaced underneath it."
+          : "If a note is already there it will not be overwritten.",
+      );
+    }
 
     // --- the owner's own stores -------------------------------------------
     // Same rule the old assistant set: a write to their data waits for a yes.

@@ -23,17 +23,18 @@ import * as THREE from "three";
 import type { GraphNode } from "@/lib/jarvis/memoryClient";
 import type { MemorySource } from "@/lib/jarvis/types";
 
-/** Source colours. Chosen to stay distinguishable at 2px on black. */
-export const SOURCE_COLOR: Record<MemorySource, string> = {
-  note: "#6ee7ff", // cyan
-  chat: "#8b8cff", // violet
-  "master-folder": "#ffd479", // amber
-  skill: "#c4b5fd", // lilac
-  file: "#ff9f7f", // coral
-  email: "#5ee0c0", // mint
-  event: "#ff5fa2", // pink
-  profile: "#e9ecf3", // near-white
-};
+/**
+ * Source colours, re-exported from the palette.
+ *
+ * They used to be declared here, which meant the two chat tabs imported this
+ * react-three-fiber component purely to read eight hex values. The values now
+ * live in `@/lib/jarvis/graph/palette` so the knowledge graph can share them
+ * without pulling `three` along; this re-export keeps every existing caller
+ * working unchanged.
+ */
+import { SOURCE_COLOR } from "@/lib/jarvis/graph/palette";
+
+export { SOURCE_COLOR };
 
 const MAX_LINKS = 4000;
 

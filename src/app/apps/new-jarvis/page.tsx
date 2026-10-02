@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { JetBrains_Mono } from "next/font/google";
 import { NewJarvis } from "@/components/new-jarvis/NewJarvis";
+import { sessionToken, status, tokenMatches } from "@/lib/recall/gateStore";
+import { callerIsMember } from "@/lib/recall/lists/session";
 
 // The surface's design names JetBrains Mono as the voice of every command,
 // path, ref, count and elapsed time. The hub's --font-mono token asks for it
@@ -20,7 +24,34 @@ export const metadata: Metadata = {
     "The assistant console: every request becomes a block with its steps and its results, voice waiting on its name, and a local agent that can drive a real browser and this PC.",
 };
 
-export default function Page() {
+/**
+ * The same door /apps/jarvis has.
+ *
+ * This page had none, and that is the kind of gap you can never find by using
+ * the app: it looked protected because its neighbour was. It mounts the
+ * owner's folders, saved logins, photos, calendar, life record and family
+ * lists — and it is not in `APP_GATES` either, so setting the app password did
+ * not lock it. The hub-wide owner check was the only thing in front of it.
+ *
+ * The password lives in a writable store so it can be changed in-app, which
+ * needs the Node runtime — hence a page check rather than edge middleware,
+ * exactly as /apps/jarvis does it.
+ */
+export const dynamic = "force-dynamic";
+
+export default async function Page() {
+  // A family member gets the Lists board and nothing else. Without this they
+  // reached the full console, with a shell on the owner's PC behind it.
+  if (await callerIsMember()) redirect("/apps/dashboard/lists");
+
+  const gate = await status();
+  if (gate.gated) {
+    const cookie = (await cookies()).get("recall_auth")?.value ?? "";
+    if (!tokenMatches(cookie, await sessionToken())) {
+      redirect("/recall-unlock?next=%2Fapps%2Fnew-jarvis");
+    }
+  }
+
   return (
     <div className={mono.variable}>
       <NewJarvis />

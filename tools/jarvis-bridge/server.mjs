@@ -48,6 +48,7 @@ import { fileURLToPath } from "node:url";
 import { bearer, originAllowed, refuseReason, tokenMatches } from "./guard.mjs";
 import * as browser from "./browser.mjs";
 import * as computer from "./computer.mjs";
+import * as vault from "./vault.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "out");
@@ -96,6 +97,15 @@ const ROUTES = {
   "POST /browser/close": (b) => browser.closeTab(b),
   "POST /browser/quit": () => browser.shutdownBrowser(),
 
+  // The vault. These exist to collapse round trips, not because files/* is
+  // missing: files/read reads ONE file per preflighted POST, so a 2000-note
+  // vault would be 4000 requests to sweep once.
+  "POST /vault/scan": () => vault.scanVault(),
+  "POST /vault/read": (b) => vault.readNotes(b),
+  "POST /vault/peek": (b) => vault.peekNote(b),
+  "POST /vault/write": (b) => vault.writeNote(b),
+  "POST /vault/append": (b) => vault.appendNote(b),
+
   "POST /files/list": (b) => computer.listDir(b),
   "POST /files/read": (b) => computer.readTextFile(b),
   "POST /files/write": (b) => computer.writeTextFile(b),
@@ -137,7 +147,20 @@ async function capabilities() {
   } catch {
     why = "Playwright is not installed — run `npm install` in tools/jarvis-bridge.";
   }
-  return { shell: true, files: true, system: true, browser, browserWhy: why };
+  // The vault is reported separately from `files`, because "this machine can
+  // read files" and "this machine has the owner's vault on it" are different
+  // facts and the page needs to say which one is missing.
+  const where = await vault.vaultStatus();
+  return {
+    shell: true,
+    files: true,
+    system: true,
+    browser,
+    browserWhy: why,
+    vault: where.exists,
+    vaultRoot: where.root,
+    vaultWhy: where.exists ? "" : `No vault at ${where.root}. Create it, or set JARVIS_VAULT.`,
+  };
 }
 
 // ---------------------------------------------------------------------------

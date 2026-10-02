@@ -25,10 +25,26 @@ interface RemoteRow {
   content: string;
   origin: string;
   capturedAt: string;
+  externalId?: string | null;
+  meta?: Record<string, unknown> | null;
+  tags?: string[];
 }
 
+/**
+ * A row as the app's `Memory`.
+ *
+ * `links` used to be hardcoded `[]` here — and in the other producer — which
+ * meant no memory anywhere in the app had a single relationship on it, and the
+ * web drawn around the memory ball was decorative rather than real. Vault rows
+ * carry their resolved wikilink targets in `meta.links`, so reading them here
+ * is what turns that ball into an actual knowledge graph.
+ */
 function asMemory(r: RemoteRow): Memory {
-  return { ...r, tags: [], links: [], remote: true };
+  const links = Array.isArray(r.meta?.links)
+    ? (r.meta!.links as unknown[]).filter((l): l is string => typeof l === "string")
+    : [];
+  const { meta: _meta, externalId: _externalId, ...rest } = r;
+  return { ...rest, tags: r.tags ?? [], links, remote: true };
 }
 
 export interface UseMemory {

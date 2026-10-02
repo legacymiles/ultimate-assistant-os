@@ -34,14 +34,23 @@ import { BLOCKS_KEY, revive, slim } from "@/lib/new-jarvis/persist";
 import { Recall } from "../recall/Recall";
 import { ListsBoard } from "../recall/lists/ListsBoard";
 import { CalendarTab } from "../jarvis/CalendarTab";
-import { MemoryTab } from "../jarvis/MemoryTab";
-import { RecordTab } from "../jarvis/RecordTab";
 import { StudioTab } from "../jarvis/StudioTab";
-import { RoutinesTab } from "../jarvis/RoutinesTab";
 import { InboxTab } from "../jarvis/InboxTab";
 import { SkillsLibrary } from "../skills/SkillsLibrary";
 import { ToolsTab } from "../jarvis/ToolsTab";
 import { PluginsTab } from "../jarvis/PluginsTab";
+import { RouterTab } from "../jarvis/RouterTab";
+import { SettingsTab } from "../jarvis/SettingsTab";
+import { Blueprint } from "../blueprint/Blueprint";
+import { AppShell } from "../AppShell";
+
+// The Dashboard, which now carries Memory, the Profile and the self-audit as
+// panels rather than as three more entries in the rail.
+import { DashboardPanel } from "./DashboardPanel";
+import { useVault } from "@/lib/new-jarvis/useVault";
+import { noteOpened, useImprove } from "@/lib/new-jarvis/useImprove";
+import { useUpdates } from "@/lib/jarvis/useUpdates";
+import { toCalEvent } from "@/lib/jarvis/useDashboardCalendar";
 
 import { loadLocal, saveLocal } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
@@ -54,31 +63,84 @@ import type { JarvisStore } from "@/lib/jarvis/types";
 import { useDashboardCalendar } from "@/lib/jarvis/useDashboardCalendar";
 
 type TabId =
-  | "console" | "folders" | "photos" | "lists" | "calendar" | "inbox"
-  | "memory" | "record" | "studio" | "routines" | "skills" | "tools" | "plugins";
+  | "dashboard" | "console" | "studio"
+  | "folders" | "photos" | "lists" | "calendar" | "inbox"
+  | "skills" | "tools" | "router" | "architect" | "timeline" | "plugins" | "settings";
 
-const TABS: { id: TabId; label: string; icon: keyof typeof Icon }[] = [
-  { id: "console", label: "Console", icon: "Bot" },
-  { id: "folders", label: "Folders", icon: "Folder" },
-  { id: "photos", label: "Photos", icon: "Image" },
-  { id: "lists", label: "Lists", icon: "ListChecks" },
-  { id: "calendar", label: "Calendar", icon: "Calendar" },
-  { id: "inbox", label: "Inbox", icon: "Inbox" },
-  { id: "memory", label: "Memory", icon: "Database" },
-  { id: "record", label: "Record", icon: "Shield" },
-  { id: "studio", label: "Studio", icon: "Film" },
-  { id: "routines", label: "Routines", icon: "Clock" },
-  { id: "skills", label: "Skills", icon: "Sparkles" },
-  { id: "tools", label: "Tools", icon: "Layers" },
-  { id: "plugins", label: "Apps", icon: "Launch" },
+type Tab = { id: TabId; label: string; icon: keyof typeof Icon };
+
+/**
+ * The rail — five entries instead of thirteen.
+ *
+ * This is the "fewer side tabs, better minimal UI" change, and the three moves
+ * that made it possible are worth recording:
+ *
+ *   Memory stopped being a tab and became a panel on the Dashboard, where it
+ *   sits next to the Profile — the two things that are really about the same
+ *   subject, finally in the same place.
+ *
+ *   Record is gone. Its 47-field life record IS the Profile, and framing it as
+ *   a separate "Record" made it read as a filing cabinet rather than as the
+ *   owner. The store is untouched; only the framing changed.
+ *
+ *   Routines is unmounted. /apps/jarvis still has it and the store field is
+ *   still read by the updates feed, so nothing was deleted — it simply stopped
+ *   paying rent on the surface the owner looks at most.
+ *
+ * Folders, Photos, Lists, Calendar and Inbox fold into one "Yours" group, and
+ * the Toolbox is the group from the old shell, moved over whole.
+ */
+const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[] }[] = [
+  {
+    id: "yours",
+    label: "Yours",
+    icon: "Folder",
+    items: [
+      { id: "folders", label: "Folders", icon: "Folder" },
+      { id: "photos", label: "Photos", icon: "Image" },
+      { id: "lists", label: "Lists", icon: "ListChecks" },
+      { id: "calendar", label: "Calendar", icon: "Calendar" },
+      { id: "inbox", label: "Inbox", icon: "Inbox" },
+    ],
+  },
+  {
+    id: "toolbox",
+    label: "Toolbox",
+    icon: "Toolbox",
+    items: [
+      { id: "skills", label: "Skills", icon: "Sparkles" },
+      { id: "tools", label: "Tools", icon: "Layers" },
+      { id: "router", label: "Router", icon: "Target" },
+      { id: "architect", label: "Architect", icon: "Bulb" },
+      { id: "timeline", label: "Timeline", icon: "Flag" },
+      { id: "plugins", label: "Apps", icon: "Launch" },
+      { id: "settings", label: "Settings", icon: "Settings" },
+    ],
+  },
 ];
+
+/** The three that are always one click away, because they are where work happens. */
+const TOP: Tab[] = [
+  { id: "dashboard", label: "Dashboard", icon: "Grid" },
+  { id: "console", label: "Console", icon: "Bot" },
+  { id: "studio", label: "Studio", icon: "Film" },
+];
+
+const TABS: Tab[] = [...TOP, ...GROUPS.flatMap((g) => g.items)];
 
 function isTab(v: string): v is TabId {
   return TABS.some((t) => t.id === v);
 }
 
+/** Which group a tab lives in, so opening one from a link opens its folder too. */
+function groupOf(tab: TabId): string | null {
+  return GROUPS.find((g) => g.items.some((i) => i.id === tab))?.id ?? null;
+}
+
 export function NewJarvis() {
-  const [tab, setTab] = useState<TabId>("console");
+  const [tab, setTab] = useState<TabId>("dashboard");
+  /** Which rail folder is open. Opening a tab inside one always opens it. */
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<Mode>("do");
@@ -149,6 +211,35 @@ export function NewJarvis() {
     [profiles],
   );
   const dash = useDashboardCalendar();
+
+  // --- the Dashboard's three feeds ----------------------------------------
+  // All three are owned by the SHELL, not by the Dashboard tab. The updates
+  // badge and its browser pop-ups have to work from every tab, the vault sweep
+  // must survive the owner wandering off to Studio mid-sweep, and the audit
+  // reads the rail, which only the shell knows.
+  const briefStore = useMemo<JarvisStore | null>(() => {
+    if (!store) return null;
+    // Hand-typed Jarvis events merged with the Dashboard calendar, so the feed
+    // and the calendar tab cannot disagree about what is coming up.
+    return { ...store, events: [...store.events, ...dash.events.map(toCalEvent)] };
+  }, [store, dash.events]);
+
+  const updates = useUpdates(briefStore, commit, dash.events);
+  const vault = useVault(bridge);
+
+  const improve = useImprove({
+    store,
+    graph: vault.graph,
+    pendingCaptures: vault.waiting.length,
+    rail: TABS.map((t) => ({ id: t.id, label: t.label })),
+    bridgePaired: bridge.health.paired,
+    // Reported as a fact the auditor can act on rather than left for it to
+    // guess: this page now runs the same gate /apps/jarvis does, so the list
+    // is empty — and if that regresses, the auditor is how the owner finds out.
+    ungatedRoutes: [],
+    plaintextCredentials: 0,
+    missingKeys: [],
+  });
 
   // --- gates ---------------------------------------------------------------
   // A gate is a promise the block's buttons resolve. Keeping the resolver here
@@ -382,10 +473,27 @@ export function NewJarvis() {
     return () => window.removeEventListener("hashchange", read);
   }, []);
 
-  const go = (id: TabId) => {
+  const go = useCallback((id: TabId) => {
     setTab(id);
     window.location.hash = id;
-  };
+    const group = groupOf(id);
+    if (group) setOpenGroup(group);
+    // What the self-audit's "nobody opens this" finding is measured from.
+    // Device-local on purpose: a phone that never opens Studio must not teach
+    // the auditor that the laptop never opens Studio either.
+    noteOpened(id);
+  }, []);
+
+  /** An update row naming a tab. Strings, because the feed predates this rail. */
+  const goByName = useCallback(
+    (name: string) => {
+      // The feed's older ids point at surfaces that are now panels rather than
+      // tabs. Memory is the Dashboard now, and so is a pending action.
+      const mapped = name === "memory" || name === "chat" ? "dashboard" : name;
+      if (isTab(mapped)) go(mapped);
+    },
+    [go],
+  );
 
   const running = blocks.some((b) => b.status === "running" || b.status === "waiting");
   const caps = bridge.health.capabilities;
@@ -418,25 +526,39 @@ export function NewJarvis() {
           aria-label="Sections"
           className="flex w-[var(--nj-rail)] shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line bg-panel py-2"
         >
-          {TABS.map((t) => {
-            const I = Icon[t.icon];
-            const on = tab === t.id;
+          {TOP.map((t) => (
+            <RailButton
+              key={t.id}
+              tab={t}
+              on={tab === t.id}
+              onClick={() => go(t.id)}
+              badge={t.id === "console" && running ? "live" : t.id === "dashboard" && updates.unread > 0 ? "unread" : null}
+            />
+          ))}
+
+          {GROUPS.map((group) => {
+            const open = openGroup === group.id;
+            const inside = group.items.some((i) => i.id === tab);
+            const I = Icon[group.icon];
             return (
-              <button
-                key={t.id}
-                onClick={() => go(t.id)}
-                title={t.label}
-                aria-current={on ? "page" : undefined}
-                className={`group relative mx-1.5 flex flex-col items-center gap-0.5 rounded-md py-1.5 transition ${
-                  on ? "bg-elevated text-ink" : "text-ink-muted hover:bg-panel-2 hover:text-ink"
-                }`}
-              >
-                <I width={15} height={15} />
-                <span className="text-[9.5px] leading-none">{t.label}</span>
-                {t.id === "console" && running && (
-                  <span className="nj-dot absolute right-1 top-1 bg-brand" data-live="true" aria-hidden />
-                )}
-              </button>
+              <div key={group.id} className="contents">
+                <button
+                  type="button"
+                  onClick={() => setOpenGroup(open && !inside ? null : open ? null : group.id)}
+                  aria-expanded={open}
+                  title={group.label}
+                  className={`group relative mx-1.5 flex flex-col items-center gap-0.5 rounded-md py-1.5 transition ${
+                    inside ? "bg-elevated text-ink" : "text-ink-muted hover:bg-panel-2 hover:text-ink"
+                  }`}
+                >
+                  <I width={15} height={15} />
+                  <span className="text-[9.5px] leading-none">{group.label}</span>
+                </button>
+                {open &&
+                  group.items.map((t) => (
+                    <RailButton key={t.id} tab={t} on={tab === t.id} onClick={() => go(t.id)} nested />
+                  ))}
+              </div>
             );
           })}
         </nav>
@@ -511,7 +633,21 @@ export function NewJarvis() {
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto">
-            {tab === "console" ? (
+            {/* The Dashboard is its own column layout and owns its scrolling,
+                so it sits outside the shared scroll container. */}
+            {tab === "dashboard" && store ? (
+              <DashboardPanel
+                vault={vault}
+                improve={improve}
+                updates={updates}
+                store={store}
+                commit={commit}
+                reminders={dash.reminders.queue}
+                onDismissReminder={dash.reminders.dismiss}
+                bridgeUp={bridge.health.up && bridge.health.paired}
+                go={goByName}
+              />
+            ) : tab === "console" ? (
               <div className="space-y-2 p-3">
                 {blocks.length === 0 ? (
                   <Empty
@@ -550,15 +686,22 @@ export function NewJarvis() {
                   <CalendarTab store={store} commit={commit} dashboard={dash.events} onDashboard={dash.setEvents} />
                 )}
                 {tab === "inbox" && <InboxTab store={store} commit={commit} profile={profile} />}
-                {tab === "memory" && <MemoryTab store={store} commit={commit} />}
-                {tab === "record" && <RecordTab />}
                 {tab === "studio" && (
                   <StudioTab store={store} commit={commit} profile={profile} onDashboardChanged={dash.refresh} />
                 )}
-                {tab === "routines" && <RoutinesTab store={store} commit={commit} profile={profile} />}
                 {tab === "skills" && <SkillsLibrary chromeless />}
                 {tab === "tools" && <ToolsTab />}
+                {tab === "router" && <RouterTab />}
+                {tab === "architect" && <Blueprint chromeless />}
+                {tab === "timeline" && <AppShell chromeless />}
                 {tab === "plugins" && <PluginsTab />}
+                {/* SettingsTab's `go` is typed against the OLD shell's tab
+                    union, which is a superset of this one for the ids it
+                    actually sends. Narrowed through the same name check the
+                    hash router uses rather than cast blindly. */}
+                {tab === "settings" && (
+                  <SettingsTab go={((t: string) => goByName(t)) as never} updates={updates} />
+                )}
               </>
             )}
           </div>
@@ -586,6 +729,45 @@ export function NewJarvis() {
         </aside>
       </div>
     </div>
+  );
+}
+
+/**
+ * One rail entry.
+ *
+ * Extracted because the rail now has three kinds of row — a top-level tab, a
+ * folder, and a tab nested inside a folder — and inlining three nearly
+ * identical buttons is how they drift apart.
+ */
+function RailButton({
+  tab,
+  on,
+  onClick,
+  nested = false,
+  badge = null,
+}: {
+  tab: Tab;
+  on: boolean;
+  onClick: () => void;
+  nested?: boolean;
+  badge?: "live" | "unread" | null;
+}) {
+  const I = Icon[tab.icon];
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={tab.label}
+      aria-current={on ? "page" : undefined}
+      className={`group relative flex flex-col items-center gap-0.5 rounded-md py-1.5 transition ${
+        nested ? "mx-2.5" : "mx-1.5"
+      } ${on ? "bg-elevated text-ink" : "text-ink-muted hover:bg-panel-2 hover:text-ink"}`}
+    >
+      <I width={nested ? 13 : 15} height={nested ? 13 : 15} />
+      <span className={nested ? "text-[9px] leading-none" : "text-[9.5px] leading-none"}>{tab.label}</span>
+      {badge === "live" && <span className="nj-dot absolute right-1 top-1 bg-brand" data-live="true" aria-hidden />}
+      {badge === "unread" && <span className="nj-dot absolute right-1 top-1 bg-support" aria-hidden />}
+    </button>
   );
 }
 
