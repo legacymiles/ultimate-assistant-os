@@ -43,6 +43,8 @@ import { PasswordVault } from "./PasswordVault";
 import { Telephony } from "./Telephony";
 import { ArmoryTab } from "./ArmoryTab";
 import { gapsForAudit, readAll } from "@/lib/armory/catalog";
+import { ReflexStrip } from "./ReflexStrip";
+import { reflex as runReflex, savedACall } from "@/lib/new-jarvis/reflex";
 import { PluginsTab } from "../jarvis/PluginsTab";
 import { RouterTab } from "../jarvis/RouterTab";
 import { SettingsTab } from "../jarvis/SettingsTab";
@@ -260,6 +262,45 @@ export function NewJarvis() {
   // Logins still readable, so the security auditor can raise the real number
   // rather than a zero nobody measured.
   const [plaintextLogins, setPlaintextLogins] = useState(0);
+
+  /**
+   * The reflex pass, over what is in the box right now.
+   *
+   * Everything it reads is already in memory — vault notes and memories — so
+   * this is microseconds and can run on every keystroke. It is deliberately NOT
+   * debounced: watching it change its mind as you type is how the owner learns
+   * what it can settle without asking the model.
+   */
+  const known = useMemo(
+    () =>
+      vault.graph.nodes
+        .filter((n) => n.kind === "note")
+        .slice(0, 2000)
+        .map((n) => ({
+          key: n.key,
+          title: n.title,
+          content: vault.bodies.get(n.path ?? n.key)?.slice(0, 1200) ?? "",
+          tags: n.tags,
+        })),
+    [vault.bodies, vault.graph.nodes],
+  );
+
+  /** Set when the owner has said "ask the model anyway" for this exact text. */
+  const [overrideFor, setOverrideFor] = useState("");
+
+  const reflex = useMemo(
+    () =>
+      runReflex({
+        text: input,
+        mode,
+        capabilities: bridge.health.capabilities ?? {},
+        bridgeReady: bridge.health.up && bridge.health.paired,
+        known,
+        // No echo test here: that is a voice concern and useWakeVoice already
+        // rejects its own speech before a command is ever raised.
+      }),
+    [bridge.health, input, known, mode],
+  );
   useEffect(() => {
     void import("@/lib/recall/store")
       .then((m) => setPlaintextLogins(m.allCredentials().filter((c) => Boolean(c.password)).length))
@@ -424,6 +465,35 @@ export function NewJarvis() {
     async (rawText?: string, source: Block["source"] = "typed") => {
       const command = (rawText ?? input).trim();
       if (!command) return;
+
+      // The reflex gets first refusal.
+      //
+      // Only for typed input, only when the owner has not already said "ask
+      // anyway" for this exact text, and only for the two routes that settle
+      // something. `wait` is advisory — pressing enter on a half-sentence is
+      // the owner overruling it, and a box that refuses to submit is a box
+      // people come to hate.
+      if (source === "typed" && overrideFor !== command && savedACall(reflex.route)) {
+        const block = newBlock({ command, mode, source });
+        setBlocks((bs) => [
+          {
+            ...block,
+            status: "done" as const,
+            ms: Math.max(1, Math.round(reflex.micros / 1000)),
+            answer:
+              reflex.route === "answer" && reflex.best
+                ? `${reflex.because}
+
+${reflex.best.excerpt ?? ""}`.trim()
+                : reflex.because,
+          },
+          ...bs,
+        ].slice(0, MAX_LIVE_BLOCKS));
+        setInput("");
+        setTab("console");
+        return;
+      }
+
       if (source === "typed") setInput("");
 
       const block = newBlock({ command, mode, source });
@@ -481,7 +551,7 @@ export function NewJarvis() {
       }
       void bridge.refresh();
     },
-    [bridge, historyFor, input, mode, patch, profile?.name, runTool, voice],
+    [bridge, historyFor, input, mode, overrideFor, patch, profile?.name, reflex, runTool, voice],
   );
 
   useEffect(() => {
@@ -625,6 +695,24 @@ export function NewJarvis() {
             onMic={voice.toggle}
             busy={running}
           />
+
+          {/* The reflex, over whatever is in the box. Hidden when there is
+              nothing to judge, so an empty console is not a readout. */}
+          {input.trim() && (
+            <ReflexStrip
+              reflex={reflex}
+              onAccept={() => {
+                setOverrideFor("");
+                void submit();
+              }}
+              onAnyway={() => {
+                setOverrideFor(input.trim());
+                // The override is read on the next submit, so it has to run
+                // after this state has landed.
+                setTimeout(() => submitRef.current(input.trim(), "typed"), 0);
+              }}
+            />
+          )}
 
           {/* On a phone the right-hand column is gone, and with it the only
               place that says whether voice is on and whether this PC can be
