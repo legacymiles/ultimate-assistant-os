@@ -40,6 +40,7 @@ import { InboxTab } from "../jarvis/InboxTab";
 import { SkillsLibrary } from "../skills/SkillsLibrary";
 import { ToolsTab } from "../jarvis/ToolsTab";
 import { PasswordVault } from "./PasswordVault";
+import { Telephony } from "./Telephony";
 import { PluginsTab } from "../jarvis/PluginsTab";
 import { RouterTab } from "../jarvis/RouterTab";
 import { SettingsTab } from "../jarvis/SettingsTab";
@@ -67,7 +68,7 @@ import { useDashboardCalendar } from "@/lib/jarvis/useDashboardCalendar";
 type TabId =
   | "dashboard" | "console" | "studio"
   | "folders" | "photos" | "lists" | "calendar" | "inbox"
-  | "skills" | "tools" | "passwords" | "router" | "architect" | "timeline" | "plugins" | "settings";
+  | "skills" | "tools" | "passwords" | "calls" | "router" | "architect" | "timeline" | "plugins" | "settings";
 
 type Tab = { id: TabId; label: string; icon: keyof typeof Icon };
 
@@ -113,6 +114,7 @@ const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[]
       { id: "skills", label: "Skills", icon: "Sparkles" },
       { id: "tools", label: "Tools", icon: "Layers" },
       { id: "passwords", label: "Passwords", icon: "Key" },
+      { id: "calls", label: "Calls", icon: "Bell" },
       { id: "router", label: "Router", icon: "Target" },
       { id: "architect", label: "Architect", icon: "Bulb" },
       { id: "timeline", label: "Timeline", icon: "Flag" },
@@ -699,6 +701,13 @@ export function NewJarvis() {
                 )}
                 {tab === "skills" && <SkillsLibrary chromeless />}
                 {tab === "tools" && <ToolsTab />}
+                {tab === "calls" && (
+                  <div className="p-3">
+                    <div className="mx-auto max-w-xl">
+                      <Telephony updates={updates.updates} lastSeenAt={updates.seenAt} />
+                    </div>
+                  </div>
+                )}
                 {tab === "passwords" && (
                   <div className="p-3">
                     <div className="mx-auto max-w-xl">
