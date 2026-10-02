@@ -34,9 +34,11 @@ const KnowledgeGraph = dynamic(() => import("./KnowledgeGraph").then((m) => m.Kn
 });
 import { VaultStatus } from "./VaultStatus";
 import { ImprovePanel } from "./ImprovePanel";
+import { ScreenScan } from "./ScreenScan";
 
 import { MemoryTab } from "../jarvis/MemoryTab";
 import { NewDashboard } from "../new-dashboard/NewDashboard";
+import { RecordTab } from "../jarvis/RecordTab";
 import { UpdatesPanel } from "../jarvis/UpdatesPanel";
 import { ReminderBanner } from "../jarvis/ReminderBanner";
 
@@ -85,6 +87,10 @@ export function DashboardPanel({
   const [pane, setPane] = useState<Pane>("graph");
   const [muted, setMuted] = useState<Set<MemorySource>>(new Set());
   const [writing, setWriting] = useState<VaultNode | null>(null);
+  /** Bumped when a screen scan writes, to remount the profile beneath it. */
+  const [profileKey, setProfileKey] = useState(0);
+  /** Which half of the profile is showing. */
+  const [profileFace, setProfileFace] = useState<"details" | "aios">("details");
 
   // Sources the owner has switched off are removed from the graph entirely
   // rather than merely dimmed: a filter that leaves the node in place still
@@ -249,11 +255,52 @@ export function DashboardPanel({
             <MemoryTab store={store} commit={commit} />
           </div>
         ) : pane === "profile" ? (
-          <div className="h-full overflow-y-auto">
-            {/* The Four-Cs profile app, mounted whole. This is also the only
-                mount point of the onboarding interview, so putting it here is
-                what brings onboarding into New Jarvis at all. */}
-            <NewDashboard chromeless />
+          <div className="flex h-full min-h-0 flex-col">
+            {/* Two halves of one subject, and both are "the profile":
+                WHO YOU ARE is the life record — the 47 fields a form asks for.
+                HOW YOU WORK is the Four-Cs intake, which also carries the
+                onboarding interview.
+                The record half had no mount in this shell at all until now,
+                which meant a screen scan could write facts the owner then had
+                no way to see. */}
+            <div className="flex shrink-0 items-center gap-0.5 border-b border-line-soft px-3 py-1.5">
+              {(
+                [
+                  { id: "details", label: "Who you are" },
+                  { id: "aios", label: "How you work" },
+                ] as const
+              ).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setProfileFace(t.id)}
+                  aria-current={profileFace === t.id ? "page" : undefined}
+                  className={`rounded px-2 py-1 text-[11px] transition ${
+                    profileFace === t.id ? "bg-elevated text-ink" : "text-ink-muted hover:bg-panel-2 hover:text-ink"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {profileFace === "details" ? (
+                <>
+                  {/* Reading a screen belongs HERE, above the record it writes
+                      into. What it proposes is judged against that record, so
+                      the two want to be in one place. */}
+                  <div className="border-b border-line-soft p-3">
+                    <ScreenScan onSaved={() => setProfileKey((n) => n + 1)} />
+                  </div>
+                  {/* Keyed, so the record redraws with what a scan just saved
+                      rather than what it held when it mounted. */}
+                  <RecordTab key={profileKey} />
+                </>
+              ) : (
+                <NewDashboard chromeless />
+              )}
+            </div>
           </div>
         ) : (
           <div className="h-full overflow-y-auto p-3">

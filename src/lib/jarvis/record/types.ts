@@ -158,6 +158,26 @@ export const SECTIONS: SectionDef[] = [
       { key: "summary", label: "Your short 'about me'", type: "longtext", need: "job", hint: "Three or four sentences. Jarvis reuses it in cover letters." },
     ],
   },
+  {
+    id: "health",
+    label: "Health & insurance",
+    blurb: "What a clinic, a pharmacy or an A&E form asks, and nobody can recite under pressure.",
+    fields: [
+      { key: "blood_type", label: "Blood type", type: "choice", need: "core", options: ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"] },
+      { key: "insurance_carrier", label: "Insurance carrier", type: "text", need: "benefits", hint: "The company on the card, e.g. Pinnacle Health." },
+      { key: "insurance_member_id", label: "Member ID", type: "text", need: "benefits", sensitive: true },
+      { key: "insurance_group", label: "Group number", type: "text", need: "benefits" },
+      { key: "insurance_plan", label: "Plan name", type: "text", need: "optional" },
+      { key: "allergies", label: "Allergies", type: "longtext", need: "core", hint: "Including the reaction, because every form asks." },
+      { key: "medications", label: "Regular medication", type: "longtext", need: "optional", hint: "Name and dose." },
+      { key: "conditions", label: "Ongoing conditions", type: "longtext", need: "optional" },
+      { key: "gp_name", label: "Doctor or practice", type: "text", need: "optional" },
+      { key: "gp_phone", label: "Doctor's phone", type: "phone", need: "optional" },
+      { key: "emergency_name", label: "Emergency contact", type: "text", need: "core" },
+      { key: "emergency_relation", label: "Their relationship to you", type: "text", need: "optional" },
+      { key: "emergency_phone", label: "Emergency contact phone", type: "phone", need: "core" },
+    ],
+  },
 ];
 
 export const GROUPS: GroupDef[] = [
