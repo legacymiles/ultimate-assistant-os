@@ -168,53 +168,6 @@
   animation: nj-pulse 1.4s var(--nj-ease) infinite;
 }
 
-/* --- the wave ------------------------------------------------------------ */
-
-.nj-wave {
-  --nj-wave-h: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  height: 56px;
-}
-/*
-  The bars are one fixed height scaled by transform, never resized.
-
-  Thirteen bars re-measuring their height sixty times a second is thirteen
-  layout passes per frame for a decoration that sits next to a running agent —
-  the one moment on this surface where the main thread is already busy. Scale
-  composites instead.
-*/
-.nj-wave span {
-  width: 3px;
-  height: var(--nj-wave-h);
-  /* Full, not a 2px one-off outside the scale: on a 3px bar the radius clamps
-     to a capsule either way, so the system's value costs nothing. */
-  border-radius: 9999px;
-  background: var(--color-ink-faint);
-  transform-origin: center;
-  transition: transform 90ms linear, background-color var(--nj-fast) var(--nj-ease);
-}
-/* At rest the wave is a low, legible line — not a dashed rule. The previous
-   attempt raised the bars 2px and dimmed them to about 1.8:1, which made the
-   exact problem it was meant to fix worse. */
-/* A null state should not be the brightest object in its column. Between the
-   two ink values: loud enough to read as a wave, quiet enough to match the
-   "Not listening" underneath it. */
-.nj-wave[data-state="off"] span {
-  background: color-mix(in oklab, var(--color-ink-muted) 55%, var(--color-ink-faint));
-}
-.nj-wave[data-state="hearing"] span {
-  background: var(--color-core);
-}
-.nj-wave[data-state="speaking"] span {
-  background: var(--color-brand);
-}
-.nj-wave[data-state="thinking"] span {
-  background: var(--color-support);
-}
-
 /* --- reduced motion ------------------------------------------------------ */
 
 @media (prefers-reduced-motion: reduce) {
@@ -223,7 +176,127 @@
   .nj-dot[data-live="true"] {
     animation: none;
   }
-  .nj-wave span {
-    transition: none;
-  }
+}
+
+/* ---------------------------------------------------------------------------
+   The Reactor.
+
+   Chrome here is greyscale by rule; the only colour on the panel comes from
+   the canvas, which is coloured by STATE — green hearing, violet speaking,
+   blue thinking. That is the same discipline the dashboard keeps, and it is
+   what lets the one luminous thing in the rail mean something.
+   --------------------------------------------------------------------------- */
+
+.nj-reactor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+/* Genuinely square, and sized by the panel rather than by a magic number.
+   `width: 100%` with `aspect-ratio: 1` and a max-HEIGHT is not square: the
+   height clamps while the width does not, and the circle is then drawn into a
+   wider-than-tall box and comes out as an ellipse. Clamping the WIDTH is what
+   keeps the box square at every panel size. */
+.nj-reactor__stage {
+  position: relative;
+  width: min(100%, 232px);
+  aspect-ratio: 1;
+  margin-inline: auto;
+}
+
+.nj-reactor__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.nj-reactor__unsupported {
+  position: absolute;
+  inset: auto 0 0 0;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: var(--color-ink-faint);
+  text-align: center;
+}
+
+.nj-reactor__badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: 0.625rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+.nj-reactor__tele {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem 0.5rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--color-line-soft);
+}
+
+.nj-reactor__tele > div { min-width: 0; }
+
+.nj-reactor__tele dt {
+  font-size: 0.5625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+
+.nj-reactor__tele dd {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--color-ink-muted);
+}
+
+/* Two lines reserved whether or not there is anything to say, so the panel
+   below does not jump every time a word is recognised. */
+.nj-reactor__heard {
+  min-height: 2.1em;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  color: var(--color-ink);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.nj-reactor__hint { color: var(--color-ink-faint); }
+
+.nj-reactor__modes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--color-line);
+  border-radius: 0.375rem;
+  background: var(--color-panel-2);
+}
+
+.nj-reactor__modes button {
+  padding: 0.2rem 0;
+  border-radius: 0.25rem;
+  font-size: 0.625rem;
+  color: var(--color-ink-muted);
+  transition: background-color var(--nj-fast) var(--nj-ease), color var(--nj-fast) var(--nj-ease);
+}
+
+.nj-reactor__modes button:hover { color: var(--color-ink); }
+
+.nj-reactor__modes button.is-on {
+  background: var(--color-elevated);
+  color: var(--color-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nj-reactor__modes button { transition: none; }
 }

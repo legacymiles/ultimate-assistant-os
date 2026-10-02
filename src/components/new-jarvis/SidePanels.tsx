@@ -5,7 +5,8 @@
 //
 // Two panels, and between them they answer the question the old Jarvis could
 // never answer without being asked: what can this assistant actually do right
-// now? The wave says whether it is listening. The capability rows say whether
+// now? The Reactor says whether it is listening, and which way the
+// conversation is flowing. The capability rows say whether
 // it can reach this machine, one line per capability with its own reason when
 // it cannot — because "offline" as a single red dot sends the owner to a log
 // file, and a sentence sends them to the fix.
@@ -14,64 +15,32 @@
 import { useState } from "react";
 import { Icon } from "../icons";
 import type { BridgeHealth } from "@/lib/new-jarvis/bridge";
-import type { VoiceState } from "@/lib/new-jarvis/useWakeVoice";
-
-const BAR_COUNT = 13;
-/** Must match --nj-wave-h in new-jarvis.css; the bars scale against it. */
-const BAR_HEIGHT = 52;
+import type { UseWakeVoice } from "@/lib/new-jarvis/useWakeVoice";
+import type { ReactorMode } from "@/lib/new-jarvis/reactor";
+import { Reactor } from "./Reactor";
 
 export function VoicePanel({
-  state,
-  level,
-  heard,
-  error,
-  supported,
-  onToggle,
+  voice,
+  mode,
+  onMode,
   speakReplies,
   onSpeakReplies,
 }: {
-  state: VoiceState;
-  level: number;
-  heard: string;
-  error: string;
-  supported: boolean;
-  onToggle: () => void;
+  voice: UseWakeVoice;
+  mode: ReactorMode;
+  onMode: (m: ReactorMode) => void;
   speakReplies: boolean;
   onSpeakReplies: (v: boolean) => void;
 }) {
-  const label =
-    state === "off"
-      ? "Not listening"
-      : state === "waiting"
-        ? 'Waiting for "Jarvis"'
-        : state === "hearing"
-          ? "Listening"
-          : state === "thinking"
-            ? "Thinking"
-            : "Speaking";
-
-  // A fixed bar set whose heights follow the live level, tallest in the middle
-  // so the shape reads as a voice rather than a chart. Expressed as a scale of
-  // one fixed height, so the wave composites instead of relayouting thirteen
-  // elements every frame.
-  const scales = Array.from({ length: BAR_COUNT }, (_, i) => {
-    const centre = 1 - Math.abs(i - (BAR_COUNT - 1) / 2) / ((BAR_COUNT - 1) / 2);
-    const idle = state === "off" ? 0 : 0.1;
-    const h = 4 + (idle + level * (0.35 + centre * 0.65)) * 48;
-    // At rest the bars still have to read as a wave. Scaled to their true
-    // silence they became thirteen 4px dots — a dotted rule, not an
-    // instrument that is listening.
-    const floor = state === "off" ? 0.15 : 0.06;
-    return Math.max(floor, Math.min(1, h / BAR_HEIGHT));
-  });
+  const { state, supported, error } = voice;
 
   return (
-    <section className="border-b border-line px-3 py-3">
-      <div className="flex items-center gap-2">
+    <section>
+      <div className="flex items-center gap-2 px-3 pt-3">
         <h2 className="text-[10.5px] font-medium uppercase tracking-wide text-ink-muted">Voice</h2>
         <button
           type="button"
-          onClick={onToggle}
+          onClick={voice.toggle}
           disabled={!supported}
           className={`ml-auto rounded px-1.5 py-0.5 text-[10.5px] font-medium transition ${
             state === "off"
@@ -83,51 +52,44 @@ export function VoicePanel({
         </button>
       </div>
 
-      <div className="nj-wave mt-2" data-state={state} aria-hidden>
-        {scales.map((s, i) => (
-          <span key={i} style={{ transform: `scaleY(${s.toFixed(3)})` }} />
-        ))}
-      </div>
+      {/* The thirteen scaled bars that used to live here read a single scalar
+          peak out of a 128-bin analyser and threw every frequency away, which
+          is why they looked like a volume knob rather than a voice. The
+          Reactor reads the real spectrum, from whichever source is actually
+          talking. */}
+      <Reactor voice={voice} mode={mode} onMode={onMode} />
 
-      <p className="mt-1 text-center text-[11px] text-ink-muted" aria-live="polite">
-        {label}
-      </p>
+      <div className="px-3 pb-3">
+        {!supported && (
+          <p className="text-[11px] leading-relaxed text-ink-muted">
+            This browser has no speech recognition. Chrome, Edge and Safari do — everything else here still works.
+          </p>
+        )}
+        {error && <p className="mt-2 text-[11px] leading-relaxed text-[#f87171]">{error}</p>}
 
-      {heard && (
-        <p className="mt-2 rounded border border-line-soft bg-canvas px-2 py-1.5 font-mono text-[11px] leading-snug text-ink">
-          {heard}
-        </p>
-      )}
-
-      {!supported && (
-        <p className="mt-2 text-[11px] leading-relaxed text-ink-muted">
-          This browser has no speech recognition. Chrome, Edge and Safari do — everything else here still works.
-        </p>
-      )}
-      {error && <p className="mt-2 text-[11px] leading-relaxed text-[#f87171]">{error}</p>}
-
-      {/* A bordered checkbox in the surface's own vocabulary, replacing the one
-          UA-shaped control on the surface. Announced as a checkbox because it
-          is drawn as one — a square with a tick told to call itself a switch
-          hands screen-reader users a different control from the one everyone
-          else sees. */}
-      <button
-        type="button"
-        role="checkbox"
-        aria-checked={speakReplies}
-        onClick={() => onSpeakReplies(!speakReplies)}
-        className="mt-2.5 flex w-full items-center gap-2 rounded-md border border-line px-2 py-1.5 text-left text-[11px] text-ink-muted transition hover:bg-elevated hover:text-ink"
-      >
-        <span
-          className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[3px] border transition ${
-            speakReplies ? "border-brand-2 bg-brand-2 text-white" : "border-line text-transparent"
-          }`}
-          aria-hidden
+        {/* A bordered checkbox in the surface's own vocabulary, replacing the one
+            UA-shaped control on the surface. Announced as a checkbox because it
+            is drawn as one — a square with a tick told to call itself a switch
+            hands screen-reader users a different control from the one everyone
+            else sees. */}
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={speakReplies}
+          onClick={() => onSpeakReplies(!speakReplies)}
+          className="mt-2.5 flex w-full items-center gap-2 rounded-md border border-line px-2 py-1.5 text-left text-[11px] text-ink-muted transition hover:bg-elevated hover:text-ink"
         >
-          <Icon.Check width={9} height={9} />
-        </span>
-        Speak answers aloud
-      </button>
+          <span
+            className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[3px] border transition ${
+              speakReplies ? "border-brand-2 bg-brand-2 text-white" : "border-line text-transparent"
+            }`}
+            aria-hidden
+          >
+            <Icon.Check width={9} height={9} />
+          </span>
+          Speak answers aloud
+        </button>
+      </div>
     </section>
   );
 }

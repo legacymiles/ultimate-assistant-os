@@ -23,6 +23,7 @@ import "./new-jarvis.css";
 import { BlockView } from "./Blocks";
 import { CommandLine } from "./CommandLine";
 import { BridgePanel, VoicePanel } from "./SidePanels";
+import type { ReactorMode } from "@/lib/new-jarvis/reactor";
 
 import { useBridge } from "@/lib/new-jarvis/useBridge";
 import { useWakeVoice } from "@/lib/new-jarvis/useWakeVoice";
@@ -145,6 +146,8 @@ export function NewJarvis() {
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<Mode>("do");
   const [speakReplies, setSpeakReplies] = useState(true);
+  /** Which face the Reactor is showing. Theirs to pick; it is the thing they look at most. */
+  const [reactorMode, setReactorMode] = useState<ReactorMode>("ring");
   /** The phone-only panel strip; the wide layout shows both panels always. */
   const [panelsOpen, setPanelsOpen] = useState(false);
 
@@ -423,6 +426,12 @@ export function NewJarvis() {
 
       aborts.current.delete(block.id);
       gateResolvers.current.delete(block.id);
+      // The round trip the Reactor reports. Stopped HERE rather than inside
+      // the voice hook, because the hook only learns an answer exists when it
+      // starts reading it aloud — which on a long answer is seconds later, and
+      // would turn an honest latency into a flattering one.
+      if (source === "voice") voice.markAnswered();
+
       // Only the answer is spoken. Reading a failure aloud in a calm voice is
       // how you end up believing a job succeeded.
       if (outcome.status === "done" && outcome.answer && source === "voice") {
@@ -611,12 +620,9 @@ export function NewJarvis() {
             {panelsOpen && (
               <div className="border-t border-line-soft">
                 <VoicePanel
-                  state={voice.state}
-                  level={voice.level}
-                  heard={voice.heard}
-                  error={voice.error}
-                  supported={voice.supported}
-                  onToggle={voice.toggle}
+                  voice={voice}
+                  mode={reactorMode}
+                  onMode={setReactorMode}
                   speakReplies={speakReplies}
                   onSpeakReplies={setSpeakReplies}
                 />
@@ -709,12 +715,9 @@ export function NewJarvis() {
 
         <aside className="hidden w-[var(--nj-aside)] shrink-0 overflow-y-auto border-l border-line bg-panel lg:block">
           <VoicePanel
-            state={voice.state}
-            level={voice.level}
-            heard={voice.heard}
-            error={voice.error}
-            supported={voice.supported}
-            onToggle={voice.toggle}
+            voice={voice}
+            mode={reactorMode}
+            onMode={setReactorMode}
             speakReplies={speakReplies}
             onSpeakReplies={setSpeakReplies}
           />
