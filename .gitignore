@@ -92,3 +92,13 @@ public/__dump/
 # cobalt is cloned, not vendored (tools/cobalt/install.mjs)
 /tools/cobalt/app/
 /tools/cobalt/out/
+
+# Derived by graphify, regenerate with: graphify . --out graphify-out --code-only
+graphify-out/
+
+# Derived by graphify — regenerate with [graphify extract] scanning C:\Users\honey\OneDrive\Desktop\claude code files
+[graphify extract] --code-only: skipping 2011 non-code file(s) (1686 docs, 1 papers, 324 images) — no LLM extraction
+[graphify extract] found 1888 code, 0 docs, 0 papers, 0 images
+[graphify extract] 219 file(s) not classified (no supported extension or shebang), skipped: .env.example, .gitattributes, .gitignore, .gitkeep, .mcp.json.example, 97d7f64a.log (+213 more)
+[graphify extract] AST extraction on 1888 code files...
+  AST extraction: 100/1594 uncached files (6
