@@ -41,6 +41,8 @@ import { SkillsLibrary } from "../skills/SkillsLibrary";
 import { ToolsTab } from "../jarvis/ToolsTab";
 import { PasswordVault } from "./PasswordVault";
 import { Telephony } from "./Telephony";
+import { ArmoryTab } from "./ArmoryTab";
+import { gapsForAudit, readAll } from "@/lib/armory/catalog";
 import { PluginsTab } from "../jarvis/PluginsTab";
 import { RouterTab } from "../jarvis/RouterTab";
 import { SettingsTab } from "../jarvis/SettingsTab";
@@ -112,7 +114,7 @@ const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[]
     icon: "Toolbox",
     items: [
       { id: "skills", label: "Skills", icon: "Sparkles" },
-      { id: "tools", label: "Tools", icon: "Layers" },
+      { id: "tools", label: "Armory", icon: "Toolbox" },
       { id: "passwords", label: "Passwords", icon: "Key" },
       { id: "calls", label: "Calls", icon: "Bell" },
       { id: "router", label: "Router", icon: "Target" },
@@ -234,6 +236,36 @@ export function NewJarvis() {
   const updates = useUpdates(briefStore, commit, dash.events);
   const vault = useVault(bridge);
 
+  // What the armory knows, so the self-audit can raise a real gap instead of
+  // nothing. Fetched once; a key does not change while the tab is open.
+  const [envKeys, setEnvKeys] = useState<Record<string, boolean> | null>(null);
+  useEffect(() => {
+    void fetch("/api/jarvis/armory", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { keys?: Record<string, boolean> }) => setEnvKeys(d.keys ?? {}))
+      .catch(() => setEnvKeys({}));
+  }, []);
+
+  const missingKeys = useMemo(() => {
+    if (!envKeys) return [];
+    return gapsForAudit(
+      readAll({
+        keys: envKeys,
+        bridge: bridge.health.capabilities ?? {},
+        bridgeUp: bridge.health.up && bridge.health.paired,
+      }),
+    );
+  }, [bridge.health, envKeys]);
+
+  // Logins still readable, so the security auditor can raise the real number
+  // rather than a zero nobody measured.
+  const [plaintextLogins, setPlaintextLogins] = useState(0);
+  useEffect(() => {
+    void import("@/lib/recall/store")
+      .then((m) => setPlaintextLogins(m.allCredentials().filter((c) => Boolean(c.password)).length))
+      .catch(() => setPlaintextLogins(0));
+  }, []);
+
   const improve = useImprove({
     store,
     graph: vault.graph,
@@ -244,8 +276,12 @@ export function NewJarvis() {
     // guess: this page now runs the same gate /apps/jarvis does, so the list
     // is empty — and if that regresses, the auditor is how the owner finds out.
     ungatedRoutes: [],
-    plaintextCredentials: 0,
-    missingKeys: [],
+    plaintextCredentials: plaintextLogins,
+    // Real, from the armory. This was a hardcoded empty list when the auditor
+    // was built, which meant its "features switched off for want of a key"
+    // finding could never fire — an auditor that cannot see is worse than no
+    // auditor, because it reports all-clear.
+    missingKeys,
   });
 
   // --- gates ---------------------------------------------------------------
@@ -700,7 +736,9 @@ export function NewJarvis() {
                   <StudioTab store={store} commit={commit} profile={profile} onDashboardChanged={dash.refresh} />
                 )}
                 {tab === "skills" && <SkillsLibrary chromeless />}
-                {tab === "tools" && <ToolsTab />}
+                {tab === "tools" && (
+                  <ArmoryTab bridge={bridge.health.capabilities ?? {}} bridgeUp={bridge.health.up && bridge.health.paired} />
+                )}
                 {tab === "calls" && (
                   <div className="p-3">
                     <div className="mx-auto max-w-xl">
