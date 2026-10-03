@@ -39,13 +39,15 @@ import gc
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 
-from common import Unavailable, Unsupported, module_available, weights_state
+from common import BadRequest, Unavailable, Unsupported, module_available, weights_state
 
 log = logging.getLogger("music.engines")
 
@@ -59,7 +61,49 @@ ERROR_MARK = "@@ERROR@@"
 # Peak VRAM the upstream projects report, used only for log lines and the
 # README table. Nothing here decides anything from these numbers except how
 # loudly to warn when --keep-loaded both is asked for on a small card.
-VRAM_NEED_GB = {"yue2": 24.0, "auk": 24.8, "sheetsage": 6.0}
+VRAM_NEED_GB = {"yue2": 24.0, "auk": 24.8, "sheetsage": 6.0, "demucs": 4.0}
+
+# What /jobs/separate accepts, and which of those only Demucs can make.
+# Named here rather than in the route because the capability belongs to the
+# engines: the HTTP layer should not know which separator does what.
+DEMUCS_STEMS = ("vocals", "drums", "bass", "other")
+SEPARATION_MODES = ("vocals", "music", "drums", "bass", "other")
+DEMUCS_ONLY_MODES = ("drums", "bass", "other")
+
+# How far along a demucs progress bar is, so a long separation reports real
+# progress instead of sitting at its starting value for four minutes.
+#
+# Its bar counts SECONDS OF AUDIO and prints no percentage at all —
+# "<blocks>| 11.7/11.7 [00:30<00:00, 2.56s/seconds]" — so the fraction is the
+# number that means anything. The percent form is kept as a fallback for a
+# tqdm configured the other way.
+FRACTION_RE = re.compile(r"(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)\s*\[")
+PERCENT_RE = re.compile(r"(\d{1,3})%")
+
+
+def _demucs_progress(text: str) -> float | None:
+    """0-1 from one redrawn bar line, or None when it is not one."""
+    fraction = FRACTION_RE.search(text)
+    if fraction:
+        done, total = float(fraction.group(1)), float(fraction.group(2))
+        if total > 0:
+            return max(0.0, min(1.0, done / total))
+    percent = PERCENT_RE.search(text)
+    return min(100, int(percent.group(1))) / 100 if percent else None
+
+
+def _find_stem(root: str, wanted: str) -> str | None:
+    """The one <wanted>.wav demucs wrote, wherever it filed it.
+
+    Demucs writes <out>/<model>/<track>/<stem>.wav, and both middle parts
+    depend on the model name and the uploaded filename. Walking for the leaf
+    is shorter than reconstructing that path and cannot be wrong about it.
+    """
+    for base, _dirs, names in os.walk(root):
+        for name in names:
+            if name == wanted + ".wav":
+                return os.path.join(base, name)
+    return None
 
 
 def _interpreter(path: str | None) -> str | None:
@@ -101,6 +145,156 @@ class Engines:
         if not self.args.sheetsage_python:
             return None
         return "subprocess" if _interpreter(self.args.sheetsage_python) else None
+
+    # --- Demucs: four stems instead of two -------------------------------
+    #
+    # AuK answers one question ("where is the voice?"). The mashup tool asks a
+    # different one: play me B's drums on their own. Nothing in AuK's published
+    # interface does that, so four-stem separation is a separate engine.
+    #
+    # Demucs is driven through its CLI rather than its Python API on purpose.
+    # `python -m demucs` is the interface its own README documents and the one
+    # that has stayed stable across releases; the module layout has not. The
+    # cost is a process per job, which is nothing next to the separation itself.
+
+    def demucs_interpreter(self) -> str | None:
+        """The interpreter that can run Demucs, or None if nothing can."""
+        explicit = _interpreter(self.args.demucs_python)
+        if explicit:
+            return explicit
+        return sys.executable if module_available("demucs") else None
+
+    def demucs_reason(self) -> str | None:
+        if self.demucs_interpreter():
+            return None
+        return ("the demucs package is not importable here and --demucs-python was not given; "
+                "pip install demucs into this venv or its own one (see the README, 'Stems')")
+
+    def separation_route(self, mode: str) -> str:
+        """Which separator will serve this mode, or an honest refusal.
+
+        The refusal matters more than the choice. A server with only AuK cannot
+        produce a drum stem, and the one thing it must not do is hand back the
+        backing track with "drums" written on it — so this raises instead, and
+        the message says what would fix it.
+        """
+        if mode not in SEPARATION_MODES:
+            raise BadRequest(f"mode must be one of {', '.join(SEPARATION_MODES)}")
+        if self.demucs_interpreter():
+            return "demucs"
+        if mode in DEMUCS_ONLY_MODES:
+            raise Unsupported(
+                f'"{mode}" needs Demucs, which is the only separator here that splits a recording four ways. '
+                f"{self.demucs_reason()}. AuK can lift the voice out and leave the backing, so "
+                '"vocals" and "music" still work on this server.'
+            )
+        self.require("auk")
+        return "auk"
+
+    def demucs_separate(self, spec: dict, report, timeout: int) -> dict:
+        python = self.demucs_interpreter()
+        if not python:
+            raise Unavailable(f"Demucs is not available on this server: {self.demucs_reason()}")
+        mode = spec.get("mode", "vocals")
+        audio_path = os.path.abspath(spec["audio_path"])
+        out_path = os.path.abspath(spec["out_path"])
+        model = self.args.demucs_model
+
+        # Demucs is a GPU job like any other here, so the resident generator is
+        # evicted first — two models on one card is how this server dies.
+        self.free_gpu(keep=None, why="Demucs needs the GPU to itself")
+
+        work = tempfile.mkdtemp(prefix="demucs-", dir=os.path.dirname(out_path))
+        try:
+            # -u (and PYTHONUNBUFFERED below) so nothing of the bar is held in
+            # the child until it exits. That is not where the delay turned out
+            # to be — see _run_demucs — but it removes one place it could be.
+            cmd = [python, "-u", "-m", "demucs", "-n", model, "-o", work]
+            # Two-stem mode is both faster and exactly what "vocals" / "music"
+            # mean; the four-way split is only paid for when a part of the
+            # backing is what was asked for.
+            if mode in ("vocals", "music"):
+                cmd += ["--two-stems", "vocals"]
+            if self.args.demucs_segment:
+                cmd += ["--segment", str(self.args.demucs_segment)]
+            cmd += [audio_path]
+            # Named with the rate, because demucs' own bar is back-loaded: on a
+            # 20-second clip it ticks twice, both times in the last second, so
+            # for anything short this line is the only progress there is. It
+            # does tick through a whole track, where it matters.
+            report(f"separating ({mode}) with demucs {model} — roughly a minute per 20s of audio", 0.1)
+            self._run_demucs(cmd, report, timeout)
+
+            wanted = "no_vocals" if mode == "music" else mode
+            found = _find_stem(work, wanted)
+            if not found:
+                raise Unavailable(
+                    f"Demucs finished but wrote no {wanted}.wav under {work}. Its output layout may have changed; "
+                    "the server will not guess which file it meant."
+                )
+            shutil.move(found, out_path)
+            return {
+                "audio_path": out_path,
+                "mode": mode,
+                "method": f"demucs:{model}",
+                "warnings": [],
+            }
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+
+    def _run_demucs(self, cmd: list[str], report, timeout: int) -> None:
+        """Run the CLI, turning its progress bar into job progress.
+
+        Two things about that bar, both found by watching a real separation:
+        demucs draws it by rewriting one line with CARRIAGE RETURNS and no
+        newline, and it draws it on stdout rather than stderr. A reader that
+        iterates lines over stderr therefore sees nothing until the job ends,
+        and the website shows a bar that never moves for five minutes — which
+        reads as a hang, which is the whole thing this is here to prevent.
+
+        So the two streams are merged and read a character at a time. The
+        output is a few KB; the simplicity is worth more than the syscalls.
+        """
+        log.info("demucs: " + " ".join(os.path.basename(c) if c.endswith(".wav") else c for c in cmd))
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        )
+        tail: list[str] = []
+        last = -1.0
+
+        try:
+            buf = ""
+            while True:
+                char = proc.stdout.read(1)
+                if not char:
+                    break
+                if char not in "\r\n":
+                    buf += char
+                    continue
+                text, buf = buf.strip(), ""
+                if not text:
+                    continue
+                tail.append(text)
+                del tail[:-40]
+                done = _demucs_progress(text)
+                if done is None:
+                    log.debug(f"[demucs] {text}")
+                # Only on a change: the bar redraws many times a second and
+                # every report writes to the job store.
+                elif done - last >= 0.01:
+                    last = done
+                    report("separating", 0.1 + 0.85 * done)
+            proc.wait(timeout=timeout)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+        if proc.returncode != 0:
+            raise Unavailable("demucs exited " + str(proc.returncode) + ": " + " / ".join(tail[-6:]))
 
     def auk_paths(self, flash: bool) -> tuple[str, str]:
         if flash:
@@ -145,7 +339,19 @@ class Engines:
             auk_loaded = self._auk is not None
             auk_variant = self._auk_variant
 
+        demucs_reason = self.demucs_reason()
+
         return {
+            "demucs": {
+                "available": demucs_reason is None,
+                # Always out of process: Demucs is driven through its CLI, so
+                # there is no in-process mode to report. Named anyway, because
+                # the startup banner prints this field for every engine.
+                "mode": "subprocess" if demucs_reason is None else "not-installed",
+                "model": args.demucs_model,
+                "stems": list(DEMUCS_STEMS) + ["music"],
+                "reason": demucs_reason,
+            },
             "yue2": {
                 "available": bool(yue_mode) and yue_reason is None,
                 "loaded": yue_loaded,
@@ -397,6 +603,13 @@ class Engines:
             self.release_after_job("auk")
 
     def separate(self, spec: dict, report, timeout: int) -> dict:
+        """One entry point, two separators, decided by what was asked for."""
+        mode = spec.get("mode", "vocals")
+        if self.separation_route(mode) == "demucs":
+            return self.demucs_separate(spec, report, timeout)
+        return self._auk_separate(spec, report, timeout)
+
+    def _auk_separate(self, spec: dict, report, timeout: int) -> dict:
         self.require("auk")
         self.separation_supported(raise_if_not=True)
         mode = self.auk_mode()

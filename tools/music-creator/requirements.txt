@@ -12,4 +12,11 @@
 #
 #   python -m pip install -r tools/music-creator/requirements.txt
 #
+# Demucs is the one near-exception: four-stem separation is an ordinary pip
+# install with no version fight in it, so `pip install demucs` into this venv
+# is usually enough. It is still left out of this file deliberately, because a
+# server that only writes songs should not be made to download it -- and the
+# stem rack in the website reports it as missing rather than breaking without
+# it. See README.md, "Stems".
+#
 aiohttp>=3.9

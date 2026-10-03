@@ -43,11 +43,12 @@ except ImportError:  # --self-test has to run on a box that is missing pieces
 import audio
 import selftest
 from common import (DEFAULT_AUK_CKPT, DEFAULT_AUK_CONFIG, DEFAULT_AUK_FLASH_CKPT,
-                    DEFAULT_AUK_FLASH_CONFIG, DEFAULT_DATA_DIR, DEFAULT_SHEETSAGE_DIR,
+                    DEFAULT_AUK_FLASH_CONFIG, DEFAULT_DATA_DIR, DEFAULT_DEMUCS_MODEL,
+                    DEFAULT_SHEETSAGE_DIR,
                     DEFAULT_YUE2_MODEL, DEFAULT_YUE2_VAE, SERVER_NAME, VERSION,
                     BadRequest, Unavailable, Unsupported, content_type_for,
                     decode_b64_audio, gpu_info, validate_song_request)
-from engines import Engines
+from engines import Engines, SEPARATION_MODES
 from idle import IdleStopper
 from jobs import JobStore
 from storage import FileStore, VoiceStore, public_voice
@@ -172,6 +173,7 @@ def make_app(args, engines: Engines, jobs: JobStore, runner: Runner,
                 "yue2": {"available": False, "loaded": False, "model": args.yue2_model, "reason": str(exc)},
                 "auk": {"available": False, "loaded": False, "reason": str(exc)},
                 "sheetsage": {"available": False, "reason": str(exc)},
+                "demucs": {"available": False, "reason": str(exc)},
             }
         return ok({
             "ok": True,
@@ -241,14 +243,16 @@ def make_app(args, engines: Engines, jobs: JobStore, runner: Runner,
     async def post_separate(request):
         body = request["body"]
         mode = body.get("mode")
-        if mode not in ("vocals", "music"):
-            raise BadRequest('mode must be "vocals" or "music"')
+        if mode not in SEPARATION_MODES:
+            raise BadRequest("mode must be one of " + ", ".join(SEPARATION_MODES))
         data = decode_b64_audio(body.get("audio_b64"), "audio_b64", max_upload)
-        engines.require("auk")
-        # Checking this before queueing means the caller gets a 501 now rather
-        # than a failed job in ten minutes. The probe imports AukInfer in the
-        # right interpreter; it does not load a checkpoint.
-        await asyncio.to_thread(engines.separation_supported, True)
+        # Which separator will serve this, decided before anything is queued, so
+        # a stem this server cannot make is a 501 now rather than a failed job in
+        # ten minutes. Raises Unsupported with the reason when nothing can.
+        if engines.separation_route(mode) == "auk":
+            # The probe imports AukInfer in the right interpreter; it does not
+            # load a checkpoint.
+            await asyncio.to_thread(engines.separation_supported, True)
         path = await asyncio.to_thread(runner.write_upload, data, body.get("filename"))
         job = jobs.submit("separate", {"audio_path": path, "mode": mode}, runner.separate)
         return ok({"job_id": job.id})
@@ -369,6 +373,15 @@ def build_parser() -> argparse.ArgumentParser:
                        help="python of the AuK venv (it wants 3.10, YuE2 wants 3.12)")
     group.add_argument("--cpu-offload", action="store_true",
                        help="pass cpu_offload to AuK: about a third less VRAM, slower")
+
+    group = parser.add_argument_group("Demucs (four-stem separation)")
+    group.add_argument("--demucs-model", default=DEFAULT_DEMUCS_MODEL,
+                       help="htdemucs (default), htdemucs_ft (slower, better), mdx_extra")
+    group.add_argument("--demucs-python", default=os.environ.get("DEMUCS_PYTHON"),
+                       help="interpreter of the venv demucs is installed in; "
+                            "omit when it imports in this one")
+    group.add_argument("--demucs-segment", type=int, default=None,
+                       help="seconds per chunk; lower it when the card runs out of memory")
 
     group = parser.add_argument_group("SheetSage2 (audio -> ABC)")
     group.add_argument("--sheetsage-dir", default=DEFAULT_SHEETSAGE_DIR)

@@ -1,4 +1,4 @@
-# Music Creator — YuE2 (songs) + AuK (speech) on one GPU
+# Music Creator — YuE2 (songs) + AuK (speech) + Demucs (stems) on one GPU
 
 The GPU side of the **Music Creator** app (`/apps/music-creator` in the hub).
 It is a small aiohttp server in front of two open-source models, and it does
@@ -305,7 +305,58 @@ if it says the lyrics were cut, they were cut.
 3. `POST /jobs/song` with `cot: "melody"`, `abc: <stripped_abc>` and your new
    `style`.
 
-### Separation
+### Stems
+
+`POST /jobs/separate` takes `mode`: `vocals`, `music`, `drums`, `bass` or
+`other`. Which of those a given box can actually answer depends on what is
+installed, and `/health` says so under `engines.demucs` and `engines.auk`:
+
+| installed | modes it can serve |
+|---|---|
+| Demucs | all five (`music` is the two-stem `no_vocals`) |
+| AuK only | `vocals`, `music` |
+| neither | none — every request is a 501 saying which to install |
+
+The route is decided at submit time, so asking an AuK-only box for drums is a
+**501 with the reason** rather than a failed job in ten minutes. The one thing
+this server will not do is answer a request for drums with the backing track:
+a file labelled as something it is not is worse than no file.
+
+Demucs is driven through its own CLI (`python -u -m demucs -n htdemucs`), which is
+the interface its README documents and the one that has stayed stable across
+releases. `bootstrap.sh` installs it **into the AuK venv, with `--no-deps`**:
+
+```bash
+"$AUK_VENV/bin/python" -m pip install --no-deps \
+    demucs dora-search julius lameenc openunmix einops submitit treetable \
+    omegaconf antlr4-python3-runtime retrying sphn
+```
+
+Both halves of that matter, and both were learned on the live pod:
+
+* **the AuK venv** already holds torch 2.7.1+cu128 and a matching torchaudio,
+  which is exactly what demucs wants. A venv of its own would duplicate several
+  GB of torch on a volume that is already ~51 GB of 60 used.
+* **`--no-deps`** because a plain `pip install demucs` resolves torch from PyPI,
+  which has no cu128 build for this card — it would replace the one AuK needs
+  and break speech on the way to fixing stems. `sphn` is in the list because
+  demucs 4.1 imports it from `demucs.api` without `--no-deps` catching it.
+
+`--demucs-python` then points the server at that interpreter (bootstrap adds the
+flag when demucs imports there), and `TORCH_HOME` is set to `$VOLUME/torch` so
+htdemucs's ~300 MB of weights are downloaded once instead of at every boot — the
+container disk is wiped by a stop/start, the volume is not. Skip the whole thing
+with `--skip-demucs`; `--demucs-model htdemucs_ft` is slower and cleaner, and
+`--demucs-segment 7` is the knob for a card that runs out of memory mid-job.
+
+Measured on an RTX PRO 4500: **about 65 seconds per 20 seconds of audio**, any
+stem, after a one-off first run that also downloads the weights (~95 s). Demucs
+is treated as a GPU job like any other, so the resident generator is evicted
+before it runs. Its progress bar is back-loaded — on a short clip it ticks twice,
+both times in the last second — so the job's stage line names the rate instead of
+relying on the bar, which only earns its keep across a whole track.
+
+#### AuK separation, when Demucs is absent
 
 AuK's model card lists source separation as a capability, but its published
 Python example covers generation only. So this server looks for a real method

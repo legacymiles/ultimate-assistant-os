@@ -36,6 +36,9 @@ DEFAULT_AUK_CONFIG = os.path.join("ckpts", "AuK", "config.yaml")
 DEFAULT_AUK_FLASH_CKPT = os.path.join("ckpts", "AuK-Flash", "auk_flash.safetensors")
 DEFAULT_AUK_FLASH_CONFIG = os.path.join("ckpts", "AuK-Flash", "config.yaml")
 DEFAULT_SHEETSAGE_DIR = os.path.join("models", "SheetSage2")
+# htdemucs is the four-stem default demucs ships with; the weights download
+# themselves on first use into the torch hub cache, so there is no path to set.
+DEFAULT_DEMUCS_MODEL = "htdemucs"
 
 # YuE2's SongRequest rules, copied from src/yue2/protocol.py so a bad request
 # comes back as a 400 with a sentence the website can show, instead of an

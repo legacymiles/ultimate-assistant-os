@@ -322,10 +322,31 @@ async function findVolume() {
   return list(out, "networkVolumes", "volumes", "data").find((v) => v.name === CONFIG.volumeName) || null;
 }
 
+/**
+ * The pod this tool manages: by id when one is configured, but never ONLY by id.
+ *
+ * A MUSIC_POD_ID left over from a pod that was replaced 404s, and reporting that
+ * as `No pod named "music-creator"` is a lie that invites you to create a second
+ * one — which is how this account ended up with two pods sharing one volume.
+ * Falling back to the name also makes this agree with the website, which matches
+ * on the name first (src/lib/music-creator/pod.ts).
+ */
 async function findPod() {
-  if (CONFIG.podId) return api(`/pods/${CONFIG.podId}`).catch(() => null);
+  if (CONFIG.podId) {
+    const byId = await api(`/pods/${CONFIG.podId}`).catch(() => null);
+    if (byId && byId.status !== "TERMINATED") return byId;
+  }
   const out = await api("/pods").catch(() => null);
-  return list(out, "pods", "data").find((p) => p.name === CONFIG.podName && p.status !== "TERMINATED") || null;
+  const named = list(out, "pods", "data").filter((p) => p.name === CONFIG.podName && p.status !== "TERMINATED");
+  if (named.length > 1) {
+    // Two pods on one volume is a foot-gun: only one can be provisioned, and
+    // which one the website wakes comes down to the order the API lists them.
+    console.log(
+      warn(`\n${named.length} pods are named "${CONFIG.podName}": ${named.map((p) => p.id).join(", ")}`),
+      dim("\n  Only one can hold the volume's state. Terminate the spares (console, or --teardown with MUSIC_POD_ID set to the spare)."),
+    );
+  }
+  return named[0] || null;
 }
 
 /**

@@ -134,3 +134,28 @@ counter keeps the door to real training open without pretending it is already th
 feedback loop, and the agent promotion makes it unnecessary for most vibes); a training manifest
 only, with nothing generatable in the app (faithful to the word "LoRA", useless on the day you name
 a vibe).
+
+## 2026-10-02 — A stem the server cannot make is refused, so stems needed Demucs
+
+**Decision:** Playing one part of a record on its own — the Mashup tool's new stem rack, where A's
+vocal, B's drums or either record's bass is one click — is served by **Demucs** (`htdemucs`), added
+to `tools/music-creator` as a fourth engine beside YuE2, AuK and SheetSage2 and reported in
+`/health`. `POST /jobs/separate` now takes `vocals | music | drums | bass | other`, and
+`engines.separation_route(mode)` decides at submit time: Demucs when it is installed, AuK for the
+two stems it can really make, otherwise a 501 naming what to install. An AuK-only server is never
+allowed to answer a request for drums with the backing track — the row goes dead in the rack with
+the reason written in it. Installing Demucs stays optional (`pip install demucs`, or its own venv
+via `--demucs-python`); until it is there the rack shows two live rows instead of five.
+
+**Why:** AuK answers one question — where is the voice? — and on this pod it exposes no separation
+entry point at all. Four-stem separation is the only honest way to let someone compare two records
+part by part before spending GPU time on a mashup, and Demucs is an ordinary pip install with no
+version fight in it. The alternative the app refuses is the one that would have cost nothing: label
+the backing track "drums" and let the listener work it out. A control that looks live and plays
+something else is worse than a control that says it cannot.
+
+**Alternatives considered:** Mapping every element onto AuK's vocal/backing pair and calling the
+backing "drums" (dishonest, and the reason this decision exists); band-splitting the backing with
+filters in the browser to fake a kit (plausible-sounding, musically wrong, and invisible once it
+is); making Demucs a hard requirement of the tool (would have taken the generated route, which
+touches no stem at all, down with it on every server that lacks it).

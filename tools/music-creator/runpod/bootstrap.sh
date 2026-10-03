@@ -48,6 +48,7 @@ PORT="${MUSIC_PORT:-8770}"
 SKIP_YUE2="${SKIP_YUE2:-0}"
 SKIP_AUK="${SKIP_AUK:-0}"
 SKIP_SHEETSAGE="${SKIP_SHEETSAGE:-0}"
+SKIP_DEMUCS="${SKIP_DEMUCS:-0}"
 DO_ENV=1
 DO_WEIGHTS=1
 AUK_FLASH="${AUK_FLASH:-0}"
@@ -69,7 +70,7 @@ Options
   --help               this text
 
 Environment
-  VOLUME, MUSIC_PORT, MUSIC_TOKEN, SKIP_YUE2, SKIP_AUK, SKIP_SHEETSAGE,
+  VOLUME, MUSIC_PORT, MUSIC_TOKEN, SKIP_YUE2, SKIP_AUK, SKIP_SHEETSAGE, SKIP_DEMUCS,
   AUK_FLASH, FFMPEG_URL  (all optional; flags win over environment)
 USAGE
 }
@@ -80,6 +81,7 @@ while [ $# -gt 0 ]; do
         --port) PORT="$2"; shift 2 ;;
         --skip-yue2) SKIP_YUE2=1; shift ;;
         --skip-auk) SKIP_AUK=1; shift ;;
+        --skip-demucs) SKIP_DEMUCS=1; shift ;;
         --skip-sheetsage) SKIP_SHEETSAGE=1; shift ;;
         --auk-flash) AUK_FLASH=1; shift ;;
         --no-weights) DO_WEIGHTS=0; shift ;;
@@ -503,6 +505,39 @@ else
     step "AuK"; skip "--skip-auk: no speech or voice cloning on this pod"
 fi
 
+# --- Demucs (four-stem separation) ------------------------------------------
+#
+# Into the AuK venv, not one of its own, and with --no-deps.
+#
+# AuK's environment already has torch 2.7.1+cu128 and a matching torchaudio,
+# which is exactly what demucs needs and exactly what a normal `pip install
+# demucs` would quietly replace: pip resolves torch from PyPI, the cu128 build
+# this card needs is not there, and the speech model stops working. --no-deps
+# plus the handful of small pure-Python packages it really imports keeps the
+# card's torch untouched. sphn is in that list because demucs 4.1 imports it
+# from its api module and does not declare it in a way --no-deps would catch.
+#
+# A venv of its own would be the tidier answer and costs several GB of a
+# duplicate torch on a volume that is already ~51 GB of 60 used.
+
+if [ "$SKIP_DEMUCS" = 0 ] && [ "$SKIP_AUK" = 0 ] && [ -x "$AUK_VENV/bin/python" ]; then
+    step "Demucs (stems: vocals, drums, bass, other)"
+    if "$AUK_VENV/bin/python" -c "import demucs.separate" >/dev/null 2>&1; then
+        skip "demucs imports in $AUK_VENV"
+    else
+        log "pip install --no-deps demucs (+ its small dependencies) into the AuK venv"
+        "$AUK_VENV/bin/python" -m pip install -q --no-deps \
+            demucs dora-search julius lameenc openunmix einops submitit treetable \
+            omegaconf antlr4-python3-runtime retrying sphn
+        "$AUK_VENV/bin/python" -c "import demucs.separate" >/dev/null 2>&1 \
+            || { echo "demucs still does not import after pip install" >&2; exit 1; }
+    fi
+    # The htdemucs weights come down through torch.hub on first use (~300 MB),
+    # into TORCH_HOME, which the start script points at the volume.
+else
+    step "Demucs"; skip "no four-stem separation on this pod (vocals and backing still work if AuK is here)"
+fi
+
 # --- SheetSage2 (Python 3.11 + FFmpeg 6.1) ---------------------------------
 
 if [ "$SKIP_SHEETSAGE" = 0 ]; then
@@ -639,6 +674,12 @@ fi
 if [ "$SKIP_SHEETSAGE" = 0 ] && [ -x "$SHEET_VENV/bin/python" ]; then
     SERVER_ARGS+=(--sheetsage-python "$SHEET_VENV/bin/python" --sheetsage-dir "$SHEET_DIR")
 fi
+# Demucs lives in the AuK venv (see its step above), so the server is told
+# where to find it rather than looking in its own interpreter.
+if [ "$SKIP_DEMUCS" = 0 ] && [ -x "$AUK_VENV/bin/python" ] \
+    && "$AUK_VENV/bin/python" -c "import demucs" >/dev/null 2>&1; then
+    SERVER_ARGS+=(--demucs-python "$AUK_VENV/bin/python")
+fi
 
 # Two renderings of the same argument list: one to paste into the start script
 # (four spaces, line continuations) and one to print for a human. The token is
@@ -678,6 +719,19 @@ VOLUME="$VOLUME"
 export HF_HOME="$HF_HOME"
 export TMPDIR="$TMPDIR"
 export PIP_CACHE_DIR="$PIP_CACHE_DIR"
+# Demucs fetches htdemucs through torch.hub, which caches under HOME - and
+# HOME is on the container disk, which a stop/start wipes. On the volume it is
+# downloaded once rather than at every boot.
+export TORCH_HOME="$VOLUME/torch"
+
+# The idle stopper needs the pod id, and it only reaches this script when the
+# server is started by autostart.sh at boot. Started by hand over SSH it is
+# absent, idle-stop silently turns itself off, and the pod bills until someone
+# notices - so it is read back from PID 1, which always has it.
+if [ -z "\${RUNPOD_POD_ID:-}" ] && [ -r /proc/1/environ ]; then
+    RUNPOD_POD_ID="\$(tr "\\0" "\\n" < /proc/1/environ | sed -n "s/^RUNPOD_POD_ID=//p")"
+    [ -n "\$RUNPOD_POD_ID" ] && export RUNPOD_POD_ID
+fi
 EOF
 
 if [ -n "$FFMPEG_PATH_PREFIX" ]; then
