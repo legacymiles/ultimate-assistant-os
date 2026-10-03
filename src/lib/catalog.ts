@@ -586,6 +586,99 @@ export const PROJECTS: CatalogProject[] = [
     hue: [330, 20],
     noPreview: true,
   },
+  {
+    slug: "ea-world",
+    title: "Expert Advisor World",
+    tag: "The trading-bot vault",
+    category: "Utilities",
+    overview:
+      "Several studios behind one front door, the way Jarvis Audio Studio is — Analyze, Vault and "
+      + "Bench, each its own application, sharing a palette and a store, and each carrying an accent "
+      + "hue so which one you are in is something you feel before you read it. A folder of .mq4 files "
+      + "records what you own; this records what you LEARNED, which is the only thing that "
+      + "compounds toward a better bot. It starts at Analyze: drop an EA in, or paste it straight out "
+      + "of MetaEditor, and it is read on the spot, "
+      + "in the browser, with nothing uploaded — because an EA is often the only copy of something "
+      + "somebody paid for. Source is taken apart into the family it belongs to, a risk score with "
+      + "every tell quoted at its line number, and the mechanics worth copying with the code pulled "
+      + "out ready to keep; a Strategy Tester .htm report is parsed by EA Lab's own parser for the real "
+      + "numbers, so the two apps cannot disagree about what a report says; and an .ex4 is told "
+      + "plainly that nothing can read inside machine code. The Vault is four ledgers: the EAs with their source kept as readable text "
+      + "and synced to every device; the mechanics worth stealing, each one a short overview plus the "
+      + "smallest MQL4 that actually works on a live server, stop levels and error codes included, "
+      + "because those are the lines forum posts leave out and the reason the forum version loses "
+      + "money; the strategy families, filed by HOW THEY DIE rather than what they read, since "
+      + "grouping by indicator files a doubling grid next to a fixed-stop breakout; and the ideas not "
+      + "built yet, each with the stage it has reached. Every record carries two fields a file listing "
+      + "cannot — where it came from, and how it fails — and a bot whose failure mode is blank says so "
+      + "in amber. Then the part that makes collecting worth anything: the build bench. Draft features, "
+      + "bots and ideas onto it and it compiles ONE build prompt, governing rules first and risk floor "
+      + "second so the rules outrank the signal rather than filtering it, and it names the "
+      + "CONTRADICTIONS before any code — draft a loss-doubling sizer next to a drawdown ceiling and it "
+      + "says so, in words, with the reconciling move, because that rule gets implemented twice and "
+      + "obeyed once. The twelve dictated feature specs are read live from the EA Feature List rather "
+      + "than copied, so the two cannot drift. Pairs with EA Lab: this is where a bot is understood, "
+      + "that is where it is measured.",
+    status: "live",
+    appUrl: "/apps/ea-world",
+    iconStyle: "rings",
+    hue: [45, 150],
+  },
+  {
+    slug: "ea-lab",
+    title: "EA Lab",
+    tag: "Test your trading bots",
+    category: "Utilities",
+    overview:
+      "A bench where a MetaTrader Expert Advisor stops being a claim and becomes a measurement. " +
+      "Drop an .ex4 into the watched folder and it is registered, installed into an idle test " +
+      "terminal, backtested headless, filed by strategy and rated — without the terminal being " +
+      "touched by hand. It reads like a database because it is one: strategy tree down the left, a " +
+      "dense sortable table in the middle, the full record on the right. Two columns do the work no " +
+      "MetaTrader report does. The first is NAKED: peak UNHEDGED exposure, reconstructed from the " +
+      "open book rather than from closed trades, which is the figure that actually ends accounts — " +
+      "one hedge EA from the owner's own folder posts a 71.6% win rate and quietly reaches 231x its " +
+      "base lot unhedged. The second is modelling quality, which rides with every number, because a " +
+      "profit factor from a 25%-quality run and one from real ticks are not the same kind of fact " +
+      "and the lab refuses to rank them together. Ratings are built on out-of-sample results only: " +
+      "ranking on in-sample profit factor just sorts the folder by how thoroughly each EA memorised " +
+      "the past. EAs are filed by HOW THEY FAIL — martingale, hedge-recovery, grid, scalper, trend, " +
+      "mean-reversion — since grouping by indicator would file a doubling grid next to a " +
+      "fixed-stop breakout for both reading an RSI. Testing runs on this PC through a local runner; " +
+      "with it off the app opens, says so plainly, and shows everything it already knows.",
+    status: "live",
+    appUrl: "/apps/ea-lab",
+    iconStyle: "mesh",
+    hue: [150, 35],
+  },
+  {
+    slug: "financial-bible",
+    title: "Financial Bible",
+    tag: "The book of money plays",
+    category: "Utilities",
+    overview:
+      "Several rooms behind one front door, and the first of them answers the question that kills most "
+      + "ideas: not whether it is a good one, but what you actually DO on Saturday morning. Every idea "
+      + "you have had is a card, and the card holds a build plan — phases, numbered steps, a cost range "
+      + "on each one, the materials with quantities, who sells them near you, how long it takes and how "
+      + "you know a step came out right. Then you argue with it. Ask for it cheaper, swap pine for oak, "
+      + "ask whether a step even needs a permit where you live, and the answer comes back with the EDIT "
+      + "attached: these four steps change, the total drops, accept or discard. Accept and it becomes "
+      + "v2 with v1 still readable, because 'cheaper' and 'the good version' both have to survive. "
+      + "Press Price this for real and a web-reading model goes and finds actual shops with actual "
+      + "addresses and prices, and every line it checked starts saying VERIFIED with the page it came "
+      + "from; everything it could not find keeps saying ESTIMATE, because that is the honest answer. "
+      + "What it will not do is the thing every business-plan tool does: it never mentions an LLC, "
+      + "insurance, branding or marketing. Those are nine buttons at the foot of the plan that generate "
+      + "nothing until you press one. And anything legal — permits, resale certificates, selling food — "
+      + "comes back as a question with somebody to ask, never as an answer, because no app knows the "
+      + "rules where you live. The other three rooms (Deal Scout, Money Plays, Funding) say what they "
+      + "will hold and admit they are not built yet.",
+    status: "live",
+    appUrl: "/apps/financial-bible",
+    iconStyle: "rings",
+    hue: [36, 168],
+  },
 ];
 
 export function getProject(slug: string): CatalogProject | null {
@@ -600,7 +693,16 @@ export function getProject(slug: string): CatalogProject | null {
  * for whoever IS signed in, put their own real data on a public-facing spinning
  * panel. Neither is wanted, so they keep the animated icon instead.
  */
-const UNPREVIEWABLE = new Set(["dashboard", "jarvis", "new-jarvis", "projects-timeline", "social-personas"]);
+const UNPREVIEWABLE = new Set([
+  "dashboard",
+  "jarvis",
+  "new-jarvis",
+  "projects-timeline",
+  "social-personas",
+  "ea-lab",
+  "ea-world",
+  "financial-bible",
+]);
 
 /**
  * The preview a carousel panel should mount, or null for the animated icon.

@@ -30,6 +30,9 @@ export const PLUGIN_SLUGS = [
   "website-redesigner",
   "ai-rankings",
   "cook-connect",
+  "ea-lab",
+  "ea-world",
+  "financial-bible",
 ] as const;
 
 /**
@@ -96,6 +99,24 @@ const WHY: Record<string, string> = {
   "cook-connect":
     "Recipes written well enough to hand straight to a food-photography or ASMR workflow, and a table to "
     + "play somebody at while a render runs.",
+  "ea-lab":
+    "The one plugin that renders nothing and refuses things. Drop a trading bot into a watched folder "
+    + "and it is backtested on this PC, filed by how it fails, and rated on results it has not seen "
+    + "before — with peak unhedged exposure, the number that decides whether an account survives and "
+    + "the one no MetaTrader report prints.",
+  "ea-world":
+    "The plugin that holds everything LEARNED rather than everything made. Trading bots, their source "
+    + "as readable text, the mechanics worth stealing with the MQL4 that actually survives a live "
+    + "server, and the families filed by how they die — then a bench that assembles any of it into one "
+    + "build prompt and names the contradictions first, because a drawdown ceiling and a loss-doubling "
+    + "sizer both get implemented and only one gets obeyed. EA Lab measures a bot; this is where it is "
+    + "understood.",
+  "financial-bible":
+    "The plugin that turns an idea into Saturday morning. Everything else here makes something to "
+    + "look at; this one costs it, sources it, puts it in order, and then argues with you about it — "
+    + "cheaper, different material, is this even allowed here — handing back the edit as a diff with a "
+    + "lower total rather than another wall of text. It refuses to talk about LLCs and marketing until "
+    + "asked, which is why the plan gets read.",
 };
 
 export function studioPlugins(): StudioPlugin[] {
