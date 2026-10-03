@@ -228,14 +228,19 @@ export interface Idea {
 }
 ```
 
-**Derived, never stored:** `totals(plan)` (low/high sum over unskipped steps plus
-materials), `timeline(plan)` (sum of phase days, and total hands-on hours),
+**Derived, never stored:** `totals(plan)`, `timeline(plan)` (sum of phase days,
+and total hands-on hours),
 `progress(plan)`, `verifiedShare(plan)`. Stored totals drift the moment a step is
 edited, and a wrong total is the one error that makes the whole sheet worthless.
 
-## 6. The three routes
+**One costing rule, because the alternative is double-counting:** a step's `cost`
+is the whole cost of that step *including* its materials. Materials are summed
+into the total only for a step that has no `cost` of its own. Skipped steps count
+for nothing.
 
-All three go through `aiFetch` (`src/lib/ai/provider.ts`), return `null`-shaped
+## 6. The four routes
+
+All four go through `aiFetch` (`src/lib/ai/provider.ts`), return `null`-shaped
 failures rather than throwing, and are `runtime = "nodejs"`.
 
 ### `POST /api/bible/plan`
@@ -292,6 +297,14 @@ sheet keeps saying ESTIMATE, which is the honest outcome and must not be hidden.
 
 Run per idea from a **Price this for real** button, so a search call is spent
 when the owner asks and never on a draft he is still arguing with.
+
+### `POST /api/bible/extra`
+
+One `Extra.topic` + the plan's summary → one markdown body, appended to
+`extras[]`. The only route that may discuss company formation, insurance,
+marketing and the rest, and it answers for exactly the topic it was handed —
+which is how section 7's rule survives contact with a model that would happily
+volunteer all nine.
 
 ## 7. What this app refuses to do
 
@@ -357,6 +370,7 @@ src/app/apps/financial-bible/page.tsx        ?studio= → shell
 src/app/api/bible/plan/route.ts
 src/app/api/bible/chat/route.ts
 src/app/api/bible/verify/route.ts
+src/app/api/bible/extra/route.ts
 src/components/bible/Bible.tsx               shell + rail + home base strip
 src/components/bible/plans/IdeaTable.tsx     the vault
 src/components/bible/plans/NewIdea.tsx       the brief
