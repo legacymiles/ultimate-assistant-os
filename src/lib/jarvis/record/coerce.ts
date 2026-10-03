@@ -7,10 +7,12 @@
 // both ends, so a blob that is safe in the browser is safe on the server.
 // ---------------------------------------------------------------------------
 
+import { MAX_FILES, type FileHome, type RecordFile } from "./files";
 import {
   emptyRecord,
   FIELD_BY_KEY,
   GROUPS,
+  parseKey,
   type GroupEntry,
   type LifeRecord,
 } from "./types";
@@ -63,6 +65,44 @@ export function coerceRecord(v: unknown): LifeRecord {
     }
   }
 
+  if (Array.isArray(raw.files)) {
+    out.files = raw.files.slice(0, MAX_FILES).map(coerceFile).filter((f): f is RecordFile => f !== null);
+  }
+
   out.updatedAt = typeof raw.updatedAt === "string" ? raw.updatedAt : "";
   return out;
+}
+
+/**
+ * One kept picture, or nothing.
+ *
+ * `sensitive` is the field worth being careful about. It is never recomputed
+ * from the keys here and never defaulted to false: a stored true survives even
+ * if the key list is unreadable, because the failure modes are not symmetric —
+ * hiding a picture that did not need hiding costs a click, and revealing one
+ * that did is the whole thing this flag exists to prevent.
+ */
+function coerceFile(v: unknown): RecordFile | null {
+  const o = (v ?? {}) as Partial<RecordFile>;
+  if (typeof o.id !== "string" || !o.id.trim()) return null;
+  if (typeof o.mime !== "string" || !o.mime.startsWith("image/")) return null;
+
+  const keys = Array.isArray(o.evidenceFor)
+    ? o.evidenceFor.filter((k): k is string => typeof k === "string" && parseKey(k) !== null)
+    : [];
+
+  return {
+    id: o.id,
+    label: typeof o.label === "string" && o.label.trim() ? o.label.trim() : "Document",
+    mime: o.mime,
+    bytes: typeof o.bytes === "number" && o.bytes > 0 ? Math.round(o.bytes) : 0,
+    width: typeof o.width === "number" ? o.width : undefined,
+    height: typeof o.height === "number" ? o.height : undefined,
+    addedAt: typeof o.addedAt === "string" ? o.addedAt : "",
+    source: o.source === "you" || o.source === "document" ? o.source : "jarvis",
+    origin: typeof o.origin === "string" ? o.origin : undefined,
+    evidenceFor: keys,
+    sensitive: o.sensitive !== false,
+    where: (o.where === "device" ? "device" : "synced") as FileHome,
+  };
 }

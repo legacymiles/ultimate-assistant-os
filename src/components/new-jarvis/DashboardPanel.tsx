@@ -34,6 +34,7 @@ const KnowledgeGraph = dynamic(() => import("./KnowledgeGraph").then((m) => m.Kn
 });
 import { VaultStatus } from "./VaultStatus";
 import { ImprovePanel } from "./ImprovePanel";
+import { RecordFiles } from "./RecordFiles";
 import { ScreenScan } from "./ScreenScan";
 
 import { MemoryTab } from "../jarvis/MemoryTab";
@@ -290,8 +291,11 @@ export function DashboardPanel({
                   {/* Reading a screen belongs HERE, above the record it writes
                       into. What it proposes is judged against that record, so
                       the two want to be in one place. */}
-                  <div className="border-b border-line-soft p-3">
+                  <div className="space-y-2.5 border-b border-line-soft p-3">
                     <ScreenScan onSaved={() => setProfileKey((n) => n + 1)} />
+                    {/* The documents sit with the reader that made them, and
+                        are keyed with the record so one just kept appears. */}
+                    <RecordFiles key={`files-${profileKey}`} onChanged={() => setProfileKey((n) => n + 1)} />
                   </div>
                   {/* Keyed, so the record redraws with what a scan just saved
                       rather than what it held when it mounted. */}

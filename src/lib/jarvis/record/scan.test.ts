@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cleanProposals } from "./extract";
+import { looksLikeDocument } from "./files";
 import { describeReview, review, summarise } from "./diff";
 import type { GroupEntry, LifeRecord } from "./types";
 
@@ -154,5 +155,35 @@ describe("a real screen scan", () => {
     });
     expect(sneaky.proposals).toHaveLength(1);
     expect(sneaky.proposals[0].kind === "field" && sneaky.proposals[0].key).toBe("city");
+  });
+});
+
+describe("keeping the picture of a real scan", () => {
+  const extracted = cleanProposals(MODEL_REPLY);
+  const keys = extracted.proposals.map((p) =>
+    p.kind === "field" ? p.key : `${p.group}.${Object.keys(p.values)[0] ?? ""}`,
+  );
+
+  it("offers to keep an intake form that carries a card's worth of insurance", () => {
+    // The real reply holds carrier, member ID and group number — this is the
+    // page worth having a picture of, and it is the case the owner described.
+    expect(looksLikeDocument(keys)?.label).toBe("Insurance card");
+  });
+
+  it("marks it sensitive, because the member ID on it is", () => {
+    expect(looksLikeDocument(keys)?.sensitive).toBe(true);
+  });
+
+  it("credits the picture with the blood type and allergies on it too", () => {
+    const guess = looksLikeDocument(keys)!;
+    expect(guess.keys).toContain("blood_type");
+    expect(guess.keys).toContain("allergies");
+  });
+
+  it("offers nothing for the same form with the insurance section blank", () => {
+    // Half a clinic form is a contact page. Keeping a picture of it would be
+    // the start of the screenshot pile this feature exists not to become.
+    const withoutCard = keys.filter((k) => !k.startsWith("insurance_") && k !== "blood_type" && k !== "allergies");
+    expect(looksLikeDocument(withoutCard)).toBeNull();
   });
 });

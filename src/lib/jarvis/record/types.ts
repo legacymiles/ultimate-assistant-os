@@ -308,11 +308,18 @@ export interface LifeRecord {
   version: 1;
   fields: Record<string, FieldValue>;
   groups: Record<string, GroupEntry[]>;
+  /**
+   * Pictures of the documents the values were read off — metadata only. The
+   * shape and the rules live in files.ts; the bytes live outside this blob,
+   * because this one syncs whole on every save. Optional on purpose: every
+   * record written before this existed is still a valid record.
+   */
+  files?: import("./files").RecordFile[];
   updatedAt: string;
 }
 
 export function emptyRecord(): LifeRecord {
-  return { version: 1, fields: {}, groups: {}, updatedAt: "" };
+  return { version: 1, fields: {}, groups: {}, files: [], updatedAt: "" };
 }
 
 /** Every field in the catalog, flat, for lookups by key. */

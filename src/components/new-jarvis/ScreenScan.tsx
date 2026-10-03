@@ -27,6 +27,14 @@
 //   · It never fills a form from here. Reading pixels gives no way to type into
 //     another application; filling is the browser extension's job, from the
 //     same Record this writes to.
+//
+// THE PICTURE. By default the frame is read and dropped. It is offered for
+// keeping only when the scan looks like a DOCUMENT — a card, a stub, a letter
+// (see record/files.ts) — because then the picture is evidence worth having:
+// it answers "where did this member ID come from?", and it puts the insurance
+// card on the owner's phone at the clinic desk, which is the moment the whole
+// Record was built for. An ordinary page is never offered, because a store of
+// unreviewed screenshots of someone's screen is a liability, not a feature.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useMemo, useState } from "react";
@@ -39,6 +47,8 @@ import {
   type Capture,
 } from "@/lib/new-jarvis/screenCapture";
 import { describeReview, review, summarise, type Review } from "@/lib/jarvis/record/diff";
+import { addFile, looksLikeDocument, type DocumentGuess } from "@/lib/jarvis/record/files";
+import { keepPicture, newFileId } from "@/lib/jarvis/record/fileStore";
 import type { Proposal } from "@/lib/jarvis/record/extract";
 import { addEntry, getRecord, saveRecord, setField, updateEntry } from "@/lib/jarvis/record/store";
 
@@ -60,6 +70,11 @@ export function ScreenScan({ onSaved }: { onSaved?: () => void }) {
   const [shot, setShot] = useState<Capture | null>(null);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(0);
+  /** What document this looks like, when it looks like one at all. */
+  const [doc, setDoc] = useState<DocumentGuess | null>(null);
+  const [keepIt, setKeepIt] = useState(false);
+  const [keptNote, setKeptNote] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const supported = useMemo(() => screenCaptureSupported(), []);
   const chosen = rows.filter((r) => r.chosen).length;
@@ -71,6 +86,9 @@ export function ScreenScan({ onSaved }: { onSaved?: () => void }) {
     setError("");
     setHeadline("");
     setKnownCount(0);
+    setDoc(null);
+    setKeepIt(false);
+    setKeptNote("");
   }, []);
 
   const run = useCallback(async () => {
@@ -101,11 +119,22 @@ export function ScreenScan({ onSaved }: { onSaved?: () => void }) {
       const data = (await res.json()) as { proposals?: Proposal[]; note?: string; error?: string };
       if (!res.ok) {
         setError(data.error ?? `Reading the screen failed (${res.status}).`);
+        setShot(null);
         setPhase("idle");
         return;
       }
 
-      const judged = review(data.proposals ?? [], getRecord());
+      const proposals = data.proposals ?? [];
+      // Judged from EVERYTHING the scan read, not from what is new: a second
+      // look at the same card still shows a card, even when every value on it
+      // is already known.
+      const guess = looksLikeDocument(
+        proposals.map((p) => (p.kind === "field" ? p.key : `${p.group}.${Object.keys(p.values)[0] ?? ""}`)),
+      );
+      setDoc(guess);
+      setKeepIt(Boolean(guess));
+
+      const judged = review(proposals, getRecord());
       const summary = summarise(judged);
       setRows(
         summary.toShow.map((r) => ({
@@ -119,17 +148,18 @@ export function ScreenScan({ onSaved }: { onSaved?: () => void }) {
       setPhase("review");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Reading the screen failed.");
-      setPhase("idle");
-    } finally {
-      // The frame is dropped as soon as it has been read. Nothing keeps it.
       setShot(null);
+      setPhase("idle");
     }
   }, []);
 
-  const save = useCallback(() => {
+  const save = useCallback(async () => {
+    setBusy(true);
     let record = getRecord();
     let count = 0;
     const origin = "read off your screen";
+    /** What the picture, if kept, will be the proof of. */
+    const proves: string[] = [];
 
     for (const row of rows) {
       if (!row.chosen) continue;
@@ -139,6 +169,7 @@ export function ScreenScan({ onSaved }: { onSaved?: () => void }) {
         // to say so, or a typed correction reads later as something Jarvis
         // guessed.
         record = setField(record, row.proposal.key, row.value, row.edited ? "you" : "jarvis", origin);
+        proves.push(row.proposal.key);
         count += 1;
       } else if (row.matchedId) {
         record = updateEntry(record, row.proposal.group, row.matchedId, row.proposal.values);
@@ -149,11 +180,42 @@ export function ScreenScan({ onSaved }: { onSaved?: () => void }) {
       }
     }
 
+    // The bytes go first. A record that claims to hold a picture it never
+    // stored is worse than one that holds no picture: the owner stops carrying
+    // the card because Jarvis says it has it.
+    if (keepIt && doc && shot) {
+      const id = newFileId();
+      const kept = await keepPicture(id, shot.dataUrl);
+      record = addFile(record, {
+        id,
+        label: doc.label,
+        mime: "image/jpeg",
+        bytes: kept.bytes,
+        width: shot.width,
+        height: shot.height,
+        addedAt: new Date().toISOString(),
+        source: "jarvis",
+        origin,
+        // Only what actually went into the record this time. A value that was
+        // already there came from somewhere else, and claiming this card as
+        // its source would be a lie the evidence link exists to prevent.
+        evidenceFor: proves,
+        // Sensitivity is judged from the WHOLE card, not from what was saved:
+        // it shows the member ID whether or not the owner kept that field.
+        sensitive: doc.sensitive,
+        where: kept.where,
+      });
+      setKeptNote(kept.note ?? "");
+      count += 1;
+    }
+
     saveRecord(record);
     setSaved(count);
+    setBusy(false);
+    setShot(null);
     setPhase("done");
     onSaved?.();
-  }, [onSaved, rows]);
+  }, [doc, keepIt, onSaved, rows, shot]);
 
   const patch = (index: number, next: Partial<Row>) =>
     setRows((rs) => rs.map((r, i) => (i === index ? { ...r, ...next } : r)));
@@ -243,6 +305,9 @@ export function ScreenScan({ onSaved }: { onSaved?: () => void }) {
         <p className="text-[11.5px] text-ink">
           {saved === 0 ? "Nothing was saved." : `Saved ${saved} ${saved === 1 ? "thing" : "things"} to your profile.`}
         </p>
+        {/* Where the picture landed, when it did not land where it should
+            have. Silence here is how an owner finds out at the clinic desk. */}
+        {keptNote && <p className="mt-1 text-[11px] leading-relaxed text-amber-300">{keptNote}</p>}
         <button
           type="button"
           onClick={reset}
@@ -269,10 +334,46 @@ export function ScreenScan({ onSaved }: { onSaved?: () => void }) {
         )}
       </header>
 
+      {/* Offered only for a document, and ticked by default when it is one:
+          the owner went to the trouble of showing Jarvis a card, and the card
+          is the thing worth keeping. */}
+      {doc && shot && (
+        <label className="flex cursor-pointer items-start gap-2 border-b border-line-soft bg-panel-2 px-3 py-2.5">
+          <input
+            type="checkbox"
+            checked={keepIt}
+            onChange={(e) => setKeepIt(e.target.checked)}
+            className="mt-0.5 size-3.5 shrink-0 accent-[var(--color-brand)]"
+          />
+          <span className="min-w-0 flex-1">
+            <span className="flex items-baseline gap-1.5">
+              <span className="text-[11.5px] text-ink">Keep the picture</span>
+              <span className="rounded border border-support/40 px-1 text-[9px] uppercase tracking-wide text-support">
+                {doc.label}
+              </span>
+              {doc.sensitive && (
+                <span className="rounded border border-amber-400/40 px-1 text-[9px] uppercase tracking-wide text-amber-300">
+                  hidden by default
+                </span>
+              )}
+            </span>
+            <span className="mt-0.5 block text-[10.5px] leading-relaxed text-ink-faint">
+              {doc.sensitive
+                ? "So you have the card itself on your phone, and can check any value against it. It shows something your profile masks, so it stays blurred until you ask."
+                : "So you have it on your phone, and can check any value against the document it came from."}
+            </span>
+          </span>
+          <span className="shrink-0 overflow-hidden rounded border border-line" aria-hidden>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={shot.dataUrl} alt="" className="h-9 w-14 object-cover" />
+          </span>
+        </label>
+      )}
+
       {rows.length === 0 ? (
         <p className="px-3 py-3 text-[11.5px] leading-relaxed text-ink-muted">
           Nothing new to add. That is the answer, not a failure — it means your profile already has what was on that
-          screen.
+          screen.{doc ? " The picture is still worth keeping." : ""}
         </p>
       ) : (
         <ul className="divide-y divide-line-soft">
@@ -364,11 +465,11 @@ export function ScreenScan({ onSaved }: { onSaved?: () => void }) {
       <footer className="flex items-center gap-2 border-t border-line-soft px-3 py-2.5">
         <button
           type="button"
-          onClick={save}
-          disabled={chosen === 0}
+          onClick={() => void save()}
+          disabled={busy || (chosen === 0 && !keepIt)}
           className="rounded-md border border-line bg-brand px-2.5 py-1.5 text-[11.5px] font-medium text-white transition hover:bg-[var(--nj-brand-press)] disabled:opacity-50"
         >
-          {chosen === 0 ? "Nothing ticked" : `Save ${chosen}`}
+          {busy ? "Saving…" : chosen === 0 && !keepIt ? "Nothing ticked" : `Save ${chosen + (keepIt ? 1 : 0)}`}
         </button>
         <button
           type="button"
@@ -377,7 +478,12 @@ export function ScreenScan({ onSaved }: { onSaved?: () => void }) {
         >
           Discard all
         </button>
-        <span className="ml-auto text-[10px] text-ink-faint">The picture was not kept.</span>
+        {/* This line used to be a flat promise. Now it is a report, because
+            the answer depends on what is ticked and the owner has to be able
+            to trust the sentence either way. */}
+        <span className="ml-auto text-[10px] text-ink-faint">
+          {keepIt ? "The picture will be kept." : "The picture will not be kept."}
+        </span>
       </footer>
     </section>
   );
