@@ -198,15 +198,22 @@ The argument chat sits beside the card. Typing "no, more Ghibli than cartoon" re
 version pips walk back to an earlier read.
 
 The trail reveal paints the **evidence layer** over the photo — annotations, palette and era cues
-revealed under the cursor — which costs nothing to produce. A "Show me this vibe" button spends
-one generation, and that image replaces the evidence as the reveal layer.
+revealed under the cursor. It is drawn to a canvas at the photo's exact pixel dimensions, so the
+two layers align by construction, which this mechanic requires. A "Show me this vibe" button
+spends one generation, and that image appears *beside* the card as a comparison rather than
+becoming the reveal layer: a freshly generated image does not align with the photo, and a
+misaligned reveal reads as a photo being swapped instead of a layer being removed.
 
 ### Vibe Library
 
 A dense sortable table, not a card grid: vibe, family, style, uses, dataset, kind, who named it,
 when. Filters for family and for LoRA-ready. A row expands to its cover, brief and sample strip;
-cover thumbnails run the trail reveal on hover. Every row has "Generate with this", which jumps to
-Generate with that vibe selected. Crossing 20 samples enables the captioned-ZIP export.
+cover thumbnails run the trail reveal on hover, and the layer underneath is the same texture with
+the vibe's own grade applied in-shader — its palette remap, grain and bloom — so hovering shows
+what the vibe *does* to a photograph, aligns by construction, and costs no generation. One WebGL
+context is shared by the whole page and attached to whichever card is hovered; a context per table
+row would pass the browser's limit inside one screenful. Every row has "Generate with this", which
+jumps to Generate with that vibe selected. Crossing 20 samples enables the captioned-ZIP export.
 
 ## Degradation
 
