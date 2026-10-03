@@ -66,6 +66,8 @@ export function SongPicker({
   busy,
   onPick,
   onClip,
+  badge,
+  empty,
 }: {
   side: Side;
   /** What this side contributes, in the current blend. One line, above the card. */
@@ -75,6 +77,14 @@ export function SongPicker({
   busy: boolean;
   onPick: (pick: SongPick) => void;
   onClip: (clip: SideClip | null) => void;
+  /**
+   * The A / B letter, or null where there is only one record. The mashup needs
+   * the letter because every control on its screen refers to it; the remix has
+   * one song and a letter there is a label for a distinction nobody is making.
+   */
+  badge?: string | null;
+  /** What to call the card before a record has been chosen. */
+  empty?: string;
 }) {
   const [query, setQuery] = useState(pick?.query ?? "");
   const [tracks, setTracks] = useState<ArtistTrack[]>([]);
@@ -154,8 +164,8 @@ export function SongPicker({
     <section className="mc-panel mct-side">
       <div className="mc-panel-h">
         <h3>
-          <span className="mct-ab">{side.toUpperCase()}</span>
-          {track ? track.title : pick?.fileName || (side === "a" ? "First song" : "Second song")}
+          {badge !== null && <span className="mct-ab">{badge ?? side.toUpperCase()}</span>}
+          {track ? track.title : pick?.fileName || empty || (side === "a" ? "First song" : "Second song")}
         </h3>
         <p>{role}</p>
       </div>

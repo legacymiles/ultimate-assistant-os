@@ -19,7 +19,7 @@ describe("systemFor", () => {
   // The one rule that decides whether a render is usable: a production note in
   // the lyrics gets sung out loud, so the instruction must always carry it.
   it("tells every writing task that lyrics are performed literally", () => {
-    for (const task of ["lyrics", "style", "hooks", "mashup", "rewrite"] as const) {
+    for (const task of ["lyrics", "style", "hooks", "mashup", "rewrite", "remix-plan", "remix-revise"] as const) {
       expect(systemFor(task)).toMatch(/\[Verse\]|sung|performed/i);
     }
   });

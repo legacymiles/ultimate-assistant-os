@@ -83,13 +83,14 @@ export const TOOLS: ToolDef[] = [
   {
     id: "mashup",
     title: "Mashup",
-    tagline: "Name two songs, decide what each one gives",
+    tagline: "Hear both records in parts, then decide what each one gives",
     blurb:
-      "Say which two records you want in one line; the catalogue finds them. Then choose what comes " +
-      "from which — melody, lyrics, chords, drums, instruments, voice, tempo — and which one wins. " +
-      "Generated builds a new recording from both (SheetSage2 + YuE2); Layered lays one record's real " +
-      "vocal over the other's real backing (AuK + ffmpeg). Prompt for a change and the next version " +
-      "joins the same session, every one of them still playable and downloadable.",
+      "Say which two records you want in one line; the catalogue finds them. Hear one part at a time " +
+      "first — each song's vocal, drums, bass and instruments as separate files, one click each — then " +
+      "choose what comes from which, and which record wins. Generated builds a new recording from both " +
+      "(SheetSage2 + YuE2); Layered lays one record's real vocal over the other's real backing, reusing " +
+      "the stems you already compared. Prompt for a change and the next version joins the same session, " +
+      "every one of them still playable and downloadable.",
     area: "transform",
     icon: "Layers",
     hue: [190, 286],
@@ -110,17 +111,22 @@ export const TOOLS: ToolDef[] = [
   },
   {
     id: "remix-stems",
-    title: "Remix / Stems",
-    tagline: "Edit the score, split the audio",
+    title: "Remix",
+    tagline: "Search a song, say what it should become",
     blurb:
-      "The white-box side of YuE2. Reharmonise, change tempo, swap instruments or restructure a " +
-      "song by editing its ABC score and re-rendering — and split any audio into vocal and music.",
+      "Search the catalogue for a record, then say what to turn it into — a NY drill remix, a slow " +
+      "country ballad. Its melody is transcribed and performed in the style you asked for, with that " +
+      "style's real tempo and arrangement behind it rather than its name alone. Heard it? Ask for one " +
+      "more change and the next version joins the same session. The record's own parts are here too, " +
+      "separated: play the vocal or the kit on its own, or take the score apart by hand.",
     area: "transform",
     icon: "Target",
     hue: [160, 199],
     requires: ["yue2"],
     ready: true,
-    offlineNote: "Score editing and comparison work offline; re-rendering and separation need the server.",
+    offlineNote:
+      "Searching, the style presets, the plan, the score editor and the lyric sheet all work with no " +
+      "GPU. Transcription, separation and rendering need the server.",
   },
   {
     id: "artist-voice",

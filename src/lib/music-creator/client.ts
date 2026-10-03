@@ -136,7 +136,7 @@ export async function ensureServer(opts: { onStage?: (stage: string) => void; si
 }
 
 /** True when the named engine is installed on the server this hub points at. */
-export function hasEngine(state: ServerState | null, engine: "yue2" | "auk" | "sheetsage"): boolean {
+export function hasEngine(state: ServerState | null, engine: "yue2" | "auk" | "sheetsage" | "demucs"): boolean {
   return !!state?.reachable && !!state.health?.engines?.[engine]?.available;
 }
 
@@ -294,7 +294,9 @@ export type WriteTask =
   | "vocal-direction"
   | "mashup-find"
   | "mashup-blend"
-  | "mashup-revise";
+  | "mashup-revise"
+  | "remix-plan"
+  | "remix-revise";
 
 export async function write(task: WriteTask, input: Record<string, unknown>): Promise<Record<string, unknown>> {
   return post("write", { task, input });

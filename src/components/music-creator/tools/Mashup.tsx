@@ -30,6 +30,20 @@
 //   `appliesTo` in lib/music-creator/mashup.ts decides, and the disabled
 //   control says why.
 //
+// ----- hearing the parts before deciding anything ----------------------------
+//
+// Every question the blend panel asks ("whose drums?") is unanswerable until
+// you have heard both records' drums on their own, so the rack sits above the
+// panel: stems down the side, A and B across the top, one click per cell, one
+// player for the whole grid so pressing B while A plays swaps rather than
+// stacks. Which stems exist is decided by the server's own /health — Demucs
+// splits a record four ways, AuK two — and a stem this server cannot make is
+// shown as impossible rather than filled in with something adjacent.
+//
+// The separations are cached per side in `data.stemLib`, and the layered route
+// reads the same cache, so a mashup built after a comparison costs no GPU at
+// all.
+//
 // ----- one session, many versions --------------------------------------------
 //
 // A revision never opens a new project. Rendering appends a `MashupVersion`
@@ -71,12 +85,27 @@ import {
   readVersions,
   shortName,
 } from "@/lib/music-creator/mashup";
+import { peaksOf } from "@/lib/music-creator/peaks";
+import {
+  ELEMENT_STEM,
+  type StemLib,
+  anyStems,
+  findCut,
+  layeredPair,
+  readStemLib,
+  stemById,
+  stemsFor,
+} from "@/lib/music-creator/stems";
 import { DEFAULT_SEED } from "@/lib/music-creator/store";
+import { BPM_MARKS, BPM_MAX, BPM_MIN, clampBpm, tempoFeel } from "@/lib/music-creator/tempo";
 import { type ToolProps, toolById } from "@/lib/music-creator/tools";
 import type { Project, Render } from "@/lib/music-creator/types";
+import { Scanner } from "../Scanner";
 import { Field, ServerNotice, TakeActions, TakePlayer, Text, WriterNote, missingFor, useWriter } from "../parts";
+import { type Lane, laneSignature, sealedPlate, wavePlate } from "../plates";
 import { useStudio } from "../studio";
 import { type SideClip, SongPicker } from "./SongPicker";
+import { StemRack, useStemSplitter } from "./StemRack";
 import "./tools.css";
 
 // ----- reading the opaque `data` bag ---------------------------------------
@@ -125,6 +154,13 @@ function readWarnings(meta: Record<string, unknown> | undefined): string[] {
   return [];
 }
 
+/** What a side is actually holding, for the plate's second line. */
+function clipNote(clip: SideClip | null): string {
+  if (!clip) return "no audio loaded in this tab";
+  if (clip.preview) return "30-second catalogue preview";
+  return `whole file · ${(clip.bytes / 1_000_000).toFixed(1)} MB`;
+}
+
 interface Stems {
   vocalFileId?: string;
   vocalFrom?: Side;
@@ -149,6 +185,8 @@ export function Mashup({ project, update, setData, patch }: ToolProps) {
   const [finding, setFinding] = useState(false);
   const [mixing, setMixing] = useState(false);
   const [change, setChange] = useState("");
+  /** Measured envelopes of the two clips, for the scanner's hidden layer. */
+  const [peaks, setPeaks] = useState<Record<Side, number[]>>({ a: [], b: [] });
 
   const prompt = str(project.data?.prompt);
   const notes = str(project.data?.notes);
@@ -161,7 +199,19 @@ export function Mashup({ project, update, setData, patch }: ToolProps) {
     b: readScore(project.data?.scoreB),
   };
   const stems = readStems(project.data?.stems);
+  const stemLib = useMemo(() => readStemLib(project.data?.stemLib), [project.data?.stemLib]);
   const versions = useMemo(() => readVersions(project.data), [project.data]);
+
+  /**
+   * What this server can separate. Read from its own /health rather than
+   * assumed: Demucs splits four ways, AuK two, and the rack shows exactly the
+   * rows that are real on the box this hub points at.
+   */
+  const separators = useMemo(
+    () => ({ demucs: hasEngine(server, "demucs"), auk: hasEngine(server, "auk") }),
+    [server],
+  );
+  const offers = useMemo(() => stemsFor(separators), [separators]);
 
   const aName = nameOf(pickA, "a");
   const bName = nameOf(pickB, "b");
@@ -179,6 +229,30 @@ export function Mashup({ project, update, setData, patch }: ToolProps) {
   useEffect(() => {
     live.current = project;
   }, [project]);
+
+  /**
+   * Measure each clip once it is loaded.
+   *
+   * The scanner reveals the real envelope of the real file, so this is the one
+   * place the waveform comes from. It is cached by clip identity in peaks.ts,
+   * so a blend change repaints the plate without decoding anything again.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    for (const side of ["a", "b"] as Side[]) {
+      const clip = clips[side];
+      if (!clip) {
+        setPeaks((prev) => (prev[side].length ? { ...prev, [side]: [] } : prev));
+        continue;
+      }
+      void peaksOf(`${clip.name}:${clip.bytes}`, clip.dataUrl).then((measured) => {
+        if (!cancelled) setPeaks((prev) => ({ ...prev, [side]: measured }));
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [clips]);
 
   // ----- step 1: find the two songs ----------------------------------------
 
@@ -305,6 +379,21 @@ export function Mashup({ project, update, setData, patch }: ToolProps) {
     }));
   };
 
+  // ----- the stem rack ------------------------------------------------------
+
+  /**
+   * One separator behind both the rack and the layered mashup, so a vocal split
+   * for a comparison is the same file the mix is later built from — the GPU is
+   * never asked for the same separation twice.
+   */
+  const { split: splitStem, splitting } = useStemSplitter({
+    projectId: project.id,
+    clipFor: (side) => clips[side],
+    nameFor: (side) => (side === "a" ? aName : bName),
+    patch,
+    onError: setError,
+  });
+
   const melodyScore = scores[blend.melody];
   const harmonyScore = blend.harmony === "model" ? undefined : scores[blend.harmony];
   const progression = useMemo(
@@ -400,56 +489,38 @@ export function Mashup({ project, update, setData, patch }: ToolProps) {
   const buildLayered = async () => {
     const vocalSide: Side = blend.vocal;
     const musicSide: Side = vocalSide === "a" ? "b" : "a";
-    const vocalClip = clips[vocalSide];
-    const musicClip = clips[musicSide];
-    if (!vocalClip || !musicClip) {
+    if (!clips[vocalSide] || !clips[musicSide]) {
       setError("Both sides need audio for this. Pick a track with a preview, or drop the files in.");
       return;
     }
     setError(null);
 
-    let vocalFileId = stems.vocalFrom === vocalSide ? stems.vocalFileId : undefined;
-    if (!vocalFileId) {
-      const take = await runAndFile(
-        project.id,
-        "stem",
-        "jobs/separate",
-        { audio_b64: vocalClip.dataUrl, filename: vocalClip.name, mode: "vocals" },
-        `Vocal from ${vocalSide === "a" ? aName : bName}`,
-      );
-      if (!take) return;
-      if (take.error || !take.fileId) {
-        setError(take.error ?? "The vocal separation produced no file.");
-        return;
-      }
-      vocalFileId = take.fileId;
-    }
+    // The rack and this route want the same two files, so whatever has already
+    // been separated for a comparison is what gets mixed. A layered mashup
+    // after a listen through the rack costs no GPU time at all.
+    const vocal =
+      findCut(readStemLib(live.current.data?.stemLib), vocalSide, "vocals") ?? (await splitStem(vocalSide, "vocals"));
+    if (!vocal) return;
+    const backing =
+      findCut(readStemLib(live.current.data?.stemLib), musicSide, "backing") ??
+      (await splitStem(musicSide, "backing"));
+    if (!backing) return;
 
-    let musicFileId = stems.musicFrom === musicSide ? stems.musicFileId : undefined;
-    if (!musicFileId) {
-      const take = await runAndFile(
-        project.id,
-        "stem",
-        "jobs/separate",
-        { audio_b64: musicClip.dataUrl, filename: musicClip.name, mode: "music" },
-        `Backing from ${musicSide === "a" ? aName : bName}`,
-      );
-      if (!take) return;
-      if (take.error || !take.fileId) {
-        setError(take.error ?? "The backing separation produced no file.");
-        return;
-      }
-      musicFileId = take.fileId;
-    }
-
+    // The older per-project bag, still written so a project saved by the
+    // previous version of this tool keeps re-mixing without a re-split.
     patch((now) => ({
       data: {
         ...(now.data ?? {}),
-        stems: { vocalFileId, vocalFrom: vocalSide, musicFileId, musicFrom: musicSide },
+        stems: {
+          vocalFileId: vocal.fileId,
+          vocalFrom: vocalSide,
+          musicFileId: backing.fileId,
+          musicFrom: musicSide,
+        },
       },
     }));
 
-    await mixStems(vocalFileId, musicFileId, vocalSide, "");
+    await mixStems(vocal.fileId, backing.fileId, vocalSide, "");
   };
 
   /**
@@ -624,8 +695,58 @@ export function Mashup({ project, update, setData, patch }: ToolProps) {
     }));
   };
 
+  // ----- the plate ----------------------------------------------------------
+  //
+  // Both scanner layers are painted from this one description of the two
+  // sides, which is what keeps them pixel-aligned: the hidden layer is not a
+  // second picture, it is the same picture with the sound in it.
+
+  /**
+   * What to call a side before it has a record on it.
+   *
+   * `shortName` falls back to "song A", which reads as a placeholder the user
+   * typed rather than as an empty slot. The plate and the rack both say what
+   * the slot IS instead.
+   */
+  const sideName = (side: Side): string => {
+    const pick = side === "a" ? pickA : pickB;
+    if (pick) return shortName(pick, side);
+    return side === "a" ? "First song" : "Second song";
+  };
+
+  const lanes: Lane[] = useMemo(
+    () =>
+      (["a", "b"] as Side[]).map((side) => ({
+        side: side.toUpperCase(),
+        name: sideName(side),
+        peaks: peaks[side],
+        note: clipNote(clips[side]),
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pickA, pickB, peaks, clips],
+  );
+  const plateSignature = laneSignature(lanes, method);
+
+  const rackSides = [
+    { side: "a" as Side, name: sideName("a"), hasAudio: !!clips.a, preview: clips.a?.preview },
+    { side: "b" as Side, name: sideName("b"), hasAudio: !!clips.b, preview: clips.b?.preview },
+  ];
+
   return (
     <div className="mct">
+      <Scanner
+        base={sealedPlate(lanes, "DRAG ACROSS THE PLATE TO READ BOTH RECORDS")}
+        reveal={wavePlate(lanes, "MEASURED IN THIS BROWSER · RMS PER BUCKET")}
+        signature={plateSignature}
+        height={200}
+        label="The waveforms of the two loaded records, revealed by moving the pointer across the plate"
+      >
+        <div className="mct-plate-over">
+          <strong>Mashup</strong>
+          <span>Two records in, one session out — sweep the plate to see what you are actually holding.</span>
+        </div>
+      </Scanner>
+
       <MethodNote method={method} />
 
       {tool && <ServerNotice tool={tool} />}
@@ -685,6 +806,46 @@ export function Mashup({ project, update, setData, patch }: ToolProps) {
         />
       </div>
 
+      {/* ----- 2b. the parts, side by side --------------------------------- */}
+      <section className="mc-panel" id="mct-rack">
+        <div className="mc-panel-h">
+          <h3>Compare the parts</h3>
+          <p>
+            One click plays one stem of one record — A&apos;s vocal on its own, then B&apos;s, then the two kits. This
+            is how you find out whether the two records will sit together before spending anything on finding out.
+          </p>
+        </div>
+        {/*
+          Three states, not two. A server that has not answered is not a server
+          without a separator, and saying "neither is installed" while the pod
+          is still asleep would be a confident wrong answer about a machine
+          nobody has asked yet.
+        */}
+        {!server?.reachable ? (
+          <p className="mc-note">
+            The GPU server has not answered yet, so which parts it can separate is not known. The rack fills in as soon
+            as it does — rendering wakes it, or press <em>Wake it now</em> above.
+          </p>
+        ) : anyStems(separators) ? (
+          <StemRack
+            sides={rackSides}
+            lib={stemLib}
+            offers={offers}
+            renders={project.renders}
+            busy={busy}
+            splitting={splitting}
+            onSplit={(side, stemId) => void splitStem(side, stemId)}
+          />
+        ) : (
+          <p className="mc-note is-warn">
+            Separation needs a separator. The GPU server this hub points at has neither Demucs (vocals, drums, bass and
+            instruments as four files) nor AuK (the voice, and everything that is not the voice), so there is nothing
+            honest to play here yet. Everything else on this screen still works — the generated route never touches a
+            stem.
+          </p>
+        )}
+      </section>
+
       {/* ----- 3. how it should sound -------------------------------------- */}
       <section className="mc-panel">
         <div className="mc-panel-h">
@@ -740,8 +901,8 @@ export function Mashup({ project, update, setData, patch }: ToolProps) {
             const active = appliesTo(element.id, method);
             const value = String(blend[element.id as keyof BlendSpec] ?? "a");
             const options: { value: string; label: string }[] = [
-              { value: "a", label: `A · ${shortName(pickA, "a")}` },
-              { value: "b", label: `B · ${shortName(pickB, "b")}` },
+              { value: "a", label: `A · ${sideName("a")}` },
+              { value: "b", label: `B · ${sideName("b")}` },
               ...(element.extra ? [{ value: element.extra.value, label: element.extra.label }] : []),
             ];
             return (
@@ -755,6 +916,23 @@ export function Mashup({ project, update, setData, patch }: ToolProps) {
                         ? element.layeredHint
                         : element.hint}
                   </span>
+                  {/*
+                    Which stem answers this knob. A melody is not a file — it is
+                    the line the vocal sings — so the chip names the stem that
+                    carries it rather than pretending the element itself can be
+                    soloed. The rack above is the one player.
+                  */}
+                  <button
+                    type="button"
+                    className="mct-hear"
+                    onClick={() =>
+                      document.getElementById("mct-rack")?.scrollIntoView({ behavior: "smooth", block: "start" })
+                    }
+                    title={`Hearing this means hearing ${ELEMENT_STEM[element.id].hearing}. Takes you to the rack.`}
+                  >
+                    <Icon.Waveform width={11} height={11} /> hear it ·{" "}
+                    {stemById(ELEMENT_STEM[element.id].stem)?.label.toLowerCase()}
+                  </button>
                 </div>
                 <div className="mct-seg">
                   {options.map((option) => (
@@ -775,18 +953,60 @@ export function Mashup({ project, update, setData, patch }: ToolProps) {
           })}
         </div>
 
+        {/*
+          Set it myself, on a slider.
+
+          A number box asks you to already know the answer; a tempo is something
+          you feel your way to, and the marks are there because "90" means
+          nothing until you can see that it is halftime and that drill sits at
+          140. The box stays beside it for when you do know the number.
+        */}
         {blend.tempo === "custom" && appliesTo("tempo", method) && (
-          <label className="mct-inline mct-bpm">
-            <span className="mc-field-l">BPM</span>
+          <div className="mct-bpm">
+            <div className="mct-bpm-h">
+              <span className="mc-field-l">Tempo — set it myself</span>
+              <input
+                className="mc-input mct-bpm-n"
+                type="number"
+                min={BPM_MIN}
+                max={BPM_MAX}
+                value={blend.bpm ?? 120}
+                onChange={(e) => setBlend({ bpm: clampBpm(Number(e.target.value)) })}
+                aria-label="Tempo in BPM"
+              />
+              <em>BPM</em>
+            </div>
             <input
-              className="mc-input mct-sel"
-              type="number"
-              min={40}
-              max={220}
+              className="mct-bpm-s"
+              type="range"
+              min={BPM_MIN}
+              max={BPM_MAX}
+              step={1}
               value={blend.bpm ?? 120}
-              onChange={(e) => setBlend({ bpm: Number(e.target.value) || 120 })}
+              onChange={(e) => setBlend({ bpm: clampBpm(Number(e.target.value)) })}
+              aria-label="Tempo in BPM"
+              list="mct-bpm-marks"
             />
-          </label>
+            <datalist id="mct-bpm-marks">
+              {BPM_MARKS.map((mark) => (
+                <option key={mark.bpm} value={mark.bpm} label={mark.label} />
+              ))}
+            </datalist>
+            <div className="mct-bpm-marks">
+              {BPM_MARKS.map((mark) => (
+                <button
+                  key={mark.bpm}
+                  type="button"
+                  className={(blend.bpm ?? 120) === mark.bpm ? "is-on" : ""}
+                  onClick={() => setBlend({ bpm: mark.bpm })}
+                  title={`${mark.label} — ${mark.bpm} BPM`}
+                >
+                  {mark.label}
+                </button>
+              ))}
+            </div>
+            <p className="mc-note">{tempoFeel(blend.bpm ?? 120)}</p>
+          </div>
         )}
 
         <details className="mct-fold">
@@ -831,14 +1051,16 @@ export function Mashup({ project, update, setData, patch }: ToolProps) {
           blend={blend}
           clips={clips}
           stems={stems}
+          stemLib={stemLib}
           aName={shortName(pickA, "a")}
           bName={shortName(pickB, "b")}
           busy={busy}
           mixing={mixing}
           canBuild={canRender}
           // The tool as a whole requires SheetSage2 and YuE2 — this route needs
-          // neither, and needs AuK, which the shared `requires` cannot express.
-          noSeparator={!!server?.reachable && !hasEngine(server, "auk")}
+          // neither, and needs a separator, which the shared `requires` cannot
+          // express. Either separator will do: both make a vocal and a backing.
+          noSeparator={!!server?.reachable && !anyStems(separators)}
           onBuild={() => void buildLayered()}
           onRemix={() => void remixLayered()}
         />
@@ -1039,7 +1261,7 @@ function GeneratedBuild({
           {noTranscriber && (
             <p className="mc-note is-warn">
               The GPU server is up but has no SheetSage2 installed, so it cannot read a melody off a recording. Every
-              other part of this route still works — paste an ABC score into the box below (Remix / Stems makes them,
+              other part of this route still works — paste an ABC score into the box below (the Remix tool makes them,
               and so does anything else that speaks ABC) and render as normal.
             </p>
           )}
@@ -1068,7 +1290,7 @@ function GeneratedBuild({
         Always open, never gated on a transcription having happened.
 
         Transcribing is the normal way to fill this in, but it is not the only
-        source of a score: Remix / Stems produces them, ABC is a text format
+        source of a score: the Remix tool produces them, ABC is a text format
         people write by hand, and — the case that actually bites — a GPU server
         without SheetSage2 installed cannot transcribe at all. Hiding the box
         until a transcription succeeded made the whole generated route dead on
@@ -1099,7 +1321,7 @@ function GeneratedBuild({
             </>
           ) : (
             <>
-              ABC notation. This text is what gets performed, so a score from anywhere — Remix / Stems, another tool,
+              ABC notation. This text is what gets performed, so a score from anywhere — the Remix tool, another tool,
               your own typing — works here exactly as a transcription would.
             </>
           )}
@@ -1206,6 +1428,7 @@ function LayeredBuild({
   blend,
   clips,
   stems,
+  stemLib,
   aName,
   bName,
   busy,
@@ -1220,6 +1443,7 @@ function LayeredBuild({
   blend: BlendSpec;
   clips: { a: SideClip | null; b: SideClip | null };
   stems: Stems;
+  stemLib: StemLib;
   aName: string;
   bName: string;
   busy: boolean;
@@ -1233,7 +1457,10 @@ function LayeredBuild({
   const musicSide: Side = vocalSide === "a" ? "b" : "a";
   const vocalName = vocalSide === "a" ? aName : bName;
   const musicName = musicSide === "a" ? aName : bName;
-  const ready = !!stems.vocalFileId && !!stems.musicFileId && stems.vocalFrom === vocalSide;
+  // Two ways to already have the files: the rack split them for a comparison,
+  // or an earlier build of this project did. Either way the mix is free.
+  const fromRack = layeredPair(stemLib, vocalSide);
+  const ready = !!fromRack || (!!stems.vocalFileId && !!stems.musicFileId && stems.vocalFrom === vocalSide);
 
   return (
     <section className="mc-panel">
@@ -1250,8 +1477,17 @@ function LayeredBuild({
         <div className="mct-step-b">
           <strong>Split both records</strong>
           <p className="mc-note">
-            AuK separates {vocalName} into its vocal and {musicName} into its backing. Two GPU jobs, run one after the
-            other; both are kept on the server so re-balancing afterwards costs nothing.
+            {fromRack ? (
+              <>
+                <strong>Already split.</strong> {vocalName}&apos;s vocal and {musicName}&apos;s backing are the files
+                the rack above separated, so this mix costs no GPU time — it is ffmpeg laying one over the other.
+              </>
+            ) : (
+              <>
+                The separator lifts {vocalName}&apos;s vocal out and {musicName}&apos;s backing out. Two GPU jobs, run
+                one after the other; both are kept, so re-balancing afterwards — and the rack above — cost nothing.
+              </>
+            )}
           </p>
           <div className="mct-bar">
             <button
@@ -1266,8 +1502,9 @@ function LayeredBuild({
           </div>
           {noSeparator && (
             <p className="mc-note is-bad">
-              The GPU server is up but has no AuK installed, and separation is the whole of this route. The generated
-              route needs SheetSage2 and YuE2 instead — switch to it above, or install AuK on the server.
+              The GPU server is up but has no separator installed, and separation is the whole of this route. Demucs
+              gives four stems and AuK gives two; either makes this work. The generated route needs SheetSage2 and
+              YuE2 instead — switch to it above.
             </p>
           )}
           {!canBuild && (

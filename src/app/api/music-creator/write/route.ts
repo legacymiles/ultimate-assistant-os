@@ -26,6 +26,8 @@ const TASKS = new Set<WriteTask>([
   "mashup-find",
   "mashup-blend",
   "mashup-revise",
+  "remix-plan",
+  "remix-revise",
 ]);
 
 /** Longest brief we will forward. Generous for lyrics, small enough to bound cost. */
@@ -139,13 +141,13 @@ function clean(task: WriteTask, result: Record<string, unknown>): Record<string,
     out.songB = String(out.songB ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
     out.brief = String(out.brief ?? "").trim().slice(0, 600);
   }
-  if (task === "mashup-find" || task === "mashup-blend") {
+  if (task === "mashup-find" || task === "mashup-blend" || task === "remix-plan") {
     out.title = String(out.title ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
   }
-  if (task === "mashup-blend" || task === "mashup-revise") {
+  if (task === "mashup-blend" || task === "mashup-revise" || task === "remix-plan") {
     out.notes = String(out.notes ?? "").trim().slice(0, 800);
   }
-  if (task === "mashup-revise") {
+  if (task === "mashup-revise" || task === "remix-revise") {
     out.changed = String(out.changed ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
   }
   return out;

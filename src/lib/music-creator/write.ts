@@ -14,6 +14,7 @@
 // ---------------------------------------------------------------------------
 
 import { parseSongPair } from "./mashup";
+import { matchPreset, offlineRemixStyle } from "./remix";
 
 export type WriteTask =
   | "lyrics"
@@ -24,7 +25,9 @@ export type WriteTask =
   | "vocal-direction"
   | "mashup-find"
   | "mashup-blend"
-  | "mashup-revise";
+  | "mashup-revise"
+  | "remix-plan"
+  | "remix-revise";
 
 const YUE_RULES = `
 YuE2 takes two fields and sings the second one literally.
@@ -142,6 +145,50 @@ style line unchanged. Only touch both when the change genuinely needs both.
 
 Answer as JSON: {"style": string, "lyrics": string, "changed": string}
 "changed" is one line naming what you actually altered, so the version list is readable.`,
+
+  // ----- the remix tool's two steps ----------------------------------------
+  //
+  // Separate from the mashup's, because a remix has one record rather than two
+  // and the user's direction is a genre rather than a blend. Combining them
+  // would mean a prompt about one song arriving inside instructions written
+  // about a pair of them.
+
+  "remix-plan": `You are remixing ONE existing record, for a model (YuE2) that will perform it
+from scratch. The original melody has been transcribed to a score and will be followed; the
+original recording reaches the listener in no other way. So you are writing the production of
+a new version of that tune.${YUE_RULES}
+
+The user names a target style in their own words ("NY drill remix", "make it a slow country
+ballad"). Deliver that style concretely: the real kit, the real bass, the real instruments,
+the real vocal character and a real BPM that the named style actually sits at. A genre label
+with no arrangement behind it is a failed answer.
+
+What you know about the original record — its mood, its key, its subject, the shape of its
+chorus — is useful, and using it is the point of a remix. Never reproduce its lyrics: write
+NEW words. When the user asks to keep the words, that means keep their subject, their voice
+and their phrasing, not their lines.
+
+Lyrics must fit the transcribed melody's phrasing: match its syllable counts and stresses as
+closely as the brief allows.
+
+Answer as JSON: {"title": string, "style": string, "lyrics": string, "notes": string}
+"title" is a short name for this version — 1-4 words. "notes" is two or three lines for the
+human: what you carried over from the original, and what the style change forced you to
+decide.`,
+
+  "remix-revise": `You are revising a remix that has already been rendered once. The user heard
+it and asked for one change.
+
+Apply that change and change nothing else. The genre, the instruments they liked, the section
+order, the syllable count of every line they did not mention — all stay exactly as they are. A
+revision that quietly redesigns the record is the failure mode here.${YUE_RULES}
+
+If the change is purely about sound (tempo, instruments, mix, energy), edit the style line and
+return the lyrics unchanged. If it is purely about words, edit the lyrics and return the style
+line unchanged. Only touch both when the change genuinely needs both.
+
+Answer as JSON: {"style": string, "lyrics": string, "changed": string}
+"changed" is one line naming what you actually altered, so the version list is readable.`,
 };
 
 export function systemFor(task: WriteTask): string {
@@ -177,6 +224,9 @@ export function userFor(task: WriteTask, input: Record<string, unknown>): string
   add("Song B", input.trackB);
   add("Blend plan", input.blend);
   add("Chord progression available", input.progression);
+  add("The record being remixed", input.track);
+  add("Remix plan", input.plan);
+  add("Known arrangement for that style", input.preset);
 
   if (!lines.length) lines.push("Brief: surprise me — make something worth finishing.");
   return lines.join("\n");
@@ -238,13 +288,30 @@ export function offlineDraft(task: WriteTask, input: Record<string, unknown>): R
     };
   }
 
-  if (task === "mashup-revise") {
+  if (task === "mashup-revise" || task === "remix-revise") {
     // The one safe revision with no model is no revision. Saying so beats
     // returning something subtly different that nobody asked for.
     return {
       style: String(input.style ?? ""),
       lyrics: String(input.lyrics ?? ""),
       changed: "Nothing — no AI key is configured, so edit the style line or lyrics yourself and render again.",
+    };
+  }
+
+  if (task === "remix-plan") {
+    // The presets in remix.ts are real knowledge about real styles, so a
+    // keyless remix of a style this app knows is still a usable production —
+    // and one it does not know falls back to the user's own words rather than
+    // an invented arrangement.
+    const prompt = String(input.prompt ?? brief).trim();
+    const preset = matchPreset(prompt);
+    return {
+      title: String(input.title ?? "").trim() || (preset ? `${preset.label} version` : "Untitled remix"),
+      style: offlineRemixStyle(prompt),
+      lyrics: SECTIONS.map((tag, i) => `${tag}\n${i === 0 ? prompt || "write the first line here" : "…"}`).join("\n\n"),
+      notes: preset
+        ? `Local draft: this app's own ${preset.label} arrangement at ${preset.bpm} BPM, with a blank lyric sheet to fill in.`
+        : "Local draft: your own words as the style line, with a blank lyric sheet to fill in.",
     };
   }
 

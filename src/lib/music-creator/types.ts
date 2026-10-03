@@ -129,6 +129,12 @@ export interface ServerHealth {
     yue2?: { available: boolean; loaded: boolean; model?: string };
     auk?: { available: boolean; loaded: boolean };
     sheetsage?: { available: boolean };
+    /**
+     * Four-stem separation (vocals / drums / bass / other). Optional because a
+     * server built before it existed simply omits the key, and the stem rack
+     * reads that as "two stems only" rather than as a broken server.
+     */
+    demucs?: { available: boolean; model?: string; reason?: string | null };
   };
   gpu?: { name: string; vram_gb: number; free_gb: number };
   queue?: { running: string | null; pending: number };

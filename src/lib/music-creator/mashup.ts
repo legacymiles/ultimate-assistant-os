@@ -367,39 +367,9 @@ export function chordsFromAbc(abc: string, limit = 12): string[] {
 }
 
 // ----- the session's versions -------------------------------------------------
+//
+// Lives in versions.ts now, because Remix keeps a session the same way. Still
+// exported from here: every caller in the mashup tool imports it from this
+// module, and a re-export is cheaper than a sweep that changes nothing.
 
-/**
- * One finished attempt inside a mashup session.
- *
- * The user's requirement in their words: "all edits that create a finished song
- * in 1 session will be in that project session". So a revision never opens a
- * new project — it appends here, keeping the exact style and lyrics that
- * produced it. That is what makes v3 reproducible after v4 replaced it on the
- * screen, and what lets any version be re-rendered or downloaded later.
- */
-export interface MashupVersion {
-  n: number;
-  /** The `Render` on this project that this version is. */
-  renderId: string;
-  title: string;
-  /** The prompt that asked for this version. Empty on v1. */
-  change: string;
-  method: MashupMethod;
-  style: string;
-  lyrics: string;
-  at: number;
-}
-
-export function readVersions(data: Record<string, unknown> | undefined): MashupVersion[] {
-  const raw = data?.versions;
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .filter((v): v is MashupVersion => !!v && typeof v === "object" && typeof (v as MashupVersion).renderId === "string")
-    .map((v) => ({ ...v, n: Number(v.n) || 0 }))
-    .sort((x, y) => y.n - x.n);
-}
-
-/** The next version number in a session. Always one past the highest seen. */
-export function nextVersionNumber(versions: MashupVersion[]): number {
-  return versions.reduce((max, v) => Math.max(max, v.n), 0) + 1;
-}
+export { type MashupVersion, type VersionMethod, nextVersionNumber, readVersions } from "./versions";

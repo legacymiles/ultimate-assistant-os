@@ -711,8 +711,72 @@
   cursor: default;
   opacity: 0.5;
 }
+/* ----- the tempo slider -----
+   A number box asks you to already know the answer. The slider carries the
+   landmarks, so 140 reads as "drill" rather than as a number. */
+
 .mc .mct-bpm {
   margin-top: 12px;
+  padding: 12px 13px;
+  border: 1px solid var(--mc-line);
+  border-radius: 11px;
+  background: var(--mc-panel-2);
+}
+.mc .mct-bpm-h {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-bottom: 10px;
+}
+.mc .mct-bpm-h .mc-field-l {
+  margin: 0;
+}
+.mc .mct-bpm-h em {
+  color: var(--mc-ink-3);
+  font-family: var(--mc-mono);
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+}
+.mc .mct-bpm-n {
+  width: 86px;
+  padding: 6px 8px;
+  font-family: var(--mc-mono);
+  font-size: 15px;
+  text-align: center;
+}
+.mc .mct-bpm-s {
+  width: 100%;
+  accent-color: var(--mc-go);
+}
+.mc .mct-bpm-marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.mc .mct-bpm-marks button {
+  padding: 3px 9px;
+  border: 1px solid var(--mc-line-2);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--mc-ink-3);
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+.mc .mct-bpm-marks button:hover {
+  color: var(--mc-ink);
+  border-color: var(--mc-go-2);
+}
+.mc .mct-bpm-marks button.is-on {
+  border-color: var(--mc-go);
+  background: rgba(124, 92, 255, 0.18);
+  color: var(--mc-ink);
+}
+.mc .mct-bpm .mc-note {
+  margin: 8px 0 0;
 }
 .mc .mct-plan {
   margin: 8px 0 0;
@@ -848,5 +912,316 @@
   .mc .mct-seg button {
     flex: 1 1 0;
     text-align: center;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  The stem rack — one record's parts beside the other's.            */
+/*                                                                    */
+/*  A table because it is one: stems down the side, songs across the  */
+/*  top, and the comparison IS the row. A grid of cards would have    */
+/*  read as five separate widgets instead of one instrument.          */
+/* ------------------------------------------------------------------ */
+
+.mc .mct-rack {
+  border: 1px solid var(--mc-line);
+  border-radius: 11px;
+  background: var(--mc-panel-2);
+  overflow: hidden;
+}
+.mc .mct-rack-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--mc-line);
+}
+.mc .mct-rack-h > strong {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mc-ink-2);
+}
+.mc .mct-rack-now {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--mc-ink-3);
+  font-family: var(--mc-mono);
+  font-size: 10.5px;
+}
+
+/* The level meter, written straight to the DOM by the analyser — it moves
+   sixty times a second and nothing else needs to re-render when it does. */
+.mc .mct-rack-meter {
+  display: block;
+  width: 64px;
+  height: 4px;
+  border-radius: 3px;
+  background: var(--mc-line-2);
+  overflow: hidden;
+}
+.mc .mct-rack-meter > span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: linear-gradient(90deg, var(--mc-go-2), #63d2ff);
+}
+
+.mc .mct-rack-t {
+  width: 100%;
+  border-collapse: collapse;
+}
+.mc .mct-rack-t thead th {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--mc-line);
+  color: var(--mc-ink-3);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 230px;
+}
+.mc .mct-rack-t thead th .mct-ab {
+  margin-right: 6px;
+}
+.mc .mct-rack-t tbody tr {
+  border-bottom: 1px solid var(--mc-line);
+}
+.mc .mct-rack-t tbody tr:last-child {
+  border-bottom: 0;
+}
+.mc .mct-rack-t tbody tr.is-dead {
+  opacity: 0.55;
+}
+.mc .mct-rack-t tbody th {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 12px;
+  font-weight: 400;
+  text-align: left;
+}
+.mc .mct-rack-t td {
+  padding: 9px 12px;
+  vertical-align: middle;
+  width: 1%;
+  white-space: nowrap;
+}
+.mc .mct-rack-tag {
+  flex: none;
+  margin-top: 2px;
+  padding: 2px 5px;
+  border: 1px solid var(--mc-line-2);
+  border-radius: 5px;
+  color: var(--mc-ink-3);
+  font-family: var(--mc-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+.mc .mct-rack-l {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.mc .mct-rack-l strong {
+  font-size: 12.5px;
+}
+.mc .mct-rack-l em {
+  color: var(--mc-ink-3);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.45;
+}
+.mc .mct-rack-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.mc .mct-rack-play,
+.mc .mct-rack-split {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--mc-line-2);
+  border-radius: 8px;
+  background: var(--mc-panel);
+  color: var(--mc-ink-2);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.mc .mct-rack-play:hover,
+.mc .mct-rack-split:hover:not(:disabled) {
+  color: var(--mc-ink);
+  border-color: var(--mc-go-2);
+}
+.mc .mct-rack-play.is-on {
+  border-color: var(--mc-go);
+  background: var(--mc-go);
+  color: #fff;
+}
+.mc .mct-rack-split:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.mc .mct-rack-dl {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 6px;
+  color: var(--mc-ink-3);
+}
+.mc .mct-rack-dl:hover {
+  color: var(--mc-ink);
+  background: var(--mc-panel);
+}
+.mc .mct-rack-30 {
+  color: var(--mc-warm);
+  font-family: var(--mc-mono);
+  font-size: 9px;
+  font-style: normal;
+}
+.mc .mct-rack-no {
+  color: var(--mc-ink-3);
+  font-family: var(--mc-mono);
+}
+.mc .mct-rack + .mc-note,
+.mc .mct-rack + .mc-note + .mc-note {
+  margin-top: 10px;
+}
+
+/* The chip on a blend element naming the stem that carries it. */
+.mc .mct-hear {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  padding: 2px 8px 2px 6px;
+  border: 1px solid var(--mc-line-2);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--mc-ink-3);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.mc .mct-hear:hover {
+  color: var(--mc-go-2);
+  border-color: var(--mc-go);
+}
+
+/* ----- the remix tab: style chips, and the two lyric choices ----- */
+
+.mc .mct-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 14px;
+}
+.mc .mct-preset {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 11px;
+  border: 1px solid var(--mc-line-2);
+  border-radius: 999px;
+  background: var(--mc-panel-2);
+  color: var(--mc-ink-2);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.mc .mct-preset i {
+  color: var(--mc-ink-3);
+  font-family: var(--mc-mono);
+  font-size: 9px;
+  font-style: normal;
+}
+.mc .mct-preset:hover:not(:disabled) {
+  color: var(--mc-ink);
+  border-color: var(--mc-go-2);
+}
+.mc .mct-preset.is-on {
+  border-color: var(--mc-go);
+  background: rgba(124, 92, 255, 0.18);
+  color: var(--mc-ink);
+}
+.mc .mct-preset:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.mc .mct-opts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 9px;
+}
+.mc .mct-opt {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--mc-line);
+  border-radius: 11px;
+  background: var(--mc-panel-2);
+  color: var(--mc-ink-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mc .mct-opt strong {
+  color: var(--mc-ink);
+  font-size: 12.5px;
+}
+.mc .mct-opt span {
+  color: var(--mc-ink-3);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.mc .mct-opt.is-on {
+  border-color: var(--mc-go);
+  background: rgba(124, 92, 255, 0.12);
+}
+.mc .mct-opt:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* What sits over the scan plate. Type leads; the plate is behind it. */
+.mc .mct-plate-over {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+}
+.mc .mct-plate-over strong {
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+.mc .mct-plate-over span {
+  color: var(--mc-ink-2);
+  font-size: 11.5px;
+  max-width: 46ch;
+  line-height: 1.5;
+}
+
+@media (max-width: 680px) {
+  .mc .mct-rack-t thead th,
+  .mc .mct-rack-t tbody th {
+    max-width: 150px;
+  }
+  .mc .mct-rack-l em {
+    display: none;
   }
 }
