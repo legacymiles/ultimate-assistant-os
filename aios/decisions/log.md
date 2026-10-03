@@ -113,3 +113,24 @@ rule (`~/.claude/CLAUDE.md`) keeps every project on the same route.
 
 **Alternatives considered:** The official Higgsfield MCP/account (subscription, and the owner doesn't
 want it required); running the Open-Generative-AI app itself (a full UI when only the API is needed).
+
+## 2026-10-02 — "Turn this into a LoRA" means an agent now, a dataset for later
+
+**Decision:** Image Studio's new Vibe Lab will never train a LoRA. When the AI judges an image
+distinctive, two things happen instead: the vibe immediately becomes a live agent in the Generate
+tab (the model writes it a brief, a style block and an aspect, and the image stays on as its style
+reference), and the vibe starts counting a dataset — every image filed under it adds a sample, with
+the verdict stating plainly how far off a trainable set is ("usable as an agent now · 11/20 toward a
+trainable set") and a captioned-ZIP export once it crosses 20. The app says which half is which out
+loud and never implies a weight file exists.
+
+**Why:** A real LoRA is a trained weight file needing 16–24GB of VRAM; the owner's RTX 3050 has 6GB,
+so local training is not on the table and rented training costs money per attempt with nothing to
+show until it finishes. The agent promotion delivers what the owner actually wanted — a look the AI
+named becomes something you can generate with — on the first pass and for free, while the dataset
+counter keeps the door to real training open without pretending it is already through it.
+
+**Alternatives considered:** A Train tab queueing real training on RunPod (real cost per run, long
+feedback loop, and the agent promotion makes it unnecessary for most vibes); a training manifest
+only, with nothing generatable in the app (faithful to the word "LoRA", useless on the day you name
+a vibe).
