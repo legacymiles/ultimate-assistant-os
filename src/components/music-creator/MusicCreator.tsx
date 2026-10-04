@@ -12,7 +12,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Icon } from "../icons";
 import { AREAS, TOOLS, type ToolDef, type ToolProps, toolById } from "@/lib/music-creator/tools";
 import { FinishedSongs, finishedSongs } from "./Library";
@@ -178,17 +178,45 @@ function Home() {
   );
 }
 
+/**
+ * One tool on the studio home.
+ *
+ * Tools that have a preview clip show it in place of the gradient glyph, and
+ * only once the pointer is on the card: the poster is an ordinary <img>, so the
+ * grid paints instantly, and the <video> is created on hover with preload
+ * "none". Mounting a video per tile up front is what makes a wall of these
+ * crawl on a phone. Reduced motion keeps the poster and never starts the clip.
+ */
 function Tile({ tool, onOpen, offline }: { tool: ToolDef; onOpen: () => void; offline: boolean }) {
   const Glyph = Icon[tool.icon];
+  const [hot, setHot] = useState(false);
+  const stillOnly =
+    typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      : false;
+
   return (
     <button
       type="button"
       className="mc-tile"
       onClick={onOpen}
+      onPointerEnter={() => setHot(true)}
+      onPointerLeave={() => setHot(false)}
+      onFocus={() => setHot(true)}
+      onBlur={() => setHot(false)}
       style={{ ["--a" as string]: `${tool.hue[0]}`, ["--b" as string]: `${tool.hue[1]}` }}
     >
-      <span className="mc-tile-art" aria-hidden>
-        <Glyph width={20} height={20} />
+      <span className={`mc-tile-art ${tool.previewIcon ? "is-clip" : ""}`} aria-hidden>
+        {tool.previewIcon ? (
+          <>
+            <img src={tool.previewIcon.poster} alt="" />
+            {hot && !stillOnly && (
+              <video src={tool.previewIcon.src} poster={tool.previewIcon.poster} muted loop playsInline autoPlay preload="none" />
+            )}
+          </>
+        ) : (
+          <Glyph width={24} height={24} />
+        )}
       </span>
       <strong>{tool.title}</strong>
       <span className="mc-tile-tag">{tool.tagline}</span>

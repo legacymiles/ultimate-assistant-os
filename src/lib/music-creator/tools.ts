@@ -40,6 +40,16 @@ export interface ToolDef {
   icon: "Sparkles" | "Layers" | "Bulb" | "Film" | "Mic" | "Note" | "Target";
   /** Two hues for the tile's gradient. */
   hue: [number, number];
+  /**
+   * A looping clip for the tile, and the still that shows at rest.
+   *
+   * Made by the preview-icon skill, which films what the tool DOES to
+   * something rather than a picture of its screen — a generated interface is
+   * garbled mush at this size and dates instantly. The poster is what paints;
+   * the clip is mounted only on hover (see `Tile`), so a grid of these costs
+   * nothing until somebody reaches for one.
+   */
+  previewIcon?: { src: string; poster: string };
   requires: Requirement[];
   /** False while a tool is registered but not yet written. */
   ready: boolean;
@@ -94,6 +104,8 @@ export const TOOLS: ToolDef[] = [
     area: "transform",
     icon: "Layers",
     hue: [190, 286],
+    // Two slabs, each banded into its parts, interlocking into one.
+    previewIcon: { src: "/hub/icons/mashup.mp4", poster: "/hub/icons/mashup.webp" },
     // YuE2 only, even though the tool can also use SheetSage2 and AuK.
     //
     // `requires` gates the WHOLE tool, and this tool has two routes that need
@@ -122,6 +134,8 @@ export const TOOLS: ToolDef[] = [
     area: "transform",
     icon: "Target",
     hue: [160, 199],
+    // A record on edge, its grooves re-cut behind a passing band of light.
+    previewIcon: { src: "/hub/icons/remix.mp4", poster: "/hub/icons/remix.webp" },
     requires: ["yue2"],
     ready: true,
     offlineNote:
