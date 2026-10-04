@@ -33,6 +33,7 @@ still thinks, remembers and answers.
 | `POST /browser/*` | `open`, `read`, `click`, `type`, `press`, `scroll`, `navigate`, `tabs`, `screenshot`, `close`, `quit`. |
 | `POST /files/*` | `list`, `read`, `write`. |
 | `POST /system/*` | `windows`, `focus`, `launch`, `screenshot`, `info`, `clipboard/read`, `clipboard/write`. |
+| `POST /harness/*` | `list`, `start`, `say`, `events`, `decide`, `interrupt`, `stop`, `threads`, `status`, `diff`, `land`, `discard`. A coding agent in its own worktree. |
 | `GET /health` | No auth. What is installed and whether the browser is up. |
 | `GET /status` | Everything the page's panels draw. |
 
@@ -53,6 +54,82 @@ read, and they go stale when the page changes. That is deliberate. A CSS
 selector or a text match breaks silently between the model deciding and the
 click landing; a stale ref is an error we can report instead of a wrong element
 we quietly clicked.
+
+### Coding harnesses, and why they are shaped differently
+
+Everything else here does one bounded thing and answers. A coding harness runs
+for ten minutes, talks while it works, stops in the middle to ask permission,
+and the page driving it is a tab that may be closed and reopened on a phone
+before it finishes. So a harness thread LIVES in this process: `/harness/start`
+cuts it a git worktree and starts a child in it, and the rest of the group is
+how a page reads and steers that child.
+
+Two harnesses, one shape:
+
+| | |
+|---|---|
+| `claude` | Claude Code through the Agent SDK, imported here rather than spawned as a CLI. The SDK's `canUseTool` is a function call in this process, which is the only reason a permission prompt can be carried to a page and answered there. |
+| `deepseek` | dsh's `acp` profile over Agent Client Protocol on stdio. |
+
+**Events are polled, not streamed.** `EventSource` cannot set an
+`Authorization` header, so an SSE route would need its own door, and a long
+response dies silently every time this laptop sleeps. A ring with a monotonic
+cursor survives sleep, reload, and a second tab reading the same thread — and
+says `dropped` when a reader has fallen too far behind to be caught up
+honestly, instead of handing back a transcript with a hole in it.
+
+**A gate is a parked promise.** The harness's permission hook is blocked on it,
+so nothing has happened when the card appears and nothing happens if it is
+never answered. The card carries the PATCH, built from the tool's own
+arguments, so the thing approved is a change you have read rather than a tool
+name you recognise. Unanswered gates refuse after twenty minutes.
+
+#### Making DeepSeek ask
+
+Out of the box dsh asks for nothing: its default preset is `workspace-write`,
+under which any write inside the session folder is simply allowed. Probed
+against a scratch folder it read a file, rewrote it and ran a shell command
+without sending the client a single request, and `session/new` exposes no
+approval setting.
+
+The switch is an environment variable. The acp profile composes
+dsh-sandbox-policy as `mode: process.env.DSH_PERMISSION_MODE ?? 'workspace-write'`,
+so the child is started with `DSH_PERMISSION_MODE=read-only`. Every write is
+then outside the sandbox: dsh denies it once, tells the model escalation is
+available, the model retries the identical call with `sandbox_permissions`, and
+THAT escalation arrives as `session/request_permission` — which becomes the
+gate. Nothing outside this child process is configured, so `dsh web` is
+unaffected.
+
+A permission request carries only a `toolCallId`, so every `tool_call`
+notification is remembered and the gate is drawn from the remembered call.
+Otherwise the card would say "approve call_00_RwSj…" and mean nothing.
+
+#### The worktree, and the junction that bit
+
+Threads work in `~/.jarvis-harness/worktrees/<name>`, outside the repository
+and outside OneDrive, on a flat `jarvis-<name>` branch. Flat because git stores
+refs as paths and this repository already has a branch called `jarvis`, which
+makes every `jarvis/...` ref impossible to create.
+
+`node_modules` is a directory junction back to the main checkout, because a
+fresh install per thread is two minutes and a gigabyte and without it the
+harness cannot run the repo's own typecheck or tests. `.next` is NOT shared.
+
+**That junction is dangerous and the code guards it.** `git worktree remove
+--force` recursed INTO the junction rather than unlinking it, started deleting
+the main checkout's packages, emptied `node_modules/.bin` and stopped — every
+npm binary in the repo went with it. `removeWorktree` now `rmdir`s the reparse
+point first, and refuses to remove the worktree at all if it cannot, because
+leaving a stale folder is better than eating the real `node_modules`.
+
+#### Landing refuses rather than guesses
+
+`/harness/land` commits on the thread's branch and merges into the base only
+when the base checkout is clean and on that branch. Several Claude sessions run
+on this folder at once and it is almost never clean; merging on a button press
+is how one thread eats somebody else's afternoon. When it stops, it names the
+files that stopped it.
 
 ## What is holding the door
 

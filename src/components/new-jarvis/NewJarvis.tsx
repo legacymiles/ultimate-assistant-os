@@ -41,6 +41,7 @@ import { SkillsLibrary } from "../skills/SkillsLibrary";
 import { ToolsTab } from "../jarvis/ToolsTab";
 import { PasswordVault } from "./PasswordVault";
 import { Telephony } from "./Telephony";
+import { HarnessConsole } from "./HarnessConsole";
 import { ArmoryTab } from "./ArmoryTab";
 import { gapsForAudit, readAll } from "@/lib/armory/catalog";
 import { ReflexStrip } from "./ReflexStrip";
@@ -70,7 +71,7 @@ import type { JarvisStore } from "@/lib/jarvis/types";
 import { useDashboardCalendar } from "@/lib/jarvis/useDashboardCalendar";
 
 type TabId =
-  | "dashboard" | "console" | "studio"
+  | "dashboard" | "console" | "studio" | "harness"
   | "folders" | "photos" | "lists" | "calendar" | "inbox"
   | "skills" | "tools" | "passwords" | "calls" | "router" | "architect" | "timeline" | "plugins" | "settings";
 
@@ -133,6 +134,9 @@ const TOP: Tab[] = [
   { id: "dashboard", label: "Dashboard", icon: "Grid" },
   { id: "console", label: "Console", icon: "Bot" },
   { id: "studio", label: "Studio", icon: "Film" },
+  // Harness earns a top slot rather than a place in the Toolbox: it is where
+  // the repo actually gets changed, which makes it work rather than a tool.
+  { id: "harness", label: "Harness", icon: "Layers" },
 ];
 
 const TABS: Tab[] = [...TOP, ...GROUPS.flatMap((g) => g.items)];
@@ -804,6 +808,12 @@ ${reflex.best.excerpt ?? ""}`.trim()
                   ))
                 )}
               </div>
+            ) : tab === "harness" ? (
+              // Branched here, ahead of the store gate: a harness thread reads
+              // the repo and nothing from the dashboard, so making it wait on
+              // "Loading your things…" would delay the one tab that has no
+              // reason to.
+              <HarnessConsole paired={bridge.health.up && bridge.health.paired} />
             ) : !store ? (
               <div className="p-6 text-xs text-ink-muted">Loading your things…</div>
             ) : (

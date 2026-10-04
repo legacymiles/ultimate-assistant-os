@@ -30,6 +30,8 @@
 //   POST /browser/screenshot          { tabId?, fullPage? }
 //   POST /browser/close               { tabId }
 //   POST /browser/quit                close the whole browser
+//   POST /harness/list|start|say|events|decide|interrupt|stop|threads
+//   POST /harness/status|diff|land|discard
 //   POST /files/list|read|write
 //   POST /system/windows|focus|launch|screenshot|info
 //   POST /system/clipboard/read|write
@@ -49,6 +51,7 @@ import { bearer, originAllowed, refuseReason, tokenMatches } from "./guard.mjs";
 import * as browser from "./browser.mjs";
 import * as computer from "./computer.mjs";
 import * as vault from "./vault.mjs";
+import * as harness from "./harness.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "out");
@@ -106,6 +109,22 @@ const ROUTES = {
   "POST /vault/write": (b) => vault.writeNote(b),
   "POST /vault/append": (b) => vault.appendNote(b),
 
+  // Coding harnesses. Unlike every other route here, these do not do a thing
+  // and answer — they start something that keeps running, and the rest of the
+  // group is how the page reads and steers it. See harness.mjs.
+  "POST /harness/list": () => harness.listHarnesses(),
+  "POST /harness/start": (b) => harness.startThread(b),
+  "POST /harness/say": (b) => harness.sayToThread(b),
+  "POST /harness/events": (b) => harness.threadEvents(b),
+  "POST /harness/decide": (b) => harness.decideGate(b),
+  "POST /harness/interrupt": (b) => harness.interruptThread(b),
+  "POST /harness/stop": (b) => harness.stopThread(b),
+  "POST /harness/threads": () => harness.listThreads(),
+  "POST /harness/status": (b) => harness.threadStatus(b),
+  "POST /harness/diff": (b) => harness.threadDiff(b),
+  "POST /harness/land": (b) => harness.landThread(b),
+  "POST /harness/discard": (b) => harness.discardThread(b),
+
   "POST /files/list": (b) => computer.listDir(b),
   "POST /files/read": (b) => computer.readTextFile(b),
   "POST /files/write": (b) => computer.writeTextFile(b),
@@ -151,7 +170,13 @@ async function capabilities() {
   // read files" and "this machine has the owner's vault on it" are different
   // facts and the page needs to say which one is missing.
   const where = await vault.vaultStatus();
+  // Which coding harnesses are installed is a capability like any other, and
+  // the page greys the picker per harness from it rather than offering a
+  // choice that fails on the first turn.
+  const { harnesses } = await harness.listHarnesses();
   return {
+    harness: harnesses.some((h) => h.available),
+    harnesses: harnesses.map(({ id, label, available, why }) => ({ id, label, available, why })),
     shell: true,
     files: true,
     system: true,
@@ -254,6 +279,14 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// A harness child is a real process doing real work in a worktree. Leaving one
+// behind on Ctrl-C means an orphan editing files nobody is watching.
+for (const sig of ["SIGINT", "SIGTERM"]) {
+  process.on(sig, () => {
+    void harness.stopAllThreads().finally(() => process.exit(0));
+  });
+}
+
 server.on("error", (e) => {
   if (e.code === "EADDRINUSE") {
     console.error(`Port ${PORT} is already taken — the bridge is probably already running.`);
@@ -266,6 +299,9 @@ server.listen(PORT, "127.0.0.1", async () => {
   const caps = await capabilities();
   console.log(`jarvis-bridge ${VERSION} listening on http://127.0.0.1:${PORT}`);
   console.log(`  shell ✓   files ✓   system ✓   browser ${caps.browser ? "✓" : "✗ (npx playwright install chromium)"}`);
+  for (const h of caps.harnesses ?? []) {
+    console.log(`  harness ${h.id.padEnd(9)} ${h.available ? "✓" : `✗ ${h.why}`}`);
+  }
   console.log("");
   console.log("  Pair New Jarvis with this token:");
   console.log(`  ${TOKEN}`);
