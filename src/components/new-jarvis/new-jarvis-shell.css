@@ -1,0 +1,502 @@
+/* ---------------------------------------------------------------------------
+   New Jarvis — the dock, the orb, the chamber and the queue.
+
+   The four surfaces that arrived when the 300px right-hand column was removed.
+   Kept in their own file rather than appended to new-jarvis.css because that
+   file is about the console's blocks and ledger; this one is about the shell
+   around it, and the two get edited for different reasons.
+
+   One token pair runs through all of it: --nj-done and --nj-wip. Green is the
+   hub's own --color-core rather than a second green invented beside it; amber
+   is new, because the hub had no "started but unproven" colour and that is the
+   entire point of the queue. Declared once so a pip in the ledger, a tally in
+   the header and the dot in the dock cannot drift apart.
+   --------------------------------------------------------------------------- */
+
+.nj {
+  --nj-done: var(--color-core);
+  --nj-done-dim: color-mix(in oklab, var(--color-core) 18%, transparent);
+  --nj-wip: #e8a33d;
+  --nj-wip-dim: color-mix(in oklab, #e8a33d 16%, transparent);
+  --nj-dock-h: 30px;
+}
+
+/* --- the bottom dock ----------------------------------------------------- */
+
+.nj-dock {
+  position: relative;
+  flex-shrink: 0;
+  border-top: 1px solid var(--color-line);
+  background: var(--color-panel);
+}
+
+/*
+   The rim takes the colour of whoever is talking.
+
+   The one piece of theatre in the dock, and it earns its place: while Jarvis
+   answers, a 2px line across the entire bottom of the window changes colour,
+   so the ROOM changes rather than a widget in a corner. Driven by the same
+   state the Reactor reads, through the same tokens, so the two can never
+   disagree about who has the floor.
+*/
+.nj-dock::before {
+  content: "";
+  position: absolute;
+  inset: -1px 0 auto 0;
+  height: 2px;
+  background: transparent;
+  transition: background-color var(--nj-slow) var(--nj-ease);
+  pointer-events: none;
+}
+
+.nj-dock[data-state="hearing"]::before { background: var(--color-core); }
+.nj-dock[data-state="speaking"]::before { background: var(--color-brand); }
+.nj-dock[data-state="thinking"]::before { background: var(--color-support); }
+
+.nj-dock__line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--nj-dock-h);
+  padding-inline: 0.5rem;
+  /* The orb floats over the right-hand end of the dock, so the line keeps a
+     lane clear for it rather than putting a control underneath it. */
+  padding-right: 5.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.nj-dock__line::-webkit-scrollbar { display: none; }
+
+.nj-dock__sheet {
+  max-height: min(42vh, 320px);
+  overflow-y: auto;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-panel);
+}
+
+.nj-dock__item,
+.nj-dock__btn {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 0.25rem;
+  padding: 0.15rem 0.3rem;
+}
+
+.nj-dock__btn { transition: background-color var(--nj-fast) var(--nj-ease); }
+.nj-dock__btn:hover { background: var(--color-elevated); }
+
+.nj-dock__label {
+  font-size: 0.6875rem;
+  color: var(--color-ink-muted);
+  white-space: nowrap;
+}
+
+.nj-dock__btn:hover .nj-dock__label { color: var(--color-ink); }
+
+.nj-dock__rule {
+  flex-shrink: 0;
+  width: 1px;
+  height: 11px;
+  background: var(--color-line);
+}
+
+/* The queue count sits at the far end, away from the two live readouts, so a
+   number that changes once a week is not beside one that changes per frame. */
+.nj-dock__queue { margin-left: auto; }
+
+/* --- the orb ------------------------------------------------------------- */
+
+.nj-orb-dock {
+  position: fixed;
+  right: 0.75rem;
+  /* Clear of the dock line, not floating in the middle of the content. */
+  bottom: calc(var(--nj-dock-h) + 0.6rem);
+  z-index: 40;
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 0.4rem;
+  pointer-events: none;
+}
+
+.nj-orb-dock > * { pointer-events: auto; }
+
+.nj-orb {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: color-mix(in oklab, var(--color-panel) 86%, transparent);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.45);
+  touch-action: none;
+  transition:
+    transform var(--nj-fast) var(--nj-ease),
+    border-color var(--nj-slow) var(--nj-ease),
+    box-shadow var(--nj-slow) var(--nj-ease);
+}
+
+.nj-orb:hover { transform: scale(1.06); }
+.nj-orb:active { transform: scale(0.96); }
+
+/* The border is the second place the state colour lands, so the orb reads as
+   live from the edge of vision even where the canvas is small on screen. */
+.nj-orb[data-state="hearing"] {
+  border-color: var(--color-core);
+  box-shadow: 0 6px 28px color-mix(in oklab, var(--color-core) 35%, transparent);
+}
+
+.nj-orb[data-state="speaking"] {
+  border-color: var(--color-brand);
+  box-shadow: 0 6px 28px color-mix(in oklab, var(--color-brand) 40%, transparent);
+}
+
+.nj-orb[data-state="thinking"] { border-color: var(--color-support); }
+
+.nj-orb__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.nj-orb__more {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  align-self: flex-end;
+  margin-bottom: 0.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-panel);
+  color: var(--color-ink-muted);
+  transition: background-color var(--nj-fast) var(--nj-ease), color var(--nj-fast) var(--nj-ease);
+}
+
+.nj-orb__more:hover { background: var(--color-elevated); color: var(--color-ink); }
+
+/* What it is hearing, read out beside the orb. Clamped, so a long sentence
+   cannot grow a bubble across the whole window. */
+.nj-orb__heard {
+  max-width: min(46vw, 320px);
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-line);
+  background: color-mix(in oklab, var(--color-panel) 92%, transparent);
+  backdrop-filter: blur(6px);
+  padding: 0.3rem 0.55rem;
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: var(--color-ink);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  animation: nj-orb-in var(--nj-slow) var(--nj-ease);
+}
+
+.nj-orb__heard.is-err {
+  border-color: color-mix(in oklab, #f87171 45%, var(--color-line));
+  color: #f8b4b4;
+}
+
+@keyframes nj-orb-in {
+  from { opacity: 0; transform: translateX(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* --- the chamber --------------------------------------------------------- */
+
+.nj-chamber {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.nj-chamber__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgb(5 7 12 / 0.72);
+  backdrop-filter: blur(10px);
+  animation: nj-fade var(--nj-slow) var(--nj-ease);
+}
+
+@keyframes nj-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/*
+   A wash of the state colour behind the instrument.
+
+   The chamber exists so the owner can SEE who is talking without reading a
+   word, and a 300px canvas in the middle of a black screen does not do that
+   from across a desk. The wash does, and it is the same token the canvas is
+   drawn with, at low strength — enough to register, not enough to tint type.
+*/
+.nj-chamber::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 46%, var(--nj-wash, transparent) 0%, transparent 62%);
+  transition: background var(--nj-slow) var(--nj-ease);
+}
+
+.nj-chamber[data-state="hearing"] { --nj-wash: color-mix(in oklab, var(--color-core) 12%, transparent); }
+.nj-chamber[data-state="speaking"] { --nj-wash: color-mix(in oklab, var(--color-brand) 16%, transparent); }
+.nj-chamber[data-state="thinking"] { --nj-wash: color-mix(in oklab, var(--color-support) 10%, transparent); }
+
+.nj-chamber__stage {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 420px);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  border-radius: 1rem;
+  border: 1px solid var(--color-line);
+  background: color-mix(in oklab, var(--color-panel) 94%, transparent);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.6);
+  animation: nj-chamber-in var(--nj-slow) var(--nj-ease);
+}
+
+@keyframes nj-chamber-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+.nj-chamber__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.nj-chamber__badge {
+  font-size: 0.625rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+.nj-chamber__close {
+  margin-left: auto;
+  border-radius: 0.25rem;
+  padding: 0.2rem;
+  color: var(--color-ink-muted);
+  transition: background-color var(--nj-fast) var(--nj-ease), color var(--nj-fast) var(--nj-ease);
+}
+
+.nj-chamber__close:hover { background: var(--color-elevated); color: var(--color-ink); }
+
+/* The Reactor at the size it was designed for rather than the width of a
+   sidebar — the whole reason the chamber exists. */
+.nj-chamber .nj-reactor { border-bottom: 0; }
+.nj-chamber .nj-reactor__stage { width: min(100%, 300px); }
+
+.nj-chamber__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0 0.75rem 0.75rem;
+}
+
+.nj-chamber__talk {
+  display: inline-flex;
+  flex: 1 1 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 0.5rem;
+  background: var(--color-brand-2);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #fff;
+  transition: background-color var(--nj-fast) var(--nj-ease);
+}
+
+.nj-chamber__talk:hover:not(:disabled) { background: var(--nj-brand-press); }
+.nj-chamber__talk:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.nj-chamber__btn {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--color-line);
+  padding: 0.35rem 0.5rem;
+  font-size: 0.6875rem;
+  color: var(--color-ink-muted);
+  transition: background-color var(--nj-fast) var(--nj-ease), color var(--nj-fast) var(--nj-ease);
+}
+
+.nj-chamber__btn:hover:not(:disabled) { background: var(--color-elevated); color: var(--color-ink); }
+.nj-chamber__btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.nj-chamber__note,
+.nj-chamber__err {
+  padding: 0 0.75rem 0.75rem;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  color: var(--color-ink-muted);
+}
+
+.nj-chamber__err { color: #f87171; }
+
+/* A square with a tick, announced as the checkbox it is drawn as. */
+.nj-box {
+  display: grid;
+  place-items: center;
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+  border-radius: 3px;
+  border: 1px solid var(--color-line);
+  color: transparent;
+  transition: background-color var(--nj-fast) var(--nj-ease), border-color var(--nj-fast) var(--nj-ease);
+}
+
+.nj-box.is-on {
+  border-color: var(--color-brand-2);
+  background: var(--color-brand-2);
+  color: #fff;
+}
+
+/* --- In Queue ------------------------------------------------------------ */
+
+/*
+   The pip, and the one thing worth knowing about it: a HELD pip is ringed.
+
+   Green and amber say what the state is. The ring says who decided — the
+   owner, by clicking, rather than the evidence. Without it the board would
+   present a guess and a verdict identically, and the owner would have no way
+   of seeing which rows they had already been through.
+*/
+.nj-pip {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 999px;
+}
+
+.nj-pip-done {
+  background: var(--nj-done);
+  box-shadow: 0 0 0 3px var(--nj-done-dim);
+}
+
+.nj-pip-wip {
+  background: var(--nj-wip);
+  box-shadow: 0 0 0 3px var(--nj-wip-dim);
+}
+
+.nj-pip.is-held {
+  outline: 1px solid var(--color-ink-muted);
+  outline-offset: 2px;
+}
+
+.nj-pip-btn {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  transition: background-color var(--nj-fast) var(--nj-ease);
+}
+
+.nj-pip-btn:hover { background: var(--color-elevated); }
+
+.nj-queue { display: block; }
+
+.nj-queue-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-panel-2);
+  font-size: 0.5625rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+/*
+   A row is one line tall, and its left edge carries its state.
+
+   The border is what makes 250 rows scannable: running an eye down a 2px
+   coloured edge is faster than reading 250 dots, and it survives the row being
+   hovered, opened or filtered.
+*/
+.nj-queue-row {
+  border-bottom: 1px solid var(--color-line-soft);
+  border-left: 2px solid transparent;
+  transition: background-color var(--nj-fast) var(--nj-ease), border-left-color var(--nj-fast) var(--nj-ease);
+}
+
+.nj-queue-row[data-state="wip"] { border-left-color: color-mix(in oklab, var(--nj-wip) 55%, transparent); }
+.nj-queue-row[data-state="done"] { border-left-color: color-mix(in oklab, var(--nj-done) 40%, transparent); }
+
+.nj-queue-row:hover,
+.nj-queue-row.is-open { background: var(--color-panel); }
+.nj-queue-row.is-open[data-state="wip"] { border-left-color: var(--nj-wip); }
+.nj-queue-row.is-open[data-state="done"] { border-left-color: var(--nj-done); }
+
+/* An evidence tick. Empty when unmet rather than crossed out: a missing claim
+   is a gap, and drawing it as a failure would read as an accusation. */
+.nj-ev {
+  display: grid;
+  place-items: center;
+  width: 0.75rem;
+  height: 0.75rem;
+  flex-shrink: 0;
+  border-radius: 2px;
+  border: 1px solid var(--color-line);
+  color: transparent;
+}
+
+.nj-ev.is-met {
+  border-color: var(--nj-done);
+  background: color-mix(in oklab, var(--nj-done) 22%, transparent);
+  color: var(--nj-done);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nj-orb,
+  .nj-orb__more,
+  .nj-dock::before,
+  .nj-dock__btn,
+  .nj-queue-row,
+  .nj-chamber::after,
+  .nj-chamber__talk,
+  .nj-chamber__btn,
+  .nj-chamber__close,
+  .nj-box,
+  .nj-pip-btn {
+    transition: none;
+  }
+
+  .nj-orb:hover,
+  .nj-orb:active { transform: none; }
+
+  .nj-orb__heard,
+  .nj-chamber__scrim,
+  .nj-chamber__stage { animation: none; }
+}

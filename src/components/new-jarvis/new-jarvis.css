@@ -24,7 +24,8 @@
   */
   --nj-brand-press: color-mix(in oklab, var(--color-brand-2) 82%, black);
   --nj-rail: 56px;
-  --nj-aside: 300px;
+  /* --nj-aside is gone with the right-hand column it sized. What replaced it
+     is --nj-dock-h, in new-jarvis-shell.css, next to the dock that uses it. */
   --nj-ease: cubic-bezier(0.16, 1, 0.3, 1);
   --nj-fast: 160ms;
   --nj-slow: 220ms;

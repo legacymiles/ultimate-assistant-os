@@ -99,6 +99,11 @@ export interface UseWakeVoice {
   start: () => Promise<void>;
   stop: () => void;
   toggle: () => void;
+  /**
+   * Push to talk: arm the capture now, without the wake word, starting the
+   * microphone first if it is off. What the floating voice button calls.
+   */
+  talk: () => Promise<void>;
   speak: (text: string) => Promise<void>;
   /** Cut it off mid-sentence. */
   hush: () => void;
@@ -585,6 +590,31 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
     else void start();
   }, [start, stop]);
 
+  /**
+   * Push to talk: capture the next sentence without being asked for the name.
+   *
+   * The wake word exists so the microphone can be left on all day without
+   * every passing remark becoming a command. It is the wrong contract when the
+   * owner has deliberately reached for a button that says "talk to Jarvis" —
+   * saying his name to a thing you just pressed is theatre. So this arms the
+   * same capture the wake word arms, starting the microphone first if it was
+   * off, and if he is mid-sentence it cuts him off, because pressing the
+   * button is itself an interruption.
+   */
+  const talk = useCallback(async () => {
+    if (stateRef.current === "speaking") {
+      hush();
+      onInterruptRef.current?.();
+    }
+    if (!wantOn.current) {
+      await start();
+      // start() may have failed (permission refused, no recognition in this
+      // browser); arming then would show "LISTENING" over a dead microphone.
+      if (!wantOn.current) return;
+    }
+    arm();
+  }, [arm, hush, start]);
+
   // Unmount must release the microphone, or the tab keeps the recording dot
   // lit after the owner has navigated away.
   useEffect(() => () => stop(), [stop]);
@@ -605,6 +635,7 @@ export function useWakeVoice({ onCommand, onInterrupt, speakReplies = true }: Wa
     start,
     stop,
     toggle,
+    talk,
     speak,
     hush,
     setState,

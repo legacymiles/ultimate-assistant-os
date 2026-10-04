@@ -1,98 +1,23 @@
 "use client";
 
 // ---------------------------------------------------------------------------
-// The right column, which never leaves.
+// What this assistant can reach on this machine, one line per capability.
 //
-// Two panels, and between them they answer the question the old Jarvis could
-// never answer without being asked: what can this assistant actually do right
-// now? The Reactor says whether it is listening, and which way the
-// conversation is flowing. The capability rows say whether
-// it can reach this machine, one line per capability with its own reason when
-// it cannot — because "offline" as a single red dot sends the owner to a log
-// file, and a sentence sends them to the fix.
+// This was half of the right-hand column. The column is gone — it cost 300px
+// of the widest surface in the hub to say two things the owner needs about
+// once a session — and its two halves went to different places: voice became
+// the floating orb and its chamber, and these rows became the sheet behind the
+// dock across the bottom.
+//
+// The panel itself is unchanged; only where it is mounted from. So the one
+// thing worth keeping is intact: a capability that is off says WHY, in a
+// sentence, because "offline" as a single red dot sends the owner to a log file
+// and a sentence sends them to the fix.
 // ---------------------------------------------------------------------------
 
 import { useState } from "react";
 import { Icon } from "../icons";
 import type { BridgeHealth } from "@/lib/new-jarvis/bridge";
-import type { UseWakeVoice } from "@/lib/new-jarvis/useWakeVoice";
-import type { ReactorMode } from "@/lib/new-jarvis/reactor";
-import { Reactor } from "./Reactor";
-
-export function VoicePanel({
-  voice,
-  mode,
-  onMode,
-  speakReplies,
-  onSpeakReplies,
-}: {
-  voice: UseWakeVoice;
-  mode: ReactorMode;
-  onMode: (m: ReactorMode) => void;
-  speakReplies: boolean;
-  onSpeakReplies: (v: boolean) => void;
-}) {
-  const { state, supported, error } = voice;
-
-  return (
-    <section>
-      <div className="flex items-center gap-2 px-3 pt-3">
-        <h2 className="text-[10.5px] font-medium uppercase tracking-wide text-ink-muted">Voice</h2>
-        <button
-          type="button"
-          onClick={voice.toggle}
-          disabled={!supported}
-          className={`ml-auto rounded px-1.5 py-0.5 text-[10.5px] font-medium transition ${
-            state === "off"
-              ? "text-ink-muted hover:bg-elevated hover:text-ink"
-              : "bg-core/15 text-core hover:bg-core/25"
-          } disabled:cursor-not-allowed disabled:opacity-40`}
-        >
-          {state === "off" ? "Turn on" : "On"}
-        </button>
-      </div>
-
-      {/* The thirteen scaled bars that used to live here read a single scalar
-          peak out of a 128-bin analyser and threw every frequency away, which
-          is why they looked like a volume knob rather than a voice. The
-          Reactor reads the real spectrum, from whichever source is actually
-          talking. */}
-      <Reactor voice={voice} mode={mode} onMode={onMode} />
-
-      <div className="px-3 pb-3">
-        {!supported && (
-          <p className="text-[11px] leading-relaxed text-ink-muted">
-            This browser has no speech recognition. Chrome, Edge and Safari do — everything else here still works.
-          </p>
-        )}
-        {error && <p className="mt-2 text-[11px] leading-relaxed text-[#f87171]">{error}</p>}
-
-        {/* A bordered checkbox in the surface's own vocabulary, replacing the one
-            UA-shaped control on the surface. Announced as a checkbox because it
-            is drawn as one — a square with a tick told to call itself a switch
-            hands screen-reader users a different control from the one everyone
-            else sees. */}
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={speakReplies}
-          onClick={() => onSpeakReplies(!speakReplies)}
-          className="mt-2.5 flex w-full items-center gap-2 rounded-md border border-line px-2 py-1.5 text-left text-[11px] text-ink-muted transition hover:bg-elevated hover:text-ink"
-        >
-          <span
-            className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[3px] border transition ${
-              speakReplies ? "border-brand-2 bg-brand-2 text-white" : "border-line text-transparent"
-            }`}
-            aria-hidden
-          >
-            <Icon.Check width={9} height={9} />
-          </span>
-          Speak answers aloud
-        </button>
-      </div>
-    </section>
-  );
-}
 
 const CAPS: { key: "shell" | "files" | "system" | "browser"; label: string; what: string }[] = [
   { key: "browser", label: "Browser", what: "opens pages, reads them, clicks and fills" },

@@ -51,14 +51,21 @@ import type { UseImprove } from "@/lib/new-jarvis/useImprove";
 import type { UpdatesApi } from "@/lib/jarvis/useUpdates";
 import type { JarvisStore, MemorySource } from "@/lib/jarvis/types";
 import type { DueReminder } from "@/lib/recall/calendar/reminders";
+import type { UseQueue } from "@/lib/new-jarvis/useQueue";
+import { QueueBoard } from "./QueueBoard";
 
-type Pane = "graph" | "memory" | "profile" | "improve";
+type Pane = "graph" | "memory" | "profile" | "improve" | "queue";
 
 const PANES: { id: Pane; label: string; icon: keyof typeof Icon }[] = [
   { id: "graph", label: "Brain", icon: "Grid" },
   { id: "memory", label: "Memory", icon: "Database" },
   { id: "profile", label: "Profile", icon: "Users" },
   { id: "improve", label: "Improve", icon: "Bulb" },
+  // The queue is a pane here as well as a tab in the rail, mounted from the
+  // one hook so both see the same rows and the same verdicts. The dashboard is
+  // where the owner lands, and "what have I left unfinished" belongs with
+  // "what do I know" and "who am I" rather than only behind its own door.
+  { id: "queue", label: "In Queue", icon: "ListChecks" },
 ];
 
 interface Props {
@@ -70,6 +77,15 @@ interface Props {
   reminders: DueReminder[];
   onDismissReminder: (id: string, minutes: number) => void;
   bridgeUp: boolean;
+  /**
+   * The In Queue board, passed in rather than mounted here.
+   *
+   * The shell holds it because the dock shows the unfinished count at all
+   * times. Mounting a second copy for this pane would scan the repo twice and,
+   * worse, give the two boards separate verdict state — so a pip clicked on
+   * the dashboard would not be clicked on the tab.
+   */
+  queue: UseQueue;
   /** Where a tab-opening update should send the owner. */
   go: (tab: string) => void;
 }
@@ -83,6 +99,7 @@ export function DashboardPanel({
   reminders,
   onDismissReminder,
   bridgeUp,
+  queue,
   go,
 }: Props) {
   const [pane, setPane] = useState<Pane>("graph");
@@ -251,6 +268,8 @@ export function DashboardPanel({
               </div>
             </aside>
           </div>
+        ) : pane === "queue" ? (
+          <QueueBoard queue={queue} />
         ) : pane === "memory" ? (
           <div className="h-full overflow-y-auto">
             <MemoryTab store={store} commit={commit} />

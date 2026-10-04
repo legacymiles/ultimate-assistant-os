@@ -19,10 +19,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import "./new-jarvis.css";
+import "./new-jarvis-shell.css";
 
 import { BlockView } from "./Blocks";
 import { CommandLine } from "./CommandLine";
-import { BridgePanel, VoicePanel } from "./SidePanels";
+import { StatusDock } from "./StatusDock";
+import { VoiceOrb } from "./VoiceOrb";
+import { QueueBoard } from "./QueueBoard";
+import { useQueue } from "@/lib/new-jarvis/useQueue";
 import type { ReactorMode } from "@/lib/new-jarvis/reactor";
 
 import { useBridge } from "@/lib/new-jarvis/useBridge";
@@ -71,7 +75,7 @@ import type { JarvisStore } from "@/lib/jarvis/types";
 import { useDashboardCalendar } from "@/lib/jarvis/useDashboardCalendar";
 
 type TabId =
-  | "dashboard" | "console" | "studio" | "harness"
+  | "dashboard" | "console" | "studio" | "harness" | "queue"
   | "folders" | "photos" | "lists" | "calendar" | "inbox"
   | "skills" | "tools" | "passwords" | "calls" | "router" | "architect" | "timeline" | "plugins" | "settings";
 
@@ -129,7 +133,7 @@ const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[]
   },
 ];
 
-/** The three that are always one click away, because they are where work happens. */
+/** The ones that are always one click away, because they are where work happens. */
 const TOP: Tab[] = [
   { id: "dashboard", label: "Dashboard", icon: "Grid" },
   { id: "console", label: "Console", icon: "Bot" },
@@ -137,6 +141,10 @@ const TOP: Tab[] = [
   // Harness earns a top slot rather than a place in the Toolbox: it is where
   // the repo actually gets changed, which makes it work rather than a tool.
   { id: "harness", label: "Harness", icon: "Layers" },
+  // In Queue is the answer to "what should I work on", which is the question
+  // asked on the way in. Buried in a folder it would be a report; at the top
+  // of the rail with a count on it, it is the to-do list.
+  { id: "queue", label: "Queue", icon: "ListChecks" },
 ];
 
 const TABS: Tab[] = [...TOP, ...GROUPS.flatMap((g) => g.items)];
@@ -160,8 +168,6 @@ export function NewJarvis() {
   const [speakReplies, setSpeakReplies] = useState(true);
   /** Which face the Reactor is showing. Theirs to pick; it is the thing they look at most. */
   const [reactorMode, setReactorMode] = useState<ReactorMode>("ring");
-  /** The phone-only panel strip; the wide layout shows both panels always. */
-  const [panelsOpen, setPanelsOpen] = useState(false);
 
   const bridge = useBridge();
 
@@ -241,6 +247,10 @@ export function NewJarvis() {
 
   const updates = useUpdates(briefStore, commit, dash.events);
   const vault = useVault(bridge);
+  // The queue is mounted up here rather than inside its own tab because the
+  // dock shows its count at all times: a board that only counted itself once
+  // you opened it would be a board you had to remember to go and look at.
+  const queue = useQueue(store);
 
   // What the armory knows, so the self-audit can raise a real gap instead of
   // nothing. Fetched once; a key does not change while the tab is open.
@@ -619,8 +629,8 @@ ${reflex.best.excerpt ?? ""}`.trim()
   );
 
   const running = blocks.some((b) => b.status === "running" || b.status === "waiting");
-  const caps = bridge.health.capabilities;
-  const readyCount = caps ? ["browser", "shell", "files", "system"].filter((k) => caps[k as "browser"] === true).length : 0;
+  // The capability tally moved into the dock, which is the only thing that
+  // reads it now.
 
   return (
     <div className="nj">
@@ -655,7 +665,15 @@ ${reflex.best.excerpt ?? ""}`.trim()
               tab={t}
               on={tab === t.id}
               onClick={() => go(t.id)}
-              badge={t.id === "console" && running ? "live" : t.id === "dashboard" && updates.unread > 0 ? "unread" : null}
+              badge={
+                t.id === "console" && running
+                  ? "live"
+                  : t.id === "dashboard" && updates.unread > 0
+                    ? "unread"
+                    : t.id === "queue" && queue.counts.wip > 0
+                      ? "queued"
+                      : null
+              }
             />
           ))}
 
@@ -718,57 +736,11 @@ ${reflex.best.excerpt ?? ""}`.trim()
             />
           )}
 
-          {/* On a phone the right-hand column is gone, and with it the only
-              place that says whether voice is on and whether this PC can be
-              reached — including the pairing control. One tappable strip
-              brings both back rather than leaving the agent unfixable from the
-              device the owner most often has in their hand. */}
-          <div className="border-b border-line bg-panel lg:hidden">
-            <button
-              type="button"
-              onClick={() => setPanelsOpen((o) => !o)}
-              aria-expanded={panelsOpen}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left"
-            >
-              <span className={`nj-dot ${voice.listening ? "bg-core" : "bg-ink-faint/50"}`} data-live={voice.state === "hearing"} aria-hidden />
-              <span className="text-[11px] text-ink-muted">
-                {voice.listening ? "Voice on" : "Voice off"}
-              </span>
-              <span className="text-[11px] text-ink-faint" aria-hidden>·</span>
-              <span className="text-[11px] text-ink-muted" data-num>
-                {bridge.health.up && bridge.health.paired
-                  ? `${readyCount} of 4 ready on this PC`
-                  : bridge.health.up
-                    ? "PC not paired"
-                    : "PC not reachable"}
-              </span>
-              <Icon.Chevron
-                width={11}
-                height={11}
-                className={`ml-auto text-ink-muted transition-transform ${panelsOpen ? "rotate-90" : ""}`}
-                aria-hidden
-              />
-            </button>
-            {panelsOpen && (
-              <div className="border-t border-line-soft">
-                <VoicePanel
-                  voice={voice}
-                  mode={reactorMode}
-                  onMode={setReactorMode}
-                  speakReplies={speakReplies}
-                  onSpeakReplies={setSpeakReplies}
-                />
-                <BridgePanel
-                  health={bridge.health}
-                  ready={bridge.ready}
-                  hasToken={bridge.hasToken}
-                  onPair={(t) => void bridge.pair(t)}
-                  onUnpair={bridge.unpair}
-                  onRefresh={bridge.refresh}
-                />
-              </div>
-            )}
-          </div>
+          {/* The phone-only strip that used to stand in for the missing right
+              column is gone with the column itself. Both facts it carried now
+              live in the dock across the bottom, at every width — which means
+              the phone and the laptop finally show the same thing in the same
+              place instead of two layouts that drift apart. */}
 
           <div className="min-h-0 flex-1 overflow-y-auto">
             {/* The Dashboard is its own column layout and owns its scrolling,
@@ -783,6 +755,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 reminders={dash.reminders.queue}
                 onDismissReminder={dash.reminders.dismiss}
                 bridgeUp={bridge.health.up && bridge.health.paired}
+                queue={queue}
                 go={goByName}
               />
             ) : tab === "console" ? (
@@ -814,6 +787,11 @@ ${reflex.best.excerpt ?? ""}`.trim()
               // "Loading your things…" would delay the one tab that has no
               // reason to.
               <HarnessConsole paired={bridge.health.up && bridge.health.paired} />
+            ) : tab === "queue" ? (
+              // Also ahead of the gate. The board reads the repo and, for the
+              // one signal that needs it, a store it treats as optional — so
+              // it can draw itself fully while the dashboard is still loading.
+              <QueueBoard queue={queue} />
             ) : !store ? (
               <div className="p-6 text-xs text-ink-muted">Loading your things…</div>
             ) : (
@@ -866,25 +844,32 @@ ${reflex.best.excerpt ?? ""}`.trim()
             )}
           </div>
         </main>
-
-        <aside className="hidden w-[var(--nj-aside)] shrink-0 overflow-y-auto border-l border-line bg-panel lg:block">
-          <VoicePanel
-            voice={voice}
-            mode={reactorMode}
-            onMode={setReactorMode}
-            speakReplies={speakReplies}
-            onSpeakReplies={setSpeakReplies}
-          />
-          <BridgePanel
-            health={bridge.health}
-            ready={bridge.ready}
-            hasToken={bridge.hasToken}
-            onPair={(t) => void bridge.pair(t)}
-            onUnpair={bridge.unpair}
-            onRefresh={bridge.refresh}
-          />
-        </aside>
       </div>
+
+      {/* The column's two jobs, re-housed. The dock is one line across the
+          full width instead of 300px down the side of every block; the orb is
+          the voice UI as an object that floats over the console rather than a
+          panel parked where you never look. */}
+      <StatusDock
+        voice={voice}
+        health={bridge.health}
+        ready={bridge.ready}
+        hasToken={bridge.hasToken}
+        onPair={(t) => void bridge.pair(t)}
+        onUnpair={bridge.unpair}
+        onRefresh={bridge.refresh}
+        running={blocks.filter((b) => b.status === "running" || b.status === "waiting").length}
+        queued={queue.counts.wip}
+        onQueue={() => go("queue")}
+      />
+
+      <VoiceOrb
+        voice={voice}
+        mode={reactorMode}
+        onMode={setReactorMode}
+        speakReplies={speakReplies}
+        onSpeakReplies={setSpeakReplies}
+      />
     </div>
   );
 }
@@ -907,7 +892,7 @@ function RailButton({
   on: boolean;
   onClick: () => void;
   nested?: boolean;
-  badge?: "live" | "unread" | null;
+  badge?: "live" | "unread" | "queued" | null;
 }) {
   const I = Icon[tab.icon];
   return (
@@ -924,6 +909,10 @@ function RailButton({
       <span className={nested ? "text-[9px] leading-none" : "text-[9.5px] leading-none"}>{tab.label}</span>
       {badge === "live" && <span className="nj-dot absolute right-1 top-1 bg-brand" data-live="true" aria-hidden />}
       {badge === "unread" && <span className="nj-dot absolute right-1 top-1 bg-support" aria-hidden />}
+      {/* Amber rather than a count: the number is in the dock, and a two- or
+          three-digit badge on a 56px rail would overlap the label it belongs
+          to. Here the only question is whether there IS anything waiting. */}
+      {badge === "queued" && <span className="nj-pip nj-pip-wip absolute right-1 top-1" aria-hidden />}
     </button>
   );
 }
