@@ -121,6 +121,14 @@ export interface ThreadSummary {
   usd: number;
   busy: boolean;
   strict: boolean;
+  /**
+   * Writes inside this thread's own worktree are allowed without asking. Set by
+   * a bake-off lane and nothing else; see `autoAllow` in harness-gate.mjs for
+   * what it still stops.
+   */
+  laneWrites: boolean;
+  /** The dev server serving this worktree, once one has been started. */
+  preview: { port: number; url: string; pid: number } | null;
   cursor: number;
   gate: GateCard | null;
   worktree: { path: string; branch: string; base: string; repo: string; notes: string[] };
