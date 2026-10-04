@@ -46,6 +46,16 @@ export interface UnderstandRequest {
   uploadDataUrl?: string;
   /** Cover image as a data: URL (see fetchImageDataUrl). */
   imageDataUrl?: string | null;
+  /**
+   * `data:image/…` URLs the user attached themselves, in the order the task
+   * refers to them.
+   *
+   * These go FIRST and they go in EVERY pass, including the video one — they
+   * are the evidence somebody chose to hand over (a photo of the dish, a
+   * snapshot of a recipe card), so unlike the scraped cover they are never the
+   * thing that gets dropped to make a request fit.
+   */
+  images?: string[];
 }
 
 export interface Understanding {
@@ -60,12 +70,22 @@ export async function understandPost(req: UnderstandRequest): Promise<Understand
   if (!ep) throw new Error("No AI provider is configured.");
   const text: Part = { type: "text", text: `${describePost(req.post)}\n\n${req.task}` };
 
+  // The user's own photos come before the scraped cover, because the task
+  // numbers them ("IMAGE 1…") and that numbering has to match what arrives.
+  const attached: Part[] = (req.images ?? [])
+    .filter((url) => url.startsWith("data:image/"))
+    .map((url) => ({ type: "image_url", image_url: { url } }));
+  const cover: Part[] = req.imageDataUrl
+    ? [{ type: "image_url", image_url: { url: req.imageDataUrl } }]
+    : [];
+  const pictures = [...attached, ...cover];
+
   if (ep.provider === "openrouter") {
     const video = await videoPart(req);
     if (video) {
       try {
-        const data = await ask(ep, VIDEO_MODEL, req.system, [text, video]);
-        return { data, watchedVideo: true, sawImage: false, model: VIDEO_MODEL };
+        const data = await ask(ep, VIDEO_MODEL, req.system, [text, ...pictures, video]);
+        return { data, watchedVideo: true, sawImage: pictures.length > 0, model: VIDEO_MODEL };
       } catch (err) {
         console.warn("[social-import] video pass failed, falling back to text:", err);
         // Usually OpenRouter's rule that video needs at least $1 of credit (402);
@@ -78,12 +98,17 @@ export async function understandPost(req: UnderstandRequest): Promise<Understand
   }
 
   const model = process.env.AI_MODEL || DEFAULT_MODEL;
-  if (req.imageDataUrl) {
+  if (pictures.length) {
     try {
-      const data = await ask(ep, model, req.system, [text, { type: "image_url", image_url: { url: req.imageDataUrl } }]);
+      const data = await ask(ep, model, req.system, [text, ...pictures]);
       return { data, watchedVideo: false, sawImage: true, model };
     } catch (err) {
       console.warn("[social-import] image pass failed, falling back to caption only:", err);
+      // Words-only is a fair answer for a scraped cover, but not for photos
+      // somebody attached: a "recipe" written without looking at the dish they
+      // photographed is a different dish, and silently handing that back is
+      // worse than saying the pictures couldn't be read.
+      if (attached.length) throw err;
     }
   }
   return { data: await ask(ep, model, req.system, [text]), watchedVideo: false, sawImage: false, model };
@@ -92,7 +117,9 @@ export async function understandPost(req: UnderstandRequest): Promise<Understand
 /** The post's text evidence, labelled so the model knows where each part came from. */
 export function describePost(p: SocialPost): string {
   const out: string[] = [];
-  out.push(`SOURCE: ${p.platform === "upload" ? "a video the user uploaded" : `${p.platform} post ${p.url}`}`);
+  // "upload" covers a video, photos, or words with no link at all, so it must
+  // not claim a video the request may not contain.
+  out.push(`SOURCE: ${p.platform === "upload" ? "what the user handed over directly — no link" : `${p.platform} post ${p.url}`}`);
   if (p.author) out.push(`AUTHOR: ${p.author}`);
   if (p.title && !p.caption.startsWith(p.title)) out.push(`TITLE: ${p.title}`);
   if (p.caption) out.push(`CAPTION / DESCRIPTION:\n${p.caption.slice(0, 6000)}`);

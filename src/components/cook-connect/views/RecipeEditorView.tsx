@@ -1,19 +1,47 @@
 "use client";
 
-// Adding a recipe, on the shape Cookbook Genie settled on: two ways in across
-// the top, then the draft rendered as a recipe you can read, with one box for
-// changing it in words. You are never handed an empty form to fill in.
+// Adding a recipe. ONE surface, not a choice of lanes.
+//
+// It used to be two tabs — "from a video link" OR "describe it" — which meant a
+// photo of a dish with "make it for six, no dairy" had nowhere to go: whichever
+// tab you picked, it couldn't see the other one's box. So there is now a single
+// tray you hand ANYTHING to, in any combination: a link, photos, a video, and
+// your own words. Every part is optional and every part is read.
+//
+// The one thing a photo needs that a link doesn't is to be told what it IS. A
+// picture of a recipe card must be TRANSCRIBED (its amounts are the truth); a
+// picture of a finished dish must be INVENTED FROM (there are no amounts to
+// read). Getting that backwards wastes the call, so each photo wears its
+// reading on its chip and you can flip it before anything is spent.
+//
+// Below the tray, the draft arrives as a recipe you can read and edit in place,
+// with one box for changing it in words. You are never handed an empty form.
 
 import { useEffect, useRef, useState } from "react";
 import { useCook } from "../CookConnect";
 import { Columns, PageHead } from "../Columns";
 import { recordActivity } from "@/lib/cook-connect/social";
 import { recipeImageUrl } from "@/components/cook-connect/imageGen";
+import {
+  type Attachment,
+  type Composition,
+  type Reading,
+  MAX_IMAGES,
+  hasEvidence,
+  images as imagesOf,
+  needsReading,
+  rejectFile,
+  summarise,
+  video as videoOf,
+} from "@/lib/cook-connect/compose";
+import { imageToDataUrl } from "@/lib/recall/media";
 import type { Ingredient, Step } from "@/lib/cook-connect/types";
 import {
-  Button, Field, Input, Panel, SectionHead, Spinner, Tag, Textarea, cx,
+  Button, Field, Input, Panel, SectionHead, Spinner, Textarea, cx,
 } from "../ui";
-import { BookIcon, CloseIcon, SparkIcon } from "../icons";
+import {
+  CloseIcon, LinkIcon, PhotoIcon, PlateIcon, SparkIcon, TextPageIcon, VideoIcon,
+} from "../icons";
 
 interface Draft {
   title: string;
@@ -26,47 +54,108 @@ interface Draft {
   servings: number;
 }
 
-type Mode = "link" | "describe";
+/**
+ * Photos are downscaled further than Recall's default, because half of them are
+ * pictures of WRITING and 1280px loses the strokes of a handwritten "1½".
+ */
+const PHOTO_MAX_DIM = 1600;
 
-const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
-
-/** What the importer is doing, so a long wait reads as progress. */
-const IMPORT_STAGES = [
-  "Opening the post…",
-  "Watching the video…",
-  "Picking out the ingredients…",
-  "Writing the steps…",
-];
+let seq = 0;
+const nextId = () => `a${++seq}`;
 
 export function RecipeEditorView({ cookbookId }: { cookbookId: string }) {
   const { sb, userId, navigate, notify } = useCook();
-  const [mode, setMode] = useState<Mode>("link");
 
+  // What the cook has handed over. One object, so the routing and the summary
+  // line are decided by the evidence rather than by a tab.
+  const [brief, setBrief] = useState("");
   const [link, setLink] = useState("");
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [dragging, setDragging] = useState(false);
+
+  // Only ever shown as the way out of a login-walled post, which is the only
+  // time anyone should have to paste a caption by hand.
+  const [showCaption, setShowCaption] = useState(false);
   const [caption, setCaption] = useState("");
-  const [videoDataUrl, setVideoDataUrl] = useState<string | null>(null);
-  const [videoName, setVideoName] = useState<string | null>(null);
-  const [prompt, setPrompt] = useState("");
 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [image, setImage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [canWriteAnyway, setCanWriteAnyway] = useState(false);
   const [offline, setOffline] = useState(false);
   const [note, setNote] = useState("");
   const [revising, setRevising] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  // Cycle the stage captions while an import runs.
-  useEffect(() => {
-    if (!busy || mode !== "link") return;
-    const t = setInterval(() => setStage((s) => (s + 1) % IMPORT_STAGES.length), 2600);
-    return () => clearInterval(t);
-  }, [busy, mode]);
+  const composition: Composition = { note: brief, link, attachments };
+  const photos = imagesOf(composition);
+  const clip = videoOf(composition);
+  const ready = hasEvidence(composition);
+  const reads = needsReading(composition);
 
-  const canImport = !!link.trim() || !!caption.trim() || !!videoDataUrl;
+  // What the reading is doing, named after what was actually handed over — a
+  // caption that says "watching the video" when no video was attached is worse
+  // than no caption at all.
+  const stages = (() => {
+    const out: string[] = [];
+    if (link.trim()) out.push("Opening the link…");
+    if (clip) out.push("Watching the video…");
+    if (photos.length) out.push(photos.length === 1 ? "Looking at the photo…" : "Looking at the photos…");
+    out.push("Picking out the ingredients…", "Writing the steps…");
+    return out;
+  })();
+
+  useEffect(() => {
+    if (!busy || !reads) return;
+    const t = setInterval(() => setStage((s) => (s + 1) % stages.length), 2600);
+    return () => clearInterval(t);
+  }, [busy, reads, stages.length]);
+
+  /* ── The tray ─────────────────────────────────────────────────── */
+
+  const addFiles = async (files: FileList | File[] | null) => {
+    if (!files) return;
+    let held = [...attachments];
+    let refusal: string | null = null;
+    for (const file of Array.from(files)) {
+      const why = rejectFile(file, { note: brief, link, attachments: held });
+      if (why) { refusal ??= why; continue; }
+      try {
+        const dataUrl = file.type.startsWith("image/")
+          ? await imageToDataUrl(file, PHOTO_MAX_DIM)
+          : await readAsDataUrl(file);
+        held = [...held, {
+          id: nextId(),
+          kind: file.type.startsWith("image/") ? "image" : "video",
+          name: file.name || (file.type.startsWith("image/") ? "photo" : "video"),
+          dataUrl,
+          reading: "auto",
+        }];
+      } catch {
+        refusal ??= `Couldn't read ${file.name || "that file"}.`;
+      }
+    }
+    setAttachments(held);
+    setError(refusal);
+  };
+
+  const setReading = (id: string, reading: Reading) =>
+    setAttachments((list) => list.map((a) => (a.id === id ? { ...a, reading } : a)));
+
+  const remove = (id: string) => setAttachments((list) => list.filter((a) => a.id !== id));
+
+  /** Screenshots arrive on the clipboard far more often than they arrive as files. */
+  const onPaste = (e: React.ClipboardEvent) => {
+    const files = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith("image/"));
+    if (!files.length) return;
+    e.preventDefault();
+    void addFiles(files);
+  };
+
+  /* ── Tagging and settling a draft ─────────────────────────────── */
 
   /** Ask the classifier for protein / meal / cuisine so tags aren't hand-typed. */
   const autoTag = async (recipe: Draft): Promise<string[]> => {
@@ -102,11 +191,21 @@ export function RecipeEditorView({ cookbookId }: { cookbookId: string }) {
     setImage(recipeImageUrl(tagged.title, tagged.description));
   };
 
-  /** Paste a cooking video or post and let it read the recipe out. */
-  const importFromLink = async () => {
-    if (!canImport || busy) return;
+  /* ── The one button ───────────────────────────────────────────── */
+
+  /**
+   * Words alone go to the draft route; anything with a link, a photo or a video
+   * goes to the reading route. The cook never picks — what they handed over
+   * already decided it.
+   */
+  const go = () => (reads ? void read() : void write());
+
+  /** A link, photos, a video — opened, looked at, watched, and written up. */
+  const read = async () => {
+    if (busy) return;
     setBusy(true);
     setError(null);
+    setCanWriteAnyway(false);
     setStage(0);
     try {
       const res = await fetch("/api/cookbook/import-from-link", {
@@ -114,20 +213,22 @@ export function RecipeEditorView({ cookbookId }: { cookbookId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           link: link.trim() || undefined,
+          note: brief.trim() || undefined,
           caption: caption.trim() || undefined,
-          videoDataUrl: videoDataUrl || undefined,
+          images: photos.map((a) => a.dataUrl),
+          readings: photos.map((a) => a.reading),
+          videoDataUrl: clip?.dataUrl,
         }),
       });
       const data = await res.json();
       if (!res.ok || data.error) {
-        // Some failures already name the way out ("…upload the video"); don't
-        // say it twice.
-        const said = /upload|paste/i.test(String(data.error ?? ""));
-        setError(
-          data.needsHelp && !said
-            ? `${data.error} Paste the caption underneath, or upload the video itself.`
-            : data.error || `The import failed (${res.status}).`,
-        );
+        setError(String(data.error || `The read failed (${res.status}).`));
+        // Pasting the caption only helps a post that wouldn't open.
+        if (data.needsHelp && link.trim() && !data.needsKey) setShowCaption(true);
+        // A note is a complete request on its own, so when the evidence can't
+        // be read there is still a way forward — offered, not taken silently,
+        // because a recipe written WITHOUT the photo is a different recipe.
+        setCanWriteAnyway(Boolean(brief.trim()));
         return;
       }
       const r = data.recipe;
@@ -143,21 +244,24 @@ export function RecipeEditorView({ cookbookId }: { cookbookId: string }) {
       }, false);
       if (data.coverDataUrl) setImage(data.coverDataUrl);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "The import failed.");
+      setError(e instanceof Error ? e.message : "The read failed.");
+      setCanWriteAnyway(Boolean(brief.trim()));
     } finally {
       setBusy(false);
     }
   };
 
-  const describeIt = async () => {
-    if (!prompt.trim() || busy) return;
+  /** Words alone: the route with a template behind it, so a keyless hub answers. */
+  const write = async () => {
+    if (!brief.trim() || busy) return;
     setBusy(true);
     setError(null);
+    setCanWriteAnyway(false);
     try {
       const res = await fetch("/api/cook-connect/recipe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "draft", prompt }),
+        body: JSON.stringify({ action: "draft", prompt: brief }),
       });
       if (!res.ok) throw new Error(`Request failed (${res.status}).`);
       const data = await res.json();
@@ -208,22 +312,6 @@ export function RecipeEditorView({ cookbookId }: { cookbookId: string }) {
     }
   };
 
-  const onVideo = (file: File | undefined) => {
-    if (!file) return;
-    if (!file.type.startsWith("video/")) { setError("That file isn't a video."); return; }
-    if (file.size > MAX_VIDEO_BYTES) {
-      setError("That video is over 20 MB. Trim it, or paste the caption instead.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setVideoDataUrl(reader.result as string);
-      setVideoName(file.name);
-      setError(null);
-    };
-    reader.readAsDataURL(file);
-  };
-
   const save = async () => {
     if (!userId || !draft?.title.trim()) return;
     setSaving(true);
@@ -265,130 +353,143 @@ export function RecipeEditorView({ cookbookId }: { cookbookId: string }) {
     <Columns>
       <PageHead
         title="Add a recipe"
-        subtitle={
-          mode === "link"
-            ? "Paste a cooking video and it gets watched — visuals, speech and on-screen text — then written up as a recipe."
-            : "Describe what you want to cook and the recipe gets written for you to edit."
-        }
+        subtitle="Hand over anything you've got — a link, photos of the dish or of a written recipe, a video, your own words — in any mix. It all gets read as one dish."
       />
 
-      {/* Two ways in */}
-      <div className="mb-4 flex gap-1 rounded-lg border border-[var(--cc-line)] bg-[var(--cc-panel)] p-1">
-        {([
-          { id: "link" as const, label: "From a video link" },
-          { id: "describe" as const, label: "Describe it" },
-        ]).map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            role="tab"
-            aria-selected={mode === m.id}
-            onClick={() => { setMode(m.id); setError(null); }}
-            className={cx(
-              "flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-semibold",
-              "transition-colors duration-150",
-              mode === m.id
-                ? "bg-[var(--cc-ember)] text-[#1b0f05]"
-                : "text-[var(--cc-ink-muted)] hover:bg-[var(--cc-panel-2)] hover:text-[var(--cc-ink)]",
-            )}
+      <Panel
+        className={cx("mb-4 transition-colors duration-150", dragging && "border-[var(--cc-ember)]")}
+        onPaste={onPaste}
+        onDragOver={(e: React.DragEvent) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e: React.DragEvent) => {
+          e.preventDefault();
+          setDragging(false);
+          void addFiles(e.dataTransfer.files);
+        }}
+      >
+        <SectionHead title="What have you got?" />
+
+        <div className="space-y-3 p-3">
+          {/* Words first: it is the one input everybody has, and the only one
+              that can carry an instruction rather than evidence. */}
+          <Field
+            label="In your words"
+            hint="A dish, a change to make, anything the photos and the link can't say. Works on its own, and it outranks the rest."
           >
-            {m.id === "link" ? <BookIcon size={14} /> : <SparkIcon size={14} />}
-            {m.label}
-          </button>
-        ))}
-      </div>
+            <Textarea
+              rows={3}
+              value={brief}
+              onChange={(e) => setBrief(e.target.value)}
+              placeholder="A one-pan lemon chicken with orzo, enough for four — or: this is my nan's, keep her amounts but make it dairy-free"
+              autoFocus
+            />
+          </Field>
 
-      <Panel className="mb-4">
-        {mode === "link" ? (
-          <>
-            <SectionHead title="The post" />
-            <div className="space-y-3 p-3">
-              <Field
-                label="Link"
-                hint="In TikTok, Instagram, Facebook or YouTube tap Share → Copy link, then paste it here."
-              >
-                <Input
-                  value={link}
-                  onChange={(e) => setLink(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && canImport) void importFromLink(); }}
-                  placeholder="https://www.tiktok.com/@someone/video/…"
-                  autoFocus
-                />
-              </Field>
+          <Field label="Link" hint="Tap Share → Copy link in TikTok, Instagram, Facebook or YouTube, or paste any recipe page.">
+            <div className="relative">
+              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--cc-ink-faint)]">
+                <LinkIcon size={14} />
+              </span>
+              <Input
+                className="pl-8"
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && ready) go(); }}
+                placeholder="https://www.tiktok.com/@someone/video/…"
+              />
+            </div>
+          </Field>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  ref={fileInput}
-                  type="file"
-                  accept="video/*"
-                  className="hidden"
-                  onChange={(e) => onVideo(e.target.files?.[0])}
-                />
-                <Button onClick={() => fileInput.current?.click()}>
-                  {videoName ? "Choose another video" : "Or upload the video"}
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            className="hidden"
+            onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }}
+          />
+
+          {attachments.length === 0 ? (
+            <button
+              type="button"
+              onClick={() => fileInput.current?.click()}
+              className={cx(
+                "flex w-full flex-col items-center gap-1 rounded-lg border border-dashed px-3 py-5",
+                "transition-colors duration-150",
+                dragging
+                  ? "border-[var(--cc-ember)] bg-[var(--cc-ember-wash)] text-[var(--cc-ember)]"
+                  : "border-[var(--cc-line)] bg-[var(--cc-panel-2)] text-[var(--cc-ink-muted)] hover:border-[var(--cc-ember-dim)] hover:text-[var(--cc-ink)]",
+              )}
+            >
+              <PhotoIcon size={20} />
+              <span className="text-[13px] font-semibold">Add photos or a video</span>
+              <span className="text-[11px] text-[var(--cc-ink-faint)]">
+                Drop them here, paste a screenshot, or click. The dish itself, or a recipe written down.
+              </span>
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <ul className="divide-y divide-[var(--cc-line-soft)] overflow-hidden rounded-lg border border-[var(--cc-line)]">
+                {attachments.map((a) => (
+                  <AttachmentRow
+                    key={a.id}
+                    attachment={a}
+                    onReading={(r) => setReading(a.id, r)}
+                    onRemove={() => remove(a.id)}
+                  />
+                ))}
+              </ul>
+              <div className="flex items-center gap-2">
+                <Button onClick={() => fileInput.current?.click()} disabled={photos.length >= MAX_IMAGES && !!clip}>
+                  <PhotoIcon size={14} />
+                  Add another
                 </Button>
-                {videoName && (
-                  <span className="flex items-center gap-1.5 text-[12px] text-[var(--cc-ink-muted)]">
-                    <Tag tone="ember">{videoName}</Tag>
-                    <button
-                      type="button"
-                      onClick={() => { setVideoDataUrl(null); setVideoName(null); }}
-                      aria-label="Remove the video"
-                      className="text-[var(--cc-ink-faint)] transition-colors hover:text-[var(--cc-loss)]"
-                    >
-                      <CloseIcon size={13} />
-                    </button>
-                  </span>
-                )}
-                <span className="text-[11px] text-[var(--cc-ink-faint)]">Up to 20 MB.</span>
+                <span className="text-[11px] text-[var(--cc-ink-faint)]">
+                  Up to {MAX_IMAGES} photos and one video, 20 MB.
+                </span>
               </div>
+            </div>
+          )}
 
-              <Field
-                label="Caption"
-                hint="Only needed when a private or login-walled post can't be opened."
-              >
+          {showCaption && (
+            <div className="cc-rise">
+              <Field label="The caption" hint="Only needed because that post wouldn't open. Paste the text from under it.">
                 <Textarea
                   rows={2}
                   value={caption}
                   onChange={(e) => setCaption(e.target.value)}
-                  placeholder="Paste the caption if the link alone isn't enough…"
+                  placeholder="Paste the caption…"
                 />
               </Field>
             </div>
-            <div className="flex items-center gap-2 border-t border-[var(--cc-line)] p-3">
-              <Button variant="primary" disabled={!canImport || busy} onClick={() => void importFromLink()}>
-                {busy ? <Spinner size={14} /> : <SparkIcon size={14} />}
-                {busy ? IMPORT_STAGES[stage] : "Read the recipe"}
-              </Button>
-            </div>
-          </>
-        ) : (
-          <>
-            <SectionHead title="The dish" />
-            <div className="p-3">
-              <Field label="What do you want to cook?">
-                <Textarea
-                  rows={3}
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="A one-pan lemon chicken with orzo, enough for four"
-                  autoFocus
-                />
-              </Field>
-            </div>
-            <div className="flex items-center gap-2 border-t border-[var(--cc-line)] p-3">
-              <Button variant="primary" disabled={!prompt.trim() || busy} onClick={() => void describeIt()}>
-                {busy ? <Spinner size={14} /> : <SparkIcon size={14} />}
-                {busy ? "Writing" : "Write the recipe"}
-              </Button>
-            </div>
-          </>
-        )}
+          )}
+        </div>
+
+        {/* The line that makes the button honest. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-[var(--cc-line)] p-3">
+          <Button variant="primary" disabled={!ready || busy} onClick={go}>
+            {busy ? <Spinner size={14} /> : <SparkIcon size={14} />}
+            {busy
+              ? (reads ? stages[stage % stages.length] : "Writing")
+              : (reads ? "Read the recipe" : "Write the recipe")}
+          </Button>
+          <p aria-live="polite" className="text-[12px] leading-relaxed text-[var(--cc-ink-muted)]">
+            {ready
+              ? summarise(composition)
+              : "Nothing yet — a photo, a link or a sentence is enough."}
+          </p>
+        </div>
 
         {error && (
-          <p role="alert" className="border-t border-[var(--cc-line)] px-3 py-2 text-[12px] leading-relaxed text-[var(--cc-loss)]">
-            {error}
-          </p>
+          <div role="alert" className="border-t border-[var(--cc-line)] px-3 py-2">
+            <p className="text-[12px] leading-relaxed text-[var(--cc-loss)]">{error}</p>
+            {canWriteAnyway && (
+              <Button className="mt-2" onClick={() => void write()}>
+                <SparkIcon size={14} />
+                Write it from my words instead
+              </Button>
+            )}
+          </div>
         )}
         {offline && draft && (
           <p className="border-t border-[var(--cc-line)] px-3 py-2 text-[11px] leading-relaxed text-[var(--cc-gold)]">
@@ -415,6 +516,95 @@ export function RecipeEditorView({ cookbookId }: { cookbookId: string }) {
       )}
     </Columns>
   );
+}
+
+/* ── One attached file, wearing how it will be read ────────────── */
+
+const READINGS: { id: Reading; label: string; hint: string }[] = [
+  { id: "auto", label: "Auto", hint: "Let it work out what this picture is" },
+  { id: "dish", label: "The dish", hint: "A photo of the finished food — write a recipe that would produce it" },
+  { id: "written", label: "The writing", hint: "A recipe card, page or screenshot — transcribe its amounts exactly" },
+];
+
+function AttachmentRow({
+  attachment, onReading, onRemove,
+}: {
+  attachment: Attachment;
+  onReading: (r: Reading) => void;
+  onRemove: () => void;
+}) {
+  const isImage = attachment.kind === "image";
+  return (
+    // Wraps rather than squeezes: on a phone the three-way reading control is
+    // wider than what's left beside the name, and sharing one line turned the
+    // filename into a column of single words.
+    <li className="cc-rise flex flex-wrap items-center gap-x-2.5 gap-y-2 bg-[var(--cc-panel-2)] p-2">
+      {isImage ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={attachment.dataUrl}
+          alt=""
+          className="h-10 w-10 shrink-0 rounded border border-[var(--cc-line)] object-cover"
+        />
+      ) : (
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-[var(--cc-line)] bg-[var(--cc-elevated)] text-[var(--cc-ember)]">
+          <VideoIcon size={16} />
+        </span>
+      )}
+
+      <span className="min-w-0 flex-1 basis-[7rem]">
+        <span className="block truncate text-[13px] font-medium text-[var(--cc-ink)]">{attachment.name}</span>
+        <span className="block text-[11px] leading-snug text-[var(--cc-ink-faint)]">
+          {isImage
+            ? READINGS.find((r) => r.id === attachment.reading)?.hint
+            : "Watched in full — visuals, speech and on-screen text"}
+        </span>
+      </span>
+
+      {isImage && (
+        <span className="ml-auto flex shrink-0 rounded-md border border-[var(--cc-line)] bg-[var(--cc-panel)] p-0.5">
+          {READINGS.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              aria-pressed={attachment.reading === r.id}
+              title={r.hint}
+              onClick={() => onReading(r.id)}
+              className={cx(
+                "inline-flex items-center gap-1 rounded px-1.5 py-1 text-[11px] font-semibold",
+                "transition-colors duration-150",
+                attachment.reading === r.id
+                  ? "bg-[var(--cc-ember)] text-[#1b0f05]"
+                  : "text-[var(--cc-ink-faint)] hover:text-[var(--cc-ink)]",
+              )}
+            >
+              {r.id === "dish" && <PlateIcon size={11} />}
+              {r.id === "written" && <TextPageIcon size={11} />}
+              {r.label}
+            </button>
+          ))}
+        </span>
+      )}
+
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove ${attachment.name}`}
+        className="shrink-0 text-[var(--cc-ink-faint)] transition-colors hover:text-[var(--cc-loss)]"
+      >
+        <CloseIcon size={14} />
+      </button>
+    </li>
+  );
+}
+
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read that file."));
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.readAsDataURL(file);
+  });
 }
 
 /* ── The draft, as a recipe rather than a form ─────────────────── */

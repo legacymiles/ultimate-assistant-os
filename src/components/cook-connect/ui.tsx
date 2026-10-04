@@ -109,9 +109,16 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 
 /* ── Surfaces ──────────────────────────────────────────────────── */
 
-export function Panel({ className, children }: { className?: string; children: ReactNode }) {
+export function Panel({
+  className,
+  children,
+  ...rest
+}: React.HTMLAttributes<HTMLDivElement> & { children: ReactNode }) {
   return (
-    <div className={cx("rounded-[var(--cc-radius)] border border-[var(--cc-line)] bg-[var(--cc-panel)]", className)}>
+    <div
+      className={cx("rounded-[var(--cc-radius)] border border-[var(--cc-line)] bg-[var(--cc-panel)]", className)}
+      {...rest}
+    >
       {children}
     </div>
   );

@@ -36,8 +36,14 @@ export function readTextFile(file: File): Promise<string> {
   });
 }
 
-/** Downscale + re-encode an image file into a compact JPEG/PNG data URL. */
-export function imageToDataUrl(file: File): Promise<string> {
+/**
+ * Downscale + re-encode an image file into a compact JPEG/PNG data URL.
+ *
+ * `maxDim` is worth raising for a picture whose SMALL PRINT is the point — a
+ * photographed recipe card, a screenshot of a page — where 1280px throws away
+ * the strokes a model needs to read it.
+ */
+export function imageToDataUrl(file: File, maxDim = IMAGE_MAX_DIM): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("Could not read image."));
@@ -45,7 +51,7 @@ export function imageToDataUrl(file: File): Promise<string> {
       const img = new window.Image();
       img.onerror = () => reject(new Error("Could not decode image."));
       img.onload = () => {
-        const scale = Math.min(1, IMAGE_MAX_DIM / Math.max(img.width, img.height));
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
         const w = Math.max(1, Math.round(img.width * scale));
         const h = Math.max(1, Math.round(img.height * scale));
         const canvas = document.createElement("canvas");

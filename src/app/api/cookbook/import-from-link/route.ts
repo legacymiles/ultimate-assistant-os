@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { aiEndpoint } from "@/lib/ai/provider";
 import {
+  MAX_IMAGES,
+  MAX_IMAGES_CHARS,
+  MAX_IMAGE_CHARS,
+  type Reading,
+  readingBrief,
+} from "@/lib/cook-connect/compose";
+import {
   RECIPE_JSON_SCHEMA,
   normalizeRecipe,
   recipeFromCaption,
@@ -22,12 +29,20 @@ const MAX_DATA_URL_CHARS = 28_000_000;
 const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
 
 const SYSTEM =
-  "You turn cooking videos and food posts into accurate, cookable recipes. You watch the " +
-  "video — visuals, speech and on-screen text — and read the caption and any linked recipe. " +
-  "Respond ONLY with minified JSON, no prose.";
+  "You turn cooking videos, food photos and food posts into accurate, cookable recipes. You " +
+  "watch the video — visuals, speech and on-screen text — look closely at every photo, and " +
+  "read the caption and any linked recipe. Respond ONLY with minified JSON, no prose.";
 
 // POST /api/cookbook/import-from-link
-// Body: { link?, caption?, videoDataUrl?, videoUrl? } — at least one.
+// Body: { link?, caption?, videoDataUrl?, videoUrl?, images?, note?, readings? }
+//   — at least one of them. They COMBINE: a link and photos and a note are one
+//     request about one dish, not three competing ones.
+//   images:   data:image/… URLs. A photo of the finished dish, or a picture of
+//             writing (a recipe card, a cookbook page, a screenshot).
+//   readings: how to read each image, positional and parallel to `images`
+//             ("dish" | "written" | "auto"). Built by lib/cook-connect/compose.
+//   note:     the cook's own words. Always honoured, and it outranks the rest
+//             wherever they disagree — it is the only part a person typed.
 // Returns { recipe, source, coverDataUrl, evidence, confidence, assumptions, trail }
 // or { error, needsHelp?, trail? } when nothing usable could be read.
 export async function POST(req: Request) {
@@ -41,11 +56,40 @@ export async function POST(req: Request) {
   const caption = str(body.caption);
   const videoUrl = str(body.videoUrl);
   const videoDataUrl = str(body.videoDataUrl);
+  const note = str(body.note).slice(0, 4000);
 
   if (videoDataUrl && (!videoDataUrl.startsWith("data:video/") || videoDataUrl.length > MAX_DATA_URL_CHARS)) {
     return fail(400, "That upload isn't a video under 20 MB.");
   }
-  if (!link && !caption && !videoDataUrl && !videoUrl) return fail(400, "Paste a link to a video or post.");
+
+  const images = Array.isArray(body.images)
+    ? body.images.filter((v): v is string => typeof v === "string" && v.startsWith("data:image/")).slice(0, MAX_IMAGES)
+    : [];
+  if (images.length !== (Array.isArray(body.images) ? Math.min(body.images.length, MAX_IMAGES) : 0)) {
+    return fail(400, "One of those photos didn't arrive as an image.");
+  }
+  if (images.some((i) => i.length > MAX_IMAGE_CHARS) || images.join("").length > MAX_IMAGES_CHARS) {
+    return fail(400, "Those photos are too large. Attach fewer, or smaller ones.");
+  }
+  const readings: Reading[] = images.map((_, i) => {
+    const r = Array.isArray(body.readings) ? body.readings[i] : undefined;
+    return r === "dish" || r === "written" ? r : "auto";
+  });
+
+  if (!link && !caption && !videoDataUrl && !videoUrl && !images.length && !note) {
+    return fail(400, "Paste a link, attach a photo, or say what you want to cook.");
+  }
+
+  // Photos are the one input with no text behind them: without a provider
+  // there is nothing to look at them with, and a heuristic would invent a
+  // recipe out of a filename. Say so instead, and name the way out.
+  if (images.length && !aiEndpoint()) {
+    return fail(
+      422,
+      "Reading a photo needs an AI key (OPENROUTER_API_KEY). Describe the dish in words instead and a draft gets written without one.",
+      { needsHelp: true, needsKey: true },
+    );
+  }
 
   let post: SocialPost;
   try {
@@ -61,6 +105,14 @@ export async function POST(req: Request) {
     post.caption = post.caption ? `${post.caption}\n\n${caption}` : caption;
     post.trail.push("Used the caption you pasted.");
   }
+  if (images.length) {
+    post.trail.push(`Looked at ${images.length === 1 ? "the photo" : `all ${images.length} photos`} you attached.`);
+  }
+  // The note stays OUT of the caption: a caption is evidence about the dish,
+  // while the note is an instruction about the recipe ("make it for six", "no
+  // dairy"). Blurring them makes the model treat "no dairy" as an ingredient
+  // the post mentioned.
+  if (note) post.trail.push("Followed your note.");
   if (videoUrl) {
     post.video = { kind: "file", url: videoUrl };
     post.durationSec = null;
@@ -112,7 +164,10 @@ export async function POST(req: Request) {
   }
 
   const label = post.platform === "upload" ? "your upload" : PLATFORM_LABEL[post.platform];
-  if (!post.caption && !post.pageText && !post.video && !upload && !structured) {
+  // Photos and a note are evidence of their own, so a link that gave nothing
+  // back is no longer the end of the request — it is one source among several
+  // that came up empty.
+  if (!images.length && !note && !post.caption && !post.pageText && !post.video && !upload && !structured) {
     return fail(
       422,
       videoProblem
@@ -130,12 +185,19 @@ export async function POST(req: Request) {
       const u = await understandPost({
         post,
         system: SYSTEM,
-        task: buildTask(structured),
+        task: buildTask(structured, readingBrief(readings), note),
         uploadDataUrl: upload || undefined,
         imageDataUrl: cover,
+        images,
       });
       if (u.data?.is_recipe === false) {
-        return fail(422, "That post doesn't seem to show a recipe. Try a different link.", { trail: post.trail });
+        return fail(
+          422,
+          images.length
+            ? "Nothing in that photo looks like food or a recipe. Try another photo, or describe the dish in words."
+            : "That post doesn't seem to show a recipe. Try a different link.",
+          { trail: post.trail },
+        );
       }
       const recipe = normalizeRecipe(u.data);
       if (recipe.ingredients.length && recipe.instructions.length) {
@@ -151,6 +213,8 @@ export async function POST(req: Request) {
             readCaption: Boolean(post.caption),
             creatorPage: Boolean(structured),
             sawCover: u.sawImage,
+            sawPhotos: images.length,
+            usedNote: Boolean(note),
           },
           confidence: ["high", "medium", "low"].includes(u.data?.confidence) ? u.data.confidence : null,
           assumptions: Array.isArray(u.data?.assumptions) ? u.data.assumptions.map(String).slice(0, 12) : [],
@@ -166,7 +230,9 @@ export async function POST(req: Request) {
 
   const fallback = structured
     ? recipeFromStructured(structured)
-    : recipeFromCaption(post.caption || post.pageText, post.title);
+    // The note is last, not first: it is an instruction, and only worth
+    // reading as evidence when nothing else said anything at all.
+    : recipeFromCaption(post.caption || post.pageText || note, post.title);
   if (!structured && fallback.ingredients.length < 2) {
     return fail(
       422,
@@ -180,14 +246,21 @@ export async function POST(req: Request) {
     recipe: fallback,
     source,
     coverDataUrl: cover,
-    evidence: { watchedVideo: false, readCaption: Boolean(post.caption), creatorPage: Boolean(structured), sawCover: false },
+    evidence: {
+      watchedVideo: false,
+      readCaption: Boolean(post.caption),
+      creatorPage: Boolean(structured),
+      sawCover: false,
+      sawPhotos: 0,
+      usedNote: Boolean(note),
+    },
     confidence: structured ? "high" : "low",
     assumptions: structured ? [] : ["Built from the caption text only — amounts and steps may be incomplete."],
     trail: post.trail,
   });
 }
 
-function buildTask(structured: any): string {
+function buildTask(structured: any, photos: string, note: string): string {
   const creator = structured
     ? `THE CREATOR'S OWN WRITTEN RECIPE (schema.org data from their page — its amounts are authoritative):\n${JSON.stringify(
         {
@@ -203,13 +276,23 @@ function buildTask(structured: any): string {
         }
       ).slice(0, 8000)}\n\n`
     : "";
-  return `${creator}Write down the recipe this post shows.
+  // The cook's own words come LAST and are labelled as overriding, because
+  // everything above them is something a stranger made: a post's caption, a
+  // creator's schema, a model's reading of a photo. The one person whose
+  // instruction must survive all of it is the one who typed.
+  const asked = note
+    ? `\n\nWHAT THE COOK ASKED FOR (their own words — this OVERRIDES the sources above wherever they disagree; `
+      + `if they ask for a change, apply it to the amounts and the steps, don't just mention it):\n${note}\n`
+    : "";
+
+  return `${creator}${photos ? `${photos}\n\n` : ""}Write down the recipe these sources show.
+- Every source above describes ONE dish. Combine them: the video or photos show what it looks like and how it's made, the caption and written recipe give the amounts, and a photo of writing gives both.
 - title: the dish's real name (e.g. "Baked Feta Pasta"), never the caption's hook or joke. Max 60 characters.
 - description: one appetizing sentence in your own words.
-- ingredients: every ingredient seen, said, or written — including oil, seasoning and garnish. Use amounts stated in speech, on-screen text, the caption, or the creator's written recipe. If an amount is never stated, estimate a sensible one and say so in "assumptions".
+- ingredients: every ingredient seen, said, or written — including oil, seasoning and garnish. Use amounts stated in speech, on-screen text, the caption, a photo of writing, or the creator's written recipe. If an amount is never stated, estimate a sensible one and say so in "assumptions".
 - instructions: complete and in order, with temperatures (°F), times, pan sizes and doneness cues. Fill small gaps a home cook would need.
 - times, servings and calories: stated values when given, otherwise realistic estimates.
-- If the post does not show a dish or recipe, set "is_recipe": false.
+- Set "is_recipe": false ONLY if none of the sources has anything to do with food. A photo of a finished dish with no text is still a recipe worth writing.${asked}
 
 Return JSON matching:
 ${RECIPE_JSON_SCHEMA.replace(/\n}$/, `,

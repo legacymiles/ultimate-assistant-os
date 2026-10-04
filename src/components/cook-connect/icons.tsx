@@ -212,3 +212,35 @@ export const BotIcon = (p: IconProps) => (
     <circle cx="12" cy="3.5" r="1.2" />
   </Svg>
 );
+
+export const PhotoIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
+    <circle cx="8.6" cy="9.6" r="1.5" />
+    <path d="m3.6 17.4 4.6-4.3 3.5 3 3-2.6 5.7 4.6" />
+  </Svg>
+);
+
+export const LinkIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M10.2 13.8a3.6 3.6 0 0 1 0-5.1l2.8-2.8a3.6 3.6 0 0 1 5.1 5.1l-1.4 1.4" />
+    <path d="M13.8 10.2a3.6 3.6 0 0 1 0 5.1L11 18.1A3.6 3.6 0 0 1 5.9 13l1.4-1.4" />
+  </Svg>
+);
+
+/** A page with writing on it: the "read the words in this picture" reading. */
+export const TextPageIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 3.5h8.5L19 8v12.5H6z" />
+    <path d="M14 3.5V8h5" />
+    <path d="M9 12h7M9 15.5h7M9 8.5h2.5" />
+  </Svg>
+);
+
+/** A plate: the "this is the finished dish" reading. */
+export const PlateIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="8.5" />
+    <circle cx="12" cy="12" r="4.2" />
+  </Svg>
+);

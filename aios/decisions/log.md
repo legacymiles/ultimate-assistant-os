@@ -159,3 +159,35 @@ backing "drums" (dishonest, and the reason this decision exists); band-splitting
 filters in the browser to fake a kit (plausible-sounding, musically wrong, and invisible once it
 is); making Demucs a hard requirement of the tool (would have taken the generated route, which
 touches no stem at all, down with it on every server that lacks it).
+
+## 2026-10-04 — One tray, not two tabs: Cook Connect reads whatever you hand it
+
+**Decision:** Cook Connect's **Add a recipe** is a single composer instead of a choice between
+"From a video link" and "Describe it". It takes a link, up to six photos, one video and the cook's
+own words **in any combination**, and reads them as one dish. Two things carry it. First, **every
+photo wears its reading** on its chip — `Auto` / `The dish` / `The writing` — because a recipe card
+must be TRANSCRIBED (its amounts are the truth) while a plate of food must be INVENTED FROM (there
+are no amounts to read), and that is a control the cook flips before a cent is spent rather than a
+guess the model makes afterwards. Second, **the note is an instruction, not evidence**: it is kept
+out of `caption`, labelled in the prompt as overriding every source, and applied to the amounts
+rather than mentioned. Routing is invisible and decided by `needsReading` in
+`src/lib/cook-connect/compose.ts` (20 tests): anything with a link, a photo or a video goes to
+`/api/cookbook/import-from-link`, which is now Cook Connect's general reader and takes `images[]`,
+`readings[]` and `note`; **words alone go to `/api/cook-connect/recipe`**, because that is the only
+one of the two with a heuristic template behind it, so a keyless hub still hands back something
+editable. Photos downscale at 1600px rather than Recall's 1280.
+
+**Why:** the two lanes could not see each other, so a photo of a dish with "make it for six, no
+dairy" had nowhere to go — whichever tab you picked, the other one's box was gone. The split was
+never about what the app could read; it was about which form you had open. Verified end to end: a
+drawn card reading *Serves 2 · 500 g gnocchi · 90 g butter · 12 sage leaves*, marked as writing,
+plus "scale it to serve six", came back with the card's own title and wording and every amount
+tripled.
+
+**Alternatives considered:** keeping the tabs and adding a third "From a photo" one (a fourth lane
+that still cannot see the other three, and the question "which tab does a photo *and* a link go
+in?" has no answer); letting the model decide for itself whether a picture is a dish or a page
+(it is right most of the time, and the times it is wrong are silent, paid for, and produce a
+plausible recipe for a dish nobody photographed); sending photos through a new
+`/api/cook-connect/photo` route (would have duplicated the link resolver, the video downloader and
+the recipe normaliser to avoid renaming one route).
