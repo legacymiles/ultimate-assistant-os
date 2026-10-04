@@ -33,6 +33,7 @@ export const PLUGIN_SLUGS = [
   "ea-lab",
   "ea-world",
   "financial-bible",
+  "baby-no-scroll",
 ] as const;
 
 /**
@@ -117,6 +118,12 @@ const WHY: Record<string, string> = {
     + "cheaper, different material, is this even allowed here — handing back the edit as a diff with a "
     + "lower total rather than another wall of text. It refuses to talk about LLCs and marketing until "
     + "asked, which is why the plan gets read.",
+  "baby-no-scroll":
+    "The only plugin here that is used by handing the device away. Every other one of these is a place "
+    + "to do work; this is the twenty minutes you get to do it in. One video or one game fills the "
+    + "screen, everything else is taken away, and the way out is a padlock that has to be dragged the "
+    + "whole width of the screen — a gesture question rather than a password one, because a password "
+    + "typed one-handed in a dark room is the thing nobody does twice.",
 };
 
 export function studioPlugins(): StudioPlugin[] {

@@ -1,0 +1,609 @@
+/* ------------------------------------------------------------------------- */
+/*  Baby No Scroll — two worlds in one sheet.                                 */
+/*                                                                           */
+/*  The CONSOLE is the parent's: the hub's own dark, dense, labelled surface.  */
+/*  It inherits the hub tokens and adds almost nothing.                       */
+/*                                                                           */
+/*  The NURSERY is the child's: deep warm dark, enormous soft shapes, no text  */
+/*  anywhere, motion that is buoyant rather than snappy. Nothing in it is      */
+/*  smaller than a fist, because the pointer is a fist.                       */
+/*                                                                           */
+/*  And the LOCK, which belongs to both and looks like neither — cool machined */
+/*  steel, the least appetising thing on the screen.                          */
+/* ------------------------------------------------------------------------- */
+
+.bns-nursery {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  /* The warm dark the games sit on. Dark because this gets watched in a dim
+     room at bedtime; warm because a cold grey glow at bedtime is cruel. */
+  background:
+    radial-gradient(120% 90% at 50% 8%, hsl(var(--bns-hue, 330) 60% 22% / 0.55), transparent 65%),
+    radial-gradient(80% 60% at 15% 100%, hsl(calc(var(--bns-hue, 330) + 60) 65% 20% / 0.45), transparent 70%),
+    #0b0710;
+}
+
+/* The video's own stage is black, not warm: a letterboxed picture with a tint
+   around it looks like a fault. */
+.bns-nursery.is-video {
+  background: #000;
+}
+
+/* ------------------------------------------------------------------------- */
+/*  The lock                                                                 */
+/* ------------------------------------------------------------------------- */
+
+.bns-lock-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  /* The layer is a window, not a wall: only the puck itself takes a touch. */
+  pointer-events: none;
+}
+
+/* --- the rail ------------------------------------------------------------ */
+
+.bns-rail {
+  position: absolute;
+  opacity: 0;
+  transform: scale(0.96);
+  transition: opacity 0.26s ease, transform 0.34s cubic-bezier(0.22, 1.4, 0.4, 1);
+}
+.bns-rail.is-open {
+  opacity: 1;
+  transform: scale(1);
+}
+.bns-rail.is-x {
+  height: 10px;
+  margin-top: -5px;
+}
+.bns-rail.is-y {
+  width: 10px;
+  margin-left: -5px;
+}
+
+.bns-rail__track,
+.bns-rail__fill,
+.bns-rail__shimmer {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+}
+
+.bns-rail__track {
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 2px 18px rgba(0, 0, 0, 0.5);
+  /* A dashed inner edge reads as a track to travel rather than a drawn line. */
+  background-image: repeating-linear-gradient(
+    var(--bns-dash-angle, 90deg),
+    rgba(255, 255, 255, 0.16) 0 6px,
+    transparent 6px 16px
+  );
+}
+.bns-rail.is-y .bns-rail__track {
+  --bns-dash-angle: 180deg;
+}
+
+/* How far across the puck has got. It is the one warm thing about the lock,
+   and it only exists while a hand is on it. */
+.bns-rail__fill {
+  background: linear-gradient(90deg, hsl(45 95% 60%), hsl(32 95% 55%));
+  transform-origin: left center;
+  transform: scaleX(var(--p, 0));
+  box-shadow: 0 0 22px hsl(40 95% 55% / 0.5);
+}
+.bns-rail.is-y .bns-rail__fill {
+  background: linear-gradient(180deg, hsl(45 95% 60%), hsl(32 95% 55%));
+  transform-origin: center top;
+  transform: scaleY(var(--p, 0));
+}
+
+/* A pulse that travels the way the puck has to go — the only instruction in the
+   app, and it is not a word. */
+.bns-rail__shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.55) 45%,
+    transparent 70%
+  );
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: bns-travel 2.2s linear infinite;
+  opacity: 0.8;
+}
+.bns-rail.is-y .bns-rail__shimmer {
+  background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.55) 45%, transparent 70%);
+  background-size: 100% 40%;
+  background-repeat: no-repeat;
+  animation-name: bns-travel-y;
+}
+@keyframes bns-travel {
+  from { background-position: -40% 0; }
+  to { background-position: 140% 0; }
+}
+@keyframes bns-travel-y {
+  from { background-position: 0 -40%; }
+  to { background-position: 0 140%; }
+}
+
+/* --- the latch ----------------------------------------------------------- */
+
+.bns-latch {
+  position: absolute;
+  width: 68px;
+  height: 68px;
+  margin: -34px 0 0 -34px;
+  opacity: 0;
+  transform: scale(0.7);
+  transition: opacity 0.26s ease, transform 0.4s cubic-bezier(0.22, 1.4, 0.4, 1);
+}
+.bns-latch.is-open {
+  opacity: 1;
+  transform: scale(1);
+}
+.bns-latch.is-armed {
+  transform: scale(1.12);
+}
+
+.bns-latch__ring {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+.bns-latch__ring-bg {
+  fill: rgba(10, 8, 14, 0.55);
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 2;
+}
+.bns-latch__ring-fg {
+  fill: none;
+  stroke: hsl(45 95% 62%);
+  stroke-width: 4;
+  stroke-linecap: round;
+  /* 2πr for r=21. The dash offset is the hold, so the ring IS the countdown. */
+  stroke-dasharray: 131.95;
+  stroke-dashoffset: calc(131.95 - 131.95 * var(--hold, 0));
+  filter: drop-shadow(0 0 8px hsl(45 95% 55% / 0.7));
+}
+
+.bns-latch__hole {
+  position: absolute;
+  inset: 24px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* --- the puck ------------------------------------------------------------ */
+
+.bns-puck {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  translate: -50% -50%;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+  display: grid;
+  place-items: center;
+  /* Machined steel. Cool, hard, slightly unpleasant — on purpose. */
+  background:
+    radial-gradient(70% 70% at 32% 24%, rgba(255, 255, 255, 0.3), transparent 60%),
+    linear-gradient(160deg, #5d6478 0%, #363c4c 45%, #22262f 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.6),
+    0 10px 30px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+  transition:
+    left 0.44s cubic-bezier(0.34, 1.5, 0.52, 1),
+    top 0.44s cubic-bezier(0.34, 1.5, 0.52, 1),
+    box-shadow 0.25s ease,
+    scale 0.2s ease;
+  z-index: 2;
+}
+.bns-puck:focus-visible {
+  outline: 3px solid hsl(45 95% 62%);
+  outline-offset: 4px;
+}
+.bns-puck.is-lit {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.6),
+    0 10px 30px rgba(0, 0, 0, 0.55),
+    0 0 0 1px hsl(45 90% 60% / 0.5),
+    0 0 28px hsl(42 95% 55% / 0.35);
+}
+/* While it is being dragged it must track the finger exactly — a transition
+   here would feel like lag, which reads as a lock that is not working. */
+.bns-puck.is-dragging {
+  transition: box-shadow 0.25s ease;
+  cursor: grabbing;
+  scale: 1.06;
+}
+.bns-puck.is-knock {
+  animation: bns-knock 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+@keyframes bns-knock {
+  10%, 90% { translate: calc(-50% - 3px) -50%; }
+  30%, 70% { translate: calc(-50% + 5px) -50%; }
+  50% { translate: calc(-50% - 6px) -50%; }
+}
+
+.bns-puck__art {
+  width: 62%;
+  height: 62%;
+  overflow: visible;
+}
+.bns-puck__art .bns-puck__body {
+  fill: #e8ecf5;
+}
+.bns-puck__art .bns-puck__shackle path {
+  stroke: #b7c0d4;
+}
+.bns-puck__art .bns-puck__keyhole {
+  fill: #2a3040;
+  stroke: #2a3040;
+}
+/* The shackle lifting out of the body is the whole reward for the gesture. */
+.bns-puck__shackle {
+  transition: transform 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+  transform-origin: 32px 20px;
+}
+.bns-puck.is-open .bns-puck__shackle {
+  transform: translateY(-5px) rotate(24deg);
+}
+.bns-puck.is-open {
+  scale: 1.16;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 10px 40px rgba(0, 0, 0, 0.5),
+    0 0 0 2px hsl(140 70% 55% / 0.7),
+    0 0 50px hsl(140 70% 50% / 0.4);
+}
+
+/* A very slow breath, so an adult scanning the screen finds it without it ever
+   being the brightest thing in the room. */
+.bns-puck__breathe {
+  position: absolute;
+  inset: -8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  animation: bns-breathe 4.8s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes bns-breathe {
+  0%, 100% { opacity: 0.35; scale: 1; }
+  50% { opacity: 0.05; scale: 1.1; }
+}
+
+/* ------------------------------------------------------------------------- */
+/*  The video stage                                                          */
+/* ------------------------------------------------------------------------- */
+
+.bns-video {
+  position: absolute;
+  inset: 0;
+}
+.bns-video iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+/* The shield. Everything a baby does to the picture happens to this div, which
+   does nothing — except that a tap on it resumes a video that got paused
+   before the shield existed, and restores fullscreen if it was lost. */
+.bns-shield {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: transparent;
+  touch-action: none;
+}
+
+/* ------------------------------------------------------------------------- */
+/*  Games                                                                    */
+/* ------------------------------------------------------------------------- */
+
+.bns-game {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+
+/* --- balloons ----------------------------------------------------------- */
+
+.bns-balloon {
+  position: absolute;
+  translate: -50% -50%;
+  /* Taller at the top than the bottom. Without the knot below it this reads as
+     an egg, which matters because the egg game is one tab away. */
+  border-radius: 50% 50% 50% 50% / 54% 54% 46% 46%;
+  background:
+    radial-gradient(60% 50% at 32% 26%, rgba(255, 255, 255, 0.75), transparent 60%),
+    radial-gradient(100% 100% at 50% 40%, hsl(var(--h) 85% 68%), hsl(var(--h) 80% 48%));
+  box-shadow: 0 8px 30px hsl(var(--h) 70% 30% / 0.5);
+  will-change: transform;
+}
+/* The knot: the little triangle under the body. This is the single detail that
+   makes the silhouette a balloon rather than an egg, which matters because the
+   egg game is one tab away and a baby should never have to tell them apart. */
+.bns-balloon::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 97%;
+  width: 0;
+  height: 0;
+  translate: -50% 0;
+  /* em, because the balloon carries its own radius as its font-size — the one
+     way to size a CSS triangle against an element whose width is set in JS. */
+  border-left: 0.15em solid transparent;
+  border-right: 0.15em solid transparent;
+  border-top: 0.2em solid hsl(var(--h) 80% 52%);
+}
+
+/* And the string, which is the part babies recognise first. */
+.bns-balloon::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: calc(97% + 0.18em);
+  width: 2px;
+  height: 0.8em;
+  translate: -50% 0;
+  background: linear-gradient(180deg, hsl(var(--h) 60% 70% / 0.8), transparent);
+}
+.bns-burst {
+  position: absolute;
+  translate: -50% -50%;
+  pointer-events: none;
+}
+.bns-burst i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: hsl(var(--h) 90% 65%);
+  animation: bns-shard 0.62s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+  translate: -50% -50%;
+}
+@keyframes bns-shard {
+  from { transform: translate(0, 0) scale(1); opacity: 1; }
+  to { transform: translate(var(--dx), var(--dy)) scale(0.2); opacity: 0; }
+}
+
+/* --- piano -------------------------------------------------------------- */
+
+.bns-piano {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+.bns-key {
+  position: relative;
+  flex: 1;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  /* Saturated at rest, because a baby reaches for colour and a dark keyboard
+     reads as off. The press still has somewhere to go: is-down takes it to
+     brightness 2.1, which on these values is a key that visibly lights up. */
+  background: linear-gradient(180deg, hsl(var(--h) 78% 48%), hsl(var(--h) 82% 30%));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  touch-action: none;
+  transition: filter 0.45s ease;
+  overflow: hidden;
+}
+.bns-key.is-down {
+  filter: brightness(2.1) saturate(1.3);
+  transition: filter 0.04s ease;
+}
+/* The bloom that rises out of a pressed key: a note you can see. */
+.bns-key__bloom {
+  position: absolute;
+  left: 50%;
+  bottom: -40%;
+  width: 180%;
+  aspect-ratio: 1;
+  translate: -50% 0;
+  border-radius: 999px;
+  background: radial-gradient(circle, hsl(var(--h) 95% 72% / 0.85), transparent 62%);
+  opacity: 0;
+  transition: opacity 0.6s ease, scale 0.6s ease;
+  scale: 0.4;
+  pointer-events: none;
+}
+.bns-key.is-down .bns-key__bloom {
+  opacity: 1;
+  scale: 1;
+  transition-duration: 0.08s;
+}
+.bns-float {
+  position: absolute;
+  pointer-events: none;
+  animation: bns-rise 1.5s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+@keyframes bns-rise {
+  from { transform: translate(-50%, 0) scale(0.5) rotate(0deg); opacity: 0.95; }
+  to { transform: translate(-50%, -62vh) scale(1.5) rotate(var(--spin, 40deg)); opacity: 0; }
+}
+
+/* --- eggs --------------------------------------------------------------- */
+
+.bns-eggs {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  gap: clamp(8px, 3vmin, 28px);
+  padding: clamp(10px, 4vmin, 40px);
+  place-items: center;
+  /* Six eggs, laid out so each one is as big as the screen allows: two columns
+     standing up, three lying down. Six small eggs would be six things to miss. */
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+}
+@media (orientation: landscape) {
+  .bns-eggs {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+  }
+}
+.bns-egg {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: none;
+  padding: 0;
+  touch-action: none;
+  display: grid;
+  place-items: center;
+}
+.bns-egg__shell {
+  width: min(100%, 24vmin);
+  aspect-ratio: 0.76;
+  transition: transform 0.5s cubic-bezier(0.3, 1.5, 0.5, 1), opacity 0.4s ease;
+}
+.bns-egg.is-open .bns-egg__shell {
+  opacity: 0;
+  transform: scale(1.35);
+}
+.bns-egg__prize {
+  position: absolute;
+  width: min(100%, 22vmin);
+  aspect-ratio: 1;
+  opacity: 0;
+  scale: 0.3;
+  transition: opacity 0.4s ease, scale 0.6s cubic-bezier(0.2, 1.7, 0.4, 1);
+}
+.bns-egg.is-open .bns-egg__prize {
+  opacity: 1;
+  scale: 1;
+  animation: bns-bob 2.6s ease-in-out infinite 0.5s;
+}
+@keyframes bns-bob {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -8px; }
+}
+.bns-egg.is-shaking .bns-egg__shell {
+  animation: bns-shake 0.42s ease-in-out;
+}
+@keyframes bns-shake {
+  0%, 100% { rotate: 0deg; }
+  25% { rotate: -7deg; }
+  75% { rotate: 7deg; }
+}
+
+/* --- finger paint ------------------------------------------------------- */
+
+.bns-paint {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* ------------------------------------------------------------------------- */
+/*  Reduced motion                                                           */
+/*                                                                           */
+/*  The ambient loops go. What stays is every animation that is FEEDBACK — a  */
+/*  balloon that does not pop and a ring that does not fill are not calmer,   */
+/*  they are broken.                                                         */
+/* ------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .bns-rail__shimmer,
+  .bns-puck__breathe,
+  .bns-egg.is-open .bns-egg__prize {
+    animation: none;
+  }
+  .bns-puck {
+    transition-duration: 0.01s;
+  }
+  .bns-balloon {
+    /* Still rises — that is the game — but the drift is driven in JS and the
+       speed is halved there when this query matches. */
+    box-shadow: none;
+  }
+}
+
+/* ------------------------------------------------------------------------- */
+/*  The console (parent's side) — small additions over the hub's own tokens.  */
+/* ------------------------------------------------------------------------- */
+
+.bns-tab {
+  position: relative;
+  isolation: isolate;
+}
+.bns-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 10px -1px 10px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, hsl(45 95% 60%), hsl(330 85% 62%));
+}
+
+/* The one button that matters is the one that hands the device over, so it is
+   the only warm thing on the console too. */
+.bns-handover {
+  background: linear-gradient(135deg, hsl(45 95% 58%), hsl(28 92% 54%));
+  color: #1a1206;
+  box-shadow: 0 10px 30px hsl(35 90% 45% / 0.3);
+  transition: transform 0.18s cubic-bezier(0.3, 1.5, 0.5, 1), box-shadow 0.2s ease;
+}
+.bns-handover:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 40px hsl(35 90% 45% / 0.42);
+}
+.bns-handover:disabled {
+  background: var(--color-elevated);
+  color: var(--color-ink-faint);
+  box-shadow: none;
+}
+
+/* A preview of where the lock will sit, inside a little screen. */
+.bns-corner-pick {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  border-radius: 10px;
+  background: #07080c;
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  overflow: hidden;
+}
+.bns-corner-pick button {
+  position: absolute;
+  width: 34%;
+  height: 40%;
+  display: grid;
+  place-items: center;
+}
+.bns-corner-pick button span {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #3a4154;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: background 0.2s ease, scale 0.2s ease;
+}
+.bns-corner-pick button[aria-pressed="true"] span {
+  background: linear-gradient(160deg, #8891a8, #363c4c);
+  scale: 1.5;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 0 0 3px hsl(45 95% 60% / 0.35);
+}

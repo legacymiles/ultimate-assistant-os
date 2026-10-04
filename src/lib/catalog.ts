@@ -679,6 +679,40 @@ export const PROJECTS: CatalogProject[] = [
     iconStyle: "rings",
     hue: [36, 168],
   },
+  {
+    slug: "baby-no-scroll",
+    title: "Baby No Scroll",
+    tag: "Hand over the screen, not the device",
+    category: "Apps",
+    overview:
+      "A child lock for a screen you are about to put in a small pair of hands. Pick a YouTube video "
+      + "or playlist, or one of four games, press Hand it over, and that one thing fills the screen "
+      + "with everything else taken away: no scrolling, no bouncing, no pinch, no pull-to-refresh, no "
+      + "long-press menus, no keyboard, no back gesture, and over a video no YouTube controls, no "
+      + "channel link and no wall of other videos at the end. What is left that answers to a touch is "
+      + "one padlock in a corner, and it opens only by being dragged the entire width — or height, "
+      + "whichever is longer — of the screen, and then held on the latch. That is the whole security "
+      + "model, and it is a gesture question rather than a password one: a baby mashing a screen "
+      + "cannot perform a deliberate full-screen traverse, and a parent can do it one-handed in the "
+      + "dark. Tap the lock once and the rail it has to travel lights up; triple-tap it and it moves "
+      + "to another corner, so it is never sitting over the thing being watched. The lock is drawn as "
+      + "cool machined steel on purpose, because a baby reaches for saturated warm colour and reads "
+      + "grey metal as furniture — the brightest thing on the screen is always the balloon, never the "
+      + "way out. The games are built for a hand that cannot aim: balloons the size of a fist that "
+      + "pop wherever a palm lands, a piano tuned to a pentatonic scale so that no combination of "
+      + "keys a baby can hit sounds like a wrong note, light that follows a dragged finger, and six "
+      + "eggs to crack open where every egg gives something back because a miss is how a one-year-old "
+      + "learns to stop. Every sound is synthesised in the browser, so there is nothing to download "
+      + "and it works on a plane. It is also honest about its ceiling: a web page cannot disable a "
+      + "home button, so the setup screen tells you to put Guided Access or Screen Pinning underneath "
+      + "it for a device you actually walk away from.",
+    status: "live",
+    appUrl: "/apps/baby-no-scroll",
+    iconStyle: "pulse",
+    hue: [330, 45],
+    // A carousel panel that asked for fullscreen and went inert is not a preview.
+    noPreview: true,
+  },
 ];
 
 export function getProject(slug: string): CatalogProject | null {
