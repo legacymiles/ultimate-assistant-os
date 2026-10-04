@@ -37,7 +37,7 @@
 // ---------------------------------------------------------------------------
 
 import { spawn } from "node:child_process";
-import { describeTool } from "./harness-gate.mjs";
+import { autoAllow, describeTool } from "./harness-gate.mjs";
 
 export const DEEPSEEK_LABEL = "DeepSeek (dsh)";
 
@@ -62,7 +62,7 @@ const aliasFor = (title) => {
   return TOOL_ALIAS[key] ?? (key ? key[0].toUpperCase() + key.slice(1) : "Tool");
 };
 
-export function startAcp({ cwd, emit, gate, strict = false, command = "npx", args = ["dsh", "--profile", "acp"] }) {
+export function startAcp({ cwd, emit, gate, strict = false, laneWrites = false, command = "npx", args = ["dsh", "--profile", "acp"] }) {
   let sessionId = "";
   let nextId = 0;
   let closed = false;
@@ -170,16 +170,21 @@ export function startAcp({ cwd, emit, gate, strict = false, command = "npx", arg
         const reject = options.find((o) => o.kind === "reject_once" || /reject|deny/i.test(o.optionId ?? ""));
         const name = remembered.alias ?? "Tool";
         const d = describeTool(name, remembered.input ?? {}, cwd);
-        const ok = await gate({
-          name,
-          title: d.title,
-          why: d.why || "dsh is asking to step outside its read-only sandbox for this call.",
-          risk: d.risk,
-          patch: d.patch,
-          command: d.command,
-          path: d.path,
-          input: remembered.input ?? {},
-        }).catch(() => false);
+        // Under `read-only` dsh never asks about a read, so in practice this
+        // only ever passes a lane's own write — but the policy is asked rather
+        // than assumed, so this adapter and the Claude one cannot drift.
+        const ok = autoAllow(d, { strict, laneWrites })
+          ? (emit({ kind: "allowed", name, title: d.title }), true)
+          : await gate({
+              name,
+              title: d.title,
+              why: d.why || "dsh is asking to step outside its read-only sandbox for this call.",
+              risk: d.risk,
+              patch: d.patch,
+              command: d.command,
+              path: d.path,
+              input: remembered.input ?? {},
+            }).catch(() => false);
         const chosen = ok ? allow : reject;
         if (!chosen) {
           // No usable option means we cannot answer honestly, and ACP's

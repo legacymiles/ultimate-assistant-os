@@ -17,7 +17,7 @@
 // ---------------------------------------------------------------------------
 
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { describeTool, denialMessage } from "./harness-gate.mjs";
+import { autoAllow, describeTool, denialMessage } from "./harness-gate.mjs";
 
 export const CLAUDE_LABEL = "Claude Code";
 
@@ -28,7 +28,7 @@ export const CLAUDE_LABEL = "Claude Code";
  * answers and resolves true or false. Neither is allowed to throw: a gate that
  * rejects would surface to the model as a tool failure rather than a refusal.
  */
-export function startClaude({ cwd, emit, gate, strict = false, model = "", signal }) {
+export function startClaude({ cwd, emit, gate, strict = false, laneWrites = false, model = "", signal }) {
   /** Turns waiting to be handed to the model. */
   const queue = [];
   let wake = null;
@@ -75,9 +75,9 @@ export function startClaude({ cwd, emit, gate, strict = false, model = "", signa
       ...(signal ? { abortController: signalToController(signal) } : {}),
       canUseTool: async (name, args) => {
         const d = describeTool(name, args, cwd);
-        // Reads pass. Gating them too is one tap per file the model opens,
-        // which trains the owner to stop reading the gates that matter.
-        if (d.kind === "read" && !strict) {
+        // What passes without asking is one policy, stated in harness-gate.mjs
+        // so this adapter and the dsh one cannot drift apart on it.
+        if (autoAllow(d, { strict, laneWrites })) {
           emit({ kind: "allowed", name, title: d.title });
           return { behavior: "allow", updatedInput: args };
         }

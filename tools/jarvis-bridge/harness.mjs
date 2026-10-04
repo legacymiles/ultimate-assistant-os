@@ -35,6 +35,7 @@ import {
   createWorktree, landWorktree, removeWorktree, worktreeDiff, worktreeStatus,
   DEFAULT_REPO, WORKTREE_ROOT,
 } from "./worktree.mjs";
+import { startPreview, stopPreview, publicView } from "./harness-preview.mjs";
 
 /**
  * How much of a thread is kept.
@@ -99,6 +100,8 @@ function summary(s) {
     busy: Boolean(s.adapter?.busy),
     worktree: s.worktree,
     strict: s.strict,
+    laneWrites: s.laneWrites,
+    preview: publicView(s.preview),
     cursor: s.seq,
     gate: s.pendingGate,
     landed: s.landed,
@@ -111,7 +114,7 @@ function mustGet(id) {
   return s;
 }
 
-export async function startThread({ harness = "claude", title = "", repo, strict = false, model = "" } = {}) {
+export async function startThread({ harness = "claude", title = "", repo, strict = false, laneWrites = false, model = "" } = {}) {
   const which = HARNESSES[harness];
   if (!which) throw Object.assign(new Error(`There is no "${harness}" harness.`), { status: 400 });
 
@@ -134,7 +137,9 @@ export async function startThread({ harness = "claude", title = "", repo, strict
     sessionId: "",
     usd: 0,
     strict: Boolean(strict),
+    laneWrites: Boolean(laneWrites),
     worktree,
+    preview: null,
     events: [],
     seq: 0,
     gates: new Map(),
@@ -197,7 +202,7 @@ export async function startThread({ harness = "claude", title = "", repo, strict
       emit({ kind: "status", status: "waiting" });
     });
 
-  const common = { cwd: worktree.path, emit, gate, strict: Boolean(strict) };
+  const common = { cwd: worktree.path, emit, gate, strict: Boolean(strict), laneWrites: Boolean(laneWrites) };
   s.adapter = harness === "claude" ? startClaude({ ...common, model }) : startAcp(common);
 
   if (worktree.notes.length) {
@@ -263,6 +268,12 @@ export async function stopThread({ id }) {
   // permission hook leaves the model's last tool call unanswered forever.
   for (const finish of [...s.gates.values()]) finish(false, "stopped");
   await s.adapter.stop();
+  // The dev server is a separate child and does not die with the harness. Left
+  // running it holds a port that the next thread on it cannot have.
+  if (s.preview) {
+    await stopPreview(s.preview).catch(() => {});
+    s.preview = null;
+  }
   return { ok: true, session: summary(s) };
 }
 
@@ -300,6 +311,12 @@ export async function discardThread({ id, keepBranch = false }) {
   const s = mustGet(id);
   for (const finish of [...s.gates.values()]) finish(false, "discarded");
   await s.adapter.stop().catch(() => {});
+  // Before the folder goes: a server with its cwd deleted under it is a
+  // process that cannot be explained afterwards.
+  if (s.preview) {
+    await stopPreview(s.preview).catch(() => {});
+    s.preview = null;
+  }
   await removeWorktree({
     path: s.worktree.path,
     repo: s.worktree.repo,
@@ -310,7 +327,47 @@ export async function discardThread({ id, keepBranch = false }) {
   return { ok: true };
 }
 
+/**
+ * Serve this thread's worktree so its work can be clicked through.
+ *
+ * Idempotent on purpose: a page that reloads mid-run asks again, and the honest
+ * answer is the server it already has rather than a second one on a dead port.
+ */
+export async function previewThread({ id, port }) {
+  const s = mustGet(id);
+  if (s.preview) return { ...publicView(s.preview), ready: true, reused: true };
+  const { handle, ...view } = await startPreview({ cwd: s.worktree.path, port });
+  s.preview = handle;
+  // A server whose thread is gone is a port nobody can account for, so the
+  // thread lets go of it the moment the child does.
+  handle.child.once("exit", () => {
+    if (s.preview === handle) s.preview = null;
+  });
+  emit_note(s, `Serving this worktree at ${view.url}`);
+  return { ...view, reused: false };
+}
+
+export async function previewStopThread({ id }) {
+  const s = mustGet(id);
+  if (!s.preview) return { ok: true, stopped: false };
+  await stopPreview(s.preview);
+  s.preview = null;
+  return { ok: true, stopped: true };
+}
+
+/** A note after the fact, which `startThread`'s own `emit` closure cannot do. */
+function emit_note(s, text) {
+  s.seq += 1;
+  s.events.push({ seq: s.seq, at: Date.now(), kind: "note", text });
+  if (s.events.length > RING) s.events.splice(0, s.events.length - RING);
+}
+
 /** Called when the bridge is going down, so no child outlives it silently. */
 export async function stopAllThreads() {
-  await Promise.all([...sessions.values()].map((s) => s.adapter?.stop?.().catch(() => {})));
+  await Promise.all(
+    [...sessions.values()].flatMap((s) => [
+      s.adapter?.stop?.().catch(() => {}),
+      s.preview ? stopPreview(s.preview).catch(() => {}) : null,
+    ]),
+  );
 }

@@ -152,6 +152,56 @@ export function describeTool(name, input = {}, cwd = "") {
   return { kind, title, why, risk, path, command, patch: previewPatch(name, input, cwd) };
 }
 
+/**
+ * Whether `path` — already relative-ised by `describeTool` — stays inside the
+ * thread's worktree.
+ *
+ * `rel()` above shortens a path under the worktree and leaves every other path
+ * at its full spelling, so "inside" is readable off the result: a bare relative
+ * path is inside, and anything absolute is not. The `..` test is the one that
+ * matters, because `src/../../../.env.local` is relative, is inside by the
+ * naive reading, and is the owner's real env file.
+ *
+ * Empty is NOT inside. A write whose path the gate could not find is a write
+ * nobody can vouch for.
+ */
+export function insideWorktree(path) {
+  const p = String(path ?? "").replace(/\\/g, "/").trim();
+  if (!p) return false;
+  if (p.startsWith("/") || /^[a-z]:\//i.test(p) || p.startsWith("//")) return false;
+  return !p.split("/").includes("..");
+}
+
+/**
+ * Can this call be allowed without asking?
+ *
+ * Both adapters ask this, so the policy is stated once. Three rules, in order:
+ *
+ *   `strict` gates everything, including reads. It is the mode for watching a
+ *   thread you do not trust yet.
+ *
+ *   Reads pass. Gating them is one tap per file the model opens, which trains
+ *   the owner to stop reading the gates that matter.
+ *
+ *   `laneWrites` additionally passes a WRITE whose path is inside the thread's
+ *   own worktree. It exists for the Redesigner's bake-off, where three threads
+ *   build a whole app at once and the alternative is several hundred taps — at
+ *   which point nobody reads the patches and the gate is decoration. It is off
+ *   by default and never inferred: a caller has to ask for it.
+ *
+ * What `laneWrites` deliberately does NOT pass: anything that RUNS (a shell
+ * command can write wherever it likes, and `npm install` reaches the junctioned
+ * node_modules the main checkout shares), anything an MCP server does, and any
+ * write that resolves outside the worktree — which is the exact event the
+ * worktree exists to catch.
+ */
+export function autoAllow(described, { strict = false, laneWrites = false } = {}) {
+  if (strict) return false;
+  if (described.kind === "read") return true;
+  if (laneWrites && described.kind === "write") return insideWorktree(described.path);
+  return false;
+}
+
 /** The sentence on a refusal, phrased so the model does something useful next. */
 export function denialMessage(title) {
   return (

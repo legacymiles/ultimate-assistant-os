@@ -31,7 +31,7 @@
 //   POST /browser/close               { tabId }
 //   POST /browser/quit                close the whole browser
 //   POST /harness/list|start|say|events|decide|interrupt|stop|threads
-//   POST /harness/status|diff|land|discard
+//   POST /harness/status|diff|land|discard|preview|preview/stop
 //   POST /files/list|read|write
 //   POST /system/windows|focus|launch|screenshot|info
 //   POST /system/clipboard/read|write
@@ -124,6 +124,8 @@ const ROUTES = {
   "POST /harness/diff": (b) => harness.threadDiff(b),
   "POST /harness/land": (b) => harness.landThread(b),
   "POST /harness/discard": (b) => harness.discardThread(b),
+  "POST /harness/preview": (b) => harness.previewThread(b),
+  "POST /harness/preview/stop": (b) => harness.previewStopThread(b),
 
   "POST /files/list": (b) => computer.listDir(b),
   "POST /files/read": (b) => computer.readTextFile(b),
