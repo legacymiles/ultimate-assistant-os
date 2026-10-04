@@ -7,6 +7,8 @@ import {
   Syne,
 } from "next/font/google";
 import { Redesigner } from "@/components/redesigner/Redesigner";
+import { BakeOff } from "@/components/redesigner/v2/BakeOff";
+import { VersionToggle } from "@/components/redesigner/v2/VersionToggle";
 
 // Six faces, because a skin that cannot change its voice is a colour swap.
 // Picking a design skill re-points --display / --body / --mono at three of
@@ -54,12 +56,28 @@ export const metadata = {
     "Paste a URL and get three redesign directions plus a functionality-preserving build prompt for Claude Code.",
 };
 
-export default function Page() {
+/**
+ * One route, two surfaces.
+ *
+ * `?v=2` is the bake-off console — the same convention the hub carousel uses —
+ * and V1 is reached by every other spelling, untouched. The switch lives here
+ * rather than inside either surface so neither one has to know the other
+ * exists.
+ */
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ v?: string }>;
+}) {
+  const { v } = await searchParams;
+  const two = v === "2";
+
   return (
     <div
       className={`${display.variable} ${body.variable} ${mono.variable} ${serif.variable} ${sans.variable} ${syne.variable}`}
     >
-      <Redesigner />
+      {two ? <BakeOff /> : <Redesigner />}
+      <VersionToggle current={two ? 2 : 1} />
     </div>
   );
 }

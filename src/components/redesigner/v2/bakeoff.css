@@ -1,0 +1,576 @@
+/* ---------------------------------------------------------------------------
+   Website Redesigner V2 — the Forge.
+
+   Scoped entirely under .bo so it cannot leak into V1, which shares this route.
+
+   The direction is lab-clinical: near-black graphite, cool steel, one cyan
+   signal used ONLY for live state, and heat orange reserved for the thing that
+   is actually hot. The discipline that keeps it from becoming another dark
+   dashboard is that colour is never decorative here — if something is orange it
+   is burning, and if something is cyan it is live.
+--------------------------------------------------------------------------- */
+
+.bo {
+  --graphite: #0b0e11;
+  --graphite-2: #0f1317;
+  --steel: #3a4049;
+  --steel-2: #232931;
+  --steel-light: #8a939e;
+  --paper: #dfe5ec;
+  --cyan: #4fd8e8;
+  --heat: #ff6b14;
+  --ash: #6b4a4a;
+
+  --edge: 1px solid rgba(138, 147, 158, 0.16);
+  --mono: var(--font-rdx-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  position: relative;
+  min-height: 100dvh;
+  background:
+    radial-gradient(120% 80% at 50% -10%, #11161b 0%, var(--graphite) 55%, #07090b 100%);
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-x: hidden;
+}
+
+/* The monument. Pinned behind everything, never takes a click: the console is
+   what you work in and the sculpture is a readout of it. */
+/* ABSOLUTE, not fixed. Fixed left the crucible hanging behind the form as you
+   scrolled - the sculpture reading through the inputs and the skill list, which
+   looked like a rendering bug rather than a monument. It belongs to the top of
+   the page, so it scrolls away like the thing it is. */
+.bo-stage {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 62dvh;
+  pointer-events: none;
+  z-index: 0;
+  mask-image: linear-gradient(to bottom, #000 58%, transparent 100%);
+}
+
+.bo-poster {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 38%;
+}
+
+.bo[data-running="yes"] .bo-stage {
+  height: 34dvh;
+  opacity: 0.6;
+}
+
+/* Everything below the hero sits on its own ground, so nothing shows through. */
+.bo-brief::before,
+.bo-lanes::before {
+  content: "";
+  position: absolute;
+  inset: 56dvh 0 0 0;
+  z-index: -1;
+  background: linear-gradient(to bottom, transparent, var(--graphite) 90px);
+  pointer-events: none;
+}
+.bo[data-running="yes"] .bo-lanes::before { inset: 30dvh 0 0 0; }
+
+/* --- HUD corners, per the direction's chrome ----------------------------- */
+
+.bo-hud {
+  position: fixed;
+  z-index: 3;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 18px 22px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.bo-hud-tl { top: 0; left: 0; }
+.bo-hud-tr { top: 0; right: 0; }
+
+.bo-word {
+  color: var(--paper);
+  font-weight: 700;
+  letter-spacing: 0.2em;
+}
+.bo-sub { color: var(--steel-light); }
+
+.bo-toggle {
+  display: flex;
+  border: var(--edge);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.bo-toggle-b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 0;
+  background: transparent;
+  color: var(--steel-light);
+  font: inherit;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 160ms, color 160ms;
+}
+.bo-toggle-b[data-on="yes"] {
+  background: rgba(79, 216, 232, 0.12);
+  color: var(--cyan);
+}
+.bo-toggle-b:disabled {
+  color: #4a525c;
+  cursor: not-allowed;
+}
+/* A harness that cannot run is marked, and its reason is the title attribute —
+   the `why` string from the bridge, which is the actual fix. */
+.bo-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ash);
+}
+
+/* --- the brief ----------------------------------------------------------- */
+
+.bo-brief {
+  position: relative;
+  z-index: 2;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: calc(56dvh) 24px 148px;
+}
+
+.bo-head {
+  margin: 0 0 10px;
+  font-family: var(--font-rdx-display), var(--mono);
+  font-size: clamp(27px, 4.6vw, 46px);
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+  text-transform: none;
+}
+.bo-head em {
+  font-style: normal;
+  color: var(--heat);
+}
+
+.bo-lede {
+  margin: 0 0 34px;
+  max-width: 60ch;
+  color: var(--steel-light);
+}
+
+.bo-field {
+  display: block;
+  margin-bottom: 22px;
+}
+
+.bo-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--steel-light);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.bo-label em {
+  font-style: normal;
+  opacity: 0.65;
+  text-transform: none;
+  letter-spacing: 0.04em;
+}
+
+.bo-kinds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+.bo-kind {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 13px;
+  border: var(--edge);
+  border-radius: 2px;
+  background: rgba(15, 19, 23, 0.72);
+  color: var(--steel-light);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms, background 160ms, color 160ms;
+}
+.bo-kind strong {
+  color: var(--paper);
+  font-weight: 600;
+}
+.bo-kind span {
+  font-size: 11px;
+  opacity: 0.7;
+}
+.bo-kind[data-on="yes"] {
+  border-color: rgba(79, 216, 232, 0.5);
+  background: rgba(79, 216, 232, 0.07);
+}
+.bo-kind[data-on="yes"] strong { color: var(--cyan); }
+
+.bo-input {
+  width: 100%;
+  padding: 11px 13px;
+  border: var(--edge);
+  border-radius: 2px;
+  background: rgba(7, 9, 11, 0.8);
+  color: var(--paper);
+  font: inherit;
+}
+.bo-input::placeholder { color: #5d666f; }
+.bo-input:focus {
+  outline: none;
+  border-color: rgba(79, 216, 232, 0.55);
+}
+.bo-area { resize: vertical; min-height: 72px; }
+
+.bo-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bo-skill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: var(--edge);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--steel-light);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: border-color 140ms, background 140ms, color 140ms;
+}
+.bo-skill[data-on="yes"] {
+  border-color: rgba(255, 107, 20, 0.55);
+  background: rgba(255, 107, 20, 0.1);
+  color: #ffd2b4;
+}
+.bo-wins {
+  color: var(--heat);
+  font-size: 10px;
+}
+
+.bo-go {
+  width: 100%;
+  margin-top: 6px;
+  padding: 14px;
+  border: 1px solid rgba(79, 216, 232, 0.55);
+  border-radius: 2px;
+  background: rgba(79, 216, 232, 0.14);
+  color: var(--cyan);
+  font: inherit;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 160ms, box-shadow 220ms;
+}
+.bo-go:hover:not(:disabled) {
+  background: rgba(79, 216, 232, 0.22);
+  box-shadow: 0 0 0 1px rgba(79, 216, 232, 0.3), 0 10px 40px -16px var(--cyan);
+}
+.bo-go:disabled {
+  border-color: rgba(138, 147, 158, 0.2);
+  background: transparent;
+  color: #525b64;
+  cursor: not-allowed;
+}
+
+.bo-hint,
+.bo-warn {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  color: var(--steel-light);
+}
+.bo-warn { color: #ffb38a; }
+.bo-warn-soft { color: var(--steel-light); }
+
+/* --- the leaderboard ----------------------------------------------------- */
+
+.bo-board {
+  margin-top: 44px;
+  padding-top: 20px;
+  border-top: var(--edge);
+}
+.bo-board ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bo-board li {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 2fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 0;
+  font-size: 11.5px;
+}
+.bo-board-skill { color: var(--paper); }
+.bo-board-bar {
+  height: 3px;
+  background: rgba(138, 147, 158, 0.14);
+}
+.bo-board-bar i {
+  display: block;
+  height: 100%;
+  background: var(--heat);
+}
+.bo-board-n { color: var(--steel-light); }
+
+/* --- lanes --------------------------------------------------------------- */
+
+.bo-lanes {
+  position: relative;
+  z-index: 2;
+  padding: calc(34dvh + 22px) 22px 80px;
+}
+
+.bo-lanes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.bo-lanes-actions { display: flex; gap: 8px; }
+
+.bo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  gap: 12px;
+}
+
+.bo-lane {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 13px;
+  border: var(--edge);
+  border-radius: 2px;
+  background: rgba(11, 14, 17, 0.86);
+  transition: border-color 200ms, transform 200ms;
+}
+.bo-lane[data-status="building"] { border-color: rgba(255, 107, 20, 0.4); }
+.bo-lane[data-status="waiting"] { border-color: rgba(79, 216, 232, 0.5); }
+.bo-lane[data-status="failed"] { border-color: rgba(167, 74, 74, 0.5); }
+.bo-lane[data-focused="yes"] { transform: translateY(-2px); }
+
+.bo-lane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.bo-lane-name {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--paper);
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.bo-chip {
+  padding: 3px 7px;
+  border-radius: 2px;
+  background: rgba(138, 147, 158, 0.12);
+  color: var(--steel-light);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.bo-chip[data-status="building"] { background: rgba(255, 107, 20, 0.16); color: #ffb183; }
+.bo-chip[data-status="waiting"] { background: rgba(79, 216, 232, 0.16); color: var(--cyan); }
+.bo-chip[data-status="failed"] { background: rgba(167, 74, 74, 0.2); color: #e9a3a3; }
+.bo-chip[data-status="serving"] { background: rgba(120, 220, 150, 0.14); color: #93e4ae; }
+
+.bo-lane-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--steel-light);
+  font-size: 10.5px;
+}
+.bo-branch { color: #6f7a85; }
+
+.bo-log {
+  margin: 0;
+  max-height: 190px;
+  overflow: auto;
+  padding: 9px 10px;
+  border: var(--edge);
+  border-radius: 2px;
+  background: rgba(5, 7, 9, 0.8);
+  color: #9aa6b2;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bo-frame {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  border: var(--edge);
+  border-radius: 2px;
+  overflow: hidden;
+  background: #05070a;
+}
+.bo-frame iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.bo-compiling {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 3px 7px;
+  border-radius: 2px;
+  background: rgba(5, 7, 9, 0.85);
+  color: var(--cyan);
+  font-size: 10px;
+}
+
+.bo-lane-error {
+  margin: 0;
+  padding: 10px;
+  border-left: 2px solid #a74a4a;
+  background: rgba(167, 74, 74, 0.08);
+  color: #e9a3a3;
+  font-size: 11.5px;
+  white-space: pre-wrap;
+}
+
+.bo-lane-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.bo-ghost,
+.bo-win {
+  flex: 1;
+  padding: 9px 11px;
+  border: var(--edge);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--steel-light);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 150ms, color 150ms, background 150ms;
+}
+.bo-ghost:hover:not(:disabled) { color: var(--paper); border-color: rgba(138, 147, 158, 0.4); }
+.bo-win {
+  border-color: rgba(255, 107, 20, 0.5);
+  color: #ffb183;
+}
+.bo-win:hover:not(:disabled) { background: rgba(255, 107, 20, 0.14); }
+.bo-ghost:disabled,
+.bo-win:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* --- the gate ------------------------------------------------------------ */
+
+.bo-gate {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 6;
+  width: min(420px, calc(100vw - 36px));
+  padding: 14px;
+  border: 1px solid rgba(79, 216, 232, 0.5);
+  border-radius: 2px;
+  background: rgba(8, 11, 14, 0.97);
+  box-shadow: 0 24px 70px -28px #000;
+}
+.bo-gate[data-risk="grave"] { border-color: rgba(255, 107, 20, 0.7); }
+.bo-gate header strong {
+  display: block;
+  margin: 4px 0;
+  color: var(--paper);
+}
+.bo-gate header p {
+  margin: 0 0 10px;
+  color: var(--steel-light);
+  font-size: 11.5px;
+}
+.bo-gate pre {
+  max-height: 210px;
+  margin: 0 0 12px;
+  overflow: auto;
+  padding: 9px;
+  border: var(--edge);
+  background: #05070a;
+  color: #9aa6b2;
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+.bo-gate-actions { display: flex; gap: 8px; }
+
+/* --- confirm ------------------------------------------------------------- */
+
+.bo-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(3, 5, 7, 0.8);
+}
+.bo-modal-card {
+  width: min(460px, 100%);
+  padding: 20px;
+  border: var(--edge);
+  border-radius: 2px;
+  background: var(--graphite-2);
+}
+.bo-modal-card strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--paper);
+  font-size: 15px;
+}
+.bo-modal-card p {
+  margin: 0 0 16px;
+  color: var(--steel-light);
+  font-size: 12px;
+}
+.bo-modal-card em { font-style: normal; color: var(--paper); }
+
+/* --- narrow -------------------------------------------------------------- */
+
+@media (max-width: 760px) {
+  .bo-stage { height: 38dvh; }
+  .bo-brief { padding-top: 34dvh; }
+  .bo-lanes { padding-top: calc(34dvh + 14px); }
+  .bo-hud { padding: 12px 14px; }
+  /* The two corner labels ran into each other mid-word at phone width. The
+     wordmark and the harness state both have to stay; the route's own name is
+     the one that can go, because the page says it in the headline anyway. */
+  .bo-sub { display: none; }
+  .bo-brief::before { inset: 34dvh 0 0 0; }
+}
+
+/* Reduced motion: the renderer keeps running and holds a settled frame — the
+   state model is the content, so turning it off would remove information. */
+@media (prefers-reduced-motion: reduce) {
+  .bo *,
+  .bo *::before,
+  .bo *::after {
+    transition-duration: 0.01ms !important;
+  }
+}
