@@ -194,6 +194,18 @@ export async function startThread({ harness = "claude", title = "", repo, strict
         s.gates.delete(gateId);
         if (s.pendingGate?.gateId === gateId) s.pendingGate = null;
         emit({ kind: "gate_done", gateId, allow, how: how ?? "owner" });
+        // Asking set the status to "waiting"; answering has to take it back.
+        // Nothing else does: the adapter is blocked INSIDE the permission hook,
+        // so resolving this promise returns it to work without emitting a
+        // status of its own, and the thread then reads "waiting" while it is
+        // demonstrably writing files. Watched a lane report "needs you" for
+        // four minutes while it wrote two components.
+        //
+        // Only when no OTHER gate is parked: with several tools in flight,
+        // answering one does not unblock the thread.
+        if (!s.gates.size && s.status !== "ended") {
+          emit({ kind: "status", status: "thinking" });
+        }
         resolve(allow);
       };
       s.gates.set(gateId, finish);

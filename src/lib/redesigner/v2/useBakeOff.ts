@@ -40,11 +40,60 @@ import type {
 /** The first port a lane is served on. One per lane, upward. */
 export const FIRST_PORT = 3311;
 
+/** What a paused lane is told when the owner says carry on. */
+const KEEP_GOING =
+  "Keep going until the app is actually finished and runs: the route, the page, the " +
+  "components and the catalog entry. Do not end your turn to report progress — end it only " +
+  "when the app is complete and `npx tsc --noEmit` passes.";
+
+/**
+ * The run, remembered across reloads.
+ *
+ * A thread lives in the bridge and survives a closed tab; the lane ids lived
+ * only in React state, so a refresh orphaned three running builds with no way
+ * back to them. This is the smallest thing that has to persist for the page to
+ * find them again — everything else is re-read from the bridge.
+ */
+const RUN_KEY = "redesigner:v2:run";
+
+interface RunRecord {
+  skill: string;
+  id: string;
+  route: string;
+  port: number;
+}
+
+function readRun(): RunRecord[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(RUN_KEY);
+    return raw ? (JSON.parse(raw) as RunRecord[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeRun(rows: RunRecord[]): void {
+  try {
+    window.localStorage.setItem(RUN_KEY, JSON.stringify(rows));
+  } catch {
+    // A browser with storage off simply cannot rejoin a run. Everything else
+    // still works, so this is not worth an error.
+  }
+}
+
+function remember(skill: string, id: string, route: string, port: number): void {
+  const rows = readRun().filter((r) => r.skill !== skill);
+  rows.push({ skill, id, route, port });
+  writeRun(rows);
+}
+
 export type LaneStatus =
   | "idle"
   | "starting"
   | "building"
   | "waiting"
+  | "paused"
   | "done"
   | "failed"
   | "serving";
@@ -66,9 +115,19 @@ export interface Lane {
   compiling: boolean;
   /** The brief this lane was sent, kept so it can be copied when the bridge is off. */
   brief: string;
+  /**
+   * The route this lane's build serves.
+   *
+   * Without it the compare view framed `http://127.0.0.1:3311/` — the hub's own
+   * home page — so three lanes showed three identical screenshots of something
+   * none of them built.
+   */
+  route: string;
+  /** How many times this lane has been told to keep going. */
+  nudges: number;
 }
 
-function newLane(skill: string, brief: string, port: number): Lane {
+function newLane(skill: string, brief: string, port: number, route: string): Lane {
   return {
     skill,
     id: "",
@@ -80,7 +139,15 @@ function newLane(skill: string, brief: string, port: number): Lane {
     url: "",
     compiling: false,
     brief,
+    route,
+    nudges: 0,
   };
+}
+
+/** The gate actually parked on this lane, if any. */
+export function laneGate(lane: Lane): GateCard | null {
+  const gate = lane.view.liveGate ?? lane.summary?.gate ?? null;
+  return gate && !gate.answered ? gate : null;
 }
 
 /** Hard while it works, lazy while it waits, never once it has ended. */
@@ -102,16 +169,23 @@ function pollEvery(status: ThreadSummary["status"] | "none"): number | null {
 export function laneStatus(lane: Lane): LaneStatus {
   if (lane.error) return "failed";
   if (!lane.id) return "idle";
+  // "Needs you" is decided by a gate being PARKED, never by the status word.
+  // The bridge sets the status to waiting when it asks and — until this was
+  // fixed on both sides — nothing set it back, so a lane read "needs you" for
+  // minutes while it was visibly writing files. A card on screen is the only
+  // honest evidence that the owner is being waited on.
+  if (laneGate(lane)) return "waiting";
   if (lane.url) return "serving";
   switch (lane.summary?.status) {
     case "starting":
       return "starting";
-    case "thinking":
-      return "building";
-    case "waiting":
-      return "waiting";
     case "ended":
       return "done";
+    case "idle":
+      // The turn ended with no gate: it stopped to report, and a whole app is
+      // rarely one turn's work. That is a lane WAITING TO BE TOLD to continue,
+      // which is a different thing from finished.
+      return "paused";
     default:
       return lane.summary ? "building" : "starting";
   }
@@ -129,6 +203,8 @@ export function laneHeat(lane: Lane): number {
       return 1;
     case "waiting":
       return 0.55;
+    case "paused":
+      return 0.4;
     case "starting":
       return 0.3;
     case "serving":
@@ -150,7 +226,13 @@ export interface UseBakeOff {
   /** A sentence to show instead of a dead button, when the bridge is off. */
   blocked: string;
   working: string;
-  start: (briefs: Array<{ skill: string; brief: string; title: string }>) => Promise<void>;
+  start: (
+    briefs: Array<{ skill: string; brief: string; title: string; route: string }>,
+  ) => Promise<void>;
+  /** Tell a paused lane to carry on. A whole app is rarely one turn's work. */
+  nudge: (laneSkill: string) => Promise<void>;
+  /** True while reattaching to threads a previous page load started. */
+  restoring: boolean;
   decide: (laneSkill: string, gateId: string, allow: boolean) => Promise<void>;
   serve: (laneSkill: string) => Promise<void>;
   land: (laneSkill: string, message: string) => Promise<void>;
@@ -165,6 +247,7 @@ export function useBakeOff({ paired }: { paired: boolean }): UseBakeOff {
   const [lanes, setLanes] = useState<Lane[]>([]);
   const [blocked, setBlocked] = useState("");
   const [working, setWorking] = useState("");
+  const [restoring, setRestoring] = useState(false);
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const turn = useRef(0);
@@ -210,6 +293,48 @@ export function useBakeOff({ paired }: { paired: boolean }): UseBakeOff {
   useEffect(() => {
     void refreshChoices();
   }, [refreshChoices]);
+
+  /**
+   * Rejoin a run this page did not start.
+   *
+   * The threads are in the bridge and outlive the tab, so a reload — or the next
+   * morning, or a second device — should find the lanes still building rather
+   * than an empty form and three orphaned worktrees. Only the ids were ever
+   * ours; everything drawn is re-read from the bridge, and a remembered lane the
+   * bridge no longer knows about is dropped rather than shown as a ghost.
+   */
+  useEffect(() => {
+    if (!paired) return;
+    const remembered = readRun();
+    if (!remembered.length) return;
+    let live = true;
+    setRestoring(true);
+    void (async () => {
+      try {
+        const { threads } = await call<{ threads: ThreadSummary[] }>("harness/threads", {});
+        if (!live) return;
+        const byId = new Map(threads.map((t) => [t.id, t]));
+        const found = remembered
+          .filter((r) => byId.has(r.id))
+          .map((r) => {
+            const lane = newLane(r.skill, "", r.port, r.route);
+            lane.id = r.id;
+            lane.summary = byId.get(r.id) ?? null;
+            return lane;
+          });
+        if (found.length) setLanes(found);
+        // A run whose threads all died with a bridge restart is not a run.
+        if (!found.length) writeRun([]);
+      } catch {
+        // Unreachable bridge is already reported by `blocked`.
+      } finally {
+        if (live) setRestoring(false);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [paired]);
 
   // --- the poll -----------------------------------------------------------
 
@@ -271,8 +396,8 @@ export function useBakeOff({ paired }: { paired: boolean }): UseBakeOff {
   // --- starting -----------------------------------------------------------
 
   const start = useCallback(
-    async (briefs: Array<{ skill: string; brief: string; title: string }>) => {
-      setLanes(briefs.map((b, i) => newLane(b.skill, b.brief, FIRST_PORT + i)));
+    async (briefs: Array<{ skill: string; brief: string; title: string; route: string }>) => {
+      setLanes(briefs.map((b, i) => newLane(b.skill, b.brief, FIRST_PORT + i, b.route)));
       setWorking("Cutting worktrees…");
       // In sequence: git serialises on the index, and three simultaneous
       // failures are three times harder to read than one.
@@ -287,6 +412,7 @@ export function useBakeOff({ paired }: { paired: boolean }): UseBakeOff {
           });
           patch(b.skill, { id: session.id, summary: session });
           await call("harness/say", { id: session.id, text: b.brief });
+          remember(b.skill, session.id, b.route, FIRST_PORT + briefs.indexOf(b));
         } catch (err) {
           patch(b.skill, { error: (err as Error).message });
         }
@@ -321,9 +447,25 @@ export function useBakeOff({ paired }: { paired: boolean }): UseBakeOff {
         });
         // `ready: false` is not a failure — a cold worktree's first Next compile
         // can outlast the bridge's wait.
-        patch(laneSkill, { url: res.url, compiling: !res.ready });
+        // `res.url` is the origin. Framing it alone shows the hub's home page,
+        // which is the one screen no lane built.
+        patch(laneSkill, { url: `${res.url}${lane.route}`, compiling: !res.ready });
       } catch (err) {
         patch(laneSkill, { compiling: false, error: (err as Error).message });
+      }
+    },
+    [patch],
+  );
+
+  const nudge = useCallback(
+    async (laneSkill: string) => {
+      const lane = lanesRef.current.find((l) => l.skill === laneSkill);
+      if (!lane?.id) return;
+      try {
+        await call("harness/say", { id: lane.id, text: KEEP_GOING });
+        patch(laneSkill, { nudges: lane.nudges + 1 });
+      } catch (err) {
+        patch(laneSkill, { error: (err as Error).message });
       }
     },
     [patch],
@@ -376,7 +518,10 @@ export function useBakeOff({ paired }: { paired: boolean }): UseBakeOff {
     }
   }, []);
 
-  const reset = useCallback(() => setLanes([]), []);
+  const reset = useCallback(() => {
+    writeRun([]);
+    setLanes([]);
+  }, []);
 
   const running = useMemo(
     () => lanes.some((l) => l.id && !l.error && l.summary?.status !== "ended"),
@@ -392,6 +537,8 @@ export function useBakeOff({ paired }: { paired: boolean }): UseBakeOff {
     blocked,
     working,
     start,
+    nudge,
+    restoring,
     decide,
     serve,
     land,

@@ -394,6 +394,19 @@
 .bo-chip[data-status="waiting"] { background: rgba(79, 216, 232, 0.16); color: var(--cyan); }
 .bo-chip[data-status="failed"] { background: rgba(167, 74, 74, 0.2); color: #e9a3a3; }
 .bo-chip[data-status="serving"] { background: rgba(120, 220, 150, 0.14); color: #93e4ae; }
+.bo-chip[data-status="paused"] { background: rgba(138, 147, 158, 0.18); color: #cdd5de; }
+
+.bo-lane[data-status="paused"] { border-color: rgba(205, 213, 222, 0.32); }
+
+.bo-lane-paused {
+  margin: 0;
+  color: var(--steel-light);
+  font-size: 11px;
+}
+.bo-keep {
+  border-color: rgba(205, 213, 222, 0.4);
+  color: var(--paper);
+}
 
 .bo-lane-meta {
   display: flex;

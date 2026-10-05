@@ -31,7 +31,7 @@ import {
   useBakeOff,
   type Lane,
 } from "@/lib/redesigner/v2/useBakeOff";
-import { probe, BRIDGE_OFFLINE, type BridgeHealth } from "@/lib/new-jarvis/bridge";
+import { claimPairedToken, probe, BRIDGE_OFFLINE, type BridgeHealth } from "@/lib/new-jarvis/bridge";
 import { loadLocal, saveSynced } from "@/lib/sync/appState";
 
 import "./bakeoff.css";
@@ -109,6 +109,10 @@ export function BakeOff() {
 
   useEffect(() => {
     let live = true;
+    // `pair.cmd` hands the page its token in the URL FRAGMENT, which is never
+    // sent to any server. Claiming it here is what makes V2 pairable at all —
+    // without this the console can only ever report the agent as unreachable.
+    claimPairedToken();
     void probe().then((h) => live && setHealth(h));
     return () => {
       live = false;
@@ -162,6 +166,7 @@ export function BakeOff() {
       const facts = await factsFor(target, scrape);
       const briefs = picked.map((skill) => ({
         skill,
+        route: facts.route,
         title: `${facts.name} · ${skill}`,
         brief: buildBrief({
           skill,
@@ -399,7 +404,11 @@ export function BakeOff() {
         <main className="bo-lanes">
           <div className="bo-lanes-head">
             <span className="bo-label">
-              {bake.lanes.length} lanes · {bake.harness === "claude" ? "Claude Code" : "DeepSeek"}
+              {bake.restoring
+                ? "rejoining the run…"
+                : `${bake.lanes.length} lanes · ${
+                    bake.harness === "claude" ? "Claude Code" : "DeepSeek"
+                  }`}
             </span>
             <div className="bo-lanes-actions">
               <button type="button" className="bo-ghost" onClick={() => void bake.stopAll()}>
@@ -420,6 +429,7 @@ export function BakeOff() {
                 onHover={setHovered}
                 onFocus={() => setFocus(focus === lane.skill ? null : lane.skill)}
                 onServe={() => void bake.serve(lane.skill)}
+                onNudge={() => void bake.nudge(lane.skill)}
                 onWin={() => setConfirming(lane.skill)}
               />
             ))}
@@ -484,6 +494,7 @@ function LanePanel({
   onHover,
   onFocus,
   onServe,
+  onNudge,
   onWin,
 }: {
   lane: Lane;
@@ -491,6 +502,7 @@ function LanePanel({
   onHover: (skill: string | null) => void;
   onFocus: () => void;
   onServe: () => void;
+  onNudge: () => void;
   onWin: () => void;
 }) {
   const status = laneStatus(lane);
@@ -540,7 +552,22 @@ function LanePanel({
             </pre>
           )}
 
+          {status === "paused" && (
+            // A lane that stops to report is not a lane that finished. Saying so
+            // and offering the one useful reply beats a chip reading "finished"
+            // over a half-built app.
+            <p className="bo-lane-paused">
+              Stopped to report{lane.nudges > 0 ? ` · told to continue ${lane.nudges}×` : ""}. A
+              whole app is rarely one turn&rsquo;s work.
+            </p>
+          )}
+
           <div className="bo-lane-actions">
+            {status === "paused" && (
+              <button type="button" className="bo-ghost bo-keep" onClick={onNudge}>
+                Keep going
+              </button>
+            )}
             <button
               type="button"
               className="bo-ghost"
@@ -636,6 +663,8 @@ function statusLabel(status: string): string {
       return "needs you";
     case "serving":
       return "running";
+    case "paused":
+      return "paused";
     case "done":
       return "finished";
     case "failed":
