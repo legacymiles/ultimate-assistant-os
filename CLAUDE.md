@@ -1,5 +1,8 @@
 # Ultimate Assistant OS — operating manual
 
+This folder lives at `C:\Users\honey\Projects\ultimate-assistant-os` — it moved out of OneDrive on
+2026-10-13, because OneDrive hydration made every file read slow and hid it from tooling.
+
 This folder is the owner's **master Claude Code folder** and their **portfolio**: one Next.js 15 hub
 (App Router, TypeScript, Tailwind v4, Supabase, deployed on Vercel) that holds every app they build.
 Read this file first. It says where things live so you can go straight to them instead of searching.
@@ -13,7 +16,8 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 | Need | Go to |
 |---|---|
 | Who the owner is, priorities, decisions | `aios/` (see `aios/README.md`) and the New Dashboard app |
-| Long-term memory of past work (per app) | `C:\Users\honey\.claude\projects\C--Users-honey-OneDrive-Desktop-claude-code-files\memory\MEMORY.md` |
+| Long-term memory of past work (per app) | `C:\Users\honey\.claude\projects\C--Users-honey-Projects-ultimate-assistant-os\memory\MEMORY.md` |
+| Memory shared with claude.ai and the VPS | `/api/jarvis/memory/mcp` — same Supabase rows as Jarvis › Memory. Setup card: Jarvis › Memory › "Same memory everywhere" |
 | List of all apps (single source of truth) | `src/lib/catalog.ts` — add an app = add one object to `PROJECTS` |
 | An app's page | `src/app/apps/<slug>/page.tsx` |
 | An app's UI | `src/components/<folder>/` (folder name ≠ slug for some — see table below) |
@@ -68,9 +72,10 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 
 - Be direct and concise. Lead with what needs action.
 - They like dense, database-style UIs over card grids.
-- **Every new app here gets a design skill, unasked.** Invoke it before writing any UI: `impeccable`
-  for app/tool UIs (the default for hub apps), `taste-skill` for landing/hero/public pages. Say which
-  one is driving the look. Never auto-pick a skill that costs money or renders footage
+- **Every new app here gets a design skill, unasked.** Invoke it before writing any UI:
+  `interactive-web-studio` is the one default for everything now — app/tool UIs and hub apps as well
+  as landing/hero/public pages. Say which one is driving the look. `impeccable` and `taste-skill` are
+  opt-in swaps. Never auto-pick a skill that costs money or renders footage
   (`h3-scroll-world`, `scroll-world`, `scroll-craft`, `imagegen-frontend-*`, `image-to-code-skill`) —
   those are opt-in only. Full rule: the global CLAUDE.md.
 - When a decision is made, offer to log it in `aios/decisions/log.md`.

@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Icon } from "../icons";
 import { MemoryCore, SOURCE_COLOR } from "./MemoryCore";
+import { MemorySyncCard } from "./MemorySyncCard";
 import { recency } from "@/lib/jarvis/rank";
 import { useMemory } from "@/lib/jarvis/useMemory";
 import {
@@ -230,6 +231,8 @@ export function MemoryTab({
           </div>
         </aside>
       </div>
+
+      <MemorySyncCard />
 
       <section className="mt-3 rounded-xl border border-line bg-panel p-3">
         <h2 className="mb-2 text-xs font-semibold text-ink">Remember something</h2>
