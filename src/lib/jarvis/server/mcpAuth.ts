@@ -51,12 +51,32 @@ export function mcpReady(): boolean {
   return c.tokenSet && c.userIdSet && c.serviceKeySet && c.supabaseSet;
 }
 
-/** The token off an Authorization header or an x-jarvis-token header. */
+/**
+ * The token, from a header or — as a last resort — the query string.
+ *
+ * Claude Code and anything curl-shaped send a header, which is where a secret
+ * belongs. claude.ai's "Add custom connector" dialog takes a URL and an
+ * optional OAuth client, and offers nowhere to put a static header, so a
+ * header-only server simply cannot be added there. `?k=` is the concession
+ * that makes the third surface possible without implementing an OAuth
+ * provider.
+ *
+ * It is a real tradeoff: a URL ends up in browser history, in Vercel's
+ * request logs, and in whatever stores the connector config, none of which is
+ * true of a header. Prefer the header everywhere it is available, and treat
+ * the `?k=` URL as being as sensitive as the token itself.
+ */
 export function tokenFrom(req: Request): string {
   const auth = req.headers.get("authorization") ?? "";
   const bearer = /^Bearer\s+(.+)$/i.exec(auth);
   if (bearer) return bearer[1].trim();
-  return (req.headers.get("x-jarvis-token") ?? "").trim();
+  const header = (req.headers.get("x-jarvis-token") ?? "").trim();
+  if (header) return header;
+  try {
+    return (new URL(req.url).searchParams.get("k") ?? "").trim();
+  } catch {
+    return "";
+  }
 }
 
 /**

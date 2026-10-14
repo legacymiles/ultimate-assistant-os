@@ -148,8 +148,8 @@ export function MemorySyncCard() {
           />
           <Command
             label="claude.ai — Settings › Connectors › Add custom connector"
-            value={`${origin}/api/jarvis/memory/mcp`}
-            hint={`Paste this as the URL. When it asks for a header, use Authorization with the value: Bearer ${t}`}
+            value={`${origin}/api/jarvis/memory/mcp?k=${t}`}
+            hint="Paste this as the URL and leave the OAuth fields empty. That dialog has nowhere to put a header, so the token has to ride in the URL — which means this URL is as secret as the token. Everything else uses a header."
           />
           <Command
             label="The CLAUDE.md rule"
