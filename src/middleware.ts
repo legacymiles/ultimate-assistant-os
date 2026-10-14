@@ -55,6 +55,12 @@ const TOKEN_AUTH_PATHS = new Set([
   "/api/jarvis/record/capture/push",
   "/api/jarvis/record/snapshot/pull",
   "/api/jarvis/record/map",
+  // Shared memory over MCP. Claude Code on the PC and the VPS, and a
+  // claude.ai connector, are not browsers and have no session here. The route
+  // verifies JARVIS_MCP_TOKEN itself and is pinned to one account id read
+  // from the environment, so the session gate has nothing to add — it only
+  // turned every client's first call into "Sign in to use this endpoint."
+  "/api/jarvis/memory/mcp",
 ]);
 
 /** Stamp (or clear) the account id the browser is allowed to render as. */
