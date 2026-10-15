@@ -713,6 +713,29 @@ export const PROJECTS: CatalogProject[] = [
     // A carousel panel that asked for fullscreen and went inert is not a preview.
     noPreview: true,
   },
+  {
+    slug: "dump-finder",
+    title: "Dump Finder",
+    tag: "Where this load can go, and how far it is",
+    category: "Utilities",
+    overview:
+      "A map for whoever is standing next to a loaded truck. It finds the phone, draws a ring of the "
+      + "radius you pick, from 1 to 50 miles, and pins every asphalt plant and paving yard (where the "
+      + "millings go), concrete and rubble yard, landfill, transfer station, recycling center and scrap "
+      + "yard inside it, nearest first. Filter chips narrow it to the load on the truck, and each pin "
+      + "carries a letter as well as a colour so it still reads in sunlight. Open a site for its phone, "
+      + "hours, what it says it takes and a Directions link, plus a notes box for what no map knows: "
+      + "whether they are taking millings this week, the price a ton, the gate hours. Sites come live "
+      + "from OpenStreetMap with no key, a satellite view shows whether a plant has a pile and a way in "
+      + "for a tri-axle, and any spot nobody has mapped can be dropped on the map and follows you to "
+      + "every device. No location? Type a ZIP or a job-site address instead.",
+    status: "live",
+    appUrl: "/apps/dump-finder",
+    iconStyle: "rings",
+    hue: [40, 200],
+    // A carousel panel that asks a stranger for their location is not a preview.
+    noPreview: true,
+  },
 ];
 
 export function getProject(slug: string): CatalogProject | null {

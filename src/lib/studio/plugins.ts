@@ -34,6 +34,7 @@ export const PLUGIN_SLUGS = [
   "ea-world",
   "financial-bible",
   "baby-no-scroll",
+  "dump-finder",
 ] as const;
 
 /**
@@ -124,6 +125,11 @@ const WHY: Record<string, string> = {
     + "screen, everything else is taken away, and the way out is a padlock that has to be dragged the "
     + "whole width of the screen — a gesture question rather than a password one, because a password "
     + "typed one-handed in a dark room is the thing nobody does twice.",
+  "dump-finder":
+    "The one plugin that is used from a truck cab. Everything else here makes or keeps something; this "
+    + "answers where a load of millings, concrete, trash or scrap can go within so many miles, nearest "
+    + "first, with Directions one tap away, and keeps the price a ton and the gate hours you learned "
+    + "on each site so the next load does not start with a phone call.",
 };
 
 export function studioPlugins(): StudioPlugin[] {
