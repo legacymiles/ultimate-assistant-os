@@ -19,6 +19,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { ChartController } from "./chartController";
 import { BotBench } from "./BotBench";
+import { FingerprintPanel } from "./FingerprintPanel";
+import { applySuggestions, type Suggestion } from "@/lib/ea-replay/statement";
+import { HFT_SECRET_V2 } from "@/lib/ea-replay/strategies";
 import { DEFAULT_BROKER, type BrokerConfig } from "@/lib/ea-replay/broker";
 import { compileCustom, type CustomBot } from "@/lib/ea-replay/custom";
 import { parseTickCsv } from "@/lib/ea-replay/csv";
@@ -36,7 +39,9 @@ import "./replay.css";
 
 const BOTS_KEY = "ea-replay:bots";
 const PREFS_KEY = "ea-replay:prefs";
-const WARMUP_MS = 10 * 60_000;
+// 45 minutes before the window: enough M1 bars for a 34-period channel (v2's
+// wave filter) to be formed by the time the window opens.
+const WARMUP_MS = 45 * 60_000;
 const SPEEDS = [1, 5, 20, 60, 300, 0] as const; // 0 = max
 const TIMEFRAMES = [
   { sec: 5, label: "5s" },
@@ -54,7 +59,7 @@ interface Prefs {
   tf: number;
   speed: number;
 }
-const DEFAULT_PREFS: Prefs = { symbol: "EURUSD", preset: "ny-peak", customStart: 800, customEnd: 1100, botId: "hft-secret", tf: 15, speed: 20 };
+const DEFAULT_PREFS: Prefs = { symbol: "US30", preset: "ny-open", customStart: 930, customEnd: 1130, botId: "hft-secret-v2", tf: 15, speed: 20 };
 
 function readJson<T>(key: string, fallback: T): T {
   try {
@@ -92,6 +97,7 @@ export function ReplayStudio({ embedded = false }: { embedded?: boolean }) {
   const [, setUi] = useState(0);
   const [tab, setTab] = useState<Tab>("trades");
   const [benchOpen, setBenchOpen] = useState(false);
+  const [fpOpen, setFpOpen] = useState(false);
   const [csvOffset, setCsvOffset] = useState(0);
 
   const hostRef = useRef<HTMLDivElement>(null);
@@ -163,6 +169,17 @@ export function ReplayStudio({ embedded = false }: { embedded?: boolean }) {
       writeJson(paramsKey, next);
       return next;
     });
+  // Fingerprint › Apply: measured inputs land on v2 for the symbol the original traded.
+  const applyFingerprint = (instrumentId: string | null, s: Suggestion[]) => {
+    const symbol = instrumentId ?? inst.id;
+    const key = `ea-replay:params:${HFT_SECRET_V2.id}:${symbol}`;
+    const merged = applySuggestions(readJson<Params>(key, defaultParams(HFT_SECRET_V2, symbol)), s);
+    writeJson(key, merged);
+    setPrefs((p) => ({ ...p, symbol, botId: HFT_SECRET_V2.id }));
+    if (def.id === HFT_SECRET_V2.id && symbol === inst.id) setParams(merged);
+    setFpOpen(false);
+  };
+
   const resetParams = () => {
     const d = defaultParams(def, inst.id);
     setParams(d);
@@ -372,7 +389,7 @@ export function ReplayStudio({ embedded = false }: { embedded?: boolean }) {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
-      if (benchOpen) return;
+      if (benchOpen || fpOpen) return;
       if (e.code === "Space") {
         e.preventDefault();
         setPlaying((p) => !p && !!engineRef.current && !engineRef.current.done);
@@ -669,6 +686,9 @@ export function ReplayStudio({ embedded = false }: { embedded?: boolean }) {
             <h3>
               Bot
               <span className="rpl-spacer" />
+              <button className="rpl-speed" onClick={() => setFpOpen(true)} title="Measure the original EA from its MT4 statement or tester report">
+                Fingerprint
+              </button>
               <button className="rpl-speed" onClick={() => setBenchOpen(true)}>
                 Bring a bot
               </button>
@@ -786,6 +806,8 @@ export function ReplayStudio({ embedded = false }: { embedded?: boolean }) {
           e.target.value = "";
         }}
       />
+
+      {fpOpen && <FingerprintPanel onApply={applyFingerprint} onClose={() => setFpOpen(false)} />}
 
       {benchOpen && (
         <BotBench
