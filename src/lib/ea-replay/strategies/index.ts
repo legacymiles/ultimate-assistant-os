@@ -1,0 +1,8 @@
+import type { StrategyDef } from "../strategy";
+import { HFT_SECRET } from "./hftSecret";
+import { OPENING_RANGE } from "./openingRange";
+
+/** The bots that ship with Replay. Ported and hand-written bots are added beside them at runtime. */
+export const BUILTIN_STRATEGIES: StrategyDef[] = [HFT_SECRET, OPENING_RANGE];
+
+export { HFT_SECRET, OPENING_RANGE };

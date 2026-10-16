@@ -50,6 +50,7 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 | `multi-order-calculator` | `calculator` |
 | `std-safe` | `stdsafe` (the app is called **Tap Safe**; the slug, routes and Supabase bucket keep the old name so existing reports and share codes survive) |
 | `ea-feature-list` | `ea` (lib: `ea-features`) |
+| `ea-world/replay`, `ea-world/terminals` | `ea-replay` (tick replay + simulated MT4 broker; API `src/app/api/ea-replay`; the HFT EA source is `public/ea-world/experts/HFT_Secret_Rebuild.mq4`, its twin `src/lib/ea-replay/strategies/hftSecret.ts`; terminal launchers `tools/ea-terminals`) |
 | `website-redesigner` | `redesigner` |
 | `seedance-studio` | `seedance` (the app is called **Music Video Studio**; slug unchanged) |
 | `smart-shot-videos` | `smart-shot` |
