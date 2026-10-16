@@ -1,0 +1,68 @@
+# Funding Secrets Bundle — notes (paraphrased)
+
+- L1 Funding Secrets Masterclass — [video-only]
+- L2 Origin story — Solo specialises in NO-DOC funding (capital without tax returns, bank statements or income proof). Masterclass covers: personal credit structure → business credit setup → no-doc plays, banks and sequencing.
+- L3 Personal credit is the launchpad
+  - Biggest mistake: jumping to business credit before personal credit is right. For no-doc / personal-guarantee funding, lenders read your personal file first.
+  - Credit = trust. Banks check how you treated other banks, like family warning each other about a relative who never paid back.
+- L4 Structuring a profile lenders love — payment history is #1
+  - Lates in the last 6–12 months are a big red flag; the last 2 years matter most; older lates fade.
+  - Prime products (Amex Platinum, Chase Ink) need a clean history.
+  - A payment isn't reported late until 30 days past due — but don't play with it: autopay + reminders.
+- L5 Utilization & report landmines
+  - ★ Utilization: under 30% good · under 10% great · 1% (or near 0%) phenomenal. HELOC balances can count too.
+  - No collections, charge-offs or bankruptcies for prime funding.
+  - Newer FICO models weigh recent activity/trends more — clean up now.
+  - Treat credit as capital: protect it, then leverage it.
+- L6 Boost credit age with tradelines
+  - ★ Aim for an average account age of 4+ years.
+  - Authorized-user (AU) tradelines add age and limit — TradelineGenie (~$100–200 per AU), TradelineSupply (has an age calculator: enter your accounts, see how old a tradeline you need to reach 4+ years).
+- L7 Fix high utilization without paying off debt
+  - Example: $70k owed on $100k limits = 70%. Add ~$150k of high-limit AU lines → ~$220k total limits → ~31%.
+  - Consolidate: HappyMoney (no hard pull until approval) — personal loan to pay off cards. (Tally, also named, has since shut down.)
+  - ★ Targets — utilization: 30% good / 10% great / 1% excellent. Primary accounts in your own name: 5 minimum, 10 good, ~21 "perfect" (AUs don't count toward this).
+- L8 Bank relationships — savings-secured loan "90% pay-up" play
+  - Deposit e.g. $20k at a credit union (DCU, Navy Fed "pledge loan", NASA FCU) → take a savings-secured loan against it → immediately pay back ~90% → leave the small balance to age 6+ months. Optionally repeat at a second CU.
+  - Builds installment history and trust with the CU cheaply; sets up unsecured loans later.
+  - Don't pay it off completely before ~6 months. Secured LOANS age better than secured cards.
+- L9 The truth about inquiries
+  - ★ It's not how many inquiries — it's how RECENT. 0–6 months: very damaging · 6–12 months: some caution · 12+ months: barely matter. Case: client with 15 EQ + 17 EX + more TU inquiries still got six figures because all were over a year old.
+  - New personal accounts opened in the last 6 months are the other big red flag — age them past 6 months before big business funding. Keep inquiries in the last 90 days near zero.
+- L10 Darren vs Tim — who gets funded
+  - Tim: 3 cards ($2.5–3k), $20k auto, student loans, 2 yrs history. Darren: 5 cards ($5–10k), $300k mortgage, $40k auto, student loans, $40k personal LOC, 5 yrs history → Darren gets far more.
+  - ★ Comparable credit: banks lend in proportion to what you already handle. Want $50k in business funding? Show $10–20k limits on personal cards first.
+- L11 Personal credit is a superpower — $300k in personal limits lets you deploy $100k into real estate/business and still sit at ~33% utilization. Build both personal and business.
+- L12 Transition to plays — personal plays (DCU and other high-limit CUs) then business plays (secured and no-PG lines, multi-entity options).
+- L13 NASA FCU — soft-pull pre-approval on Experian, no membership needed to prequalify; credit cards AND personal lines of credit (PLOC: set limit + rate, 2–3 yr term, check/cash access — great for real estate / cash needs). Proof of income is usually pay stubs (not tax returns). Hard pull only on the full application.
+- L14 Dover FCU — soft-pull prequal on personal cards (Experian), ~2-minute prequal, personal approvals up to ~$25k; also business cards. Pairs with NASA for an Experian day.
+- L15 Equifax plays — DCU: one application, two products (e.g. personal loan + card) seen on one hard pull. US Alliance FCU: Equifax, soft-pull prequal, Signature Line of Credit (revolving cash) — good for W-2 earners or owners who pay themselves.
+- L16 TransUnion plays — SunEast FCU: personal card + personal LOC + business card on ONE hard pull, pull valid ~90 days → apply for all within 3 months. Alliant CU: TU, card + personal loan, no soft-pull option → use after prequalifying elsewhere.
+- L17 $100k no-doc — First Citizens & BMO
+  - First Citizens (Experian + Equifax): ~$50k business card + ~$50k business LOC, no docs with strong personal credit, ONE hard pull for both; business 2+ yrs; must have a branch in your state (or a real foreign-entity registration where it operates).
+  - BMO: business LOC up to ~$50k, TransUnion, no docs, 2+ yrs in business; course cites a diverse-business banking program accepting ~620 scores. (Verify program is still offered.)
+  - Course estimate: First Citizens ~$100k + BMO ~$50k = ~$150k no-doc business funding; plus personal CU plays → $250k+.
+- L18 Finding local banks with no-doc lines
+  - Use a bank branch locator (bankbranchlocator.com or FDIC BankFind) by city/state to list small/regional banks.
+  - Call each: "Do you offer stated-income business credit?" · "Max before you need documents?" · "Any no-doc or low-doc business LOCs?" · "Max business card without docs?" Small banks underwrite more flexibly.
+  - Bank not in your state → foreign-entity registration. States flagged as rich in no-doc banks: PA (6–9 known), GA, FL, SC, TX, NY, VA.
+  - Make Saturday "bank hunting day" — visit branches, build real relationships.
+- L19 Stack, scale, get paid — ★ who this is for: personal 700+, business 2+ yrs, wants $50k–$500k within ~10 business days. Their model: no upfront fee, 10% of total approved, mostly 0% products. Steps: clean personal credit → structure business profile → open accounts at the recommended CUs/banks → let them season → apply.
+- L20 Work with Solo — promo (text line). [no content]
+- L21 Credit Union Secrets list — attachment "FinalCreditUnionSecrets.pdf" (files panel).
+- L22 High-utilization assistance — booking link with Solo's team. [no content]
+
+## BONUS: Soft-Pull Credit Union Class (15 nationwide, soft-pull credit unions)
+- L23 Bonus: soft-pull credit union class — [intro video]
+- L24 What makes credit unions different — membership usually needs one of: live in an area, work in a field/employer, worship locally, or DONATE to a partner association. The CUs in this class all allow donation-based membership → anyone in any state can join. ★ Tip repeated across lessons: prequalify at ~3 credit unions per bureau. Unfreeze the report before applying.
+- L25 Wings Financial CU — branches MN/FL/GA/MI, nationwide via association donation. Soft pull: cards, auto, personal loans. Cards start ~$5k, top approvals ~$20–30k. Card branding hints at tier: plain Visa can start ~$500; Visa Signature/Infinite = higher tier. Auto rates better elsewhere — use as backup.
+- L26 First Flight FCU (NC) — join anywhere with a ~$10 donation to a partner club. Soft pull: auto, personal loans, personal LOC (cards may be Elan-underwritten). Auto loans up to ~130% LTV (covers tax/title/extras), low rates. Personal LOC deposits cash to your account and revolves. Usually pulls TransUnion. No-doc friendly.
+- L27 InTouch CU (TX/NV/MI, open online) — soft pull: personal cards, BUSINESS cards up to ~$20k with no income docs, auto (high APR, backup), Signature personal loan up to ~$40k; certificate-secured loan from $500; savings-secured loan with no max (shows liquidity). Approval depends on profile, APR on score. Must be a member to accept.
+- L28 Chevron FCU — join through the Financial Fitness Association (FFA also unlocks Patelco, KeyPoint, others). Branch states TX, MS, VA, CA, LA, UT (check eligibility). Soft-pull prequal for auto and personal loans; seasonal 90-day deferred-payment auto promo (interest still accrues). Usually Equifax.
+- L29 Lafayette FCU (Equifax) — soft pull: Signature personal loan up to ~$50k, personal cards, BUSINESS cards, share-certificate loans, personal LOC from ~$3k (~10% APR), home-improvement loan up to ~$75k with no equity needed. Chevron personal loans $2k–$25k.
+  - ★ Installment loans don't count toward revolving utilization; cards and LOCs do → use personal loans to restructure card debt or fund growth without hurting utilization.
+- L30 All In CU (Equifax, open to all U.S.) — soft-pull prequal: cards, personal loans, auto. Credit-builder loan up to ~$1k (often needs 3–6 months membership). Auto up to ~120% financing but max ~$20k with no prior auto history, needs income + big down payment — weak option. Cards: Platinum, Rewards, Secured.
+- L31 Liberty CU (Experian; branches GA, KY, AL, IN, MS, TN) — join via ~$5 association donation during the app. Soft pull: personal cards (0% balance transfer 6 mo, low intro purchase APR), personal loans, auto (low APR). Business cards may need the business registered in a branch state (foreign registration e.g. Indiana ≈ $250 — only if the business genuinely operates there).
+- L32 Christian Community CU (Experian, CA-based, nationwide) — soft-pull prequal on personal AND business cards, personal loans (to ~$50k), auto/refi; prequal tool shows several offers at once; ★ 1 hard inquiry = up to 3 product approvals. Cards: 0% BT 6 months, ~$200 bonus after $750 spend.
+- L33 Fairwinds CU (TransUnion, Florida) — soft-pull prequal on personal cards + auto; business cards 0% for 12 months then ~18% (no soft-pull prequal on business). Business account needs FL registration (foreign registration if out of state), Articles, Operating Agreement; corporations also need meeting minutes listing officers.
+- L34 Hidden & underrated CUs wrap-up + their $97/mo "Loan Broker Program" (referral-only affiliate track). CUs covered pull TU, EQ and EX; access by association donation or registration.
+- L35 Work with Solo — promo link. [no content]

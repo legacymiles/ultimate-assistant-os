@@ -6,12 +6,12 @@ Updated after every batch so a dropped connection loses nothing. Resume from the
 
 ## Courses
 - [x] 6FF MASTERY (START HERE) — 124 lessons, 14 modules  → notes/6ff-mastery.md
-- [ ] Funding Secrets Bundle — 35 lessons                 → notes/funding-secrets.md
+- [x] Funding Secrets Bundle — 35 lessons → notes/funding-secrets.md
 - [ ] Corporate Credit Secrets — 19 lessons               → notes/corporate-credit.md
 - [ ] Webinar Mastery — 48 lessons                        → notes/webinar-mastery.md
 
 ## Resume point
-6FF Mastery: DONE (124/124). Linked docs saved: master-go-to-list.md, bank-rep-questions.md. Next: Funding Secrets Bundle lesson 1
+6FF Mastery + Funding Secrets: DONE. Next: Corporate Credit Secrets lesson 1
 
 ## Video-only lessons (no written notes on the page — watch these yourself)
 (filled in as found)
