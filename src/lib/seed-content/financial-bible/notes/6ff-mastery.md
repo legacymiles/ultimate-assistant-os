@@ -348,3 +348,65 @@ Paraphrased and condensed. `[video-only]` = the page has no written notes; only 
   - Adding a partner to an operating agreement for more funding: give them real equity/compensation and protect the existing owner in writing.
   - Restaurant opening a 2nd location: cards + LOCs + possibly hard money.
   - Bank reps as partners: agree commission/process up front.
+- L107 Funding call 12-26-24 (49 min) — Fathom https://fathom.video/share/gKYyd4CHswmT6cS7VrocyLSExW6tD-oS
+  - Paid Chase banker-access service: ~1 month from submission to card in hand; looks at average credit age but has approved 2-year histories.
+  - BofA approvals are relationship-based — deposits and cash sitting in the account help.
+  - Navy Fed personal loans approve fast off the overall profile, not just the balance.
+  - FNBO now does a HARD pull for credit-limit increases.
+  - ChexSystems and Early Warning Services are separate databases — check both.
+  - PayPal Credit: 0% for 6 months on purchases of $99+ where PayPal is accepted.
+  - Affiliate intake: job/referral forms so affiliates submit clients; January kickoff call to energise affiliates.
+- L108 Funding call 01-02-25 (62 min) — Fathom https://fathom.video/share/t3ppQW9RdMx9REkZuYrQm18NJrVQP9Mx
+  - ★ NO-DOC FUNDING CHECKLIST: 700+ score · no lates/derogs · 5+ yrs credit history · fewer than 10 hard inquiries across bureaus · overall utilization ≤30% (Chase likes ≤15%) · 2–5 primary revolving cards · ideally $25–50k personal available credit.
+  - Tradelines can lift available credit (e.g. $10k → $30k) in ~2 weeks.
+  - Chase business approvals $50k–$250k depending on profile and revenue; course ties $250k Chase cards to ~$1.1–1.6M revenue and ~$350k revenue at other banks. ⚠ "Projected" revenue/income must be a real, defensible figure; course's "state $75k personal income if actual is lower" is left out.
+  - The monthly spend you state in Chase's DocuSign should be consistent with the limit you're asking for (≈ $45–50k spend for a $50k limit).
+  - BOI filing: optional then due to a court order (later exempted for U.S. companies in 2025).
+  - Marketing: affiliate partnerships with insiders; LinkedIn outreach (got meetings with lenders); $5/day FB/IG ads at small-business owners; DM everyone who likes a post.
+  - Guides referenced in their FB group: BOI filing, late-payment (open/closed) guide, secondary bureaus list.
+- L109 Funding call 01-09-25 (60 min) — Fathom https://fathom.video/share/ez-gxjKkZ2Cfxvn3RsSmdGr4Qk_VYRs-
+  - Nonprofits can get business credit cards but generally not lines of credit → separate LLC for more options.
+  - Thin files: secured cards and credit unions; PenFed and Apple Card as next apps.
+  - ★ Have at least ~$30k personal available credit before applying for Chase business cards; ask for amounts your profile supports.
+  - Use a tradeline calculator to pick the line that fixes utilization (e.g. 49% on $58k available).
+  - Too many authorized-user lines added at once looks suspicious — plan them.
+  - (Buy-and-return "manufactured spending" at retailers discussed — left out; it's how accounts get closed.)
+- L110 Funding call 01-23-25 — same recording/notes as L3 (see L3).
+- L111 Funding call 01-30-25 (70 min) — Fathom https://fathom.video/share/gEVRaVsNYdx4s73TV8yp2Jzvd-xzAiEz
+  - Affiliate recruiting ad pulled 30 prospective affiliates in 2 days. Pay 2% on the first 3 referrals, 3% after. Teach affiliates how to pitch.
+  - ★ MEMORISE the requirements (credibility on calls): 700+ · clean report · ~5 yr credit age · <10 hard inquiries · 15–20% utilization · $15–50k personal available credit.
+  - Hard question you can't answer → pivot or say you'll confirm with your team.
+  - Direct bank-rep connections beat marketplaces like Lendio.
+  - Credit repair in 30–45 days, then focus on funding rather than drawn-out repair.
+- L112 Funding call 2-6-25, Solomon (123 min) — Fathom https://fathom.video/share/oVNpTiT74odrEsagSAzxbyztzv_TxDnz
+  - Course GPT bot for funding strategies — verify its output.
+  - Business-credit delinquency → pull the Experian business report (~$40) and investigate the negative accounts/filings.
+  - 2-month-old business → soft-pull options + tradelines, reassess later.
+  - Always read the denial reasons and the report before the next move.
+  - Lesser-known banks: e.g. Burke & Herbert Bank; research local banks in the client's area and call reps for rules.
+  - Ask whether BNPL (Affirm/Klarna/Afterpay) loans report before using them.
+  - 90-day plan reviews: info@thefundingdepartment.com
+  - (Aged corps suggested for delinquent business — left out.)
+
+## Consultation Call Training
+- L113 Sales call — [video-only]
+
+## Digital Products
+- L114 Credit Union ebook — Canva: https://www.canva.com/design/DAGEYap54cs/25obEixnl56vrc_i-_xNBA/view
+- L115 All white-labeled digital products — 10 Canva templates you can rebrand and sell (ebooks/guides):
+  DAGEYap54cs (Credit Union ebook), DAGTH3MqiOA, DAGTH0CczeA, DAGTH1aPLNo, DAGTXvVm2r8, DAGTIQaqPGE, DAGTH0_QeI4, DAGTH8ElzwY, DAGOmEIVqaw, DAGTH6retB0 — open as https://www.canva.com/design/<id>/view (links in the lesson).
+
+## Funding
+- L116 How to find bank reps — "Bank Question Doc" (questions to ask a banker): https://docs.google.com/document/d/1pIBe25MYMf2FjcNzkuexB_LbUDIsS7zSKQvSo57llBM
+- L117 Bank rep training pt 1 (live call) — [video-only]
+- L118 Bank rep training pt 2 (live call) — [video-only]
+- L119 How to build your own funding sequence — [video-only]
+- L120 Back office training — [video-only]
+- L121 Credit card liquidation ft. Dub Washington — [video-only] (cash-out methods; see warnings in L31/L40/L103)
+- L122 Collecting money — [video-only] + attachment: client funding agreement (.docx)
+
+## Aged Corp
+- L123 Sourcing aged corp — step-by-step Google Doc (⚠ not used in this playbook — buying an old company to look established is misrepresentation to lenders)
+
+## Tradeline Training
+- L124 Tradeline training — [video-only]
