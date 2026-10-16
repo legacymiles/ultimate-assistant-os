@@ -1,0 +1,25 @@
+{
+  "_comment": "Claude Code hooks that keep ~/.claude/skills, this repo, and the Jarvis website in step. Merge the `hooks` block into ~/.claude/settings.json (all projects) or this repo's .claude/settings.json (here only). Change the repo path per machine; on the VPS, point it at wherever the hub is cloned. See docs/skill-sync.md.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node C:/Users/honey/Projects/ultimate-assistant-os/scripts/skill-sync.mjs pull --quiet"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node C:/Users/honey/Projects/ultimate-assistant-os/scripts/skill-sync.mjs push --quiet"
+          }
+        ]
+      }
+    ]
+  }
+}
