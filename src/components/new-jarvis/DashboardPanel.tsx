@@ -168,55 +168,34 @@ export function DashboardPanel({
     // flex-1 means nothing and the panel would collapse to its content height,
     // leaving the graph floating above a band of dead space.
     <div className="flex h-full min-h-0 flex-col">
-      <VaultStatus
-        mirrorOnly={vault.mirrorOnly}
-        present={vault.present}
-        root={vault.root}
-        progress={vault.progress}
-        waiting={vault.waiting.length}
-        notes={notes}
-        error={vault.error}
-        bridgeUp={bridgeUp}
-        onSweep={() => void vault.sweep()}
-        onFlush={() => void vault.flush()}
-      />
+      {/* The vault's sync line belongs to the Brain; on the Deck it was one
+          more strip of chrome between the owner and their stuff. */}
+      {pane === "graph" && (
+        <VaultStatus
+          mirrorOnly={vault.mirrorOnly}
+          present={vault.present}
+          root={vault.root}
+          progress={vault.progress}
+          waiting={vault.waiting.length}
+          notes={notes}
+          error={vault.error}
+          bridgeUp={bridgeUp}
+          onSweep={() => void vault.sweep()}
+          onFlush={() => void vault.flush()}
+        />
+      )}
 
       {reminders.length > 0 && <ReminderBanner queue={reminders} onDismiss={onDismissReminder} />}
 
-      {/* Pane switcher. Memory and Profile live HERE, which is the whole
-          point: two fewer entries in the rail, and the two things that are
-          really about the same subject sitting next to each other. */}
-      <div className="flex shrink-0 items-center gap-0.5 border-b border-line bg-panel px-2 py-1">
-        {PANES.map((p) => {
-          const I = Icon[p.icon];
-          const on = pane === p.id;
-          const badge = p.id === "improve" ? improve.collected.proposals.length : 0;
-          return (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => setPane(p.id)}
-              aria-current={on ? "page" : undefined}
-              className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-[11px] transition ${
-                on ? "bg-elevated text-ink" : "text-ink-muted hover:bg-panel-2 hover:text-ink"
-              }`}
-            >
-              <I width={11} height={11} aria-hidden />
-              {p.label}
-              {badge > 0 && (
-                <span className="rounded-full bg-line px-1 font-mono text-[9px] text-ink-muted" data-num>
-                  {badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-        {updates.unread > 0 && (
-          <span className="ml-auto rounded-full border border-line px-1.5 py-0.5 font-mono text-[9.5px] text-ink-muted" data-num>
-            {updates.unread} new
-          </span>
-        )}
-      </div>
+      {/* Pane switcher, minimal: the pane you are on, and everything else
+          behind one "more" button. The owner asked for fewer tabs — the Deck
+          is where they live, and the rest is one tap away, not six. */}
+      <PaneSwitcher
+        pane={pane}
+        onPane={setPane}
+        improveBadge={improve.collected.proposals.length}
+        unread={updates.unread}
+      />
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {pane === "deck" ? (
@@ -380,6 +359,86 @@ export function DashboardPanel({
         <div className="shrink-0 border-t border-line bg-panel p-2 lg:hidden">
           <UpdatesPanel api={updates} go={(t) => go(String(t))} />
         </div>
+      )}
+    </div>
+  );
+}
+
+function PaneSwitcher({
+  pane,
+  onPane,
+  improveBadge,
+  unread,
+}: {
+  pane: Pane;
+  onPane: (p: Pane) => void;
+  improveBadge: number;
+  unread: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = PANES.find((p) => p.id === pane) ?? PANES[0];
+  const others = PANES.filter((p) => p.id !== pane);
+  const Cur = Icon[current.icon];
+  return (
+    <div className="relative flex shrink-0 items-center gap-1 border-b border-line-soft px-3 py-1.5">
+      {pane !== "deck" && (
+        <button
+          type="button"
+          onClick={() => onPane("deck")}
+          className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-ink-muted transition hover:text-ink"
+        >
+          <Icon.ArrowLeft width={11} height={11} aria-hidden />
+          Deck
+        </button>
+      )}
+      <span className="inline-flex items-center gap-1.5 px-1.5 py-1 text-[11px] font-medium text-ink">
+        <Cur width={11} height={11} aria-hidden />
+        {current.label}
+      </span>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label="More dashboard views"
+        className="ml-auto inline-flex h-7 items-center gap-1 rounded px-2 text-[11px] text-ink-muted transition hover:bg-panel-2 hover:text-ink"
+      >
+        {unread > 0 && (
+          <span className="rounded-full border border-line px-1.5 font-mono text-[9.5px]" data-num>
+            {unread} new
+          </span>
+        )}
+        <Icon.Menu width={13} height={13} aria-hidden />
+      </button>
+      {open && (
+        <>
+          <button type="button" aria-hidden tabIndex={-1} className="fixed inset-0 z-30 cursor-default" onClick={() => setOpen(false)} />
+          <ul className="absolute right-2 top-full z-40 mt-1 w-44 overflow-hidden rounded-lg border border-line bg-panel py-1 shadow-2xl">
+            {others.map((p) => {
+              const I = Icon[p.icon];
+              const badge = p.id === "improve" ? improveBadge : 0;
+              return (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onPane(p.id);
+                      setOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] text-ink-muted transition hover:bg-panel-2 hover:text-ink"
+                  >
+                    <I width={12} height={12} aria-hidden />
+                    {p.label}
+                    {badge > 0 && (
+                      <span className="ml-auto rounded-full bg-line px-1.5 font-mono text-[9px]" data-num>
+                        {badge}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
       )}
     </div>
   );
