@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { JetBrains_Mono } from "next/font/google";
+import { JetBrains_Mono, Oxanium } from "next/font/google";
 import { NewJarvis } from "@/components/new-jarvis/NewJarvis";
 import { sessionToken, status, tokenMatches } from "@/lib/recall/gateStore";
 import { callerIsMember } from "@/lib/recall/lists/session";
@@ -15,6 +15,15 @@ const mono = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   variable: "--font-nj-mono",
+  display: "swap",
+});
+
+// The Deck's display face: angular and technical, used only for the greeting
+// and section names so the HUD reads as one instrument.
+const display = Oxanium({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-nj-display",
   display: "swap",
 });
 
@@ -53,7 +62,7 @@ export default async function Page() {
   }
 
   return (
-    <div className={mono.variable}>
+    <div className={`${mono.variable} ${display.variable}`}>
       <NewJarvis />
     </div>
   );

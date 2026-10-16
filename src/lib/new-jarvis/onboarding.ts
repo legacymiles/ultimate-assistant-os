@@ -1,0 +1,137 @@
+"use client";
+
+// ---------------------------------------------------------------------------
+// First-run onboarding for New Jarvis.
+//
+// Shown once, on first open, and skippable at every step. Whatever is skipped
+// shows up as the "Finish setup" checklist at the top of Dashboard › Profile,
+// which is where the owner (or any user of the hub) completes it later.
+//
+// The answers do not live only here. Each step writes into the store that
+// already owns that fact — the name into the Profile, "what I do" into Jarvis
+// memory, image habits into Camera Autopilot's rules — so finishing onboarding
+// changes how the rest of Jarvis behaves rather than filling a form nobody reads.
+// ---------------------------------------------------------------------------
+
+import { useEffect, useState } from "react";
+import { loadLocal, saveSynced } from "@/lib/sync/appState";
+import { useRemotePull } from "@/lib/sync/useSync";
+
+export const ONBOARDING_KEY = "jarvis-onboarding:v1";
+const CHANGED = "jarvis-onboarding-changed";
+
+export type OnboardingStatus = "new" | "later" | "done";
+
+export interface OnboardingData {
+  status: OnboardingStatus;
+  about: { name: string; call: string; role: string; businesses: string; goals: string[] };
+  /** Preset Autopilot rules the owner chose (ids from PRESET_RULES). */
+  photoHabits: string[];
+  /** Steps the owner has been through, done or skipped. */
+  seen: string[];
+  updatedAt: string;
+}
+
+export const EMPTY_ONBOARDING: OnboardingData = {
+  status: "new",
+  about: { name: "", call: "", role: "", businesses: "", goals: [] },
+  photoHabits: [],
+  seen: [],
+  updatedAt: "",
+};
+
+export const GOALS = [
+  "Run my businesses",
+  "Sort my photos",
+  "Make music",
+  "Handle email",
+  "Find deals & leads",
+  "Plan my day",
+  "Build apps",
+];
+
+export function getOnboarding(): OnboardingData {
+  const d = loadLocal<Partial<OnboardingData>>(ONBOARDING_KEY, EMPTY_ONBOARDING);
+  return {
+    ...EMPTY_ONBOARDING,
+    ...d,
+    about: { ...EMPTY_ONBOARDING.about, ...(d.about ?? {}) },
+    photoHabits: Array.isArray(d.photoHabits) ? d.photoHabits : [],
+    seen: Array.isArray(d.seen) ? d.seen : [],
+  };
+}
+
+export function saveOnboarding(patch: Partial<OnboardingData>): OnboardingData {
+  const next = { ...getOnboarding(), ...patch, updatedAt: new Date().toISOString() };
+  saveSynced(ONBOARDING_KEY, next);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(CHANGED));
+  return next;
+}
+
+export function useOnboarding(): [OnboardingData, boolean] {
+  const [data, setData] = useState<OnboardingData>(EMPTY_ONBOARDING);
+  // Settled once the remote copy has been reconciled, so a second device does
+  // not pop the welcome flow at someone who finished it on their phone.
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    const read = () => setData(getOnboarding());
+    read();
+    window.addEventListener(CHANGED, read);
+    return () => window.removeEventListener(CHANGED, read);
+  }, []);
+  useRemotePull(ONBOARDING_KEY, () => {
+    setData(getOnboarding());
+    setSettled(true);
+  });
+  return [data, settled];
+}
+
+export interface SetupItem {
+  id: "about" | "accounts" | "iphone" | "habits" | "favorites";
+  label: string;
+  detail: string;
+  done: boolean;
+}
+
+/** What is still open. Pure, so the Profile checklist and tests agree. */
+export function setupChecklist(input: {
+  onboarding: OnboardingData;
+  connectedAccounts: number;
+  iphoneLinked: boolean;
+  rules: number;
+  favorites: number;
+}): SetupItem[] {
+  const a = input.onboarding.about;
+  return [
+    {
+      id: "about",
+      label: "Tell Jarvis about you",
+      detail: "Your name, what you do and your businesses",
+      done: Boolean(a.name.trim() && a.role.trim()),
+    },
+    {
+      id: "accounts",
+      label: "Connect your accounts",
+      detail: "Email, calendar, drive and business tools",
+      done: input.connectedAccounts > 0,
+    },
+    {
+      id: "iphone",
+      label: "Link your iPhone camera roll",
+      detail: "Feeds Camera Autopilot with new photos",
+      done: input.iphoneLinked,
+    },
+    {
+      id: "habits",
+      label: "Teach Camera Autopilot your habits",
+      detail: "Where songs, repos, receipts and the rest go",
+      done: input.rules > 0,
+    },
+    {
+      id: "favorites",
+      label: "Star your favorite apps",
+      detail: "They sit at the top of your Dashboard",
+      done: input.favorites > 0,
+    },
+  ];
+}

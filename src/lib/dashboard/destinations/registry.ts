@@ -2,6 +2,8 @@ import type { Destination } from "./types";
 import { aiRankingsDestination } from "./aiRankings";
 import { cookbookDestination } from "./cookbook";
 import { skillsLibraryDestination } from "./skillsLibrary";
+import { musicClassifiedDestination } from "./musicClassified";
+import { githubRepoDestination } from "./githubRepo";
 
 // ---------------------------------------------------------------------------
 // Every place a photo can be filed that is NOT one of the three the photo
@@ -25,6 +27,8 @@ export const DESTINATIONS: Destination<any>[] = [
   aiRankingsDestination,
   cookbookDestination,
   skillsLibraryDestination,
+  musicClassifiedDestination,
+  githubRepoDestination,
 ];
 
 export function destinationById(id: string): Destination | undefined {

@@ -1,0 +1,586 @@
+/* ---------------------------------------------------------------------------
+   The Deck — the Dashboard's command surface.
+
+   The rest of New Jarvis is deliberately matte. The Deck is the one place that
+   is allowed to glow, because it is the place the owner lands and asked to be
+   "futuristic": a cyan HUD line over the hub's own dark tokens, corner
+   brackets, a slow scan line over the Autopilot queue, and a live core. Every
+   motion stops under prefers-reduced-motion.
+   --------------------------------------------------------------------------- */
+
+.deck {
+  --hud: #3be3ff;
+  --hud-dim: color-mix(in oklab, var(--hud) 28%, transparent);
+  --hud-faint: color-mix(in oklab, var(--hud) 10%, transparent);
+  --hud-amber: #ffb547;
+  --hud-green: #5be38f;
+  position: relative;
+  min-height: 100%;
+  background-color: var(--color-canvas);
+  background-image:
+    radial-gradient(1200px 500px at 15% -10%, color-mix(in oklab, var(--hud) 9%, transparent), transparent 60%),
+    linear-gradient(var(--hud-faint) 1px, transparent 1px),
+    linear-gradient(90deg, var(--hud-faint) 1px, transparent 1px);
+  background-size: auto, 44px 44px, 44px 44px;
+}
+
+/* A panel with HUD corner brackets. */
+.deck-panel {
+  position: relative;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--color-panel) 88%, transparent);
+  backdrop-filter: blur(6px);
+}
+.deck-panel::before,
+.deck-panel::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  border-color: var(--hud);
+  opacity: 0.75;
+}
+.deck-panel::before {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid;
+  border-left: 2px solid;
+  border-top-left-radius: 14px;
+}
+.deck-panel::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 2px solid;
+  border-right: 2px solid;
+  border-bottom-right-radius: 14px;
+}
+.deck-panel--live {
+  border-color: var(--hud-dim);
+  box-shadow: 0 0 0 1px var(--hud-faint), 0 0 40px -18px var(--hud);
+}
+
+.deck-kicker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--hud);
+}
+
+/* The live core in the hero. */
+.deck-core {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  flex: none;
+}
+.deck-core i {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--hud-dim);
+}
+.deck-core i:nth-child(1) {
+  border-color: var(--hud);
+  border-style: dashed;
+  animation: deck-spin 16s linear infinite;
+}
+.deck-core i:nth-child(2) {
+  inset: 12px;
+  border-color: var(--hud-amber);
+  border-style: dotted;
+  animation: deck-spin 24s linear infinite reverse;
+}
+.deck-core i:nth-child(3) {
+  inset: 26px;
+  background: radial-gradient(circle, var(--hud) 0 30%, color-mix(in oklab, var(--hud) 25%, transparent) 31% 100%);
+  border-color: var(--hud);
+  animation: deck-pulse 2.2s ease-in-out infinite;
+}
+.deck-core[data-busy="true"] i:nth-child(1) {
+  animation-duration: 3s;
+}
+
+.deck-stat {
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: color-mix(in oklab, var(--color-panel-2) 70%, transparent);
+}
+.deck-stat b {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Favorite tiles. */
+.deck-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 92px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--color-line);
+  background: color-mix(in oklab, hsl(var(--h, 190) 70% 50%) 7%, var(--color-panel));
+  transition: transform var(--nj-fast) var(--nj-ease), border-color var(--nj-fast), box-shadow var(--nj-fast);
+}
+.deck-tile:hover,
+.deck-tile:focus-visible {
+  transform: translateY(-2px);
+  border-color: hsl(var(--h, 190) 80% 60%);
+  box-shadow: 0 10px 30px -18px hsl(var(--h, 190) 80% 55%);
+  outline: none;
+}
+.deck-tile .deck-glyph {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid hsl(var(--h, 190) 70% 55% / 0.5);
+  color: hsl(var(--h, 190) 85% 70%);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* The Autopilot queue. */
+.deck-scan {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  pointer-events: none;
+}
+.deck-scan::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--hud);
+  opacity: 0.45;
+  box-shadow: 0 0 14px var(--hud);
+  animation: deck-scan 5s linear infinite;
+}
+
+.deck-shot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  background: var(--color-panel);
+  transition: transform var(--nj-fast) var(--nj-ease), border-color var(--nj-fast), box-shadow var(--nj-fast);
+}
+.deck-shot:hover {
+  transform: translateY(-2px);
+}
+.deck-shot[aria-current="true"] {
+  border-color: var(--hud);
+  box-shadow: 0 0 0 1px var(--hud), 0 0 26px -8px var(--hud);
+}
+.deck-shot .deck-thumb {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: repeating-linear-gradient(135deg, var(--color-panel-2) 0 8px, var(--color-panel) 8px 16px);
+}
+.deck-shot .deck-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.deck-shot .deck-analyzing {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--hud);
+  background: color-mix(in oklab, var(--color-canvas) 55%, transparent);
+}
+
+/* Chat. */
+.deck-msgs {
+  display: flex;
+  flex-direction: column-reverse;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.deck-bubble {
+  max-width: 88%;
+  border-radius: 12px;
+  padding: 8px 11px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+.deck-bubble--jarvis {
+  border: 1px solid var(--hud-dim);
+  background: color-mix(in oklab, var(--hud) 6%, var(--color-panel));
+  border-bottom-left-radius: 4px;
+}
+.deck-bubble--you {
+  margin-left: auto;
+  border: 1px solid var(--color-line);
+  background: var(--color-panel-2);
+  border-bottom-right-radius: 4px;
+}
+.deck-action {
+  border: 1px solid var(--hud-dim);
+  border-radius: 9px;
+  padding: 8px 10px;
+  background: color-mix(in oklab, var(--hud) 4%, var(--color-panel));
+}
+.deck-action[data-state="done"] {
+  border-color: color-mix(in oklab, var(--hud-green) 45%, transparent);
+}
+.deck-action[data-state="declined"] {
+  opacity: 0.55;
+}
+
+.deck-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid var(--color-line);
+  font-size: 12px;
+  color: var(--color-ink);
+  background: var(--color-panel-2);
+  transition: border-color var(--nj-fast), background-color var(--nj-fast), color var(--nj-fast);
+}
+.deck-btn:hover:not(:disabled) {
+  border-color: var(--hud);
+}
+.deck-btn:disabled {
+  opacity: 0.5;
+}
+.deck-btn--go {
+  border-color: var(--hud);
+  background: color-mix(in oklab, var(--hud) 16%, var(--color-panel));
+  font-weight: 600;
+}
+.deck-btn:focus-visible,
+.deck input:focus-visible,
+.deck textarea:focus-visible {
+  outline: 2px solid var(--hud);
+  outline-offset: 2px;
+}
+
+.deck-switch {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  flex: none;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-panel-2);
+  transition: background-color var(--nj-fast), border-color var(--nj-fast);
+}
+.deck-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-ink-faint);
+  transition: transform var(--nj-fast) var(--nj-ease), background-color var(--nj-fast);
+}
+.deck-switch[aria-checked="true"] {
+  border-color: var(--hud);
+  background: color-mix(in oklab, var(--hud) 20%, var(--color-panel));
+}
+.deck-switch[aria-checked="true"]::after {
+  transform: translateX(18px);
+  background: var(--hud);
+}
+
+@keyframes deck-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes deck-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+@keyframes deck-scan {
+  from {
+    top: 0;
+  }
+  to {
+    top: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .deck-core i,
+  .deck-scan::after {
+    animation: none !important;
+  }
+  .deck-tile,
+  .deck-shot {
+    transition: none;
+  }
+}
+
+/* ===========================================================================
+   HUD layer — the living field, the reactor, the light border, tilt + glare.
+   =========================================================================== */
+
+.deck {
+  --void: #03060c;
+  --hud: #47e8ff;
+  --plasma: #8b7cff;
+  --font-display: var(--font-nj-display), var(--font-sans);
+}
+.deck-stage {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(900px 520px at 8% 0%, color-mix(in oklab, var(--hud) 10%, transparent), transparent 65%),
+    radial-gradient(700px 600px at 100% 100%, color-mix(in oklab, var(--plasma) 10%, transparent), transparent 70%),
+    var(--void);
+}
+.deck-stage > .deck-scroll {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  z-index: 1;
+}
+.deck-field {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.deck-display {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+
+/* Reactor. */
+.deck-reactor {
+  flex: none;
+  overflow: visible;
+  filter: drop-shadow(0 0 14px color-mix(in oklab, var(--hud) 55%, transparent));
+}
+.deck-reactor g {
+  transform-origin: 60px 60px;
+}
+.deck-reactor__ticks { animation: deck-spin 60s linear infinite; }
+.deck-reactor__a { animation: deck-spin 14s linear infinite; }
+.deck-reactor__b { animation: deck-spin 22s linear infinite reverse; }
+.deck-reactor__c { animation: deck-spin 9s linear infinite; }
+.deck-reactor__heart { transform-origin: 60px 60px; animation: deck-heart 2.4s ease-in-out infinite; }
+.deck-reactor[data-busy="true"] .deck-reactor__a { animation-duration: 3s; }
+.deck-reactor[data-busy="true"] .deck-reactor__c { animation-duration: 2s; }
+.deck-reactor[data-busy="true"] .deck-reactor__heart { animation-duration: 0.9s; }
+@keyframes deck-heart {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.82); opacity: 0.7; }
+}
+
+/* Typed greeting caret — once, on load. */
+.deck-caret::after {
+  content: "";
+  display: inline-block;
+  width: 0.5ch;
+  height: 0.9em;
+  margin-left: 2px;
+  vertical-align: -0.08em;
+  background: var(--hud);
+  animation: deck-blink 1s steps(1) infinite;
+}
+@keyframes deck-blink { 50% { opacity: 0; } }
+
+/* A light that travels around the edge of a live panel. */
+@property --deck-ang {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.deck-ring {
+  position: relative;
+  isolation: isolate;
+}
+.deck-ring::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--deck-ang), transparent 0 70%, var(--hud) 82%, #fff 85%, var(--plasma) 90%, transparent 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: deck-orbit 6s linear infinite;
+  pointer-events: none;
+  z-index: 2;
+}
+@keyframes deck-orbit { to { --deck-ang: 360deg; } }
+
+/* Glass panel replacing the flat one. */
+.deck-glass {
+  border: 1px solid color-mix(in oklab, var(--hud) 18%, transparent);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgb(10 20 34 / 0.72), rgb(5 10 20 / 0.6));
+  backdrop-filter: blur(10px) saturate(1.2);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 30px 80px -40px color-mix(in oklab, var(--hud) 45%, transparent);
+}
+
+/* Tilt + glare: --rx/--ry/--mx/--my are set from the pointer. */
+.deck-tilt {
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateZ(0);
+  transform-style: preserve-3d;
+  transition: transform 220ms var(--nj-ease), box-shadow 220ms, border-color 220ms;
+  will-change: transform;
+}
+.deck-tilt[data-hot="true"] {
+  transition: transform 60ms linear, box-shadow 220ms, border-color 220ms;
+}
+.deck-tilt::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), rgb(255 255 255 / 0.12), transparent 45%);
+  opacity: 0;
+  transition: opacity 200ms;
+}
+.deck-tilt[data-hot="true"]::after { opacity: 1; }
+
+/* Photo cards get the HUD treatment. */
+.deck-shot {
+  border-color: color-mix(in oklab, var(--hud) 14%, transparent);
+  background: rgb(6 12 22 / 0.78);
+  backdrop-filter: blur(6px);
+}
+.deck-shot[data-hot="true"] {
+  border-color: var(--hud);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--hud) 40%, transparent), 0 24px 50px -24px var(--hud);
+}
+.deck-shot:hover { transform: none; }
+.deck-shot .deck-thumb::after {
+  /* faint scanlines over every picture */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, rgb(0 0 0 / 0.16) 0 1px, transparent 1px 3px);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+.deck-shot .deck-corner {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: var(--hud);
+  opacity: 0;
+  transition: opacity 200ms, transform 200ms var(--nj-ease);
+  pointer-events: none;
+  z-index: 3;
+}
+.deck-shot[data-hot="true"] .deck-corner { opacity: 1; }
+.deck-corner--tl { top: 6px; left: 6px; border-top: 2px solid; border-left: 2px solid; transform: translate(4px, 4px); }
+.deck-corner--br { bottom: 6px; right: 6px; border-bottom: 2px solid; border-right: 2px solid; transform: translate(-4px, -4px); }
+.deck-shot[data-hot="true"] .deck-corner { transform: none; }
+
+/* Filing: the card dematerialises — this answers the tap. */
+.deck-shot[data-leaving="true"] {
+  animation: deck-leave 520ms var(--nj-ease) forwards;
+}
+@keyframes deck-leave {
+  0% { opacity: 1; filter: none; }
+  40% { opacity: 1; filter: brightness(1.8) saturate(0); box-shadow: 0 0 0 1px var(--hud-green), 0 0 40px -6px var(--hud-green); }
+  100% { opacity: 0.15; filter: blur(6px) brightness(2); transform: scale(0.94) translateY(-6px); }
+}
+
+/* "File it" — a sheen crosses the button on hover. */
+.deck-btn--go {
+  position: relative;
+  overflow: hidden;
+}
+.deck-btn--go::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 0.28) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 600ms var(--nj-ease);
+  pointer-events: none;
+}
+.deck-btn--go:hover:not(:disabled)::after { transform: translateX(120%); }
+
+/* Favorite tiles: glass + glow in their own hue. */
+.deck-tile {
+  background: linear-gradient(160deg, hsl(var(--h, 190) 70% 50% / 0.14), rgb(6 12 22 / 0.7) 60%);
+  border-color: hsl(var(--h, 190) 80% 60% / 0.25);
+  backdrop-filter: blur(6px);
+}
+.deck-tile[data-hot="true"] {
+  border-color: hsl(var(--h, 190) 85% 65%);
+  box-shadow: 0 18px 40px -20px hsl(var(--h, 190) 85% 60%);
+}
+.deck-tile:hover { transform: none; }
+
+/* Toast. */
+.deck-toast {
+  animation: deck-toast-in 320ms var(--nj-ease);
+  border: 1px solid color-mix(in oklab, var(--hud-green) 50%, transparent);
+  background: rgb(6 14 20 / 0.9);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 0 40px -12px var(--hud-green);
+}
+@keyframes deck-toast-in {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* The popup opens like a hologram resolving. */
+.deck-sheet {
+  animation: deck-resolve 360ms var(--nj-ease);
+}
+@keyframes deck-resolve {
+  0% { opacity: 0; transform: scale(0.96); filter: blur(8px) brightness(1.6); clip-path: inset(48% 0 48% 0); }
+  60% { clip-path: inset(0 0 0 0); }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .deck-reactor g,
+  .deck-reactor__heart,
+  .deck-ring::before,
+  .deck-caret::after,
+  .deck-shot[data-leaving="true"],
+  .deck-sheet,
+  .deck-toast {
+    animation: none !important;
+  }
+  .deck-tilt { transform: none !important; }
+}

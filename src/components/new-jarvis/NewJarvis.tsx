@@ -59,6 +59,10 @@ import { AppShell } from "../AppShell";
 // The Dashboard, which now carries Memory, the Profile and the self-audit as
 // panels rather than as three more entries in the rail.
 import { DashboardPanel } from "./DashboardPanel";
+import { Onboarding, type OnboardingStep } from "./Onboarding";
+import { useOnboarding } from "@/lib/new-jarvis/onboarding";
+import { useSetup } from "@/lib/new-jarvis/useSetup";
+import { noteLaunch } from "@/lib/new-jarvis/launcher";
 import { useVault } from "@/lib/new-jarvis/useVault";
 import { noteOpened, useImprove } from "@/lib/new-jarvis/useImprove";
 import { useUpdates } from "@/lib/jarvis/useUpdates";
@@ -232,6 +236,20 @@ export function NewJarvis() {
     [profiles],
   );
   const dash = useDashboardCalendar();
+
+  // --- first-run onboarding --------------------------------------------------
+  // Opens by itself once the synced copy has been checked, so finishing on the
+  // phone means the laptop never asks again. After that it opens only from
+  // "Finish setup".
+  const setup = useSetup();
+  const [onboarding, onboardingSettled] = useOnboarding();
+  const [setupStep, setSetupStep] = useState<OnboardingStep | null>(null);
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (autoOpened.current || !onboardingSettled) return;
+    autoOpened.current = true;
+    if (onboarding.status === "new") setSetupStep("welcome");
+  }, [onboarding.status, onboardingSettled]);
 
   // --- the Dashboard's three feeds ----------------------------------------
   // All three are owned by the SHELL, not by the Dashboard tab. The updates
@@ -615,6 +633,9 @@ ${reflex.best.excerpt ?? ""}`.trim()
     // Device-local on purpose: a phone that never opens Studio must not teach
     // the auditor that the laptop never opens Studio either.
     noteOpened(id);
+    // "Last used" on the Deck. The Dashboard itself is where that row lives,
+    // so returning to it is not a launch worth listing.
+    if (id !== "dashboard") noteLaunch("tab", id, TABS.find((t) => t.id === id)?.label ?? id);
   }, []);
 
   /** An update row naming a tab. Strings, because the feed predates this rail. */
@@ -634,6 +655,20 @@ ${reflex.best.excerpt ?? ""}`.trim()
 
   return (
     <div className="nj">
+      {setupStep && (
+        <Onboarding
+          start={setupStep}
+          onClose={() => {
+            setSetupStep(null);
+            setup.refresh();
+          }}
+          go={goByName}
+          store={store}
+          commit={commit}
+          onProfileChanged={reload}
+          setup={setup}
+        />
+      )}
       <header className="flex shrink-0 items-center gap-2 border-b border-line bg-panel px-3 py-2">
         <Link
           href="/"
@@ -757,6 +792,9 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 bridgeUp={bridge.health.up && bridge.health.paired}
                 queue={queue}
                 go={goByName}
+                ownerName={onboarding.about.call || profile?.name || onboarding.about.name || undefined}
+                setup={setup}
+                onOpenSetup={setSetupStep}
               />
             ) : tab === "console" ? (
               <div className="space-y-2 p-3">
