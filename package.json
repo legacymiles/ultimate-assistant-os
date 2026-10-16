@@ -10,7 +10,11 @@
     "dev:preview": "node scripts/dev-preview.mjs 3210",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:router": "node scripts/check-router.mjs"
+    "check:router": "node scripts/check-router.mjs",
+    "skills:setup": "node scripts/skill-sync.mjs install",
+    "skills:push": "node scripts/skill-sync.mjs push",
+    "skills:pull": "node scripts/skill-sync.mjs pull",
+    "skills:sync": "node scripts/skill-sync.mjs sync"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.80",

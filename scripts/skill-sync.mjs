@@ -24,15 +24,20 @@
 
 import { spawnSync } from "node:child_process";
 import { readdir, readFile, mkdir, writeFile, stat } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const SELF = fileURLToPath(import.meta.url);
+const REPO = path.resolve(path.dirname(SELF), "..");
 const REPO_SKILLS = path.join(REPO, "skills");
-const HOME_SKILLS = process.env.CLAUDE_SKILLS_HOME
-  ? path.join(process.env.CLAUDE_SKILLS_HOME, "skills")
-  : path.join(homedir(), ".claude", "skills");
+const CLAUDE_HOME = process.env.CLAUDE_SKILLS_HOME || path.join(homedir(), ".claude");
+const HOME_SKILLS = path.join(CLAUDE_HOME, "skills");
+// One small config file per machine, written by `install`, read on every run.
+// This is what makes the token "universal": set it once here (PC or VPS) and
+// every push from this machine can write to shared memory, no shell env needed.
+const CONFIG_FILE = path.join(CLAUDE_HOME, "jarvis-skill-sync.json");
 
 const args = new Set(process.argv.slice(2));
 const mode = [...args].find((a) => !a.startsWith("-")) || "sync";
@@ -40,12 +45,28 @@ const CHECK = args.has("--check");
 const QUIET = args.has("--quiet");
 const NO_MEMORY = args.has("--no-memory");
 
+function readConfig() {
+  try {
+    return JSON.parse(readFileSync(CONFIG_FILE, "utf8"));
+  } catch {
+    return {};
+  }
+}
+const CONFIG = readConfig();
+const flagValue = (name) => {
+  const hit = [...args].find((a) => a.startsWith(`${name}=`));
+  if (hit) return hit.slice(name.length + 1);
+  const list = process.argv.slice(2);
+  const i = list.indexOf(name);
+  return i >= 0 && list[i + 1] && !list[i + 1].startsWith("-") ? list[i + 1] : "";
+};
+
 // The shared memory (same rows as Jarvis › Memory, reached by claude.ai and the
 // VPS). A pushed skill is announced here so "what skills do I have" is
-// answerable from memory on any surface. Needs the same JARVIS_MCP_TOKEN the
-// memory connector uses; without it, this step is simply skipped.
-const MEMORY_URL = process.env.JARVIS_MEMORY_URL || "https://ultimate-assistant-os.vercel.app/api/jarvis/memory/mcp";
-const MEMORY_TOKEN = process.env.JARVIS_MCP_TOKEN || "";
+// answerable from memory on any surface. Token/URL come from the environment
+// first, then this machine's config file, then the default deployed hub.
+const MEMORY_URL = process.env.JARVIS_MEMORY_URL || CONFIG.memoryUrl || "https://ultimate-assistant-os.vercel.app/api/jarvis/memory/mcp";
+const MEMORY_TOKEN = process.env.JARVIS_MCP_TOKEN || CONFIG.token || "";
 
 /** Prose and data a SKILL.md links to. Rendered assets (png, fonts, video) stay behind. */
 const TEXT = new Set([".md", ".txt", ".json", ".yaml", ".yml", ".csv", ".tsv", ".html", ".css", ".js", ".mjs", ".ts", ".py"]);
@@ -247,14 +268,74 @@ async function doPush() {
   return names;
 }
 
+/**
+ * Set this machine up once. Same command on a desktop or a VPS, Windows or
+ * Linux — it writes THIS machine's own paths, so nothing is hand-edited:
+ *   - saves the token + memory URL to <claude home>/jarvis-skill-sync.json
+ *   - merges the SessionStart (pull) and Stop (push) hooks into
+ *     <claude home>/settings.json, keeping any hooks already there.
+ */
+async function doInstall() {
+  const token = flagValue("--token") || process.env.JARVIS_MCP_TOKEN || CONFIG.token || "";
+  const memoryUrl = flagValue("--memory-url") || process.env.JARVIS_MEMORY_URL || CONFIG.memoryUrl || "https://ultimate-assistant-os.vercel.app/api/jarvis/memory/mcp";
+
+  // 1. Config file (token lives here, read on every run on this machine).
+  const cfg = { ...CONFIG, memoryUrl, repo: REPO };
+  if (token) cfg.token = token;
+  if (CHECK) {
+    log(`[check] would write ${CONFIG_FILE} with memoryUrl + ${token ? "token" : "no token (set later)"} and repo ${REPO}`);
+  } else {
+    await mkdir(CLAUDE_HOME, { recursive: true });
+    await writeFile(CONFIG_FILE, JSON.stringify(cfg, null, 2) + "\n");
+    log(`Wrote ${CONFIG_FILE}`);
+  }
+
+  // 2. Hooks, with this machine's resolved node + script path (quoted for spaces).
+  const node = process.execPath;
+  const q = (s) => `"${s.replace(/"/g, '\\"')}"`;
+  const cmd = (m) => `${q(node)} ${q(SELF)} ${m} --quiet`;
+  const settingsFile = path.join(CLAUDE_HOME, "settings.json");
+  let settings = {};
+  try {
+    settings = JSON.parse(readFileSync(settingsFile, "utf8"));
+  } catch {
+    /* no settings yet */
+  }
+  settings.hooks ??= {};
+  // Replace only our own entries (match on skill-sync.mjs), keep everyone else's.
+  const mine = (event, m) => ({ hooks: [{ type: "command", command: cmd(m) }] });
+  const keepOthers = (arr) =>
+    (Array.isArray(arr) ? arr : []).filter(
+      (g) => !(g?.hooks ?? []).some((h) => typeof h?.command === "string" && h.command.includes("skill-sync.mjs")),
+    );
+  settings.hooks.SessionStart = [...keepOthers(settings.hooks.SessionStart), mine("SessionStart", "pull")];
+  settings.hooks.Stop = [...keepOthers(settings.hooks.Stop), mine("Stop", "push")];
+
+  if (CHECK) {
+    log(`[check] would merge SessionStart→pull and Stop→push into ${settingsFile}`);
+  } else {
+    await writeFile(settingsFile, JSON.stringify(settings, null, 2) + "\n");
+    log(`Merged hooks into ${settingsFile} (SessionStart→pull, Stop→push)`);
+  }
+
+  // 3. Pull now so the machine is current immediately, and report memory state.
+  if (!CHECK) await doPull();
+  log(
+    token
+      ? "Done. Skills will auto-sync, and pushes from here will register skills in shared memory."
+      : "Done. Skills will auto-sync. Add your token to enable memory writes: run install again with --token <TOKEN>, or set JARVIS_MCP_TOKEN.",
+  );
+}
+
 try {
-  if (mode === "pull") await doPull();
+  if (mode === "install" || mode === "setup") await doInstall();
+  else if (mode === "pull") await doPull();
   else if (mode === "push") await doPush();
   else if (mode === "sync") {
     await doPull();
     await doPush();
   } else {
-    log(`Unknown mode "${mode}". Use: push | pull | sync  [--check] [--quiet]`);
+    log(`Unknown mode "${mode}". Use: install | push | pull | sync  [--check] [--quiet]`);
     process.exit(2);
   }
 } catch (e) {

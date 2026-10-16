@@ -19,6 +19,21 @@ It only ever **adds or updates** — it never deletes a skill, so a mirror can't
 `SKILL.md` and the text files under `references/` travel; rendered assets and files over 256 KB stay
 put (same rule as `sync-skills.mjs`).
 
+## Easiest: one command per machine
+
+In your hub folder, on each machine (PC and VPS, Windows or Linux):
+
+```bash
+npm run skills:setup -- --token YOUR_JARVIS_MCP_TOKEN
+```
+
+That writes this machine's config (`~/.claude/jarvis-skill-sync.json`) and merges the two hooks
+below into `~/.claude/settings.json` with this machine's own resolved paths — nothing hand-edited —
+then pulls your skills right away. It's idempotent: re-running replaces only its own hooks and keeps
+everything else. Jarvis › Memory › **Skills everywhere** shows the command with your token filled in
+and a Generate button for a fresh one. Leave the token off to set it later (`--token` again, or the
+`JARVIS_MCP_TOKEN` env var); without a token, skills still sync but aren't written to memory.
+
 ## Run it by hand
 
 ```bash
