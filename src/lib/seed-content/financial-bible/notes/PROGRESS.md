@@ -11,7 +11,7 @@ Updated after every batch so a dropped connection loses nothing. Resume from the
 - [x] Webinar Mastery — 48 lessons → notes/webinar-mastery.md
 
 ## Resume point
-ALL 4 COURSES READ (226 lessons). Next: build structured data (src/lib/seed-content/financial-bible/*.ts) and the Funding room.
+ALL 4 COURSES READ (226 lessons). Structured data + Funding room built (PR #2).
 Still unread (attachments that need a download): FinalCreditUnionSecrets.pdf, Funding Documentation Checklist.pdf, Pre-QualificationQuestions.pdf, Funding Document Upload Form.pdf, SECURED BANKING PRODUCTS LIST.docx, Funding Template.xlsx, Funding WorkFlow.pdf, client funding agreement .docx; Canva decks; Fathom call audio.
 
 ## Video-only lessons (no written notes on the page — watch these yourself)
