@@ -59,8 +59,8 @@ import { AppShell } from "../AppShell";
 // The Dashboard, which now carries Memory, the Profile and the self-audit as
 // panels rather than as three more entries in the rail.
 import { DashboardPanel } from "./DashboardPanel";
-import { Onboarding, type OnboardingStep } from "./Onboarding";
-import { useOnboarding } from "@/lib/new-jarvis/onboarding";
+import { Onboarding, SetupButton, resumeStep, type OnboardingStep } from "./Onboarding";
+import { getOnboarding, useOnboarding } from "@/lib/new-jarvis/onboarding";
 import { useSetup } from "@/lib/new-jarvis/useSetup";
 import { noteLaunch } from "@/lib/new-jarvis/launcher";
 import { useVault } from "@/lib/new-jarvis/useVault";
@@ -84,6 +84,12 @@ type TabId =
   | "skills" | "tools" | "passwords" | "calls" | "router" | "architect" | "timeline" | "plugins" | "settings";
 
 type Tab = { id: TabId; label: string; icon: keyof typeof Icon };
+
+/** Options a programmatic submit can set — the onboarding hand-off uses both. */
+type SubmitOpts = { mode?: Mode; skipReflex?: boolean };
+
+/** What, typed in the chat, reopens setup rather than going to the model. */
+const SETUP_COMMAND = /^\/?(?:(?:open|start|resume|run|redo|restart|finish)\s+)?(?:the\s+|my\s+)?(?:setup|set\s*up(?:\s+jarvis)?|onboarding)[.!?]?$/i;
 
 /**
  * The rail — five entries instead of thirteen.
@@ -239,8 +245,9 @@ export function NewJarvis() {
 
   // --- first-run onboarding --------------------------------------------------
   // Opens by itself once the synced copy has been checked, so finishing on the
-  // phone means the laptop never asks again. After that it opens only from
-  // "Finish setup".
+  // phone means the laptop never asks again. After that it opens from the
+  // Setup button in the top bar, the "setup" chat command, #setup, or Profile's
+  // "Finish setup" — and always on the step it was closed on.
   const setup = useSetup();
   const [onboarding, onboardingSettled] = useOnboarding();
   const [setupStep, setSetupStep] = useState<OnboardingStep | null>(null);
@@ -250,6 +257,12 @@ export function NewJarvis() {
     autoOpened.current = true;
     if (onboarding.status === "new") setSetupStep("welcome");
   }, [onboarding.status, onboardingSettled]);
+  const openSetup = useCallback(() => {
+    setSetupStep(resumeStep(getOnboarding().lastStep, setup.items));
+  }, [setup.items]);
+  // The hash router below is mounted once; it reaches the current opener here.
+  const openSetupRef = useRef(openSetup);
+  openSetupRef.current = openSetup;
 
   // --- the Dashboard's three feeds ----------------------------------------
   // All three are owned by the SHELL, not by the Dashboard tab. The updates
@@ -388,7 +401,7 @@ export function NewJarvis() {
 
   // Voice needs to call submit, and submit needs to speak the answer. The ref
   // breaks that cycle without either one being recreated on every keystroke.
-  const submitRef = useRef<(text?: string, source?: Block["source"]) => void>(() => {});
+  const submitRef = useRef<(text?: string, source?: Block["source"], opts?: SubmitOpts) => void>(() => {});
 
   const voice = useWakeVoice({
     speakReplies,
@@ -494,9 +507,17 @@ export function NewJarvis() {
   );
 
   const submit = useCallback(
-    async (rawText?: string, source: Block["source"] = "typed") => {
+    async (rawText?: string, source: Block["source"] = "typed", opts: SubmitOpts = {}) => {
       const command = (rawText ?? input).trim();
       if (!command) return;
+      const runMode = opts.mode ?? mode;
+
+      // "setup" / "onboarding" in the box reopens setup instead of asking the model.
+      if (source === "typed" && SETUP_COMMAND.test(command)) {
+        setInput("");
+        openSetupRef.current();
+        return;
+      }
 
       // The reflex gets first refusal.
       //
@@ -505,8 +526,8 @@ export function NewJarvis() {
       // something. `wait` is advisory — pressing enter on a half-sentence is
       // the owner overruling it, and a box that refuses to submit is a box
       // people come to hate.
-      if (source === "typed" && overrideFor !== command && savedACall(reflex.route)) {
-        const block = newBlock({ command, mode, source });
+      if (source === "typed" && !opts.skipReflex && overrideFor !== command && savedACall(reflex.route)) {
+        const block = newBlock({ command, mode: runMode, source });
         setBlocks((bs) => [
           {
             ...block,
@@ -528,7 +549,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
 
       if (source === "typed") setInput("");
 
-      const block = newBlock({ command, mode, source });
+      const block = newBlock({ command, mode: runMode, source });
       setBlocks((bs) => [block, ...bs].slice(0, MAX_LIVE_BLOCKS));
       setTab("console");
 
@@ -537,7 +558,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
       const history = historyFor();
 
       const outcome = await runBlock(
-        { command, mode, history },
+        { command, mode: runMode, history },
         {
           signal: controller.signal,
           update: (p) => patch(block.id, p),
@@ -548,7 +569,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
               signal: controller.signal,
               body: JSON.stringify({
                 messages,
-                mode,
+                mode: runMode,
                 capabilities: bridge.health.paired ? bridge.health.capabilities ?? {} : {},
                 ownerName: profile?.name ?? "",
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -587,7 +608,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
   );
 
   useEffect(() => {
-    submitRef.current = (text, source) => void submit(text, source);
+    submitRef.current = (text, source, opts) => void submit(text, source, opts);
   }, [submit]);
 
   const answerGate = useCallback(
@@ -617,6 +638,12 @@ ${reflex.best.excerpt ?? ""}`.trim()
   useEffect(() => {
     const read = () => {
       const h = window.location.hash.replace("#", "");
+      // A shareable way back into setup: /apps/new-jarvis#setup
+      if (h === "setup" || h === "onboarding") {
+        openSetupRef.current();
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        return;
+      }
       if (isTab(h)) setTab(h);
     };
     read();
@@ -667,6 +694,18 @@ ${reflex.best.excerpt ?? ""}`.trim()
           commit={commit}
           onProfileChanged={reload}
           setup={setup}
+          bridge={{
+            files: bridge.health.up && bridge.health.paired && bridge.health.capabilities?.files === true,
+            browser: bridge.health.up && bridge.health.paired && bridge.health.capabilities?.browser === true,
+            run: bridge.run,
+          }}
+          ask={(task) => {
+            // Straight to the super-agent, in Do mode so it can use the browser
+            // and files, and past the reflex — this is a job, not a question.
+            setTab("console");
+            window.location.hash = "console";
+            submitRef.current(task, "typed", { mode: "do", skipReflex: true });
+          }}
         />
       )}
       <header className="flex shrink-0 items-center gap-2 border-b border-line bg-panel px-3 py-2">
@@ -681,9 +720,12 @@ ${reflex.best.excerpt ?? ""}`.trim()
         <span className="hidden text-xs text-ink-muted sm:inline">
           · {profile ? `${profile.name}'s assistant` : "the console"}
         </span>
+        <div className="ml-auto">
+          <SetupButton setup={setup} onOpen={openSetup} />
+        </div>
         <Link
           href="/apps/jarvis"
-          className="ml-auto rounded-lg border border-line px-2 py-1 text-[11px] text-ink-muted transition hover:bg-panel-2 hover:text-ink"
+          className="rounded-lg border border-line px-2 py-1 text-[11px] text-ink-muted transition hover:bg-panel-2 hover:text-ink"
         >
           Old Jarvis
         </Link>

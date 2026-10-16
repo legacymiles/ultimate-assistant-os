@@ -3,9 +3,11 @@
 // ---------------------------------------------------------------------------
 // First-run onboarding for New Jarvis.
 //
-// Shown once, on first open, and skippable at every step. Whatever is skipped
-// shows up as the "Finish setup" checklist at the top of Dashboard › Profile,
-// which is where the owner (or any user of the hub) completes it later.
+// Shown once, on first open, and skippable at every step — or skipped
+// entirely. It is always one click away again: the Setup button in the top
+// bar, the "setup" command in the chat, the #setup link, and the "Finish
+// setup" checklist in Dashboard › Profile. It reopens on the step the owner
+// left, not back at Welcome.
 //
 // The answers do not live only here. Each step writes into the store that
 // already owns that fact — the name into the Profile, "what I do" into Jarvis
@@ -20,7 +22,8 @@ import { useRemotePull } from "@/lib/sync/useSync";
 export const ONBOARDING_KEY = "jarvis-onboarding:v1";
 const CHANGED = "jarvis-onboarding-changed";
 
-export type OnboardingStatus = "new" | "later" | "done";
+/** "skipped" = the owner said "skip setup entirely": never auto-opens again. */
+export type OnboardingStatus = "new" | "later" | "done" | "skipped";
 
 export interface OnboardingData {
   status: OnboardingStatus;
@@ -29,6 +32,8 @@ export interface OnboardingData {
   photoHabits: string[];
   /** Steps the owner has been through, done or skipped. */
   seen: string[];
+  /** Where they were when they closed it, so reopening resumes there. */
+  lastStep: string;
   updatedAt: string;
 }
 
@@ -37,8 +42,36 @@ export const EMPTY_ONBOARDING: OnboardingData = {
   about: { name: "", call: "", role: "", businesses: "", goals: [] },
   photoHabits: [],
   seen: [],
+  lastStep: "",
   updatedAt: "",
 };
+
+/** One tap answers for "What do you do?" — typing is still allowed. */
+export const ROLES = [
+  "Business owner",
+  "Funding broker",
+  "Contractor",
+  "Music producer",
+  "Developer",
+  "Trader",
+  "Real estate",
+  "Content creator",
+  "Student",
+];
+
+/** Name suggestions for "What should I call you?", from what they typed as their name. */
+export function callSuggestions(name: string): string[] {
+  const first = name.trim().split(/\s+/)[0] ?? "";
+  return [...new Set([first, "Boss", "Chief", "Sir"].filter(Boolean))];
+}
+
+/** "a, b , c" ↔ ["a","b","c"] — businesses are typed as chips but stored as text. */
+export function splitList(text: string): string[] {
+  return text
+    .split(/[,\n]/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
 
 export const GOALS = [
   "Run my businesses",
@@ -58,6 +91,7 @@ export function getOnboarding(): OnboardingData {
     about: { ...EMPTY_ONBOARDING.about, ...(d.about ?? {}) },
     photoHabits: Array.isArray(d.photoHabits) ? d.photoHabits : [],
     seen: Array.isArray(d.seen) ? d.seen : [],
+    lastStep: typeof d.lastStep === "string" ? d.lastStep : "",
   };
 }
 
@@ -87,7 +121,7 @@ export function useOnboarding(): [OnboardingData, boolean] {
 }
 
 export interface SetupItem {
-  id: "about" | "accounts" | "iphone" | "habits" | "favorites";
+  id: "about" | "keys" | "accounts" | "iphone" | "habits" | "favorites";
   label: string;
   detail: string;
   done: boolean;
@@ -100,6 +134,8 @@ export function setupChecklist(input: {
   iphoneLinked: boolean;
   rules: number;
   favorites: number;
+  /** An AI key is set (OpenRouter or the gateway). Unknown counts as not yet. */
+  thinkingReady?: boolean;
 }): SetupItem[] {
   const a = input.onboarding.about;
   return [
@@ -108,6 +144,12 @@ export function setupChecklist(input: {
       label: "Tell Jarvis about you",
       detail: "Your name, what you do and your businesses",
       done: Boolean(a.name.trim() && a.role.trim()),
+    },
+    {
+      id: "keys",
+      label: "Add your AI key",
+      detail: "Paste it, or let Jarvis go and get it for you",
+      done: Boolean(input.thinkingReady),
     },
     {
       id: "accounts",
