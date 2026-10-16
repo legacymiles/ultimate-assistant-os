@@ -433,7 +433,7 @@ export function Deck({ go, ownerName, unread, setupLeft, onSetup }: Props) {
                   Camera Autopilot
                 </h2>
                 <p className="text-[11.5px] text-ink-muted">
-                  New photos not filed yet{analyzing ? ` · reading ${analyzing}…` : ""}. Tap one to discuss it with Jarvis.
+                  New photos not filed yet{analyzing ? ` · reading ${analyzing} now` : ""}. Tap one to discuss it with Jarvis.
                 </p>
               </div>
               <div className="flex flex-wrap gap-1.5">

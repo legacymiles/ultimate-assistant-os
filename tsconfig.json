@@ -75,13 +75,14 @@
     ".next-preview-3277/types/**/*.ts",
     ".next-ssbuild/types/**/*.ts",
     ".next-verify-cx/types/**/*.ts",
+    ".next-verify-nj/types/**/*.ts",
     ".next-verify-push/types/**/*.ts",
     ".next-verify-sheet/types/**/*.ts",
     ".next-verify-studio/types/**/*.ts",
     ".next-verify/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-verify-nj/types/**/*.ts"
+    ".next-preview-3311/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
