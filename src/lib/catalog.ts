@@ -672,8 +672,12 @@ export const PROJECTS: CatalogProject[] = [
       + "insurance, branding or marketing. Those are nine buttons at the foot of the plan that generate "
       + "nothing until you press one. And anything legal — permits, resale certificates, selling food — "
       + "comes back as a question with somebody to ask, never as an answer, because no app knows the "
-      + "rules where you live. The other three rooms (Deal Scout, Money Plays, Funding) say what they "
-      + "will hold and admit they are not built yet.",
+      + "rules where you live. The Funding room is a loan broker's desk reference built from the "
+      + "owner's 6 Figure Funder course: type in a client's report numbers and one sheet says whether "
+      + "they're fundable, roughly how much (2–3x their personal available credit) and which of ~90 "
+      + "lenders fit, soft pulls first; every lender's bureau, minimums, velocity rules and tips sit in "
+      + "a filterable table beside cheat sheets, plays, mistakes, call scripts and an index of all 226 "
+      + "lessons. Deal Scout and Money Plays say what they will hold and admit they are not built yet.",
     status: "live",
     appUrl: "/apps/financial-bible",
     iconStyle: "rings",

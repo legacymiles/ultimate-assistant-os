@@ -2,8 +2,8 @@
 // The Bible's rooms, named once.
 //
 // This app is several applications behind one front door, the way EA World and
-// Jarvis Audio Studio are (src/lib/ea-world/studios.ts). Build Plans is built;
-// the other three are declared here with `built: false` and render a panel
+// Jarvis Audio Studio are (src/lib/ea-world/studios.ts). Build Plans and Funding are built;
+// the other two are declared here with `built: false` and render a panel
 // saying what they will hold. That is deliberate: the owner is filling a
 // building, and he should be able to see its shape.
 //
@@ -64,9 +64,9 @@ export const ROOMS: RoomDef[] = [
     label: "Funding",
     hint: "where does the money come from?",
     blurb:
-      "Grants, loans and the other places starting capital actually comes from, with what each one "
-      + "demands of you before it hands anything over. Not built yet.",
-    built: false,
+      "The broker's desk reference from the 6 Figure Funder course: qualify a client in one sheet, every "
+      + "lender's rules and minimums, cheat sheets, plays, mistakes and call scripts — searchable.",
+    built: true,
     hue: 320,
   },
 ];

@@ -1,0 +1,196 @@
+/* ---------------------------------------------------------------------------
+   Funding room — same chassis and paper as Build Plans. The one loud thing is
+   the verdict sheet; everything else is a dense table you scan.
+   --------------------------------------------------------------------------- */
+
+.fund { max-width: 1320px; }
+.fund-search input { width: 260px; }
+.fund-flash { margin: -6px 0 14px; font-size: 12.5px; color: var(--accent); }
+
+/* tabs: a quiet segmented strip */
+.fund-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 18px;
+  padding: 3px;
+  border: 1px solid var(--hair);
+  border-radius: 9px;
+  background: var(--chassis-2);
+  overflow-x: auto;
+}
+.fund-tabs button {
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--chrome);
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.fund-tabs button:hover { color: var(--chrome-bright); }
+.fund-tabs button[data-active="true"] { background: var(--chassis-3); color: var(--chrome-bright); box-shadow: inset 0 -2px 0 var(--accent); }
+
+/* search results */
+.fund-hits { display: flex; flex-direction: column; border: 1px solid var(--hair); border-radius: 12px; background: var(--chassis-2); overflow: hidden; }
+.fund-hit {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 260px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: baseline;
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 1px solid #1c212b;
+  background: transparent;
+  color: var(--chrome-bright);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.fund-hit:hover { background: #171c25; }
+.fund-hit:last-child { border-bottom: 0; }
+.fund-hit-kind { font-size: 11.5px; color: var(--chrome); }
+.fund-hit-kind[data-k="lender"] { color: var(--accent); }
+.fund-hit-kind[data-k="left-out"] { color: #e8a9a3; }
+.fund-hit-title { font-size: 13.5px; font-weight: 550; }
+.fund-hit-line { font-size: 12.5px; color: var(--chrome); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fund-none { padding: 18px; margin: 0; color: var(--chrome); font-size: 13.5px; }
+
+/* ---- qualify -------------------------------------------------------------- */
+.fund-qualify { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.fund-form { max-width: none; }
+.fund-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.fund-grid .bible-field { margin-bottom: 12px; }
+.fund-grid .bible-field > label { min-height: 2.6em; }
+.fund-flags { flex-direction: column; }
+.fund-flags label { display: flex; gap: 8px; align-items: center; }
+.fund-flags input { position: static; opacity: 1; pointer-events: auto; accent-color: var(--thread); }
+
+.fund-verdict { position: sticky; top: 12px; }
+.fund-verdict-word { font-size: 30px; font-weight: 650; letter-spacing: -0.025em; line-height: 1.05; }
+.fund-verdict-word[data-v="ready"] { color: var(--ok); }
+.fund-verdict-word[data-v="almost"] { color: var(--warn); }
+.fund-verdict-word[data-v="not-yet"] { color: var(--thread); }
+.fund-verdict-word[data-v="incomplete"] { color: var(--ink-3); font-size: 22px; }
+.fund-basis { margin: -8px 0 16px; font-size: 13px; color: var(--ink-2); }
+
+.fund-checks { list-style: none; padding: 0 !important; }
+.fund-checks li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.fund-checks li:last-child { border-bottom: 0; }
+.fund-checks b { color: var(--ink); font-weight: 600; }
+.fund-checks span { color: var(--ink-2); font-size: 13.5px; }
+.fund-checks p { margin: 2px 0 0; font-size: 13px; color: var(--ink-2); }
+.fund-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font-size: 12px; font-weight: 700; color: var(--paper); background: var(--ink-3); }
+.fund-checks li[data-s="pass"] .fund-mark { background: var(--ok); }
+.fund-checks li[data-s="warn"] .fund-mark { background: var(--warn); }
+.fund-checks li[data-s="fail"] .fund-mark { background: var(--thread); }
+.fund-checks li[data-s="unknown"] .fund-mark { background: #c7bea9; }
+
+.fund-short { width: 100%; border-collapse: collapse; font-size: 13px; }
+.fund-short td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--rule); vertical-align: top; color: var(--ink-2); }
+.fund-short tr { cursor: pointer; }
+.fund-short tr:hover td { background: #ffffff70; }
+.fund-why { font-size: 12px; }
+.fund-link { padding: 0; border: 0; background: none; color: var(--ink); font: inherit; font-weight: 600; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+
+/* ---- lenders -------------------------------------------------------------- */
+.fund-filters { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.fund-filter-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+.fund-filter-row select,
+.fund-state {
+  padding: 6px 9px;
+  border: 1px solid var(--hair);
+  border-radius: 6px;
+  background: var(--chassis-2);
+  color: var(--chrome-bright);
+  font: inherit;
+  font-size: 12.5px;
+}
+.fund-state { width: 64px; text-transform: uppercase; }
+.fund-check { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--chrome); cursor: pointer; }
+.fund-check input { accent-color: var(--accent); }
+.fund-count { margin-left: auto; font-size: 12px; color: var(--chrome); }
+
+.fund-table-wrap { overflow-x: auto; }
+.fund-table td { vertical-align: top; }
+.fund-products { max-width: 380px; font-size: 12.5px; color: #aab3c2; }
+.fund-states { font-size: 11.5px; color: var(--chrome); max-width: 140px; }
+.fund-verify { margin-top: 3px; font-size: 11.5px; color: #d4a65a; }
+.fund-table tr[data-open="true"] { background: #171c25; }
+.fund-detail-row { cursor: default !important; }
+.fund-detail-row:hover { background: transparent !important; }
+.fund-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 6px 26px; padding: 4px 0 8px; }
+.fund-detail h4 { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--accent); }
+.fund-detail ul { margin: 0; padding-left: 16px; font-size: 13px; line-height: 1.55; color: #c3cad6; }
+.fund-detail p { margin: 0 0 4px; font-size: 13px; color: #c3cad6; }
+.fund-detail .fund-src { grid-column: 1 / -1; }
+
+[data-hl="true"] { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+
+/* ---- reference ---------------------------------------------------------- */
+.fund-h2 { margin: 26px 0 10px; font-size: 17px; letter-spacing: -0.01em; color: var(--chrome-bright); }
+.fund-lede { max-width: 72ch; margin: 0 0 14px; font-size: 13.5px; line-height: 1.6; color: #aab3c2; }
+.fund-src { font-size: 11.5px; color: var(--ink-3); }
+.fund-tips .fund-src, .fund-left .fund-src, .fund-detail .fund-src { color: #5c6675; }
+.fund-use { margin: 0 0 12px; font-size: 13px; color: var(--ink-3); }
+
+.fund-cheats, .fund-scripts { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 18px; align-items: start; }
+.fund-cheat .bible-sheet-body { padding-top: 18px; }
+.fund-cheat h2 { margin: 0 0 2px; font-size: 18px; letter-spacing: -0.01em; }
+.fund-cheat dl { margin: 0 0 10px; }
+.fund-cheat dl > div { display: grid; grid-template-columns: 38% minmax(0, 1fr); gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.fund-cheat dt { font-weight: 600; font-size: 13.5px; color: var(--ink); }
+.fund-cheat dd { margin: 0; font-size: 13.5px; color: var(--ink-2); }
+.fund-script { margin: 0; padding-left: 20px; font-size: 14px; color: var(--ink-2); }
+.fund-script li { margin-bottom: 6px; }
+
+.fund-seqs { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+.fund-seq { padding: 16px 18px; border: 1px solid var(--hair); border-radius: 12px; background: var(--chassis-2); }
+.fund-seq h3 { margin: 0 0 2px; font-size: 15px; }
+.fund-seq .fund-use { color: var(--chrome); }
+.fund-seq ol { margin: 0 0 8px; padding-left: 20px; font-size: 13.5px; line-height: 1.55; color: #c3cad6; }
+.fund-seq li { margin-bottom: 5px; }
+.fund-seq b { color: var(--chrome-bright); font-weight: 600; }
+.fund-seq .fund-src { color: #5c6675; }
+
+.fund-areas { margin-bottom: 10px; }
+.fund-tips { list-style: none; margin: 0; padding: 0; columns: 2 420px; column-gap: 26px; }
+.fund-tips li { break-inside: avoid; padding: 10px 0 12px; border-bottom: 1px solid var(--hair); }
+.fund-tips b { font-size: 14px; color: var(--chrome-bright); }
+.fund-tips p { margin: 3px 0 4px; font-size: 13.5px; line-height: 1.6; color: #aab3c2; }
+
+.fund-static tbody tr { cursor: default; }
+.fund-static td { vertical-align: top; font-size: 13px; color: #c3cad6; }
+.fund-left { margin: 0; padding-left: 18px; max-width: 90ch; }
+.fund-left li { margin-bottom: 10px; font-size: 13.5px; line-height: 1.6; color: #aab3c2; }
+.fund-left b { color: #e8a9a3; font-weight: 600; }
+
+.fund-resources { grid-column: 1 / -1; }
+.fund-resources ul { margin: 0; padding-left: 18px; columns: 2 360px; column-gap: 26px; }
+.fund-resources li { margin-bottom: 8px; font-size: 13.5px; color: #aab3c2; break-inside: avoid; }
+.fund-resources a { color: var(--chrome-bright); text-decoration-color: var(--accent-dim); text-underline-offset: 3px; }
+.fund-resources span { display: block; font-size: 12.5px; color: var(--chrome); }
+
+.fund-lesson-links { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 3px; font-size: 11.5px; }
+.fund-lesson-links a { color: var(--accent); }
+.fund-lesson-links span { color: var(--chrome); }
+.fund-video { color: #d4a65a; }
+
+@media (max-width: 1100px) {
+  .fund-qualify { grid-template-columns: 1fr; }
+  .fund-verdict { position: relative; top: 0; }
+}
+
+@media (max-width: 640px) {
+  .fund-search { flex: 1 1 100%; }
+  .fund-search input { width: 100%; }
+  .bible-vault-tools { width: 100%; flex-wrap: wrap; }
+  .fund-grid { grid-template-columns: 1fr; }
+  .fund-grid .bible-field > label { min-height: 0; }
+  .fund-hit { grid-template-columns: 1fr; gap: 2px; }
+  .fund-hit-line { white-space: normal; }
+  .fund-cheats, .fund-scripts, .fund-seqs { grid-template-columns: 1fr; }
+  .fund-cheat dl > div { grid-template-columns: 1fr; gap: 2px; }
+  .fund-count { margin-left: 0; }
+}

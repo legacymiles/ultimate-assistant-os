@@ -271,7 +271,7 @@ export function matchLenders(p: ClientProfile): LenderMatch[] {
     if (l.pull === "soft" || l.pull === "soft-prequal") why.push("soft-pull first");
     if (l.minMonthlyRevenue) why.push(`revenue ≥ ${money(l.minMonthlyRevenue)}/mo`);
     if (l.products.some((pr) => pr.docs === "none")) why.push("no-doc option");
-    if (l.states?.length) why.push(`in-footprint (${state})`);
+    if (l.states?.length) why.push(state ? `in-footprint (${state})` : `only ${l.states.join("/")}`);
     if (l.rules?.some((r) => /one (hard )?pull|1 hard (pull|inquiry)|on one/i.test(r))) why.push("several products, one pull");
 
     const rank =

@@ -5,7 +5,7 @@
 //
 // It owns exactly two things: which room is mounted, and the home base every
 // room needs. It does not know what a plan is. Adding the next room is an
-// object in src/lib/bible/rooms.ts plus one line in MOUNTS.
+// object in src/lib/bible/rooms.ts plus one branch where rooms mount below.
 //
 // The store is deliberately not lifted up here. Build Plans loads the same
 // store through the same module, which keeps the shell free of the app's data
@@ -22,6 +22,11 @@ import "./bible.css";
 
 // One room's worth of JavaScript at a time.
 const PlansRoom = dynamic(() => import("./plans/IdeaTable").then((m) => m.PlansRoom), {
+  ssr: false,
+  loading: () => <div className="bible-skeleton" />,
+});
+
+const FundingRoom = dynamic(() => import("./funding/FundingRoom").then((m) => m.FundingRoom), {
   ssr: false,
   loading: () => <div className="bible-skeleton" />,
 });
@@ -90,7 +95,13 @@ export function Bible({ initialRoom }: { initialRoom: RoomId | null }) {
       {ready && <HomeBaseStrip base={homeBase} onSave={saveBase} />}
 
       <main className="bible-room">
-        {def.built ? <PlansRoom homeBase={homeBase} /> : <EmptyRoom room={def} />}
+        {!def.built ? (
+          <EmptyRoom room={def} />
+        ) : room === "funding" ? (
+          <FundingRoom />
+        ) : (
+          <PlansRoom homeBase={homeBase} />
+        )}
       </main>
     </div>
   );

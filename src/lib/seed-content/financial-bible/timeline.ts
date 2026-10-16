@@ -22,7 +22,7 @@ const money = (n?: number) => (n ? `$${n.toLocaleString("en-US")}` : "—");
 
 function lenderTable(kind: string, label: string): string {
   const rows = LENDERS.filter((l) => l.kind === kind).map((l) => {
-    const products = l.products.map((p) => `${p.side} ${p.kind}${p.max ? ` ≤${money(p.max)}` : ""}${p.docs ? ` (${p.docs}-doc)` : ""}`).join("; ");
+    const products = l.products.map((p) => `${p.side} ${p.kind}${p.max ? ` ≤${money(p.max)}` : ""}${p.docs ? ` (${p.docs === "none" ? "no" : p.docs}-doc)` : ""}`).join("; ");
     const reqs = [l.minScore && `${l.minScore}+`, l.minTibMonths && `${l.minTibMonths} mo TIB`, l.minMonthlyRevenue && `${money(l.minMonthlyRevenue)}/mo`]
       .filter(Boolean)
       .join(", ");
