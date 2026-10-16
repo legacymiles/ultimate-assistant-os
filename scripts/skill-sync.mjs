@@ -38,6 +38,14 @@ const args = new Set(process.argv.slice(2));
 const mode = [...args].find((a) => !a.startsWith("-")) || "sync";
 const CHECK = args.has("--check");
 const QUIET = args.has("--quiet");
+const NO_MEMORY = args.has("--no-memory");
+
+// The shared memory (same rows as Jarvis › Memory, reached by claude.ai and the
+// VPS). A pushed skill is announced here so "what skills do I have" is
+// answerable from memory on any surface. Needs the same JARVIS_MCP_TOKEN the
+// memory connector uses; without it, this step is simply skipped.
+const MEMORY_URL = process.env.JARVIS_MEMORY_URL || "https://ultimate-assistant-os.vercel.app/api/jarvis/memory/mcp";
+const MEMORY_TOKEN = process.env.JARVIS_MCP_TOKEN || "";
 
 /** Prose and data a SKILL.md links to. Rendered assets (png, fonts, video) stay behind. */
 const TEXT = new Set([".md", ".txt", ".json", ".yaml", ".yml", ".csv", ".tsv", ".html", ".css", ".js", ".mjs", ".ts", ".py"]);
@@ -155,31 +163,88 @@ async function doPull() {
   return changed.length;
 }
 
+/** The `description:` from a SKILL.md frontmatter, flattened to one line. */
+async function overviewOf(name) {
+  try {
+    const body = await readFile(path.join(REPO_SKILLS, name, "SKILL.md"), "utf8");
+    const fm = body.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!fm) return "";
+    const lines = fm[1].split(/\r?\n/);
+    const i = lines.findIndex((l) => /^description\s*:/i.test(l));
+    if (i < 0) return "";
+    const inline = lines[i].replace(/^description\s*:/i, "").trim();
+    if (inline && !/^[>|]/.test(inline)) return inline.replace(/^["']|["']$/g, "");
+    // Block scalar: collect the indented lines that follow.
+    const out = [];
+    for (let j = i + 1; j < lines.length && /^\s+\S/.test(lines[j]); j++) out.push(lines[j].trim());
+    return out.join(" ");
+  } catch {
+    return "";
+  }
+}
+
+/** Announce changed skills into the shared memory. Best-effort: never throws. */
+async function registerMemory(names) {
+  if (NO_MEMORY || CHECK || !names.length) return;
+  if (!MEMORY_TOKEN) {
+    vlog("memory: JARVIS_MCP_TOKEN not set — skills mirrored and deployed, but not written to shared memory.");
+    return;
+  }
+  let ok = 0;
+  for (const name of names) {
+    const overview = (await overviewOf(name)) || "A Claude Code skill.";
+    const content = `Skill "${name}": ${overview} Lives in the hub repo at skills/${name} and in ~/.claude/skills/${name}; loadable in every Claude Code session.`;
+    const rpc = {
+      jsonrpc: "2.0",
+      id: `skill-${name}`,
+      method: "tools/call",
+      params: {
+        name: "save_memory",
+        arguments: { content: content.slice(0, 900), title: `Skill: ${name}`, tags: ["skill", name], origin: "skill-sync", source: "chat" },
+      },
+    };
+    try {
+      const res = await fetch(MEMORY_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${MEMORY_TOKEN}` },
+        body: JSON.stringify(rpc),
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (res.ok) ok++;
+      else vlog(`memory: ${name} -> HTTP ${res.status}`);
+    } catch (e) {
+      vlog(`memory: ${name} -> ${e instanceof Error ? e.message : "request failed"}`);
+    }
+  }
+  if (ok) log(`memory: registered ${ok}/${names.length} skill(s) in shared memory.`);
+}
+
 async function doPush() {
   const { changed, skipped } = await mirror(HOME_SKILLS, REPO_SKILLS, "push");
   if (skipped.length) vlog(`push: left behind ${skipped.length} asset/oversize file(s): ${skipped.slice(0, 5).join(", ")}${skipped.length > 5 ? " …" : ""}`);
+  const names = [...new Set(changed.map((c) => c.split("/")[0]))];
   if (!changed.length) {
     vlog("push: repo mirror already current — nothing to commit.");
-    return 0;
+    return [];
   }
   log(`${CHECK ? "[check] would mirror" : "mirrored"} ${changed.length} file(s) into repo skills/:`, changed.slice(0, 8).join(", ") + (changed.length > 8 ? " …" : ""));
-  if (CHECK) return changed.length;
+  if (CHECK) return names;
 
   // Commit only the skills folder, so a push never sweeps in unrelated work.
   git(["add", "--", "skills"]);
   const status = git(["status", "--porcelain", "--", "skills"]).out;
   if (!status) {
     vlog("push: nothing staged after add — done.");
-    return 0;
+    return [];
   }
-  const names = [...new Set(changed.map((c) => c.split("/")[0]))];
   const msg = `skills: sync ${names.slice(0, 6).join(", ")}${names.length > 6 ? ` +${names.length - 6}` : ""}`;
   const author = ["-c", "user.name=skill-sync", "-c", "user.email=skill-sync@local"];
   git([...author, "commit", "-m", msg, "-m", "Auto-committed by scripts/skill-sync.mjs (Stop hook)."]);
   const push = git(["push"], { allowFail: true });
   if (push.ok) log(`pushed: ${msg} — the deployed Jarvis will pick it up on redeploy.`);
   else log(`committed locally but push failed (${push.err.split("\n")[0] || "no upstream"}). Run 'git push' when the remote is reachable.`);
-  return changed.length;
+  await registerMemory(names);
+  return names;
 }
 
 try {

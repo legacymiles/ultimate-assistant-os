@@ -59,6 +59,22 @@ skills. `Stop → push` means a skill written during a session is committed and 
 turn ends. Both are no-ops when nothing changed, and a hook can never block the session — on any
 error the script reports and exits 0.
 
+## Skills in memory
+
+On a `push`, each changed skill is also written into the **shared memory** (the same rows as
+Jarvis › Memory, reached by claude.ai and the VPS), so "what skills do I have / is there a skill
+for X" is answerable from memory on any surface — one row per skill: `Skill: <name>` + its
+description. This needs the memory token the connector already uses:
+
+- `JARVIS_MCP_TOKEN` — same token as the Memory connector. Without it, skills still mirror and
+  deploy; only the memory write is skipped (the script says so and carries on).
+- `JARVIS_MEMORY_URL` — optional; defaults to the deployed hub
+  (`https://ultimate-assistant-os.vercel.app/api/jarvis/memory/mcp`), so the write lands in the one
+  shared store whichever machine runs it.
+
+Pass `--no-memory` to skip this step for a run. Writes are de-duplicated server-side, so re-running
+`push` on an unchanged skill adds nothing; editing a skill's description writes a fresh row.
+
 ## Why "across all sessions"
 
 Claude Code loads skills from `~/.claude/skills` at session start. Once a skill is in the repo,
