@@ -12,16 +12,20 @@
 
 import { Icon } from "../icons";
 import { studioPlugins } from "@/lib/studio/plugins";
+import { noteLaunch, toggleFavorite, useLauncher } from "@/lib/new-jarvis/launcher";
 
 export function PluginsTab() {
   const plugins = studioPlugins();
+  // Starred apps ride to the top of the Dashboard's Deck; the star lives here
+  // because this is where the owner looks at the whole list.
+  const { favorites } = useLauncher();
   return (
     <div className="p-3 sm:p-4">
       <div className="mb-3 flex flex-wrap items-baseline gap-2">
         <h2 className="text-sm font-semibold text-ink">App plugins</h2>
         <span className="text-[11px] text-ink-faint">
-          {plugins.length} {plugins.length === 1 ? "app" : "apps"} from the hub, allowed in because they feed the
-          work.
+          {plugins.length} {plugins.length === 1 ? "app" : "apps"} from the hub. Star one to pin it to your
+          Dashboard.
         </span>
       </div>
 
@@ -31,12 +35,29 @@ export function PluginsTab() {
         </p>
       ) : (
         <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-          {plugins.map((p) => (
-            <li key={p.slug}>
+          {plugins.map((p) => {
+            const fav = favorites.includes(p.slug);
+            return (
+            <li key={p.slug} className="relative">
+              <button
+                type="button"
+                onClick={() => toggleFavorite(p.slug)}
+                aria-pressed={fav}
+                aria-label={fav ? `Unpin ${p.title} from the Dashboard` : `Pin ${p.title} to the Dashboard`}
+                title={fav ? "On your Dashboard" : "Add to your Dashboard"}
+                className={`absolute right-2 bottom-2 z-10 grid h-9 w-9 place-items-center rounded-lg border transition ${
+                  fav
+                    ? "border-amber-400/50 bg-amber-400/10 text-amber-300"
+                    : "border-line bg-panel text-ink-faint hover:border-ink-faint hover:text-ink"
+                }`}
+              >
+                <Icon.Star width={15} height={15} fill={fav ? "currentColor" : "none"} aria-hidden />
+              </button>
               <a
                 href={p.href}
                 target="_blank"
                 rel="noreferrer"
+                onClick={() => noteLaunch("app", p.slug, p.title)}
                 className="st-card group flex h-full gap-3 rounded-xl border border-line bg-panel p-3 transition hover:-translate-y-0.5 hover:border-ink-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-muted"
                 style={{ ["--h" as string]: p.hue }}
               >
@@ -69,7 +90,8 @@ export function PluginsTab() {
                 </span>
               </a>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>

@@ -53,10 +53,16 @@ import type { JarvisStore, MemorySource } from "@/lib/jarvis/types";
 import type { DueReminder } from "@/lib/recall/calendar/reminders";
 import type { UseQueue } from "@/lib/new-jarvis/useQueue";
 import { QueueBoard } from "./QueueBoard";
+import { Deck } from "./Deck";
+import { FinishSetup, type OnboardingStep } from "./Onboarding";
+import type { SetupStatus } from "@/lib/new-jarvis/useSetup";
 
-type Pane = "graph" | "memory" | "profile" | "improve" | "queue";
+type Pane = "deck" | "graph" | "memory" | "profile" | "improve" | "queue";
 
 const PANES: { id: Pane; label: string; icon: keyof typeof Icon }[] = [
+  // The Deck is where the owner lands: favorites, last used, and Camera
+  // Autopilot with its chat. The Brain graph is one tap away, unchanged.
+  { id: "deck", label: "Deck", icon: "Home" },
   { id: "graph", label: "Brain", icon: "Grid" },
   { id: "memory", label: "Memory", icon: "Database" },
   { id: "profile", label: "Profile", icon: "Users" },
@@ -88,6 +94,11 @@ interface Props {
   queue: UseQueue;
   /** Where a tab-opening update should send the owner. */
   go: (tab: string) => void;
+  /** What Jarvis calls the owner, for the Deck's greeting. */
+  ownerName?: string;
+  /** The Finish-setup checklist, owned by the shell so the hero and Profile agree. */
+  setup: SetupStatus;
+  onOpenSetup: (step: OnboardingStep) => void;
 }
 
 export function DashboardPanel({
@@ -101,8 +112,11 @@ export function DashboardPanel({
   bridgeUp,
   queue,
   go,
+  ownerName,
+  setup,
+  onOpenSetup,
 }: Props) {
-  const [pane, setPane] = useState<Pane>("graph");
+  const [pane, setPane] = useState<Pane>("deck");
   const [muted, setMuted] = useState<Set<MemorySource>>(new Set());
   const [writing, setWriting] = useState<VaultNode | null>(null);
   /** Bumped when a screen scan writes, to remount the profile beneath it. */
@@ -205,7 +219,9 @@ export function DashboardPanel({
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        {pane === "graph" ? (
+        {pane === "deck" ? (
+          <Deck go={go} ownerName={ownerName} unread={updates.unread} setupLeft={setup.left} onSetup={() => onOpenSetup("welcome")} />
+        ) : pane === "graph" ? (
           <div className="flex h-full min-h-0 flex-col lg:flex-row">
             {/* left — the inspector */}
             <aside className="order-2 shrink-0 overflow-y-auto border-line bg-panel lg:order-1 lg:w-[270px] lg:border-r">
@@ -311,6 +327,7 @@ export function DashboardPanel({
                       into. What it proposes is judged against that record, so
                       the two want to be in one place. */}
                   <div className="space-y-2.5 border-b border-line-soft p-3">
+                    <FinishSetup setup={setup} onOpen={onOpenSetup} go={go} />
                     <ScreenScan onSaved={() => setProfileKey((n) => n + 1)} />
                     {/* The documents sit with the reader that made them, and
                         are keyed with the record so one just kept appears. */}

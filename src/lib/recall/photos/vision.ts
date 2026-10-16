@@ -30,6 +30,7 @@
 // The sheet is rebuilt only when the people or their reference shots change.
 // ---------------------------------------------------------------------------
 
+import { standingGuidance } from "./autopilot";
 import { ROLE_LABELS } from "./types";
 import type { PhotoAnalysis, PhotoCategory, Person } from "./types";
 
@@ -351,6 +352,9 @@ export async function analyzePhoto(args: AnalyzeArgs): Promise<PhotoAnalysis> {
         forceRoute: args.forceRoute,
         userPrompt: args.userPrompt,
         knownPlaces: args.knownPlaces,
+        // What Camera Autopilot has learned about this owner: their rules and
+        // their recent filings. Sent on every call so the first guess improves.
+        standing: standingGuidance(),
         // The model has no clock; without today's date "next Friday" on a
         // flyer is unresolvable and every relative date comes back wrong.
         today: new Date().toISOString().slice(0, 10),

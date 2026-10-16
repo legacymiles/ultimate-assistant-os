@@ -63,6 +63,8 @@ interface Body {
   userPrompt?: string;
   /** Existing places by destination id, so a named place resolves to one of them. */
   knownPlaces?: Record<string, string[]>;
+  /** Camera Autopilot: the owner's standing rules and recent filings. */
+  standing?: string;
 }
 
 async function memberBlocked(): Promise<NextResponse | null> {
@@ -102,6 +104,7 @@ function systemPrompt(
   forceRoute?: string,
   userPrompt?: string,
   knownPlaces?: Record<string, string[]>,
+  standing?: string,
 ): string {
   const people = legend.filter(isPerson);
   const albums = legend.filter((l) => !isPerson(l));
@@ -190,7 +193,7 @@ function systemPrompt(
     // Generated from the destination registry, so a destination can never be
     // added without the model being told about it.
     destinationPromptBlock() +
-    userGuidance(instruction, forceRoute, userPrompt, knownPlaces)
+    userGuidance(instruction, forceRoute, userPrompt, knownPlaces, standing)
   );
 }
 
@@ -226,6 +229,7 @@ async function triage(body: Body, apiKey: string) {
             body.forceRoute,
             body.userPrompt,
             body.knownPlaces,
+            body.standing,
           ),
         },
         { role: "user", content },
@@ -365,7 +369,9 @@ function userGuidance(
   forceRoute?: string,
   userPrompt?: string,
   knownPlaces?: Record<string, string[]>,
+  standing?: string,
 ): string {
+  const habits = (standing ?? "").trim().slice(0, 3000);
   const note = (instruction ?? "").trim().slice(0, 500);
   const prompt = (userPrompt ?? "").trim().slice(0, 1000);
   const parts: string[] = [];
@@ -396,6 +402,15 @@ function userGuidance(
       `The user says about these photos: "${note}". Treat that as strong guidance about what ` +
         "they are and where they belong. Still read the image: if this photo plainly is not " +
         "what the note describes, route it by what it actually is.",
+    );
+  }
+  if (habits) {
+    // Learned, so weaker than anything said about THIS photo: it steers the
+    // guess, and the image still wins when it plainly does not fit.
+    parts.push(
+      "HOW THIS USER FILES THINGS (learned from them — weigh it strongly when choosing the route " +
+        "and the place, unless the image plainly does not fit; per-photo instructions above win):\n" +
+        habits,
     );
   }
   const places = Object.entries(knownPlaces ?? {}).filter(([, v]) => Array.isArray(v) && v.length);

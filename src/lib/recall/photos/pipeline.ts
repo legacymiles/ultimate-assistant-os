@@ -46,6 +46,7 @@ import { findDuplicate, fingerprintImage, type FingerprintCandidate } from "./fi
 import type { PendingPhoto, PhotoAnalysis, PhotosData } from "./types";
 import { PHOTOS_ROOT } from "./types";
 import { closestPlace } from "@/lib/dashboard/places";
+import { learnFromApprovals } from "./autopilot";
 
 /** Photos analysed at once. Three keeps a big import moving without
  *  stampeding the gateway (and its rate limit) from one browser tab. */
@@ -413,7 +414,11 @@ export async function approvePhotos(args: ApproveArgs): Promise<ApproveResult> {
   // Only the successfully-filed photos leave the queue; anything that failed
   // stays put so the user can see it and try again.
   const problemNames = new Set(result.problems.map((x) => x.name));
-  removePending(queue.filter((p) => !problemNames.has(p.name)).map((p) => p.id));
+  const filedOk = queue.filter((p) => !problemNames.has(p.name));
+  removePending(filedOk.map((p) => p.id));
+  // Camera Autopilot learns from what was actually filed — never from a
+  // proposal, and never from a failure.
+  learnFromApprovals(filedOk);
 
   if (photos.settings.driveBackup && driveConfigured() && filedForBackup.length) {
     // Only when an approval from this visit is still good. Asking Google for a

@@ -1,0 +1,348 @@
+/* ---------------------------------------------------------------------------
+   The Deck — the Dashboard's command surface.
+
+   The rest of New Jarvis is deliberately matte. The Deck is the one place that
+   is allowed to glow, because it is the place the owner lands and asked to be
+   "futuristic": a cyan HUD line over the hub's own dark tokens, corner
+   brackets, a slow scan line over the Autopilot queue, and a live core. Every
+   motion stops under prefers-reduced-motion.
+   --------------------------------------------------------------------------- */
+
+.deck {
+  --hud: #3be3ff;
+  --hud-dim: color-mix(in oklab, var(--hud) 28%, transparent);
+  --hud-faint: color-mix(in oklab, var(--hud) 10%, transparent);
+  --hud-amber: #ffb547;
+  --hud-green: #5be38f;
+  position: relative;
+  min-height: 100%;
+  background-color: var(--color-canvas);
+  background-image:
+    radial-gradient(1200px 500px at 15% -10%, color-mix(in oklab, var(--hud) 9%, transparent), transparent 60%),
+    linear-gradient(var(--hud-faint) 1px, transparent 1px),
+    linear-gradient(90deg, var(--hud-faint) 1px, transparent 1px);
+  background-size: auto, 44px 44px, 44px 44px;
+}
+
+/* A panel with HUD corner brackets. */
+.deck-panel {
+  position: relative;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--color-panel) 88%, transparent);
+  backdrop-filter: blur(6px);
+}
+.deck-panel::before,
+.deck-panel::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  border-color: var(--hud);
+  opacity: 0.75;
+}
+.deck-panel::before {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid;
+  border-left: 2px solid;
+  border-top-left-radius: 14px;
+}
+.deck-panel::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 2px solid;
+  border-right: 2px solid;
+  border-bottom-right-radius: 14px;
+}
+.deck-panel--live {
+  border-color: var(--hud-dim);
+  box-shadow: 0 0 0 1px var(--hud-faint), 0 0 40px -18px var(--hud);
+}
+
+.deck-kicker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--hud);
+}
+
+/* The live core in the hero. */
+.deck-core {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  flex: none;
+}
+.deck-core i {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--hud-dim);
+}
+.deck-core i:nth-child(1) {
+  border-color: var(--hud);
+  border-style: dashed;
+  animation: deck-spin 16s linear infinite;
+}
+.deck-core i:nth-child(2) {
+  inset: 12px;
+  border-color: var(--hud-amber);
+  border-style: dotted;
+  animation: deck-spin 24s linear infinite reverse;
+}
+.deck-core i:nth-child(3) {
+  inset: 26px;
+  background: radial-gradient(circle, var(--hud) 0 30%, color-mix(in oklab, var(--hud) 25%, transparent) 31% 100%);
+  border-color: var(--hud);
+  animation: deck-pulse 2.2s ease-in-out infinite;
+}
+.deck-core[data-busy="true"] i:nth-child(1) {
+  animation-duration: 3s;
+}
+
+.deck-stat {
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: color-mix(in oklab, var(--color-panel-2) 70%, transparent);
+}
+.deck-stat b {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Favorite tiles. */
+.deck-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 92px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--color-line);
+  background: color-mix(in oklab, hsl(var(--h, 190) 70% 50%) 7%, var(--color-panel));
+  transition: transform var(--nj-fast) var(--nj-ease), border-color var(--nj-fast), box-shadow var(--nj-fast);
+}
+.deck-tile:hover,
+.deck-tile:focus-visible {
+  transform: translateY(-2px);
+  border-color: hsl(var(--h, 190) 80% 60%);
+  box-shadow: 0 10px 30px -18px hsl(var(--h, 190) 80% 55%);
+  outline: none;
+}
+.deck-tile .deck-glyph {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid hsl(var(--h, 190) 70% 55% / 0.5);
+  color: hsl(var(--h, 190) 85% 70%);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* The Autopilot queue. */
+.deck-scan {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  pointer-events: none;
+}
+.deck-scan::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--hud);
+  opacity: 0.45;
+  box-shadow: 0 0 14px var(--hud);
+  animation: deck-scan 5s linear infinite;
+}
+
+.deck-shot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  background: var(--color-panel);
+  transition: transform var(--nj-fast) var(--nj-ease), border-color var(--nj-fast), box-shadow var(--nj-fast);
+}
+.deck-shot:hover {
+  transform: translateY(-2px);
+}
+.deck-shot[aria-current="true"] {
+  border-color: var(--hud);
+  box-shadow: 0 0 0 1px var(--hud), 0 0 26px -8px var(--hud);
+}
+.deck-shot .deck-thumb {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: repeating-linear-gradient(135deg, var(--color-panel-2) 0 8px, var(--color-panel) 8px 16px);
+}
+.deck-shot .deck-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.deck-shot .deck-analyzing {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--hud);
+  background: color-mix(in oklab, var(--color-canvas) 55%, transparent);
+}
+
+/* Chat. */
+.deck-msgs {
+  display: flex;
+  flex-direction: column-reverse;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.deck-bubble {
+  max-width: 88%;
+  border-radius: 12px;
+  padding: 8px 11px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+.deck-bubble--jarvis {
+  border: 1px solid var(--hud-dim);
+  background: color-mix(in oklab, var(--hud) 6%, var(--color-panel));
+  border-bottom-left-radius: 4px;
+}
+.deck-bubble--you {
+  margin-left: auto;
+  border: 1px solid var(--color-line);
+  background: var(--color-panel-2);
+  border-bottom-right-radius: 4px;
+}
+.deck-action {
+  border: 1px solid var(--hud-dim);
+  border-radius: 9px;
+  padding: 8px 10px;
+  background: color-mix(in oklab, var(--hud) 4%, var(--color-panel));
+}
+.deck-action[data-state="done"] {
+  border-color: color-mix(in oklab, var(--hud-green) 45%, transparent);
+}
+.deck-action[data-state="declined"] {
+  opacity: 0.55;
+}
+
+.deck-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid var(--color-line);
+  font-size: 12px;
+  color: var(--color-ink);
+  background: var(--color-panel-2);
+  transition: border-color var(--nj-fast), background-color var(--nj-fast), color var(--nj-fast);
+}
+.deck-btn:hover:not(:disabled) {
+  border-color: var(--hud);
+}
+.deck-btn:disabled {
+  opacity: 0.5;
+}
+.deck-btn--go {
+  border-color: var(--hud);
+  background: color-mix(in oklab, var(--hud) 16%, var(--color-panel));
+  font-weight: 600;
+}
+.deck-btn:focus-visible,
+.deck input:focus-visible,
+.deck textarea:focus-visible {
+  outline: 2px solid var(--hud);
+  outline-offset: 2px;
+}
+
+.deck-switch {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  flex: none;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-panel-2);
+  transition: background-color var(--nj-fast), border-color var(--nj-fast);
+}
+.deck-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-ink-faint);
+  transition: transform var(--nj-fast) var(--nj-ease), background-color var(--nj-fast);
+}
+.deck-switch[aria-checked="true"] {
+  border-color: var(--hud);
+  background: color-mix(in oklab, var(--hud) 20%, var(--color-panel));
+}
+.deck-switch[aria-checked="true"]::after {
+  transform: translateX(18px);
+  background: var(--hud);
+}
+
+@keyframes deck-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes deck-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+@keyframes deck-scan {
+  from {
+    top: 0;
+  }
+  to {
+    top: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .deck-core i,
+  .deck-scan::after {
+    animation: none !important;
+  }
+  .deck-tile,
+  .deck-shot {
+    transition: none;
+  }
+}
