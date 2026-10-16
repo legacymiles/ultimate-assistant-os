@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import "./deck.css";
+import { HudField, Reactor } from "./HudField";
 
 import { studioPlugins } from "@/lib/studio/plugins";
 import { ago, noteLaunch, toggleFavorite, useLauncher } from "@/lib/new-jarvis/launcher";
@@ -90,6 +91,60 @@ function recallCtx() {
 }
 
 const titleOfPhoto = (p?: PendingPhoto | null) => p?.analysis?.title || p?.name || "photo";
+
+/** Pointer-driven 3D tilt and a glare that follows the cursor. Mouse only. */
+function tilt(max = 8) {
+  return {
+    onPointerMove: (e: React.PointerEvent<HTMLElement>) => {
+      if (e.pointerType !== "mouse") return;
+      const el = e.currentTarget;
+      const r = el.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width;
+      const py = (e.clientY - r.top) / r.height;
+      el.style.setProperty("--ry", `${(px - 0.5) * max}deg`);
+      el.style.setProperty("--rx", `${(0.5 - py) * max}deg`);
+      el.style.setProperty("--mx", `${px * 100}%`);
+      el.style.setProperty("--my", `${py * 100}%`);
+      el.dataset.hot = "true";
+    },
+    onPointerLeave: (e: React.PointerEvent<HTMLElement>) => {
+      const el = e.currentTarget;
+      el.style.setProperty("--rx", "0deg");
+      el.style.setProperty("--ry", "0deg");
+      el.dataset.hot = "false";
+    },
+  };
+}
+
+/** The greeting types itself in once, on arrival. */
+function useTyped(text: string): [string, boolean] {
+  const [n, setN] = useState(0);
+  const done = useRef(false);
+  useEffect(() => {
+    if (done.current) {
+      setN(text.length);
+      return;
+    }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      done.current = true;
+      setN(text.length);
+      return;
+    }
+    let i = 0;
+    const t = setInterval(() => {
+      i++;
+      setN(i);
+      if (i >= text.length) {
+        done.current = true;
+        clearInterval(t);
+      }
+    }, 38);
+    return () => clearInterval(t);
+  }, [text]);
+  return [text.slice(0, n), n < text.length];
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function Deck({ go, ownerName, setupLeft, onSetup }: Props) {
   // ---- launcher -----------------------------------------------------------
@@ -199,7 +254,9 @@ export function Deck({ go, ownerName, setupLeft, onSetup }: Props) {
       const where = ids.length === 1 ? destinationLabel(getQueue().find((p) => p.id === ids[0])!) : "";
       setFiling((s) => new Set([...s, ...ids]));
       try {
-        const res = await approvePhotos({ photoIds: ids });
+        // The card dissolves while the filing runs; holding it for the length
+        // of that animation is what makes the tap feel answered.
+        const [res] = await Promise.all([approvePhotos({ photoIds: ids }), sleep(520)]);
         if (res.problems.length && !res.filed) setToast(`Couldn't file: ${res.problems[0].error}`);
         else if (ids.length === 1) setToast(`Filed → ${where}`);
         else setToast(`Filed ${res.filed} photo${res.filed === 1 ? "" : "s"}${res.problems.length ? ` · ${res.problems.length} failed` : ""}`);
@@ -233,18 +290,24 @@ export function Deck({ go, ownerName, setupLeft, onSetup }: Props) {
       ? `${queue.length} new photo${queue.length === 1 ? "" : "s"} to sort${analyzing ? ` · reading ${analyzing} now` : ""}.`
       : "Camera roll is clear.");
 
+  const coreRef = useRef<HTMLDivElement>(null);
+  const [typed, typing] = useTyped(greeting(ownerName));
+  const working = Boolean(busy || analyzing || filing.size);
+
   return (
-    <div className="deck h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-[1400px] flex-col gap-5 p-3 sm:p-5">
+    <div className="deck deck-stage">
+      <HudField originRef={coreRef} busy={working} />
+      <div className="deck-scroll">
+      <div className="mx-auto flex max-w-[1400px] flex-col gap-6 p-3 sm:p-6">
         {/* hero — one line, no dashboard furniture */}
         <section className="flex flex-wrap items-center gap-4 px-1 pt-1">
-          <div className="deck-core" style={{ width: 64, height: 64 }} data-busy={Boolean(busy || analyzing)} aria-hidden>
-            <i />
-            <i />
-            <i />
+          <div ref={coreRef} className="shrink-0">
+            <Reactor busy={working} size={112} />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-[24px] font-semibold leading-tight text-ink">{greeting(ownerName)}</h1>
+            <h1 className={`deck-display text-[34px] font-semibold leading-tight text-ink ${typing ? "deck-caret" : ""}`} aria-label={greeting(ownerName)}>
+              {typed}
+            </h1>
             <p className="mt-0.5 text-[12.5px] text-ink-muted">
               {status}
               {setupLeft > 0 && (
@@ -270,8 +333,9 @@ export function Deck({ go, ownerName, setupLeft, onSetup }: Props) {
                     target="_blank"
                     rel="noreferrer"
                     onClick={() => noteLaunch("app", p.slug, p.title)}
-                    className="deck-tile"
+                    className="deck-tile deck-tilt"
                     style={{ ["--h" as string]: p.hue, minHeight: 78 }}
+                    {...tilt(12)}
                   >
                     <span className="deck-glyph" aria-hidden>
                       {p.title.replace(/[^A-Za-z ]/g, "").split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
@@ -297,9 +361,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup }: Props) {
           )}
           {launcher.recent.length > 0 && (
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px]">
-              <span className="deck-kicker" style={{ color: "var(--color-ink-faint)" }}>
-                Recent
-              </span>
+              <span className="text-[11px] text-ink-faint">Recent</span>
               {launcher.recent.slice(0, 5).map((r) => {
                 const app = r.kind === "app" ? bySlug.get(r.id) : null;
                 const label = (
@@ -329,11 +391,10 @@ export function Deck({ go, ownerName, setupLeft, onSetup }: Props) {
         </section>
 
         {/* autopilot */}
-        <section className="deck-panel deck-panel--live relative p-3 sm:p-4" aria-labelledby="deck-ap">
-          {queue.length > 0 && <div className="deck-scan" aria-hidden />}
+        <section className="deck-glass deck-ring relative p-3 sm:p-5" aria-labelledby="deck-ap">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-baseline gap-2">
-              <h2 id="deck-ap" className="text-[15px] font-semibold text-ink">
+              <h2 id="deck-ap" className="deck-display text-[18px] font-semibold text-ink">
                 Camera Autopilot
               </h2>
               <span className="font-mono text-[11px] text-[var(--hud)]" data-num>
@@ -385,7 +446,9 @@ export function Deck({ go, ownerName, setupLeft, onSetup }: Props) {
                 return (
                   // The whole card opens the sheet; "File it" is its own button
                   // on top, so a tap there files without opening anything.
-                  <li key={p.id} className="deck-shot">
+                  <li key={p.id} className="deck-shot deck-tilt" data-leaving={isFiling} {...tilt(9)}>
+                    <span className="deck-corner deck-corner--tl" aria-hidden />
+                    <span className="deck-corner deck-corner--br" aria-hidden />
                     <button
                       type="button"
                       className="text-left"
@@ -427,6 +490,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup }: Props) {
           )}
         </section>
       </div>
+      </div>
 
       {open && (
         <PhotoSheet
@@ -454,7 +518,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup }: Props) {
       {rulesOpen && <RulesSheet data={rules} onClose={() => setRulesOpen(false)} />}
 
       {toast && (
-        <div role="status" className="fixed bottom-14 left-1/2 z-[60] -translate-x-1/2 rounded-full border border-[var(--hud-dim)] bg-panel px-4 py-2 text-[12px] text-ink shadow-[0_0_30px_-10px_var(--hud)]">
+        <div role="status" className="deck-toast fixed bottom-14 left-1/2 z-[60] -translate-x-1/2 rounded-full px-4 py-2 text-[12px] text-ink">
           {toast}
         </div>
       )}
@@ -493,7 +557,7 @@ function Sheet({ label, onClose, children, wide }: { label: string; onClose: () 
       aria-label={label}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className={`deck-panel deck-panel--live flex max-h-[92dvh] w-full flex-col overflow-hidden bg-panel ${wide ? "sm:max-w-4xl" : "sm:max-w-lg"}`}>
+      <div className={`deck-glass deck-ring deck-sheet flex max-h-[92dvh] w-full flex-col overflow-hidden ${wide ? "sm:max-w-4xl" : "sm:max-w-lg"}`}>
         {children}
       </div>
     </div>
@@ -642,8 +706,8 @@ function PhotoSheet({
         <div className="flex min-h-0 flex-1 flex-col">
           <header className="flex items-start gap-2 border-b border-line px-4 py-3">
             <div className="min-w-0 flex-1">
-              <p className="deck-kicker">Jarvis thinks</p>
-              <h2 className="mt-0.5 truncate text-[15px] font-semibold text-ink">{titleOfPhoto(photo)}</h2>
+              <p className="text-[11px] text-[var(--hud)]">Jarvis read this as</p>
+              <h2 className="deck-display mt-0.5 truncate text-[17px] font-semibold text-ink">{titleOfPhoto(photo)}</h2>
               {photo.analysis?.caption && <p className="mt-0.5 line-clamp-2 text-[11.5px] text-ink-muted">{photo.analysis.caption}</p>}
             </div>
             <button type="button" onClick={onClose} aria-label="Close" className="hidden h-8 w-8 place-items-center rounded text-ink-faint hover:text-ink sm:grid">
