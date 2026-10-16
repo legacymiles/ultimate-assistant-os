@@ -1,0 +1,49 @@
+# Webinar Mastery — notes (paraphrased)
+Marketing course: how to sell funding/credit services and digital products with webinars.
+
+- L1 Welcome — take action daily. Webinar launch checklist (Google Sheet): https://docs.google.com/spreadsheets/d/1jQizRJus-CSeghPUaNNDhqOym8i2iFj_Pshu4uQxQcU
+- L2 Why webinars aren't dead — [video-only]
+- L3 Webinar framework overview — [video-only]
+- L4 Hot topics review — files "Finding Your Hot Topic.xlsx", "Webinar Links.xlsx"
+- L5 Use YouTube to find/validate hot webinar topics (what the market already watches) — [video]
+- L6 Use Instagram to find hot topics — [video-only]
+- L7 Facebook groups to find topics — [video-only]
+- L8 TikTok for topics — search TikTok weekly for content inspiration. [video]
+- L9 Validate the topic (last step) — [video-only]
+- L10 Webinar worksheet prep — Google Doc https://docs.google.com/document/d/1tmODgI3xBKCUVwgZhi6p9GQG2xpN2_LIj3IRHp2-WVE + "masterclass layout.pdf"
+- L11 Pre-class profits (sell a low-ticket bundle before the webinar) — [video-only]
+- L12 Examples of pre-class profit bundles — [video-only]
+- L13 Keep going — [video-only]
+- L14 Webinar system overview — GoHighLevel snapshot to import the whole webinar funnel (affiliate share link in lesson).
+- L15 How to import the webinar system — same snapshot link. [video]
+- L16 Editing the registration page — [video]
+- L17 Registration page (mobile) — [video]
+- L18 Upsell page (pre-class profits) — "Bridge Sale Upsell Script.pdf"
+- L19 Downsell page — "Bridge Down Sale Script.pdf"
+- L20 Creating the products for the pages — [video]
+- L21 Adding products to funnel pages — [video]
+- L22 Confirmation page — last page before the pitch to join your program or book a call. [video]
+- L23 Webinar replay page — [video]
+- L24 Course/digital-product order form — [video]
+- L25 Course confirmation page — [video]
+- L26 Connecting your domain to the funnel — [video]
+- L27 Funnel graphics tips — [video]
+- L28 Emails & texts overview — [video]
+- L29 Email & SMS templates — Google Doc https://docs.google.com/document/d/1NeI2_VQ5Heo-zLhp346gATvF_clSsKH3wyklNL6_WB8 + "Email & Sms Sequence.docx"
+- L30 Creating the emails — [video]
+- L31 Workflow — [video]
+- L32 Purchase upsell workflow — [video]
+- L33 Purchase downsell setup — [video]
+- L34 Follow-up sequence for non-buyers — [video]
+- L35 Re-invite sequence — [video]
+- L36 Core product setup — [video]
+- L37 Pipeline setup — [video]
+- L38 Webinar slide deck — Canva template https://www.canva.com/design/DAFbN1_sf2U/-5Gv-2PyeRxNkH_KaEB3kw/view + "Webinar Template.docx"
+- L39 Setting up Zoom properly — [video]
+- L40 Weekly webinar upkeep — "WEBINAR Weekly MAINTENANCE.pdf"
+- L41 Webinar scoreboard — Google Sheet https://docs.google.com/spreadsheets/d/1EeZIbFNu4iyTXpxxWDIlRTRdVfAMDTYK
+- L42–44 TikTok challenge days 1–3 (day 3 with Irv Peña) — [video-only]
+- L45 Creating a digital product easily — [video-only]
+- L46 Darrell — my first webinar (example to watch) — [video-only]
+- L47 Jamal offer review — [video-only]
+- L48 Creating content on IG — [video-only]

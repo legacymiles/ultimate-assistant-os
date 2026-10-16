@@ -1,5 +1,6 @@
 import { PROJECTS } from "../catalog";
 import { backfillEnrichment, catalogToProject, seedProjects } from "../seed";
+import { topUpFundingKnowledge } from "../seed-content/financial-bible/timeline";
 import type { Feature, Project, ProjectFile, Version } from "../types";
 import { nowIso, uid } from "../utils";
 import type {
@@ -31,6 +32,7 @@ export class LocalRepo implements Repo {
       // First-ever load: seed every catalog project and remember we did so.
       if (!raw) {
         const seeded = seedProjects();
+        topUpFundingKnowledge(seeded);
         this.save(seeded);
         window.localStorage.setItem(
           scopedKey(SEEN_KEY),
@@ -67,8 +69,11 @@ export class LocalRepo implements Repo {
       // shells. Fill them in — but only while they are untouched, so nothing
       // the user has written is ever overwritten.
       const backfilled = backfillEnrichment(next);
+      // The Financial Bible's funding knowledge base is filed as knowledge
+      // entries; new entries are added, the owner's own are never touched.
+      const funded = topUpFundingKnowledge(next);
 
-      if (newOnes.length || backfilled) {
+      if (newOnes.length || backfilled || funded) {
         this.save(next);
       }
       return next;

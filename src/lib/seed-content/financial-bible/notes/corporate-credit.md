@@ -1,0 +1,70 @@
+# Corporate Credit Secrets — notes (paraphrased)
+
+- L1 Corporate Credit masterclass access link. [no content]
+- L2 Welcome / $27 bundle feedback. [no content]
+- L3 Host background — Solomon Woods: $25M+ funded, started in credit repair, pivoted to business funding because it's faster and bigger ($100–300k in ~2 weeks for strong clients).
+- L4 Business credibility — 20+ data points shape a business profile.
+  - Brandable, trademark-safe name (check availability first).
+  - High-risk industries get less: real estate, credit repair, trucking, tax services, daycares. A holding company that genuinely owns the high-risk entity can be the applicant. (Aged corps mentioned — left out; see 6FF L36.)
+- L5 Business setup 101 — a fundable business has its own:
+  - Real street address (no P.O./UPS boxes; check CMRA status at USPS).
+  - Phone — toll-free (FreedomVoice, Twilio) + local number.
+  - Multi-page professional website (not a one-pager).
+  - Domain email (info@yourcompany.com, not gmail).
+  - Listings on Google Business, Bing Places, ListYourself.net.
+  - THEN the LLC (DIY via your Secretary of State) and EIN (free at irs.gov — keep the EIN letter safe).
+  - Business checking at banks that also lend and pay bonuses (Chase, BMO, Huntington, Wintrust) — search "business checking bonus".
+- L6 Banking credit (bank rating) — based on the 90-day average balance in the business account. Baseline $3k+. Tiers: low-5 = $10k–$39,999 · mid-5 = $40k–$69,999 · high-5 = $70k–$99,999.
+  - No overdrafts or bounced items; steady positive cash flow; season 30–90 days before applying.
+  - Some banks allow funding a new account with a credit card (cash-advance rules may apply).
+  - Past banking problems → second-chance banks (Woodforest, Wells Fargo's options) or credit unions that don't use ChexSystems / Early Warning Services.
+- L7 Funding types — FULL DOC (2 yrs returns, bank statements, W-2s/pay stubs, P&L, entity docs) · LOW DOC (1 yr return or bank statements, maybe W-2/P&L; bank-statement programs) · NO DOC (stated income + strong personal credit with a personal guarantee; ideal for new businesses; the course's main product).
+- L8 Building business credit the right way
+  - Bureaus and "good" scores: D&B Paydex 80+ · Experian Business 75+ · Equifax Business 490+ · SBFE (Small Business Financial Exchange) shares data with banks like Amex and Capital One.
+  - Check business credit with Nav. Get a D-U-N-S number. Set SIC/NAICS correctly. Business age matters: under 2 yrs limited; 2+ yrs opens LOCs and term loans.
+  - Starter net-30 vendors: Crown Office Supplies, Summa, WEX, Staples, eCredable (Nav also reports). Net-30s build a file but aren't real funding.
+  - Real business credit = revolving cards, LOCs (cash + checks), charge cards (Amex Platinum/Gold, pay in full), term loans. Store/vendor credit = low value.
+  - Soft-pull business cards: BILL Divvy (no PG, high limits), Capital on Tap, Clear, Cape, ToPago (verify still active). Sam's Club business card now hard-pulls.
+  - Bank tiers for funding: Tier 1 Chase, BofA, Citi · Tier 2 Amex, Capital One, PNC · Tier 3 Navy Fed, PenFed · Tier 4 Elan-issued cards (good), Merrick / First Premier (avoid).
+  - (Aged corps to skip business-age limits — left out.)
+- L9 Student results — $150k for a couple with no business revenue ($25k personal loan, $25k card, two $50k startup loans) → $15k commission in month one. CU play: $30k card (Experian, 765) + $30k personal LOC in 48 hours.
+- L10 More results — $95k from one credit union on one hard pull ($30k card + $30k LOC + auto). $70k business loan via a soft-pull lender using a family member's profile (⚠ only with that person as a real, consenting guarantor/partner). $75k Chase business card at 0% for 12 months via a banker; that client is at $175k+.
+- L11 ★ BASIC APPROVAL CRITERIA (best results): 680+ on all 3 bureaus · 2+ major-bank cards that are 2+ years old · $2,500+ limit on each · utilization under 35% · no lates in 24 months · no bankruptcies/charge-offs/collections. Don't qualify → bring in a credit partner as guarantor and add them to the LLC.
+- L12 Alternative business LOCs (revolving)
+  - Revenued: ~$10k/mo revenue, net-7 terms, up to ~$100k.
+  - Amex Business Line of Credit (ex-Kabbage): ~640 Experian, ~$3k/mo revenue.
+  - Rapid Finance: ~500 score, 3 months bank statements.
+  - Ramp Flex: net-90 vendor terms (90-day float).
+  - Idea Financial: 650+, $15k/mo, 2 yrs; no real estate or trucking.
+  - LendSpark: $15k/mo, 6 months; allows real estate and trucking.
+  - Fundbox: 600+, ~$100k annual revenue; doesn't report.
+  - HardFi: 500+ with 6 months in business, or ~720+ if newer.
+  - Newtek: full-doc loans up to ~$10M (returns, P&Ls, statements).
+  - Bluevine: 625+, ~$40k/mo, 6+ months; industry-sensitive.
+  - Three ways to qualify: strong personal credit · business cash flow · assets/collateral (401k, brokerage).
+- L13 Card strategies (2025)
+  - Amex: up to ~6 business cards per business / ~15 total; often soft pull if you already hold a personal Amex.
+  - PNC: open business checking first.
+  - FNBO: soft-pull preapproval, typical $15–30k+; also underwrites for Webster, AmTrust, First Bank, NY Community. ⚠ Course's tip of entering an Omaha ZIP to dodge FNBO's geo-block is left out — that's a false address on an application.
+  - Chase: pulls Experian + TransUnion; several cards back-to-back can share 1 pull; use a banker for manual review.
+  - Geo-restricted Equifax banks: Wells Fargo, Truist, Citizens, DCU, Langley — foreign-entity registration (e.g. via Nolo) where the business really operates.
+  - TransUnion cards: Barclays (e.g. AAdvantage Aviator), BMO, Wyndham Business, Earnest. Navy Fed: call to open the business account; 3–5 day underwriting.
+  - BofA: up to 4 business cards back-to-back on 1 pull; same for business auto loans.
+- L14 No-doc business LOCs
+  - KeyBank: up to ~$50k LOC + ~$30k card, no time-in-business minimum (geo-restricted).
+  - Huntington, Regions, Truist, M&T, Fifth Third, PNC: ~$25–50k, no docs.
+  - Citizens: up to ~$50k LOC, 6+ months in business, EQ/EX.
+  - TD Bank: up to ~$25k LOC, 1 yr, Equifax.
+  - Philadelphia-area banks named: "UnionVest" (up to ~$100k no doc — name may be Univest) and Penn Community (up to ~$250k no doc).
+  - U.S. Bank: business loan + card stack (~$50k + $25k) with 2+ yrs.
+  - BofA: 4 cards or 4 vehicle loans on 1 hard pull, up to ~$50k no doc.
+  - Keep $3–5k in the business account; apply in branch or through a relationship manager; clean personal guarantee (or a real credit partner). Under 2 yrs: cards yes, most BLOCs no.
+- L15 Business vehicles — (1) refinance a personal vehicle into the business (PG) to build commercial history; with captive lenders (e.g. BMW) a 2nd vehicle may go no-PG after the first is paid well. (2) Commercial/fleet department at BofA, Truist, Navy Fed — no-PG needs 2+ yrs, 8+ tradelines on D&B/Experian Business, recent returns or 3–6 months statements. (3) Buy outright with a 0% business card/LOC (e.g. $75k Chase business card at 0% for 12 months) and own the title.
+- L16 Program pitch — Six Figure Funder Academy: group ($5k promo / $10k list) or 1-on-1 ($10k). Promises $5–15k commissions per client, banker network, templates, contracts.
+- L17 Program bonuses — Instagram growth, client-payment protection, "37-card sequence: $500k on 11 inquiries", monthly soft-pull card updates, discounted aged corps (⚠ not used here).
+- L18 Live Q&A recap
+  - Banks differ on whether they date the business by EIN or by Articles filing date; the reliable path is strong personal credit or a real credit partner.
+  - ⚠ Course frames adding a credit partner as "paperwork only, no ownership risk". Reality: a partner who signs a personal guarantee is fully liable for the debt, and listing someone as a member who isn't is a misrepresentation — make it a real, documented role with compensation.
+  - High utilization: pay down with a business loan or soft-pull personal loan, then stack for $100k+.
+  - Program includes intro to ~8 bank relationship managers (Chase, BofA, Truist, U.S. Bank, Elan, BMO…); learn to build your own RM network.
+- L19 Program overview — $10–20k commission per client "common"; 680+ and low utilization still required for everything.
