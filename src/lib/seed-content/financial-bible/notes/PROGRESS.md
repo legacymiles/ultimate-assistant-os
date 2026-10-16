@@ -11,7 +11,7 @@ Updated after every batch so a dropped connection loses nothing. Resume from the
 - [ ] Webinar Mastery — 48 lessons                        → notes/webinar-mastery.md
 
 ## Resume point
-6FF Mastery: next lesson to read = 44
+6FF Mastery: next lesson to read = 107
 
 ## Video-only lessons (no written notes on the page — watch these yourself)
 (filled in as found)

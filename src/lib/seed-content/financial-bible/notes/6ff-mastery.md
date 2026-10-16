@@ -170,3 +170,181 @@ Paraphrased and condensed. `[video-only]` = the page has no written notes; only 
     - 650+ and $25k+/mo → Loop, Lytics, Backd, BMO, Truist, Carputty
     - 700+ and $50–100k+/mo → Jumpstart, Lytics no-doc, Toolbox
   - Lower credit = full-doc uploads (PFS, AR/AP aging, 3 yrs taxes, bank statements).
+
+## 4 Week Intensive
+- L44 Week 1 s1 — Funding Biz in a Box setup pt 1 (CRM at 6figurefunder.com/crm) — [video-only]
+- L45 Week 1 s2 — Funding Biz in a Box pt 2 / digital product business — [video-only]
+- L46 Week 2 — Digital products — [video-only]
+- L47 Week 2 s2 — How to create digital products pt 2 — [video-only]
+- L48 Week 3 — Content 2 Cashflow (content creation) — [video-only]
+- L49 Week 3 s2 — How to build the business OFFLINE — [video-only]
+- L50 Aug 1 — Funding funnel — [video-only]
+- L51 Aug 7 — Funding funnel — [video-only]
+- L52 Bonus: Chargeback prevention — use Deposyt as the payment processor (course contact can help fight chargebacks only on Deposyt); otherwise keep the documents shown in the video (signed agreement, proof of work/approvals, communication log). [mostly video]
+
+## 6 Figure Funder CRM Setup (GoHighLevel)
+- L53 CRM overview & importing the system — GoHighLevel snapshot (affiliate link to import their pre-built funding CRM). [video]
+- L54 Getting your phone number approved (A2P/10DLC registration) — fill in their Google Doc template: https://docs.google.com/document/d/1YL8TAQMSa8GTXAieXYJshNtG-i7Oo4PKS-L0z_KFI8k
+- L55 Pipeline overview & setup — [video-only]
+- L56 Calendar setup — [video-only]
+- L57 Uploading your funding agreement — [video-only]
+- L58 Setting up your survey — attachment "Pre-QualificationQuestions.pdf" (the pre-qual question list)
+- L59 Client doc-upload form — attachment "Funding Document Upload Form.pdf"
+- L60 Funding funnel walkthrough — [video-only]
+- L61 Funding funnel setup pt 2 — [video-only]
+- L62 Connecting your domain to the funding funnel — [video-only]
+- L63 DM automation — [video-only]
+- L64 Automation setup — [video-only]
+- L65 Sending bulk and single emails — [video-only]
+- L66 Lead magnets on demand
+  - Funnel = capture page (strong headline + short video/image on what they get) → confirmation page (congrats video, restate what they opted into, optional booking calendar).
+  - Form fields: name, email, phone; button to unlock the magnet.
+  - Workflow triggered by form submit: tag the lead by source → SMS congrats + where to find it → email with the video link or file.
+
+## Marketing
+- L67 Finding content to create on TikTok — [video-only]
+- L68 Finding content on YouTube — [video-only]
+- L69 Finding content using Instagram — [video-only]
+- L70 Creating direct-offer content — [video-only]
+- L71 Instagram direct-offer content — [video-only]
+- L72 Turning long-form into short-form — [video-only]
+- L73 Setting up Instagram — [video-only]
+- L74 Side-by-side (duet/remix) videos on Instagram — react to other creators' best clips to borrow attention for your brand. [video]
+- L75 Facebook Business Manager setup — [video-only]
+- L76 Facebook page setup — Canva template: https://www.canva.com/design/DAGD5by6qaA/Mi3vZGroupTsSOqJrSH9lw/view
+- L77 Local ad campaigns — [video-only]
+- L78 Collecting testimonials — [video-only]
+- L79 Done-for-you email sequence — Google Doc of ready emails; just drop your consultation link into each: https://docs.google.com/document/d/1y95dP6uYpMSdhYk_LDd10DxYr20G4MSBMeIQ7U5GB1c
+
+## Affiliate Marketing
+- L80 The Moon Method — 7-figure business in 10 months with no ad spend — [video-only]
+- L81 Real-estate lending without a license — Fathom recording: https://fathom.video/share/zt3ZpnctU7CUz52rpLrPYEAELtpy8YkU
+- L82 Affiliate marketing options — Fathom: https://fathom.video/share/v7pYkk48sHhD9U1o7xscY89KjbXx5g8y · affiliate programs spreadsheet: https://docs.google.com/spreadsheets/d/1P7zvVQx4_ElYfvuAXgspgiU-HjBHaUhWg5oYrE-KWhI · attachment "Affiliate Marketing.pdf"
+- L83 How to get affiliates — they'll set up a back-office affiliate website for you. [video]
+- L84 Affiliate presentation — Canva deck aimed at real-estate / mortgage brokers as referral partners: https://www.canva.com/design/DAGJjboYs5E/v7TVR3tg-tx5aqbv1rlJWw/view
+
+## Thrive & Fund Thursday LIVE (weekly Q&A calls — summaries only; full audio on Fathom)
+- L85 Funding + credit repair combo call (Jul 11) — Fathom https://fathom.video/share/idew-__zRuUG7xPs3BeWa9ihnMX1KFuN
+  - Credit repair process: pull report → action plan → transparent pricing (≈$500 targeted dispute/removal, ≈$1,000 full repair). Set expectations hard on bankruptcies.
+  - Business-credit late payments: consumer-protection dispute rights mostly don't cover business tradelines. Reviving an older dormant LLC for funding was discussed.
+- L86 Funding call 7-18-24 — Fathom https://fathom.video/share/GxqE4vaUaiLvow2ayV3TiBWKCyhRJx62
+  - Navy Federal with no military tie: legit route = a family/household member who's already a member sponsors you. (⚠ Left out: the "say a grandfather served" suggestion — false membership claims.)
+  - Real-estate investors: borrow against property via hard-money / commercial lenders — they look at credit, collateral and capacity to repay. A commercial lender guest walked through requirements.
+  - "Ghost money": business applications with only an SSN as guarantor so the debt doesn't show on personal reports — the group itself flagged the risks (still personally liable; defaults DO hit personal credit).
+  - Teach clients a use-of-funds plan; funded clients with no plan burn the money.
+  - Build personal available credit first (CLIs + tradelines) before business funding.
+- L87 Funding call 7-25-24 — Fathom https://fathom.video/share/roYwrQGBTnp-Mjyz9ZEi82iFhm8Bssxo
+  - Lead gen: consistent Facebook posting + outreach is producing leads for members — copy what works in the group.
+  - Aged corps discussed (⚠ not carried into the playbook — see L36).
+  - Client with great personal credit but weak business financials → lean on personal-guarantee products while the business builds.
+  - New members: finish the course, connect with bank relationship managers, generate leads on social, build personal credit + business revenue.
+- L88 Funding call 7-31-24 — Fathom https://fathom.video/share/6WEJ127w7zgcbz6nx2uwnBW33yY453Q6
+  - High card utilization → a personal loan to consolidate is usually the best fix, if debt-to-income stays reasonable.
+  - Collections: dispute letters to the collector AND the bureaus, CFPB complaint if ignored — clean this up BEFORE funding.
+  - Target ≥ $50,000 in personal available credit before running business funding.
+  - Content: value-first posts with a hook and a clear call to action, posted consistently.
+  - (Manufactured-spending "testing" discussed — banks close accounts for it; see L31.)
+- L89 Funding call 8-8-24 — Fathom https://fathom.video/share/iSj9mN2Cjc1gs6LHyWuKT9v1-EqUp6XK
+  - Affiliates: build an affiliate network so others bring the clients; collect affiliate testimonials to recruit more. Pay affiliates ~2–3%; give each a custom lead-capture form to track referrals.
+  - Lender asks for tax returns / transcript permission and the client doesn't have them → move to another lender; don't waste time.
+  - Banks outside your area → foreign-entity registration (see L38).
+  - Bankruptcies: course walked through disputing with bureaus/courts. (Reality: an accurate bankruptcy stays 7–10 yrs; disputes only work on errors.)
+  - $300k/month travel business (high-risk industry): use partners with higher scores as guarantors, a separate entity, and look at SBA loans.
+- L90 Funding call 8-22-24 — Fathom https://fathom.video/share/BYKqqe1gLvTxfEmk3onWGZyXupk325rQ
+  - High utilization → personal loan or tradelines.
+  - Auto-loan denials often come from the vehicle (age/mileage) not just the borrower.
+  - Rapid rescore: when balances are paid but not yet reported, a mortgage broker can order a rapid rescore, or call creditors to report early.
+- L91 Funding call 8-29-24 (54 min) — Fathom https://fathom.video/share/bJBetwfKBznzRxi8ZsCKr_x9r_ryUzSB
+  - Addresses to avoid for a business: Regis-type virtual offices, P.O. boxes, UPS Store boxes.
+  - Personal AVAILABLE credit matters even for clean 750+ files — too little limits what banks will extend. Fix it first; some clients resist using personal credit, explain why it's required.
+  - Operating agreement with a strong-credit partner + weaker-credit owner; banks may want it documented.
+  - Networking: commercial real-estate events → partner with RE brokers for referrals; go to events/speaking gigs.
+- L92 Funding call 9-5-24 — Fathom https://fathom.video/share/M_3LBiG2k7Y3ExFc4SFjxbyVaexxZMMj
+  - Affiliate partners bring clients with little effort; post consistently, ignore follower counts.
+  - Facebook ads get expensive and pull lots of bad-credit leads → organic content, referrals, tighter niche targeting, ads in specific cities.
+  - Early Warning Services (EWS) flags on bank accounts block new accounts — getting removed is slow; check before opening accounts.
+  - Plan when to STOP a sequence: time inquiries so they cluster, then stop.
+- L93 Funding call 9-12-24 (67 min) — Fathom https://fathom.video/calls/148020844
+  - PenFed is a go-to for growing personal available credit to ~$50k before business funding.
+  - Citi (course said "City Financial") was running 0% for 21 months on balance transfers / 12 months purchases — good for clients whose 0% promo is ending. (Promos change; verify.)
+  - LightStream: ~660 minimum score; utilization matters.
+  - Lenders can verify tax returns directly with the IRS (transcripts) — don't assume they won't.
+  - Sole-prop business cards ("ghost money") — the call itself said many consider it unethical; if paid late it still reports personally (L40).
+  - Approvals can fail on hidden items: Early Warning flags, UCC filings — check the full profile.
+  - Shelf/aged corps discussed (⚠ not carried forward — see L36).
+- L94 Funding call 9-19-24 (62 min) — Fathom https://fathom.video/calls/151622180
+  - Chase business LOC: applicant can't have felony convictions (new policy at the time).
+  - Partner with MCA providers: their clients who've paid off an MCA are referrals for 0% cards/LOCs; turn MCA shops into affiliates.
+  - Build each client's bank list grouped by which bureau each bank pulls, so you spread inquiries across EX/TU/EQ.
+  - Uses ChatGPT to draft client funding plans and marketing.
+  - Corporations reportedly present better than LLCs for some lenders. (Aged-corp sourcing discussed — left out.)
+- L95 Funding call 9-26-24 (57 min) — Fathom https://fathom.video/share/RxwVPTzLWEu49ERJVZUyixKYhX2gh9hP
+  - Affiliate/partner income = steady, low-effort deal flow; train affiliates on what qualifies.
+  - Hard-money lenders for fix-and-flip named: Toro, National Corporate Credit, ARF Financial — different economics than the 10% card/LOC model.
+  - Email list: lead magnets, ManyChat-style DM bots to capture emails, punchy subject lines.
+  - A fraud alert on the credit report causes denials (GM, Navy Fed) — remove/expire the alert or call the lender to verify before reapplying.
+- L96 Funding call 10-3-24 (40 min) — Fathom https://fathom.video/share/Mbz998aVqbXrS7v54CxJrezRm2FGt25A
+  - $1M+ revenue clients are the best clients — full-doc lines and bigger cards.
+  - Videos walking through each bank's requirements get few views but many SAVES → good lead content; bundle the info into digital products.
+  - Client with no plan or idea → educate, find the goal, steer to realistic amounts.
+  - Geo-restricted lesser-known banks: run boosted posts/ads in that bank's area to find clients who qualify there.
+- L97 Funding call 10-10-24 (84 min) — Fathom https://fathom.video/share/WLXzNB-GFhcTpy7U-TCbqp_zeySLn9dL
+  - NO-REVENUE business card sequence: soft pulls first → Amex (up to 4-card play) → high-limit Chase and BofA business cards; finish the whole sequence inside a few days so inquiries cluster.
+  - Chase underwrites exposure per SSN, not per entity.
+  - Use a bank locator (FDIC BankFind / local search) to find community banks near the client that lend to new businesses; call them, learn their rules, build the relationship.
+  - Credibility with clients: review their report, give a written action plan, walk through every step before starting.
+  - Collect payments with invoices via Deposyt or Zelle.
+- L98 Funding call 10-17-24 (63 min) — Fathom https://fathom.video/share/HUkTRvncf83H6-GxsXBBwgK2MbyR-qo8
+  - Navy Fed auto loan: unused approved amount can be converted to a personal loan (ask the CU).
+  - Moving a personal asset (e.g. a car) into the business can improve personal debt-to-income.
+  - Beneficial Ownership Information (BOI) filing discussed as a side-service. (Status changed in 2025 — Treasury exempted U.S.-formed companies; check FinCEN before offering it.)
+  - Member win: $100k funded.
+- L99 Funding call 10-24-24 (79 min) — Fathom https://fathom.video/share/ydjB35stdj-Xcbg4gyAzUzX8sE8q9_Nn
+  - Docs reviewed: Child-support & repo dispute guide https://drive.google.com/drive/folders/1kBkxFffNTYeRBxfaC0Nrx6S_ZdSEeXm2 · Content from YouTube transcripts + teleprompter https://drive.google.com/drive/folders/1K-1djCu60S8l2PTGnk5vPH7BrgnO0z8R
+  - FICO 10T uses trended data (looks at ~24+ months of balance trends, not just a snapshot) — paying down over time matters more as lenders adopt it.
+  - Win: member approved for two $50k cards.
+  - Adding a strong-credit person to the operating agreement lets the business qualify for more.
+  - Turning card limits into cash ("liquidation") was discussed; ⚠ invoicing your own related entity through a merchant account is what got the BofA account in L40 shut down — treat cash-out as high risk.
+  - Lead gen beyond social: LinkedIn connections with complementary businesses, local community groups, repurpose YouTube into posts.
+- L100 Funding call 10-31-24 (91 min) — Fathom https://fathom.video/share/tqZxy2-RciYTkFPaTUKTgMpfRSucGvMi
+  - Skeptical client ("why not just go to the bank?") → your value = banker relationships, knowing each bank's rules and the order to apply in, which gets higher limits and fewer denials.
+  - Many old addresses on the report → update/remove outdated addresses with the bureaus so the current one verifies.
+  - Approval-then-denial happens; set expectations up front and always have the next move ready.
+  - Credit unions differ a lot on pre-approval, soft pulls and limit size — keep a running list.
+- L101 Funding call 11-7-24 (64 min) — Fathom https://fathom.video/share/cmt5TxWTWAYLaax8hCYqKs8J_rrczv9H
+  - ★ RULE OF THUMB: get personal available credit to $25–50k; business funding typically comes in at 2–3× that.
+  - Client won't sign the agreement → be firm on timelines; don't chase unserious clients.
+  - Navy Fed $20k approval then worried about Chase: time the Chase app before the new balance reports / keep utilization low.
+  - New LLC + operating agreement listing a strong-credit member → Chase banker approved a $60k line.
+  - $1M-revenue client: use real financials for lines + cards while growing personal credit.
+  - Stack smaller consistent wins rather than always swinging for the max.
+- L102 Funding call 11-14-24 (90 min) — Fathom https://fathom.video/share/SnyWeBYEPw89xxq4ctkrgJyLzz4HaE6w
+  - Affiliate program: pay 3–10% depending on volume; recruiting affiliates = just talking to people about funding/credit repair. Use a professional partnership agreement (some affiliates balk at giving an SSN — collect only what payouts need, e.g. a W-9).
+  - Banks can request tax returns to check revenue; some give low limits even to high-revenue businesses. (⚠ Inflating revenue was discussed — left out.)
+  - Business-services package to sell: LLC formation, EIN, address setup, business-credit profile building, consulting — tiered.
+  - AI for marketing: ChatGPT copy + talking-avatar videos.
+- L103 Funding call 11-21-24 (63 min) — Fathom https://fathom.video/share/_7yMEkRxybE8DXPPuYq9VysVs5AyvzMz
+  - ★ Credit-limit increases: ask regularly — Discover roughly every 30 days, Apple Card every ~3 months. Use the card, pay it down, repeat — shows responsible use.
+  - ★ Pay on (or just before) the STATEMENT date, not the due date, so a low balance is what reports.
+  - Navy Fed GO prepaid cards were discussed as a cash-out route (several cards per member, daily ATM caps). Funding prepaid cards from a credit card is usually coded as a cash advance (fees, no 0%) and is a common reason for account reviews.
+  - Verify everything the client tells you about revenue and scores — claims and reality often differ.
+  - Closed accounts / charge-offs: call the bank and ask about re-establishing the relationship (Chase is least forgiving).
+  - Credit builders to recommend: Self, Kovo.
+  - Banks that partner with QuickBooks can lend off QuickBooks data.
+  - (Aged corps discussed — left out; see L36.)
+- L104 Funding call 12-05-24 (59 min) — Fathom https://fathom.video/share/CoWu7whPkzBwF13CgJHzn6sEzYZRiHLU
+  - No one-size sequence — build each from the client's profile and existing bank relationships.
+  - ★ Revenue-based funding usually wants $30–40k/month in deposits for 3–6 months. Bluevine up to ~$250k, OnDeck up to ~$200k, Amex has revenue-based lines.
+  - Wells Fargo: possibly up to $50k business LOC with no docs for 2-year-old businesses.
+  - Some tradelines require their associated address on your report; updating addresses with bureaus can take persistence (ask for a supervisor).
+  - ★ Partnerships are the best client source ("Moon Method" → $800k+ profit): real-estate agents, tax pros, credit-repair companies, course creators. Free in-person education events planned for 2025.
+- L105 Funding call 12-12-24 (57 min) — Fathom https://fathom.video/share/mKEs51JAzyPVdLg8A3HK-UyMLLm-bpGz
+  - Don't push unprepared clients through funding; credit-repair clients get a long-term funding plan.
+  - ★ ALWAYS check the client's Early Warning Services (EWS) report before applying — and call Chase for the specific denial reason.
+  - Paid banker-access service for Chase (≈$625 first month, $500/mo per client): two Chase card apps instead of one online, dedicated banker. Worth it only if the deal's commission justifies it ($500 vs ~$9.5k fee).
+  - Visibility: guest on each other's live streams/podcasts, shout-out pages, influencer collabs, free webinars.
+- L106 Funding call 12-19-24 (75 min) — Fathom https://fathom.video/share/KcNT_gPv-ERU6Gxta2T-c2Ktt2Yqk2ts
+  - Student loans blocking a mortgage: income-driven repayment (IBR), Fresh Start to bring defaulted federal loans current, dispute only inaccurate items.
+  - Adding a partner to an operating agreement for more funding: give them real equity/compensation and protect the existing owner in writing.
+  - Restaurant opening a 2nd location: cards + LOCs + possibly hard money.
+  - Bank reps as partners: agree commission/process up front.
