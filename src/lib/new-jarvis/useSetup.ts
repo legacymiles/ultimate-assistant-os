@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AUTOPILOT_CHANGED, getAutopilot } from "@/lib/recall/photos/autopilot";
 import { useLauncher } from "./launcher";
 import { setupChecklist, useOnboarding, type SetupItem } from "./onboarding";
+import { thinkingReady } from "./keySetup";
 import { useSyncStatus } from "@/lib/jarvis/useSyncStatus";
 import type { SyncPlan } from "@/lib/jarvis/syncSteps";
 
@@ -18,6 +19,8 @@ export interface SetupStatus {
   left: number;
   connectors: { available: boolean; reason: string; connectUrl: string; apps: ConnectorApp[] } | null;
   iphoneLinked: boolean;
+  /** Which documented env keys are set — names only, never values. Null until read. */
+  keys: Record<string, boolean> | null;
   /** Memory + skill sync, with the next step for this device; null until known. */
   sync: SyncPlan | null;
   refresh: () => void;
@@ -34,6 +37,7 @@ export function useSetup(): SetupStatus {
   const [rules, setRules] = useState(0);
   const [connectors, setConnectors] = useState<SetupStatus["connectors"]>(null);
   const [iphoneLinked, setIphone] = useState(false);
+  const [keys, setKeys] = useState<Record<string, boolean> | null>(null);
   const sync = useSyncStatus();
 
   const refresh = useCallback(() => {
@@ -45,6 +49,10 @@ export function useSetup(): SetupStatus {
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setIphone(Boolean(d.linked)))
       .catch(() => {});
+    fetch("/api/jarvis/armory", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { keys?: Record<string, boolean> } | null) => setKeys(d?.keys ?? {}))
+      .catch(() => setKeys({}));
   }, []);
 
   useEffect(() => {
@@ -66,6 +74,7 @@ export function useSetup(): SetupStatus {
     iphoneLinked,
     rules,
     favorites: launcher.favorites.length,
+    thinkingReady: keys ? thinkingReady(keys) : false,
     sync: sync.plan
       ? { done: sync.plan.state === "ready", detail: sync.plan.state === "ready" ? "Phone, claude.ai and your computers" : sync.plan.here.title }
       : null,
@@ -74,5 +83,5 @@ export function useSetup(): SetupStatus {
     refresh();
     sync.refresh();
   };
-  return { items, left: items.filter((i) => !i.done).length, connectors, iphoneLinked, sync: sync.plan, refresh: refreshAll };
+  return { items, left: items.filter((i) => !i.done).length, connectors, iphoneLinked, keys, sync: sync.plan, refresh: refreshAll };
 }

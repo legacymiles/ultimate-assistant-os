@@ -3,6 +3,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import path from "node:path";
 import { readDoc, writeDoc } from "@/lib/server/docStore";
 import { deleteBlob, getBlob, putBlob } from "@/lib/server/blobStore";
+import { parseShortcutDate } from "./shortcutDate";
 
 // ---------------------------------------------------------------------------
 // The iPhone photo inbox.
@@ -59,14 +60,21 @@ interface InboxDoc {
   entries: InboxEntry[];
   /** uid -> recently seen device identifiers, newest last. */
   seen: Record<string, string[]>;
+  /**
+   * uid -> the newest photo date the phone has sent, exactly as it sent it.
+   * The Shortcut asks for this before each run and finds only photos taken
+   * after it (oldest first), so a run of 20 walks forward through a backlog
+   * instead of re-sending the same newest 20.
+   */
+  cursor: Record<string, { raw: string; t: number }>;
 }
 
-const EMPTY: InboxDoc = { tokens: {}, entries: [], seen: {} };
+const EMPTY: InboxDoc = { tokens: {}, entries: [], seen: {}, cursor: {} };
 
 async function load(): Promise<InboxDoc> {
   const doc = await readDoc<InboxDoc>(DOC, dataDir());
   if (!doc) return { ...EMPTY };
-  return { tokens: doc.tokens ?? {}, entries: doc.entries ?? [], seen: doc.seen ?? {} };
+  return { tokens: doc.tokens ?? {}, entries: doc.entries ?? [], seen: doc.seen ?? {}, cursor: doc.cursor ?? {} };
 }
 
 async function save(doc: InboxDoc): Promise<boolean> {
@@ -138,6 +146,15 @@ export async function receive(uid: string, photos: IncomingPhoto[]): Promise<Rec
   const out: ReceiveResult = { accepted: 0, skipped: 0, rejected: [] };
   const added: string[] = [];
 
+  // The bookmark moves for every photo the phone sends — accepted or skipped
+  // as already seen — because either way the phone is done with it.
+  const advance = (raw?: string) => {
+    const t = parseShortcutDate(raw);
+    if (!raw || !Number.isFinite(t)) return;
+    const cur = doc.cursor[uid];
+    if (!cur || t > cur.t) doc.cursor[uid] = { raw: raw.trim(), t };
+  };
+
   for (const p of photos.slice(0, MAX_PER_REQUEST)) {
     if (p.body.length > MAX_PHOTO_BYTES) {
       out.rejected.push({ name: p.name, reason: "over 25 MB" });
@@ -145,6 +162,7 @@ export async function receive(uid: string, photos: IncomingPhoto[]): Promise<Rec
     }
     if (p.deviceId && seen.has(p.deviceId)) {
       out.skipped++;
+      advance(p.takenAt);
       continue;
     }
 
@@ -170,6 +188,7 @@ export async function receive(uid: string, photos: IncomingPhoto[]): Promise<Rec
       added.push(p.deviceId);
     }
     out.accepted++;
+    advance(p.takenAt);
   }
 
   // Ring buffer: keep the most recent SEEN_LIMIT, so the document cannot grow
@@ -179,6 +198,14 @@ export async function receive(uid: string, photos: IncomingPhoto[]): Promise<Rec
 
   await save(doc);
   return out;
+}
+
+/**
+ * Where the next run should start: the newest photo date already sent, as the
+ * phone wrote it. Null before the phone has ever sent a date.
+ */
+export async function cursorFor(uid: string): Promise<string | null> {
+  return (await load()).cursor[uid]?.raw ?? null;
 }
 
 // ----- draining ------------------------------------------------------------

@@ -6,6 +6,7 @@ import { PROJECTS } from "@/lib/catalog";
 import { WORKFLOWS, cardStill } from "@/lib/studio/workflows";
 import { parseSkillFrontmatter } from "@/lib/skills/parse";
 import { flagsIn, proofIn, type QueueFact } from "@/lib/new-jarvis/queue";
+import { taskFacts } from "@/lib/new-jarvis/tasks";
 
 // ---------------------------------------------------------------------------
 // The evidence behind the In Queue board.
@@ -262,7 +263,8 @@ async function skillFacts(): Promise<QueueFact[]> {
 export async function GET() {
   try {
     const [apps, skills] = await Promise.all([appFacts(), skillFacts()]);
-    const facts = [...apps, ...skills, ...workflowFacts()];
+    // Pinned priorities first: they are the top of the queue until done.
+    const facts = [...taskFacts(), ...apps, ...skills, ...workflowFacts()];
     return NextResponse.json({ facts, scannedAt: new Date().toISOString() });
   } catch (err) {
     // A board that 500s is worse than a board missing a column: the client

@@ -14,7 +14,8 @@
 // argument.
 // ---------------------------------------------------------------------------
 
-export type QueueKind = "app" | "workflow" | "skill";
+/** `task` = a priority the owner pinned (see tasks.ts); it always sorts first. */
+export type QueueKind = "task" | "app" | "workflow" | "skill";
 
 /**
  * Green or amber. There is deliberately no third state: a thing is either
@@ -65,6 +66,11 @@ export interface QueueSignals {
   proof?: string;
   /** skill / app: unfinished markers found in the text. */
   flags?: string[];
+
+  /** task: written off as finished in tasks.ts. */
+  done?: boolean;
+  /** task: 1 = top. */
+  priority?: number;
 }
 
 export interface QueueFact {
@@ -198,6 +204,7 @@ export function proofIn(text: string): string | undefined {
  */
 export function evidenceFor(fact: QueueFact): Evidence[] {
   const s = fact.signals;
+  if (fact.kind === "task") return [{ label: "Done", met: s.done === true }];
   if (fact.kind === "app") {
     return [
       { label: "Has a page", met: s.hasPage === true },
@@ -237,6 +244,12 @@ export function evidenceFor(fact: QueueFact): Evidence[] {
  */
 export function deriveState(fact: QueueFact): { state: QueueState; why: string } {
   const s = fact.signals;
+
+  if (fact.kind === "task") {
+    return s.done
+      ? { state: "done", why: "Marked done." }
+      : { state: "wip", why: "You pinned this to the top — it stays here until it's done." };
+  }
 
   if (fact.kind === "app") {
     if (s.comingSoon) return { state: "wip", why: "The catalog still lists it as coming soon." };
@@ -335,13 +348,14 @@ export function filterQueue(rows: QueueRow[], f: QueueFilter): QueueRow[] {
  * never below the fold. Within a state, grouping by kind keeps nine apps from
  * being buried under a hundred and fifty workflows.
  */
-const KIND_ORDER: QueueKind[] = ["app", "skill", "workflow"];
+const KIND_ORDER: QueueKind[] = ["task", "app", "skill", "workflow"];
 
 export function sortQueue(rows: QueueRow[]): QueueRow[] {
   return [...rows].sort((a, b) => {
     if (a.state !== b.state) return a.state === "wip" ? -1 : 1;
     const k = KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind);
     if (k !== 0) return k;
+    if (a.kind === "task") return (a.signals.priority ?? 99) - (b.signals.priority ?? 99);
     return a.name.localeCompare(b.name);
   });
 }
@@ -359,7 +373,7 @@ export function countQueue(rows: QueueRow[]): QueueCounts {
     total: rows.length,
     done: 0,
     wip: 0,
-    byKind: { app: blank(), workflow: blank(), skill: blank() },
+    byKind: { task: blank(), app: blank(), workflow: blank(), skill: blank() },
   };
   for (const r of rows) {
     const k = counts.byKind[r.kind];
@@ -431,6 +445,7 @@ export function annotate(
 }
 
 export const KIND_LABEL: Record<QueueKind, string> = {
+  task: "Priorities",
   app: "Apps",
   workflow: "Workflows",
   skill: "Skills",
