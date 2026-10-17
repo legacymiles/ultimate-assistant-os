@@ -438,4 +438,9 @@ export const Icon = {
       <path d="M3 10.5v3M7.5 6.5v11M12 3.5v17M16.5 7.5v9M21 10.5v3" />
     </svg>
   ),
+  Paperclip: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M21 11.5 12.5 20a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l8-8" />
+    </svg>
+  ),
 };

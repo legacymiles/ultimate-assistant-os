@@ -102,8 +102,9 @@ export const UPDATE_TAB: Record<UpdateSource, string> = {
   photos: "photos",
   camera: "dashboard",
   custom: "settings",
-  memory: "memory",
-  actions: "chat",
+  // Memory and pending actions both live on the Dashboard in New Jarvis.
+  memory: "dashboard",
+  actions: "dashboard",
   spend: "router",
 };
 

@@ -20,7 +20,7 @@ VPS ── SessionStart hook: pull ◀──────────────
 
 ## Set up (once per machine, PC and VPS)
 
-The phone needs nothing beyond the memory connector (Jarvis › Memory › *Same memory everywhere*).
+The phone needs nothing beyond the memory connector (New Jarvis › Dashboard › Memory › *Same memory everywhere*).
 For each computer, in the hub folder:
 
 ```bash
@@ -31,7 +31,7 @@ No token to paste: setup reads it from the jarvis-memory connector you already a
 on that computer (`~/.claude.json`, user or project scope, or a project's `.mcp.json`) and never prints
 it. On a computer without the connector, add it at the end: `npm run skills:setup -- --token <TOKEN>`.
 
-Jarvis › Memory › **Skills everywhere** shows this command with your token filled in, plus a
+New Jarvis › Dashboard › Memory › **Skills everywhere** shows this command with your token filled in, plus a
 **Generate** button for a fresh token. The token is the same `JARVIS_MCP_TOKEN` the memory connector
 uses: set it in Vercel once, then use it in this command on every machine.
 

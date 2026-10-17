@@ -248,7 +248,7 @@ async function saveState() {
 
 async function doPush() {
   if (!TOKEN) {
-    vlog("push: no token on this machine — run `npm run skills:setup -- --token <TOKEN>` (Jarvis › Memory › Skills everywhere).");
+    vlog("push: no token on this machine — run `npm run skills:setup -- --token <TOKEN>` (New Jarvis › Dashboard › Memory › Skills everywhere).");
     if (GIT) await gitMirror();
     return;
   }

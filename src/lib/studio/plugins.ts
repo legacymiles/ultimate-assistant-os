@@ -175,5 +175,5 @@ export function inJarvis(slug: string): boolean {
  * moved rather than a second copy of the list.
  */
 export function hubProjects(): CatalogProject[] {
-  return PROJECTS.filter((p) => !inJarvis(p.slug));
+  return PROJECTS.filter((p) => !inJarvis(p.slug) && !p.retiredInto);
 }

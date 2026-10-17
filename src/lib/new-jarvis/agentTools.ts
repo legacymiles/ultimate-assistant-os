@@ -378,6 +378,23 @@ export const AGENT_TOOLS: AgentTool[] = [
     },
   },
   {
+    name: "memory_search",
+    kind: "hub",
+    route: "hub/memory_search",
+    description:
+      "Search the owner's long-term memory — notes, decisions, preferences, past chats, their vault and synced "
+      + "skills. Call it before answering anything about their own life, work or choices, and quote what it "
+      + "returns rather than guessing. Read-only and free; it works with the PC off.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: str("What to look for, in plain words."),
+        limit: { type: "number", description: "How many results, 1-12. Default 6." },
+      },
+      required: ["query"],
+    },
+  },
+  {
     name: "propose_memory",
     kind: "hub",
     route: "hub/propose_memory",

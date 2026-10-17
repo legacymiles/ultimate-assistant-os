@@ -148,7 +148,7 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
             </p>
           </div>
           <a
-            href="/apps/jarvis?tab=plugins"
+            href="/apps/new-jarvis#plugins"
             className="rounded-lg border border-line px-3 py-1.5 text-[11px] text-ink-muted transition hover:border-ink-faint hover:text-ink"
           >
             ← Jarvis

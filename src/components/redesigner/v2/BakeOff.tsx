@@ -307,7 +307,7 @@ export function BakeOff() {
             {kind === "hub-page" && (
               <input
                 className="bo-input"
-                placeholder="/apps/jarvis"
+                placeholder="/apps/new-jarvis"
                 value={route}
                 onChange={(e) => setRoute(e.target.value)}
               />

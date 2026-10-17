@@ -5,21 +5,24 @@
 //
 // Three columns that never change: the rail, the centre, and the right-hand
 // column carrying voice and this machine's capabilities. What swaps is only
-// the middle, and only between the console and a tab the owner went to; the
+// the middle, and only between Chat and a tab the owner went to; the
 // command line stays above all of it, so asking for something is never
 // somewhere you have to navigate to.
 //
-// The existing tabs are MOUNTED, not rebuilt. They read the same stores as
-// /apps/jarvis — same keys, same Supabase rows — so the owner's folders,
-// photos, lists, calendar, memory and Record are the same data seen through a
-// different frame, and nothing here can migrate, copy or lose any of it.
+// The tabs are MOUNTED, not rebuilt. They read the same stores the old
+// /apps/jarvis shell did — same keys, same Supabase rows — so the owner's
+// folders, photos, lists, calendar, memory and Record are the same data, and
+// retiring that shell (it now redirects here) moved and lost none of it.
 // ---------------------------------------------------------------------------
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import "./new-jarvis.css";
 import "./new-jarvis-shell.css";
+import "./deck.css";
+import "./new-jarvis-hud.css";
+import { HudField, Reactor } from "./HudField";
 
 import { BlockView } from "./Blocks";
 import { CommandLine } from "./CommandLine";
@@ -32,6 +35,8 @@ import type { ReactorMode } from "@/lib/new-jarvis/reactor";
 import { useBridge } from "@/lib/new-jarvis/useBridge";
 import { useWakeVoice } from "@/lib/new-jarvis/useWakeVoice";
 import { runBlock, type WireMessage } from "@/lib/new-jarvis/runner";
+import { historyText, shown, toParts } from "@/lib/new-jarvis/attachments";
+import { useAttachments } from "@/lib/new-jarvis/attachClient";
 import { MAX_LIVE_BLOCKS, newBlock, type Block, type Gate, type Mode } from "@/lib/new-jarvis/types";
 import { BLOCKS_KEY, revive, slim } from "@/lib/new-jarvis/persist";
 
@@ -83,7 +88,7 @@ import type { JarvisStore } from "@/lib/jarvis/types";
 import { useDashboardCalendar } from "@/lib/jarvis/useDashboardCalendar";
 
 type TabId =
-  | "dashboard" | "console" | "studio" | "harness" | "queue"
+  | "dashboard" | "chat" | "studio" | "harness" | "queue"
   | "folders" | "photos" | "lists" | "calendar" | "inbox"
   | "skills" | "tools" | "passwords" | "calls" | "router" | "architect" | "timeline" | "plugins" | "settings";
 
@@ -96,7 +101,7 @@ type SubmitOpts = { mode?: Mode; skipReflex?: boolean };
 const SETUP_COMMAND = /^\/?(?:(?:open|start|resume|run|redo|restart|finish)\s+)?(?:the\s+|my\s+)?(?:setup|set\s*up(?:\s+jarvis)?|onboarding)[.!?]?$/i;
 
 /**
- * The rail — five entries instead of thirteen.
+ * The rail — three entries and More (it was nineteen, then five).
  *
  * This is the "fewer side tabs, better minimal UI" change, and the three moves
  * that made it possible are worth recording:
@@ -109,14 +114,28 @@ const SETUP_COMMAND = /^\/?(?:(?:open|start|resume|run|redo|restart|finish)\s+)?
  *   a separate "Record" made it read as a filing cabinet rather than as the
  *   owner. The store is untouched; only the framing changed.
  *
- *   Routines is unmounted. /apps/jarvis still has it and the store field is
- *   still read by the updates feed, so nothing was deleted — it simply stopped
- *   paying rent on the surface the owner looks at most.
+ *   Routines is gone. The owner did not use it, so its tab, its store field
+ *   and its seeded prompts were removed rather than kept out of sight.
+ *
+ *   Console became Chat: the same agent loop, plus attachments — pictures,
+ *   clips, audio, PDFs and text the agent actually perceives.
  *
  * Folders, Photos, Lists, Calendar and Inbox fold into one "Yours" group, and
  * the Toolbox is the group from the old shell, moved over whole.
  */
 const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[] }[] = [
+  {
+    id: "work",
+    label: "Work",
+    icon: "Layers",
+    items: [
+      // Harness is where the repo actually gets changed; In Queue answers
+      // "what should I work on". Both used to hold a rail slot — the owner
+      // kept the rail to three, so they lead the More sheet instead.
+      { id: "harness", label: "Harness", icon: "Layers" },
+      { id: "queue", label: "Queue", icon: "ListChecks" },
+    ],
+  },
   {
     id: "yours",
     label: "Yours",
@@ -147,18 +166,15 @@ const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[]
   },
 ];
 
-/** The ones that are always one click away, because they are where work happens. */
+/**
+ * The rail: three entries the owner chose, and More for everything else.
+ * A tab opened from More borrows a fourth slot while it is open, so the rail
+ * always shows where you are.
+ */
 const TOP: Tab[] = [
   { id: "dashboard", label: "Dashboard", icon: "Grid" },
-  { id: "console", label: "Console", icon: "Bot" },
+  { id: "chat", label: "Chat", icon: "Bot" },
   { id: "studio", label: "Studio", icon: "Film" },
-  // Harness earns a top slot rather than a place in the Toolbox: it is where
-  // the repo actually gets changed, which makes it work rather than a tool.
-  { id: "harness", label: "Harness", icon: "Layers" },
-  // In Queue is the answer to "what should I work on", which is the question
-  // asked on the way in. Buried in a folder it would be a report; at the top
-  // of the rail with a count on it, it is the to-do list.
-  { id: "queue", label: "Queue", icon: "ListChecks" },
 ];
 
 const TABS: Tab[] = [...TOP, ...GROUPS.flatMap((g) => g.items)];
@@ -167,15 +183,33 @@ function isTab(v: string): v is TabId {
   return TABS.some((t) => t.id === v);
 }
 
-/** Which group a tab lives in, so opening one from a link opens its folder too. */
-function groupOf(tab: TabId): string | null {
-  return GROUPS.find((g) => g.items.some((i) => i.id === tab))?.id ?? null;
+/**
+ * Names that used to be tabs — here, or in the retired /apps/jarvis shell —
+ * and where each one lives now. Old bookmarks, the updates feed and the old
+ * shell's redirect all arrive through this.
+ */
+const ALIASES: Record<string, TabId> = {
+  console: "chat",
+  memory: "dashboard",
+  record: "dashboard",
+  profile: "dashboard",
+  routines: "dashboard",
+};
+
+function tabFor(name: string): TabId | null {
+  const n = name.replace(/^#/, "").trim().toLowerCase();
+  if (isTab(n)) return n;
+  return ALIASES[n] ?? null;
 }
 
 export function NewJarvis() {
   const [tab, setTab] = useState<TabId>("dashboard");
-  /** Which rail folder is open. Opening a tab inside one always opens it. */
-  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  /** The More sheet — every section that is not on the rail. */
+  const [moreOpen, setMoreOpen] = useState(false);
+  /** Files dragged over the window: anywhere is a drop target for Chat. */
+  const [dropping, setDropping] = useState(false);
+  /** The rail's core — the point the background's sweep turns around. */
+  const coreRef = useRef<HTMLButtonElement>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<Mode>("do");
@@ -184,6 +218,7 @@ export function NewJarvis() {
   const [reactorMode, setReactorMode] = useState<ReactorMode>("ring");
 
   const bridge = useBridge();
+  const attach = useAttachments();
 
   // The ledger is kept, because the whole argument of this surface is that a
   // block from an hour ago is still there. Deliberately device-local rather
@@ -227,7 +262,7 @@ export function NewJarvis() {
     };
   }, []);
 
-  // --- the owner's stores, exactly as /apps/jarvis reads them --------------
+  // --- the owner's stores, exactly as the old /apps/jarvis read them ------
   const [store, setStore] = useState<JarvisStore | null>(null);
   const [profiles, setProfiles] = useState<DashboardStore>(emptyStore);
   const reload = useCallback(() => {
@@ -425,7 +460,7 @@ export function NewJarvis() {
   const historyFor = useCallback((): WireMessage[] => {
     const recent = blocks.filter((b) => b.status === "done" && b.answer).slice(0, 4).reverse();
     return recent.flatMap((b): WireMessage[] => [
-      { role: "user", content: b.command },
+      { role: "user", content: historyText(b.command, b.attachments) },
       { role: "assistant", content: b.answer },
     ]);
   }, [blocks]);
@@ -503,6 +538,36 @@ export function NewJarvis() {
         };
       }
 
+      if (tool === "memory_search") {
+        const query = String(args.query ?? "").trim();
+        if (!query) throw new Error("Search for what? The query was empty.");
+        const limit = Math.min(12, Math.max(1, Number(args.limit) || 6));
+        const res = await fetch("/api/jarvis/memory/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, limit }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          available?: boolean;
+          reason?: string;
+          hits?: { title: string; content: string; source: string; capturedAt?: string; origin?: string }[];
+        };
+        if (!res.ok || data.available === false) {
+          throw new Error(`Memory is not reachable right now${data.reason ? `: ${data.reason}` : "."}`);
+        }
+        const hits = (data.hits ?? []).slice(0, limit);
+        return {
+          found: hits.length,
+          results: hits.map((h) => ({
+            title: h.title,
+            source: h.source,
+            when: (h.capturedAt ?? "").slice(0, 10),
+            text: h.content.length > 700 ? `${h.content.slice(0, 700)}…` : h.content,
+          })),
+          ...(hits.length ? {} : { note: "Nothing in memory matches. Say so; do not guess." }),
+        };
+      }
+
       if (tool === "propose_memory") {
         const title = String(args.title ?? "").trim();
         const content = String(args.content ?? "").trim();
@@ -539,7 +604,12 @@ export function NewJarvis() {
 
   const submit = useCallback(
     async (rawText?: string, source: Block["source"] = "typed", opts: SubmitOpts = {}) => {
-      const command = (rawText ?? input).trim();
+      // Attachments belong to what is in the box, so a voice command or a
+      // rerun never picks up files sitting in the tray for something else.
+      const typed = rawText === undefined;
+      const files = typed ? attach.itemsRef.current.filter((a) => a.state === "ready") : [];
+      if (typed && attach.busy) return;
+      const command = (rawText ?? input).trim() || (files.length ? "Look at what I attached." : "");
       if (!command) return;
       const runMode = opts.mode ?? mode;
 
@@ -557,7 +627,7 @@ export function NewJarvis() {
       // something. `wait` is advisory — pressing enter on a half-sentence is
       // the owner overruling it, and a box that refuses to submit is a box
       // people come to hate.
-      if (source === "typed" && !opts.skipReflex && overrideFor !== command && savedACall(reflex.route)) {
+      if (source === "typed" && !files.length && !opts.skipReflex && overrideFor !== command && savedACall(reflex.route)) {
         const block = newBlock({ command, mode: runMode, source });
         setBlocks((bs) => [
           {
@@ -574,22 +644,23 @@ ${reflex.best.excerpt ?? ""}`.trim()
           ...bs,
         ].slice(0, MAX_LIVE_BLOCKS));
         setInput("");
-        setTab("console");
+        setTab("chat");
         return;
       }
 
       if (source === "typed") setInput("");
+      if (typed) attach.clear();
 
-      const block = newBlock({ command, mode: runMode, source });
+      const block = newBlock({ command, mode: runMode, source, ...(files.length ? { attachments: shown(files) } : {}) });
       setBlocks((bs) => [block, ...bs].slice(0, MAX_LIVE_BLOCKS));
-      setTab("console");
+      setTab("chat");
 
       const controller = new AbortController();
       aborts.current.set(block.id, controller);
       const history = historyFor();
 
       const outcome = await runBlock(
-        { command, mode: runMode, history },
+        { command, mode: runMode, history, ...(files.length ? { content: toParts(command, files) } : {}) },
         {
           signal: controller.signal,
           update: (p) => patch(block.id, p),
@@ -635,7 +706,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
       }
       void bridge.refresh();
     },
-    [bridge, historyFor, input, mode, overrideFor, patch, profile?.name, reflex, runTool, voice],
+    [attach, bridge, historyFor, input, mode, overrideFor, patch, profile?.name, reflex, runTool, voice],
   );
 
   useEffect(() => {
@@ -668,19 +739,25 @@ ${reflex.best.excerpt ?? ""}`.trim()
   // The tab lives in the hash, so reload and back land where the owner was.
   useEffect(() => {
     const read = () => {
-      const h = window.location.hash.replace("#", "");
+      const raw = window.location.hash.replace("#", "");
       // A shareable way back into setup: /apps/new-jarvis#setup
-      if (h === "iphone") {
+      if (raw === "iphone") {
         setIphoneGuide(true);
         window.history.replaceState(null, "", window.location.pathname + window.location.search);
         return;
       }
-      if (h === "setup" || h === "onboarding") {
+      if (raw === "setup" || raw === "onboarding") {
         openSetupRef.current();
         window.history.replaceState(null, "", window.location.pathname + window.location.search);
         return;
       }
-      if (isTab(h)) setTab(h);
+      const h = tabFor(raw);
+      if (h) {
+        setTab(h);
+        // An old name is rewritten to the current one, so the address bar
+        // and a bookmark made from it say where the owner actually is.
+        if (raw !== h) history.replaceState(null, "", `#${h}`);
+      }
     };
     read();
     window.addEventListener("hashchange", read);
@@ -690,8 +767,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
   const go = useCallback((id: TabId) => {
     setTab(id);
     window.location.hash = id;
-    const group = groupOf(id);
-    if (group) setOpenGroup(group);
+    setMoreOpen(false);
     // What the self-audit's "nobody opens this" finding is measured from.
     // Device-local on purpose: a phone that never opens Studio must not teach
     // the auditor that the laptop never opens Studio either.
@@ -705,23 +781,34 @@ ${reflex.best.excerpt ?? ""}`.trim()
   const goByName = useCallback(
     (name: string) => {
       // The feed's older ids point at surfaces that are now panels rather than
-      // tabs. Memory is the Dashboard now, and so is a pending action.
+      // tabs — Memory, the Record and the Profile are the Dashboard now.
       if (name === "iphone") {
         setIphoneGuide(true);
         return;
       }
-      const mapped = name === "memory" || name === "chat" ? "dashboard" : name;
-      if (isTab(mapped)) go(mapped);
+      const mapped = tabFor(name);
+      if (mapped) go(mapped);
     },
     [go],
   );
 
   const running = blocks.some((b) => b.status === "running" || b.status === "waiting");
+  const visiting = TOP.some((t) => t.id === tab) ? null : TABS.find((t) => t.id === tab) ?? null;
+
+  // The rail's light slides to whichever entry is current. Measured rather
+  // than computed, because the borrowed slot and the core change the stack.
+  const railRef = useRef<HTMLElement>(null);
+  const [beam, setBeam] = useState<React.CSSProperties>({ opacity: 0 });
+  useLayoutEffect(() => {
+    const on = railRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!on) return setBeam({ opacity: 0 });
+    setBeam({ opacity: 1, transform: `translateY(${on.offsetTop + 6}px)`, height: on.offsetHeight - 12 });
+  }, [tab, visiting?.id]);
   // The capability tally moved into the dock, which is the only thing that
   // reads it now.
 
   return (
-    <div className="nj">
+    <div className="nj nj-hud">
       {iphoneGuide && <IphoneGuide camera={camera} onClose={() => setIphoneGuide(false)} />}
       {setupStep && (
         <Onboarding
@@ -743,40 +830,52 @@ ${reflex.best.excerpt ?? ""}`.trim()
           ask={(task) => {
             // Straight to the super-agent, in Do mode so it can use the browser
             // and files, and past the reflex — this is a job, not a question.
-            setTab("console");
-            window.location.hash = "console";
+            setTab("chat");
+            window.location.hash = "chat";
             submitRef.current(task, "typed", { mode: "do", skipReflex: true });
           }}
         />
       )}
-      <header className="flex shrink-0 items-center gap-2 border-b border-line bg-panel px-3 py-2">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2 py-1 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
-        >
+      {/* The living background behind every section. The Deck draws its own
+          (around its big core), so the shell's one rests while it is open. */}
+      {tab !== "dashboard" && (
+        <div className="nj-field" aria-hidden>
+          <HudField originRef={coreRef} busy={running} />
+        </div>
+      )}
+
+      <header className="nj-top flex shrink-0 items-center gap-2.5 px-3 py-2">
+        <Link href="/" className="nj-top__back">
           <Icon.ArrowLeft width={13} height={13} />
           <span className="hidden sm:inline">Hub</span>
         </Link>
-        <span className="text-sm font-semibold text-ink">New Jarvis</span>
-        <span className="hidden text-xs text-ink-muted sm:inline">
-          · {profile ? `${profile.name}'s assistant` : "the console"}
+        <span className="nj-wordmark">Jarvis</span>
+        <span className="nj-status" data-busy={running || undefined}>
+          <i aria-hidden />
+          {running ? "Working" : "Standing by"}
+        </span>
+        <span className="hidden truncate text-xs text-ink-muted md:inline">
+          {profile ? `${profile.name}'s assistant` : "your assistant"}
         </span>
         <div className="ml-auto">
           <SetupButton setup={setup} onOpen={openSetup} />
         </div>
-        <Link
-          href="/apps/jarvis"
-          className="rounded-lg border border-line px-2 py-1 text-[11px] text-ink-muted transition hover:bg-panel-2 hover:text-ink"
-        >
-          Old Jarvis
-        </Link>
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <nav
-          aria-label="Sections"
-          className="flex w-[var(--nj-rail)] shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line bg-panel py-2"
-        >
+        <nav ref={railRef} aria-label="Sections" className="nj-rail">
+          <button
+            ref={coreRef}
+            type="button"
+            className="nj-rail__core"
+            onClick={() => go("dashboard")}
+            title="Dashboard"
+            aria-label="Dashboard"
+          >
+            <Reactor busy={running} size={36} />
+          </button>
+          <span className="nj-rail__beam" style={beam} aria-hidden />
+
           {TOP.map((t) => (
             <RailButton
               key={t.id}
@@ -784,45 +883,72 @@ ${reflex.best.excerpt ?? ""}`.trim()
               on={tab === t.id}
               onClick={() => go(t.id)}
               badge={
-                t.id === "console" && running
+                t.id === "chat" && running
                   ? "live"
                   : t.id === "dashboard" && updates.unread > 0
                     ? "unread"
-                    : t.id === "queue" && queue.counts.wip > 0
-                      ? "queued"
-                      : null
+                    : null
               }
             />
           ))}
 
-          {GROUPS.map((group) => {
-            const open = openGroup === group.id;
-            const inside = group.items.some((i) => i.id === tab);
-            const I = Icon[group.icon];
-            return (
-              <div key={group.id} className="contents">
-                <button
-                  type="button"
-                  onClick={() => setOpenGroup(open && !inside ? null : open ? null : group.id)}
-                  aria-expanded={open}
-                  title={group.label}
-                  className={`group relative mx-1.5 flex flex-col items-center gap-0.5 rounded-md py-1.5 transition ${
-                    inside ? "bg-elevated text-ink" : "text-ink-muted hover:bg-panel-2 hover:text-ink"
-                  }`}
-                >
-                  <I width={15} height={15} />
-                  <span className="text-[9.5px] leading-none">{group.label}</span>
-                </button>
-                {open &&
-                  group.items.map((t) => (
-                    <RailButton key={t.id} tab={t} on={tab === t.id} onClick={() => go(t.id)} nested />
-                  ))}
-              </div>
-            );
-          })}
+          {/* A section opened from More borrows a slot while it is open. */}
+          {visiting && <RailButton key={`v-${visiting.id}`} tab={visiting} on onClick={() => setMoreOpen(true)} visiting />}
+
+          <button
+            type="button"
+            onClick={() => setMoreOpen((o) => !o)}
+            aria-expanded={moreOpen}
+            aria-haspopup="dialog"
+            title="More sections"
+            className="nj-rail__btn nj-rail__more"
+            data-open={moreOpen || undefined}
+          >
+            <Icon.Menu width={16} height={16} />
+            <span className="nj-rail__label">More</span>
+            {queue.counts.wip > 0 && <span className="nj-pip nj-pip-wip absolute right-1.5 top-1.5" aria-hidden />}
+          </button>
         </nav>
 
-        <main className="flex min-w-0 flex-1 flex-col">
+        {moreOpen && (
+          <MoreSheet
+            current={tab}
+            queued={queue.counts.wip}
+            onPick={(id) => go(id)}
+            onClose={() => setMoreOpen(false)}
+          />
+        )}
+
+        <main
+          className="relative flex min-w-0 flex-1 flex-col"
+          onDragOver={(e) => {
+            if (!e.dataTransfer.types.includes("Files")) return;
+            e.preventDefault();
+            if (!dropping) setDropping(true);
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false);
+          }}
+          onDrop={(e) => {
+            setDropping(false);
+            // The command line takes its own drops; this is everywhere else.
+            if (e.nativeEvent.defaultPrevented) return;
+            const files = Array.from(e.dataTransfer.files);
+            if (!files.length) return;
+            e.preventDefault();
+            void attach.add(files);
+            if (tab !== "chat") go("chat");
+          }}
+        >
+          {dropping && (
+            <div className="nj-drop" aria-hidden>
+              <div className="nj-drop__ring">
+                <Icon.Paperclip width={22} height={22} />
+                <span>Drop to hand it to Jarvis</span>
+                <small>pictures · video · audio · PDFs · text</small>
+              </div>
+            </div>
+          )}
           <CommandLine
             value={input}
             onChange={setInput}
@@ -834,6 +960,13 @@ ${reflex.best.excerpt ?? ""}`.trim()
             micSupported={voice.supported}
             onMic={voice.toggle}
             busy={running}
+            attachments={attach.items}
+            onAttach={(files) => {
+              void attach.add(files);
+              // Attaching is asking Chat for something, so Chat is where to be.
+              if (tab !== "chat") go("chat");
+            }}
+            onRemoveAttachment={attach.remove}
           />
 
           {/* The reflex, over whatever is in the box. Hidden when there is
@@ -860,7 +993,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
               the phone and the laptop finally show the same thing in the same
               place instead of two layouts that drift apart. */}
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div key={tab === "photos" ? "folders" : tab} className="nj-resolve min-h-0 flex-1 overflow-y-auto">
             {/* The Dashboard is its own column layout and owns its scrolling,
                 so it sits outside the shared scroll container. */}
             {tab === "dashboard" && store ? (
@@ -881,8 +1014,8 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 events={widgetEvents}
                 camera={camera}
               />
-            ) : tab === "console" ? (
-              <div className="space-y-2 p-3">
+            ) : tab === "chat" ? (
+              <div className="nj-chat space-y-2.5 p-3 sm:p-4">
                 {blocks.length === 0 ? (
                   <Empty
                     paired={bridge.health.paired && bridge.health.up}
@@ -964,13 +1097,9 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 {tab === "architect" && <Blueprint chromeless />}
                 {tab === "timeline" && <AppShell chromeless />}
                 {tab === "plugins" && <PluginsTab />}
-                {/* SettingsTab's `go` is typed against the OLD shell's tab
-                    union, which is a superset of this one for the ids it
-                    actually sends. Narrowed through the same name check the
-                    hash router uses rather than cast blindly. */}
-                {tab === "settings" && (
-                  <SettingsTab go={((t: string) => goByName(t)) as never} updates={updates} camera={camera} />
-                )}
+                {/* Through the same name check the hash router uses, so an
+                    old tab name lands where it lives now. */}
+                {tab === "settings" && <SettingsTab go={goByName} updates={updates} camera={camera} />}
               </>
             )}
           </div>
@@ -1005,25 +1134,20 @@ ${reflex.best.excerpt ?? ""}`.trim()
   );
 }
 
-/**
- * One rail entry.
- *
- * Extracted because the rail now has three kinds of row — a top-level tab, a
- * folder, and a tab nested inside a folder — and inlining three nearly
- * identical buttons is how they drift apart.
- */
+/** One rail entry. Labelled under the icon; the current one carries the beam. */
 function RailButton({
   tab,
   on,
   onClick,
-  nested = false,
+  visiting = false,
   badge = null,
 }: {
   tab: Tab;
   on: boolean;
   onClick: () => void;
-  nested?: boolean;
-  badge?: "live" | "unread" | "queued" | null;
+  /** Opened from More: it holds a slot only while it is the current tab. */
+  visiting?: boolean;
+  badge?: "live" | "unread" | null;
 }) {
   const I = Icon[tab.icon];
   return (
@@ -1032,24 +1156,104 @@ function RailButton({
       onClick={onClick}
       title={tab.label}
       aria-current={on ? "page" : undefined}
-      className={`group relative flex flex-col items-center gap-0.5 rounded-md py-1.5 transition ${
-        nested ? "mx-2.5" : "mx-1.5"
-      } ${on ? "bg-elevated text-ink" : "text-ink-muted hover:bg-panel-2 hover:text-ink"}`}
+      className="nj-rail__btn"
+      data-on={on || undefined}
+      data-visiting={visiting || undefined}
     >
-      <I width={nested ? 13 : 15} height={nested ? 13 : 15} />
-      <span className={nested ? "text-[9px] leading-none" : "text-[9.5px] leading-none"}>{tab.label}</span>
-      {badge === "live" && <span className="nj-dot absolute right-1 top-1 bg-brand" data-live="true" aria-hidden />}
-      {badge === "unread" && <span className="nj-dot absolute right-1 top-1 bg-support" aria-hidden />}
-      {/* Amber rather than a count: the number is in the dock, and a two- or
-          three-digit badge on a 56px rail would overlap the label it belongs
-          to. Here the only question is whether there IS anything waiting. */}
-      {badge === "queued" && <span className="nj-pip nj-pip-wip absolute right-1 top-1" aria-hidden />}
+      <I width={16} height={16} />
+      <span className="nj-rail__label">{tab.label}</span>
+      {badge === "live" && <span className="nj-dot absolute right-1.5 top-1.5 bg-brand" data-live="true" aria-hidden />}
+      {badge === "unread" && <span className="nj-dot absolute right-1.5 top-1.5 bg-support" aria-hidden />}
     </button>
   );
 }
 
 /**
- * The empty console.
+ * More — every section that is not on the rail, in one sheet.
+ *
+ * Typing filters it and Enter opens the first match, so a section is two
+ * keystrokes away without a rail that lists nineteen of them.
+ */
+function MoreSheet({
+  current,
+  queued,
+  onPick,
+  onClose,
+}: {
+  current: TabId;
+  queued: number;
+  onPick: (id: TabId) => void;
+  onClose: () => void;
+}) {
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const groups = GROUPS.map((g) => ({
+    ...g,
+    items: g.items.filter((t) => !needle || t.label.toLowerCase().includes(needle) || g.label.toLowerCase().includes(needle)),
+  })).filter((g) => g.items.length);
+  const first = groups[0]?.items[0];
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  let n = 0;
+  return (
+    <div className="nj-more" role="dialog" aria-label="More sections">
+      <button type="button" className="nj-more__scrim" aria-label="Close" tabIndex={-1} onClick={onClose} />
+      <div className="nj-more__sheet">
+        <div className="nj-more__head">
+          <span className="nj-kicker">All sections</span>
+          <div className="nj-more__find">
+            <Icon.Search width={14} height={14} />
+            <input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && first) onPick(first.id);
+              }}
+              placeholder="Find a section…"
+              aria-label="Find a section"
+            />
+          </div>
+        </div>
+        {groups.length === 0 && <p className="px-1 py-6 text-center text-xs text-ink-muted">Nothing called that.</p>}
+        {groups.map((g) => (
+          <section key={g.id} className="nj-more__group">
+            <h3 className="nj-more__label">{g.label}</h3>
+            <div className="nj-more__grid">
+              {g.items.map((t) => {
+                const I = Icon[t.icon];
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className="nj-more__tile"
+                    data-on={t.id === current || undefined}
+                    style={{ "--i": n++ } as React.CSSProperties}
+                    onClick={() => onPick(t.id)}
+                  >
+                    <I width={18} height={18} />
+                    <span>{t.label}</span>
+                    {t.id === "queue" && queued > 0 && <em data-num>{queued}</em>}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Chat, before anything has been asked.
  *
  * It teaches the surface rather than announcing that it is empty: four real
  * commands the owner can read and reuse, and an honest line about what is
@@ -1062,33 +1266,65 @@ function Empty({ paired, onPick }: { paired: boolean; onPick: (text: string) => 
     "which node processes are running, and how much memory each",
     "read tools/jarvis-bridge/README.md and summarise what it does",
   ];
-  // Flush left, on the same x as the command line and every block. Centred, it
-  // was the one thing on the surface that did not line up with the column it
-  // belongs to.
+  // What it can take in. Each one opens the file picker filtered to its kind.
+  const kinds: { label: string; icon: keyof typeof Icon; accept: string }[] = [
+    { label: "Pictures", icon: "Image", accept: "image/*" },
+    { label: "Video", icon: "Film", accept: "video/*" },
+    { label: "Audio", icon: "Waveform", accept: "audio/*" },
+    { label: "PDFs", icon: "File", accept: "application/pdf" },
+    { label: "Text & code", icon: "Note", accept: ".txt,.md,.csv,.json,.js,.ts,.tsx,.py,.mq4,.mq5,.html,.css" },
+  ];
+  const pick = (accept: string) => {
+    const input = document.querySelector<HTMLInputElement>('.nj-command input[type="file"]');
+    if (!input) return;
+    const was = input.accept;
+    input.accept = accept;
+    input.click();
+    // Put the picker back to "anything" once this one has opened.
+    setTimeout(() => (input.accept = was), 0);
+  };
   return (
-    <div className="max-w-2xl py-8">
-      <p className="text-sm text-ink">
-        Ask it something, or tell it what to do. Say <span className="font-mono text-brand">&ldquo;Jarvis&rdquo;</span>{" "}
-        and it listens.
+    <div className="nj-hello">
+      <p className="nj-kicker">Chat · super agent</p>
+      <h2 className="nj-hello__title">What are we doing?</h2>
+      <p className="nj-hello__sub">
+        Ask anything, hand it a job, or give it a file and say what to do with it. It looks, watches, listens and
+        reads. Say <span className="font-mono text-[var(--hud)]">&ldquo;Jarvis&rdquo;</span> and it listens.
       </p>
-      <p className="mt-1 text-xs text-ink-muted">
-        Every request becomes a block below — what you said, every step it took, and what came back. Nothing scrolls
-        away.
-      </p>
-      <ul className="mt-5 space-y-1.5">
-        {examples.map((e) => (
+
+      <div className="nj-hello__kinds" role="group" aria-label="Attach">
+        {kinds.map((k, i) => {
+          const I = Icon[k.icon];
+          return (
+            <button
+              key={k.label}
+              type="button"
+              className="nj-kind"
+              style={{ "--i": i } as React.CSSProperties}
+              onClick={() => pick(k.accept)}
+            >
+              <I width={16} height={16} />
+              <span>{k.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="nj-hello__try">Try</p>
+      <ul className="nj-hello__list">
+        {examples.map((e, i) => (
           <li key={e}>
-            {/* The one moment the surface teaches itself. These used to look
-                exactly like input fields and do nothing when clicked. */}
             <button
               type="button"
               onClick={() => onPick(e)}
-              className="group flex w-full items-center gap-2 rounded-md border border-line-soft bg-panel px-3 py-2 text-left font-mono text-[11.5px] text-ink-muted transition hover:border-line hover:bg-panel-2 hover:text-ink"
+              className="nj-try"
+              style={{ "--i": i + kinds.length } as React.CSSProperties}
             >
-              <span className="flex-1">{e}</span>
-              <span className="shrink-0 text-[10px] uppercase tracking-wide text-ink-muted opacity-0 transition group-hover:opacity-100">
-                use
+              <span className="nj-try__caret" aria-hidden>
+                ›
               </span>
+              <span className="flex-1">{e}</span>
+              <span className="nj-try__use">use</span>
             </button>
           </li>
         ))}
@@ -1096,7 +1332,7 @@ function Empty({ paired, onPick }: { paired: boolean; onPick: (text: string) => 
       <p className="mt-5 text-[11px] leading-relaxed text-ink-muted">
         {paired
           ? "This PC is reachable, so the last three will actually run."
-          : "The last three need the local agent on your PC. Without it, it can still think, remember and answer — it just cannot touch the machine."}
+          : "The last three need the local agent on your PC. Without it, Jarvis can still think, remember, look and answer. It just can't touch the machine."}
       </p>
     </div>
   );

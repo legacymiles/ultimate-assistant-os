@@ -485,7 +485,7 @@ export function Onboarding({ start = "welcome", onClose, go, store, commit, onPr
               </p>
               <SyncStatusPanel />
               <p className="text-[11px] text-ink-faint">
-                The full setup — token, commands for each computer — is in Jarvis › Memory › Skills everywhere, and this stays on your
+                The full setup — token, commands for each computer — is in Dashboard › Memory › Skills everywhere, and this stays on your
                 Finish setup checklist until it&apos;s done.
               </p>
             </div>

@@ -263,6 +263,9 @@ export function classify(op: BridgeOp): Verdict {
     // A proposal does not, because the Memory tab is already its gate — and a
     // second gate in front of a thing that only asks would train them to click
     // through both.
+    case "hub/memory_search":
+      return free(`Search your memory for "${truncate(String(args.query ?? ""), 50)}".`);
+
     case "hub/propose_memory":
       return free(`Suggest a memory: "${truncate(String(args.title ?? ""), 50)}".`);
 

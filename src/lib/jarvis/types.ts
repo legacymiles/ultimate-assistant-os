@@ -4,7 +4,7 @@
 // Jarvis grew out of New Dashboard, and deliberately keeps that app's data
 // untouched: the Four-Cs profile still lives under its own `new-dashboard`
 // store key and is rendered by the Profile tab. Everything Jarvis adds on top
-// — memories, conversations, inbox, calendar, routines — lives in the separate
+// — memories, conversations, inbox, calendar — lives in the separate
 // blob described here so neither app can corrupt the other's state.
 //
 // Design rules that this shape encodes:
@@ -213,16 +213,6 @@ export interface CalEvent {
   app: string;
 }
 
-export interface Routine {
-  id: string;
-  name: string;
-  prompt: string;
-  /** What context it needs injected: memory, calendar, inbox, profile. */
-  needs: ("memory" | "calendar" | "inbox" | "profile")[];
-  /** Past runs, newest first. Kept short (10). */
-  runs: { id: string; at: string; output: string }[];
-}
-
 export interface JarvisStore {
   version: 1;
   memories: Memory[];
@@ -240,7 +230,6 @@ export interface JarvisStore {
   chat: Conversation | null;
   messages: InboxMessage[];
   events: CalEvent[];
-  routines: Routine[];
   actions: PendingAction[];
   /** Memory sources the owner has switched off in the Memory tab. */
   mutedSources: MemorySource[];
