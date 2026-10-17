@@ -54,8 +54,11 @@ import type { DueReminder } from "@/lib/recall/calendar/reminders";
 import type { UseQueue } from "@/lib/new-jarvis/useQueue";
 import { QueueBoard } from "./QueueBoard";
 import { Deck } from "./Deck";
-import { FinishSetup, type OnboardingStep } from "./Onboarding";
+import { FinishSetup, resumeStep, type OnboardingStep } from "./Onboarding";
 import type { SetupStatus } from "@/lib/new-jarvis/useSetup";
+import { getOnboarding } from "@/lib/new-jarvis/onboarding";
+import type { CameraWatch } from "@/lib/new-jarvis/useCameraWatch";
+import type { CalendarEvent } from "@/lib/recall/calendar/types";
 
 type Pane = "deck" | "graph" | "memory" | "profile" | "improve" | "queue";
 
@@ -99,6 +102,10 @@ interface Props {
   /** The Finish-setup checklist, owned by the shell so the hero and Profile agree. */
   setup: SetupStatus;
   onOpenSetup: (step: OnboardingStep) => void;
+  /** Hand-typed and Dashboard calendar events, merged by the shell. */
+  events: CalendarEvent[];
+  /** The 10-minute iPhone check, owned by the shell. */
+  camera: CameraWatch;
 }
 
 export function DashboardPanel({
@@ -115,6 +122,8 @@ export function DashboardPanel({
   ownerName,
   setup,
   onOpenSetup,
+  events,
+  camera,
 }: Props) {
   const [pane, setPane] = useState<Pane>("deck");
   const [muted, setMuted] = useState<Set<MemorySource>>(new Set());
@@ -199,7 +208,16 @@ export function DashboardPanel({
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {pane === "deck" ? (
-          <Deck go={go} ownerName={ownerName} unread={updates.unread} setupLeft={setup.left} onSetup={() => onOpenSetup("welcome")} />
+          <Deck
+            go={go}
+            ownerName={ownerName}
+            unread={updates.unread}
+            setupLeft={setup.left}
+            onSetup={() => onOpenSetup(resumeStep(getOnboarding().lastStep, setup.items))}
+            updates={updates}
+            events={events}
+            camera={camera}
+          />
         ) : pane === "graph" ? (
           <div className="flex h-full min-h-0 flex-col lg:flex-row">
             {/* left — the inspector */}

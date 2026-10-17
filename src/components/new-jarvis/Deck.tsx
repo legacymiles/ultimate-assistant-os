@@ -5,7 +5,14 @@
 //
 //   hero        live core, greeting, one line of status
 //   launcher    favorite apps (starred on the Apps page) + last used
-//   autopilot   a grid of every photo not filed yet, each with Jarvis's guess
+//   widgets     Camera Autopilot, Notifications, To-do, Calendar — each a small
+//               card that opens full-size on a tap (see Widgets.tsx)
+//
+// Camera Autopilot's widget shows a strip of the waiting photos (or the last
+// ones filed, when the queue is clear); expanded, it is the full grid, each
+// photo with Jarvis's guess. New iPhone photos arrive by themselves: the shell
+// checks the inbox every 10 minutes (useCameraWatch) and the Updates feed
+// raises a notification.
 //
 // Two ways to act on a photo, and the owner chose both:
 //   • "File it" on a card files it straight to the guess. The tap IS the yes.
@@ -40,6 +47,24 @@ import { getFile } from "@/lib/recall/files";
 import { folderPaths } from "@/lib/recall/classify";
 import { describeAction, type AutopilotAction, type AutopilotReply } from "@/lib/new-jarvis/autopilotChat";
 import type { PendingPhoto } from "@/lib/recall/photos/types";
+import type { UpdatesApi } from "@/lib/jarvis/useUpdates";
+import type { CalendarEvent } from "@/lib/recall/calendar/types";
+import { CAMERA_CHANGED, type CameraWatch } from "@/lib/new-jarvis/useCameraWatch";
+import {
+  CalendarExpanded,
+  CalendarWidget,
+  MiniBtn,
+  NotificationsExpanded,
+  NotificationsWidget,
+  TodoExpanded,
+  TodoWidget,
+  Widget,
+  WidgetPicker,
+  WidgetSheet,
+  useTopEscape,
+  useWidgetPrefs,
+  type WidgetId,
+} from "./Widgets";
 
 interface Props {
   go: (tab: string) => void;
@@ -48,6 +73,9 @@ interface Props {
   /** Setup items still open; the hero offers to finish them. */
   setupLeft: number;
   onSetup: () => void;
+  updates: UpdatesApi;
+  events: CalendarEvent[];
+  camera: CameraWatch;
 }
 
 type ActionState = "pending" | "running" | "done" | "declined" | "failed";
@@ -146,7 +174,36 @@ function useTyped(text: string): [string, boolean] {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export function Deck({ go, ownerName, setupLeft, onSetup }: Props) {
+/** "3m ago" / "just now", for the camera check line. */
+function since(t: number | null): string {
+  if (!t) return "not yet";
+  const m = Math.floor((Date.now() - t) / 60_000);
+  return m < 1 ? "just now" : `${m}m ago`;
+}
+
+/** The last photos filed, for the preview strip when nothing is waiting. */
+function recentFiled(n: number): { id: string; thumb: string; title: string }[] {
+  try {
+    return getData()
+      .items.filter((i) => i.kind === "image" && i.attachment?.url)
+      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
+      .slice(0, n)
+      .map((i) => ({ id: i.id, thumb: i.attachment!.url!, title: i.title }));
+  } catch {
+    return [];
+  }
+}
+
+export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camera }: Props) {
+  const widgets = useWidgetPrefs();
+  const [expanded, setExpanded] = useState<WidgetId | null>(null);
+  // Re-render once a minute so "checked 3m ago" moves.
+  const [, setMinute] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setMinute((n) => n + 1), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
   // ---- launcher -----------------------------------------------------------
   const launcher = useLauncher();
   const plugins = useMemo(() => studioPlugins(), []);
@@ -162,9 +219,11 @@ export function Deck({ go, ownerName, setupLeft, onSetup }: Props) {
     // queue; a cheap poll keeps the Deck honest without a store rewrite.
     const t = setInterval(refresh, 2500);
     window.addEventListener("storage", refresh);
+    window.addEventListener(CAMERA_CHANGED, refresh);
     return () => {
       clearInterval(t);
       window.removeEventListener("storage", refresh);
+      window.removeEventListener(CAMERA_CHANGED, refresh);
     };
   }, [refresh]);
 
@@ -194,22 +253,9 @@ export function Deck({ go, ownerName, setupLeft, onSetup }: Props) {
   const open = queue.find((p) => p.id === openId) ?? null;
 
   // ---- iPhone inbox -------------------------------------------------------
-  const [inbox, setInbox] = useState<{ linked: boolean; ids: string[] }>({ linked: false, ids: [] });
-  const readInbox = useCallback(async () => {
-    try {
-      const r = await fetch("/api/dashboard/inbox");
-      if (!r.ok) return;
-      const d = (await r.json()) as { linked?: boolean; entries?: { id: string }[] };
-      setInbox({ linked: Boolean(d.linked), ids: (d.entries ?? []).map((e) => e.id) });
-    } catch {
-      /* offline */
-    }
-  }, []);
-  useEffect(() => {
-    void readInbox();
-    const t = setInterval(() => void readInbox(), 60_000);
-    return () => clearInterval(t);
-  }, [readInbox]);
+  // Owned by the shell (useCameraWatch): checked every 10 minutes from any
+  // tab, and pulled in automatically unless the owner switched that off.
+  const inbox = { linked: camera.linked, ids: camera.inbox.map((e) => e.id) };
 
   const runImport = useCallback(
     async (files: File[]) => {
@@ -226,24 +272,14 @@ export function Deck({ go, ownerName, setupLeft, onSetup }: Props) {
   );
 
   const pullIphone = useCallback(async () => {
-    if (!inbox.ids.length) return;
     setBusy("Pulling from your iPhone…");
     try {
-      const r = await fetch("/api/dashboard/inbox/claim", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: inbox.ids }),
-      });
-      const d = (await r.json()) as { photos?: { name: string; contentType: string; dataUrl: string }[] };
-      const files = await Promise.all(
-        (d.photos ?? []).map(async (p) => new File([await (await fetch(p.dataUrl)).blob()], p.name, { type: p.contentType })),
-      );
-      await runImport(files);
+      await camera.check(true);
     } finally {
       setBusy(null);
-      void readInbox();
+      refresh();
     }
-  }, [inbox.ids, readInbox, runImport]);
+  }, [camera, refresh]);
 
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -286,13 +322,15 @@ export function Deck({ go, ownerName, setupLeft, onSetup }: Props) {
   // ---- render -------------------------------------------------------------
   const status =
     busy ??
+    (camera.busy || null) ??
     (queue.length
       ? `${queue.length} new photo${queue.length === 1 ? "" : "s"} to sort${analyzing ? ` · reading ${analyzing} now` : ""}.`
       : "Camera roll is clear.");
 
   const coreRef = useRef<HTMLDivElement>(null);
   const [typed, typing] = useTyped(greeting(ownerName));
-  const working = Boolean(busy || analyzing || filing.size);
+  const working = Boolean(busy || camera.busy || analyzing || filing.size);
+  const preview = queue.length ? null : recentFiled(8);
 
   return (
     <div className="deck deck-stage">
@@ -390,17 +428,121 @@ export function Deck({ go, ownerName, setupLeft, onSetup }: Props) {
           )}
         </section>
 
-        {/* autopilot */}
-        <section className="deck-glass deck-ring relative p-3 sm:p-5" aria-labelledby="deck-ap">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-baseline gap-2">
-              <h2 id="deck-ap" className="deck-display text-[18px] font-semibold text-ink">
-                Camera Autopilot
-              </h2>
-              <span className="font-mono text-[11px] text-[var(--hud)]" data-num>
-                {queue.length}
-              </span>
-            </div>
+        {/* widgets */}
+        <section aria-label="Widgets">
+          <div className="mb-2 flex items-center justify-end px-1">
+            <WidgetPicker hidden={widgets.hidden} toggle={widgets.toggle} />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {!widgets.hidden.has("camera") && (
+              <Widget
+                title="Camera Autopilot"
+                icon="Camera"
+                count={queue.length}
+                live={queue.length > 0 || camera.inbox.length > 0}
+                onExpand={() => setExpanded("camera")}
+                className="md:col-span-2"
+                status={
+                  camera.busy ||
+                  camera.error ||
+                  (inbox.linked
+                    ? `iPhone checked ${since(camera.lastChecked)} · checks every 10 min${camera.settings.autoPull ? "" : " · auto-pull off"}`
+                    : "Not linked yet — tap 🔗 to set up your iPhone (5 min, no app needed)")
+                }
+                actions={
+                  <>
+                    {inbox.ids.length > 0 && (
+                      <button type="button" className="deck-btn deck-btn--go h-7 text-[11px]" onClick={(e) => { e.stopPropagation(); void pullIphone(); }} disabled={Boolean(busy)}>
+                        <Icon.Download width={12} height={12} aria-hidden />
+                        {inbox.ids.length} from iPhone
+                      </button>
+                    )}
+                    <MiniBtn label="Check for new photos now" onClick={() => void camera.check()} disabled={Boolean(camera.busy)}>
+                      <Icon.Refresh width={13} height={13} aria-hidden />
+                    </MiniBtn>
+                    <MiniBtn label="Add photos" onClick={() => fileInput.current?.click()} disabled={Boolean(busy)}>
+                      <Icon.Upload width={13} height={13} aria-hidden />
+                    </MiniBtn>
+                    {!inbox.linked && (
+                      <MiniBtn label="Set up your iPhone" onClick={() => go("iphone")}>
+                        <Icon.Link width={13} height={13} aria-hidden />
+                      </MiniBtn>
+                    )}
+                  </>
+                }
+              >
+                {queue.length > 0 ? (
+                  <>
+                    <p className="mb-1.5 text-[11px] text-ink-muted">
+                      {queue.length} waiting{analyzing ? ` · reading ${analyzing}` : ""} — tap one to file it or tell me where it goes
+                    </p>
+                    <ul className="grid grid-cols-4 gap-1.5 sm:grid-cols-6 lg:grid-cols-8">
+                      {queue.slice(0, 8).map((p, i) => (
+                        <li key={p.id} className="relative">
+                          <button
+                            type="button"
+                            aria-label={`Open ${titleOfPhoto(p)}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenId(p.id);
+                            }}
+                            className="deck-thumb block aspect-square w-full overflow-hidden rounded-lg border border-line-soft"
+                          >
+                            {p.thumb ? <img src={p.thumb} alt="" className="h-full w-full object-cover" /> : null}
+                            {p.status === "analyzing" && <span className="deck-analyzing text-[8px]">READING…</span>}
+                            {i === 7 && queue.length > 8 && (
+                              <span className="absolute inset-0 grid place-items-center bg-black/60 font-mono text-[12px] text-ink">+{queue.length - 8}</span>
+                            )}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : preview && preview.length > 0 ? (
+                  <>
+                    <p className="mb-1.5 text-[11px] text-ink-muted">All caught up · recently filed</p>
+                    <ul className="grid grid-cols-4 gap-1.5 sm:grid-cols-6 lg:grid-cols-8">
+                      {preview.map((p) => (
+                        <li key={p.id} className="aspect-square overflow-hidden rounded-lg border border-line-soft opacity-80">
+                          <img src={p.thumb} alt={p.title} className="h-full w-full object-cover" />
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <p className="py-8 text-center text-[11.5px] text-ink-muted">All caught up. New photos land here with my guess for where they go.</p>
+                )}
+              </Widget>
+            )}
+            {!widgets.hidden.has("notifications") && <NotificationsWidget updates={updates} onExpand={() => setExpanded("notifications")} />}
+            {!widgets.hidden.has("todo") && <TodoWidget onExpand={() => setExpanded("todo")} />}
+            {!widgets.hidden.has("calendar") && <CalendarWidget events={events} onExpand={() => setExpanded("calendar")} />}
+          </div>
+          {widgets.hidden.size === 4 && (
+            <p className="px-1 text-[11.5px] text-ink-faint">Every widget is hidden — turn some back on from Widgets above.</p>
+          )}
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              const files = [...(e.target.files ?? [])];
+              e.target.value = "";
+              void runImport(files);
+            }}
+          />
+        </section>
+      </div>
+      </div>
+
+      {expanded === "camera" && (
+        <WidgetSheet
+          title="Camera Autopilot"
+          kicker={`${queue.length} to sort · iPhone checked ${since(camera.lastChecked)}`}
+          onClose={() => setExpanded(null)}
+          actions={
             <div className="flex items-center gap-1">
               {inbox.ids.length > 0 && (
                 <button type="button" className="deck-btn deck-btn--go" onClick={() => void pullIphone()} disabled={Boolean(busy)}>
@@ -411,29 +553,20 @@ export function Deck({ go, ownerName, setupLeft, onSetup }: Props) {
               <IconBtn label="Add photos" onClick={() => fileInput.current?.click()} disabled={Boolean(busy)}>
                 <Icon.Upload width={14} height={14} aria-hidden />
               </IconBtn>
-              {!inbox.linked && (
-                <IconBtn label="Link your iPhone" onClick={() => go("photos")}>
-                  <Icon.Camera width={14} height={14} aria-hidden />
-                </IconBtn>
-              )}
+              <button type="button" className="deck-btn" onClick={() => go("iphone")}>
+                <Icon.Camera width={13} height={13} aria-hidden /> iPhone setup
+              </button>
+              <IconBtn label="Check for new photos now" onClick={() => void camera.check()} disabled={Boolean(camera.busy)}>
+                <Icon.Refresh width={14} height={14} aria-hidden />
+              </IconBtn>
               <IconBtn label={`What Jarvis has learned (${rules.rules.filter((r) => r.on).length})`} onClick={() => setRulesOpen(true)}>
                 <Icon.Sparkles width={14} height={14} aria-hidden />
               </IconBtn>
-              <input
-                ref={fileInput}
-                type="file"
-                accept="image/*"
-                multiple
-                hidden
-                onChange={(e) => {
-                  const files = [...(e.target.files ?? [])];
-                  e.target.value = "";
-                  void runImport(files);
-                }}
-              />
             </div>
-          </div>
-
+          }
+        >
+          <div className="p-3 sm:p-4">
+          {(camera.busy || camera.error) && <p className="mb-2 text-[11.5px] text-ink-muted">{camera.busy || camera.error}</p>}
           {queue.length === 0 ? (
             <div className="mt-3 rounded-xl border border-dashed border-line px-4 py-10 text-center text-[12px] text-ink-muted">
               All caught up. New photos from your camera roll land here with my guess for where they go.
@@ -488,9 +621,12 @@ export function Deck({ go, ownerName, setupLeft, onSetup }: Props) {
               })}
             </ul>
           )}
-        </section>
-      </div>
-      </div>
+          </div>
+        </WidgetSheet>
+      )}
+      {expanded === "notifications" && <NotificationsExpanded updates={updates} go={go} onClose={() => setExpanded(null)} />}
+      {expanded === "todo" && <TodoExpanded onClose={() => setExpanded(null)} />}
+      {expanded === "calendar" && <CalendarExpanded events={events} go={go} onClose={() => setExpanded(null)} />}
 
       {open && (
         <PhotoSheet
@@ -543,11 +679,9 @@ function IconBtn({ label, onClick, disabled, children }: { label: string; onClic
 
 /** Shared frame for the two pop-ups: a centred sheet on a laptop, bottom sheet on a phone. */
 function Sheet({ label, onClose, children, wide }: { label: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  // Only the sheet on top closes: a photo opened from the expanded Camera
+  // widget sits over that widget's sheet, and Escape must close just the photo.
+  useTopEscape(onClose);
   return (
     <div
       className="deck fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-4"

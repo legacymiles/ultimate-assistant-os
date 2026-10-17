@@ -38,6 +38,9 @@ import type { CalendarEvent } from "@/lib/recall/calendar/types";
 import type { BoardPayload } from "@/lib/recall/lists/types";
 import type { RecallData } from "@/lib/recall/types";
 import type { JarvisStore } from "./types";
+import { getQueue } from "@/lib/recall/photos/store";
+import { CAMERA_CHANGED, type InboxEntry } from "@/lib/new-jarvis/useCameraWatch";
+import { useWatches } from "@/lib/new-jarvis/watches";
 
 /** How often the family board is re-read. */
 const POLL_MS = 60_000;
@@ -67,6 +70,8 @@ export function useUpdates(
   store: JarvisStore | null,
   commit: (next: JarvisStore) => void,
   events: CalendarEvent[],
+  /** iPhone photos not pulled in yet, from the shell's camera watch. */
+  inbox: InboxEntry[] = [],
 ): UpdatesApi {
   const [board, setBoard] = useState<BoardPayload | null>(null);
   const [boardError, setBoardError] = useState("");
@@ -83,6 +88,26 @@ export function useUpdates(
   // on the server too, where there is no localStorage.
   const [recall, setRecall] = useState<RecallData>({ folders: [], items: [] });
   const [tick, setTick] = useState(0);
+  // Camera Autopilot's queue lives in this browser. Re-read on every tick and
+  // the moment the camera watch imports, so a new photo is news within seconds.
+  const [camera, setCamera] = useState<{ id: string; addedAt: string }[]>([]);
+  const readCamera = useCallback(() => {
+    try {
+      setCamera(getQueue().map((p) => ({ id: p.id, addedAt: p.addedAt })));
+    } catch {
+      setCamera([]);
+    }
+  }, []);
+  useEffect(() => {
+    readCamera();
+    window.addEventListener(CAMERA_CHANGED, readCamera);
+    window.addEventListener("storage", readCamera);
+    return () => {
+      window.removeEventListener(CAMERA_CHANGED, readCamera);
+      window.removeEventListener("storage", readCamera);
+    };
+  }, [readCamera, tick]);
+  const watches = useWatches();
 
   // commit needs the store as it is at the moment of the click, not as it was
   // when the callback was made — a pop-up firing mid-edit must not resurrect
@@ -165,6 +190,9 @@ export function useUpdates(
         proposals: store?.proposals ?? [],
         actions: store?.actions ?? [],
         spend,
+        camera,
+        inbox,
+        watches,
       },
       settings,
       state,
@@ -173,7 +201,7 @@ export function useUpdates(
     // `tick` is the clock: it is in the deps precisely so time passing
     // recomputes the feed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [board, spend, events, recall.items, photoFolderIds, store?.proposals, store?.actions, settings, state, tick]);
+  }, [board, spend, events, recall.items, photoFolderIds, store?.proposals, store?.actions, settings, state, tick, camera, inbox, watches]);
 
   // ----- pop-ups -----------------------------------------------------------
   useEffect(() => {

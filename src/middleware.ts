@@ -34,6 +34,7 @@ const UID_COOKIE = "hub_uid";
 /** API paths authenticated by a per-user token instead of a session. Exact matches only. */
 const TOKEN_AUTH_PATHS = new Set([
   "/api/dashboard/inbox/push",
+  "/api/dashboard/inbox/cursor",
   "/api/game-creator/builder/claim",
   "/api/game-creator/builder/progress",
   "/api/game-creator/builder/screenshot",

@@ -30,6 +30,7 @@ import type { CalendarEvent } from "@/lib/recall/calendar/types";
 import type { BoardPayload } from "@/lib/recall/lists/types";
 import type { Item } from "@/lib/recall/types";
 import type { MemoryProposal, PendingAction } from "./types";
+import { customUpdates, type Watch } from "@/lib/new-jarvis/watchRules";
 
 /**
  * The shape /api/ai/spend answers with, named here rather than imported so this
@@ -55,17 +56,19 @@ export interface SpendFeed {
   account: { credits: number; used: number; remaining: number } | null;
 }
 
-export type UpdateSource = "lists" | "calendar" | "photos" | "memory" | "actions" | "spend";
+export type UpdateSource = "lists" | "calendar" | "photos" | "camera" | "memory" | "actions" | "spend" | "custom";
 
-export const UPDATE_SOURCES: UpdateSource[] = ["lists", "calendar", "photos", "memory", "actions", "spend"];
+export const UPDATE_SOURCES: UpdateSource[] = ["camera", "custom", "lists", "calendar", "photos", "memory", "actions", "spend"];
 
 export const UPDATE_LABEL: Record<UpdateSource, string> = {
   lists: "Lists",
   calendar: "Calendar",
   photos: "Photos",
+  camera: "Camera Autopilot",
   memory: "Memory",
   actions: "Waiting on you",
   spend: "AI spend",
+  custom: "Your workflows",
 };
 
 /** What each source is allowed to tell you, in the owner's terms. */
@@ -73,6 +76,8 @@ export const UPDATE_ABOUT: Record<UpdateSource, string> = {
   lists: "Someone adds or ticks off an item on the family board.",
   calendar: "An event on your calendar is about to start.",
   photos: "Photos arrive from your phone.",
+  camera: "You take a new photo — it lands in Camera Autopilot with Jarvis's guess. Checked every 10 minutes.",
+  custom: "Notifications you asked for in your own words — \"every weekday at 9 remind me to call leads\".",
   memory: "Jarvis has something he would like to remember.",
   actions: "An action is sitting on the confirm card, unanswered.",
   spend: "What the AI cost today, and any call that went to an expensive model.",
@@ -83,6 +88,8 @@ export const UPDATE_COLOR: Record<UpdateSource, string> = {
   lists: "#5ee0c0", // mint
   calendar: "#ff5fa2", // pink
   photos: "#ff9f7f", // coral
+  camera: "#ffb86b", // tangerine
+  custom: "#c3f584", // lime
   memory: "#8b8cff", // violet
   actions: "#ffd479", // amber
   spend: "#7fd4ff", // ice
@@ -93,6 +100,9 @@ export const UPDATE_TAB: Record<UpdateSource, string> = {
   lists: "lists",
   calendar: "calendar",
   photos: "photos",
+  camera: "dashboard",
+  custom: "settings",
+  // Memory and pending actions both live on the Dashboard in New Jarvis.
   memory: "dashboard",
   actions: "dashboard",
   spend: "router",
@@ -170,6 +180,12 @@ export interface UpdateInputs {
   actions: PendingAction[];
   /** Every AI call the hub recently made, or null when it could not be read. */
   spend: SpendFeed | null;
+  /** Camera Autopilot: photos waiting to be sorted, in this browser. */
+  camera?: { id: string; addedAt: string }[];
+  /** Photos the iPhone pushed that have not been pulled in yet. */
+  inbox?: { id: string; receivedAt?: string; takenAt?: string }[];
+  /** The owner's own notification rules. */
+  watches?: Watch[];
 }
 
 /** Ids kept per list before the oldest are forgotten. */
@@ -182,8 +198,10 @@ export function defaultUpdateSettings(): UpdateSettings {
   const sources = {} as Record<UpdateSource, SourcePref>;
   for (const s of UPDATE_SOURCES) {
     // Pop-ups start off across the board. Turning a notification on is a
-    // choice; having one interrupt you unasked is not.
-    sources[s] = { on: true, popup: false };
+    // choice; having one interrupt you unasked is not. The two exceptions are
+    // the owner's own workflow rules (writing one IS the choice) and new
+    // camera photos, which they asked to be told about by name.
+    sources[s] = { on: true, popup: s === "custom" || s === "camera" };
   }
   return { sources, includeMine: false, windowDays: 7, aheadHours: 3 };
 }
@@ -361,6 +379,53 @@ export function photoUpdates(items: Item[], folderIds: Set<string>, now: number)
   }));
 }
 
+/**
+ * New photos for Camera Autopilot, one row per day. The id carries the count,
+ * so a fresh photo makes a fresh row (and a fresh pop-up) instead of being
+ * folded silently into the one already read.
+ */
+export function cameraUpdates(
+  queue: { id: string; addedAt: string }[],
+  inbox: { id: string; receivedAt?: string; takenAt?: string }[],
+  now: number,
+): JarvisUpdate[] {
+  const out: JarvisUpdate[] = [];
+  const byDay = new Map<string, { n: number; newest: string }>();
+  for (const p of queue) {
+    if (!p.addedAt || Number.isNaN(Date.parse(p.addedAt))) continue;
+    const day = localDay(p.addedAt, new Date(now));
+    const cur = byDay.get(day);
+    if (!cur) byDay.set(day, { n: 1, newest: p.addedAt });
+    else {
+      cur.n += 1;
+      if (p.addedAt > cur.newest) cur.newest = p.addedAt;
+    }
+  }
+  for (const [day, { n, newest }] of byDay) {
+    out.push({
+      id: `camera:${day}:${n}`,
+      source: "camera",
+      title: `${n} new photo${n === 1 ? "" : "s"} to sort`,
+      detail: "Camera Autopilot has a guess for each",
+      at: newest,
+      when: ago(newest, now),
+    });
+  }
+  if (inbox.length) {
+    const times = inbox.map((e) => e.receivedAt ?? e.takenAt ?? "").filter((t) => !Number.isNaN(Date.parse(t))).sort();
+    const newest = times[times.length - 1] ?? new Date(now).toISOString();
+    out.push({
+      id: `camera:inbox:${inbox.length}:${inbox[0].id}`,
+      source: "camera",
+      title: `${inbox.length} new photo${inbox.length === 1 ? "" : "s"} on your iPhone`,
+      detail: "waiting to come into Camera Autopilot",
+      at: newest,
+      when: ago(newest, now),
+    });
+  }
+  return out;
+}
+
 /** Memories Jarvis drafted after a conversation and has not been told to keep. */
 export function memoryUpdates(proposals: MemoryProposal[], now: number): JarvisUpdate[] {
   return proposals.map((p) => ({
@@ -528,7 +593,21 @@ export function collectUpdates(
     ...(on("memory") ? memoryUpdates(inputs.proposals, now) : []),
     ...(on("actions") ? actionUpdates(inputs.actions, now) : []),
     ...(on("spend") ? spendUpdates(inputs.spend, now) : []),
+    ...(on("camera") ? cameraUpdates(inputs.camera ?? [], inputs.inbox ?? [], now) : []),
   ];
+  // The owner's rules run last: a "tell me when a list item mentions rent"
+  // rule matches against the rows above, before they are filtered.
+  if (on("custom") && inputs.watches?.length) {
+    raw.push(
+      ...customUpdates(inputs.watches, {
+        rows: raw,
+        board: inputs.board,
+        spend: inputs.spend,
+        camera: inputs.camera ?? [],
+        now,
+      }),
+    );
+  }
 
   const floor = now - settings.windowDays * 86_400_000;
   const dismissed = new Set(state.dismissed);

@@ -347,3 +347,23 @@ describe("annotate", () => {
     expect(next["app:a"]).toEqual({ state: "wip", note: undefined, at: "U" });
   });
 });
+
+describe("pinned priorities", () => {
+  it("sit above every other unfinished row until done", async () => {
+    const { taskFacts } = await import("./tasks");
+    const { toRows, sortQueue } = await import("./queue");
+    const app = {
+      id: "app:x",
+      kind: "app" as const,
+      name: "Aaa",
+      blurb: "",
+      group: "",
+      signals: { hasPage: true, testFiles: 0 },
+    };
+    const rows = sortQueue(toRows([app, ...taskFacts()], {}));
+    expect(rows[0].id).toBe("task:iphone-setup-video");
+    expect(rows[0].state).toBe("wip");
+    const done = sortQueue(toRows([app, ...taskFacts([{ id: "t", name: "T", blurb: "", priority: 1, done: true }])], {}));
+    expect(done[0].id).toBe("app:x");
+  });
+});

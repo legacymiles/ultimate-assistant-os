@@ -62,14 +62,17 @@ import { AppShell } from "../AppShell";
 // The Dashboard, which now carries Memory, the Profile and the self-audit as
 // panels rather than as three more entries in the rail.
 import { DashboardPanel } from "./DashboardPanel";
-import { Onboarding, type OnboardingStep } from "./Onboarding";
-import { useOnboarding } from "@/lib/new-jarvis/onboarding";
+import { Onboarding, SetupButton, resumeStep, type OnboardingStep } from "./Onboarding";
+import { getOnboarding, useOnboarding } from "@/lib/new-jarvis/onboarding";
 import { useSetup } from "@/lib/new-jarvis/useSetup";
+import { useCameraWatch } from "@/lib/new-jarvis/useCameraWatch";
+import { IphoneGuide } from "./IphoneGuide";
 import { noteLaunch } from "@/lib/new-jarvis/launcher";
 import { useVault } from "@/lib/new-jarvis/useVault";
 import { noteOpened, useImprove } from "@/lib/new-jarvis/useImprove";
 import { useUpdates } from "@/lib/jarvis/useUpdates";
 import { toCalEvent } from "@/lib/jarvis/useDashboardCalendar";
+import type { CalendarEvent } from "@/lib/recall/calendar/types";
 
 import { loadLocal, saveLocal } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
@@ -87,6 +90,12 @@ type TabId =
   | "skills" | "tools" | "passwords" | "calls" | "router" | "architect" | "timeline" | "plugins" | "settings";
 
 type Tab = { id: TabId; label: string; icon: keyof typeof Icon };
+
+/** Options a programmatic submit can set — the onboarding hand-off uses both. */
+type SubmitOpts = { mode?: Mode; skipReflex?: boolean };
+
+/** What, typed in the chat, reopens setup rather than going to the model. */
+const SETUP_COMMAND = /^\/?(?:(?:open|start|resume|run|redo|restart|finish)\s+)?(?:the\s+|my\s+)?(?:setup|set\s*up(?:\s+jarvis)?|onboarding)[.!?]?$/i;
 
 /**
  * The rail — five entries instead of thirteen.
@@ -264,8 +273,9 @@ export function NewJarvis() {
 
   // --- first-run onboarding --------------------------------------------------
   // Opens by itself once the synced copy has been checked, so finishing on the
-  // phone means the laptop never asks again. After that it opens only from
-  // "Finish setup".
+  // phone means the laptop never asks again. After that it opens from the
+  // Setup button in the top bar, the "setup" chat command, #setup, or Profile's
+  // "Finish setup" — and always on the step it was closed on.
   const setup = useSetup();
   const [onboarding, onboardingSettled] = useOnboarding();
   const [setupStep, setSetupStep] = useState<OnboardingStep | null>(null);
@@ -275,6 +285,12 @@ export function NewJarvis() {
     autoOpened.current = true;
     if (onboarding.status === "new") setSetupStep("welcome");
   }, [onboarding.status, onboardingSettled]);
+  const openSetup = useCallback(() => {
+    setSetupStep(resumeStep(getOnboarding().lastStep, setup.items));
+  }, [setup.items]);
+  // The hash router below is mounted once; it reaches the current opener here.
+  const openSetupRef = useRef(openSetup);
+  openSetupRef.current = openSetup;
 
   // --- the Dashboard's three feeds ----------------------------------------
   // All three are owned by the SHELL, not by the Dashboard tab. The updates
@@ -288,7 +304,34 @@ export function NewJarvis() {
     return { ...store, events: [...store.events, ...dash.events.map(toCalEvent)] };
   }, [store, dash.events]);
 
-  const updates = useUpdates(briefStore, commit, dash.events);
+  // Every 10 minutes, from whichever tab is open: new iPhone photos are pulled
+  // into Camera Autopilot and the feed below raises the notification.
+  const camera = useCameraWatch();
+  // The iPhone setup guide. Opened from the Camera widget, Settings, setup's
+  // Connect step, or /apps/new-jarvis#iphone — which is what its QR code opens.
+  const [iphoneGuide, setIphoneGuide] = useState(false);
+  const updates = useUpdates(briefStore, commit, dash.events, camera.inbox);
+  // The Calendar widget wants one list: the Dashboard calendar plus anything
+  // typed straight into Jarvis, in the Dashboard's event shape.
+  const widgetEvents = useMemo<CalendarEvent[]>(
+    () => [
+      ...dash.events,
+      ...(store?.events ?? []).map((e) => ({
+        id: e.id,
+        title: e.title,
+        date: e.date,
+        time: e.start || null,
+        endTime: e.end || null,
+        location: e.where,
+        notes: e.notes,
+        reminders: [],
+        source: "manual" as CalendarEvent["source"],
+        createdAt: "",
+        updatedAt: "",
+      })),
+    ],
+    [dash.events, store?.events],
+  );
   const vault = useVault(bridge);
   // The queue is mounted up here rather than inside its own tab because the
   // dock shows its count at all times: a board that only counted itself once
@@ -413,7 +456,7 @@ export function NewJarvis() {
 
   // Voice needs to call submit, and submit needs to speak the answer. The ref
   // breaks that cycle without either one being recreated on every keystroke.
-  const submitRef = useRef<(text?: string, source?: Block["source"]) => void>(() => {});
+  const submitRef = useRef<(text?: string, source?: Block["source"], opts?: SubmitOpts) => void>(() => {});
 
   const voice = useWakeVoice({
     speakReplies,
@@ -549,7 +592,7 @@ export function NewJarvis() {
   );
 
   const submit = useCallback(
-    async (rawText?: string, source: Block["source"] = "typed") => {
+    async (rawText?: string, source: Block["source"] = "typed", opts: SubmitOpts = {}) => {
       // Attachments belong to what is in the box, so a voice command or a
       // rerun never picks up files sitting in the tray for something else.
       const typed = rawText === undefined;
@@ -557,6 +600,14 @@ export function NewJarvis() {
       if (typed && attach.busy) return;
       const command = (rawText ?? input).trim() || (files.length ? "Look at what I attached." : "");
       if (!command) return;
+      const runMode = opts.mode ?? mode;
+
+      // "setup" / "onboarding" in the box reopens setup instead of asking the model.
+      if (source === "typed" && SETUP_COMMAND.test(command)) {
+        setInput("");
+        openSetupRef.current();
+        return;
+      }
 
       // The reflex gets first refusal.
       //
@@ -565,8 +616,8 @@ export function NewJarvis() {
       // something. `wait` is advisory — pressing enter on a half-sentence is
       // the owner overruling it, and a box that refuses to submit is a box
       // people come to hate.
-      if (source === "typed" && !files.length && overrideFor !== command && savedACall(reflex.route)) {
-        const block = newBlock({ command, mode, source });
+      if (source === "typed" && !files.length && !opts.skipReflex && overrideFor !== command && savedACall(reflex.route)) {
+        const block = newBlock({ command, mode: runMode, source });
         setBlocks((bs) => [
           {
             ...block,
@@ -589,7 +640,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
       if (source === "typed") setInput("");
       if (typed) attach.clear();
 
-      const block = newBlock({ command, mode, source, ...(files.length ? { attachments: shown(files) } : {}) });
+      const block = newBlock({ command, mode: runMode, source, ...(files.length ? { attachments: shown(files) } : {}) });
       setBlocks((bs) => [block, ...bs].slice(0, MAX_LIVE_BLOCKS));
       setTab("chat");
 
@@ -598,7 +649,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
       const history = historyFor();
 
       const outcome = await runBlock(
-        { command, mode, history, ...(files.length ? { content: toParts(command, files) } : {}) },
+        { command, mode: runMode, history, ...(files.length ? { content: toParts(command, files) } : {}) },
         {
           signal: controller.signal,
           update: (p) => patch(block.id, p),
@@ -609,7 +660,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
               signal: controller.signal,
               body: JSON.stringify({
                 messages,
-                mode,
+                mode: runMode,
                 capabilities: bridge.health.paired ? bridge.health.capabilities ?? {} : {},
                 ownerName: profile?.name ?? "",
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -648,7 +699,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
   );
 
   useEffect(() => {
-    submitRef.current = (text, source) => void submit(text, source);
+    submitRef.current = (text, source, opts) => void submit(text, source, opts);
   }, [submit]);
 
   const answerGate = useCallback(
@@ -677,12 +728,24 @@ ${reflex.best.excerpt ?? ""}`.trim()
   // The tab lives in the hash, so reload and back land where the owner was.
   useEffect(() => {
     const read = () => {
-      const h = tabFor(window.location.hash);
+      const raw = window.location.hash.replace("#", "");
+      // A shareable way back into setup: /apps/new-jarvis#setup
+      if (raw === "iphone") {
+        setIphoneGuide(true);
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        return;
+      }
+      if (raw === "setup" || raw === "onboarding") {
+        openSetupRef.current();
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        return;
+      }
+      const h = tabFor(raw);
       if (h) {
         setTab(h);
         // An old name is rewritten to the current one, so the address bar
         // and a bookmark made from it say where the owner actually is.
-        if (window.location.hash.replace("#", "") !== h) history.replaceState(null, "", `#${h}`);
+        if (raw !== h) history.replaceState(null, "", `#${h}`);
         const group = groupOf(h);
         if (group) setOpenGroup(group);
       }
@@ -711,6 +774,10 @@ ${reflex.best.excerpt ?? ""}`.trim()
     (name: string) => {
       // The feed's older ids point at surfaces that are now panels rather than
       // tabs — Memory, the Record and the Profile are the Dashboard now.
+      if (name === "iphone") {
+        setIphoneGuide(true);
+        return;
+      }
       const mapped = tabFor(name);
       if (mapped) go(mapped);
     },
@@ -723,6 +790,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
 
   return (
     <div className="nj">
+      {iphoneGuide && <IphoneGuide camera={camera} onClose={() => setIphoneGuide(false)} />}
       {setupStep && (
         <Onboarding
           start={setupStep}
@@ -735,6 +803,18 @@ ${reflex.best.excerpt ?? ""}`.trim()
           commit={commit}
           onProfileChanged={reload}
           setup={setup}
+          bridge={{
+            files: bridge.health.up && bridge.health.paired && bridge.health.capabilities?.files === true,
+            browser: bridge.health.up && bridge.health.paired && bridge.health.capabilities?.browser === true,
+            run: bridge.run,
+          }}
+          ask={(task) => {
+            // Straight to the super-agent, in Do mode so it can use the browser
+            // and files, and past the reflex — this is a job, not a question.
+            setTab("chat");
+            window.location.hash = "chat";
+            submitRef.current(task, "typed", { mode: "do", skipReflex: true });
+          }}
         />
       )}
       <header className="flex shrink-0 items-center gap-2 border-b border-line bg-panel px-3 py-2">
@@ -749,6 +829,9 @@ ${reflex.best.excerpt ?? ""}`.trim()
         <span className="hidden text-xs text-ink-muted sm:inline">
           · {profile ? `${profile.name}'s assistant` : "your assistant"}
         </span>
+        <div className="ml-auto">
+          <SetupButton setup={setup} onOpen={openSetup} />
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1">
@@ -864,6 +947,8 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 ownerName={onboarding.about.call || profile?.name || onboarding.about.name || undefined}
                 setup={setup}
                 onOpenSetup={setSetupStep}
+                events={widgetEvents}
+                camera={camera}
               />
             ) : tab === "chat" ? (
               <div className="space-y-2 p-3">
@@ -950,7 +1035,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 {tab === "plugins" && <PluginsTab />}
                 {/* Through the same name check the hash router uses, so an
                     old tab name lands where it lives now. */}
-                {tab === "settings" && <SettingsTab go={goByName} updates={updates} />}
+                {tab === "settings" && <SettingsTab go={goByName} updates={updates} camera={camera} />}
               </>
             )}
           </div>

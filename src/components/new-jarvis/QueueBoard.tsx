@@ -31,9 +31,10 @@ import { Icon } from "../icons";
 import { KIND_LABEL, type QueueKind, type QueueRow, type QueueState } from "@/lib/new-jarvis/queue";
 import type { UseQueue } from "@/lib/new-jarvis/useQueue";
 
-const KINDS: QueueKind[] = ["app", "skill", "workflow"];
+const KINDS: QueueKind[] = ["task", "app", "skill", "workflow"];
 
 const KIND_ICON: Record<QueueKind, keyof typeof Icon> = {
+  task: "Flag",
   app: "Launch",
   skill: "Sparkles",
   workflow: "Film",
