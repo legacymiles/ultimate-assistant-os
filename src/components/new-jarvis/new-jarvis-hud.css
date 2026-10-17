@@ -1,0 +1,690 @@
+/* ---------------------------------------------------------------------------
+   New Jarvis — the HUD skin for the whole shell.
+
+   Design skill: interactive-web-studio. The Deck was the one place allowed to
+   glow; the owner asked for all of New Jarvis to feel like that instrument.
+
+   Brief
+     Feeling   one live machine you are standing inside, not a web page.
+     Toy       the field behind every section is alive: it leans toward the
+               pointer and a radar sweep turns out of the rail's core,
+               speeding up and pulsing rings while Jarvis works.
+     Signature the rail's light — one cyan beam that springs to whichever
+               section is open; sections resolve in like a hologram.
+     Colour    void black, one cyan accent (--hud) for the chrome, violet only
+               in the field. The hub's brand indigo stays on primary buttons
+               so white-on-brand contrast is untouched.
+     Type      Oxanium for the wordmark and headings, JetBrains Mono for
+               anything Jarvis says about itself.
+
+   How: the hub's colour tokens are re-declared here, translucent and
+   cyan-edged, so every tab — including ones built for other apps — picks the
+   skin up without a line of their own changing. Dialogs get opaque tokens
+   back so nothing important is read through the field. Every motion stops
+   under prefers-reduced-motion.
+   --------------------------------------------------------------------------- */
+
+.nj.nj-hud {
+  --hud: #47e8ff;
+  --hud-dim: rgb(71 232 255 / 0.32);
+  --hud-faint: rgb(71 232 255 / 0.1);
+  --plasma: #8b7cff;
+  --void: #03060c;
+  --font-display: var(--font-nj-display), var(--font-sans);
+  --nj-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Wide enough that "Dashboard" is a word, not "Dashb…". */
+  --nj-rail: 68px;
+
+  --color-canvas: rgb(5 9 16 / 0.62);
+  --color-panel: rgb(10 15 26 / 0.8);
+  --color-panel-2: rgb(15 22 36 / 0.84);
+  --color-elevated: rgb(21 30 48 / 0.9);
+  --color-line: rgb(71 232 255 / 0.15);
+  --color-line-soft: rgb(71 232 255 / 0.08);
+
+  isolation: isolate;
+  background:
+    radial-gradient(1100px 620px at 0% 0%, rgb(71 232 255 / 0.09), transparent 62%),
+    radial-gradient(900px 700px at 100% 100%, rgb(139 124 255 / 0.1), transparent 68%),
+    var(--void);
+}
+
+/* Anything that opens over the page reads on solid ground. */
+.nj-hud .fixed.inset-0,
+.nj-hud [aria-modal="true"] {
+  --color-canvas: #070b13;
+  --color-panel: #0c1220;
+  --color-panel-2: #111929;
+  --color-elevated: #172134;
+}
+
+.nj-hud * {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(71 232 255 / 0.22) transparent;
+}
+
+.nj-kicker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--hud);
+}
+
+/* --- the living field ---------------------------------------------------- */
+
+.nj-field {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+/* A faint survey grid and a vignette over the points, so the field has a
+   floor to stand on and the edges fall away. */
+.nj-field::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 90% at 50% 40%, transparent 55%, rgb(0 0 0 / 0.55) 100%),
+    linear-gradient(rgb(71 232 255 / 0.035) 1px, transparent 1px) 0 0 / 44px 44px,
+    linear-gradient(90deg, rgb(71 232 255 / 0.035) 1px, transparent 1px) 0 0 / 44px 44px;
+}
+
+/* --- the top line -------------------------------------------------------- */
+
+.nj-top {
+  position: relative;
+  border-bottom: 1px solid var(--color-line);
+  background: linear-gradient(180deg, rgb(3 6 12 / 0.82), rgb(3 6 12 / 0.5));
+  backdrop-filter: blur(12px);
+}
+/* A light travelling along the bottom edge — the one thing up here that moves. */
+.nj-top::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--hud), transparent) no-repeat;
+  background-size: 22% 100%;
+  animation: nj-travel 7s linear infinite;
+  opacity: 0.7;
+}
+
+.nj-top__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  padding: 0.25rem 0.5rem;
+  font-size: 11px;
+  color: var(--color-ink-muted);
+  transition: color var(--nj-fast) var(--nj-ease), border-color var(--nj-fast) var(--nj-ease),
+    box-shadow var(--nj-fast) var(--nj-ease);
+}
+.nj-top__back:hover {
+  color: var(--color-ink);
+  border-color: var(--hud-dim);
+  box-shadow: 0 0 18px -6px var(--hud);
+}
+
+.nj-wordmark {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, #ffffff, var(--hud) 70%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 10px rgb(71 232 255 / 0.35));
+}
+
+.nj-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem 0.15rem 0.45rem;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+  white-space: nowrap;
+}
+.nj-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hud);
+  box-shadow: 0 0 8px var(--hud);
+  animation: nj-breathe 2.6s ease-in-out infinite;
+}
+.nj-status[data-busy] {
+  color: #ffd08a;
+  border-color: rgb(255 181 71 / 0.35);
+}
+.nj-status[data-busy] i {
+  background: #ffb547;
+  box-shadow: 0 0 10px #ffb547;
+  animation-duration: 0.8s;
+}
+
+/* --- the rail ------------------------------------------------------------ */
+
+.nj-rail {
+  position: relative;
+  display: flex;
+  width: var(--nj-rail);
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 3px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 0;
+  border-right: 1px solid var(--color-line);
+  background: linear-gradient(180deg, rgb(3 6 12 / 0.75), rgb(3 6 12 / 0.45));
+  backdrop-filter: blur(12px);
+  scrollbar-width: none;
+}
+.nj-rail::-webkit-scrollbar { display: none; }
+
+.nj-rail__core {
+  display: grid;
+  place-items: center;
+  margin: 0 auto 8px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  transition: transform 420ms var(--nj-spring), filter var(--nj-slow) var(--nj-ease);
+}
+.nj-rail__core:hover {
+  transform: scale(1.08) rotate(-8deg);
+  filter: drop-shadow(0 0 12px rgb(71 232 255 / 0.55));
+}
+.nj-rail__core:active { transform: scale(0.94); }
+
+/* The beam: one light that springs to the current section. */
+.nj-rail__beam {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--hud);
+  box-shadow: 0 0 12px var(--hud), 0 0 2px var(--hud);
+  transition: transform 520ms var(--nj-spring), height 320ms var(--nj-ease), opacity 200ms var(--nj-ease);
+  pointer-events: none;
+}
+
+.nj-rail__btn {
+  position: relative;
+  margin: 0 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0 7px;
+  border-radius: 11px;
+  color: var(--color-ink-muted);
+  transition: color var(--nj-fast) var(--nj-ease), background-color var(--nj-fast) var(--nj-ease);
+}
+.nj-rail__btn svg {
+  transition: transform 360ms var(--nj-spring), filter var(--nj-slow) var(--nj-ease);
+}
+.nj-rail__btn:hover {
+  color: var(--color-ink);
+  background: radial-gradient(60% 70% at 50% 40%, var(--hud-faint), transparent 80%);
+}
+.nj-rail__btn:hover svg { transform: translateY(-2px) scale(1.08); }
+.nj-rail__btn:active svg { transform: scale(0.9); }
+.nj-rail__btn[data-on] {
+  color: var(--hud);
+  background: linear-gradient(90deg, rgb(71 232 255 / 0.14), transparent 85%);
+}
+.nj-rail__btn[data-on] svg { filter: drop-shadow(0 0 6px rgb(71 232 255 / 0.7)); }
+.nj-rail__btn[data-visiting] {
+  outline: 1px dashed var(--hud-dim);
+  outline-offset: -1px;
+  animation: nj-borrow 360ms var(--nj-spring) backwards;
+}
+
+.nj-rail__label {
+  font-size: 9.5px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nj-rail__more { margin-top: 4px; }
+.nj-rail__more[data-open] { color: var(--hud); }
+
+/* --- More ---------------------------------------------------------------- */
+
+.nj-more {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+}
+.nj-more__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgb(2 4 8 / 0.45);
+  backdrop-filter: blur(2px);
+  animation: nj-fade 220ms var(--nj-ease) backwards;
+}
+.nj-more__sheet {
+  position: absolute;
+  left: calc(var(--nj-rail) + 8px);
+  top: 52px;
+  bottom: calc(var(--nj-dock-h) + 10px);
+  width: min(400px, calc(100vw - var(--nj-rail) - 16px));
+  overflow-y: auto;
+  padding: 14px;
+  border: 1px solid var(--hud-dim);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgb(8 14 25 / 0.92), rgb(5 9 17 / 0.9));
+  backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 0 0 1px var(--hud-faint), 0 24px 60px -20px rgb(0 0 0 / 0.8), 0 0 50px -24px var(--hud);
+  transform-origin: left center;
+  animation: nj-holo 380ms var(--nj-ease) backwards;
+}
+.nj-more__sheet::before,
+.nj-more__sheet::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-color: var(--hud);
+  pointer-events: none;
+}
+.nj-more__sheet::before { top: -1px; left: -1px; border-top: 2px solid; border-left: 2px solid; border-top-left-radius: 16px; }
+.nj-more__sheet::after { bottom: -1px; right: -1px; border-bottom: 2px solid; border-right: 2px solid; border-bottom-right-radius: 16px; }
+
+.nj-more__head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.nj-more__find {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  padding: 7px 10px;
+  color: var(--color-ink-muted);
+  background: rgb(3 6 12 / 0.6);
+  transition: border-color var(--nj-fast) var(--nj-ease), box-shadow var(--nj-fast) var(--nj-ease);
+}
+.nj-more__find:focus-within {
+  border-color: var(--hud-dim);
+  box-shadow: 0 0 0 3px var(--hud-faint);
+}
+.nj-more__find input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  font-size: 13px;
+  color: var(--color-ink);
+  outline: none;
+}
+.nj-more__find input:focus-visible { outline: none; }
+
+.nj-more__group + .nj-more__group { margin-top: 14px; }
+.nj-more__label {
+  margin: 0 2px 7px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+.nj-more__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.nj-more__tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 14px 6px 11px;
+  border: 1px solid var(--color-line-soft);
+  border-radius: 12px;
+  background: rgb(12 19 32 / 0.6);
+  font-size: 11.5px;
+  color: var(--color-ink-muted);
+  transition: transform 300ms var(--nj-spring), border-color var(--nj-fast) var(--nj-ease),
+    color var(--nj-fast) var(--nj-ease), box-shadow var(--nj-slow) var(--nj-ease);
+  animation: nj-tile 420ms var(--nj-ease) backwards;
+  animation-delay: calc(var(--i, 0) * 22ms + 80ms);
+}
+.nj-more__tile:hover {
+  transform: translateY(-2px);
+  border-color: var(--hud-dim);
+  color: var(--color-ink);
+  box-shadow: 0 10px 26px -14px var(--hud);
+}
+.nj-more__tile:hover svg { color: var(--hud); }
+.nj-more__tile[data-on] {
+  border-color: var(--hud);
+  color: var(--hud);
+  box-shadow: inset 0 0 18px -8px var(--hud);
+}
+.nj-more__tile em {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: #ffb547;
+}
+
+/* --- section change: resolves in like a hologram -------------------------- */
+
+/* backwards, not both: once it lands nothing is left applied, so a filter
+   never becomes the containing block of a fixed dialog inside the section. */
+.nj-resolve {
+  animation: nj-resolve 460ms var(--nj-ease) backwards;
+}
+
+/* --- the command bar ------------------------------------------------------ */
+
+.nj-hud .nj-commandbar {
+  background: linear-gradient(180deg, rgb(3 6 12 / 0.6), rgb(3 6 12 / 0.3));
+  backdrop-filter: blur(10px);
+}
+.nj-hud .nj-command {
+  position: relative;
+  border-radius: 12px;
+  background: rgb(3 7 13 / 0.72);
+}
+.nj-hud .nj-command:focus-within {
+  border-color: var(--hud-dim);
+  box-shadow: 0 0 0 3px var(--hud-faint), 0 0 34px -12px var(--hud);
+}
+.nj-hud .nj-command[data-armed="true"] { box-shadow: inset 2px 0 0 0 var(--hud), 0 0 34px -14px var(--hud); }
+/* While Jarvis works, a scan runs along the bar's lower edge. */
+.nj-hud .nj-command[data-busy]::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--hud), transparent) no-repeat;
+  background-size: 35% 100%;
+  animation: nj-travel 1.3s linear infinite;
+  pointer-events: none;
+}
+.nj-hud .nj-command textarea:focus-visible { outline: none; }
+
+/* --- blocks ---------------------------------------------------------------- */
+
+.nj-hud .nj-block {
+  position: relative;
+  border-radius: 14px;
+  border-color: var(--color-line);
+  background: linear-gradient(180deg, rgb(11 17 29 / 0.84), rgb(7 11 20 / 0.8));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.03), 0 18px 40px -30px rgb(0 0 0 / 0.9);
+  animation: nj-block-in 420ms var(--nj-ease) backwards;
+}
+.nj-hud .nj-block[data-status="running"] {
+  border-color: var(--hud-dim);
+  box-shadow: 0 0 0 1px var(--hud-faint), 0 0 40px -22px var(--hud);
+}
+.nj-hud .nj-block[data-status="running"]::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--hud), transparent) no-repeat;
+  background-size: 30% 100%;
+  animation: nj-travel 1.6s linear infinite;
+  pointer-events: none;
+}
+
+/* --- Chat, empty ----------------------------------------------------------- */
+
+.nj-hello {
+  max-width: 44rem;
+  padding: 28px 4px 12px;
+}
+.nj-hello > * { animation: nj-tile 520ms var(--nj-ease) backwards; }
+.nj-hello > :nth-child(2) { animation-delay: 60ms; }
+.nj-hello > :nth-child(3) { animation-delay: 120ms; }
+.nj-hello__title {
+  margin-top: 6px;
+  font-family: var(--font-display);
+  font-size: clamp(28px, 4.2vw, 46px);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  background: linear-gradient(100deg, #ffffff 30%, var(--hud) 75%, var(--plasma));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.nj-hello__sub {
+  margin-top: 10px;
+  max-width: 38rem;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--color-ink-muted);
+}
+.nj-hello__kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+  animation: none;
+}
+.nj-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: 1px solid var(--hud-dim);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgb(71 232 255 / 0.1), rgb(71 232 255 / 0.03));
+  font-size: 12px;
+  color: var(--color-ink);
+  transition: transform 300ms var(--nj-spring), box-shadow var(--nj-slow) var(--nj-ease), border-color var(--nj-fast) var(--nj-ease);
+  animation: nj-tile 460ms var(--nj-ease) backwards;
+  animation-delay: calc(var(--i, 0) * 45ms + 180ms);
+}
+.nj-kind svg { color: var(--hud); }
+.nj-kind:hover {
+  transform: translateY(-2px);
+  border-color: var(--hud);
+  box-shadow: 0 0 24px -6px var(--hud);
+}
+.nj-kind:active { transform: scale(0.96); }
+
+.nj-hello__try {
+  margin: 26px 0 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+.nj-hello__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: none;
+}
+.nj-try {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line-soft);
+  border-radius: 11px;
+  background: rgb(9 14 24 / 0.7);
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-ink-muted);
+  transition: transform 260ms var(--nj-spring), border-color var(--nj-fast) var(--nj-ease), color var(--nj-fast) var(--nj-ease),
+    background-color var(--nj-fast) var(--nj-ease);
+  animation: nj-tile 460ms var(--nj-ease) backwards;
+  animation-delay: calc(var(--i, 0) * 45ms + 180ms);
+}
+.nj-try__caret { color: var(--hud); font-weight: 600; }
+.nj-try__use {
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--hud);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity var(--nj-fast) var(--nj-ease), transform var(--nj-fast) var(--nj-ease);
+}
+.nj-try:hover {
+  transform: translateX(3px);
+  border-color: var(--hud-dim);
+  color: var(--color-ink);
+  background: rgb(12 20 34 / 0.85);
+}
+.nj-try:hover .nj-try__use { opacity: 1; transform: none; }
+
+/* --- drop anywhere ---------------------------------------------------------- */
+
+.nj-drop {
+  position: absolute;
+  inset: 8px;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  border: 1.5px dashed var(--hud);
+  border-radius: 18px;
+  background: radial-gradient(60% 60% at 50% 50%, rgb(71 232 255 / 0.14), rgb(3 6 12 / 0.7));
+  backdrop-filter: blur(3px);
+  animation: nj-fade 180ms var(--nj-ease) backwards;
+}
+.nj-drop__ring {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--hud);
+  text-align: center;
+}
+.nj-drop__ring span {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--color-ink);
+}
+.nj-drop__ring small {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--hud);
+}
+.nj-drop__ring svg { animation: nj-breathe 1.2s ease-in-out infinite; }
+
+/* --- dock --------------------------------------------------------------------- */
+
+.nj-hud .nj-dock {
+  background: linear-gradient(0deg, rgb(3 6 12 / 0.85), rgb(3 6 12 / 0.55));
+  backdrop-filter: blur(12px);
+}
+
+/* --- keyframes -------------------------------------------------------------- */
+
+@keyframes nj-travel {
+  from { background-position: -40% 0; }
+  to { background-position: 140% 0; }
+}
+@keyframes nj-breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.8); }
+}
+@keyframes nj-fade {
+  from { opacity: 0; }
+}
+@keyframes nj-holo {
+  from {
+    opacity: 0;
+    transform: scaleX(0.94) translateX(-10px);
+    filter: blur(8px) brightness(1.6);
+  }
+  60% { filter: blur(0) brightness(1.15); }
+}
+@keyframes nj-tile {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes nj-resolve {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.995);
+    filter: blur(6px);
+  }
+}
+@keyframes nj-block-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@keyframes nj-borrow {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nj-top::after,
+  .nj-status i,
+  .nj-resolve,
+  .nj-more__scrim,
+  .nj-more__sheet,
+  .nj-more__tile,
+  .nj-hello > *,
+  .nj-kind,
+  .nj-try,
+  .nj-drop,
+  .nj-drop__ring svg,
+  .nj-rail__btn[data-visiting],
+  .nj-hud .nj-block,
+  .nj-hud .nj-block[data-status="running"]::before,
+  .nj-hud .nj-command[data-busy]::after {
+    animation: none !important;
+  }
+  .nj-rail__beam,
+  .nj-rail__core,
+  .nj-rail__btn svg,
+  .nj-more__tile,
+  .nj-kind,
+  .nj-try {
+    transition: none !important;
+  }
+}

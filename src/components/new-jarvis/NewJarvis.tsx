@@ -16,10 +16,13 @@
 // ---------------------------------------------------------------------------
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import "./new-jarvis.css";
 import "./new-jarvis-shell.css";
+import "./deck.css";
+import "./new-jarvis-hud.css";
+import { HudField, Reactor } from "./HudField";
 
 import { BlockView } from "./Blocks";
 import { CommandLine } from "./CommandLine";
@@ -100,7 +103,7 @@ type SubmitOpts = { mode?: Mode; skipReflex?: boolean };
 const SETUP_COMMAND = /^\/?(?:(?:open|start|resume|run|redo|restart|finish)\s+)?(?:the\s+|my\s+)?(?:setup|set\s*up(?:\s+jarvis)?|onboarding)[.!?]?$/i;
 
 /**
- * The rail — five entries instead of thirteen.
+ * The rail — three entries and More (it was nineteen, then five).
  *
  * This is the "fewer side tabs, better minimal UI" change, and the three moves
  * that made it possible are worth recording:
@@ -120,6 +123,17 @@ const SETUP_COMMAND = /^\/?(?:(?:open|start|resume|run|redo|restart|finish)\s+)?
  * the Toolbox is the group from the old shell, moved over whole.
  */
 const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[] }[] = [
+  {
+    id: "work",
+    label: "Work",
+    icon: "Layers",
+    items: [
+      // In Queue answers "what should I work on"; Code is the coding agent
+      // (Claude Code or the DeepSeek harness) on the repo in its own branch.
+      { id: "queue", label: "Queue", icon: "ListChecks" },
+      { id: "harness", label: "Code", icon: "Layers" },
+    ],
+  },
   {
     id: "yours",
     label: "Yours",
@@ -146,26 +160,21 @@ const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[]
       { id: "timeline", label: "Timeline", icon: "Flag" },
       { id: "plugins", label: "Apps", icon: "Launch" },
       { id: "settings", label: "Settings", icon: "Settings" },
-      // The coding agent (Claude Code or the DeepSeek harness) working on the
-      // repo in its own branch. A tool, not a second assistant — Jarvis is
-      // the one you talk to.
-      { id: "harness", label: "Code", icon: "Layers" },
     ],
   },
 ];
 
-/** The ones that are always one click away, because they are where work happens. */
+/**
+ * The rail: three entries the owner chose, and More for everything else.
+ * A tab opened from More borrows a fourth slot while it is open, so the rail
+ * always shows where you are.
+ */
 const TOP: Tab[] = [
   { id: "dashboard", label: "Dashboard", icon: "Grid" },
-  // Chat: the super agent, and — from the switch at its top — the coding
-  // agents on the PC (Claude Code, the DeepSeek harness), which used to be a
-  // separate Harness tab. One place to ask for anything.
+  // Chat: the super agent — ask, hand it a job, or give it a picture, clip
+  // or recording and say what to do with it.
   { id: "console", label: "Chat", icon: "Bot" },
   { id: "studio", label: "Studio", icon: "Film" },
-  // In Queue is the answer to "what should I work on", which is the question
-  // asked on the way in. Buried in a folder it would be a report; at the top
-  // of the rail with a count on it, it is the to-do list.
-  { id: "queue", label: "Queue", icon: "ListChecks" },
 ];
 
 const TABS: Tab[] = [...TOP, ...GROUPS.flatMap((g) => g.items)];
@@ -174,15 +183,14 @@ function isTab(v: string): v is TabId {
   return TABS.some((t) => t.id === v);
 }
 
-/** Which group a tab lives in, so opening one from a link opens its folder too. */
-function groupOf(tab: TabId): string | null {
-  return GROUPS.find((g) => g.items.some((i) => i.id === tab))?.id ?? null;
-}
-
 export function NewJarvis() {
   const [tab, setTab] = useState<TabId>("dashboard");
-  /** Which rail folder is open. Opening a tab inside one always opens it. */
-  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  /** The More sheet — every section that is not on the rail. */
+  const [moreOpen, setMoreOpen] = useState(false);
+  /** Files dragged over the window: anywhere is a drop target for Chat. */
+  const [dropping, setDropping] = useState(false);
+  /** The rail's core — the point the background's sweep turns around. */
+  const coreRef = useRef<HTMLButtonElement>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<Mode>("do");
@@ -768,8 +776,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
   const go = useCallback((id: TabId) => {
     setTab(id);
     window.location.hash = id;
-    const group = groupOf(id);
-    if (group) setOpenGroup(group);
+    setMoreOpen(false);
     // What the self-audit's "nobody opens this" finding is measured from.
     // Device-local on purpose: a phone that never opens Studio must not teach
     // the auditor that the laptop never opens Studio either.
@@ -795,11 +802,22 @@ ${reflex.best.excerpt ?? ""}`.trim()
   );
 
   const running = blocks.some((b) => b.status === "running" || b.status === "waiting");
+  const visiting = TOP.some((t) => t.id === tab) ? null : TABS.find((t) => t.id === tab) ?? null;
+
+  // The rail's light slides to whichever entry is current. Measured rather
+  // than computed, because the borrowed slot and the core change the stack.
+  const railRef = useRef<HTMLElement>(null);
+  const [beam, setBeam] = useState<React.CSSProperties>({ opacity: 0 });
+  useLayoutEffect(() => {
+    const on = railRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!on) return setBeam({ opacity: 0 });
+    setBeam({ opacity: 1, transform: `translateY(${on.offsetTop + 6}px)`, height: on.offsetHeight - 12 });
+  }, [tab, visiting?.id]);
   // The capability tally moved into the dock, which is the only thing that
   // reads it now.
 
   return (
-    <div className="nj">
+    <div className="nj nj-hud">
       {iphoneGuide && <IphoneGuide camera={camera} onClose={() => setIphoneGuide(false)} />}
       {setupStep && (
         <Onboarding
@@ -830,17 +848,26 @@ ${reflex.best.excerpt ?? ""}`.trim()
           }}
         />
       )}
-      <header className="flex shrink-0 items-center gap-2 border-b border-line bg-panel px-3 py-2">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2 py-1 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
-        >
+      {/* The living background behind every section. The Deck draws its own
+          (around its big core), so the shell's one rests while it is open. */}
+      {tab !== "dashboard" && (
+        <div className="nj-field" aria-hidden>
+          <HudField originRef={coreRef} busy={running} />
+        </div>
+      )}
+
+      <header className="nj-top flex shrink-0 items-center gap-2.5 px-3 py-2">
+        <Link href="/" className="nj-top__back">
           <Icon.ArrowLeft width={13} height={13} />
           <span className="hidden sm:inline">Hub</span>
         </Link>
-        <span className="text-sm font-semibold text-ink">Jarvis</span>
-        <span className="hidden text-xs text-ink-muted sm:inline">
-          · {profile ? `${profile.name}'s assistant` : "your assistant"}
+        <span className="nj-wordmark">Jarvis</span>
+        <span className="nj-status" data-busy={running || undefined}>
+          <i aria-hidden />
+          {running ? "Working" : "Standing by"}
+        </span>
+        <span className="hidden truncate text-xs text-ink-muted md:inline">
+          {profile ? `${profile.name}'s assistant` : "your assistant"}
         </span>
         <div className="ml-auto">
           <SetupButton setup={setup} onOpen={openSetup} />
@@ -848,10 +875,19 @@ ${reflex.best.excerpt ?? ""}`.trim()
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <nav
-          aria-label="Sections"
-          className="flex w-[var(--nj-rail)] shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line bg-panel py-2"
-        >
+        <nav ref={railRef} aria-label="Sections" className="nj-rail">
+          <button
+            ref={coreRef}
+            type="button"
+            className="nj-rail__core"
+            onClick={() => go("dashboard")}
+            title="Dashboard"
+            aria-label="Dashboard"
+          >
+            <Reactor busy={running} size={36} />
+          </button>
+          <span className="nj-rail__beam" style={beam} aria-hidden />
+
           {TOP.map((t) => (
             <RailButton
               key={t.id}
@@ -863,41 +899,68 @@ ${reflex.best.excerpt ?? ""}`.trim()
                   ? "live"
                   : t.id === "dashboard" && updates.unread > 0
                     ? "unread"
-                    : t.id === "queue" && queue.counts.wip > 0
-                      ? "queued"
-                      : null
+                    : null
               }
             />
           ))}
 
-          {GROUPS.map((group) => {
-            const open = openGroup === group.id;
-            const inside = group.items.some((i) => i.id === tab);
-            const I = Icon[group.icon];
-            return (
-              <div key={group.id} className="contents">
-                <button
-                  type="button"
-                  onClick={() => setOpenGroup(open && !inside ? null : open ? null : group.id)}
-                  aria-expanded={open}
-                  title={group.label}
-                  className={`group relative mx-1.5 flex flex-col items-center gap-0.5 rounded-md py-1.5 transition ${
-                    inside ? "bg-elevated text-ink" : "text-ink-muted hover:bg-panel-2 hover:text-ink"
-                  }`}
-                >
-                  <I width={15} height={15} />
-                  <span className="text-[9.5px] leading-none">{group.label}</span>
-                </button>
-                {open &&
-                  group.items.map((t) => (
-                    <RailButton key={t.id} tab={t} on={tab === t.id} onClick={() => go(t.id)} nested />
-                  ))}
-              </div>
-            );
-          })}
+          {/* A section opened from More borrows a slot while it is open. */}
+          {visiting && <RailButton key={`v-${visiting.id}`} tab={visiting} on onClick={() => setMoreOpen(true)} visiting />}
+
+          <button
+            type="button"
+            onClick={() => setMoreOpen((o) => !o)}
+            aria-expanded={moreOpen}
+            aria-haspopup="dialog"
+            title="More sections"
+            className="nj-rail__btn nj-rail__more"
+            data-open={moreOpen || undefined}
+          >
+            <Icon.Menu width={16} height={16} />
+            <span className="nj-rail__label">More</span>
+            {queue.counts.wip > 0 && <span className="nj-pip nj-pip-wip absolute right-1.5 top-1.5" aria-hidden />}
+          </button>
         </nav>
 
-        <main className="flex min-w-0 flex-1 flex-col">
+        {moreOpen && (
+          <MoreSheet
+            current={tab}
+            queued={queue.counts.wip}
+            onPick={(id) => go(id)}
+            onClose={() => setMoreOpen(false)}
+          />
+        )}
+
+        <main
+          className="relative flex min-w-0 flex-1 flex-col"
+          onDragOver={(e) => {
+            if (!e.dataTransfer.types.includes("Files")) return;
+            e.preventDefault();
+            if (!dropping) setDropping(true);
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false);
+          }}
+          onDrop={(e) => {
+            setDropping(false);
+            // The command line takes its own drops; this is everywhere else.
+            if (e.nativeEvent.defaultPrevented) return;
+            const files = Array.from(e.dataTransfer.files);
+            if (!files.length) return;
+            e.preventDefault();
+            addFiles(files);
+            if (tab !== "console") go("console");
+          }}
+        >
+          {dropping && (
+            <div className="nj-drop" aria-hidden>
+              <div className="nj-drop__ring">
+                <Icon.Upload width={22} height={22} />
+                <span>Drop to hand it to Jarvis</span>
+                <small>pictures · video · audio</small>
+              </div>
+            </div>
+          )}
           {/* The coding agent has its own composer (it talks to a branch, not
               to Jarvis), so the command line steps aside on that one tab. */}
           {tab !== "harness" && (
@@ -946,7 +1009,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
               the phone and the laptop finally show the same thing in the same
               place instead of two layouts that drift apart. */}
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div key={tab === "photos" ? "folders" : tab} className="nj-resolve min-h-0 flex-1 overflow-y-auto">
             {/* The Dashboard is its own column layout and owns its scrolling,
                 so it sits outside the shared scroll container. */}
             {tab === "dashboard" && store ? (
@@ -968,7 +1031,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 camera={camera}
               />
             ) : tab === "console" ? (
-              <div className="space-y-2 p-3">
+              <div className="nj-chat space-y-2.5 p-3 sm:p-4">
                 {blocks.length === 0 ? (
                   <Empty
                     paired={bridge.health.paired && bridge.health.up}
@@ -1091,25 +1154,20 @@ ${reflex.best.excerpt ?? ""}`.trim()
   );
 }
 
-/**
- * One rail entry.
- *
- * Extracted because the rail now has three kinds of row — a top-level tab, a
- * folder, and a tab nested inside a folder — and inlining three nearly
- * identical buttons is how they drift apart.
- */
+/** One rail entry. Labelled under the icon; the current one carries the beam. */
 function RailButton({
   tab,
   on,
   onClick,
-  nested = false,
+  visiting = false,
   badge = null,
 }: {
   tab: Tab;
   on: boolean;
   onClick: () => void;
-  nested?: boolean;
-  badge?: "live" | "unread" | "queued" | null;
+  /** Opened from More: it holds a slot only while it is the current tab. */
+  visiting?: boolean;
+  badge?: "live" | "unread" | null;
 }) {
   const I = Icon[tab.icon];
   return (
@@ -1118,24 +1176,104 @@ function RailButton({
       onClick={onClick}
       title={tab.label}
       aria-current={on ? "page" : undefined}
-      className={`group relative flex flex-col items-center gap-0.5 rounded-md py-1.5 transition ${
-        nested ? "mx-2.5" : "mx-1.5"
-      } ${on ? "bg-elevated text-ink" : "text-ink-muted hover:bg-panel-2 hover:text-ink"}`}
+      className="nj-rail__btn"
+      data-on={on || undefined}
+      data-visiting={visiting || undefined}
     >
-      <I width={nested ? 13 : 15} height={nested ? 13 : 15} />
-      <span className={nested ? "text-[9px] leading-none" : "text-[9.5px] leading-none"}>{tab.label}</span>
-      {badge === "live" && <span className="nj-dot absolute right-1 top-1 bg-brand" data-live="true" aria-hidden />}
-      {badge === "unread" && <span className="nj-dot absolute right-1 top-1 bg-support" aria-hidden />}
-      {/* Amber rather than a count: the number is in the dock, and a two- or
-          three-digit badge on a 56px rail would overlap the label it belongs
-          to. Here the only question is whether there IS anything waiting. */}
-      {badge === "queued" && <span className="nj-pip nj-pip-wip absolute right-1 top-1" aria-hidden />}
+      <I width={16} height={16} />
+      <span className="nj-rail__label">{tab.label}</span>
+      {badge === "live" && <span className="nj-dot absolute right-1.5 top-1.5 bg-brand" data-live="true" aria-hidden />}
+      {badge === "unread" && <span className="nj-dot absolute right-1.5 top-1.5 bg-support" aria-hidden />}
     </button>
   );
 }
 
 /**
- * The empty console.
+ * More — every section that is not on the rail, in one sheet.
+ *
+ * Typing filters it and Enter opens the first match, so a section is two
+ * keystrokes away without a rail that lists nineteen of them.
+ */
+function MoreSheet({
+  current,
+  queued,
+  onPick,
+  onClose,
+}: {
+  current: TabId;
+  queued: number;
+  onPick: (id: TabId) => void;
+  onClose: () => void;
+}) {
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const groups = GROUPS.map((g) => ({
+    ...g,
+    items: g.items.filter((t) => !needle || t.label.toLowerCase().includes(needle) || g.label.toLowerCase().includes(needle)),
+  })).filter((g) => g.items.length);
+  const first = groups[0]?.items[0];
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  let n = 0;
+  return (
+    <div className="nj-more" role="dialog" aria-label="More sections">
+      <button type="button" className="nj-more__scrim" aria-label="Close" tabIndex={-1} onClick={onClose} />
+      <div className="nj-more__sheet">
+        <div className="nj-more__head">
+          <span className="nj-kicker">All sections</span>
+          <div className="nj-more__find">
+            <Icon.Search width={14} height={14} />
+            <input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && first) onPick(first.id);
+              }}
+              placeholder="Find a section…"
+              aria-label="Find a section"
+            />
+          </div>
+        </div>
+        {groups.length === 0 && <p className="px-1 py-6 text-center text-xs text-ink-muted">Nothing called that.</p>}
+        {groups.map((g) => (
+          <section key={g.id} className="nj-more__group">
+            <h3 className="nj-more__label">{g.label}</h3>
+            <div className="nj-more__grid">
+              {g.items.map((t) => {
+                const I = Icon[t.icon];
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className="nj-more__tile"
+                    data-on={t.id === current || undefined}
+                    style={{ "--i": n++ } as React.CSSProperties}
+                    onClick={() => onPick(t.id)}
+                  >
+                    <I width={18} height={18} />
+                    <span>{t.label}</span>
+                    {t.id === "queue" && queued > 0 && <em data-num>{queued}</em>}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Chat, before anything has been asked.
  *
  * It teaches the surface rather than announcing that it is empty: four real
  * commands the owner can read and reuse, and an honest line about what is
@@ -1148,33 +1286,63 @@ function Empty({ paired, onPick }: { paired: boolean; onPick: (text: string) => 
     "which node processes are running, and how much memory each",
     "read tools/jarvis-bridge/README.md and summarise what it does",
   ];
-  // Flush left, on the same x as the command line and every block. Centred, it
-  // was the one thing on the surface that did not line up with the column it
-  // belongs to.
+  // What it can take in. Each one opens the file picker filtered to its kind.
+  const kinds: { label: string; icon: keyof typeof Icon; accept: string }[] = [
+    { label: "Pictures", icon: "Image", accept: "image/*" },
+    { label: "Video", icon: "Film", accept: "video/*" },
+    { label: "Audio", icon: "Waveform", accept: "audio/*" },
+  ];
+  const pick = (accept: string) => {
+    const input = document.querySelector<HTMLInputElement>('.nj-command input[type="file"]');
+    if (!input) return;
+    const was = input.accept;
+    input.accept = accept;
+    input.click();
+    // Put the picker back to "anything" once this one has opened.
+    setTimeout(() => (input.accept = was), 0);
+  };
   return (
-    <div className="max-w-2xl py-8">
-      <p className="text-sm text-ink">
-        Ask it something, or tell it what to do. Say <span className="font-mono text-brand">&ldquo;Jarvis&rdquo;</span>{" "}
-        and it listens.
+    <div className="nj-hello">
+      <p className="nj-kicker">Chat · super agent</p>
+      <h2 className="nj-hello__title">What are we doing?</h2>
+      <p className="nj-hello__sub">
+        Ask anything, hand it a job, or give it a picture, clip or recording and say what to do with it. It
+        looks, watches and listens. Say <span className="font-mono text-[var(--hud)]">&ldquo;Jarvis&rdquo;</span> and it listens.
       </p>
-      <p className="mt-1 text-xs text-ink-muted">
-        Every request becomes a block below — what you said, every step it took, and what came back. Nothing scrolls
-        away.
-      </p>
-      <ul className="mt-5 space-y-1.5">
-        {examples.map((e) => (
+
+      <div className="nj-hello__kinds" role="group" aria-label="Attach">
+        {kinds.map((k, i) => {
+          const I = Icon[k.icon];
+          return (
+            <button
+              key={k.label}
+              type="button"
+              className="nj-kind"
+              style={{ "--i": i } as React.CSSProperties}
+              onClick={() => pick(k.accept)}
+            >
+              <I width={16} height={16} />
+              <span>{k.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="nj-hello__try">Try</p>
+      <ul className="nj-hello__list">
+        {examples.map((e, i) => (
           <li key={e}>
-            {/* The one moment the surface teaches itself. These used to look
-                exactly like input fields and do nothing when clicked. */}
             <button
               type="button"
               onClick={() => onPick(e)}
-              className="group flex w-full items-center gap-2 rounded-md border border-line-soft bg-panel px-3 py-2 text-left font-mono text-[11.5px] text-ink-muted transition hover:border-line hover:bg-panel-2 hover:text-ink"
+              className="nj-try"
+              style={{ "--i": i + kinds.length } as React.CSSProperties}
             >
-              <span className="flex-1">{e}</span>
-              <span className="shrink-0 text-[10px] uppercase tracking-wide text-ink-muted opacity-0 transition group-hover:opacity-100">
-                use
+              <span className="nj-try__caret" aria-hidden>
+                ›
               </span>
+              <span className="flex-1">{e}</span>
+              <span className="nj-try__use">use</span>
             </button>
           </li>
         ))}
@@ -1182,9 +1350,8 @@ function Empty({ paired, onPick }: { paired: boolean; onPick: (text: string) => 
       <p className="mt-5 text-[11px] leading-relaxed text-ink-muted">
         {paired
           ? "This PC is reachable, so the last three will actually run."
-          : "The last three need the local agent on your PC. Without it, it can still think, remember and answer — it just cannot touch the machine."}
+          : "The last three need the local agent on your PC. Without it, Jarvis can still think, remember, look and answer. It just can't touch the machine."}
       </p>
     </div>
   );
 }
-

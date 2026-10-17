@@ -106,7 +106,7 @@ export function CommandLine({
   const shown = hearing && heard ? heard : value;
 
   return (
-    <div className="border-b border-line bg-panel px-3 py-2.5">
+    <div className="nj-commandbar border-b border-line bg-panel px-3 py-2.5">
       {/* Wraps on a phone: the chips and the two buttons hold the first line
           and the field takes the whole of the second. Kept on one line, the
           field is squeezed to about forty pixels and the placeholder sets one
@@ -115,6 +115,7 @@ export function CommandLine({
         className={`nj-command flex flex-wrap items-center gap-2 rounded-lg border bg-canvas px-2.5 py-2 ${dragging ? "border-brand" : "border-line"}`}
         data-armed={Boolean(value.trim() || media.length)}
         data-hearing={hearing}
+        data-busy={busy || undefined}
         onDragOver={(e) => {
           if (Array.from(e.dataTransfer.items).some((i) => i.kind === "file")) {
             e.preventDefault();
