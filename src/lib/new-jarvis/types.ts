@@ -76,6 +76,8 @@ export interface Block {
   media?: { kind: "image" | "video" | "audio"; name: string; thumb: string }[];
   /** The OpenRouter model picked for this block, when not the default. */
   model?: string;
+  /** Which conversation it belongs to (Chat's side panel). */
+  thread?: string;
 }
 
 export function newBlock(init: Partial<Block> & { command: string; mode: Mode }): Block {
@@ -100,7 +102,7 @@ export function newBlock(init: Partial<Block> & { command: string; mode: Mode })
  * are dropped from the DOM rather than merely collapsed, because a collapsed
  * block still holds its browser frames and its tables.
  */
-export const MAX_LIVE_BLOCKS = 40;
+export const MAX_LIVE_BLOCKS = 150;
 
 /** A block's own elapsed time, live while it runs. */
 export function elapsed(block: Block, now = Date.now()): number {
