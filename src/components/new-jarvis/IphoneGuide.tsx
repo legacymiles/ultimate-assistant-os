@@ -283,6 +283,11 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                 means the link is old or cut off — go back a step, make a new link and paste it again.
               </p>
               <p className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-[11.5px]">
+                <b className="text-ink">&ldquo;Trying to share … items, which is not allowed&rdquo;?</b> In the iPhone <b className="text-ink">Settings</b> app go
+                to <b className="text-ink">Apps → Shortcuts → Advanced</b> and turn on <b className="text-ink">Allow Sharing Large Amounts of Data</b> — or lower the
+                Find Photos limit to {LIMIT}.
+              </p>
+              <p className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-[11.5px]">
                 <b className="text-ink">&ldquo;Couldn&apos;t convert from Rich Text to URL&rdquo;?</b> The link went in with formatting, or the wrong thing is in
                 the URL box. Tap the URL box in Get Contents of URL and clear it, add a separate <b className="text-ink">URL</b> action above it with your
                 link pasted in, then tap the URL box again and pick the blue <b className="text-ink">URL</b>.
