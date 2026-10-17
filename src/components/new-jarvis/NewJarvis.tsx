@@ -24,7 +24,6 @@ import "./deck.css";
 import "./new-jarvis-hud.css";
 import { HudField, Reactor } from "./HudField";
 
-import { BlockView } from "./Blocks";
 import { CommandLine } from "./CommandLine";
 import { StatusDock } from "./StatusDock";
 import { VoiceOrb } from "./VoiceOrb";
@@ -37,6 +36,8 @@ import { useWakeVoice } from "@/lib/new-jarvis/useWakeVoice";
 import { runBlock, type WireMessage } from "@/lib/new-jarvis/runner";
 import { MAX_LIVE_BLOCKS, newBlock, type Block, type Gate, type Mode } from "@/lib/new-jarvis/types";
 import { BLOCKS_KEY, revive, slim } from "@/lib/new-jarvis/persist";
+import { adoptLegacy, newThreadId, reviveThreads, THREADS_KEY, titleFrom, type Thread } from "@/lib/new-jarvis/threads";
+import { ChatView } from "./ChatView";
 
 // The owner's existing surfaces, mounted whole.
 import { Recall } from "../recall/Recall";
@@ -238,11 +239,24 @@ export function NewJarvis() {
   // machine, and a phone showing a ledger of steps it cannot re-run would be
   // a worse lie than no ledger at all.
   const loaded = useRef(false);
+  // Chat's conversations. Device-local, beside the blocks they group.
+  const [threads, setThreads] = useState<Thread[]>([]);
+  /** The open conversation; null = a new one that starts on the first message. */
+  const [activeThread, setActiveThread] = useState<string | null>(null);
+  const activeThreadRef = useRef<string | null>(null);
+  activeThreadRef.current = activeThread;
   useEffect(() => {
-    setBlocks(revive(loadLocal<unknown>(BLOCKS_KEY, [])));
+    const adopted = adoptLegacy(revive(loadLocal<unknown>(BLOCKS_KEY, [])), reviveThreads(loadLocal<unknown>(THREADS_KEY, [])));
+    setBlocks(adopted.blocks);
+    setThreads(adopted.threads);
     loaded.current = true;
   }, []);
+  useEffect(() => {
+    if (loaded.current) saveLocal(THREADS_KEY, threads);
+  }, [threads]);
   const blocksRef = useRef<Block[]>([]);
+  const threadsRef = useRef<Thread[]>([]);
+  threadsRef.current = threads;
   useEffect(() => {
     blocksRef.current = blocks;
     if (!loaded.current) return;
@@ -469,8 +483,9 @@ export function NewJarvis() {
   }, []);
 
   /** Past blocks as conversation, so a follow-up knows what "it" means. */
-  const historyFor = useCallback((): WireMessage[] => {
-    const recent = blocks.filter((b) => b.status === "done" && b.answer).slice(0, 4).reverse();
+  const historyFor = useCallback((thread: string): WireMessage[] => {
+    // The conversation it is part of, not whatever else happened lately.
+    const recent = blocks.filter((b) => b.thread === thread && b.status === "done" && b.answer).slice(0, 6).reverse();
     return recent.flatMap((b): WireMessage[] => [
       { role: "user", content: b.command },
       { role: "assistant", content: b.answer },
@@ -593,6 +608,21 @@ export function NewJarvis() {
       if (!command) return;
       const runMode = opts.mode ?? mode;
 
+      // Which conversation this goes into. The first message of a new chat
+      // opens it, named after what was asked.
+      let thread = activeThreadRef.current;
+      if (!thread || !threadsRef.current.some((t) => t.id === thread)) {
+        thread = newThreadId();
+        const now = Date.now();
+        const made: Thread = { id: thread, title: titleFrom(command), createdAt: now, updatedAt: now };
+        setThreads((ts) => [made, ...ts]);
+        setActiveThread(thread);
+        activeThreadRef.current = thread;
+      } else {
+        const id = thread;
+        setThreads((ts) => ts.map((t) => (t.id === id ? { ...t, updatedAt: Date.now() } : t)));
+      }
+
       // "setup" / "onboarding" in the box reopens setup instead of asking the model.
       if (source === "typed" && SETUP_COMMAND.test(command)) {
         setInput("");
@@ -608,7 +638,7 @@ export function NewJarvis() {
       // the owner overruling it, and a box that refuses to submit is a box
       // people come to hate.
       if (source === "typed" && !attached.length && !opts.skipReflex && overrideFor !== command && savedACall(reflex.route)) {
-        const block = newBlock({ command, mode: runMode, source });
+        const block = newBlock({ command, mode: runMode, source, thread });
         setBlocks((bs) => [
           {
             ...block,
@@ -636,6 +666,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
         command,
         mode: runMode,
         source,
+        thread,
         ...(attached.length ? { media: attached.map((m) => ({ kind: m.kind, name: m.name, thumb: m.thumb })) } : {}),
         ...(chatModel ? { model: chatModel } : {}),
       });
@@ -644,7 +675,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
 
       const controller = new AbortController();
       aborts.current.set(block.id, controller);
-      const history = historyFor();
+      const history = historyFor(thread);
 
       const outcome = await runBlock(
         { command, mode: runMode, history, content },
@@ -802,6 +833,11 @@ ${reflex.best.excerpt ?? ""}`.trim()
   );
 
   const running = blocks.some((b) => b.status === "running" || b.status === "waiting");
+  /** The open conversation, oldest first — the order a chat reads in. */
+  const chatBlocks = useMemo(
+    () => (activeThread ? blocks.filter((b) => b.thread === activeThread).reverse() : []),
+    [blocks, activeThread],
+  );
   const visiting = TOP.some((t) => t.id === tab) ? null : TABS.find((t) => t.id === tab) ?? null;
 
   // The rail's light slides to whichever entry is current. Measured rather
@@ -963,7 +999,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
           )}
           {/* The coding agent has its own composer (it talks to a branch, not
               to Jarvis), so the command line steps aside on that one tab. */}
-          {tab !== "harness" && (
+          {tab !== "harness" && tab !== "console" && (
             <CommandLine
               value={input}
               onChange={setInput}
@@ -983,11 +1019,13 @@ ${reflex.best.excerpt ?? ""}`.trim()
               preparing={preparing}
             />
           )}
-          {mediaError && <p className="border-b border-line bg-panel px-4 py-1.5 text-[11px] text-amber-300">{mediaError}</p>}
+          {mediaError && tab !== "console" && (
+            <p className="border-b border-line bg-panel px-4 py-1.5 text-[11px] text-amber-300">{mediaError}</p>
+          )}
 
           {/* The reflex, over whatever is in the box. Hidden when there is
               nothing to judge, so an empty console is not a readout. */}
-          {input.trim() && (
+          {input.trim() && tab !== "console" && (
             <ReflexStrip
               reflex={reflex}
               onAccept={() => {
@@ -1009,7 +1047,10 @@ ${reflex.best.excerpt ?? ""}`.trim()
               the phone and the laptop finally show the same thing in the same
               place instead of two layouts that drift apart. */}
 
-          <div key={tab === "photos" ? "folders" : tab} className="nj-resolve min-h-0 flex-1 overflow-y-auto">
+          <div
+            key={tab === "photos" ? "folders" : tab}
+            className={`nj-resolve min-h-0 flex-1 ${tab === "console" ? "overflow-hidden" : "overflow-y-auto"}`}
+          >
             {/* The Dashboard is its own column layout and owns its scrolling,
                 so it sits outside the shared scroll container. */}
             {tab === "dashboard" && store ? (
@@ -1031,28 +1072,59 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 camera={camera}
               />
             ) : tab === "console" ? (
-              <div className="nj-chat space-y-2.5 p-3 sm:p-4">
-                {blocks.length === 0 ? (
-                  <Empty
-                    paired={bridge.health.paired && bridge.health.up}
-                    onPick={(text) => {
-                      setInput(text);
-                      document.querySelector<HTMLTextAreaElement>(".nj-command textarea")?.focus();
-                    }}
-                  />
-                ) : (
-                  blocks.map((b) => (
-                    <BlockView
-                      key={b.id}
-                      block={b}
-                      onAnswerGate={(yes) => answerGate(b.id, yes)}
-                      onRerun={() => void submit(b.command, b.source)}
-                      onStop={() => stop(b.id)}
-                      onToggle={() => patch(b.id, { collapsed: !b.collapsed })}
+              <ChatView
+                threads={threads}
+                active={activeThread}
+                blocks={chatBlocks}
+                paired={bridge.health.paired && bridge.health.up}
+                notice={mediaError || undefined}
+                above={
+                  input.trim() ? (
+                    <ReflexStrip
+                      reflex={reflex}
+                      onAccept={() => {
+                        setOverrideFor("");
+                        void submit();
+                      }}
+                      onAnyway={() => {
+                        setOverrideFor(input.trim());
+                        setTimeout(() => submitRef.current(input.trim(), "typed"), 0);
+                      }}
                     />
-                  ))
-                )}
-              </div>
+                  ) : undefined
+                }
+                composer={{
+                  value: input,
+                  onChange: setInput,
+                  onSubmit: () => void submit(),
+                  mode,
+                  onMode: setMode,
+                  voiceState: voice.state,
+                  heard: voice.heard,
+                  micSupported: voice.supported,
+                  onMic: voice.toggle,
+                  busy: chatBlocks.some((b) => b.status === "running" || b.status === "waiting"),
+                  model: chatModel,
+                  onModel: setChatModel,
+                  media,
+                  onFiles: addFiles,
+                  onRemoveMedia: (id) => setMedia((list) => list.filter((m) => m.id !== id)),
+                  preparing,
+                }}
+                onNew={() => setActiveThread(null)}
+                onSelect={setActiveThread}
+                onRename={(id, title) => setThreads((ts) => ts.map((t) => (t.id === id ? { ...t, title } : t)))}
+                onDelete={(id) => {
+                  // Stop anything still running in it, then let it go.
+                  for (const b of blocksRef.current) if (b.thread === id) aborts.current.get(b.id)?.abort();
+                  setBlocks((bs) => bs.filter((b) => b.thread !== id));
+                  setThreads((ts) => ts.filter((t) => t.id !== id));
+                  if (activeThreadRef.current === id) setActiveThread(null);
+                }}
+                onAnswerGate={answerGate}
+                onRerun={(b) => void submit(b.command, b.source)}
+                onStop={stop}
+              />
             ) : tab === "harness" ? (
               // Branched here, ahead of the store gate: a harness thread reads
               // the repo and nothing from the dashboard, so making it wait on
@@ -1268,90 +1340,6 @@ function MoreSheet({
           </section>
         ))}
       </div>
-    </div>
-  );
-}
-
-/**
- * Chat, before anything has been asked.
- *
- * It teaches the surface rather than announcing that it is empty: four real
- * commands the owner can read and reuse, and an honest line about what is
- * reachable right now.
- */
-function Empty({ paired, onPick }: { paired: boolean; onPick: (text: string) => void }) {
-  const examples = [
-    "what did I decide about the hub's AI provider?",
-    "open my Vercel dashboard and tell me if the last deploy failed",
-    "which node processes are running, and how much memory each",
-    "read tools/jarvis-bridge/README.md and summarise what it does",
-  ];
-  // What it can take in. Each one opens the file picker filtered to its kind.
-  const kinds: { label: string; icon: keyof typeof Icon; accept: string }[] = [
-    { label: "Pictures", icon: "Image", accept: "image/*" },
-    { label: "Video", icon: "Film", accept: "video/*" },
-    { label: "Audio", icon: "Waveform", accept: "audio/*" },
-  ];
-  const pick = (accept: string) => {
-    const input = document.querySelector<HTMLInputElement>('.nj-command input[type="file"]');
-    if (!input) return;
-    const was = input.accept;
-    input.accept = accept;
-    input.click();
-    // Put the picker back to "anything" once this one has opened.
-    setTimeout(() => (input.accept = was), 0);
-  };
-  return (
-    <div className="nj-hello">
-      <p className="nj-kicker">Chat · super agent</p>
-      <h2 className="nj-hello__title">What are we doing?</h2>
-      <p className="nj-hello__sub">
-        Ask anything, hand it a job, or give it a picture, clip or recording and say what to do with it. It
-        looks, watches and listens. Say <span className="font-mono text-[var(--hud)]">&ldquo;Jarvis&rdquo;</span> and it listens.
-      </p>
-
-      <div className="nj-hello__kinds" role="group" aria-label="Attach">
-        {kinds.map((k, i) => {
-          const I = Icon[k.icon];
-          return (
-            <button
-              key={k.label}
-              type="button"
-              className="nj-kind"
-              style={{ "--i": i } as React.CSSProperties}
-              onClick={() => pick(k.accept)}
-            >
-              <I width={16} height={16} />
-              <span>{k.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <p className="nj-hello__try">Try</p>
-      <ul className="nj-hello__list">
-        {examples.map((e, i) => (
-          <li key={e}>
-            <button
-              type="button"
-              onClick={() => onPick(e)}
-              className="nj-try"
-              style={{ "--i": i + kinds.length } as React.CSSProperties}
-            >
-              <span className="nj-try__caret" aria-hidden>
-                ›
-              </span>
-              <span className="flex-1">{e}</span>
-              <span className="nj-try__use">use</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-5 text-[11px] leading-relaxed text-ink-muted">
-        {paired
-          ? "This PC is reachable, so the last three will actually run."
-          : "The last three need the local agent on your PC. Without it, Jarvis can still think, remember, look and answer. It just can't touch the machine."}
-      </p>
     </div>
   );
 }

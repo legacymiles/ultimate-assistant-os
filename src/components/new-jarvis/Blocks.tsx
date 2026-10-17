@@ -18,9 +18,9 @@ import { Markdown } from "../jarvis/Markdown";
 import type { Block, Gate, Step } from "@/lib/new-jarvis/types";
 import { elapsed } from "@/lib/new-jarvis/types";
 
-const ms = (n: number | undefined) => (n === undefined ? "" : n < 1000 ? `${n} ms` : `${(n / 1000).toFixed(1)} s`);
+export const ms = (n: number | undefined) => (n === undefined ? "" : n < 1000 ? `${n} ms` : `${(n / 1000).toFixed(1)} s`);
 
-function StatusDot({ status }: { status: Step["status"] | Block["status"] }) {
+export function StatusDot({ status }: { status: Step["status"] | Block["status"] }) {
   const colour =
     status === "ok" || status === "done"
       ? "bg-core"
@@ -303,7 +303,7 @@ function ResultView({ step }: { step: Step }) {
 
 // --- steps ----------------------------------------------------------------
 
-function StepRow({ step, autoOpen }: { step: Step; autoOpen: boolean }) {
+export function StepRow({ step, autoOpen }: { step: Step; autoOpen: boolean }) {
   // Opening the last result automatically is the difference between the
   // composition's promise — the result inline, at full size — and a row you
   // have to go and click. Once the owner touches a row, their choice wins and
@@ -364,7 +364,7 @@ function StepRow({ step, autoOpen }: { step: Step; autoOpen: boolean }) {
 
 // --- the gate -------------------------------------------------------------
 
-function GateCard({ gate, onAnswer }: { gate: Gate; onAnswer: (yes: boolean) => void }) {
+export function GateCard({ gate, onAnswer }: { gate: Gate; onAnswer: (yes: boolean) => void }) {
   // Focus the refusal, not the approval: the default action on a gate for
   // something that cannot be undone should be the one that changes nothing.
   const [el, setEl] = useState<HTMLButtonElement | null>(null);
