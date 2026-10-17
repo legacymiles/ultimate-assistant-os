@@ -230,11 +230,18 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                     <b className="text-ink">{LIMIT}</b>.
                   </>,
                   <>
-                    Tap the search bar at the bottom, type <Code>Get Contents of URL</Code>, tap it.
+                    Tap the search bar at the bottom, type <Code>URL</Code>, and tap the action called just <b className="text-ink">URL</b> (the blue link
+                    icon). Tap inside it and paste <b className="text-ink">your link</b>.
+                    {token && <InlineCopy onClick={() => copy(myLink, "Your link")} />}
+                    <br />
+                    <span className="text-[11px] text-ink-faint">
+                      Putting the link in its own URL action — not typed into the next block — is what avoids the &ldquo;couldn&apos;t convert from Rich Text to
+                      URL&rdquo; error.
+                    </span>
                   </>,
                   <>
-                    Tap the blue word <b className="text-ink">URL</b> in that block and paste <b className="text-ink">your link</b>.
-                    {token && <InlineCopy onClick={() => copy(myLink, "Your link")} />}
+                    Search <Code>Get Contents of URL</Code> and tap it. It picks up the blue <b className="text-ink">URL</b> from the block above by itself —
+                    leave that as it is.
                   </>,
                   <>
                     Tap the small <b className="text-ink">›</b> arrow on the right of that block. Fill it in exactly like the table below.
@@ -252,7 +259,7 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                 <table className="w-full text-[12px]">
                   <tbody className="divide-y divide-line-soft">
                     {[
-                      ["URL", token ? "your link" : "your link (step 2)", token ? myLink : ""],
+                      ["URL", "the blue URL from the block above (fills in by itself)", ""],
                       ["Method", "POST", ""],
                       ["Headers", "leave empty", ""],
                       ["Request Body", "Form", ""],
@@ -274,6 +281,11 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
               <p className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-[11.5px]">
                 It worked if it shows something like <Code>{`{"accepted":20,"skipped":0}`}</Code>. An error that says <b className="text-ink">Unknown device token</b>{" "}
                 means the link is old or cut off — go back a step, make a new link and paste it again.
+              </p>
+              <p className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-[11.5px]">
+                <b className="text-ink">&ldquo;Couldn&apos;t convert from Rich Text to URL&rdquo;?</b> The link went in with formatting, or the wrong thing is in
+                the URL box. Tap the URL box in Get Contents of URL and clear it, add a separate <b className="text-ink">URL</b> action above it with your
+                link pasted in, then tap the URL box again and pick the blue <b className="text-ink">URL</b>.
               </p>
             </div>
           )}
