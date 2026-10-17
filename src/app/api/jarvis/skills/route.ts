@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { mcpContext } from "@/lib/jarvis/server/mcpAuth";
 import { getSkill, listSkills, saveSkill, SkillError } from "@/lib/jarvis/server/skills";
+import { noteDevice } from "@/lib/jarvis/server/syncStatus";
 
 // ---------------------------------------------------------------------------
 // The skill store over plain HTTP, for scripts/skill-sync.mjs on the PC and
@@ -25,6 +26,8 @@ export async function GET(req: Request) {
   const ctx = mcpContext(req);
   if (!ctx.available) return unauthorized(ctx);
   const name = new URL(req.url).searchParams.get("name");
+  // The skill list is what every pull starts with: note this computer checked in.
+  if (!name) after(() => noteDevice(ctx, req, req.headers.get("x-skill-sync-action") || "pull"));
   try {
     if (name) {
       const skill = await getSkill(ctx, name);
@@ -41,6 +44,7 @@ export async function POST(req: Request) {
   if (!ctx.available) return unauthorized(ctx);
   const body = (await req.json().catch(() => null)) as { name?: string; body?: string; files?: unknown; origin?: string } | null;
   if (!body) return NextResponse.json({ error: "Body was not JSON." }, { status: 400 });
+  after(() => noteDevice(ctx, req, "push"));
   try {
     const r = await saveSkill(ctx, { name: body.name ?? "", body: body.body ?? "", files: body.files, origin: body.origin });
     return NextResponse.json(r);

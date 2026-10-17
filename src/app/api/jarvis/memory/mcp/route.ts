@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 // ---------------------------------------------------------------------------
 // One memory, reachable from everywhere.
@@ -24,6 +24,7 @@ import {
 } from "@/lib/jarvis/server/memory";
 import { MEMORY_SOURCES, type MemorySource } from "@/lib/jarvis/types";
 import { getSkill, listSkills, saveSkill, SkillError } from "@/lib/jarvis/server/skills";
+import { noteConnector } from "@/lib/jarvis/server/syncStatus";
 
 export const runtime = "nodejs";
 // Embedding plus a Supabase round trip can outrun the default on a cold start.
@@ -168,6 +169,15 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+
+  // Leave a note that this connector is in use (which client, when), so Jarvis
+  // can show it as set up. After the response, never in its way.
+  const messages = (Array.isArray(body) ? body : [body]) as RpcRequest[];
+  const init = messages.find((m) => m?.method === "initialize");
+  const clientInfo = (init?.params as { clientInfo?: { name?: string } } | undefined)?.clientInfo;
+  const viaQuery = new URL(req.url).searchParams.has("k");
+  const client = clientInfo?.name || (viaQuery ? "claude-ai" : "claude-code");
+  after(() => noteConnector(ctx, client, Boolean(init)));
 
   const run = (name: string, args: Record<string, unknown>) => runTool(ctx, name, args);
 

@@ -32,7 +32,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdir, readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, hostname } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readSkillDir, validRefPath, validSkillName, normalizeFiles, hashSkill } from "../src/lib/jarvis/skillFormat.mjs";
@@ -85,10 +85,22 @@ const TOKEN = flagValue("--token") || process.env.JARVIS_MCP_TOKEN || CONFIG.tok
 
 // ---- HTTP ------------------------------------------------------------------
 
+const VERSION = "3";
+const OS_LABEL = { win32: "Windows", darwin: "macOS", linux: "Linux" }[process.platform] || process.platform;
+
 async function api(pathname, init = {}) {
+  // These let Jarvis show this computer as set up (name, OS, last sync) — see
+  // src/lib/jarvis/server/syncStatus.ts. Nothing else about the machine is sent.
+  const id = {
+    "x-skill-sync-host": hostname(),
+    "x-skill-sync-os": OS_LABEL,
+    "x-skill-sync-version": VERSION,
+    "x-skill-sync-action": mode === "setup" ? "install" : mode,
+    "x-skill-sync-count": String((await localNames()).length),
+  };
   const res = await fetch(`${HUB}${pathname}`, {
     ...init,
-    headers: { "content-type": "application/json", authorization: `Bearer ${TOKEN}`, ...(init.headers ?? {}) },
+    headers: { "content-type": "application/json", authorization: `Bearer ${TOKEN}`, ...id, ...(init.headers ?? {}) },
     signal: AbortSignal.timeout(30_000),
   });
   const text = await res.text();
@@ -266,7 +278,7 @@ async function doPull() {
 }
 
 function hostLabel() {
-  return (process.env.COMPUTERNAME || process.env.HOSTNAME || "machine").toLowerCase();
+  return (hostname() || process.env.COMPUTERNAME || "machine").toLowerCase();
 }
 
 // ---- optional: the repo mirror (old behaviour, still handy for backups) ---------

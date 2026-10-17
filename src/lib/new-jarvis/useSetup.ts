@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { AUTOPILOT_CHANGED, getAutopilot } from "@/lib/recall/photos/autopilot";
 import { useLauncher } from "./launcher";
 import { setupChecklist, useOnboarding, type SetupItem } from "./onboarding";
+import { useSyncStatus } from "@/lib/jarvis/useSyncStatus";
+import type { SyncPlan } from "@/lib/jarvis/syncSteps";
 
 export interface ConnectorApp {
   slug: string;
@@ -16,6 +18,8 @@ export interface SetupStatus {
   left: number;
   connectors: { available: boolean; reason: string; connectUrl: string; apps: ConnectorApp[] } | null;
   iphoneLinked: boolean;
+  /** Memory + skill sync, with the next step for this device; null until known. */
+  sync: SyncPlan | null;
   refresh: () => void;
 }
 
@@ -30,6 +34,7 @@ export function useSetup(): SetupStatus {
   const [rules, setRules] = useState(0);
   const [connectors, setConnectors] = useState<SetupStatus["connectors"]>(null);
   const [iphoneLinked, setIphone] = useState(false);
+  const sync = useSyncStatus();
 
   const refresh = useCallback(() => {
     fetch("/api/jarvis/connectors")
@@ -61,6 +66,13 @@ export function useSetup(): SetupStatus {
     iphoneLinked,
     rules,
     favorites: launcher.favorites.length,
+    sync: sync.plan
+      ? { done: sync.plan.state === "ready", detail: sync.plan.state === "ready" ? "Phone, claude.ai and your computers" : sync.plan.here.title }
+      : null,
   });
-  return { items, left: items.filter((i) => !i.done).length, connectors, iphoneLinked, refresh };
+  const refreshAll = () => {
+    refresh();
+    sync.refresh();
+  };
+  return { items, left: items.filter((i) => !i.done).length, connectors, iphoneLinked, sync: sync.plan, refresh: refreshAll };
 }

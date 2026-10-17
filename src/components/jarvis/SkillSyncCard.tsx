@@ -19,6 +19,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Icon } from "../icons";
+import { SyncStatePill, SyncStatusPanel, useSyncStatus } from "./SyncStatusPanel";
 
 const btn =
   "inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink disabled:opacity-50";
@@ -62,11 +63,14 @@ export function SkillSyncCard() {
   const [open, setOpen] = useState(false);
   const [reveal, setReveal] = useState(false);
   const [tokenCopied, setTokenCopied] = useState(false);
+  const status = useSyncStatus();
 
-  // Default closed; the memory card above is step one, this is step two.
+  // Anything not set up opens the card by itself, so it can't be missed.
+  // Once the owner has toggled it, their choice stands.
+  const [touched, setTouched] = useState(false);
   useEffect(() => {
-    /* no status fetch: setup runs on the machine, not the server */
-  }, []);
+    if (!touched && status.plan && status.plan.state !== "ready") setOpen(true);
+  }, [status.plan, touched]);
 
   const t = token.trim() || "YOUR_TOKEN";
   const copyToken = () => {
@@ -83,19 +87,27 @@ export function SkillSyncCard() {
   return (
     <section className="mt-3 rounded-xl border border-line bg-panel">
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setTouched(true);
+          setOpen((v) => !v);
+        }}
         className="flex w-full items-center gap-2 px-3 py-2 text-left"
         aria-expanded={open}
       >
         <Icon.Sparkles width={13} height={13} className="text-ink-faint" />
         <h2 className="text-xs font-semibold text-ink">Skills everywhere</h2>
-        <span className="rounded-full bg-indigo-500/15 px-1.5 py-0.5 text-[10px] text-indigo-300">one command per machine</span>
+        <SyncStatePill plan={status.plan} error={status.error} />
+        {status.plan && status.plan.state !== "ready" && (
+          <span className="hidden truncate text-[10.5px] text-ink-faint sm:inline">{status.plan.here.title}</span>
+        )}
         <Icon.Chevron width={13} height={13} className={`ml-auto text-ink-faint transition ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
         <div className="space-y-2.5 border-t border-line px-3 py-3">
-          <p className="max-w-[78ch] text-[11px] leading-relaxed text-ink-muted">
+          <SyncStatusPanel token={token} status={status} />
+
+          <p className="max-w-[78ch] border-t border-line-soft pt-2.5 text-[11px] leading-relaxed text-ink-muted">
             Every skill lives in one place — here in Jarvis — and every device reads from it. Make a skill anywhere and
             you never lose it.
           </p>
