@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { aiEndpoint, aiFetch, describeFailure, DEFAULT_MODEL } from "@/lib/ai/provider";
 import { runNote, sanitizeAssistant, toApiTools, toolsFor, type AgentTool } from "@/lib/new-jarvis/agentTools";
+import { isModelId } from "@/lib/new-jarvis/chatModels";
 
 // ---------------------------------------------------------------------------
 // One step of New Jarvis's agent loop.
@@ -25,9 +26,15 @@ export const maxDuration = 60;
 
 type WireRole = "user" | "assistant" | "tool";
 
+/** What a user turn may carry besides words: pictures, frames, sound. */
+type Part =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } }
+  | { type: "input_audio"; input_audio: { data: string; format: "wav" | "mp3" } };
+
 interface WireMessage {
   role?: WireRole;
-  content?: string;
+  content?: string | Part[];
   /** Present on assistant turns that called a tool. */
   tool_calls?: { id: string; function: { name: string; arguments: string } }[];
   /** Present on tool results. */
@@ -42,6 +49,41 @@ interface Body {
   ownerName?: string;
   timezone?: string;
   context?: string;
+  /** An OpenRouter model id from the Chat's picker. Absent = the hub default. */
+  model?: string;
+}
+
+/**
+ * A user turn's media, kept only in shapes the provider accepts and within a
+ * size Vercel will carry (4.5 MB a request). Anything else is dropped rather
+ * than passed on to fail upstream.
+ */
+const MEDIA_BUDGET = 3_600_000;
+function cleanParts(parts: unknown[]): Part[] {
+  let budget = MEDIA_BUDGET;
+  const out: Part[] = [];
+  for (const raw of parts.slice(0, 16)) {
+    const p = raw as Record<string, unknown>;
+    if (p?.type === "text" && typeof p.text === "string") {
+      out.push({ type: "text", text: p.text.slice(0, 24_000) });
+    } else if (p?.type === "image_url") {
+      const url = String((p.image_url as { url?: unknown } | undefined)?.url ?? "");
+      const ok = /^data:image\/(jpeg|png|webp|gif);base64,/.test(url) || /^https:\/\//.test(url);
+      if (ok && url.length <= budget) {
+        budget -= url.length;
+        out.push({ type: "image_url", image_url: { url } });
+      }
+    } else if (p?.type === "input_audio") {
+      const a = (p.input_audio ?? {}) as { data?: unknown; format?: unknown };
+      const data = typeof a.data === "string" ? a.data : "";
+      const format = a.format === "mp3" ? "mp3" : "wav";
+      if (data && /^[A-Za-z0-9+/=]+$/.test(data.slice(0, 200)) && data.length <= budget) {
+        budget -= data.length;
+        out.push({ type: "input_audio", input_audio: { data, format } });
+      }
+    }
+  }
+  return out;
 }
 
 const BASE = `You are Jarvis, {owner}'s assistant, wired into their actual computer.
@@ -104,7 +146,15 @@ function clean(messages: WireMessage[]): WireMessage[] {
         if (typeof rest.content === "string") rest.content = rest.content.slice(0, 24_000);
         return { ...rest, role } as WireMessage;
       }
-      const out: WireMessage = { role, content: typeof m.content === "string" ? m.content.slice(0, 24_000) : "" };
+      const out: WireMessage = {
+        role,
+        content:
+          role === "user" && Array.isArray(m.content)
+            ? cleanParts(m.content)
+            : typeof m.content === "string"
+              ? m.content.slice(0, 24_000)
+              : "",
+      };
       if (role === "tool") {
         out.tool_call_id = String(m.tool_call_id ?? "").slice(0, 80);
         out.name = String(m.name ?? "").slice(0, 60);
@@ -114,7 +164,13 @@ function clean(messages: WireMessage[]): WireMessage[] {
     // A tool result with no id cannot be matched to its call and makes the
     // whole request invalid; dropping it loses one step, keeping it loses the
     // turn.
-    .filter((m) => (m.role === "tool" ? Boolean(m.tool_call_id) : (m.content ?? "").trim() || m.tool_calls?.length))
+    .filter((m) =>
+      m.role === "tool"
+        ? Boolean(m.tool_call_id)
+        : Array.isArray(m.content)
+          ? m.content.length > 0
+          : (m.content ?? "").trim() || m.tool_calls?.length,
+    )
     .slice(-60);
 }
 
@@ -143,6 +199,9 @@ export async function POST(req: Request) {
   // Ask loses the PC, not the owner's own stores: remembering something they
   // just told you must not depend on whether a local agent happens to be up.
   const tools: AgentTool[] = mode === "ask" ? toolsFor({}) : toolsFor(caps);
+  // The Chat's model picker. Only the id's shape is checked: OpenRouter is the
+  // authority on which ids exist, and its error says so plainly if one does not.
+  const model = isModelId(body.model) ? body.model : DEFAULT_MODEL;
 
   const owner = (body.ownerName || "the owner").slice(0, 60);
   const today = new Date().toLocaleString("en-GB", {
@@ -167,7 +226,7 @@ export async function POST(req: Request) {
     const res = await aiFetch({
       method: "POST",
       body: JSON.stringify({
-        model: DEFAULT_MODEL,
+        model,
         temperature: 0.2,
         max_tokens: 1600,
         messages: [{ role: "system", content: system }, ...messages],
@@ -217,14 +276,14 @@ export async function POST(req: Request) {
         // without going through clean() first.
         assistant: sanitizeAssistant(message as Record<string, unknown>),
         text: typeof message?.content === "string" ? message.content : "",
-        model: DEFAULT_MODEL,
+        model,
       });
     }
 
     return NextResponse.json({
       toolCall: null,
       text: (message?.content ?? "").trim() || "Nothing came back.",
-      model: DEFAULT_MODEL,
+      model,
     });
   } catch (e) {
     // Same rule as the !res.ok path above: the exception is for the log, and

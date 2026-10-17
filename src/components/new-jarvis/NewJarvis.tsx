@@ -65,6 +65,9 @@ import { getOnboarding, useOnboarding } from "@/lib/new-jarvis/onboarding";
 import { useSetup } from "@/lib/new-jarvis/useSetup";
 import { useCameraWatch } from "@/lib/new-jarvis/useCameraWatch";
 import { IphoneGuide } from "./IphoneGuide";
+import { CHAT_MODEL_KEY } from "@/lib/new-jarvis/chatModels";
+import { MAX_CHAT_MEDIA, buildUserContent, prepareMedia, type ChatMedia } from "@/lib/new-jarvis/chatMedia";
+import type { HarnessId } from "@/lib/new-jarvis/harness/types";
 import { noteLaunch } from "@/lib/new-jarvis/launcher";
 import { useVault } from "@/lib/new-jarvis/useVault";
 import { noteOpened, useImprove } from "@/lib/new-jarvis/useImprove";
@@ -72,7 +75,7 @@ import { useUpdates } from "@/lib/jarvis/useUpdates";
 import { toCalEvent } from "@/lib/jarvis/useDashboardCalendar";
 import type { CalendarEvent } from "@/lib/recall/calendar/types";
 
-import { loadLocal, saveLocal } from "@/lib/sync/appState";
+import { loadLocal, saveLocal, saveSynced } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
 import { STORE_KEY, emptyStore } from "@/lib/new-dashboard/model";
 import type { DashboardStore, Profile } from "@/lib/new-dashboard/types";
@@ -150,11 +153,11 @@ const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[]
 /** The ones that are always one click away, because they are where work happens. */
 const TOP: Tab[] = [
   { id: "dashboard", label: "Dashboard", icon: "Grid" },
-  { id: "console", label: "Console", icon: "Bot" },
+  // Chat: the super agent, and — from the switch at its top — the coding
+  // agents on the PC (Claude Code, the DeepSeek harness), which used to be a
+  // separate Harness tab. One place to ask for anything.
+  { id: "console", label: "Chat", icon: "Bot" },
   { id: "studio", label: "Studio", icon: "Film" },
-  // Harness earns a top slot rather than a place in the Toolbox: it is where
-  // the repo actually gets changed, which makes it work rather than a tool.
-  { id: "harness", label: "Harness", icon: "Layers" },
   // In Queue is the answer to "what should I work on", which is the question
   // asked on the way in. Buried in a folder it would be a report; at the top
   // of the rail with a count on it, it is the to-do list.
@@ -179,6 +182,50 @@ export function NewJarvis() {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<Mode>("do");
+
+  // --- the Chat's model, engine and attachments ------------------------------
+  // Model: which OpenRouter model the super agent thinks with ("" = Auto),
+  // synced so every device thinks alike. Engine: Jarvis itself, or one of the
+  // coding agents on the PC (Claude Code, the DeepSeek harness) — the Harness
+  // tab, folded into Chat. Media: what goes with the next message.
+  const [chatModel, setChatModelState] = useState("");
+  useEffect(() => setChatModelState(loadLocal<string>(CHAT_MODEL_KEY, "")), []);
+  useRemotePull(CHAT_MODEL_KEY, () => setChatModelState(loadLocal<string>(CHAT_MODEL_KEY, "")));
+  const setChatModel = useCallback((id: string) => {
+    setChatModelState(id);
+    saveSynced(CHAT_MODEL_KEY, id);
+  }, []);
+
+  type Engine = "jarvis" | HarnessId;
+  const [engine, setEngineState] = useState<Engine>("jarvis");
+  useEffect(() => {
+    const e = loadLocal<string>("nj.chat-engine:v1", "jarvis");
+    if (e === "jarvis" || e === "claude" || e === "deepseek") setEngineState(e);
+  }, []);
+  const setEngine = useCallback((e: Engine) => {
+    setEngineState(e);
+    saveLocal("nj.chat-engine:v1", e);
+  }, []);
+
+  const [media, setMedia] = useState<ChatMedia[]>([]);
+  const [preparing, setPreparing] = useState(0);
+  const [mediaError, setMediaError] = useState("");
+  useEffect(() => {
+    if (!mediaError) return;
+    const t = setTimeout(() => setMediaError(""), 6000);
+    return () => clearTimeout(t);
+  }, [mediaError]);
+  const addFiles = useCallback((files: File[]) => {
+    const room = Math.max(0, MAX_CHAT_MEDIA - media.length - preparing);
+    if (files.length > room) setMediaError(`Up to ${MAX_CHAT_MEDIA} attachments at once — the rest were left out.`);
+    for (const f of files.slice(0, room)) {
+      setPreparing((n) => n + 1);
+      void prepareMedia(f)
+        .then((m) => setMedia((list) => [...list, m]))
+        .catch((e: unknown) => setMediaError(e instanceof Error ? e.message : `Couldn't read ${f.name}.`))
+        .finally(() => setPreparing((n) => n - 1));
+    }
+  }, [media.length, preparing]);
   const [speakReplies, setSpeakReplies] = useState(true);
   /** Which face the Reactor is showing. Theirs to pick; it is the thing they look at most. */
   const [reactorMode, setReactorMode] = useState<ReactorMode>("ring");
@@ -539,7 +586,10 @@ export function NewJarvis() {
 
   const submit = useCallback(
     async (rawText?: string, source: Block["source"] = "typed", opts: SubmitOpts = {}) => {
-      const command = (rawText ?? input).trim();
+      // Attachments go with what was typed, never with a voice command or a
+      // job handed over by setup.
+      const attached = source === "typed" && rawText === undefined ? media : [];
+      const command = (rawText ?? input).trim() || (attached.length ? "Look at what I attached." : "");
       if (!command) return;
       const runMode = opts.mode ?? mode;
 
@@ -557,7 +607,7 @@ export function NewJarvis() {
       // something. `wait` is advisory — pressing enter on a half-sentence is
       // the owner overruling it, and a box that refuses to submit is a box
       // people come to hate.
-      if (source === "typed" && !opts.skipReflex && overrideFor !== command && savedACall(reflex.route)) {
+      if (source === "typed" && !attached.length && !opts.skipReflex && overrideFor !== command && savedACall(reflex.route)) {
         const block = newBlock({ command, mode: runMode, source });
         setBlocks((bs) => [
           {
@@ -579,8 +629,16 @@ ${reflex.best.excerpt ?? ""}`.trim()
       }
 
       if (source === "typed") setInput("");
+      if (attached.length) setMedia([]);
+      const { content } = buildUserContent(command, attached);
 
-      const block = newBlock({ command, mode: runMode, source });
+      const block = newBlock({
+        command,
+        mode: runMode,
+        source,
+        ...(attached.length ? { media: attached.map((m) => ({ kind: m.kind, name: m.name, thumb: m.thumb })) } : {}),
+        ...(chatModel ? { model: chatModel } : {}),
+      });
       setBlocks((bs) => [block, ...bs].slice(0, MAX_LIVE_BLOCKS));
       setTab("console");
 
@@ -589,7 +647,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
       const history = historyFor();
 
       const outcome = await runBlock(
-        { command, mode: runMode, history },
+        { command, mode: runMode, history, content },
         {
           signal: controller.signal,
           update: (p) => patch(block.id, p),
@@ -604,6 +662,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 capabilities: bridge.health.paired ? bridge.health.capabilities ?? {} : {},
                 ownerName: profile?.name ?? "",
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                ...(chatModel ? { model: chatModel } : {}),
               }),
             });
             const data = (await res.json()) as { error?: string };
@@ -635,7 +694,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
       }
       void bridge.refresh();
     },
-    [bridge, historyFor, input, mode, overrideFor, patch, profile?.name, reflex, runTool, voice],
+    [bridge, chatModel, historyFor, input, media, mode, overrideFor, patch, profile?.name, reflex, runTool, voice],
   );
 
   useEffect(() => {
@@ -680,6 +739,12 @@ ${reflex.best.excerpt ?? ""}`.trim()
         window.history.replaceState(null, "", window.location.pathname + window.location.search);
         return;
       }
+      // The old Harness tab lives in Chat now; its links still land there.
+      if (h === "harness") {
+        setEngine("claude");
+        setTab("console");
+        return;
+      }
       if (isTab(h)) setTab(h);
     };
     read();
@@ -710,7 +775,12 @@ ${reflex.best.excerpt ?? ""}`.trim()
         setIphoneGuide(true);
         return;
       }
-      const mapped = name === "memory" || name === "chat" ? "dashboard" : name;
+      if (name === "harness") {
+        setEngine("claude");
+        go("console");
+        return;
+      }
+      const mapped = name === "memory" ? "dashboard" : name === "chat" ? "console" : name;
       if (isTab(mapped)) go(mapped);
     },
     [go],
@@ -823,18 +893,30 @@ ${reflex.best.excerpt ?? ""}`.trim()
         </nav>
 
         <main className="flex min-w-0 flex-1 flex-col">
-          <CommandLine
-            value={input}
-            onChange={setInput}
-            onSubmit={() => void submit()}
-            mode={mode}
-            onMode={setMode}
-            voiceState={voice.state}
-            heard={voice.heard}
-            micSupported={voice.supported}
-            onMic={voice.toggle}
-            busy={running}
-          />
+          {tab === "console" && <EngineBar engine={engine} onEngine={setEngine} paired={bridge.health.up && bridge.health.paired} />}
+          {/* A coding agent has its own composer (it talks to a branch, not to
+              Jarvis), so the command line steps aside while one is chosen. */}
+          {!(tab === "console" && engine !== "jarvis") && (
+            <CommandLine
+              value={input}
+              onChange={setInput}
+              onSubmit={() => void submit()}
+              mode={mode}
+              onMode={setMode}
+              voiceState={voice.state}
+              heard={voice.heard}
+              micSupported={voice.supported}
+              onMic={voice.toggle}
+              busy={running}
+              model={chatModel}
+              onModel={setChatModel}
+              media={media}
+              onFiles={addFiles}
+              onRemoveMedia={(id) => setMedia((list) => list.filter((m) => m.id !== id))}
+              preparing={preparing}
+            />
+          )}
+          {mediaError && <p className="border-b border-line bg-panel px-4 py-1.5 text-[11px] text-amber-300">{mediaError}</p>}
 
           {/* The reflex, over whatever is in the box. Hidden when there is
               nothing to judge, so an empty console is not a readout. */}
@@ -881,6 +963,8 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 events={widgetEvents}
                 camera={camera}
               />
+            ) : tab === "console" && engine !== "jarvis" ? (
+              <HarnessConsole paired={bridge.health.up && bridge.health.paired} initialHarness={engine} />
             ) : tab === "console" ? (
               <div className="space-y-2 p-3">
                 {blocks.length === 0 ? (
@@ -1098,6 +1182,50 @@ function Empty({ paired, onPick }: { paired: boolean; onPick: (text: string) => 
           ? "This PC is reachable, so the last three will actually run."
           : "The last three need the local agent on your PC. Without it, it can still think, remember and answer — it just cannot touch the machine."}
       </p>
+    </div>
+  );
+}
+
+/**
+ * Who you are talking to in Chat.
+ *
+ * Jarvis is the super agent — any model, your browser, files, memory. The two
+ * on the right are coding agents that run on the PC in their own copy of the
+ * repo; they need the local agent paired, and say so rather than hiding.
+ */
+function EngineBar({
+  engine,
+  onEngine,
+  paired,
+}: {
+  engine: "jarvis" | HarnessId;
+  onEngine: (e: "jarvis" | HarnessId) => void;
+  paired: boolean;
+}) {
+  const options: { id: "jarvis" | HarnessId; label: string; hint: string }[] = [
+    { id: "jarvis", label: "Jarvis", hint: "The super agent: any model, your browser, files, memory, calendar." },
+    { id: "claude", label: "Claude Code", hint: "Coding agent on your PC — edits the repo in its own branch, asks before changes." },
+    { id: "deepseek", label: "DeepSeek Code", hint: "Your DeepSeek harness (dsh) on your PC — same, with DeepSeek doing the work." },
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-1 border-b border-line bg-panel px-3 pt-2" role="tablist" aria-label="Who to talk to">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          role="tab"
+          aria-selected={engine === o.id}
+          title={o.hint}
+          onClick={() => onEngine(o.id)}
+          className={`-mb-px inline-flex items-center gap-1.5 rounded-t-md border px-2.5 py-1 text-[11.5px] transition ${
+            engine === o.id ? "border-line border-b-panel bg-panel text-ink" : "border-transparent text-ink-muted hover:text-ink"
+          }`}
+        >
+          {o.id === "jarvis" ? <Icon.Bot width={12} height={12} aria-hidden /> : <Icon.Layers width={12} height={12} aria-hidden />}
+          {o.label}
+          {o.id !== "jarvis" && !paired && <span className="h-1.5 w-1.5 rounded-full bg-amber-400" title="Needs your PC's local agent" aria-hidden />}
+        </button>
+      ))}
     </div>
   );
 }

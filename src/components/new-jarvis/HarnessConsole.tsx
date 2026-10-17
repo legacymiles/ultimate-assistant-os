@@ -46,13 +46,18 @@ function StartPanel({
   choices,
   working,
   onStart,
+  initial,
 }: {
   choices: HarnessChoice[];
   working: string;
   onStart: (opts: { harness: HarnessId; title: string; strict: boolean }) => void;
+  /** The one picked in Chat's switch, used when it is available. */
+  initial?: HarnessId;
 }) {
   const usable = choices.filter((c) => c.available);
-  const [harness, setHarness] = useState<HarnessId>(usable[0]?.id ?? "claude");
+  const [harness, setHarness] = useState<HarnessId>(
+    usable.some((c) => c.id === initial) ? initial! : usable[0]?.id ?? initial ?? "claude",
+  );
   const [title, setTitle] = useState("");
   const [strict, setStrict] = useState(false);
 
@@ -564,7 +569,7 @@ function Workbench({
 // The tab
 // ---------------------------------------------------------------------------
 
-export function HarnessConsole({ paired }: { paired: boolean }) {
+export function HarnessConsole({ paired, initialHarness }: { paired: boolean; initialHarness?: HarnessId }) {
   const h = useHarness({ paired });
   const [input, setInput] = useState("");
   const [now, setNow] = useState(() => Date.now());
@@ -601,7 +606,7 @@ export function HarnessConsole({ paired }: { paired: boolean }) {
   if (!h.thread) {
     return (
       <div>
-        <StartPanel choices={h.choices} working={h.working} onStart={(o) => void h.start(o)} />
+        <StartPanel key={initialHarness} choices={h.choices} working={h.working} onStart={(o) => void h.start(o)} initial={initialHarness} />
         {h.threads.length > 0 && (
           <div className="mx-auto max-w-2xl px-3 pb-4">
             <p className="mb-1.5 text-[10.5px] uppercase tracking-wide text-ink-muted">

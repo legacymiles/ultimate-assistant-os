@@ -1,3 +1,4 @@
+import type { ContentPart } from "./chatMedia";
 // ---------------------------------------------------------------------------
 // The loop, on the client, because only the client can reach the machine.
 //
@@ -23,7 +24,8 @@ export const MAX_ROUNDS = 14;
 
 export interface WireMessage {
   role: "user" | "assistant" | "tool";
-  content: string;
+  /** A user turn may carry pictures and sound as parts (see chatMedia.ts). */
+  content: string | ContentPart[];
   tool_calls?: { id: string; function: { name: string; arguments: string } }[];
   tool_call_id?: string;
   name?: string;
@@ -116,6 +118,8 @@ export interface RunInput {
   mode: Mode;
   /** Earlier blocks, flattened into conversation, so follow-ups work. */
   history?: WireMessage[];
+  /** The turn with its attachments, when there are any. Defaults to `command`. */
+  content?: string | ContentPart[];
 }
 
 export interface RunOutcome {
@@ -133,7 +137,7 @@ export interface RunOutcome {
  * other block on screen.
  */
 export async function runBlock(input: RunInput, deps: RunnerDeps): Promise<RunOutcome> {
-  const messages: WireMessage[] = [...(input.history ?? []), { role: "user", content: input.command }];
+  const messages: WireMessage[] = [...(input.history ?? []), { role: "user", content: input.content ?? input.command }];
   const steps: Step[] = [];
   const startedAt = Date.now();
 
