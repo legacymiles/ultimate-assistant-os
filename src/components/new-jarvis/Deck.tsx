@@ -447,7 +447,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                   camera.error ||
                   (inbox.linked
                     ? `iPhone checked ${since(camera.lastChecked)} · checks every 10 min${camera.settings.autoPull ? "" : " · auto-pull off"}`
-                    : "Link your iPhone so new photos arrive by themselves")
+                    : "Not linked yet — tap 🔗 to set up your iPhone (5 min, no app needed)")
                 }
                 actions={
                   <>
@@ -464,7 +464,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                       <Icon.Upload width={13} height={13} aria-hidden />
                     </MiniBtn>
                     {!inbox.linked && (
-                      <MiniBtn label="Link your iPhone" onClick={() => go("photos")}>
+                      <MiniBtn label="Set up your iPhone" onClick={() => go("iphone")}>
                         <Icon.Link width={13} height={13} aria-hidden />
                       </MiniBtn>
                     )}
@@ -553,11 +553,9 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
               <IconBtn label="Add photos" onClick={() => fileInput.current?.click()} disabled={Boolean(busy)}>
                 <Icon.Upload width={14} height={14} aria-hidden />
               </IconBtn>
-              {!inbox.linked && (
-                <IconBtn label="Link your iPhone" onClick={() => go("photos")}>
-                  <Icon.Camera width={14} height={14} aria-hidden />
-                </IconBtn>
-              )}
+              <button type="button" className="deck-btn" onClick={() => go("iphone")}>
+                <Icon.Camera width={13} height={13} aria-hidden /> iPhone setup
+              </button>
               <IconBtn label="Check for new photos now" onClick={() => void camera.check()} disabled={Boolean(camera.busy)}>
                 <Icon.Refresh width={14} height={14} aria-hidden />
               </IconBtn>

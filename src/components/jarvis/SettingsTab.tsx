@@ -158,14 +158,14 @@ export function SettingsTab({ go, updates, camera }: { go: (t: TabId) => void; u
                   ? `Every 10 minutes while Jarvis is open. Last checked ${
                       camera.lastChecked ? new Date(camera.lastChecked).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "not yet"
                     }.`
-                  : "Your iPhone isn't linked yet — set up the Shortcut on the Photos tab and new photos arrive by themselves."}
+                  : "Your iPhone isn't linked yet. The guide walks you through it in about 5 minutes — no app to download."}
                 {camera.error ? ` ${camera.error}` : ""}
               </>
             }
           >
             {!camera.linked && (
-              <button className={btn} onClick={() => go("photos" as TabId)}>
-                <Icon.Camera width={13} height={13} /> Link iPhone
+              <button className={btn} onClick={() => (window.location.href = "/apps/new-jarvis#iphone")}>
+                <Icon.Camera width={13} height={13} /> Set up iPhone
               </button>
             )}
             <button className={btn} disabled={Boolean(camera.busy)} onClick={() => void camera.check()}>

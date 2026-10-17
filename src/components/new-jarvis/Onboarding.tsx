@@ -366,10 +366,10 @@ export function Onboarding({ start = "welcome", onClose, go, store, commit, onPr
               <ul className="grid gap-2 sm:grid-cols-2">
                 <ConnectRow
                   name="iPhone camera roll"
-                  detail="Sends new photos to Camera Autopilot (iCloud has no public API, so an iOS Shortcut pushes them)"
+                  detail="New photos arrive in Camera Autopilot by themselves — a 5-minute guide, no app to download"
                   done={setup.iphoneLinked}
                   action={
-                    <button type="button" className="deck-btn deck-btn--go" onClick={() => { later(); go("photos"); }}>
+                    <button type="button" className="deck-btn deck-btn--go" onClick={() => { later(); go("iphone"); }}>
                       Set up
                     </button>
                   }
@@ -907,7 +907,7 @@ export function FinishSetup({ setup, onOpen, go }: { setup: SetupStatus; onOpen:
               <button
                 type="button"
                 disabled={i.done}
-                onClick={() => (i.id === "favorites" ? go("plugins") : i.id === "iphone" ? go("photos") : onOpen(STEP_FOR[i.id] ?? "welcome"))}
+                onClick={() => (i.id === "favorites" ? go("plugins") : i.id === "iphone" ? go("iphone") : onOpen(STEP_FOR[i.id] ?? "welcome"))}
                 className="flex w-full items-center gap-2.5 rounded-lg border border-line bg-panel-2 px-3 py-2 text-left transition enabled:hover:border-[var(--hud)] disabled:opacity-60"
               >
                 <span className={`h-2 w-2 shrink-0 rounded-full ${i.done ? "bg-[var(--hud-green)]" : "bg-[var(--hud-amber)]"}`} aria-hidden />

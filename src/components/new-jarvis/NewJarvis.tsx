@@ -63,6 +63,7 @@ import { Onboarding, SetupButton, resumeStep, type OnboardingStep } from "./Onbo
 import { getOnboarding, useOnboarding } from "@/lib/new-jarvis/onboarding";
 import { useSetup } from "@/lib/new-jarvis/useSetup";
 import { useCameraWatch } from "@/lib/new-jarvis/useCameraWatch";
+import { IphoneGuide } from "./IphoneGuide";
 import { noteLaunch } from "@/lib/new-jarvis/launcher";
 import { useVault } from "@/lib/new-jarvis/useVault";
 import { noteOpened, useImprove } from "@/lib/new-jarvis/useImprove";
@@ -281,6 +282,9 @@ export function NewJarvis() {
   // Every 10 minutes, from whichever tab is open: new iPhone photos are pulled
   // into Camera Autopilot and the feed below raises the notification.
   const camera = useCameraWatch();
+  // The iPhone setup guide. Opened from the Camera widget, Settings, setup's
+  // Connect step, or /apps/new-jarvis#iphone — which is what its QR code opens.
+  const [iphoneGuide, setIphoneGuide] = useState(false);
   const updates = useUpdates(briefStore, commit, dash.events, camera.inbox);
   // The Calendar widget wants one list: the Dashboard calendar plus anything
   // typed straight into Jarvis, in the Dashboard's event shape.
@@ -665,6 +669,11 @@ ${reflex.best.excerpt ?? ""}`.trim()
     const read = () => {
       const h = window.location.hash.replace("#", "");
       // A shareable way back into setup: /apps/new-jarvis#setup
+      if (h === "iphone") {
+        setIphoneGuide(true);
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        return;
+      }
       if (h === "setup" || h === "onboarding") {
         openSetupRef.current();
         window.history.replaceState(null, "", window.location.pathname + window.location.search);
@@ -696,6 +705,10 @@ ${reflex.best.excerpt ?? ""}`.trim()
     (name: string) => {
       // The feed's older ids point at surfaces that are now panels rather than
       // tabs. Memory is the Dashboard now, and so is a pending action.
+      if (name === "iphone") {
+        setIphoneGuide(true);
+        return;
+      }
       const mapped = name === "memory" || name === "chat" ? "dashboard" : name;
       if (isTab(mapped)) go(mapped);
     },
@@ -708,6 +721,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
 
   return (
     <div className="nj">
+      {iphoneGuide && <IphoneGuide camera={camera} onClose={() => setIphoneGuide(false)} />}
       {setupStep && (
         <Onboarding
           start={setupStep}
