@@ -62,11 +62,13 @@ import { DashboardPanel } from "./DashboardPanel";
 import { Onboarding, SetupButton, resumeStep, type OnboardingStep } from "./Onboarding";
 import { getOnboarding, useOnboarding } from "@/lib/new-jarvis/onboarding";
 import { useSetup } from "@/lib/new-jarvis/useSetup";
+import { useCameraWatch } from "@/lib/new-jarvis/useCameraWatch";
 import { noteLaunch } from "@/lib/new-jarvis/launcher";
 import { useVault } from "@/lib/new-jarvis/useVault";
 import { noteOpened, useImprove } from "@/lib/new-jarvis/useImprove";
 import { useUpdates } from "@/lib/jarvis/useUpdates";
 import { toCalEvent } from "@/lib/jarvis/useDashboardCalendar";
+import type { CalendarEvent } from "@/lib/recall/calendar/types";
 
 import { loadLocal, saveLocal } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
@@ -276,7 +278,31 @@ export function NewJarvis() {
     return { ...store, events: [...store.events, ...dash.events.map(toCalEvent)] };
   }, [store, dash.events]);
 
-  const updates = useUpdates(briefStore, commit, dash.events);
+  // Every 10 minutes, from whichever tab is open: new iPhone photos are pulled
+  // into Camera Autopilot and the feed below raises the notification.
+  const camera = useCameraWatch();
+  const updates = useUpdates(briefStore, commit, dash.events, camera.inbox);
+  // The Calendar widget wants one list: the Dashboard calendar plus anything
+  // typed straight into Jarvis, in the Dashboard's event shape.
+  const widgetEvents = useMemo<CalendarEvent[]>(
+    () => [
+      ...dash.events,
+      ...(store?.events ?? []).map((e) => ({
+        id: e.id,
+        title: e.title,
+        date: e.date,
+        time: e.start || null,
+        endTime: e.end || null,
+        location: e.where,
+        notes: e.notes,
+        reminders: [],
+        source: "manual" as CalendarEvent["source"],
+        createdAt: "",
+        updatedAt: "",
+      })),
+    ],
+    [dash.events, store?.events],
+  );
   const vault = useVault(bridge);
   // The queue is mounted up here rather than inside its own tab because the
   // dock shows its count at all times: a board that only counted itself once
@@ -837,6 +863,8 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 ownerName={onboarding.about.call || profile?.name || onboarding.about.name || undefined}
                 setup={setup}
                 onOpenSetup={setSetupStep}
+                events={widgetEvents}
+                camera={camera}
               />
             ) : tab === "console" ? (
               <div className="space-y-2 p-3">
@@ -918,7 +946,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
                     actually sends. Narrowed through the same name check the
                     hash router uses rather than cast blindly. */}
                 {tab === "settings" && (
-                  <SettingsTab go={((t: string) => goByName(t)) as never} updates={updates} />
+                  <SettingsTab go={((t: string) => goByName(t)) as never} updates={updates} camera={camera} />
                 )}
               </>
             )}

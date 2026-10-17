@@ -26,6 +26,8 @@ import { getData } from "@/lib/recall/store";
 import { UPDATE_ABOUT, UPDATE_COLOR, UPDATE_LABEL, UPDATE_SOURCES } from "@/lib/jarvis/updates";
 import type { UpdateSource } from "@/lib/jarvis/updates";
 import type { UpdatesApi } from "@/lib/jarvis/useUpdates";
+import type { CameraWatch } from "@/lib/new-jarvis/useCameraWatch";
+import { WatchesEditor } from "../new-jarvis/WatchesEditor";
 
 const select =
   "shrink-0 rounded-lg border border-line bg-panel-2 px-2 py-1.5 text-xs text-ink transition-colors hover:border-ink-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
@@ -100,7 +102,7 @@ const Dot = ({ ok }: { ok: boolean }) => (
   <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle ${ok ? "bg-emerald-400" : "bg-amber-400"}`} />
 );
 
-export function SettingsTab({ go, updates }: { go: (t: TabId) => void; updates: UpdatesApi }) {
+export function SettingsTab({ go, updates, camera }: { go: (t: TabId) => void; updates: UpdatesApi; camera?: CameraWatch }) {
   const [gated, setGated] = useState<boolean | null>(null);
   const [security, setSecurity] = useState(false);
   const [perm, setPerm] = useState<string>("default");
@@ -130,6 +132,54 @@ export function SettingsTab({ go, updates }: { go: (t: TabId) => void; updates: 
   return (
     <div className="max-w-3xl p-3 sm:p-4">
       <h2 className="mb-3 text-sm font-semibold text-ink">Settings</h2>
+
+      <Group title="Workflow notifications">
+        <div className="px-3 py-3">
+          <p className="mb-2 text-[11px] leading-snug text-ink-muted">
+            Ask for any notification in your own words. Jarvis shows you what it understood before it saves, and each one can be
+            switched off or deleted here.
+          </p>
+          {/* The editor wears the Deck's HUD colours; this scope supplies them
+              without the Deck's grid background. */}
+          <div className="deck" style={{ background: "none", minHeight: 0 }}>
+            <WatchesEditor />
+          </div>
+        </div>
+      </Group>
+
+      {camera && (
+        <Group title="Camera Autopilot">
+          <Row
+            title="Check for new iPhone photos"
+            status={
+              <>
+                <Dot ok={camera.linked} />
+                {camera.linked
+                  ? `Every 10 minutes while Jarvis is open. Last checked ${
+                      camera.lastChecked ? new Date(camera.lastChecked).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "not yet"
+                    }.`
+                  : "Your iPhone isn't linked yet — set up the Shortcut on the Photos tab and new photos arrive by themselves."}
+                {camera.error ? ` ${camera.error}` : ""}
+              </>
+            }
+          >
+            {!camera.linked && (
+              <button className={btn} onClick={() => go("photos" as TabId)}>
+                <Icon.Camera width={13} height={13} /> Link iPhone
+              </button>
+            )}
+            <button className={btn} disabled={Boolean(camera.busy)} onClick={() => void camera.check()}>
+              <Icon.Refresh width={13} height={13} /> {camera.busy ? "Checking…" : "Check now"}
+            </button>
+          </Row>
+          <Row
+            title="Pull new photos in automatically"
+            status="On: each check brings new photos into Camera Autopilot and reads them, so they're waiting with a guess. Off: you'll get the notification and pull them in yourself."
+          >
+            <Switch on={camera.settings.autoPull} label={camera.settings.autoPull ? "On" : "Off"} onChange={camera.setAutoPull} />
+          </Row>
+        </Group>
+      )}
 
       <Group title="Dashboard updates">
         <Row
