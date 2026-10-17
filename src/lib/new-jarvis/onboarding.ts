@@ -121,7 +121,7 @@ export function useOnboarding(): [OnboardingData, boolean] {
 }
 
 export interface SetupItem {
-  id: "about" | "keys" | "accounts" | "iphone" | "habits" | "favorites" | "sync";
+  id: "about" | "brain" | "keys" | "accounts" | "iphone" | "habits" | "favorites" | "sync";
   label: string;
   detail: string;
   done: boolean;
@@ -136,6 +136,8 @@ export function setupChecklist(input: {
   favorites: number;
   /** An AI key is set (OpenRouter or the gateway). Unknown counts as not yet. */
   thinkingReady?: boolean;
+  /** Jarvis thinks with the person's own Claude subscription (through their PC). */
+  subscriptionBrain?: boolean;
   /** Memory + skill sync across devices; null while unknown (signed out, still loading). */
   sync?: { done: boolean; detail: string } | null;
 }): SetupItem[] {
@@ -148,10 +150,10 @@ export function setupChecklist(input: {
       done: Boolean(a.name.trim() && a.role.trim()),
     },
     {
-      id: "keys",
-      label: "Add your AI key",
-      detail: "Paste it, or let Jarvis go and get it for you",
-      done: Boolean(input.thinkingReady),
+      id: "brain",
+      label: "Choose Jarvis's brain",
+      detail: "Your own Claude subscription, or a cloud model key",
+      done: Boolean(input.subscriptionBrain || input.thinkingReady),
     },
     {
       id: "accounts",

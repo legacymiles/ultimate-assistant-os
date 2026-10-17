@@ -65,6 +65,10 @@ import { getOnboarding, useOnboarding } from "@/lib/new-jarvis/onboarding";
 import { useSetup } from "@/lib/new-jarvis/useSetup";
 import { useCameraWatch } from "@/lib/new-jarvis/useCameraWatch";
 import { IphoneGuide } from "./IphoneGuide";
+import { CHAT_MODEL_KEY, isSubscription } from "@/lib/new-jarvis/chatModels";
+import { plainBridgeError, plainSiteError } from "@/lib/new-jarvis/plainErrors";
+import { BridgeError } from "@/lib/new-jarvis/bridge";
+import { MAX_CHAT_MEDIA, buildUserContent, prepareMedia, type ChatMedia } from "@/lib/new-jarvis/chatMedia";
 import { noteLaunch } from "@/lib/new-jarvis/launcher";
 import { useVault } from "@/lib/new-jarvis/useVault";
 import { noteOpened, useImprove } from "@/lib/new-jarvis/useImprove";
@@ -72,7 +76,7 @@ import { useUpdates } from "@/lib/jarvis/useUpdates";
 import { toCalEvent } from "@/lib/jarvis/useDashboardCalendar";
 import type { CalendarEvent } from "@/lib/recall/calendar/types";
 
-import { loadLocal, saveLocal } from "@/lib/sync/appState";
+import { loadLocal, saveLocal, saveSynced } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
 import { STORE_KEY, emptyStore } from "@/lib/new-dashboard/model";
 import type { DashboardStore, Profile } from "@/lib/new-dashboard/types";
@@ -109,9 +113,8 @@ const SETUP_COMMAND = /^\/?(?:(?:open|start|resume|run|redo|restart|finish)\s+)?
  *   a separate "Record" made it read as a filing cabinet rather than as the
  *   owner. The store is untouched; only the framing changed.
  *
- *   Routines is unmounted. /apps/jarvis still has it and the store field is
- *   still read by the updates feed, so nothing was deleted — it simply stopped
- *   paying rent on the surface the owner looks at most.
+ *   Routines is gone, along with the old /apps/jarvis shell that carried it.
+ *   The store field stays (old saved data still loads); nothing shows it.
  *
  * Folders, Photos, Lists, Calendar and Inbox fold into one "Yours" group, and
  * the Toolbox is the group from the old shell, moved over whole.
@@ -143,6 +146,10 @@ const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[]
       { id: "timeline", label: "Timeline", icon: "Flag" },
       { id: "plugins", label: "Apps", icon: "Launch" },
       { id: "settings", label: "Settings", icon: "Settings" },
+      // The coding agent (Claude Code or the DeepSeek harness) working on the
+      // repo in its own branch. A tool, not a second assistant — Jarvis is
+      // the one you talk to.
+      { id: "harness", label: "Code", icon: "Layers" },
     ],
   },
 ];
@@ -150,11 +157,11 @@ const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[]
 /** The ones that are always one click away, because they are where work happens. */
 const TOP: Tab[] = [
   { id: "dashboard", label: "Dashboard", icon: "Grid" },
-  { id: "console", label: "Console", icon: "Bot" },
+  // Chat: the super agent, and — from the switch at its top — the coding
+  // agents on the PC (Claude Code, the DeepSeek harness), which used to be a
+  // separate Harness tab. One place to ask for anything.
+  { id: "console", label: "Chat", icon: "Bot" },
   { id: "studio", label: "Studio", icon: "Film" },
-  // Harness earns a top slot rather than a place in the Toolbox: it is where
-  // the repo actually gets changed, which makes it work rather than a tool.
-  { id: "harness", label: "Harness", icon: "Layers" },
   // In Queue is the answer to "what should I work on", which is the question
   // asked on the way in. Buried in a folder it would be a report; at the top
   // of the rail with a count on it, it is the to-do list.
@@ -179,6 +186,38 @@ export function NewJarvis() {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<Mode>("do");
+
+  // --- the Chat's brain and attachments ---------------------------------------
+  // Brain: Claude on the person's own subscription (through the PC), or a
+  // cloud model on OpenRouter ("" = Claude in the cloud). Synced, so every
+  // device thinks alike. Media: what goes with the next message.
+  const [chatModel, setChatModelState] = useState("");
+  useEffect(() => setChatModelState(loadLocal<string>(CHAT_MODEL_KEY, "")), []);
+  useRemotePull(CHAT_MODEL_KEY, () => setChatModelState(loadLocal<string>(CHAT_MODEL_KEY, "")));
+  const setChatModel = useCallback((id: string) => {
+    setChatModelState(id);
+    saveSynced(CHAT_MODEL_KEY, id);
+  }, []);
+
+  const [media, setMedia] = useState<ChatMedia[]>([]);
+  const [preparing, setPreparing] = useState(0);
+  const [mediaError, setMediaError] = useState("");
+  useEffect(() => {
+    if (!mediaError) return;
+    const t = setTimeout(() => setMediaError(""), 6000);
+    return () => clearTimeout(t);
+  }, [mediaError]);
+  const addFiles = useCallback((files: File[]) => {
+    const room = Math.max(0, MAX_CHAT_MEDIA - media.length - preparing);
+    if (files.length > room) setMediaError(`Up to ${MAX_CHAT_MEDIA} attachments at once — the rest were left out.`);
+    for (const f of files.slice(0, room)) {
+      setPreparing((n) => n + 1);
+      void prepareMedia(f)
+        .then((m) => setMedia((list) => [...list, m]))
+        .catch((e: unknown) => setMediaError(e instanceof Error ? e.message : `Couldn't read ${f.name}.`))
+        .finally(() => setPreparing((n) => n - 1));
+    }
+  }, [media.length, preparing]);
   const [speakReplies, setSpeakReplies] = useState(true);
   /** Which face the Reactor is showing. Theirs to pick; it is the thing they look at most. */
   const [reactorMode, setReactorMode] = useState<ReactorMode>("ring");
@@ -284,7 +323,7 @@ export function NewJarvis() {
   // into Camera Autopilot and the feed below raises the notification.
   const camera = useCameraWatch();
   // The iPhone setup guide. Opened from the Camera widget, Settings, setup's
-  // Connect step, or /apps/new-jarvis#iphone — which is what its QR code opens.
+  // Connect step, or /apps/jarvis#iphone — which is what its QR code opens.
   const [iphoneGuide, setIphoneGuide] = useState(false);
   const updates = useUpdates(briefStore, commit, dash.events, camera.inbox);
   // The Calendar widget wants one list: the Dashboard calendar plus anything
@@ -516,7 +555,7 @@ export function NewJarvis() {
               title,
               content,
               source: "chat" as const,
-              origin: String(args.origin ?? "").trim() || "New Jarvis",
+              origin: String(args.origin ?? "").trim() || "Jarvis",
               conversationId: current.chat?.id ?? "",
               createdAt: new Date().toISOString(),
             },
@@ -532,14 +571,17 @@ export function NewJarvis() {
         return { done: said };
       }
 
-      throw new Error(`New Jarvis does not know how to run ${route}.`);
+      throw new Error(`Jarvis doesn't know how to do "${route}" yet.`);
     },
     [bridge, commit, dash],
   );
 
   const submit = useCallback(
     async (rawText?: string, source: Block["source"] = "typed", opts: SubmitOpts = {}) => {
-      const command = (rawText ?? input).trim();
+      // Attachments go with what was typed, never with a voice command or a
+      // job handed over by setup.
+      const attached = source === "typed" && rawText === undefined ? media : [];
+      const command = (rawText ?? input).trim() || (attached.length ? "Look at what I attached." : "");
       if (!command) return;
       const runMode = opts.mode ?? mode;
 
@@ -557,7 +599,7 @@ export function NewJarvis() {
       // something. `wait` is advisory — pressing enter on a half-sentence is
       // the owner overruling it, and a box that refuses to submit is a box
       // people come to hate.
-      if (source === "typed" && !opts.skipReflex && overrideFor !== command && savedACall(reflex.route)) {
+      if (source === "typed" && !attached.length && !opts.skipReflex && overrideFor !== command && savedACall(reflex.route)) {
         const block = newBlock({ command, mode: runMode, source });
         setBlocks((bs) => [
           {
@@ -579,8 +621,16 @@ ${reflex.best.excerpt ?? ""}`.trim()
       }
 
       if (source === "typed") setInput("");
+      if (attached.length) setMedia([]);
+      const { content } = buildUserContent(command, attached);
 
-      const block = newBlock({ command, mode: runMode, source });
+      const block = newBlock({
+        command,
+        mode: runMode,
+        source,
+        ...(attached.length ? { media: attached.map((m) => ({ kind: m.kind, name: m.name, thumb: m.thumb })) } : {}),
+        ...(chatModel ? { model: chatModel } : {}),
+      });
       setBlocks((bs) => [block, ...bs].slice(0, MAX_LIVE_BLOCKS));
       setTab("console");
 
@@ -589,26 +639,49 @@ ${reflex.best.excerpt ?? ""}`.trim()
       const history = historyFor();
 
       const outcome = await runBlock(
-        { command, mode: runMode, history },
+        { command, mode: runMode, history, content },
         {
           signal: controller.signal,
           update: (p) => patch(block.id, p),
           think: async (messages) => {
-            const res = await fetch("/api/new-jarvis/agent", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              signal: controller.signal,
-              body: JSON.stringify({
-                messages,
-                mode: runMode,
-                capabilities: bridge.health.paired ? bridge.health.capabilities ?? {} : {},
-                ownerName: profile?.name ?? "",
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-              }),
-            });
-            const data = (await res.json()) as { error?: string };
-            if (!res.ok) throw new Error(data.error ?? `The agent answered ${res.status}.`);
-            return data;
+            const ask = {
+              mode: runMode,
+              capabilities: bridge.health.paired ? bridge.health.capabilities ?? {} : {},
+              ownerName: profile?.name ?? "",
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            };
+            const post = async (body: Record<string, unknown>) => {
+              const res = await fetch("/api/new-jarvis/agent", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                signal: controller.signal,
+                body: JSON.stringify(body),
+              });
+              // A timeout page or a crash is HTML, not JSON — say what it means.
+              const data = (await res.json().catch(() => null)) as ({ error?: string } & Record<string, unknown>) | null;
+              if (!data) throw new Error(plainSiteError(res.status));
+              if (!res.ok) throw new Error(data.error ?? plainSiteError(res.status));
+              return data;
+            };
+
+            // Claude on the person's own plan: the PC's local agent thinks,
+            // with exactly the instructions and tools the cloud brain gets.
+            if (isSubscription(chatModel)) {
+              if (!bridge.health.up || !bridge.health.paired) {
+                throw new Error(
+                  "Jarvis's brain is set to Claude (your subscription), which thinks through the local agent on your PC — and Jarvis can't reach it right now. Start the PC's local agent, or pick a cloud model in the brain picker.",
+                );
+              }
+              const prepared = await post({ ...ask, prepare: true });
+              try {
+                return (await bridge.run("brain/claude", { system: prepared.system, tools: prepared.tools, messages })) as never;
+              } catch (e) {
+                if (e instanceof BridgeError) throw new Error(plainBridgeError(e.status, e.message));
+                throw e;
+              }
+            }
+
+            return (await post({ messages, ...ask, ...(chatModel ? { model: chatModel } : {}) })) as never;
           },
           runTool,
           askGate: (gate: Gate) =>
@@ -635,7 +708,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
       }
       void bridge.refresh();
     },
-    [bridge, historyFor, input, mode, overrideFor, patch, profile?.name, reflex, runTool, voice],
+    [bridge, chatModel, historyFor, input, media, mode, overrideFor, patch, profile?.name, reflex, runTool, voice],
   );
 
   useEffect(() => {
@@ -668,8 +741,13 @@ ${reflex.best.excerpt ?? ""}`.trim()
   // The tab lives in the hash, so reload and back land where the owner was.
   useEffect(() => {
     const read = () => {
-      const h = window.location.hash.replace("#", "");
-      // A shareable way back into setup: /apps/new-jarvis#setup
+      // Links from before there was one Jarvis say ?tab=plugins, or name a
+      // surface that is a panel now. Both land where that thing lives.
+      const legacy: Record<string, string> = { chat: "console", memory: "dashboard", record: "dashboard", profile: "dashboard", routines: "dashboard" };
+      const fromQuery = new URLSearchParams(window.location.search).get("tab") ?? "";
+      const raw = window.location.hash.replace("#", "") || fromQuery;
+      const h = legacy[raw] ?? raw;
+      // A shareable way back into setup: /apps/jarvis#setup
       if (h === "iphone") {
         setIphoneGuide(true);
         window.history.replaceState(null, "", window.location.pathname + window.location.search);
@@ -710,7 +788,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
         setIphoneGuide(true);
         return;
       }
-      const mapped = name === "memory" || name === "chat" ? "dashboard" : name;
+      const mapped = name === "memory" ? "dashboard" : name === "chat" ? "console" : name;
       if (isTab(mapped)) go(mapped);
     },
     [go],
@@ -735,7 +813,10 @@ ${reflex.best.excerpt ?? ""}`.trim()
           commit={commit}
           onProfileChanged={reload}
           setup={setup}
+          brain={chatModel}
+          onBrain={setChatModel}
           bridge={{
+            connected: bridge.health.up && bridge.health.paired,
             files: bridge.health.up && bridge.health.paired && bridge.health.capabilities?.files === true,
             browser: bridge.health.up && bridge.health.paired && bridge.health.capabilities?.browser === true,
             run: bridge.run,
@@ -757,19 +838,13 @@ ${reflex.best.excerpt ?? ""}`.trim()
           <Icon.ArrowLeft width={13} height={13} />
           <span className="hidden sm:inline">Hub</span>
         </Link>
-        <span className="text-sm font-semibold text-ink">New Jarvis</span>
+        <span className="text-sm font-semibold text-ink">Jarvis</span>
         <span className="hidden text-xs text-ink-muted sm:inline">
-          · {profile ? `${profile.name}'s assistant` : "the console"}
+          · {profile ? `${profile.name}'s assistant` : "your assistant"}
         </span>
         <div className="ml-auto">
           <SetupButton setup={setup} onOpen={openSetup} />
         </div>
-        <Link
-          href="/apps/jarvis"
-          className="rounded-lg border border-line px-2 py-1 text-[11px] text-ink-muted transition hover:bg-panel-2 hover:text-ink"
-        >
-          Old Jarvis
-        </Link>
       </header>
 
       <div className="flex min-h-0 flex-1">
@@ -823,18 +898,29 @@ ${reflex.best.excerpt ?? ""}`.trim()
         </nav>
 
         <main className="flex min-w-0 flex-1 flex-col">
-          <CommandLine
-            value={input}
-            onChange={setInput}
-            onSubmit={() => void submit()}
-            mode={mode}
-            onMode={setMode}
-            voiceState={voice.state}
-            heard={voice.heard}
-            micSupported={voice.supported}
-            onMic={voice.toggle}
-            busy={running}
-          />
+          {/* The coding agent has its own composer (it talks to a branch, not
+              to Jarvis), so the command line steps aside on that one tab. */}
+          {tab !== "harness" && (
+            <CommandLine
+              value={input}
+              onChange={setInput}
+              onSubmit={() => void submit()}
+              mode={mode}
+              onMode={setMode}
+              voiceState={voice.state}
+              heard={voice.heard}
+              micSupported={voice.supported}
+              onMic={voice.toggle}
+              busy={running}
+              model={chatModel}
+              onModel={setChatModel}
+              media={media}
+              onFiles={addFiles}
+              onRemoveMedia={(id) => setMedia((list) => list.filter((m) => m.id !== id))}
+              preparing={preparing}
+            />
+          )}
+          {mediaError && <p className="border-b border-line bg-panel px-4 py-1.5 text-[11px] text-amber-300">{mediaError}</p>}
 
           {/* The reflex, over whatever is in the box. Hidden when there is
               nothing to judge, so an empty console is not a readout. */}
@@ -1101,3 +1187,4 @@ function Empty({ paired, onPick }: { paired: boolean; onPick: (text: string) => 
     </div>
   );
 }
+

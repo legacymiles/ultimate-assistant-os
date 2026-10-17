@@ -79,9 +79,10 @@ describe("onboarding helpers", () => {
     expect(splitList("A, B ,, C\nD")).toEqual(["A", "B", "C", "D"]);
   });
 
-  it("puts the AI key on the checklist", () => {
+  it("puts choosing a brain on the checklist", () => {
     const base = { onboarding: EMPTY_ONBOARDING, connectedAccounts: 0, iphoneLinked: false, rules: 0, favorites: 0 };
-    expect(setupChecklist(base).find((i) => i.id === "keys")?.done).toBe(false);
-    expect(setupChecklist({ ...base, thinkingReady: true }).find((i) => i.id === "keys")?.done).toBe(true);
+    expect(setupChecklist(base).find((i) => i.id === "brain")?.done).toBe(false);
+    expect(setupChecklist({ ...base, thinkingReady: true }).find((i) => i.id === "brain")?.done).toBe(true);
+    expect(setupChecklist({ ...base, subscriptionBrain: true }).find((i) => i.id === "brain")?.done).toBe(true);
   });
 });

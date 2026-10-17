@@ -9,8 +9,10 @@
 // same block; the only difference the surface records is which one it was.
 // ---------------------------------------------------------------------------
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icons";
+import { ModelPicker } from "./ModelPicker";
+import { ACCEPT_CHAT_MEDIA, type ChatMedia } from "@/lib/new-jarvis/chatMedia";
 import { MODES, type Mode } from "@/lib/new-jarvis/types";
 import type { VoiceState } from "@/lib/new-jarvis/useWakeVoice";
 
@@ -25,6 +27,12 @@ export function CommandLine({
   micSupported,
   onMic,
   busy,
+  model,
+  onModel,
+  media,
+  onFiles,
+  onRemoveMedia,
+  preparing,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -36,8 +44,21 @@ export function CommandLine({
   micSupported: boolean;
   onMic: () => void;
   busy: boolean;
+  /** OpenRouter model id; "" = Auto. */
+  model: string;
+  onModel: (id: string) => void;
+  /** Pictures, clips and recordings waiting to go with the next message. */
+  media: ChatMedia[];
+  onFiles: (files: File[]) => void;
+  onRemoveMedia: (id: string) => void;
+  /** Files still being read in the browser. */
+  preparing: number;
 }) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
+  const picker = useRef<HTMLInputElement | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const mediaFiles = (list: DataTransfer | null) =>
+    list ? Array.from(list.files).filter((f) => /^(image|video|audio)\//.test(f.type)) : [];
 
   // Grow with the text rather than scrolling inside three lines: a long
   // instruction you cannot see the start of is one you cannot check before
@@ -91,10 +112,32 @@ export function CommandLine({
           field is squeezed to about forty pixels and the placeholder sets one
           word per line. */}
       <div
-        className="nj-command flex flex-wrap items-center gap-2 rounded-lg border border-line bg-canvas px-2.5 py-2"
-        data-armed={Boolean(value.trim())}
+        className={`nj-command flex flex-wrap items-center gap-2 rounded-lg border bg-canvas px-2.5 py-2 ${dragging ? "border-brand" : "border-line"}`}
+        data-armed={Boolean(value.trim() || media.length)}
         data-hearing={hearing}
+        onDragOver={(e) => {
+          if (Array.from(e.dataTransfer.items).some((i) => i.kind === "file")) {
+            e.preventDefault();
+            setDragging(true);
+          }
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          const files = mediaFiles(e.dataTransfer);
+          setDragging(false);
+          if (!files.length) return;
+          e.preventDefault();
+          onFiles(files);
+        }}
+        onPaste={(e) => {
+          const files = mediaFiles(e.clipboardData);
+          if (files.length) {
+            e.preventDefault();
+            onFiles(files);
+          }
+        }}
       >
+        <ModelPicker value={model} onChange={onModel} />
         <div className="order-1 flex shrink-0 gap-0.5">
           {MODES.map((m) => (
             <button
@@ -137,6 +180,28 @@ export function CommandLine({
 
         <button
           type="button"
+          onClick={() => picker.current?.click()}
+          title="Attach pictures, videos or audio (or drop / paste them here)"
+          className="order-2 shrink-0 rounded-md p-1.5 text-ink-muted transition hover:bg-elevated hover:text-ink sm:order-3"
+        >
+          <Icon.Image width={15} height={15} />
+          <span className="sr-only">Attach pictures, videos or audio</span>
+        </button>
+        <input
+          ref={picker}
+          type="file"
+          accept={ACCEPT_CHAT_MEDIA}
+          multiple
+          hidden
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []);
+            e.target.value = "";
+            if (files.length) onFiles(files);
+          }}
+        />
+
+        <button
+          type="button"
           onClick={onMic}
           disabled={!micSupported}
           title={
@@ -161,7 +226,7 @@ export function CommandLine({
         <button
           type="button"
           onClick={onSubmit}
-          disabled={!value.trim()}
+          disabled={(!value.trim() && !media.length) || preparing > 0}
           title={busy ? "Send — something is already running, this starts another block" : "Send"}
           className="order-3 shrink-0 rounded-md p-1.5 text-ink-muted transition hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-30 sm:order-4"
         >
@@ -173,8 +238,34 @@ export function CommandLine({
           <span className="sr-only">{busy ? "Working" : "Send"}</span>
         </button>
       </div>
+      {(media.length > 0 || preparing > 0) && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 px-1">
+          {media.map((m) => (
+            <span key={m.id} className="group relative block h-14 w-14 overflow-hidden rounded-md border border-line" title={m.trimmed ?? m.name}>
+              <img src={m.thumb} alt={m.name} className="h-full w-full object-cover" />
+              {m.kind !== "image" && (
+                <span className="absolute bottom-0 left-0 right-0 bg-black/65 text-center font-mono text-[8.5px] uppercase text-ink">{m.kind}</span>
+              )}
+              <button
+                type="button"
+                onClick={() => onRemoveMedia(m.id)}
+                aria-label={`Remove ${m.name}`}
+                className="absolute right-0.5 top-0.5 grid h-5 w-5 place-items-center rounded-full bg-black/70 text-ink opacity-80 hover:opacity-100"
+              >
+                <Icon.Close width={9} height={9} aria-hidden />
+              </button>
+            </span>
+          ))}
+          {preparing > 0 && (
+            <span className="grid h-14 w-14 place-items-center rounded-md border border-dashed border-line font-mono text-[9px] text-ink-muted">
+              reading…
+            </span>
+          )}
+        </div>
+      )}
       <p className="mt-1 px-1 text-[10.5px] text-ink-muted">
         {MODES.find((m) => m.id === mode)?.hint}
+        {dragging ? " · Drop to attach" : ""}
       </p>
     </div>
   );

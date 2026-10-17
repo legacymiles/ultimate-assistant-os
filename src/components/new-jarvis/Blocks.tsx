@@ -11,6 +11,7 @@
 // to decode is a run you stop reading, and then the ledger has bought nothing.
 // ---------------------------------------------------------------------------
 
+import { modelLabel } from "@/lib/new-jarvis/chatModels";
 import { useEffect, useState } from "react";
 import { Icon } from "../icons";
 import { Markdown } from "../jarvis/Markdown";
@@ -439,7 +440,24 @@ export function BlockView({
           aria-expanded={!block.collapsed}
         >
           <span className="block break-words font-mono text-[12.5px] leading-snug text-ink">{block.command}</span>
+          {block.media?.length ? (
+            <span className="mt-1.5 flex flex-wrap gap-1.5">
+              {block.media.map((m, i) => (
+                <span key={i} className="relative block h-12 w-12 overflow-hidden rounded border border-line-soft" title={m.name}>
+                  <img src={m.thumb} alt={m.name} className="h-full w-full object-cover" />
+                  {m.kind !== "image" && (
+                    <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-center font-mono text-[8px] uppercase text-ink">{m.kind}</span>
+                  )}
+                </span>
+              ))}
+            </span>
+          ) : null}
         </button>
+        {block.model && (
+          <span className="shrink-0 truncate font-mono text-[10px] text-ink-faint" title={block.model}>
+            {modelLabel(block.model)}
+          </span>
+        )}
         <span className="shrink-0 font-mono text-[10.5px] uppercase tracking-wide text-ink-muted">{block.mode}</span>
         {block.source === "voice" && <Icon.Mic width={12} height={12} className="shrink-0 text-ink-faint" aria-hidden />}
         <span className="shrink-0 font-mono text-[10.5px] text-ink-muted" data-num>

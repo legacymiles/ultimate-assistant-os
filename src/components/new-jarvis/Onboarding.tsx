@@ -24,6 +24,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import "./deck.css";
 import { GOALS, ROLES, callSuggestions, getOnboarding, saveOnboarding, splitList } from "@/lib/new-jarvis/onboarding";
+import { CLAUDE_SUBSCRIPTION, isSubscription, modelLabel } from "@/lib/new-jarvis/chatModels";
 import { KEY_SOURCES, agentTaskForKeys, checkKey, keyRows, upsertEnvLine, type KeyRow } from "@/lib/new-jarvis/keySetup";
 import { PRESET_RULES, addRule } from "@/lib/recall/photos/autopilot";
 import { addMemory } from "@/lib/jarvis/memoryClient";
@@ -35,10 +36,11 @@ import type { SetupItem } from "@/lib/new-jarvis/onboarding";
 import type { SetupStatus } from "@/lib/new-jarvis/useSetup";
 import { SyncStatusPanel } from "../jarvis/SyncStatusPanel";
 
-export type OnboardingStep = "welcome" | "about" | "keys" | "accounts" | "habits" | "devices" | "ready";
+export type OnboardingStep = "welcome" | "about" | "brain" | "keys" | "accounts" | "habits" | "devices" | "ready";
 const STEPS: { id: OnboardingStep; label: string }[] = [
   { id: "welcome", label: "Welcome" },
   { id: "about", label: "You" },
+  { id: "brain", label: "Brain" },
   { id: "keys", label: "Keys" },
   { id: "accounts", label: "Connect" },
   { id: "habits", label: "Camera" },
@@ -49,6 +51,7 @@ const STEPS: { id: OnboardingStep; label: string }[] = [
 /** Which step a checklist item is finished on. */
 const STEP_FOR: Partial<Record<SetupItem["id"], OnboardingStep>> = {
   about: "about",
+  brain: "brain",
   keys: "keys",
   accounts: "accounts",
   iphone: "accounts",
@@ -71,6 +74,8 @@ export function resumeStep(lastStep: string, items: SetupItem[]): OnboardingStep
 
 /** The slice of the local agent this flow uses. */
 export interface OnboardingBridge {
+  /** The PC's local agent is running and paired with this browser. */
+  connected: boolean;
   /** Paired, up, and able to read and write files. */
   files: boolean;
   /** Paired, up, and able to drive the browser. */
@@ -89,9 +94,12 @@ interface Props {
   bridge: OnboardingBridge;
   /** Hand a job to the super-agent chat. Setup closes and remembers its step. */
   ask: (task: string) => void;
+  /** Jarvis's brain right now ("" = Claude in the cloud). */
+  brain: string;
+  onBrain: (id: string) => void;
 }
 
-export function Onboarding({ start = "welcome", onClose, go, store, commit, onProfileChanged, setup, bridge, ask }: Props) {
+export function Onboarding({ start = "welcome", onClose, go, store, commit, onProfileChanged, setup, bridge, ask, brain, onBrain }: Props) {
   const [step, setStep] = useState<OnboardingStep>(start);
   const [about, setAbout] = useState(() => {
     const a = getOnboarding().about;
@@ -357,6 +365,19 @@ export function Onboarding({ start = "welcome", onClose, go, store, commit, onPr
             </div>
           )}
 
+          {step === "brain" && (
+            <BrainStep
+              brain={brain}
+              onBrain={(id) => {
+                onBrain(id);
+                setup.refresh();
+              }}
+              bridge={bridge}
+              hasCloudKey={Boolean(setup.keys?.OPENROUTER_API_KEY || setup.keys?.AI_GATEWAY_API_KEY)}
+              toKeys={() => setStep("keys")}
+            />
+          )}
+
           {step === "keys" && <KeysStep keys={setup.keys} bridge={bridge} onRefresh={setup.refresh} onHandOff={handOff} />}
 
           {step === "accounts" && (
@@ -537,7 +558,7 @@ export function Onboarding({ start = "welcome", onClose, go, store, commit, onPr
                 Save & continue
               </button>
             )}
-            {(step === "keys" || step === "accounts") && (
+            {(step === "brain" || step === "keys" || step === "accounts") && (
               <button type="button" className="deck-btn deck-btn--go" onClick={next}>
                 Continue
               </button>
@@ -591,7 +612,7 @@ function KeysStep({
       <div>
         <h2 className="text-[20px] font-semibold text-ink">Your keys</h2>
         <p className="mt-1 text-[12.5px] text-ink-muted">
-          Only <b className="text-ink">Thinking</b> is needed — the rest each switch on one feature. For each one: open the site and get it yourself,
+          <b className="text-ink">Thinking</b> is only needed if Jarvis uses a cloud model (not your Claude subscription) — the rest each switch on one feature. For each one: open the site and get it yourself,
           paste one you already have, or let me go and get it in the browser.
         </p>
       </div>
@@ -944,5 +965,169 @@ export function FinishSetup({ setup, onOpen, go }: { setup: SetupStatus; onOpen:
         </ul>
       </div>
     </section>
+  );
+}
+
+// --- the Brain step ----------------------------------------------------------
+
+/**
+ * What Jarvis thinks with.
+ *
+ * Two honest choices. Claude on your own plan costs nothing extra but runs
+ * through Claude Code on your PC, so the PC has to be on. A cloud model works
+ * anywhere and is paid per use with an OpenRouter key. Each person uses their
+ * own plan on their own PC — Anthropic does not allow one plan to serve other
+ * people, so this never offers to share the owner's.
+ */
+function BrainStep({
+  brain,
+  onBrain,
+  bridge,
+  hasCloudKey,
+  toKeys,
+}: {
+  brain: string;
+  onBrain: (id: string) => void;
+  bridge: OnboardingBridge;
+  hasCloudKey: boolean;
+  toKeys: () => void;
+}) {
+  const [testing, setTesting] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const useSubscription = async () => {
+    setResult(null);
+    if (!bridge.connected) {
+      setResult({
+        ok: false,
+        text: "Jarvis can't reach the local agent on this PC yet. Install it once (step 2 below), make sure it's running, then press this again.",
+      });
+      return;
+    }
+    setTesting(true);
+    try {
+      const r = (await bridge.run("brain/claude/check")) as { ok?: boolean; model?: string; problem?: string };
+      if (r.ok) {
+        onBrain(CLAUDE_SUBSCRIPTION);
+        const model = String(r.model ?? "").replace(/^claude-subscription:?/, "");
+        setResult({ ok: true, text: `Done — Jarvis now thinks with your Claude subscription${model ? ` (${model})` : ""}.` });
+      } else {
+        setResult({ ok: false, text: r.problem || "Claude didn't answer. Check Claude Code is signed in, then try again." });
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      setResult({
+        ok: false,
+        text: /no route|404/i.test(msg)
+          ? "Your PC's local agent is an older version that can't do this yet. Update it (run tools\\jarvis-bridge\\install.cmd again), then try once more."
+          : msg || "The test didn't go through. Try again.",
+      });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const Row = ({ ok, title, fix }: { ok: boolean | null; title: string; fix: React.ReactNode }) => (
+    <li className="flex gap-2.5">
+      <span
+        className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border text-[10px] ${
+          ok ? "border-[var(--hud-green)] text-[var(--hud-green)]" : ok === false ? "border-[var(--hud-amber)] text-[var(--hud-amber)]" : "border-line text-ink-faint"
+        }`}
+        aria-hidden
+      >
+        {ok ? "✓" : ok === false ? "!" : "·"}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[12.5px] text-ink">{title}</p>
+        {!ok && <p className="text-[11.5px] text-ink-muted">{fix}</p>}
+      </div>
+    </li>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-[20px] font-semibold text-ink">What should Jarvis think with?</h2>
+        <p className="mt-1 text-[12.5px] text-ink-muted">
+          Either way it's the same Jarvis — same browser control, memory and tools. Right now:{" "}
+          <b className="text-ink">{modelLabel(brain)}</b>. You can switch any time from the brain button in Chat.
+        </p>
+      </div>
+
+      <section className={`rounded-xl border p-4 ${isSubscription(brain) ? "border-[var(--hud)]" : "border-line"}`}>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-[15px] font-semibold text-ink">Claude — my own Claude subscription</h3>
+          <span className="rounded-full bg-[color-mix(in_oklab,var(--hud-green)_15%,transparent)] px-2 py-0.5 text-[10.5px] text-[var(--hud-green)]">No extra cost</span>
+        </div>
+        <p className="mt-1 text-[12px] text-ink-muted">
+          For anyone with Claude Pro or Max. Jarvis thinks with Claude through Claude Code on your PC, using your plan — so your PC needs to be on.
+        </p>
+        <ol className="mt-3 space-y-2.5">
+          <Row
+            ok={result?.ok ? true : null}
+            title="1. Claude Code is installed and signed in on this PC"
+            fix={
+              <>
+                Install it from <a className="text-[var(--hud)] underline" href="https://claude.com/code" target="_blank" rel="noreferrer">claude.com/code</a>, open a
+                terminal, type <code className="rounded bg-panel-2 px-1">claude</code> and sign in with your Claude account (type{" "}
+                <code className="rounded bg-panel-2 px-1">/login</code> if it doesn&apos;t ask).
+              </>
+            }
+          />
+          <Row
+            ok={bridge.connected}
+            title="2. Jarvis's local agent is running on this PC"
+            fix={
+              <>
+                One-time install: in the Jarvis folder on your PC, double-click <code className="rounded bg-panel-2 px-1">tools\jarvis-bridge\install.cmd</code>. It
+                starts with Windows from then on and pairs itself with this browser.
+              </>
+            }
+          />
+        </ol>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button type="button" className="deck-btn deck-btn--go" disabled={testing} onClick={() => void useSubscription()}>
+            {testing ? "Checking Claude…" : isSubscription(brain) ? "Test it again" : "Test & use my Claude"}
+          </button>
+          <span className="text-[11px] text-ink-faint">Your login stays in Claude Code on your PC — Jarvis never sees it.</span>
+        </div>
+        {result && (
+          <p className={`mt-2 rounded-lg border px-3 py-2 text-[12px] ${result.ok ? "border-[var(--hud-green)] text-[var(--hud-green)]" : "border-[var(--hud-amber)] text-[var(--hud-amber)]"}`}>
+            {result.text}
+          </p>
+        )}
+        <p className="mt-2 text-[10.5px] text-ink-faint">
+          Each person uses their own plan on their own PC — Anthropic doesn&apos;t allow one Claude plan to power Jarvis for other people.
+        </p>
+      </section>
+
+      <section className={`rounded-xl border p-4 ${!isSubscription(brain) ? "border-[var(--hud)]" : "border-line"}`}>
+        <h3 className="text-[15px] font-semibold text-ink">A cloud model — works anywhere</h3>
+        <p className="mt-1 text-[12px] text-ink-muted">
+          Works from your phone with the PC off. Paid per use through an OpenRouter key — DeepSeek is the cheapest by far.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" className={`deck-btn ${brain === "deepseek/deepseek-v4.1-flash" ? "deck-btn--go" : ""}`} onClick={() => onBrain("deepseek/deepseek-v4.1-flash")}>
+            Use DeepSeek
+          </button>
+          <button type="button" className={`deck-btn ${brain === "" ? "deck-btn--go" : ""}`} onClick={() => onBrain("")}>
+            Use Claude (cloud)
+          </button>
+        </div>
+        <p className={`mt-2 text-[11.5px] ${hasCloudKey ? "text-[var(--hud-green)]" : "text-ink-muted"}`}>
+          {hasCloudKey ? (
+            "✓ Your OpenRouter key is set."
+          ) : (
+            <>
+              Needs an OpenRouter key —{" "}
+              <button type="button" className="text-[var(--hud)] underline" onClick={toKeys}>
+                add it on the next step
+              </button>
+              .
+            </>
+          )}
+        </p>
+      </section>
+    </div>
   );
 }

@@ -41,6 +41,7 @@
 // token, not the origin check, is the thing actually holding the door.
 // ---------------------------------------------------------------------------
 
+import * as brain from "./brain.mjs";
 import http from "node:http";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -79,6 +80,11 @@ const TOKEN = loadToken();
 // ---------------------------------------------------------------------------
 
 const ROUTES = {
+  // Jarvis thinking with the owner's own Claude subscription, through the
+  // unmodified Claude Code on this PC. See brain.mjs.
+  "POST /brain/claude": (b) => brain.think(b),
+  "POST /brain/claude/check": () => brain.check(),
+
   "POST /shell": async (body) => {
     const why = refuseReason(body.command);
     if (why) throw Object.assign(new Error(`Refused: that command ${why}.`), { status: 403 });
@@ -178,6 +184,9 @@ async function capabilities() {
   const { harnesses } = await harness.listHarnesses();
   return {
     harness: harnesses.some((h) => h.available),
+    // The Agent SDK is here, so Jarvis can think with Claude on this PC. Whether
+    // Claude Code is signed in is only known by trying — /brain/claude/check.
+    brain: harnesses.some((h) => h.id === "claude" && h.available),
     harnesses: harnesses.map(({ id, label, available, why }) => ({ id, label, available, why })),
     shell: true,
     files: true,

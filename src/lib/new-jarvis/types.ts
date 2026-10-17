@@ -72,6 +72,10 @@ export interface Block {
   collapsed: boolean;
   /** Set while a step is waiting on the owner's yes. */
   gate: Gate | null;
+  /** What was attached, as small previews. The media itself is not kept. */
+  media?: { kind: "image" | "video" | "audio"; name: string; thumb: string }[];
+  /** The OpenRouter model picked for this block, when not the default. */
+  model?: string;
 }
 
 export function newBlock(init: Partial<Block> & { command: string; mode: Mode }): Block {

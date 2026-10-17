@@ -108,6 +108,17 @@ export function revive(raw: unknown): Block[] {
       ms: typeof o.ms === "number" ? o.ms : undefined,
       // Old work comes back folded. It is history, not what you are doing now.
       collapsed: true,
+      media: Array.isArray(o.media)
+        ? (o.media as Record<string, unknown>[])
+            .filter((m) => m && typeof m.thumb === "string" && (m.thumb as string).length < 60_000)
+            .slice(0, 6)
+            .map((m) => ({
+              kind: (["image", "video", "audio"].includes(String(m.kind)) ? m.kind : "image") as "image" | "video" | "audio",
+              name: String(m.name ?? ""),
+              thumb: String(m.thumb),
+            }))
+        : undefined,
+      model: typeof o.model === "string" ? o.model : undefined,
       gate: null,
     });
     if (out.length >= MAX_LIVE_BLOCKS) break;

@@ -63,7 +63,7 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
   const myLink = token ? `${pushUrl}?key=${encodeURIComponent(token)}` : pushUrl;
   // "Where did I get up to?" — read first, so each run starts after the last photo sent.
   const cursorLink = `${origin}/api/dashboard/inbox/cursor${token ? `?key=${encodeURIComponent(token)}` : ""}`;
-  const guideUrl = `${origin}/apps/new-jarvis#iphone`;
+  const guideUrl = `${origin}/apps/jarvis#iphone`;
   const local = /localhost|127\.0\.0\.1/.test(origin);
   const idx = STEPS.findIndex((s) => s.id === step);
 
