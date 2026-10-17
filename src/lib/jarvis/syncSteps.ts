@@ -195,8 +195,10 @@ function nextHere(
     : "";
   return {
     title: "Set up this computer (if you use Claude Code on it)",
-    detail: `Open ${shell} in your hub folder and run this once, with your token.${seen}`,
-    copy: "npm run skills:setup -- --token YOUR_TOKEN",
+    detail:
+      `Open ${shell} in your hub folder and run this once. It finds your token in the jarvis-memory connector you already added to Claude Code` +
+      ` — if this computer doesn't have the connector, add --token and your token at the end.${seen}`,
+    copy: "npm run skills:setup",
     copyLabel: "setup command",
     done: false,
   };

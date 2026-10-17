@@ -8,7 +8,9 @@
 // git, no repo access needed, so it works the same on a desktop and a VPS,
 // Windows or Linux.
 //
-//   node scripts/skill-sync.mjs install --token <T>   one-time setup for this machine
+//   node scripts/skill-sync.mjs install               one-time setup for this machine
+//                                                     (finds the token in your jarvis-memory
+//                                                     connector; or pass --token <T>)
 //   node scripts/skill-sync.mjs pull                  Jarvis -> ~/.claude/skills
 //   node scripts/skill-sync.mjs push                  ~/.claude/skills -> Jarvis
 //   node scripts/skill-sync.mjs sync                  push, then pull
@@ -75,13 +77,70 @@ const flagValue = (name) => {
   return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith("-") ? argv[i + 1] : "";
 };
 
+/**
+ * The token this machine already has. Anyone who set up "Same memory
+ * everywhere" ran `claude mcp add … jarvis-memory <hub>/api/jarvis/memory/mcp
+ * --header "Authorization: Bearer <token>"`, and Claude Code keeps that in
+ * ~/.claude.json (user and per-project scopes) or a project's .mcp.json. So
+ * setup reads it from there — the same command works on every machine and
+ * nobody has to copy a secret around. Any server entry whose URL is the Jarvis
+ * memory endpoint counts; the token comes from its Bearer header or its ?k=.
+ */
+function findConnector() {
+  const files = [
+    path.join(homedir(), ".claude.json"),
+    process.env.CLAUDE_CONFIG_DIR ? path.join(process.env.CLAUDE_CONFIG_DIR, ".claude.json") : "",
+    path.join(REPO, ".mcp.json"),
+  ].filter(Boolean);
+  for (const file of files) {
+    const json = readJson(file);
+    const stack = [json];
+    while (stack.length) {
+      const node = stack.pop();
+      if (!node || typeof node !== "object") continue;
+      if (typeof node.url === "string" && node.url.includes("/api/jarvis/memory/mcp")) {
+        let token = "";
+        const auth = node.headers?.Authorization ?? node.headers?.authorization;
+        if (typeof auth === "string") token = auth.replace(/^Bearer\s+/i, "").trim();
+        if (!token) {
+          try {
+            token = new URL(node.url).searchParams.get("k") ?? "";
+          } catch {
+            /* not a URL */
+          }
+        }
+        if (token) {
+          let hub = "";
+          try {
+            hub = new URL(node.url).origin;
+          } catch {
+            /* keep default */
+          }
+          return { token, hub, file };
+        }
+      }
+      for (const v of Object.values(node)) if (v && typeof v === "object") stack.push(v);
+    }
+  }
+  return null;
+}
+
 /** The hub's origin. Older configs stored the full memory URL; derive from it. */
 function hubFrom(cfg) {
   const raw = process.env.JARVIS_HUB_URL || cfg.hub || (cfg.memoryUrl ? String(cfg.memoryUrl).replace(/\/api\/.*$/, "") : "") || DEFAULT_HUB;
   return raw.replace(/\/+$/, "");
 }
-const HUB = (flagValue("--hub") || hubFrom(CONFIG)).replace(/\/+$/, "");
-const TOKEN = flagValue("--token") || process.env.JARVIS_MCP_TOKEN || CONFIG.token || "";
+const EXPLICIT_TOKEN = flagValue("--token") || process.env.JARVIS_MCP_TOKEN || CONFIG.token || "";
+const FOUND = EXPLICIT_TOKEN ? null : findConnector();
+const TOKEN = EXPLICIT_TOKEN || FOUND?.token || "";
+const HUB = (
+  flagValue("--hub") ||
+  process.env.JARVIS_HUB_URL ||
+  CONFIG.hub ||
+  (CONFIG.memoryUrl ? String(CONFIG.memoryUrl).replace(/\/api\/.*$/, "") : "") ||
+  FOUND?.hub ||
+  hubFrom(CONFIG)
+).replace(/\/+$/, "");
 
 // ---- HTTP ------------------------------------------------------------------
 
@@ -403,11 +462,13 @@ async function doInstall() {
   await mkdir(CLAUDE_HOME, { recursive: true });
   await writeFile(CONFIG_FILE, JSON.stringify(cfg, null, 2) + "\n");
   await writeFile(settingsFile, JSON.stringify(settings, null, 2) + "\n");
+  if (FOUND) log(`Using the token from your jarvis-memory connector (${FOUND.file}) — nothing to paste.`);
   log(`Saved this machine's settings to ${CONFIG_FILE}`);
   log(`Merged hooks into ${settingsFile} (SessionStart -> pull, Stop -> push)`);
 
   if (!token) {
-    log("No token yet: skills will come from the repo mirror only. Re-run with --token <TOKEN> to sync through Jarvis.");
+    log("No token found on this machine (no jarvis-memory connector in Claude Code's config).");
+    log("Either add the connector (Jarvis > Memory > Same memory everywhere), or run: npm run skills:setup -- --token <TOKEN>");
     return;
   }
   // Check the token works, then bring this machine and Jarvis level right now.

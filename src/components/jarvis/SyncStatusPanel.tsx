@@ -110,7 +110,7 @@ export function SyncStatusPanel({ token = "", status }: { token?: string; status
         </p>
         <p className="mt-0.5 text-[11px] leading-relaxed text-ink-muted">{here.detail}</p>
         {here.copy && <CopyLine value={fill(here.copy)!} label={here.copyLabel ?? "this"} />}
-        {here.copy?.includes("YOUR_TOKEN") && !token.trim() && (
+        {here.copy?.includes("YOUR_TOKEN") && !token.trim() && here.copy.includes("?k=") && (
           <p className="mt-1 text-[10px] text-ink-faint">
             Replace YOUR_TOKEN with your JARVIS_MCP_TOKEN. On a computer that already has the connector, <span className="font-mono">claude mcp get jarvis-memory</span> shows it.
           </p>

@@ -86,7 +86,8 @@ describe("the next step for THIS device", () => {
   });
   it("computer: the setup command in the right shell, and which computers already sync", () => {
     const win = syncPlan(base(), "windows", ORIGIN, NOW).here;
-    expect(win.copy).toBe("npm run skills:setup -- --token YOUR_TOKEN");
+    expect(win.copy).toBe("npm run skills:setup");
+    expect(win.detail).toMatch(/finds your token/);
     expect(win.detail).toMatch(/PowerShell/);
     expect(win.detail).toMatch(/honeysuites/);
     expect(syncPlan(base(), "mac", ORIGIN, NOW).here.detail).toMatch(/Terminal/);

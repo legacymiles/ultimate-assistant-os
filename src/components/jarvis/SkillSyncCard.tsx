@@ -161,13 +161,13 @@ export function SkillSyncCard() {
 
           <Command
             label="Set up this machine (run in your hub folder — PC and VPS)"
-            value={`npm run skills:setup -- --token ${t}`}
-            hint="Saves the token for this machine, adds two Claude Code hooks (session start → pull from Jarvis, end of turn → push to Jarvis) with this machine's own paths, then syncs right away — the first run also adds the skills already in your hub repo. Safe to re-run; it replaces only its own hooks."
+            value="npm run skills:setup"
+            hint="Finds your token in the jarvis-memory connector this computer already has, saves it for this machine, adds the two Claude Code hooks with this machine's own paths, then syncs right away. Safe to re-run."
           />
           <Command
-            label="Or run it directly (if npm scripts aren't set up)"
-            value={`node scripts/skill-sync.mjs install --token ${t}`}
-            hint="Same thing, without npm. Run from the hub repo folder so the script can find itself."
+            label="Only if this computer doesn't have the connector"
+            value={`npm run skills:setup -- --token ${t}`}
+            hint="Same thing with the token given by hand. Paste or generate it above to fill it in."
           />
 
           <details className="text-[10px] leading-relaxed text-ink-faint">

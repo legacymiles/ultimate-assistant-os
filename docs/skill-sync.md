@@ -24,8 +24,12 @@ The phone needs nothing beyond the memory connector (Jarvis › Memory › *Same
 For each computer, in the hub folder:
 
 ```bash
-npm run skills:setup -- --token YOUR_JARVIS_MCP_TOKEN
+npm run skills:setup
 ```
+
+No token to paste: setup reads it from the jarvis-memory connector you already added to Claude Code
+on that computer (`~/.claude.json`, user or project scope, or a project's `.mcp.json`) and never prints
+it. On a computer without the connector, add it at the end: `npm run skills:setup -- --token <TOKEN>`.
 
 Jarvis › Memory › **Skills everywhere** shows this command with your token filled in, plus a
 **Generate** button for a fresh token. The token is the same `JARVIS_MCP_TOKEN` the memory connector
