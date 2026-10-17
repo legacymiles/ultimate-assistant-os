@@ -23,12 +23,22 @@ import { WidgetSheet } from "./Widgets";
 import type { CameraWatch } from "@/lib/new-jarvis/useCameraWatch";
 
 const SHORTCUT_NAME = "Send to Jarvis";
+/**
+ * Two optional shortcuts past the manual build, both set as Vercel env vars:
+ *   NEXT_PUBLIC_IPHONE_SETUP_VIDEO — a screen recording of the build (an mp4
+ *     URL, e.g. one uploaded to /public/videos). Shown at the top of step 3.
+ *   NEXT_PUBLIC_IPHONE_SHORTCUT_URL — an iCloud link to a ready-made "Send to
+ *     Jarvis" Shortcut whose import question asks for the link. With it, step 3
+ *     becomes one tap and one paste.
+ */
+const SETUP_VIDEO = process.env.NEXT_PUBLIC_IPHONE_SETUP_VIDEO ?? "";
+const SHORTCUT_LINK = process.env.NEXT_PUBLIC_IPHONE_SHORTCUT_URL ?? "";
 const LIMIT = 20;
 
 type StepId = "phone" | "token" | "build" | "auto" | "test";
 const STEPS: { id: StepId; label: string }[] = [
   { id: "phone", label: "Open on iPhone" },
-  { id: "token", label: "Your key" },
+  { id: "token", label: "Your link" },
   { id: "build", label: "Make the Shortcut" },
   { id: "auto", label: "Run it automatically" },
   { id: "test", label: "Test" },
@@ -49,6 +59,8 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const pushUrl = `${origin}/api/dashboard/inbox/push`;
+  // The whole Shortcut needs this one thing: the push address with the key in it.
+  const myLink = token ? `${pushUrl}?key=${encodeURIComponent(token)}` : pushUrl;
   const guideUrl = `${origin}/apps/new-jarvis#iphone`;
   const local = /localhost|127\.0\.0\.1/.test(origin);
   const idx = STEPS.findIndex((s) => s.id === step);
@@ -149,73 +161,119 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
 
           {step === "token" && (
             <div className="space-y-4">
-              <h3 className="text-[18px] font-semibold text-ink">Get your link and key</h3>
-              <p>The Shortcut needs two things: where to send photos (the link) and proof the photos are yours (the key).</p>
-              <CopyRow label="1 · Link" value={pushUrl} onCopy={() => copy(pushUrl, "Link")} />
+              <h3 className="text-[18px] font-semibold text-ink">Get your link</h3>
+              <p>
+                This is the one thing you paste into the Shortcut. It&apos;s your own private link — it already has your key inside, so there&apos;s
+                nothing else to copy.
+              </p>
               {token ? (
                 <>
-                  <CopyRow label="2 · Key" value={token} onCopy={() => copy(token, "Key")} secret />
+                  <CopyRow label="Your link" value={myLink} onCopy={() => copy(myLink, "Your link")} secret />
                   <p className="text-[11px] text-[var(--hud-amber)]">
-                    Copy it now — for safety it can only be shown once. Lost it? Make a new one here; the old one stops working.
+                    Copy it now — for safety it&apos;s only shown once. Lost it? Come back and make a new one; the old link stops working.
                   </p>
                 </>
               ) : (
                 <div className="rounded-lg border border-line bg-panel-2 p-3">
-                  <p className="mb-2">{camera.linked ? "A key already exists, but it can't be shown again. Make a new one for this setup." : "Make your key:"}</p>
+                  <p className="mb-2">
+                    {camera.linked ? "You made a link before, but it can't be shown again. Make a new one for this setup." : "Tap to make your link:"}
+                  </p>
                   <button type="button" className="deck-btn deck-btn--go" onClick={() => void mint()} disabled={minting}>
-                    <Icon.Key width={12} height={12} aria-hidden /> {minting ? "Making it…" : camera.linked ? "Make a new key" : "Make my key"}
+                    <Icon.Key width={12} height={12} aria-hidden /> {minting ? "Making it…" : camera.linked ? "Make a new link" : "Make my link"}
                   </button>
-                  {camera.linked && <p className="mt-1.5 text-[10.5px] text-ink-faint">A Shortcut using the old key will stop sending until you paste the new one in.</p>}
+                  {camera.linked && <p className="mt-1.5 text-[10.5px] text-ink-faint">A Shortcut using the old link stops sending until you paste the new one in.</p>}
                 </div>
               )}
+              <p className="text-[11px] text-ink-faint">
+                It&apos;s a different address from the Jarvis page you&apos;re looking at — that&apos;s right. You never open it in a browser; it only goes in the
+                Shortcut.
+              </p>
             </div>
           )}
 
           {step === "build" && (
             <div className="space-y-3">
               <h3 className="text-[18px] font-semibold text-ink">Make the Shortcut</h3>
-              <p>Open the <b className="text-ink">Shortcuts</b> app (it&apos;s built into every iPhone — search for it if you can&apos;t see it).</p>
+              {SETUP_VIDEO && (
+                <video src={SETUP_VIDEO} controls playsInline className="w-full max-w-sm rounded-xl border border-line" aria-label="Video: making the Send to Jarvis Shortcut" />
+              )}
+              {SHORTCUT_LINK && (
+                <div className="rounded-lg border border-[var(--hud)] bg-[color-mix(in_oklab,var(--hud)_8%,transparent)] p-3">
+                  <p className="mb-2 text-ink">
+                    Fastest way: tap below, then <b>Add Shortcut</b>. When it asks for your link, paste it.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <a href={SHORTCUT_LINK} className="deck-btn deck-btn--go">
+                      Add the Shortcut
+                    </a>
+                    {token && (
+                      <button type="button" className="deck-btn" onClick={() => copy(myLink, "Your link")}>
+                        <Icon.Copy width={12} height={12} aria-hidden /> Copy your link first
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-2 text-[11px] text-ink-faint">Prefer to build it yourself? The steps are below.</p>
+                </div>
+              )}
+              <p>
+                Open Apple&apos;s <b className="text-ink">Shortcuts</b> app (it&apos;s already on your iPhone — swipe down on the home screen and search
+                &ldquo;Shortcuts&rdquo;). Then:
+              </p>
               <Steps
                 items={[
                   <>
-                    Tap <b className="text-ink">+</b> (top right). Tap the name at the top → <b className="text-ink">Rename</b> → type{" "}
-                    <Code>{SHORTCUT_NAME}</Code>.
+                    Tap <b className="text-ink">+</b> (top right). Tap the name at the very top → <b className="text-ink">Rename</b> → <Code>{SHORTCUT_NAME}</Code>.
                   </>,
                   <>
-                    Tap <b className="text-ink">Add Action</b>, search <Code>Find Photos</Code>, tap it.
-                    <br />
-                    In that block: <b className="text-ink">Sort by</b> → Creation Date · <b className="text-ink">Order</b> → Latest First · turn{" "}
-                    <b className="text-ink">Limit</b> on → <b className="text-ink">{LIMIT}</b>.
+                    Tap <b className="text-ink">Add Action</b>, type <Code>Find Photos</Code> in the search box, tap it. Set <b className="text-ink">Sort by</b>{" "}
+                    Creation Date, <b className="text-ink">Order</b> Latest First, switch <b className="text-ink">Limit</b> on and make it{" "}
+                    <b className="text-ink">{LIMIT}</b>.
                   </>,
                   <>
-                    Tap the search bar at the bottom, search <Code>Get Contents of URL</Code>, tap it.
+                    Tap the search bar at the bottom, type <Code>Get Contents of URL</Code>, tap it.
                   </>,
                   <>
-                    Tap the blue <b className="text-ink">URL</b> and paste the <b className="text-ink">Link</b>.{" "}
-                    <InlineCopy onClick={() => copy(pushUrl, "Link")} />
+                    Tap the blue word <b className="text-ink">URL</b> in that block and paste <b className="text-ink">your link</b>.
+                    {token && <InlineCopy onClick={() => copy(myLink, "Your link")} />}
                   </>,
                   <>
-                    Tap the <b className="text-ink">›</b> arrow on that block to show more. Set <b className="text-ink">Method</b> to <Code>POST</Code>.
+                    Tap the small <b className="text-ink">›</b> arrow on the right of that block. Fill it in exactly like the table below.
                   </>,
                   <>
-                    <b className="text-ink">Headers → Add new header</b>. Key: <Code>X-Dashboard-Token</Code>
-                    <InlineCopy onClick={() => copy("X-Dashboard-Token", "Header name")} /> Text: paste your <b className="text-ink">Key</b>.
-                    {token && <InlineCopy onClick={() => copy(token, "Key")} />}
-                  </>,
-                  <>
-                    <b className="text-ink">Request Body</b> → <Code>Form</Code>. Tap <b className="text-ink">Add new field → File</b>. Key: <Code>photos</Code>
-                    <InlineCopy onClick={() => copy("photos", "Field name")} />. For the value, tap it and pick the blue <b className="text-ink">Photos</b> from Find
-                    Photos.
-                  </>,
-                  <>
-                    Tap <b className="text-ink">▶</b> (bottom right) to run it once. When iPhone asks to access photos and to send to this site, choose{" "}
-                    <b className="text-ink">Always Allow</b> — otherwise the automation stops to ask every time.
+                    Tap <b className="text-ink">▶</b> (bottom right) to try it. When your iPhone asks about photos and about sending to the site, tap{" "}
+                    <b className="text-ink">Always Allow</b> both times.
                   </>,
                 ]}
               />
+              <div className="overflow-hidden rounded-lg border border-line">
+                <p className="border-b border-line bg-panel-2 px-3 py-1.5 font-mono text-[10.5px] uppercase tracking-wider text-ink-faint">
+                  Get Contents of URL — what goes where
+                </p>
+                <table className="w-full text-[12px]">
+                  <tbody className="divide-y divide-line-soft">
+                    {[
+                      ["URL", token ? "your link" : "your link (step 2)", token ? myLink : ""],
+                      ["Method", "POST", ""],
+                      ["Headers", "leave empty", ""],
+                      ["Request Body", "Form", ""],
+                      ["Add new field", "pick File", ""],
+                      ["  Key", "photos", "photos"],
+                      ["  File (the value)", "tap it → choose the blue Photos", ""],
+                    ].map(([where, what, copyValue]) => (
+                      <tr key={where}>
+                        <td className="w-[38%] whitespace-pre px-3 py-2 text-ink-muted">{where}</td>
+                        <td className="px-3 py-2 text-ink">
+                          {what}
+                          {copyValue && <InlineCopy onClick={() => copy(copyValue, where.trim())} />}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               <p className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-[11.5px]">
-                Worked if you see something like <Code>{`{"accepted":20,"skipped":0}`}</Code>. A 401 means the key was pasted wrong — make a new one on
-                the previous step.
+                It worked if it shows something like <Code>{`{"accepted":20,"skipped":0}`}</Code>. An error that says <b className="text-ink">Unknown device token</b>{" "}
+                means the link is old or cut off — go back a step, make a new link and paste it again.
               </p>
             </div>
           )}
