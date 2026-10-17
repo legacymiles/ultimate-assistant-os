@@ -20,7 +20,11 @@ export const INSTRUCTIONS =
   "The owner's long-term memory, shared across Jarvis, claude.ai and Claude Code. " +
   "Call search_memory at the start of a task and whenever the owner refers to something from earlier. " +
   "Call save_memory when they state a durable fact, preference, decision or project detail — one short fact per memory. " +
-  "Never save passwords, API keys or card numbers.";
+  "Never save passwords, API keys or card numbers. " +
+  "Skills live here too, so every device has the same ones: when the owner asks you to create or change a skill, " +
+  "write the complete SKILL.md (YAML frontmatter with name and description, then the instructions) and store it with save_skill — " +
+  "that is what makes it appear on their Jarvis website, their PC and their VPS. " +
+  "Call list_skills to see what skills exist, and get_skill to load one and follow it when a task matches its description.";
 
 export interface ToolDef {
   name: string;
@@ -72,6 +76,47 @@ export const TOOLS: ToolDef[] = [
     inputSchema: {
       type: "object",
       properties: { limit: { type: "number", description: "How many to return (default 20, max 100)." } },
+    },
+  },
+  {
+    name: "save_skill",
+    description:
+      "Create or replace one of the owner's skills in Jarvis. The skill then appears on the Jarvis website and is pulled onto the owner's PC and VPS (~/.claude/skills/<name>) at their next Claude Code session. Pass the COMPLETE SKILL.md each time — it replaces the stored one.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Folder name for the skill: letters, digits, dot, dash, underscore, max 64 (e.g. \"stock-screener\").",
+        },
+        skill_md: {
+          type: "string",
+          description:
+            "The full SKILL.md: YAML frontmatter (---, name:, description: when to use it, ---) followed by the instructions in markdown.",
+        },
+        references: {
+          type: "object",
+          additionalProperties: { type: "string" },
+          description:
+            'Optional extra text files the SKILL.md refers to, keyed by path under references/, e.g. {"references/checklist.md": "..."}.',
+        },
+        origin: { type: "string", description: 'Where it was made, e.g. "claude-code-phone", "claude.ai".' },
+      },
+      required: ["name", "skill_md"],
+    },
+  },
+  {
+    name: "list_skills",
+    description: "List every skill stored in Jarvis — name, what it is for, when it last changed and from where.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "get_skill",
+    description: "Load one skill's full SKILL.md and reference files from Jarvis, to follow it or edit it.",
+    inputSchema: {
+      type: "object",
+      properties: { name: { type: "string", description: "The skill's name, as list_skills shows it." } },
+      required: ["name"],
     },
   },
   {

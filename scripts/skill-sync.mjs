@@ -1,345 +1,431 @@
 #!/usr/bin/env node
 // ---------------------------------------------------------------------------
-// skill-sync — one skill library, everywhere.
+// skill-sync — every skill, on every device, from one home: Jarvis.
 //
-// A skill created in one Claude Code session lives in ~/.claude/skills on that
-// one machine. This keeps that folder, the hub repo, and every other machine
-// in step, so a skill written on the VPS is active on the PC and shown on the
-// deployed Jarvis website without anyone copying files by hand.
+// Skills are stored in Jarvis (the same store the jarvis-memory connector's
+// save_skill writes from a phone or claude.ai). This script keeps a machine's
+// ~/.claude/skills in step with that store, over HTTPS with your token — no
+// git, no repo access needed, so it works the same on a desktop and a VPS,
+// Windows or Linux.
 //
-//   node scripts/skill-sync.mjs push     ~/.claude/skills -> repo, commit, push
-//   node scripts/skill-sync.mjs pull     repo -> ~/.claude/skills (git pull first)
-//   node scripts/skill-sync.mjs sync     pull, then push (what the Stop hook runs)
-//   add --check to any of them to print what would happen and change nothing
-//   add --quiet to keep hook output to a single line
+//   node scripts/skill-sync.mjs install --token <T>   one-time setup for this machine
+//   node scripts/skill-sync.mjs pull                  Jarvis -> ~/.claude/skills
+//   node scripts/skill-sync.mjs push                  ~/.claude/skills -> Jarvis
+//   node scripts/skill-sync.mjs sync                  push, then pull
+//     --check     say what would happen, change nothing
+//     --quiet     one line per run (for hooks)
+//     --git       ALSO mirror into the hub repo's skills/ and commit + push (optional)
 //
-// Wire it to Claude Code hooks (see docs/skill-sync.md) so it runs itself:
-//   SessionStart -> pull  (every new session starts with the latest skills)
-//   Stop         -> push  (a skill written this session is committed + deployed)
+// The hooks `install` writes:  SessionStart -> pull,  Stop -> push.
 //
-// Safe to run on a schedule or from a hook: with nothing changed it does
-// nothing and says so. It only ever ADDS or UPDATES files — it never deletes a
-// skill, so a mirror can't wipe the source.
+// Safety:
+//  - It never deletes a skill anywhere. Updating a skill makes its folder match
+//    Jarvis's version (a text reference the new version dropped is removed);
+//    images and other assets in the folder are never touched.
+//  - A local edit that hasn't been pushed yet is never overwritten by a pull,
+//    and a newer remote version is never overwritten by a push: whichever side
+//    changed more recently wins, the other side waits for the next sync.
+//  - Names and reference paths are validated before anything touches the disk.
+//  - A hook can never block a session: on any error it reports and exits 0.
 // ---------------------------------------------------------------------------
 
 import { spawnSync } from "node:child_process";
-import { readdir, readFile, mkdir, writeFile, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { readSkillDir, validRefPath, validSkillName, normalizeFiles, hashSkill } from "../src/lib/jarvis/skillFormat.mjs";
 
 const SELF = fileURLToPath(import.meta.url);
 const REPO = path.resolve(path.dirname(SELF), "..");
 const REPO_SKILLS = path.join(REPO, "skills");
 const CLAUDE_HOME = process.env.CLAUDE_SKILLS_HOME || path.join(homedir(), ".claude");
 const HOME_SKILLS = path.join(CLAUDE_HOME, "skills");
-// One small config file per machine, written by `install`, read on every run.
-// This is what makes the token "universal": set it once here (PC or VPS) and
-// every push from this machine can write to shared memory, no shell env needed.
 const CONFIG_FILE = path.join(CLAUDE_HOME, "jarvis-skill-sync.json");
+/** What this machine last pushed/pulled, so an idle Stop hook makes no network call. */
+const STATE_FILE = path.join(CLAUDE_HOME, "jarvis-skill-sync.state.json");
+const DEFAULT_HUB = "https://ultimate-assistant-os.vercel.app";
 
-const args = new Set(process.argv.slice(2));
-const mode = [...args].find((a) => !a.startsWith("-")) || "sync";
+const argv = process.argv.slice(2);
+const args = new Set(argv);
+const VALUE_FLAGS = new Set(["--token", "--hub"]);
+const mode = argv.find((a, i) => !a.startsWith("-") && !VALUE_FLAGS.has(argv[i - 1])) || "sync";
 const CHECK = args.has("--check");
 const QUIET = args.has("--quiet");
-const NO_MEMORY = args.has("--no-memory");
-
-function readConfig() {
-  try {
-    return JSON.parse(readFileSync(CONFIG_FILE, "utf8"));
-  } catch {
-    return {};
-  }
-}
-const CONFIG = readConfig();
-const flagValue = (name) => {
-  const hit = [...args].find((a) => a.startsWith(`${name}=`));
-  if (hit) return hit.slice(name.length + 1);
-  const list = process.argv.slice(2);
-  const i = list.indexOf(name);
-  return i >= 0 && list[i + 1] && !list[i + 1].startsWith("-") ? list[i + 1] : "";
-};
-
-// The shared memory (same rows as Jarvis › Memory, reached by claude.ai and the
-// VPS). A pushed skill is announced here so "what skills do I have" is
-// answerable from memory on any surface. Token/URL come from the environment
-// first, then this machine's config file, then the default deployed hub.
-const MEMORY_URL = process.env.JARVIS_MEMORY_URL || CONFIG.memoryUrl || "https://ultimate-assistant-os.vercel.app/api/jarvis/memory/mcp";
-const MEMORY_TOKEN = process.env.JARVIS_MCP_TOKEN || CONFIG.token || "";
-
-/** Prose and data a SKILL.md links to. Rendered assets (png, fonts, video) stay behind. */
-const TEXT = new Set([".md", ".txt", ".json", ".yaml", ".yml", ".csv", ".tsv", ".html", ".css", ".js", ".mjs", ".ts", ".py"]);
-const MAX_BYTES = 256 * 1024;
+const GIT = args.has("--git");
 
 const log = (...m) => console.log(...m);
 const vlog = (...m) => {
   if (!QUIET) console.log(...m);
 };
 
-function git(cwdArgs, { allowFail = false } = {}) {
-  const r = spawnSync("git", cwdArgs, { cwd: REPO, encoding: "utf8" });
-  if (r.status !== 0 && !allowFail) {
-    throw new Error(`git ${cwdArgs.join(" ")} failed: ${(r.stderr || r.stdout || "").trim()}`);
+function readJson(file) {
+  try {
+    return JSON.parse(readFileSync(file, "utf8"));
+  } catch {
+    return {};
   }
-  return { ok: r.status === 0, out: (r.stdout || "").trim(), err: (r.stderr || "").trim() };
+}
+const CONFIG = readJson(CONFIG_FILE);
+const flagValue = (name) => {
+  const eq = argv.find((a) => a.startsWith(`${name}=`));
+  if (eq) return eq.slice(name.length + 1);
+  const i = argv.indexOf(name);
+  return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith("-") ? argv[i + 1] : "";
+};
+
+/** The hub's origin. Older configs stored the full memory URL; derive from it. */
+function hubFrom(cfg) {
+  const raw = process.env.JARVIS_HUB_URL || cfg.hub || (cfg.memoryUrl ? String(cfg.memoryUrl).replace(/\/api\/.*$/, "") : "") || DEFAULT_HUB;
+  return raw.replace(/\/+$/, "");
+}
+const HUB = (flagValue("--hub") || hubFrom(CONFIG)).replace(/\/+$/, "");
+const TOKEN = flagValue("--token") || process.env.JARVIS_MCP_TOKEN || CONFIG.token || "";
+
+// ---- HTTP ------------------------------------------------------------------
+
+async function api(pathname, init = {}) {
+  const res = await fetch(`${HUB}${pathname}`, {
+    ...init,
+    headers: { "content-type": "application/json", authorization: `Bearer ${TOKEN}`, ...(init.headers ?? {}) },
+    signal: AbortSignal.timeout(30_000),
+  });
+  const text = await res.text();
+  let body = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    /* non-JSON error page */
+  }
+  if (!res.ok) throw new Error(`${init.method ?? "GET"} ${pathname} -> HTTP ${res.status}${body?.error ? `: ${body.error}` : ""}`);
+  return body;
 }
 
-/** Every `<name>/SKILL.md` directly under a skills root. */
-async function skillNames(root) {
-  let entries;
+// ---- local disk --------------------------------------------------------------
+
+async function localNames() {
   try {
-    entries = await readdir(root, { withFileTypes: true });
+    const entries = await readdir(HOME_SKILLS, { withFileTypes: true });
+    return entries.filter((e) => e.isDirectory() && validSkillName(e.name)).map((e) => e.name).sort();
   } catch {
     return [];
   }
-  const names = [];
-  for (const e of entries) {
-    if (!e.isDirectory()) continue;
-    try {
-      await stat(path.join(root, e.name, "SKILL.md"));
-      names.push(e.name);
-    } catch {
-      /* a folder with no SKILL.md is not a skill */
-    }
-  }
-  return names.sort();
 }
 
-/** Files a skill contributes, relative to its folder: SKILL.md + filtered references/. */
-async function filesFor(root, name, skipped) {
-  const out = ["SKILL.md"];
-  const walk = async (rel) => {
+/** Newest mtime across a skill's SKILL.md and references (ms), 0 if missing. */
+async function localMtime(name) {
+  let newest = 0;
+  const walk = async (dir) => {
     let entries;
     try {
-      entries = await readdir(path.join(root, name, rel), { withFileTypes: true });
+      entries = await readdir(dir, { withFileTypes: true });
     } catch {
       return;
     }
     for (const e of entries) {
-      const r = path.join(rel, e.name);
-      if (e.isDirectory()) {
-        await walk(r);
-        continue;
-      }
-      if (!TEXT.has(path.extname(e.name).toLowerCase())) {
-        skipped.push(`${name}/${r} (binary/asset)`);
-        continue;
-      }
-      const s = await stat(path.join(root, name, r));
-      if (s.size > MAX_BYTES) {
-        skipped.push(`${name}/${r} (${(s.size / 1024).toFixed(0)} KB > ${MAX_BYTES / 1024} KB)`);
-        continue;
-      }
-      out.push(r);
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) await walk(p);
+      else newest = Math.max(newest, (await stat(p)).mtimeMs);
     }
   };
-  await walk("references");
-  return out;
-}
-
-/** Copy a file only when the destination is missing or different. Returns true if it wrote. */
-async function copyIfChanged(src, dst) {
-  const data = await readFile(src);
-  try {
-    const cur = await readFile(dst);
-    if (cur.equals(data)) return false;
-  } catch {
-    /* missing — write it */
-  }
-  if (!CHECK) {
-    await mkdir(path.dirname(dst), { recursive: true });
-    await writeFile(dst, data);
-  }
-  return true;
-}
-
-/** Mirror SKILL.md (+ text references) from one skills root to another. Add/update only. */
-async function mirror(fromRoot, toRoot, label) {
-  const names = await skillNames(fromRoot);
-  if (!names.length) {
-    vlog(`${label}: source ${fromRoot} has no skills — nothing to mirror.`);
-    return { changed: [], skipped: [] };
-  }
-  const changed = [];
-  const skipped = [];
-  for (const name of names) {
-    for (const rel of await filesFor(fromRoot, name, skipped)) {
-      if (await copyIfChanged(path.join(fromRoot, name, rel), path.join(toRoot, name, rel))) {
-        changed.push(`${name}/${rel}`);
-      }
-    }
-  }
-  return { changed, skipped };
-}
-
-async function doPull() {
-  // Get the latest committed skills, then lay them into ~/.claude/skills.
-  const up = git(["pull", "--ff-only"], { allowFail: true });
-  if (!up.ok) vlog(`pull: git pull skipped (${up.err.split("\n")[0] || "no upstream / not ff"}) — mirroring what's checked out.`);
-  const { changed, skipped } = await mirror(REPO_SKILLS, HOME_SKILLS, "pull");
-  if (changed.length) log(`${CHECK ? "[check] would update" : "pulled"} ${changed.length} file(s) into ${HOME_SKILLS}:`, changed.slice(0, 8).join(", ") + (changed.length > 8 ? " …" : ""));
-  else vlog("pull: local skills already current.");
-  if (skipped.length) vlog(`pull: left ${skipped.length} asset/oversize file(s) in the repo.`);
-  return changed.length;
-}
-
-/** The `description:` from a SKILL.md frontmatter, flattened to one line. */
-async function overviewOf(name) {
-  try {
-    const body = await readFile(path.join(REPO_SKILLS, name, "SKILL.md"), "utf8");
-    const fm = body.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-    if (!fm) return "";
-    const lines = fm[1].split(/\r?\n/);
-    const i = lines.findIndex((l) => /^description\s*:/i.test(l));
-    if (i < 0) return "";
-    const inline = lines[i].replace(/^description\s*:/i, "").trim();
-    if (inline && !/^[>|]/.test(inline)) return inline.replace(/^["']|["']$/g, "");
-    // Block scalar: collect the indented lines that follow.
-    const out = [];
-    for (let j = i + 1; j < lines.length && /^\s+\S/.test(lines[j]); j++) out.push(lines[j].trim());
-    return out.join(" ");
-  } catch {
-    return "";
-  }
-}
-
-/** Announce changed skills into the shared memory. Best-effort: never throws. */
-async function registerMemory(names) {
-  if (NO_MEMORY || CHECK || !names.length) return;
-  if (!MEMORY_TOKEN) {
-    vlog("memory: JARVIS_MCP_TOKEN not set — skills mirrored and deployed, but not written to shared memory.");
-    return;
-  }
-  let ok = 0;
-  for (const name of names) {
-    const overview = (await overviewOf(name)) || "A Claude Code skill.";
-    const content = `Skill "${name}": ${overview} Lives in the hub repo at skills/${name} and in ~/.claude/skills/${name}; loadable in every Claude Code session.`;
-    const rpc = {
-      jsonrpc: "2.0",
-      id: `skill-${name}`,
-      method: "tools/call",
-      params: {
-        name: "save_memory",
-        arguments: { content: content.slice(0, 900), title: `Skill: ${name}`, tags: ["skill", name], origin: "skill-sync", source: "chat" },
-      },
-    };
-    try {
-      const res = await fetch(MEMORY_URL, {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${MEMORY_TOKEN}` },
-        body: JSON.stringify(rpc),
-        signal: AbortSignal.timeout(20_000),
-      });
-      if (res.ok) ok++;
-      else vlog(`memory: ${name} -> HTTP ${res.status}`);
-    } catch (e) {
-      vlog(`memory: ${name} -> ${e instanceof Error ? e.message : "request failed"}`);
-    }
-  }
-  if (ok) log(`memory: registered ${ok}/${names.length} skill(s) in shared memory.`);
-}
-
-async function doPush() {
-  const { changed, skipped } = await mirror(HOME_SKILLS, REPO_SKILLS, "push");
-  if (skipped.length) vlog(`push: left behind ${skipped.length} asset/oversize file(s): ${skipped.slice(0, 5).join(", ")}${skipped.length > 5 ? " …" : ""}`);
-  const names = [...new Set(changed.map((c) => c.split("/")[0]))];
-  if (!changed.length) {
-    vlog("push: repo mirror already current — nothing to commit.");
-    return [];
-  }
-  log(`${CHECK ? "[check] would mirror" : "mirrored"} ${changed.length} file(s) into repo skills/:`, changed.slice(0, 8).join(", ") + (changed.length > 8 ? " …" : ""));
-  if (CHECK) return names;
-
-  // Commit only the skills folder, so a push never sweeps in unrelated work.
-  git(["add", "--", "skills"]);
-  const status = git(["status", "--porcelain", "--", "skills"]).out;
-  if (!status) {
-    vlog("push: nothing staged after add — done.");
-    return [];
-  }
-  const msg = `skills: sync ${names.slice(0, 6).join(", ")}${names.length > 6 ? ` +${names.length - 6}` : ""}`;
-  const author = ["-c", "user.name=skill-sync", "-c", "user.email=skill-sync@local"];
-  git([...author, "commit", "-m", msg, "-m", "Auto-committed by scripts/skill-sync.mjs (Stop hook)."]);
-  const push = git(["push"], { allowFail: true });
-  if (push.ok) log(`pushed: ${msg} — the deployed Jarvis will pick it up on redeploy.`);
-  else log(`committed locally but push failed (${push.err.split("\n")[0] || "no upstream"}). Run 'git push' when the remote is reachable.`);
-  await registerMemory(names);
-  return names;
+  await walk(path.join(HOME_SKILLS, name));
+  return newest;
 }
 
 /**
- * Set this machine up once. Same command on a desktop or a VPS, Windows or
- * Linux — it writes THIS machine's own paths, so nothing is hand-edited:
- *   - saves the token + memory URL to <claude home>/jarvis-skill-sync.json
- *   - merges the SessionStart (pull) and Stop (push) hooks into
- *     <claude home>/settings.json, keeping any hooks already there.
+ * Write one skill to ~/.claude/skills/<name> so the folder matches Jarvis's
+ * version exactly: SKILL.md, every reference it has, and no text reference it
+ * dropped. Only managed files (SKILL.md and text references) are touched —
+ * images and other assets in the folder stay. Any path that would land
+ * outside the skill's own folder is refused.
  */
-async function doInstall() {
-  const token = flagValue("--token") || process.env.JARVIS_MCP_TOKEN || CONFIG.token || "";
-  const memoryUrl = flagValue("--memory-url") || process.env.JARVIS_MEMORY_URL || CONFIG.memoryUrl || "https://ultimate-assistant-os.vercel.app/api/jarvis/memory/mcp";
+async function writeLocal(name, body, files) {
+  if (!validSkillName(name)) throw new Error(`refused unsafe skill name "${name}"`);
+  const root = path.resolve(HOME_SKILLS, name);
+  const inside = (p) => p === root || p.startsWith(root + path.sep);
+  const keep = normalizeFiles(files);
+  await mkdir(root, { recursive: true });
+  await writeFile(path.join(root, "SKILL.md"), body);
+  for (const [rel, text] of Object.entries(keep)) {
+    if (!validRefPath(rel)) continue;
+    const target = path.resolve(root, ...rel.split("/"));
+    if (!inside(target)) continue;
+    await mkdir(path.dirname(target), { recursive: true });
+    await writeFile(target, text);
+  }
+  // Text references the new version no longer has.
+  const existing = await readSkillDir(root);
+  for (const rel of Object.keys(existing?.files ?? {})) {
+    if (rel in keep) continue;
+    const target = path.resolve(root, ...rel.split("/"));
+    if (inside(target)) await unlink(target).catch(() => {});
+  }
+}
 
-  // 1. Config file (token lives here, read on every run on this machine).
-  const cfg = { ...CONFIG, memoryUrl, repo: REPO };
-  if (token) cfg.token = token;
-  if (CHECK) {
-    log(`[check] would write ${CONFIG_FILE} with memoryUrl + ${token ? "token" : "no token (set later)"} and repo ${REPO}`);
-  } else {
-    await mkdir(CLAUDE_HOME, { recursive: true });
-    await writeFile(CONFIG_FILE, JSON.stringify(cfg, null, 2) + "\n");
-    log(`Wrote ${CONFIG_FILE}`);
+// ---- state (what was last synced, per skill) ----------------------------------
+
+const STATE = readJson(STATE_FILE);
+STATE.synced ??= {};
+async function saveState() {
+  if (CHECK) return;
+  await mkdir(CLAUDE_HOME, { recursive: true });
+  await writeFile(STATE_FILE, JSON.stringify(STATE, null, 2) + "\n");
+}
+
+// ---- push / pull ---------------------------------------------------------------
+
+async function doPush() {
+  if (!TOKEN) {
+    vlog("push: no token on this machine — run `npm run skills:setup -- --token <TOKEN>` (Jarvis › Memory › Skills everywhere).");
+    if (GIT) await gitMirror();
+    return;
+  }
+  // Cheap path: nothing changed locally since the last sync -> no network at all.
+  const local = [];
+  const skipped = [];
+  for (const name of await localNames()) {
+    const sk = await readSkillDir(path.join(HOME_SKILLS, name), skipped);
+    if (sk) local.push({ name, ...sk });
+  }
+  const dirty = local.filter((s) => STATE.synced[s.name] !== s.hash);
+  if (!dirty.length) {
+    vlog("push: no local skill changed since the last sync.");
+    if (GIT) await gitMirror();
+    return;
   }
 
-  // 2. Hooks, with this machine's resolved node + script path (quoted for spaces).
+  const { skills: remote = [] } = (await api("/api/jarvis/skills")) ?? {};
+  const byName = new Map(remote.map((r) => [r.name, r]));
+  let pushed = 0;
+  const held = [];
+  for (const s of dirty) {
+    const r = byName.get(s.name);
+    if (r && r.hash === s.hash) {
+      STATE.synced[s.name] = s.hash; // already identical in Jarvis
+      continue;
+    }
+    // A newer remote copy that this machine hasn't pulled yet wins; don't clobber it.
+    if (r && r.complete && STATE.synced[s.name] && STATE.synced[s.name] !== r.hash && Date.parse(r.updatedAt) > (await localMtime(s.name))) {
+      held.push(s.name);
+      continue;
+    }
+    if (CHECK) {
+      log(`[check] would push ${s.name}`);
+      continue;
+    }
+    await api("/api/jarvis/skills", {
+      method: "POST",
+      body: JSON.stringify({ name: s.name, body: s.body, files: s.files, origin: `skill-sync:${hostLabel()}` }),
+    });
+    STATE.synced[s.name] = s.hash;
+    pushed++;
+  }
+  await saveState();
+  if (pushed) log(`push: saved ${pushed} skill(s) to Jarvis — on the website now, and on your other machines at their next session.`);
+  if (held.length) log(`push: held ${held.join(", ")} — Jarvis has a newer version from another device; it will be pulled first.`);
+  if (skipped.length) vlog(`push: left on this machine (assets / oversize): ${skipped.slice(0, 4).join(", ")}${skipped.length > 4 ? " …" : ""}`);
+  if (GIT) await gitMirror();
+}
+
+async function doPull() {
+  if (!TOKEN) {
+    vlog("pull: no token on this machine — falling back to the repo's committed skills/.");
+    return pullFromRepo();
+  }
+  const { skills: remote = [] } = (await api("/api/jarvis/skills")) ?? {};
+  let pulled = 0;
+  const kept = [];
+  for (const r of remote) {
+    if (!r.complete || !validSkillName(r.name)) continue; // summary-only rows never overwrite a real file
+    const localDir = path.join(HOME_SKILLS, r.name);
+    const local = await readSkillDir(localDir);
+    if (local && local.hash === r.hash) {
+      STATE.synced[r.name] = r.hash;
+      continue;
+    }
+    // A local edit made after the last sync and newer than Jarvis's copy: keep it, push will send it.
+    if (local && STATE.synced[r.name] !== local.hash && (await localMtime(r.name)) > Date.parse(r.updatedAt)) {
+      kept.push(r.name);
+      continue;
+    }
+    if (CHECK) {
+      log(`[check] would pull ${r.name}${local ? " (update)" : " (new)"}`);
+      continue;
+    }
+    const { skill } = await api(`/api/jarvis/skills?name=${encodeURIComponent(r.name)}`);
+    if (!skill?.body) continue;
+    await writeLocal(r.name, skill.body, skill.files);
+    STATE.synced[r.name] = hashSkill(skill.body, skill.files);
+    pulled++;
+  }
+  await saveState();
+  if (pulled) log(`pull: ${pulled} skill(s) from Jarvis are now in ${HOME_SKILLS}.`);
+  else vlog("pull: this machine already has every skill in Jarvis.");
+  if (kept.length) log(`pull: kept your newer local edit of ${kept.join(", ")} — it will be pushed.`);
+}
+
+function hostLabel() {
+  return (process.env.COMPUTERNAME || process.env.HOSTNAME || "machine").toLowerCase();
+}
+
+// ---- optional: the repo mirror (old behaviour, still handy for backups) ---------
+
+function git(gargs, { allowFail = false } = {}) {
+  const r = spawnSync("git", gargs, { cwd: REPO, encoding: "utf8" });
+  if (r.status !== 0 && !allowFail) throw new Error(`git ${gargs.join(" ")} failed: ${(r.stderr || r.stdout || "").trim()}`);
+  return { ok: r.status === 0, out: (r.stdout || "").trim(), err: (r.stderr || "").trim() };
+}
+
+async function copyTree(fromRoot, toRoot) {
+  const changed = [];
+  let names = [];
+  try {
+    names = (await readdir(fromRoot, { withFileTypes: true })).filter((e) => e.isDirectory() && validSkillName(e.name)).map((e) => e.name);
+  } catch {
+    return changed;
+  }
+  for (const name of names) {
+    const sk = await readSkillDir(path.join(fromRoot, name));
+    if (!sk) continue;
+    const existing = await readSkillDir(path.join(toRoot, name));
+    if (existing && existing.hash === sk.hash) continue;
+    changed.push(name);
+    if (CHECK) continue;
+    const root = path.resolve(toRoot, name);
+    await mkdir(root, { recursive: true });
+    await writeFile(path.join(root, "SKILL.md"), sk.body);
+    for (const [rel, text] of Object.entries(sk.files)) {
+      const target = path.resolve(root, ...rel.split("/"));
+      if (!target.startsWith(root + path.sep)) continue;
+      await mkdir(path.dirname(target), { recursive: true });
+      await writeFile(target, text);
+    }
+  }
+  return changed;
+}
+
+async function gitMirror() {
+  const changed = await copyTree(HOME_SKILLS, REPO_SKILLS);
+  if (!changed.length) return vlog("git: repo mirror already current.");
+  if (CHECK) return log(`[check] would commit ${changed.length} skill(s) to the repo mirror`);
+  git(["add", "--", "skills"]);
+  if (!git(["status", "--porcelain", "--", "skills"]).out) return;
+  const msg = `skills: sync ${changed.slice(0, 6).join(", ")}${changed.length > 6 ? ` +${changed.length - 6}` : ""}`;
+  git(["-c", "user.name=skill-sync", "-c", "user.email=skill-sync@local", "commit", "-m", msg]);
+  const p = git(["push"], { allowFail: true });
+  log(p.ok ? `git: ${msg}` : `git: committed, push failed (${p.err.split("\n")[0]})`);
+}
+
+async function pullFromRepo() {
+  git(["pull", "--ff-only"], { allowFail: true });
+  const changed = await copyTree(REPO_SKILLS, HOME_SKILLS);
+  if (changed.length) log(`${CHECK ? "[check] would pull" : "pulled"} ${changed.length} skill(s) from the repo mirror.`);
+  else vlog("pull: repo mirror has nothing new.");
+}
+
+/**
+ * First-run adoption: skills committed in the hub repo's skills/ folder that
+ * Jarvis doesn't have yet are uploaded once, so everything the owner already
+ * had lands in the one home. Skills Jarvis already has are never overwritten.
+ */
+async function adoptRepoSkills() {
+  if (!TOKEN) return;
+  let names = [];
+  try {
+    names = (await readdir(REPO_SKILLS, { withFileTypes: true })).filter((e) => e.isDirectory() && validSkillName(e.name)).map((e) => e.name);
+  } catch {
+    return;
+  }
+  const { skills: remote = [] } = (await api("/api/jarvis/skills")) ?? {};
+  const have = new Set(remote.filter((r) => r.complete).map((r) => r.name));
+  let adopted = 0;
+  for (const name of names) {
+    if (have.has(name)) continue;
+    const sk = await readSkillDir(path.join(REPO_SKILLS, name));
+    if (!sk) continue;
+    if (CHECK) {
+      log(`[check] would add ${name} from the repo`);
+      continue;
+    }
+    try {
+      await api("/api/jarvis/skills", { method: "POST", body: JSON.stringify({ name, body: sk.body, files: sk.files, origin: "hub-repo" }) });
+      adopted++;
+    } catch (e) {
+      vlog(`adopt: ${name} skipped (${e instanceof Error ? e.message : e})`);
+    }
+  }
+  if (adopted) log(`Added ${adopted} skill(s) from the hub repo to Jarvis.`);
+}
+
+// ---- install ---------------------------------------------------------------------
+
+/**
+ * One-time setup, identical on a desktop or a VPS: saves the token + hub URL
+ * for this machine and merges the SessionStart (pull) / Stop (push) hooks into
+ * ~/.claude/settings.json with THIS machine's own node + script paths. Re-run
+ * any time — it replaces only its own hooks and keeps everything else.
+ */
+async function doInstall() {
+  const token = TOKEN;
+  const hub = HUB;
+  const cfg = { ...CONFIG, hub, repo: REPO };
+  delete cfg.memoryUrl;
+  if (token) cfg.token = token;
+
   const node = process.execPath;
   const q = (s) => `"${s.replace(/"/g, '\\"')}"`;
   const cmd = (m) => `${q(node)} ${q(SELF)} ${m} --quiet`;
   const settingsFile = path.join(CLAUDE_HOME, "settings.json");
-  let settings = {};
-  try {
-    settings = JSON.parse(readFileSync(settingsFile, "utf8"));
-  } catch {
-    /* no settings yet */
-  }
+  const settings = readJson(settingsFile);
   settings.hooks ??= {};
-  // Replace only our own entries (match on skill-sync.mjs), keep everyone else's.
-  const mine = (event, m) => ({ hooks: [{ type: "command", command: cmd(m) }] });
   const keepOthers = (arr) =>
-    (Array.isArray(arr) ? arr : []).filter(
-      (g) => !(g?.hooks ?? []).some((h) => typeof h?.command === "string" && h.command.includes("skill-sync.mjs")),
-    );
-  settings.hooks.SessionStart = [...keepOthers(settings.hooks.SessionStart), mine("SessionStart", "pull")];
-  settings.hooks.Stop = [...keepOthers(settings.hooks.Stop), mine("Stop", "push")];
+    (Array.isArray(arr) ? arr : []).filter((g) => !(g?.hooks ?? []).some((h) => typeof h?.command === "string" && h.command.includes("skill-sync.mjs")));
+  settings.hooks.SessionStart = [...keepOthers(settings.hooks.SessionStart), { hooks: [{ type: "command", command: cmd("pull") }] }];
+  settings.hooks.Stop = [...keepOthers(settings.hooks.Stop), { hooks: [{ type: "command", command: cmd("push") }] }];
 
   if (CHECK) {
-    log(`[check] would merge SessionStart→pull and Stop→push into ${settingsFile}`);
-  } else {
-    await writeFile(settingsFile, JSON.stringify(settings, null, 2) + "\n");
-    log(`Merged hooks into ${settingsFile} (SessionStart→pull, Stop→push)`);
+    log(`[check] would write ${CONFIG_FILE} (hub ${hub}, ${token ? "token set" : "no token"}) and merge hooks into ${settingsFile}`);
+    return;
   }
+  await mkdir(CLAUDE_HOME, { recursive: true });
+  await writeFile(CONFIG_FILE, JSON.stringify(cfg, null, 2) + "\n");
+  await writeFile(settingsFile, JSON.stringify(settings, null, 2) + "\n");
+  log(`Saved this machine's settings to ${CONFIG_FILE}`);
+  log(`Merged hooks into ${settingsFile} (SessionStart -> pull, Stop -> push)`);
 
-  // 3. Pull now so the machine is current immediately, and report memory state.
-  if (!CHECK) await doPull();
-  log(
-    token
-      ? "Done. Skills will auto-sync, and pushes from here will register skills in shared memory."
-      : "Done. Skills will auto-sync. Add your token to enable memory writes: run install again with --token <TOKEN>, or set JARVIS_MCP_TOKEN.",
-  );
+  if (!token) {
+    log("No token yet: skills will come from the repo mirror only. Re-run with --token <TOKEN> to sync through Jarvis.");
+    return;
+  }
+  // Check the token works, then bring this machine and Jarvis level right now.
+  try {
+    await api("/api/jarvis/skills");
+  } catch (e) {
+    log(`Saved, but Jarvis refused the token: ${e instanceof Error ? e.message : e}`);
+    log("Check JARVIS_MCP_TOKEN in Vercel matches the one you used here, then re-run.");
+    return;
+  }
+  await doPush();
+  await adoptRepoSkills();
+  await doPull();
+  log("Done. This machine now syncs skills with Jarvis on its own — including skills you create from your phone.");
 }
+
+// ---- main ---------------------------------------------------------------------------
 
 try {
   if (mode === "install" || mode === "setup") await doInstall();
   else if (mode === "pull") await doPull();
   else if (mode === "push") await doPush();
   else if (mode === "sync") {
-    await doPull();
     await doPush();
+    await doPull();
   } else {
-    log(`Unknown mode "${mode}". Use: install | push | pull | sync  [--check] [--quiet]`);
+    log(`Unknown mode "${mode}". Use: install | pull | push | sync  [--check] [--quiet] [--git]`);
     process.exit(2);
   }
 } catch (e) {
-  // A hook must never block the session. Report and exit 0.
   console.error(`skill-sync: ${e instanceof Error ? e.message : e}`);
   process.exit(0);
 }

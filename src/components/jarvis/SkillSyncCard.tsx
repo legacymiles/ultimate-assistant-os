@@ -3,16 +3,18 @@
 // ---------------------------------------------------------------------------
 // "Skills everywhere" — the companion to the memory card.
 //
-// One command, run once in the hub folder on any machine (PC or VPS, Windows
-// or Linux), wires that machine up: a skill made in any Claude Code session is
-// committed, deployed to this site, written into shared memory, and pulled onto
-// every other machine at the start of its next session. The installer writes
-// that machine's own paths, so nothing here is hand-edited.
+// Every skill lives in ONE place: Jarvis. Three ways in, one store:
+//   - Phone / claude.ai / any Claude Code cloud session: nothing to install.
+//     The jarvis-memory connector (set up in the card above) has save_skill,
+//     so "make me a skill for X" is saved straight into Jarvis.
+//   - PC and VPS: one command per machine installs two Claude Code hooks that
+//     pull every skill from Jarvis at session start and push new/edited local
+//     skills at the end of a turn, over HTTPS with the token. No git.
+//   - This website reads the same store, so a skill made anywhere shows up in
+//     the Skills library straight away.
 //
-// The token is the same JARVIS_MCP_TOKEN as the memory card. It is held only in
-// React state while the tab is open — never saved by the page, never sent
-// anywhere. "Generate" just makes a strong random string to use as that token;
-// you still set it in Vercel (env) and paste it into the command below.
+// The token is the same JARVIS_MCP_TOKEN as the memory card, held only in React
+// state while the tab is open — never saved by the page, never sent anywhere.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useState } from "react";
@@ -94,11 +96,25 @@ export function SkillSyncCard() {
       {open && (
         <div className="space-y-2.5 border-t border-line px-3 py-3">
           <p className="max-w-[78ch] text-[11px] leading-relaxed text-ink-muted">
-            Run the command below once in your hub folder on each machine — your PC and your VPS, Windows or
-            Linux. After that, a skill made in any Claude Code session is committed, deployed to this site,
-            written into your shared memory, and pulled onto your other machines at the start of their next
-            session. You never copy a skill by hand again.
+            Every skill lives in one place — here in Jarvis — and every device reads from it. Make a skill anywhere and
+            you never lose it.
           </p>
+          <ul className="max-w-[78ch] space-y-1 text-[11px] leading-relaxed text-ink-muted">
+            <li>
+              <span className="text-ink">Phone, claude.ai, Claude Code in the cloud:</span> nothing to install. Once the
+              memory connector above is added, just ask Claude to make a skill — it saves it to Jarvis with{" "}
+              <span className="font-mono">save_skill</span>.
+            </li>
+            <li>
+              <span className="text-ink">Your PC and your VPS:</span> run the command below once on each, in your hub
+              folder. Every Claude Code session then starts with every skill in Jarvis, and a skill you make or edit there
+              is saved back at the end of the turn.
+            </li>
+            <li>
+              <span className="text-ink">This website:</span> the Skills library reads the same store, so new skills show
+              up right away.
+            </li>
+          </ul>
 
           <label className="block">
             <span className="text-[11px] text-ink-muted">
@@ -134,7 +150,7 @@ export function SkillSyncCard() {
           <Command
             label="Set up this machine (run in your hub folder — PC and VPS)"
             value={`npm run skills:setup -- --token ${t}`}
-            hint="Installs the config and the two Claude Code hooks (SessionStart → pull, Stop → push) with this machine's own paths, then pulls your skills now. Safe to re-run; it replaces only its own hooks and keeps the rest."
+            hint="Saves the token for this machine, adds two Claude Code hooks (session start → pull from Jarvis, end of turn → push to Jarvis) with this machine's own paths, then syncs right away — the first run also adds the skills already in your hub repo. Safe to re-run; it replaces only its own hooks."
           />
           <Command
             label="Or run it directly (if npm scripts aren't set up)"
@@ -146,14 +162,16 @@ export function SkillSyncCard() {
             <summary className="cursor-pointer text-ink-muted">What it sets up, and running it by hand</summary>
             <div className="mt-1.5 space-y-1">
               <p>
-                Writes <span className="font-mono">~/.claude/jarvis-skill-sync.json</span> (token + this site&apos;s memory URL)
-                and merges hooks into <span className="font-mono">~/.claude/settings.json</span>. Nothing else is touched.
+                Writes <span className="font-mono">~/.claude/jarvis-skill-sync.json</span> (token + this site&apos;s address)
+                and merges two hooks into <span className="font-mono">~/.claude/settings.json</span>. Skills sync over HTTPS
+                with the token — no git, no repo access. A local edit you haven&apos;t pushed yet is never overwritten, and a
+                newer version from another device is never clobbered.
               </p>
               <p>
                 Manual commands: <span className="font-mono">npm run skills:push</span> after writing a skill,{" "}
                 <span className="font-mono">npm run skills:pull</span> to pick up skills made elsewhere,{" "}
-                <span className="font-mono">npm run skills:sync</span> for both. Add <span className="font-mono">--no-memory</span>{" "}
-                to skip the memory write for a run.
+                <span className="font-mono">npm run skills:sync</span> for both. Add <span className="font-mono">--check</span> to see
+                what would change without changing anything.
               </p>
             </div>
           </details>

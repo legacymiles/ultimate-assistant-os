@@ -23,6 +23,7 @@ import {
   type MemoryContext,
 } from "@/lib/jarvis/server/memory";
 import { MEMORY_SOURCES, type MemorySource } from "@/lib/jarvis/types";
+import { getSkill, listSkills, saveSkill, SkillError } from "@/lib/jarvis/server/skills";
 
 export const runtime = "nodejs";
 // Embedding plus a Supabase round trip can outrun the default on a cold start.
@@ -84,6 +85,40 @@ async function runTool(ctx: MemoryContext, name: string, args: Record<string, un
       return rows
         .map((r) => `- [${r.source}] ${r.title} (id ${r.id}, ${r.capturedAt})`)
         .join("\n");
+    }
+
+    case "save_skill": {
+      const name = str(args.name);
+      const body = typeof args.skill_md === "string" ? args.skill_md : "";
+      try {
+        const r = await saveSkill(ctx, { name, body, files: args.references, origin: str(args.origin) || "connector" });
+        return r.changed
+          ? `Saved skill "${r.name}" to Jarvis. It is on the website now, and your PC and VPS pull it at their next Claude Code session.`
+          : `Skill "${r.name}" is already saved exactly like this — nothing changed.`;
+      } catch (e) {
+        if (e instanceof SkillError) return `Not saved: ${e.message}`;
+        throw e;
+      }
+    }
+
+    case "list_skills": {
+      const skills = await listSkills(ctx);
+      if (!skills.length) return "No skills are stored in Jarvis yet.";
+      return `${skills.length} skills:\n` +
+        skills
+          .map((s) => `- ${s.name}: ${s.description.replace(/\s+/g, " ").slice(0, 220)}${s.updatedFrom ? ` (from ${s.updatedFrom}, ${s.updatedAt.slice(0, 10)})` : ""}`)
+          .join("\n");
+    }
+
+    case "get_skill": {
+      const name = str(args.name);
+      const sk = await getSkill(ctx, name);
+      if (!sk) return `No skill named "${name}". Call list_skills to see what exists.`;
+      const refs = Object.entries(sk.files);
+      return (
+        `# ${sk.name}${sk.complete ? "" : " (summary only — the full skill has not been saved to Jarvis yet)"}\n\n${sk.body}` +
+        (refs.length ? `\n\n---\nReference files:\n${refs.map(([k, v]) => `\n=== ${k} ===\n${v}`).join("\n")}` : "")
+      );
     }
 
     case "delete_memory": {

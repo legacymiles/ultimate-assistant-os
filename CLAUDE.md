@@ -80,4 +80,9 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
   (`h3-scroll-world`, `scroll-world`, `scroll-craft`, `imagegen-frontend-*`, `image-to-code-skill`) —
   those are opt-in only. Full rule: the global CLAUDE.md.
 - When a decision is made, offer to log it in `aios/decisions/log.md`.
+- **Creating or changing a skill:** write the complete SKILL.md and save it with the jarvis-memory
+  connector's `save_skill` tool — that works from the phone and every cloud session, and it is the
+  one home every device syncs from (`src/lib/jarvis/server/skills.ts`; PC/VPS pull it via
+  `scripts/skill-sync.mjs`, set up from Jarvis › Memory › Skills everywhere). Writing files under
+  `skills/` alone does not reach other devices.
 - Default Shift: for any new task, ask "to what extent could AI be leveraged here?"

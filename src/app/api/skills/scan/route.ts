@@ -4,6 +4,8 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { parseSkillFrontmatter } from "@/lib/skills/parse";
 import type { ScannedSkill } from "@/lib/skills/types";
+import { memoryContext } from "@/lib/jarvis/server/memory";
+import { nameFromKey } from "@/lib/jarvis/server/skills";
 
 // Reads files from the machine the server runs on, so it must stay dynamic and
 // on the Node runtime. On a deployed (cloud) server there is no ~/.claude, so
@@ -105,19 +107,54 @@ async function scanRepo(): Promise<ScannedSkill[]> {
   return results.filter((s): s is ScannedSkill => s !== null);
 }
 
+/**
+ * Skills stored in Jarvis — the one home every device writes to (the
+ * connector's save_skill from a phone or claude.ai, skill-sync from the PC and
+ * VPS). This is what makes a skill created on the phone show up here
+ * immediately, with no git push and no redeploy. Only the SKILL.md bodies are
+ * fetched (one query); reference files stay in the database.
+ */
+async function scanStore(): Promise<ScannedSkill[]> {
+  try {
+    const ctx = await memoryContext();
+    if (!ctx.available) return [];
+    const { data, error } = await ctx.db
+      .from("jarvis_memories")
+      .select("external_id,body:meta->>body,hash:meta->>hash")
+      .eq("user_id", ctx.userId)
+      .eq("profile_id", ctx.profileId)
+      .eq("source", "skill")
+      .not("meta->>hash", "is", null);
+    if (error || !data) return [];
+    return (data as { external_id: string; body: string | null }[])
+      .filter((r) => r.body)
+      .map((r) => {
+        const slug = nameFromKey(r.external_id);
+        const parsed = parseSkillFrontmatter(r.body as string);
+        return { slug, origin: "Personal", title: parsed.title || slug, overview: parsed.overview, body: r.body as string };
+      })
+      .filter((s) => s.slug);
+  } catch {
+    return [];
+  }
+}
+
 export async function GET() {
   const root = claudeHome();
-  const [personal, plugins, repo] = await Promise.all([
+  const [personal, plugins, repo, store] = await Promise.all([
     scanPersonal(root),
     scanPlugins(root),
     scanRepo(),
+    scanStore(),
   ]);
 
   // The live copy on this PC wins over the committed mirror: a skill edited
   // this morning should read as it is now, not as it was when it was last
   // synced. Plugin skills keep their `<plugin>:<name>` slug and never collide.
   const bySlug = new Map<string, ScannedSkill>();
-  for (const s of [...repo, ...personal, ...plugins]) bySlug.set(s.slug, s);
+  // Precedence, lowest first: the committed repo mirror, then Jarvis's store
+  // (newer — any device writes it), then the live files on this machine.
+  for (const s of [...repo, ...store, ...personal, ...plugins]) bySlug.set(s.slug, s);
   const skills = [...bySlug.values()].sort((a, b) => a.title.localeCompare(b.title));
 
   // "available" tells the client whether this server can see any skill files at

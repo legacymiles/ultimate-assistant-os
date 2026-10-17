@@ -1,5 +1,5 @@
 {
-  "_comment": "Claude Code hooks that keep ~/.claude/skills, this repo, and the Jarvis website in step. Merge the `hooks` block into ~/.claude/settings.json (all projects) or this repo's .claude/settings.json (here only). Change the repo path per machine; on the VPS, point it at wherever the hub is cloned. See docs/skill-sync.md.",
+  "_comment": "Prefer `npm run skills:setup -- --token <TOKEN>` (Jarvis > Memory > Skills everywhere): it writes these hooks with THIS machine's node + script paths and saves the token. This file is only a reference for what it writes. See docs/skill-sync.md.",
   "hooks": {
     "SessionStart": [
       {

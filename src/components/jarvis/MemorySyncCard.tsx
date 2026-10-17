@@ -153,7 +153,7 @@ export function MemorySyncCard() {
           />
           <Command
             label="The CLAUDE.md rule"
-            value={`## Memory\nYou share one long-term memory with Jarvis through the jarvis-memory MCP server.\n- Call search_memory at the start of a task and whenever I refer to something from earlier.\n- Call save_memory when I state a durable fact, preference or decision — one short fact each.\n- Never save passwords, API keys or card numbers.`}
+            value={`## Memory\nYou share one long-term memory with Jarvis through the jarvis-memory MCP server.\n- Call search_memory at the start of a task and whenever I refer to something from earlier.\n- Call save_memory when I state a durable fact, preference or decision — one short fact each.\n- Never save passwords, API keys or card numbers.\n\n## Skills\nMy skills live in Jarvis. When I ask for a new skill or a change to one, write the full SKILL.md and save it with save_skill. Use list_skills and get_skill to find and follow existing skills.`}
             hint="Paste into the CLAUDE.md of each machine. Without it the tools are available but rarely used."
           />
 
