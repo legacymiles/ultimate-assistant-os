@@ -11,6 +11,7 @@
 // to decode is a run you stop reading, and then the ledger has bought nothing.
 // ---------------------------------------------------------------------------
 
+import { modelLabel } from "@/lib/new-jarvis/chatModels";
 import { useEffect, useState } from "react";
 import { Icon } from "../icons";
 import { Markdown } from "../jarvis/Markdown";
@@ -454,7 +455,7 @@ export function BlockView({
         </button>
         {block.model && (
           <span className="shrink-0 truncate font-mono text-[10px] text-ink-faint" title={block.model}>
-            {block.model.split("/").pop()}
+            {modelLabel(block.model)}
           </span>
         )}
         <span className="shrink-0 font-mono text-[10.5px] uppercase tracking-wide text-ink-muted">{block.mode}</span>

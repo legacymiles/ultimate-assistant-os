@@ -24,6 +24,8 @@ export interface BridgeCapabilities {
   browser: boolean;
   /** Why browser control is off, when it is. Shown verbatim. */
   browserWhy?: string;
+  /** Claude (the owner's own subscription) can be Jarvis's brain on this PC. */
+  brain?: boolean;
 }
 
 export interface BridgeHealth {

@@ -65,9 +65,10 @@ import { getOnboarding, useOnboarding } from "@/lib/new-jarvis/onboarding";
 import { useSetup } from "@/lib/new-jarvis/useSetup";
 import { useCameraWatch } from "@/lib/new-jarvis/useCameraWatch";
 import { IphoneGuide } from "./IphoneGuide";
-import { CHAT_MODEL_KEY } from "@/lib/new-jarvis/chatModels";
+import { CHAT_MODEL_KEY, isSubscription } from "@/lib/new-jarvis/chatModels";
+import { plainBridgeError, plainSiteError } from "@/lib/new-jarvis/plainErrors";
+import { BridgeError } from "@/lib/new-jarvis/bridge";
 import { MAX_CHAT_MEDIA, buildUserContent, prepareMedia, type ChatMedia } from "@/lib/new-jarvis/chatMedia";
-import type { HarnessId } from "@/lib/new-jarvis/harness/types";
 import { noteLaunch } from "@/lib/new-jarvis/launcher";
 import { useVault } from "@/lib/new-jarvis/useVault";
 import { noteOpened, useImprove } from "@/lib/new-jarvis/useImprove";
@@ -112,9 +113,8 @@ const SETUP_COMMAND = /^\/?(?:(?:open|start|resume|run|redo|restart|finish)\s+)?
  *   a separate "Record" made it read as a filing cabinet rather than as the
  *   owner. The store is untouched; only the framing changed.
  *
- *   Routines is unmounted. /apps/jarvis still has it and the store field is
- *   still read by the updates feed, so nothing was deleted — it simply stopped
- *   paying rent on the surface the owner looks at most.
+ *   Routines is gone, along with the old /apps/jarvis shell that carried it.
+ *   The store field stays (old saved data still loads); nothing shows it.
  *
  * Folders, Photos, Lists, Calendar and Inbox fold into one "Yours" group, and
  * the Toolbox is the group from the old shell, moved over whole.
@@ -146,6 +146,10 @@ const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[]
       { id: "timeline", label: "Timeline", icon: "Flag" },
       { id: "plugins", label: "Apps", icon: "Launch" },
       { id: "settings", label: "Settings", icon: "Settings" },
+      // The coding agent (Claude Code or the DeepSeek harness) working on the
+      // repo in its own branch. A tool, not a second assistant — Jarvis is
+      // the one you talk to.
+      { id: "harness", label: "Code", icon: "Layers" },
     ],
   },
 ];
@@ -183,28 +187,16 @@ export function NewJarvis() {
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<Mode>("do");
 
-  // --- the Chat's model, engine and attachments ------------------------------
-  // Model: which OpenRouter model the super agent thinks with ("" = Auto),
-  // synced so every device thinks alike. Engine: Jarvis itself, or one of the
-  // coding agents on the PC (Claude Code, the DeepSeek harness) — the Harness
-  // tab, folded into Chat. Media: what goes with the next message.
+  // --- the Chat's brain and attachments ---------------------------------------
+  // Brain: Claude on the person's own subscription (through the PC), or a
+  // cloud model on OpenRouter ("" = Claude in the cloud). Synced, so every
+  // device thinks alike. Media: what goes with the next message.
   const [chatModel, setChatModelState] = useState("");
   useEffect(() => setChatModelState(loadLocal<string>(CHAT_MODEL_KEY, "")), []);
   useRemotePull(CHAT_MODEL_KEY, () => setChatModelState(loadLocal<string>(CHAT_MODEL_KEY, "")));
   const setChatModel = useCallback((id: string) => {
     setChatModelState(id);
     saveSynced(CHAT_MODEL_KEY, id);
-  }, []);
-
-  type Engine = "jarvis" | HarnessId;
-  const [engine, setEngineState] = useState<Engine>("jarvis");
-  useEffect(() => {
-    const e = loadLocal<string>("nj.chat-engine:v1", "jarvis");
-    if (e === "jarvis" || e === "claude" || e === "deepseek") setEngineState(e);
-  }, []);
-  const setEngine = useCallback((e: Engine) => {
-    setEngineState(e);
-    saveLocal("nj.chat-engine:v1", e);
   }, []);
 
   const [media, setMedia] = useState<ChatMedia[]>([]);
@@ -331,7 +323,7 @@ export function NewJarvis() {
   // into Camera Autopilot and the feed below raises the notification.
   const camera = useCameraWatch();
   // The iPhone setup guide. Opened from the Camera widget, Settings, setup's
-  // Connect step, or /apps/new-jarvis#iphone — which is what its QR code opens.
+  // Connect step, or /apps/jarvis#iphone — which is what its QR code opens.
   const [iphoneGuide, setIphoneGuide] = useState(false);
   const updates = useUpdates(briefStore, commit, dash.events, camera.inbox);
   // The Calendar widget wants one list: the Dashboard calendar plus anything
@@ -563,7 +555,7 @@ export function NewJarvis() {
               title,
               content,
               source: "chat" as const,
-              origin: String(args.origin ?? "").trim() || "New Jarvis",
+              origin: String(args.origin ?? "").trim() || "Jarvis",
               conversationId: current.chat?.id ?? "",
               createdAt: new Date().toISOString(),
             },
@@ -579,7 +571,7 @@ export function NewJarvis() {
         return { done: said };
       }
 
-      throw new Error(`New Jarvis does not know how to run ${route}.`);
+      throw new Error(`Jarvis doesn't know how to do "${route}" yet.`);
     },
     [bridge, commit, dash],
   );
@@ -652,22 +644,44 @@ ${reflex.best.excerpt ?? ""}`.trim()
           signal: controller.signal,
           update: (p) => patch(block.id, p),
           think: async (messages) => {
-            const res = await fetch("/api/new-jarvis/agent", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              signal: controller.signal,
-              body: JSON.stringify({
-                messages,
-                mode: runMode,
-                capabilities: bridge.health.paired ? bridge.health.capabilities ?? {} : {},
-                ownerName: profile?.name ?? "",
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                ...(chatModel ? { model: chatModel } : {}),
-              }),
-            });
-            const data = (await res.json()) as { error?: string };
-            if (!res.ok) throw new Error(data.error ?? `The agent answered ${res.status}.`);
-            return data;
+            const ask = {
+              mode: runMode,
+              capabilities: bridge.health.paired ? bridge.health.capabilities ?? {} : {},
+              ownerName: profile?.name ?? "",
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            };
+            const post = async (body: Record<string, unknown>) => {
+              const res = await fetch("/api/new-jarvis/agent", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                signal: controller.signal,
+                body: JSON.stringify(body),
+              });
+              // A timeout page or a crash is HTML, not JSON — say what it means.
+              const data = (await res.json().catch(() => null)) as ({ error?: string } & Record<string, unknown>) | null;
+              if (!data) throw new Error(plainSiteError(res.status));
+              if (!res.ok) throw new Error(data.error ?? plainSiteError(res.status));
+              return data;
+            };
+
+            // Claude on the person's own plan: the PC's local agent thinks,
+            // with exactly the instructions and tools the cloud brain gets.
+            if (isSubscription(chatModel)) {
+              if (!bridge.health.up || !bridge.health.paired) {
+                throw new Error(
+                  "Jarvis's brain is set to Claude (your subscription), which thinks through the local agent on your PC — and Jarvis can't reach it right now. Start the PC's local agent, or pick a cloud model in the brain picker.",
+                );
+              }
+              const prepared = await post({ ...ask, prepare: true });
+              try {
+                return (await bridge.run("brain/claude", { system: prepared.system, tools: prepared.tools, messages })) as never;
+              } catch (e) {
+                if (e instanceof BridgeError) throw new Error(plainBridgeError(e.status, e.message));
+                throw e;
+              }
+            }
+
+            return (await post({ messages, ...ask, ...(chatModel ? { model: chatModel } : {}) })) as never;
           },
           runTool,
           askGate: (gate: Gate) =>
@@ -727,8 +741,13 @@ ${reflex.best.excerpt ?? ""}`.trim()
   // The tab lives in the hash, so reload and back land where the owner was.
   useEffect(() => {
     const read = () => {
-      const h = window.location.hash.replace("#", "");
-      // A shareable way back into setup: /apps/new-jarvis#setup
+      // Links from before there was one Jarvis say ?tab=plugins, or name a
+      // surface that is a panel now. Both land where that thing lives.
+      const legacy: Record<string, string> = { chat: "console", memory: "dashboard", record: "dashboard", profile: "dashboard", routines: "dashboard" };
+      const fromQuery = new URLSearchParams(window.location.search).get("tab") ?? "";
+      const raw = window.location.hash.replace("#", "") || fromQuery;
+      const h = legacy[raw] ?? raw;
+      // A shareable way back into setup: /apps/jarvis#setup
       if (h === "iphone") {
         setIphoneGuide(true);
         window.history.replaceState(null, "", window.location.pathname + window.location.search);
@@ -737,12 +756,6 @@ ${reflex.best.excerpt ?? ""}`.trim()
       if (h === "setup" || h === "onboarding") {
         openSetupRef.current();
         window.history.replaceState(null, "", window.location.pathname + window.location.search);
-        return;
-      }
-      // The old Harness tab lives in Chat now; its links still land there.
-      if (h === "harness") {
-        setEngine("claude");
-        setTab("console");
         return;
       }
       if (isTab(h)) setTab(h);
@@ -775,11 +788,6 @@ ${reflex.best.excerpt ?? ""}`.trim()
         setIphoneGuide(true);
         return;
       }
-      if (name === "harness") {
-        setEngine("claude");
-        go("console");
-        return;
-      }
       const mapped = name === "memory" ? "dashboard" : name === "chat" ? "console" : name;
       if (isTab(mapped)) go(mapped);
     },
@@ -805,7 +813,10 @@ ${reflex.best.excerpt ?? ""}`.trim()
           commit={commit}
           onProfileChanged={reload}
           setup={setup}
+          brain={chatModel}
+          onBrain={setChatModel}
           bridge={{
+            connected: bridge.health.up && bridge.health.paired,
             files: bridge.health.up && bridge.health.paired && bridge.health.capabilities?.files === true,
             browser: bridge.health.up && bridge.health.paired && bridge.health.capabilities?.browser === true,
             run: bridge.run,
@@ -827,19 +838,13 @@ ${reflex.best.excerpt ?? ""}`.trim()
           <Icon.ArrowLeft width={13} height={13} />
           <span className="hidden sm:inline">Hub</span>
         </Link>
-        <span className="text-sm font-semibold text-ink">New Jarvis</span>
+        <span className="text-sm font-semibold text-ink">Jarvis</span>
         <span className="hidden text-xs text-ink-muted sm:inline">
-          · {profile ? `${profile.name}'s assistant` : "the console"}
+          · {profile ? `${profile.name}'s assistant` : "your assistant"}
         </span>
         <div className="ml-auto">
           <SetupButton setup={setup} onOpen={openSetup} />
         </div>
-        <Link
-          href="/apps/jarvis"
-          className="rounded-lg border border-line px-2 py-1 text-[11px] text-ink-muted transition hover:bg-panel-2 hover:text-ink"
-        >
-          Old Jarvis
-        </Link>
       </header>
 
       <div className="flex min-h-0 flex-1">
@@ -893,10 +898,9 @@ ${reflex.best.excerpt ?? ""}`.trim()
         </nav>
 
         <main className="flex min-w-0 flex-1 flex-col">
-          {tab === "console" && <EngineBar engine={engine} onEngine={setEngine} paired={bridge.health.up && bridge.health.paired} />}
-          {/* A coding agent has its own composer (it talks to a branch, not to
-              Jarvis), so the command line steps aside while one is chosen. */}
-          {!(tab === "console" && engine !== "jarvis") && (
+          {/* The coding agent has its own composer (it talks to a branch, not
+              to Jarvis), so the command line steps aside on that one tab. */}
+          {tab !== "harness" && (
             <CommandLine
               value={input}
               onChange={setInput}
@@ -963,8 +967,6 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 events={widgetEvents}
                 camera={camera}
               />
-            ) : tab === "console" && engine !== "jarvis" ? (
-              <HarnessConsole paired={bridge.health.up && bridge.health.paired} initialHarness={engine} />
             ) : tab === "console" ? (
               <div className="space-y-2 p-3">
                 {blocks.length === 0 ? (
@@ -1186,46 +1188,3 @@ function Empty({ paired, onPick }: { paired: boolean; onPick: (text: string) => 
   );
 }
 
-/**
- * Who you are talking to in Chat.
- *
- * Jarvis is the super agent — any model, your browser, files, memory. The two
- * on the right are coding agents that run on the PC in their own copy of the
- * repo; they need the local agent paired, and say so rather than hiding.
- */
-function EngineBar({
-  engine,
-  onEngine,
-  paired,
-}: {
-  engine: "jarvis" | HarnessId;
-  onEngine: (e: "jarvis" | HarnessId) => void;
-  paired: boolean;
-}) {
-  const options: { id: "jarvis" | HarnessId; label: string; hint: string }[] = [
-    { id: "jarvis", label: "Jarvis", hint: "The super agent: any model, your browser, files, memory, calendar." },
-    { id: "claude", label: "Claude Code", hint: "Coding agent on your PC — edits the repo in its own branch, asks before changes." },
-    { id: "deepseek", label: "DeepSeek Code", hint: "Your DeepSeek harness (dsh) on your PC — same, with DeepSeek doing the work." },
-  ];
-  return (
-    <div className="flex flex-wrap items-center gap-1 border-b border-line bg-panel px-3 pt-2" role="tablist" aria-label="Who to talk to">
-      {options.map((o) => (
-        <button
-          key={o.id}
-          type="button"
-          role="tab"
-          aria-selected={engine === o.id}
-          title={o.hint}
-          onClick={() => onEngine(o.id)}
-          className={`-mb-px inline-flex items-center gap-1.5 rounded-t-md border px-2.5 py-1 text-[11.5px] transition ${
-            engine === o.id ? "border-line border-b-panel bg-panel text-ink" : "border-transparent text-ink-muted hover:text-ink"
-          }`}
-        >
-          {o.id === "jarvis" ? <Icon.Bot width={12} height={12} aria-hidden /> : <Icon.Layers width={12} height={12} aria-hidden />}
-          {o.label}
-          {o.id !== "jarvis" && !paired && <span className="h-1.5 w-1.5 rounded-full bg-amber-400" title="Needs your PC's local agent" aria-hidden />}
-        </button>
-      ))}
-    </div>
-  );
-}

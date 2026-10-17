@@ -596,7 +596,7 @@ export function HarnessConsole({ paired, initialHarness }: { paired: boolean; in
         <Icon.Server width={20} height={20} className="mx-auto text-ink-muted" aria-hidden />
         <p className="mt-2 text-sm text-ink">A harness runs on your PC, not in the cloud.</p>
         <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-          Pair New Jarvis with the local agent in Settings, and this tab can start one, hold its
+          Pair Jarvis with the local agent in Settings, and this tab can start one, hold its
           gates and land its work.
         </p>
       </div>

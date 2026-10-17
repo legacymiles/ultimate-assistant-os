@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { aiEndpoint, aiFetch, describeFailure, DEFAULT_MODEL } from "@/lib/ai/provider";
 import { runNote, sanitizeAssistant, toApiTools, toolsFor, type AgentTool } from "@/lib/new-jarvis/agentTools";
 import { isModelId } from "@/lib/new-jarvis/chatModels";
+import { plainCloudError } from "@/lib/new-jarvis/plainErrors";
 
 // ---------------------------------------------------------------------------
 // One step of New Jarvis's agent loop.
@@ -51,6 +52,12 @@ interface Body {
   context?: string;
   /** An OpenRouter model id from the Chat's picker. Absent = the hub default. */
   model?: string;
+  /**
+   * Return the system prompt and tool list instead of thinking. Used when the
+   * brain is Claude on the owner's own subscription: the PC's local agent does
+   * the thinking with exactly the same instructions and tools. Needs no key.
+   */
+  prepare?: boolean;
 }
 
 /**
@@ -182,15 +189,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  if (!aiEndpoint()) {
-    return NextResponse.json(
-      { error: "No AI provider is configured, so the agent cannot think. Set OPENROUTER_API_KEY." },
-      { status: 503 },
-    );
-  }
-
   const messages = clean(body.messages ?? []);
-  if (!messages.length) return NextResponse.json({ error: "Nothing to work on." }, { status: 400 });
+  if (!messages.length && !body.prepare) return NextResponse.json({ error: "Nothing to work on." }, { status: 400 });
 
   const mode = typeof body.mode === "string" && body.mode in MODE_NOTES ? body.mode : "do";
   const caps = body.capabilities ?? {};
@@ -222,6 +222,18 @@ export async function POST(req: Request) {
     .filter(Boolean)
     .join("\n\n");
 
+  if (body.prepare) return NextResponse.json({ system, tools: toApiTools(tools) });
+
+  if (!aiEndpoint()) {
+    return NextResponse.json(
+      {
+        error:
+          "Jarvis has no cloud brain set up yet. Add an OpenRouter key in Setup › Keys — or switch the brain to Claude (your subscription) in the model picker.",
+      },
+      { status: 503 },
+    );
+  }
+
   try {
     const res = await aiFetch({
       method: "POST",
@@ -242,7 +254,8 @@ export async function POST(req: Request) {
       // at a run that stopped for no stated reason.
       const why = await describeFailure(res);
       console.error(`[new-jarvis] model ${res.status}:`, why);
-      return NextResponse.json({ error: `${why} ${runNote(res.status)}` }, { status: 502 });
+      // The provider's own words go to the log; the person gets what to do.
+      return NextResponse.json({ error: `${plainCloudError(res.status, why)} ${runNote(res.status)}` }, { status: 502 });
     }
 
     const data = (await res.json()) as {
@@ -290,7 +303,7 @@ export async function POST(req: Request) {
     // "fetch failed" is not a thing the owner can act on either.
     console.error("[new-jarvis] model call threw:", e);
     return NextResponse.json(
-      { error: "Could not reach the AI provider, so this run stopped here. The steps above already ran; nothing new was touched. Try again in a moment." },
+      { error: "Jarvis couldn't reach the AI provider, so this run stopped here. The steps above already ran; nothing new was touched. Try again in a moment." },
       { status: 502 },
     );
   }

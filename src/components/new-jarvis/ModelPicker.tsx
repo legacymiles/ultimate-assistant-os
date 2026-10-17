@@ -82,10 +82,11 @@ export function ModelPicker({ value, onChange }: { value: string; onChange: (id:
 
       {open && (
         <div className="absolute left-0 top-7 z-30 w-[320px] max-w-[88vw] rounded-lg border border-line bg-panel p-1.5 shadow-2xl">
-          <p className="px-2 pb-1 pt-0.5 text-[10px] uppercase tracking-wider text-ink-faint">Think with — via your OpenRouter key</p>
+          <p className="px-2 pb-1 pt-0.5 text-[10px] uppercase tracking-wider text-ink-faint">Jarvis's brain</p>
           <ul>
-            {CHAT_MODELS.map((m) => (
-              <li key={m.id || "auto"}>
+            {CHAT_MODELS.map((m, i) => (
+              <li key={m.id || "auto"} className={i === 2 ? "mt-1 border-t border-line-soft pt-1" : ""}>
+                {i === 2 && <p className="px-2 pb-0.5 text-[10px] uppercase tracking-wider text-ink-faint">Cloud models · your OpenRouter key</p>}
                 <button
                   type="button"
                   onClick={() => pick(m.id)}

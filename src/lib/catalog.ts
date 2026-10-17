@@ -71,13 +71,12 @@ export interface CatalogProject {
 
 export const PROJECTS: CatalogProject[] = [
   {
-    slug: "new-jarvis",
-    title: "New Jarvis",
+    slug: "jarvis",
+    title: "Jarvis",
     tag: "The assistant that can actually reach your computer",
     category: "AI",
     overview:
-      "The same memory, folders, photos, lists, calendar and Record as Jarvis — the identical data, read " +
-      "through a console instead of a chat. Every request, typed or spoken, becomes a block: exactly what " +
+      "Your memory, folders, photos, lists, calendar and Record in one place. Every request, typed or spoken, becomes a block: exactly what " +
       "you said, a numbered ledger of every step it took, and what each step actually returned, rendered as " +
       "the thing it is — a table, a page, a screenshot, a command's real output. Nothing is flattened into " +
       "\"Done\" and nothing scrolls away; a block from an hour ago is still there and still re-runnable. " +
@@ -88,32 +87,9 @@ export const PROJECTS: CatalogProject[] = [
       "It reads freely and stops for a yes on the one class of step that cannot be undone. With the agent " +
       "off it still thinks, remembers and answers, and says plainly which capability is missing.",
     status: "live",
-    appUrl: "/apps/new-jarvis",
+    appUrl: "/apps/jarvis",
     iconStyle: "pulse",
     hue: [225, 160],
-  },
-  {
-    slug: "jarvis",
-    title: "Jarvis",
-    tag: "A personal assistant with a real memory",
-    category: "AI",
-    overview:
-      "Talk or type, and Jarvis answers from what he actually knows — your memories, your master Claude " +
-      "folder and your profile — naming every source and admitting what he's missing. His memory core is a " +
-      "turning ball of connected dots, one per memory, coloured by where it came from. He reads your inbox " +
-      "and calendar through your connected apps, drafts replies and books meetings, and always shows you the " +
-      "exact message or event before anything happens. Underneath is the AIS-OS Four Cs profile he was built " +
-      "on: Context, Connections, Capabilities and Cadence, exportable as the CLAUDE.md and context files that " +
-      "make every Claude Code session know you. " +
-      "It is also the one dashboard: the old Dashboard app moved in whole — Folders (with the Google Drive " +
-      "backup and the folder assistant), Photos (vision triage into people and album folders) and the " +
-      "shared family Lists, where members can keep entries private and the admin sees everything — plus " +
-      "the Skills Library as its own tab. Your own calendar, with reminders and .ics export, sits beside " +
-      "any connected one, and Jarvis can add a list entry, a note or an event when you say yes.",
-    status: "live",
-    appUrl: "/apps/jarvis",
-    iconStyle: "rings",
-    hue: [190, 265],
   },
   {
     slug: "std-safe",
@@ -757,7 +733,6 @@ export function getProject(slug: string): CatalogProject | null {
 const UNPREVIEWABLE = new Set([
   "dashboard",
   "jarvis",
-  "new-jarvis",
   "projects-timeline",
   "social-personas",
   "ea-lab",

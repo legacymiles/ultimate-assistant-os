@@ -27,7 +27,7 @@ export const PINNED_TASKS: PinnedTask[] = [
     blurb:
       "A short screen recording of building the “Send to Jarvis” Shortcut and the Camera-closed automation, playing inside the iPhone setup guide. Record it on the iPhone (Control Centre › Screen Recording), upload the mp4, and set NEXT_PUBLIC_IPHONE_SETUP_VIDEO.",
     priority: 1,
-    href: "/apps/new-jarvis#iphone",
+    href: "/apps/jarvis#iphone",
   },
   {
     id: "iphone-shortcut-link",
@@ -35,7 +35,7 @@ export const PINNED_TASKS: PinnedTask[] = [
     blurb:
       "Build the Shortcut once, share it as an iCloud link with an import question that asks for the user's link, and set NEXT_PUBLIC_IPHONE_SHORTCUT_URL — then setup for anyone is tap Add Shortcut and paste.",
     priority: 2,
-    href: "/apps/new-jarvis#iphone",
+    href: "/apps/jarvis#iphone",
   },
 ];
 

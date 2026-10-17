@@ -147,7 +147,7 @@ function workflowFacts(): QueueFact[] {
     name: w.name,
     blurb: w.blurb,
     group: w.medium === "video" ? "Video workflow" : "Image workflow",
-    href: `/apps/new-jarvis#studio`,
+    href: `/apps/jarvis#studio`,
     signals: {
       hasBrief: w.brief.trim().length > 60,
       hasArt: Boolean(cardStill(w.id) || w.preview?.video || w.preview?.poster),

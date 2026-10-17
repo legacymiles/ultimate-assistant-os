@@ -57,7 +57,9 @@ describe("chat model ids", () => {
     expect(isModelId("https://evil.example/x")).toBe(false);
   });
   it("labels presets, and anything else by its name", () => {
-    expect(modelLabel("")).toMatch(/Auto/);
+    expect(modelLabel("")).toBe("Claude · cloud");
+    expect(modelLabel("claude-subscription")).toBe("Claude · my subscription");
+    expect(isModelId("claude-subscription")).toBe(false); // never sent to the cloud route
     expect(modelLabel("deepseek/deepseek-v4.1-flash")).toBe("DeepSeek V4.1 Flash");
     expect(modelLabel("vendor/some-model")).toBe("some-model");
   });

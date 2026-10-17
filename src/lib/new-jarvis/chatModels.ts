@@ -22,14 +22,29 @@ export interface ChatModel {
   reads: ("text" | "image" | "audio" | "video")[];
 }
 
+/**
+ * Claude on the person's OWN Claude plan, through the official Claude Code on
+ * their PC (the local agent's /brain/claude). Not an OpenRouter id, so it never
+ * reaches the cloud route; NewJarvis sends it to the PC instead.
+ */
+export const CLAUDE_SUBSCRIPTION = "claude-subscription";
+
 export const AUTO_MODEL: ChatModel = {
   id: "",
-  label: "Auto · Claude",
-  why: "Best all-rounder. Default.",
+  label: "Claude · cloud",
+  why: "Claude via OpenRouter. Pay per use; works with the PC off.",
+  reads: ["text", "image"],
+};
+
+export const SUBSCRIPTION_MODEL: ChatModel = {
+  id: CLAUDE_SUBSCRIPTION,
+  label: "Claude · my subscription",
+  why: "Your own Claude plan through Claude Code on your PC. No extra cost.",
   reads: ["text", "image"],
 };
 
 export const CHAT_MODELS: ChatModel[] = [
+  SUBSCRIPTION_MODEL,
   AUTO_MODEL,
   { id: "deepseek/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", why: "Very cheap, fast, sees pictures.", reads: ["text", "image"] },
   { id: "xiaomi/mimo-v2.6-flash", label: "MiMo V2.6 Flash", why: "Hears audio and watches video.", reads: ["text", "image", "audio", "video"] },
@@ -41,6 +56,8 @@ export const CHAT_MODELS: ChatModel[] = [
 export function isModelId(v: unknown): v is string {
   return typeof v === "string" && v.length <= 120 && /^[a-z0-9][\w.-]*\/[\w.:-]+$/i.test(v);
 }
+
+export const isSubscription = (id: string) => id === CLAUDE_SUBSCRIPTION;
 
 export function modelLabel(id: string): string {
   return CHAT_MODELS.find((m) => m.id === id)?.label ?? (id ? id.split("/").pop()! : AUTO_MODEL.label);

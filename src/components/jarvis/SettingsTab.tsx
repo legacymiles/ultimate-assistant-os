@@ -15,7 +15,7 @@ import { Icon } from "../icons";
 import { AiPanel } from "../hub/AiPanel";
 import { DriveBackupCard } from "../recall/DriveBackupCard";
 import { SecurityDialog } from "../recall/SecurityDialog";
-import type { TabId } from "./Jarvis";
+import type { TabId } from "./tabs";
 import { downloadIcs, getEvents } from "@/lib/recall/calendar/store";
 import {
   notificationPermission,
@@ -164,7 +164,7 @@ export function SettingsTab({ go, updates, camera }: { go: (t: TabId) => void; u
             }
           >
             {!camera.linked && (
-              <button className={btn} onClick={() => (window.location.href = "/apps/new-jarvis#iphone")}>
+              <button className={btn} onClick={() => (window.location.href = "/apps/jarvis#iphone")}>
                 <Icon.Camera width={13} height={13} /> Set up iPhone
               </button>
             )}

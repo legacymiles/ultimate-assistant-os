@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   const uid = await uidForToken(token);
   if (!uid) {
     return NextResponse.json(
-      { error: "Unknown device token — the link is old or cut off. Make a new one in New Jarvis › Camera Autopilot › iPhone setup." },
+      { error: "Unknown device token — the link is old or cut off. Make a new one in Jarvis › Camera Autopilot › iPhone setup." },
       { status: 401 },
     );
   }

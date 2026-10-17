@@ -24,6 +24,7 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 | An app's logic / types / tests | `src/lib/<folder>/` (`*.test.ts` next to the code, run with `npx vitest run <path>`) |
 | An app's server routes | `src/app/api/<folder>/` |
 | Every AI call | `src/lib/ai/provider.ts` (OpenRouter preferred, Vercel gateway fallback; model `anthropic/claude-opus-5`) |
+| Jarvis (the one assistant) | `/apps/jarvis` → `src/components/new-jarvis/NewJarvis.tsx` (shell) + `src/lib/new-jarvis/`. `/apps/new-jarvis` redirects there. The old chat shell and Routines were removed 2026-10-17; `src/components/jarvis/` now holds only the panels Jarvis mounts |
 | Cross-device state | `src/lib/sync/appState.ts` (`loadLocal` / `saveSynced` / `useRemotePull`, Supabase `app_state` table) |
 | Password gates | `src/lib/appGate.ts` + `src/middleware.ts` |
 | Database schema | `supabase/migrations/` (combined: `supabase/all-schemas.sql`) |
@@ -67,7 +68,7 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 - The Vercel AI Gateway free tier serves no Anthropic model — keep OpenRouter as the default.
 - Apps must work with no keys set (local demo mode, offline fallback). A missing key degrades visibly, never 500s.
 - Private apps holding the owner's data go in `UNPREVIEWABLE` in `catalog.ts` so the hub carousel never frames them.
-- Moving a finished app off the hub and into Jarvis is one edit, in `src/lib/studio/plugins.ts`: add the slug to `PLUGIN_SLUGS` (a card on Jarvis › App plugins that opens the app in its own tab) or to `TOOLBOX_SLUGS` (a tab mounted inside Jarvis › Toolbox, wired to a component in `jarvis/Jarvis.tsx`). `hubProjects()` is the catalog minus both, so the two places cannot show the same app twice. Keep the catalog entry — deleting it is what silently killed the old Cookbook Genie card.
+- Moving a finished app off the hub and into Jarvis is one edit, in `src/lib/studio/plugins.ts`: add the slug to `PLUGIN_SLUGS` (a card on Jarvis › App plugins that opens the app in its own tab) or to `TOOLBOX_SLUGS` (a tab mounted inside Jarvis › Toolbox, wired to a component in `new-jarvis/NewJarvis.tsx`). `hubProjects()` is the catalog minus both, so the two places cannot show the same app twice. Keep the catalog entry — deleting it is what silently killed the old Cookbook Genie card.
 
 ## How to work with the owner
 

@@ -5,6 +5,8 @@ import { AUTOPILOT_CHANGED, getAutopilot } from "@/lib/recall/photos/autopilot";
 import { useLauncher } from "./launcher";
 import { setupChecklist, useOnboarding, type SetupItem } from "./onboarding";
 import { thinkingReady } from "./keySetup";
+import { CHAT_MODEL_KEY, isSubscription } from "./chatModels";
+import { loadLocal } from "@/lib/sync/appState";
 import { useSyncStatus } from "@/lib/jarvis/useSyncStatus";
 import type { SyncPlan } from "@/lib/jarvis/syncSteps";
 
@@ -38,9 +40,11 @@ export function useSetup(): SetupStatus {
   const [connectors, setConnectors] = useState<SetupStatus["connectors"]>(null);
   const [iphoneLinked, setIphone] = useState(false);
   const [keys, setKeys] = useState<Record<string, boolean> | null>(null);
+  const [brain, setBrain] = useState("");
   const sync = useSyncStatus();
 
   const refresh = useCallback(() => {
+    setBrain(loadLocal<string>(CHAT_MODEL_KEY, ""));
     fetch("/api/jarvis/connectors")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setConnectors(d))
@@ -75,6 +79,7 @@ export function useSetup(): SetupStatus {
     rules,
     favorites: launcher.favorites.length,
     thinkingReady: keys ? thinkingReady(keys) : false,
+    subscriptionBrain: isSubscription(brain),
     sync: sync.plan
       ? { done: sync.plan.state === "ready", detail: sync.plan.state === "ready" ? "Phone, claude.ai and your computers" : sync.plan.here.title }
       : null,
