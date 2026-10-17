@@ -19,6 +19,7 @@ import "server-only";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
+import { readSkillDir, validSkillName } from "../skillFormat.mjs";
 
 export interface FolderFile {
   /** Stable id for upserting: the path, repo-relative or home-relative. */
@@ -109,6 +110,29 @@ export async function localFiles(): Promise<FolderFile[]> {
     // No skills folder.
   }
 
+  return out;
+}
+
+/**
+ * The owner's skills as FULL records (SKILL.md + text references), for the
+ * skill store. localFiles() above keeps a 1200-char summary of each for the
+ * chat digest; this is what gets saved, so a scan on the PC writes exactly the
+ * same record (and hash) as skill-sync or the connector's save_skill would.
+ */
+export async function localSkills(): Promise<{ name: string; body: string; files: Record<string, string> }[]> {
+  const dir = path.join(claudeHome(), "skills");
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return [];
+  }
+  const out: { name: string; body: string; files: Record<string, string> }[] = [];
+  for (const name of names) {
+    if (!validSkillName(name)) continue;
+    const skill = await readSkillDir(path.join(dir, name));
+    if (skill) out.push({ name, body: skill.body, files: skill.files });
+  }
   return out;
 }
 

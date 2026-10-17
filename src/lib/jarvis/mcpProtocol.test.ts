@@ -30,8 +30,11 @@ describe("mcp protocol", () => {
     const tools = (res?.result as { tools: typeof TOOLS }).tools;
     expect(tools.map((t) => t.name).sort()).toEqual([
       "delete_memory",
+      "get_skill",
       "list_recent",
+      "list_skills",
       "save_memory",
+      "save_skill",
       "search_memory",
     ]);
     for (const t of tools) expect(t.inputSchema).toHaveProperty("type", "object");

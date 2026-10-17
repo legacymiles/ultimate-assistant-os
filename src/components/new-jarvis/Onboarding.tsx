@@ -26,13 +26,15 @@ import { STORE_KEY, emptyStore, newProfile } from "@/lib/new-dashboard/model";
 import type { DashboardStore } from "@/lib/new-dashboard/types";
 import type { JarvisStore } from "@/lib/jarvis/types";
 import type { SetupStatus } from "@/lib/new-jarvis/useSetup";
+import { SyncStatusPanel } from "../jarvis/SyncStatusPanel";
 
-export type OnboardingStep = "welcome" | "about" | "accounts" | "habits" | "ready";
+export type OnboardingStep = "welcome" | "about" | "accounts" | "habits" | "devices" | "ready";
 const STEPS: { id: OnboardingStep; label: string }[] = [
   { id: "welcome", label: "Welcome" },
   { id: "about", label: "You" },
   { id: "accounts", label: "Connect" },
   { id: "habits", label: "Camera" },
+  { id: "devices", label: "Devices" },
   { id: "ready", label: "Ready" },
 ];
 
@@ -309,6 +311,21 @@ export function Onboarding({ start = "welcome", onClose, go, store, commit, onPr
             </div>
           )}
 
+          {step === "devices" && (
+            <div className="space-y-4">
+              <h2 className="text-[20px] font-semibold text-ink">Your memory and skills, on every device</h2>
+              <p className="text-[12.5px] text-ink-muted">
+                Tell Claude something on your phone and your computer knows it. Make a skill anywhere and it&apos;s everywhere. Here&apos;s
+                what&apos;s set up, and the one thing to do on the device you&apos;re holding.
+              </p>
+              <SyncStatusPanel />
+              <p className="text-[11px] text-ink-faint">
+                The full setup — token, commands for each computer — is in Jarvis › Memory › Skills everywhere, and this stays on your
+                Finish setup checklist until it&apos;s done.
+              </p>
+            </div>
+          )}
+
           {step === "ready" && (
             <div className="space-y-4">
               <h2 className="text-[24px] font-semibold text-ink">{about.call || about.name ? `You're live, ${about.call || about.name}.` : "You're live."}</h2>
@@ -353,6 +370,11 @@ export function Onboarding({ start = "welcome", onClose, go, store, commit, onPr
             {step === "habits" && (
               <button type="button" className="deck-btn deck-btn--go" onClick={saveHabits}>
                 Save {habits.length} habit{habits.length === 1 ? "" : "s"}
+              </button>
+            )}
+            {step === "devices" && (
+              <button type="button" className="deck-btn deck-btn--go" onClick={next}>
+                Continue
               </button>
             )}
             {step === "ready" && (
@@ -414,7 +436,7 @@ export function FinishSetup({ setup, onOpen, go }: { setup: SetupStatus; onOpen:
               <button
                 type="button"
                 disabled={i.done}
-                onClick={() => (i.id === "favorites" ? go("plugins") : i.id === "iphone" ? go("photos") : onOpen(stepFor[i.id] ?? "welcome"))}
+                onClick={() => (i.id === "favorites" ? go("plugins") : i.id === "iphone" ? go("photos") : i.id === "sync" ? go("skills") : onOpen(stepFor[i.id] ?? "welcome"))}
                 className="flex w-full items-center gap-2.5 rounded-lg border border-line bg-panel-2 px-3 py-2 text-left transition enabled:hover:border-[var(--hud)] disabled:opacity-60"
               >
                 <span className={`h-2 w-2 shrink-0 rounded-full ${i.done ? "bg-[var(--hud-green)]" : "bg-[var(--hud-amber)]"}`} aria-hidden />

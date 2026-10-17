@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 // ---------------------------------------------------------------------------
 // One memory, reachable from everywhere.
@@ -23,6 +23,8 @@ import {
   type MemoryContext,
 } from "@/lib/jarvis/server/memory";
 import { MEMORY_SOURCES, type MemorySource } from "@/lib/jarvis/types";
+import { getSkill, listSkills, saveSkill, SkillError } from "@/lib/jarvis/server/skills";
+import { noteConnector } from "@/lib/jarvis/server/syncStatus";
 
 export const runtime = "nodejs";
 // Embedding plus a Supabase round trip can outrun the default on a cold start.
@@ -86,6 +88,40 @@ async function runTool(ctx: MemoryContext, name: string, args: Record<string, un
         .join("\n");
     }
 
+    case "save_skill": {
+      const name = str(args.name);
+      const body = typeof args.skill_md === "string" ? args.skill_md : "";
+      try {
+        const r = await saveSkill(ctx, { name, body, files: args.references, origin: str(args.origin) || "connector" });
+        return r.changed
+          ? `Saved skill "${r.name}" to Jarvis. It is on the website now, and your PC and VPS pull it at their next Claude Code session.`
+          : `Skill "${r.name}" is already saved exactly like this — nothing changed.`;
+      } catch (e) {
+        if (e instanceof SkillError) return `Not saved: ${e.message}`;
+        throw e;
+      }
+    }
+
+    case "list_skills": {
+      const skills = await listSkills(ctx);
+      if (!skills.length) return "No skills are stored in Jarvis yet.";
+      return `${skills.length} skills:\n` +
+        skills
+          .map((s) => `- ${s.name}: ${s.description.replace(/\s+/g, " ").slice(0, 220)}${s.updatedFrom ? ` (from ${s.updatedFrom}, ${s.updatedAt.slice(0, 10)})` : ""}`)
+          .join("\n");
+    }
+
+    case "get_skill": {
+      const name = str(args.name);
+      const sk = await getSkill(ctx, name);
+      if (!sk) return `No skill named "${name}". Call list_skills to see what exists.`;
+      const refs = Object.entries(sk.files);
+      return (
+        `# ${sk.name}${sk.complete ? "" : " (summary only — the full skill has not been saved to Jarvis yet)"}\n\n${sk.body}` +
+        (refs.length ? `\n\n---\nReference files:\n${refs.map(([k, v]) => `\n=== ${k} ===\n${v}`).join("\n")}` : "")
+      );
+    }
+
     case "delete_memory": {
       const id = str(args.id);
       if (!id) return "No id given.";
@@ -133,6 +169,15 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+
+  // Leave a note that this connector is in use (which client, when), so Jarvis
+  // can show it as set up. After the response, never in its way.
+  const messages = (Array.isArray(body) ? body : [body]) as RpcRequest[];
+  const init = messages.find((m) => m?.method === "initialize");
+  const clientInfo = (init?.params as { clientInfo?: { name?: string } } | undefined)?.clientInfo;
+  const viaQuery = new URL(req.url).searchParams.has("k");
+  const client = clientInfo?.name || (viaQuery ? "claude-ai" : "claude-code");
+  after(() => noteConnector(ctx, client, Boolean(init)));
 
   const run = (name: string, args: Record<string, unknown>) => runTool(ctx, name, args);
 

@@ -50,6 +50,7 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 | `multi-order-calculator` | `calculator` |
 | `std-safe` | `stdsafe` (the app is called **Tap Safe**; the slug, routes and Supabase bucket keep the old name so existing reports and share codes survive) |
 | `ea-feature-list` | `ea` (lib: `ea-features`) |
+| `ea-world/replay`, `ea-world/terminals` | `ea-replay` (tick replay + simulated MT4 broker; API `src/app/api/ea-replay`; the HFT EA sources are `public/ea-world/experts/HFT_Secret_Rebuild.mq4` (v1) and `HFT_Secret_v2.mq4` (v2, 34-SMA high/low wave + HFT, distances in price), twins `src/lib/ea-replay/strategies/hftSecret.ts` / `hftSecretV2.ts`; "Fingerprint the original" = `src/lib/ea-replay/statement.ts` (black-box RE from MT4 statements/tester reports); terminal launchers `tools/ea-terminals`) |
 | `website-redesigner` | `redesigner` |
 | `seedance-studio` | `seedance` (the app is called **Music Video Studio**; slug unchanged) |
 | `smart-shot-videos` | `smart-shot` |
@@ -79,4 +80,9 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
   (`h3-scroll-world`, `scroll-world`, `scroll-craft`, `imagegen-frontend-*`, `image-to-code-skill`) —
   those are opt-in only. Full rule: the global CLAUDE.md.
 - When a decision is made, offer to log it in `aios/decisions/log.md`.
+- **Creating or changing a skill:** write the complete SKILL.md and save it with the jarvis-memory
+  connector's `save_skill` tool — that works from the phone and every cloud session, and it is the
+  one home every device syncs from (`src/lib/jarvis/server/skills.ts`; PC/VPS pull it via
+  `scripts/skill-sync.mjs`, set up from Jarvis › Memory › Skills everywhere). Writing files under
+  `skills/` alone does not reach other devices.
 - Default Shift: for any new task, ask "to what extent could AI be leveraged here?"

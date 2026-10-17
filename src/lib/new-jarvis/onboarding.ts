@@ -87,7 +87,7 @@ export function useOnboarding(): [OnboardingData, boolean] {
 }
 
 export interface SetupItem {
-  id: "about" | "accounts" | "iphone" | "habits" | "favorites";
+  id: "about" | "accounts" | "iphone" | "habits" | "favorites" | "sync";
   label: string;
   detail: string;
   done: boolean;
@@ -100,9 +100,11 @@ export function setupChecklist(input: {
   iphoneLinked: boolean;
   rules: number;
   favorites: number;
+  /** Memory + skill sync across devices; null while unknown (signed out, still loading). */
+  sync?: { done: boolean; detail: string } | null;
 }): SetupItem[] {
   const a = input.onboarding.about;
-  return [
+  const items: SetupItem[] = [
     {
       id: "about",
       label: "Tell Jarvis about you",
@@ -134,4 +136,8 @@ export function setupChecklist(input: {
       done: input.favorites > 0,
     },
   ];
+  if (input.sync) {
+    items.push({ id: "sync", label: "Sync memory & skills to every device", detail: input.sync.detail, done: input.sync.done });
+  }
+  return items;
 }

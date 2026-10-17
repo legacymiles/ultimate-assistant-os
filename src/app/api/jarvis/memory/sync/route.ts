@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { localAvailable, localFiles, repoFiles } from "@/lib/jarvis/server/masterFolder";
+import { localAvailable, localFiles, localSkills, repoFiles } from "@/lib/jarvis/server/masterFolder";
+import { saveSkill } from "@/lib/jarvis/server/skills";
 import { memoryContext, saveMemories, type SaveInput } from "@/lib/jarvis/server/memory";
 
 // Reads files from the machine the server runs on, so it must stay dynamic and
@@ -37,15 +38,20 @@ export async function POST(req: Request) {
     });
   }
 
-  const inputs: SaveInput[] = files.map((f) => ({
-    // Skills are their own source so they can be filtered separately in the ball.
-    source: f.externalId.includes("/skills/") ? "skill" : "master-folder",
-    title: f.title,
-    content: f.content,
-    origin: f.externalId,
-    externalId: f.externalId,
-    capturedAt: f.modified || undefined,
-  }));
+  // Skills are NOT written from these summaries any more: they go through the
+  // skill store below as full records (body + references + hash), the same row
+  // the connector's save_skill and scripts/skill-sync.mjs write. Writing the
+  // 1200-char summary here would overwrite a full skill saved from the phone.
+  const inputs: SaveInput[] = files
+    .filter((f) => !f.externalId.includes("/skills/"))
+    .map((f) => ({
+      source: "master-folder",
+      title: f.title,
+      content: f.content,
+      origin: f.externalId,
+      externalId: f.externalId,
+      capturedAt: f.modified || undefined,
+    }));
 
   // Embedding happens per batch inside saveMemories; keep batches small enough
   // that one failure costs little and the request stays under its limit.
@@ -66,6 +72,21 @@ export async function POST(req: Request) {
     });
   }
 
+  // This machine's skills, as full records. Unchanged ones are skipped by the
+  // hash gate, so this costs nothing on a re-sync.
+  let skills = 0;
+  for (const sk of await localSkills()) {
+    try {
+      const r = await saveSkill(ctx, { ...sk, origin: "master-folder" });
+      if (r.changed) {
+        saved++;
+        skills++;
+      }
+    } catch {
+      /* one malformed skill (no frontmatter) must not stop the rest */
+    }
+  }
+
   return NextResponse.json({
     available: true,
     saved,
@@ -73,5 +94,6 @@ export async function POST(req: Request) {
     embedded,
     local: local.length,
     repo: repo.length,
+    skills,
   });
 }
