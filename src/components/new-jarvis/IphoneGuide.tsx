@@ -302,6 +302,10 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                 Find Photos limit to {LIMIT}.
               </p>
               <p className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-[11.5px]">
+                <b className="text-ink">&ldquo;No photos sent&rdquo;?</b> You&apos;re connected — the picture just isn&apos;t in the request. The field under Request
+                Body must be type <b className="text-ink">File</b> (not Text) with the value <b className="text-ink">Converted Image</b>.
+              </p>
+              <p className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-[11.5px]">
                 <b className="text-ink">&ldquo;The network connection was lost&rdquo;?</b> It&apos;s sending too much at once. Even one full-size photo is over the
                 site&apos;s ~4.5 MB limit. Make sure Get Contents of URL is inside the <b className="text-ink">Repeat</b>, Resize Image comes before Convert
                 Image, and the photos field is <b className="text-ink">Converted Image</b> — not Photos, Repeat Item or anything full-size.
