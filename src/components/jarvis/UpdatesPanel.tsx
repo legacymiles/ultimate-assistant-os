@@ -16,7 +16,7 @@
 
 import { useEffect, useRef } from "react";
 import { Icon } from "../icons";
-import type { TabId } from "./Jarvis";
+import type { TabId } from "./tabs";
 import { MEMBER_COLOURS } from "@/lib/recall/lists/types";
 import { UPDATE_COLOR, UPDATE_LABEL, UPDATE_SOURCES, UPDATE_TAB } from "@/lib/jarvis/updates";
 import type { JarvisUpdate } from "@/lib/jarvis/updates";

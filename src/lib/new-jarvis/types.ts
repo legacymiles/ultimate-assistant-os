@@ -9,6 +9,8 @@
 // ---------------------------------------------------------------------------
 
 /** Where the request came from. Voice and typing produce identical blocks. */
+import type { AttachmentShown } from "./attachments";
+
 export type BlockSource = "typed" | "voice" | "routine";
 
 /**
@@ -62,6 +64,8 @@ export interface Block {
   mode: Mode;
   /** Exactly what was typed or heard. Never cleaned up. */
   command: string;
+  /** What was attached to it, as sent: names, kinds and small thumbnails. */
+  attachments?: AttachmentShown[];
   createdAt: number;
   status: BlockStatus;
   steps: Step[];

@@ -21,7 +21,7 @@ export async function extensionUid(req: Request): Promise<string | null> {
 
 export function unauthorized() {
   return NextResponse.json(
-    { error: "Unknown token. Copy a fresh one from Jarvis › Record › Connect your browser." },
+    { error: "Unknown token. Copy a fresh one from New Jarvis › Dashboard › Record › Connect your browser." },
     { status: 401 },
   );
 }

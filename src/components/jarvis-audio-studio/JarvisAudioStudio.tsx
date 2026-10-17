@@ -99,7 +99,7 @@ export function JarvisAudioStudio({ initialSection }: { initialSection: Section 
         {/* This app is an entry in PLUGIN_SLUGS, so it is reached from Jarvis's
             App plugins panel rather than the hub grid — and that is where back
             has to land. */}
-        <Link href="/apps/jarvis#plugins" className="jas-back">
+        <Link href="/apps/new-jarvis#plugins" className="jas-back">
           <Icon.ArrowLeft width={14} height={14} aria-hidden />
           <span>App plugins</span>
         </Link>

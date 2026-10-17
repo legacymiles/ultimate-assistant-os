@@ -17,13 +17,15 @@
 import { classify } from "./actions";
 import { routeFor, toolByName } from "./agentTools";
 import type { Block, Gate, Mode, Step } from "./types";
+import type { WirePart } from "./attachments";
 
 /** Rounds before the loop gives up. A browse job legitimately takes a dozen. */
 export const MAX_ROUNDS = 14;
 
 export interface WireMessage {
   role: "user" | "assistant" | "tool";
-  content: string;
+  /** A string, or content parts on a user turn that carries attachments. */
+  content: string | WirePart[];
   tool_calls?: { id: string; function: { name: string; arguments: string } }[];
   tool_call_id?: string;
   name?: string;
@@ -116,6 +118,8 @@ export interface RunInput {
   mode: Mode;
   /** Earlier blocks, flattened into conversation, so follow-ups work. */
   history?: WireMessage[];
+  /** The request as content parts, when it carries attachments. Replaces `command` on the wire. */
+  content?: WirePart[];
 }
 
 export interface RunOutcome {
@@ -133,7 +137,10 @@ export interface RunOutcome {
  * other block on screen.
  */
 export async function runBlock(input: RunInput, deps: RunnerDeps): Promise<RunOutcome> {
-  const messages: WireMessage[] = [...(input.history ?? []), { role: "user", content: input.command }];
+  const messages: WireMessage[] = [
+    ...(input.history ?? []),
+    { role: "user", content: input.content?.length ? input.content : input.command },
+  ];
   const steps: Step[] = [];
   const startedAt = Date.now();
 

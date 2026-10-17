@@ -9,5 +9,5 @@ export const dynamic = "force-dynamic";
 
 export default async function Page() {
   if (await callerIsMember()) redirect("/apps/dashboard/lists");
-  redirect("/apps/jarvis#folders");
+  redirect("/apps/new-jarvis#folders");
 }

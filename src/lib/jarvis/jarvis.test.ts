@@ -1,23 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { coerceStore, emptyJarvis, SEED_ROUTINES } from "./store";
+import { coerceStore, emptyJarvis } from "./store";
 import { keywordScore, recency, rrf, tokens } from "./rank";
 import { addMemory, graphNodes, linkCount, searchMemories } from "./memoryClient";
 import type { JarvisStore } from "./types";
 
 describe("store", () => {
-  it("starts empty but with the routine library seeded", () => {
+  it("starts empty", () => {
     const s = emptyJarvis();
     expect(s.memories).toEqual([]);
     expect(s.conversations).toEqual([]);
-    expect(s.routines).toHaveLength(SEED_ROUTINES.length);
-    expect(s.routines.map((r) => r.name)).toContain("Daily brief");
-    // Ids must be real, not the seed's missing ones.
-    expect(s.routines.every((r) => r.id.length > 3)).toBe(true);
+    expect("routines" in s).toBe(false);
   });
 
   it("repairs a half-written or older blob instead of throwing", () => {
     expect(coerceStore(null).memories).toEqual([]);
-    expect(coerceStore({ version: 1 }).routines.length).toBe(SEED_ROUTINES.length);
+    // A blob saved while Routines still existed loads cleanly and drops them.
+    expect("routines" in coerceStore({ version: 1, routines: [{ id: "r" }] })).toBe(false);
     const kept = coerceStore({ memories: [{ id: "a" }], lastSync: 7 });
     expect(kept.memories).toHaveLength(1);
     expect(kept.lastSync).toBe("");

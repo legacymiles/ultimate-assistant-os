@@ -203,7 +203,15 @@ describe("app plugins", () => {
     }
     // No slug is in both lists — an app is a door out or a tab, never both.
     expect(new Set(moved).size).toBe(moved.length);
-    expect(hub.length).toBe(PROJECTS.length - moved.length);
+    // A retired app (the original Jarvis) keeps its entry, points at its
+    // replacement, and is not a tile either.
+    const retired = PROJECTS.filter((p) => p.retiredInto);
+    for (const p of retired) {
+      expect(hub).not.toContain(p.slug);
+      expect(PROJECTS.some((x) => x.slug === p.retiredInto)).toBe(true);
+      expect(p.appUrl).toBe(`/apps/${p.retiredInto}`);
+    }
+    expect(hub.length).toBe(PROJECTS.length - moved.length - retired.length);
   });
 });
 

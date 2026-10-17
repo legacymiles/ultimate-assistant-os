@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { aiEndpoint, aiFetch, describeFailure, DEFAULT_MODEL } from "@/lib/ai/provider";
 import { runNote, sanitizeAssistant, toApiTools, toolsFor, type AgentTool } from "@/lib/new-jarvis/agentTools";
+import { chatUid, resolveContent } from "@/lib/new-jarvis/server/attachments";
+import type { WirePart } from "@/lib/new-jarvis/attachments";
 
 // ---------------------------------------------------------------------------
 // One step of New Jarvis's agent loop.
@@ -27,7 +29,8 @@ type WireRole = "user" | "assistant" | "tool";
 
 interface WireMessage {
   role?: WireRole;
-  content?: string;
+  /** A string, or — on a user turn with attachments — content parts. */
+  content?: string | WirePart[];
   /** Present on assistant turns that called a tool. */
   tool_calls?: { id: string; function: { name: string; arguments: string } }[];
   /** Present on tool results. */
@@ -51,7 +54,13 @@ WHAT MAKES YOU DIFFERENT FROM A CHATBOT
 - Work the job. Decide what you need, call a tool, READ what came back, and call the next one. Do not ask permission to look something up — looking is free and never interrupts them.
 - {owner} is asked to confirm exactly one class of thing: a step that cannot be undone. That gate is automatic and you never have to request it. So do not narrate consent, do not ask "shall I", and never stop a job to check in on something reversible.
 
+ATTACHMENTS
+- {owner} can attach pictures, video clips, audio, PDFs and text files. When they do, they are IN their message: look at them, watch them, listen to them, read them — directly, not from the file names.
+- Do what they ask with them. If they did not say, describe what is there and offer the obvious next step in one line.
+- If an attachment did not come through (a note in the message says so, or you cannot perceive it), say exactly which one rather than answering as if you had it.
+
 REMEMBERING THINGS
+- Before answering anything about {owner}'s own life, work, decisions or preferences, call memory_search. Their memory is the source; your guess is not.
 - You can write to {owner}'s own things: their Life Record (the facts forms ask for), their memory, their folders, lists and calendar. These work whether or not the PC is reachable.
 - When you read something off a page that {owner} would not want to type again — an account number, a reference, an address, an employer — SAVE it. That is the point of being able to open a browser. Do not ask whether to; propose it by calling the tool, and they will see a confirmation.
 - Sensitive values never pass through you, and this is not a limitation to work around: call page_fields, read the KEYS and masked previews, then call record_capture naming the keys. The value goes from their page to their Record without you ever seeing it. Never try to read a sensitive value out of page text and pass it to record_set — record_set refuses those keys by design.
@@ -104,7 +113,15 @@ function clean(messages: WireMessage[]): WireMessage[] {
         if (typeof rest.content === "string") rest.content = rest.content.slice(0, 24_000);
         return { ...rest, role } as WireMessage;
       }
-      const out: WireMessage = { role, content: typeof m.content === "string" ? m.content.slice(0, 24_000) : "" };
+      // A user turn may carry content parts (attachments); they are cleaned
+      // and resolved in POST, where the caller is known.
+      const content =
+        role === "user" && Array.isArray(m.content)
+          ? m.content
+          : typeof m.content === "string"
+            ? m.content.slice(0, 24_000)
+            : "";
+      const out: WireMessage = { role, content };
       if (role === "tool") {
         out.tool_call_id = String(m.tool_call_id ?? "").slice(0, 80);
         out.name = String(m.name ?? "").slice(0, 60);
@@ -114,7 +131,13 @@ function clean(messages: WireMessage[]): WireMessage[] {
     // A tool result with no id cannot be matched to its call and makes the
     // whole request invalid; dropping it loses one step, keeping it loses the
     // turn.
-    .filter((m) => (m.role === "tool" ? Boolean(m.tool_call_id) : (m.content ?? "").trim() || m.tool_calls?.length))
+    .filter((m) =>
+      m.role === "tool"
+        ? Boolean(m.tool_call_id)
+        : Array.isArray(m.content)
+          ? m.content.length > 0
+          : (m.content ?? "").trim() || m.tool_calls?.length,
+    )
     .slice(-60);
 }
 
@@ -133,7 +156,22 @@ export async function POST(req: Request) {
     );
   }
 
-  const messages = clean(body.messages ?? []);
+  const cleaned = clean(body.messages ?? []);
+  if (!cleaned.length) return NextResponse.json({ error: "Nothing to work on." }, { status: 400 });
+
+  // Attachments: clean every part and swap uploaded files for what the model
+  // reads. Only asked for the caller when a turn actually has parts, so a
+  // plain request costs no auth round trip.
+  const hasParts = cleaned.some((m) => Array.isArray(m.content));
+  const uid = hasParts ? await chatUid().catch(() => null) : null;
+  const messages: WireMessage[] = [];
+  for (const m of cleaned) {
+    if (!Array.isArray(m.content)) messages.push(m);
+    else {
+      const content = await resolveContent(m.content, uid);
+      if (content.length) messages.push({ ...m, content });
+    }
+  }
   if (!messages.length) return NextResponse.json({ error: "Nothing to work on." }, { status: 400 });
 
   const mode = typeof body.mode === "string" && body.mode in MODE_NOTES ? body.mode : "do";
@@ -169,7 +207,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         model: DEFAULT_MODEL,
         temperature: 0.2,
-        max_tokens: 1600,
+        max_tokens: 2400,
         messages: [{ role: "system", content: system }, ...messages],
         ...(tools.length ? { tools: toApiTools(tools), tool_choice: "auto" } : {}),
       }),

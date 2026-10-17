@@ -17,7 +17,7 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 |---|---|
 | Who the owner is, priorities, decisions | `aios/` (see `aios/README.md`) and the New Dashboard app |
 | Long-term memory of past work (per app) | `C:\Users\honey\.claude\projects\C--Users-honey-Projects-ultimate-assistant-os\memory\MEMORY.md` |
-| Memory shared with claude.ai and the VPS | `/api/jarvis/memory/mcp` — same Supabase rows as Jarvis › Memory. Setup card: Jarvis › Memory › "Same memory everywhere" |
+| Memory shared with claude.ai and the VPS | `/api/jarvis/memory/mcp` — same Supabase rows as New Jarvis › Dashboard › Memory. Setup card: Dashboard › Memory › "Same memory everywhere" |
 | List of all apps (single source of truth) | `src/lib/catalog.ts` — add an app = add one object to `PROJECTS` |
 | An app's page | `src/app/apps/<slug>/page.tsx` |
 | An app's UI | `src/components/<folder>/` (folder name ≠ slug for some — see table below) |
@@ -67,7 +67,8 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 - The Vercel AI Gateway free tier serves no Anthropic model — keep OpenRouter as the default.
 - Apps must work with no keys set (local demo mode, offline fallback). A missing key degrades visibly, never 500s.
 - Private apps holding the owner's data go in `UNPREVIEWABLE` in `catalog.ts` so the hub carousel never frames them.
-- Moving a finished app off the hub and into Jarvis is one edit, in `src/lib/studio/plugins.ts`: add the slug to `PLUGIN_SLUGS` (a card on Jarvis › App plugins that opens the app in its own tab) or to `TOOLBOX_SLUGS` (a tab mounted inside Jarvis › Toolbox, wired to a component in `jarvis/Jarvis.tsx`). `hubProjects()` is the catalog minus both, so the two places cannot show the same app twice. Keep the catalog entry — deleting it is what silently killed the old Cookbook Genie card.
+- Moving a finished app off the hub and into Jarvis is one edit, in `src/lib/studio/plugins.ts`: add the slug to `PLUGIN_SLUGS` (a card on New Jarvis › Toolbox › Apps that opens the app in its own tab) or to `TOOLBOX_SLUGS` (a tab mounted inside New Jarvis › Toolbox, wired to a component in `new-jarvis/NewJarvis.tsx`). `hubProjects()` is the catalog minus both (and minus any entry with `retiredInto`), so the two places cannot show the same app twice. Keep the catalog entry — deleting it is what silently killed the old Cookbook Genie card.
+- **New Jarvis (`/apps/new-jarvis`) is the only Jarvis.** The old shell is retired: `/apps/jarvis` redirects there (old `#tab` / `?tab=` links are mapped), and its catalog entry stays with `retiredInto: "new-jarvis"`. Link to `/apps/new-jarvis#<tab>`, never `/apps/jarvis`. Chat attachments: `src/lib/new-jarvis/attachments.ts` (parts), `attachClient.ts` (browser), `server/attachments.ts` + `/api/new-jarvis/attachments` (Storage bucket `jarvis-chat`).
 
 ## How to work with the owner
 
@@ -83,6 +84,6 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 - **Creating or changing a skill:** write the complete SKILL.md and save it with the jarvis-memory
   connector's `save_skill` tool — that works from the phone and every cloud session, and it is the
   one home every device syncs from (`src/lib/jarvis/server/skills.ts`; PC/VPS pull it via
-  `scripts/skill-sync.mjs`, set up from Jarvis › Memory › Skills everywhere). Writing files under
+  `scripts/skill-sync.mjs`, set up from New Jarvis › Skills › "Skills on every device"). Writing files under
   `skills/` alone does not reach other devices.
 - Default Shift: for any new task, ask "to what extent could AI be leveraged here?"
