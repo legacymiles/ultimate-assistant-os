@@ -62,6 +62,9 @@ const TOKEN_AUTH_PATHS = new Set([
   // from the environment, so the session gate has nothing to add — it only
   // turned every client's first call into "Sign in to use this endpoint."
   "/api/jarvis/memory/mcp",
+  // The skill store for scripts/skill-sync.mjs on the PC and VPS — same token
+  // and same pinned account as the memory MCP above, verified in the route.
+  "/api/jarvis/skills",
 ]);
 
 /** Stamp (or clear) the account id the browser is allowed to render as. */

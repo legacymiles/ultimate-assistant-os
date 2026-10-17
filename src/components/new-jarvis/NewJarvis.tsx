@@ -42,6 +42,7 @@ import { CalendarTab } from "../jarvis/CalendarTab";
 import { StudioTab } from "../jarvis/StudioTab";
 import { InboxTab } from "../jarvis/InboxTab";
 import { SkillsLibrary } from "../skills/SkillsLibrary";
+import { SyncStatusPanel } from "../jarvis/SyncStatusPanel";
 import { ToolsTab } from "../jarvis/ToolsTab";
 import { PasswordVault } from "./PasswordVault";
 import { Telephony } from "./Telephony";
@@ -933,7 +934,15 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 {tab === "studio" && (
                   <StudioTab store={store} commit={commit} profile={profile} onDashboardChanged={dash.refresh} />
                 )}
-                {tab === "skills" && <SkillsLibrary chromeless />}
+                {tab === "skills" && (
+                  <>
+                    <section className="mb-3 rounded-xl border border-line bg-panel p-3" aria-label="Sync to every device">
+                      <h2 className="mb-2 text-xs font-semibold text-ink">Skills on every device</h2>
+                      <SyncStatusPanel />
+                    </section>
+                    <SkillsLibrary chromeless />
+                  </>
+                )}
                 {tab === "tools" && (
                   <ArmoryTab bridge={bridge.health.capabilities ?? {}} bridgeUp={bridge.health.up && bridge.health.paired} />
                 )}

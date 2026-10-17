@@ -5,7 +5,7 @@ const nextConfig = {
   // (EINVAL readlink, then blanket 500s). NEXT_DIST_DIR gives each its own.
   distDir: process.env.NEXT_DIST_DIR || ".next",
   // Heavy Node-only parsers — keep them out of the webpack bundle.
-  serverExternalPackages: ["pdf-parse", "mammoth", "ffmpeg-static"],
+  serverExternalPackages: ["pdf-parse", "mammoth", "ffmpeg-static", "lzma"],
   // Music Creator converts saved songs to MP3 with ffmpeg; the binary is not
   // imported, only spawned, so it must be traced into that route explicitly.
   outputFileTracingIncludes: {
@@ -17,6 +17,9 @@ const nextConfig = {
     // The Record extension is zipped up and handed to the browser at request
     // time, so its source has to travel with the deployment too.
     "/api/jarvis/record/extension": ["./extension/jarvis-record/*"],
+    // LZMA-JS loads its worker with a computed require path, which tracing
+    // cannot follow; EA World Replay needs it to unpack Dukascopy tick files.
+    "/api/ea-replay/ticks": ["./node_modules/lzma/**"],
   },
   // Pod Play Connect is a prebuilt Vite SPA in public/pod-play-connect (rebuild:
   // POD_BASE=/pod-play-connect/ vite build in its repo). Real files are served
