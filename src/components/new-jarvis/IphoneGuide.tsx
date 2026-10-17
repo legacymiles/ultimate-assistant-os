@@ -61,6 +61,8 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
   const pushUrl = `${origin}/api/dashboard/inbox/push`;
   // The whole Shortcut needs this one thing: the push address with the key in it.
   const myLink = token ? `${pushUrl}?key=${encodeURIComponent(token)}` : pushUrl;
+  // "Where did I get up to?" — read first, so each run starts after the last photo sent.
+  const cursorLink = `${origin}/api/dashboard/inbox/cursor${token ? `?key=${encodeURIComponent(token)}` : ""}`;
   const guideUrl = `${origin}/apps/new-jarvis#iphone`;
   const local = /localhost|127\.0\.0\.1/.test(origin);
   const idx = STEPS.findIndex((s) => s.id === step);
@@ -291,6 +293,41 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="rounded-lg border border-[var(--hud)] px-3 py-3">
+                <p className="mb-1 text-[13px] font-semibold text-ink">Never miss a photo (recommended)</p>
+                <p className="mb-2 text-[11.5px]">
+                  So each run picks up after the last photo it sent — instead of re-sending the newest {LIMIT} — add a bookmark. Jarvis remembers the
+                  newest photo it got; the Shortcut asks for it first.
+                </p>
+                <Steps
+                  items={[
+                    <>
+                      At the very <b className="text-ink">top</b>, above Find Photos: add a <b className="text-ink">URL</b> action with your bookmark link
+                      {token && <InlineCopy onClick={() => copy(cursorLink, "Bookmark link")} />}
+                      {!token && (
+                        <>
+                          {" "}
+                          <Code>…/api/dashboard/inbox/cursor</Code> (plus the same <Code>X-Dashboard-Token</Code> header in the next block)
+                        </>
+                      )}
+                      , then a <b className="text-ink">Get Contents of URL</b> under it (Method stays GET).
+                    </>,
+                    <>
+                      In <b className="text-ink">Find Photos</b>: <b className="text-ink">Add Filter</b> → <b className="text-ink">Date Created</b> →{" "}
+                      <b className="text-ink">is after</b> → tap the date → <b className="text-ink">Select Variable</b> → tap that top Get Contents of URL (
+                      <b className="text-ink">Contents of URL</b>). Change <b className="text-ink">Order</b> to <b className="text-ink">Oldest First</b>.
+                    </>,
+                    <>
+                      In the lower Get Contents of URL → Request Body: <b className="text-ink">Add new field → Text</b>. Key <Code>takenAt</Code>
+                      <InlineCopy onClick={() => copy("takenAt", "Field name")} />. Value: <b className="text-ink">Select Variable</b> → tap{" "}
+                      <b className="text-ink">Repeat Item</b>, then tap the Repeat Item bubble once more and choose <b className="text-ink">Date Created</b>.
+                    </>,
+                  ]}
+                />
+                <p className="mt-2 text-[11px] text-ink-faint">
+                  First run with no bookmark yet starts from 24 hours ago, so it never uploads your whole camera roll.
+                </p>
               </div>
               <p className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-[11.5px]">
                 It worked if it shows something like <Code>{`{"accepted":20,"skipped":0}`}</Code>. An error that says <b className="text-ink">Unknown device token</b>{" "}

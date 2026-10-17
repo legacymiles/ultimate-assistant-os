@@ -49,7 +49,7 @@ export async function POST(req: Request) {
       if (value instanceof File) {
         if (value.size > 0) files.push(value);
       } else if (key === "deviceIds") ids = String(value).split(",");
-      else if (key === "takenAt") taken = String(value).split(",");
+      else if (key === "takenAt") taken = [String(value)];
       else sawText.push(key);
     }
   } else {
@@ -71,6 +71,14 @@ export async function POST(req: Request) {
       },
       { status: 400 },
     );
+  }
+
+  // One photo per send (what the Shortcut does): its date is the whole field,
+  // commas and all — "Oct 16, 2026 at 11:03 PM" has one. Several at once: one
+  // date per line, or the old comma list when the counts line up.
+  if (taken.length === 1 && files.length > 1) {
+    const raw = taken[0];
+    taken = raw.includes("\n") ? raw.split("\n") : raw.split(",").length === files.length ? raw.split(",") : [];
   }
 
   const photos: IncomingPhoto[] = [];
