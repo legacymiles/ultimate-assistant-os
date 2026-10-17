@@ -239,8 +239,8 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                     </span>
                   </>,
                   <>
-                    Search <Code>Convert Image</Code>, tap it, set it to <b className="text-ink">JPEG</b>. Then search <Code>Resize Image</Code>, tap it, set the
-                    width to <b className="text-ink">1600</b> (leave height on Auto).
+                    Search <Code>Resize Image</Code>, tap it, set the width to <b className="text-ink">1600</b> (leave height on Auto). Then search{" "}
+                    <Code>Convert Image</Code>, tap it, set it to <b className="text-ink">JPEG</b> — it should say &ldquo;Convert Resized Image to JPEG&rdquo;.
                   </>,
                   <>
                     Search <Code>URL</Code>, and tap the action called just <b className="text-ink">URL</b> (the blue link
@@ -258,7 +258,7 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                   </>,
                   <>
                     Tap the small <b className="text-ink">›</b> arrow on the right of that block. Fill it in exactly like the table below. Your Shortcut
-                    should read: Find Photos → Repeat with Each → Convert Image → Resize Image → URL → Get Contents of URL → End Repeat.
+                    should read: Find Photos → Repeat with Each → Resize Image → Convert Image → URL → Get Contents of URL → End Repeat.
                   </>,
                   <>
                     Tap <b className="text-ink">▶</b> (bottom right) to try it. When your iPhone asks about photos and about sending to the site, tap{" "}
@@ -279,7 +279,7 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                       ["Request Body", "Form", ""],
                       ["Add new field", "pick File", ""],
                       ["  Key", "photos", "photos"],
-                      ["  File (the value)", "tap it → choose the blue Resized Image", ""],
+                      ["  File (the value)", "tap it → Select Variable → tap the Convert Image block (Converted Image)", ""],
                     ].map(([where, what, copyValue]) => (
                       <tr key={where}>
                         <td className="w-[38%] whitespace-pre px-3 py-2 text-ink-muted">{where}</td>
@@ -302,8 +302,9 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                 Find Photos limit to {LIMIT}.
               </p>
               <p className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-[11.5px]">
-                <b className="text-ink">&ldquo;The network connection was lost&rdquo;?</b> It&apos;s sending too much at once. Make sure Get Contents of URL is
-                inside the <b className="text-ink">Repeat</b>, and its photos field is the blue <b className="text-ink">Resized Image</b>, not Photos.
+                <b className="text-ink">&ldquo;The network connection was lost&rdquo;?</b> It&apos;s sending too much at once. Even one full-size photo is over the
+                site&apos;s ~4.5 MB limit. Make sure Get Contents of URL is inside the <b className="text-ink">Repeat</b>, Resize Image comes before Convert
+                Image, and the photos field is <b className="text-ink">Converted Image</b> — not Photos, Repeat Item or anything full-size.
               </p>
               <p className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-[11.5px]">
                 <b className="text-ink">&ldquo;Couldn&apos;t convert from Rich Text to URL&rdquo;?</b> The link went in with formatting, or the wrong thing is in
