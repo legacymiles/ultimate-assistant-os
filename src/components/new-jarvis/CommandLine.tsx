@@ -101,7 +101,7 @@ export function CommandLine({
 
   return (
     <div
-      className="border-b border-line bg-panel px-3 py-2.5"
+      className="nj-commandbar border-b border-line bg-panel px-3 py-2.5"
       onDragOver={(e) => {
         if (!onAttach || !e.dataTransfer.types.includes("Files")) return;
         e.preventDefault();
@@ -124,6 +124,7 @@ export function CommandLine({
         className="nj-command flex flex-wrap items-center gap-2 rounded-lg border border-line bg-canvas px-2.5 py-2"
         data-armed={canSend}
         data-hearing={hearing}
+        data-busy={busy || undefined}
         data-dragging={dragging || undefined}
         style={dragging ? { borderColor: "var(--color-brand)" } : undefined}
       >
