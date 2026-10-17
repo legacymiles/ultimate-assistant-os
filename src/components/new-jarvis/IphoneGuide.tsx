@@ -230,7 +230,20 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                     <b className="text-ink">{LIMIT}</b>.
                   </>,
                   <>
-                    Tap the search bar at the bottom, type <Code>URL</Code>, and tap the action called just <b className="text-ink">URL</b> (the blue link
+                    Search <Code>Repeat with Each</Code> and tap it. Every block from here goes <b className="text-ink">inside</b> the Repeat (between
+                    &ldquo;Repeat with each item&rdquo; and &ldquo;End Repeat&rdquo;), so photos go up one at a time.
+                    <br />
+                    <span className="text-[11px] text-ink-faint">
+                      One at a time is not optional: the website can take about 4 MB per send, and 20 full-size photos at once is far more — that is the
+                      &ldquo;network connection was lost&rdquo; error.
+                    </span>
+                  </>,
+                  <>
+                    Search <Code>Convert Image</Code>, tap it, set it to <b className="text-ink">JPEG</b>. Then search <Code>Resize Image</Code>, tap it, set the
+                    width to <b className="text-ink">1600</b> (leave height on Auto).
+                  </>,
+                  <>
+                    Search <Code>URL</Code>, and tap the action called just <b className="text-ink">URL</b> (the blue link
                     icon). Tap inside it and paste <b className="text-ink">your link</b>.
                     {token && <InlineCopy onClick={() => copy(myLink, "Your link")} />}
                     <br />
@@ -244,7 +257,8 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                     leave that as it is.
                   </>,
                   <>
-                    Tap the small <b className="text-ink">›</b> arrow on the right of that block. Fill it in exactly like the table below.
+                    Tap the small <b className="text-ink">›</b> arrow on the right of that block. Fill it in exactly like the table below. Your Shortcut
+                    should read: Find Photos → Repeat with Each → Convert Image → Resize Image → URL → Get Contents of URL → End Repeat.
                   </>,
                   <>
                     Tap <b className="text-ink">▶</b> (bottom right) to try it. When your iPhone asks about photos and about sending to the site, tap{" "}
@@ -265,7 +279,7 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                       ["Request Body", "Form", ""],
                       ["Add new field", "pick File", ""],
                       ["  Key", "photos", "photos"],
-                      ["  File (the value)", "tap it → choose the blue Photos", ""],
+                      ["  File (the value)", "tap it → choose the blue Resized Image", ""],
                     ].map(([where, what, copyValue]) => (
                       <tr key={where}>
                         <td className="w-[38%] whitespace-pre px-3 py-2 text-ink-muted">{where}</td>
@@ -286,6 +300,10 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                 <b className="text-ink">&ldquo;Trying to share … items, which is not allowed&rdquo;?</b> In the iPhone <b className="text-ink">Settings</b> app go
                 to <b className="text-ink">Apps → Shortcuts → Advanced</b> and turn on <b className="text-ink">Allow Sharing Large Amounts of Data</b> — or lower the
                 Find Photos limit to {LIMIT}.
+              </p>
+              <p className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-[11.5px]">
+                <b className="text-ink">&ldquo;The network connection was lost&rdquo;?</b> It&apos;s sending too much at once. Make sure Get Contents of URL is
+                inside the <b className="text-ink">Repeat</b>, and its photos field is the blue <b className="text-ink">Resized Image</b>, not Photos.
               </p>
               <p className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-[11.5px]">
                 <b className="text-ink">&ldquo;Couldn&apos;t convert from Rich Text to URL&rdquo;?</b> The link went in with formatting, or the wrong thing is in
