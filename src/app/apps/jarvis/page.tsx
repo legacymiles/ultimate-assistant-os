@@ -1,31 +1,17 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { Jarvis } from "@/components/jarvis/Jarvis";
-import { sessionToken, status, tokenMatches } from "@/lib/recall/gateStore";
-import { callerIsMember } from "@/lib/recall/lists/session";
 
-export const metadata = {
-  title: "Jarvis · Ultimate Assistant OS",
-  description:
-    "A voice-first personal assistant with a real memory: ask him anything, he answers from what he actually knows and names his sources, and he asks before he acts.",
-};
-
-// Jarvis now holds what Dashboard held — folders, saved logins, photos, the
-// family lists — so it sits behind the same door Dashboard did. The password
-// lives in a writable store (changeable in-app), which needs the Node runtime,
-// so the check runs here rather than in edge middleware.
+// The original Jarvis shell is retired: New Jarvis has every tab it had, the
+// same stores behind them, and Chat with attachments in place of its chat.
+//
+// This route stays so nothing that points here breaks. A hash (`#skills`,
+// `#memory`) survives the redirect on its own — browsers carry the fragment
+// over — and New Jarvis maps the old names (memory, record, profile, routines,
+// console) to where they live now. The old `?tab=` form is turned into a hash
+// here, because a query string is not something New Jarvis reads.
 export const dynamic = "force-dynamic";
 
-export default async function Page() {
-  // Family members get the Lists board and nothing else, same as before.
-  if (await callerIsMember()) redirect("/apps/dashboard/lists");
-
-  const gate = await status();
-  if (gate.gated) {
-    const cookie = (await cookies()).get("recall_auth")?.value ?? "";
-    if (!tokenMatches(cookie, await sessionToken())) {
-      redirect("/recall-unlock?next=%2Fapps%2Fjarvis");
-    }
-  }
-  return <Jarvis />;
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const raw = (await searchParams).tab;
+  const tab = (Array.isArray(raw) ? raw[0] : raw ?? "").replace(/[^a-z-]/gi, "").toLowerCase();
+  redirect(tab ? `/apps/new-jarvis#${tab}` : "/apps/new-jarvis");
 }

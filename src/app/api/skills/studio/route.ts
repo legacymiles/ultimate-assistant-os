@@ -42,7 +42,7 @@ export async function GET() {
       slug: `studio:${w.id}`,
       origin: categoryLabel.get(w.category) ?? "Studio",
       // Where it actually lives, so the detail view can offer to open it.
-      sourceUrl: `/apps/jarvis?tab=studio&workflow=${w.id}`,
+      sourceUrl: "/apps/new-jarvis#studio",
       createdAt: SHIPPED,
       updatedAt: SHIPPED,
     };

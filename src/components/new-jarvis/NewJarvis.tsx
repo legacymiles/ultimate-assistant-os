@@ -5,14 +5,14 @@
 //
 // Three columns that never change: the rail, the centre, and the right-hand
 // column carrying voice and this machine's capabilities. What swaps is only
-// the middle, and only between the console and a tab the owner went to; the
+// the middle, and only between Chat and a tab the owner went to; the
 // command line stays above all of it, so asking for something is never
 // somewhere you have to navigate to.
 //
-// The existing tabs are MOUNTED, not rebuilt. They read the same stores as
-// /apps/jarvis — same keys, same Supabase rows — so the owner's folders,
-// photos, lists, calendar, memory and Record are the same data seen through a
-// different frame, and nothing here can migrate, copy or lose any of it.
+// The tabs are MOUNTED, not rebuilt. They read the same stores the old
+// /apps/jarvis shell did — same keys, same Supabase rows — so the owner's
+// folders, photos, lists, calendar, memory and Record are the same data, and
+// retiring that shell (it now redirects here) moved and lost none of it.
 // ---------------------------------------------------------------------------
 
 import Link from "next/link";
@@ -32,6 +32,8 @@ import type { ReactorMode } from "@/lib/new-jarvis/reactor";
 import { useBridge } from "@/lib/new-jarvis/useBridge";
 import { useWakeVoice } from "@/lib/new-jarvis/useWakeVoice";
 import { runBlock, type WireMessage } from "@/lib/new-jarvis/runner";
+import { historyText, shown, toParts } from "@/lib/new-jarvis/attachments";
+import { useAttachments } from "@/lib/new-jarvis/attachClient";
 import { MAX_LIVE_BLOCKS, newBlock, type Block, type Gate, type Mode } from "@/lib/new-jarvis/types";
 import { BLOCKS_KEY, revive, slim } from "@/lib/new-jarvis/persist";
 
@@ -80,7 +82,7 @@ import type { JarvisStore } from "@/lib/jarvis/types";
 import { useDashboardCalendar } from "@/lib/jarvis/useDashboardCalendar";
 
 type TabId =
-  | "dashboard" | "console" | "studio" | "harness" | "queue"
+  | "dashboard" | "chat" | "studio" | "harness" | "queue"
   | "folders" | "photos" | "lists" | "calendar" | "inbox"
   | "skills" | "tools" | "passwords" | "calls" | "router" | "architect" | "timeline" | "plugins" | "settings";
 
@@ -100,9 +102,11 @@ type Tab = { id: TabId; label: string; icon: keyof typeof Icon };
  *   a separate "Record" made it read as a filing cabinet rather than as the
  *   owner. The store is untouched; only the framing changed.
  *
- *   Routines is unmounted. /apps/jarvis still has it and the store field is
- *   still read by the updates feed, so nothing was deleted — it simply stopped
- *   paying rent on the surface the owner looks at most.
+ *   Routines is gone. The owner did not use it, so its tab, its store field
+ *   and its seeded prompts were removed rather than kept out of sight.
+ *
+ *   Console became Chat: the same agent loop, plus attachments — pictures,
+ *   clips, audio, PDFs and text the agent actually perceives.
  *
  * Folders, Photos, Lists, Calendar and Inbox fold into one "Yours" group, and
  * the Toolbox is the group from the old shell, moved over whole.
@@ -141,7 +145,7 @@ const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[]
 /** The ones that are always one click away, because they are where work happens. */
 const TOP: Tab[] = [
   { id: "dashboard", label: "Dashboard", icon: "Grid" },
-  { id: "console", label: "Console", icon: "Bot" },
+  { id: "chat", label: "Chat", icon: "Bot" },
   { id: "studio", label: "Studio", icon: "Film" },
   // Harness earns a top slot rather than a place in the Toolbox: it is where
   // the repo actually gets changed, which makes it work rather than a tool.
@@ -156,6 +160,25 @@ const TABS: Tab[] = [...TOP, ...GROUPS.flatMap((g) => g.items)];
 
 function isTab(v: string): v is TabId {
   return TABS.some((t) => t.id === v);
+}
+
+/**
+ * Names that used to be tabs — here, or in the retired /apps/jarvis shell —
+ * and where each one lives now. Old bookmarks, the updates feed and the old
+ * shell's redirect all arrive through this.
+ */
+const ALIASES: Record<string, TabId> = {
+  console: "chat",
+  memory: "dashboard",
+  record: "dashboard",
+  profile: "dashboard",
+  routines: "dashboard",
+};
+
+function tabFor(name: string): TabId | null {
+  const n = name.replace(/^#/, "").trim().toLowerCase();
+  if (isTab(n)) return n;
+  return ALIASES[n] ?? null;
 }
 
 /** Which group a tab lives in, so opening one from a link opens its folder too. */
@@ -175,6 +198,7 @@ export function NewJarvis() {
   const [reactorMode, setReactorMode] = useState<ReactorMode>("ring");
 
   const bridge = useBridge();
+  const attach = useAttachments();
 
   // The ledger is kept, because the whole argument of this surface is that a
   // block from an hour ago is still there. Deliberately device-local rather
@@ -218,7 +242,7 @@ export function NewJarvis() {
     };
   }, []);
 
-  // --- the owner's stores, exactly as /apps/jarvis reads them --------------
+  // --- the owner's stores, exactly as the old /apps/jarvis read them ------
   const [store, setStore] = useState<JarvisStore | null>(null);
   const [profiles, setProfiles] = useState<DashboardStore>(emptyStore);
   const reload = useCallback(() => {
@@ -382,7 +406,7 @@ export function NewJarvis() {
   const historyFor = useCallback((): WireMessage[] => {
     const recent = blocks.filter((b) => b.status === "done" && b.answer).slice(0, 4).reverse();
     return recent.flatMap((b): WireMessage[] => [
-      { role: "user", content: b.command },
+      { role: "user", content: historyText(b.command, b.attachments) },
       { role: "assistant", content: b.answer },
     ]);
   }, [blocks]);
@@ -460,6 +484,36 @@ export function NewJarvis() {
         };
       }
 
+      if (tool === "memory_search") {
+        const query = String(args.query ?? "").trim();
+        if (!query) throw new Error("Search for what? The query was empty.");
+        const limit = Math.min(12, Math.max(1, Number(args.limit) || 6));
+        const res = await fetch("/api/jarvis/memory/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, limit }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          available?: boolean;
+          reason?: string;
+          hits?: { title: string; content: string; source: string; capturedAt?: string; origin?: string }[];
+        };
+        if (!res.ok || data.available === false) {
+          throw new Error(`Memory is not reachable right now${data.reason ? `: ${data.reason}` : "."}`);
+        }
+        const hits = (data.hits ?? []).slice(0, limit);
+        return {
+          found: hits.length,
+          results: hits.map((h) => ({
+            title: h.title,
+            source: h.source,
+            when: (h.capturedAt ?? "").slice(0, 10),
+            text: h.content.length > 700 ? `${h.content.slice(0, 700)}…` : h.content,
+          })),
+          ...(hits.length ? {} : { note: "Nothing in memory matches. Say so; do not guess." }),
+        };
+      }
+
       if (tool === "propose_memory") {
         const title = String(args.title ?? "").trim();
         const content = String(args.content ?? "").trim();
@@ -496,7 +550,12 @@ export function NewJarvis() {
 
   const submit = useCallback(
     async (rawText?: string, source: Block["source"] = "typed") => {
-      const command = (rawText ?? input).trim();
+      // Attachments belong to what is in the box, so a voice command or a
+      // rerun never picks up files sitting in the tray for something else.
+      const typed = rawText === undefined;
+      const files = typed ? attach.itemsRef.current.filter((a) => a.state === "ready") : [];
+      if (typed && attach.busy) return;
+      const command = (rawText ?? input).trim() || (files.length ? "Look at what I attached." : "");
       if (!command) return;
 
       // The reflex gets first refusal.
@@ -506,7 +565,7 @@ export function NewJarvis() {
       // something. `wait` is advisory — pressing enter on a half-sentence is
       // the owner overruling it, and a box that refuses to submit is a box
       // people come to hate.
-      if (source === "typed" && overrideFor !== command && savedACall(reflex.route)) {
+      if (source === "typed" && !files.length && overrideFor !== command && savedACall(reflex.route)) {
         const block = newBlock({ command, mode, source });
         setBlocks((bs) => [
           {
@@ -523,22 +582,23 @@ ${reflex.best.excerpt ?? ""}`.trim()
           ...bs,
         ].slice(0, MAX_LIVE_BLOCKS));
         setInput("");
-        setTab("console");
+        setTab("chat");
         return;
       }
 
       if (source === "typed") setInput("");
+      if (typed) attach.clear();
 
-      const block = newBlock({ command, mode, source });
+      const block = newBlock({ command, mode, source, ...(files.length ? { attachments: shown(files) } : {}) });
       setBlocks((bs) => [block, ...bs].slice(0, MAX_LIVE_BLOCKS));
-      setTab("console");
+      setTab("chat");
 
       const controller = new AbortController();
       aborts.current.set(block.id, controller);
       const history = historyFor();
 
       const outcome = await runBlock(
-        { command, mode, history },
+        { command, mode, history, ...(files.length ? { content: toParts(command, files) } : {}) },
         {
           signal: controller.signal,
           update: (p) => patch(block.id, p),
@@ -584,7 +644,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
       }
       void bridge.refresh();
     },
-    [bridge, historyFor, input, mode, overrideFor, patch, profile?.name, reflex, runTool, voice],
+    [attach, bridge, historyFor, input, mode, overrideFor, patch, profile?.name, reflex, runTool, voice],
   );
 
   useEffect(() => {
@@ -617,8 +677,15 @@ ${reflex.best.excerpt ?? ""}`.trim()
   // The tab lives in the hash, so reload and back land where the owner was.
   useEffect(() => {
     const read = () => {
-      const h = window.location.hash.replace("#", "");
-      if (isTab(h)) setTab(h);
+      const h = tabFor(window.location.hash);
+      if (h) {
+        setTab(h);
+        // An old name is rewritten to the current one, so the address bar
+        // and a bookmark made from it say where the owner actually is.
+        if (window.location.hash.replace("#", "") !== h) history.replaceState(null, "", `#${h}`);
+        const group = groupOf(h);
+        if (group) setOpenGroup(group);
+      }
     };
     read();
     window.addEventListener("hashchange", read);
@@ -643,9 +710,9 @@ ${reflex.best.excerpt ?? ""}`.trim()
   const goByName = useCallback(
     (name: string) => {
       // The feed's older ids point at surfaces that are now panels rather than
-      // tabs. Memory is the Dashboard now, and so is a pending action.
-      const mapped = name === "memory" || name === "chat" ? "dashboard" : name;
-      if (isTab(mapped)) go(mapped);
+      // tabs — Memory, the Record and the Profile are the Dashboard now.
+      const mapped = tabFor(name);
+      if (mapped) go(mapped);
     },
     [go],
   );
@@ -680,14 +747,8 @@ ${reflex.best.excerpt ?? ""}`.trim()
         </Link>
         <span className="text-sm font-semibold text-ink">New Jarvis</span>
         <span className="hidden text-xs text-ink-muted sm:inline">
-          · {profile ? `${profile.name}'s assistant` : "the console"}
+          · {profile ? `${profile.name}'s assistant` : "your assistant"}
         </span>
-        <Link
-          href="/apps/jarvis"
-          className="ml-auto rounded-lg border border-line px-2 py-1 text-[11px] text-ink-muted transition hover:bg-panel-2 hover:text-ink"
-        >
-          Old Jarvis
-        </Link>
       </header>
 
       <div className="flex min-h-0 flex-1">
@@ -702,7 +763,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
               on={tab === t.id}
               onClick={() => go(t.id)}
               badge={
-                t.id === "console" && running
+                t.id === "chat" && running
                   ? "live"
                   : t.id === "dashboard" && updates.unread > 0
                     ? "unread"
@@ -752,6 +813,13 @@ ${reflex.best.excerpt ?? ""}`.trim()
             micSupported={voice.supported}
             onMic={voice.toggle}
             busy={running}
+            attachments={attach.items}
+            onAttach={(files) => {
+              void attach.add(files);
+              // Attaching is asking Chat for something, so Chat is where to be.
+              if (tab !== "chat") go("chat");
+            }}
+            onRemoveAttachment={attach.remove}
           />
 
           {/* The reflex, over whatever is in the box. Hidden when there is
@@ -797,7 +865,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 setup={setup}
                 onOpenSetup={setSetupStep}
               />
-            ) : tab === "console" ? (
+            ) : tab === "chat" ? (
               <div className="space-y-2 p-3">
                 {blocks.length === 0 ? (
                   <Empty
@@ -880,13 +948,9 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 {tab === "architect" && <Blueprint chromeless />}
                 {tab === "timeline" && <AppShell chromeless />}
                 {tab === "plugins" && <PluginsTab />}
-                {/* SettingsTab's `go` is typed against the OLD shell's tab
-                    union, which is a superset of this one for the ids it
-                    actually sends. Narrowed through the same name check the
-                    hash router uses rather than cast blindly. */}
-                {tab === "settings" && (
-                  <SettingsTab go={((t: string) => goByName(t)) as never} updates={updates} />
-                )}
+                {/* Through the same name check the hash router uses, so an
+                    old tab name lands where it lives now. */}
+                {tab === "settings" && <SettingsTab go={goByName} updates={updates} />}
               </>
             )}
           </div>
@@ -965,7 +1029,7 @@ function RailButton({
 }
 
 /**
- * The empty console.
+ * Chat, before anything has been asked.
  *
  * It teaches the surface rather than announcing that it is empty: four real
  * commands the owner can read and reuse, and an honest line about what is
@@ -988,8 +1052,9 @@ function Empty({ paired, onPick }: { paired: boolean; onPick: (text: string) => 
         and it listens.
       </p>
       <p className="mt-1 text-xs text-ink-muted">
-        Every request becomes a block below — what you said, every step it took, and what came back. Nothing scrolls
-        away.
+        Attach pictures, video, audio, PDFs or text with the paperclip (or drop and paste them) and say what to do with
+        them — it looks, watches, listens and reads. Every request becomes a block below: what you said, every step it
+        took, and what came back.
       </p>
       <ul className="mt-5 space-y-1.5">
         {examples.map((e) => (

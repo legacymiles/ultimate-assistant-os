@@ -14,7 +14,7 @@ export default function RecallUnlockPage() {
       title="Jarvis"
       subtitle="Your folders, photos, lists and assistant."
       endpoint="/api/recall-unlock"
-      defaultNext="/apps/jarvis"
+      defaultNext="/apps/new-jarvis"
       icon={<Icon.Sparkles width={24} height={24} />}
       footnote="One password for everything Jarvis keeps. Family members sign in to the Lists board separately."
     />

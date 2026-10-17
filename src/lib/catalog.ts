@@ -55,6 +55,12 @@ export interface CatalogProject {
   status: "live" | "coming-soon";
   /** Internal route, e.g. `/apps/projects-timeline`. */
   appUrl?: string;
+  /**
+   * The slug of the app that replaced this one. A retired app keeps its entry
+   * (its detail page and old links still resolve, and `appUrl` points at the
+   * replacement) but is no longer a tile on the hub.
+   */
+  retiredInto?: string;
   /** External URL — when set, the detail page embeds it in an iframe. */
   externalUrl?: string;
   iconStyle: IconStyle;
@@ -76,8 +82,9 @@ export const PROJECTS: CatalogProject[] = [
     tag: "The assistant that can actually reach your computer",
     category: "AI",
     overview:
-      "The same memory, folders, photos, lists, calendar and Record as Jarvis — the identical data, read " +
-      "through a console instead of a chat. Every request, typed or spoken, becomes a block: exactly what " +
+      "The one Jarvis: your memory, folders, photos, lists, calendar and Record, and a Chat that takes " +
+      "pictures, video, audio, PDFs and text files you attach and actually looks at, watches, listens to and " +
+      "reads them before doing what you ask. Every request, typed or spoken, becomes a block: exactly what " +
       "you said, a numbered ledger of every step it took, and what each step actually returned, rendered as " +
       "the thing it is — a table, a page, a screenshot, a command's real output. Nothing is flattened into " +
       "\"Done\" and nothing scrolls away; a block from an hour ago is still there and still re-runnable. " +
@@ -111,7 +118,10 @@ export const PROJECTS: CatalogProject[] = [
       "the Skills Library as its own tab. Your own calendar, with reminders and .ics export, sits beside " +
       "any connected one, and Jarvis can add a list entry, a note or an event when you say yes.",
     status: "live",
-    appUrl: "/apps/jarvis",
+    // Retired: everything it did lives in New Jarvis, and /apps/jarvis now
+    // redirects there. The entry stays so old links and its page resolve.
+    appUrl: "/apps/new-jarvis",
+    retiredInto: "new-jarvis",
     iconStyle: "rings",
     hue: [190, 265],
   },

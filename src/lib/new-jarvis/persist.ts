@@ -15,6 +15,7 @@
 
 import type { Block, Step } from "./types";
 import { MAX_LIVE_BLOCKS } from "./types";
+import type { AttachKind } from "./attachments";
 
 export const BLOCKS_KEY = "new-jarvis:blocks";
 
@@ -54,11 +55,29 @@ function slimStep(step: Step): Step {
  * would put a permanent ticking timer and a Stop button on a job that ended
  * when the tab did.
  */
+/**
+ * Thumbnails are kept only on the newest few blocks, and only small ones. The
+ * ledger lives in localStorage, and eight 20 KB tiles on each of 25 blocks
+ * would spend most of the 5 MB a browser allows on pictures of history.
+ */
+const THUMB_BLOCKS = 6;
+const THUMB_CHARS = 40_000;
+
+function slimAttachments(b: Block, i: number): Block["attachments"] {
+  if (!b.attachments?.length) return undefined;
+  return b.attachments.slice(0, 8).map((a) => ({
+    name: a.name,
+    kind: a.kind,
+    ...(i < THUMB_BLOCKS && a.thumb && a.thumb.length <= THUMB_CHARS ? { thumb: a.thumb } : {}),
+  }));
+}
+
 export function slim(blocks: Block[]): Block[] {
-  return blocks.slice(0, STORED_BLOCKS).map((b) => {
+  return blocks.slice(0, STORED_BLOCKS).map((b, i) => {
     const interrupted = b.status === "running" || b.status === "waiting";
     return {
       ...b,
+      attachments: slimAttachments(b, i),
       status: interrupted ? ("stopped" as const) : b.status,
       error: interrupted ? b.error || "This run was interrupted when the page closed." : b.error,
       gate: null,
@@ -99,6 +118,18 @@ export function revive(raw: unknown): Block[] {
       source: (["typed", "voice", "routine"].includes(String(o.source)) ? o.source : "typed") as Block["source"],
       mode: (["ask", "do", "browse", "run"].includes(String(o.mode)) ? o.mode : "do") as Block["mode"],
       command: o.command,
+      ...(Array.isArray(o.attachments) && o.attachments.length
+        ? {
+            attachments: (o.attachments as Record<string, unknown>[])
+              .filter((a) => a && typeof a.name === "string")
+              .slice(0, 8)
+              .map((a) => ({
+                name: String(a.name),
+                kind: (["image", "video", "audio", "pdf", "text"].includes(String(a.kind)) ? a.kind : "text") as AttachKind,
+                ...(typeof a.thumb === "string" && a.thumb.startsWith("data:image/") ? { thumb: a.thumb } : {}),
+              })),
+          }
+        : {}),
       createdAt: typeof o.createdAt === "number" ? o.createdAt : Date.now(),
       // A stored block is never live. See slim().
       status: (["done", "failed", "stopped"].includes(String(o.status)) ? o.status : "stopped") as Block["status"],

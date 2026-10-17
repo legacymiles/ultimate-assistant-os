@@ -6,7 +6,7 @@
 // This composer belongs to the Studio tab and only to it — workflows, the
 // camera deck, the cast, references and tracks, the shot plan and the render.
 // The Chat tab is a different agent with a different job and its own component
-// (AgentChatTab), so nothing here has to stay general.
+// (now New Jarvis › Chat), so nothing here has to stay general.
 //
 // A conversation is a list of turns, each of Jarvis's carrying the memories it
 // used. Three things appear under an answer when they exist, and each is the

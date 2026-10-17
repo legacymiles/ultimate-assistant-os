@@ -16,6 +16,7 @@ import { Icon } from "../icons";
 import { Markdown } from "../jarvis/Markdown";
 import type { Block, Gate, Step } from "@/lib/new-jarvis/types";
 import { elapsed } from "@/lib/new-jarvis/types";
+import type { AttachKind, AttachmentShown } from "@/lib/new-jarvis/attachments";
 
 const ms = (n: number | undefined) => (n === undefined ? "" : n < 1000 ? `${n} ms` : `${(n / 1000).toFixed(1)} s`);
 
@@ -205,6 +206,25 @@ function ResultView({ step }: { step: Step }) {
           to save; it cannot read one.
         </p>
       </div>
+    );
+  }
+
+  if (step.tool === "memory_search") {
+    const results = Array.isArray(r.results) ? (r.results as Record<string, unknown>[]) : [];
+    if (!results.length) return <p className="px-3 py-2 text-xs text-ink-muted">Nothing in memory matched.</p>;
+    return (
+      <ul className="max-h-72 divide-y divide-line-soft overflow-auto rounded-md border border-line-soft">
+        {results.map((h, i) => (
+          <li key={i} className="px-3 py-1.5">
+            <p className="flex items-baseline gap-2 text-xs">
+              <span className="min-w-0 flex-1 truncate font-medium text-ink">{String(h.title || "Untitled")}</span>
+              <span className="shrink-0 font-mono text-[10px] uppercase tracking-wide text-ink-muted">{String(h.source ?? "")}</span>
+              {h.when ? <span className="shrink-0 font-mono text-[10px] text-ink-muted" data-num>{String(h.when)}</span> : null}
+            </p>
+            <p className="mt-0.5 line-clamp-2 text-[11.5px] leading-snug text-ink-muted">{String(h.text ?? "")}</p>
+          </li>
+        ))}
+      </ul>
     );
   }
 
@@ -439,6 +459,7 @@ export function BlockView({
           aria-expanded={!block.collapsed}
         >
           <span className="block break-words font-mono text-[12.5px] leading-snug text-ink">{block.command}</span>
+          {block.attachments?.length ? <AttachedStrip items={block.attachments} /> : null}
         </button>
         <span className="shrink-0 font-mono text-[10.5px] uppercase tracking-wide text-ink-muted">{block.mode}</span>
         {block.source === "voice" && <Icon.Mic width={12} height={12} className="shrink-0 text-ink-faint" aria-hidden />}
@@ -513,4 +534,34 @@ export function BlockView({
       )}
     </article>
   );
+}
+
+/** What was attached to a request, as small tiles under its command. */
+function AttachedStrip({ items }: { items: AttachmentShown[] }) {
+  return (
+    <span className="mt-1.5 flex flex-wrap gap-1.5">
+      {items.map((a, i) => (
+        <span
+          key={i}
+          title={a.name}
+          className="inline-flex max-w-[11rem] items-center gap-1.5 rounded border border-line-soft bg-panel-2 py-0.5 pl-0.5 pr-1.5 text-[10.5px] text-ink-muted"
+        >
+          {a.thumb ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={a.thumb} alt="" className="h-6 w-6 shrink-0 rounded-sm object-cover" />
+          ) : (
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-sm bg-elevated">
+              <KindIcon kind={a.kind} />
+            </span>
+          )}
+          <span className="truncate">{a.name}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+export function KindIcon({ kind, size = 12 }: { kind: AttachKind; size?: number }) {
+  const I = kind === "image" ? Icon.Image : kind === "video" ? Icon.Film : kind === "audio" ? Icon.Waveform : Icon.File;
+  return <I width={size} height={size} aria-hidden />;
 }

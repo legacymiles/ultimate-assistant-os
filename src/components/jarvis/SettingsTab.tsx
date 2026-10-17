@@ -15,7 +15,7 @@ import { Icon } from "../icons";
 import { AiPanel } from "../hub/AiPanel";
 import { DriveBackupCard } from "../recall/DriveBackupCard";
 import { SecurityDialog } from "../recall/SecurityDialog";
-import type { TabId } from "./Jarvis";
+import type { TabId } from "./tabs";
 import { downloadIcs, getEvents } from "@/lib/recall/calendar/store";
 import {
   notificationPermission,

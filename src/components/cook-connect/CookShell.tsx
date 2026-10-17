@@ -172,7 +172,7 @@ export function CookShell({ children }: { children: ReactNode }) {
             {/* Out of the app entirely, back to the assistant. A real link, so
                 it leaves Cook Connect rather than moving inside it. */}
             <Link
-              href="/apps/jarvis"
+              href="/apps/new-jarvis"
               aria-label="Back to Jarvis"
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--cc-line)]
                          bg-[var(--cc-elevated)] px-3 py-1.5 text-[13px] font-semibold

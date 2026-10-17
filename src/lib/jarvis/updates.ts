@@ -93,8 +93,8 @@ export const UPDATE_TAB: Record<UpdateSource, string> = {
   lists: "lists",
   calendar: "calendar",
   photos: "photos",
-  memory: "memory",
-  actions: "chat",
+  memory: "dashboard",
+  actions: "dashboard",
   spend: "router",
 };
 
