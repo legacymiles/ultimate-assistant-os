@@ -27,7 +27,7 @@ import { PRIORITY_RANK, priorityMeta, type BoardPayload, type ListItem } from "@
 import { eventStart, type CalendarEvent } from "@/lib/recall/calendar/types";
 import { notificationPermission, notificationsAvailable, requestNotifications } from "@/lib/recall/calendar/reminders";
 
-export type WidgetId = "notifications" | "todo" | "camera" | "calendar" | "improvements";
+export type WidgetId = "notifications" | "todo" | "camera" | "calendar" | "improvements" | "queue";
 
 export const WIDGETS: { id: WidgetId; label: string }[] = [
   { id: "notifications", label: "Notifications" },
@@ -35,6 +35,7 @@ export const WIDGETS: { id: WidgetId; label: string }[] = [
   { id: "camera", label: "Camera Autopilot" },
   { id: "calendar", label: "Calendar" },
   { id: "improvements", label: "Improvements" },
+  { id: "queue", label: "In Queue" },
 ];
 
 // ----- which widgets show ----------------------------------------------------

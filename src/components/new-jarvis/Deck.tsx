@@ -67,6 +67,8 @@ import {
   type WidgetId,
 } from "./Widgets";
 import { ImprovementsExpanded, ImprovementsWidget } from "./Improvements";
+import { QueueExpanded, QueueWidget } from "./QueueWidget";
+import type { UseQueue } from "@/lib/new-jarvis/useQueue";
 import { useIdeas } from "@/lib/new-jarvis/useIdeas";
 import type { AuditProposalLike } from "@/lib/new-jarvis/ideas";
 import type { JarvisStore } from "@/lib/jarvis/types";
@@ -85,6 +87,8 @@ interface Props {
   store: JarvisStore | null;
   /** The self-audit's findings, shown under Improvements › Jarvis. */
   audit: AuditProposalLike[];
+  /** The In Queue board — the shell's one hook, so pips agree everywhere. */
+  queue: UseQueue;
 }
 
 type ActionState = "pending" | "running" | "done" | "declined" | "failed";
@@ -203,7 +207,7 @@ function recentFiled(n: number): { id: string; thumb: string; title: string }[] 
   }
 }
 
-export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camera, store, audit }: Props) {
+export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camera, store, audit, queue: inQueue }: Props) {
   const widgets = useWidgetPrefs();
   const ideas = useIdeas({ store, audit });
   const [expanded, setExpanded] = useState<WidgetId | null>(null);
@@ -515,6 +519,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
             {!widgets.hidden.has("todo") && <TodoWidget onExpand={() => setExpanded("todo")} />}
             {!widgets.hidden.has("calendar") && <CalendarWidget events={events} onExpand={() => setExpanded("calendar")} />}
             {!widgets.hidden.has("improvements") && <ImprovementsWidget ideas={ideas} onExpand={() => setExpanded("improvements")} />}
+            {!widgets.hidden.has("queue") && <QueueWidget queue={inQueue} onExpand={() => setExpanded("queue")} />}
           </div>
           {widgets.hidden.size === WIDGETS.length && (
             <p className="px-1 text-[11.5px] text-ink-faint">Every widget is hidden — turn some back on from Widgets above.</p>
@@ -620,6 +625,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
       {expanded === "todo" && <TodoExpanded onClose={() => setExpanded(null)} />}
       {expanded === "calendar" && <CalendarExpanded events={events} go={go} onClose={() => setExpanded(null)} />}
       {expanded === "improvements" && <ImprovementsExpanded ideas={ideas} go={go} onClose={() => setExpanded(null)} />}
+      {expanded === "queue" && <QueueExpanded queue={inQueue} go={go} onClose={() => setExpanded(null)} />}
 
       {open && (
         <PhotoSheet

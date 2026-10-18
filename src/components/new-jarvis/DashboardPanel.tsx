@@ -219,6 +219,7 @@ export function DashboardPanel({
             camera={camera}
             store={store}
             audit={improve.collected.proposals}
+            queue={queue}
           />
         ) : pane === "graph" ? (
           <div className="flex h-full min-h-0 flex-col lg:flex-row">
