@@ -22,10 +22,12 @@ browser styles each by name. All loose points (glTF POINTS) except the core:
   ring_main         a flat banded ring with a gap (held level, Saturn-style)
   ring_braid        a thin braided ring a few degrees off the main one
   ring_moons        shepherd moons on the main ring
-  cosmos_stars      stars and small clusters out in the space around it
+  cosmos_nebula     soft clouds of colour scattered unevenly around the ball
+  cosmos_stars      stars, clusters (dense globulars and loose open ones) and
+                    two faint star streams arcing through the space around it
 
-The smoke in the middle and the mist round the ring are volumes, not points:
-see bake_smoke.py / smoke_field.py and WorldField.tsx.
+The smoke in the middle, the mist round the ring and the smoke layers behind
+are volumes and shaders, not points: see smoke_field.py and WorldField.tsx.
 
 Run (Blender 4.2+ or the bpy module):
   blender --background --python tools/jarvis-world/build_world.py -- --out public/jarvis/world.glb
@@ -43,10 +45,11 @@ from mathutils import Vector, Matrix, Euler
 
 SEED = 1729
 
-# The rings lie flat in their own plane (Blender XY → the browser's
-# horizontal plane); the browser holds them level, Saturn-style, while the
-# galaxy faces you. The braid sits a few degrees off, so the two strands
-# cross rather than stack.
+# Two rings on different tilts, so together they read like a gyroscope round
+# the ball rather than one flat Saturn ring.
+# The rings lie flat (Blender XY → the browser's horizontal plane); the
+# browser holds them level, Saturn-style, while the galaxy turns toward you.
+# The braid sits a few degrees off, so the two strands cross.
 RING_TILT = Euler((0, 0, 0)).to_matrix()
 BRAID_TILT = Euler((math.radians(4.5), math.radians(-2.5), 0)).to_matrix()
 
@@ -241,20 +244,49 @@ def nebula(rng, n=2600):
     return pts
 
 
-def cosmos(rng, n=2200):
+def cosmos(rng, n=3000):
+    """The sky round the galaxy: uneven on purpose — denser toward one side,
+    with clusters of two kinds and two faint streams of stars."""
     pts = []
-    # Scattered stars, thinning with distance.
+    lean = Vector((0.55, -0.3, -0.35)).normalized()
     for _ in range(n):
         d = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1))).normalized()
-        pts.append(d * (2.4 + (rng.random() ** 1.6) * 5.0))
-    # A few small star clusters out in the dark.
-    for _ in range(7):
-        c = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1))).normalized() * rng.uniform(2.8, 5.5)
-        # Kept out of the space between the camera and the ball.
-        if c.z > 2.0:
+        if d.dot(lean) < -0.3 and rng.random() < 0.45:
+            continue  # thinner on the far side
+        pts.append(d * (2.4 + (rng.random() ** 1.5) * 5.5))
+
+    def placed(lo, hi):
+        c = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1))).normalized() * rng.uniform(lo, hi)
+        # +Z faces the viewer once the browser turns the galaxy toward you:
+        # keep dense things out of the space between you and it.
+        if c.z > 1.0:
             c.z = -c.z
-        for _ in range(rng.randint(22, 48)):
-            pts.append(c + gauss3(rng, 0.16))
+        return c
+
+    # Globular clusters: tight, bright-cored balls, far out.
+    for _ in range(4):
+        c = placed(3.6, 6.0)
+        for _ in range(rng.randint(70, 130)):
+            r = abs(rng.gauss(0, 0.07)) + abs(rng.gauss(0, 0.03))
+            d = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1))).normalized()
+            pts.append(c + d * r * 1.6)
+    # Open clusters: loose, a handful of stars.
+    for _ in range(8):
+        c = placed(2.8, 5.5)
+        for _ in range(rng.randint(18, 40)):
+            pts.append(c + gauss3(rng, 0.17))
+    # Two faint star streams arcing through the sky.
+    for k in range(2):
+        m = Euler((rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(0, 3))).to_matrix()
+        rad = rng.uniform(4.2, 5.6)
+        span = rng.uniform(0.6, 1.1)
+        start = rng.uniform(0, math.tau)
+        for _ in range(420):
+            a = start + rng.random() * span
+            p = m @ Vector((math.cos(a) * rad, math.sin(a) * rad, rng.gauss(0, 0.12)))
+            if p.z > 1.0:
+                p.z = -p.z
+            pts.append(p + gauss3(rng, 0.06))
     return pts
 
 
@@ -406,6 +438,7 @@ def main():
         cloud("ring_main", ring(rng)),
         cloud("ring_braid", braid(rng)),
         cloud("ring_moons", moons()),
+        cloud("cosmos_nebula", nebula(rng)),
         cloud("cosmos_stars", cosmos(rng)),
     ]
     print("AUTHORED", {o.name: len(o.data.vertices) for o in objs})

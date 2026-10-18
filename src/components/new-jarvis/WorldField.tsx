@@ -319,7 +319,7 @@ const SMOKE_FRAG = /* glsl */ `
       // Thinned right at the heart, so the colour is in the folds, not a white blob.
       // Carved: below a floor there is no smoke at all, so the gaps between
       // the wisps stay dark and the folds read as depth.
-      float s = max(0.0, base * (0.25 + 1.7 * tear) - 0.1) * smoothstep(0.5, 0.36, r) * smoothstep(0.03, 0.19, r);
+      float s = max(0.0, base * (0.2 + 2.0 * tear) - 0.14) * smoothstep(0.5, 0.3, r) * smoothstep(0.05, 0.2, r);
       if (s > 0.01) {
         float alpha = 1.0 - exp(-s * dt * 10.0 * uOpacity);
         float t = fbm(q * 2.2 + 5.0) * 0.9 + atan(q.z, q.x) / 6.2831 + uTime * 0.015;
@@ -332,9 +332,9 @@ const SMOKE_FRAG = /* glsl */ `
         float occl = texture(uVol, vec3(inward.x, -inward.z, inward.y) + 0.5).r;
         float light = exp(-occl * 2.6);
         // Hot at the heart, deep colour in the folds.
-        col = mix(col, vec3(1.0, 0.86, 0.66), smoothstep(0.1, 0.0, r) * 0.6);
+        col = mix(col, vec3(1.0, 0.86, 0.66), smoothstep(0.12, 0.0, r) * 0.25);
         // Kept under the bloom's threshold, so the smoke glows instead of bleaching.
-        col *= (0.15 + 0.82 * light) + 0.3 * exp(-r * r * 160.0) + 0.12 * uEnergy + 0.06 * uBreath;
+        col *= 0.9 * ((0.1 + 1.0 * light) + 0.1 * exp(-r * r * 160.0)) + 0.12 * uEnergy + 0.06 * uBreath;
         acc += T * alpha * col;
         T *= 1.0 - alpha;
         if (T < 0.03) break;
@@ -345,6 +345,78 @@ const SMOKE_FRAG = /* glsl */ `
     gl_FragColor = vec4(alpha > 0.0 ? acc / alpha : vec3(0.0), alpha);
     #include <colorspace_fragment>
     gl_FragColor.rgb *= gl_FragColor.a;
+  }
+`;
+
+// Smoke behind the galaxy: a big plane per layer, drawn with domain-warped
+// fractal noise (Inigo Quilez's warping) into billowing, folded smoke. Two
+// layers at different depths slide at different speeds for parallax; each is
+// heavier on one side and clear in the middle, so the galaxy stays the star.
+const BACKSMOKE_VERT = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv - 0.5;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const BACKSMOKE_FRAG = /* glsl */ `
+  uniform float uTime;
+  uniform float uHue;
+  uniform float uBreath;
+  uniform float uEnergy;
+  uniform float uSeed;
+  uniform float uGain;
+  uniform vec2 uAspect;
+  uniform vec2 uPointer;
+  uniform float uPointerOn;
+  uniform vec2 uLean;
+  varying vec2 vUv;
+
+  float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float n2(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y);
+  }
+  float fbm2(vec2 p) {
+    float a = 0.5, s = 0.0;
+    for (int i = 0; i < OCTAVES; i++) { s += a * n2(p); p = mat2(1.6, 1.2, -1.2, 1.6) * p + 7.3; a *= 0.5; }
+    return s;
+  }
+  vec3 hueShift(vec3 c, float a) {
+    const vec3 k = vec3(0.57735);
+    float ca = cos(a);
+    return c * ca + cross(k, c) * sin(a) + k * dot(k, c) * (1.0 - ca);
+  }
+  vec3 palette(float t) {
+    return vec3(0.52) + vec3(0.48) * cos(6.2831 * (t + vec3(0.0, 0.24, 0.5)));
+  }
+
+  void main() {
+    vec2 uv = vUv * uAspect;
+    // The smoke leans toward the pointer, as if drawn by it.
+    vec2 toP = uPointer * uAspect * 0.5 - uv;
+    uv += toP * 0.12 * uPointerOn * smoothstep(0.9, 0.0, length(toP));
+    vec2 p = uv * 2.6 + uSeed * 13.1;
+    float t = uTime * 0.035;
+    vec2 q = vec2(fbm2(p + vec2(0.0, t)), fbm2(p + vec2(5.2, 1.3) - t));
+    vec2 r = vec2(fbm2(p + 4.0 * q + vec2(1.7, 9.2) + t * 0.6), fbm2(p + 4.0 * q + vec2(8.3, 2.8) - t * 0.4));
+    float f = fbm2(p + 4.0 * r);
+    // Billows, with bright folded edges where the warp is strongest.
+    float body = smoothstep(0.42, 0.95, f);
+    float fold = pow(clamp(length(r - q) * 1.3, 0.0, 1.0), 2.0);
+    // Uneven: heavy on one side, thinning to clear sky on the other.
+    float side = smoothstep(-0.2, 0.75, dot(normalize(uLean), uv) + (fbm2(uv * 1.3 + 3.0) - 0.5) * 1.1);
+    // A clear window round the galaxy.
+    float window = smoothstep(0.12, 0.55, length(uv * vec2(0.8, 1.15)));
+    float edge = 1.0 - smoothstep(0.35, 0.5, max(abs(vUv.x), abs(vUv.y)));
+    float d = body * (0.5 + 1.1 * fold) * side * window * edge;
+    vec3 col = hueShift(palette(f * 1.4 + q.x * 0.7 + uSeed * 0.31 + t * 0.4), uHue);
+    col = clamp(mix(vec3(dot(col, vec3(0.333))), col, 1.5), 0.0, 1.0);
+    col *= d * uGain * (0.85 + 0.25 * uBreath + 0.3 * uEnergy);
+    gl_FragColor = vec4(col, 1.0);
+    #include <colorspace_fragment>
   }
 `;
 
@@ -562,7 +634,9 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         ring_main: { a: TEAL, b: CYAN, size: 3, opacity: 0.85, amp: 0.05, swirl: 0.5, kepler: 1.5, iri: 0.85, occlude: 1 },
         ring_braid: { a: GOLD, b: EMBER, size: 3.2, opacity: 0.95, amp: 0.04, swirl: 0.5, kepler: 1.5, iri: 0.35, occlude: 1 },
         ring_moons: { a: ICE, b: WARM, size: 15, opacity: 1, amp: 0.03, swirl: 0.5, kepler: 1.5, occlude: 1 },
-        // Out in the cosmos: stars and small clusters, drifting slowly as one sky.
+        // Out in the cosmos: colour clouds (each a different hue, by where
+        // it sits) and stars and clusters, drifting slowly as one sky.
+        cosmos_nebula: { a: MAGENTA, b: TEAL, size: 80, maxSize: 120, opacity: 0.022, amp: 0.1, swirl: 0.008, kepler: 0, iri: 0.5 },
         cosmos_stars: { a: ICE, b: ROSE, hot: ICE, size: 3, opacity: 0.8, amp: 0.08, swirl: 0.008, kepler: 0, iri: 0.35 },
       };
 
@@ -671,9 +745,11 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
       if (disposed) return;
       if (smokeTex) {
         const mat = volumeMat(SMOKE_FRAG, tier === "high" ? 40 : 20, { uVol: { value: smokeTex } });
-        mat.uniforms.uOpacity.value = 0.85;
+        mat.uniforms.uOpacity.value = 1.15;
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat);
-        mesh.scale.setScalar(4); // the grid's domain: [-2, 2]³
+        // The grid's domain is [-2, 2]³; drawn larger, so the smoke's
+        // tendrils reach out past the galaxy's edge.
+        mesh.scale.setScalar(5.4);
         mesh.renderOrder = -1; // under the stars, so they sparkle over it
         mesh.frustumCulled = false;
         spin.add(mesh);
@@ -689,6 +765,38 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         mesh.frustumCulled = false;
         rings.add(mesh);
         volumes.push({ mesh, mat });
+      }
+
+      // --- smoke behind the galaxy: two layers, far and farther --------------
+      const backSmoke: { mesh: THREE_NS.Mesh; mat: THREE_NS.ShaderMaterial; depth: number; drift: number }[] = [];
+      for (const [i, depth] of [[0, -7], [1, -15]] as const) {
+        if (tier === "low" && i === 1) continue;
+        const mat = new THREE.ShaderMaterial({
+          vertexShader: BACKSMOKE_VERT,
+          fragmentShader: BACKSMOKE_FRAG,
+          defines: { OCTAVES: tier === "high" ? 5 : 3 },
+          uniforms: {
+            uTime: shared.uTime,
+            uHue: shared.uHue,
+            uBreath: shared.uBreath,
+            uEnergy: shared.uEnergy,
+            uPointer: shared.uPointer,
+            uPointerOn: shared.uPointerOn,
+            uSeed: { value: i === 0 ? 0.37 : 1.91 },
+            uGain: { value: i === 0 ? 0.55 : 0.38 },
+            uAspect: { value: new THREE.Vector2(1, 1) },
+            uLean: { value: i === 0 ? new THREE.Vector2(-0.8, 0.45) : new THREE.Vector2(0.9, -0.3) },
+          },
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        });
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
+        mesh.position.z = depth;
+        mesh.renderOrder = -5 + i * -1;
+        mesh.frustumCulled = false;
+        scene.add(mesh);
+        backSmoke.push({ mesh, mat, depth, drift: i === 0 ? 0.9 : 0.45 });
       }
 
       // Far stars, and a faint nebula behind everything.
@@ -849,6 +957,13 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         camera.setViewOffset(w, h, w / 2 - cx, h / 2 - cy, w, h);
         camera.updateProjectionMatrix();
         shared.uAspect.value = w / h;
+        for (const b of backSmoke) {
+          const dist = camera.position.z - b.depth;
+          const vh = 2 * dist * Math.tan(((camera.fov / 2) * Math.PI) / 180) * 1.35;
+          const vw = vh * (w / h);
+          b.mesh.scale.set(vw, vh, 1);
+          b.mat.uniforms.uAspect.value.set(vw / Math.max(vw, vh), vh / Math.max(vw, vh));
+        }
         halo.scale.setScalar(1.3);
       };
       size();
@@ -937,9 +1052,9 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         const ty = pointer.x * 0.36 * pointer.on;
         tiltNow.x += (tx - tiltNow.x) * Math.min(1, dt * 2.5);
         tiltNow.y += (ty - tiltNow.y) * Math.min(1, dt * 2.5);
-        // Nearly face-on, so the galaxy reads as a round ball, not a squashed
-        // disc; rolled a touch so nothing sits square.
-        tilt.rotation.set(tiltNow.x + 1.08, tiltNow.y, -0.2);
+        // Turned most of the way toward you — semi-flattened, so the spiral
+        // reads with some depth — and rolled a touch so nothing sits square.
+        tilt.rotation.set(tiltNow.x + 0.9, tiltNow.y, -0.22);
         const s = 0.93 + 0.1 * shared.uBreath.value;
         spin.scale.setScalar(s);
         rings.scale.setScalar(0.96 + 0.06 * shared.uBreath.value);
@@ -950,6 +1065,11 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         shared.uSwirlT.value += dt * (1 + busyLevel * 1.4 + energy * 0.5);
         stars.rotation.y += dt * 0.004;
         stars.position.set(pointer.x * 0.6 * pointer.on, pointer.y * 0.4 * pointer.on, 0);
+        // Smoke layers slide less the farther back they are.
+        for (const b of backSmoke) {
+          b.mesh.position.x = pointer.x * b.drift * pointer.on;
+          b.mesh.position.y = pointer.y * b.drift * 0.6 * pointer.on;
+        }
         // Foreground motes slide the most: that difference is the depth.
         bokeh.position.set(-pointer.x * 0.55 * pointer.on, -pointer.y * 0.35 * pointer.on, 0);
         bokeh.rotation.z += dt * 0.01;
