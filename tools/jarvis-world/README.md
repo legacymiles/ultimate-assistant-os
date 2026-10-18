@@ -1,8 +1,8 @@
-# Jarvis world: a breathing galaxy ball in a coloured cosmos
+# Jarvis world: a breathing galaxy ball with smoke and a level ring
 
 The background behind every section of Jarvis (`/apps/jarvis`).
 
-- **Blender owns the shape.** `build_world.py` generates it deterministically (seed 1729) and exports `public/jarvis/world.glb` (~500 KB). The ball is round and compact but organic, not mirror-perfect. Inside: an off-centre bulge, and three arms of unequal length on a thick, gently warped disc, with star-forming knots and dust lanes. Around it: a lopsided shell of star streams, three ribbons wrapping it at odd angles, and a companion cluster. Two rings sit close around the ball on different tilts. One is banded with a gap and carries shepherd moons; the other is a thin braided strand. Out in the cosmos are uneven colour clouds (kept behind and around the ball, never in front of it), scattered stars and small clusters. Every layer is glTF POINTS except the core sphere. `world.blend` is the saved scene.
+- **Blender owns the shape.** `build_world.py` generates it deterministically (seed 1729) and exports `public/jarvis/world.glb` (~500 KB). The ball is round and compact but organic, not mirror-perfect. Inside: an off-centre bulge, and three arms of unequal length on a thick, gently warped disc, with star-forming knots and dust lanes. Around it: a lopsided shell of star streams, three ribbons wrapping it at odd angles, and a companion cluster. The rings lie flat. The browser holds them level, Saturn-style, while the galaxy faces you. One is banded with a gap and carries shepherd moons; the other is a thin braided strand a few degrees off it. Out in the cosmos are scattered stars and small clusters. Every layer is glTF POINTS except the core sphere. `world.blend` is the saved scene.
 - **The browser owns the life:** `src/components/new-jarvis/WorldField.tsx`. None of this travels through glTF, so it's all written there:
   - breathing (inhale, hold, longer exhale), stronger in the lower and side lobes
   - differential swirl
@@ -32,3 +32,22 @@ blender --background --python tools/jarvis-world/build_world.py -- \
 - **Reduced motion:** one settled frame, no animation.
 - **No WebGL, a lost context or a failed load:** the old canvas field (`HudField`) is shown instead.
 - **`?world=full`:** pins full quality, for checking the look on a slow machine.
+
+## Smoke and mist
+
+- **Smoke in the ball.** It's a 64³ density grid, `public/jarvis/smoke_64.bin` (256 KB raw, compresses well), which the browser ray-marches inside the ball.
+  - **The grid:** it adds finer procedural tearing on top of the grid's shapes. The colour runs teal → violet → magenta → gold.
+  - **Light and shadow:** the core lights it, so its inner folds go dark and its outer edges catch the light.
+  - **Motion:** it swells with each breath and eddies back and forth.
+  - **Two ways to make the grid:**
+    - `bake_smoke.py` runs a real Mantaflow smoke sim in Blender: a central emitter, a vortex and turbulence. Use it with a full Blender install.
+    - `smoke_field.py` writes the same file with numpy, using tracers carried by curl noise and swirl. It needs no fluid solver, and it's what made the current file. The pip `bpy` module ships Mantaflow broken.
+- **Mist round the ring.** This one is procedural: a thin horizontal band that runs only round the ring and flows Kepler-style (inner faster). There is no haze anywhere else.
+- **Backdrop.** A plain opaque deep-space sphere sits behind everything, so the bloom settles on true black.
+- **Rings and the ball.** Ring stars that pass behind the ball are hidden by it.
+
+```
+python tools/jarvis-world/smoke_field.py --out public/jarvis/smoke_64.bin
+# or, with full Blender:
+blender --background --python tools/jarvis-world/bake_smoke.py -- --out public/jarvis/smoke_64.bin
+```

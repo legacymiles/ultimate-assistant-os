@@ -19,11 +19,13 @@ browser styles each by name. All loose points (glTF POINTS) except the core:
                     little on one side
   galaxy_ribbons    three broad streams wrapping the ball at odd angles
   galaxy_companion  a small cluster orbiting just outside the ball
-  ring_main         a banded ring with a gap, tilted 66° off the disc
-  ring_braid        a thin braided ring on a different tilt (gyroscope-like)
+  ring_main         a flat banded ring with a gap (held level, Saturn-style)
+  ring_braid        a thin braided ring a few degrees off the main one
   ring_moons        shepherd moons on the main ring
-  cosmos_nebula     soft clouds of colour scattered unevenly around the ball
   cosmos_stars      stars and small clusters out in the space around it
+
+The smoke in the middle and the mist round the ring are volumes, not points:
+see bake_smoke.py / smoke_field.py and WorldField.tsx.
 
 Run (Blender 4.2+ or the bpy module):
   blender --background --python tools/jarvis-world/build_world.py -- --out public/jarvis/world.glb
@@ -41,10 +43,12 @@ from mathutils import Vector, Matrix, Euler
 
 SEED = 1729
 
-# Two rings on different tilts, so together they read like a gyroscope round
-# the ball rather than one flat Saturn ring.
-RING_TILT = Euler((math.radians(66), math.radians(-14), math.radians(24))).to_matrix()
-BRAID_TILT = Euler((math.radians(-38), math.radians(30), math.radians(-60))).to_matrix()
+# The rings lie flat in their own plane (Blender XY → the browser's
+# horizontal plane); the browser holds them level, Saturn-style, while the
+# galaxy faces you. The braid sits a few degrees off, so the two strands
+# cross rather than stack.
+RING_TILT = Euler((0, 0, 0)).to_matrix()
+BRAID_TILT = Euler((math.radians(4.5), math.radians(-2.5), 0)).to_matrix()
 
 
 def args():
@@ -402,7 +406,6 @@ def main():
         cloud("ring_main", ring(rng)),
         cloud("ring_braid", braid(rng)),
         cloud("ring_moons", moons()),
-        cloud("cosmos_nebula", nebula(rng)),
         cloud("cosmos_stars", cosmos(rng)),
     ]
     print("AUTHORED", {o.name: len(o.data.vertices) for o in objs})
