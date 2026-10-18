@@ -79,19 +79,34 @@ const POINT_VERT = /* glsl */ `
   uniform float uSize;
   uniform float uPixelRatio;
   uniform float uSwirl;
+  uniform float uKepler;
+  uniform vec3 uAxis;
   uniform float uRim;
   varying float vGlow;
   varying float vAlpha;
   varying float vMix;
   varying float vHeat;
+  varying float vAngle;
+  varying float vRing;
+  varying float vDepth;
+
+  // Rotate v about unit axis k by angle a (Rodrigues).
+  vec3 spinAbout(vec3 v, vec3 k, float a) {
+    float s = sin(a), c = cos(a);
+    return v * c + cross(k, v) * s + k * dot(k, v) * (1.0 - c);
+  }
 
   void main() {
     float seed = hash(position);
     float r = length(position);
-    // Differential rotation about the galaxy's axis: inner stars orbit faster.
-    float a = uSwirlT * uSwirl / max(r, 0.35);
-    float s = sin(a), c = cos(a);
-    vec3 q = vec3(c * position.x + s * position.z, position.y, -s * position.x + c * position.z);
+    // Differential rotation about this layer's own axis: the galaxy turns
+    // about its disc, the ring about its tilt, inner orbits faster (uKepler).
+    float a = uSwirlT * uSwirl / pow(max(r, 0.35), uKepler);
+    vec3 q = spinAbout(position, uAxis, a);
+    // Where round its axis this star sits — drives the ring's iridescence.
+    vec3 ref = normalize(cross(uAxis, abs(uAxis.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
+    vec3 flat_ = q - uAxis * dot(q, uAxis);
+    vAngle = atan(dot(flat_, cross(uAxis, ref)), dot(flat_, ref));
     float ring;
     vec3 p = breathe(q, seed, ring);
     vec4 world = modelMatrix * vec4(p, 1.0);
@@ -111,12 +126,16 @@ const POINT_VERT = /* glsl */ `
     float facing = abs(dot(wn, normalize(cameraPosition - world.xyz)));
     float rim = mix(1.0, 0.3 + 2.2 * pow(1.0 - facing, 2.0), uRim);
 
+    // Depth: the near side of the galaxy is brighter and larger than the far side.
+    vDepth = smoothstep(uCamZ + 2.6, uCamZ - 2.6, -mv.z);
+
     float big = step(0.985, seed) * 2.2;
     float twinkle = 0.6 + 0.4 * sin(uTime * (1.1 + seed * 2.3) + seed * 40.0);
     // uSize is pixels at the galaxy's centre; nearer stars grow, farther shrink.
-    gl_PointSize = min(48.0, uSize * (0.5 + seed * 0.8 + big) * (1.0 + near * 0.8 + ring * 1.0) * uPixelRatio * uCamZ / -mv.z);
-    vAlpha = twinkle * rim;
+    gl_PointSize = min(56.0, uSize * (0.5 + seed * 0.8 + big) * (1.0 + near * 0.8 + ring * 1.0) * (0.75 + 0.5 * vDepth) * uPixelRatio * uCamZ / -mv.z);
+    vAlpha = twinkle * rim * (0.55 + 0.6 * vDepth);
     vGlow = near * 0.9 + ring * 1.1 + uEnergy * 0.3 + uBreath * 0.25;
+    vRing = ring;
     vMix = seed;
     vHeat = smoothstep(0.9, 0.0, r);
   }
@@ -127,16 +146,40 @@ const POINT_FRAG = /* glsl */ `
   uniform vec3 uColorB;
   uniform vec3 uHot;
   uniform float uOpacity;
+  uniform float uIri;
+  uniform float uHue;
+  uniform float uTime;
+  uniform vec3 uPulseColor;
   varying float vGlow;
   varying float vAlpha;
   varying float vMix;
   varying float vHeat;
+  varying float vAngle;
+  varying float vRing;
+  varying float vDepth;
+
+  // Rotate a colour's hue by a radians, keeping its brightness.
+  vec3 hueShift(vec3 c, float a) {
+    const vec3 k = vec3(0.57735);
+    float ca = cos(a);
+    return c * ca + cross(k, c) * sin(a) + k * dot(k, c) * (1.0 - ca);
+  }
+  // Oil-on-water colour: teal → violet → magenta → gold round the ring.
+  vec3 iridescent(float t) {
+    return vec3(0.55) + vec3(0.45) * cos(6.2831 * (t + vec3(0.0, 0.22, 0.48)));
+  }
 
   void main() {
     float d = length(gl_PointCoord - 0.5);
     float disc = smoothstep(0.5, 0.0, d);
     vec3 c = mix(uColorA, uColorB, vMix);
-    c = mix(c, uHot, vHeat * 0.75) * (1.0 + vGlow);
+    c = mix(c, uHot, vHeat * 0.75);
+    float t = vAngle / 6.2831 * 2.0 + uTime * 0.04 + vMix * 0.08;
+    c = mix(c, iridescent(t) * 1.25, uIri);
+    c = hueShift(c, uHue);
+    // Far stars cool toward blue; near ones keep their full colour.
+    c = mix(c * vec3(0.7, 0.8, 1.15), c, vDepth);
+    c = c * (1.0 + vGlow) + uPulseColor * vRing * 1.6;
     gl_FragColor = vec4(c, uOpacity * vAlpha * disc * disc);
     #include <colorspace_fragment>
   }
@@ -261,13 +304,20 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
 
-      const CYAN = new THREE.Color("#47e8ff");
-      const VIOLET = new THREE.Color("#8b7cff");
+      // Saturated on purpose: additive light washes colour out, so it starts vivid.
+      const CYAN = new THREE.Color("#00e5ff");
+      const ELECTRIC = new THREE.Color("#3d6bff");
+      const VIOLET = new THREE.Color("#9b5cff");
       const ICE = new THREE.Color("#c9f6ff");
-      const GOLD = new THREE.Color("#ffc98a");
-      const WARM = new THREE.Color("#fff1dc");
+      const GOLD = new THREE.Color("#ffb347");
+      const WARM = new THREE.Color("#ffe9c2");
+      const MAGENTA = new THREE.Color("#ff2fb4");
       const ROSE = new THREE.Color("#ff6fd0");
-      const BLUE = new THREE.Color("#5f8bff");
+      const BLUE = new THREE.Color("#4f7bff");
+      const TEAL = new THREE.Color("#1fffc8");
+      const EMBER = new THREE.Color("#ff6a3d");
+      const LIME = new THREE.Color("#8dff5a");
+      const PULSES = [MAGENTA, CYAN, GOLD, LIME, VIOLET];
 
       // Shared clock-driven uniforms; each material spreads the same objects in.
       const shared = {
@@ -281,9 +331,26 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         // The swirl's own clock: it speeds up while Jarvis works without jumping.
         uSwirlT: { value: 0 },
         uCamZ: { value: 8 },
+        // The pointer turns the whole palette; each click sends a new colour.
+        uHue: { value: 0 },
+        uPulseColor: { value: new THREE.Color("#ff2fb4") },
       };
 
-      interface Look { a: THREE_NS.Color; b: THREE_NS.Color; hot?: THREE_NS.Color; size: number; opacity: number; amp: number; swirl: number; rim?: number }
+      interface Look {
+        a: THREE_NS.Color;
+        b: THREE_NS.Color;
+        hot?: THREE_NS.Color;
+        size: number;
+        opacity: number;
+        amp: number;
+        swirl: number;
+        /** 1 = galaxy-like (∝ 1/r), 1.5 = Kepler (ring), 0 = turns as one piece. */
+        kepler?: number;
+        rim?: number;
+        /** 0..1 how much of its colour is the ring's oil-on-water shimmer. */
+        iri?: number;
+      }
+      const Y_AXIS = new THREE.Vector3(0, 1, 0);
       const pointMat = (l: Look) =>
         new THREE.ShaderMaterial({
           vertexShader: POINT_VERT,
@@ -297,6 +364,9 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
             uOpacity: { value: l.opacity },
             uSize: { value: l.size },
             uSwirl: { value: l.swirl },
+            uKepler: { value: l.kepler ?? 1 },
+            uAxis: { value: Y_AXIS.clone() },
+            uIri: { value: l.iri ?? 0 },
             uRim: { value: l.rim ?? 0 },
             uPixelRatio: { value: 1 },
           },
@@ -329,11 +399,18 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
 
       const pointMats: THREE_NS.ShaderMaterial[] = [];
       const looks: Record<string, Look> = {
-        galaxy_bulge: { a: GOLD, b: WARM, size: 3, opacity: 0.42, amp: 0.06, swirl: 0.22 },
-        galaxy_arms: { a: CYAN, b: VIOLET, hot: GOLD, size: 3.6, opacity: 0.85, amp: 0.1, swirl: 0.14 },
-        galaxy_dust: { a: VIOLET, b: ROSE, hot: VIOLET, size: 11, opacity: 0.06, amp: 0.1, swirl: 0.14 },
-        galaxy_shell: { a: BLUE, b: CYAN, hot: ICE, size: 3.2, opacity: 0.95, amp: 0.2, swirl: 0.045, rim: 1 },
+        galaxy_bulge: { a: GOLD, b: WARM, size: 3, opacity: 0.45, amp: 0.06, swirl: 0.22 },
+        galaxy_bar: { a: GOLD, b: EMBER, hot: WARM, size: 3.2, opacity: 0.55, amp: 0.05, swirl: 0.22, kepler: 0 },
+        galaxy_arms: { a: CYAN, b: ELECTRIC, hot: GOLD, size: 3.6, opacity: 0.85, amp: 0.1, swirl: 0.14 },
+        galaxy_knots: { a: MAGENTA, b: ROSE, hot: MAGENTA, size: 5.5, opacity: 0.95, amp: 0.1, swirl: 0.14 },
+        galaxy_dust: { a: VIOLET, b: MAGENTA, hot: VIOLET, size: 11, opacity: 0.07, amp: 0.1, swirl: 0.14 },
+        galaxy_tail: { a: TEAL, b: VIOLET, hot: TEAL, size: 3.2, opacity: 0.7, amp: 0.12, swirl: 0.012, kepler: 0 },
+        galaxy_dwarf: { a: ROSE, b: ICE, hot: WARM, size: 3.6, opacity: 0.8, amp: 0.05, swirl: 0.012, kepler: 0 },
+        galaxy_shell: { a: BLUE, b: VIOLET, hot: ICE, size: 3, opacity: 0.8, amp: 0.2, swirl: 0.045, rim: 1 },
         galaxy_halo: { a: ICE, b: BLUE, size: 2.6, opacity: 0.55, amp: 0.16, swirl: 0.02 },
+        ring_main: { a: TEAL, b: CYAN, size: 3.2, opacity: 0.8, amp: 0.05, swirl: 0.55, kepler: 1.5, iri: 0.85 },
+        ring_braid: { a: GOLD, b: EMBER, size: 3.4, opacity: 0.95, amp: 0.04, swirl: 0.55, kepler: 1.5, iri: 0.35 },
+        ring_moons: { a: ICE, b: WARM, size: 16, opacity: 1, amp: 0.03, swirl: 0.55, kepler: 1.5 },
       };
 
       const coreMat = new THREE.ShaderMaterial({
@@ -366,6 +443,39 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
           asMesh.material = coreMat;
         }
       });
+
+      // The ring spins about its own tilt, not the galaxy's axis: read the
+      // plane's normal off the ring's stars and hand it to the ring layers.
+      const ringObj = gltf.scene.getObjectByName("ring_main");
+      if (ringObj) {
+        let best = new THREE.Vector3();
+        ringObj.traverse((c) => {
+          const pts = c as THREE_NS.Points;
+          if (!pts.isPoints) return;
+          const pos = pts.geometry.getAttribute("position");
+          const a = new THREE.Vector3();
+          const b = new THREE.Vector3();
+          for (let i = 0; i < 64; i++) {
+            a.fromBufferAttribute(pos, Math.floor(Math.random() * pos.count));
+            b.fromBufferAttribute(pos, Math.floor(Math.random() * pos.count));
+            const n = a.clone().cross(b);
+            if (n.dot(best) < 0) n.negate();
+            if (n.lengthSq() > best.lengthSq()) best = n;
+          }
+        });
+        if (best.lengthSq() > 1e-6) {
+          best.normalize();
+          for (const name of ["ring_main", "ring_braid", "ring_moons"]) {
+            // A touch smaller than authored, so the ring frames the galaxy
+            // instead of crowding the screen's edge.
+            gltf.scene.getObjectByName(name)?.scale.setScalar(0.86);
+            gltf.scene.getObjectByName(name)?.traverse((c) => {
+              const m = (c as THREE_NS.Points).material as THREE_NS.ShaderMaterial | undefined;
+              if (m?.uniforms?.uAxis) m.uniforms.uAxis.value.copy(best);
+            });
+          }
+        }
+      }
 
       // A soft halo around the core.
       const haloTex = (() => {
@@ -406,8 +516,78 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
       })();
       scene.add(stars);
 
+      // Depth, in front: a few big out-of-focus motes between you and the
+      // galaxy. They ride with the camera and slide further with the pointer
+      // than anything else, which is what makes the galaxy read as far away.
+      scene.add(camera);
+      const bokeh = (() => {
+        const n = tier === "low" ? 14 : 34;
+        const pos = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) {
+          pos.set([(Math.random() - 0.5) * 6, (Math.random() - 0.5) * 3.6, -1.6 - Math.random() * 2.6], i * 3);
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+        const m = pointMat({ a: CYAN, b: MAGENTA, hot: GOLD, size: 26, opacity: 0.16, amp: 0, swirl: 0 });
+        m.uniforms.uCamZ = { value: 3 };
+        // Out of focus and close to you: no shockwave, no pointer flare.
+        m.uniforms.uPulseAge = { value: -1 };
+        m.uniforms.uPointerOn = { value: 0 };
+        pointMats.push(m);
+        const p = new THREE.Points(g, m);
+        p.frustumCulled = false;
+        camera.add(p);
+        return p;
+      })();
+
+      // Depth, behind: a handful of distant galaxies, each a different shape.
+      const farGalaxies: THREE_NS.Sprite[] = [];
+      const farTex: THREE_NS.Texture[] = [];
+      {
+        const tints = ["255,120,210", "120,220,255", "255,200,120", "170,140,255", "120,255,200"];
+        const count = tier === "low" ? 3 : 6;
+        for (let i = 0; i < count; i++) {
+          const c = document.createElement("canvas");
+          c.width = c.height = 128;
+          const g = c.getContext("2d")!;
+          const tint = tints[i % tints.length];
+          const core = g.createRadialGradient(64, 64, 0, 64, 64, 18);
+          core.addColorStop(0, "rgba(255,245,230,0.9)");
+          core.addColorStop(1, "rgba(255,245,230,0)");
+          g.translate(64, 64);
+          g.scale(1, 0.35 + Math.random() * 0.5);
+          // Two faint arms, drawn as dotted spirals.
+          for (let arm = 0; arm < 2; arm++) {
+            for (let k = 0; k < 160; k++) {
+              const t = k / 160;
+              const r = 6 + t * 52;
+              const a = arm * Math.PI + t * 4.2;
+              g.fillStyle = `rgba(${tint},${0.55 * (1 - t)})`;
+              g.beginPath();
+              g.arc(Math.cos(a) * r, Math.sin(a) * r, 1.6 + (1 - t) * 1.6, 0, Math.PI * 2);
+              g.fill();
+            }
+          }
+          g.setTransform(1, 0, 0, 1, 0, 0);
+          g.fillStyle = core;
+          g.fillRect(0, 0, 128, 128);
+          const tex = new THREE.CanvasTexture(c);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          farTex.push(tex);
+          const sp = new THREE.Sprite(
+            new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.2 }),
+          );
+          sp.material.rotation = Math.random() * Math.PI;
+          const d = new THREE.Vector3(Math.random() - 0.5, (Math.random() - 0.5) * 0.7, -0.6 - Math.random() * 0.4).normalize();
+          sp.position.copy(d.multiplyScalar(30 + Math.random() * 12));
+          sp.scale.setScalar(0.9 + Math.random() * 1.1);
+          stars.add(sp);
+          farGalaxies.push(sp);
+        }
+      }
+
       let nebula: THREE_NS.Mesh | null = null;
-      const nebulaUniforms = { uTime: shared.uTime, uColorA: { value: CYAN }, uColorB: { value: VIOLET } };
+      const nebulaUniforms = { uTime: shared.uTime, uColorA: { value: TEAL }, uColorB: { value: MAGENTA } };
       if (tier === "high") {
         nebula = new THREE.Mesh(
           new THREE.SphereGeometry(80, 32, 16),
@@ -469,12 +649,14 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         }
         for (const m of pointMats) m.uniforms.uPixelRatio.value = dpr;
         camera.aspect = w / h;
-        // Fit the galaxy (r ≈ 2) into the shorter side of the content area.
+        // Fit the galaxy into the content area, a little right of centre and
+        // a little high, so the tail and the ring have somewhere to go.
         const box = anchorRef?.current?.getBoundingClientRect();
-        const cx = box ? box.left + box.width / 2 : w / 2;
-        const cy = box ? box.top + box.height / 2 : h / 2;
+        const wide = box ? box.width > box.height : w > h;
+        const cx = box ? box.left + box.width * (wide ? 0.56 : 0.5) : w / 2;
+        const cy = box ? box.top + box.height * 0.47 : h / 2;
         const short = box ? Math.min(box.width, box.height) : Math.min(w, h);
-        const fitR = 1.8 * (h / Math.max(short, 1));
+        const fitR = 2.35 * (h / Math.max(short, 1));
         camera.position.z = fitR / Math.tan(((camera.fov / 2) * Math.PI) / 180);
         shared.uCamZ.value = camera.position.z;
         camera.setViewOffset(w, h, w / 2 - cx, h / 2 - cy, w, h);
@@ -497,8 +679,10 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
       };
       const onLeave = () => (pointer.target = 0);
       const onDown = () => {
-        // A shockwave out from the core.
+        // A shockwave out from the core, in the next colour of the cycle.
         shared.uPulseAge.value = 0;
+        pulseIndex = (pulseIndex + 1) % PULSES.length;
+        shared.uPulseColor.value.copy(PULSES[pulseIndex]);
         energy = Math.min(1.2, energy + 0.35);
       };
       const onKey = (e: KeyboardEvent) => {
@@ -512,6 +696,8 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
 
       // --- the loop ---------------------------------------------------------
       let energy = 0;
+      let pulseIndex = 0;
+      let hue = 0;
       let busyLevel = 0;
       let phase = 0.15;
       let t = 0;
@@ -557,6 +743,13 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         shared.uSwirlT.value += dt * (1 + busyLevel * 1.4 + energy * 0.5);
         stars.rotation.y += dt * 0.004;
         stars.position.set(pointer.x * 0.6 * pointer.on, pointer.y * 0.4 * pointer.on, 0);
+        // Foreground motes slide the most: that difference is the depth.
+        bokeh.position.set(-pointer.x * 0.55 * pointer.on, -pointer.y * 0.35 * pointer.on, 0);
+        bokeh.rotation.z += dt * 0.01;
+        // Colour follows the pointer across the screen, and drifts on its own.
+        const hueTarget = pointer.x * 0.55 * pointer.on + Math.sin(t * 0.07) * 0.22 + busyLevel * 0.25;
+        hue += (hueTarget - hue) * Math.min(1, dt * 1.5);
+        shared.uHue.value = hue;
         if (nebula) nebula.rotation.y += dt * 0.003;
         if (bloom) bloom.strength = 0.7 + 0.3 * shared.uBreath.value + 0.35 * busyLevel;
       };
@@ -632,6 +825,8 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
           (Array.isArray(mat) ? mat : mat ? [mat] : []).forEach((x) => x.dispose());
         });
         haloTex.dispose();
+        farTex.forEach((x) => x.dispose());
+        farGalaxies.forEach((x) => x.material.dispose());
         composer?.dispose();
         renderer.dispose();
         canvas.remove();

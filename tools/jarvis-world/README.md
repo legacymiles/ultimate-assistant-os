@@ -2,7 +2,7 @@
 
 The background behind every section of Jarvis (`/apps/jarvis`).
 
-- **Blender owns the shape.** `build_world.py` generates it deterministically (seed 1729) and exports `public/jarvis/world.glb` (~320 KB). The objects are `world_core`, `galaxy_bulge`, `galaxy_arms`, `galaxy_dust`, `galaxy_shell` and `galaxy_halo`. All of them are glTF POINTS except the core sphere. `world.blend` is the saved scene.
+- **Blender owns the shape.** `build_world.py` generates it deterministically (seed 1729) and exports `public/jarvis/world.glb` (~540 KB). It is uneven on purpose: an off-centre triaxial bulge, a bar, arms of unequal length on a warped disc, star-forming knots, dust lanes, and a tidal tail flung out to a satellite galaxy. A lopsided ball of star streams wraps it, with a sparse halo. Around it all is a ring tilted 64° off the disc, with four bands, a gap, density waves, a braided outer strand and shepherd moons. Every layer is glTF POINTS except the core sphere. `world.blend` is the saved scene.
 - **The browser owns the life:** `src/components/new-jarvis/WorldField.tsx`. None of this travels through glTF, so it's all written there:
   - breathing (inhale, hold, longer exhale), stronger in the lower and side lobes
   - differential swirl
@@ -10,6 +10,9 @@ The background behind every section of Jarvis (`/apps/jarvis`).
   - the ball's rim light
   - the pointer gravity well, and the click shockwave
   - faster breathing while Jarvis works
+  - the ring spinning about its own tilt (inner bands faster), with an oil-on-water shimmer
+  - colour that follows the pointer, plus a new colour for each click's shockwave
+  - depth: out-of-focus motes in front and distant galaxies behind, each sliding at a different speed
 
 ## Rebuild
 
