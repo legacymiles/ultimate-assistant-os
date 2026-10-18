@@ -1021,7 +1021,12 @@ export function WorldField({ busy = false, anchorRef, fallback = null, voice, hi
           composer.setSize(w, h);
           bloom?.resolution.set(Math.round((w * dpr) / 2), Math.round((h * dpr) / 2));
         }
-        for (const m of pointMats) m.uniforms.uPixelRatio.value = dpr;
+        // Stars are sized in pixels, tuned on a ~900 px tall window. On a
+        // smaller window the same pixels crowd together and the bloom turns
+        // the galaxy white, so with bloom on they shrink with the window
+        // (phones and the light tier have no bloom and keep their size).
+        const viewScale = composer ? Math.min(1.15, Math.max(0.55, Math.min(w, h) / 900)) : 1;
+        for (const m of pointMats) m.uniforms.uPixelRatio.value = dpr * viewScale;
         camera.aspect = w / h;
         // Centre the ball on the content area; the rings just fit, the
         // cosmos runs off the edges.
