@@ -230,7 +230,16 @@
   margin-top: 12px;
   animation: none;
 }
-.njc-hero__note { max-width: 32rem; margin-top: 22px; font-size: 11.5px; line-height: 1.5; color: var(--color-ink-faint); }
+.njc-hero__note { max-width: 32rem; margin-top: 22px; font-size: 11.5px; line-height: 1.5; color: var(--color-ink-muted); }
+/* The galaxy glows behind this text; a soft dark halo keeps it readable
+   over the brightest smoke without boxing it in. */
+.njc-hero__sub,
+.njc-hero__note,
+.njc-hint {
+  text-shadow: 0 0 6px rgb(2 4 10 / 0.95), 0 0 14px rgb(2 4 10 / 0.85), 0 1px 2px rgb(0 0 0 / 0.9);
+}
+.njc-hero__sub { color: color-mix(in oklab, var(--color-ink-muted) 70%, white); }
+.njc-hero__title { filter: drop-shadow(0 2px 14px rgb(2 4 10 / 0.8)); }
 
 .njc-chip,
 .njc-try {
@@ -247,15 +256,17 @@
 .njc-chip {
   padding: 7px 14px;
   border: 1px solid var(--hud-dim);
-  background: linear-gradient(180deg, rgb(71 232 255 / 0.1), rgb(71 232 255 / 0.03));
+  background: linear-gradient(180deg, rgb(71 232 255 / 0.1), rgb(71 232 255 / 0.03)), rgb(6 10 18 / 0.72);
   color: var(--color-ink);
+  backdrop-filter: blur(6px);
 }
 .njc-chip svg { color: var(--hud); }
 .njc-try {
   padding: 7px 14px;
   border: 1px solid var(--color-line);
-  background: rgb(8 13 22 / 0.7);
+  background: rgb(8 13 22 / 0.78);
   color: var(--color-ink-muted);
+  backdrop-filter: blur(6px);
 }
 .njc-chip:hover,
 .njc-try:hover {
@@ -518,7 +529,7 @@
 .njc-send:not(:disabled):active { transform: scale(0.96); }
 .njc-send:disabled { opacity: 0.35; cursor: not-allowed; }
 
-.njc-hint { margin-top: 6px; padding: 0 8px; font-size: 10.5px; color: var(--color-ink-faint); text-align: center; }
+.njc-hint { margin-top: 6px; padding: 0 8px; font-size: 10.5px; color: var(--color-ink-muted); text-align: center; }
 .njc-notice { margin-bottom: 6px; padding: 6px 12px; border-radius: 10px; background: rgb(245 158 11 / 0.12); font-size: 11.5px; color: #fcd34d; }
 .njc-composer-wrap .nj-reflex { margin-bottom: 6px; border: 1px solid var(--color-line); border-radius: 12px; overflow: hidden; }
 
