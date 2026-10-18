@@ -196,6 +196,8 @@ export interface PendingPhoto {
   size: number;
   thumb?: string;
   addedAt: string;
+  /** When the photo was taken (the phone's date, else the file's), for newest-first order. */
+  takenAt?: string;
   status: PendingStatus;
   analysis?: PhotoAnalysis;
   /** The resolved destination folder path, e.g. ["Photos","Me & My Son"]. */

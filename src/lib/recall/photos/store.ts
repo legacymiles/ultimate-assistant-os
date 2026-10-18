@@ -31,6 +31,7 @@ import type {
   PhotosSettings,
 } from "./types";
 import { pickCategory } from "./types";
+import { compareNewestFirst } from "./queueOrder";
 
 export const PHOTOS_KEY = "recall-photos:v1";
 export const PHOTO_QUEUE_KEY = "recall-photo-queue:v1";
@@ -94,12 +95,15 @@ function loadQueue(): PhotoQueue {
 }
 
 function saveQueue(q: PhotoQueue): PhotoQueue {
+  // Kept newest first, so every screen that lists the queue shows the photo
+  // just taken at the top (see queueOrder.ts).
+  q.pending.sort(compareNewestFirst);
   saveLocal(PHOTO_QUEUE_KEY, q);
   return q;
 }
 
 export function getQueue(): PendingPhoto[] {
-  return loadQueue().pending;
+  return loadQueue().pending.sort(compareNewestFirst);
 }
 
 // ----- built-in categories -------------------------------------------------
@@ -452,6 +456,8 @@ export interface QueueInput {
   type: string;
   size: number;
   thumb?: string;
+  /** When the photo was taken, for newest-first order. */
+  takenAt?: string;
   /** Set when this picture was built here out of several uploads. */
   composite?: PendingPhoto["composite"];
 }

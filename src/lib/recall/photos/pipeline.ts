@@ -128,6 +128,7 @@ export async function importPhotos(args: ImportArgs): Promise<ImportOutcome> {
       type: file.type || "image/jpeg",
       size: file.size,
       thumb,
+      takenAt: file.lastModified ? new Date(file.lastModified).toISOString() : undefined,
       composite: args.composite ?? null,
     });
     // Is this a picture the user already has? Checked against photos already

@@ -48,7 +48,14 @@ interface Claimed {
   id: string;
   name: string;
   contentType: string;
+  takenAt?: string;
   dataUrl: string;
+}
+
+/** The phone's photo date, carried on the File so the queue can sort by it. */
+function lastModified(takenAt?: string): number | undefined {
+  const t = takenAt ? Date.parse(takenAt) : NaN;
+  return Number.isNaN(t) ? undefined : t;
 }
 
 /**
@@ -79,7 +86,10 @@ export async function drainInbox(
     const got = (await r.json()) as { photos?: Claimed[] };
     const photos = got.photos ?? [];
     const files = await Promise.all(
-      photos.map(async (p) => new File([await (await fetch(p.dataUrl)).blob()], p.name, { type: p.contentType })),
+      photos.map(async (p) => new File([await (await fetch(p.dataUrl)).blob()], p.name, {
+          type: p.contentType,
+          lastModified: lastModified(p.takenAt),
+        })),
     );
     if (files.length) await read(files);
     // Only now is it safe to let the server delete them.
