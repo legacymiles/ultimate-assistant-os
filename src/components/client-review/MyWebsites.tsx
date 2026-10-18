@@ -1,14 +1,14 @@
 "use client";
 
-// /review — a client's home: every website they have opened with their
-// Jarvis account, newest first, with where each one stands.
+// The Client tab of Client Review: every website this person has opened with
+// their Jarvis account, newest first, with where each one stands.
 
 import { useEffect, useState } from "react";
 import { ApiError, portal, type MySite } from "@/lib/client-review/client";
 import { SignInGate } from "./SignInGate";
 import "./client-review.css";
 
-export function MyWebsites() {
+export function MyWebsites({ onOpen, embedded = false }: { onOpen?: (token: string) => void; embedded?: boolean } = {}) {
   const [sites, setSites] = useState<MySite[] | null>(null);
   const [signIn, setSignIn] = useState(false);
   const [error, setError] = useState("");
@@ -20,10 +20,10 @@ export function MyWebsites() {
   }, []);
 
   if (signIn) {
-    return <SignInGate title="My websites" body="Sign in with your Jarvis account to see your websites." next="/review" />;
+    return <SignInGate title="My websites" body="Sign in with your Jarvis account to see your websites." next="/apps/client-review" />;
   }
   return (
-    <div className="cr-root cr-center">
+    <div className={`cr-root cr-center ${embedded ? "is-embedded" : ""}`}>
       <div className="cr-empty">
         <span className="cr-orb" aria-hidden>
           <span className="cr-orb-core" />
@@ -33,11 +33,19 @@ export function MyWebsites() {
         <h1>My websites</h1>
         {error && <p className="cr-error">{error}</p>}
         {sites && !sites.length && <p>Open the link you were sent and your website will show up here.</p>}
+        {!sites && !error && <p>Loading your websites…</p>}
         {sites && sites.length > 0 && (
           <ul className="cr-sites">
             {sites.map((s) => (
               <li key={s.token}>
-                <a href={`/review/${s.token}`}>
+                <a
+                  href={`/apps/client-review?site=${s.token}`}
+                  onClick={(e) => {
+                    if (!onOpen) return;
+                    e.preventDefault();
+                    onOpen(s.token);
+                  }}
+                >
                   <span>
                     <b>{s.name}</b>
                     <small>

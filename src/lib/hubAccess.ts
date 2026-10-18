@@ -21,7 +21,15 @@ export const PUBLIC_HOME = "/apps/friends-night-out";
  * the account is the one that claimed the link; the owner's console stays
  * behind the owner gate at /api/client-review/admin.
  */
-export const CLIENT_REVIEW_PUBLIC = ["/review", "/api/client-review/portal", "/client-review-sw.js"];
+export const CLIENT_REVIEW_PUBLIC = [
+  // The one Client Review page. Clients and the owner share it; the page asks
+  // /api/client-review/portal/me who is looking and keeps the Admin tab locked
+  // for everyone but the owner. The admin API below stays owner-only here.
+  "/apps/client-review",
+  "/review",
+  "/api/client-review/portal",
+  "/client-review-sw.js",
+];
 
 const PUBLIC_PREFIXES = [PUBLIC_HOME, "/api/fno", ...CLIENT_REVIEW_PUBLIC];
 const AUTH_PREFIXES = ["/login", "/auth"];

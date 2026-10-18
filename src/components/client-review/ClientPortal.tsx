@@ -91,7 +91,17 @@ function isStandalone(): boolean {
   return window.matchMedia("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true;
 }
 
-export function ClientPortal({ token }: { token: string }) {
+export function ClientPortal({
+  token,
+  embedded = false,
+  onBack,
+}: {
+  token: string;
+  /** Inside the Client Review page, under its tab bar, rather than the whole window. */
+  embedded?: boolean;
+  /** "← My websites", when there is a list to go back to. */
+  onBack?: () => void;
+}) {
   const [view, setView] = useState<PortalView | null>(null);
   const [loadError, setLoadError] = useState("");
   const [gate, setGate] = useState<null | { kind: "signIn" } | { kind: "wrong"; message: string; email: string | null }>(null);
@@ -335,7 +345,7 @@ export function ClientPortal({ token }: { token: string }) {
     const key = view?.vapidPublicKey;
     if (key && "serviceWorker" in navigator && "PushManager" in window) {
       try {
-        const reg = await navigator.serviceWorker.register("/client-review-sw.js", { scope: "/review/" });
+        const reg = await navigator.serviceWorker.register("/client-review-sw.js", { scope: "/apps/client-review" });
         await navigator.serviceWorker.ready;
         const sub =
           (await reg.pushManager.getSubscription()) ??
@@ -354,7 +364,7 @@ export function ClientPortal({ token }: { token: string }) {
   const disableNotify = async () => {
     setNotifyNote("");
     try {
-      const reg = await navigator.serviceWorker?.getRegistration("/review/");
+      const reg = await navigator.serviceWorker?.getRegistration("/apps/client-review");
       const sub = await reg?.pushManager.getSubscription();
       await sub?.unsubscribe();
     } catch {}
@@ -365,25 +375,27 @@ export function ClientPortal({ token }: { token: string }) {
   if (gate?.kind === "signIn") {
     return (
       <SignInGate
+        embedded={embedded}
         title="Your website is ready to review"
         body="Sign in with your Jarvis account to see it and send your edit requests."
-        next={`/review/${token}`}
+        next={`/apps/client-review?site=${token}`}
       />
     );
   }
   if (gate?.kind === "wrong") {
     return (
       <SignInGate
+        embedded={embedded}
         title="This is someone else's link"
         body={`${gate.message}${gate.email ? ` You're signed in as ${gate.email}.` : ""}`}
-        next={`/review/${token}`}
+        next={`/apps/client-review?site=${token}`}
         switchAccount
       />
     );
   }
   if (loadError && !view) {
     return (
-      <div className="cr-root cr-center">
+      <div className={`cr-root cr-center ${embedded ? "is-embedded" : ""}`}>
         <div className="cr-empty">
           <Orb small />
           <h1>This link isn&apos;t active</h1>
@@ -395,7 +407,7 @@ export function ClientPortal({ token }: { token: string }) {
   }
   if (!view || !box) {
     return (
-      <div className="cr-root cr-center">
+      <div className={`cr-root cr-center ${embedded ? "is-embedded" : ""}`}>
         <Orb pulse />
       </div>
     );
@@ -416,11 +428,17 @@ export function ClientPortal({ token }: { token: string }) {
           : "Waiting for your first version";
 
   return (
-    <div className={`cr-root ${pointing ? "is-pointing" : ""}`}>
+    <div className={`cr-root ${embedded ? "is-embedded" : ""} ${pointing ? "is-pointing" : ""}`}>
       {/* ---------- top bar ---------- */}
       <header className="cr-top">
         <div className="cr-brand">
-          <Orb small />
+          {onBack ? (
+            <button className="cr-icon-btn ghost" onClick={onBack} aria-label="My websites" title="My websites">
+              ←
+            </button>
+          ) : (
+            <Orb small />
+          )}
           <div>
             <p className="cr-kicker">{view.clientName ? `For ${view.clientName}` : "Website review"}</p>
             <h1>{view.name}</h1>
@@ -728,7 +746,7 @@ export function ClientPortal({ token }: { token: string }) {
                 <div>
                   <h3>Your Jarvis account</h3>
                   <p>
-                    Signed in as {view.viewerEmail}. <a className="cr-link" href="/review">All my websites</a>
+                    Signed in as {view.viewerEmail}. <a className="cr-link" href="/apps/client-review">All my websites</a>
                   </p>
                 </div>
                 <button

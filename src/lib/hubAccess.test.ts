@@ -16,7 +16,9 @@ describe("routeAccess", () => {
     expect(routeAccess("/api/client-review/portal/abc123", TOKEN)).toBe("public");
     expect(routeAccess("/client-review-sw.js", TOKEN)).toBe("public");
     expect(routeAccess("/api/client-review/admin", TOKEN)).toBe("owner");
-    expect(routeAccess("/apps/client-review", TOKEN)).toBe("owner");
+    // One page for clients and the owner; only its admin API is owner-only.
+    expect(routeAccess("/apps/client-review", TOKEN)).toBe("public");
+    expect(routeAccess("/apps/client-reviewer", TOKEN)).toBe("owner");
     expect(routeAccess("/reviews-secret", TOKEN)).toBe("owner");
   });
 

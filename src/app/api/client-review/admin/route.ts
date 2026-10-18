@@ -94,7 +94,7 @@ async function tell(p: ClientProject, notice: ClientNotice | undefined, origin: 
   const { gone } = await pushToClient(p, {
     title: notice.title,
     body: notice.body,
-    url: `${origin}/review/${p.token}`,
+    url: `${origin}/apps/client-review?site=${p.token}`,
     tag: `client-review-${p.id}`,
   });
   if (!gone.length) return p;

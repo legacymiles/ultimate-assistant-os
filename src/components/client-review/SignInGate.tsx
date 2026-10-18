@@ -13,12 +13,14 @@ export function SignInGate({
   body,
   next,
   switchAccount = false,
+  embedded = false,
 }: {
   title: string;
   body: string;
   next: string;
   /** Signed in, but as someone else: sign out first, then pick an account. */
   switchAccount?: boolean;
+  embedded?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -36,7 +38,7 @@ export function SignInGate({
     }
   };
   return (
-    <div className="cr-root cr-center">
+    <div className={`cr-root cr-center ${embedded ? "is-embedded" : ""}`}>
       <div className="cr-empty cr-gate">
         <span className="cr-orb pulse" aria-hidden>
           <span className="cr-orb-core" />

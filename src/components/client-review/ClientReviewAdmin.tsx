@@ -43,10 +43,11 @@ function ago(iso: string): string {
 }
 
 function linkFor(p: ClientProject): string {
-  return typeof window === "undefined" ? `/review/${p.token}` : `${window.location.origin}/review/${p.token}`;
+  const path = `/apps/client-review?site=${p.token}`;
+  return typeof window === "undefined" ? path : `${window.location.origin}${path}`;
 }
 
-export function ClientReviewAdmin({ chromeless = false }: { chromeless?: boolean } = {}) {
+export function ClientReviewAdmin({ chromeless = false, fill = false }: { chromeless?: boolean; fill?: boolean } = {}) {
   const [state, setState] = useState<AdminState | null>(null);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -111,15 +112,19 @@ export function ClientReviewAdmin({ chromeless = false }: { chromeless?: boolean
 
   return (
     <div
-      className={`flex overflow-hidden bg-canvas text-ink ${chromeless ? "h-[calc(100dvh-90px)] md:h-[calc(100dvh-49px)]" : "h-dvh"}`}
+      className={`flex overflow-hidden bg-canvas text-ink ${fill ? "h-full" : chromeless ? "h-[calc(100dvh-90px)] md:h-[calc(100dvh-49px)]" : "h-dvh"}`}
     >
       {/* ---------- project list ---------- */}
       <aside className="flex w-72 shrink-0 flex-col border-r border-line bg-panel max-md:hidden">
         <div className="flex items-center justify-between border-b border-line px-3 py-2.5">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.14em] text-ink-faint">Jarvis</p>
-            <h1 className="text-sm font-semibold">Client Review</h1>
-          </div>
+          {fill ? (
+            <h1 className="text-xs font-semibold uppercase tracking-[0.12em] text-ink-faint">Clients</h1>
+          ) : (
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.14em] text-ink-faint">Jarvis</p>
+              <h1 className="text-sm font-semibold">Client Review</h1>
+            </div>
+          )}
           <button
             className="rounded-md border border-brand/50 bg-brand/20 px-2.5 py-1 text-xs font-medium hover:bg-brand/30"
             onClick={() => setCreating(true)}

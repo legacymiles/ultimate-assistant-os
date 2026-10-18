@@ -1,11 +1,6 @@
-import type { Metadata } from "next";
-import { MyWebsites } from "@/components/client-review/MyWebsites";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "My websites · Jarvis",
-  robots: { index: false, follow: false },
-};
-
+// "My websites" is the Client tab of the Client Review page now.
 export default function Page() {
-  return <MyWebsites />;
+  redirect("/apps/client-review");
 }

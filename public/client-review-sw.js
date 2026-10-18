@@ -1,7 +1,7 @@
 // Client Review — push notifications for a client's review link.
 //
-// Registered with scope /review/ only, so it never touches the rest of the
-// hub. No fetch handler: it caches nothing and changes no page; it only shows
+// Registered with scope /apps/client-review only, so it never touches the
+// rest of the hub. No fetch handler: it caches nothing and changes no page; it only shows
 // the "your new version is ready" notification and opens the link on tap.
 
 self.addEventListener("install", () => self.skipWaiting());
