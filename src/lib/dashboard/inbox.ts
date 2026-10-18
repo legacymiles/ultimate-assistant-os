@@ -215,10 +215,16 @@ export async function pending(uid: string): Promise<InboxEntry[]> {
   return doc.entries.filter((e) => e.uid === uid);
 }
 
-/** Hand over the bytes and delete them; the browser now owns these photos. */
+/**
+ * Hand over the bytes. By default they are deleted in the same call; with
+ * `keep` they stay until the browser calls done() — which is how the
+ * dashboard drains: a photo is only deleted here once it is safely read in,
+ * so a failed read retries on the next check instead of losing the photo.
+ */
 export async function claim(
   uid: string,
   ids: string[],
+  opts: { keep?: boolean } = {},
 ): Promise<{ id: string; name: string; contentType: string; takenAt?: string; dataUrl: string }[]> {
   const doc = await load();
   const wanted = new Set(ids);
@@ -235,13 +241,27 @@ export async function claim(
       takenAt: e.takenAt,
       dataUrl: `data:${e.contentType};base64,${buf.toString("base64")}`,
     });
-    await deleteBlob(BUCKET, `${uid}/${e.id}`, dataDir());
+    if (!opts.keep) await deleteBlob(BUCKET, `${uid}/${e.id}`, dataDir());
   }
 
+  if (opts.keep) return out;
   const claimed = new Set(out.map((o) => o.id));
   doc.entries = doc.entries.filter((e) => !(e.uid === uid && claimed.has(e.id)));
   await save(doc);
   return out;
+}
+
+/** The browser has read these in; delete them from the inbox. */
+export async function done(uid: string, ids: string[]): Promise<number> {
+  const doc = await load();
+  const wanted = new Set(ids);
+  const mine = doc.entries.filter((e) => e.uid === uid && wanted.has(e.id));
+  if (!mine.length) return 0;
+  for (const e of mine) await deleteBlob(BUCKET, `${uid}/${e.id}`, dataDir());
+  const gone = new Set(mine.map((e) => e.id));
+  doc.entries = doc.entries.filter((e) => !(e.uid === uid && gone.has(e.id)));
+  await save(doc);
+  return mine.length;
 }
 
 /** Drop anything older than SWEEP_DAYS. Lazy — runs when the inbox is read. */

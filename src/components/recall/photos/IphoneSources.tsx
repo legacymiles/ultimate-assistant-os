@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "../../icons";
+import { drainInbox } from "@/lib/dashboard/drainInbox";
 
 // ---------------------------------------------------------------------------
 // Getting photos off an iPhone. Two paths, and the difference between them is
@@ -94,23 +95,11 @@ export function IphoneSources({ busy, onImport, onToast }: Props) {
     if (!entries.length) return;
     setClaiming(true);
     try {
-      const r = await fetch("/api/dashboard/inbox/claim", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: entries.map((e) => e.id) }),
-      });
-      const d = (await r.json()) as {
-        photos?: { name: string; contentType: string; dataUrl: string }[];
-      };
-      const files = await Promise.all(
-        (d.photos ?? []).map(async (p) => {
-          const blob = await (await fetch(p.dataUrl)).blob();
-          return new File([blob], p.name, { type: p.contentType });
-        }),
-      );
+      const n = await drainInbox(entries, onImport);
       setEntries([]);
-      if (files.length) await onImport(files);
-      else onToast("Nothing left to bring in");
+      if (!n) onToast("Nothing left to bring in");
+    } catch (e) {
+      onToast(e instanceof Error ? e.message : "Couldn't bring the photos in");
     } finally {
       setClaiming(false);
     }

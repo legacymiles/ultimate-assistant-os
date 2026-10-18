@@ -155,7 +155,7 @@ export function SettingsTab({ go, updates, camera }: { go: (t: TabId) => void; u
               <>
                 <Dot ok={camera.linked} />
                 {camera.linked
-                  ? `Every 10 minutes while Jarvis is open. Last checked ${
+                  ? `Automatic — the moment Jarvis opens, every minute while it's on screen, and at least every 10 minutes. New photos come in and get read by themselves. Last checked ${
                       camera.lastChecked ? new Date(camera.lastChecked).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "not yet"
                     }.`
                   : "Your iPhone isn't linked yet. The guide walks you through it in about 5 minutes — no app to download."}
@@ -171,12 +171,6 @@ export function SettingsTab({ go, updates, camera }: { go: (t: TabId) => void; u
             <button className={btn} disabled={Boolean(camera.busy)} onClick={() => void camera.check()}>
               <Icon.Refresh width={13} height={13} /> {camera.busy ? "Checking…" : "Check now"}
             </button>
-          </Row>
-          <Row
-            title="Pull new photos in automatically"
-            status="On: each check brings new photos into Camera Autopilot and reads them, so they're waiting with a guess. Off: you'll get the notification and pull them in yourself."
-          >
-            <Switch on={camera.settings.autoPull} label={camera.settings.autoPull ? "On" : "Off"} onChange={camera.setAutoPull} />
           </Row>
         </Group>
       )}

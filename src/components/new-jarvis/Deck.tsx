@@ -281,15 +281,6 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
     [refresh],
   );
 
-  const pullIphone = useCallback(async () => {
-    setBusy("Pulling from your iPhone…");
-    try {
-      await camera.check(true);
-    } finally {
-      setBusy(null);
-      refresh();
-    }
-  }, [camera, refresh]);
 
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -456,17 +447,13 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                   camera.busy ||
                   camera.error ||
                   (inbox.linked
-                    ? `iPhone checked ${since(camera.lastChecked)} · checks every 10 min${camera.settings.autoPull ? "" : " · auto-pull off"}`
+                    ? inbox.ids.length
+                      ? `${inbox.ids.length} new from your iPhone — bringing them in…`
+                      : `Auto · iPhone checked ${since(camera.lastChecked)} · new photos show up by themselves`
                     : "Not linked yet — tap 🔗 to set up your iPhone (5 min, no app needed)")
                 }
                 actions={
                   <>
-                    {inbox.ids.length > 0 && (
-                      <button type="button" className="deck-btn deck-btn--go h-7 text-[11px]" onClick={(e) => { e.stopPropagation(); void pullIphone(); }} disabled={Boolean(busy)}>
-                        <Icon.Download width={12} height={12} aria-hidden />
-                        {inbox.ids.length} from iPhone
-                      </button>
-                    )}
                     <MiniBtn label="Check for new photos now" onClick={() => void camera.check()} disabled={Boolean(camera.busy)}>
                       <Icon.Refresh width={13} height={13} aria-hidden />
                     </MiniBtn>
@@ -551,16 +538,10 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
       {expanded === "camera" && (
         <WidgetSheet
           title="Camera Autopilot"
-          kicker={`${queue.length} to sort · iPhone checked ${since(camera.lastChecked)}`}
+          kicker={`${queue.length} to sort · auto · iPhone checked ${since(camera.lastChecked)}`}
           onClose={() => setExpanded(null)}
           actions={
             <div className="flex items-center gap-1">
-              {inbox.ids.length > 0 && (
-                <button type="button" className="deck-btn deck-btn--go" onClick={() => void pullIphone()} disabled={Boolean(busy)}>
-                  <Icon.Download width={13} height={13} aria-hidden />
-                  {inbox.ids.length} from iPhone
-                </button>
-              )}
               <IconBtn label="Add photos" onClick={() => fileInput.current?.click()} disabled={Boolean(busy)}>
                 <Icon.Upload width={14} height={14} aria-hidden />
               </IconBtn>
