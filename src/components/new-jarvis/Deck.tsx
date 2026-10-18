@@ -63,8 +63,13 @@ import {
   WidgetSheet,
   useTopEscape,
   useWidgetPrefs,
+  WIDGETS,
   type WidgetId,
 } from "./Widgets";
+import { ImprovementsExpanded, ImprovementsWidget } from "./Improvements";
+import { useIdeas } from "@/lib/new-jarvis/useIdeas";
+import type { AuditProposalLike } from "@/lib/new-jarvis/ideas";
+import type { JarvisStore } from "@/lib/jarvis/types";
 
 interface Props {
   go: (tab: string) => void;
@@ -76,6 +81,10 @@ interface Props {
   updates: UpdatesApi;
   events: CalendarEvent[];
   camera: CameraWatch;
+  /** What the Improvements widget reads: chat, memories. */
+  store: JarvisStore | null;
+  /** The self-audit's findings, shown under Improvements › Jarvis. */
+  audit: AuditProposalLike[];
 }
 
 type ActionState = "pending" | "running" | "done" | "declined" | "failed";
@@ -194,8 +203,9 @@ function recentFiled(n: number): { id: string; thumb: string; title: string }[] 
   }
 }
 
-export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camera }: Props) {
+export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camera, store, audit }: Props) {
   const widgets = useWidgetPrefs();
+  const ideas = useIdeas({ store, audit });
   const [expanded, setExpanded] = useState<WidgetId | null>(null);
   // Re-render once a minute so "checked 3m ago" moves.
   const [, setMinute] = useState(0);
@@ -521,8 +531,9 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
             {!widgets.hidden.has("notifications") && <NotificationsWidget updates={updates} onExpand={() => setExpanded("notifications")} />}
             {!widgets.hidden.has("todo") && <TodoWidget onExpand={() => setExpanded("todo")} />}
             {!widgets.hidden.has("calendar") && <CalendarWidget events={events} onExpand={() => setExpanded("calendar")} />}
+            {!widgets.hidden.has("improvements") && <ImprovementsWidget ideas={ideas} onExpand={() => setExpanded("improvements")} />}
           </div>
-          {widgets.hidden.size === 4 && (
+          {widgets.hidden.size === WIDGETS.length && (
             <p className="px-1 text-[11.5px] text-ink-faint">Every widget is hidden — turn some back on from Widgets above.</p>
           )}
           <input
@@ -631,6 +642,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
       {expanded === "notifications" && <NotificationsExpanded updates={updates} go={go} onClose={() => setExpanded(null)} />}
       {expanded === "todo" && <TodoExpanded onClose={() => setExpanded(null)} />}
       {expanded === "calendar" && <CalendarExpanded events={events} go={go} onClose={() => setExpanded(null)} />}
+      {expanded === "improvements" && <ImprovementsExpanded ideas={ideas} go={go} onClose={() => setExpanded(null)} />}
 
       {open && (
         <PhotoSheet

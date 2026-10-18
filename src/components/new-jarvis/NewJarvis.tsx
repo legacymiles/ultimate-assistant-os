@@ -77,6 +77,7 @@ import { MAX_CHAT_MEDIA, buildUserContent, prepareMedia, type ChatMedia } from "
 import { noteLaunch } from "@/lib/new-jarvis/launcher";
 import { useVault } from "@/lib/new-jarvis/useVault";
 import { noteOpened, useImprove } from "@/lib/new-jarvis/useImprove";
+import { ASK_EVENT } from "@/lib/new-jarvis/useIdeas";
 import { useUpdates } from "@/lib/jarvis/useUpdates";
 import { toCalEvent } from "@/lib/jarvis/useDashboardCalendar";
 import type { CalendarEvent } from "@/lib/recall/calendar/types";
@@ -198,6 +199,19 @@ export function NewJarvis() {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<Mode>("do");
+
+  // An Improvements idea's "Start in chat": the prompt lands in the chat box
+  // for the person to read and send — never sent on their behalf.
+  useEffect(() => {
+    const onAsk = (e: Event) => {
+      const text = (e as CustomEvent<unknown>).detail;
+      if (typeof text !== "string" || !text.trim()) return;
+      setInput(text);
+      window.setTimeout(() => document.querySelector<HTMLTextAreaElement>(".nj-command textarea")?.focus(), 60);
+    };
+    window.addEventListener(ASK_EVENT, onAsk);
+    return () => window.removeEventListener(ASK_EVENT, onAsk);
+  }, []);
 
   // --- the Chat's brain and attachments ---------------------------------------
   // Brain: Claude on the person's own subscription (through the PC), or a

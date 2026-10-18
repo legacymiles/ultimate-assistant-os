@@ -217,6 +217,8 @@ export function DashboardPanel({
             updates={updates}
             events={events}
             camera={camera}
+            store={store}
+            audit={improve.collected.proposals}
           />
         ) : pane === "graph" ? (
           <div className="flex h-full min-h-0 flex-col lg:flex-row">
