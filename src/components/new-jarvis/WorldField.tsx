@@ -105,6 +105,10 @@ const POINT_VERT = /* glsl */ `
   varying float vRing;
   varying float vDepth;
 
+  // 1 at the galaxy's bright heart, 0 past it: the pointer's glow eases off
+  // there, so hovering the centre (where Chat's box sits) never whites it out.
+  float vHeatGuess(float r) { return smoothstep(1.1, 0.2, r); }
+
   // Rotate v about unit axis k by angle a (Rodrigues).
   vec3 spinAbout(vec3 v, vec3 k, float a) {
     float s = sin(a), c = cos(a);
@@ -147,7 +151,7 @@ const POINT_VERT = /* glsl */ `
     float big = step(0.985, seed) * 2.2;
     float twinkle = 0.6 + 0.4 * sin(uTime * (1.1 + seed * 2.3) + seed * 40.0);
     // uSize is pixels at the galaxy's centre; nearer stars grow, farther shrink.
-    gl_PointSize = min(uMaxSize, uSize * (0.5 + seed * 0.8 + big) * (1.0 + near * 0.8 + ring * 0.6) * (0.75 + 0.5 * vDepth) * uPixelRatio * uCamZ / -mv.z);
+    gl_PointSize = min(uMaxSize, uSize * (0.5 + seed * 0.8 + big) * (1.0 + near * 0.45 + ring * 0.6) * (0.75 + 0.5 * vDepth) * uPixelRatio * uCamZ / -mv.z);
     // Ring stars that pass behind the ball are hidden by it, like Saturn's.
     vec3 vc = (viewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
     vec3 ray = normalize(mv.xyz);
@@ -159,7 +163,7 @@ const POINT_VERT = /* glsl */ `
     // Anything drifting right up to the lens fades instead of flaring.
     float lens = smoothstep(2.6, 6.0, -mv.z);
     vAlpha = twinkle * rim * (0.55 + 0.6 * vDepth) * lens * shade;
-    vGlow = near * 0.9 + ring * 0.6 + uEnergy * 0.3 + uBreath * 0.25;
+    vGlow = near * 0.45 * (1.0 - 0.6 * vHeatGuess(r)) + ring * 0.6 + uEnergy * 0.3 + uBreath * 0.18;
     vRing = ring;
     vMix = seed;
     vHeat = smoothstep(0.9, 0.0, r);
@@ -571,7 +575,9 @@ export function WorldField({ busy = false, anchorRef, fallback = null, voice, hi
       host.appendChild(canvas);
 
       // ?world=full pins full quality (for checking the look on a slow machine).
-      const pinned = new URLSearchParams(window.location.search).get("world") === "full";
+      const worldParam = new URLSearchParams(window.location.search).get("world");
+      const pinned = worldParam === "full" || worldParam === "step";
+      const stepMode = worldParam === "step";
       let tier: Tier = pinned ? "high" : pickTier();
       /** 2 = as picked, 1 = no bloom, 0 = no bloom and a low pixel ratio. */
       let quality = tier === "high" ? 2 : 1;
@@ -1203,7 +1209,7 @@ export function WorldField({ busy = false, anchorRef, fallback = null, voice, hi
         const hueTarget = pointer.x * 0.55 * pointer.on + Math.sin(t * 0.07) * 0.22 + busyLevel * 0.25;
         hue += (hueTarget - hue) * Math.min(1, dt * 1.5);
         shared.uHue.value = hue + talkTint;
-        if (bloom) bloom.strength = 0.7 + 0.3 * b + 0.35 * busyLevel + 0.45 * talk + 0.25 * syllable;
+        if (bloom) bloom.strength = 0.7 + 0.2 * b + 0.35 * busyLevel + 0.45 * talk + 0.25 * syllable;
       };
 
       const frame = (now: number) => {
@@ -1242,10 +1248,23 @@ export function WorldField({ busy = false, anchorRef, fallback = null, voice, hi
       const start = () => {
         cancelAnimationFrame(raf);
         if (document.hidden || hiddenRef.current) return;
+        if (stepMode) {
+          draw();
+          return;
+        }
         last = performance.now();
         raf = requestAnimationFrame(frame);
       };
       wakeRef.current = start;
+      // ?world=step: no clock at all — a recording calls __jarvisWorldStep(dt)
+      // to advance and draw exactly one frame (used for the motion clips,
+      // which render far slower than real time on a machine with no GPU).
+      if (stepMode) {
+        (window as unknown as { __jarvisWorldStep?: (dt: number) => void }).__jarvisWorldStep = (dt: number) => {
+          step(dt);
+          draw();
+        };
+      }
       const onVis = () => start();
       document.addEventListener("visibilitychange", onVis);
 
