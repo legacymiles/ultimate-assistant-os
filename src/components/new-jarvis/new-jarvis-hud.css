@@ -79,17 +79,23 @@
   z-index: -1;
   pointer-events: none;
 }
-/* A faint survey grid and a vignette over the points, so the field has a
-   floor to stand on and the edges fall away. */
+/* A vignette over the galaxy, so the edges fall away into space. */
 .nj-field::after {
   content: "";
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(120% 90% at 50% 40%, transparent 55%, rgb(0 0 0 / 0.55) 100%),
-    linear-gradient(rgb(71 232 255 / 0.035) 1px, transparent 1px) 0 0 / 44px 44px,
-    linear-gradient(90deg, rgb(71 232 255 / 0.035) 1px, transparent 1px) 0 0 / 44px 44px;
+  background: radial-gradient(120% 95% at 55% 50%, transparent 50%, rgb(0 0 0 / 0.6) 100%);
 }
+.nj-world,
+.nj-world canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+/* Inside Jarvis the galaxy is the Deck's background too. */
+.nj-hud .deck-stage { background: transparent; }
+.nj-hud .deck-own-field { display: none; }
 
 /* --- the top line -------------------------------------------------------- */
 

@@ -23,6 +23,7 @@ import "./new-jarvis-shell.css";
 import "./deck.css";
 import "./new-jarvis-hud.css";
 import { HudField, Reactor } from "./HudField";
+import { WorldField } from "./WorldField";
 
 import { CommandLine } from "./CommandLine";
 import { StatusDock } from "./StatusDock";
@@ -190,8 +191,10 @@ export function NewJarvis() {
   const [moreOpen, setMoreOpen] = useState(false);
   /** Files dragged over the window: anywhere is a drop target for Chat. */
   const [dropping, setDropping] = useState(false);
-  /** The rail's core — the point the background's sweep turns around. */
+  /** The rail's core — the point the fallback field's sweep turns around. */
   const coreRef = useRef<HTMLButtonElement>(null);
+  /** The content area — the galaxy centres itself on it. */
+  const mainRef = useRef<HTMLElement>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<Mode>("do");
@@ -884,13 +887,12 @@ ${reflex.best.excerpt ?? ""}`.trim()
           }}
         />
       )}
-      {/* The living background behind every section. The Deck draws its own
-          (around its big core), so the shell's one rests while it is open. */}
-      {tab !== "dashboard" && (
-        <div className="nj-field" aria-hidden>
-          <HudField originRef={coreRef} busy={running} />
-        </div>
-      )}
+      {/* The living background behind every section: a breathing galaxy
+          ball, modeled in Blender (tools/jarvis-world). The old canvas field
+          stands in wherever WebGL cannot. */}
+      <div className="nj-field" aria-hidden>
+        <WorldField busy={running} anchorRef={mainRef} fallback={<HudField originRef={coreRef} busy={running} />} />
+      </div>
 
       <header className="nj-top flex shrink-0 items-center gap-2.5 px-3 py-2">
         <Link href="/" className="nj-top__back">
@@ -968,6 +970,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
         )}
 
         <main
+          ref={mainRef}
           className="relative flex min-w-0 flex-1 flex-col"
           onDragOver={(e) => {
             if (!e.dataTransfer.types.includes("Files")) return;

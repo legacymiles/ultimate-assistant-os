@@ -23,7 +23,7 @@
   gap: 10px;
   padding: 12px 10px;
   border-right: 1px solid var(--color-line);
-  background: linear-gradient(180deg, rgb(4 8 15 / 0.72), rgb(4 8 15 / 0.5));
+  background: linear-gradient(180deg, rgb(4 8 15 / 0.62), rgb(4 8 15 / 0.42));
   backdrop-filter: blur(14px);
 }
 .njc[data-side] .njc-side {
@@ -147,8 +147,8 @@
 .njc-main {
   position: relative;
   display: flex;
-  /* The field shows through, dimmed, so long answers stay easy to read. */
-  background: radial-gradient(120% 80% at 50% 0%, rgb(3 6 12 / 0.35), rgb(3 6 12 / 0.62));
+  /* The galaxy shows through; only the edges are dimmed. */
+  background: radial-gradient(120% 90% at 50% 45%, rgb(3 6 12 / 0.05), rgb(3 6 12 / 0.4));
   min-width: 0;
   flex: 1;
   flex-direction: column;
@@ -268,6 +268,8 @@
 /* --- the conversation ---------------------------------------------------- */
 
 .njc-scroll {
+  /* A soft dark column behind the conversation, so answers read over the galaxy. */
+  background: radial-gradient(42% 120% at 50% 50%, rgb(3 6 12 / 0.55), rgb(3 6 12 / 0.2) 70%, transparent 100%);
   flex: 1;
   min-height: 0;
   overflow-y: auto;

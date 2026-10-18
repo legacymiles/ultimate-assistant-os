@@ -334,7 +334,11 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
 
   return (
     <div className="deck deck-stage">
-      <HudField originRef={coreRef} busy={working} />
+      {/* Inside Jarvis the galaxy behind the whole shell is the background;
+          this field only draws where the Deck stands alone. */}
+      <div className="deck-own-field">
+        <HudField originRef={coreRef} busy={working} />
+      </div>
       <div className="deck-scroll">
       <div className="mx-auto flex max-w-[1400px] flex-col gap-6 p-3 sm:p-6">
         {/* hero — one line, no dashboard furniture */}
