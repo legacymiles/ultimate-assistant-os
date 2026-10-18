@@ -20,6 +20,7 @@
 //   that would turn a real signal into a confident lie.
 // ---------------------------------------------------------------------------
 
+import { decisionPointFacts } from "./decisionPoints";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { loadLocal, saveLocal, saveSynced } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
@@ -106,6 +107,8 @@ export interface ImproveInputs {
   plaintextCredentials: number;
   /** Keys that are not set, with what degrades without each. */
   missingKeys: { name: string; feature: string }[];
+  /** Whether OPENROUTER_API_KEY is set (decision models need it). undefined = not known yet. */
+  decisionKey?: boolean;
 }
 
 export function useImprove(inputs: ImproveInputs): UseImprove {
@@ -185,6 +188,8 @@ export function useImprove(inputs: ImproveInputs): UseImprove {
         lastError: f.last,
       })),
       missingKeys: inputs.missingKeys,
+      decisionPoints: decisionPointFacts(),
+      decisionKey: inputs.decisionKey,
     };
   }, [inputs, now, usage, vaultFacts]);
 

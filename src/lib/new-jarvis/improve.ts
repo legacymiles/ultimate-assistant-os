@@ -22,6 +22,8 @@
 // proposal dismisses it for good rather than until the next recount.
 // ---------------------------------------------------------------------------
 
+import type { DecisionPointFact } from "./decisionPoints";
+
 export type ProposalKind =
   /** Information architecture: too many tabs, a surface nobody opens, two places showing one thing. */
   | "ia"
@@ -103,6 +105,14 @@ export interface AuditInput {
   toolFailures: ToolFailure[];
   /** Keys that are not set, and what degrades without them. */
   missingKeys: { name: string; feature: string }[];
+  /**
+   * The moments where Jarvis decides rather than writes, and whether a fast
+   * decision model (Jev, Span) is wired into each. See decisionPoints.ts.
+   * Optional so callers written before it still type-check.
+   */
+  decisionPoints?: DecisionPointFact[];
+  /** Whether an OpenRouter key is set — the only way to reach a decision model. */
+  decisionKey?: boolean;
 }
 
 export interface RailUse {
@@ -476,6 +486,45 @@ export function auditCapabilities(input: AuditInput): Proposal[] {
   return out;
 }
 
+/**
+ * Spots where a decision model (Jev, Span) should be answering and is not.
+ *
+ * The owner asked for Jarvis to keep trying to put Jev in the right places.
+ * The evidence is the code location and what answers there today, so each
+ * proposal is concrete enough to become a build spec. Wired spots file
+ * nothing; once one is wired, its proposal stops appearing.
+ */
+export function auditDecisionPoints(input: AuditInput): Proposal[] {
+  const open = (input.decisionPoints ?? []).filter((p) => !p.wired);
+  const out: Proposal[] = open.map((p) => ({
+    id: `capability:decision-model:${p.id}`,
+    kind: "capability" as const,
+    title: `Let ${p.model.startsWith("respan/") ? "Span" : "Jev"} decide: ${p.label.toLowerCase()}`,
+    why: `${p.gain} A decision model only picks a path here — anything with an effect still asks first, and an unsure answer falls back to today's behaviour.`,
+    how:
+      `Call decide() from src/lib/ai/decide.ts with model ${p.model} where Jarvis decides "${p.decides}". ` +
+      "Act on the answer only above the confidence bar (confidentChoice / yesNo); otherwise keep today's path. " +
+      "Then set wired: true for this spot in src/lib/new-jarvis/decisionPoints.ts.",
+    risk: "low",
+    effort: p.effort,
+    evidence: [`where: ${p.where}`, `today: ${p.today}`, `decides: ${p.decides}`],
+  }));
+
+  if (open.length && input.decisionKey === false) {
+    out.push({
+      id: "capability:decision-model:key",
+      kind: "capability",
+      title: "Add an OpenRouter key so Jev and Span can run",
+      why: "Decision models are only reachable through OpenRouter. Without the key every spot above keeps using the slow path.",
+      how: "Set OPENROUTER_API_KEY in .env.local and on Vercel. Span-01 Lite is free; Jev bills on input only.",
+      risk: "none",
+      effort: "minutes",
+      evidence: [`${plural(open.length, "spot")} waiting for a decision model`, "OPENROUTER_API_KEY is not set"],
+    });
+  }
+  return out;
+}
+
 // --- assembly --------------------------------------------------------------
 
 const RISK_ORDER: Record<Risk, number> = { high: 0, medium: 1, low: 2, none: 3 };
@@ -496,7 +545,14 @@ export function byPriority(a: Proposal, b: Proposal): number {
   );
 }
 
-export const AUDITORS = [auditRail, auditSecurity, auditVault, auditMemories, auditCapabilities] as const;
+export const AUDITORS = [
+  auditRail,
+  auditSecurity,
+  auditVault,
+  auditMemories,
+  auditCapabilities,
+  auditDecisionPoints,
+] as const;
 
 export interface Collected {
   proposals: Proposal[];

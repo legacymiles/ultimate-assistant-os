@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   approve,
   auditCapabilities,
+  auditDecisionPoints,
   auditMemories,
   auditRail,
   auditSecurity,
@@ -20,6 +21,7 @@ import {
   type AuditInput,
   type Proposal,
 } from "./improve";
+import { decisionPointFacts } from "./decisionPoints";
 
 const NOW = Date.parse("2026-10-02T12:00:00.000Z");
 const daysAgo = (d: number) => new Date(NOW - d * 86_400_000).toISOString();
@@ -368,5 +370,32 @@ describe("describeCollected", () => {
     const first = collectProposals(busy, emptyImproveState());
     const state = first.proposals.reduce((s, p) => dismiss(s, p.id), emptyImproveState());
     expect(describeCollected(collectProposals(busy, state))).toContain("dismissed or snoozed");
+  });
+});
+
+describe("auditDecisionPoints", () => {
+  const points = decisionPointFacts();
+
+  it("files one proposal per spot not yet using a decision model, with the code location as evidence", () => {
+    const found = auditDecisionPoints(input({ decisionPoints: points, decisionKey: true }));
+    const open = points.filter((p) => !p.wired);
+    expect(found).toHaveLength(open.length);
+    expect(found.every((p) => p.evidence.some((e) => e.startsWith("where: src/")))).toBe(true);
+    expect(found.some((p) => p.id === "capability:decision-model:chat-triage")).toBe(true);
+  });
+
+  it("files nothing for spots already wired", () => {
+    const found = auditDecisionPoints(input({ decisionPoints: points, decisionKey: true }));
+    expect(found.some((p) => p.id.endsWith(":long-tasks") || p.id.endsWith(":client-edit-flag"))).toBe(false);
+  });
+
+  it("asks for the key only when it is known to be missing", () => {
+    expect(auditDecisionPoints(input({ decisionPoints: points, decisionKey: false })).some((p) => p.id.endsWith(":key"))).toBe(true);
+    expect(auditDecisionPoints(input({ decisionPoints: points })).some((p) => p.id.endsWith(":key"))).toBe(false);
+  });
+
+  it("runs as part of the full audit", () => {
+    const { proposals } = collectProposals(input({ decisionPoints: points, decisionKey: true }), emptyImproveState());
+    expect(proposals.some((p) => p.id.startsWith("capability:decision-model:"))).toBe(true);
   });
 });

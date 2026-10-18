@@ -16,6 +16,7 @@ import {
   setNotify,
 } from "@/lib/client-review/logic";
 import { vapidPublicKey } from "@/lib/client-review/push";
+import { checkBatch } from "@/lib/client-review/contentCheckServer";
 import { projectForToken, updateIndex, updateProject } from "@/lib/client-review/store";
 import type { ClientProject } from "@/lib/client-review/types";
 import { currentViewer } from "@/lib/client-review/viewer";
@@ -112,6 +113,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
     body = JSON.parse(raw) as Record<string, unknown>;
   } catch {
     return NextResponse.json({ error: "That request couldn't be read." }, { status: 400 });
+  }
+
+  // A request no model may build (see contentCheck.ts) stops the send here,
+  // before it reaches the owner or any model. Checked outside the write lock
+  // because it may ask Span / Jev, which takes a second or two.
+  if (body.action === "send") {
+    const drafts = found.requests.filter((r) => r.versionId === body.versionId && r.status === "draft");
+    const verdict = await checkBatch(drafts.map((r) => r.text), found.name);
+    if (verdict.route === "blocked") {
+      return NextResponse.json({ error: "One of these requests can't be sent. Please remove it and try again." }, { status: 422 });
+    }
   }
 
   try {

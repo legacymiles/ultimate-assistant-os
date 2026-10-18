@@ -460,6 +460,9 @@ export function NewJarvis() {
     // finding could never fire — an auditor that cannot see is worse than no
     // auditor, because it reports all-clear.
     missingKeys,
+    // Whether Jev / Span can be reached. Unknown until the armory answers, so
+    // the "add a key" proposal never fires on a guess.
+    decisionKey: envKeys ? Boolean(envKeys.OPENROUTER_API_KEY) : undefined,
   });
 
   // --- gates ---------------------------------------------------------------

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { aiEndpoint, aiFetch, describeFailure, DEFAULT_MODEL } from "@/lib/ai/provider";
 import { callerIsMember } from "@/lib/recall/lists/session";
 import { coerceIdeas } from "@/lib/new-jarvis/ideas";
+import { DECISION_MODELS } from "@/lib/ai/decisions";
+import { decisionModelBrief } from "@/lib/new-jarvis/decisionPoints";
 
 // ---------------------------------------------------------------------------
 // Improvements — reading what someone has been telling Jarvis, and suggesting
@@ -46,7 +48,15 @@ Rules:
 - Be specific to THEM: use their projects, places and words.
 - Never diagnose a medical or mental-health condition. If anything suggests they are in crisis or thinking of harming themselves, make the first idea a gentle "life" idea to reach out to someone they trust or call or text 988 (US), and keep everything else light.
 - No financial, legal or medical instructions presented as professional advice; suggest talking to a professional where it matters.
-- Plain English. No jargon, no code.`;
+- Plain English. No jargon, no code.
+
+Making Jarvis faster with decision models (Jev, Span):
+- The owner wants Jarvis to keep finding the right places for fast decision models like Jev. When a "jarvis" idea is about speed, cost, sorting, routing, flags or yes/no checks, consider whether one of the open spots listed below is the fix, and if so name that spot and the model in the idea.
+- A decision model never writes and never replaces Claude or DeepSeek as the brain. Never suggest it for writing, chatting or building.
+- The same evidence rule holds: only suggest a spot when something they said points at it (Jarvis felt slow, a cost worry, a sorting chore, a request to "make things faster", mentioning Jev). The list below is background knowledge, not evidence.
+- Do not suggest spots listed as already wired.
+
+${decisionModelBrief(DECISION_MODELS)}`;
 
 export async function POST(req: Request) {
   if (await callerIsMember()) {

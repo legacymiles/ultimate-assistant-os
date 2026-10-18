@@ -13,6 +13,7 @@ import "server-only";
 import { aiConfigured, aiFetch, describeFailure } from "@/lib/ai/provider";
 import { buildText, plainBrief } from "./logic";
 import { isPolicyFailure, lanePlan, looksLikeRefusal } from "./routing";
+import { checkBatch } from "./contentCheckServer";
 import type { ClientProject, RequestBatch } from "./types";
 
 export interface BriefResult {
@@ -98,7 +99,20 @@ export async function writeBrief(p: ClientProject, batch: RequestBatch): Promise
   });
   if (!aiConfigured()) return fallback("No AI key is set on this site, so this is the requests as a plain list.");
 
-  const plans = lanePlan(p.lane, {
+  // What the requests ask for, before spending a model call on them.
+  const texts = batch.requestIds
+    .map((id) => p.requests.find((r) => r.id === id))
+    .filter((r) => r && r.status !== "rejected")
+    .map((r) => buildText(r!));
+  const verdict = await checkBatch(texts, p.name);
+  if (verdict.route === "blocked") {
+    return { ...fallback(verdict.why), model: "not sent to any model" };
+  }
+  // Auto lane + explicit request: go straight to the uncensored models
+  // rather than paying for Claude to refuse first.
+  const lane = p.lane === "auto" && verdict.route === "uncensored" ? "uncensored" : p.lane;
+
+  const plans = lanePlan(lane, {
     standard: process.env.CLIENT_REVIEW_STANDARD_MODELS,
     uncensored: process.env.CLIENT_REVIEW_UNCENSORED_MODELS,
   });
