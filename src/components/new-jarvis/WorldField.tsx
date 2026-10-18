@@ -29,6 +29,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type * as THREE_NS from "three";
+import { breathCurve } from "@/lib/new-jarvis/breath";
 
 type Three = typeof THREE_NS;
 
@@ -203,14 +204,6 @@ const NEBULA_FRAG = /* glsl */ `
 `;
 
 // --- the breath ----------------------------------------------------------------
-
-/** 0 → 1 → 0 over one breath: a swell, a short hold, a longer release. */
-function breathCurve(phase: number): number {
-  const ease = (x: number) => x * x * (3 - 2 * x);
-  if (phase < 0.4) return ease(phase / 0.4);
-  if (phase < 0.48) return 1;
-  return 1 - ease((phase - 0.48) / 0.52);
-}
 
 type Tier = "high" | "low";
 
@@ -531,12 +524,14 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
       const draw = () => (composer ? composer.render() : renderer.render(scene, camera));
 
       const step = (dtRaw: number) => {
-        const dt = Math.min(0.05, dtRaw);
+        // A rAF timestamp can land a hair before the last performance.now(),
+        // and a long pause can make a huge step: both are clamped.
+        const dt = Math.max(0, Math.min(0.05, dtRaw));
         t += dt;
         busyLevel += ((busyRef.current ? 1 : 0) - busyLevel) * Math.min(1, dt * 2);
         energy = Math.max(0, energy - dt * 0.35);
         // One breath every ~6.4 s at rest, ~3.2 s while Jarvis works.
-        phase = (phase + dt / (6.4 - 3.2 * busyLevel)) % 1;
+        phase = (((phase + dt / (6.4 - 3.2 * busyLevel)) % 1) + 1) % 1;
         shared.uTime.value = t;
         shared.uBreath.value = breathCurve(phase);
         shared.uEnergy.value = Math.min(1.4, energy + busyLevel * 0.6);
