@@ -45,7 +45,7 @@ export interface ParsedWatch {
   rule: WatchRule;
 }
 
-const MATCH_SOURCES: MatchSource[] = ["any", "lists", "calendar", "photos", "camera", "memory", "actions", "spend"];
+const MATCH_SOURCES: MatchSource[] = ["any", "lists", "calendar", "photos", "camera", "memory", "actions", "spend", "clients"];
 const DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
 // ----- validation ------------------------------------------------------------
@@ -114,6 +114,7 @@ const SOURCE_WORD: Record<MatchSource, string> = {
   memory: "a memory",
   actions: "an action waiting on you",
   spend: "an AI spend alert",
+  clients: "a client's edit requests",
 };
 
 /** One sentence the owner can check before saving: what will actually happen. */

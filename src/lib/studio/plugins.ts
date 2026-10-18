@@ -45,7 +45,7 @@ export const PLUGIN_SLUGS = [
  * cannot supply. What lives here is the half the hub needs to know: that these
  * two are no longer tiles on the front page.
  */
-export const TOOLBOX_SLUGS = ["prompt-architect", "projects-timeline"] as const;
+export const TOOLBOX_SLUGS = ["prompt-architect", "projects-timeline", "client-review"] as const;
 
 export interface StudioPlugin {
   slug: string;

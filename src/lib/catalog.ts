@@ -319,6 +319,22 @@ export const PROJECTS: CatalogProject[] = [
     hue: [190, 300],
   },
   {
+    slug: "client-review",
+    title: "Client Review",
+    tag: "Send clients their site, collect edits, ship v2",
+    category: "AI",
+    overview:
+      "Send each website client a private link: their site fills the screen with a draggable Chat Intake on top, " +
+      "where they type as many edit requests as they like, point at the exact spot they mean, and press Send to Jarvis. " +
+      "The batch lands with you to approve, reword or reject; Improve with AI turns it into a build brief (Claude first, " +
+      "an uncensored model when a site's content is off-limits for Claude). Approving opens the next version in the " +
+      "Projects Timeline, and posting its URL notifies the client by push.",
+    status: "live",
+    appUrl: "/apps/client-review",
+    iconStyle: "aurora",
+    hue: [262, 196],
+  },
+  {
     slug: "projects-timeline",
     title: "Projects Timeline",
     tag: "Project intelligence",
@@ -732,6 +748,7 @@ export function getProject(slug: string): CatalogProject | null {
  */
 const UNPREVIEWABLE = new Set([
   "dashboard",
+  "client-review",
   "jarvis",
   "projects-timeline",
   "social-personas",

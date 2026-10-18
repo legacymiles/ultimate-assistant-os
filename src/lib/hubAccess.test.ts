@@ -11,6 +11,15 @@ describe("routeAccess", () => {
     expect(routeAccess("/api/fno", TOKEN)).toBe("public");
   });
 
+  it("opens a client's review link and its API, but not the owner's console", () => {
+    expect(routeAccess("/review/abc123", TOKEN)).toBe("public");
+    expect(routeAccess("/api/client-review/portal/abc123", TOKEN)).toBe("public");
+    expect(routeAccess("/client-review-sw.js", TOKEN)).toBe("public");
+    expect(routeAccess("/api/client-review/admin", TOKEN)).toBe("owner");
+    expect(routeAccess("/apps/client-review", TOKEN)).toBe("owner");
+    expect(routeAccess("/reviews-secret", TOKEN)).toBe("owner");
+  });
+
   it("does not match look-alike prefixes", () => {
     expect(routeAccess("/apps/friends-night-outage", TOKEN)).toBe("owner");
     expect(routeAccess("/api/fnox/secret", TOKEN)).toBe("owner");

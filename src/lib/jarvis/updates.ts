@@ -56,9 +56,9 @@ export interface SpendFeed {
   account: { credits: number; used: number; remaining: number } | null;
 }
 
-export type UpdateSource = "lists" | "calendar" | "photos" | "camera" | "memory" | "actions" | "spend" | "custom";
+export type UpdateSource = "lists" | "calendar" | "photos" | "camera" | "memory" | "actions" | "spend" | "clients" | "custom";
 
-export const UPDATE_SOURCES: UpdateSource[] = ["camera", "custom", "lists", "calendar", "photos", "memory", "actions", "spend"];
+export const UPDATE_SOURCES: UpdateSource[] = ["clients", "camera", "custom", "lists", "calendar", "photos", "memory", "actions", "spend"];
 
 export const UPDATE_LABEL: Record<UpdateSource, string> = {
   lists: "Lists",
@@ -68,6 +68,7 @@ export const UPDATE_LABEL: Record<UpdateSource, string> = {
   memory: "Memory",
   actions: "Waiting on you",
   spend: "AI spend",
+  clients: "Client Review",
   custom: "Your workflows",
 };
 
@@ -81,6 +82,7 @@ export const UPDATE_ABOUT: Record<UpdateSource, string> = {
   memory: "Jarvis has something he would like to remember.",
   actions: "An action is sitting on the confirm card, unanswered.",
   spend: "What the AI cost today, and any call that went to an expensive model.",
+  clients: "A website client sends edit requests to Jarvis and they are waiting for your approval.",
 };
 
 /** The dot beside a row. Same hues as the memory core, so the app reads as one. */
@@ -93,6 +95,7 @@ export const UPDATE_COLOR: Record<UpdateSource, string> = {
   memory: "#8b8cff", // violet
   actions: "#ffd479", // amber
   spend: "#7fd4ff", // ice
+  clients: "#b59bff", // lavender
 };
 
 /** Which tab a row opens. */
@@ -105,6 +108,7 @@ export const UPDATE_TAB: Record<UpdateSource, string> = {
   memory: "memory",
   actions: "chat",
   spend: "router",
+  clients: "clients",
 };
 
 export interface JarvisUpdate {
@@ -185,6 +189,8 @@ export interface UpdateInputs {
   inbox?: { id: string; receivedAt?: string; takenAt?: string }[];
   /** The owner's own notification rules. */
   watches?: Watch[];
+  /** Client Review: what website clients sent, from the server feed. */
+  clients?: ClientReviewEvent[];
 }
 
 /** Ids kept per list before the oldest are forgotten. */
@@ -200,7 +206,7 @@ export function defaultUpdateSettings(): UpdateSettings {
     // choice; having one interrupt you unasked is not. The two exceptions are
     // the owner's own workflow rules (writing one IS the choice) and new
     // camera photos, which they asked to be told about by name.
-    sources[s] = { on: true, popup: s === "custom" || s === "camera" };
+    sources[s] = { on: true, popup: s === "custom" || s === "camera" || s === "clients" };
   }
   return { sources, includeMine: false, windowDays: 7, aheadHours: 3 };
 }
@@ -567,6 +573,34 @@ export function spendUpdates(feed: SpendFeed | null, now: number): JarvisUpdate[
 
 // ----- assembly ------------------------------------------------------------
 
+/** The slice of a Client Review event the feed needs (see lib/client-review). */
+export interface ClientReviewEvent {
+  id: string;
+  kind: string;
+  projectName: string;
+  clientName: string;
+  at: string;
+  detail: string;
+}
+
+/** A client sent edit requests (or switched on notifications) on their review link. */
+export function clientUpdates(events: ClientReviewEvent[], now: number): JarvisUpdate[] {
+  return events
+    .filter((e) => e.kind === "batch_sent" || e.kind === "notify_on")
+    .map((e) => ({
+      id: `clients:${e.id}`,
+      source: "clients" as const,
+      title:
+        e.kind === "batch_sent"
+          ? `${e.clientName || e.projectName} sent edit requests`
+          : `${e.clientName || e.projectName} turned on notifications`,
+      detail: e.kind === "batch_sent" ? `${e.detail} · ${e.projectName} — waiting for your approval` : e.projectName,
+      at: e.at,
+      when: ago(e.at, now),
+      who: e.clientName || undefined,
+    }));
+}
+
 export interface Collected {
   updates: JarvisUpdate[];
   /** How many are newer than the seen watermark. */
@@ -593,6 +627,7 @@ export function collectUpdates(
     ...(on("actions") ? actionUpdates(inputs.actions, now) : []),
     ...(on("spend") ? spendUpdates(inputs.spend, now) : []),
     ...(on("camera") ? cameraUpdates(inputs.camera ?? [], inputs.inbox ?? [], now) : []),
+    ...(on("clients") ? clientUpdates(inputs.clients ?? [], now) : []),
   ];
   // The owner's rules run last: a "tell me when a list item mentions rent"
   // rule matches against the rows above, before they are filtered.

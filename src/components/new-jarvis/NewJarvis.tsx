@@ -59,6 +59,7 @@ import { RouterTab } from "../jarvis/RouterTab";
 import { SettingsTab } from "../jarvis/SettingsTab";
 import { Blueprint } from "../blueprint/Blueprint";
 import { AppShell } from "../AppShell";
+import { ClientReviewAdmin } from "../client-review/ClientReviewAdmin";
 
 // The Dashboard, which now carries Memory, the Profile and the self-audit as
 // panels rather than as three more entries in the rail.
@@ -93,7 +94,7 @@ import { useDashboardCalendar } from "@/lib/jarvis/useDashboardCalendar";
 type TabId =
   | "dashboard" | "console" | "studio" | "harness" | "queue"
   | "folders" | "photos" | "lists" | "calendar" | "inbox"
-  | "skills" | "tools" | "passwords" | "calls" | "router" | "architect" | "timeline" | "plugins" | "settings";
+  | "skills" | "tools" | "passwords" | "calls" | "router" | "architect" | "timeline" | "clients" | "plugins" | "settings";
 
 type Tab = { id: TabId; label: string; icon: keyof typeof Icon };
 
@@ -159,6 +160,8 @@ const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[]
       { id: "router", label: "Router", icon: "Target" },
       { id: "architect", label: "Architect", icon: "Bulb" },
       { id: "timeline", label: "Timeline", icon: "Flag" },
+      // Client Review: website clients' edit requests waiting on the owner.
+      { id: "clients", label: "Clients", icon: "Users" },
       { id: "plugins", label: "Apps", icon: "Launch" },
       { id: "settings", label: "Settings", icon: "Settings" },
     ],
@@ -1126,6 +1129,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 {tab === "router" && <RouterTab />}
                 {tab === "architect" && <Blueprint chromeless />}
                 {tab === "timeline" && <AppShell chromeless />}
+                {tab === "clients" && <ClientReviewAdmin chromeless />}
                 {tab === "plugins" && <PluginsTab />}
                 {/* SettingsTab's `go` is typed against the OLD shell's tab
                     union, which is a superset of this one for the ids it

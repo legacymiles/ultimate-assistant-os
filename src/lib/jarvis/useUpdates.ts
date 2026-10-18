@@ -30,6 +30,7 @@ import {
   toNotify,
   UPDATE_LABEL,
   type Collected,
+  type ClientReviewEvent,
   type JarvisUpdate,
   type SpendFeed,
   type UpdateSettings,
@@ -83,6 +84,9 @@ export function useUpdates(
   // empty, and saying so is the difference between "you spent nothing today" and
   // "nobody knows what you spent today".
   const [spendError, setSpendError] = useState("");
+  // Client Review: website clients' edit requests waiting on the owner. On
+  // the server, so polled with the board. A failure just drops the rows.
+  const [clients, setClients] = useState<ClientReviewEvent[]>([]);
   const [ready, setReady] = useState(false);
   // Starts empty rather than reading storage during render: this hook renders
   // on the server too, where there is no localStorage.
@@ -142,6 +146,10 @@ export function useUpdates(
         setSpend(null);
         setSpendError(e instanceof Error ? e.message : "The AI ledger could not be read.");
       });
+    fetch("/api/client-review/admin?feed=1", { cache: "no-store" })
+      .then(async (r) => (r.ok ? ((await r.json()) as { events?: ClientReviewEvent[] }) : { events: [] }))
+      .then((f) => setClients(Array.isArray(f.events) ? f.events : []))
+      .catch(() => setClients([]));
     setRecall(getData());
   }, []);
 
@@ -193,6 +201,7 @@ export function useUpdates(
         camera,
         inbox,
         watches,
+        clients,
       },
       settings,
       state,
@@ -201,7 +210,7 @@ export function useUpdates(
     // `tick` is the clock: it is in the deps precisely so time passing
     // recomputes the feed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [board, spend, events, recall.items, photoFolderIds, store?.proposals, store?.actions, settings, state, tick, camera, inbox, watches]);
+  }, [board, spend, events, recall.items, photoFolderIds, store?.proposals, store?.actions, settings, state, tick, camera, inbox, watches, clients]);
 
   // ----- pop-ups -----------------------------------------------------------
   useEffect(() => {

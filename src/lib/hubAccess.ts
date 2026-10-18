@@ -14,7 +14,15 @@ export type RouteAccess = "public" | "token" | "auth" | "owner";
 /** Where a signed-in non-owner is sent. */
 export const PUBLIC_HOME = "/apps/friends-night-out";
 
-const PUBLIC_PREFIXES = [PUBLIC_HOME, "/api/fno"];
+/**
+ * Client Review is the other public surface: a client opens their private
+ * link with no account here. The link's secret is checked by the route itself
+ * (src/app/api/client-review/portal), and the owner's console stays behind
+ * the owner gate at /api/client-review/admin.
+ */
+export const CLIENT_REVIEW_PUBLIC = ["/review", "/api/client-review/portal", "/client-review-sw.js"];
+
+const PUBLIC_PREFIXES = [PUBLIC_HOME, "/api/fno", ...CLIENT_REVIEW_PUBLIC];
 const AUTH_PREFIXES = ["/login", "/auth"];
 
 function underPrefix(path: string, prefix: string): boolean {
