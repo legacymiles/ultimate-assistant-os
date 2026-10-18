@@ -21,7 +21,9 @@ export const BLOCKS_KEY = "new-jarvis:blocks";
 /** Per stored step. Enough to read the ledger back, never enough to fill it. */
 const KEPT_CHARS = 2_000;
 /** Blocks kept across a reload. Fewer than live, because these are cold. */
-export const STORED_BLOCKS = 25;
+export const STORED_BLOCKS = 80;
+/** Only the newest blocks keep their picture thumbnails — they are the heavy part. */
+export const STORED_THUMBS = 20;
 
 function slimResult(result: unknown): unknown {
   if (!result || typeof result !== "object") return result;
@@ -55,10 +57,11 @@ function slimStep(step: Step): Step {
  * when the tab did.
  */
 export function slim(blocks: Block[]): Block[] {
-  return blocks.slice(0, STORED_BLOCKS).map((b) => {
+  return blocks.slice(0, STORED_BLOCKS).map((b, i) => {
     const interrupted = b.status === "running" || b.status === "waiting";
     return {
       ...b,
+      media: i < STORED_THUMBS ? b.media : undefined,
       status: interrupted ? ("stopped" as const) : b.status,
       error: interrupted ? b.error || "This run was interrupted when the page closed." : b.error,
       gate: null,
@@ -119,6 +122,7 @@ export function revive(raw: unknown): Block[] {
             }))
         : undefined,
       model: typeof o.model === "string" ? o.model : undefined,
+      thread: typeof o.thread === "string" ? o.thread : undefined,
       gate: null,
     });
     if (out.length >= MAX_LIVE_BLOCKS) break;

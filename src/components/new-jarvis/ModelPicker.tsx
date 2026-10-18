@@ -22,7 +22,16 @@ interface Listed {
 
 const READ_ICON: Record<string, string> = { image: "🖼", audio: "🎧", video: "🎬" };
 
-export function ModelPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+export function ModelPicker({
+  value,
+  onChange,
+  up = false,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+  /** Open the list upward — for a composer docked at the bottom of the page. */
+  up?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [all, setAll] = useState<Listed[] | null>(null);
@@ -81,7 +90,7 @@ export function ModelPicker({ value, onChange }: { value: string; onChange: (id:
       </button>
 
       {open && (
-        <div className="absolute left-0 top-7 z-30 w-[320px] max-w-[88vw] rounded-lg border border-line bg-panel p-1.5 shadow-2xl">
+        <div className={`absolute left-0 ${up ? "bottom-8" : "top-7"} z-30 w-[320px] max-w-[88vw] rounded-lg border border-line bg-panel p-1.5 shadow-2xl`}>
           <p className="px-2 pb-1 pt-0.5 text-[10px] uppercase tracking-wider text-ink-faint">Jarvis's brain</p>
           <ul>
             {CHAT_MODELS.map((m, i) => (
