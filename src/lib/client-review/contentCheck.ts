@@ -12,13 +12,13 @@
 //   blocked     sexual content involving anyone under 18, or presenting sex
 //               as non-consensual. Can't be sent, never reaches any model.
 //
-// Cheapest-and-surest first: a word list (free, instant, the only thing that
-// runs with no key), then Span-01 Lite (free; "is this behaviour present?" is
-// exactly its question) and Jev (fast; also says what kind of edit it is).
-// Either can be missing. A model saying "no" never clears what the word list
-// found, and either one saying "minor" is enough to block.
+// Decided by a word list: free, instant, and it runs with no key. The owner
+// chose not to put a decision model (Jev, Span) here — sends wait for their
+// approval anyway, so speed buys nothing. decideRoute still takes optional
+// model answers in case that changes; a model saying "no" would never clear
+// what the word list found.
 //
-// Pure. The calls are in contentCheckServer.ts.
+// Pure. contentCheckServer.ts runs it over a batch.
 // ---------------------------------------------------------------------------
 
 import type { DecisionRequest, DecisionResult } from "@/lib/ai/decisions";

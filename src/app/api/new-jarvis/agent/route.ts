@@ -3,6 +3,8 @@ import { aiEndpoint, aiFetch, describeFailure, DEFAULT_MODEL } from "@/lib/ai/pr
 import { runNote, sanitizeAssistant, toApiTools, toolsFor, type AgentTool } from "@/lib/new-jarvis/agentTools";
 import { isModelId } from "@/lib/new-jarvis/chatModels";
 import { plainCloudError } from "@/lib/new-jarvis/plainErrors";
+import { decide } from "@/lib/ai/decide";
+import { planFromTriage, previousReply, shouldTriage, triageRequest, TRIAGE_TIMEOUT_MS, firstStepText } from "@/lib/new-jarvis/triage";
 
 // ---------------------------------------------------------------------------
 // One step of New Jarvis's agent loop.
@@ -198,7 +200,24 @@ export async function POST(req: Request) {
   // the machine is the only turn nobody has to read a gate for.
   // Ask loses the PC, not the owner's own stores: remembering something they
   // just told you must not depend on whether a local agent happens to be up.
-  const tools: AgentTool[] = mode === "ask" ? toolsFor({}) : toolsFor(caps);
+  let tools: AgentTool[] = mode === "ask" ? toolsFor({}) : toolsFor(caps);
+
+  // The front door (see src/lib/new-jarvis/triage.ts): on the first step of a
+  // Do or Ask turn, Jev says what kind of message this is, and a confident
+  // "quick" or "remember" trims the tools so the router can answer faster.
+  // Skipped for prepare (the PC thinks with the full list) and whenever Jev is
+  // unsure, slow or unreachable — then nothing changes.
+  const triage =
+    !body.prepare && aiEndpoint() && shouldTriage(mode, messages)
+      ? planFromTriage(
+          await decide(triageRequest(firstStepText(messages) ?? "", previousReply(messages)), {
+            app: "jarvis-triage",
+            timeoutMs: TRIAGE_TIMEOUT_MS,
+          }),
+        )
+      : planFromTriage(null);
+  if (triage.noTools) tools = [];
+  else if (triage.hubOnly) tools = tools.filter((t) => t.kind === "hub");
   // The Chat's model picker. Only the id's shape is checked: OpenRouter is the
   // authority on which ids exist, and its error says so plainly if one does not.
   const model = isModelId(body.model) ? body.model : DEFAULT_MODEL;
@@ -218,6 +237,7 @@ export async function POST(req: Request) {
       ? `SWITCHED OFF RIGHT NOW: ${offline.join(", ")}. You have no tools for these, but you can still save to their Record, memory, folders, lists and calendar. If the job needs a switched-off one, say which and stop.`
       : "",
     body.context ? `CONTEXT FOR THIS REQUEST:\n${body.context.slice(0, 8_000)}` : "",
+    triage.note,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -290,6 +310,7 @@ export async function POST(req: Request) {
         assistant: sanitizeAssistant(message as Record<string, unknown>),
         text: typeof message?.content === "string" ? message.content : "",
         model,
+        triage: triage.lane,
       });
     }
 
@@ -297,6 +318,7 @@ export async function POST(req: Request) {
       toolCall: null,
       text: (message?.content ?? "").trim() || "Nothing came back.",
       model,
+      triage: triage.lane,
     });
   } catch (e) {
     // Same rule as the !res.ok path above: the exception is for the log, and

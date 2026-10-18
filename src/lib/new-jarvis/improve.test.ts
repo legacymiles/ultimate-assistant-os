@@ -381,12 +381,13 @@ describe("auditDecisionPoints", () => {
     const open = points.filter((p) => !p.wired);
     expect(found).toHaveLength(open.length);
     expect(found.every((p) => p.evidence.some((e) => e.startsWith("where: src/")))).toBe(true);
-    expect(found.some((p) => p.id === "capability:decision-model:chat-triage")).toBe(true);
+    expect(found.some((p) => p.id === "capability:decision-model:notification-urgency")).toBe(true);
+    expect(found.some((p) => p.id === "capability:decision-model:chat-triage")).toBe(false);
   });
 
   it("files nothing for spots already wired", () => {
     const found = auditDecisionPoints(input({ decisionPoints: points, decisionKey: true }));
-    expect(found.some((p) => p.id.endsWith(":long-tasks") || p.id.endsWith(":client-edit-flag"))).toBe(false);
+    expect(found.some((p) => p.id.endsWith(":long-tasks") || p.id.endsWith(":chat-triage"))).toBe(false);
   });
 
   it("asks for the key only when it is known to be missing", () => {
