@@ -336,6 +336,16 @@ function StepRow({ step, autoOpen }: { step: Step; autoOpen: boolean }) {
         >
           {step.summary}
         </button>
+        {step.by === "jev" && (
+          <span className="shrink-0 rounded px-1 font-mono text-[10px] text-[#c3f584]" title="Jev picked this click in under a second — no chat model needed">
+            ⚡ Jev
+          </span>
+        )}
+        {step.rerouted && (
+          <span className="shrink-0 rounded px-1 font-mono text-[10px] text-fuchsia-300" title={`Claude declined explicit content, so ${step.rerouted} did this step`}>
+            {step.rerouted.split("/").pop()?.split("-").slice(0, 2).join(" ")}
+          </span>
+        )}
         {step.ms !== undefined && (
           <span className="shrink-0 font-mono text-[10.5px] text-ink-muted" data-num>
             {ms(step.ms)}

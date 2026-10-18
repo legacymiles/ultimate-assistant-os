@@ -697,7 +697,10 @@ ${reflex.best.excerpt ?? ""}`.trim()
                   "Jarvis's brain is set to Claude (your subscription), which thinks through the local agent on your PC — and Jarvis can't reach it right now. Start the PC's local agent, or pick a cloud model in the brain picker.",
                 );
               }
-              const prepared = await post({ ...ask, prepare: true });
+              // Sent with the messages so the fast lane (Jev clicks, reads
+              // after a click) can answer this step without the PC thinking.
+              const prepared = await post({ ...ask, messages, prepare: true });
+              if (prepared.toolCall) return prepared as never;
               try {
                 return (await bridge.run("brain/claude", { system: prepared.system, tools: prepared.tools, messages })) as never;
               } catch (e) {

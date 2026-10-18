@@ -20,7 +20,7 @@ import { routeFor, toolByName } from "./agentTools";
 import type { Block, Gate, Mode, Step } from "./types";
 
 /** Rounds before the loop gives up. A browse job legitimately takes a dozen. */
-export const MAX_ROUNDS = 14;
+export const MAX_ROUNDS = 30;
 
 export interface WireMessage {
   role: "user" | "assistant" | "tool";
@@ -44,6 +44,12 @@ export interface StepResponse {
   assistant?: WireMessage | null;
   text?: string;
   error?: string;
+  /** Set when the fast lane chose this step instead of the chat model. */
+  fast?: string;
+  /** The model that answered. "typesafe/jev-1.13" or "rule" for fast-lane steps. */
+  model?: string;
+  /** True when Claude refused explicit content and an uncensored model answered. */
+  rerouted?: boolean;
   malformed?: { id: string; name: string; raw: string } | null;
 }
 
@@ -191,6 +197,8 @@ export async function runBlock(input: RunInput, deps: RunnerDeps): Promise<RunOu
       args,
       summary: verdict.summary,
       status: verdict.confirm ? "waiting" : "running",
+      ...(next.fast ? { by: next.model === "rule" ? ("rule" as const) : ("jev" as const) } : {}),
+      ...(next.rerouted && next.model ? { rerouted: next.model } : {}),
     };
     steps.push(step);
     deps.update({ steps: [...steps] });

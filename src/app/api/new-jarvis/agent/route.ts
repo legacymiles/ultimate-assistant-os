@@ -5,6 +5,8 @@ import { isModelId } from "@/lib/new-jarvis/chatModels";
 import { plainCloudError } from "@/lib/new-jarvis/plainErrors";
 import { decide } from "@/lib/ai/decide";
 import { planFromTriage, previousReply, shouldTriage, triageRequest, TRIAGE_TIMEOUT_MS, firstStepText } from "@/lib/new-jarvis/triage";
+import { autoRead, fastCandidate, fastRequest, pickStep, FAST_TIMEOUT_MS, goalOf, type FastStep } from "@/lib/new-jarvis/browserFast";
+import { isPolicyFailure, looksLikeRefusal, mayReroute, uncensoredChain } from "@/lib/new-jarvis/reroute";
 
 // ---------------------------------------------------------------------------
 // One step of New Jarvis's agent loop.
@@ -242,7 +244,41 @@ export async function POST(req: Request) {
     .filter(Boolean)
     .join("\n\n");
 
+  // The fast browser lane (src/lib/new-jarvis/browserFast.ts). After a step
+  // that moved the page, read it — no model needed. After a read, Jev picks
+  // the next click from the page's own controls in well under a second.
+  // Runs for the subscription brain too (prepare): a
+  // fast step comes back instead of the prompt, and the PC never has to think.
+  // Anything that needs words, a form, judgement, or Jev being unsure falls
+  // through to the chat model below, exactly as before.
+  const hasBrowser = tools.some((t) => t.name === "browser_read");
+  const fast: FastStep | null =
+    autoRead(messages, hasBrowser) ??
+    (await (async () => {
+      const c = fastCandidate(messages, mode, hasBrowser);
+      if (!c) return null;
+      const result = await decide(fastRequest(c.goal, c.snap, c.options), { app: "jarvis-browser", timeoutMs: FAST_TIMEOUT_MS });
+      return pickStep(result, c, messages);
+    })());
+  if (fast) {
+    const args = JSON.stringify(fast.toolCall.args);
+    return NextResponse.json({
+      toolCall: fast.toolCall,
+      // A well-formed assistant turn for the page to echo, so the chat model
+      // sees these steps in its history as ordinary tool calls.
+      assistant: {
+        role: "assistant",
+        content: "",
+        tool_calls: [{ id: fast.toolCall.id, type: "function", function: { name: fast.toolCall.name, arguments: args } }],
+      },
+      text: "",
+      model: fast.toolCall.name === "browser_read" ? "rule" : "typesafe/jev-1.13",
+      fast: fast.why,
+    });
+  }
+
   if (body.prepare) return NextResponse.json({ system, tools: toApiTools(tools) });
+
 
   if (!aiEndpoint()) {
     return NextResponse.json(
@@ -254,33 +290,80 @@ export async function POST(req: Request) {
     );
   }
 
-  try {
-    const res = await aiFetch({
+  // When Claude won't do an explicit job, the uncensored models do it
+  // (src/lib/new-jarvis/reroute.ts). Never for a model the owner picked, never
+  // for anything the content check blocks, never for a non-content failure.
+  const lastResult = messages[messages.length - 1]?.role === "tool" ? String(messages[messages.length - 1].content ?? "").slice(0, 4_000) : "";
+  const canReroute = mayReroute(model, DEFAULT_MODEL, goalOf(messages), lastResult);
+  const chain = uncensoredChain({ jarvis: process.env.JARVIS_UNCENSORED_MODELS, clientReview: process.env.CLIENT_REVIEW_UNCENSORED_MODELS });
+  const send = (m: string) =>
+    aiFetch({
       method: "POST",
       body: JSON.stringify({
-        model,
+        model: m,
         temperature: 0.2,
         max_tokens: 1600,
         messages: [{ role: "system", content: system }, ...messages],
         ...(tools.length ? { tools: toApiTools(tools), tool_choice: "auto" } : {}),
+        ...(m === model ? {} : { task: { app: "jarvis-uncensored" } }),
       }),
     });
 
+  try {
+    let usedModel = model;
+    let rerouted = false;
+    let res = await send(model);
+
     if (!res.ok) {
-      // This used to show the owner nothing, on the reasoning that a provider
-      // schema path is not actionable. True of a schema path, wrong about the
-      // common case: "every model refused, three for no credit" is the most
-      // actionable sentence there is, and withholding it left the owner staring
-      // at a run that stopped for no stated reason.
-      const why = await describeFailure(res);
-      console.error(`[new-jarvis] model ${res.status}:`, why);
-      // The provider's own words go to the log; the person gets what to do.
-      return NextResponse.json({ error: `${plainCloudError(res.status, why)} ${runNote(res.status)}` }, { status: 502 });
+      const firstWhy = await describeFailure(res);
+      if (canReroute && isPolicyFailure(res.status, firstWhy)) {
+        for (const m of chain) {
+          const again = await send(m);
+          if (again.ok) {
+            res = again;
+            usedModel = m;
+            rerouted = true;
+            break;
+          }
+        }
+      }
+      if (!res.ok) {
+        // This used to show the owner nothing, on the reasoning that a provider
+        // schema path is not actionable. True of a schema path, wrong about the
+        // common case: "every model refused, three for no credit" is the most
+        // actionable sentence there is, and withholding it left the owner staring
+        // at a run that stopped for no stated reason.
+        console.error(`[new-jarvis] model ${res.status}:`, firstWhy);
+        // The provider's own words go to the log; the person gets what to do.
+        return NextResponse.json({ error: `${plainCloudError(res.status, firstWhy)} ${runNote(res.status)}` }, { status: 502 });
+      }
     }
 
-    const data = (await res.json()) as {
-      choices?: { message?: { content?: string; tool_calls?: { id: string; function: { name: string; arguments: string } }[] } }[];
+    type Reply = {
+      choices?: { message?: { content?: string; refusal?: string | null; tool_calls?: { id: string; function: { name: string; arguments: string } }[] } }[];
     };
+    let data = (await res.json()) as Reply;
+
+    // A 200 that is a refusal ("I can't help with that") rather than the job.
+    const refused = (d: Reply) => {
+      const msg = d.choices?.[0]?.message;
+      if (msg?.tool_calls?.length) return false;
+      return Boolean(msg?.refusal) || looksLikeRefusal(msg?.content ?? "");
+    };
+    if (!rerouted && canReroute && refused(data)) {
+      for (const m of chain) {
+        const again = await send(m);
+        if (!again.ok) continue;
+        const d = (await again.json().catch(() => null)) as Reply | null;
+        if (d && !refused(d)) {
+          data = d;
+          usedModel = m;
+          rerouted = true;
+          break;
+        }
+      }
+    }
+
     const message = data.choices?.[0]?.message;
     const calls = message?.tool_calls ?? [];
 
@@ -309,7 +392,8 @@ export async function POST(req: Request) {
         // without going through clean() first.
         assistant: sanitizeAssistant(message as Record<string, unknown>),
         text: typeof message?.content === "string" ? message.content : "",
-        model,
+        model: usedModel,
+        rerouted: rerouted || undefined,
         triage: triage.lane,
       });
     }
@@ -317,7 +401,8 @@ export async function POST(req: Request) {
     return NextResponse.json({
       toolCall: null,
       text: (message?.content ?? "").trim() || "Nothing came back.",
-      model,
+      model: usedModel,
+      rerouted: rerouted || undefined,
       triage: triage.lane,
     });
   } catch (e) {

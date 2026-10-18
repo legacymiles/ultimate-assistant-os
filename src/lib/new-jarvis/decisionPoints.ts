@@ -67,6 +67,17 @@ export const DECISION_POINTS: DecisionPoint[] = [
     effort: "hours",
   },
   {
+    id: "browser-steps",
+    label: "Browser agent: the next click",
+    decides: "Given this page and the goal, which link or button next — or hand back to the chat model?",
+    where: "src/lib/new-jarvis/browserFast.ts (called from src/app/api/new-jarvis/agent/route.ts)",
+    today: "Jev picks clicks from the page's own controls; a page read after every click needs no model at all",
+    model: "typesafe/jev-1.13",
+    gain: "Each navigation step takes well under a second instead of a full chat-model call.",
+    wired: true,
+    effort: "minutes",
+  },
+  {
     id: "action-confirm",
     label: "Browser agent safety check",
     decides: "Does this step need the person to say yes before Jarvis does it?",

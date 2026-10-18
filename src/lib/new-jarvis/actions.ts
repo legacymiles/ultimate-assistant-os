@@ -68,6 +68,11 @@ const IRREVERSIBLE = [
   /\b(apply|book|reserve|register|sign\s*up|create\s+account)\b/i,
 ];
 
+/** A control whose click cannot be taken back. The fast browser lane never picks one. */
+export function isIrreversibleClick(name: string): boolean {
+  return IRREVERSIBLE.some((re) => re.test(name));
+}
+
 /** Shell commands that only report. The leading word decides; anything else acts. */
 const READ_COMMANDS = [
   "dir", "ls", "type", "cat", "get-content", "get-childitem", "get-process",

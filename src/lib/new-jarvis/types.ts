@@ -45,6 +45,10 @@ export interface Step {
   /** What came back. Rendered by kind, not dumped as JSON. */
   result?: unknown;
   error?: string;
+  /** Who chose this step when it wasn't the chat model: Jev, or a fixed rule (read after a click). */
+  by?: "jev" | "rule";
+  /** The brain that answered, when Claude refused explicit content and DeepSeek took over. */
+  rerouted?: string;
 }
 
 export type BlockStatus = "running" | "waiting" | "done" | "failed" | "stopped";
