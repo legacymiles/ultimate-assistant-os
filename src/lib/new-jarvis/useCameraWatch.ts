@@ -22,7 +22,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { loadLocal, saveSynced } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
 import { drainInbox } from "@/lib/dashboard/drainInbox";
-import { importPhotos } from "@/lib/recall/photos/pipeline";
+import { importPhotos, removeDuplicatePhotos } from "@/lib/recall/photos/pipeline";
 import { getData } from "@/lib/recall/store";
 import { folderPaths } from "@/lib/recall/classify";
 
@@ -129,6 +129,9 @@ export function useCameraWatch(): CameraWatch {
         setInbox([]);
         window.dispatchEvent(new Event(CAMERA_CHANGED));
       }
+      // Copies that slipped in before duplicates were stopped at the door
+      // (or arrived from another device) are cleared on every check.
+      if (await removeDuplicatePhotos().catch(() => 0)) window.dispatchEvent(new Event(CAMERA_CHANGED));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't check for new photos.");
     } finally {

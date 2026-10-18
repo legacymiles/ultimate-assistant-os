@@ -32,7 +32,7 @@ const DOC = "dashboard-inbox";
 const SWEEP_DAYS = 7;
 
 /** Identifiers remembered per user, so a nightly re-send is not re-imported. */
-const SEEN_LIMIT = 500;
+const SEEN_LIMIT = 2000;
 
 export const MAX_PHOTO_BYTES = 25 * 1024 * 1024;
 export const MAX_PER_REQUEST = 100;
@@ -52,7 +52,17 @@ export interface InboxEntry {
   /** When the photo was taken, if the Shortcut sent it. */
   takenAt?: string;
   receivedAt: string;
+  /**
+   * Set while a browser is reading this photo in (claim with keep). Until it
+   * passes, other devices don't see the photo, so two open dashboards can't
+   * both bring in the same picture. If that browser never says done, the
+   * photo comes back after the lease.
+   */
+  claimedUntil?: number;
 }
+
+/** How long a claimed photo stays hidden from other devices. */
+const CLAIM_LEASE_MS = 3 * 60_000;
 
 interface InboxDoc {
   /** uid -> sha256 of that user's device token. */
@@ -160,7 +170,10 @@ export async function receive(uid: string, photos: IncomingPhoto[]): Promise<Rec
       out.rejected.push({ name: p.name, reason: "over 25 MB" });
       continue;
     }
-    if (p.deviceId && seen.has(p.deviceId)) {
+    // The exact same bytes are the same photo, whatever name or id a second
+    // Shortcut or automation gave them.
+    const sha = `sha:${createHash("sha256").update(p.body).digest("hex").slice(0, 32)}`;
+    if ((p.deviceId && seen.has(p.deviceId)) || seen.has(sha)) {
       out.skipped++;
       advance(p.takenAt);
       continue;
@@ -187,6 +200,8 @@ export async function receive(uid: string, photos: IncomingPhoto[]): Promise<Rec
       seen.add(p.deviceId);
       added.push(p.deviceId);
     }
+    seen.add(sha);
+    added.push(sha);
     out.accepted++;
     advance(p.takenAt);
   }
@@ -212,7 +227,8 @@ export async function cursorFor(uid: string): Promise<string | null> {
 
 export async function pending(uid: string): Promise<InboxEntry[]> {
   const doc = await sweep(await load());
-  return doc.entries.filter((e) => e.uid === uid);
+  const now = Date.now();
+  return doc.entries.filter((e) => e.uid === uid && !(e.claimedUntil && e.claimedUntil > now));
 }
 
 /**
@@ -228,7 +244,11 @@ export async function claim(
 ): Promise<{ id: string; name: string; contentType: string; takenAt?: string; dataUrl: string }[]> {
   const doc = await load();
   const wanted = new Set(ids);
-  const mine = doc.entries.filter((e) => e.uid === uid && wanted.has(e.id));
+  const now = Date.now();
+  // A photo another device is reading in right now is not handed out twice.
+  const mine = doc.entries.filter(
+    (e) => e.uid === uid && wanted.has(e.id) && !(opts.keep && e.claimedUntil && e.claimedUntil > now),
+  );
   const out = [];
 
   for (const e of mine) {
@@ -244,7 +264,14 @@ export async function claim(
     if (!opts.keep) await deleteBlob(BUCKET, `${uid}/${e.id}`, dataDir());
   }
 
-  if (opts.keep) return out;
+  if (opts.keep) {
+    if (out.length) {
+      const leased = new Set(out.map((o) => o.id));
+      for (const e of doc.entries) if (leased.has(e.id)) e.claimedUntil = now + CLAIM_LEASE_MS;
+      await save(doc);
+    }
+    return out;
+  }
   const claimed = new Set(out.map((o) => o.id));
   doc.entries = doc.entries.filter((e) => !(e.uid === uid && claimed.has(e.id)));
   await save(doc);

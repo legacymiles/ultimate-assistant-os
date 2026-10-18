@@ -43,6 +43,7 @@ import {
 } from "./store";
 import { analyzePhoto, buildContactSheet, heuristicAnalysis, toThumb } from "./vision";
 import { findDuplicate, fingerprintImage, type FingerprintCandidate } from "./fingerprint";
+import { duplicateIds, findSamePhoto, type PhotoIdentity } from "./sameness";
 import type { PendingPhoto, PhotoAnalysis, PhotosData } from "./types";
 import { PHOTOS_ROOT } from "./types";
 import { closestPlace } from "@/lib/dashboard/places";
@@ -63,6 +64,8 @@ export interface ImportOutcome {
   accepted: number;
   /** Images turned away because the queue is already full. */
   deferred: number;
+  /** Copies of photos already filed or waiting, dropped before they queued. */
+  duplicates: number;
   /** Non-image files that were ignored. */
   skipped: number;
 }
@@ -106,12 +109,33 @@ export async function importPhotos(args: ImportArgs): Promise<ImportOutcome> {
   // Photos already filed, fingerprinted once for the whole import. Anything
   // filed before fingerprints existed is fingerprinted from its thumbnail.
   const filed = await filedFingerprints();
+  // Everything a new photo could be a copy of: filed, waiting, and this very
+  // batch. A copy is dropped before it is stored — duplicates never show.
+  const known: PhotoIdentity[] = [...filed, ...queueIdentities(queue)];
 
   // Phase 1 — bytes to disk.
   const staged: { pending: PendingPhoto; file: File }[] = [];
   let stored = 0;
+  let duplicates = 0;
   for (const file of accepted) {
     args.onProgress?.({ stage: "storing", done: stored, total: accepted.length });
+    const thumb = await toThumb(file);
+    const fingerprint = await fingerprintImage(thumb);
+    const takenAt = file.lastModified ? new Date(file.lastModified).toISOString() : undefined;
+    const me: PhotoIdentity = {
+      id: `incoming:${stored}`,
+      hash: fingerprint,
+      name: file.name,
+      size: file.size,
+      takenAt,
+      composite: Boolean(args.composite),
+    };
+    if (findSamePhoto(me, known)) {
+      duplicates++;
+      stored++;
+      continue;
+    }
+
     const fileId = uid("blob");
     try {
       await putFile(fileId, file);
@@ -121,20 +145,18 @@ export async function importPhotos(args: ImportArgs): Promise<ImportOutcome> {
       stored++;
       continue;
     }
-    const thumb = await toThumb(file);
     const out = enqueuePhoto({
       fileId,
       name: file.name,
       type: file.type || "image/jpeg",
       size: file.size,
       thumb,
-      takenAt: file.lastModified ? new Date(file.lastModified).toISOString() : undefined,
+      takenAt,
       composite: args.composite ?? null,
     });
-    // Is this a picture the user already has? Checked against photos already
-    // filed and photos already waiting — this batch included, because picking
-    // the same photo twice in one import is the commonest accident of all.
-    const fingerprint = await fingerprintImage(thumb);
+    known.push({ ...me, id: out.photo.id });
+    // Look-alikes that are NOT the same photo (two shots of a burst) still
+    // queue, with a warning naming the one they resemble.
     const dup = findDuplicate(
       fingerprint,
       [...filed, ...queuedFingerprints(out.queue)],
@@ -179,6 +201,7 @@ export async function importPhotos(args: ImportArgs): Promise<ImportOutcome> {
     queue: getQueue(),
     accepted: staged.length,
     deferred,
+    duplicates,
     skipped: args.files.length - images.length,
   };
 }
@@ -492,9 +515,9 @@ export async function backupToDrive(
 // ----- duplicates ------------------------------------------------------------
 
 /** Every filed photo's fingerprint, labelled with the folder it lives in. */
-async function filedFingerprints(): Promise<FingerprintCandidate[]> {
+async function filedFingerprints(): Promise<(FingerprintCandidate & PhotoIdentity)[]> {
   const data = getData();
-  const out: FingerprintCandidate[] = [];
+  const out: (FingerprintCandidate & PhotoIdentity)[] = [];
   for (const it of data.items) {
     if (it.kind !== "image") continue;
     const hash = it.fingerprint ?? (await fingerprintImage(it.attachment?.url));
@@ -504,6 +527,8 @@ async function filedFingerprints(): Promise<FingerprintCandidate[]> {
         hash,
         label: folderPathString(data.folders, it.folderId),
         composite: Boolean(it.composite),
+        name: it.attachment?.name,
+        size: it.attachment?.size,
       });
     }
   }
@@ -520,6 +545,32 @@ function queuedFingerprints(queue: PendingPhoto[]): FingerprintCandidate[] {
       label: "Waiting for review",
       composite: Boolean(p.composite),
     }));
+}
+
+/** Photos waiting for review, as identities for the same-photo check. */
+function queueIdentities(queue: PendingPhoto[]): PhotoIdentity[] {
+  return queue.map((p) => ({
+    id: p.id,
+    hash: p.fingerprint,
+    name: p.name,
+    size: p.size,
+    takenAt: p.takenAt,
+    composite: Boolean(p.composite),
+  }));
+}
+
+/**
+ * Take out copies already sitting in the queue (from before copies were
+ * stopped at the door). Keeps the copy that is furthest along; returns how
+ * many went.
+ */
+export async function removeDuplicatePhotos(): Promise<number> {
+  const queue = getQueue();
+  const drop = duplicateIds(
+    queue.map((p) => ({ ...queueIdentities([p])[0], status: p.status, addedAt: p.addedAt })),
+  );
+  if (drop.length) await rejectPhotos(drop);
+  return drop.length;
 }
 
 /** The user saw the duplicate warning and wants this photo anyway. */
