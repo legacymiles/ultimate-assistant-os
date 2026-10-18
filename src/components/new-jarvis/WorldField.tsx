@@ -68,7 +68,7 @@ const COMMON = /* glsl */ `
     float lobe = 1.0 + 0.45 * (0.5 - 0.5 * n.y) + 0.25 * abs(n.x);
     float wave = sin(dot(n, vec3(2.7, 1.9, 3.3)) * 2.0 - uTime * 0.9 + seed * 6.2831);
     float d = uAmp * lobe * (uBreath - 0.4) * r + uAmp * 0.12 * wave * (0.55 + uEnergy);
-    ring = exp(-pow((r - uPulseAge * 2.2) * 3.0, 2.0)) * exp(-uPulseAge * 0.9) * step(0.0, uPulseAge);
+    ring = exp(-pow((r - uPulseAge * 2.4) * 3.0, 2.0)) * exp(-uPulseAge * 1.3) * step(0.0, uPulseAge);
     d += ring * 0.14;
     return p + n * d;
   }
@@ -82,6 +82,7 @@ const POINT_VERT = /* glsl */ `
   uniform float uKepler;
   uniform vec3 uAxis;
   uniform float uRim;
+  uniform float uMaxSize;
   varying float vGlow;
   varying float vAlpha;
   varying float vMix;
@@ -132,9 +133,11 @@ const POINT_VERT = /* glsl */ `
     float big = step(0.985, seed) * 2.2;
     float twinkle = 0.6 + 0.4 * sin(uTime * (1.1 + seed * 2.3) + seed * 40.0);
     // uSize is pixels at the galaxy's centre; nearer stars grow, farther shrink.
-    gl_PointSize = min(56.0, uSize * (0.5 + seed * 0.8 + big) * (1.0 + near * 0.8 + ring * 1.0) * (0.75 + 0.5 * vDepth) * uPixelRatio * uCamZ / -mv.z);
-    vAlpha = twinkle * rim * (0.55 + 0.6 * vDepth);
-    vGlow = near * 0.9 + ring * 1.1 + uEnergy * 0.3 + uBreath * 0.25;
+    gl_PointSize = min(uMaxSize, uSize * (0.5 + seed * 0.8 + big) * (1.0 + near * 0.8 + ring * 0.6) * (0.75 + 0.5 * vDepth) * uPixelRatio * uCamZ / -mv.z);
+    // Anything drifting right up to the lens fades instead of flaring.
+    float lens = smoothstep(2.6, 6.0, -mv.z);
+    vAlpha = twinkle * rim * (0.55 + 0.6 * vDepth) * lens;
+    vGlow = near * 0.9 + ring * 0.6 + uEnergy * 0.3 + uBreath * 0.25;
     vRing = ring;
     vMix = seed;
     vHeat = smoothstep(0.9, 0.0, r);
@@ -179,7 +182,7 @@ const POINT_FRAG = /* glsl */ `
     c = hueShift(c, uHue);
     // Far stars cool toward blue; near ones keep their full colour.
     c = mix(c * vec3(0.7, 0.8, 1.15), c, vDepth);
-    c = c * (1.0 + vGlow) + uPulseColor * vRing * 1.6;
+    c = c * (1.0 + vGlow) + uPulseColor * vRing * 0.9;
     gl_FragColor = vec4(c, uOpacity * vAlpha * disc * disc);
     #include <colorspace_fragment>
   }
@@ -349,6 +352,8 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         rim?: number;
         /** 0..1 how much of its colour is the ring's oil-on-water shimmer. */
         iri?: number;
+        /** Largest a point may draw, in pixels (clouds go bigger than stars). */
+        maxSize?: number;
       }
       const Y_AXIS = new THREE.Vector3(0, 1, 0);
       const pointMat = (l: Look) =>
@@ -367,6 +372,7 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
             uKepler: { value: l.kepler ?? 1 },
             uAxis: { value: Y_AXIS.clone() },
             uIri: { value: l.iri ?? 0 },
+            uMaxSize: { value: l.maxSize ?? 56 },
             uRim: { value: l.rim ?? 0 },
             uPixelRatio: { value: 1 },
           },
@@ -400,17 +406,19 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
       const pointMats: THREE_NS.ShaderMaterial[] = [];
       const looks: Record<string, Look> = {
         galaxy_bulge: { a: GOLD, b: WARM, size: 3, opacity: 0.45, amp: 0.06, swirl: 0.22 },
-        galaxy_bar: { a: GOLD, b: EMBER, hot: WARM, size: 3.2, opacity: 0.55, amp: 0.05, swirl: 0.22, kepler: 0 },
-        galaxy_arms: { a: CYAN, b: ELECTRIC, hot: GOLD, size: 3.6, opacity: 0.85, amp: 0.1, swirl: 0.14 },
-        galaxy_knots: { a: MAGENTA, b: ROSE, hot: MAGENTA, size: 5.5, opacity: 0.95, amp: 0.1, swirl: 0.14 },
-        galaxy_dust: { a: VIOLET, b: MAGENTA, hot: VIOLET, size: 11, opacity: 0.07, amp: 0.1, swirl: 0.14 },
-        galaxy_tail: { a: TEAL, b: VIOLET, hot: TEAL, size: 3.2, opacity: 0.7, amp: 0.12, swirl: 0.012, kepler: 0 },
-        galaxy_dwarf: { a: ROSE, b: ICE, hot: WARM, size: 3.6, opacity: 0.8, amp: 0.05, swirl: 0.012, kepler: 0 },
-        galaxy_shell: { a: BLUE, b: VIOLET, hot: ICE, size: 3, opacity: 0.8, amp: 0.2, swirl: 0.045, rim: 1 },
-        galaxy_halo: { a: ICE, b: BLUE, size: 2.6, opacity: 0.55, amp: 0.16, swirl: 0.02 },
-        ring_main: { a: TEAL, b: CYAN, size: 3.2, opacity: 0.8, amp: 0.05, swirl: 0.55, kepler: 1.5, iri: 0.85 },
-        ring_braid: { a: GOLD, b: EMBER, size: 3.4, opacity: 0.95, amp: 0.04, swirl: 0.55, kepler: 1.5, iri: 0.35 },
-        ring_moons: { a: ICE, b: WARM, size: 16, opacity: 1, amp: 0.03, swirl: 0.55, kepler: 1.5 },
+        galaxy_arms: { a: CYAN, b: ELECTRIC, hot: GOLD, size: 3.4, opacity: 0.85, amp: 0.12, swirl: 0.14 },
+        galaxy_knots: { a: MAGENTA, b: ROSE, hot: MAGENTA, size: 5.2, opacity: 0.95, amp: 0.12, swirl: 0.14 },
+        galaxy_dust: { a: VIOLET, b: MAGENTA, hot: VIOLET, size: 11, opacity: 0.07, amp: 0.12, swirl: 0.14 },
+        galaxy_shell: { a: CYAN, b: BLUE, hot: ICE, size: 3.5, opacity: 1, amp: 0.2, swirl: 0.045, rim: 1 },
+        galaxy_ribbons: { a: TEAL, b: CYAN, size: 2.8, opacity: 0.6, amp: 0.18, swirl: 0.05, kepler: 0, iri: 0.45 },
+        galaxy_companion: { a: ROSE, b: VIOLET, hot: ROSE, size: 2.8, opacity: 0.4, amp: 0.08, swirl: 0.05, kepler: 0 },
+        ring_main: { a: TEAL, b: CYAN, size: 3, opacity: 0.8, amp: 0.05, swirl: 0.5, kepler: 1.5, iri: 0.85 },
+        ring_braid: { a: GOLD, b: EMBER, size: 3.2, opacity: 0.95, amp: 0.04, swirl: 0.5, kepler: 1.5, iri: 0.35 },
+        ring_moons: { a: ICE, b: WARM, size: 15, opacity: 1, amp: 0.03, swirl: 0.5, kepler: 1.5 },
+        // Out in the cosmos: colour clouds (each a different hue, by where
+        // it sits) and stars and clusters, drifting slowly as one sky.
+        cosmos_nebula: { a: MAGENTA, b: TEAL, size: 80, maxSize: 120, opacity: 0.022, amp: 0.1, swirl: 0.008, kepler: 0, iri: 0.5 },
+        cosmos_stars: { a: ICE, b: ROSE, hot: ICE, size: 3, opacity: 0.8, amp: 0.08, swirl: 0.008, kepler: 0, iri: 0.35 },
       };
 
       const coreMat = new THREE.ShaderMaterial({
@@ -435,7 +443,7 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
             for (let i = 0; i < pos.count; i += 2) kept.push(pos.getX(i), pos.getY(i), pos.getZ(i));
             g.setAttribute("position", new THREE.Float32BufferAttribute(kept, 3));
           }
-          const m = pointMat(looks[key] ?? looks.galaxy_halo);
+          const m = pointMat(looks[key] ?? looks.cosmos_stars);
           asPoints.material = m;
           asPoints.frustumCulled = false;
           pointMats.push(m);
@@ -444,18 +452,17 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         }
       });
 
-      // The ring spins about its own tilt, not the galaxy's axis: read the
-      // plane's normal off the ring's stars and hand it to the ring layers.
-      const ringObj = gltf.scene.getObjectByName("ring_main");
-      if (ringObj) {
+      // Each ring spins about its own tilt, not the galaxy's axis: read each
+      // ring's plane normal off its stars and hand it to that ring's layers.
+      const planeNormal = (obj: THREE_NS.Object3D | undefined) => {
         let best = new THREE.Vector3();
-        ringObj.traverse((c) => {
+        obj?.traverse((c) => {
           const pts = c as THREE_NS.Points;
           if (!pts.isPoints) return;
           const pos = pts.geometry.getAttribute("position");
           const a = new THREE.Vector3();
           const b = new THREE.Vector3();
-          for (let i = 0; i < 64; i++) {
+          for (let i = 0; i < 96; i++) {
             a.fromBufferAttribute(pos, Math.floor(Math.random() * pos.count));
             b.fromBufferAttribute(pos, Math.floor(Math.random() * pos.count));
             const n = a.clone().cross(b);
@@ -463,19 +470,20 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
             if (n.lengthSq() > best.lengthSq()) best = n;
           }
         });
-        if (best.lengthSq() > 1e-6) {
-          best.normalize();
-          for (const name of ["ring_main", "ring_braid", "ring_moons"]) {
-            // A touch smaller than authored, so the ring frames the galaxy
-            // instead of crowding the screen's edge.
-            gltf.scene.getObjectByName(name)?.scale.setScalar(0.86);
-            gltf.scene.getObjectByName(name)?.traverse((c) => {
-              const m = (c as THREE_NS.Points).material as THREE_NS.ShaderMaterial | undefined;
-              if (m?.uniforms?.uAxis) m.uniforms.uAxis.value.copy(best);
-            });
-          }
-        }
+        return best.lengthSq() > 1e-6 ? best.normalize() : null;
+      };
+      const setAxis = (name: string, axis: THREE_NS.Vector3) =>
+        gltf.scene.getObjectByName(name)?.traverse((c) => {
+          const m = (c as THREE_NS.Points).material as THREE_NS.ShaderMaterial | undefined;
+          if (m?.uniforms?.uAxis) m.uniforms.uAxis.value.copy(axis);
+        });
+      const mainAxis = planeNormal(gltf.scene.getObjectByName("ring_main"));
+      if (mainAxis) {
+        setAxis("ring_main", mainAxis);
+        setAxis("ring_moons", mainAxis);
       }
+      const braidAxis = planeNormal(gltf.scene.getObjectByName("ring_braid"));
+      if (braidAxis) setAxis("ring_braid", braidAxis);
 
       // A soft halo around the core.
       const haloTex = (() => {
@@ -649,14 +657,13 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         }
         for (const m of pointMats) m.uniforms.uPixelRatio.value = dpr;
         camera.aspect = w / h;
-        // Fit the galaxy into the content area, a little right of centre and
-        // a little high, so the tail and the ring have somewhere to go.
+        // Centre the ball on the content area; the rings just fit, the
+        // cosmos runs off the edges.
         const box = anchorRef?.current?.getBoundingClientRect();
-        const wide = box ? box.width > box.height : w > h;
-        const cx = box ? box.left + box.width * (wide ? 0.56 : 0.5) : w / 2;
-        const cy = box ? box.top + box.height * 0.47 : h / 2;
+        const cx = box ? box.left + box.width / 2 : w / 2;
+        const cy = box ? box.top + box.height / 2 : h / 2;
         const short = box ? Math.min(box.width, box.height) : Math.min(w, h);
-        const fitR = 2.35 * (h / Math.max(short, 1));
+        const fitR = 2.7 * (h / Math.max(short, 1));
         camera.position.z = fitR / Math.tan(((camera.fov / 2) * Math.PI) / 180);
         shared.uCamZ.value = camera.position.z;
         camera.setViewOffset(w, h, w / 2 - cx, h / 2 - cy, w, h);
@@ -678,7 +685,11 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         pointer.target = e.pointerType === "touch" ? 0.6 : 1;
       };
       const onLeave = () => (pointer.target = 0);
-      const onDown = () => {
+      const onDown = (e: PointerEvent) => {
+        // Clicking a button or typing in a box is using the app, not touching
+        // the galaxy: only a click on open space sends a shockwave.
+        const target = e.target as HTMLElement | null;
+        if (target?.closest("button, a, input, textarea, select, label, [role='button'], [contenteditable='true']")) return;
         // A shockwave out from the core, in the next colour of the cycle.
         shared.uPulseAge.value = 0;
         pulseIndex = (pulseIndex + 1) % PULSES.length;
@@ -734,8 +745,9 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         const ty = pointer.x * 0.36 * pointer.on;
         tiltNow.x += (tx - tiltNow.x) * Math.min(1, dt * 2.5);
         tiltNow.y += (ty - tiltNow.y) * Math.min(1, dt * 2.5);
-        // Inclined so the arms read as a spiral, rolled a little for movement.
-        tilt.rotation.set(tiltNow.x + 0.52, tiltNow.y, -0.32);
+        // Nearly face-on, so the galaxy reads as a round ball, not a squashed
+        // disc; rolled a touch so nothing sits square.
+        tilt.rotation.set(tiltNow.x + 1.08, tiltNow.y, -0.2);
         const s = 0.93 + 0.1 * shared.uBreath.value;
         spin.scale.setScalar(s);
         halo.scale.setScalar(1.15 + 0.35 * shared.uBreath.value + busyLevel * 0.35);

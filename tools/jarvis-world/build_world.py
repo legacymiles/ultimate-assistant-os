@@ -1,31 +1,29 @@
 """
-Jarvis's living world — a breathing, ringed galaxy ball, the background behind
-every section of /apps/jarvis.
+Jarvis's living world — a breathing galaxy ball in a coloured cosmos, the
+background behind every section of /apps/jarvis.
 
 Blender owns the shape; the browser owns the life (breathing, swirl, ring
 spin, colour, glow, pointer response — src/components/new-jarvis/WorldField.tsx).
 
-Deliberately NOT symmetrical. What this builds (stable names; the browser
-styles each by name). All stars are loose points (glTF POINTS) except the
-core's sphere:
+A ROUND ball, compact and full — but organic, not mirror-perfect — with two
+rings close around it and a cosmos of colour beyond. Stable names; the
+browser styles each by name. All loose points (glTF POINTS) except the core:
 
-  world_core       a small sphere: the blazing heart
-  galaxy_bulge     a triaxial, slightly off-centre bulge
-  galaxy_bar       a short bar through the core; the arms spring from its ends
-  galaxy_arms      two major arms of unequal length, a minor arm and a spur,
-                   on a warped disc (the rim bends up on one side, down on the
-                   other)
-  galaxy_knots     star-forming clusters strung along the arms (hot pink)
-  galaxy_dust      dust lanes on the arms' inner edges
-  galaxy_tail      a tidal tail flung out of one arm, curling up out of the
-                   plane toward…
-  galaxy_dwarf     …a small satellite galaxy, with its own little core
-  galaxy_shell     a lopsided ball of twisted star streams around it all
-  galaxy_halo      a sparse scatter of far stars
-  ring_main        the ring: tilted ~64° off the disc, four bands with a
-                   Cassini-style gap, density waves rippling through it
-  ring_braid       a thin braided outer strand, two strands wound round each other
-  ring_moons       shepherd moons riding the gap and the braid
+  world_core        a small sphere: the blazing heart
+  galaxy_bulge      a triaxial, slightly off-centre bulge
+  galaxy_arms       three arms of unequal length on a thick, gently warped
+                    disc — thick enough that the galaxy fills the ball
+  galaxy_knots      star-forming clusters strung along the arms
+  galaxy_dust       dust lanes on the arms' inner edges
+  galaxy_shell      the ball: twisted star streams over a sphere, swollen a
+                    little on one side
+  galaxy_ribbons    three broad streams wrapping the ball at odd angles
+  galaxy_companion  a small cluster orbiting just outside the ball
+  ring_main         a banded ring with a gap, tilted 66° off the disc
+  ring_braid        a thin braided ring on a different tilt (gyroscope-like)
+  ring_moons        shepherd moons on the main ring
+  cosmos_nebula     soft clouds of colour scattered unevenly around the ball
+  cosmos_stars      stars and small clusters out in the space around it
 
 Run (Blender 4.2+ or the bpy module):
   blender --background --python tools/jarvis-world/build_world.py -- --out public/jarvis/world.glb
@@ -43,8 +41,10 @@ from mathutils import Vector, Matrix, Euler
 
 SEED = 1729
 
-# The ring's plane: tilted well off the galaxy's disc so the two never line up.
-RING_TILT = Euler((math.radians(64), math.radians(-18), math.radians(28))).to_matrix()
+# Two rings on different tilts, so together they read like a gyroscope round
+# the ball rather than one flat Saturn ring.
+RING_TILT = Euler((math.radians(66), math.radians(-14), math.radians(24))).to_matrix()
+BRAID_TILT = Euler((math.radians(-38), math.radians(30), math.radians(-60))).to_matrix()
 
 
 def args():
@@ -93,16 +93,14 @@ def warp(p):
     """The disc's warp: the rim lifts on one side and dips on the other."""
     r = math.hypot(p.x, p.y)
     th = math.atan2(p.y, p.x)
-    return Vector((p.x, p.y, p.z + 0.16 * (r / 2.2) ** 2 * math.sin(th + 0.6)))
+    return Vector((p.x, p.y, p.z + 0.12 * (r / 1.7) ** 2 * math.sin(th + 0.6)))
 
 
-BAR = 0.5
 # (angle offset, share of stars, inner r, outer r, winding, scatter)
 ARMS = [
-    (0.0, 0.36, BAR, 2.45, 0.29, 1.0),  # major — feeds the tidal tail
-    (math.pi, 0.31, BAR, 2.05, 0.31, 0.9),  # major, shorter
-    (1.95, 0.20, 0.7, 1.55, 0.36, 1.25),  # minor, looser
-    (4.25, 0.13, 0.9, 1.25, 0.33, 1.4),  # spur
+    (0.0, 0.42, 0.22, 1.75, 0.30, 1.0),  # major
+    (math.pi + 0.35, 0.36, 0.22, 1.5, 0.32, 1.05),  # major, shorter and offset
+    (2.0, 0.22, 0.4, 1.2, 0.38, 1.35),  # minor, looser
 ]
 
 
@@ -112,26 +110,27 @@ def arm_point(rng, arm, u):
     theta = math.log(r / r0) / wind + off
     spread = (0.05 + 0.2 * u) * sc
     theta += rng.gauss(0, spread / max(r, 0.3))
-    p = Vector((math.cos(theta) * r + rng.gauss(0, spread * 0.5), math.sin(theta) * r + rng.gauss(0, spread * 0.5), rng.gauss(0, 0.05 + 0.09 * (1 - u))))
+    # A thick disc: the galaxy fills the ball instead of lying flat inside it.
+    p = Vector((math.cos(theta) * r + rng.gauss(0, spread * 0.5), math.sin(theta) * r + rng.gauss(0, spread * 0.5), rng.gauss(0, 0.1 + 0.16 * (1 - u))))
     return warp(p), theta, r
 
 
-def arms(rng, n=12000):
+def arms(rng, n=10500):
     pts = []
     for arm in ARMS:
         for _ in range(int(n * arm[1])):
             pts.append(arm_point(rng, arm, rng.random() ** 0.75)[0])
-    # Loose disc stars, thinner on the side the tail pulls from.
-    for _ in range(n // 5):
-        r = 0.3 + (rng.random() ** 0.8) * 2.3
+    # Loose disc stars, a little denser on one side.
+    for _ in range(n // 4):
+        r = 0.25 + (rng.random() ** 0.8) * 1.6
         a = rng.uniform(0, math.tau)
-        if math.cos(a - 0.4) > 0.6 and rng.random() < 0.5:
+        if math.cos(a - 2.4) > 0.5 and rng.random() < 0.45:
             continue
-        pts.append(warp(Vector((math.cos(a) * r, math.sin(a) * r, rng.gauss(0, 0.05)))))
+        pts.append(warp(Vector((math.cos(a) * r, math.sin(a) * r, rng.gauss(0, 0.12)))))
     return pts
 
 
-def knots(rng, clusters=64):
+def knots(rng, clusters=48):
     pts = []
     for _ in range(clusters):
         arm = ARMS[rng.choices(range(3), weights=(0.45, 0.4, 0.15))[0]]
@@ -141,10 +140,10 @@ def knots(rng, clusters=64):
     return pts
 
 
-def dust(rng, n=1500):
+def dust(rng, n=1300):
     pts = []
     for _ in range(n):
-        arm = ARMS[rng.choices(range(4), weights=(0.4, 0.35, 0.18, 0.07))[0]]
+        arm = ARMS[rng.choices(range(3), weights=(0.45, 0.38, 0.17))[0]]
         p, theta, r = arm_point(rng, arm, 0.1 + rng.random() * 0.85)
         lag = Vector((math.cos(theta - 0.25) * r, math.sin(theta - 0.25) * r, p.z))
         pts.append(warp(lag + gauss3(rng, 0.02)))
@@ -161,39 +160,36 @@ def bulge(rng, n=3000):
     return pts
 
 
-def bar(rng, n=1400):
+def ribbons(rng, n=2600):
+    """Three broad streams wrapping the ball at odd angles — each a band of
+    stars round a tilted great circle, bunched toward one end."""
     pts = []
-    for _ in range(n):
-        x = rng.uniform(-BAR, BAR) * (rng.random() ** 0.4)
-        pts.append(Vector((x, rng.gauss(0, 0.07 * (1 - abs(x) / BAR * 0.5)), rng.gauss(0, 0.04))))
+    tilts = [(0.6, 0.2, 0.0), (-0.9, 0.7, 1.1), (1.4, -0.5, 2.3)]
+    for k, (ax, ay, az) in enumerate(tilts):
+        m = Euler((ax, ay, az)).to_matrix()
+        span = (0.55, 0.4, 0.3)[k] * math.tau
+        r = (2.0, 1.95, 2.08)[k]
+        for _ in range(n // 3):
+            t = rng.random() ** 1.4
+            a = t * span
+            w = rng.gauss(0, 0.06 + 0.05 * t)
+            p = Vector((math.cos(a) * (r + w), math.sin(a) * (r + w), rng.gauss(0, 0.05 + 0.06 * t)))
+            pts.append(m @ p)
     return pts
 
 
-DWARF = Vector((3.05, -1.35, 1.05))
+COMPANION = Vector((1.55, -1.4, 0.95))
 
 
-def tail(rng, n=2600):
-    """From the end of the long arm, a stream curling up out of the plane to the dwarf."""
-    start, theta0, _ = arm_point(rng, ARMS[0], 1.0)
-    ctrl1 = start + Vector((math.cos(theta0 + 0.9), math.sin(theta0 + 0.9), 0)) * 1.1 + Vector((0, 0, 0.5))
-    ctrl2 = DWARF + Vector((-0.6, 0.9, -0.2))
+def companion(rng, n=700):
     pts = []
     for _ in range(n):
-        t = rng.random() ** 0.85
-        a = start * (1 - t) ** 3 + ctrl1 * 3 * (1 - t) ** 2 * t + ctrl2 * 3 * (1 - t) * t * t + DWARF * t ** 3
-        pts.append(a + gauss3(rng, 0.03 + 0.11 * math.sin(t * math.pi)))
+        d = Vector((rng.gauss(0, 1), rng.gauss(0, 0.75), rng.gauss(0, 0.9))).normalized()
+        pts.append(COMPANION + d * abs(rng.gauss(0, 0.13)))
     return pts
 
 
-def dwarf(rng, n=1100):
-    pts = []
-    for _ in range(n):
-        d = Vector((rng.gauss(0, 1), rng.gauss(0, 0.7), rng.gauss(0, 0.9))).normalized()
-        pts.append(DWARF + d * abs(rng.gauss(0, 0.17)))
-    return pts
-
-
-def shell(rng, streams=34, per=150, radius=1.8):
+def shell(rng, streams=32, per=140, radius=1.85):
     """A ball of twisted star streams — lopsided, swollen toward one side."""
     lop = Vector((0.6, 0.35, -0.7)).normalized()
     pts = []
@@ -207,29 +203,62 @@ def shell(rng, streams=34, per=150, radius=1.8):
             t = k / per
             p = Matrix.Rotation(start + span * t, 3, axis) @ ref
             p = Matrix.Rotation(twist * math.sin(t * math.pi * 2), 3, ref) @ p
-            if p.dot(lop) < -0.5 and rng.random() < 0.55:
+            if p.dot(lop) < -0.55 and rng.random() < 0.4:
                 continue  # thinner on the far side
-            r = radius * (1 + 0.2 * p.dot(lop)) * rng.uniform(0.96, 1.04)
+            r = radius * (1 + 0.12 * p.dot(lop)) * rng.uniform(0.96, 1.04)
             pts.append(p * r + gauss3(rng, 0.022))
     for _ in range(1300):
         d = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1))).normalized()
-        pts.append(d * radius * (1 + 0.2 * d.dot(lop)) * (rng.random() ** 0.35))
+        pts.append(d * radius * (1 + 0.12 * d.dot(lop)) * (rng.random() ** 0.35))
     return pts
 
 
-def halo(rng, n=800):
+def nebula(rng, n=2600):
+    """Clouds of colour round the ball — uneven: more on one side, none on another."""
     pts = []
+    clouds = []
+    for _ in range(8):
+        d = Vector((rng.gauss(0, 1), rng.gauss(0, 0.6), rng.gauss(0, 1))).normalized()
+        if d.dot(Vector((-0.7, 0.2, 0.5))) > 0.55:
+            continue  # leave one side open, dark sky
+        center = d * rng.uniform(3.0, 5.2)
+        # +Z here faces the viewer once the browser tilts the galaxy face-on:
+        # clouds stay behind and around the ball, never between it and you.
+        if center.z > 1.0:
+            center.z = -center.z
+        stretch = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1))).normalized()
+        clouds.append((center, stretch, rng.uniform(0.45, 0.9)))
+    for i in range(n):
+        c, s_, size = clouds[i % len(clouds)]
+        # Even density along the cloud, so no part of it piles up into a hot spot.
+        along = rng.uniform(-1.0, 1.0) * size * 2.2
+        side = Vector((rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(-1, 1))) * size * 0.7
+        pts.append(c + s_ * along + side)
+    return pts
+
+
+def cosmos(rng, n=2200):
+    pts = []
+    # Scattered stars, thinning with distance.
     for _ in range(n):
         d = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1))).normalized()
-        pts.append(d * rng.uniform(2.4, 4.2))
+        pts.append(d * (2.4 + (rng.random() ** 1.6) * 5.0))
+    # A few small star clusters out in the dark.
+    for _ in range(7):
+        c = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1))).normalized() * rng.uniform(2.8, 5.5)
+        # Kept out of the space between the camera and the ball.
+        if c.z > 2.0:
+            c.z = -c.z
+        for _ in range(rng.randint(22, 48)):
+            pts.append(c + gauss3(rng, 0.16))
     return pts
 
 
-# The ring: bands (inner, outer, density), with a Cassini-style gap at 2.66–2.78.
-BANDS = [(2.32, 2.5, 0.8), (2.52, 2.66, 1.0), (2.78, 3.12, 0.85), (3.16, 3.24, 0.35)]
+# The ring: bands (inner, outer, density), with a Cassini-style gap at 2.48–2.58.
+BANDS = [(2.2, 2.34, 0.8), (2.36, 2.48, 1.0), (2.58, 2.82, 0.85), (2.86, 2.92, 0.35)]
 
 
-def ring(rng, n=11000):
+def ring(rng, n=7500):
     pts = []
     total = sum((b[1] - b[0]) * b[2] for b in BANDS)
     for inner, outer, dens in BANDS:
@@ -245,7 +274,7 @@ def ring(rng, n=11000):
     return pts
 
 
-def braid(rng, n=2600, radius=3.42):
+def braid(rng, n=2200, radius=2.62):
     """Two strands wound round each other, like Saturn's F ring but braided tighter."""
     pts = []
     for k in range(n):
@@ -255,13 +284,13 @@ def braid(rng, n=2600, radius=3.42):
         z = 0.02 * math.cos(a * 23 + strand * math.pi / 2)
         r = radius + w + rng.gauss(0, 0.004)
         p = Vector((math.cos(a) * r, math.sin(a) * r, z + rng.gauss(0, 0.003)))
-        pts.append(RING_TILT @ p)
+        pts.append(BRAID_TILT @ p)
     return pts
 
 
 def moons():
     pts = []
-    for r, a in ((2.72, 0.7), (3.38, 2.9), (3.47, 3.1), (2.2, 4.6)):
+    for r, a in ((2.53, 0.7), (2.95, 2.9), (2.53, 3.6), (2.1, 4.6)):
         pts.append(RING_TILT @ Vector((math.cos(a) * r, math.sin(a) * r, 0)))
     return pts
 
@@ -286,17 +315,17 @@ def emission(name, color, strength):
 LOOKS = {
     "world_core": ((1.0, 0.9, 0.7), 20, 0),
     "galaxy_bulge": ((1.0, 0.8, 0.5), 5, 0.010),
-    "galaxy_bar": ((1.0, 0.75, 0.45), 5, 0.010),
     "galaxy_arms": ((0.2, 0.75, 1.0), 4, 0.008),
     "galaxy_knots": ((1.0, 0.25, 0.75), 7, 0.010),
     "galaxy_dust": ((0.55, 0.25, 1.0), 2, 0.016),
-    "galaxy_tail": ((0.4, 0.6, 1.0), 3, 0.008),
-    "galaxy_dwarf": ((0.9, 0.85, 1.0), 4, 0.010),
     "galaxy_shell": ((0.35, 0.55, 1.0), 2.5, 0.007),
-    "galaxy_halo": ((0.85, 0.9, 1.0), 3, 0.008),
+    "galaxy_ribbons": ((0.2, 1.0, 0.8), 3, 0.008),
+    "galaxy_companion": ((1.0, 0.6, 0.85), 4, 0.010),
     "ring_main": ((0.2, 1.0, 0.85), 3, 0.007),
     "ring_braid": ((1.0, 0.55, 0.2), 5, 0.007),
     "ring_moons": ((1.0, 1.0, 1.0), 12, 0.03),
+    "cosmos_nebula": ((0.8, 0.2, 1.0), 0.4, 0.018),
+    "cosmos_stars": ((0.85, 0.9, 1.0), 3, 0.009),
 }
 
 
@@ -323,7 +352,7 @@ def renders(folder, objs):
         scene.collection.objects.link(dup)
         dup.data.materials.clear()
         dup.data.materials.append(emission(ob.name + "_m", color, strength))
-        dup.rotation_euler = (math.radians(58), 0, math.radians(-20))
+        dup.rotation_euler = (math.radians(32), 0, math.radians(-12))
         preview.append(dup)
     for ob in objs:
         ob.hide_render = True
@@ -346,7 +375,7 @@ def renders(folder, objs):
         scene.view_settings.view_transform = "AgX"
     except TypeError:
         pass
-    for name, loc in {"front": Vector((0.6, -10.5, 0.6)), "side": Vector((7.5, -7.0, 2.2))}.items():
+    for name, loc in {"front": Vector((0.3, -9.0, 0.5)), "side": Vector((6.2, -6.0, 2.4))}.items():
         cam.location = loc
         cam.rotation_euler = (Vector((0.3, 0, 0)) - loc).to_track_quat("-Z", "Y").to_euler()
         scene.render.filepath = f"{folder}/world_{name}.png"
@@ -364,17 +393,17 @@ def main():
     objs = [
         sphere_obj("world_core", 0.15),
         cloud("galaxy_bulge", bulge(rng)),
-        cloud("galaxy_bar", bar(rng)),
         cloud("galaxy_arms", arms(rng)),
         cloud("galaxy_knots", knots(rng)),
         cloud("galaxy_dust", dust(rng)),
-        cloud("galaxy_tail", tail(rng)),
-        cloud("galaxy_dwarf", dwarf(rng)),
         cloud("galaxy_shell", shell(rng)),
-        cloud("galaxy_halo", halo(rng)),
+        cloud("galaxy_ribbons", ribbons(rng)),
+        cloud("galaxy_companion", companion(rng)),
         cloud("ring_main", ring(rng)),
         cloud("ring_braid", braid(rng)),
         cloud("ring_moons", moons()),
+        cloud("cosmos_nebula", nebula(rng)),
+        cloud("cosmos_stars", cosmos(rng)),
     ]
     print("AUTHORED", {o.name: len(o.data.vertices) for o in objs})
 

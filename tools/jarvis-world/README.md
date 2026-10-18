@@ -1,8 +1,8 @@
-# Jarvis world: the breathing galaxy ball
+# Jarvis world: a breathing galaxy ball in a coloured cosmos
 
 The background behind every section of Jarvis (`/apps/jarvis`).
 
-- **Blender owns the shape.** `build_world.py` generates it deterministically (seed 1729) and exports `public/jarvis/world.glb` (~540 KB). It is uneven on purpose: an off-centre triaxial bulge, a bar, arms of unequal length on a warped disc, star-forming knots, dust lanes, and a tidal tail flung out to a satellite galaxy. A lopsided ball of star streams wraps it, with a sparse halo. Around it all is a ring tilted 64° off the disc, with four bands, a gap, density waves, a braided outer strand and shepherd moons. Every layer is glTF POINTS except the core sphere. `world.blend` is the saved scene.
+- **Blender owns the shape.** `build_world.py` generates it deterministically (seed 1729) and exports `public/jarvis/world.glb` (~500 KB). The ball is round and compact but organic, not mirror-perfect. Inside: an off-centre bulge, and three arms of unequal length on a thick, gently warped disc, with star-forming knots and dust lanes. Around it: a lopsided shell of star streams, three ribbons wrapping it at odd angles, and a companion cluster. Two rings sit close around the ball on different tilts. One is banded with a gap and carries shepherd moons; the other is a thin braided strand. Out in the cosmos are uneven colour clouds (kept behind and around the ball, never in front of it), scattered stars and small clusters. Every layer is glTF POINTS except the core sphere. `world.blend` is the saved scene.
 - **The browser owns the life:** `src/components/new-jarvis/WorldField.tsx`. None of this travels through glTF, so it's all written there:
   - breathing (inhale, hold, longer exhale), stronger in the lower and side lobes
   - differential swirl
@@ -10,8 +10,8 @@ The background behind every section of Jarvis (`/apps/jarvis`).
   - the ball's rim light
   - the pointer gravity well, and the click shockwave
   - faster breathing while Jarvis works
-  - the ring spinning about its own tilt (inner bands faster), with an oil-on-water shimmer
-  - colour that follows the pointer, plus a new colour for each click's shockwave
+  - each ring spinning about its own tilt (inner bands faster), with an oil-on-water shimmer
+  - colour that follows the pointer, plus a new colour for each shockwave (only clicks on open space send one)
   - depth: out-of-focus motes in front and distant galaxies behind, each sliding at a different speed
 
 ## Rebuild
