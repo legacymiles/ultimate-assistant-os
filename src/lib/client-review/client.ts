@@ -12,15 +12,42 @@ async function call<T>(url: string, init?: RequestInit): Promise<T> {
   } catch {
     throw new Error("Couldn't reach the server — check your connection and try again.");
   }
-  const body = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
-  if (!res.ok) throw new Error(body?.error || `The server answered ${res.status}. Try again in a moment.`);
+  const body = (await res.json().catch(() => null)) as (T & { error?: string; signIn?: boolean; wrongAccount?: boolean; viewerEmail?: string }) | null;
+  if (!res.ok) {
+    throw new ApiError(body?.error || `The server answered ${res.status}. Try again in a moment.`, res.status, {
+      signIn: body?.signIn === true,
+      wrongAccount: body?.wrongAccount === true,
+      viewerEmail: body?.viewerEmail ?? null,
+    });
+  }
   return body as T;
+}
+
+/** A failed call, with what the screen needs to decide what to show. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly flags: { signIn: boolean; wrongAccount: boolean; viewerEmail: string | null },
+  ) {
+    super(message);
+  }
+}
+
+export interface MySite {
+  token: string;
+  name: string;
+  version: string | null;
+  building: string | null;
+  pending: number;
+  updatedAt: string;
 }
 
 // ----- the client's link ------------------------------------------------------
 
 export const portal = {
   load: (token: string) => call<PortalView>(`/api/client-review/portal/${token}`),
+  mine: () => call<{ sites: MySite[]; email: string | null }>("/api/client-review/portal/mine"),
   act: (token: string, action: Record<string, unknown>) =>
     call<PortalView>(`/api/client-review/portal/${token}`, { method: "POST", body: JSON.stringify(action) }),
 };

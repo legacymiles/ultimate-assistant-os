@@ -8,6 +8,7 @@ import {
   dropPushSubs,
   markVersionReady,
   rejectBatch,
+  releaseClaim,
   removeFromIndex,
   reviewRequest,
   ReviewError,
@@ -76,7 +77,7 @@ export async function GET(req: Request) {
         projects,
         events: index.events.slice(-100),
         storage: store,
-        push: Boolean(vapidPublicKey()),
+        push: Boolean(await vapidPublicKey()),
         ai: aiConfigured(),
         lanes: { standard: lanes[0].models, uncensored: lanes[1].models },
       },
@@ -122,6 +123,7 @@ export async function POST(req: Request) {
           summary: body.summary,
           lane: body.lane,
           timelineProjectId: body.timelineProjectId,
+          inviteEmail: body.inviteEmail,
         });
         await writeProject(p);
         await updateIndex((i) => upsertIndex(i, p));
@@ -129,9 +131,11 @@ export async function POST(req: Request) {
       }
 
       case "meta":
-      case "rotate": {
+      case "rotate":
+      case "release": {
         const { project } = await updateProject(id, (p) => ({
-          project: body.action === "rotate" ? rotateToken(p) : updateProjectMeta(p, body),
+          project:
+            body.action === "rotate" ? rotateToken(p) : body.action === "release" ? releaseClaim(p) : updateProjectMeta(p, body),
           result: null,
         }));
         await updateIndex((i) => upsertIndex(i, project));

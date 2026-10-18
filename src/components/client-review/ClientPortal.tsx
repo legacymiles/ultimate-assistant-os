@@ -15,7 +15,9 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { portal, urlBase64ToUint8Array } from "@/lib/client-review/client";
+import { ApiError, portal, urlBase64ToUint8Array } from "@/lib/client-review/client";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { SignInGate } from "./SignInGate";
 import type { PortalRequest, PortalView, RequestPin, ReviewVersion } from "@/lib/client-review/types";
 import "./client-review.css";
 
@@ -92,6 +94,7 @@ function isStandalone(): boolean {
 export function ClientPortal({ token }: { token: string }) {
   const [view, setView] = useState<PortalView | null>(null);
   const [loadError, setLoadError] = useState("");
+  const [gate, setGate] = useState<null | { kind: "signIn" } | { kind: "wrong"; message: string; email: string | null }>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string>("");
   const [viewingId, setViewingId] = useState<string | null>(null);
@@ -133,8 +136,13 @@ export function ClientPortal({ token }: { token: string }) {
       .then((v) => {
         apply(v);
         setLoadError("");
+        setGate(null);
       })
-      .catch((e: Error) => setLoadError(e.message));
+      .catch((e: Error) => {
+        if (e instanceof ApiError && e.flags.signIn) setGate({ kind: "signIn" });
+        else if (e instanceof ApiError && e.flags.wrongAccount) setGate({ kind: "wrong", message: e.message, email: e.flags.viewerEmail });
+        else setLoadError(e.message);
+      });
   }, [token, apply]);
 
   useEffect(refresh, [refresh]);
@@ -354,6 +362,25 @@ export function ClientPortal({ token }: { token: string }) {
   };
 
   // ----- render --------------------------------------------------------------------
+  if (gate?.kind === "signIn") {
+    return (
+      <SignInGate
+        title="Your website is ready to review"
+        body="Sign in with your Jarvis account to see it and send your edit requests."
+        next={`/review/${token}`}
+      />
+    );
+  }
+  if (gate?.kind === "wrong") {
+    return (
+      <SignInGate
+        title="This is someone else's link"
+        body={`${gate.message}${gate.email ? ` You're signed in as ${gate.email}.` : ""}`}
+        next={`/review/${token}`}
+        switchAccount
+      />
+    );
+  }
   if (loadError && !view) {
     return (
       <div className="cr-root cr-center">
@@ -695,6 +722,25 @@ export function ClientPortal({ token }: { token: string }) {
               <p className="cr-note">
                 On iPhone, notifications only work after you add this page to your Home Screen (Share → Add to Home Screen).
               </p>
+            )}
+            {view.viewerEmail && (
+              <div className="cr-setting">
+                <div>
+                  <h3>Your Jarvis account</h3>
+                  <p>
+                    Signed in as {view.viewerEmail}. <a className="cr-link" href="/review">All my websites</a>
+                  </p>
+                </div>
+                <button
+                  className="cr-btn small ghost"
+                  onClick={async () => {
+                    await getSupabaseBrowserClient()?.auth.signOut();
+                    window.location.reload();
+                  }}
+                >
+                  Sign out
+                </button>
+              </div>
             )}
             <div className="cr-setting">
               <div>

@@ -170,3 +170,35 @@ describe("Jarvis dashboard feed", () => {
     expect(rows[0]).toMatchObject({ id: "clients:e1", source: "clients", title: "Dana sent edit requests" });
   });
 });
+
+describe("client accounts", () => {
+  it("the first account to open a link claims it; others are turned away", async () => {
+    const { admit, releaseClaim } = await import("./logic");
+    const p = fresh();
+    const dana = { id: "u1", email: "Dana@Gmail.com", owner: false };
+    const first = admit(p, dana, T);
+    expect(first.claimed).toBe(true);
+    expect(first.project).toMatchObject({ clientUserId: "u1", clientUserEmail: "dana@gmail.com" });
+    expect(admit(first.project, dana).claimed).toBe(false);
+    expect(() => admit(first.project, { id: "u2", email: "x@y.com", owner: false })).toThrow(/another account/);
+    // The owner always gets in and never claims.
+    expect(admit(first.project, { id: "o", email: "me@x.com", owner: true }).claimed).toBe(false);
+    // Released, a new account can claim it.
+    expect(admit(releaseClaim(first.project), { id: "u2", email: "x@y.com", owner: false }).claimed).toBe(true);
+  });
+
+  it("an invite email locks who can claim", async () => {
+    const { admit } = await import("./logic");
+    const p = createProject({ name: "Site", inviteEmail: "dana@gmail.com" }, T);
+    expect(() => admit(p, { id: "u2", email: "other@gmail.com", owner: false })).toThrow(/d\*\*\*@gmail.com/);
+    expect(admit(p, { id: "u1", email: "DANA@gmail.com", owner: false }).claimed).toBe(true);
+    expect(() => createProject({ name: "Site", inviteEmail: "not-an-email" })).toThrow(/email/);
+  });
+
+  it("the client's view never shows who claimed it", () => {
+    const p = { ...fresh(), clientUserId: "u1", clientUserEmail: "dana@gmail.com", inviteEmail: "dana@gmail.com" };
+    const json = JSON.stringify(portalView(p, null));
+    expect(json).not.toContain("u1");
+    expect(json).not.toContain("dana@gmail.com");
+  });
+});

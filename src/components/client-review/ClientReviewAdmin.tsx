@@ -393,6 +393,35 @@ function ProjectDetail({
           </div>
         </div>
 
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-panel-2 px-2.5 py-1.5 text-[11.5px]">
+          {p.clientUserEmail ? (
+            <>
+              <span className="text-emerald-300">● Signed in as {p.clientUserEmail}</span>
+              <span className="text-ink-faint">— only this Jarvis account can open the link</span>
+              <button
+                className="ml-auto text-ink-muted underline"
+                onClick={async () => {
+                  if (!confirm("Let a different account claim this link? The current client loses access until they open it again first.")) return;
+                  if (await run("release", { action: "release", id: p.id })) say("Released — the next account to open the link gets it.");
+                }}
+              >
+                Release
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="text-ink-muted">○ Not opened yet — the first Jarvis account to sign in on the link claims it.</span>
+              <span className="ml-auto text-ink-faint">Only allow:</span>
+              <InlineText
+                value={p.inviteEmail ?? ""}
+                placeholder="any account (add an email to lock it)"
+                className="max-w-[240px] text-[11.5px]"
+                onSave={(inviteEmail) => run("meta", { action: "meta", id: p.id, inviteEmail })}
+              />
+            </>
+          )}
+        </div>
+
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <label className="block text-[11px] text-ink-faint">
             Model lane for edit briefs
@@ -895,6 +924,7 @@ function CreateDialog({
 }) {
   const [name, setName] = useState("");
   const [clientName, setClientName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
   const [siteUrl, setSiteUrl] = useState("");
   const [summary, setSummary] = useState("");
   const [lane, setLane] = useState<ContentLane>("auto");
@@ -906,7 +936,7 @@ function CreateDialog({
         onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
-          onCreate({ name, clientName, siteUrl, summary, lane, timelineProjectId });
+          onCreate({ name, clientName, inviteEmail, siteUrl, summary, lane, timelineProjectId });
         }}
       >
         <h2 className="text-base font-semibold">New client project</h2>
@@ -933,6 +963,9 @@ function CreateDialog({
         </Field>
         <Field label="Client name">
           <input className="w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Dana" />
+        </Field>
+        <Field label="Client's Google email (optional — only this account can open the link)">
+          <input type="email" className="w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="dana@gmail.com" />
         </Field>
         <Field label="v1 website URL">
           <input className="w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm" value={siteUrl} onChange={(e) => setSiteUrl(e.target.value)} placeholder="https://glow-spa.vercel.app" />

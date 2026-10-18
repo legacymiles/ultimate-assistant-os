@@ -117,6 +117,16 @@ export interface ClientProject {
   clientName: string;
   /** Projects Timeline project this mirrors into, when linked. */
   timelineProjectId?: string;
+  /**
+   * Who may open the link. The client signs in with their Jarvis account
+   * (Google); the first account to open it claims it, and after that only that
+   * account (and the owner) can. `inviteEmail`, when the owner set one, is the
+   * only email allowed to claim.
+   */
+  inviteEmail?: string;
+  clientUserId?: string;
+  clientUserEmail?: string;
+  claimedAt?: string;
   lane: ContentLane;
   versions: ReviewVersion[];
   requests: EditRequest[];
@@ -130,7 +140,7 @@ export interface ClientProject {
 }
 
 /** What the owner's dashboard is told about. */
-export type AdminEventKind = "batch_sent" | "request_added" | "notify_on";
+export type AdminEventKind = "batch_sent" | "request_added" | "notify_on" | "claimed";
 
 export interface AdminEvent {
   id: string;
@@ -145,7 +155,16 @@ export interface AdminEvent {
 
 /** The index: who exists, and which link opens which project. */
 export interface ReviewIndex {
-  projects: { id: string; token: string; name: string; clientName: string; updatedAt: string; archived?: boolean }[];
+  projects: {
+    id: string;
+    token: string;
+    name: string;
+    clientName: string;
+    updatedAt: string;
+    archived?: boolean;
+    /** The client account that claimed the link, so /review can list their sites. */
+    clientUserId?: string;
+  }[];
   events: AdminEvent[];
 }
 
@@ -178,4 +197,6 @@ export interface PortalView {
   notices: ClientNotice[];
   /** Web Push public key, when push is configured on this deploy. */
   vapidPublicKey: string | null;
+  /** The signed-in account looking at it (added by the route). */
+  viewerEmail?: string | null;
 }

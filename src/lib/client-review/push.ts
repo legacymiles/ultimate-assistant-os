@@ -1,41 +1,76 @@
 // ---------------------------------------------------------------------------
 // Telling the client, even with the tab closed.
 //
-// Web Push, signed with this deploy's VAPID keys. Without the keys the client
-// still gets every notice in-page (and a browser pop-up while their tab is
-// open); push is only what reaches a phone in a pocket. On iPhone that needs
-// the page added to the Home Screen first — Safari only delivers push to an
-// installed web app — which the client's Settings panel says in so many words.
+// Web Push, signed with VAPID keys. Nobody has to make those keys: the first
+// time push is needed this deploy generates a pair itself (free — it is just a
+// key pair, the same thing `npx web-push generate-vapid-keys` prints) and keeps
+// it in the server's own store, so every later request signs with the same
+// pair. Env vars CLIENT_REVIEW_VAPID_PUBLIC_KEY / _PRIVATE_KEY still win when
+// set, for anyone who wants to pin them.
 //
-// Generate keys once with `npx web-push generate-vapid-keys` and set
-// CLIENT_REVIEW_VAPID_PUBLIC_KEY / CLIENT_REVIEW_VAPID_PRIVATE_KEY.
+// Never use a website that hands you a private key: whoever made it has it too.
+//
+// On iPhone push needs the link added to the Home Screen first — Safari only
+// delivers push to an installed web app — which the client's Settings says.
 // ---------------------------------------------------------------------------
 
 import "server-only";
 
+import path from "node:path";
 import webpush from "web-push";
+import { readDoc, writeDoc } from "@/lib/server/docStore";
 import type { ClientProject } from "./types";
 
-const PUBLIC = process.env.CLIENT_REVIEW_VAPID_PUBLIC_KEY ?? "";
-const PRIVATE = process.env.CLIENT_REVIEW_VAPID_PRIVATE_KEY ?? "";
+const KEY_DOC = ".client-review-vapid.json";
 const SUBJECT = process.env.CLIENT_REVIEW_VAPID_SUBJECT || "mailto:notifications@ultimate-assistant-os.vercel.app";
 
-let configured = false;
-function ready(): boolean {
-  if (!PUBLIC || !PRIVATE) return false;
-  if (!configured) {
+interface Keys {
+  publicKey: string;
+  privateKey: string;
+}
+
+let cached: Keys | null = null;
+let configuredFor = "";
+
+async function keys(): Promise<Keys | null> {
+  if (cached) return cached;
+  const envPub = process.env.CLIENT_REVIEW_VAPID_PUBLIC_KEY ?? "";
+  const envPriv = process.env.CLIENT_REVIEW_VAPID_PRIVATE_KEY ?? "";
+  if (envPub && envPriv) return (cached = { publicKey: envPub, privateKey: envPriv });
+
+  const dir = path.join(process.cwd(), ".data", "client-review");
+  const stored = await readDoc<Keys>(KEY_DOC, dir);
+  if (stored?.publicKey && stored.privateKey) return (cached = stored);
+
+  const fresh = webpush.generateVAPIDKeys();
+  // Only use a pair that was actually kept: a pair that vanishes on the next
+  // request would orphan every subscription made with it.
+  if (!(await writeDoc(KEY_DOC, dir, fresh))) return null;
+  const again = await readDoc<Keys>(KEY_DOC, dir);
+  return (cached = again?.publicKey ? again : fresh);
+}
+
+/** The public half, for the browser to subscribe with. Null when push can't work on this host. */
+export async function vapidPublicKey(): Promise<string | null> {
+  try {
+    return (await keys())?.publicKey ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function ready(): Promise<boolean> {
+  const k = await keys().catch(() => null);
+  if (!k) return false;
+  if (configuredFor !== k.publicKey) {
     try {
-      webpush.setVapidDetails(SUBJECT, PUBLIC, PRIVATE);
-      configured = true;
+      webpush.setVapidDetails(SUBJECT, k.publicKey, k.privateKey);
+      configuredFor = k.publicKey;
     } catch {
       return false;
     }
   }
   return true;
-}
-
-export function vapidPublicKey(): string | null {
-  return PUBLIC && PRIVATE ? PUBLIC : null;
 }
 
 /**
@@ -47,7 +82,7 @@ export async function pushToClient(
   p: ClientProject,
   message: { title: string; body: string; url: string; tag?: string },
 ): Promise<{ sent: number; gone: string[] }> {
-  if (!p.settings.notify || !p.pushSubs.length || !ready()) return { sent: 0, gone: [] };
+  if (!p.settings.notify || !p.pushSubs.length || !(await ready())) return { sent: 0, gone: [] };
   const payload = JSON.stringify(message);
   let sent = 0;
   const gone: string[] = [];

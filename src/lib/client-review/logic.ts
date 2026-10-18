@@ -148,6 +148,7 @@ export interface NewProjectInput {
   summary?: unknown;
   lane?: unknown;
   timelineProjectId?: unknown;
+  inviteEmail?: unknown;
 }
 
 export function createProject(input: NewProjectInput, now = new Date().toISOString()): ClientProject {
@@ -171,6 +172,7 @@ export function createProject(input: NewProjectInput, now = new Date().toISOStri
     timelineProjectId:
       typeof input.timelineProjectId === "string" && input.timelineProjectId ? input.timelineProjectId : undefined,
     lane: cleanLane(input.lane),
+    inviteEmail: cleanEmail(input.inviteEmail),
     versions: [v1],
     requests: [],
     batches: [],
@@ -319,7 +321,14 @@ export function pushNotice(p: ClientProject, title: string, body: string, now: s
 
 export function updateProjectMeta(
   src: ClientProject,
-  patch: { name?: unknown; clientName?: unknown; lane?: unknown; timelineProjectId?: unknown; archived?: unknown },
+  patch: {
+    name?: unknown;
+    clientName?: unknown;
+    lane?: unknown;
+    timelineProjectId?: unknown;
+    archived?: unknown;
+    inviteEmail?: unknown;
+  },
   now = new Date().toISOString(),
 ): ClientProject {
   const p = clone(src);
@@ -331,6 +340,65 @@ export function updateProjectMeta(
       typeof patch.timelineProjectId === "string" && patch.timelineProjectId ? patch.timelineProjectId : undefined;
   }
   if (patch.archived !== undefined) p.archived = patch.archived === true;
+  if (patch.inviteEmail !== undefined) p.inviteEmail = cleanEmail(patch.inviteEmail);
+  return touch(p, now);
+}
+
+// ----- who may open the link ------------------------------------------------------
+
+export function cleanEmail(raw: unknown): string | undefined {
+  const s = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (!s) return undefined;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) throw new ReviewError("That doesn't look like an email address.");
+  return s;
+}
+
+export interface Viewer {
+  id: string;
+  email: string;
+  owner: boolean;
+}
+
+/**
+ * May this signed-in person open this project? The owner always may. A client
+ * claims an unclaimed link the first time they open it (when the owner named
+ * an email, only that email can); after that only they may.
+ *
+ * Returns the project unchanged, or a claimed copy that the caller must save.
+ */
+export function admit(src: ClientProject, viewer: Viewer, now = new Date().toISOString()): { project: ClientProject; claimed: boolean } {
+  if (viewer.owner) return { project: src, claimed: false };
+  const email = viewer.email.trim().toLowerCase();
+  if (src.clientUserId) {
+    if (src.clientUserId === viewer.id) return { project: src, claimed: false };
+    throw new ReviewError(
+      "This website belongs to another account. Sign in with the account you used before, or ask for a new link.",
+      403,
+    );
+  }
+  if (src.inviteEmail && src.inviteEmail !== email) {
+    throw new ReviewError(`This link is for ${maskEmail(src.inviteEmail)}. Sign in with that account.`, 403);
+  }
+  const p = clone(src);
+  p.clientUserId = viewer.id;
+  p.clientUserEmail = email;
+  p.claimedAt = now;
+  return { project: touch(p, now), claimed: true };
+}
+
+/** "dana@glowspa.com" → "d***@glowspa.com": enough to recognise, not to harvest. */
+export function maskEmail(email: string): string {
+  const [user, domain] = email.split("@");
+  return `${user.slice(0, 1)}***@${domain ?? ""}`;
+}
+
+/** The owner frees a link so a different account can claim it. */
+export function releaseClaim(src: ClientProject, now = new Date().toISOString()): ClientProject {
+  const p = clone(src);
+  p.clientUserId = undefined;
+  p.clientUserEmail = undefined;
+  p.claimedAt = undefined;
+  p.pushSubs = [];
   return touch(p, now);
 }
 
@@ -582,6 +650,7 @@ export function indexEntry(p: ClientProject): ReviewIndex["projects"][number] {
     clientName: p.clientName,
     updatedAt: p.updatedAt,
     archived: p.archived,
+    clientUserId: p.clientUserId,
   };
 }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  admit,
   addPushSub,
   addRequest,
   batchDetail,
@@ -9,6 +10,7 @@ import {
   markNoticesRead,
   portalView,
   pushEvent,
+  upsertIndex,
   ReviewError,
   sendToJarvis,
   setNotify,
@@ -16,16 +18,19 @@ import {
 import { vapidPublicKey } from "@/lib/client-review/push";
 import { projectForToken, updateIndex, updateProject } from "@/lib/client-review/store";
 import type { ClientProject } from "@/lib/client-review/types";
+import { currentViewer } from "@/lib/client-review/viewer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // ---------------------------------------------------------------------------
-// /api/client-review/portal/<token> — the client's side, no account needed.
+// /api/client-review/portal/<token> — the client's side.
 //
-// Public in middleware (src/lib/hubAccess.ts); the link's secret IS the
-// authentication. A wrong or archived token is a plain 404 — the same answer
-// a link that never existed gets, so a guess learns nothing.
+// Open to any signed-in Jarvis account in middleware (src/lib/hubAccess.ts),
+// and checked here: the client must be signed in (401 → the page shows the
+// Google button), and the first account to open a link claims it — after
+// that only that account and the owner get in (403). A wrong or archived
+// token is a plain 404, the same answer a link that never existed gets.
 //
 //   GET                       → what the client sees (portalView)
 //   POST { action: "add",    versionId, text, pin? }
@@ -51,21 +56,54 @@ async function load(token: string): Promise<ClientProject | null> {
   return projectForToken(token);
 }
 
-function view(p: ClientProject) {
-  return NextResponse.json(portalView(p, vapidPublicKey()), { headers: { "Cache-Control": "no-store" } });
+async function view(p: ClientProject, viewerEmail: string | null) {
+  return NextResponse.json(
+    { ...portalView(p, await vapidPublicKey()), viewerEmail },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+}
+
+const SIGN_IN = { error: "Sign in with your Jarvis account to see your website.", signIn: true };
+
+/**
+ * The project this signed-in person may open, claimed for them on first open.
+ * Returns a Response for every way in that fails.
+ */
+async function gate(token: string): Promise<{ project: ClientProject; email: string | null } | Response> {
+  const found = await load(token);
+  if (!found) return NextResponse.json(NOT_FOUND, { status: 404 });
+  const viewer = await currentViewer();
+  // Accounts off (local demo mode): the link alone opens it.
+  if (viewer === "none") return { project: found, email: null };
+  if (!viewer) return NextResponse.json(SIGN_IN, { status: 401 });
+  try {
+    if (viewer.owner || found.clientUserId === viewer.id) return { project: found, email: viewer.email };
+    const { project, result } = await updateProject(found.id, (p) => {
+      const out = admit(p, viewer);
+      return { project: out.project, result: out.claimed };
+    });
+    if (result) {
+      await updateIndex((i) => upsertIndex(pushEvent(i, project, "claimed", `opened their link as ${viewer.email}`), project)).catch(() => {});
+    }
+    return { project, email: viewer.email };
+  } catch (err) {
+    if (err instanceof ReviewError) return NextResponse.json({ error: err.message, wrongAccount: true, viewerEmail: viewer.email }, { status: err.status });
+    throw err;
+  }
 }
 
 export async function GET(_req: Request, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
-  const p = await load(token);
-  if (!p) return NextResponse.json(NOT_FOUND, { status: 404 });
-  return view(p);
+  const g = await gate(token);
+  if (g instanceof Response) return g;
+  return view(g.project, g.email);
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
-  const found = await load(token);
-  if (!found) return NextResponse.json(NOT_FOUND, { status: 404 });
+  const g = await gate(token);
+  if (g instanceof Response) return g;
+  const found = g.project;
 
   const raw = await req.text();
   if (raw.length > MAX_BODY) return NextResponse.json({ error: "That's too much in one go." }, { status: 413 });
@@ -113,7 +151,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
     } else if (result.kind === "notify" && result.on && !result.was) {
       await updateIndex((i) => pushEvent(i, project, "notify_on", "turned on notifications")).catch(() => {});
     }
-    return view(project);
+    return view(project, g.email);
   } catch (err) {
     if (err instanceof ReviewError) return NextResponse.json({ error: err.message }, { status: err.status });
     return NextResponse.json({ error: "Something went wrong saving that. Try again in a moment." }, { status: 500 });

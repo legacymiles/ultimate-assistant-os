@@ -35,6 +35,7 @@ export const PLUGIN_SLUGS = [
   "financial-bible",
   "baby-no-scroll",
   "dump-finder",
+  "client-review",
 ] as const;
 
 /**
@@ -45,7 +46,7 @@ export const PLUGIN_SLUGS = [
  * cannot supply. What lives here is the half the hub needs to know: that these
  * two are no longer tiles on the front page.
  */
-export const TOOLBOX_SLUGS = ["prompt-architect", "projects-timeline", "client-review"] as const;
+export const TOOLBOX_SLUGS = ["prompt-architect", "projects-timeline"] as const;
 
 export interface StudioPlugin {
   slug: string;
@@ -125,6 +126,11 @@ const WHY: Record<string, string> = {
     + "screen, everything else is taken away, and the way out is a padlock that has to be dragged the "
     + "whole width of the screen — a gesture question rather than a password one, because a password "
     + "typed one-handed in a dark room is the thing nobody does twice.",
+  "client-review":
+    "Where client work comes back in. Send a client their site on a private link; they sign in, type "
+    + "their edits over the live page and press Send to Jarvis, and the batch waits here for you to "
+    + "approve, reword or reject before it becomes the next version — and they get a notification when "
+    + "it is ready.",
   "dump-finder":
     "The one plugin that is used from a truck cab. Everything else here makes or keeps something; this "
     + "answers where a load of millings, concrete, trash or scrap can go within so many miles, nearest "

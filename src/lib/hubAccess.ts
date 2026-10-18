@@ -15,10 +15,11 @@ export type RouteAccess = "public" | "token" | "auth" | "owner";
 export const PUBLIC_HOME = "/apps/friends-night-out";
 
 /**
- * Client Review is the other public surface: a client opens their private
- * link with no account here. The link's secret is checked by the route itself
- * (src/app/api/client-review/portal), and the owner's console stays behind
- * the owner gate at /api/client-review/admin.
+ * Client Review is the other surface a non-owner reaches: a client opens their
+ * private link and signs in with their own Jarvis (Google) account. The route
+ * itself (src/app/api/client-review/portal) requires that sign-in and checks
+ * the account is the one that claimed the link; the owner's console stays
+ * behind the owner gate at /api/client-review/admin.
  */
 export const CLIENT_REVIEW_PUBLIC = ["/review", "/api/client-review/portal", "/client-review-sw.js"];
 
