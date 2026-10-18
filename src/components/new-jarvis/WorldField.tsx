@@ -19,17 +19,24 @@
 //             click sends a shockwave out from the core.
 //   Jarvis    while it works the breath quickens, the swirl speeds up and the
 //             core burns brighter; typing gives it a small breath of energy.
+//   talk      in Talk the galaxy talks: whoever is speaking (you through the
+//             mic, Jarvis through its voice) brightens it, squeezes it with
+//             each syllable and tints it — Jarvis warm, you cool.
 //
 // Budgets: one draw per object (~8), ~26k points, bloom at half resolution.
 // Phones and weak GPUs get no bloom, a capped pixel ratio and half the stars;
 // a frame-time probe drops quality further if it must. Hidden tab → the loop
-// stops. Reduced motion → one settled frame. No WebGL, a lost context or a
-// failed load → `fallback` (the old canvas field).
+// stops, and so does `hidden` (Studio and App plugins have their own look).
+// Reduced motion → it still breathes, slower and gentler, with no shockwaves
+// and no leaning. No WebGL, a lost context or a failed load → `fallback`.
 // ---------------------------------------------------------------------------
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import type * as THREE_NS from "three";
 import { breathCurve } from "@/lib/new-jarvis/breath";
+import { BAND_COUNT, bandsFrom, loudness, smoothTo, speechEnvelope } from "@/lib/new-jarvis/spectrum";
+import { talkDrive, talkHue, type TalkVoice } from "@/lib/new-jarvis/talk";
+import type { VoiceState } from "@/lib/new-jarvis/useWakeVoice";
 
 type Three = typeof THREE_NS;
 
@@ -40,6 +47,10 @@ interface Props {
   anchorRef?: React.RefObject<HTMLElement | null>;
   /** Shown when WebGL is unavailable or the world cannot load. */
   fallback?: ReactNode;
+  /** The Talk voice: its live analyser (mic or Jarvis's speech) and state. */
+  voice?: { analyser: MutableRefObject<AnalyserNode | null>; state: VoiceState };
+  /** Not shown (another section has its own background): the loop pauses. */
+  hidden?: boolean;
 }
 
 const GLB = "/jarvis/world.glb";
@@ -290,6 +301,39 @@ const VOLUME_COMMON = /* glsl */ `
   }
 `;
 
+const NEBULA_VERT = /* glsl */ `
+  varying vec3 vDir;
+  void main() {
+    vDir = normalize(position);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const NEBULA_FRAG = /* glsl */ `
+  uniform float uTime;
+  uniform vec3 uColorA;
+  uniform vec3 uColorB;
+  varying vec3 vDir;
+  float h(vec3 p) { return fract(sin(dot(p, vec3(17.1, 31.7, 11.3))) * 43758.5453); }
+  float noise(vec3 p) {
+    vec3 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+      mix(mix(h(i), h(i + vec3(1, 0, 0)), f.x), mix(h(i + vec3(0, 1, 0)), h(i + vec3(1, 1, 0)), f.x), f.y),
+      mix(mix(h(i + vec3(0, 0, 1)), h(i + vec3(1, 0, 1)), f.x), mix(h(i + vec3(0, 1, 1)), h(i + vec3(1, 1, 1)), f.x), f.y),
+      f.z);
+  }
+  float fbm(vec3 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
+  void main() {
+    vec3 d = vDir * 2.2 + vec3(0.0, 0.0, uTime * 0.012);
+    float n = fbm(d);
+    float m = fbm(d * 1.7 + 4.0);
+    vec3 c = uColorA * pow(n, 4.0) * 0.07 + uColorB * pow(m, 3.6) * 0.09;
+    gl_FragColor = vec4(c, 1.0);
+    #include <colorspace_fragment>
+  }
+`;
+
 const SMOKE_FRAG = /* glsl */ `
   precision highp sampler3D;
   uniform sampler3D uVol;
@@ -315,11 +359,11 @@ const SMOKE_FRAG = /* glsl */ `
       vec3 q = rotY(p * grow, a);
       float base = texture(uVol, vec3(q.x, -q.z, q.y) + 0.5).r;
       // Finer tearing, drifting slowly through the grid's big shapes.
-      float tear = fbm(q * 7.0 + vec3(0.0, uTime * 0.05, uTime * 0.03)) * 0.7 + fbm(q * 15.0 - uTime * 0.04) * 0.45;
+      float tear = fbm(q * 10.0 + vec3(0.0, uTime * 0.05, uTime * 0.03)) * 0.7 + fbm(q * 24.0 - uTime * 0.04) * 0.45;
       // Thinned right at the heart, so the colour is in the folds, not a white blob.
       // Carved: below a floor there is no smoke at all, so the gaps between
       // the wisps stay dark and the folds read as depth.
-      float s = max(0.0, base * (0.2 + 2.0 * tear) - 0.14) * smoothstep(0.5, 0.3, r) * smoothstep(0.05, 0.2, r);
+      float s = max(0.0, base * (0.2 + 2.0 * tear) - 0.14) * smoothstep(0.5, 0.34, r) * smoothstep(0.1, 0.26, r);
       if (s > 0.01) {
         float alpha = 1.0 - exp(-s * dt * 10.0 * uOpacity);
         float t = fbm(q * 2.2 + 5.0) * 0.9 + atan(q.z, q.x) / 6.2831 + uTime * 0.015;
@@ -330,11 +374,11 @@ const SMOKE_FRAG = /* glsl */ `
         // heart darkens it — inner folds go deep, outer edges catch the light.
         vec3 inward = q * 0.78;
         float occl = texture(uVol, vec3(inward.x, -inward.z, inward.y) + 0.5).r;
-        float light = exp(-occl * 2.6);
+        float light = exp(-occl * 3.6);
         // Hot at the heart, deep colour in the folds.
         col = mix(col, vec3(1.0, 0.86, 0.66), smoothstep(0.12, 0.0, r) * 0.25);
         // Kept under the bloom's threshold, so the smoke glows instead of bleaching.
-        col *= 0.9 * ((0.1 + 1.0 * light) + 0.1 * exp(-r * r * 160.0)) + 0.12 * uEnergy + 0.06 * uBreath;
+        col *= 0.9 * ((0.06 + 1.0 * light) + 0.1 * exp(-r * r * 160.0)) + 0.12 * uEnergy + 0.06 * uBreath;
         acc += T * alpha * col;
         T *= 1.0 - alpha;
         if (T < 0.03) break;
@@ -439,17 +483,22 @@ const MIST_FRAG = /* glsl */ `
       vec3 w = p * uScale; // box space → world units
       float rad = length(w.xz);
       // A band round the ring, thinnest at its edges, nothing inside or far out.
-      float band = smoothstep(1.55, 2.35, rad) * (1.0 - smoothstep(3.1, 4.1, rad));
-      float thick = 0.16 + 0.1 * sin(atan(w.z, w.x) * 3.0 + uTime * 0.2);
+      float band = smoothstep(1.3, 2.3, rad) * (1.0 - smoothstep(3.4, 4.8, rad));
+      // Thinner on the side nearest you, so it never smothers the view.
+      band *= 1.0 - 0.6 * smoothstep(1.0, 4.0, w.z);
+      // Billows: thicker in places, swelling and settling as it flows.
+      float thick = 0.26 + 0.2 * fbm(vec3(w.xz * 0.6, uTime * 0.05)) + 0.08 * sin(atan(w.z, w.x) * 3.0 + uTime * 0.2);
       float vert = exp(-pow(w.y / thick, 2.0));
       if (band * vert > 0.02) {
         // It flows round the ring, inner faster than outer.
         vec3 q = rotY(w, uTime * 0.16 / pow(max(rad, 1.0), 1.5));
-        float n = fbm(q * vec3(1.6, 4.0, 1.6) + vec3(0.0, 0.0, uTime * 0.02)) * 0.65 + fbm(q * vec3(0.55, 1.4, 0.55) - uTime * 0.01) * 0.55;
+        float n = fbm(q * vec3(1.6, 4.0, 1.6) + vec3(0.0, 0.0, uTime * 0.02)) * 0.65 + fbm(q * vec3(0.55, 1.4, 0.55) - uTime * 0.01) * 0.55
+          + (fbm(q * vec3(4.5, 9.0, 4.5) + uTime * 0.03) - 0.5) * 0.45; // fine wisps
         float s = band * vert * max(0.0, n * 2.3 - 0.85);
         float alpha = 1.0 - exp(-s * dt * 2.2 * uOpacity);
         float t = atan(q.z, q.x) / 6.2831 * 1.5 + n * 0.5 + uTime * 0.01;
-        vec3 col = hueShift(palette(t), uHue) * (0.42 + 0.15 * uBreath + 0.2 * uEnergy);
+        vec3 col = hueShift(palette(t), uHue);
+        col = clamp(mix(vec3(dot(col, vec3(0.333))), col, 1.5), 0.0, 1.0) * (0.5 + 0.15 * uBreath + 0.2 * uEnergy);
         acc += T * alpha * col;
         T *= 1.0 - alpha;
       }
@@ -474,10 +523,16 @@ function pickTier(): Tier {
   return "high";
 }
 
-export function WorldField({ busy = false, anchorRef, fallback = null }: Props) {
+export function WorldField({ busy = false, anchorRef, fallback = null, voice, hidden = false }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const busyRef = useRef(busy);
   busyRef.current = busy;
+  const voiceRef = useRef(voice);
+  voiceRef.current = voice;
+  const hiddenRef = useRef(hidden);
+  hiddenRef.current = hidden;
+  /** Set once the loop exists: re-checks whether it should be running. */
+  const wakeRef = useRef<() => void>(() => {});
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -499,6 +554,13 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
       if (disposed) return;
 
       const canvas = document.createElement("canvas");
+      // No WebGL at all (blocked, or a very old device): straight to the
+      // fallback, without three.js logging a scary error first.
+      const probe = document.createElement("canvas");
+      if (!probe.getContext("webgl2") && !probe.getContext("webgl")) {
+        setFailed(true);
+        return;
+      }
       let renderer: THREE_NS.WebGLRenderer;
       try {
         renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: "high-performance" });
@@ -745,20 +807,22 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
       if (disposed) return;
       if (smokeTex) {
         const mat = volumeMat(SMOKE_FRAG, tier === "high" ? 40 : 20, { uVol: { value: smokeTex } });
-        mat.uniforms.uOpacity.value = 1.15;
+        mat.uniforms.uOpacity.value = 1.35;
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat);
-        // The grid's domain is [-2, 2]³; drawn larger, so the smoke's
-        // tendrils reach out past the galaxy's edge.
-        mesh.scale.setScalar(5.4);
+        // The grid's domain is [-2, 2]³. Drawn wide and flattened into the
+        // galaxy's disc (local Y is its axis), so the smoke swirls through the
+        // spiral arms with the stars sparkling over it, and its tendrils reach
+        // out past the galaxy's edge.
+        mesh.scale.set(6.4, 2.2, 6.4);
         mesh.renderOrder = -1; // under the stars, so they sparkle over it
         mesh.frustumCulled = false;
         spin.add(mesh);
         volumes.push({ mesh, mat });
       }
       {
-        const scale = new THREE.Vector3(8.6, 1.0, 8.6);
+        const scale = new THREE.Vector3(11.6, 2.4, 11.6);
         const mat = volumeMat(MIST_FRAG, tier === "high" ? 22 : 11, { uScale: { value: scale } });
-        mat.uniforms.uOpacity.value = 0.75;
+        mat.uniforms.uOpacity.value = 1.25;
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat);
         mesh.scale.copy(scale);
         mesh.renderOrder = -2;
@@ -887,16 +951,30 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         }
       }
 
-      // The old all-over nebula is gone: the only haze now is the mist that
-      // runs round the ring. What stays is a plain deep-space backdrop — an
-      // opaque sphere, so the bloom has true black to settle on instead of
-      // veiling the whole sky.
+      // v3's faint coloured nebula behind everything (desktop), over a plain
+      // deep-space backdrop, so the bloom always has near-black to settle on.
       const backdrop = new THREE.Mesh(
         new THREE.SphereGeometry(90, 24, 12),
         new THREE.MeshBasicMaterial({ color: new THREE.Color("#010308"), side: THREE.BackSide, depthWrite: false }),
       );
-      backdrop.renderOrder = -10;
+      backdrop.renderOrder = -11;
       scene.add(backdrop);
+      let nebula: THREE_NS.Mesh | null = null;
+      const nebulaUniforms = { uTime: shared.uTime, uColorA: { value: TEAL }, uColorB: { value: MAGENTA } };
+      if (tier === "high") {
+        nebula = new THREE.Mesh(
+          new THREE.SphereGeometry(80, 32, 16),
+          new THREE.ShaderMaterial({
+            vertexShader: NEBULA_VERT,
+            fragmentShader: NEBULA_FRAG,
+            uniforms: nebulaUniforms,
+            side: THREE.BackSide,
+            depthWrite: false,
+          }),
+        );
+        nebula.renderOrder = -10;
+        scene.add(nebula);
+      }
 
       // --- bloom (desktop) -------------------------------------------------
       let composer: import("three/examples/jsm/postprocessing/EffectComposer.js").EffectComposer | null = null;
@@ -985,6 +1063,7 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         // the galaxy: only a click on open space sends a shockwave.
         const target = e.target as HTMLElement | null;
         if (target?.closest("button, a, input, textarea, select, label, [role='button'], [contenteditable='true']")) return;
+        if (reduce.matches) return; // reduced motion: no shockwaves
         // A shockwave out from the core, in the next colour of the cycle.
         shared.uPulseAge.value = 0;
         pulseIndex = (pulseIndex + 1) % PULSES.length;
@@ -1006,6 +1085,12 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
       let hue = 0;
       let busyLevel = 0;
       let phase = 0.15;
+      // Talk: smoothed loudness, a faster syllable pulse, and the tint.
+      let talk = 0;
+      let syllable = 0;
+      let talkTint = 0;
+      const freq = new Uint8Array(2048);
+      const bands = new Float32Array(BAND_COUNT);
       let t = 0;
       let last = performance.now();
       let raf = 0;
@@ -1034,11 +1119,41 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         t += dt;
         busyLevel += ((busyRef.current ? 1 : 0) - busyLevel) * Math.min(1, dt * 2);
         energy = Math.max(0, energy - dt * 0.35);
-        // One breath every ~6.4 s at rest, ~3.2 s while Jarvis works.
-        phase = (((phase + dt / (6.4 - 3.2 * busyLevel)) % 1) + 1) % 1;
+        const calm = reduce.matches;
+
+        // --- Talk: read whoever is speaking -----------------------------------
+        const v = voiceRef.current;
+        let who: TalkVoice = "none";
+        let loud = 0;
+        if (v && (v.state === "hearing" || v.state === "speaking" || v.state === "waiting")) {
+          const a = v.analyser.current;
+          if (a) {
+            const n = Math.min(freq.length, a.frequencyBinCount);
+            const view = freq.subarray(0, n);
+            a.getByteFrequencyData(view);
+            loud = loudness(bandsFrom(view, BAND_COUNT, bands));
+          } else if (v.state === "speaking") {
+            // The browser's own speech has no audio node: a believable envelope.
+            loud = loudness(speechEnvelope(t, bands)) * 0.6;
+          }
+          who = v.state === "speaking" ? "jarvis" : "you";
+          // Mic on but not yet addressed: it listens along, at half strength.
+          if (v.state === "waiting") loud *= 0.5;
+        }
+        const drive = talkDrive(loud);
+        // Fast attack, slow release: syllables punch, the glow lingers.
+        talk = smoothTo(talk, drive, Math.min(1, dt * 14), Math.min(1, dt * 2.2));
+        syllable = smoothTo(syllable, drive, Math.min(1, dt * 30), Math.min(1, dt * 9));
+        talkTint += (talkHue(who) * (who === "none" ? 0 : 0.35 + 0.65 * talk) - talkTint) * Math.min(1, dt * 1.6);
+
+        // One breath every ~6.4 s at rest, ~3.2 s while Jarvis works; slower
+        // and gentler with reduced motion — but it always breathes.
+        const period = (6.4 - 3.2 * busyLevel) * (calm ? 1.5 : 1);
+        phase = (((phase + dt / period) % 1) + 1) % 1;
         shared.uTime.value = t;
-        shared.uBreath.value = breathCurve(phase);
-        shared.uEnergy.value = Math.min(1.4, energy + busyLevel * 0.6);
+        const breath = breathCurve(phase);
+        shared.uBreath.value = calm ? 0.25 + 0.5 * breath : breath;
+        shared.uEnergy.value = Math.min(1.6, energy + busyLevel * 0.6 + talk * 0.85);
         if (shared.uPulseAge.value >= 0) {
           shared.uPulseAge.value += dt;
           if (shared.uPulseAge.value > 3.5) shared.uPulseAge.value = -1;
@@ -1048,22 +1163,28 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         shared.uPointerOn.value = pointer.on;
 
         // Lean toward the pointer on a soft spring; the whole thing breathes in scale.
-        const tx = -pointer.y * 0.28 * pointer.on;
-        const ty = pointer.x * 0.36 * pointer.on;
+        const lean = calm ? 0 : 1;
+        const tx = -pointer.y * 0.28 * pointer.on * lean;
+        const ty = pointer.x * 0.36 * pointer.on * lean;
         tiltNow.x += (tx - tiltNow.x) * Math.min(1, dt * 2.5);
         tiltNow.y += (ty - tiltNow.y) * Math.min(1, dt * 2.5);
-        // Turned most of the way toward you — semi-flattened, so the spiral
-        // reads with some depth — and rolled a touch so nothing sits square.
-        tilt.rotation.set(tiltNow.x + 0.9, tiltNow.y, -0.22);
-        const s = 0.93 + 0.1 * shared.uBreath.value;
-        spin.scale.setScalar(s);
-        rings.scale.setScalar(0.96 + 0.06 * shared.uBreath.value);
+        // v3's pose: turned most of the way toward you, so the spiral reads,
+        // and rolled a touch so nothing sits square.
+        tilt.rotation.set(tiltNow.x + 1.08, tiltNow.y, -0.2);
+        // The lung: it swells out and in, and on the exhale the disc presses
+        // flatter (local Y is its axis) — compress, decompress, all the time.
+        // Talking squeezes it on every syllable and lets it spring back.
+        const b = shared.uBreath.value;
+        const s = (0.9 + 0.14 * b) * (1 - 0.06 * syllable + 0.03 * talk);
+        spin.scale.set(s, s * (0.8 + 0.32 * b) * (1 + 0.25 * syllable), s);
+        rings.scale.setScalar((0.95 + 0.07 * b) * (1 + 0.035 * syllable));
         rings.rotation.set(0.21 + tiltNow.x * 0.45, tiltNow.y * 0.5, -0.045);
         shared.uBallR.value = 1.72 * s;
-        halo.scale.setScalar(1.15 + 0.35 * shared.uBreath.value + busyLevel * 0.35);
-        spin.rotation.y += dt * (0.03 + busyLevel * 0.05);
-        shared.uSwirlT.value += dt * (1 + busyLevel * 1.4 + energy * 0.5);
+        halo.scale.setScalar(1.15 + 0.35 * b + busyLevel * 0.35 + talk * 0.6 + syllable * 0.35);
+        spin.rotation.y += dt * (0.03 + busyLevel * 0.05 + talk * 0.04) * (calm ? 0.5 : 1);
+        shared.uSwirlT.value += dt * (1 + busyLevel * 1.4 + energy * 0.5 + talk * 0.8) * (calm ? 0.5 : 1);
         stars.rotation.y += dt * 0.004;
+        if (nebula) nebula.rotation.y += dt * 0.003;
         stars.position.set(pointer.x * 0.6 * pointer.on, pointer.y * 0.4 * pointer.on, 0);
         // Smoke layers slide less the farther back they are.
         for (const b of backSmoke) {
@@ -1076,11 +1197,12 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         // Colour follows the pointer across the screen, and drifts on its own.
         const hueTarget = pointer.x * 0.55 * pointer.on + Math.sin(t * 0.07) * 0.22 + busyLevel * 0.25;
         hue += (hueTarget - hue) * Math.min(1, dt * 1.5);
-        shared.uHue.value = hue;
-        if (bloom) bloom.strength = 0.7 + 0.3 * shared.uBreath.value + 0.35 * busyLevel;
+        shared.uHue.value = hue + talkTint;
+        if (bloom) bloom.strength = 0.7 + 0.3 * b + 0.35 * busyLevel + 0.45 * talk + 0.25 * syllable;
       };
 
       const frame = (now: number) => {
+        if (hiddenRef.current) return; // paused until shown again
         const dt = (now - last) / 1000;
         last = now;
         step(dt);
@@ -1096,6 +1218,7 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
             quality--;
             tier = "low";
             composer = null;
+            if (nebula) nebula.visible = false;
             // Fewer steps through the smoke and mist: the cheapest big saving.
             for (const v of volumes) {
               v.mat.defines.STEPS = Math.max(8, Math.round(Number(v.mat.defines.STEPS) * 0.55));
@@ -1109,23 +1232,17 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         raf = requestAnimationFrame(frame);
       };
 
+      // Runs whenever the tab is visible and this section shows the galaxy;
+      // reduced motion only slows it (see step), it never freezes it.
       const start = () => {
         cancelAnimationFrame(raf);
-        if (reduce.matches) {
-          // Settled: one honest frame, no motion.
-          step(0);
-          shared.uBreath.value = 0.5;
-          draw();
-          return;
-        }
+        if (document.hidden || hiddenRef.current) return;
         last = performance.now();
         raf = requestAnimationFrame(frame);
       };
-      const onVis = () => (document.hidden ? cancelAnimationFrame(raf) : start());
+      wakeRef.current = start;
+      const onVis = () => start();
       document.addEventListener("visibilitychange", onVis);
-      reduce.addEventListener?.("change", start);
-      const onRedraw = () => reduce.matches && start();
-      window.addEventListener("resize", onRedraw);
 
       const onLost = (e: Event) => {
         e.preventDefault();
@@ -1141,13 +1258,11 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
         cancelAnimationFrame(raf);
         ro.disconnect();
         window.removeEventListener("resize", size);
-        window.removeEventListener("resize", onRedraw);
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerdown", onDown);
         document.removeEventListener("pointerleave", onLeave);
         window.removeEventListener("keydown", onKey);
         document.removeEventListener("visibilitychange", onVis);
-        reduce.removeEventListener?.("change", start);
         canvas.removeEventListener("webglcontextlost", onLost);
         scene.traverse((o) => {
           const m = o as THREE_NS.Mesh;
@@ -1167,9 +1282,16 @@ export function WorldField({ busy = false, anchorRef, fallback = null }: Props) 
 
     return () => {
       disposed = true;
+      wakeRef.current = () => {};
       cleanup();
     };
   }, [anchorRef]);
+
+  // Showing again (back from Studio or App plugins) restarts the loop;
+  // hiding stops it on its next frame.
+  useEffect(() => {
+    wakeRef.current();
+  }, [hidden]);
 
   if (failed) return <>{fallback}</>;
   return <div ref={hostRef} className="nj-world" aria-hidden />;

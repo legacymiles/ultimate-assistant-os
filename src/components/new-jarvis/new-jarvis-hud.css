@@ -86,6 +86,9 @@
   inset: 0;
   background: radial-gradient(120% 95% at 55% 50%, transparent 50%, rgb(0 0 0 / 0.6) 100%);
 }
+.nj-field { transition: opacity 420ms ease; }
+/* Studio and App plugins: the galaxy steps back (and pauses). */
+.nj-field.is-off { opacity: 0; }
 .nj-world,
 .nj-world canvas {
   position: absolute;

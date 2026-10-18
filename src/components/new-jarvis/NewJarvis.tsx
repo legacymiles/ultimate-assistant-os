@@ -188,6 +188,8 @@ function isTab(v: string): v is TabId {
 
 export function NewJarvis() {
   const [tab, setTab] = useState<TabId>("dashboard");
+  // Studio and App plugins have their own look; everywhere else, the galaxy.
+  const galaxyOff = tab === "studio" || tab === "plugins";
   /** The More sheet — every section that is not on the rail. */
   const [moreOpen, setMoreOpen] = useState(false);
   /** Files dragged over the window: anywhere is a drop target for Chat. */
@@ -901,11 +903,19 @@ ${reflex.best.excerpt ?? ""}`.trim()
           }}
         />
       )}
-      {/* The living background behind every section: a breathing galaxy
-          ball, modeled in Blender (tools/jarvis-world). The old canvas field
-          stands in wherever WebGL cannot. */}
-      <div className="nj-field" aria-hidden>
-        <WorldField busy={running} anchorRef={mainRef} fallback={<HudField originRef={coreRef} busy={running} />} />
+      {/* The living background: a breathing galaxy, modeled in Blender
+          (tools/jarvis-world), behind Chat, Dashboard, Settings and the rest —
+          but not Studio or App plugins, which have their own look (it pauses
+          there). It talks along with Talk. The old canvas field stands in
+          wherever WebGL cannot. */}
+      <div className={`nj-field ${galaxyOff ? "is-off" : ""}`} aria-hidden>
+        <WorldField
+          busy={running}
+          anchorRef={mainRef}
+          voice={{ analyser: voice.analyser, state: voice.state }}
+          hidden={galaxyOff}
+          fallback={<HudField originRef={coreRef} busy={running} />}
+        />
       </div>
 
       <header className="nj-top flex shrink-0 items-center gap-2.5 px-3 py-2">
