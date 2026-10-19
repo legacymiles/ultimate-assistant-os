@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Icon } from "../icons";
 import type { Skill } from "@/lib/skills/types";
 import { skillMeta } from "@/lib/skills/categories";
+import { addedLabel } from "@/lib/skills/sort";
 
 interface Props {
   skill: Skill;
@@ -55,6 +56,11 @@ export function SkillRow({ skill, onOpen, onEdit, onDelete, favorite = false, on
             </span>
           ))}
           {meta.nicknames.length > 4 && <span className="text-[10px] text-ink-faint">+{meta.nicknames.length - 4}</span>}
+          {addedLabel(skill.createdAt) && (
+            <time dateTime={skill.createdAt} title={new Date(skill.createdAt).toLocaleString()} className="ml-auto pl-1 text-[10px] text-ink-faint">
+              {addedLabel(skill.createdAt)}
+            </time>
+          )}
         </div>
       </div>
 

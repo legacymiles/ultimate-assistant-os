@@ -16,6 +16,7 @@ import {
 import type { Skill, SkillDraft } from "@/lib/skills/types";
 import { categoriesIn, matchesQuery, nicknameClashes, skillMeta } from "@/lib/skills/categories";
 import { SkillRow } from "./SkillRow";
+import { ADDED, SORTS, addedWithin, isAdded, isSort, sortSkills, type AddedWithin, type SkillSort } from "@/lib/skills/sort";
 import { useFavorites } from "@/lib/skills/favorites";
 import { SkillDetailModal } from "./SkillDetailModal";
 import { SkillEditorModal } from "./SkillEditorModal";
@@ -24,25 +25,16 @@ import { DesignGuide } from "./DesignGuide";
 type EditorState = { mode: "add" } | { mode: "edit"; skill: Skill } | null;
 type SyncMsg = { kind: "ok" | "info" | "error"; text: string } | null;
 
-/** Sort: featured, hand-added (newest), Studio agents, Personal, plugins A–Z. */
-function sortSkills(list: Skill[]): Skill[] {
-  const rank = (s: Skill) =>
-    s.source === "featured"
-      ? 0
-      : s.source === "manual"
-        ? 1
-        : s.source === "studio"
-          ? 2
-          : s.origin === "Personal"
-            ? 3
-            : 4;
-  return [...list].sort((a, b) => {
-    const r = rank(a) - rank(b);
-    if (r !== 0) return r;
-    if (rank(a) <= 1) return b.createdAt.localeCompare(a.createdAt);
-    const o = (a.origin ?? "").localeCompare(b.origin ?? "");
-    return o !== 0 ? o : a.title.localeCompare(b.title);
-  });
+const SORT_KEY = "skills-library:sort:v1";
+
+/** The last sort and "Added" window this browser used, if it saved one. */
+function readView(): { sort: SkillSort; added: AddedWithin } {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SORT_KEY) ?? "{}") as { sort?: unknown; added?: unknown };
+    return { sort: isSort(raw.sort) ? raw.sort : "recommended", added: isAdded(raw.added) ? raw.added : "any" };
+  } catch {
+    return { sort: "recommended", added: "any" };
+  }
 }
 
 /** `chromeless` drops the Hub bar when the library is a tab inside Jarvis. */
@@ -56,6 +48,24 @@ export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } =
   const [view, setView] = useState<"all" | "favorites">("all");
   const fav = useFavorites();
   const [origin, setOrigin] = useState<string>("all");
+  const [sort, setSort] = useState<SkillSort>("recommended");
+  const [added, setAdded] = useState<AddedWithin>("any");
+  // Restore after mount so the server render and the first client render agree.
+  useEffect(() => {
+    const v = readView();
+    setSort(v.sort);
+    setAdded(v.added);
+  }, []);
+  const pickView = (next: { sort?: SkillSort; added?: AddedWithin }) => {
+    const v = { sort: next.sort ?? sort, added: next.added ?? added };
+    setSort(v.sort);
+    setAdded(v.added);
+    try {
+      localStorage.setItem(SORT_KEY, JSON.stringify(v));
+    } catch {
+      /* private window: the choice just isn't remembered */
+    }
+  };
   const [detail, setDetail] = useState<Skill | null>(null);
   const [editor, setEditor] = useState<EditorState>(null);
   const [local, setLocal] = useState(false);
@@ -140,10 +150,11 @@ export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } =
       if (view === "favorites" && !fav.has(s)) return false;
       if (category !== "all" && !skillMeta(s).categories.includes(category)) return false;
       if (origin !== "all" && s.origin !== origin) return false;
+      if (!addedWithin(s, added)) return false;
       return matchesQuery(s, q);
     });
-    return sortSkills(list);
-  }, [skills, query, category, origin, view, fav]);
+    return sortSkills(list, sort);
+  }, [skills, query, category, origin, view, fav, sort, added]);
 
   const handleSave = async (draft: SkillDraft) => {
     if (editor?.mode === "edit" && isBuiltIn(editor.skill)) {
@@ -344,6 +355,20 @@ export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } =
           </div>
         )}
 
+        {/* Sort + when it was added */}
+        <div className="mb-2 flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:thin] sm:flex-wrap sm:overflow-visible">
+          <span className="mr-1 shrink-0 text-[11px] font-medium uppercase tracking-wider text-ink-faint">Sort</span>
+          {SORTS.map((o) => (
+            <FilterChip key={o.id} label={o.label} active={sort === o.id} onClick={() => pickView({ sort: o.id })} />
+          ))}
+        </div>
+        <div className="mb-4 flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:thin] sm:flex-wrap sm:overflow-visible">
+          <span className="mr-1 shrink-0 text-[11px] font-medium uppercase tracking-wider text-ink-faint">Added</span>
+          {ADDED.map((o) => (
+            <FilterChip key={o.id} label={o.label} active={added === o.id} onClick={() => pickView({ added: o.id })} />
+          ))}
+        </div>
+
         {/* Web design guide (separate dropdown) */}
         <DesignGuide skills={skills} onOpen={setDetail} />
 
@@ -358,7 +383,9 @@ export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } =
           <p className="py-16 text-center text-sm text-ink-muted">
             {view === "favorites" && fav.count === 0
               ? "No favorites yet. Tap the ☆ on any skill to keep it here."
-              : "No skills match your filters."}
+              : added !== "any"
+                ? "No skills added in that time. Try “Any time”."
+                : "No skills match your filters."}
           </p>
         ) : (
           <>
