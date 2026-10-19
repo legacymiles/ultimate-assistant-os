@@ -18,11 +18,11 @@ Help developers write and edit EAS CI/CD workflow YAML files.
 
 ## Reference Documentation
 
-Fetch these resources before generating or editing workflow files, or when answering syntax questions. First resolve this skill's directory, then use the fetch script in its `scripts/` directory. It is implemented using Node.js and caches responses using ETags for efficiency:
+Fetch these resources before generating or editing workflow files, or when answering syntax questions. First resolve this skill's directory, then use the fetch script in its `references/scripts/` directory. It is implemented using Node.js and caches responses using ETags for efficiency:
 
 ```bash
 # Fetch resources
-node <skill-dir>/references/scripts/fetch.js <url>
+node <skill-dir>/references/scripts/fetch.mjs <url>
 ```
 
 1. **JSON Schema** — https://api.expo.dev/v2/workflows/schema
