@@ -1,6 +1,6 @@
 ---
 name: animate-character-story
-description: Turn a character the owner gives you (an uploaded image, or a description) plus a story idea into a short animated storytelling video, made entirely in code with the cth9191/animate kit (cut paper by default), rendered to MP4 on this machine. Use when the owner says "animate my character", "make a story video of this boy/girl/character", "animate this image", "character story video", "story animation", or picks the "Animate my character" card in Jarvis Studio or its In Queue folder. Nicknames - animate my character, character animator, story animator, cut paper story, animate skill.
+description: Turn a character the owner gives you (an uploaded image, or a description) plus a story idea into a short animated storytelling video, made entirely in code with the cth9191/animate kit (cut paper by default), rendered to MP4 on this machine. Use when the owner says "animate my character", "make a story video of this boy/girl/character", "animate this image", "character story video", "story animation", or sends a job from Jarvis › Studio › Kids flow (Kids Animation Flow) or the "Animate my character" card / In Queue folder. Nicknames - animate my character, character animator, story animator, cut paper story, animate skill.
 ---
 
 # Animate my character
@@ -173,8 +173,8 @@ tags, 3+ details of background life per frame (birds on a wire, a cat, bunting, 
 - Tell the owner in a few plain lines: what it is, the review numbers (cuts on grid, loudest moment,
   silence before it, LUFS), what the review caught and fixed, the weakest shot, and that you cannot
   hear the score so they should listen.
-- If a Jarvis Studio or queue request started this, copy the MP4 to `~/Videos/animate/out/<slug>.mp4`
-  and say that path.
+- If a Jarvis Studio or queue request started this, copy the MP4 to `~/Videos/animate/out/<slug>.mp4`,
+  send it back with `queue_video_link` (below), and say that path.
 
 ## When the job came from Jarvis In Queue
 
@@ -186,10 +186,17 @@ image links.
 2. Download each image link it lists (the line says how, with the same bearer token as the
    connector) into `pieces/<slug>/assets/`.
 3. Do Steps 0–5 unattended: take the best reading, write it at the top of `brief.md`.
-4. Only when `share.mp4` exists and review passed: `queue_complete` with the id and a one-line result
-   ("Rendered 46 s, 16:9 → ~/Videos/animate/out/lost-kite.mp4. Review: 11/11 cuts on grid."). That
-   removes it from the queue. If it failed, do NOT complete it — `queue_note` the reason in plain
-   English instead, so it stays in the queue.
+4. Only when `share.mp4` exists and review passed, send the video back so the owner can watch it in
+   Jarvis › Studio › Kids flow on any device: call `queue_video_link` with the id and run the one
+   command it returns (a PUT to a one-time link on the deployed hub; a token-authorised POST on a
+   local hub). Then `queue_complete` with the id, `video: true` and a one-line result ("Rendered
+   46 s, 16:9. Review: 11/11 cuts on grid, payoff −1 dB, silence −52 dB."). That removes it from the
+   queue and the film appears in the Watch stage. If the upload fails, still complete it without
+   `video`, and say in the result where the file is on the PC.
+5. If anything failed before that, do NOT complete it — `queue_note` the reason in plain English
+   instead, so it stays in the queue and the owner sees why on the Render stage.
+6. A request that starts "Changes to "<title>" (q-…)" is a revision: reopen that piece's folder in
+   `~/Videos/animate/pieces/`, make only the asked changes, re-render, and upload as above.
 
 ## Global constraints
 
@@ -200,7 +207,8 @@ image links.
 - Never use someone else's copyrighted character (a cartoon mascot, a game hero) as the hero, in either
   mode — if the image is one, say so once and offer an original character in the same spirit.
 - Never claim it is done without `review.mjs` passing and you having looked at the contact sheets.
-- Reference media stays on the machine; nothing is uploaded except the finished MP4 if asked.
+- Reference media stays on the machine; the only upload is the finished MP4, back to the owner's own
+  Jarvis through `queue_video_link`.
 - Plain English to the owner. No stack traces; say what failed and the one thing to do about it.
 
 ## Run log

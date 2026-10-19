@@ -27,7 +27,9 @@ import { getSkill, listSkills, saveSkill, SkillError } from "@/lib/jarvis/server
 import { noteConnector } from "@/lib/jarvis/server/syncStatus";
 import {
   addRequests,
+  attachVideo,
   completeRequest,
+  videoKey,
   describeForAgent,
   noteRequest,
   releaseRequest,
@@ -36,6 +38,7 @@ import {
 } from "@/lib/new-jarvis/requests";
 import { readRequests, updateRequests } from "@/lib/new-jarvis/server/requestsStore";
 import { folderName } from "@/lib/new-jarvis/server/requestsAuth";
+import { videoUploadLink } from "@/lib/new-jarvis/server/requestVideo";
 
 export const runtime = "nodejs";
 // Embedding plus a Supabase round trip can outrun the default on a cold start.
@@ -194,9 +197,30 @@ async function runQueueTool(
           return args.release === true ? releaseRequest(noted, id) : noted;
         });
         return args.release === true ? `Noted, and ${id} is back to waiting.` : `Noted on ${id}.`;
+      case "queue_video_link": {
+        const doc = await readRequests(ctx.userId);
+        if (!doc.requests.some((r) => r.id === id)) return `Not changed: no open request ${id}.`;
+        const link = await videoUploadLink(ctx.userId, id);
+        if (link) {
+          return [
+            `Upload the finished MP4 for ${id} with ONE command (the link works once, for about two hours; no token needed):`,
+            `curl -sS -X PUT -H "Content-Type: video/mp4" -H "x-upsert: true" --data-binary @<path-to>/share.mp4 "${link.url}"`,
+            `PowerShell: Invoke-WebRequest -Method Put -ContentType "video/mp4" -Headers @{"x-upsert"="true"} -InFile <path-to>/share.mp4 -Uri "${link.url}"`,
+            `When it returns 200, call queue_complete with id ${id}, video: true and a one-line result.`,
+          ].join("\n");
+        }
+        return [
+          `This hub has no cloud storage, so post the file to it (up to ~10 MB) with the connector's token:`,
+          `curl -sS -H "Authorization: Bearer <the connector token>" -H "x-agent: ${client}" -F id=${id} -F file=@<path-to>/share.mp4 ${origin}/api/new-jarvis/requests/video`,
+          `Then call queue_complete with id ${id}, video: true and a one-line result.`,
+        ].join("\n");
+      }
       case "queue_complete":
-        await updateRequests(ctx.userId, (d) => completeRequest(d, id, client, str(args.result) || undefined));
-        return `Done — ${id} is off the queue and in the finished log.`;
+        await updateRequests(ctx.userId, (d) => {
+          const withVideo = args.video === true ? attachVideo(d, id, videoKey(ctx.userId, id), client) : d;
+          return completeRequest(withVideo, id, client, str(args.result) || undefined);
+        });
+        return `Done — ${id} is off the queue and in the finished log${args.video === true ? ", with its video ready to watch in Jarvis" : ""}.`;
       default:
         throw new Error(`No tool named ${name}.`);
     }

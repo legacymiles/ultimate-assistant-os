@@ -179,6 +179,16 @@ export const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "queue_video_link",
+    description:
+      "Before completing a request that produced a video (Kids Animation Flow / Animate my character), get the exact commands to upload the finished MP4 so the owner can watch it in Jarvis on any device. Run them, then call queue_complete with video: true.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string", description: "The request id." } },
+      required: ["id"],
+    },
+  },
+  {
     name: "queue_complete",
     description:
       "The request is DONE: this removes it from the owner's queue and logs it as finished. Call it only after the work is actually finished and verified, never before. Give a one-line result (what changed, where the file is, the commit).",
@@ -187,6 +197,7 @@ export const TOOLS: ToolDef[] = [
       properties: {
         id: { type: "string" },
         result: { type: "string", description: "One line on what came of it." },
+        video: { type: "boolean", description: "True when you uploaded its video with queue_video_link's commands." },
       },
       required: ["id"],
     },

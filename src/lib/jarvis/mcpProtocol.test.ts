@@ -38,6 +38,7 @@ describe("mcp protocol", () => {
       "queue_list",
       "queue_note",
       "queue_start",
+      "queue_video_link",
       "save_memory",
       "save_skill",
       "search_memory",

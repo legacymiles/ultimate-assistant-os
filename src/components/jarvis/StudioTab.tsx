@@ -29,6 +29,7 @@ import { bridgeStatus } from "@/lib/studio/render";
 import { CinemaBar, CinemaOutputRow } from "./CinemaDeck";
 import { StudioGallery } from "./StudioGallery";
 import { ChatTab } from "./ChatTab";
+import { KidsFlow } from "./kids-flow/KidsFlow";
 import type { JarvisStore } from "@/lib/jarvis/types";
 import type { Profile } from "@/lib/new-dashboard/types";
 import { useCinemaOutput, useCinemaSelection } from "@/lib/studio/useCinema";
@@ -98,7 +99,7 @@ export function StudioTab({
   const [cinema, setCinema] = useCinemaSelection();
   const [output, setOutput] = useCinemaOutput();
   /** The wall of workflows, what has been made, or the allowed add-on apps. */
-  const [view, setView] = useState<"browse" | "gallery">("browse");
+  const [view, setView] = useState<"browse" | "gallery" | "kids">("browse");
   /**
    * The conversation this Studio has going, if any.
    *
@@ -367,6 +368,7 @@ export function StudioTab({
           {([
             { id: "browse", label: "Workflows", icon: <Icon.Grid width={12} height={12} /> },
             { id: "gallery", label: "Gallery", icon: <Icon.Folder width={12} height={12} /> },
+            { id: "kids", label: "Kids flow", icon: <Icon.Sparkles width={12} height={12} /> },
           ] as const).map((v) => (
             <button
               key={v.id}
@@ -382,6 +384,7 @@ export function StudioTab({
             </button>
           ))}
         </div>
+        {view !== "kids" && (
         <div role="tablist" aria-label="Medium" className="ml-1 flex rounded-lg border border-line p-0.5">
           {(["video", "image"] as Medium[]).map((m) => (
             <button
@@ -401,7 +404,8 @@ export function StudioTab({
             </button>
           ))}
         </div>
-        {local && (
+        )}
+        {local && view !== "kids" && (
           <span
             className="flex items-center gap-1.5 rounded-full border border-line px-2 py-0.5 text-[11px] text-ink-muted"
             title={
@@ -419,7 +423,7 @@ export function StudioTab({
               : "Local renderer off"}
           </span>
         )}
-        <label className="ml-auto flex w-full items-center gap-1.5 rounded-lg border border-line bg-panel-2 px-2 py-1 sm:w-56">
+        <label className={`ml-auto w-full items-center gap-1.5 rounded-lg border border-line bg-panel-2 px-2 py-1 sm:w-56 ${view === "kids" ? "hidden" : "flex"}`}>
           <Icon.Search width={12} height={12} className="text-ink-faint" />
           <input
             value={query}
@@ -430,7 +434,11 @@ export function StudioTab({
         </label>
       </div>
 
-      {view === "gallery" ? (
+      {view === "kids" ? (
+        <div className="min-h-0 flex-1">
+          <KidsFlow />
+        </div>
+      ) : view === "gallery" ? (
         // Reusing a finished piece carries its prompt, not this tray.
         <StudioGallery onReuse={(prompt) => setSession({ text: prompt, nonce: Date.now() })} />
       ) : (

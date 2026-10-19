@@ -75,6 +75,8 @@ const TOKEN_AUTH_PATHS = new Set([
   // A picture attached to an In Queue request, fetched by the Claude Code
   // session working it — same token and pinned account as the memory MCP.
   "/api/new-jarvis/requests/image",
+  // The finished video for a request, sent back by that same session.
+  "/api/new-jarvis/requests/video",
 ]);
 
 /** Stamp (or clear) the account id the browser is allowed to render as. */

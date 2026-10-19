@@ -41,6 +41,15 @@ export interface QueueRequest {
   startedBy?: string;
   /** Plain-English notes added while it is worked on ("needs ffmpeg"). */
   notes: { at: string; text: string; by: string }[];
+  /** A finished video the agent uploaded for it (Kids Animation Flow). */
+  video?: RequestVideo;
+}
+
+export interface RequestVideo {
+  /** Storage key, always `videoKey(uid, id)` — never a path an agent chose. */
+  key: string;
+  at: string;
+  by: string;
 }
 
 export interface FinishedRequest {
@@ -52,6 +61,7 @@ export interface FinishedRequest {
   by: string;
   /** One line on what came of it, from whoever finished it. */
   result?: string;
+  video?: RequestVideo;
 }
 
 export interface RequestsDoc {
@@ -204,6 +214,23 @@ export function noteRequest(doc: RequestsDoc, id: string, text: string, by: stri
   };
 }
 
+/** Where a request's finished video lives in storage. One per request, overwritten on a re-render. */
+export function videoKey(uid: string, id: string): string {
+  return `queue/${uid.replace(/[^a-zA-Z0-9-]/g, "")}/${id.replace(/[^a-z0-9-]/g, "")}.mp4`;
+}
+
+/** The agent uploaded the video: record it on the request (open or already finished). */
+export function attachVideo(doc: RequestsDoc, id: string, key: string, by: string, now = new Date()): RequestsDoc {
+  const video: RequestVideo = { key, at: now.toISOString(), by };
+  if (doc.requests.some((r) => r.id === id)) {
+    return { ...doc, requests: doc.requests.map((r) => (r.id === id ? { ...r, video } : r)) };
+  }
+  if (doc.finished.some((f) => f.id === id)) {
+    return { ...doc, finished: doc.finished.map((f) => (f.id === id ? { ...f, video } : f)) };
+  }
+  throw new RequestError(`No request ${id}.`);
+}
+
 /** Back to waiting — the agent gave up on it, or the owner wants it redone. */
 export function releaseRequest(doc: RequestsDoc, id: string): RequestsDoc {
   return {
@@ -234,6 +261,7 @@ export function completeRequest(
     doneAt: now.toISOString(),
     by,
     ...(result?.trim() ? { result: result.trim().slice(0, 600) } : {}),
+    ...(r.video ? { video: r.video } : {}),
   };
   return prune({
     requests: doc.requests.filter((q) => q.id !== id),
@@ -307,6 +335,7 @@ export function describeForAgent(
       `  ${r.text.replace(/\n/g, "\n  ")}`,
     ];
     r.images.forEach((_, n) => lines.push(`  picture ${n + 1}: GET ${imageUrl(r.id, n)}`));
+    if (r.video) lines.push(`  video uploaded ${r.video.at.slice(0, 16).replace("T", " ")}`);
     for (const note of r.notes) lines.push(`  note (${note.by}): ${note.text}`);
     return lines.join("\n");
   });

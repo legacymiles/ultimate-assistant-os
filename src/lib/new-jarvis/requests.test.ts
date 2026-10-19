@@ -119,3 +119,18 @@ describe("normalizeDoc and the agent view", () => {
     expect(describeForAgent(EMPTY_DOC, String, String)).toBe("The queue is empty.");
   });
 });
+
+describe("videos sent back for a request", async () => {
+  const { attachVideo, videoKey } = await import("./requests");
+  it("derive their key, attach to open or finished requests, and travel into the finished log", () => {
+    expect(videoKey("u-1", "q-abc")).toBe("queue/u-1/q-abc.mp4");
+    expect(videoKey("../x", "q-a/../b")).toBe("queue/x/q-ab.mp4");
+    const d = addRequests(EMPTY_DOC, { folder: "flow:animate-my-character", text: "kite" }, now, () => "q-v").doc;
+    const withVideo = attachVideo(d, "q-v", videoKey("u", "q-v"), "pc", now);
+    expect(withVideo.requests[0].video?.key).toBe("queue/u/q-v.mp4");
+    const done = completeRequest(withVideo, "q-v", "pc", "Rendered 45 s", now);
+    expect(done.finished[0].video?.key).toBe("queue/u/q-v.mp4");
+    expect(attachVideo(done, "q-v", "k2", "pc", now).finished[0].video?.key).toBe("k2");
+    expect(() => attachVideo(done, "q-nope", "k", "pc")).toThrow(RequestError);
+  });
+});
