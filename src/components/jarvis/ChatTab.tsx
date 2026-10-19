@@ -76,6 +76,7 @@ import { ReferenceTile } from "./ReferenceTile";
 import { cancelFilm, startFilm, watchFilm, type FilmView } from "@/lib/studio/film";
 import { boardBrief, hydrate, runtimeSec, timecode, type Storyboard } from "@/lib/studio/storyboard";
 import type { PanelFace } from "@/lib/studio/panels";
+import { sendStudioJobToQueue } from "@/lib/studio/queueJob";
 import { SOURCE_LABEL, type ChatTurn, type Conversation, type JarvisStore, type PendingAction } from "@/lib/jarvis/types";
 import type { Profile } from "@/lib/new-dashboard/types";
 
@@ -559,6 +560,17 @@ export function ChatTab({
           }
         });
         setPending({ ...pending, status: "done", result });
+        return;
+      }
+      // A code-rendered workflow goes to the PC through In Queue, with the
+      // pictures it needs — they are only here, in this conversation.
+      if (pending.tool === "studio_queue") {
+        const result = await sendStudioJobToQueue(args, referenceImages());
+        setPending(
+          result.ok
+            ? { ...pending, status: "done", result: result.message }
+            : { ...pending, status: "failed", error: result.message },
+        );
         return;
       }
       // Folders, the owner's calendar and Lists are written from the browser.

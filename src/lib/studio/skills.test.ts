@@ -106,3 +106,12 @@ describe("studio render references", () => {
     expect(pick({ title: "", prompt: "Subject 1", useReferences: false }, refs)).toEqual([]);
   });
 });
+
+describe("PC-rendered workflows", () => {
+  it("animate-my-character hands off with studio_queue and never renders here", () => {
+    const text = readFileSync(path.join(DIR, "animate-my-character.md"), "utf8");
+    expect(text).toContain("studio_queue");
+    expect(text).toContain("flow:animate-my-character");
+    expect(text).toMatch(/never call `studio_generate`/i);
+  });
+});

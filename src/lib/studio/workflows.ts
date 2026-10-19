@@ -146,6 +146,29 @@ export const WORKFLOWS: Workflow[] = [
     hue: 38,
   },
   {
+    // Rendered in CODE on the owner's PC (the cth9191/animate kit through the
+    // animate-character-story skill), not by the video model: Round 3 hands
+    // the approved brief and the character picture to In Queue with
+    // studio_queue, and the PC session completes it. One character, one design,
+    // every shot — which is the thing a clip-by-clip video model cannot hold.
+    id: "animate-my-character",
+    name: "Animate my character",
+    medium: "video",
+    category: "stories",
+    blurb: "Upload your character, give a one-line story — a cut-paper animated short",
+    brief:
+      "Read the uploaded character into a character sheet (head, skin, hair, eyes, each garment with its colour, one "
+      + "signature item, the one colour that means him), pick a story shape, and write 8–11 beats for ~45 s: his "
+      + "expression and visible action per beat, one world per beat, captions of six words or fewer, a silence before "
+      + "the payoff and the loudest hit on it, the end returning to the first image changed. It renders in code on "
+      + "the owner's PC: send the approved brief and the picture with studio_queue, never studio_generate.",
+    format: "16:9 · ~45 s · cut paper",
+    keywords: ["cut paper", "sketchbook", "riso", "pixel", "cozy", "funny", "adventurous"],
+    motif: "storybook",
+    hue: 24,
+    isNew: true,
+  },
+  {
     id: "short-drama",
     name: "Short story drama",
     medium: "video",

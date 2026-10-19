@@ -98,6 +98,10 @@ export function summarise(tool: string, args: Record<string, unknown>): string {
     const to = s("to") || s("recipient") || s("channel") || s("thread") || "";
     return `Send a message${to ? ` to ${to}` : ""}${s("subject") ? ` — "${s("subject")}"` : ""}.`;
   }
+  if (tool === "studio_queue") {
+    const refs = Array.isArray(args.references) ? args.references.length : 0;
+    return `Send "${s("title")}" to your PC's queue to render${refs ? `, with ${refs} picture${refs === 1 ? "" : "s"}` : ""}.`;
+  }
   if (tool === "studio_generate") {
     const jobs = Array.isArray(args.jobs) ? args.jobs.length : 0;
     const medium = s("medium") === "image" ? "image" : "video clip";
@@ -267,7 +271,7 @@ export const DASHBOARD_TOOLS: ToolSpec[] = [
  * so it is an ordinary write: it stops for a yes and then runs in the browser
  * (src/lib/studio/render.ts), where the reference photos are.
  */
-export const STUDIO_TOOL_NAMES = ["studio_form", "studio_storyboard", "studio_score", "studio_generate"];
+export const STUDIO_TOOL_NAMES = ["studio_form", "studio_storyboard", "studio_score", "studio_generate", "studio_queue"];
 
 export const STUDIO_TOOLS: ToolSpec[] = [
   {
@@ -740,6 +744,36 @@ export const STUDIO_TOOLS: ToolSpec[] = [
         },
       },
       required: ["medium", "jobs"],
+    },
+    app: "studio",
+  },
+  {
+    name: "studio_queue",
+    description:
+      "Send an approved Studio job to the owner's PC instead of rendering it here — for workflows whose skill "
+      + "says they render in code on the PC (Animate my character). It files ONE request in that workflow's "
+      + "In Queue folder with the finished brief and the chosen uploads; Claude Code on the PC picks it up, "
+      + "renders it with the named skill and takes it off the queue when the video exists. Call only after the "
+      + "owner approved the brief.",
+    parameters: {
+      type: "object",
+      properties: {
+        folder: {
+          type: "string",
+          description: "The workflow's queue folder, 'flow:<workflow-id>', e.g. flow:animate-my-character.",
+        },
+        title: { type: "string", description: "Short label, e.g. 'Milo and the lost kite'." },
+        brief: {
+          type: "string",
+          description: "The whole approved brief, as plain text the PC agent follows: skill to use, mode, format, character sheet, beat table, captions.",
+        },
+        references: {
+          type: "array",
+          items: { type: "number" },
+          description: "Which uploads go with it, as Subject numbers (1 = first uploaded). At most 4.",
+        },
+      },
+      required: ["folder", "title", "brief"],
     },
     app: "studio",
   },

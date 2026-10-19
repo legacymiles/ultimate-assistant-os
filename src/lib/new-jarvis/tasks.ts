@@ -17,10 +17,23 @@ export interface PinnedTask {
   blurb: string;
   priority: number;
   href?: string;
+  /** Share another row's request folder, e.g. "flow:animate-my-character". */
+  folder?: string;
   done?: boolean;
 }
 
 export const PINNED_TASKS: PinnedTask[] = [
+  {
+    id: "test-animate-my-character",
+    name: "Test “Animate my character”",
+    blurb:
+      "The new Studio card: upload a character, give a one-line story, approve the brief, and it is queued for the PC. "
+      + "Then in Claude Code on the PC say “work my Jarvis queue” — it renders with the animate-character-story skill "
+      + "and the request leaves the queue when the MP4 exists. Type story ideas for it in this row's folder.",
+    priority: 0,
+    href: "/apps/jarvis#studio",
+    folder: "flow:animate-my-character",
+  },
   {
     id: "iphone-setup-video",
     name: "iPhone setup video",
@@ -47,6 +60,7 @@ export function taskFacts(tasks: PinnedTask[] = PINNED_TASKS): QueueFact[] {
     blurb: t.blurb,
     group: "Priority",
     href: t.href,
+    folder: t.folder,
     signals: { done: t.done === true, priority: t.priority },
   }));
 }
