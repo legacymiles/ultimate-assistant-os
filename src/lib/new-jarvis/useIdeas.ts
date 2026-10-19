@@ -42,11 +42,12 @@ import {
   type Shown,
 } from "./ideas";
 import type { JarvisStore } from "@/lib/jarvis/types";
+import { askJarvis } from "./askEvent";
 
 export const IDEAS_KEY = "jarvis-ideas:v1";
 export const SAID_KEY = "jarvis-said:v1";
-/** Fired by the widget; the shell puts the text in the chat box. */
-export const ASK_EVENT = "jarvis:ask";
+/** Fired by the widget; the shell puts the text in the chat box. Lives in askEvent.ts. */
+export { ASK_EVENT } from "./askEvent";
 
 const SAID_MAX = 240;
 
@@ -210,7 +211,7 @@ export function useIdeas({ store, audit }: { store: JarvisStore | null; audit: A
     done: useCallback((i: Idea) => commit(markDone(stateRef.current, i.id)), [commit]),
     reopen: useCallback((i: Idea) => commit(reopenIn(stateRef.current, i.id)), [commit]),
     ask: useCallback((i: Idea) => {
-      window.dispatchEvent(new CustomEvent(ASK_EVENT, { detail: i.prompt }));
+      askJarvis(i.prompt);
     }, []),
   };
 }

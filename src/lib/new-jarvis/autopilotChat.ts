@@ -8,6 +8,13 @@
 // "Yes" runs it. That is the "talk before acting" rule, enforced by shape — the
 // route has no way to file a photo even if the model wanted to.
 //
+// Sorting is not the limit. When the owner asks for a JOB — "find this repo and
+// add it as a skill", "build me an app in my plugins from this", "look this up
+// and book it" — Jarvis proposes a "task": a complete instruction for the super
+// chat's agent, which runs it with the photo attached and every tool the chat
+// has (their browser, files, shell, building and editing apps). The Yes on the
+// card is what sends it.
+//
 // Pure module: the route and the Deck both import it, and the tests cover it.
 // ---------------------------------------------------------------------------
 
@@ -17,7 +24,12 @@ export type AutopilotAction =
   /** Re-triage one photo with the owner's instruction ("it's a song"). */
   | { type: "reroute"; id: string; instruction: string }
   /** Remember a standing habit for future photos. */
-  | { type: "rule"; text: string };
+  | { type: "rule"; text: string }
+  /**
+   * A job for the super chat's agent, about this photo: a full, standalone
+   * instruction it can carry out end to end. The photo goes with it.
+   */
+  | { type: "task"; id: string; task: string };
 
 export interface AutopilotPhotoBrief {
   id: string;
@@ -47,6 +59,7 @@ export interface AutopilotReply {
 }
 
 const MAX_ACTIONS = 6;
+const MAX_TASK = 2_000;
 
 function strArr(v: unknown, known: Set<string>): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && known.has(x)) : [];
@@ -74,6 +87,10 @@ export function parseActions(raw: unknown, knownIds: string[]): AutopilotAction[
     } else if (r.type === "rule") {
       const text = typeof r.text === "string" ? r.text.trim().slice(0, 240) : "";
       if (text) out.push({ type: "rule", text });
+    } else if (r.type === "task") {
+      const id = typeof r.id === "string" && known.has(r.id) ? r.id : null;
+      const task = typeof r.task === "string" ? r.task.trim().slice(0, MAX_TASK) : "";
+      if (id && task) out.push({ type: "task", id, task });
     }
     if (out.length >= MAX_ACTIONS) break;
   }
@@ -98,6 +115,10 @@ export function systemPrompt(req: AutopilotRequest): string {
     `${owner}.\n\n` +
     "RULES\n" +
     "- You never act on your own. You PROPOSE actions; each is shown to the user as a card and only runs if they say yes. So say plainly what you propose and why, briefly.\n" +
+    `- You are NOT limited to sorting. Whatever ${owner} asks you to DO with a photo — find a repo or skill it shows and install it, build a new app or plugin, add a feature to an app, search for or edit an app, look something up, use their browser, fill a form, make a note or event from it — you can get done: propose a "task". ` +
+    'The task is carried out by Jarvis\'s full agent (the super chat) with this photo attached and real tools: the user\'s browser with their logins, their files and shell, and building, searching and editing their apps. Never say you can\'t build, install, browse or edit — propose the task.\n' +
+    '- Write a task as a complete instruction someone with no other context could follow: what is in the photo (names, URLs, repo owner/name you can read), the end goal, and every part of the request. You only see the caption below; the agent sees the picture itself, so say "the attached photo" for anything the caption does not spell out. If they asked for several things, put them all in ONE task in order.\n' +
+    '- A task about a photo usually also means the photo has been dealt with; if it also belongs somewhere (e.g. a repo screenshot → Folders › Repos), you may propose a "reroute" alongside it.\n' +
     "- Be short and direct: one to three sentences.\n" +
     '- When the user says where a KIND of photo should go in general ("songs go to my classifier"), propose a "rule" AND, if a photo in the queue fits, a "reroute" for it.\n' +
     '- When the user says a specific photo goes somewhere else, propose "reroute" with their instruction in their words.\n' +
@@ -108,7 +129,7 @@ export function systemPrompt(req: AutopilotRequest): string {
     `QUEUE (${req.photos.length} ready):\n${list || "- (empty)"}\n\n` +
     (sel ? `The user is looking at: id=${sel.id} "${sel.title}".\n\n` : "") +
     'Reply as JSON only: {"reply": string, "actions": [ {"type":"file","ids":[...]} | {"type":"reject","ids":[...]} | ' +
-    '{"type":"reroute","id":string,"instruction":string} | {"type":"rule","text":string} ]}'
+    '{"type":"reroute","id":string,"instruction":string} | {"type":"rule","text":string} | {"type":"task","id":string,"task":string} ]}'
   );
 }
 
@@ -127,6 +148,29 @@ export function parseReply(text: string, knownIds: string[]): AutopilotReply {
 }
 
 /**
+ * Words that mean "do something with this", not "put it somewhere": building,
+ * installing, editing, searching, browsing — or naming an app, plugin, skill
+ * or feature. Those go to the super chat as a task.
+ */
+const JOB_VERB = /\b(build|create|make|install|edit|fix|update|upgrade|set ?up|search|look ?up|research|browse|book|fill|sign ?up|code|clone|download)\b/;
+const JOB_NOUN = /\b(apps?|plugins?|skills?|features?|tool|website|site|extension)\b/;
+export function isJob(text: string, isRule = false): boolean {
+  const t = text.toLowerCase();
+  // "screenshots of websites go to Folders" names a thing, not a job.
+  return JOB_VERB.test(t) || (!isRule && JOB_NOUN.test(t));
+}
+
+/** The owner's words as a standalone job for the super chat, with what the photo is. */
+export function taskFor(words: string, photo: AutopilotPhotoBrief): string {
+  const about = [photo.title, photo.caption].filter((x) => x && x.trim()).join(" — ");
+  return (
+    `From Camera Autopilot — about the attached photo${about ? ` (read as: ${about.slice(0, 300)})` : ""}.\n` +
+    `What I want: ${words}\n` +
+    "Look at the photo for names, links or repos, then do the whole job end to end with your tools."
+  ).slice(0, MAX_TASK);
+}
+
+/**
  * No AI key: still useful. Understands the handful of things people actually
  * say to a photo queue, and is honest that it is the simple version.
  */
@@ -141,7 +185,9 @@ export function localReply(req: AutopilotRequest): AutopilotReply {
   const generalRule = /\b(go|goes|belong|belongs|put|send)\b.*\b(to|in|into)\b/.test(t);
   if (generalRule && last.length > 8) actions.push({ type: "rule", text: last.trim() });
 
-  if (/\b(song|music|track|spotify|classifier)\b/.test(t) && sel) {
+  if (sel && isJob(t, generalRule)) {
+    actions.push({ type: "task", id: sel.id, task: taskFor(last.trim(), sel) });
+  } else if (/\b(song|music|track|spotify|classifier)\b/.test(t) && sel) {
     actions.push({ type: "reroute", id: sel.id, instruction: "This is a song — file it in the Music Classifier in Jarvis Audio Studio." });
   } else if (/\b(repo|github|repository)\b/.test(t) && sel) {
     actions.push({ type: "reroute", id: sel.id, instruction: "This is a code repository — find it and save it to Folders › Repos." });
@@ -171,5 +217,7 @@ export function describeAction(a: AutopilotAction, titleOf: (id: string) => stri
       return `Re-read "${titleOf(a.id)}": ${a.instruction}`;
     case "rule":
       return `Remember: ${a.text}`;
+    case "task":
+      return `Do it: ${a.task.length > 240 ? `${a.task.slice(0, 239)}…` : a.task}`;
   }
 }

@@ -77,3 +77,47 @@ describe("prompt + cards", () => {
     expect(describeAction({ type: "file", ids: ["p1", "p2"] }, () => "x")).toBe("File 2 photos where proposed");
   });
 });
+
+describe("tasks — jobs go to the super chat", () => {
+  it("keeps a valid task and drops one for an unknown photo or with no words", () => {
+    const out = parseActions(
+      [
+        { type: "task", id: "p2", task: "Find the Stirling PDF repo in the photo and add it as a skill" },
+        { type: "task", id: "ghost", task: "x" },
+        { type: "task", id: "p2", task: "   " },
+      ],
+      ["p1", "p2"],
+    );
+    expect(out).toEqual([{ type: "task", id: "p2", task: "Find the Stirling PDF repo in the photo and add it as a skill" }]);
+  });
+
+  it("the prompt offers tasks and forbids saying it can't build", () => {
+    const p = systemPrompt(req("hi"));
+    expect(p).toContain('"type":"task"');
+    expect(p).toMatch(/Never say you can't build/);
+  });
+
+  it("the owner's real request becomes a task in simple mode, not a reroute", () => {
+    const r = localReply(
+      req("can u find this skill and add this skill to my jarvis and create a app in my plugins with an image converter and a document signer", "p2"),
+    );
+    expect(r.actions).toHaveLength(1);
+    const a = r.actions[0];
+    expect(a.type).toBe("task");
+    if (a.type === "task") {
+      expect(a.id).toBe("p2");
+      expect(a.task).toContain("document signer");
+      expect(a.task).toContain("attached photo");
+    }
+  });
+
+  it("plain sorting still sorts", () => {
+    expect(localReply(req("this is a song, put it in my classifier")).actions.map((a) => a.type)).toEqual(["rule", "reroute"]);
+    expect(localReply(req("save this repo", "p2")).actions[0].type).toBe("reroute");
+    expect(localReply(req("screenshots of websites go to Folders › Sites", "p2")).actions.map((a) => a.type)).not.toContain("task");
+  });
+
+  it("describes a task on its card", () => {
+    expect(describeAction({ type: "task", id: "p1", task: "Build the app" }, () => "x")).toBe("Do it: Build the app");
+  });
+});

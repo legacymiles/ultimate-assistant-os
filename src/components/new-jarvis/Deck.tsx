@@ -21,6 +21,9 @@
 //     Inside the sheet, Jarvis may re-read the photo with the owner's words
 //     (that only changes the guess), but filing, removing and remembering a
 //     habit each still wait for a tap.
+//   • A job ("find this repo and add it as a skill", "build an app in my
+//     plugins") comes back as a "Do it" card. Its Yes hands the job and the
+//     photo to the super chat, which runs it with every tool the chat has.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -46,6 +49,7 @@ import { getData } from "@/lib/recall/store";
 import { getFile } from "@/lib/recall/files";
 import { folderPaths } from "@/lib/recall/classify";
 import { describeAction, type AutopilotAction, type AutopilotReply } from "@/lib/new-jarvis/autopilotChat";
+import { askJarvis } from "@/lib/new-jarvis/askEvent";
 import type { PendingPhoto } from "@/lib/recall/photos/types";
 import type { UpdatesApi } from "@/lib/jarvis/useUpdates";
 import type { CalendarEvent } from "@/lib/recall/calendar/types";
@@ -654,6 +658,19 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
             setOpenId(null);
             void removeNow(id);
           }}
+          onTask={async (task) => {
+            // The photo goes along: the agent reads the repo name, the link,
+            // whatever the job needs, off the picture itself.
+            const photo = open;
+            const blob = await getFile(photo.fileId).catch(() => null);
+            const type = blob?.type || "image/jpeg";
+            const ext = type.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
+            const files = blob ? [new File([blob], `${titleOfPhoto(photo).slice(0, 60) || "photo"}.${ext}`, { type })] : [];
+            setOpenId(null);
+            setExpanded(null);
+            go("chat");
+            askJarvis({ text: task, files, send: true, mode: "do" });
+          }}
           refresh={refresh}
         />
       )}
@@ -715,6 +732,7 @@ function PhotoSheet({
   onClose,
   onFile,
   onRemove,
+  onTask,
   refresh,
 }: {
   photo: PendingPhoto;
@@ -726,6 +744,8 @@ function PhotoSheet({
   onClose: () => void;
   onFile: () => void;
   onRemove: () => void;
+  /** Hand a job about this photo to the super chat (the card's Yes is the go-ahead). */
+  onTask: (task: string) => Promise<void>;
   refresh: () => void;
 }) {
   const [draft, setDraft] = useState("");
@@ -771,6 +791,9 @@ function PhotoSheet({
       } else if (a.type === "reroute") {
         const now = await reread(a.instruction);
         setActionState(msgId, idx, "done", now ? `New guess: ${now}` : "Re-read");
+      } else if (a.type === "task") {
+        setActionState(msgId, idx, "done", "Sent to chat — Jarvis is on it");
+        await onTask(a.task);
       }
     } catch (err) {
       setActionState(msgId, idx, "failed", err instanceof Error ? err.message : "That didn't work");
@@ -870,8 +893,9 @@ function PhotoSheet({
             <div className="flex flex-col gap-2">
               {thread.length === 0 && (
                 <p className="text-[11.5px] leading-relaxed text-ink-faint">
-                  Not right? Tell me what to do with it — &ldquo;this is a song, put it in my Classifier&rdquo;, &ldquo;save this repo&rdquo;, &ldquo;put it in
-                  Folders › Jobs&rdquo;. I&apos;ll re-read it and update my guess.
+                  Tell me what to do with it — &ldquo;this is a song, put it in my Classifier&rdquo;, &ldquo;put it in Folders › Jobs&rdquo;, or a whole job:
+                  &ldquo;find this repo and add it as a skill&rdquo;, &ldquo;build an app in my plugins from this&rdquo;. Jobs go to chat with the photo, where I
+                  use your browser, files and apps to get them done.
                 </p>
               )}
               {thread.map((m) => (

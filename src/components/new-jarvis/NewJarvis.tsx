@@ -80,7 +80,7 @@ import { MAX_CHAT_MEDIA, buildUserContent, prepareMedia, type ChatMedia } from "
 import { noteLaunch } from "@/lib/new-jarvis/launcher";
 import { useVault } from "@/lib/new-jarvis/useVault";
 import { noteOpened, useImprove } from "@/lib/new-jarvis/useImprove";
-import { ASK_EVENT } from "@/lib/new-jarvis/useIdeas";
+import { ASK_EVENT, parseAsk } from "@/lib/new-jarvis/askEvent";
 import { useUpdates } from "@/lib/jarvis/useUpdates";
 import { toCalEvent } from "@/lib/jarvis/useDashboardCalendar";
 import type { CalendarEvent } from "@/lib/recall/calendar/types";
@@ -106,7 +106,12 @@ type TabId =
 type Tab = { id: TabId; label: string; icon: keyof typeof Icon };
 
 /** Options a programmatic submit can set — the onboarding hand-off uses both. */
-type SubmitOpts = { mode?: Mode; skipReflex?: boolean };
+type SubmitOpts = {
+  mode?: Mode;
+  skipReflex?: boolean;
+  /** Attachments handed over with the job (Camera Autopilot's photo), instead of the box's. */
+  media?: ChatMedia[];
+};
 
 /** What, typed in the chat, reopens setup rather than going to the model. */
 const SETUP_COMMAND = /^\/?(?:(?:open|start|resume|run|redo|restart|finish)\s+)?(?:the\s+|my\s+)?(?:setup|set\s*up(?:\s+jarvis)?|onboarding)[.!?]?$/i;
@@ -210,19 +215,6 @@ export function NewJarvis() {
   const [goalFor, setGoalFor] = useState<string | null>(null);
   const goalTopic = useMemo(() => topicOf(input), [input]);
   const [mode, setMode] = useState<Mode>("do");
-
-  // An Improvements idea's "Start in chat": the prompt lands in the chat box
-  // for the person to read and send — never sent on their behalf.
-  useEffect(() => {
-    const onAsk = (e: Event) => {
-      const text = (e as CustomEvent<unknown>).detail;
-      if (typeof text !== "string" || !text.trim()) return;
-      setInput(text);
-      window.setTimeout(() => document.querySelector<HTMLTextAreaElement>(".nj-command textarea")?.focus(), 60);
-    };
-    window.addEventListener(ASK_EVENT, onAsk);
-    return () => window.removeEventListener(ASK_EVENT, onAsk);
-  }, []);
 
   // --- the Chat's brain and attachments ---------------------------------------
   // Brain: Claude on the person's own subscription (through the PC), or a
@@ -656,7 +648,8 @@ export function NewJarvis() {
     async (rawText?: string, source: Block["source"] = "typed", opts: SubmitOpts = {}) => {
       // Attachments go with what was typed, never with a voice command or a
       // job handed over by setup.
-      const attached = source === "typed" && rawText === undefined ? media : [];
+      const handed = opts.media ?? null;
+      const attached = handed ?? (source === "typed" && rawText === undefined ? media : []);
       const command = (rawText ?? input).trim() || (attached.length ? "Look at what I attached." : "");
       if (!command) return;
       const runMode = opts.mode ?? mode;
@@ -712,7 +705,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
       }
 
       if (source === "typed") setInput("");
-      if (attached.length) setMedia([]);
+      if (attached.length && !handed) setMedia([]);
       const { content } = buildUserContent(command, attached);
 
       const block = newBlock({
@@ -814,6 +807,31 @@ ${reflex.best.excerpt ?? ""}`.trim()
   useEffect(() => {
     submitRef.current = (text, source, opts) => void submit(text, source, opts);
   }, [submit]);
+
+  // Work handed in from elsewhere in Jarvis (src/lib/new-jarvis/askEvent.ts).
+  //   • An Improvements idea's "Start in chat": the prompt lands in the chat
+  //     box for the person to read and send — never sent on their behalf.
+  //   • Camera Autopilot's "Do it": the person already said yes on the card,
+  //     so it runs now, in Do mode, with the photo attached — the same agent
+  //     and tools as anything typed here.
+  useEffect(() => {
+    const onAsk = (e: Event) => {
+      const ask = parseAsk((e as CustomEvent<unknown>).detail);
+      if (!ask) return;
+      if (!ask.send) {
+        setInput(ask.text);
+        window.setTimeout(() => document.querySelector<HTMLTextAreaElement>(".nj-command textarea")?.focus(), 60);
+        return;
+      }
+      void (async () => {
+        const prepared = await Promise.all((ask.files ?? []).map((f) => prepareMedia(f).catch(() => null)));
+        const handed = prepared.filter((m): m is ChatMedia => Boolean(m));
+        submitRef.current(ask.text, "typed", { mode: ask.mode ?? "do", skipReflex: true, media: handed });
+      })();
+    };
+    window.addEventListener(ASK_EVENT, onAsk);
+    return () => window.removeEventListener(ASK_EVENT, onAsk);
+  }, []);
 
   const answerGate = useCallback(
     (id: string, yes: boolean) => {
