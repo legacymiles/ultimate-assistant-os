@@ -361,9 +361,32 @@ describe("pinned priorities", () => {
       signals: { hasPage: true, testFiles: 0 },
     };
     const rows = sortQueue(toRows([app, ...taskFacts()], {}));
-    expect(rows[0].id).toBe("task:iphone-setup-video");
+    expect(rows[0].id).toBe("task:test-animate-my-character");
+    expect(rows[1].id).toBe("task:iphone-setup-video");
     expect(rows[0].state).toBe("wip");
     const done = sortQueue(toRows([app, ...taskFacts([{ id: "t", name: "T", blurb: "", priority: 1, done: true }])], {}));
     expect(done[0].id).toBe("app:x");
+  });
+});
+
+describe("rows with requests waiting", () => {
+  const done = app({ hasPage: true, testFiles: 1, tests: 3 }, "app:done");
+  const other = app({ hasPage: true, testFiles: 1, tests: 3 }, "app:other");
+
+  it("are in the queue while requests wait, and go back once they are completed", () => {
+    const verdicts: QueueVerdicts = { "app:done": { state: "done", at: "now" } };
+    const [asked] = toRows([done], verdicts, { "app:done": 2 });
+    expect(asked.state).toBe("wip");
+    expect(asked.requests).toBe(2);
+    expect(asked.why).toMatch(/^2 requests waiting/);
+    const [cleared] = toRows([done], verdicts, {});
+    expect(cleared.state).toBe("done");
+  });
+
+  it("sort to the top of the queue and can be filtered to", () => {
+    const rows = sortQueue(toRows([flow({ hasBrief: false }), other], {}, { "app:other": 1 }));
+    expect(rows[0].id).toBe("app:other");
+    const only = filterQueue(rows, { q: "", kinds: [], states: [], asked: true });
+    expect(only.map((r) => r.id)).toEqual(["app:other"]);
   });
 });

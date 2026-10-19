@@ -86,6 +86,12 @@ export interface QueueFact {
   group: string;
   /** Where to go to use it, when there is somewhere. */
   href?: string;
+  /**
+   * The request folder it opens, when it shares one with another row — a
+   * pinned "test this workflow" task opens the workflow's own folder, so ideas
+   * typed on either row land in one place. Absent = its own id.
+   */
+  folder?: string;
   signals: QueueSignals;
 }
 
@@ -116,6 +122,8 @@ export interface QueueRow extends QueueFact {
   why: string;
   evidence: Evidence[];
   note?: string;
+  /** Requests waiting in this row's folder (requests.ts). */
+  requests: number;
 }
 
 export const QUEUE_STORE_KEY = "nj.queue.v1";
@@ -281,25 +289,41 @@ export function deriveState(fact: QueueFact): { state: QueueState; why: string }
   return { state: "done", why: `Proven — ${s.proof}.` };
 }
 
-/** Facts + the owner's verdicts → the rows the board renders. */
-export function toRows(facts: QueueFact[], verdicts: QueueVerdicts): QueueRow[] {
+/**
+ * Facts + the owner's verdicts + open requests → the rows the board renders.
+ *
+ * A row with requests waiting in its folder is in the queue, whatever anyone
+ * said about it before: "finished" and "I just asked for three more things"
+ * cannot both be true. When the last request is completed the row goes back
+ * to whatever the evidence and the owner say — that is the self-cleaning half.
+ */
+export function toRows(
+  facts: QueueFact[],
+  verdicts: QueueVerdicts,
+  open: Record<string, number> = {},
+): QueueRow[] {
   return facts.map((fact) => {
     const { state: derived, why } = deriveState(fact);
     const own = verdicts[fact.id];
     const held = own?.state;
     const lower = why.replace(/^./, (c) => c.toLowerCase());
+    const requests = open[fact.folder ?? fact.id] ?? 0;
+    const judged = held === undefined
+      ? why
+      : held === derived
+        ? `You confirmed this. ${why}`
+        : `You called it ${held === "done" ? "finished" : "unfinished"} — the evidence says ${lower}`;
     return {
       ...fact,
       derived,
-      state: held ?? derived,
+      state: requests > 0 ? "wip" : held ?? derived,
       byHand: held !== undefined,
-      why: held === undefined
-        ? why
-        : held === derived
-          ? `You confirmed this. ${why}`
-          : `You called it ${held === "done" ? "finished" : "unfinished"} — the evidence says ${lower}`,
+      why: requests > 0
+        ? `${requests} request${requests === 1 ? "" : "s"} waiting in its folder. ${judged}`
+        : judged,
       evidence: evidenceFor(fact),
       note: own?.note,
+      requests,
     };
   });
 }
@@ -312,6 +336,8 @@ export interface QueueFilter {
   states: QueueState[];
   /** Only rows the owner has never ruled on. */
   unjudged?: boolean;
+  /** Only rows with requests waiting in their folder. */
+  asked?: boolean;
 }
 
 export const EMPTY_FILTER: QueueFilter = { q: "", kinds: [], states: [] };
@@ -333,6 +359,7 @@ export function filterQueue(rows: QueueRow[], f: QueueFilter): QueueRow[] {
     if (f.kinds.length && !f.kinds.includes(r.kind)) return false;
     if (f.states.length && !f.states.includes(r.state)) return false;
     if (f.unjudged && r.byHand) return false;
+    if (f.asked && !(r.requests > 0)) return false;
     if (!terms.length) return true;
     // Every term must appear somewhere — an AND search, because on a board of
     // 250 rows an OR search is the same as no search at all.
@@ -353,6 +380,10 @@ const KIND_ORDER: QueueKind[] = ["task", "app", "skill", "workflow"];
 export function sortQueue(rows: QueueRow[]): QueueRow[] {
   return [...rows].sort((a, b) => {
     if (a.state !== b.state) return a.state === "wip" ? -1 : 1;
+    // Rows someone has asked for something on come first: that is the live work.
+    const ra = (a.requests ?? 0) > 0;
+    const rb = (b.requests ?? 0) > 0;
+    if (ra !== rb) return ra ? -1 : 1;
     const k = KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind);
     if (k !== 0) return k;
     if (a.kind === "task") return (a.signals.priority ?? 99) - (b.signals.priority ?? 99);

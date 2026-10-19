@@ -19,6 +19,7 @@ import { loadLocal, saveSynced } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
 import { mentionsIn } from "@/lib/studio/workflows";
 import type { JarvisStore } from "@/lib/jarvis/types";
+import { useRequests, type UseRequests } from "./useRequests";
 import {
   QUEUE_STORE_KEY,
   annotate,
@@ -53,6 +54,8 @@ export interface UseQueue {
   /** The owner's line about what is left. */
   setNote: (row: QueueRow, note: string) => void;
   refresh: () => void;
+  /** What the owner asked for, per folder — the chat half of each row. */
+  requests: UseRequests;
 }
 
 /**
@@ -81,6 +84,7 @@ export function useQueue(store: JarvisStore | null): UseQueue {
     loadLocal<QueueVerdicts>(QUEUE_STORE_KEY, {}),
   );
   const [filter, setFilter] = useState<QueueFilter>(EMPTY_FILTER);
+  const requests = useRequests();
 
   // Verdicts made on the phone should be on the laptop. `useRemotePull`
   // reconciles the key and then calls back; the value is re-read from local
@@ -118,8 +122,8 @@ export function useQueue(store: JarvisStore | null): UseQueue {
         ? { ...f, signals: { ...f.signals, everUsed: true } }
         : f,
     );
-    return sortQueue(toRows(folded, verdicts));
-  }, [facts, used, verdicts]);
+    return sortQueue(toRows(folded, verdicts, requests.counts));
+  }, [facts, used, verdicts, requests.counts]);
 
   const rows = useMemo(() => filterQueue(all, filter), [all, filter]);
   const counts = useMemo(() => countQueue(all), [all]);
@@ -151,5 +155,6 @@ export function useQueue(store: JarvisStore | null): UseQueue {
     setState,
     setNote,
     refresh: () => setNonce((n) => n + 1),
+    requests,
   };
 }

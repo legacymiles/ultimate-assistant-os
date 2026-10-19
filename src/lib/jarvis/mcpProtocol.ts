@@ -24,7 +24,11 @@ export const INSTRUCTIONS =
   "Skills live here too, so every device has the same ones: when the owner asks you to create or change a skill, " +
   "write the complete SKILL.md (YAML frontmatter with name and description, then the instructions) and store it with save_skill — " +
   "that is what makes it appear on their Jarvis website, their PC and their VPS. " +
-  "Call list_skills to see what skills exist, and get_skill to load one and follow it when a task matches its description.";
+  "Call list_skills to see what skills exist, and get_skill to load one and follow it when a task matches its description. " +
+  "The owner's In Queue is here too: requests they typed for you, filed by app, workflow or skill. " +
+  "When asked to work the queue, call queue_list, queue_start the one you take, and when it is finished and verified call queue_complete — " +
+  "that removes it from their queue. Whenever you finish any work, check queue_list for a request it satisfies and complete that too. " +
+  "Never complete a request that is not actually done; queue_note the blocker instead.";
 
 export interface ToolDef {
   name: string;
@@ -126,6 +130,64 @@ export const TOOLS: ToolDef[] = [
     inputSchema: {
       type: "object",
       properties: { id: { type: "string", description: "The memory's id, as returned by search or list." } },
+      required: ["id"],
+    },
+  },
+  {
+    name: "queue_list",
+    description:
+      "List the owner's In Queue requests — the things they typed into an app's, workflow's or skill's folder for you to do — newest first, with ids, folders, notes and picture links. Pass folder (e.g. flow:animate-my-character, app:jarvis, inbox) to see one folder.",
+    inputSchema: {
+      type: "object",
+      properties: { folder: { type: "string", description: "Optional: one folder id, as queue_list prints it." } },
+    },
+  },
+  {
+    name: "queue_add",
+    description:
+      "File a request in the owner's In Queue, when they ask you to queue something for later rather than do it now. Folder is the queue row it is about (app:<slug>, flow:<workflow-id>, skill:<name>) or inbox.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string", description: "The request, in the owner's words. A list of '- items' files one request per item." },
+        folder: { type: "string" },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "queue_start",
+    description: "Mark a queued request as being worked on, so the owner sees 'working on it'. Call it when you begin.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string", description: "The request id, e.g. q-7k2m9x." } },
+      required: ["id"],
+    },
+  },
+  {
+    name: "queue_note",
+    description:
+      "Add a short plain-English note to a queued request without finishing it — progress, or why it is blocked ('needs ffmpeg installed'). Pass release: true to put it back to waiting.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        note: { type: "string" },
+        release: { type: "boolean" },
+      },
+      required: ["id", "note"],
+    },
+  },
+  {
+    name: "queue_complete",
+    description:
+      "The request is DONE: this removes it from the owner's queue and logs it as finished. Call it only after the work is actually finished and verified, never before. Give a one-line result (what changed, where the file is, the commit).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        result: { type: "string", description: "One line on what came of it." },
+      },
       required: ["id"],
     },
   },

@@ -25,6 +25,17 @@ import {
 import { MEMORY_SOURCES, type MemorySource } from "@/lib/jarvis/types";
 import { getSkill, listSkills, saveSkill, SkillError } from "@/lib/jarvis/server/skills";
 import { noteConnector } from "@/lib/jarvis/server/syncStatus";
+import {
+  addRequests,
+  completeRequest,
+  describeForAgent,
+  noteRequest,
+  releaseRequest,
+  RequestError,
+  startRequest,
+} from "@/lib/new-jarvis/requests";
+import { readRequests, updateRequests } from "@/lib/new-jarvis/server/requestsStore";
+import { folderName } from "@/lib/new-jarvis/server/requestsAuth";
 
 export const runtime = "nodejs";
 // Embedding plus a Supabase round trip can outrun the default on a cold start.
@@ -44,7 +55,14 @@ function str(v: unknown): string {
 }
 
 /** Run one tool against the shared memory functions, returning text for the model. */
-async function runTool(ctx: MemoryContext, name: string, args: Record<string, unknown>): Promise<string> {
+async function runTool(
+  ctx: MemoryContext,
+  name: string,
+  args: Record<string, unknown>,
+  origin = "",
+  client = "claude-code",
+): Promise<string> {
+  if (name.startsWith("queue_")) return runQueueTool(ctx, name, args, origin, client);
   switch (name) {
     case "search_memory": {
       const query = str(args.query);
@@ -140,6 +158,55 @@ async function runTool(ctx: MemoryContext, name: string, args: Record<string, un
 }
 
 /**
+ * The In Queue tools. A RequestError is the agent's mistake (a stale id) and
+ * comes back as text it can read; anything else is thrown and reported as a
+ * failed tool by handleRpc.
+ */
+async function runQueueTool(
+  ctx: MemoryContext,
+  name: string,
+  args: Record<string, unknown>,
+  origin: string,
+  client: string,
+): Promise<string> {
+  const id = str(args.id);
+  const imageUrl = (rid: string, n: number) =>
+    `${origin}/api/new-jarvis/requests/image?id=${encodeURIComponent(rid)}&n=${n} (header Authorization: Bearer <the same token as this connector>)`;
+  try {
+    switch (name) {
+      case "queue_list":
+        return describeForAgent(await readRequests(ctx.userId), folderName, imageUrl, str(args.folder) || undefined);
+      case "queue_add": {
+        let added = 0;
+        await updateRequests(ctx.userId, (d) => {
+          const r = addRequests(d, { folder: str(args.folder) || undefined, text: str(args.text), from: client });
+          added = r.added.length;
+          return r.doc;
+        });
+        return added ? `Queued ${added} request${added === 1 ? "" : "s"}.` : "Already queued — nothing new added.";
+      }
+      case "queue_start":
+        await updateRequests(ctx.userId, (d) => startRequest(d, id, client));
+        return `Marked ${id} as being worked on.`;
+      case "queue_note":
+        await updateRequests(ctx.userId, (d) => {
+          const noted = noteRequest(d, id, str(args.note), client);
+          return args.release === true ? releaseRequest(noted, id) : noted;
+        });
+        return args.release === true ? `Noted, and ${id} is back to waiting.` : `Noted on ${id}.`;
+      case "queue_complete":
+        await updateRequests(ctx.userId, (d) => completeRequest(d, id, client, str(args.result) || undefined));
+        return `Done — ${id} is off the queue and in the finished log.`;
+      default:
+        throw new Error(`No tool named ${name}.`);
+    }
+  } catch (e) {
+    if (e instanceof RequestError) return `Not changed: ${e.message}`;
+    throw e;
+  }
+}
+
+/**
  * A status probe for the Memory tab's sync card. Deliberately unauthenticated
  * and deliberately boolean-only: the card has to be able to say "you still
  * need to set the token" to someone who, by definition, has not got one yet.
@@ -179,7 +246,8 @@ export async function POST(req: Request) {
   const client = clientInfo?.name || (viaQuery ? "claude-ai" : "claude-code");
   after(() => noteConnector(ctx, client, Boolean(init)));
 
-  const run = (name: string, args: Record<string, unknown>) => runTool(ctx, name, args);
+  const origin = new URL(req.url).origin;
+  const run = (name: string, args: Record<string, unknown>) => runTool(ctx, name, args, origin, client);
 
   // A client may batch several messages into one array.
   if (Array.isArray(body)) {

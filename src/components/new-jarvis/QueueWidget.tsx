@@ -60,6 +60,7 @@ export function QueueWidget({ queue, onExpand }: { queue: UseQueue; onExpand: ()
             </div>
             <span className="shrink-0 font-mono text-[10px] text-ink-faint" data-num>
               {counts.done}/{counts.total} done
+              {queue.requests.total > 0 ? ` · ${queue.requests.total} requested` : ""}
             </span>
           </div>
 
@@ -84,6 +85,11 @@ export function QueueWidget({ queue, onExpand }: { queue: UseQueue; onExpand: ()
                   <span className="min-w-0 flex-1 truncate text-[12px] text-ink" title={r.note || r.why}>
                     {r.name}
                   </span>
+                  {r.requests > 0 && (
+                    <span className="shrink-0 rounded-full bg-brand-2/20 px-1.5 font-mono text-[9.5px] font-semibold text-ink" title={`${r.requests} requested`}>
+                      {r.requests}
+                    </span>
+                  )}
                   <span className="shrink-0 font-mono text-[9.5px] uppercase tracking-wide text-ink-faint">{KIND_LABEL[r.kind]}</span>
                 </li>
               ))}

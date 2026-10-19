@@ -31,6 +31,9 @@ import { Icon } from "../icons";
 import { KIND_LABEL, type QueueKind, type QueueRow, type QueueState } from "@/lib/new-jarvis/queue";
 import type { UseQueue } from "@/lib/new-jarvis/useQueue";
 import { sendToBoard, ticketForQueueRow } from "@/lib/new-jarvis/board";
+import { INBOX, inFolder } from "@/lib/new-jarvis/requests";
+import type { UseRequests } from "@/lib/new-jarvis/useRequests";
+import { FinishedLog, RequestComposer, RequestList } from "./QueueFolder";
 
 const KINDS: QueueKind[] = ["task", "app", "skill", "workflow"];
 
@@ -42,8 +45,18 @@ const KIND_ICON: Record<QueueKind, keyof typeof Icon> = {
 };
 
 export function QueueBoard({ queue }: { queue: UseQueue }) {
-  const { rows, counts, filter, setFilter, loading, error } = queue;
+  const { rows, counts, filter, setFilter, loading, error, requests } = queue;
   const [open, setOpen] = useState<string | null>(null);
+  const [showFinished, setShowFinished] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(true);
+  const inbox = inFolder(requests.doc, INBOX);
+
+  // Folder ids → the names the rows carry, for the finished log.
+  const names = useMemo(() => new Map(queue.all.map((r) => [r.id, r.name])), [queue.all]);
+  const folderName = useCallback(
+    (f: string) => (f === INBOX ? "Inbox" : names.get(f) ?? f),
+    [names],
+  );
 
   const toggleKind = useCallback(
     (k: QueueKind) =>
@@ -63,7 +76,9 @@ export function QueueBoard({ queue }: { queue: UseQueue }) {
   const headed = useMemo(() => {
     let last = "";
     return rows.map((row) => {
-      const key = `${row.state}/${row.kind}`;
+      // Rows with requests waiting sort to the very top (queue.ts) and get
+      // their own section, so the live work is one heading, not scattered.
+      const key = row.requests > 0 ? "asked" : `${row.state}/${row.kind}`;
       const head = key === last ? null : key;
       last = key;
       return { row, head };
@@ -80,6 +95,24 @@ export function QueueBoard({ queue }: { queue: UseQueue }) {
         <span className="font-mono text-[10px] text-ink-faint" data-num>
           of {counts.total}
         </span>
+        <span className="inline-flex items-center gap-1.5" title="Requests waiting across every folder">
+          <Icon.Inbox width={11} height={11} className="text-brand-2" aria-hidden />
+          <span className="font-mono text-[12px] font-semibold text-ink" data-num>
+            {requests.total}
+          </span>
+          <span className="text-[10.5px] text-ink-muted">requested</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => setShowFinished((v) => !v)}
+          aria-pressed={showFinished}
+          className={`rounded-md border px-2 py-1 text-[11px] transition ${
+            showFinished ? "border-[var(--nj-done)] bg-[var(--nj-done-dim)] text-ink" : "border-line text-ink-muted hover:bg-elevated hover:text-ink"
+          }`}
+          title="Requests that left the queue in the last two weeks"
+        >
+          Finished {requests.doc.finished.length}
+        </button>
 
         <button
           type="button"
@@ -146,7 +179,19 @@ export function QueueBoard({ queue }: { queue: UseQueue }) {
           );
         })}
 
-        {(filter.q || filter.kinds.length || filter.states.length) && (
+        <button
+          type="button"
+          onClick={() => setFilter((f) => ({ ...f, asked: !f.asked }))}
+          aria-pressed={Boolean(filter.asked)}
+          className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition ${
+            filter.asked ? "border-brand-2 bg-brand-2/15 text-ink" : "border-line text-ink-muted hover:bg-elevated hover:text-ink"
+          }`}
+        >
+          <Icon.Folder width={11} height={11} aria-hidden />
+          With requests
+        </button>
+
+        {(filter.q || filter.kinds.length || filter.states.length || filter.asked) && (
           <button
             type="button"
             onClick={() => setFilter({ q: "", kinds: [], states: [] })}
@@ -154,6 +199,50 @@ export function QueueBoard({ queue }: { queue: UseQueue }) {
           >
             Clear
           </button>
+        )}
+      </div>
+
+      {showFinished && (
+        <div className="max-h-[40%] shrink-0 overflow-y-auto border-b border-line bg-canvas/60">
+          <FinishedLog requests={requests} folderName={folderName} />
+        </div>
+      )}
+
+      {/* --- the inbox: an idea not filed under anything yet --------------- */}
+      <div className="shrink-0 border-b border-line bg-panel/60">
+        <button
+          type="button"
+          onClick={() => setInboxOpen((v) => !v)}
+          aria-expanded={inboxOpen}
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-left"
+        >
+          <Icon.Inbox width={12} height={12} className="text-brand-2" aria-hidden />
+          <span className="text-[12px] font-medium text-ink">Inbox</span>
+          <span className="min-w-0 flex-1 truncate text-[11px] text-ink-muted">
+            Ideas for anything — or open a row below to queue a request in its folder
+          </span>
+          {inbox.length > 0 && <Count n={inbox.length} />}
+          <Icon.Chevron
+            width={11}
+            height={11}
+            className={`shrink-0 text-ink-faint transition-transform ${inboxOpen ? "rotate-90" : ""}`}
+            aria-hidden
+          />
+        </button>
+        {inboxOpen && (
+          <div className="px-3 pb-2">
+            <RequestComposer requests={requests} folder={INBOX} placeholder="Queue an idea…" />
+            {inbox.length > 0 && (
+              <div className="mt-1.5 max-h-56 overflow-y-auto">
+                <RequestList requests={requests} folder={INBOX} />
+              </div>
+            )}
+            {requests.localOnly && requests.ready && (
+              <p className="mt-1 text-[10px] text-[#f8b471]">
+                Kept on this device only — sign in so your PC can see and finish these.
+              </p>
+            )}
+          </div>
         )}
       </div>
 
@@ -180,7 +269,9 @@ export function QueueBoard({ queue }: { queue: UseQueue }) {
                 {head && (
                   <h3 className="nj-queue-head">
                     <span className={`nj-pip nj-pip-${row.state}`} aria-hidden />
-                    {row.state === "wip" ? "In the queue" : "Finished"} · {KIND_LABEL[row.kind]}
+                    {head === "asked"
+                      ? "Requested — waiting in their folders"
+                      : `${row.state === "wip" ? "In the queue" : "Finished"} · ${KIND_LABEL[row.kind]}`}
                   </h3>
                 )}
                 <Row
@@ -189,6 +280,7 @@ export function QueueBoard({ queue }: { queue: UseQueue }) {
                   onOpen={() => setOpen((o) => (o === row.id ? null : row.id))}
                   onState={(s) => queue.setState(row, s)}
                   onNote={(n) => queue.setNote(row, n)}
+                  requests={requests}
                 />
               </li>
             ))}
@@ -196,6 +288,19 @@ export function QueueBoard({ queue }: { queue: UseQueue }) {
         )}
       </div>
     </div>
+  );
+}
+
+function Count({ n }: { n: number }) {
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-2/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-ink"
+      title={`${n} request${n === 1 ? "" : "s"} waiting`}
+      data-num
+    >
+      <Icon.Folder width={9} height={9} aria-hidden />
+      {n}
+    </span>
   );
 }
 
@@ -217,14 +322,15 @@ function Row({
   onOpen,
   onState,
   onNote,
+  requests,
 }: {
   row: QueueRow;
   open: boolean;
   onOpen: () => void;
   onState: (s: QueueState) => void;
   onNote: (n: string) => void;
+  requests: UseRequests;
 }) {
-  const [draft, setDraft] = useState(row.note ?? "");
   const [sent, setSent] = useState<string | null>(null);
   const other: QueueState = row.state === "done" ? "wip" : "done";
 
@@ -255,6 +361,7 @@ function Row({
           <span className="min-w-0 flex-1 truncate text-[11px] text-ink-muted">{row.blurb}</span>
         </button>
 
+        {row.requests > 0 && <Count n={row.requests} />}
         {row.note && (
           <span
             title={row.note}
@@ -286,7 +393,23 @@ function Row({
 
       {open && (
         <div className="border-t border-line-soft bg-canvas/60 px-3 py-2 pl-[30px]">
-          <p className="text-[11.5px] leading-relaxed text-ink">{row.why}</p>
+          {/* The folder: queue requests for this one, chat-style, newest first. */}
+          <div className="nj-rq-folder">
+            <p className="mb-1 flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-ink-muted">
+              <Icon.FolderOpen width={11} height={11} aria-hidden /> {row.name} folder
+            </p>
+            <RequestComposer
+              requests={requests}
+              folder={row.folder ?? row.id}
+              placeholder={`What should change on ${row.name}?`}
+              autoFocus
+            />
+            <div className="mt-1.5 max-h-72 overflow-y-auto">
+              <RequestList requests={requests} folder={row.folder ?? row.id} />
+            </div>
+          </div>
+
+          <p className="mt-3 text-[11.5px] leading-relaxed text-ink">{row.why}</p>
 
           <ul className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-2">
             {row.evidence.map((e) => (
@@ -300,20 +423,27 @@ function Row({
           </ul>
 
           <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-            <input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={() => draft !== (row.note ?? "") && onNote(draft)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  onNote(draft);
-                  (e.target as HTMLInputElement).blur();
-                }
-              }}
-              placeholder="What's left on this one?"
-              className="min-w-[200px] flex-1 rounded border border-line bg-canvas px-2 py-1 text-[11px] text-ink outline-none transition placeholder:text-ink-faint focus:border-brand-2"
-            />
+            {/* The old one-line note became the folder above. A note written
+                before that is not lost: one tap files it as a request. */}
+            {row.note && (
+              <span className="inline-flex min-w-0 flex-1 items-center gap-1.5 rounded border border-line px-2 py-1 text-[11px] text-ink-muted">
+                <span className="truncate" title={row.note}>
+                  Old note: {row.note}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const note = row.note ?? "";
+                    void requests.add(row.folder ?? row.id, note).then((added) => {
+                      if (added.length || !requests.error) onNote("");
+                    });
+                  }}
+                  className="shrink-0 rounded border border-line px-1.5 py-0.5 text-[10px] text-ink transition hover:bg-elevated"
+                >
+                  Move into folder
+                </button>
+              </span>
+            )}
             {row.state === "wip" && (
               <button
                 type="button"

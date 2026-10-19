@@ -478,6 +478,73 @@
   color: var(--nj-done);
 }
 
+/*
+   In Queue folders — the chat half of a row (QueueFolder.tsx).
+
+   A request is a message bubble with a tick on its left edge. The tick is the
+   whole "done" action and it is round, unlike the square evidence boxes,
+   because it does something: the request leaves the queue.
+*/
+.nj-rq-compose {
+  border: 1px solid var(--color-line);
+  border-radius: 0.5rem;
+  background: var(--color-panel);
+}
+
+.nj-rq-compose:focus-within { border-color: color-mix(in oklab, var(--color-brand-2) 60%, var(--color-line)); }
+
+.nj-rq {
+  border: 1px solid var(--color-line-soft);
+  border-left: 2px solid color-mix(in oklab, var(--nj-wip) 55%, transparent);
+  border-radius: 0.5rem 0.5rem 0.5rem 0.15rem;
+  background: var(--color-panel);
+  padding: 0.4rem 0.5rem;
+}
+
+.nj-rq.is-working {
+  border-left-color: var(--nj-wip);
+  background: color-mix(in oklab, var(--nj-wip) 7%, var(--color-panel));
+}
+
+.nj-rq-tick {
+  display: grid;
+  place-items: center;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.05rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-line);
+  color: transparent;
+  transition: border-color var(--nj-fast) var(--nj-ease), color var(--nj-fast) var(--nj-ease), background-color var(--nj-fast) var(--nj-ease);
+}
+
+.nj-rq-tick:hover,
+.nj-rq-tick:focus-visible {
+  border-color: var(--nj-done);
+  color: var(--nj-done);
+  background: var(--nj-done-dim);
+}
+
+/* "An agent is on it" — a slow breathing dot, the only motion in the folder. */
+.nj-rq-live {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--nj-wip);
+  animation: nj-rq-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes nj-rq-breathe {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nj-rq-live { animation: none; }
+  .nj-rq-tick { transition: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .nj-orb,
   .nj-orb__more,
