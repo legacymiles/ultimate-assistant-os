@@ -68,6 +68,7 @@ import {
 } from "./Widgets";
 import { ImprovementsExpanded, ImprovementsWidget } from "./Improvements";
 import { QueueExpanded, QueueWidget } from "./QueueWidget";
+import { SiteErrorsExpanded, SiteErrorsWidget, useSiteErrors } from "./SiteErrors";
 import type { UseQueue } from "@/lib/new-jarvis/useQueue";
 import { useIdeas } from "@/lib/new-jarvis/useIdeas";
 import type { AuditProposalLike } from "@/lib/new-jarvis/ideas";
@@ -209,6 +210,7 @@ function recentFiled(n: number): { id: string; thumb: string; title: string }[] 
 
 export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camera, store, audit, queue: inQueue }: Props) {
   const widgets = useWidgetPrefs();
+  const siteErrors = useSiteErrors();
   const ideas = useIdeas({ store, audit });
   const [expanded, setExpanded] = useState<WidgetId | null>(null);
   // Re-render once a minute so "checked 3m ago" moves.
@@ -524,6 +526,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
             {!widgets.hidden.has("calendar") && <CalendarWidget events={events} onExpand={() => setExpanded("calendar")} />}
             {!widgets.hidden.has("improvements") && <ImprovementsWidget ideas={ideas} onExpand={() => setExpanded("improvements")} />}
             {!widgets.hidden.has("queue") && <QueueWidget queue={inQueue} onExpand={() => setExpanded("queue")} />}
+            {!widgets.hidden.has("errors") && <SiteErrorsWidget errors={siteErrors} onExpand={() => setExpanded("errors")} />}
           </div>
           {widgets.hidden.size === WIDGETS.length && (
             <p className="px-1 text-[11.5px] text-ink-faint">Every widget is hidden — turn some back on from Widgets above.</p>
@@ -630,6 +633,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
       {expanded === "calendar" && <CalendarExpanded events={events} go={go} onClose={() => setExpanded(null)} />}
       {expanded === "improvements" && <ImprovementsExpanded ideas={ideas} go={go} onClose={() => setExpanded(null)} />}
       {expanded === "queue" && <QueueExpanded queue={inQueue} go={go} onClose={() => setExpanded(null)} />}
+      {expanded === "errors" && <SiteErrorsExpanded errors={siteErrors} onClose={() => setExpanded(null)} />}
 
       {open && (
         <PhotoSheet

@@ -29,6 +29,8 @@ import { CommandLine } from "./CommandLine";
 import { StatusDock } from "./StatusDock";
 import { VoiceOrb } from "./VoiceOrb";
 import { QueueBoard } from "./QueueBoard";
+import { GoalCheck } from "./GoalCheck";
+import { TOPIC_LABEL, topicOf } from "@/lib/new-jarvis/felix";
 import { useQueue } from "@/lib/new-jarvis/useQueue";
 import type { ReactorMode } from "@/lib/new-jarvis/reactor";
 
@@ -200,6 +202,9 @@ export function NewJarvis() {
   const mainRef = useRef<HTMLElement>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [input, setInput] = useState("");
+  // Goal check (Felix + prompt enhancer): the text it opened on, or null when closed.
+  const [goalFor, setGoalFor] = useState<string | null>(null);
+  const goalTopic = useMemo(() => topicOf(input), [input]);
   const [mode, setMode] = useState<Mode>("do");
 
   // An Improvements idea's "Start in chat": the prompt lands in the chat box
@@ -1055,6 +1060,20 @@ ${reflex.best.excerpt ?? ""}`.trim()
               onFiles={addFiles}
               onRemoveMedia={(id) => setMedia((list) => list.filter((m) => m.id !== id))}
               preparing={preparing}
+              onEnhance={() => setGoalFor(input)}
+              goalHint={goalTopic && goalFor === null ? TOPIC_LABEL[goalTopic] : null}
+            />
+          )}
+          {tab !== "harness" && goalFor !== null && (
+            <GoalCheck
+              key={goalFor}
+              text={goalFor}
+              topic={topicOf(goalFor)}
+              onClose={() => setGoalFor(null)}
+              onUse={(prompt) => {
+                setInput(prompt);
+                setGoalFor(null);
+              }}
             />
           )}
           {mediaError && tab !== "console" && (

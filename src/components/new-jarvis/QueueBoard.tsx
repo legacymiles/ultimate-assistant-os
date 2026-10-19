@@ -30,6 +30,7 @@ import Link from "next/link";
 import { Icon } from "../icons";
 import { KIND_LABEL, type QueueKind, type QueueRow, type QueueState } from "@/lib/new-jarvis/queue";
 import type { UseQueue } from "@/lib/new-jarvis/useQueue";
+import { sendToBoard, ticketForQueueRow } from "@/lib/new-jarvis/board";
 
 const KINDS: QueueKind[] = ["task", "app", "skill", "workflow"];
 
@@ -224,6 +225,7 @@ function Row({
   onNote: (n: string) => void;
 }) {
   const [draft, setDraft] = useState(row.note ?? "");
+  const [sent, setSent] = useState<string | null>(null);
   const other: QueueState = row.state === "done" ? "wip" : "done";
 
   return (
@@ -312,6 +314,19 @@ function Row({
               placeholder="What's left on this one?"
               className="min-w-[200px] flex-1 rounded border border-line bg-canvas px-2 py-1 text-[11px] text-ink outline-none transition placeholder:text-ink-faint focus:border-brand-2"
             />
+            {row.state === "wip" && (
+              <button
+                type="button"
+                title="File a card in Backlog on the super-board to finish this. Nothing builds until you move it to Ready."
+                onClick={() => {
+                  setSent("Sending…");
+                  void sendToBoard(ticketForQueueRow(row)).then((r) => setSent(r.message));
+                }}
+                className="rounded border border-line px-2 py-1 text-[10.5px] text-ink-muted transition hover:bg-elevated hover:text-ink"
+              >
+                Finish it (board)
+              </button>
+            )}
             {row.byHand && (
               <button
                 type="button"
@@ -322,6 +337,7 @@ function Row({
               </button>
             )}
           </div>
+          {sent && <p className="mt-1.5 text-[10.5px] text-ink-muted">{sent}</p>}
         </div>
       )}
     </div>

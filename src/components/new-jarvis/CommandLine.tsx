@@ -33,6 +33,8 @@ export function CommandLine({
   onFiles,
   onRemoveMedia,
   preparing,
+  onEnhance,
+  goalHint,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -53,6 +55,10 @@ export function CommandLine({
   onRemoveMedia: (id: string) => void;
   /** Files still being read in the browser. */
   preparing: number;
+  /** Opens Goal check: Felix's intake and the prompt enhancer. */
+  onEnhance?: () => void;
+  /** Set when what's typed is about building or fixing something, e.g. "New app or feature". */
+  goalHint?: string | null;
 }) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const picker = useRef<HTMLInputElement | null>(null);
@@ -179,6 +185,19 @@ export function CommandLine({
           className="order-4 min-w-0 basis-full resize-none overflow-hidden bg-transparent py-0.5 font-mono text-[13px] leading-relaxed text-ink outline-none placeholder:text-ink-muted sm:order-2 sm:basis-0 sm:flex-1"
         />
 
+        {onEnhance && (
+          <button
+            type="button"
+            onClick={onEnhance}
+            disabled={!value.trim()}
+            title="Enhance — set the end goal and turn this into a pro-level prompt"
+            className={`order-2 shrink-0 rounded-md p-1.5 transition disabled:cursor-not-allowed disabled:opacity-30 sm:order-3 ${goalHint ? "bg-brand/15 text-brand" : "text-ink-muted hover:bg-elevated hover:text-ink"}`}
+          >
+            <Icon.Sparkles width={15} height={15} />
+            <span className="sr-only">Enhance this prompt</span>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={() => picker.current?.click()}
@@ -265,6 +284,11 @@ export function CommandLine({
         </div>
       )}
       <p className="mt-1 px-1 text-[10.5px] text-ink-muted">
+        {goalHint && onEnhance && (
+          <button type="button" onClick={onEnhance} className="mr-2 text-brand underline-offset-2 hover:underline">
+            ✦ {goalHint}? Set the end goal first
+          </button>
+        )}
         {MODES.find((m) => m.id === mode)?.hint}
         {dragging ? " · Drop to attach" : ""}
       </p>

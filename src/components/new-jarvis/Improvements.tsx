@@ -19,6 +19,7 @@ import { MiniBtn, Widget, WidgetSheet, stop } from "./Widgets";
 import { listsApi } from "@/lib/recall/lists/client";
 import { IDEA_KINDS, type Idea, type IdeaKind, type IdeaView } from "@/lib/new-jarvis/ideas";
 import type { UseIdeas } from "@/lib/new-jarvis/useIdeas";
+import { sendToBoard, ticketForIdea } from "@/lib/new-jarvis/board";
 
 const KIND_COLOR: Record<IdeaKind, string> = {
   life: "var(--hud-green)",
@@ -123,6 +124,14 @@ export function ImprovementsExpanded({ ideas, go, onClose }: { ideas: UseIdeas; 
     } catch {
       flash("Couldn't add that to your to-do list. Try again.");
     }
+  };
+
+  // App and Jarvis ideas can go straight to the super-board as a Felix card in
+  // Backlog — the "build it" button, with the owner still approving the merge.
+  const toBoard = async (i: Idea) => {
+    flash("Sending to the board…");
+    const r = await sendToBoard(ticketForIdea(i));
+    flash(r.message);
   };
 
   const ask = (i: Idea) => {
@@ -255,6 +264,16 @@ export function ImprovementsExpanded({ ideas, go, onClose }: { ideas: UseIdeas; 
                           <button type="button" className="deck-btn" onClick={() => void toTodo(i)}>
                             <Icon.Plus width={12} height={12} aria-hidden /> Add to to-do
                           </button>
+                          {(i.kind === "app" || i.kind === "jarvis" || i.kind === "workflow") && (
+                            <button
+                              type="button"
+                              className="deck-btn"
+                              title="File it as a card in Backlog on the super-board. Nothing builds until you move it to Ready."
+                              onClick={() => void toBoard(i)}
+                            >
+                              <Icon.ListChecks width={12} height={12} aria-hidden /> Build it (board)
+                            </button>
+                          )}
                           <button type="button" className="deck-btn" onClick={() => ideas.save(i)}>
                             <Icon.Star width={12} height={12} fill={saved ? "currentColor" : "none"} aria-hidden /> {saved ? "Saved" : "Save"}
                           </button>
