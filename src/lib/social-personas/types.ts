@@ -8,14 +8,43 @@
 // `Account.connectionId`, so a copy of this blob never carries a credential.
 // ---------------------------------------------------------------------------
 
-export type SocialPlatform = "tiktok" | "instagram" | "facebook";
+export type SocialPlatform = "tiktok" | "instagram" | "facebook" | "youtube" | "x";
 
-export const SOCIAL_PLATFORMS: SocialPlatform[] = ["tiktok", "instagram", "facebook"];
+/** Every platform a persona can hold an account on, in display order. */
+export const SOCIAL_PLATFORMS: SocialPlatform[] = ["tiktok", "instagram", "youtube", "facebook", "x"];
+
+/**
+ * The platforms whose official login is wired up here (sync + auto-post).
+ * The rest are handle + sign-in only, posted with the one-tap manual flow.
+ */
+export type ConnectablePlatform = "tiktok" | "instagram" | "facebook";
+export const CONNECTABLE: ConnectablePlatform[] = ["tiktok", "instagram", "facebook"];
+export const isConnectable = (p: string): p is ConnectablePlatform => (CONNECTABLE as string[]).includes(p);
 
 export const PLATFORM_NAME: Record<SocialPlatform, string> = {
   tiktok: "TikTok",
   instagram: "Instagram",
   facebook: "Facebook",
+  youtube: "YouTube",
+  x: "X",
+};
+
+/** Where to go to post by hand, when a platform can't be posted to by API yet. */
+export const UPLOAD_URL: Record<SocialPlatform, string> = {
+  tiktok: "https://www.tiktok.com/tiktokstudio/upload",
+  instagram: "https://www.instagram.com/",
+  facebook: "https://www.facebook.com/",
+  youtube: "https://studio.youtube.com/",
+  x: "https://x.com/compose/post",
+};
+
+/** Longest caption each platform takes. */
+export const CAPTION_LIMIT: Record<SocialPlatform, number> = {
+  tiktok: 2200,
+  instagram: 2200,
+  facebook: 63206,
+  youtube: 5000,
+  x: 280,
 };
 
 export interface Account {
@@ -28,6 +57,16 @@ export interface Account {
   displayName?: string;
   followers?: number | null;
   lastSyncAt?: string;
+  /**
+   * The Recall login (kind "credential") holding this account's username,
+   * email and password. The password itself lives in the encrypted Jarvis
+   * vault (or, until the vault is set up, on that login) — never in this blob.
+   */
+  loginItemId?: string;
+  /** The connection was made with the posting scopes (auto-post is on). */
+  canPost?: boolean;
+  /** Follower count over time, one point per sync day. */
+  followerHistory?: { at: string; n: number }[];
 }
 
 export interface PostStats {
@@ -37,10 +76,15 @@ export interface PostStats {
   shares?: number | null;
 }
 
+/** The stats a post had at one moment — a sync or a manual update. */
+export interface StatSnapshot extends PostStats {
+  at: string;
+}
+
 /** One piece of content the persona has posted, and what the AI read from it. */
 export interface Post {
   id: string;
-  platform: SocialPlatform | "youtube" | "other";
+  platform: SocialPlatform | "other";
   url: string;
   /** The platform's own id, used to de-duplicate re-syncs. */
   externalId?: string;
@@ -49,6 +93,10 @@ export interface Post {
   postedAt?: string | null;
   addedAt: string;
   stats?: PostStats;
+  /** Every distinct reading of the stats, oldest first — the video's progress. */
+  history?: StatSnapshot[];
+  /** The Studio draft this post came from, when it was planned here. */
+  draftId?: string;
   /** How it got here. */
   source: "sync" | "link" | "manual";
   /** Filled by the analyzer. */
@@ -101,9 +149,62 @@ export interface ChatMsg {
   at: string;
 }
 
+/** Where a piece of content is on its way to being posted. */
+export type Stage = "idea" | "script" | "film" | "edit" | "ready" | "scheduled" | "posted";
+
+export const STAGES: { id: Stage; label: string }[] = [
+  { id: "idea", label: "Idea" },
+  { id: "script", label: "Script" },
+  { id: "film", label: "Film" },
+  { id: "edit", label: "Edit" },
+  { id: "ready", label: "Ready" },
+  { id: "scheduled", label: "Scheduled" },
+  { id: "posted", label: "Posted" },
+];
+
+export interface DraftMedia {
+  /** Storage key on the server (bucket social-personas-media). */
+  key: string;
+  name: string;
+  size: number;
+  type: string;
+}
+
+/** What happened when a draft went (or tried to go) to one account. */
+export interface DraftResult {
+  accountId: string;
+  status: "queued" | "publishing" | "posted" | "inbox" | "manual" | "failed";
+  url?: string;
+  error?: string;
+  at: string;
+}
+
+/** One piece of content being made: idea → script → … → posted. */
+export interface Draft {
+  id: string;
+  title: string;
+  hook: string;
+  caption: string;
+  hashtags: string[];
+  outline: string[];
+  notes: string;
+  stage: Stage;
+  /** The persona accounts it goes out on. */
+  accountIds: string[];
+  /** When it should go out (ISO). */
+  scheduledAt: string | null;
+  media: DraftMedia | null;
+  ideaId?: string;
+  results: DraftResult[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Persona {
   id: string;
   name: string;
+  /** The profile overview: who this persona is, in a few sentences (also the bio source). */
+  overview: string;
   /** One line: "Rap music videos", "Baby growth diary"… */
   niche: string;
   contentTypes: string[];
@@ -118,6 +219,8 @@ export interface Persona {
   brain: Brain | null;
   ideaDays: IdeaDay[];
   chat: ChatMsg[];
+  /** The content pipeline and calendar. Newest first. */
+  drafts: Draft[];
   createdAt: string;
   updatedAt: string;
 }

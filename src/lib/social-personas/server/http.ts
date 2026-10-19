@@ -1,10 +1,11 @@
 import "server-only";
 
 import { cookies } from "next/headers";
-import { SOCIAL_PLATFORMS, type SocialPlatform } from "../types";
+import { isConnectable, type ConnectablePlatform } from "../types";
 
-export function asPlatform(v: string | undefined): SocialPlatform | null {
-  return (SOCIAL_PLATFORMS as string[]).includes(v ?? "") ? (v as SocialPlatform) : null;
+/** A platform whose login is wired up here, or null. */
+export function asPlatform(v: string | undefined): ConnectablePlatform | null {
+  return v && isConnectable(v) ? v : null;
 }
 
 /** The hub account id (middleware stamps it); "local" in no-auth dev. */

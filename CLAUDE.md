@@ -65,6 +65,7 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 | `skills-library` | `skills` |
 | `jarvis-audio-studio` | `jarvis-audio-studio` (the shell) + `mp3-download`, `music-classified`, `music-creator` (its three studios, each still its own folder). `/apps/{mp3-download,music-classified,music-creator}` redirect in with `?section=` |
 | `slippery-escape` | `slippery` |
+| `personas-studio` | `social-personas` (components, lib, API routes and the synced key `social-personas:v1` keep the old Social Personas name so saved personas survive; `/apps/social-personas` redirects in). Also the Personas pane in Jarvis › Dashboard (`DashboardPanel.tsx`, `embedded`) and an App plugins card. Posting queue: `src/lib/social-personas/queue.ts` (pure) + `server/queue.ts` (server_docs) + `server/publish.ts` (IG reels, FB Page video, TikTok upload-to-inbox); heartbeat `/api/social-personas/publish/tick` driven by `.github/workflows/personas-tick.yml` every 15 min and by the open page. Sign-ins are Recall credentials in Personas Studio › <persona>, sealed by the vault |
 | `projects-timeline` | `src/components/AppShell.tsx` + `src/lib/repo` (the original app; `README.md` describes it) |
 
 ## Rules that bite

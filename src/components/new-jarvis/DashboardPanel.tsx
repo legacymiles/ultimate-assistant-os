@@ -10,6 +10,7 @@
 // tabs, which is the whole "fewer side tabs" change.
 // ---------------------------------------------------------------------------
 
+import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import { Icon } from "../icons";
 import { VaultStatus } from "./VaultStatus";
@@ -39,7 +40,14 @@ import type { UseJarvisProfile } from "@/lib/jarvis-profile/useJarvisProfile";
 import { BackendChecklist } from "./BackendChecklist";
 import type { CalendarEvent } from "@/lib/recall/calendar/types";
 
-type Pane = "deck" | "memory" | "profile" | "improve" | "queue";
+type Pane = "deck" | "memory" | "profile" | "personas" | "improve" | "queue";
+
+// Personas Studio, mounted whole as the Personas pane. Loaded only when the
+// pane is opened, so the Dashboard doesn't carry the Studio's weight.
+const PersonasStudio = dynamic(() => import("../social-personas/SocialPersonas").then((m) => m.PersonasStudio), {
+  ssr: false,
+  loading: () => <div className="p-4 text-xs text-ink-faint">Opening Personas Studio…</div>,
+});
 
 const PANES: { id: Pane; label: string; icon: keyof typeof Icon }[] = [
   // The Deck is where the owner lands: favorites, last used, and Camera
@@ -49,6 +57,8 @@ const PANES: { id: Pane; label: string; icon: keyof typeof Icon }[] = [
   // the old vault-only Brain tab) and the list of memories behind it.
   { id: "memory", label: "Memory", icon: "Database" },
   { id: "profile", label: "Profile", icon: "Users" },
+  // Right under Memory and Profile: the content studio for the owner's personas.
+  { id: "personas", label: "Personas", icon: "Film" },
   { id: "improve", label: "Improve", icon: "Bulb" },
   // The queue is a pane here as well as a tab in the rail, mounted from the
   // one hook so both see the same rows and the same verdicts. The dashboard is
@@ -152,6 +162,10 @@ export function DashboardPanel({
           />
         ) : pane === "queue" ? (
           <QueueBoard queue={queue} />
+        ) : pane === "personas" ? (
+          <div className="h-full min-h-0">
+            <PersonasStudio embedded />
+          </div>
         ) : pane === "memory" ? (
           <div className="flex h-full min-h-0 flex-col">
             <div className="flex shrink-0 items-center gap-0.5 border-b border-line-soft px-3 py-1.5">

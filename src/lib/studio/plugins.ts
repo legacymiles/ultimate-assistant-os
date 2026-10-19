@@ -36,6 +36,7 @@ export const PLUGIN_SLUGS = [
   "baby-no-scroll",
   "dump-finder",
   "client-review",
+  "personas-studio",
 ] as const;
 
 /**
@@ -136,6 +137,11 @@ const WHY: Record<string, string> = {
     + "answers where a load of millings, concrete, trash or scrap can go within so many miles, nearest "
     + "first, with Directions one tap away, and keeps the price a ton and the gate hours you learned "
     + "on each site so the next load does not start with a phone call.",
+  "personas-studio":
+    "Where the content goes out. Every workflow here makes a video; this is where each one meets the "
+    + "persona and the account it belongs to — planned on a calendar at the hour that persona's own "
+    + "numbers say works, posted for you when the time comes, and then watched view by view so the "
+    + "next morning's ideas start from what actually landed.",
 };
 
 export function studioPlugins(): StudioPlugin[] {

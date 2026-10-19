@@ -1,11 +1,9 @@
-import { SocialPersonas } from "@/components/social-personas/SocialPersonas";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Social Personas · Ultimate Assistant OS",
-  description:
-    "Creator personas connected to TikTok, Instagram and Facebook — an AI that knows each account's niche and posts brings daily ideas and brainstorms with you.",
-};
-
-export default function Page() {
-  return <SocialPersonas />;
+// Social Personas grew into Personas Studio. Old links (and bookmarks) land
+// in the new app with their query intact.
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(await searchParams)) if (typeof v === "string") q.set(k, v);
+  redirect(`/apps/personas-studio${q.size ? `?${q}` : ""}`);
 }

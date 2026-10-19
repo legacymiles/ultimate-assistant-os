@@ -500,22 +500,26 @@ export const PROJECTS: CatalogProject[] = [
     hue: [268, 330],
   },
   {
-    slug: "social-personas",
-    title: "Social Personas",
-    tag: "Your creator accounts, with an AI that knows them",
+    slug: "personas-studio",
+    title: "Personas Studio",
+    tag: "Run every creator persona — ideas, auto-posting, analytics",
     category: "AI",
     overview:
-      "A grid of your creator personas — a rap channel, an explainer page, a baby-growth diary — each " +
-      "holding the TikTok, Instagram and Facebook accounts it posts to. Connect an account with the " +
-      "platform's own login and every post syncs in with its caption and view, like and comment counts; " +
-      "or paste links and the AI watches the video itself. From that it keeps a working memory of the " +
-      "account: what it's about, its content pillars, which hooks and formats actually perform, and the " +
-      "angles it hasn't tried. Every morning each persona gets a fresh batch of shootable ideas built on " +
-      "that data — hook word for word, format, beat-by-beat outline and why it should work — to save, " +
-      "mark made or skip, and a brainstorm chat that stays inside the niche and voice. Works offline " +
+      "A content studio for people who run several creator personas at once — a rap channel, an explainer " +
+      "page, a baby-growth diary. Each persona holds its profile overview, niche and voice, plus its TikTok, " +
+      "Instagram, YouTube, Facebook and X accounts with their usernames and sign-ins (kept in the encrypted " +
+      "Jarvis vault). Connect an account with the platform's own login and its videos sync in with views, " +
+      "likes and comments, and every sync records each video's progress. Every morning each persona gets " +
+      "fresh, shootable ideas built on what's working; press Plan it and the idea becomes a post in a " +
+      "pipeline (idea → script → film → edit → ready) and a week calendar you drag posts onto. Scheduled " +
+      "posts go out on their own through the official APIs — Instagram reels and Facebook Page videos " +
+      "publish at the time, TikTok videos land in the creator's inbox to post with one tap — and anything " +
+      "a platform can't take by API becomes a reminder that copies the caption and opens the app. " +
+      "Analytics shows views per day, follower growth, every video's growth curve against the persona's own " +
+      "normal (breakouts flagged), the best hours to post, and which formats earn the most. Works offline " +
       "with template ideas when no AI key is set.",
     status: "live",
-    appUrl: "/apps/social-personas",
+    appUrl: "/apps/personas-studio",
     iconStyle: "orbit",
     hue: [330, 200],
   },
@@ -751,7 +755,7 @@ const UNPREVIEWABLE = new Set([
   "client-review",
   "jarvis",
   "projects-timeline",
-  "social-personas",
+  "personas-studio",
   "ea-lab",
   "ea-world",
   "financial-bible",

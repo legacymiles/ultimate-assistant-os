@@ -1,21 +1,31 @@
 "use client";
 
+// One persona's workspace: a header band in the persona's own hue, then six
+// tabs — Overview (profile, accounts, sign-ins), Ideas, Plan (pipeline +
+// calendar), Analytics, Brainstorm, and what the AI knows.
+
 import { useState } from "react";
 import { Icon } from "../icons";
-import type { Persona } from "@/lib/social-personas/types";
-import type { Status } from "./api";
-import { Accounts } from "./Accounts";
+import { compact, personaTotals } from "@/lib/social-personas/studio";
+import type { Draft, Persona } from "@/lib/social-personas/types";
+import type { PublicJob, Status } from "./api";
+import { AnalyticsTab } from "./AnalyticsTab";
 import { Avatar, Btn } from "./bits";
+import { OverviewTab } from "./OverviewTab";
+import { PlanTab } from "./PlanTab";
 import type { Mutate } from "./SocialPersonas";
 import { BrainTab, BrainstormTab, ContentTab, TodayTab } from "./tabs";
 
 const TABS = [
-  { id: "today", label: "Today's ideas", icon: Icon.Bulb },
+  { id: "overview", label: "Overview", icon: Icon.Users },
+  { id: "ideas", label: "Ideas", icon: Icon.Bulb },
+  { id: "plan", label: "Plan & post", icon: Icon.Calendar },
+  { id: "analytics", label: "Analytics", icon: Icon.Target },
+  { id: "content", label: "Videos", icon: Icon.Film },
   { id: "brainstorm", label: "Brainstorm", icon: Icon.Sparkles },
-  { id: "content", label: "Content", icon: Icon.Film },
-  { id: "brain", label: "What the AI knows", icon: Icon.Bot },
+  { id: "brain", label: "AI memory", icon: Icon.Bot },
 ] as const;
-type Tab = (typeof TABS)[number]["id"];
+export type TabId = (typeof TABS)[number]["id"];
 
 export interface TabProps {
   persona: Persona;
@@ -27,113 +37,105 @@ export interface TabProps {
 export function Workspace({
   persona,
   status,
+  initialTab,
   mutate,
   flash,
   syncAccount,
+  applyJobs,
   onEdit,
   onDelete,
 }: {
   persona: Persona;
   status: Status | null;
+  initialTab: TabId;
   mutate: Mutate;
   flash: (t: string, bad?: boolean) => void;
   syncAccount: (personaId: string, accountId: string) => Promise<void>;
+  applyJobs: (jobs: PublicJob[]) => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>("today");
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [tab, setTab] = useState<TabId>(initialTab);
   const [seed, setSeed] = useState("");
+  const [focusDraft, setFocusDraft] = useState<string | null>(null);
   const props: TabProps = { persona, mutate, flash, ai: status?.ai ?? false };
+  const t = personaTotals(persona);
+
+  const planDraft = (d: Draft) => {
+    mutate(persona.id, (p) => ({ ...p, drafts: [d, ...p.drafts] }));
+    setFocusDraft(d.id);
+    setTab("plan");
+  };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-      <aside className="w-full shrink-0 space-y-4 border-b border-line bg-panel/50 p-3 lg:w-80 lg:overflow-auto lg:border-b-0 lg:border-r">
-        <div className="flex items-start gap-2.5">
+    <div className="flex min-h-0 flex-1 flex-col" style={{ ["--ps-hue" as string]: persona.hue }}>
+      <header className="ps-band border-b border-line px-3 pt-3 sm:px-4">
+        <div className="flex flex-wrap items-center gap-3">
           <Avatar name={persona.name} hue={persona.hue} size={44} />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-base font-bold text-ink">{persona.name}</div>
-            <div className="text-xs text-ink-muted">{persona.niche || "No niche set"}</div>
+            <div className="flex items-center gap-2">
+              <h1 className="truncate text-lg font-bold text-ink">{persona.name}</h1>
+              <button onClick={onEdit} className="rounded-md p-1 text-ink-muted hover:bg-panel-2 hover:text-ink" title="Edit profile" aria-label="Edit profile">
+                <Icon.Edit width={14} height={14} />
+              </button>
+            </div>
+            <div className="truncate text-xs text-ink-muted">{persona.niche || "No niche set"}</div>
           </div>
-          <button onClick={onEdit} className="rounded-lg p-1.5 text-ink-muted hover:bg-panel-2 hover:text-ink" title="Edit persona">
-            <Icon.Edit width={14} height={14} />
-          </button>
+          <dl className="flex gap-3 text-right text-[11px] text-ink-faint sm:gap-4">
+            <Stat k="followers" v={t.followers} />
+            <Stat k="views 7d" v={t.views7d} />
+            <Stat k="scheduled" v={t.scheduled} />
+          </dl>
         </div>
-        <dl className="space-y-1 text-xs">
-          {persona.contentTypes.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {persona.contentTypes.map((t) => (
-                <span key={t} className="rounded-md bg-panel-2 px-1.5 py-0.5 text-[11px] text-ink-muted">
-                  {t}
-                </span>
-              ))}
-            </div>
-          )}
-          <Row k="Audience" v={persona.audience} />
-          <Row k="Tone" v={persona.tone} />
-          <Row k="Goals" v={persona.goals} />
-          <Row k="Avoid" v={persona.avoid} />
-        </dl>
-        <Accounts persona={persona} status={status} mutate={mutate} flash={flash} syncAccount={syncAccount} />
-        <div className="border-t border-line pt-3">
-          {confirmDelete ? (
-            <div className="flex items-center gap-1.5 text-xs text-ink-muted">
-              Delete {persona.name}?
-              <Btn className="!border-rose-500/50 !text-rose-400" onClick={onDelete}>
-                Delete
-              </Btn>
-              <Btn onClick={() => setConfirmDelete(false)}>Keep</Btn>
-            </div>
-          ) : (
-            <button onClick={() => setConfirmDelete(true)} className="text-[11px] text-ink-faint hover:text-rose-400">
-              Delete persona
-            </button>
-          )}
-        </div>
-      </aside>
-
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <nav className="flex gap-1 overflow-x-auto border-b border-line px-2 pt-2">
-          {TABS.map((t) => (
+        <nav className="-mb-px mt-3 flex gap-0.5 overflow-x-auto" aria-label="Persona sections">
+          {TABS.map((x) => (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
+              key={x.id}
+              onClick={() => setTab(x.id)}
+              aria-current={tab === x.id ? "page" : undefined}
               className={
-                "inline-flex shrink-0 items-center gap-1.5 rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition " +
-                (tab === t.id ? "border-brand text-ink" : "border-transparent text-ink-muted hover:text-ink")
+                "inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-[13px] font-medium transition " +
+                (tab === x.id ? "border-[hsl(var(--ps-hue)_80%_62%)] text-ink" : "border-transparent text-ink-muted hover:text-ink")
               }
             >
-              <t.icon width={14} height={14} />
-              {t.label}
-              {t.id === "content" && <span className="text-[11px] text-ink-faint">{persona.posts.length}</span>}
+              <x.icon width={14} height={14} />
+              {x.label}
+              {x.id === "content" && <span className="text-[11px] text-ink-faint">{persona.posts.length}</span>}
+              {x.id === "plan" && persona.drafts.some((d) => d.results.some((r) => r.status === "failed")) && <span className="h-1.5 w-1.5 rounded-full bg-rose-400" aria-label="needs attention" />}
             </button>
           ))}
         </nav>
-        <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
-          {tab === "today" && (
-            <TodayTab
-              {...props}
-              onBrainstorm={(s) => {
-                setSeed(s);
-                setTab("brainstorm");
-              }}
-            />
-          )}
-          {tab === "brainstorm" && <BrainstormTab {...props} seed={seed} clearSeed={() => setSeed("")} />}
-          {tab === "content" && <ContentTab {...props} />}
-          {tab === "brain" && <BrainTab {...props} />}
-        </div>
-      </main>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
+        {tab === "overview" && <OverviewTab {...props} status={status} syncAccount={syncAccount} onEdit={onEdit} onDelete={onDelete} go={setTab} />}
+        {tab === "ideas" && (
+          <TodayTab
+            {...props}
+            onPlan={planDraft}
+            onBrainstorm={(s) => {
+              setSeed(s);
+              setTab("brainstorm");
+            }}
+          />
+        )}
+        {tab === "plan" && <PlanTab {...props} status={status} applyJobs={applyJobs} focusId={focusDraft} clearFocus={() => setFocusDraft(null)} />}
+        {tab === "analytics" && <AnalyticsTab {...props} />}
+        {tab === "content" && <ContentTab {...props} />}
+        {tab === "brainstorm" && <BrainstormTab {...props} seed={seed} clearSeed={() => setSeed("")} />}
+        {tab === "brain" && <BrainTab {...props} />}
+      </div>
     </div>
   );
 }
 
-function Row({ k, v }: { k: string; v: string }) {
-  if (!v) return null;
+function Stat({ k, v }: { k: string; v: number }) {
   return (
-    <div className="flex gap-2">
-      <dt className="w-16 shrink-0 text-ink-faint">{k}</dt>
-      <dd className="min-w-0 text-ink-muted">{v}</dd>
+    <div>
+      <dd className="text-base font-bold tabular-nums text-ink">{v ? compact(v) : "—"}</dd>
+      <dt>{k}</dt>
     </div>
   );
 }
+
+export { Btn };

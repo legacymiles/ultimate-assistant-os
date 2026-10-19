@@ -1,0 +1,24 @@
+# Personas Studio — sends scheduled posts that are due.
+# Every 15 minutes GitHub pings the live site's tick, which posts anything
+# whose time has come (for every account), even with every browser closed.
+# If the PERSONAS_TICK_TOKEN secret is set here and on Vercel, it is sent as a
+# bearer token; without it the tick is open (it can only send posts that were
+# already scheduled for now, once each).
+name: personas-tick
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Send due posts
+        env:
+          TOKEN: ${{ secrets.PERSONAS_TICK_TOKEN }}
+          SITE: ${{ vars.PERSONAS_SITE_URL || 'https://ultimate-assistant-os.vercel.app' }}
+        run: |
+          auth=()
+          if [ -n "$TOKEN" ]; then auth=(-H "Authorization: Bearer $TOKEN"); fi
+          curl -fsS --max-time 70 -X POST "${auth[@]}" "$SITE/api/social-personas/publish/tick" || echo "tick failed; next run retries"
