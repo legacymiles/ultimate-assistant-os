@@ -21,6 +21,7 @@ import { PROJECTS, type CatalogProject } from "@/lib/catalog";
 
 /** The slugs allowed in, in the order they should appear. */
 export const PLUGIN_SLUGS = [
+  "app-builder",
   "seedance-studio",
   "jarvis-audio-studio",
   "image-studio",
@@ -69,6 +70,11 @@ function firstSentence(text: string): string {
 }
 
 const WHY: Record<string, string> = {
+  "app-builder":
+    "Where every new app starts. Say the idea — or show a recording of an app or workflow — and its super agent takes it "
+    + "apart, asks what it is for, and proposes the features that would make it the best in its category for you to accept, "
+    + "deny or edit. Build it hands the brief to Claude Code with felix, prompt-enhancer, the design skill, software-factory "
+    + "and claude-security (plus video-analyzer and rea for a recording). Jarvis chat and Camera Autopilot send new apps here.",
   "seedance-studio":
     "Studio the other way round. Every workflow here starts from a prompt and the audio arrives last; "
     + "this one starts from the track — it measures the tempo, the bar lines, the sections and the "

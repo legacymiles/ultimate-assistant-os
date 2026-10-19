@@ -500,6 +500,24 @@ export const PROJECTS: CatalogProject[] = [
     hue: [268, 330],
   },
   {
+    slug: "app-builder",
+    title: "App Builder",
+    tag: "Idea or screen recording → a commercial-grade app",
+    category: "AI",
+    overview:
+      "Type an app idea — one line or a full brief — or drop a screen recording or screenshots of an app or workflow you want " +
+      "recreated or changed. The super agent watches recordings frame by frame with their narration and takes them apart " +
+      "(screens, flow, behaviour, data), asks what the app is for, then proposes a feature list built around that purpose. " +
+      "Accept, deny or edit each feature by throwing it into or out of the Orbit, in the table, or by telling the agent in chat. " +
+      "Build it sends the whole brief to In Queue for Claude Code on your PC or VPS, which runs video-analyzer and rea when there " +
+      "is a recording, then felix, prompt-enhancer, the right design skill, software-factory and claude-security; or send each " +
+      "feature to the board as a Felix card. Jarvis chat and Camera Autopilot route every new-app request here.",
+    status: "live",
+    appUrl: "/apps/app-builder",
+    iconStyle: "orbit",
+    hue: [245, 150],
+  },
+  {
     slug: "personas-studio",
     title: "Personas Studio",
     tag: "Run every creator persona — ideas, auto-posting, analytics",
@@ -752,6 +770,7 @@ export function getProject(slug: string): CatalogProject | null {
  */
 const UNPREVIEWABLE = new Set([
   "dashboard",
+  "app-builder",
   "client-review",
   "jarvis",
   "projects-timeline",

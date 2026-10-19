@@ -57,7 +57,7 @@ let seq = 0;
 const nextId = () => `m${Date.now().toString(36)}${(seq++).toString(36)}`;
 
 /** The sound of a file (a recording or a clip's soundtrack) as WAV base64, or "". */
-async function soundOf(file: File): Promise<string> {
+export async function soundOf(file: File): Promise<string> {
   try {
     const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new Ctx();
@@ -79,7 +79,12 @@ async function soundOf(file: File): Promise<string> {
 }
 
 /** Frames at the given fractions of a clip, as JPEG data URLs. */
-function framesOf(file: File, at: number[]): Promise<{ frames: string[]; duration: number }> {
+export function framesOf(
+  file: File,
+  at: number[],
+  edge = FRAME_EDGE,
+  quality = 0.8,
+): Promise<{ frames: string[]; duration: number }> {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
     const video = document.createElement("video");
@@ -96,12 +101,12 @@ function framesOf(file: File, at: number[]): Promise<{ frames: string[]; duratio
       const w = video.videoWidth;
       const h = video.videoHeight;
       if (w && h) {
-        const scale = Math.min(1, FRAME_EDGE / Math.max(w, h));
+        const scale = Math.min(1, edge / Math.max(w, h));
         const c = document.createElement("canvas");
         c.width = Math.round(w * scale);
         c.height = Math.round(h * scale);
         c.getContext("2d")?.drawImage(video, 0, 0, c.width, c.height);
-        frames.push(c.toDataURL("image/jpeg", 0.8));
+        frames.push(c.toDataURL("image/jpeg", quality));
       }
       i += 1;
       if (i >= at.length) return finish();

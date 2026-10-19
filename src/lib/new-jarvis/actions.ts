@@ -320,6 +320,11 @@ export function classify(op: BridgeOp): Verdict {
         "",
       );
 
+    case "hub/app_builder":
+      // Only opens a draft project in App Builder; every real step after it
+      // (features, the build) is the owner's own tap there.
+      return free(`Open "${truncate(String(args.idea ?? "a new app"), 50)}" in App Builder.`);
+
     case "browser/close":
       return free("Close that tab.");
     case "browser/quit":

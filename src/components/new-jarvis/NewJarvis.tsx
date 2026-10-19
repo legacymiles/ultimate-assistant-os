@@ -532,6 +532,9 @@ export function NewJarvis() {
   });
 
 
+  /** The running turn's attachments and where it came from, for tools that take them (app_builder). */
+  const turnRef = useRef<{ media: ChatMedia[]; origin: "chat" | "autopilot" }>({ media: [], origin: "chat" });
+
   /**
    * One tool call, sent wherever it actually runs.
    *
@@ -633,6 +636,21 @@ export function NewJarvis() {
         return { proposed: title, note: "Waiting for your yes on the Memory tab." };
       }
 
+      if (tool === "app_builder") {
+        // Every new app goes through App Builder (the owner's rule). The
+        // turn's own attachments — a typed message's, or Camera Autopilot's
+        // photo or clip — go with it, so its super agent can watch them.
+        const { handToAppBuilder } = await import("@/lib/app-builder/fromChat");
+        const turn = turnRef.current;
+        const out = await handToAppBuilder({ idea: String(args.idea ?? ""), media: turn.media, origin: turn.origin });
+        return {
+          opened: out.url,
+          project: out.name,
+          ...(out.media ? { recordings: out.media } : {}),
+          note: `It's in App Builder (${out.url}) — its super agent ${out.media ? "watches what was attached, " : ""}asks what the app is for, and proposes features to accept, deny or edit. Give the owner that link.`,
+        };
+      }
+
       if (isDashboardTool(tool)) {
         const said = await runDashboardTool(tool, args);
         dash.refresh();
@@ -650,6 +668,7 @@ export function NewJarvis() {
       // job handed over by setup.
       const handed = opts.media ?? null;
       const attached = handed ?? (source === "typed" && rawText === undefined ? media : []);
+      turnRef.current = { media: attached, origin: handed ? "autopilot" : "chat" };
       const command = (rawText ?? input).trim() || (attached.length ? "Look at what I attached." : "");
       if (!command) return;
       const runMode = opts.mode ?? mode;

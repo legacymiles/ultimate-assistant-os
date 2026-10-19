@@ -64,7 +64,7 @@ export async function POST(req: Request) {
             folder: typeof body.folder === "string" ? body.folder : undefined,
             text: typeof body.text === "string" ? body.text : "",
             images: Array.isArray(body.images) ? (body.images as string[]) : [],
-            from: body.from === "studio" ? "studio" : "you",
+            from: body.from === "studio" || body.from === "app-builder" ? body.from : "you",
           });
           added = r.added;
           return r.doc;

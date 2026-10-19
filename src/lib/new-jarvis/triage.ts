@@ -86,7 +86,7 @@ export function triageRequest(text: string, previous: string): DecisionRequest {
           quick: "Just an answer: a question, explanation, calculation, advice, writing or chat. Nothing to look up on their computer or the web, nothing to save.",
           remember: "Saving or looking up their own things: a memory, a note, a list item, a to-do, a calendar event, a personal detail.",
           computer: "Doing something on their computer or the web: browsing a site, searching online, opening or reading files, running commands, looking at the screen, current information like news, prices or weather.",
-          build: "Writing, fixing or changing code, an app or a website.",
+          build: "Writing, fixing or changing code, or making an app, website or workflow — including recreating one from a video or screenshot.",
         },
       },
     },
@@ -122,7 +122,7 @@ export function planFromTriage(result: DecisionResult | null): TriagePlan {
         lane,
         noTools: false,
         hubOnly: false,
-        note: "This looks like a coding job. If it is bigger than a quick edit, suggest handing it to the harness (Claude Code or DeepSeek in its own worktree) in one line.",
+        note: "This looks like a coding job. If it is a NEW app, website, tool, plugin or workflow (or one to recreate from a video or screenshot), call app_builder. If it is a change to an existing app that is bigger than a quick edit, suggest handing it to the harness (Claude Code or DeepSeek in its own worktree) in one line.",
       };
     case "computer":
       return { lane, noTools: false, hubOnly: false, note: "" };

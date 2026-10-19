@@ -457,6 +457,20 @@ export const AGENT_TOOLS: AgentTool[] = [
       required: ["title", "date"],
     },
   },
+  {
+    name: "app_builder",
+    kind: "hub",
+    route: "hub/app_builder",
+    description:
+      "The owner's App Builder. EVERY request to make a NEW app, website, web tool, plugin or workflow goes here — typed, spoken, or a Camera Autopilot job — and so does any request to recreate or change an app or workflow shown in an attached video or screenshot. It opens the request as an App Builder project: its super agent watches and reverse-engineers attached recordings (video-analyzer + rea), asks what the app is for, proposes features the owner accepts, denies or edits, then hands the build to Claude Code with felix, prompt-enhancer, the design skill, software-factory and claude-security. Pictures and videos attached to this message go with it automatically. Pass the request in the owner's own words, with everything they said about it. Do NOT use this for a small change to an app that already exists — edit that one directly. After calling it, tell the owner it's in App Builder and give the link it returns.",
+    parameters: {
+      type: "object",
+      properties: {
+        idea: str("What they want built (or recreated / changed from the attached recording), in their own words, complete."),
+      },
+      required: ["idea"],
+    },
+  },
 ];
 
 const BY_NAME = new Map(AGENT_TOOLS.map((t) => [t.name, t]));
