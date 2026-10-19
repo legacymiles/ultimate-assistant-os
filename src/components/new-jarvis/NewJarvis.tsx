@@ -1064,7 +1064,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
               goalHint={goalTopic && goalFor === null ? TOPIC_LABEL[goalTopic] : null}
             />
           )}
-          {tab !== "harness" && goalFor !== null && (
+          {tab !== "harness" && tab !== "console" && goalFor !== null && (
             <GoalCheck
               key={goalFor}
               text={goalFor}
@@ -1136,7 +1136,18 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 paired={bridge.health.paired && bridge.health.up}
                 notice={mediaError || undefined}
                 above={
-                  input.trim() ? (
+                  goalFor !== null ? (
+                    <GoalCheck
+                      key={goalFor}
+                      text={goalFor}
+                      topic={topicOf(goalFor)}
+                      onClose={() => setGoalFor(null)}
+                      onUse={(prompt) => {
+                        setInput(prompt);
+                        setGoalFor(null);
+                      }}
+                    />
+                  ) : input.trim() ? (
                     <ReflexStrip
                       reflex={reflex}
                       onAccept={() => {
@@ -1167,6 +1178,8 @@ ${reflex.best.excerpt ?? ""}`.trim()
                   onFiles: addFiles,
                   onRemoveMedia: (id) => setMedia((list) => list.filter((m) => m.id !== id)),
                   preparing,
+                  onEnhance: () => setGoalFor(input),
+                  goalHint: goalTopic && goalFor === null ? TOPIC_LABEL[goalTopic] : null,
                 }}
                 onNew={() => setActiveThread(null)}
                 onSelect={setActiveThread}

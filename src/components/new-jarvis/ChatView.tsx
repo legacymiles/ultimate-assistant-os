@@ -45,6 +45,10 @@ export interface ComposerProps {
   onFiles: (files: File[]) => void;
   onRemoveMedia: (id: string) => void;
   preparing: number;
+  /** Opens Goal check: Felix's intake and the prompt enhancer. */
+  onEnhance?: () => void;
+  /** Set when what's typed is about building or fixing something, e.g. "New app or feature". */
+  goalHint?: string | null;
 }
 
 export function ChatView({
@@ -499,6 +503,8 @@ function Composer({
   onRemoveMedia,
   onFiles,
   preparing,
+  onEnhance,
+  goalHint,
   fieldRef,
   docked,
   onAttach,
@@ -614,11 +620,24 @@ function Composer({
               </button>
             ))}
           </div>
+          {onEnhance && (
+            <button
+              type="button"
+              onClick={onEnhance}
+              disabled={!value.trim()}
+              className="njc-icon ml-auto"
+              data-on={goalHint ? true : undefined}
+              title="Enhance — set the end goal and turn this into a pro-level prompt"
+              aria-label="Enhance this prompt"
+            >
+              <Icon.Sparkles width={15} height={15} />
+            </button>
+          )}
           <button
             type="button"
             onClick={onMic}
             disabled={!micSupported}
-            className="njc-icon ml-auto"
+            className={`njc-icon ${onEnhance ? "" : "ml-auto"}`}
             data-on={voiceState !== "off" || undefined}
             title={!micSupported ? "This browser cannot listen. Chrome, Edge or Safari can." : voiceState === "off" ? 'Listen for "Jarvis"' : "Stop listening"}
             aria-label={voiceState === "off" ? "Start listening" : "Stop listening"}
@@ -631,7 +650,14 @@ function Composer({
           </button>
         </div>
       </div>
-      <p className="njc-hint">{MODES.find((m) => m.id === mode)?.hint} · Enter to send, Shift+Enter for a new line</p>
+      <p className="njc-hint">
+        {goalHint && onEnhance && (
+          <button type="button" onClick={onEnhance} className="mr-2 text-brand underline-offset-2 hover:underline">
+            ✦ {goalHint}? Set the end goal first ·
+          </button>
+        )}
+        {MODES.find((m) => m.id === mode)?.hint} · Enter to send, Shift+Enter for a new line
+      </p>
     </div>
   );
 }
