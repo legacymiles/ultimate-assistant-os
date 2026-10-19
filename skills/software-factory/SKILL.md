@@ -58,7 +58,7 @@ Every card states, in super-board's ticket format:
 
 Run `/super-board lint`, then hold every Ready candidate to the gate. A card **fails** if it
 has no end goal in Problem, fewer than two checkable criteria, a criterion nobody outside the
-model could check, or (for anything users touch) no checklist line. For each failing card,
+model could check, or (for anything users touch) no checklist code. For each failing card,
 rewrite it with Felix's Depth questions — what would a top professional do here, from what raw
 material, with which tools, judged by what — show the owner the exact edit, and save only what
 they approve. Cards stay in Backlog until they pass; agents never spend tokens on a vague card.

@@ -56,7 +56,7 @@ only for what is genuinely missing **and** would change the plan.
 | **What success looks like** — how would we *see* it worked? | Becomes the outside judge |
 | **Must-have features**, the way the user described them | Kept as asked (rule 2) |
 | **Look & feel** — any reference, mood or existing design system? | Avoids a generic default |
-| **Data & backend** — accounts? payments? stores personal data? talks to other apps? | Pulls in the right checklist lines |
+| **Data & backend** — accounts? payments? stores personal data? talks to other apps? | Pulls in the right checklist rules |
 | **Off-limits** — budget, deadline, things not to touch | Ambition raises the standard, not the permissions |
 
 - If a question tool is available (AskUserQuestion, or Jarvis's Goal check panel), ask up to
@@ -130,7 +130,7 @@ Size the output to the task: a one-line request gets a few lines of plan. In thi
 1. **End goal** — one line. **Goal beyond the goal** — one line.
 2. **Assumptions** you made instead of asking (if any).
 3. **Types that fit**, one line each on why, plus the ones skipped.
-4. **The plan**: Altitude ladder · Depth answers + hard target + checklist lines · Range crew.
+4. **The plan**: Altitude ladder · Depth answers + hard target + checklist rules · Range crew.
 5. **What it needs**: data, tools, access — marked *there* or *missing*.
 6. **The brief**: one fenced block the user can copy, written the way they'd type it, ending
    with the outside judge and what counts as a pass.
@@ -143,11 +143,11 @@ Size the output to the task: a one-line request gets a few lines of plan. In thi
 Felix is the one source; the other two carry its core inline so neither ever runs without it.
 
 - **prompt-enhancer** — its Step 1 *is* the Felix pass (end goal, goal beyond, the user's
-  features their way, better-not-bigger, the outside judge, the checklist lines, one hard
+  features their way, better-not-bigger, the outside judge, the checklist rules, one hard
   target). Call `/felix` instead when the user wants the whole ambitious plan — the three-rung
   ladder and the crew — not just a sharper prompt.
 - **software-factory** (super-board) — Felix writes every card (end goal in Problem, judges as
-  Acceptance Criteria, the checklist line it closes, one card per PR under ~400 lines), gates
+  Acceptance Criteria, the checklist codes it closes, one card per PR under ~400 lines), gates
   every card before it moves to Ready (vague cards are rewritten, owner approves the edit), and
   reviews every finished run by proposing the next rung as Backlog cards from real evidence.
   New cards always land in **Backlog**; `human_approves_merge` stays `true` unless the owner
@@ -172,7 +172,7 @@ Felix is the one source; the other two carry its core inline so neither ever run
   cut no-shows; (3) a rebooking nudge timed to each customer's usual gap, with a weekly
   "chairs filled" report.
 - **Depth:** start from his real week (when is he busy, when does he lose bookings). Checklist
-  R1–R4, S1–S4, D1, P1, U1–U3, C1–C3. Hard target: booking in 3 taps, LCP under 1 s.
+  R1–R4, L1, S1–S4, D1, P1, U1–U3, C1–C3. Hard target: booking in 3 taps, LCP under 1 s.
 - **Range:** a front-desk receptionist (what customers actually ask), a conversion
   designer (the booking flow), an SMS deliverability engineer (reminders that arrive).
 - **Judge:** five real customers book on their own phones without help; no-show rate measured
