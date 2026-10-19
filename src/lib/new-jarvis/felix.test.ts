@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { CHECKLIST, QUESTIONS, checklistFor, draftBrief, ticketFrom, topicOf } from "./felix";
 
@@ -28,15 +26,19 @@ describe("questions", () => {
 });
 
 describe("checklist", () => {
-  it("every line exists in docs/website-backend-checklist.md", () => {
-    const doc = readFileSync(path.join(process.cwd(), "docs", "website-backend-checklist.md"), "utf8");
-    for (const c of CHECKLIST) expect(doc, c.id).toMatch(new RegExp(`\\| ${c.id} \\|`));
+  it("cites only codes that exist in the one checklist", async () => {
+    const { STARTER_LINES } = await import("../jarvis-profile/checklist");
+    const codes = new Set(STARTER_LINES.map((l) => l.code));
+    expect(CHECKLIST.length).toBe(STARTER_LINES.length);
+    const answers = { touches: ["Accounts / sign-in", "Payments", "Personal data", "Other apps", "AI", "Works offline"], audience: "The public" };
+    for (const t of ["app", "website", "plugin", "fix"] as const) for (const c of checklistFor(t, answers)) expect(codes.has(c.id)).toBe(true);
   });
 
   it("pulls in the right lines from the answers", () => {
     const ids = (t: Parameters<typeof checklistFor>[0], a = {}) => checklistFor(t, a).map((c) => c.id);
     expect(ids("app")).toEqual(expect.arrayContaining(["R1", "R2", "U1", "O1"]));
-    expect(ids("app", { touches: ["Payments", "Personal data"] })).toEqual(expect.arrayContaining(["S5", "S2", "D4"]));
+    expect(ids("app", { touches: ["Payments", "Personal data"] })).toEqual(expect.arrayContaining(["S5", "S7", "S2", "D4"]));
+    expect(ids("app", { touches: ["Accounts / sign-in"] })).toContain("L1");
     expect(ids("website")).toEqual(expect.arrayContaining(["P1", "C1", "C4"]));
     expect(ids("content")).toEqual([]);
   });

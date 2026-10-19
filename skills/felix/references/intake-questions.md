@@ -53,7 +53,11 @@ Every set starts with the end goal, because features are chosen to serve it.
 2. **Who reads it** *(free text)*
 3. **Where it goes** — Website · Social post · Email · Video script · Ad
 
-## Which checklist lines each answer pulls in
+## Which checklist rules each answer pulls in
 
-Always: R1 R2 R3 R4 U1 U2 O1 · Website: P1 U3 C1–C6 · Accounts: S3 S4 D4 · Payments: S5 (label
-`money` → human merge) · Personal data: S2 D2 D4 · Other apps: R5 · AI: S5 R4 · Offline: D3
+Codes are from the one build checklist (`website-build-checklist`, kept by Jarvis Profile).
+
+Always: R1 R2 R3 R4 R6 D5 U1 U2 S1 O1 O6 · App/plugin: S4 U4 U6 A1 D3 R5 · Website: P1 P2 P3 U3
+U4 S6 C1–C6 · Fix: O5 O7 · Accounts: L1 S3 S4 D4 · Payments: S5 S3 S7 (label `money` → human
+merge) · Personal data: S2 D2 D4 · Other apps: R5 · AI: S5 R4 R5 · Offline: D3 · Public or
+clients: P1 U3 O3 L1

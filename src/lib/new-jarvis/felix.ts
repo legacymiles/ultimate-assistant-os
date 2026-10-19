@@ -5,15 +5,18 @@
 //
 //   topicOf(text)        is this prompt about building / fixing something?
 //   QUESTIONS[topic]     the intake: end goal first, then who, success, features…
-//   checklistFor(...)    which lines of the website backend checklist apply
+//   checklistFor(...)    which rules of the one build checklist apply
 //   draftBrief(...)      a structured prompt built from the answers, with no AI —
 //                        the offline fallback, and the draft the AI enhances
 //   ticketFrom(...)      the same brief as a super-board card (Felix format)
 //
-// The skill text lives in skills/felix (and in Jarvis's skill store); the
-// checklist lines here mirror docs/website-backend-checklist.md, and a test
-// keeps the two in step.
+// The skill text lives in skills/felix (and in Jarvis's skill store). The
+// checklist is the ONE build checklist kept by Jarvis Profile
+// (src/lib/jarvis-profile/checklist.ts); this file only picks which of its
+// coded lines a brief should cite.
 // ---------------------------------------------------------------------------
+
+import { STARTER_LINES, type RuleLevel } from "../jarvis-profile/checklist";
 
 export type FelixTopic = "app" | "website" | "plugin" | "fix" | "content";
 
@@ -115,73 +118,41 @@ const asList = (v: string | string[] | undefined): string[] =>
   (Array.isArray(v) ? v : v ? [v] : []).map((s) => s.trim()).filter(Boolean);
 const asText = (v: string | string[] | undefined): string => asList(v).join("; ");
 
-// ----- the backend checklist ---------------------------------------------------
+// ----- the build checklist (one list, owned by Jarvis Profile) ----------------
 
 export interface CheckLine {
   id: string;
-  level: "Must" | "Should" | "Nice";
+  level: RuleLevel;
   text: string;
 }
 
-/** Mirrors docs/website-backend-checklist.md (a test checks every id is there). */
-export const CHECKLIST: CheckLine[] = [
-  { id: "R1", level: "Must", text: "every route has an error boundary — a friendly screen, never a white page" },
-  { id: "R2", level: "Must", text: "every crash is logged (browser errors, unhandled rejections, server failures)" },
-  { id: "R3", level: "Must", text: "errors shown to people are plain English with a next step, never a stack trace" },
-  { id: "R4", level: "Must", text: "a missing key or service degrades visibly, never a 500" },
-  { id: "R5", level: "Should", text: "network calls time out and retry once; no spinner runs forever" },
-  { id: "R6", level: "Should", text: "forms keep what was typed when a submit fails" },
-  { id: "S1", level: "Must", text: "no secret in the browser bundle; service keys server-side only" },
-  { id: "S2", level: "Must", text: "every Supabase table has Row Level Security with a policy" },
-  { id: "S3", level: "Must", text: "owner/admin routes gated in middleware, not just hidden" },
-  { id: "S4", level: "Must", text: "every input validated on the server" },
-  { id: "S5", level: "Should", text: "rate limits on anything that costs money (AI, email, SMS)" },
-  { id: "S6", level: "Should", text: "security headers (HTTPS, nosniff, frame rules, CSP where practical)" },
-  { id: "D1", level: "Must", text: "migrations additive; destructive ones labelled schema and approved" },
-  { id: "D2", level: "Should", text: "backups exist and a restore has been tried" },
-  { id: "D3", level: "Should", text: "cross-device state syncs and survives a refresh" },
-  { id: "D4", level: "Should", text: "personal data has a delete path" },
-  { id: "P1", level: "Must", text: "Largest Contentful Paint under 2.5 s on mobile, aiming for 1 s" },
-  { id: "P2", level: "Should", text: "images sized and modern; heavy 3D/WebGL loaded on demand" },
-  { id: "P3", level: "Should", text: "no layout jump on load (CLS under 0.1)" },
-  { id: "P4", level: "Nice", text: "a performance budget checked on deploy" },
-  { id: "U1", level: "Must", text: "works at 375 px phone width with no sideways scroll" },
-  { id: "U2", level: "Must", text: "labels, focus rings, alt text, contrast AA" },
-  { id: "U3", level: "Should", text: "title, description, social preview image, favicon" },
-  { id: "U4", level: "Should", text: "empty and loading states say what to do next" },
-  { id: "U5", level: "Nice", text: "light and dark both readable" },
-  { id: "O1", level: "Must", text: "typecheck and tests run before every deploy" },
-  { id: "O2", level: "Should", text: "every change goes through a preview deploy" },
-  { id: "O3", level: "Should", text: "uptime watched, with an alert when it's down" },
-  { id: "O4", level: "Should", text: "one-click rollback" },
-  { id: "O5", level: "Nice", text: "logged errors become board tickets automatically" },
-  { id: "C1", level: "Must", text: "domain, DNS and email (SPF/DKIM/DMARC) set up and owned by the client" },
-  { id: "C2", level: "Must", text: "privacy policy, contact page, cookie notice where analytics run" },
-  { id: "C3", level: "Must", text: "contact forms deliver somewhere the client reads" },
-  { id: "C4", level: "Should", text: "the Jarvis error script is on the site" },
-  { id: "C5", level: "Should", text: "analytics installed and visible to the client" },
-  { id: "C6", level: "Should", text: "Client Review link sent" },
-];
+/** The starter lines of the one checklist, as Felix cites them (id = code). */
+export const CHECKLIST: CheckLine[] = STARTER_LINES.map((l) => ({
+  id: l.code,
+  level: l.level,
+  text: l.when === "Always" ? l.then : `${l.when.charAt(0).toLowerCase()}${l.when.slice(1)}: ${l.then}`,
+}));
 
 const BY_ID = new Map(CHECKLIST.map((c) => [c.id, c]));
 
 /** The checklist lines a brief should hold itself to, in checklist order. */
 export function checklistFor(topic: FelixTopic, answers: FelixAnswers): CheckLine[] {
   if (topic === "content") return [];
-  const ids = new Set(["R1", "R2", "R3", "R4", "U1", "U2", "O1"]);
-  if (topic === "fix") ["R2", "O1", "O5"].forEach((i) => ids.add(i));
-  if (topic === "website") ["P1", "P2", "P3", "U3", "U4", "C1", "C2", "C3", "C4", "C5", "C6", "S6"].forEach((i) => ids.add(i));
-  if (topic === "app" || topic === "plugin") ["S1", "S4", "U4", "D3"].forEach((i) => ids.add(i));
+  const ids = new Set(["R1", "R2", "R3", "R4", "R6", "D5", "U1", "U2", "S1", "O1", "O6"]);
+  const add = (...codes: string[]) => codes.forEach((c) => ids.add(c));
+  if (topic === "fix") add("O5", "O7");
+  if (topic === "website") add("P1", "P2", "P3", "U3", "U4", "S6", "C1", "C2", "C3", "C4", "C5", "C6");
+  if (topic === "app" || topic === "plugin") add("S4", "U4", "U6", "A1", "D3", "R5");
   const touches = asList(answers.touches).join(" ").toLowerCase();
-  if (touches.includes("account")) ["S3", "S4", "D4"].forEach((i) => ids.add(i));
-  if (touches.includes("payment")) ["S5", "S3"].forEach((i) => ids.add(i));
-  if (touches.includes("personal")) ["S2", "D2", "D4"].forEach((i) => ids.add(i));
-  if (touches.includes("other apps")) ids.add("R5");
-  if (touches.includes("ai")) ["S5", "R4", "R5"].forEach((i) => ids.add(i));
-  if (touches.includes("offline")) ids.add("D3");
+  if (touches.includes("account")) add("L1", "S3", "S4", "D4");
+  if (touches.includes("payment")) add("S5", "S3", "S7");
+  if (touches.includes("personal")) add("S2", "D2", "D4");
+  if (touches.includes("other apps")) add("R5");
+  if (touches.includes("ai")) add("S5", "R4", "R5");
+  if (touches.includes("offline")) add("D3");
   const audience = asText(answers.audience).toLowerCase();
-  if (/public|clients|users/.test(audience)) ["P1", "U3", "O3"].forEach((i) => ids.add(i));
-  return CHECKLIST.filter((c) => ids.has(c.id));
+  if (/public|clients|users/.test(audience)) add("P1", "U3", "O3", "L1");
+  return CHECKLIST.filter((c) => ids.has(c.id) && BY_ID.has(c.id));
 }
 
 // ----- the brief ---------------------------------------------------------------

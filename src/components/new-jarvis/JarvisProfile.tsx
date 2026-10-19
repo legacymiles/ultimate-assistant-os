@@ -195,7 +195,21 @@ export function JarvisProfile({ api }: { api: UseJarvisProfile }) {
                     onClick={() => api.toggle(r.id)}
                   />
                   <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setOpenId(open ? null : r.id)} aria-expanded={open}>
-                    <span className="block truncate text-[10.5px] text-ink-faint">{r.when}</span>
+                    <span className="flex items-center gap-1.5 truncate text-[10.5px] text-ink-faint">
+                      {r.code && (
+                        <span
+                          className={
+                            "shrink-0 rounded px-1 font-mono text-[9.5px] " +
+                            (r.level === "Must" ? "bg-[color-mix(in_oklab,var(--hud)_16%,transparent)] text-[var(--hud)]" : "border border-line-soft text-ink-faint")
+                          }
+                          title={r.level === "Must" ? "Must — a ship-blocker" : r.level === "Should" ? "Should — before a client sees it" : "Nice — when there is time"}
+                        >
+                          {r.code}
+                          {r.level && r.level !== "Must" ? ` · ${r.level.toLowerCase()}` : ""}
+                        </span>
+                      )}
+                      <span className="truncate">{r.when}</span>
+                    </span>
                     <span className="block text-[12.5px] leading-snug text-ink">{r.then}</span>
                   </button>
                   <div className="flex shrink-0 items-center gap-1.5">
@@ -228,6 +242,11 @@ export function JarvisProfile({ api }: { api: UseJarvisProfile }) {
                           : `Learned from your chats${r.lastSaid ? `, last seen ${ago(r.lastSaid)}` : ""}.`}{" "}
                       Removing it means Jarvis won&apos;t learn it back.
                     </p>
+                    {r.check && (
+                      <p>
+                        <span className="text-ink">How to check:</span> {r.check}
+                      </p>
+                    )}
                     {r.evidence?.length ? (
                       <ul className="space-y-0.5">
                         {r.evidence.map((e, i) => (

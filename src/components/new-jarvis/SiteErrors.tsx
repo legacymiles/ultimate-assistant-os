@@ -7,7 +7,7 @@
 // and count. Expanded: every open crash with its pages, browsers and stack;
 // "Mark fixed" (a repeat re-opens it); "Send to board" (a bug card in Backlog,
 // written the way super-board wants bugs); the one line to put on a client
-// site so its crashes land here too; and the backend checklist this log is
+// site so its crashes land here too; and the one build checklist this log is
 // line R2 of.
 // ---------------------------------------------------------------------------
 
@@ -198,8 +198,10 @@ export function SiteErrorsExpanded({ errors, onClose }: { errors: UseSiteErrors;
       </section>
 
       <details className="border-t border-line px-4 py-3">
-        <summary className="cursor-pointer text-[12px] font-semibold text-ink">The backend checklist ({CHECKLIST.length} lines)</summary>
-        <p className="mt-1 text-[11.5px] text-ink-muted">The bar every site and app is held to. Felix adds the right lines to every build prompt; this log is R2.</p>
+        <summary className="cursor-pointer text-[12px] font-semibold text-ink">The build checklist ({CHECKLIST.length} starter rules)</summary>
+        <p className="mt-1 text-[11.5px] text-ink-muted">
+          The one checklist every site and app is held to — this crash log is rule R2. Switch rules on or off, add your own, and see what Jarvis learned from your chats in Dashboard › Jarvis Profile.
+        </p>
         <ul className="mt-2 grid gap-x-6 gap-y-0.5 sm:grid-cols-2">
           {CHECKLIST.map((c) => (
             <li key={c.id} className="flex gap-2 text-[11px]">

@@ -49,8 +49,9 @@ Every card states, in super-board's ticket format:
 - **The user's features, the user's way** in Fix — kept as asked; the bar is raised around them.
 - **Acceptance Criteria**: 2–5 outside judges — a test that fails first then passes, a
   measurement, a person completing the task, a logged-error count. Never "works well".
-- **Checklist**: the website backend checklist lines it closes (felix ›
-  `references/website-backend-checklist.md`), e.g. R2, U1.
+- **Checklist**: the codes it closes from the owner's one build checklist (the
+  `website-build-checklist` skill, kept by Jarvis Profile), e.g. R2, U1 — with that rule's check
+  as one of the Acceptance Criteria.
 - One card per PR under ~400 changed lines; a bigger plan is split into a ladder of cards.
 
 ### 2. The Felix gate — before anything moves to Ready
@@ -121,7 +122,7 @@ Goal beyond the goal: <the next rung>
 ## Context
 - **Where:** <page>, `<route>`
 - **Who:** <who sees it>
-- **Checklist:** <backend-checklist line(s) this closes, e.g. R2, U1>
+- **Checklist:** <build-checklist code(s) this closes, e.g. R2, U1>
 
 ## Fix
 <the intended change in 1–3 lines, keeping the user's features as they described them>

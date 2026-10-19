@@ -96,3 +96,48 @@ describe("what Jarvis and Claude Code are given", () => {
     expect(md).toMatch(/If more than one person will use it: Add sign-in/);
   });
 });
+
+describe("one checklist", () => {
+  it("every starter has a unique code, a level and a check", async () => {
+    const { STARTER_LINES } = await import("./checklist");
+    const codes = STARTER_LINES.map((l) => l.code);
+    expect(new Set(codes).size).toBe(codes.length);
+    for (const l of STARTER_LINES) {
+      expect(l.code).toMatch(/^[A-Z]\d+$/);
+      expect(["Must", "Should", "Nice"]).toContain(l.level);
+      expect(l.check.length).toBeGreaterThan(5);
+    }
+  });
+
+  it("no two starter rules say the same thing", () => {
+    const p = emptyProfile(NOW);
+    for (const r of p.rules) {
+      const others = p.rules.filter((o) => o.id !== r.id);
+      expect(matchingRule(others, r.then)?.id, r.id).toBeUndefined();
+    }
+  });
+
+  it("brings an older saved list up to date without losing the owner's switches", () => {
+    const old = emptyProfile(NOW);
+    const saved = {
+      ...old,
+      rules: old.rules
+        .filter((r) => r.id === "s-plain" || r.id === "s-login")
+        .map((r) => ({ ...r, then: "old wording", code: undefined, on: r.id === "s-plain" ? false : r.on, said: 4 })),
+    };
+    const p = coerceProfile(saved, NOW);
+    const plain = p.rules.find((r) => r.id === "s-plain")!;
+    expect(plain.code).toBe("R3");
+    expect(plain.then).toMatch(/plain English/);
+    expect(plain.on).toBe(false);
+    expect(plain.said).toBe(4);
+    expect(p.rules.find((r) => r.id === "s-r2")).toBeTruthy();
+  });
+
+  it("the published skill carries codes and checks", () => {
+    const text = checklistSkill(emptyProfile(NOW));
+    expect(text).toContain("[R2]");
+    expect(text).toContain("check:");
+    expect(text).toContain("Nicknames:");
+  });
+});

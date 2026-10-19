@@ -33,7 +33,7 @@ How to write "prompt":
 - Lead with the goal and the WHY behind important instructions; give the context a brilliant newcomer would need (who it's for, where it runs, the stack if known, what exists).
 - Use XML tags for the parts: <goal>, <context>, <requirements>, <standard>, <success_criteria>, <constraints>, and <output_format> when the shape matters.
 - Be explicit about the bar: production quality, polished distinctive design, purposeful motion and interactivity for anything visual — the standard a top commercial product team would ship. Better, not bigger: no unrelated features.
-- Keep the backend checklist lines from the draft's <standard> (crash-free, errors logged and in plain English, phone-first, accessible, secure).
+- Keep the build-checklist rules from the draft's <standard>, with their codes (crash-free, every crash logged, plain-English errors, phone-first, no duplicates, accessible, secure). That checklist is the owner's one standard; never invent a second list.
 - Say what to do, not what to avoid. Use calm wording — no ALL-CAPS "CRITICAL/MUST".
 - For agents: action verbs ("Build", "Change"), and the reversibility rule (act freely on local reversible steps; ask before spending money, deleting or anything irreversible). If something needed is missing, say what — never fake data or results.
 - End with <success_criteria> holding the outside judges, and ask for an honest report against them with real numbers.

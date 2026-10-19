@@ -50,10 +50,10 @@ the prompt (Step 2). Skip this step for a quick factual question or a short mess
    dropped.
 6. **The outside judge** — what, other than the model or the user, shows it worked: a test, a
    measurement, a person completing the task, a logged-error count. 2–5 checkable lines.
-7. **The pro standard** — for anything with users or a backend, the lines of the website backend
-   checklist that apply (felix › `references/website-backend-checklist.md`): every **Must**
-   (never crashes on people, every error logged and in plain words, works on a phone, secure),
-   plus the **Should**s that fit.
+7. **The pro standard** — for anything with users or a backend, the rules of the owner's one
+   build checklist that apply (the `website-build-checklist` skill, kept by Jarvis Profile),
+   cited by code: every **Must** (never a white page, every crash logged, plain-English errors,
+   works on a phone, no duplicates, secure), plus the **should**s that fit.
 8. **One hard target, treated as reachable** — "loads in under 1 s", not "faster".
 
 ## Step 2 — Fill the gaps, asking only what matters

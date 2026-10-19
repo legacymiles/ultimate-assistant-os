@@ -1,6 +1,6 @@
 ---
 name: felix
-description: Ambitious, end-goal-first planning for anything worth doing well — building or improving an app, website, plugin or Jarvis itself, fixing something that keeps breaking, or any task where "ok" isn't good enough. Finds the goal beyond the goal, sets a pro-commercial bar (Felix Rieseberg's Altitude, Depth and Range, plus the website backend checklist), names an outside judge, then does the work or hands a sharp brief on. Built into prompt-enhancer and software-factory; call it directly for the full ambitious plan. Use when the user types /felix, says "be more ambitious", "aim higher", "what's the end goal", "make this pro", "Apple-level", "trillion-dollar", "self-improving", or starts building or improving an app, site or plugin. Nicknames: Felix, the Felix skill, be ambitious, aim higher, end goal skill, goal check.
+description: Ambitious, end-goal-first planning for anything worth doing well — building or improving an app, website, plugin or Jarvis itself, fixing something that keeps breaking, or any task where "ok" isn't good enough. Finds the goal beyond the goal, sets a pro-commercial bar (Felix Rieseberg's Altitude, Depth and Range, plus the owner's one build checklist), names an outside judge, then does the work or hands a sharp brief on. Built into prompt-enhancer and software-factory; call it directly for the full ambitious plan. Use when the user types /felix, says "be more ambitious", "aim higher", "what's the end goal", "make this pro", "Apple-level", "trillion-dollar", "self-improving", or starts building or improving an app, site or plugin. Nicknames: Felix, the Felix skill, be ambitious, aim higher, end goal skill, goal check.
 license: MIT
 metadata:
   author: legacymiles (built on RoboNuggets' be-ambitious, MIT)
@@ -103,9 +103,11 @@ in the field could learn something. Run every Depth pass through Felix's prompt:
 > the result is right. Then rewrite my prompt to ask for exactly that.
 
 For anything with a backend or users — an app, a website, a plugin, a client site — Depth
-**always** includes `references/website-backend-checklist.md`: pick the lines that apply
-(every **Must**, plus the **Should**s that fit), and put them in the plan as checks, not
-aspirations. "Apple-grade" means: it never crashes on people, every error is logged and
+**always** includes the owner's one build checklist, the `website-build-checklist` skill (kept and
+learned by Jarvis Profile; nicknames: the checklist, build checklist): pick the rules that apply
+(every **Must**, plus the **should**s that fit), cite them by code (R2, S3…), and put each rule's
+check in the plan as a check, not an aspiration. Never keep a second checklist anywhere else —
+a rule worth having goes into that one list. "Apple-grade" means: it never crashes on people, every error is logged and
 explained in plain words, it works on a phone, and someone finds out before the customer does.
 
 Set an unreasonable target and treat it as reasonable: the page loads in 8 s and they asked for
