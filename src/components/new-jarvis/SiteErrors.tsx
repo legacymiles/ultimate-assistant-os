@@ -200,7 +200,7 @@ export function SiteErrorsExpanded({ errors, onClose }: { errors: UseSiteErrors;
       <details className="border-t border-line px-4 py-3">
         <summary className="cursor-pointer text-[12px] font-semibold text-ink">The build checklist ({CHECKLIST.length} starter rules)</summary>
         <p className="mt-1 text-[11.5px] text-ink-muted">
-          The one checklist every site and app is held to — this crash log is rule R2. Switch rules on or off, add your own, and see what Jarvis learned from your chats in Dashboard › Jarvis Profile.
+          The one checklist every site and app is held to — this crash log is rule R2. Switch rules on or off, add your own, and see what Jarvis learned from your chats in Dashboard › Profile › Backend checklist.
         </p>
         <ul className="mt-2 grid gap-x-6 gap-y-0.5 sm:grid-cols-2">
           {CHECKLIST.map((c) => (

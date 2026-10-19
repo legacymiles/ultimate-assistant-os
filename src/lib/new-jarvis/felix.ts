@@ -11,7 +11,7 @@
 //   ticketFrom(...)      the same brief as a super-board card (Felix format)
 //
 // The skill text lives in skills/felix (and in Jarvis's skill store). The
-// checklist is the ONE build checklist kept by Jarvis Profile
+// checklist is the ONE build checklist kept in Profile › Backend checklist
 // (src/lib/jarvis-profile/checklist.ts); this file only picks which of its
 // coded lines a brief should cite.
 // ---------------------------------------------------------------------------
@@ -118,7 +118,7 @@ const asList = (v: string | string[] | undefined): string[] =>
   (Array.isArray(v) ? v : v ? [v] : []).map((s) => s.trim()).filter(Boolean);
 const asText = (v: string | string[] | undefined): string => asList(v).join("; ");
 
-// ----- the build checklist (one list, owned by Jarvis Profile) ----------------
+// ----- the build checklist (one list, owned by the backend checklist in Profile) ----------------
 
 export interface CheckLine {
   id: string;

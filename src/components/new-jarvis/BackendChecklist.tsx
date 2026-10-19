@@ -1,7 +1,7 @@
 "use client";
 
 // ---------------------------------------------------------------------------
-// Jarvis Profile — Jarvis's own side of the profile, next to the owner's.
+// Backend checklist — the one build checklist, a section of the owner's Profile.
 //
 // The owner's Profile says who they are. This one says what Jarvis has learned
 // about building for them: the self-learning build checklist (the "common
@@ -35,7 +35,7 @@ function ago(t: number | null | undefined): string {
   return `${Math.round(h / 24)}d ago`;
 }
 
-export function JarvisProfile({ api }: { api: UseJarvisProfile }) {
+export function BackendChecklist({ api }: { api: UseJarvisProfile }) {
   const { state } = api;
   const [area, setArea] = useState<RuleArea | "all" | "new">("all");
   const [draft, setDraft] = useState("");
@@ -93,11 +93,12 @@ export function JarvisProfile({ api }: { api: UseJarvisProfile }) {
         {/* Header */}
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-0">
-            <p className="deck-kicker">Jarvis Profile · self-learning</p>
-            <h2 className="mt-1 text-[19px] font-semibold tracking-tight text-ink">What Jarvis knows about building for you</h2>
+            <p className="deck-kicker">Backend checklist · self-learning</p>
+            <h2 className="mt-1 text-[19px] font-semibold tracking-tight text-ink">Your backend checklist</h2>
             <p className="mt-1 max-w-2xl text-[12px] leading-snug text-ink-muted">
-              The common-sense rules you shouldn&apos;t have to say twice. Jarvis follows every rule that&apos;s on whenever it builds or
-              changes an app or website, learns new ones from your chats, and counts the ones you keep repeating.
+              The one checklist every app and website is held to — the common-sense rules you shouldn&apos;t have to say twice plus the pro
+              standard (crashes, security, speed, client handoff). Jarvis, Felix and the board follow every rule that&apos;s on, learn new
+              ones from your chats, and count the ones you keep repeating.
             </p>
           </div>
           <button

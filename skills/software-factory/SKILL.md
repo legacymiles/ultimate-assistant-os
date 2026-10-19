@@ -50,7 +50,7 @@ Every card states, in super-board's ticket format:
 - **Acceptance Criteria**: 2–5 outside judges — a test that fails first then passes, a
   measurement, a person completing the task, a logged-error count. Never "works well".
 - **Checklist**: the codes it closes from the owner's one build checklist (the
-  `website-build-checklist` skill, kept by Jarvis Profile), e.g. R2, U1 — with that rule's check
+  `website-build-checklist` skill, kept in Profile › Backend checklist), e.g. R2, U1 — with that rule's check
   as one of the Acceptance Criteria.
 - One card per PR under ~400 changed lines; a bigger plan is split into a ladder of cards.
 

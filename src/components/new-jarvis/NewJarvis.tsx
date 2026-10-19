@@ -372,7 +372,7 @@ export function NewJarvis() {
   // Every 10 minutes, from whichever tab is open: new iPhone photos are pulled
   // into Camera Autopilot and the feed below raises the notification.
   const camera = useCameraWatch();
-  // Jarvis Profile's build checklist: learns from chats and keeps the Claude
+  // The backend checklist (in Profile): learns from chats and keeps the Claude
   // Code skill current from whichever tab is open.
   const jarvisProfile = useJarvisProfile();
   // The iPhone setup guide. Opened from the Camera widget, Settings, setup's
@@ -744,7 +744,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
               capabilities: bridge.health.paired ? bridge.health.capabilities ?? {} : {},
               ownerName: profile?.name ?? "",
               timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-              // The owner's build checklist (Jarvis Profile), followed on every build.
+              // The owner's backend checklist (in Profile), followed on every build.
               checklist: readChecklistPrompt(),
             };
             const post = async (body: Record<string, unknown>) => {

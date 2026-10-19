@@ -104,7 +104,7 @@ in the field could learn something. Run every Depth pass through Felix's prompt:
 
 For anything with a backend or users — an app, a website, a plugin, a client site — Depth
 **always** includes the owner's one build checklist, the `website-build-checklist` skill (kept and
-learned by Jarvis Profile; nicknames: the checklist, build checklist): pick the rules that apply
+learned in Jarvis › Profile › Backend checklist; nicknames: the checklist, backend checklist): pick the rules that apply
 (every **Must**, plus the **should**s that fit), cite them by code (R2, S3…), and put each rule's
 check in the plan as a check, not an aspiration. Never keep a second checklist anywhere else —
 a rule worth having goes into that one list. "Apple-grade" means: it never crashes on people, every error is logged and

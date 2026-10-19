@@ -4,7 +4,7 @@ import { callerIsMember } from "@/lib/recall/lists/session";
 import { coerceLearned } from "@/lib/jarvis-profile/checklist";
 
 // ---------------------------------------------------------------------------
-// Jarvis Profile — learning build rules from what the owner keeps saying.
+// Backend checklist — learning build rules from what the owner keeps saying.
 //
 // The page sends what the owner said to Jarvis (their words only, never
 // Jarvis's replies) and the rules already on the checklist. The model picks

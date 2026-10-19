@@ -55,7 +55,7 @@ Every set starts with the end goal, because features are chosen to serve it.
 
 ## Which checklist rules each answer pulls in
 
-Codes are from the one build checklist (`website-build-checklist`, kept by Jarvis Profile).
+Codes are from the one build checklist (`website-build-checklist`, kept in Profile › Backend checklist).
 
 Always: R1 R2 R3 R4 R6 D5 U1 U2 S1 O1 O6 · App/plugin: S4 U4 U6 A1 D3 R5 · Website: P1 P2 P3 U3
 U4 S6 C1–C6 · Fix: O5 O7 · Accounts: L1 S3 S4 D4 · Payments: S5 S3 S7 (label `money` → human

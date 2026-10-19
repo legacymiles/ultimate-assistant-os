@@ -1,5 +1,6 @@
 // ---------------------------------------------------------------------------
-// Jarvis Profile — the self-learning build checklist.
+// Backend checklist — the one, self-learning build checklist (shown in
+// Jarvis › Dashboard › Profile › Backend checklist).
 //
 // The "common sense" rules the owner keeps having to say out loud when an app
 // or website gets built: if more than one person uses it, it needs a login; a
@@ -431,17 +432,17 @@ export function checklistSkill(state: JarvisProfileState): string {
   const body = checklistPrompt(state, 30_000, true);
   return `---
 name: ${SKILL_NAME}
-description: The owner's ONE build checklist for building, changing or reviewing ANY app or website — the common-sense rules they never want to repeat (logins for multi-user apps, no duplicates, newest first, updates by itself, plain-English errors, phone-friendly, simple setup) plus the pro standard (never a white page, every crash logged, security, speed, shipping, client-site handoff). Each rule has a code (R2, S3…) and how to check it. Felix, the prompt enhancer and the software factory hold every build to it. Use it every time you build, change or review an app or website for the owner. Nicknames: the checklist, build checklist, backend checklist, website checklist, Jarvis Profile checklist.
+description: The owner's ONE build checklist for building, changing or reviewing ANY app or website — the common-sense rules they never want to repeat (logins for multi-user apps, no duplicates, newest first, updates by itself, plain-English errors, phone-friendly, simple setup) plus the pro standard (never a white page, every crash logged, security, speed, shipping, client-site handoff). Each rule has a code (R2, S3…) and how to check it. Felix, the prompt enhancer and the software factory hold every build to it. Use it every time you build, change or review an app or website for the owner. Nicknames: the checklist, build checklist, backend checklist, website checklist, my checklist.
 metadata:
   category: Build & Ship, Web Design
-  nicknames: the checklist, build checklist, backend checklist, website checklist, Jarvis Profile checklist
+  nicknames: the checklist, build checklist, backend checklist, website checklist, my checklist
 ---
 
 # Website & app build checklist
 
-This is the only build checklist. It is kept by Jarvis Profile (Jarvis › Dashboard › Jarvis
-Profile), learns from the owner's chats, and is published over this file on every change — do
-not edit it here.
+This is the only build checklist. It lives in Jarvis › Dashboard › Profile › Backend checklist,
+learns from the owner's chats, and is published over this file on every change — do not edit it
+here.
 
 Before you call any build or change finished, go through every rule below that applies and fix
 anything that misses one. Use each rule's check as the proof, not your own opinion. If a rule

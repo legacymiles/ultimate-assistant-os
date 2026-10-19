@@ -64,7 +64,7 @@ interface Body {
    * values — so Jev can fill a form box from them (see savedFields.ts).
    */
   saved?: unknown;
-  /** The owner's build checklist from Jarvis Profile, as text. */
+  /** The owner's build checklist from the backend checklist in Profile, as text. */
   checklist?: string;
   /**
    * Return the system prompt and tool list instead of thinking. Used when the
@@ -250,7 +250,7 @@ export async function POST(req: Request) {
       : "",
     body.context ? `CONTEXT FOR THIS REQUEST:\n${body.context.slice(0, 8_000)}` : "",
     typeof body.checklist === "string" && body.checklist.trim() && mode !== "ask"
-      ? `${owner.toUpperCase()}'S BUILD CHECKLIST (from Jarvis Profile)\nWhenever you build, change or review an app or website, follow every rule below that applies — they are things ${owner} should never have to say twice. Check the work against them before calling it done; if one can't apply, say so in one line.\n${body.checklist.slice(0, 4_000)}`
+      ? `${owner.toUpperCase()}'S BUILD CHECKLIST (the backend checklist in Profile)\nWhenever you build, change or review an app or website, follow every rule below that applies — they are things ${owner} should never have to say twice. Check the work against them before calling it done; if one can't apply, say so in one line.\n${body.checklist.slice(0, 4_000)}`
       : "",
     triage.note,
   ]

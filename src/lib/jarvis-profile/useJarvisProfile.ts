@@ -1,7 +1,7 @@
 "use client";
 
 // ---------------------------------------------------------------------------
-// Jarvis Profile's state: the build checklist, synced across devices, that
+// The backend checklist's state: the one build checklist, synced across devices, that
 // learns by itself and keeps the Claude Code skill up to date.
 //
 //   • Learning: at most twice a day, when the owner has said enough new things
