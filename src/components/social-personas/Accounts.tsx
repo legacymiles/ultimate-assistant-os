@@ -26,9 +26,9 @@ import { Btn, PlatformDot, inputCls } from "./bits";
 import type { Mutate } from "./SocialPersonas";
 
 const NOTE: Record<SocialPlatform, string> = {
-  tiktok: "Connect reads your videos and their views. Auto-post sends each scheduled video to your TikTok inbox to post with one tap.",
-  instagram: "Needs a Business or Creator account. Connect reads posts and reels; auto-post publishes reels and photos at the scheduled time.",
-  facebook: "Works with a Facebook Page you manage (apps can't post to personal profiles).",
+  tiktok: "One sign-in: your videos and views sync in, and each scheduled video goes to your TikTok inbox to post with one tap.",
+  instagram: "One sign-in (Business or Creator account): posts and reels sync in, and scheduled reels and photos publish on time.",
+  facebook: "One sign-in to a Page you manage: posts sync in and scheduled videos publish on time (apps can't post to personal profiles).",
   youtube: "Save the channel and its sign-in. Scheduled posts remind you and open YouTube Studio with the caption copied.",
   x: "Save the account and its sign-in. Scheduled posts remind you and open X with the text copied.",
 };
@@ -40,6 +40,7 @@ export function Accounts({
   mutate,
   flash,
   syncAccount,
+  openSetup,
 }: {
   persona: Persona;
   status: Status | null;
@@ -47,11 +48,12 @@ export function Accounts({
   mutate: Mutate;
   flash: (t: string, bad?: boolean) => void;
   syncAccount: (personaId: string, accountId: string) => Promise<void>;
+  /** Open Connect setup for a platform whose developer app isn't set up yet. */
+  openSetup: (p: "tiktok" | "instagram" | "facebook") => void;
 }) {
   const [adding, setAdding] = useState<SocialPlatform | null>(null);
   const [handle, setHandle] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const [help, setHelp] = useState<SocialPlatform | null>(null);
   const [signIn, setSignIn] = useState<string | null>(null);
 
   const addHandle = (platform: SocialPlatform) => {
@@ -69,12 +71,14 @@ export function Accounts({
     setSignIn(id);
   };
 
-  const connect = (platform: SocialPlatform, opts: { posting?: boolean; replace?: string } = {}) => {
-    if (!isConnectable(platform) || !status?.platforms[platform].configured) {
-      setHelp(platform);
-      return;
-    }
-    const q = new URLSearchParams({ persona: persona.id, ...(opts.posting ? { posting: "1" } : {}), ...(opts.replace ? { replace: opts.replace } : {}) });
+  /**
+   * One login: syncing and auto-post together. If the platform's developer
+   * app isn't set up yet, the setup guide opens instead of a dead end.
+   */
+  const connect = (platform: SocialPlatform, opts: { replace?: string } = {}) => {
+    if (!isConnectable(platform)) return;
+    if (!status?.platforms[platform].configured) return openSetup(platform);
+    const q = new URLSearchParams({ persona: persona.id, ...(opts.replace ? { replace: opts.replace } : {}) });
     window.location.href = `/api/social-personas/oauth/${platform}/start?${q}`;
   };
 
@@ -115,8 +119,8 @@ export function Accounts({
               Add
             </Btn>
             {isConnectable(adding) && (
-              <Btn primary onClick={() => connect(adding)} title="Sign in with the platform to sync posts automatically">
-                Connect instead
+              <Btn primary onClick={() => connect(adding)} title="Sign in with the platform: videos and stats sync in, and scheduled posts go out by themselves">
+                {status?.platforms[adding as "tiktok"]?.configured ? `Sign in with ${PLATFORM_NAME[adding]}` : "Set up & connect"}
               </Btn>
             )}
           </div>
@@ -155,8 +159,12 @@ export function Accounts({
                           auto-post on
                         </span>
                       ) : (
-                        <button onClick={() => connect(a.platform, { posting: true, replace: a.connectionId })} className="rounded px-1.5 py-0.5 text-[11px] font-medium text-brand hover:bg-brand/10" title="Sign in once more, allowing posting">
-                          Turn on auto-post
+                        <button
+                          onClick={() => connect(a.platform, { replace: a.connectionId })}
+                          className="rounded px-1.5 py-0.5 text-[11px] font-medium text-brand hover:bg-brand/10"
+                          title={status && isConnectable(a.platform) ? `Auto-post is off. ${status.platforms[a.platform].postSetup} Then reconnect.` : "Reconnect to allow posting"}
+                        >
+                          Reconnect for auto-post
                         </button>
                       )}
                       <button
@@ -174,7 +182,7 @@ export function Accounts({
                       </button>
                     </>
                   ) : isConnectable(a.platform) ? (
-                    <button onClick={() => connect(a.platform)} className="rounded px-1.5 py-0.5 text-[11px] font-medium text-brand hover:bg-brand/10" title={NOTE[a.platform]}>
+                    <button onClick={() => connect(a.platform)} className="rounded-md bg-brand/15 px-2 py-0.5 text-[11px] font-semibold text-brand hover:bg-brand/25" title={NOTE[a.platform]}>
                       Connect
                     </button>
                   ) : (
@@ -191,14 +199,10 @@ export function Accounts({
                 </span>
               </div>
               {signIn === a.id && <SignIn persona={persona} account={a} vault={vault} mutate={mutate} flash={flash} onClose={() => setSignIn(null)} />}
-              {help === a.platform && status && isConnectable(a.platform) && (
-                <SetupHelp platform={a.platform} status={status} onClose={() => setHelp(null)} />
-              )}
             </div>
           ))}
         </div>
       )}
-      {help && !persona.accounts.some((a) => a.platform === help) && status && isConnectable(help) && <SetupHelp platform={help} status={status} onClose={() => setHelp(null)} />}
 
       {persona.accounts.some((a) => a.connectionId) && (
         <Btn
@@ -235,30 +239,6 @@ function RemoveAccount({ onRemove }: { onRemove: () => void }) {
     <button title="Remove account" aria-label="Remove account" onClick={() => setSure(true)} className="rounded p-1 text-ink-faint hover:bg-panel-2 hover:text-rose-400">
       <Icon.Trash width={12} height={12} />
     </button>
-  );
-}
-
-function SetupHelp({ platform, status, onClose }: { platform: "tiktok" | "instagram" | "facebook"; status: Status; onClose: () => void }) {
-  const s = status.platforms[platform];
-  return (
-    <div className="m-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2 text-[11px] leading-relaxed text-ink-muted">
-      {s.configured ? null : (
-        <>
-          Connecting {PLATFORM_NAME[platform]} needs a developer app (one time). Create one at{" "}
-          <a className="text-brand underline" href={s.setupUrl} target="_blank" rel="noreferrer">
-            {new URL(s.setupUrl).hostname}
-          </a>
-          , add the redirect URL <code className="break-all rounded bg-panel-2 px-1 text-ink">{`${location.origin}/api/social-personas/oauth/${platform}/callback`}</code>, then put these in the site&apos;s
-          environment (Vercel → Settings → Environment Variables):
-          <pre className="mt-1 rounded bg-panel-2 p-1.5 text-ink">{s.env.map((e) => `${e}=`).join("\n")}</pre>
-        </>
-      )}
-      <span className="mt-1 block">For auto-post: {s.postSetup}</span>
-      {!status.storage && <span className="mt-1 block text-amber-300">Auto-post also needs video storage: set SUPABASE_SERVICE_ROLE_KEY on the live site.</span>}
-      <button className="mt-1 text-ink-faint underline" onClick={onClose}>
-        close
-      </button>
-    </div>
   );
 }
 

@@ -44,7 +44,9 @@ export function Workspace({
   applyJobs,
   onEdit,
   onDelete,
+  openSetup,
 }: {
+  openSetup: (p: "tiktok" | "instagram" | "facebook") => void;
   persona: Persona;
   status: Status | null;
   initialTab: TabId;
@@ -108,7 +110,7 @@ export function Workspace({
       </header>
 
       <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
-        {tab === "overview" && <OverviewTab {...props} status={status} syncAccount={syncAccount} onEdit={onEdit} onDelete={onDelete} go={setTab} />}
+        {tab === "overview" && <OverviewTab {...props} status={status} syncAccount={syncAccount} onEdit={onEdit} onDelete={onDelete} go={setTab} openSetup={openSetup} />}
         {tab === "ideas" && (
           <TodayTab
             {...props}

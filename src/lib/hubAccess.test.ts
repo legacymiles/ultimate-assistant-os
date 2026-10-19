@@ -22,6 +22,14 @@ describe("routeAccess", () => {
     expect(routeAccess("/reviews-secret", TOKEN)).toBe("owner");
   });
 
+  it("opens the legal pages platforms require, and only those", () => {
+    expect(routeAccess("/legal/privacy", TOKEN)).toBe("public");
+    expect(routeAccess("/legal/terms", TOKEN)).toBe("public");
+    expect(routeAccess("/legal/data-deletion", TOKEN)).toBe("public");
+    expect(routeAccess("/legalese", TOKEN)).toBe("owner");
+    expect(routeAccess("/api/social-personas/setup", TOKEN)).toBe("owner");
+  });
+
   it("does not match look-alike prefixes", () => {
     expect(routeAccess("/apps/friends-night-outage", TOKEN)).toBe("owner");
     expect(routeAccess("/api/fnox/secret", TOKEN)).toBe("owner");

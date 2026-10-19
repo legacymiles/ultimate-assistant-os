@@ -1155,7 +1155,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
 
           <div
             key={tab === "photos" ? "folders" : tab}
-            className={`nj-resolve min-h-0 flex-1 ${tab === "console" ? "overflow-hidden" : "overflow-y-auto"}`}
+            className={`nj-resolve min-h-0 flex-1 ${tab === "console" ? "overflow-hidden" : "nj-read overflow-y-auto"}`}
           >
             {/* The Dashboard is its own column layout and owns its scrolling,
                 so it sits outside the shared scroll container. */}

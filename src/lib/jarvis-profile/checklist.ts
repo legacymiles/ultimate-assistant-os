@@ -109,6 +109,7 @@ const STARTERS: Omit<ChecklistRule, "source" | "on" | "said" | "addedAt">[] = [
   { id: "s-search", code: "U7", level: "Should", area: "display", when: "If a list can grow long", then: "Add search or filters.", check: "Find an item in under 5 seconds with 100 in the list." },
   { id: "s-u2", code: "U2", level: "Must", area: "display", when: ALWAYS, then: "Accessible: labels on controls, visible focus, alt text, readable contrast.", check: "Lighthouse accessibility 95+; tab through every control." },
   { id: "s-u3", code: "U3", level: "Should", area: "display", when: "If it's a public page or site", then: "Give it a title, description, share image and icon.", check: "Paste the link in a chat app: the preview looks right." },
+  { id: "s-readable", code: "U8", level: "Must", area: "display", when: ALWAYS, then: "Text never sits straight on a moving or busy background (video, 3D, galaxy) — put a solid or frosted reading layer behind it.", check: "Open every screen while the background moves: every word reads at a glance (contrast AA)." },
   { id: "s-u5", code: "U5", level: "Nice", area: "display", when: ALWAYS, then: "Readable in both light and dark mode.", check: "Switch the phone's theme." },
   // Automatic
   { id: "s-auto", code: "A1", level: "Must", area: "auto", when: "If it checks for or fetches new things", then: "Update by itself — the user should never have to press a button to see new things.", check: "Leave it open: new items appear without a refresh." },

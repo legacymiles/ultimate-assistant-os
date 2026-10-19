@@ -17,7 +17,13 @@ export function StudioHome({
   loaded,
   onOpen,
   onNew,
+  onSetup,
+  ready,
 }: {
+  /** Open Connect setup (the platforms' one-time developer-app step). */
+  onSetup: () => void;
+  /** Which platforms can be connected right now. */
+  ready: Partial<Record<"tiktok" | "instagram" | "facebook", boolean>>;
   personas: Persona[];
   loaded: boolean;
   onOpen: (id: string, tab?: TabId) => void;
@@ -50,6 +56,18 @@ export function StudioHome({
             Every creator persona you run, in one place: what to post today, a calendar that posts for you, and how each video is doing.
           </p>
         </div>
+        <button
+          onClick={onSetup}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-sm font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
+          title="Set up TikTok, Instagram and Facebook sign-in (once)"
+        >
+          <Icon.Link width={14} height={14} /> Connections
+          <span className="flex gap-0.5" aria-hidden>
+            {(["tiktok", "instagram", "facebook"] as const).map((x) => (
+              <span key={x} className={"h-1.5 w-1.5 rounded-full " + (ready[x] ? "bg-emerald-400" : "bg-ink-faint/40")} />
+            ))}
+          </span>
+        </button>
         <button onClick={onNew} className="ps-cta inline-flex items-center gap-1.5 rounded-xl bg-brand px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-brand-2">
           <Icon.Plus width={15} height={15} /> New persona
         </button>

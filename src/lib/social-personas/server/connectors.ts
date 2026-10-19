@@ -16,6 +16,7 @@ import "server-only";
 
 import path from "node:path";
 import { readDoc, writeDoc } from "@/lib/server/docStore";
+import { savedKeys } from "./platformKeys";
 import type { ConnectablePlatform as SocialPlatform, Post } from "../types";
 
 const GRAPH = "v23.0";
@@ -68,9 +69,20 @@ export function config(p: SocialPlatform): PlatformConfig {
   };
 }
 
-export function isConfigured(p: SocialPlatform): boolean {
+/**
+ * The keys this platform's login uses: environment variables when set,
+ * otherwise the ones saved in Connect setup (no redeploy needed).
+ */
+export async function keys(p: SocialPlatform): Promise<{ id: string; secret: string; source: "env" | "saved" | null }> {
   const c = config(p);
-  return Boolean(c.id && c.secret);
+  if (c.id && c.secret) return { id: c.id, secret: c.secret, source: "env" };
+  const saved = (await savedKeys())[p];
+  if (saved?.id && saved.secret) return { id: saved.id, secret: saved.secret, source: "saved" };
+  return { id: "", secret: "", source: null };
+}
+
+export async function isConfigured(p: SocialPlatform): Promise<boolean> {
+  return (await keys(p)).source !== null;
 }
 
 export function redirectUri(origin: string, p: SocialPlatform): string {
@@ -82,8 +94,8 @@ export function scopesFor(p: SocialPlatform, posting: boolean): string {
   return posting ? `${c.scopes},${c.postScopes}` : c.scopes;
 }
 
-export function authorizeUrl(p: SocialPlatform, origin: string, state: string, posting = false): string {
-  const c = config(p);
+export async function authorizeUrl(p: SocialPlatform, origin: string, state: string, posting = false): Promise<string> {
+  const c = await keys(p);
   const redirect = redirectUri(origin, p);
   const scope = scopesFor(p, posting);
   if (p === "tiktok") {
@@ -162,7 +174,7 @@ export async function exchangeCode(
   code: string,
   origin: string,
 ): Promise<Omit<Connection, "id" | "ownerUid" | "createdAt">> {
-  const c = config(p);
+  const c = await keys(p);
   const redirect = redirectUri(origin, p);
 
   if (p === "tiktok") {
@@ -203,6 +215,7 @@ export async function exchangeCode(
       accessToken: long?.access_token ?? short.access_token,
       expiresAt: Date.now() + (Number(long?.expires_in) || 3600) * 1000,
       accountId: String(short.user_id ?? ""),
+      scopes: Array.isArray(short.permissions) ? short.permissions.join(",") : typeof short.permissions === "string" ? short.permissions : undefined,
     };
   }
 
@@ -240,7 +253,7 @@ const num = (v: unknown): number | null => (typeof v === "number" && Number.isFi
 
 export async function refreshTikTok(conn: Connection): Promise<Connection> {
   if (!conn.refreshToken || !conn.expiresAt || conn.expiresAt - Date.now() > 5 * 60_000) return conn;
-  const c = config("tiktok");
+  const c = await keys("tiktok");
   const t = await json(
     await fetch(
       "https://open.tiktokapis.com/v2/oauth/token/",

@@ -1,6 +1,6 @@
 import { CONNECTABLE } from "@/lib/social-personas/types";
 import { aiReady } from "@/lib/social-personas/server/ai";
-import { config, isConfigured } from "@/lib/social-personas/server/connectors";
+import { config, keys } from "@/lib/social-personas/server/connectors";
 import { isRemoteConfigured } from "@/lib/server/blobStore";
 
 export const runtime = "nodejs";
@@ -12,10 +12,12 @@ export async function GET() {
     // Whether uploaded videos are kept somewhere the platforms can fetch them.
     storage: isRemoteConfigured(),
     platforms: Object.fromEntries(
-      CONNECTABLE.map((p) => {
-        const c = config(p);
-        return [p, { configured: isConfigured(p), env: c.envNames, setupUrl: c.setupUrl, postSetup: c.postSetup }];
-      }),
+      await Promise.all(
+        CONNECTABLE.map(async (p) => {
+          const c = config(p);
+          return [p, { configured: (await keys(p)).source !== null, env: c.envNames, setupUrl: c.setupUrl, postSetup: c.postSetup }] as const;
+        }),
+      ),
     ),
   });
 }

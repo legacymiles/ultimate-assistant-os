@@ -96,6 +96,33 @@
   display: block;
 }
 
+/* --- the reading layer (checklist U8) -------------------------------------
+   Words never sit straight on the moving galaxy. Every tab's content is laid
+   on a frosted panel: the galaxy still glows through, blurred and dimmed, but
+   it can't fight the text. Chat keeps the open galaxy for its empty hero and
+   frosts the conversation column once there is one. */
+.nj-read {
+  background: rgb(5 8 14 / 0.8);
+  -webkit-backdrop-filter: blur(22px) saturate(115%);
+  backdrop-filter: blur(22px) saturate(115%);
+}
+.nj-hud .njc-stream {
+  border-radius: 20px;
+  background: rgb(5 8 14 / 0.72);
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+  backdrop-filter: blur(18px) saturate(115%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.04);
+}
+.nj-hud .njc-side { background: rgb(4 8 15 / 0.86); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+/* Where blur isn't available, or the person asked for less transparency, the
+   layer goes solid instead of see-through. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .nj-read, .nj-hud .njc-stream, .nj-hud .njc-side { background: rgb(5 8 14 / 0.95); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .nj-read, .nj-hud .njc-stream, .nj-hud .njc-side { background: var(--color-canvas); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
 /* Inside Jarvis the galaxy is the Deck's background too. */
 .nj-hud .deck-stage { background: transparent; }
 .nj-hud .deck-own-field { display: none; }

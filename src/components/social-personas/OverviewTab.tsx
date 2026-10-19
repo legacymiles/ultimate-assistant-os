@@ -17,8 +17,10 @@ export function OverviewTab({
   onEdit,
   onDelete,
   go,
+  openSetup,
   ...props
 }: TabProps & {
+  openSetup: (p: "tiktok" | "instagram" | "facebook") => void;
   status: Status | null;
   syncAccount: (personaId: string, accountId: string) => Promise<void>;
   onEdit: () => void;
@@ -33,8 +35,7 @@ export function OverviewTab({
     { done: Boolean(p.overview || p.niche), label: "Write the profile overview", act: onEdit },
     { done: p.accounts.length > 0, label: "Add its accounts", act: undefined },
     { done: p.accounts.length > 0 && p.accounts.every((a) => a.loginItemId), label: "Save each account's sign-in", act: undefined },
-    { done: p.accounts.some((a) => a.connectionId), label: "Connect an account to sync videos and stats", act: undefined },
-    { done: p.accounts.some((a) => a.canPost), label: "Turn on auto-post", act: undefined },
+    { done: p.accounts.some((a) => a.connectionId), label: "Connect an account (one sign-in: stats sync in, posts go out by themselves)", act: undefined },
     { done: p.drafts.length > 0, label: "Plan the first post", act: () => go("ideas") },
   ];
   const left = steps.filter((s) => !s.done);
@@ -105,7 +106,7 @@ export function OverviewTab({
       </div>
 
       <div className="space-y-4">
-        <Accounts persona={p} status={status} vault={vault} mutate={props.mutate} flash={props.flash} syncAccount={syncAccount} />
+        <Accounts persona={p} status={status} vault={vault} mutate={props.mutate} flash={props.flash} syncAccount={syncAccount} openSetup={openSetup} />
         <div className="border-t border-line pt-3">
           {confirmDelete ? (
             <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
