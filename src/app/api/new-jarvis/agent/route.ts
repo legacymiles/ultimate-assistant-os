@@ -56,6 +56,8 @@ interface Body {
   context?: string;
   /** An OpenRouter model id from the Chat's picker. Absent = the hub default. */
   model?: string;
+  /** The owner's build checklist from Jarvis Profile, as text. */
+  checklist?: string;
   /**
    * Return the system prompt and tool list instead of thinking. Used when the
    * brain is Claude on the owner's own subscription: the PC's local agent does
@@ -239,6 +241,9 @@ export async function POST(req: Request) {
       ? `SWITCHED OFF RIGHT NOW: ${offline.join(", ")}. You have no tools for these, but you can still save to their Record, memory, folders, lists and calendar. If the job needs a switched-off one, say which and stop.`
       : "",
     body.context ? `CONTEXT FOR THIS REQUEST:\n${body.context.slice(0, 8_000)}` : "",
+    typeof body.checklist === "string" && body.checklist.trim() && mode !== "ask"
+      ? `${owner.toUpperCase()}'S BUILD CHECKLIST (from Jarvis Profile)\nWhenever you build, change or review an app or website, follow every rule below that applies — they are things ${owner} should never have to say twice. Check the work against them before calling it done; if one can't apply, say so in one line.\n${body.checklist.slice(0, 4_000)}`
+      : "",
     triage.note,
   ]
     .filter(Boolean)

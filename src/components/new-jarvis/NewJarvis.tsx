@@ -71,6 +71,7 @@ import { Onboarding, SetupButton, resumeStep, type OnboardingStep } from "./Onbo
 import { getOnboarding, useOnboarding } from "@/lib/new-jarvis/onboarding";
 import { useSetup } from "@/lib/new-jarvis/useSetup";
 import { useCameraWatch } from "@/lib/new-jarvis/useCameraWatch";
+import { readChecklistPrompt, useJarvisProfile } from "@/lib/jarvis-profile/useJarvisProfile";
 import { IphoneGuide } from "./IphoneGuide";
 import { CHAT_MODEL_KEY, isSubscription } from "@/lib/new-jarvis/chatModels";
 import { plainBridgeError, plainSiteError } from "@/lib/new-jarvis/plainErrors";
@@ -368,6 +369,9 @@ export function NewJarvis() {
   // Every 10 minutes, from whichever tab is open: new iPhone photos are pulled
   // into Camera Autopilot and the feed below raises the notification.
   const camera = useCameraWatch();
+  // Jarvis Profile's build checklist: learns from chats and keeps the Claude
+  // Code skill current from whichever tab is open.
+  const jarvisProfile = useJarvisProfile();
   // The iPhone setup guide. Opened from the Camera widget, Settings, setup's
   // Connect step, or /apps/jarvis#iphone — which is what its QR code opens.
   const [iphoneGuide, setIphoneGuide] = useState(false);
@@ -715,6 +719,8 @@ ${reflex.best.excerpt ?? ""}`.trim()
               capabilities: bridge.health.paired ? bridge.health.capabilities ?? {} : {},
               ownerName: profile?.name ?? "",
               timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+              // The owner's build checklist (Jarvis Profile), followed on every build.
+              checklist: readChecklistPrompt(),
             };
             const post = async (body: Record<string, unknown>) => {
               const res = await fetch("/api/new-jarvis/agent", {
@@ -1127,6 +1133,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 onOpenSetup={setSetupStep}
                 events={widgetEvents}
                 camera={camera}
+                jarvisProfile={jarvisProfile}
               />
             ) : tab === "console" ? (
               <ChatView

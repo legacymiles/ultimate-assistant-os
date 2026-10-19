@@ -58,9 +58,11 @@ import { FinishSetup, resumeStep, type OnboardingStep } from "./Onboarding";
 import type { SetupStatus } from "@/lib/new-jarvis/useSetup";
 import { getOnboarding } from "@/lib/new-jarvis/onboarding";
 import type { CameraWatch } from "@/lib/new-jarvis/useCameraWatch";
+import type { UseJarvisProfile } from "@/lib/jarvis-profile/useJarvisProfile";
+import { JarvisProfile } from "./JarvisProfile";
 import type { CalendarEvent } from "@/lib/recall/calendar/types";
 
-type Pane = "deck" | "graph" | "memory" | "profile" | "improve" | "queue";
+type Pane = "deck" | "graph" | "memory" | "profile" | "jarvis" | "improve" | "queue";
 
 const PANES: { id: Pane; label: string; icon: keyof typeof Icon }[] = [
   // The Deck is where the owner lands: favorites, last used, and Camera
@@ -69,6 +71,9 @@ const PANES: { id: Pane; label: string; icon: keyof typeof Icon }[] = [
   { id: "graph", label: "Brain", icon: "Grid" },
   { id: "memory", label: "Memory", icon: "Database" },
   { id: "profile", label: "Profile", icon: "Users" },
+  // Jarvis's own side of the profile, beside the owner's: the self-learning
+  // build checklist and the habits Jarvis has picked up.
+  { id: "jarvis", label: "Jarvis Profile", icon: "Bot" },
   { id: "improve", label: "Improve", icon: "Bulb" },
   // The queue is a pane here as well as a tab in the rail, mounted from the
   // one hook so both see the same rows and the same verdicts. The dashboard is
@@ -106,6 +111,8 @@ interface Props {
   events: CalendarEvent[];
   /** The 10-minute iPhone check, owned by the shell. */
   camera: CameraWatch;
+  /** Jarvis Profile's checklist, owned by the shell so it learns from any tab. */
+  jarvisProfile: UseJarvisProfile;
 }
 
 export function DashboardPanel({
@@ -124,6 +131,7 @@ export function DashboardPanel({
   onOpenSetup,
   events,
   camera,
+  jarvisProfile,
 }: Props) {
   const [pane, setPane] = useState<Pane>("deck");
   const [muted, setMuted] = useState<Set<MemorySource>>(new Set());
@@ -286,6 +294,8 @@ export function DashboardPanel({
           </div>
         ) : pane === "queue" ? (
           <QueueBoard queue={queue} />
+        ) : pane === "jarvis" ? (
+          <JarvisProfile api={jarvisProfile} />
         ) : pane === "memory" ? (
           <div className="h-full overflow-y-auto">
             <MemoryTab store={store} commit={commit} />
