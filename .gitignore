@@ -36,7 +36,14 @@ next-env.d.ts
 # the deployed hub builds a download whose manifest points at a file that is not
 # there, and Chrome refuses to load the whole extension over it.
 !extension/**/*.png
-.claude/
+# .claude/ is per-machine, except the super-board factory, which every machine shares.
+.claude/*
+!.claude/skills/
+!.claude/bin/
+!.claude/workflows/
+!.claude/super-board/
+.claude/super-board/*
+!.claude/super-board/configs/
 
 
 .vercel
@@ -53,6 +60,7 @@ claude-code-backup.zip
 # Recall app password (salted hash, never the plaintext)
 .recall-gate.json
 .recall-lists.json
+.site-errors.json
 
 # STD Safe — accounts, results, and the uploaded lab reports.
 # Real health records with names and dates of birth on them. Never commit these.
