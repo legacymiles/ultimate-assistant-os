@@ -2,18 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { Icon } from "../icons";
-import { OriginBadge } from "./SkillRow";
+import { FavoriteStar, OriginBadge } from "./SkillRow";
 import type { Skill } from "@/lib/skills/types";
+import { skillMeta } from "@/lib/skills/categories";
 
 interface Props {
   skill: Skill;
   onClose: () => void;
   onEdit: (skill: Skill) => void;
   onDelete: (skill: Skill) => void;
+  favorite?: boolean;
+  onToggleFavorite?: (skill: Skill) => void;
 }
 
-export function SkillDetailModal({ skill, onClose, onEdit, onDelete }: Props) {
+export function SkillDetailModal({ skill, onClose, onEdit, onDelete, favorite = false, onToggleFavorite }: Props) {
   const [copied, setCopied] = useState(false);
+  const meta = skillMeta(skill);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -53,7 +57,35 @@ export function SkillDetailModal({ skill, onClose, onEdit, onDelete }: Props) {
             {skill.overview && (
               <p className="mt-1 text-sm text-ink-muted">{skill.overview}</p>
             )}
+            <div className="mt-3 rounded-xl border border-line bg-canvas px-3 py-2.5">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-ink-faint">How to call it</p>
+              <p className="mt-1 text-sm text-ink">
+                Type <code className="rounded bg-elevated px-1.5 py-0.5 font-mono text-[12px]">{meta.command}</code>
+                {meta.nicknames.length > 0 ? (
+                  <>
+                    {" "}or just say{" "}
+                    {meta.nicknames.map((n, i) => (
+                      <span key={n}>
+                        {i > 0 && (i === meta.nicknames.length - 1 ? " or " : ", ")}
+                        <span className="text-brand">“{n}”</span>
+                      </span>
+                    ))}
+                  </>
+                ) : (
+                  <span className="text-ink-muted"> — no nicknames yet. Add “Nicknames: …” to its description so Claude knows them.</span>
+                )}
+              </p>
+              <p className="mt-1.5 text-[11px] text-ink-muted">
+                {meta.guessed ? "Category (best guess): " : "Category: "}
+                {meta.categories.join(" · ")}
+              </p>
+            </div>
           </div>
+          {onToggleFavorite && (
+            <span className={"rounded-lg border " + (favorite ? "border-amber-400/40 bg-amber-400/10" : "border-line")}>
+              <FavoriteStar skill={skill} on={favorite} onToggle={onToggleFavorite} size={15} label={favorite ? "Favorite" : "Add to favorites"} />
+            </span>
+          )}
           <button
             onClick={onClose}
             className="rounded-lg border border-line p-1.5 text-ink-muted transition hover:bg-panel-2 hover:text-ink"

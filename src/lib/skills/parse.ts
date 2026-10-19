@@ -36,8 +36,14 @@ function topLevelKey(line: string): RegExpMatchArray | null {
   return line.match(/^([A-Za-z0-9_-]+):(.*)$/);
 }
 
-/** Parse the frontmatter block into a flat map, handling YAML block scalars. */
-function parseBlock(block: string): Record<string, string> {
+/**
+ * Parse the frontmatter block into a flat map, handling YAML block scalars.
+ *
+ * One level of nesting is read for the spec's `metadata:` map, flattened to
+ * `metadata.<key>` — that is where a skill keeps its `category` and
+ * `nicknames` without adding keys the skill format doesn't allow.
+ */
+export function parseBlock(block: string): Record<string, string> {
   const out: Record<string, string> = {};
   const lines = block.split(/\r?\n/);
   let i = 0;
@@ -72,6 +78,14 @@ function parseBlock(block: string): Record<string, string> {
         ? trimmed.filter(Boolean).join(" ")
         : trimmed.join("\n").trim();
       i = j;
+    } else if (rest === "" && key === "metadata") {
+      let j = i + 1;
+      while (j < lines.length && (/^\s/.test(lines[j]) || lines[j].trim() === "")) {
+        const sub = lines[j].match(/^\s+([A-Za-z0-9_-]+):\s*(.*)$/);
+        if (sub && sub[2] && !/^[>|]/.test(sub[2])) out[`metadata.${sub[1].toLowerCase()}`] = stripQuotes(sub[2]);
+        j++;
+      }
+      i = j;
     } else {
       out[key] = stripQuotes(rest);
       i++;
@@ -105,4 +119,10 @@ export function parseSkillFrontmatter(markdown: string): ParsedSkill {
   }
 
   return result;
+}
+
+/** The raw frontmatter map of a SKILL.md (empty when it has none). */
+export function frontmatterOf(markdown: string): Record<string, string> {
+  const m = (markdown ?? "").replace(/^\uFEFF/, "").match(/^\s*---\s*\r?\n([\s\S]*?)\r?\n---/);
+  return m ? parseBlock(m[1]) : {};
 }

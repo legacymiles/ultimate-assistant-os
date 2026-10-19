@@ -14,6 +14,11 @@ const nextConfig = {
     // have to travel with the deployment — nothing imports them, so tracing
     // cannot infer it.
     "/api/jarvis/**": ["./CLAUDE.md", "./aios/**/*.md", "./src/lib/studio/skills/*.md"],
+    // The Skills Library and In Queue list the committed skills by reading the
+    // folders at request time: the owner's mirror in skills/ and the
+    // super-board pack in .claude/skills/.
+    "/api/skills/scan": ["./skills/*/SKILL.md", "./.claude/skills/*/SKILL.md"],
+    "/api/new-jarvis/queue": ["./skills/**/*.md"],
     // The Record extension is zipped up and handed to the browser at request
     // time, so its source has to travel with the deployment too.
     "/api/jarvis/record/extension": ["./extension/jarvis-record/*"],

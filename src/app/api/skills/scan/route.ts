@@ -93,6 +93,26 @@ async function scanPlugins(root: string): Promise<ScannedSkill[]> {
  * personal skill in here, so what the owner sees in the Toolbox is the same
  * list whether they opened the hub on this machine or on their phone.
  */
+/**
+ * The project skills committed under `.claude/skills/` — today the super-board
+ * pack (super-board, super-build, super-qa, super-review, super-collect,
+ * ui-refine-loop, visual, git-sync). Claude Code loads these whenever it is
+ * opened in this repo, so the library should list them too.
+ */
+async function scanProjectPack(): Promise<ScannedSkill[]> {
+  const dir = path.join(process.cwd(), ".claude", "skills");
+  let entries: string[];
+  try {
+    entries = await readdir(dir);
+  } catch {
+    return [];
+  }
+  const results = await Promise.all(
+    entries.map((name) => readSkillFile(path.join(dir, name, "SKILL.md"), name, "super-board")),
+  );
+  return results.filter((s): s is ScannedSkill => s !== null);
+}
+
 async function scanRepo(): Promise<ScannedSkill[]> {
   const dir = path.join(process.cwd(), "skills");
   let entries: string[];
@@ -141,11 +161,12 @@ async function scanStore(): Promise<ScannedSkill[]> {
 
 export async function GET() {
   const root = claudeHome();
-  const [personal, plugins, repo, store] = await Promise.all([
+  const [personal, plugins, repo, store, pack] = await Promise.all([
     scanPersonal(root),
     scanPlugins(root),
     scanRepo(),
     scanStore(),
+    scanProjectPack(),
   ]);
 
   // The live copy on this PC wins over the committed mirror: a skill edited
@@ -154,7 +175,7 @@ export async function GET() {
   const bySlug = new Map<string, ScannedSkill>();
   // Precedence, lowest first: the committed repo mirror, then Jarvis's store
   // (newer — any device writes it), then the live files on this machine.
-  for (const s of [...repo, ...store, ...personal, ...plugins]) bySlug.set(s.slug, s);
+  for (const s of [...pack, ...repo, ...store, ...personal, ...plugins]) bySlug.set(s.slug, s);
   const skills = [...bySlug.values()].sort((a, b) => a.title.localeCompare(b.title));
 
   // "available" tells the client whether this server can see any skill files at
