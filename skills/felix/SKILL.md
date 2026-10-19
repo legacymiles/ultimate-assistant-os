@@ -1,9 +1,12 @@
 ---
 name: felix
-description: Ambitious, end-goal-first planning for anything worth doing well — building or improving an app, website, plugin or Jarvis itself, fixing something that keeps breaking, or any task where "ok" isn't good enough. Finds the goal beyond the goal, sets a pro-commercial bar (Felix Rieseberg's Altitude, Depth and Range, plus the website backend checklist), names an outside judge, then does the work or hands a sharp brief to the prompt-enhancer or super-board. Use when the user types /felix, says "be more ambitious", "aim higher", "what's the end goal", "make this pro", "Apple-level", "trillion-dollar", "self-improving", or starts building or improving an app, site or plugin.
+description: Ambitious, end-goal-first planning for anything worth doing well — building or improving an app, website, plugin or Jarvis itself, fixing something that keeps breaking, or any task where "ok" isn't good enough. Finds the goal beyond the goal, sets a pro-commercial bar (Felix Rieseberg's Altitude, Depth and Range, plus the website backend checklist), names an outside judge, then does the work or hands a sharp brief on. Built into prompt-enhancer and software-factory; call it directly for the full ambitious plan. Use when the user types /felix, says "be more ambitious", "aim higher", "what's the end goal", "make this pro", "Apple-level", "trillion-dollar", "self-improving", or starts building or improving an app, site or plugin. Nicknames: Felix, the Felix skill, be ambitious, aim higher, end goal skill, goal check.
 license: MIT
 metadata:
   author: legacymiles (built on RoboNuggets' be-ambitious, MIT)
+  category: Prompt Engineering, Planning
+  nicknames: Felix, the Felix skill, be ambitious, aim higher, end goal skill, goal check
+  built-into: prompt-enhancer, software-factory
   source: https://felixrieseberg.com/how-to-be-more-ambitious-a-tutorial-for-humans-with-models/
 ---
 
@@ -133,17 +136,22 @@ Size the output to the task: a one-line request gets a few lines of plan. In thi
    For a prompt to improve, stop there. For a task to do, start. Ask first only when the rung
    replaces what was asked for, spends money, or can't be undone.
 
-## Hand-offs (how Felix wires into the other skills)
+## Built into the other skills
 
-- **prompt-enhancer** calls Felix as its first pass whenever the prompt is about building or
-  improving something. Felix supplies the end goal, the bar and the judge; the enhancer turns
-  them into the strongest prompt for the model that will run it.
-- **super-board / software-factory**: when the plan is bigger than one sitting, turn the
-  ladder into board tickets in super-board's ticket format — one card per PR under ~400 lines,
-  each with 2–5 checkable Acceptance Criteria taken straight from the outside judges, a type
-  label (`bug`/`feature`/`ux`/`tests`/`docs`/`tech-debt`), and the checklist line it closes
-  (e.g. "closes R2"). New cards go to **Backlog**; the owner moves them to Ready. Never set a
-  board to auto-merge: `human_approves_merge` stays `true` unless the owner says otherwise.
+Felix is the one source; the other two carry its core inline so neither ever runs without it.
+
+- **prompt-enhancer** — its Step 1 *is* the Felix pass (end goal, goal beyond, the user's
+  features their way, better-not-bigger, the outside judge, the checklist lines, one hard
+  target). Call `/felix` instead when the user wants the whole ambitious plan — the three-rung
+  ladder and the crew — not just a sharper prompt.
+- **software-factory** (super-board) — Felix writes every card (end goal in Problem, judges as
+  Acceptance Criteria, the checklist line it closes, one card per PR under ~400 lines), gates
+  every card before it moves to Ready (vague cards are rewritten, owner approves the edit), and
+  reviews every finished run by proposing the next rung as Backlog cards from real evidence.
+  New cards always land in **Backlog**; `human_approves_merge` stays `true` unless the owner
+  says otherwise.
+- When Felix itself makes a plan bigger than one sitting, it hands the ladder to
+  software-factory as cards.
 - **Jarvis self-improvement**: the standing goal beyond the goal for Jarvis and every site in
   the hub is *crash-free and getting better on its own* — errors are logged (Deck › Site
   errors), logged errors become Backlog cards, and the Improvements widget proposes the next
