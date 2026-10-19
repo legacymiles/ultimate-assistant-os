@@ -6,9 +6,10 @@ import { newPersona } from "@/lib/social-personas/logic";
 import { PRESETS, type Persona } from "@/lib/social-personas/types";
 import { Btn, inputCls } from "./bits";
 
-export function PersonaForm({ initial, onClose, onSave }: { initial?: Persona; onClose: () => void; onSave: (p: Persona) => void }) {
+export function PersonaForm({ initial, onClose, onSave }: { initial?: Persona; ai?: boolean; onClose: () => void; onSave: (p: Persona) => void }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [niche, setNiche] = useState(initial?.niche ?? "");
+  const [overview, setOverview] = useState(initial?.overview ?? "");
   const [types, setTypes] = useState(initial?.contentTypes.join(", ") ?? "");
   const [audience, setAudience] = useState(initial?.audience ?? "");
   const [tone, setTone] = useState(initial?.tone ?? "");
@@ -26,6 +27,7 @@ export function PersonaForm({ initial, onClose, onSave }: { initial?: Persona; o
     const fields = {
       name: name.trim(),
       niche: niche.trim(),
+      overview: overview.trim(),
       contentTypes: types.split(",").map((s) => s.trim()).filter(Boolean),
       audience: audience.trim(),
       tone: tone.trim(),
@@ -43,7 +45,7 @@ export function PersonaForm({ initial, onClose, onSave }: { initial?: Persona; o
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center border-b border-line px-4 py-3">
-          <h2 className="text-base font-semibold text-ink">{initial ? "Edit persona" : "New persona"}</h2>
+          <h2 className="text-base font-semibold text-ink">{initial ? "Edit profile" : "New persona"}</h2>
           <button onClick={onClose} className="ml-auto rounded-lg p-1 text-ink-muted hover:bg-panel-2 hover:text-ink" aria-label="Close">
             <Icon.Close width={16} height={16} />
           </button>
@@ -78,6 +80,15 @@ export function PersonaForm({ initial, onClose, onSave }: { initial?: Persona; o
           </Field>
           <Field label="Niche" hint="The kind of content, in a few words">
             <input className={inputCls} value={niche} onChange={(e) => setNiche(e.target.value)} placeholder="Rap music videos" />
+          </Field>
+          <Field label="Profile overview" hint="Who this persona is — the AI follows it">
+            <textarea
+              rows={3}
+              className={inputCls + " resize-y"}
+              value={overview}
+              onChange={(e) => setOverview(e.target.value)}
+              placeholder="A 19-year-old rapper from Columbus who drops a verse every day and lets fans pick the next beat. Faceless, voice-first, lots of studio B-roll."
+            />
           </Field>
           <Field label="Content types" hint="Comma separated">
             <input className={inputCls} value={types} onChange={(e) => setTypes(e.target.value)} placeholder="music video, verse snippet, studio session" />

@@ -16,7 +16,7 @@ import "server-only";
 
 import path from "node:path";
 import { readDoc, writeDoc } from "@/lib/server/docStore";
-import type { Post, SocialPlatform } from "../types";
+import type { ConnectablePlatform as SocialPlatform, Post } from "../types";
 
 const GRAPH = "v23.0";
 
@@ -25,6 +25,10 @@ interface PlatformConfig {
   secret: string;
   envNames: [string, string];
   scopes: string;
+  /** Extra scopes asked for only when the owner turns on auto-posting. */
+  postScopes: string;
+  /** What to switch on in the developer portal for those scopes, in plain words. */
+  postSetup: string;
   setupUrl: string;
 }
 
@@ -35,6 +39,10 @@ export function config(p: SocialPlatform): PlatformConfig {
       secret: process.env.TIKTOK_CLIENT_SECRET ?? "",
       envNames: ["TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET"],
       scopes: "user.info.basic,user.info.profile,user.info.stats,video.list",
+      // Upload-to-inbox only. Direct Post is private-only until TikTok audits
+      // the app, and needs TikTok's own posting screen; inbox drafts need neither.
+      postScopes: "video.upload",
+      postSetup: "Add the Content Posting API product (Upload) to your TikTok app.",
       setupUrl: "https://developers.tiktok.com/apps",
     };
   }
@@ -44,6 +52,8 @@ export function config(p: SocialPlatform): PlatformConfig {
       secret: process.env.INSTAGRAM_APP_SECRET ?? "",
       envNames: ["INSTAGRAM_APP_ID", "INSTAGRAM_APP_SECRET"],
       scopes: "instagram_business_basic",
+      postScopes: "instagram_business_content_publish",
+      postSetup: "Add the instagram_business_content_publish permission to your Meta app.",
       setupUrl: "https://developers.facebook.com/apps",
     };
   }
@@ -52,6 +62,8 @@ export function config(p: SocialPlatform): PlatformConfig {
     secret: process.env.FACEBOOK_APP_SECRET ?? "",
     envNames: ["FACEBOOK_APP_ID", "FACEBOOK_APP_SECRET"],
     scopes: "pages_show_list,pages_read_engagement,pages_read_user_content",
+    postScopes: "pages_manage_posts",
+    postSetup: "Add the pages_manage_posts permission to your Meta app.",
     setupUrl: "https://developers.facebook.com/apps",
   };
 }
@@ -65,18 +77,24 @@ export function redirectUri(origin: string, p: SocialPlatform): string {
   return `${origin}/api/social-personas/oauth/${p}/callback`;
 }
 
-export function authorizeUrl(p: SocialPlatform, origin: string, state: string): string {
+export function scopesFor(p: SocialPlatform, posting: boolean): string {
+  const c = config(p);
+  return posting ? `${c.scopes},${c.postScopes}` : c.scopes;
+}
+
+export function authorizeUrl(p: SocialPlatform, origin: string, state: string, posting = false): string {
   const c = config(p);
   const redirect = redirectUri(origin, p);
+  const scope = scopesFor(p, posting);
   if (p === "tiktok") {
-    const q = new URLSearchParams({ client_key: c.id, scope: c.scopes, response_type: "code", redirect_uri: redirect, state });
+    const q = new URLSearchParams({ client_key: c.id, scope, response_type: "code", redirect_uri: redirect, state });
     return `https://www.tiktok.com/v2/auth/authorize/?${q}`;
   }
   if (p === "instagram") {
-    const q = new URLSearchParams({ client_id: c.id, redirect_uri: redirect, response_type: "code", scope: c.scopes, state });
+    const q = new URLSearchParams({ client_id: c.id, redirect_uri: redirect, response_type: "code", scope, state });
     return `https://www.instagram.com/oauth/authorize?${q}`;
   }
-  const q = new URLSearchParams({ client_id: c.id, redirect_uri: redirect, response_type: "code", scope: c.scopes, state });
+  const q = new URLSearchParams({ client_id: c.id, redirect_uri: redirect, response_type: "code", scope, state });
   return `https://www.facebook.com/${GRAPH}/dialog/oauth?${q}`;
 }
 
@@ -94,6 +112,10 @@ export interface Connection {
   accountId?: string;
   /** Facebook: every page the login can read, each with its own token. */
   pages?: { id: string; name: string; token: string }[];
+  /** Scopes the platform actually granted, when it says. */
+  scopes?: string;
+  /** True when this login was made with the posting scopes. */
+  canPost?: boolean;
   createdAt: string;
 }
 
@@ -157,6 +179,7 @@ export async function exchangeCode(
       refreshToken: t.refresh_token,
       expiresAt: Date.now() + (Number(t.expires_in) || 86_400) * 1000,
       accountId: t.open_id,
+      scopes: typeof t.scope === "string" ? t.scope : undefined,
     };
   }
 
@@ -215,7 +238,7 @@ export interface SyncResult {
 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : v != null && v !== "" && !isNaN(Number(v)) ? Number(v) : null);
 
-async function refreshTikTok(conn: Connection): Promise<Connection> {
+export async function refreshTikTok(conn: Connection): Promise<Connection> {
   if (!conn.refreshToken || !conn.expiresAt || conn.expiresAt - Date.now() > 5 * 60_000) return conn;
   const c = config("tiktok");
   const t = await json(

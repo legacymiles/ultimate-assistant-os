@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { exchangeCode, saveConnection } from "@/lib/social-personas/server/connectors";
+import { config, deleteConnection, exchangeCode, loadConnection, saveConnection } from "@/lib/social-personas/server/connectors";
 import { asPlatform, fail, publicOrigin, viewerUid } from "@/lib/social-personas/server/http";
 
 export const runtime = "nodejs";
@@ -14,17 +14,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ platform
   const url = new URL(req.url);
   const origin = publicOrigin(req);
 
-  let state: { persona?: string; nonce?: string; platform?: string } = {};
+  let state: { persona?: string; nonce?: string; platform?: string; posting?: boolean; replace?: string } = {};
   try {
     state = JSON.parse(Buffer.from(url.searchParams.get("state") ?? "", "base64url").toString("utf8"));
   } catch {
     /* handled below */
   }
   const back = (q: Record<string, string>) =>
-    NextResponse.redirect(`${origin}/apps/social-personas?${new URLSearchParams({ persona: state.persona ?? "", ...q })}`);
+    NextResponse.redirect(`${origin}/apps/personas-studio?${new URLSearchParams({ persona: state.persona ?? "", ...q })}`);
 
   const denied = url.searchParams.get("error_description") || url.searchParams.get("error");
-  if (denied) return back({ oauthError: denied });
+  if (denied) {
+    // The usual reason a posting login is refused: the developer app hasn't
+    // been given the posting permission yet. Say which switch to flip.
+    const hint = state.posting && /scope|permission/i.test(denied) ? ` ${config(platform).postSetup}` : "";
+    return back({ oauthError: denied + hint });
+  }
 
   const jar = await cookies();
   if (!state.nonce || state.nonce !== jar.get("sp_oauth")?.value || state.platform !== platform) {
@@ -36,9 +41,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ platform
   try {
     const got = await exchangeCode(platform, code, origin);
     const id = "c" + crypto.randomUUID().replace(/-/g, "");
-    const saved = await saveConnection({ ...got, id, ownerUid: await viewerUid(), createdAt: new Date().toISOString() });
+    const uid = await viewerUid();
+    const saved = await saveConnection({ ...got, id, ownerUid: uid, canPost: Boolean(state.posting), createdAt: new Date().toISOString() });
     if (!saved) return back({ oauthError: "Connected, but the server couldn't store the login. Set SUPABASE_SERVICE_ROLE_KEY." });
-    const res = back({ connected: id, platform });
+    // Turning on auto-post makes a fresh login; the old one is retired so a
+    // stale token never lingers on the server.
+    if (state.replace) {
+      const old = await loadConnection(state.replace);
+      if (old && old.ownerUid === uid) await deleteConnection(old.id);
+    }
+    const res = back({ connected: id, platform, ...(state.replace ? { replaced: state.replace } : {}), ...(state.posting ? { posting: "1" } : {}) });
     res.cookies.set("sp_oauth", "", { path: "/", maxAge: 0 });
     return res;
   } catch (err) {

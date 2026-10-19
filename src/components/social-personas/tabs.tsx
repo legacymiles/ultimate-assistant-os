@@ -4,10 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { Markdown } from "../Markdown";
 import { localDay, mergePosts, platformOfUrl, uid } from "@/lib/social-personas/logic";
-import { PLATFORM_NAME, type Idea, type IdeaStatus, type Persona, type Post } from "@/lib/social-personas/types";
+import { PLATFORM_NAME, type Draft, type Idea, type IdeaStatus, type Persona, type Post } from "@/lib/social-personas/types";
 import { api } from "./api";
 import { Btn, PlatformDot, inputCls } from "./bits";
-import { compact } from "./PersonaGrid";
+import { compact, draftFromIdea } from "@/lib/social-personas/studio";
 import type { TabProps } from "./Workspace";
 
 // --- shared ------------------------------------------------------------------
@@ -34,7 +34,7 @@ const STATUS_STYLE: Record<IdeaStatus, string> = {
   skipped: "opacity-40",
 };
 
-export function TodayTab(props: TabProps & { onBrainstorm: (seed: string) => void }) {
+export function TodayTab(props: TabProps & { onBrainstorm: (seed: string) => void; onPlan: (d: Draft) => void }) {
   const { persona, mutate, flash, ai } = props;
   const today = localDay();
   const [day, setDay] = useState(today);
@@ -147,7 +147,22 @@ export function TodayTab(props: TabProps & { onBrainstorm: (seed: string) => voi
                     </ol>
                   )}
                   {i.why && <p className="text-ink-faint">Why: {i.why}</p>}
-                  <div className="flex gap-1.5">
+                  <div className="flex flex-wrap gap-1.5">
+                    {persona.drafts.some((d) => d.ideaId === i.id) ? (
+                      <span className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-emerald-400">
+                        <Icon.Check width={12} height={12} /> In your plan
+                      </span>
+                    ) : (
+                      <Btn
+                        primary
+                        onClick={() => {
+                          if (i.status !== "saved") setStatus(i.id, "saved");
+                          props.onPlan(draftFromIdea(i, persona));
+                        }}
+                      >
+                        <Icon.Calendar width={12} height={12} /> Plan it
+                      </Btn>
+                    )}
                     <Btn onClick={() => props.onBrainstorm(`Let's develop this idea: "${i.title}" — hook: "${i.hook}". Write the full script/shot list, a caption and hashtags.`)}>
                       <Icon.Sparkles width={12} height={12} /> Develop in Brainstorm
                     </Btn>

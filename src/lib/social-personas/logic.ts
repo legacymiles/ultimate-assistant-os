@@ -11,7 +11,9 @@ import {
   type Idea,
   type Persona,
   type Post,
+  type PostStats,
   type SocialPlatform,
+  type StatSnapshot,
 } from "./types";
 
 export function uid(prefix = ""): string {
@@ -35,6 +37,7 @@ export function newPersona(partial: Partial<Persona> & { name: string }): Person
   return {
     id: uid("p_"),
     niche: "",
+    overview: "",
     contentTypes: [],
     audience: "",
     tone: "",
@@ -46,6 +49,7 @@ export function newPersona(partial: Partial<Persona> & { name: string }): Person
     brain: null,
     ideaDays: [],
     chat: [],
+    drafts: [],
     createdAt: now,
     updatedAt: now,
     ...partial,
@@ -55,7 +59,7 @@ export function newPersona(partial: Partial<Persona> & { name: string }): Person
 /** Handle from a profile link or "@name", without the @. */
 export function handleFrom(input: string): string {
   const t = input.trim();
-  const m = t.match(/(?:tiktok\.com\/@|instagram\.com\/|facebook\.com\/)([A-Za-z0-9._-]+)/i);
+  const m = t.match(/(?:tiktok\.com\/@|instagram\.com\/|facebook\.com\/|youtube\.com\/@|(?:x|twitter)\.com\/)([A-Za-z0-9._-]+)/i);
   if (m) return m[1];
   return t.replace(/^@/, "").replace(/\s+/g, "");
 }
@@ -65,6 +69,8 @@ export function profileUrl(platform: SocialPlatform, handle: string): string {
   if (!h) return "";
   if (platform === "tiktok") return `https://www.tiktok.com/@${h}`;
   if (platform === "instagram") return `https://www.instagram.com/${h}/`;
+  if (platform === "youtube") return `https://www.youtube.com/@${h}`;
+  if (platform === "x") return `https://x.com/${h}`;
   return `https://www.facebook.com/${h}`;
 }
 
@@ -80,6 +86,7 @@ export function platformOfUrl(url: string): Post["platform"] {
   if (host.endsWith("instagram.com")) return "instagram";
   if (host.endsWith("facebook.com") || host === "fb.watch") return "facebook";
   if (host.endsWith("youtube.com") || host === "youtu.be") return "youtube";
+  if (host === "x.com" || host.endsWith(".x.com") || host.endsWith("twitter.com")) return "x";
   return "other";
 }
 
@@ -102,11 +109,43 @@ export function mergePosts(existing: Post[], incoming: Post[]): Post[] {
         thumbnail: p.thumbnail ?? e.thumbnail,
         postedAt: p.postedAt ?? e.postedAt,
         stats: p.stats ?? e.stats,
+        history: p.stats ? addSnapshot(e.history ?? (e.stats ? [{ ...e.stats, at: e.addedAt }] : []), p.stats, p.addedAt) : e.history,
         externalId: e.externalId ?? p.externalId,
+        draftId: e.draftId ?? p.draftId,
       };
-    } else out.push(p);
+    } else out.push(p.stats && !p.history?.length ? { ...p, history: [{ ...p.stats, at: p.addedAt }] } : p);
   }
   return out.sort((a, b) => stamp(b) - stamp(a));
+}
+
+/** Most readings kept per post — enough for a smooth curve, small enough to sync. */
+export const MAX_SNAPSHOTS = 48;
+
+/**
+ * Add one reading of a post's stats to its history. A reading identical to the
+ * last one is dropped (a re-sync that learned nothing), and once the history is
+ * full the oldest middle points are thinned so the first and latest stay.
+ */
+export function addSnapshot(history: StatSnapshot[], stats: PostStats, at: string): StatSnapshot[] {
+  const last = history[history.length - 1];
+  const same = last && last.views == stats.views && last.likes == stats.likes && last.comments == stats.comments && last.shares == stats.shares;
+  if (same) return history;
+  const next = [...history, { at, views: stats.views ?? null, likes: stats.likes ?? null, comments: stats.comments ?? null, shares: stats.shares ?? null }];
+  // Over the cap: drop the middle point closest in time to its neighbour, so
+  // the curve keeps its shape (early hours stay as detailed as late days).
+  while (next.length > MAX_SNAPSHOTS) {
+    let drop = 1;
+    let best = Infinity;
+    for (let i = 1; i < next.length - 1; i++) {
+      const gap = Date.parse(next[i + 1].at) - Date.parse(next[i - 1].at);
+      if (gap < best) {
+        best = gap;
+        drop = i;
+      }
+    }
+    next.splice(drop, 1);
+  }
+  return next;
 }
 
 function stamp(p: Post): number {
@@ -122,6 +161,7 @@ export function personaContext(p: Persona, { maxPosts = 40 } = {}): string {
   const lines: string[] = [];
   lines.push(`PERSONA: ${p.name}`);
   if (p.niche) lines.push(`NICHE: ${p.niche}`);
+  if (p.overview) lines.push(`PROFILE OVERVIEW: ${p.overview}`);
   if (p.contentTypes.length) lines.push(`CONTENT TYPES: ${p.contentTypes.join(", ")}`);
   if (p.audience) lines.push(`AUDIENCE: ${p.audience}`);
   if (p.tone) lines.push(`TONE / VOICE: ${p.tone}`);

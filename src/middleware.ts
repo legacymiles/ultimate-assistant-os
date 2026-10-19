@@ -37,6 +37,9 @@ const TOKEN_AUTH_PATHS = new Set([
   // and the bearer-token feed super-board reads. Both verify in the route.
   "/api/site-errors/report",
   "/api/site-errors/feed",
+  // Personas Studio's scheduler tick (GitHub Actions). Only sends posts their
+  // owners already scheduled, behind a per-job lock; optional bearer token.
+  "/api/social-personas/publish/tick",
   "/api/dashboard/inbox/push",
   "/api/dashboard/inbox/cursor",
   "/api/game-creator/builder/claim",
