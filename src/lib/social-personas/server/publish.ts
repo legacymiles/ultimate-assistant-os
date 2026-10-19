@@ -63,7 +63,7 @@ export function plain(what: string, raw: string, status = 0): string {
   const r = String(raw || "");
   if (/spam_risk|too many posts|limit reached/i.test(r)) return `${what}: the platform's daily posting limit was reached. It'll try again later.`;
   if (/scope|permission|not authori[sz]ed|\(#10\)|\(#200\)/i.test(r)) {
-    return `${what}: this account hasn't given Personas Studio permission to post. Open the persona, and on the account press "Turn on auto-post".`;
+    return `${what}: this account hasn't given Personas Studio permission to post. Open the persona and press "Reconnect for auto-post" on the account.`;
   }
   if (/expired|invalid.*token|access_token_invalid|\b190\b/i.test(r) || status === 401) return `${what}: the login expired. Connect the account again.`;
   if (/rate|limit|too many|429/i.test(r) || status === 429) return `${what}: the platform is rate-limiting right now. It'll try again in a few minutes.`;
@@ -194,7 +194,7 @@ async function publishFacebook(input: PublishInput): Promise<PublishOutcome> {
 
 export async function publish(input: PublishInput): Promise<PublishOutcome> {
   if (!input.conn.canPost) {
-    throw new Error(`Auto-post isn't on for this ${input.conn.platform} account yet. Open the persona and press "Turn on auto-post" on it. ${config(input.conn.platform).postSetup}`);
+    throw new Error(`Auto-post isn't on for this ${input.conn.platform} account yet. Open the persona and press "Reconnect for auto-post" on it. ${config(input.conn.platform).postSetup}`);
   }
   if (input.conn.platform === "tiktok") return publishTikTok(input);
   if (input.conn.platform === "instagram") return publishInstagram(input);

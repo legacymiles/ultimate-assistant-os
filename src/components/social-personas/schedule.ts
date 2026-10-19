@@ -19,7 +19,7 @@ export function blocker(p: Persona, d: Draft, accountId: string): string | null 
   if (!a) return "account removed";
   if (!isConnectable(a.platform)) return "reminder";
   if (!a.connectionId) return "connect to auto-post";
-  if (!a.canPost) return "turn on auto-post";
+  if (!a.canPost) return "reconnect for auto-post";
   if (!d.media && a.platform !== "facebook") return "add a video";
   return null;
 }

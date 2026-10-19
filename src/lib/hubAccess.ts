@@ -34,7 +34,14 @@ export const CLIENT_REVIEW_PUBLIC = [
 /** The crash reporter client sites load. A static script with no data in it. */
 export const ERROR_SCRIPT = "/jarvis-errors.js";
 
-const PUBLIC_PREFIXES = [PUBLIC_HOME, "/api/fno", ...CLIENT_REVIEW_PUBLIC, ERROR_SCRIPT];
+/**
+ * Privacy policy, terms and data-deletion pages. TikTok and Meta require
+ * these to be publicly reachable before they'll approve a developer app.
+ * Static text with no data in it.
+ */
+export const LEGAL_PAGES = "/legal";
+
+const PUBLIC_PREFIXES = [PUBLIC_HOME, "/api/fno", ...CLIENT_REVIEW_PUBLIC, ERROR_SCRIPT, LEGAL_PAGES];
 const AUTH_PREFIXES = ["/login", "/auth"];
 
 function underPrefix(path: string, prefix: string): boolean {
