@@ -285,6 +285,11 @@ export function classify(op: BridgeOp): Verdict {
       );
     }
 
+    case "hub/record_fill":
+      // Typing without submitting, same as browser/type: free. The value is
+      // never in the summary — it's read from the Record in the owner's tab.
+      return free(`Fill "${truncate(String(args.name ?? "a box"), 40)}" with your saved ${String(args.key ?? "detail").replace(/_/g, " ")}.`);
+
     case "hub/record_set": {
       const fields = args.fields && typeof args.fields === "object" ? (args.fields as Record<string, unknown>) : {};
       const named = Object.entries(fields)

@@ -29,7 +29,10 @@
 // no network. The server call is in decide.ts.
 // ---------------------------------------------------------------------------
 
-export type DecisionModelId = "typesafe/jev-1.13" | "respan/span-01-lite:free" | "respan/span-02";
+export type DecisionModelId = "typesafe/jev-1.14" | "typesafe/jev-1.13" | "respan/span-01-lite:free" | "respan/span-02";
+
+/** The Jev release Jarvis uses. One place to move it when TypeSafe ships the next one. */
+export const JEV: DecisionModelId = "typesafe/jev-1.14";
 
 export interface DecisionModel {
   id: DecisionModelId;
@@ -62,6 +65,18 @@ export interface DecisionModel {
  * pictures; no latency figure is published for it yet, so none is claimed.
  */
 export const DECISION_MODELS: DecisionModel[] = [
+  {
+    id: "typesafe/jev-1.14",
+    label: "Jev 1.14",
+    maker: "TypeSafe",
+    goodFor: "Instant routing and triage: pick a path, score urgency, yes/no checks, all in one call.",
+    notFor: "Anything that has to be written. It returns choices and probabilities, never text.",
+    types: ["choice", "noul", "score"],
+    images: false,
+    latency: "70–500 ms",
+    price: "$0.042 per million input tokens, output free",
+    released: "2026-10-14",
+  },
   {
     id: "typesafe/jev-1.13",
     label: "Jev 1.13",

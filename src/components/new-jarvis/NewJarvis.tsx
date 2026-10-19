@@ -92,6 +92,9 @@ import type { DashboardStore, Profile } from "@/lib/new-dashboard/types";
 import { JARVIS_KEY, loadJarvis, saveJarvis, uid } from "@/lib/jarvis/store";
 import { isDashboardTool, runDashboardTool } from "@/lib/jarvis/dashboardBridge";
 import { captureToRecord, FieldStash } from "@/lib/new-jarvis/capture";
+import { savedFields } from "@/lib/new-jarvis/savedFields";
+import { getRecord } from "@/lib/jarvis/record/store";
+import { isSensitive, labelForKey } from "@/lib/jarvis/record/types";
 import type { JarvisStore } from "@/lib/jarvis/types";
 import { useDashboardCalendar } from "@/lib/jarvis/useDashboardCalendar";
 
@@ -596,6 +599,25 @@ export function NewJarvis() {
         };
       }
 
+      if (tool === "record_fill") {
+        // The value is read here, in the owner's tab, and goes straight to the
+        // page through the bridge. It is not returned, so no model sees it.
+        const key = String(args.key ?? "").trim();
+        if (!key || isSensitive(key)) {
+          throw new Error("That's a sensitive field, so Jarvis never types it in. Fill it in yourself.");
+        }
+        const value = getRecord().fields[key]?.value?.trim();
+        const label = labelForKey(key) ?? key;
+        if (!value) throw new Error(`Your Life Record doesn't have your ${label} yet. Add it in Profile, or type it here yourself.`);
+        await bridge.run("browser/type", {
+          ref: args.ref,
+          value,
+          name: args.name,
+          ...(args.tabId ? { tabId: args.tabId } : {}),
+        });
+        return { filled: label, into: String(args.name ?? ""), note: "Typed from your Life Record in your own tab — the value wasn't sent to any model." };
+      }
+
       if (tool === "propose_memory") {
         const title = String(args.title ?? "").trim();
         const content = String(args.content ?? "").trim();
@@ -715,6 +737,9 @@ ${reflex.best.excerpt ?? ""}`.trim()
           update: (p) => patch(block.id, p),
           think: async (messages) => {
             const ask = {
+              // Names of the Life Record fields filled in, never their values,
+              // so Jev can fill a form box from them (src/lib/new-jarvis/savedFields.ts).
+              saved: savedFields(getRecord()),
               mode: runMode,
               capabilities: bridge.health.paired ? bridge.health.capabilities ?? {} : {},
               ownerName: profile?.name ?? "",

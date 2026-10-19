@@ -34,7 +34,7 @@
 // ---------------------------------------------------------------------------
 
 import type { DecisionRequest, DecisionResult } from "@/lib/ai/decisions";
-import { confidentChoice } from "@/lib/ai/decisions";
+import { confidentChoice, JEV } from "@/lib/ai/decisions";
 
 export type TriageLane = "quick" | "remember" | "computer" | "build";
 
@@ -72,7 +72,7 @@ export function shouldTriage(mode: string, messages: TurnMessage[]): boolean {
 /** The question Jev is asked. Recent context helps "yes do it" mean something. */
 export function triageRequest(text: string, previous: string): DecisionRequest {
   return {
-    model: "typesafe/jev-1.13",
+    model: JEV,
     state: {
       message: text.slice(0, 2_000),
       ...(previous ? { previous_assistant_reply: previous.slice(0, 600) } : {}),

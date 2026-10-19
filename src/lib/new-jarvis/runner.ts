@@ -46,7 +46,7 @@ export interface StepResponse {
   error?: string;
   /** Set when the fast lane chose this step instead of the chat model. */
   fast?: string;
-  /** The model that answered. "typesafe/jev-1.13" or "rule" for fast-lane steps. */
+  /** The model that answered. a Jev id or "rule" for fast-lane steps. */
   model?: string;
   /** True when Claude refused explicit content and an uncensored model answered. */
   rerouted?: boolean;

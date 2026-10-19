@@ -1,5 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { autoRead, clickOptions, fastCandidate, fastStreak, parseSnapshot, pickStep, FAST_ID, MAX_STREAK, type Wire } from "./browserFast";
+import {
+  autoRead,
+  cleanWritten,
+  clickOptions,
+  fastCandidate,
+  fastStreak,
+  parseSnapshot,
+  pickStep,
+  pickWords,
+  savedFor,
+  snippetsFrom,
+  typeOptions,
+  wordsRequest,
+  FAST_ID,
+  MAX_STREAK,
+  type FastStep,
+  type Wire,
+} from "./browserFast";
+import { cleanSaved, savedFields } from "./savedFields";
+import { emptyRecord } from "@/lib/jarvis/record/types";
 import { mayReroute, uncensoredChain } from "./reroute";
 import type { DecisionResult } from "@/lib/ai/decisions";
 
@@ -74,7 +93,7 @@ describe("the fast lane", () => {
   it("turns a confident Jev pick into a click on a real control", () => {
     const msgs = turn(...readResult());
     const c = fastCandidate(msgs, "browse", true)!;
-    const step = pickStep(jev("ref_2", 0.9), c, msgs)!;
+    const step = pickStep(jev("ref_2", 0.9), c, msgs) as FastStep;
     expect(step.toolCall).toMatchObject({ name: "browser_click", args: { ref: "ref_2", name: "Pricing", tabId: "tab_1" } });
     expect(step.toolCall.id.startsWith(FAST_ID)).toBe(true);
   });
@@ -124,5 +143,83 @@ describe("rerouting a refusal", () => {
   it("DeepSeek first by default, overridable", () => {
     expect(uncensoredChain()[0]).toContain("deepseek");
     expect(uncensoredChain({ jarvis: "x/a, x/b" })).toEqual(["x/a", "x/b"]);
+  });
+});
+
+describe("typing", () => {
+  const form = {
+    tabId: "tab_1",
+    url: "https://shop.example.com/checkout",
+    title: "Checkout",
+    text: "Your details",
+    elements: [
+      { ref: "ref_1", role: "input", name: "Email", type: "email", value: "" },
+      { ref: "ref_2", role: "input", name: "Password", type: "password", value: "", masked: true },
+      { ref: "ref_3", role: "input", name: "Card number", type: "text", value: "" },
+      { ref: "ref_4", role: "input", name: "Search products", type: "search", value: "" },
+      { ref: "ref_5", role: "input", name: "City", type: "text", value: "Columbus" },
+      { ref: "ref_6", role: "input", name: "Subscribe", type: "checkbox" },
+      { ref: "ref_7", role: "textarea", name: "Order notes", value: "" },
+    ],
+  };
+  const snap = parseSnapshot(JSON.stringify(form))!;
+
+  it("only offers empty free-text boxes, never secret ones", () => {
+    const names = typeOptions(snap, "search for blue running shoes", new Set()).map((c) => c.name);
+    expect(names[0]).toBe("Search products");
+    expect(names).toContain("Email");
+    expect(names).toContain("Order notes");
+    expect(names).not.toContain("Password");
+    expect(names).not.toContain("Card number");
+    expect(names).not.toContain("City"); // already filled
+    expect(names).not.toContain("Subscribe");
+  });
+
+  it("Jev choosing a box becomes a typing intent, not a step", () => {
+    const msgs = turn(...readResult());
+    msgs[msgs.length - 1].content = JSON.stringify(form);
+    const c = fastCandidate(msgs, "browse", true)!;
+    const picked = pickStep({ ...jev("type_ref_4", 0.9) }, c, msgs);
+    expect(picked).toMatchObject({ box: { name: "Search products" } });
+  });
+
+  it("finds the words already in the request", () => {
+    expect(snippetsFrom('search for blue running shoes on Amazon')).toContain("blue running shoes");
+    expect(snippetsFrom('type "hello world" into the box')).toContain("hello world");
+  });
+
+  it("offers saved details by name only, and turns Jev's pick into a fill or a type", () => {
+    const box = snap.controls.find((c) => c.name === "Email")!;
+    const saved = [
+      { key: "email", label: "Email address" },
+      { key: "legal_first", label: "First name" },
+    ];
+    const ctx = { box, snippets: ["blue running shoes"], saved: savedFor(box, saved) };
+    expect(ctx.saved.map((f) => f.key)).toEqual(["email"]);
+    const req = wordsRequest("buy shoes", snap, ctx);
+    expect(JSON.stringify(req)).not.toMatch(/@/); // no values anywhere
+    const r = (choice: string) => ({ answers: { words: { type: "choice" as const, choice, confidence: 0.9, probabilities: {} } }, model: "j", cost: 0, inputTokens: 0, ms: 0 });
+    expect(pickWords(r("saved_email"), ctx)).toEqual({ kind: "saved", key: "email", label: "Email address" });
+    expect(pickWords(r("said_0"), ctx)).toEqual({ kind: "said", text: "blue running shoes" });
+    expect(pickWords(r("write"), ctx)).toEqual({ kind: "write" });
+    expect(pickWords(r("unsure"), ctx)).toBeNull();
+  });
+
+  it("keeps the writer's reply short and drops refusals", () => {
+    const box = { ref: "ref_4", role: "input", name: "Search" };
+    expect(cleanWritten('"blue running shoes"', box)).toBe("blue running shoes");
+    expect(cleanWritten("?", box)).toBeNull();
+    expect(cleanWritten("I'm sorry, I can't help", box)).toBeNull();
+    expect(cleanWritten("x".repeat(400), box)).toBeNull();
+  });
+
+  it("the saved list carries names, never values, and never sensitive fields", () => {
+    const rec = emptyRecord();
+    rec.fields.email = { value: "me@example.com", updatedAt: "", source: "you" };
+    rec.fields.ssn = { value: "123-45-6789", updatedAt: "", source: "you" };
+    const list = savedFields(rec);
+    expect(JSON.stringify(list)).not.toContain("example.com");
+    expect(list.some((f) => f.key === "ssn")).toBe(false);
+    expect(cleanSaved([{ key: "ssn", label: "x" }, { key: "nope", label: "y" }])).toEqual([]);
   });
 });

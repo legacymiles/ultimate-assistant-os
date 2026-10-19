@@ -4,8 +4,11 @@ import { runNote, sanitizeAssistant, toApiTools, toolsFor, type AgentTool } from
 import { isModelId } from "@/lib/new-jarvis/chatModels";
 import { plainCloudError } from "@/lib/new-jarvis/plainErrors";
 import { decide } from "@/lib/ai/decide";
+import { JEV } from "@/lib/ai/decisions";
 import { planFromTriage, previousReply, shouldTriage, triageRequest, TRIAGE_TIMEOUT_MS, firstStepText } from "@/lib/new-jarvis/triage";
 import { autoRead, fastCandidate, fastRequest, pickStep, FAST_TIMEOUT_MS, goalOf, type FastStep } from "@/lib/new-jarvis/browserFast";
+import { resolveTyping } from "@/lib/new-jarvis/fastTyping";
+import { cleanSaved } from "@/lib/new-jarvis/savedFields";
 import { isPolicyFailure, looksLikeRefusal, mayReroute, uncensoredChain } from "@/lib/new-jarvis/reroute";
 
 // ---------------------------------------------------------------------------
@@ -56,6 +59,11 @@ interface Body {
   context?: string;
   /** An OpenRouter model id from the Chat's picker. Absent = the hub default. */
   model?: string;
+  /**
+   * Life Record fields the owner has filled — KEYS AND LABELS ONLY, never
+   * values — so Jev can fill a form box from them (see savedFields.ts).
+   */
+  saved?: unknown;
   /** The owner's build checklist from Jarvis Profile, as text. */
   checklist?: string;
   /**
@@ -221,7 +229,7 @@ export async function POST(req: Request) {
         )
       : planFromTriage(null);
   if (triage.noTools) tools = [];
-  else if (triage.hubOnly) tools = tools.filter((t) => t.kind === "hub");
+  else if (triage.hubOnly) tools = tools.filter((t) => t.kind === "hub" && !t.needs);
   // The Chat's model picker. Only the id's shape is checked: OpenRouter is the
   // authority on which ids exist, and its error says so plainly if one does not.
   const model = isModelId(body.model) ? body.model : DEFAULT_MODEL;
@@ -257,13 +265,19 @@ export async function POST(req: Request) {
   // Anything that needs words, a form, judgement, or Jev being unsure falls
   // through to the chat model below, exactly as before.
   const hasBrowser = tools.some((t) => t.name === "browser_read");
+  let writer: string | undefined;
   const fast: FastStep | null =
     autoRead(messages, hasBrowser) ??
     (await (async () => {
       const c = fastCandidate(messages, mode, hasBrowser);
       if (!c) return null;
-      const result = await decide(fastRequest(c.goal, c.snap, c.options), { app: "jarvis-browser", timeoutMs: FAST_TIMEOUT_MS });
-      return pickStep(result, c, messages);
+      const result = await decide(fastRequest(c.goal, c.snap, c.options, c.typables), { app: "jarvis-browser", timeoutMs: FAST_TIMEOUT_MS });
+      const picked = pickStep(result, c, messages);
+      if (!picked || "toolCall" in picked) return picked;
+      // Jev chose to type: a second quick call decides the words.
+      const typed = await resolveTyping(picked, c, cleanSaved(body.saved));
+      writer = typed?.writer;
+      return typed?.step ?? null;
     })());
   if (fast) {
     const args = JSON.stringify(fast.toolCall.args);
@@ -277,7 +291,7 @@ export async function POST(req: Request) {
         tool_calls: [{ id: fast.toolCall.id, type: "function", function: { name: fast.toolCall.name, arguments: args } }],
       },
       text: "",
-      model: fast.toolCall.name === "browser_read" ? "rule" : "typesafe/jev-1.13",
+      model: fast.toolCall.name === "browser_read" ? "rule" : (writer ?? JEV),
       fast: fast.why,
     });
   }

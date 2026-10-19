@@ -320,6 +320,30 @@ export const AGENT_TOOLS: AgentTool[] = [
       required: ["fields"],
     },
   },
+  {
+    // Hub, because the VALUE comes from the Record in the owner's own tab and
+    // never passes through the model or a server; needs the browser, because
+    // that tab then types it into the page through the bridge.
+    name: "record_fill",
+    kind: "hub",
+    route: "hub/record_fill",
+    needs: "browser",
+    description:
+      "Fill a box on the page from the owner's Life Record by its Record key — their name, email, phone, address and so on. "
+      + "You name the key; their tab types the value in, so you never see it. Use this instead of browser_type for any "
+      + "personal detail they've saved. Sensitive keys are refused. Never submits — pressing Enter or Send is a separate step. "
+      + `The Record field key must be one of: ${KEY_LIST}.`,
+    parameters: {
+      type: "object",
+      properties: {
+        ref: str("The box's ref from the last browser_read."),
+        key: str("The Record field key whose value goes in."),
+        name: str("The box's visible label, copied from the read."),
+        tabId: str("Which tab."),
+      },
+      required: ["ref", "key", "name"],
+    },
+  },
   // --- the vault ----------------------------------------------------------
   // The owner's Obsidian vault is the source of truth for everything they
   // wrote on purpose, so these rank above memory search when the question is
