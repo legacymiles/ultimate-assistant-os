@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { IdentityBoundary } from "@/components/IdentityBoundary";
+import { ErrorReporter } from "@/components/ErrorReporter";
 
 export const metadata: Metadata = {
   title: "Projects Timeline · Ultimate Assistant OS",
@@ -24,6 +25,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <IdentityBoundary />
+        <ErrorReporter />
         {children}
       </body>
     </html>

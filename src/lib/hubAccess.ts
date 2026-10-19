@@ -31,7 +31,10 @@ export const CLIENT_REVIEW_PUBLIC = [
   "/client-review-sw.js",
 ];
 
-const PUBLIC_PREFIXES = [PUBLIC_HOME, "/api/fno", ...CLIENT_REVIEW_PUBLIC];
+/** The crash reporter client sites load. A static script with no data in it. */
+export const ERROR_SCRIPT = "/jarvis-errors.js";
+
+const PUBLIC_PREFIXES = [PUBLIC_HOME, "/api/fno", ...CLIENT_REVIEW_PUBLIC, ERROR_SCRIPT];
 const AUTH_PREFIXES = ["/login", "/auth"];
 
 function underPrefix(path: string, prefix: string): boolean {

@@ -33,6 +33,10 @@ const UID_COOKIE = "hub_uid";
 
 /** API paths authenticated by a per-user token instead of a session. Exact matches only. */
 const TOKEN_AUTH_PATHS = new Set([
+  // Crash reports: public append-only ingest (client sites have no session),
+  // and the bearer-token feed super-board reads. Both verify in the route.
+  "/api/site-errors/report",
+  "/api/site-errors/feed",
   "/api/dashboard/inbox/push",
   "/api/dashboard/inbox/cursor",
   "/api/game-creator/builder/claim",
