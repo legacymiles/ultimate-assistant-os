@@ -76,6 +76,11 @@ export function BoardStage({ flow }: { flow: KidsFlow }) {
   const track = useRef<HTMLDivElement>(null);
   const drag = useRef<{ id: string; x: number; dur: number; pps: number } | null>(null);
 
+  // A new storyboard (written after the prompt) opens on its first beat.
+  useEffect(() => {
+    if (!beats.some((b) => b.id === sel)) setSel(beats[0]?.id ?? null);
+  }, [beats, sel]);
+
   // --- the animatic clock ---------------------------------------------------
   useEffect(() => {
     if (!playing) return;
@@ -148,6 +153,8 @@ export function BoardStage({ flow }: { flow: KidsFlow }) {
   } as CSSProperties;
 
   if (!beats.length) {
+    // While it is being written, the banner above says so; an empty box would just repeat it.
+    if (flow.planning) return null;
     return (
       <div className="rounded-xl border border-line bg-panel p-6 text-center">
         <p className="text-[13px] text-ink">No storyboard yet.</p>

@@ -152,10 +152,10 @@ export const WORKFLOWS: Workflow[] = [
     // studio_queue, and the PC session completes it. One character, one design,
     // every shot — which is the thing a clip-by-clip video model cannot hold.
     id: "animate-my-character",
-    name: "Animate my character",
+    name: "Kids Animation Flow",
     medium: "video",
     category: "stories",
-    blurb: "Upload your character, give a one-line story — a cut-paper animated short",
+    blurb: "Attach your character, type the story — opens a storyboard, renders a cut-paper short on your PC",
     brief:
       "Read the uploaded character into a character sheet (head, skin, hair, eyes, each garment with its colour, one "
       + "signature item, the one colour that means him), pick a story shape, and write 8–11 beats for ~45 s: his "

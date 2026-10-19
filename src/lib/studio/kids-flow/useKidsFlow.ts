@@ -14,15 +14,29 @@ import { loadLocal, saveLocal } from "@/lib/sync/appState";
 import { useRequests } from "@/lib/new-jarvis/useRequests";
 import type { FinishedRequest, QueueRequest } from "@/lib/new-jarvis/requests";
 import { queueRequestText } from "../queueText";
+import { shrinkImage } from "@/lib/new-jarvis/useRequests";
+import { samplePalette } from "./palette";
 import {
+  DEFAULT_STORY,
   blankDraft,
+  blankSheet,
   briefText,
   checkPlan,
   coercePlan,
+  fromPrompt,
   type Beat,
   type CharacterSheet,
   type KidsFlowDraft,
 } from "./plan";
+
+/** What the Studio composer hands the flow when the card is sent with a prompt. */
+export interface KidsSeed {
+  text: string;
+  keywords: string[];
+  /** Image data URLs from the composer (the attachments' `full`). */
+  images: string[];
+  nonce: number;
+}
 
 export const KIDS_FOLDER = "flow:animate-my-character";
 const KEY = "jarvis.kids-flow.v1";
@@ -84,10 +98,9 @@ export function useKidsFlow() {
   const go = useCallback((stage: Stage) => setSaved((s) => ({ ...s, stage })), []);
 
   /** "Write the plan": the AI reads the picture and the story; the starter plan if it can't. */
-  const plan = useCallback(async () => {
+  const planWith = useCallback(async (d: KidsFlowDraft, pictures: string[]) => {
     setPlanning(true);
     setPlanNote(null);
-    const d = saved.draft;
     try {
       const res = await fetch("/api/studio/kids-flow/plan", {
         method: "POST",
@@ -99,7 +112,7 @@ export function useKidsFlow() {
           length: d.length,
           moods: d.moods,
           mode: d.mode,
-          image: saved.images[0] ?? "",
+          image: pictures[0] ?? "",
         }),
       });
       const data = (await res.json()) as { sheet?: Partial<CharacterSheet>; beats?: unknown[]; note?: string; error?: string };
@@ -131,7 +144,57 @@ export function useKidsFlow() {
     } finally {
       setPlanning(false);
     }
-  }, [saved.draft, saved.images]);
+  }, []);
+
+  const plan = useCallback(() => planWith(saved.draft, saved.images), [planWith, saved.draft, saved.images]);
+
+  /**
+   * The Studio composer's prompt (and its pictures) → a fresh story in the
+   * flow, with the storyboard being written straight away. A prompt with no
+   * picture keeps the current character, so "now a bedtime one" reuses him.
+   */
+  const startFromPrompt = useCallback(
+    async (seed: KidsSeed) => {
+      const read = fromPrompt(seed.text, seed.keywords);
+      const shrunk = (
+        await Promise.all(
+          seed.images.slice(0, 4).map(async (src) => {
+            try {
+              return await shrinkImage(await (await fetch(src)).blob());
+            } catch {
+              return null;
+            }
+          }),
+        )
+      ).filter((x): x is string => Boolean(x));
+      const prev = saved;
+      const newHero = shrunk.length > 0;
+      const palette = newHero ? await samplePalette(shrunk[0]).catch(() => [] as string[]) : prev.draft.sheet.palette;
+      const sheet: CharacterSheet = newHero
+        ? { ...blankSheet(read.name ?? "Milo"), palette, heroColor: palette[0] ?? "" }
+        : { ...prev.draft.sheet, ...(read.name ? { name: read.name } : {}) };
+      const draft: KidsFlowDraft = {
+        ...blankDraft(),
+        mode: prev.draft.mode,
+        look: read.look ?? prev.draft.look,
+        aspect: read.aspect ?? prev.draft.aspect,
+        words: read.words ?? prev.draft.words,
+        length: read.length ?? prev.draft.length,
+        moods: read.moods,
+        story: read.story || (newHero || !prev.draft.story ? DEFAULT_STORY : prev.draft.story),
+        sheet,
+      };
+      // Nothing typed but the card, and no picture: just open the flow where it was.
+      if (!read.story && !read.name && !newHero) {
+        setSaved({ ...prev, stage: prev.draft.beats.length || prev.jobId ? prev.stage : "character" });
+        return;
+      }
+      const images = newHero ? shrunk : prev.images;
+      setSaved({ draft, images, stage: "board" });
+      await planWith(draft, images);
+    },
+    [saved, planWith],
+  );
 
   const brief = useMemo(() => briefText(saved.draft), [saved.draft]);
   const problems = useMemo(() => checkPlan(saved.draft), [saved.draft]);
@@ -186,6 +249,7 @@ export function useKidsFlow() {
     setImages,
     go,
     plan,
+    startFromPrompt,
     planning,
     planNote,
     brief,

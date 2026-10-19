@@ -240,7 +240,15 @@
 .kf-steps li.is-now .kf-dot { border-color: var(--kf-hero); animation: kf-pulse 1.6s ease-in-out infinite; }
 @keyframes kf-pulse { 50% { box-shadow: 0 0 0 5px color-mix(in oklab, var(--kf-hero) 25%, transparent); } }
 
+.kf-busy {
+  width: 0.75rem; height: 0.75rem; border-radius: 999px;
+  border: 2px solid var(--color-line); border-top-color: var(--kf-hero);
+  animation: kf-spin 0.8s linear infinite;
+}
+@keyframes kf-spin { to { transform: rotate(360deg); } }
+
 @media (prefers-reduced-motion: reduce) {
+  .kf-busy { animation: none; }
   .kf-tile, .kf-step, .kf-opt, .kf-go, .kf-hero { transition: none; }
   .kf-frame[data-role="payoff"] .kf-flash, .kf-steps li.is-now .kf-dot { animation: none; }
 }

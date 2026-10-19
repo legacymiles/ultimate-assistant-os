@@ -128,18 +128,32 @@ function words(s: string): number {
  * THIS story rather than a template's.
  */
 export function placesIn(story: string): string[] {
-  const m = /\b(?:through|past|across|over|into|to)\s+(.+?)(?:,?\s+and\s+(?:catches|finds|gets|wins|saves|brings|comes|makes)\b|[.!?]|$)/i.exec(story);
-  if (!m) return [];
-  return m[1]
-    .split(/,|\band\b/i)
-    .map((p) => p.replace(/^\s*(?:up|down|through|past|across|over|into|to)\s+/i, "").trim())
-    .filter((p) => p.length > 1 && p.length < 40)
-    .slice(0, 6);
+  const PREP = /^(?:past|through|across|over|into|up|down|around|along|to|then)\s+/i;
+  const start = /\b(?:past|through|across|over|into|up|down|around|along)\s+/i.exec(story);
+  if (!start) return [];
+  const out: string[] = [];
+  // "past the bakery, through the park and up a hill, and catches it" → one chunk per place,
+  // stopping at the first chunk that is an action rather than a place.
+  for (let chunk of story.slice(start.index).split(/[,;.!?]|\band\b/i)) {
+    chunk = chunk.trim();
+    const led = PREP.test(chunk) || /^(?:the|a|an|his|her)\s/i.test(chunk) || out.length === 0;
+    while (PREP.test(chunk)) chunk = chunk.replace(PREP, "");
+    if (!chunk) continue;
+    // Past the first place, a bare word ("funny") is not a place: the list has ended.
+    if (!led) break;
+    if (/\b(?:it|him|her|them|catches|finds|gets|comes|brings|wins|saves|makes|goes|seconds?)\b/i.test(chunk)) break;
+    const words = chunk.split(/\s+/);
+    if (words.length > 3 || /^(?:the|a|an)$/i.test(chunk)) continue;
+    if (!out.includes(chunk)) out.push(chunk);
+  }
+  return out.slice(0, 6);
 }
 
 /** What he is after, for the captions: "kite" from "His kite blows away". */
 export function wantIn(story: string): string {
-  const m = /\b(?:his|her|their|the|a)\s+([a-z]+(?:\s+[a-z]+)?)\s+(?:blows|flies|floats|runs|rolls|gets|is|goes|falls)\b/i.exec(story);
+  const m =
+    /\b(?:his|her|their|the|a)\s+([a-z]+(?:\s+[a-z]+)?)\s+(?:blows|flies|floats|runs|rolls|gets|is|goes|falls|drifts|escapes)\b/i.exec(story) ??
+    /\b(?:loses|lost|chases|finds|misses|drops|looks for|searches for)\s+(?:his|her|their|the|a|an)\s+([a-z]+)\b/i.exec(story);
   return m ? m[1].toLowerCase() : "treasure";
 }
 
@@ -340,4 +354,56 @@ export function relay(beats: Beat[]): Beat[] {
 /** Total running time, for the timeline ruler. */
 export function runtimeOf(beats: Beat[]): number {
   return beats.length ? beats[beats.length - 1].end : 0;
+}
+
+export interface PromptSeed {
+  story: string;
+  name?: string;
+  moods: Mood[];
+  look?: Look;
+  length?: Length;
+  aspect?: Aspect;
+  words?: Words;
+}
+
+/**
+ * What the owner typed in the Studio composer, read into the flow's settings.
+ *
+ * They pick the Kids Animation Flow card and write the way they talk: "@animate-my-character
+ * my son Milo, 30 seconds, vertical — he loses his kite and chases it to the park".
+ * The @tokens and #camera tokens are not the story; the length, shape, look,
+ * mood and name are settings; what is left is the story line.
+ */
+export function fromPrompt(text: string, keywords: string[] = []): PromptSeed {
+  let rest = text.replace(/^Keywords:.*$/gim, " ");
+  const all = `${text} ${keywords.join(" ")}`.toLowerCase();
+  const seed: PromptSeed = { story: "", moods: [] };
+
+  const secs = /\b(30|45|60)\s*(?:s\b|sec|secs|seconds?)/i.exec(all) ?? (/\b(1|one)\s*min(?:ute)?\b/i.test(all) ? ["", "60"] : null);
+  if (secs) seed.length = Number(secs[1]) as Length;
+  if (/\b(vertical|9:16|portrait|tiktok|reels?|shorts)\b/i.test(all)) seed.aspect = /\bboth\b/i.test(all) ? "both" : "9:16";
+  else if (/\b(16:9|widescreen|wide|youtube|landscape)\b/i.test(all)) seed.aspect = "16:9";
+  if (/\b(voice[- ]?over|narrat\w*)\b/i.test(all)) seed.words = "voice";
+  else if (/\b(no words|music only|no captions)\b/i.test(all)) seed.words = "music";
+  if (/\bsketch(?:book)?\b/i.test(all)) seed.look = "sketchbook";
+  else if (/\briso\b/i.test(all)) seed.look = "riso";
+  else if (/\bpixel\b/i.test(all)) seed.look = "pixel";
+  else if (/\bcut[- ]?paper\b/i.test(all)) seed.look = "cut-paper";
+  for (const m of ["cozy", "funny", "adventurous", "gentle"] as Mood[]) if (new RegExp(`\\b${m}`, "i").test(all)) seed.moods.push(m);
+
+  const named = /\b(?:named|called|name is|name's)\s+([A-Z][a-z]{1,15})\b/.exec(text) ?? /\bmy (?:son|daughter|boy|girl|kid|nephew|niece|grandson|granddaughter)\s+([A-Z][a-z]{1,15})\b/.exec(text);
+  if (named) seed.name = named[1];
+
+  rest = rest
+    .replace(/@[\w:-]+/g, " ")
+    .replace(/#[\w-]+/g, " ")
+    .replace(/\b(?:30|45|60)\s*(?:s|sec|secs|seconds?)\b/gi, " ")
+    .replace(/\b(?:vertical|widescreen|9:16|16:9|cut[- ]?paper|sketchbook|riso|pixel art|cozy|funny|adventurous|gentle)\b/gi, " ")
+    .replace(/\s+([,.;!?])/g, "$1")
+    .replace(/(^|\s)[,;—–-]+(?=\s)/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .replace(/^[,;:—–-]+\s*/, "");
+  seed.story = rest;
+  return seed;
 }

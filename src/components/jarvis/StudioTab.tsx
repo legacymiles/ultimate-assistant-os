@@ -30,6 +30,10 @@ import { CinemaBar, CinemaOutputRow } from "./CinemaDeck";
 import { StudioGallery } from "./StudioGallery";
 import { ChatTab } from "./ChatTab";
 import { KidsFlow } from "./kids-flow/KidsFlow";
+import type { KidsSeed } from "@/lib/studio/kids-flow/useKidsFlow";
+
+/** The card whose prompt opens the Kids Animation Flow screen instead of a chat. */
+const KIDS_FLOW_ID = "animate-my-character";
 import type { JarvisStore } from "@/lib/jarvis/types";
 import type { Profile } from "@/lib/new-dashboard/types";
 import { useCinemaOutput, useCinemaSelection } from "@/lib/studio/useCinema";
@@ -99,7 +103,9 @@ export function StudioTab({
   const [cinema, setCinema] = useCinemaSelection();
   const [output, setOutput] = useCinemaOutput();
   /** The wall of workflows, what has been made, or the allowed add-on apps. */
-  const [view, setView] = useState<"browse" | "gallery" | "kids">("browse");
+  const [view, setView] = useState<"browse" | "gallery">("browse");
+  // The Kids Animation Flow card opens its own screen once the prompt is sent.
+  const [kids, setKids] = useState<KidsSeed | null>(null);
   /**
    * The conversation this Studio has going, if any.
    *
@@ -178,6 +184,8 @@ export function StudioTab({
   const shelves = categories
     .map((c) => ({ category: c, items: visible.filter((w) => w.category === c.id) }))
     .filter((s) => s.items.length);
+
+  const kidsPicked = picked.some((p) => p.id === KIDS_FLOW_ID) || /@animate-my-character\b/.test(idea);
 
   const pickedWorkflows = picked
     .map((p) => ({ p, w: WORKFLOWS.find((w) => w.id === p.id)! }))
@@ -287,11 +295,31 @@ export function StudioTab({
       .map((p) => `@${p.id}${p.variant ? `:${p.variant}` : ""}`)
       .join(" ");
     const style = keywords.length ? `\nKeywords: ${keywords.join(", ")}` : "";
+    // Kids Animation Flow: the prompt and the pictures go to its own screen,
+    // which writes the storyboard from them — the chat would only ask again.
+    if (picked.some((p) => p.id === KIDS_FLOW_ID) || typed.has(KIDS_FLOW_ID)) {
+      setKids({
+        text: idea.trim(),
+        keywords,
+        images: attachments.filter((a) => a.kind === "image").map((a) => a.full),
+        nonce: Date.now(),
+      });
+      clear();
+      return;
+    }
     // The camera moves ride along inside `idea` as #tokens; the look travels on
     // its own, shared with Chat through localStorage.
     setSession({ text: `${mentions} ${idea.trim()}${style}`.trim(), nonce: Date.now(), attachments });
     clear();
   };
+
+  if (kids) {
+    return (
+      <div className="flex h-[calc(100dvh-49px)] flex-col">
+        <KidsFlow seed={kids} onClose={() => setKids(null)} />
+      </div>
+    );
+  }
 
   // A session in progress takes the whole tab: the forms, the shot plan, the
   // renders and the replies all belong to the thing being made, and the wall
@@ -328,6 +356,10 @@ export function StudioTab({
             profile={profile}
             embedded
             draft={session}
+            onKidsFlow={(seed) => {
+              setSession(null);
+              setKids({ text: seed.text, keywords: [], images: seed.images, nonce: Date.now() });
+            }}
             {...(onDashboardChanged ? { onDashboardChanged } : {})}
           />
         </div>
@@ -368,7 +400,6 @@ export function StudioTab({
           {([
             { id: "browse", label: "Workflows", icon: <Icon.Grid width={12} height={12} /> },
             { id: "gallery", label: "Gallery", icon: <Icon.Folder width={12} height={12} /> },
-            { id: "kids", label: "Kids flow", icon: <Icon.Sparkles width={12} height={12} /> },
           ] as const).map((v) => (
             <button
               key={v.id}
@@ -384,7 +415,6 @@ export function StudioTab({
             </button>
           ))}
         </div>
-        {view !== "kids" && (
         <div role="tablist" aria-label="Medium" className="ml-1 flex rounded-lg border border-line p-0.5">
           {(["video", "image"] as Medium[]).map((m) => (
             <button
@@ -404,8 +434,7 @@ export function StudioTab({
             </button>
           ))}
         </div>
-        )}
-        {local && view !== "kids" && (
+        {local && (
           <span
             className="flex items-center gap-1.5 rounded-full border border-line px-2 py-0.5 text-[11px] text-ink-muted"
             title={
@@ -423,7 +452,7 @@ export function StudioTab({
               : "Local renderer off"}
           </span>
         )}
-        <label className={`ml-auto w-full items-center gap-1.5 rounded-lg border border-line bg-panel-2 px-2 py-1 sm:w-56 ${view === "kids" ? "hidden" : "flex"}`}>
+        <label className={`ml-auto w-full items-center gap-1.5 rounded-lg border border-line bg-panel-2 px-2 py-1 sm:w-56 flex`}>
           <Icon.Search width={12} height={12} className="text-ink-faint" />
           <input
             value={query}
@@ -434,11 +463,7 @@ export function StudioTab({
         </label>
       </div>
 
-      {view === "kids" ? (
-        <div className="min-h-0 flex-1">
-          <KidsFlow />
-        </div>
-      ) : view === "gallery" ? (
+      {view === "gallery" ? (
         // Reusing a finished piece carries its prompt, not this tray.
         <StudioGallery onReuse={(prompt) => setSession({ text: prompt, nonce: Date.now() })} />
       ) : (
@@ -582,7 +607,11 @@ export function StudioTab({
                 void attach(files);
               }}
               rows={2}
-              placeholder="Describe the shot: whose story, which product, what happens…  (@ for a person, an upload or a workflow, # for a camera move)"
+              placeholder={
+                kidsPicked
+                  ? "Kids Animation Flow: attach your character's picture, then tell the story in a line — e.g. my son Milo loses his kite and chases it through town, 45 seconds"
+                  : "Describe the shot: whose story, which product, what happens…  (@ for a person, an upload or a workflow, # for a camera move)"
+              }
               className="mt-2 block max-h-48 min-h-[68px] w-full resize-none bg-transparent px-2 pt-1 text-[15px] leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
             />
           </div>
@@ -650,7 +679,7 @@ export function StudioTab({
               disabled={!picked.length && !idea.trim() && !attachments.length}
               className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-ink px-4 py-2 text-xs font-semibold text-canvas transition hover:opacity-90 disabled:opacity-40"
             >
-              <Icon.Send width={13} height={13} /> Start
+              <Icon.Send width={13} height={13} /> {kidsPicked ? "Make the storyboard" : "Start"}
             </button>
           </div>
         </div>

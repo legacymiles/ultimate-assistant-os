@@ -17,7 +17,9 @@ describe("reading the story line", () => {
     const story = "His kite blows away and he chases it through town, a forest and up a hill, and catches it at sunset";
     expect(placesIn(story)).toEqual(["town", "a forest", "a hill"]);
     expect(wantIn(story)).toBe("kite");
-    expect(wantIn("a boy finds a puppy")).toBe("treasure");
+    expect(wantIn("a boy who never smiles")).toBe("treasure");
+    expect(wantIn("my son Milo loses his kite and chases it")).toBe("kite");
+    expect(placesIn("he chases it past the bakery, through the park and up a hill, funny")).toEqual(["the bakery", "the park", "a hill"]);
   });
 });
 
@@ -91,5 +93,20 @@ describe("relay", () => {
     beats[2] = { ...beats[2], end: beats[2].end + 2 };
     const out = relay(beats);
     for (let i = 1; i < out.length; i++) expect(out[i].start).toBe(out[i - 1].end);
+  });
+});
+
+describe("fromPrompt", async () => {
+  const { fromPrompt } = await import("./plan");
+  it("reads settings out of what the owner typed and keeps the rest as the story", () => {
+    const s = fromPrompt("@animate-my-character my son Milo, 30 seconds, vertical, funny — he loses his kite and chases it to the park #dolly-in");
+    expect(s).toMatchObject({ name: "Milo", length: 30, aspect: "9:16", moods: ["funny"] });
+    expect(s.story).toMatch(/he loses his kite and chases it to the park$/);
+    expect(s.story).not.toMatch(/@|#|30 seconds/);
+  });
+  it("takes keywords from the card chips too", () => {
+    const s = fromPrompt("a bedtime trip to the moon\nKeywords: cozy, sketchbook", ["cozy", "sketchbook"]);
+    expect(s).toMatchObject({ look: "sketchbook", moods: ["cozy"], story: "a bedtime trip to the moon" });
+    expect(fromPrompt("").story).toBe("");
   });
 });
