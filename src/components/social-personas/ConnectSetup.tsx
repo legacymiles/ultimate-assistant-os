@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Icon } from "../icons";
-import { PLATFORM_NAME, type ConnectablePlatform } from "@/lib/social-personas/types";
+import { CONNECTABLE, PLATFORM_NAME, type ConnectablePlatform } from "@/lib/social-personas/types";
 import { Btn, PlatformDot, inputCls } from "./bits";
 
 interface PlatformSetup {
@@ -37,7 +37,7 @@ interface Step {
   copy: ("site" | "privacy" | "terms" | "dataDeletion" | "redirect" | "scopes")[];
 }
 
-const GUIDE: Record<ConnectablePlatform, { idLabel: string; secretLabel: string; where: string; steps: Step[] }> = {
+const GUIDE: Partial<Record<ConnectablePlatform, { idLabel: string; secretLabel: string; where: string; steps: Step[] }>> = {
   tiktok: {
     idLabel: "Client key",
     secretLabel: "Client secret",
@@ -72,6 +72,7 @@ const GUIDE: Record<ConnectablePlatform, { idLabel: string; secretLabel: string;
         todo: [
           "Instagram › API setup with Instagram login › Set up Instagram business login.",
           "Paste the redirect URL below as the OAuth redirect URI.",
+          "Permissions: make sure instagram_business_manage_messages and instagram_business_manage_comments are on (they power the Message inbox).",
           "Add your Instagram account under App roles › Instagram testers, then accept it in Instagram (Settings › Apps and websites).",
         ],
         copy: ["redirect"],
@@ -91,11 +92,45 @@ const GUIDE: Record<ConnectablePlatform, { idLabel: string; secretLabel: string;
       },
       {
         title: "Turn on Facebook Login",
-        todo: ["Facebook Login for Business › Settings: paste the redirect URL below into Valid OAuth Redirect URIs.", "Permissions: add pages_show_list, pages_read_engagement, pages_read_user_content and pages_manage_posts."],
+        todo: [
+          "Facebook Login for Business › Settings: paste the redirect URL below into Valid OAuth Redirect URIs.",
+          "Permissions: add pages_show_list, pages_read_engagement, pages_read_user_content and pages_manage_posts.",
+          "For the Message inbox: add the Messenger product, then the pages_messaging and pages_manage_engagement permissions.",
+        ],
         copy: ["redirect"],
       },
     ],
   },
+};
+
+GUIDE.youtube = {
+  idLabel: "Client ID",
+  secretLabel: "Client secret",
+  where: "Google Auth Platform › Clients › your Web client — the Client ID (ends in .apps.googleusercontent.com) and Client secret.",
+  steps: [
+    {
+      title: "Make the Google project",
+      open: { label: "Open Google Cloud", href: "https://console.cloud.google.com/projectcreate" },
+      todo: ["Create a project (any name).", "APIs & Services › Library: search YouTube Data API v3 and press Enable."],
+      copy: [],
+    },
+    {
+      title: "Set up the sign-in screen",
+      open: { label: "Open Google Auth Platform", href: "https://console.cloud.google.com/auth/overview" },
+      todo: [
+        "Branding: app name, your email, and paste the Privacy and Terms links below.",
+        "Audience: External, then add your Google account under Test users.",
+        "Data access: add the scopes listed below.",
+      ],
+      copy: ["privacy", "terms", "scopes"],
+    },
+    {
+      title: "Make the web client",
+      open: { label: "Open Clients", href: "https://console.cloud.google.com/auth/clients/create" },
+      todo: ["Application type: Web application.", "Authorized redirect URIs: paste the redirect URL below, then Create."],
+      copy: ["redirect"],
+    },
+  ],
 };
 
 const COPY_LABEL: Record<Step["copy"][number], string> = {
@@ -153,9 +188,9 @@ export function ConnectSetup({
   }, [platform]);
 
   const p = info?.platforms.find((x) => x.platform === platform);
-  const guide = GUIDE[platform];
+  const guide = GUIDE[platform]!;
   const value = (k: Step["copy"][number]) =>
-    !info || !p ? "" : k === "redirect" ? p.redirectUri : k === "scopes" ? p.scopes : info.urls[k];
+    !info || !p ? "" : k === "redirect" ? p.redirectUri : k === "scopes" ? (platform === "youtube" ? p.scopes.split(",").join(" ") : p.scopes) : info.urls[k];
 
   const copy = async (k: string, v: string) => {
     try {
@@ -205,8 +240,8 @@ export function ConnectSetup({
           </button>
         </div>
 
-        <div className="flex gap-1 border-b border-line px-3 pt-2" role="tablist">
-          {(["tiktok", "instagram", "facebook"] as ConnectablePlatform[]).map((x) => {
+        <div className="flex gap-1 overflow-x-auto border-b border-line px-3 pt-2" role="tablist">
+          {CONNECTABLE.map((x) => {
             const ready = info?.platforms.find((y) => y.platform === x)?.ready;
             return (
               <button
@@ -306,7 +341,7 @@ export function ConnectSetup({
           {msg && <p className={"rounded-lg px-3 py-2 text-sm " + (msg.bad ? "border border-rose-500/40 text-rose-300" : "border border-emerald-500/30 text-emerald-300")}>{msg.text}</p>}
 
           <p className="text-[11px] leading-relaxed text-ink-faint">
-            While the developer app is new (Development mode), you and anyone you add as a tester can connect — that covers your own accounts. To let any user connect, submit the app for {platform === "tiktok" ? "TikTok's review" : "Meta's App Review"} from the same portal; the privacy, terms and data-deletion pages above are what they check.
+            While the developer app is new ({platform === "youtube" ? "Testing" : "Development"} mode), you and anyone you add as a tester can connect — that covers your own accounts. To let any user connect, submit the app for {platform === "tiktok" ? "TikTok's review" : platform === "youtube" ? "Google's verification (Audience › Publish app)" : "Meta's App Review"} from the same portal; the privacy, terms and data-deletion pages above are what they check.
           </p>
         </div>
       </div>

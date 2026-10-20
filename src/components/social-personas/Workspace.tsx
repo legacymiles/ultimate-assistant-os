@@ -1,16 +1,20 @@
 "use client";
 
-// One persona's workspace: a header band in the persona's own hue, then six
-// tabs — Overview (profile, accounts, sign-ins), Ideas, Plan (pipeline +
-// calendar), Analytics, Brainstorm, and what the AI knows.
+// One persona's workspace: a header band in the persona's own hue, then the
+// tabs — Overview (profile, accounts, sign-ins), Message inbox (every DM and
+// comment, answered here), Ideas, Plan (pipeline + calendar), Analytics,
+// Videos, Brainstorm, and what the AI knows.
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Icon } from "../icons";
 import { compact, personaTotals } from "@/lib/social-personas/studio";
-import type { Draft, Persona } from "@/lib/social-personas/types";
+import { inboxOf, unreadCounts } from "@/lib/social-personas/inbox";
+import type { ConnectablePlatform, Draft, Persona } from "@/lib/social-personas/types";
 import type { PublicJob, Status } from "./api";
 import { AnalyticsTab } from "./AnalyticsTab";
 import { Avatar, Btn } from "./bits";
+import { InboxTab } from "./InboxTab";
+import { loadInboxCache } from "./inboxCache";
 import { OverviewTab } from "./OverviewTab";
 import { PlanTab } from "./PlanTab";
 import type { Mutate } from "./SocialPersonas";
@@ -18,6 +22,7 @@ import { BrainTab, BrainstormTab, ContentTab, TodayTab } from "./tabs";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: Icon.Users },
+  { id: "inbox", label: "Message inbox", icon: Icon.Chat },
   { id: "ideas", label: "Ideas", icon: Icon.Bulb },
   { id: "plan", label: "Plan & post", icon: Icon.Calendar },
   { id: "analytics", label: "Analytics", icon: Icon.Target },
@@ -46,7 +51,7 @@ export function Workspace({
   onDelete,
   openSetup,
 }: {
-  openSetup: (p: "tiktok" | "instagram" | "facebook") => void;
+  openSetup: (p: ConnectablePlatform, from?: TabId) => void;
   persona: Persona;
   status: Status | null;
   initialTab: TabId;
@@ -62,6 +67,9 @@ export function Workspace({
   const [focusDraft, setFocusDraft] = useState<string | null>(null);
   const props: TabProps = { persona, mutate, flash, ai: status?.ai ?? false };
   const t = personaTotals(persona);
+  // Unread from this device's last load; recounted whenever read-marks change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const unread = useMemo(() => unreadCounts(loadInboxCache(persona.id), inboxOf(persona).seen).total, [persona.id, persona.inbox, tab]);
 
   const planDraft = (d: Draft) => {
     mutate(persona.id, (p) => ({ ...p, drafts: [d, ...p.drafts] }));
@@ -103,6 +111,7 @@ export function Workspace({
               <x.icon width={14} height={14} />
               {x.label}
               {x.id === "content" && <span className="text-[11px] text-ink-faint">{persona.posts.length}</span>}
+              {x.id === "inbox" && unread > 0 && <span className="rounded-full bg-[hsl(var(--ps-hue)_80%_58%)] px-1.5 text-[10px] font-bold text-white">{unread}</span>}
               {x.id === "plan" && persona.drafts.some((d) => d.results.some((r) => r.status === "failed")) && <span className="h-1.5 w-1.5 rounded-full bg-rose-400" aria-label="needs attention" />}
             </button>
           ))}
@@ -111,6 +120,7 @@ export function Workspace({
 
       <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
         {tab === "overview" && <OverviewTab {...props} status={status} syncAccount={syncAccount} onEdit={onEdit} onDelete={onDelete} go={setTab} openSetup={openSetup} />}
+        {tab === "inbox" && <InboxTab {...props} status={status} openSetup={(p) => openSetup(p, "inbox")} />}
         {tab === "ideas" && (
           <TodayTab
             {...props}

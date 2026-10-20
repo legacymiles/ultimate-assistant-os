@@ -3,6 +3,7 @@
 // Overview: the persona's profile, its setup checklist (so a new persona is
 // never a blank page — U4/O6), and its accounts with their sign-ins.
 
+import type { ConnectablePlatform } from "@/lib/social-personas/types";
 import { useState } from "react";
 import { Icon } from "../icons";
 import { usePasswordVault } from "@/lib/passwords/usePasswordVault";
@@ -20,7 +21,7 @@ export function OverviewTab({
   openSetup,
   ...props
 }: TabProps & {
-  openSetup: (p: "tiktok" | "instagram" | "facebook") => void;
+  openSetup: (p: ConnectablePlatform) => void;
   status: Status | null;
   syncAccount: (personaId: string, accountId: string) => Promise<void>;
   onEdit: () => void;

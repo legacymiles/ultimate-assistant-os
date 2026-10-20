@@ -2,7 +2,7 @@ import { loadConnection } from "@/lib/social-personas/server/connectors";
 import { body, fail, viewerUid } from "@/lib/social-personas/server/http";
 import { runDue, schedule } from "@/lib/social-personas/server/queue";
 import { jobId, type Job } from "@/lib/social-personas/queue";
-import { isConnectable } from "@/lib/social-personas/types";
+import { canAutoPost } from "@/lib/social-personas/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     const connectionId = str(r?.connectionId, 64);
     const platform = str(r?.platform, 16);
     const runAt = Date.parse(str(r?.runAt, 40));
-    if (!draftId || !accountId || !connectionId || !isConnectable(platform) || !Number.isFinite(runAt)) {
+    if (!draftId || !accountId || !connectionId || !canAutoPost(platform) || !Number.isFinite(runAt)) {
       return fail(400, "That post is missing its account or time. Pick an account and a time, then try again.");
     }
     const conn = await loadConnection(connectionId);

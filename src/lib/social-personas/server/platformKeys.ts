@@ -59,5 +59,6 @@ export function checkKey(p: ConnectablePlatform, id: string, secret: string): st
   if (/\s/.test(id) || /\s/.test(secret)) return "Keys have no spaces in them — check nothing extra was copied.";
   if (id.length < 8 || id.length > 120 || secret.length < 16 || secret.length > 200) return "Those don't look like the right keys — copy them from the app's Basic settings page.";
   if ((p === "instagram" || p === "facebook") && !/^\d+$/.test(id)) return "A Meta app id is all numbers. Copy the App ID from App settings › Basic.";
+  if (p === "youtube" && !id.endsWith(".apps.googleusercontent.com")) return "A Google client ID ends in .apps.googleusercontent.com — copy the Client ID from your OAuth client.";
   return null;
 }

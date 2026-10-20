@@ -193,6 +193,7 @@ async function publishFacebook(input: PublishInput): Promise<PublishOutcome> {
 }
 
 export async function publish(input: PublishInput): Promise<PublishOutcome> {
+  if (input.conn.platform === "youtube") throw new Error("YouTube posts go out by hand: the reminder opens YouTube Studio with the caption copied.");
   if (!input.conn.canPost) {
     throw new Error(`Auto-post isn't on for this ${input.conn.platform} account yet. Open the persona and press "Reconnect for auto-post" on it. ${config(input.conn.platform).postSetup}`);
   }

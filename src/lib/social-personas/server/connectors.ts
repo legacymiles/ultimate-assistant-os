@@ -1,6 +1,7 @@
 // ---------------------------------------------------------------------------
 // Official account connections: TikTok Login Kit + Display API, Instagram API
-// with Instagram Login, and Facebook Pages via the Graph API.
+// with Instagram Login, Facebook Pages via the Graph API, and YouTube via
+// Google sign-in (YouTube Data API).
 //
 // Each needs a developer app the owner registers with the platform (keys in
 // .env.local). With no keys a platform reports `configured: false` and the UI
@@ -19,7 +20,7 @@ import { readDoc, writeDoc } from "@/lib/server/docStore";
 import { savedKeys } from "./platformKeys";
 import type { ConnectablePlatform as SocialPlatform, Post } from "../types";
 
-const GRAPH = "v23.0";
+export const GRAPH = "v23.0";
 
 interface PlatformConfig {
   id: string;
@@ -30,6 +31,10 @@ interface PlatformConfig {
   postScopes: string;
   /** What to switch on in the developer portal for those scopes, in plain words. */
   postSetup: string;
+  /** Extra scopes for the Message Inbox (read + answer DMs and comments). Empty = no inbox. */
+  inboxScopes: string;
+  /** What to switch on for those, in plain words. */
+  inboxSetup: string;
   setupUrl: string;
 }
 
@@ -44,7 +49,24 @@ export function config(p: SocialPlatform): PlatformConfig {
       // the app, and needs TikTok's own posting screen; inbox drafts need neither.
       postScopes: "video.upload",
       postSetup: "Add the Content Posting API product (Upload) to your TikTok app.",
+      // TikTok has no API for reading or answering DMs or comments.
+      inboxScopes: "",
+      inboxSetup: "TikTok doesn't let apps read messages or comments.",
       setupUrl: "https://developers.tiktok.com/apps",
+    };
+  }
+  if (p === "youtube") {
+    return {
+      id: process.env.YOUTUBE_CLIENT_ID ?? "",
+      secret: process.env.YOUTUBE_CLIENT_SECRET ?? "",
+      envNames: ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET"],
+      scopes: "https://www.googleapis.com/auth/youtube.readonly",
+      // Posting to YouTube stays the one-tap manual flow.
+      postScopes: "",
+      postSetup: "YouTube posts open YouTube Studio with the caption copied.",
+      inboxScopes: "https://www.googleapis.com/auth/youtube.force-ssl",
+      inboxSetup: "Add the youtube.force-ssl scope on your Google app's Data access page.",
+      setupUrl: "https://console.cloud.google.com/apis/credentials",
     };
   }
   if (p === "instagram") {
@@ -55,6 +77,8 @@ export function config(p: SocialPlatform): PlatformConfig {
       scopes: "instagram_business_basic",
       postScopes: "instagram_business_content_publish",
       postSetup: "Add the instagram_business_content_publish permission to your Meta app.",
+      inboxScopes: "instagram_business_manage_messages,instagram_business_manage_comments",
+      inboxSetup: "Add the instagram_business_manage_messages and instagram_business_manage_comments permissions to your Meta app.",
       setupUrl: "https://developers.facebook.com/apps",
     };
   }
@@ -65,6 +89,8 @@ export function config(p: SocialPlatform): PlatformConfig {
     scopes: "pages_show_list,pages_read_engagement,pages_read_user_content",
     postScopes: "pages_manage_posts",
     postSetup: "Add the pages_manage_posts permission to your Meta app.",
+    inboxScopes: "pages_messaging,pages_manage_engagement",
+    inboxSetup: "Add the pages_messaging and pages_manage_engagement permissions to your Meta app.",
     setupUrl: "https://developers.facebook.com/apps",
   };
 }
@@ -89,15 +115,31 @@ export function redirectUri(origin: string, p: SocialPlatform): string {
   return `${origin}/api/social-personas/oauth/${p}/callback`;
 }
 
-export function scopesFor(p: SocialPlatform, posting: boolean): string {
+/** Every scope one login asks for, comma-separated (Google wants spaces — see authorizeUrl). */
+export function scopesFor(p: SocialPlatform, posting: boolean, inbox = false): string {
   const c = config(p);
-  return posting ? `${c.scopes},${c.postScopes}` : c.scopes;
+  return [c.scopes, posting ? c.postScopes : "", inbox ? c.inboxScopes : ""].filter(Boolean).join(",");
 }
 
-export async function authorizeUrl(p: SocialPlatform, origin: string, state: string, posting = false): Promise<string> {
+export async function authorizeUrl(p: SocialPlatform, origin: string, state: string, posting = false, inbox = false): Promise<string> {
   const c = await keys(p);
   const redirect = redirectUri(origin, p);
-  const scope = scopesFor(p, posting);
+  const scope = scopesFor(p, posting, inbox);
+  if (p === "youtube") {
+    // offline + consent: Google only hands out a refresh token that way, and
+    // its access tokens last an hour.
+    const q = new URLSearchParams({
+      client_id: c.id,
+      redirect_uri: redirect,
+      response_type: "code",
+      scope: scope.split(",").join(" "),
+      access_type: "offline",
+      prompt: "consent",
+      include_granted_scopes: "true",
+      state,
+    });
+    return `https://accounts.google.com/o/oauth2/v2/auth?${q}`;
+  }
   if (p === "tiktok") {
     const q = new URLSearchParams({ client_key: c.id, scope, response_type: "code", redirect_uri: redirect, state });
     return `https://www.tiktok.com/v2/auth/authorize/?${q}`;
@@ -128,6 +170,8 @@ export interface Connection {
   scopes?: string;
   /** True when this login was made with the posting scopes. */
   canPost?: boolean;
+  /** True when this login was made with the Message Inbox scopes. */
+  canInbox?: boolean;
   createdAt: string;
 }
 
@@ -148,7 +192,7 @@ export async function deleteConnection(id: string): Promise<boolean> {
 
 // --- code exchange -----------------------------------------------------------
 
-async function json(res: Response, what: string): Promise<any> {
+export async function json(res: Response, what: string): Promise<any> {
   const text = await res.text();
   let body: any = null;
   try {
@@ -192,6 +236,31 @@ export async function exchangeCode(
       expiresAt: Date.now() + (Number(t.expires_in) || 86_400) * 1000,
       accountId: t.open_id,
       scopes: typeof t.scope === "string" ? t.scope : undefined,
+    };
+  }
+
+  if (p === "youtube") {
+    const t = await json(
+      await fetch(
+        "https://oauth2.googleapis.com/token",
+        form({ client_id: c.id, client_secret: c.secret, code, grant_type: "authorization_code", redirect_uri: redirect }),
+      ),
+      "Google token exchange",
+    );
+    const ch = await json(
+      await fetch("https://www.googleapis.com/youtube/v3/channels?part=id&mine=true", { headers: { Authorization: `Bearer ${t.access_token}` } }),
+      "YouTube channel",
+    );
+    const channelId = ch?.items?.[0]?.id;
+    if (!channelId) throw new Error("That Google account has no YouTube channel. Sign in with the account that owns the channel.");
+    return {
+      platform: p,
+      accessToken: t.access_token,
+      refreshToken: t.refresh_token,
+      expiresAt: Date.now() + (Number(t.expires_in) || 3600) * 1000,
+      accountId: String(channelId),
+      // Google lists granted scopes space-separated; store them comma-separated like the rest.
+      scopes: typeof t.scope === "string" ? t.scope.split(/\s+/).join(",") : undefined,
     };
   }
 
@@ -271,8 +340,75 @@ export async function refreshTikTok(conn: Connection): Promise<Connection> {
   return next;
 }
 
+export async function refreshGoogle(conn: Connection): Promise<Connection> {
+  if (!conn.refreshToken || !conn.expiresAt || conn.expiresAt - Date.now() > 5 * 60_000) return conn;
+  const c = await keys("youtube");
+  const t = await json(
+    await fetch("https://oauth2.googleapis.com/token", form({ client_id: c.id, client_secret: c.secret, grant_type: "refresh_token", refresh_token: conn.refreshToken })),
+    "Google token refresh",
+  );
+  const next = { ...conn, accessToken: t.access_token, expiresAt: Date.now() + (Number(t.expires_in) || 3600) * 1000 };
+  await saveConnection(next);
+  return next;
+}
+
+/** The connection with a live token (TikTok and Google tokens expire within a day). */
+export async function freshConnection(conn: Connection): Promise<Connection> {
+  if (conn.platform === "tiktok") return refreshTikTok(conn);
+  if (conn.platform === "youtube") return refreshGoogle(conn);
+  return conn;
+}
+
+async function syncYouTube(input: Connection, max: number, now: string): Promise<SyncResult> {
+  const conn = await refreshGoogle(input);
+  const get = (path: string, what: string) =>
+    fetch(`https://www.googleapis.com/youtube/v3/${path}`, { headers: { Authorization: `Bearer ${conn.accessToken}` } }).then((r) => json(r, what));
+  const ch = (await get("channels?part=snippet,statistics,contentDetails&mine=true", "YouTube channel"))?.items?.[0];
+  if (!ch) throw new Error("That Google account has no YouTube channel any more.");
+  const uploads = ch.contentDetails?.relatedPlaylists?.uploads;
+  const ids: string[] = [];
+  let pageToken = "";
+  for (let page = 0; uploads && page < 3 && ids.length < max; page++) {
+    const res = await get(`playlistItems?${new URLSearchParams({ part: "contentDetails", playlistId: uploads, maxResults: "50", ...(pageToken ? { pageToken } : {}) })}`, "YouTube uploads");
+    for (const it of res?.items ?? []) if (it.contentDetails?.videoId) ids.push(it.contentDetails.videoId);
+    pageToken = res?.nextPageToken ?? "";
+    if (!pageToken) break;
+  }
+  const posts: Post[] = [];
+  for (let i = 0; i < Math.min(ids.length, max); i += 50) {
+    const res = await get(`videos?${new URLSearchParams({ part: "snippet,statistics", id: ids.slice(i, i + 50).join(",") })}`, "YouTube videos");
+    for (const v of res?.items ?? []) {
+      const sn = v.snippet ?? {};
+      posts.push({
+        id: `yt_${v.id}`,
+        externalId: `youtube:${v.id}`,
+        platform: "youtube",
+        url: `https://www.youtube.com/watch?v=${v.id}`,
+        caption: [sn.title, sn.description].filter(Boolean).join("\n").trim(),
+        title: sn.title,
+        thumbnail: sn.thumbnails?.medium?.url ?? sn.thumbnails?.default?.url ?? null,
+        postedAt: sn.publishedAt ?? null,
+        addedAt: now,
+        stats: { views: num(v.statistics?.viewCount), likes: num(v.statistics?.likeCount), comments: num(v.statistics?.commentCount) },
+        source: "sync",
+      });
+    }
+  }
+  const custom = String(ch.snippet?.customUrl ?? "");
+  const handle = custom.replace(/^@/, "");
+  return {
+    handle: handle || String(ch.snippet?.title ?? ""),
+    displayName: String(ch.snippet?.title ?? handle),
+    url: handle ? `https://www.youtube.com/@${handle}` : `https://www.youtube.com/channel/${ch.id}`,
+    followers: ch.statistics?.hiddenSubscriberCount ? null : num(ch.statistics?.subscriberCount),
+    posts,
+  };
+}
+
 export async function syncConnection(input: Connection, max = 60): Promise<SyncResult> {
   const now = new Date().toISOString();
+
+  if (input.platform === "youtube") return syncYouTube(input, max, now);
 
   if (input.platform === "tiktok") {
     const conn = await refreshTikTok(input);

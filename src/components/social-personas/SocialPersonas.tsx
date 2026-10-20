@@ -23,7 +23,7 @@ import { useRemotePull } from "@/lib/sync/useSync";
 import { KEY, loadBoard, removePersona, saveBoard, upsertPersona } from "@/lib/social-personas/store";
 import { mergePosts, uid } from "@/lib/social-personas/logic";
 import { withFollowerPoint, withResult } from "@/lib/social-personas/studio";
-import { PLATFORM_NAME, type Board, type Draft, type Persona, type Post, type SocialPlatform } from "@/lib/social-personas/types";
+import { PLATFORM_NAME, type Board, type ConnectablePlatform, type Draft, type Persona, type Post, type SocialPlatform } from "@/lib/social-personas/types";
 import { api, type PublicJob, type Status } from "./api";
 import { StudioHome } from "./StudioHome";
 import { ConnectSetup } from "./ConnectSetup";
@@ -45,7 +45,7 @@ export function PersonasStudio({ embedded = false }: { embedded?: boolean }) {
   const [form, setForm] = useState<{ persona?: Persona } | null>(null);
   const [toast, setToast] = useState<{ text: string; bad?: boolean } | null>(null);
   /** Connect setup is open (for this platform, from this persona when there is one). */
-  const [setup, setSetup] = useState<{ platform?: "tiktok" | "instagram" | "facebook"; personaId?: string } | null>(null);
+  const [setup, setSetup] = useState<{ platform?: ConnectablePlatform; personaId?: string; tab?: string } | null>(null);
   const reloadStatus = useCallback(() => void api.status().then((r) => r.ok && setStatus(r.data)), []);
   const boardRef = useRef(board);
   boardRef.current = board;
@@ -224,16 +224,19 @@ export function PersonasStudio({ embedded = false }: { embedded?: boolean }) {
     const replaced = q.get("replaced");
     const posting = q.get("posting") === "1";
     const postingRefused = q.get("postingRefused") === "1";
+    const inbox = q.get("inbox") === "1";
+    const inboxRefused = q.get("inboxRefused") === "1";
+    const backTab: TabId = q.get("tab") === "inbox" ? "inbox" : "overview";
     const platform = q.get("platform") as SocialPlatform | null;
     const oauthError = q.get("oauthError");
     if (personaId && boardRef.current.personas.some((p) => p.id === personaId)) {
       setOpenId(personaId);
-      setOpenTab("overview");
+      setOpenTab(backTab);
     }
     if (oauthError) {
       if (oauthError.startsWith("not-configured:")) {
-        const pl = oauthError.slice("not-configured:".length) as "tiktok" | "instagram" | "facebook";
-        setSetup({ platform: pl, personaId: personaId ?? undefined });
+        const pl = oauthError.slice("not-configured:".length) as ConnectablePlatform;
+        setSetup({ platform: pl, personaId: personaId ?? undefined, tab: backTab });
       } else flash(`Connect didn't finish: ${oauthError}`, true);
     }
     if (personaId && connected && platform) {
@@ -242,13 +245,14 @@ export function PersonasStudio({ embedded = false }: { embedded?: boolean }) {
         const existing = p.accounts.find((a) => (replaced && a.connectionId === replaced) || (a.platform === platform && !a.connectionId));
         if (existing) accId = existing.id;
         const accounts = existing
-          ? p.accounts.map((a) => (a === existing ? { ...a, connectionId: connected, canPost: posting || undefined } : a))
-          : [...p.accounts, { id: accId, platform, handle: "", url: "", connectionId: connected, canPost: posting || undefined }];
+          ? p.accounts.map((a) => (a === existing ? { ...a, connectionId: connected, canPost: posting || undefined, canInbox: inbox || undefined } : a))
+          : [...p.accounts, { id: accId, platform, handle: "", url: "", connectionId: connected, canPost: posting || undefined, canInbox: inbox || undefined }];
         return { ...p, accounts };
       });
-      if (posting) flash(`${PLATFORM_NAME[platform]} connected — videos sync in and scheduled posts go out on their own.`);
-      else if (postingRefused) flash(`${PLATFORM_NAME[platform]} connected for syncing. Auto-post is waiting on one switch in the developer app — the account shows which.`, true);
-      else flash(`${PLATFORM_NAME[platform]} connected.`);
+      const parts = [posting && "scheduled posts go out on their own", inbox && "messages and comments show in the Message inbox"].filter(Boolean);
+      if (inboxRefused && backTab === "inbox") flash(`${PLATFORM_NAME[platform]} connected, but the inbox is waiting on one switch in the developer app — the inbox shows which.`, true);
+      else if (postingRefused && backTab !== "inbox") flash(`${PLATFORM_NAME[platform]} connected for syncing. Auto-post is waiting on one switch in the developer app — the account shows which.`, true);
+      else flash(`${PLATFORM_NAME[platform]} connected${parts.length ? ` — ${parts.join(", and ")}` : ""}.`);
       void syncAccount(personaId, accId);
     }
     if (personaId || oauthError || connected) window.history.replaceState(null, "", window.location.pathname);
@@ -313,7 +317,7 @@ export function PersonasStudio({ embedded = false }: { embedded?: boolean }) {
             syncAccount={syncAccount}
             applyJobs={applyJobs}
             onEdit={() => setForm({ persona: open })}
-            openSetup={(platform) => setSetup({ platform, personaId: open.id })}
+            openSetup={(platform, from) => setSetup({ platform, personaId: open.id, tab: from })}
             onDelete={() => {
               for (const a of open.accounts) if (a.connectionId) void api.disconnect(a.connectionId);
               for (const d of open.drafts) void api.unschedule(d.id);
@@ -328,7 +332,7 @@ export function PersonasStudio({ embedded = false }: { embedded?: boolean }) {
             onOpen={openPersona}
             onNew={() => setForm({})}
             onSetup={() => setSetup({})}
-            ready={{ tiktok: status?.platforms.tiktok.configured, instagram: status?.platforms.instagram.configured, facebook: status?.platforms.facebook.configured }}
+            ready={{ tiktok: status?.platforms.tiktok.configured, instagram: status?.platforms.instagram.configured, facebook: status?.platforms.facebook.configured, youtube: status?.platforms.youtube?.configured }}
           />
         )}
       </div>
@@ -354,7 +358,7 @@ export function PersonasStudio({ embedded = false }: { embedded?: boolean }) {
           onConnect={
             setup.personaId
               ? (platform) => {
-                  window.location.href = `/api/social-personas/oauth/${platform}/start?${new URLSearchParams({ persona: setup.personaId! })}`;
+                  window.location.href = `/api/social-personas/oauth/${platform}/start?${new URLSearchParams({ persona: setup.personaId!, ...(setup.tab === "inbox" ? { tab: "inbox" } : {}) })}`;
                 }
               : undefined
           }

@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     return Response.json({ platform: conn.platform, ...got });
   } catch (err) {
     const msg = (err as Error).message;
-    const expired = /expired|invalid.*token|access_token_invalid|OAuthException|\b190\b/i.test(msg);
+    const expired = /expired|invalid.*token|access_token_invalid|OAuthException|\b190\b|invalid_grant|UNAUTHENTICATED|Invalid Credentials/i.test(msg);
     return fail(expired ? 401 : 502, expired ? "The login expired — connect the account again." : msg.slice(0, 400), { reconnect: expired });
   }
 }

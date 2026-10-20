@@ -438,4 +438,15 @@ export const Icon = {
       <path d="M3 10.5v3M7.5 6.5v11M12 3.5v17M16.5 7.5v9M21 10.5v3" />
     </svg>
   ),
+  Chat: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 20.5l1.6-4.6A8.2 8.2 0 0 1 3 11.5 8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5Z" />
+    </svg>
+  ),
+  Reply: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base(p)}>
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h10.5A5.5 5.5 0 0 1 20 14.5 5.5 5.5 0 0 1 14.5 20H11" />
+    </svg>
+  ),
 };

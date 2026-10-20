@@ -15,7 +15,7 @@ export async function GET() {
       await Promise.all(
         CONNECTABLE.map(async (p) => {
           const c = config(p);
-          return [p, { configured: (await keys(p)).source !== null, env: c.envNames, setupUrl: c.setupUrl, postSetup: c.postSetup }] as const;
+          return [p, { configured: (await keys(p)).source !== null, env: c.envNames, setupUrl: c.setupUrl, postSetup: c.postSetup, inboxSetup: c.inboxSetup }] as const;
         }),
       ),
     ),

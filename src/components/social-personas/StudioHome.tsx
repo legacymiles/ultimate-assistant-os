@@ -23,7 +23,7 @@ export function StudioHome({
   /** Open Connect setup (the platforms' one-time developer-app step). */
   onSetup: () => void;
   /** Which platforms can be connected right now. */
-  ready: Partial<Record<"tiktok" | "instagram" | "facebook", boolean>>;
+  ready: Partial<Record<"tiktok" | "instagram" | "facebook" | "youtube", boolean>>;
   personas: Persona[];
   loaded: boolean;
   onOpen: (id: string, tab?: TabId) => void;
@@ -59,11 +59,11 @@ export function StudioHome({
         <button
           onClick={onSetup}
           className="inline-flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-sm font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
-          title="Set up TikTok, Instagram and Facebook sign-in (once)"
+          title="Set up TikTok, Instagram, Facebook and YouTube sign-in (once)"
         >
           <Icon.Link width={14} height={14} /> Connections
           <span className="flex gap-0.5" aria-hidden>
-            {(["tiktok", "instagram", "facebook"] as const).map((x) => (
+            {(["tiktok", "instagram", "facebook", "youtube"] as const).map((x) => (
               <span key={x} className={"h-1.5 w-1.5 rounded-full " + (ready[x] ? "bg-emerald-400" : "bg-ink-faint/40")} />
             ))}
           </span>

@@ -17,7 +17,7 @@ import { useState } from "react";
 import { Icon } from "../icons";
 import { handleFrom, profileUrl, uid } from "@/lib/social-personas/logic";
 import { compact } from "@/lib/social-personas/studio";
-import { PLATFORM_NAME, SOCIAL_PLATFORMS, isConnectable, type Account, type Persona, type SocialPlatform } from "@/lib/social-personas/types";
+import { PLATFORM_NAME, SOCIAL_PLATFORMS, canAutoPost, hasInbox, isConnectable, type Account, type ConnectablePlatform, type Persona, type SocialPlatform } from "@/lib/social-personas/types";
 import { createItem, ensureFolderPath, getData, setItemFields, setItemPassword, updateItem } from "@/lib/recall/store";
 import { copyEphemeral } from "@/lib/recall/clipboard";
 import type { UsePasswordVault } from "@/lib/passwords/usePasswordVault";
@@ -27,9 +27,9 @@ import type { Mutate } from "./SocialPersonas";
 
 const NOTE: Record<SocialPlatform, string> = {
   tiktok: "One sign-in: your videos and views sync in, and each scheduled video goes to your TikTok inbox to post with one tap.",
-  instagram: "One sign-in (Business or Creator account): posts and reels sync in, and scheduled reels and photos publish on time.",
-  facebook: "One sign-in to a Page you manage: posts sync in and scheduled videos publish on time (apps can't post to personal profiles).",
-  youtube: "Save the channel and its sign-in. Scheduled posts remind you and open YouTube Studio with the caption copied.",
+  instagram: "One sign-in (Business or Creator account): posts and reels sync in, scheduled reels and photos publish on time, and DMs + comments land in the Message inbox.",
+  facebook: "One sign-in to a Page you manage: posts sync in, scheduled videos publish on time, and Page messages + comments land in the Message inbox (apps can't use personal profiles).",
+  youtube: "One sign-in with Google: videos and views sync in, and comments land in the Message inbox to answer. Scheduled posts open YouTube Studio with the caption copied.",
   x: "Save the account and its sign-in. Scheduled posts remind you and open X with the text copied.",
 };
 
@@ -49,7 +49,7 @@ export function Accounts({
   flash: (t: string, bad?: boolean) => void;
   syncAccount: (personaId: string, accountId: string) => Promise<void>;
   /** Open Connect setup for a platform whose developer app isn't set up yet. */
-  openSetup: (p: "tiktok" | "instagram" | "facebook") => void;
+  openSetup: (p: ConnectablePlatform) => void;
 }) {
   const [adding, setAdding] = useState<SocialPlatform | null>(null);
   const [handle, setHandle] = useState("");
@@ -77,7 +77,7 @@ export function Accounts({
    */
   const connect = (platform: SocialPlatform, opts: { replace?: string } = {}) => {
     if (!isConnectable(platform)) return;
-    if (!status?.platforms[platform].configured) return openSetup(platform);
+    if (!status?.platforms[platform]?.configured) return openSetup(platform);
     const q = new URLSearchParams({ persona: persona.id, ...(opts.replace ? { replace: opts.replace } : {}) });
     window.location.href = `/api/social-personas/oauth/${platform}/start?${q}`;
   };
@@ -120,7 +120,7 @@ export function Accounts({
             </Btn>
             {isConnectable(adding) && (
               <Btn primary onClick={() => connect(adding)} title="Sign in with the platform: videos and stats sync in, and scheduled posts go out by themselves">
-                {status?.platforms[adding as "tiktok"]?.configured ? `Sign in with ${PLATFORM_NAME[adding]}` : "Set up & connect"}
+                {status?.platforms[adding as ConnectablePlatform]?.configured ? `Sign in with ${PLATFORM_NAME[adding]}` : "Set up & connect"}
               </Btn>
             )}
           </div>
@@ -154,7 +154,12 @@ export function Accounts({
                       <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400" title={a.lastSyncAt ? `Last sync ${new Date(a.lastSyncAt).toLocaleString()}` : ""}>
                         connected
                       </span>
-                      {a.canPost ? (
+                      {hasInbox(a.platform) && a.canInbox && (
+                        <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-sky-400" title="Messages and comments show in the Message inbox">
+                          inbox on
+                        </span>
+                      )}
+                      {!canAutoPost(a.platform) ? null : a.canPost ? (
                         <span className="rounded bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold text-brand" title="Scheduled posts go out on their own">
                           auto-post on
                         </span>
@@ -162,7 +167,7 @@ export function Accounts({
                         <button
                           onClick={() => connect(a.platform, { replace: a.connectionId })}
                           className="rounded px-1.5 py-0.5 text-[11px] font-medium text-brand hover:bg-brand/10"
-                          title={status && isConnectable(a.platform) ? `Auto-post is off. ${status.platforms[a.platform].postSetup} Then reconnect.` : "Reconnect to allow posting"}
+                          title={status && isConnectable(a.platform) ? `Auto-post is off. ${status.platforms[a.platform]?.postSetup ?? ""} Then reconnect.` : "Reconnect to allow posting"}
                         >
                           Reconnect for auto-post
                         </button>

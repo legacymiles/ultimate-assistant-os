@@ -6,18 +6,18 @@
 // a reminder when the time comes. Returns the draft with fresh results.
 
 import { captionFor, withResult } from "@/lib/social-personas/studio";
-import { isConnectable, type Draft, type Persona } from "@/lib/social-personas/types";
+import { canAutoPost, type Draft, type Persona } from "@/lib/social-personas/types";
 import { api, type PublicJob, type ScheduleRequest } from "./api";
 
 export function autoAccounts(p: Persona, d: Draft) {
-  return p.accounts.filter((a) => d.accountIds.includes(a.id) && a.connectionId && a.canPost && isConnectable(a.platform));
+  return p.accounts.filter((a) => d.accountIds.includes(a.id) && a.connectionId && a.canPost && canAutoPost(a.platform));
 }
 
 /** Why an account in this draft can't auto-post yet, or null when it can. */
 export function blocker(p: Persona, d: Draft, accountId: string): string | null {
   const a = p.accounts.find((x) => x.id === accountId);
   if (!a) return "account removed";
-  if (!isConnectable(a.platform)) return "reminder";
+  if (!canAutoPost(a.platform)) return "reminder";
   if (!a.connectionId) return "connect to auto-post";
   if (!a.canPost) return "reconnect for auto-post";
   if (!d.media && a.platform !== "facebook") return "add a video";

@@ -1,7 +1,7 @@
-import { config, keys } from "@/lib/social-personas/server/connectors";
+import { config, keys, scopesFor } from "@/lib/social-personas/server/connectors";
 import { body, fail, publicOrigin } from "@/lib/social-personas/server/http";
 import { checkKey, clearKey, saveKey } from "@/lib/social-personas/server/platformKeys";
-import { CONNECTABLE, isConnectable } from "@/lib/social-personas/types";
+import { CONNECTABLE, canAutoPost, hasInbox, isConnectable } from "@/lib/social-personas/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +25,7 @@ export async function GET(req: Request) {
         idHint: k.id ? `…${k.id.slice(-4)}` : null,
         setupUrl: c.setupUrl,
         redirectUri: `${origin}/api/social-personas/oauth/${p}/callback`,
-        scopes: `${c.scopes},${c.postScopes}`,
+        scopes: scopesFor(p, canAutoPost(p), hasInbox(p)),
       };
     }),
   );
@@ -47,7 +47,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const b = await body(req);
   const p = typeof b?.platform === "string" ? b.platform : "";
-  if (!isConnectable(p)) return fail(400, "Pick TikTok, Instagram or Facebook.");
+  if (!isConnectable(p)) return fail(400, "Pick TikTok, Instagram, Facebook or YouTube.");
   const id = typeof b?.id === "string" ? b.id.trim() : "";
   const secret = typeof b?.secret === "string" ? b.secret.trim() : "";
   const bad = checkKey(p, id, secret);
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
 // DELETE ?platform=… — forget saved keys (Connect stops working until new ones are saved).
 export async function DELETE(req: Request) {
   const p = new URL(req.url).searchParams.get("platform") ?? "";
-  if (!isConnectable(p)) return fail(400, "Pick TikTok, Instagram or Facebook.");
+  if (!isConnectable(p)) return fail(400, "Pick TikTok, Instagram, Facebook or YouTube.");
   await clearKey(p);
   return Response.json({ ok: true });
 }

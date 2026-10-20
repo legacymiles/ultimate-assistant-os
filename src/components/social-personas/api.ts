@@ -4,6 +4,7 @@
 import type { Brain, ConnectablePlatform, DraftMedia, Idea, Persona, Post } from "@/lib/social-personas/types";
 import type { PostAnalysis } from "@/lib/social-personas/logic";
 import type { Job } from "@/lib/social-personas/queue";
+import type { InboxThread } from "@/lib/social-personas/inbox";
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string; status: number; extra?: Record<string, unknown> };
 
@@ -26,7 +27,15 @@ export interface Status {
   ai: boolean;
   /** Uploaded videos are kept where the platforms can fetch them (needed for auto-post). */
   storage: boolean;
-  platforms: Record<ConnectablePlatform, { configured: boolean; env: [string, string]; setupUrl: string; postSetup: string }>;
+  platforms: Record<ConnectablePlatform, { configured: boolean; env: [string, string]; setupUrl: string; postSetup: string; inboxSetup: string }>;
+}
+
+/** Why one account's messages didn't load, and what fixes it. */
+export interface InboxProblem {
+  accountId: string;
+  error: string;
+  reconnect?: boolean;
+  needsInbox?: boolean;
 }
 
 /** A queue job as the browser sees it (no uid / connection id). */
@@ -85,5 +94,9 @@ export const api = {
     if (!ok) return { ok: false, error: "The upload didn't finish. Check your connection and try again." };
     return { ok: true, media: { key: r.data.key, name: file.name, size: file.size, type: file.type } };
   },
+  inbox: (accounts: { accountId: string; connectionId: string }[]) => call<{ threads: InboxThread[]; problems: InboxProblem[] }>("inbox", { accounts }),
+  reply: (input: { connectionId: string; kind: "dm" | "comment"; replyTo: string; text: string }) => call<{ id: string; at: string }>("inbox/reply", input),
+  suggestReply: (p: Persona, thread: InboxThread) =>
+    call<{ reply: string }>("inbox/suggest", { persona: { ...lean(p), posts: lean(p).posts.slice(0, 12), drafts: [] }, thread: { ...thread, messages: thread.messages.slice(-12) } }),
   removeMedia: (key: string) => fetch(`/api/social-personas/media?key=${encodeURIComponent(key)}`, { method: "DELETE" }).catch(() => null),
 };

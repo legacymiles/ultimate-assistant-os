@@ -14,12 +14,21 @@ export type SocialPlatform = "tiktok" | "instagram" | "facebook" | "youtube" | "
 export const SOCIAL_PLATFORMS: SocialPlatform[] = ["tiktok", "instagram", "youtube", "facebook", "x"];
 
 /**
- * The platforms whose official login is wired up here (sync + auto-post).
- * The rest are handle + sign-in only, posted with the one-tap manual flow.
+ * The platforms whose official login is wired up here (sync, and the Message
+ * Inbox where the platform allows it). The rest are handle + sign-in only,
+ * posted with the one-tap manual flow.
  */
-export type ConnectablePlatform = "tiktok" | "instagram" | "facebook";
-export const CONNECTABLE: ConnectablePlatform[] = ["tiktok", "instagram", "facebook"];
+export type ConnectablePlatform = "tiktok" | "instagram" | "facebook" | "youtube";
+export const CONNECTABLE: ConnectablePlatform[] = ["tiktok", "instagram", "facebook", "youtube"];
 export const isConnectable = (p: string): p is ConnectablePlatform => (CONNECTABLE as string[]).includes(p);
+
+/** The connectable platforms that can also auto-post. YouTube connects for syncing and comments only. */
+export type PostablePlatform = "tiktok" | "instagram" | "facebook";
+export const canAutoPost = (p: string): p is PostablePlatform => p === "tiktok" || p === "instagram" || p === "facebook";
+
+/** The connectable platforms whose messages and comments can be read and answered in the Message Inbox. */
+export type InboxPlatform = "instagram" | "facebook" | "youtube";
+export const hasInbox = (p: string): p is InboxPlatform => p === "instagram" || p === "facebook" || p === "youtube";
 
 export const PLATFORM_NAME: Record<SocialPlatform, string> = {
   tiktok: "TikTok",
@@ -65,6 +74,8 @@ export interface Account {
   loginItemId?: string;
   /** The connection was made with the posting scopes (auto-post is on). */
   canPost?: boolean;
+  /** The connection was made with the messaging/comment scopes (Message Inbox is on). */
+  canInbox?: boolean;
   /** Follower count over time, one point per sync day. */
   followerHistory?: { at: string; n: number }[];
 }
@@ -221,8 +232,21 @@ export interface Persona {
   chat: ChatMsg[];
   /** The content pipeline and calendar. Newest first. */
   drafts: Draft[];
+  /**
+   * Message Inbox settings. Only what this person chose and what they've read
+   * is kept here; the messages themselves stay on the platforms and on this
+   * device's cache, never in the synced blob.
+   */
+  inbox?: PersonaInbox;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PersonaInbox {
+  /** "Open inbox" shortcuts turned on for apps that can't be read here (Tinder, TikTok…), in the order added. */
+  apps: string[];
+  /** Thread id → the newest message time already seen, so unread survives across devices. */
+  seen: Record<string, string>;
 }
 
 export interface Board {
