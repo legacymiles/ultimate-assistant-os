@@ -1,5 +1,14 @@
 [
  {
+  "id": "0369d10:cook-connect",
+  "date": "2026-10-20",
+  "slug": "cook-connect",
+  "title": "Spades matchmaking with bots, merged with the cinematic spades; renig follows the owner's spec",
+  "detail": "Matchmaking: \"Play bots now\" (you + a computer partner vs two computers) or \"Find real players\" (join the fullest waiting table, or open one). While waiting everyone at the table can chat and video. One person can start with bots at once; two or three must all agree (\"Play with bots\" / \"Keep waiting",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "723c6b2:jarvis",
   "date": "2026-10-20",
   "slug": "jarvis",
