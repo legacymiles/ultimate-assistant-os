@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useCook } from "../CookConnect";
 import { Columns, PageHead } from "../Columns";
 import {
-  createMatch, loadLiveMatches, loadOpenTables, joinMatch, type OpenTable,
+  createMatch, findSpadesTable, loadLiveMatches, loadOpenTables, joinMatch, type OpenTable,
 } from "@/lib/cook-connect/matches";
 import { loadProfiles, type ProfileMap } from "@/lib/cook-connect/social";
 import { LEVEL_LABELS, type Level } from "@/lib/cook-connect/chessAi";
@@ -48,6 +48,26 @@ export function PlayView() {
     return () => clearInterval(timer);
   }, [load]);
 
+  // Live: a table opening, filling or starting shows up without a refresh.
+  // Changes are batched for a moment so a burst of seat writes is one reload.
+  useEffect(() => {
+    if (!userId) return;
+    let pendingReload: ReturnType<typeof setTimeout> | null = null;
+    const soon = () => {
+      if (pendingReload) clearTimeout(pendingReload);
+      pendingReload = setTimeout(() => void load(), 400);
+    };
+    const channel = sb
+      .channel(`lobby:${userId}`)
+      .on("postgres_changes", { event: "*", schema: "cook", table: "matches" }, soon)
+      .on("postgres_changes", { event: "*", schema: "cook", table: "match_players" }, soon)
+      .subscribe();
+    return () => {
+      if (pendingReload) clearTimeout(pendingReload);
+      sb.removeChannel(channel);
+    };
+  }, [sb, userId, load]);
+
   const goTo = (table: OpenTable) =>
     navigate({ page: table.match.game === "spades" ? "spades" : "chess", matchId: table.match.id });
 
@@ -60,6 +80,21 @@ export function PlayView() {
     });
     setBusy(false);
     navigate({ page: game === "spades" ? "spades" : "chess", matchId });
+  };
+
+  /** "Find real players": sit with whoever is already waiting, or start waiting. */
+  const findPlayers = async () => {
+    if (!userId) return;
+    setBusy(true);
+    try {
+      const { matchId, joined } = await findSpadesTable(sb, userId);
+      notify(joined ? "Found a table. Say hello while you decide." : "You're first. We'll seat the next person who searches with you.");
+      navigate({ page: "spades", matchId });
+    } catch {
+      notify("Couldn't look for players just now. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const take = async (table: OpenTable) => {
@@ -75,7 +110,7 @@ export function PlayView() {
     <Columns rail={<><OnlineRail /><LoungeDock /></>}>
       <PageHead
         title="Play"
-        subtitle="Spades is four seats in two partnerships. Chess is two. Either way the computer fills empty seats, so you never wait for a fourth."
+        subtitle="Spades is four seats in two partnerships. Chess is two. Play the computer right away, or find real people and decide together whether to wait or bring in bots."
       />
 
       {mine.length > 0 && (
@@ -118,15 +153,19 @@ export function PlayView() {
               you make your bid, a hundred off at ten bags. First to 500 wins.
             </p>
             <div className="mt-3 flex flex-wrap gap-1.5">
-              <Button variant="primary" disabled={busy} onClick={() => void start("spades", false)}>
+              <Button variant="primary" disabled={busy} onClick={() => void findPlayers()}>
                 <PlayIcon size={14} />
-                Open a table
+                Find real players
               </Button>
               <Button disabled={busy} onClick={() => void start("spades", true)}>
                 <BotIcon size={14} />
-                Play the computer
+                Play bots now
               </Button>
             </div>
+            <p className="mt-2 text-[11px] leading-relaxed text-[var(--cc-ink-faint)]">
+              Bots now: you and a computer partner against two computers. Find players: you can chat and
+              video with whoever turns up, then wait for four or all agree to fill the rest with bots.
+            </p>
           </div>
         </Panel>
 
@@ -169,10 +208,10 @@ export function PlayView() {
           <EmptyState
             icon={<PlayIcon size={26} />}
             title="Nobody is waiting"
-            body="Open a table and it appears here for everyone. The computer will keep the game moving until a person takes the seat."
+            body="Search for players and your table appears here for everyone. Whoever joins can chat with you while you decide to wait or play with bots."
             action={
-              <Button variant="primary" disabled={busy} onClick={() => void start("spades", false)}>
-                Open a spades table
+              <Button variant="primary" disabled={busy} onClick={() => void findPlayers()}>
+                Find spades players
               </Button>
             }
           />

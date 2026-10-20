@@ -9,6 +9,7 @@
 
 import { initGameState } from "./spades";
 import { recordActivity } from "./social";
+import { emptyLobby, tablesToJoin } from "./lobby";
 import type { GameKind, Match, MatchPlayer, SeatResult } from "./types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -70,6 +71,8 @@ export interface CreateOptions {
   withBots?: boolean;
   /** Chess only. */
   botLevel?: "easy" | "medium" | "hard";
+  /** Spades only: opened by "Find real players", so matchmaking may merge it into an older table. */
+  search?: boolean;
 }
 
 export async function createMatch(sb: Backend, opts: CreateOptions): Promise<string> {
@@ -102,7 +105,10 @@ export async function createMatch(sb: Backend, opts: CreateOptions): Promise<str
       id: newId(), match_id: matchId,
       state: opts.withBots
         ? { ...initGameState(0), bots: botSeats, rematch: [] }
-        : { ...initGameState(0), bots: [], rematch: [], phase: "bidding" },
+        : {
+          ...initGameState(0), bots: [], rematch: [], phase: "bidding",
+          lobby: { ...emptyLobby(), search: !!opts.search },
+        },
       team1_score: 0, team2_score: 0, team1_bags: 0, team2_bags: 0,
       current_round: 1, updated_at: now(),
     });
@@ -158,8 +164,38 @@ export async function joinMatch(sb: Backend, matchId: string, userId: string): P
       await sb.from("chess_games").update({ [column]: userId, updated_at: now() }).eq("id", gameRow.id);
     }
   }
-  if (full) await sb.from("matches").update({ status: "live", updated_at: now() }).eq("id", matchId);
+  // A full spades table stays "pending" for a moment: the waiting room deals a
+  // fresh four-person game and marks it live (hooks/useSpades.ts). Chess has
+  // nothing to decide, so it goes live at once.
+  if (full && match.game === "chess") {
+    await sb.from("matches").update({ status: "live", updated_at: now() }).eq("id", matchId);
+  } else {
+    await sb.from("matches").update({ updated_at: now() }).eq("id", matchId);
+  }
   return true;
+}
+
+/**
+ * "Find real players": sit at the best waiting spades table, or open one and
+ * wait there. Returns the table's id either way.
+ */
+export async function findSpadesTable(sb: Backend, userId: string): Promise<{ matchId: string; joined: boolean }> {
+  const open = await loadOpenTables(sb);
+  const order = tablesToJoin(open.map((t) => ({
+    id: t.match.id,
+    game: t.match.game,
+    status: t.match.status,
+    isPublic: t.match.is_public,
+    createdAt: t.match.created_at,
+    updatedAt: t.match.updated_at,
+    humanIds: t.players.filter((p) => !p.is_bot).map((p) => p.user_id),
+    seatsFree: t.seatsFree,
+  })), userId, Date.now());
+  for (const id of order) {
+    if (await joinMatch(sb, id, userId)) return { matchId: id, joined: true };
+  }
+  const matchId = await createMatch(sb, { game: "spades", userId, isPublic: true, search: true });
+  return { matchId, joined: false };
 }
 
 export interface FinishSeat {

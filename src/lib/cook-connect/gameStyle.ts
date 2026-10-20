@@ -45,7 +45,12 @@ export interface GameTheme {
   trumpSteal: Moment;
   nilShield: Moment & { color: string };
   set: Moment;
-  renege: Moment;
+  /**
+   * A "Call renig" settling — it ends the game. `text` slams down when the
+   * call was right (the renig team loses), `wrong` when it was not (the
+   * caller's team loses).
+   */
+  renege: Moment & { wrong: string };
   boston: Moment;
 }
 
@@ -79,7 +84,7 @@ const CLASSIC_MOMENTS = {
   trumpSteal: { on: true, text: "UPSET!" },
   nilShield: { on: true, text: "NIL SHIELD", color: "#e8c26a" },
   set: { on: true, text: "SET!" },
-  renege: { on: true, text: "RENEGE!" },
+  renege: { on: true, text: "RENEGE!", wrong: "WRONG CALL!" },
   boston: { on: true, text: "BOSTON!" },
 };
 
@@ -97,7 +102,7 @@ export const CLASSIC: GameTheme = {
 function themed(
   id: string, name: string, icon: string, felt: [string, string], confetti: string[],
   suits: Partial<Record<SuitKey, Partial<SuitStyle>>>,
-  words: Partial<Record<"spadesBroken" | "trumpSteal" | "nilShield" | "set" | "renege" | "boston", string>>,
+  words: Partial<Record<"spadesBroken" | "trumpSteal" | "nilShield" | "set" | "renege" | "renegeWrong" | "boston", string>>,
   nilColor?: string,
 ): GameTheme {
   const s = (k: SuitKey) => ({ ...CLASSIC_SUITS[k], ...suits[k] });
@@ -113,7 +118,11 @@ function themed(
       color: nilColor ?? CLASSIC_MOMENTS.nilShield.color,
     },
     set: { ...CLASSIC_MOMENTS.set, text: words.set ?? CLASSIC_MOMENTS.set.text },
-    renege: { ...CLASSIC_MOMENTS.renege, text: words.renege ?? CLASSIC_MOMENTS.renege.text },
+    renege: {
+      ...CLASSIC_MOMENTS.renege,
+      text: words.renege ?? CLASSIC_MOMENTS.renege.text,
+      wrong: words.renegeWrong ?? CLASSIC_MOMENTS.renege.wrong,
+    },
     boston: { ...CLASSIC_MOMENTS.boston, text: words.boston ?? CLASSIC_MOMENTS.boston.text },
   };
 }
@@ -127,7 +136,7 @@ export const PRESETS: GameTheme[] = [
       D: { attack: "Bone Shatter", color: "#e5e7eb" },
       C: { attack: "Grave Rise", color: "#84cc16" },
     },
-    { spadesBroken: "THE SPADES HAVE RISEN", trumpSteal: "SPOOKED!", set: "BURIED!", renege: "CURSED! RENEGE!" },
+    { spadesBroken: "THE SPADES HAVE RISEN", trumpSteal: "SPOOKED!", set: "BURIED!", renege: "CURSED! RENEGE!", renegeWrong: "BOO! WRONG CALL!" },
     "#fb923c"),
   themed("christmas", "Christmas", "🎄", ["#0f2a1a", "#0a1414"], ["❄️", "🎁", "⭐"],
     {
@@ -136,7 +145,7 @@ export const PRESETS: GameTheme[] = [
       D: { attack: "Icicle Storm", color: "#7dd3fc" },
       C: { attack: "Sleigh Stomp", color: "#22c55e" },
     },
-    { spadesBroken: "SPADES CAME DOWN THE CHIMNEY", trumpSteal: "STOLE CHRISTMAS!", set: "COAL!", renege: "NAUGHTY LIST! RENEGE!" },
+    { spadesBroken: "SPADES CAME DOWN THE CHIMNEY", trumpSteal: "STOLE CHRISTMAS!", set: "COAL!", renege: "NAUGHTY LIST! RENEGE!", renegeWrong: "HUMBUG! WRONG CALL!" },
     "#fde68a"),
   themed("valentines", "Valentine's", "💘", ["#2a0d1a", "#14070e"], ["💘", "🌹", "💋"],
     {
@@ -145,7 +154,7 @@ export const PRESETS: GameTheme[] = [
       D: { attack: "Diamond Ring", color: "#f0abfc" },
       C: { attack: "Love Tap", color: "#fda4af" },
     },
-    { spadesBroken: "SPADES BROKE MY HEART", trumpSteal: "HEARTBREAKER!", set: "DUMPED!", renege: "CHEATER! RENEGE!" },
+    { spadesBroken: "SPADES BROKE MY HEART", trumpSteal: "HEARTBREAKER!", set: "DUMPED!", renege: "CHEATER! RENEGE!", renegeWrong: "HEARTLESS! WRONG CALL!" },
     "#f9a8d4"),
   themed("fourth-of-july", "Fourth of July", "🎆", ["#0c1a33", "#070b16"], ["🎆", "🇺🇸", "🎇"],
     {
@@ -269,7 +278,10 @@ export function cleanTheme(v: unknown): GameTheme | null {
     trumpSteal: cleanMoment(o.trumpSteal, CLASSIC.trumpSteal),
     nilShield: { ...cleanMoment(nil, CLASSIC.nilShield), color: color(nil.color, CLASSIC.nilShield.color) },
     set: cleanMoment(o.set, CLASSIC.set),
-    renege: cleanMoment(o.renege, CLASSIC.renege),
+    renege: {
+      ...cleanMoment(o.renege, CLASSIC.renege),
+      wrong: str((o.renege && typeof o.renege === "object" ? (o.renege as Record<string, unknown>) : {}).wrong, CLASSIC.renege.wrong, 40),
+    },
     boston: cleanMoment(o.boston, CLASSIC.boston),
   };
 }

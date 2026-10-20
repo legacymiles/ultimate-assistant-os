@@ -6,11 +6,9 @@
 // Seats are drawn relative to you — you are always at the bottom — because a
 // partnership game is only readable when "across from me" means your partner.
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import type { GameState } from "@/lib/cook-connect/spades";
-import {
-  getSuit, getTeam, isPlayable, isRenege, renegeRuleOn, sortHand, RENEGE_PENALTY_TRICKS,
-} from "@/lib/cook-connect/spades";
+import { getSuit, getTeam, isValidPlay, sortHand } from "@/lib/cook-connect/spades";
 import type { FxLevel, GameTheme, SuitKey } from "@/lib/cook-connect/gameStyle";
 import type { SeatView } from "@/lib/cook-connect/hooks/useSpades";
 import { Avatar, Button, Tag, cx } from "../ui";
@@ -30,9 +28,13 @@ interface Props {
   onFxLevel: (level: FxLevel) => void;
   /** The hand being played, so moments are tied to it. */
   round: number;
-  onCallRenege: () => void;
   /** The team whose score should crumble (they just got set). */
   onCrumble?: (team: number | null) => void;
+  /** "Renig" pressed: every card in your hand can be played. Only you see this. */
+  unlocked?: boolean;
+  onToggleUnlock?: () => void;
+  /** "Call renig": opens the room's opponent picker. */
+  onCallRenig?: () => void;
 }
 
 const FX_LEVELS: { id: FxLevel; label: string }[] = [
@@ -54,7 +56,8 @@ const SWEEP: Record<Position, { x: string; y: string }> = {
 };
 
 export function SpadesTable({
-  state, table, mySeat, onBid, onPlay, theme, fxLevel, onFxLevel, round, onCallRenege, onCrumble,
+  state, table, mySeat, onBid, onPlay, theme, fxLevel, onFxLevel, round, onCrumble,
+  unlocked = false, onToggleUnlock, onCallRenig,
 }: Props) {
   const seated = mySeat >= 0;
   const viewFrom = seated ? mySeat : 0;
@@ -62,19 +65,15 @@ export function SpadesTable({
 
   const myHand = seated ? sortHand(state.hands[mySeat] ?? []) : [];
   const myTurn = seated && state.currentTurn === mySeat;
-  const renegeRule = renegeRuleOn(state);
   const nameOf = (seat: number) =>
     seat === mySeat ? "You" : table.find((t) => t.seat === seat)?.name.split(" ")[0] ?? "Someone";
 
+  // The moments read only a settled call (state.renigCall), never the secret record.
   const fx = useSpadesMoments({ state, round, theme, level: fxLevel, nameOf });
   const { clash } = fx;
 
   // Tell the score board when a team's score should crumble.
   useEffect(() => { onCrumble?.(fx.crumbleTeam); }, [fx.crumbleTeam]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // A renege takes two taps: the first arms the card, the second plays it.
-  const [armed, setArmed] = useState<string | null>(null);
-  if (armed && (!myTurn || !(state.hands[mySeat] ?? []).includes(armed))) setArmed(null);
 
   // A finished trick is held while it fights, then swept to the winner.
   const shownTrick = clash && state.currentTrick.length === 0 ? clash.trick : state.currentTrick;
@@ -207,11 +206,29 @@ export function SpadesTable({
               Your hand
               <span className="cc-num ml-1.5 normal-case tracking-normal">{myHand.length}</span>
             </span>
-            {state.phase === "playing" && (
-              <span className={cx("text-[12px] font-semibold", myTurn ? "text-[var(--cc-live)]" : "text-[var(--cc-ink-faint)]")}>
-                {myTurn ? "Your turn" : `${table.find((t) => t.seat === state.currentTurn)?.name ?? "Someone"} to play`}
-              </span>
-            )}
+            <span className="flex items-center gap-2">
+              {state.phase === "playing" && (
+                <span className={cx("text-[12px] font-semibold", myTurn ? "text-[var(--cc-live)]" : "text-[var(--cc-ink-faint)]")}>
+                  {myTurn ? "Your turn" : `${table.find((t) => t.seat === state.currentTurn)?.name ?? "Someone"} to play`}
+                </span>
+              )}
+              {onToggleUnlock && (state.phase === "playing" || state.phase === "bidding") && myHand.length > 0 && (
+                <button
+                  type="button"
+                  onClick={onToggleUnlock}
+                  aria-pressed={unlocked}
+                  title={unlocked ? "Back to following suit" : "Unlock every card in your hand"}
+                  className={cx(
+                    "rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors duration-150",
+                    unlocked
+                      ? "border-[var(--cc-ember)] bg-[var(--cc-ember-wash)] text-[var(--cc-ember)]"
+                      : "border-[var(--cc-line)] bg-[var(--cc-elevated)] text-[var(--cc-ink-muted)] hover:text-[var(--cc-ink)]",
+                  )}
+                >
+                  Renig
+                </button>
+              )}
+            </span>
           </div>
 
           <div className="flex flex-wrap items-end gap-1 rounded-[var(--cc-radius)] border border-[var(--cc-line)] bg-[var(--cc-panel)] p-2">
@@ -221,34 +238,19 @@ export function SpadesTable({
               </p>
             ) : (
               myHand.map((card) => {
-                const hand = state.hands[mySeat] ?? [];
                 const legal = myTurn
                   && state.phase === "playing"
-                  && isPlayable(card, hand, state.currentTrick, state.spadeBroken, renegeRule);
-                const renege = legal && isRenege(card, hand, state.currentTrick);
+                  && isValidPlay(card, state.hands[mySeat] ?? [], state.currentTrick, state.spadeBroken);
+                const playable = legal || (unlocked && myTurn && state.phase === "playing");
                 return (
-                  <div key={card} className="relative">
-                    <PlayingCard
-                      card={card}
-                      size="lg"
-                      playable={legal}
-                      dimmed={state.phase === "playing" && myTurn && !legal}
-                      className={cx(
-                        renege && "outline outline-1 outline-dashed outline-[#f87171]/60",
-                        armed === card && "-translate-y-3 outline-2 outline-solid outline-[#f87171]",
-                      )}
-                      onClick={() => {
-                        if (renege && armed !== card) { setArmed(card); return; }
-                        setArmed(null);
-                        onPlay(card);
-                      }}
-                    />
-                    {armed === card && (
-                      <span className="absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-[#f87171] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#16070a]">
-                        Renege? Tap again
-                      </span>
-                    )}
-                  </div>
+                  <PlayingCard
+                    key={card}
+                    card={card}
+                    size="lg"
+                    playable={playable}
+                    dimmed={state.phase === "playing" && myTurn && !playable}
+                    onClick={() => onPlay(card)}
+                  />
                 );
               })
             )}
@@ -256,19 +258,19 @@ export function SpadesTable({
 
           {myTurn && state.phase === "playing" && (
             <p className="mt-1.5 text-[11px] text-[var(--cc-ink-faint)]">
-              {renegeRule
-                ? `Follow the suit that was led if you can. Red-dashed cards would be a renege — allowed, but if you get caught it costs your team ${RENEGE_PENALTY_TRICKS} tricks.`
+              {unlocked
+                ? "Every card is unlocked. Play anything — but if someone calls renig on you and you broke the rules, your team loses."
                 : "Follow the suit that was led if you can. Cards you cannot legally play are dimmed."}
             </p>
           )}
         </div>
       )}
 
-      {/* Renege calls and how much of the show to play */}
+      {/* Renig calls and how much of the show to play */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        {seated && state.phase === "playing" && renegeRule ? (
-          <Button onClick={onCallRenege} title="Call it once they play a suit they said they didn't have">
-            Call renege
+        {seated && onCallRenig && (state.phase === "playing" || state.phase === "bidding") ? (
+          <Button onClick={onCallRenig} title="Accuse an opponent. Right and their team loses; wrong and yours does.">
+            Call renig
           </Button>
         ) : <span />}
         <div className="flex items-center gap-1.5 text-[11px] text-[var(--cc-ink-faint)]">

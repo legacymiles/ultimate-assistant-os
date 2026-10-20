@@ -3,10 +3,10 @@ import {
   createDeck, dealCards, initGameState, isValidPlay, determineTrickWinner,
   calculateRoundScore, applyRoundScore, sortHand, getTeam, nextSeat,
   WINNING_SCORE, type TrickPlay,
-  isRenege, isPlayable, trackRenege, callableReneges, callRenege, renegeTransfer,
   recapRound, trumpSteal,
 } from "./spades";
 import { chooseBid, chooseCard } from "./spadesBot";
+import { botNotices, canPlay, checkPlay, recordPlay, resolveCall } from "./renege";
 
 const trick = (...plays: [number, string][]): TrickPlay[] =>
   plays.map(([seat, card]) => ({ seat, card }));
@@ -218,64 +218,70 @@ describe("the computer player", () => {
   });
 });
 
+// Renig follows the owner's rule (renege.ts has the full suite): illegal cards
+// are locked unless "Renig" is pressed, an illegal play is recorded in secret,
+// and "Call renig" ends the game — the renig team loses if it is true, the
+// caller's team loses if it is not. Nothing is moved at scoring time.
 describe("reneging", () => {
   // Seat 1 holds hearts but throws a club on a heart lead.
   const led = trick([0, "KH"]);
   const hand = ["2H", "4C", "9D"];
+  const play = (seat: number, card: string, h: string[], t: TrickPlay[], trickNumber: number) =>
+    ({ seat, userId: `p${seat}`, round: 1, trickNumber, card, hand: h, trick: t, spadeBroken: false });
 
-  it("spots a renege only when the led suit was still in hand", () => {
-    expect(isRenege("4C", hand, led)).toBe(true);
-    expect(isRenege("2H", hand, led)).toBe(false);
-    expect(isRenege("4C", ["4C", "9D"], led)).toBe(false);
-    expect(isRenege("4C", hand, [])).toBe(false);
+  it("spots a renig only when the led suit was still in hand", () => {
+    expect(checkPlay("4C", hand, led, false)).toMatchObject({ legal: false, kind: "suit", ledSuit: "H" });
+    expect(checkPlay("2H", hand, led, false).legal).toBe(true);
+    expect(checkPlay("4C", ["4C", "9D"], led, false).legal).toBe(true);
+    expect(checkPlay("4C", hand, [], false).legal).toBe(true);
   });
 
-  it("lets you renege only with the house rule on, and never lead spades early", () => {
-    expect(isPlayable("4C", hand, led, false, true)).toBe(true);
-    expect(isPlayable("4C", hand, led, false, false)).toBe(false);
-    expect(isPlayable("3S", ["3S", "2H"], [], false, true)).toBe(false);
+  it("locks illegal cards until the hand is unlocked; then any card goes", () => {
+    expect(canPlay("4C", hand, led, false, false)).toBe(false);
+    expect(canPlay("4C", hand, led, false, true)).toBe(true);
+    // An early spade lead is locked too, and is a renig of its own when unlocked.
+    expect(canPlay("3S", ["3S", "2H"], [], false, false)).toBe(false);
+    expect(canPlay("3S", ["3S", "2H"], [], false, true)).toBe(true);
+    expect(checkPlay("3S", ["3S", "2H"], [], false).kind).toBe("spades");
   });
 
-  it("logs the renege and exposes it once they play the skipped suit", () => {
-    let log = trackRenege([], 1, "4C", hand, led, 3);
-    expect(log).toEqual([{ seat: 1, trick: 3, card: "4C", led: "H" }]);
-    expect(callableReneges(log, 0)).toHaveLength(0); // not provable yet
-    log = trackRenege(log, 1, "2H", ["2H", "9D"], trick([2, "5S"]), 4);
-    expect(log[0].exposed).toBe(true);
+  it("records a renig in secret, and following suit later changes nothing", () => {
+    let log = recordPlay([], play(1, "4C", hand, led, 3));
+    expect(log).toHaveLength(1);
+    expect(log[0]).toMatchObject({ seat: 1, trickNumber: 3, card: "4C", ledSuit: "H", heldLedSuit: true });
+    log = recordPlay(log, play(1, "2H", ["2H", "9D"], trick([2, "5H"]), 4));
+    expect(log).toHaveLength(1);
   });
 
-  it("only lets the other team call it, and only once", () => {
-    const log = [{ seat: 1, trick: 3, card: "4C", led: "H", exposed: true }];
-    expect(callRenege(log, 3).caught).toBeNull(); // partner can't call it
-    const first = callRenege(log, 0);
-    expect(first.caught?.calledBy).toBe(0);
-    expect(callRenege(first.reneges, 2).caught).toBeNull();
+  it("can be called at once, by the other team only, and the call ends the game", () => {
+    const log = recordPlay([], play(1, "4C", hand, led, 3));
+    // Right call by seat 0: the renig team (2) loses.
+    const right = resolveCall(log, { seat: 0, userId: "p0" }, { seat: 1, userId: "p1" });
+    expect(right).toMatchObject({ correct: true, winningTeam: 1 });
+    // Wrong call by seat 2 on seat 3: the caller's team (1) loses.
+    const wrong = resolveCall(log, { seat: 2, userId: "p2" }, { seat: 3, userId: "p3" });
+    expect(wrong).toMatchObject({ correct: false, winningTeam: 2 });
   });
 
-  it("moves three tricks to the other team per renege", () => {
-    const won = { 0: 2, 1: 4, 2: 2, 3: 1 };
-    expect(renegeTransfer([{ seat: 1, trick: 1, card: "4C", led: "H" }], won)).toEqual({ team1: -3, team2: 3 });
-    // Can't give up more than they won.
-    expect(renegeTransfer([{ seat: 0, trick: 1, card: "4C", led: "H" }], { 0: 1, 1: 6, 2: 0, 3: 6 }))
-      .toEqual({ team1: 1, team2: -1 });
-  });
-
-  it("can set a team that otherwise made its bid, without breaking a nil", () => {
+  it("moves no tricks at scoring: a renig only matters if someone calls it", () => {
     const bids = { 0: 3, 1: 4, 2: 0, 3: 2 };
     const won = { 0: 4, 1: 5, 2: 0, 3: 4 };
-    const clean = calculateRoundScore(bids, won);
-    expect(clean.team1Score).toBe(30 + 1 + 100);
-    const penalised = calculateRoundScore(bids, won, [{ seat: 0, trick: 2, card: "4C", led: "H" }]);
-    expect(penalised.team1Score).toBe(-30 + 100); // 4 - 3 = 1 trick < 3 bid, nil still made
-    expect(penalised.team2Score).toBe(60 + 6);
+    const score = calculateRoundScore(bids, won);
+    expect(score.team1Score).toBe(30 + 1 + 100);
+    expect(score.team2Score).toBe(60 + 3);
   });
 
-  it("recaps the hand: who got set, which nils held, every renege revealed", () => {
-    const recap = recapRound(2, { 0: 3, 1: 4, 2: 0, 3: 2 }, { 0: 4, 1: 5, 2: 0, 3: 4 },
-      [{ seat: 0, trick: 2, card: "4C", led: "H" }]);
+  it("recaps the hand: who got set and which nils held, with no renig revealed", () => {
+    const recap = recapRound(2, { 0: 3, 1: 4, 2: 0, 3: 2 }, { 0: 2, 1: 5, 2: 0, 3: 4 });
     expect(recap.set).toEqual([1]);
     expect(recap.nils).toEqual([{ seat: 2, made: true }]);
-    expect(recap.reneges[0].exposed).toBe(true);
+    expect(recap).not.toHaveProperty("reneges");
+  });
+
+  it("a computer on the other team sometimes calls it, never its partner's", () => {
+    const log = recordPlay([], play(1, "4C", hand, led, 3));
+    expect(botNotices(log, [0, 2], "k", 0.25, () => 0.1)?.accuserSeat).toBe(0);
+    expect(botNotices(log, [3], "k", 1, () => 0)).toBeNull();
   });
 });
 

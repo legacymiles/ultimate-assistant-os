@@ -36,7 +36,7 @@ const MOMENTS: { key: "spadesBroken" | "trumpSteal" | "nilShield" | "set" | "ren
   { key: "trumpSteal", label: "Trump steal", when: "A spade cuts a trick and takes down a Q, K or A. The biggest hype." },
   { key: "nilShield", label: "Nil shield", when: "Shield around a nil bidder. Pulses on every dodge, shatters if they take one." },
   { key: "set", label: "Getting set", when: "A team misses its bid. Knockout stamp, their score crumbles." },
-  { key: "renege", label: "Renege", when: "A renege is called out, or revealed at the end of the hand." },
+  { key: "renege", label: "Renig call", when: "Someone calls renig, which ends the game. First words: the call was right. Second: a wrong call." },
   { key: "boston", label: "Boston", when: "One team takes all 13 tricks." },
 ];
 
@@ -251,6 +251,10 @@ export function GameStylingView() {
                       <div className="flex gap-2">
                         <input className={field} value={mo.text} aria-label={`${m.label} words`}
                           onChange={(e) => updateTheme((t) => ({ ...t, [m.key]: { ...t[m.key], text: e.target.value } }))} />
+                        {m.key === "renege" && (
+                          <input className={field} value={editing.renege.wrong} aria-label="Wrong call words"
+                            onChange={(e) => updateTheme((t) => ({ ...t, renege: { ...t.renege, wrong: e.target.value } }))} />
+                        )}
                         {m.key === "nilShield" && (
                           <ColorBox value={editing.nilShield.color} onChange={(v) => updateTheme((t) => ({ ...t, nilShield: { ...t.nilShield, color: v } }))} />
                         )}
@@ -413,7 +417,8 @@ function Preview({ theme }: { theme: GameTheme }) {
           Nil shatter
         </PreviewButton>
         <PreviewButton onClick={() => show({ text: theme.set.text, sub: "Team 2 got set", color: "#f87171", stamp: true, dur: 2100, shake: "big" })}>Getting set</PreviewButton>
-        <PreviewButton onClick={() => show({ text: theme.renege.text, sub: "You caught Rook — 3 tricks to Team 1", color: "#f87171", stamp: true, dur: 2100, shake: "big" })}>Renege</PreviewButton>
+        <PreviewButton onClick={() => show({ text: theme.renege.text, sub: "You caught Rook — Team 1 wins", color: "#f87171", stamp: true, dur: 2400, shake: "big" })}>Renig caught</PreviewButton>
+        <PreviewButton onClick={() => show({ text: theme.renege.wrong, sub: "Rook played fair — Team 2 wins", color: "#f87171", stamp: true, dur: 2400, shake: "big" })}>Wrong call</PreviewButton>
         <PreviewButton onClick={() => show({ text: theme.boston.text, sub: "Team 1 took all 13", color: "#fcd34d", dur: 2400, confetti: theme.confetti.length ? theme.confetti : ["✨"], shake: "big" })}>Boston</PreviewButton>
       </div>
     </section>

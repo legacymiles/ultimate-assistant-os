@@ -72,3 +72,21 @@ describe("editing themes", () => {
     expect(resetTheme(doc, "christmas").themes.find((t) => t.id === "christmas")!.name).toBe("Christmas");
   });
 });
+
+describe("renig call words", () => {
+  it("every theme has words for a right call and a wrong one, and none mention a trick penalty", () => {
+    for (const t of PRESETS) {
+      expect(t.renege.text.length).toBeGreaterThan(0);
+      expect(t.renege.wrong).toMatch(/WRONG CALL/);
+      expect(`${t.renege.text} ${t.renege.wrong}`).not.toMatch(/trick/i);
+    }
+  });
+
+  it("repairs a stored theme with no wrong-call words, and keeps custom ones", () => {
+    const doc = defaultStyleDoc();
+    const old = { ...doc.themes[0], renege: { on: true, text: "GOTCHA" } };
+    expect(cleanStyleDoc({ ...doc, themes: [old] }).themes[0].renege).toEqual({ on: true, text: "GOTCHA", wrong: "WRONG CALL!" });
+    const custom = { ...doc.themes[0], renege: { on: true, text: "GOTCHA", wrong: "NOPE" } };
+    expect(cleanStyleDoc({ ...doc, themes: [custom] }).themes[0].renege.wrong).toBe("NOPE");
+  });
+});

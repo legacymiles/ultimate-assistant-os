@@ -6,23 +6,34 @@ import { useEffect, useState } from "react";
 import { useCook } from "../CookConnect";
 import { Columns } from "../Columns";
 import { useSpades } from "@/lib/cook-connect/hooks/useSpades";
-import { WINNING_SCORE, getTeam, renegeRuleOn, RENEGE_PENALTY_TRICKS } from "@/lib/cook-connect/spades";
 import { useFxLevel, useGameStyle } from "@/lib/cook-connect/hooks/useGameStyle";
+import { RANK_DISPLAY, SUIT_SYMBOLS, WINNING_SCORE, getRank, getSuit, getTeam } from "@/lib/cook-connect/spades";
+import { joinNames, stageExplainer, waitingLine } from "@/lib/cook-connect/lobby";
+import { accusableSeats, callHeadline, evidenceLine } from "@/lib/cook-connect/renege";
 import { rooms } from "@/lib/cook-connect/types";
 import {
-  Button, EmptyState, Loading, Panel, SectionHead, Tag, cx,
+  Avatar, Button, EmptyState, Loading, Panel, SectionHead, Tag, cx,
 } from "../ui";
-import { BotIcon, PlayIcon, TrophyIcon } from "../icons";
+import { BotIcon, CheckIcon, ClockIcon, FlagIcon, PlayIcon, TrophyIcon } from "../icons";
 import { SpadesTable } from "./SpadesTable";
 import { ChatPanel } from "./ChatPanel";
 import { VideoPanel } from "./VideoPanel";
+import { PlayingCard } from "./PlayingCard";
+
+const cardName = (card: string) => `${RANK_DISPLAY[getRank(card)]}${SUIT_SYMBOLS[getSuit(card)]}`;
 
 export function SpadesRoom({ matchId }: { matchId: string }) {
   const { sb, userId, navigate, notify } = useCook();
   const game = useSpades(sb, userId, matchId);
+  const [accusing, setAccusing] = useState(false);
   const style = useGameStyle();
   const [fxLevel, setFxLevel] = useFxLevel();
   const [crumbleTeam, setCrumbleTeam] = useState<number | null>(null);
+
+  // Matchmaking found an older waiting table; follow it there.
+  useEffect(() => {
+    if (game.movedTo && game.movedTo !== matchId) navigate({ page: "spades", matchId: game.movedTo });
+  }, [game.movedTo, matchId, navigate]);
 
   // The hook raises its own notices; surface them through the app's toast.
   useEffect(() => {
@@ -50,8 +61,11 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
   const { match, state } = game;
   const waiting = match.status === "pending" || !state;
   const over = state?.phase === "gameEnd" || match.status === "done";
+  const call = game.renigCall;
+  const canCall = !waiting && !over && game.mySeat >= 0
+    && (state?.phase === "bidding" || state?.phase === "playing");
   const myTeam = game.mySeat >= 0 ? getTeam(game.mySeat) : null;
-  const winningTeam = match.winning_team
+  const winningTeam = call?.winningTeam ?? match.winning_team
     ?? (game.game.team1_score > game.game.team2_score ? 1 : 2);
 
   return (
@@ -101,63 +115,64 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
                 )}
                 . Ten bags costs a hundred points.
               </p>
-              {state && (
-                <label
-                  className={cx(
-                    "mt-2 flex items-start gap-2 border-t border-[var(--cc-line-soft)] pt-2 text-[11px] leading-relaxed",
-                    state.phase === "bidding" && game.isSeated ? "cursor-pointer" : "opacity-70",
-                  )}
-                  title={state.phase === "bidding" ? undefined : "House rules change while everyone is bidding"}
-                >
-                  <input
-                    type="checkbox"
-                    className="mt-0.5"
-                    checked={renegeRuleOn(state)}
-                    disabled={state.phase !== "bidding" || !game.isSeated}
-                    onChange={(e) => void game.setRenegeRule(e.target.checked)}
-                  />
-                  <span>
-                    <span className="font-semibold">Renege rule</span>
-                    <span className="block text-[var(--cc-ink-faint)]">
-                      Off-suit plays are allowed. Get caught and your team gives up {RENEGE_PENALTY_TRICKS} tricks.
-                    </span>
-                  </span>
-                </label>
-              )}
             </div>
           </Panel>
 
-          <VideoPanel room={rooms.match(matchId)} title="Table video" />
-          <ChatPanel room={rooms.match(matchId)} title="Table chat" height="h-[220px]" placeholder="Nice lead…" />
+          <VideoPanel
+            room={rooms.match(matchId)}
+            title="Table video"
+            invitation={waiting ? "Say hello while you decide." : "Talk face to face while you play."}
+          />
+          <ChatPanel
+            room={rooms.match(matchId)}
+            title="Table chat"
+            height="h-[220px]"
+            placeholder={waiting ? "Bots or wait?" : "Nice lead…"}
+          />
         </>
       }
     >
       {waiting ? (
-        <Panel className="mb-4">
-          <SectionHead title="Waiting for players" count={`${game.seats.length} of 4`} />
-          <div className="p-4">
-            <p className="text-[13px] leading-relaxed text-[var(--cc-ink-muted)]">
-              The hand deals itself the moment four seats are taken. If you would rather not wait, the
-              computer will take whatever is left — and hand the seat back if someone real turns up.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {!game.isSeated && (
-                <Button variant="primary" onClick={() => void game.sit()}>
-                  Take a seat
-                </Button>
-              )}
-              {game.isSeated && (
-                <Button variant="primary" onClick={() => void game.startWithBots()}>
-                  <BotIcon size={14} />
-                  Start with computer players
-                </Button>
-              )}
-              <Button onClick={() => navigate({ page: "play" })}>Back to the lobby</Button>
-            </div>
-          </div>
-        </Panel>
+        <WaitingRoom game={game} onLobby={() => navigate({ page: "play" })} />
       ) : (
         <>
+          {call && (
+            <Panel className={cx("mb-4", call.correct ? "border-[var(--cc-gold)]" : "border-[#5d2338]")}>
+              <div className="flex flex-wrap items-start gap-3 p-3">
+                <span className={call.correct ? "text-[var(--cc-gold)]" : "text-[var(--cc-loss)]"}>
+                  <FlagIcon size={20} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[14px] font-semibold">{callHeadline(call, game.nameOfSeat)}</p>
+                  {call.byBot && (
+                    <p className="text-[12px] text-[var(--cc-ink-muted)]">The computer spotted it.</p>
+                  )}
+                  {call.evidence && (
+                    <>
+                      <p className="mt-1 text-[12px] leading-relaxed text-[var(--cc-ink-muted)]">
+                        {evidenceLine(call.evidence, game.nameOfSeat, cardName)}
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-end gap-1.5">
+                        {call.evidence.trick.map((play) => (
+                          <div key={`${play.seat}-${play.card}`} className="flex flex-col items-center gap-1">
+                            <PlayingCard
+                              card={play.card}
+                              size="sm"
+                              className={cx(play.seat === call.evidence!.seat && "ring-2 ring-[var(--cc-loss)]")}
+                            />
+                            <span className="max-w-[54px] truncate text-[9px] text-[var(--cc-ink-faint)]">
+                              {game.nameOfSeat(play.seat)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </Panel>
+          )}
+
           {over && (
             <Panel className="mb-4 border-[var(--cc-gold)]">
               <div className="flex flex-wrap items-center gap-3 p-3">
@@ -195,9 +210,36 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
             fxLevel={fxLevel}
             onFxLevel={setFxLevel}
             round={game.game.current_round}
-            onCallRenege={() => void game.callRenege()}
             onCrumble={setCrumbleTeam}
+            unlocked={game.unlocked}
+            onToggleUnlock={canCall ? () => game.setUnlocked(!game.unlocked) : undefined}
+            onCallRenig={canCall && !accusing ? () => setAccusing(true) : undefined}
           />
+
+          {canCall && accusing && (
+            <Panel className="mt-3 border-[var(--cc-ember)]">
+              <div className="p-3">
+                <p className="text-[13px] font-semibold">Who reneged?</p>
+                <p className="mt-0.5 text-[12px] leading-relaxed text-[var(--cc-ink-muted)]">
+                  The game ends as soon as you call it. If they really did renig, their team loses.
+                  If they didn&apos;t, your team loses.
+                </p>
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {accusableSeats(game.mySeat).map((seat) => (
+                    <Button
+                      key={seat}
+                      variant="danger"
+                      onClick={() => { setAccusing(false); void game.callRenig(seat); }}
+                    >
+                      {game.table.find((t) => t.seat === seat)?.isBot && <BotIcon size={13} />}
+                      {game.nameOfSeat(seat)}
+                    </Button>
+                  ))}
+                  <Button variant="ghost" onClick={() => setAccusing(false)}>Never mind</Button>
+                </div>
+              </div>
+            </Panel>
+          )}
 
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
             {game.iLeft ? (
@@ -225,5 +267,142 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
         </>
       )}
     </Columns>
+  );
+}
+
+type SpadesHook = ReturnType<typeof useSpades>;
+
+/**
+ * Before the deal: who is here, and what they can do about it. One person can
+ * start with computers straight away; two or three all have to agree. Chat
+ * and video sit in the rail beside this the whole time.
+ */
+function WaitingRoom({ game, onLobby }: { game: SpadesHook; onLobby: () => void }) {
+  const { lobby } = game;
+  const names = (ids: string[]) => ids.map(game.firstName);
+  const othersWaitingOn = lobby.waitingOn.filter((id) => game.firstName(id) !== "You");
+  const iNeedToAgree = game.isSeated && !lobby.iAgreed;
+  const startingNow = game.starting || game.busy || lobby.stage === "full";
+  const botLine = lobby.botCount === 1 ? "1 computer player" : `${lobby.botCount} computer players`;
+
+  return (
+    <Panel className="mb-4">
+      <SectionHead
+        title={lobby.stage === "full" ? "Table full" : "Waiting for players"}
+        count={`${lobby.humans} of 4`}
+        action={startingNow ? <Tag tone="live">Starting</Tag> : undefined}
+      />
+      <div className="p-3 sm:p-4">
+        {/* Who is here */}
+        <ul className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+          {game.table.map((seat) => {
+            const agreed = !!seat.userId && lobby.agreed.includes(seat.userId);
+            const away = !!seat.userId && lobby.away.includes(seat.userId);
+            return (
+              <li
+                key={seat.seat}
+                className={cx(
+                  "flex min-w-0 items-center gap-2 rounded-lg border px-2 py-1.5",
+                  seat.userId ? "border-[var(--cc-line)] bg-[var(--cc-panel-2)]" : "border-dashed border-[var(--cc-line)] opacity-70",
+                )}
+              >
+                {seat.userId ? (
+                  <Avatar id={seat.userId} name={seat.name} url={seat.avatar} size={24} online={seat.online} />
+                ) : (
+                  <span className="h-6 w-6 shrink-0 rounded-full border border-dashed border-[var(--cc-line)]" />
+                )}
+                <span className="min-w-0">
+                  <span className="block truncate text-[12px] font-semibold">
+                    {seat.userId ? game.firstName(seat.userId) : "Open seat"}
+                  </span>
+                  <span className="block truncate text-[10px] text-[var(--cc-ink-faint)]">
+                    {!seat.userId
+                      ? "waiting…"
+                      : away
+                        ? "stepped away"
+                        : agreed
+                          ? "agreed to bots"
+                          : lobby.humans > 1 ? "deciding" : "here"}
+                  </span>
+                </span>
+                {agreed && <span className="ml-auto shrink-0 text-[var(--cc-live)]"><CheckIcon size={13} /></span>}
+              </li>
+            );
+          })}
+        </ul>
+
+        <p className="mt-3 text-[13px] leading-relaxed text-[var(--cc-ink-muted)]">
+          {stageExplainer(lobby.stage)}
+        </p>
+
+        {/* Agreement status */}
+        {lobby.humans > 1 && lobby.agreed.length > 0 && lobby.stage !== "full" && (
+          <p className="mt-2 flex items-center gap-1.5 text-[12px] font-semibold text-[var(--cc-ember)]" role="status">
+            <ClockIcon size={13} />
+            {othersWaitingOn.length
+              ? waitingLine(names(othersWaitingOn))
+              : iNeedToAgree
+                ? `${joinNames(names(lobby.agreed))} ${lobby.agreed.length === 1 ? "wants" : "want"} to play with bots. Your call.`
+                : "Everyone agreed. Starting…"}
+          </p>
+        )}
+        {lobby.away.length > 0 && lobby.stage !== "full" && (
+          <p className="mt-1 text-[11px] text-[var(--cc-ink-faint)]">
+            {joinNames(names(lobby.away))} {lobby.away.length === 1 ? "has" : "have"} stepped away and won&apos;t hold
+            up the vote. A computer keeps the seat until they come back.
+          </p>
+        )}
+
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {!game.isSeated ? (
+            <Button variant="primary" onClick={() => void game.sit()}>Take a seat</Button>
+          ) : startingNow ? (
+            <Button variant="primary" disabled>
+              <PlayIcon size={14} />
+              Dealing…
+            </Button>
+          ) : lobby.iAgreed ? (
+            <>
+              <Button variant="primary" disabled>
+                <CheckIcon size={14} />
+                You agreed
+              </Button>
+              <Button onClick={() => void game.keepWaiting()}>Keep waiting instead</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="primary" onClick={() => void game.agreeToBots()}>
+                <BotIcon size={14} />
+                {lobby.humans === 1 ? "Play bots now" : "Play with bots"}
+              </Button>
+              <Button
+                onClick={() => {
+                  void game.keepWaiting();
+                  game.setNotice("Okay, keep waiting. Anyone who searches for players will be seated here.");
+                }}
+              >
+                <ClockIcon size={14} />
+                Keep waiting
+              </Button>
+            </>
+          )}
+          {game.isSeated && !startingNow ? (
+            <Button variant="ghost" onClick={() => { void game.leaveTable(); onLobby(); }}>
+              Leave the table
+            </Button>
+          ) : (
+            <Button variant="ghost" onClick={onLobby}>Back to the lobby</Button>
+          )}
+        </div>
+        {game.isSeated && !startingNow && lobby.stage !== "full" && (
+          <p className="mt-2 text-[11px] text-[var(--cc-ink-faint)]">
+            {lobby.humans === 1
+              ? `Starting now adds ${botLine}.`
+              : `Starting now adds ${botLine}, and needs everyone here to agree.`}
+            {" "}If someone else sits down first, they take the seat instead.
+          </p>
+        )}
+      </div>
+    </Panel>
   );
 }

@@ -9,7 +9,8 @@
 //   spades broken the table goes dark, thunder cracks, a banner slams down
 //   nil shield    a shield around a nil bidder; pulses on every dodged trick,
 //                 shatters when they are forced to take one
-//   renege        a knockout stamp when one is called or revealed
+//   renig call    a knockout stamp the moment a "Call renig" settles —
+//                 the theme's RENEGE! when it was true, WRONG CALL when not
 //   set / boston  the end-of-hand stamps; a set team's score crumbles
 //
 // The moments are worked out from how the game state CHANGES, so every screen
@@ -19,7 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./spades-fx.css";
 import {
   type GameState, type TrickPlay, determineTrickWinner, getRank, getSuit, getTeam,
-  trumpSteal, RANK_DISPLAY, SUIT_SYMBOLS, RENEGE_PENALTY_TRICKS,
+  trumpSteal, RANK_DISPLAY, SUIT_SYMBOLS,
 } from "@/lib/cook-connect/spades";
 import type { FxLevel, GameTheme, SuitKey } from "@/lib/cook-connect/gameStyle";
 
@@ -64,6 +65,8 @@ export function useSpadesMoments({
   level: FxLevel;
   nameOf: (seat: number) => string;
 }) {
+  // Only a settled call is read here. The secret renig record itself
+  // (state.reneges) is never looked at, so no moment can give one away.
   const speed = level === "quick" ? 0.55 : 1;
   const whose = (seat: number) => (nameOf(seat) === "You" ? "Your" : `${nameOf(seat)}'s`);
   const show = level !== "off";
@@ -106,19 +109,19 @@ export function useSpadesMoments({
     trickKey: string;
     round: number;
     spadeBroken: boolean;
-    called: number;
+    call: number;
     tricks: Record<number, number>;
     recap: number;
   } | null>(null);
 
   useEffect(() => {
     const trickKey = `${round}:${state.trickNumber}`;
-    const called = (state.reneges ?? []).filter((r) => r.calledBy !== undefined).length;
+    const callAt = state.renigCall?.at ?? 0;
     const now = {
       trickKey,
       round,
       spadeBroken: state.spadeBroken,
-      called,
+      call: callAt,
       tricks: { ...state.tricksWon },
       recap: state.lastRound?.round ?? -1,
     };
@@ -185,32 +188,26 @@ export function useSpadesMoments({
       });
     }
 
-    // A renege called out mid-hand.
-    if (round === p.round && called > p.called && theme.renege.on) {
-      const r = (state.reneges ?? []).filter((x) => x.calledBy !== undefined).at(-1)!;
+    // A "Call renig" settled: the game is over, and everyone sees how.
+    const call = state.renigCall;
+    if (call && callAt !== p.call && theme.renege.on) {
       announce({
-        text: theme.renege.text,
-        sub: `${nameOf(r.calledBy!)} caught ${nameOf(r.seat)} — ${RENEGE_PENALTY_TRICKS} tricks to Team ${getTeam(r.seat) === 1 ? 2 : 1}`,
+        text: call.correct ? theme.renege.text : theme.renege.wrong,
+        sub: call.correct
+          ? `${nameOf(call.accuserSeat)} caught ${nameOf(call.accusedSeat)} — Team ${call.winningTeam} wins`
+          : `${nameOf(call.accusedSeat)} played fair — Team ${call.winningTeam} wins`,
         color: RENEGE_RED,
         stamp: true,
-        dur: 2100,
+        dur: 2400,
         shake: "big",
       });
     }
 
-    // The hand is over: reveal, then stamp.
+    // The hand is over: stamp it. (A renig is never revealed here — it stays
+    // secret and callable for the rest of the game.)
     const recap = state.lastRound;
     if (recap && recap.round !== p.recap) {
       later(clashMs + SWEEP_MS, () => {
-        if (theme.renege.on) {
-          for (const r of recap.reneges.filter((x) => x.calledBy === undefined)) {
-            announce({
-              text: theme.renege.text,
-              sub: `Revealed: ${nameOf(r.seat)} threw ${cardName(r.card)} holding ${SUIT_SYMBOLS[r.led]} — ${RENEGE_PENALTY_TRICKS} tricks`,
-              color: RENEGE_RED, stamp: true, dur: 2000, shake: "small",
-            });
-          }
-        }
         for (const team of [1, 2]) {
           const seats = team === 1 ? [0, 2] : [1, 3];
           const took = seats.reduce((a, s) => a + (recap.tricksWon[s] ?? 0), 0);
