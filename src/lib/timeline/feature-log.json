@@ -1,5 +1,32 @@
 [
  {
+  "id": "e7455bb:jarvis",
+  "date": "2026-10-20",
+  "slug": "jarvis",
+  "title": "Improvements learn from app edits, not just chats",
+  "detail": "The ideas digest now carries the latest 25 changes shipped to the owner's apps (from Projects Timeline), and the engine is told how to use them: an app that keeps being reworked, a feature worth copying to another app, the obvious next step after a new feature, and changes that had to be made twice.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "80d68b6:projects-timeline",
+  "date": "2026-10-20",
+  "slug": "projects-timeline",
+  "title": "Every app edit recorded as a feature, plus the Game Play Design Styling folder",
+  "detail": "The timeline was empty because nothing ever wrote app edits into the saved (Supabase) copy. Now every commit that touches an app is a row in src/lib/timeline/feature-log.json — backfilled from the whole git history (434 edits across 36 apps) and refreshed before every build — laid over the saved pro",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "28f2b26:cook-connect",
+  "date": "2026-10-20",
+  "slug": "cook-connect",
+  "title": "Renege rule and cinematic spades — every trick is a fight",
+  "detail": "Renege house rule (on by default, switchable while bidding): off-suit plays are allowed with a two-tap confirm, every renege is logged, anyone on the other team can call it once it is provable (they later play the suit they skipped; computer players call it themselves), and each one moves 3 tricks t",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "2ea753e:jarvis",
   "date": "2026-10-20",
   "slug": "jarvis",
