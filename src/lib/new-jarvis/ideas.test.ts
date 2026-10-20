@@ -92,6 +92,19 @@ describe("buildDigest", () => {
     });
     expect(huge.length).toBeLessThan(15_000);
   });
+
+  it("includes what was built lately, so ideas can learn from app edits", () => {
+    const text = buildDigest({
+      said: [{ text: "make spades cooler", at: NOW }],
+      memories: [],
+      audit: [],
+      known: [],
+      rejected: [],
+      appEdits: "- 2026-10-19 · Cook Connect: Renege rule",
+    });
+    expect(text).toContain("What has been built in their apps lately");
+    expect(text).toContain("Cook Connect: Renege rule");
+  });
 });
 
 describe("shouldAutoRefresh", () => {

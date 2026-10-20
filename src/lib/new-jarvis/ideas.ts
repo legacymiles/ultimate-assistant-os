@@ -188,6 +188,11 @@ export interface DigestInput {
   known: string[];
   /** Ideas the person said no to, so the model avoids that direction. */
   rejected: string[];
+  /**
+   * What has actually been built in their apps lately, one line per change,
+   * newest first (Projects Timeline › App edits). Optional.
+   */
+  appEdits?: string;
 }
 
 /** How much chat the model is shown. Enough to see patterns, not a whole history. */
@@ -217,6 +222,10 @@ export function buildDigest(input: DigestInput): string {
   if (input.memories.length) {
     lines.push("", "## Things Jarvis remembers about them");
     for (const m of input.memories.slice(0, 40)) lines.push(`- ${m.slice(0, 140)}`);
+  }
+  if (input.appEdits?.trim()) {
+    lines.push("", "## What has been built in their apps lately (Projects Timeline › App edits, newest first)");
+    lines.push(input.appEdits.trim());
   }
   if (input.audit.length) {
     lines.push("", "## Jarvis's own setup problems already found (do not repeat these)");

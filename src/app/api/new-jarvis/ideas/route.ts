@@ -42,13 +42,17 @@ What each kind means:
 - jarvis: a change to Jarvis itself that would make it easier or better to use — look for friction: requests it could not do, things they had to repeat or explain twice, confusing steps, features they asked for more than once.
 
 Rules:
-- EVERY idea must cite real evidence from the digest. If you cannot point at something they said, do not suggest it. No generic advice ("drink more water", "practice gratitude") unless they raised that topic.
+- EVERY idea must cite real evidence from the digest: something they said, or a change listed under "What has been built in their apps lately". If you cannot point at one, do not suggest it. No generic advice ("drink more water", "practice gratitude") unless they raised that topic.
 - Do not repeat ideas listed as already suggested, and steer away from directions they rejected.
 - Do not repeat Jarvis's own setup problems that are already listed.
 - Be specific to THEM: use their projects, places and words.
 - Never diagnose a medical or mental-health condition. If anything suggests they are in crisis or thinking of harming themselves, make the first idea a gentle "life" idea to reach out to someone they trust or call or text 988 (US), and keep everything else light.
 - No financial, legal or medical instructions presented as professional advice; suggest talking to a professional where it matters.
 - Plain English. No jargon, no code.
+
+Learning from app edits (Projects Timeline):
+- The "built lately" list is every change shipped to their apps. Read it as the record of what they asked for and got. Use it to spot: an app that keeps being reworked (a sign it is still not right — suggest the missing piece), a feature added to one app that another of their apps would also benefit from, follow-ups a new feature obviously needs next, and changes that had to be made more than once (friction worth fixing in Jarvis or the build checklist).
+- Cite an edit like "Oct 19 · Cook Connect: Renege rule". Never suggest building something the list shows is already built.
 
 Making Jarvis faster with decision models (Jev, Span):
 - The owner wants Jarvis to keep finding the right places for fast decision models like Jev. When a "jarvis" idea is about speed, cost, sorting, routing, flags or yes/no checks, consider whether one of the open spots listed below is the fix, and if so name that spot and the model in the idea.

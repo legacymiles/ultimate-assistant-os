@@ -16,6 +16,7 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { APP_EDITS, recentEditsDigest } from "@/lib/timeline/appEdits";
 import { loadLocal, saveSynced } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
 import { BLOCKS_KEY } from "./persist";
@@ -152,6 +153,8 @@ export function useIdeas({ store, audit }: { store: JarvisStore | null; audit: A
         audit: audit.map((a) => a.title),
         known,
         rejected,
+        // Learn from what was actually built, not just what was said.
+        appEdits: recentEditsDigest(APP_EDITS, 25),
       });
       const res = await fetch("/api/new-jarvis/ideas", {
         method: "POST",
