@@ -1,85 +1,93 @@
 "use client";
 
-// A card. Face up it is a real index — rank and pip in both corners the way a
-// deck is printed, so a fanned hand reads from the left edge alone.
+// A card. Face up: a cool-white face with a thin inner frame, a bold corner
+// index (readable from the left edge alone, which is all a fanned hand shows),
+// monogram court cards, and a foil sheen that follows the hand's tilt. Face
+// down: a graphite back etched in the table's accent.
+//
+// Every colour that belongs to the table comes from CSS variables set on the
+// table (--hx-accent), so a theme swap restyles the backs too.
 
+import "./holo-table.css";
 import { getRank, getSuit, isRedSuit, RANK_DISPLAY, SUIT_SYMBOLS } from "@/lib/cook-connect/spades";
 import { cx } from "../ui";
+
+export type CardSize = "sm" | "md" | "lg" | "xl";
 
 interface Props {
   card?: string;
   faceDown?: boolean;
-  size?: "sm" | "md" | "lg";
+  size?: CardSize;
   playable?: boolean;
   dimmed?: boolean;
   onClick?: () => void;
   className?: string;
   style?: React.CSSProperties;
+  /** Hover / focus handlers, for a hand that lifts the card under the pointer. */
+  onPointerEnter?: () => void;
+  onPointerLeave?: () => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
-const SIZES = {
-  sm: "h-[38px] w-[27px] text-[10px]",
-  md: "h-[56px] w-[40px] text-[12px]",
-  lg: "h-[76px] w-[54px] text-[14px]",
-};
-
-const PIP = { sm: "text-[13px]", md: "text-[19px]", lg: "text-[26px]" };
+const SUIT_NAMES: Record<string, string> = { S: "spades", H: "hearts", D: "diamonds", C: "clubs" };
 
 export function PlayingCard({
   card, faceDown, size = "md", playable, dimmed, onClick, className, style,
+  onPointerEnter, onPointerLeave, onFocus, onBlur,
 }: Props) {
   if (faceDown || !card) {
     return (
-      <div
-        className={cx(
-          "flex items-center justify-center rounded-md border border-[#2c3550] shadow-[var(--cc-shadow)]",
-          SIZES[size],
-          className,
-        )}
-        style={{
-          background: "repeating-linear-gradient(45deg,#182034 0 4px,#141a2a 4px 8px)",
-          ...style,
-        }}
-        aria-hidden="true"
-      />
+      <div className={cx("hx-card hx-card--back", `hx-card--${size}`, className)} style={style} aria-hidden="true">
+        <span className="hx-back-etch" />
+        <span className="hx-back-emblem">♠</span>
+      </div>
     );
   }
 
   const suit = getSuit(card);
   const rank = getRank(card);
   const red = isRedSuit(suit);
-  const label = `${RANK_DISPLAY[rank]} of ${{ S: "spades", H: "hearts", D: "diamonds", C: "clubs" }[suit]}`;
+  const label = `${RANK_DISPLAY[rank]} of ${SUIT_NAMES[suit]}`;
+  const court = rank === "J" || rank === "Q" || rank === "K";
+  const ace = rank === "A";
 
   const face = (
     <>
-      <span className={cx("absolute left-[3px] top-[1px] font-bold leading-tight", red ? "text-[#e4526f]" : "text-[#1b2030]")}>
-        {RANK_DISPLAY[rank]}
+      <span className="hx-frame" />
+      <span className="hx-index">
+        <span className={cx("hx-rank", rank === "T" && "hx-rank--ten")}>{RANK_DISPLAY[rank]}</span>
+        <span className="hx-pip">{SUIT_SYMBOLS[suit]}</span>
       </span>
-      <span className={cx(PIP[size], "leading-none", red ? "text-[#e4526f]" : "text-[#1b2030]")}>
-        {SUIT_SYMBOLS[suit]}
+      <span className="hx-index hx-index--flip">
+        <span className={cx("hx-rank", rank === "T" && "hx-rank--ten")}>{RANK_DISPLAY[rank]}</span>
+        <span className="hx-pip">{SUIT_SYMBOLS[suit]}</span>
       </span>
-      <span
-        className={cx(
-          "absolute bottom-[1px] right-[3px] rotate-180 font-bold leading-tight",
-          red ? "text-[#e4526f]" : "text-[#1b2030]",
-        )}
-      >
-        {RANK_DISPLAY[rank]}
-      </span>
+      {court ? (
+        <span className="hx-court">
+          <span className="hx-court-letter">{rank}</span>
+          <span className="hx-court-pip">{SUIT_SYMBOLS[suit]}</span>
+        </span>
+      ) : (
+        <span className={cx("hx-center", ace && "hx-center--ace", ace && suit === "S" && "hx-center--spade-ace")}>
+          {SUIT_SYMBOLS[suit]}
+        </span>
+      )}
+      <span className="hx-sheen" />
     </>
   );
 
   const shell = cx(
-    "relative flex items-center justify-center rounded-md border bg-[linear-gradient(170deg,#f6f4ef,#e3ded3)]",
-    "shadow-[0_6px_14px_-8px_rgba(0,0,0,0.9)]",
-    SIZES[size],
-    dimmed && "opacity-40 saturate-50",
+    "hx-card hx-card--face",
+    `hx-card--${size}`,
+    red ? "hx-red" : "hx-black",
+    dimmed && "hx-dimmed",
     className,
   );
 
   if (!onClick) {
     return (
-      <div className={cx(shell, "border-[#c8c2b4]")} style={style} role="img" aria-label={label}>
+      <div className={shell} style={style} role="img" aria-label={label}>
         {face}
       </div>
     );
@@ -90,15 +98,13 @@ export function PlayingCard({
       type="button"
       onClick={onClick}
       disabled={!playable}
-      aria-label={playable ? `Play the ${label}` : `${label} — not a legal play`}
-      className={cx(
-        shell,
-        "transition-transform duration-150",
-        playable
-          ? "cursor-pointer border-[#c8c2b4] hover:-translate-y-2 hover:border-[var(--cc-ember)] active:translate-y-0"
-          : "cursor-not-allowed border-[#c8c2b4]",
-      )}
+      aria-label={playable ? `Play the ${label}` : `${label}, not a legal play`}
+      className={cx(shell, playable ? "hx-playable" : "hx-locked")}
       style={style}
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
+      onFocus={onFocus}
+      onBlur={onBlur}
     >
       {face}
     </button>

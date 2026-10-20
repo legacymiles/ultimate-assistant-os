@@ -194,8 +194,8 @@ export function useSpadesMoments({
       announce({
         text: call.correct ? theme.renege.text : theme.renege.wrong,
         sub: call.correct
-          ? `${nameOf(call.accuserSeat)} caught ${nameOf(call.accusedSeat)} — Team ${call.winningTeam} wins`
-          : `${nameOf(call.accusedSeat)} played fair — Team ${call.winningTeam} wins`,
+          ? `${nameOf(call.accuserSeat)} caught ${nameOf(call.accusedSeat)}. Team ${call.winningTeam} wins`
+          : `${nameOf(call.accusedSeat)} played fair. Team ${call.winningTeam} wins`,
         color: RENEGE_RED,
         stamp: true,
         dur: 2400,

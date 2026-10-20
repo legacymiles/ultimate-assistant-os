@@ -180,11 +180,13 @@ export function CookShell({ children }: { children: ReactNode }) {
                          hover:border-[#39405a] hover:text-[var(--cc-ink)]"
             >
               <BackIcon size={14} />
-              Jarvis
+              <span className="hidden sm:inline">Jarvis</span>
             </Link>
-            <Button variant="primary" onClick={() => navigate({ page: "play" })}>
+            {/* On a phone the labels shrink so the bar never runs off screen. */}
+            <Button variant="primary" onClick={() => navigate({ page: "play" })} aria-label="Start a game">
               <PlayIcon size={14} />
-              Start a game
+              <span className="hidden sm:inline">Start a game</span>
+              <span className="sm:hidden">Play</span>
             </Button>
           </div>
         </header>

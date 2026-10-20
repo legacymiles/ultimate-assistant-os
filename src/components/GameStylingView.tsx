@@ -190,6 +190,7 @@ export function GameStylingView() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <Labeled label="Felt (centre)"><ColorBox value={editing.felt[0]} onChange={(v) => updateTheme((t) => ({ ...t, felt: [v, t.felt[1]] }))} /></Labeled>
             <Labeled label="Felt (edge)"><ColorBox value={editing.felt[1]} onChange={(v) => updateTheme((t) => ({ ...t, felt: [t.felt[0], v] }))} /></Labeled>
+            <Labeled label="Accent (circuitry, rim, card backs)"><ColorBox value={editing.accent} onChange={(v) => updateTheme((t) => ({ ...t, accent: v }))} /></Labeled>
             <Labeled label="Confetti (emoji, spaces)">
               <input className={field} value={editing.confetti.join(" ")} placeholder="🎃 🦇"
                 onChange={(e) => updateTheme((t) => ({ ...t, confetti: e.target.value.split(/\s+/).filter(Boolean) }))} />
@@ -197,7 +198,7 @@ export function GameStylingView() {
           </div>
 
           <div>
-            <h3 className="mb-1.5 text-xs font-semibold text-ink">Suit attacks — what a winning card does</h3>
+            <h3 className="mb-1.5 text-xs font-semibold text-ink">Suit attacks: what a winning card does</h3>
             <div className="space-y-1.5">
               {SUITS.map((s) => {
                 const st = editing.suits[s.key];
@@ -373,7 +374,7 @@ function Preview({ theme }: { theme: GameTheme }) {
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">Live preview</h2>
       <div
         className={cn("relative flex h-[190px] items-center justify-center overflow-hidden rounded-[14px] border border-[#243244]", shake)}
-        style={{ background: `radial-gradient(ellipse at center, ${theme.felt[0]} 0%, ${theme.felt[1]} 72%)` }}
+        style={{ background: `radial-gradient(ellipse at center, ${theme.felt[0]} 0%, ${theme.felt[1]} 72%)`, "--hx-accent": theme.accent } as React.CSSProperties}
       >
         <FxStage banner={banner} />
         <div className={cn("fx-nil absolute left-3 top-3 rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-[11px] text-white", nil)}
@@ -417,8 +418,8 @@ function Preview({ theme }: { theme: GameTheme }) {
           Nil shatter
         </PreviewButton>
         <PreviewButton onClick={() => show({ text: theme.set.text, sub: "Team 2 got set", color: "#f87171", stamp: true, dur: 2100, shake: "big" })}>Getting set</PreviewButton>
-        <PreviewButton onClick={() => show({ text: theme.renege.text, sub: "You caught Rook — Team 1 wins", color: "#f87171", stamp: true, dur: 2400, shake: "big" })}>Renig caught</PreviewButton>
-        <PreviewButton onClick={() => show({ text: theme.renege.wrong, sub: "Rook played fair — Team 2 wins", color: "#f87171", stamp: true, dur: 2400, shake: "big" })}>Wrong call</PreviewButton>
+        <PreviewButton onClick={() => show({ text: theme.renege.text, sub: "You caught Rook. Team 1 wins", color: "#f87171", stamp: true, dur: 2400, shake: "big" })}>Renig caught</PreviewButton>
+        <PreviewButton onClick={() => show({ text: theme.renege.wrong, sub: "Rook played fair. Team 2 wins", color: "#f87171", stamp: true, dur: 2400, shake: "big" })}>Wrong call</PreviewButton>
         <PreviewButton onClick={() => show({ text: theme.boston.text, sub: "Team 1 took all 13", color: "#fcd34d", dur: 2400, confetti: theme.confetti.length ? theme.confetti : ["✨"], shake: "big" })}>Boston</PreviewButton>
       </div>
     </section>
