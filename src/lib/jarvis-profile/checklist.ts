@@ -117,7 +117,7 @@ const STARTERS: Omit<ChecklistRule, "source" | "on" | "said" | "addedAt">[] = [
   { id: "s-o5", code: "O5", level: "Nice", area: "auto", when: ALWAYS, then: "Logged crashes become board cards by themselves, so fixes don't wait for someone to notice.", check: "A new crash shows up as a Backlog card after the next collect." },
   // Words & errors
   { id: "s-r1", code: "R1", level: "Must", area: "words", when: ALWAYS, then: "Never show a white or broken page: every screen has a friendly fallback with \"Try again\".", check: "Force an error on a preview: the friendly screen shows." },
-  { id: "s-r2", code: "R2", level: "Must", area: "words", when: ALWAYS, then: "Log every crash (browser errors, failed promises, server failures) so it can be fixed before anyone reports it.", check: "Force one: it appears in Jarvis › Deck › Site errors within a minute." },
+  { id: "s-r2", code: "R2", level: "Must", area: "words", when: ALWAYS, then: "Log every crash (browser errors, failed promises, server failures) so it can be fixed before anyone reports it.", check: "Force one: it appears in Jarvis › More › Work › Site errors within a minute." },
   { id: "s-plain", code: "R3", level: "Must", area: "words", when: ALWAYS, then: "Errors and messages in plain English with a next step — never raw codes or stack traces.", check: "Read every error message: none shows a code, \"Error:\" or JSON." },
   { id: "s-nokeys", code: "R4", level: "Must", area: "words", when: "If it needs an API key or outside service", then: "Still work without one (demo mode), and say plainly what the key unlocks — never a crash.", check: "Run it with no keys: every page loads." },
   // Phones

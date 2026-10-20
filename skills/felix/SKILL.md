@@ -155,7 +155,7 @@ Felix is the one source; the other two carry its core inline so neither ever run
 - When Felix itself makes a plan bigger than one sitting, it hands the ladder to
   software-factory as cards.
 - **Jarvis self-improvement**: the standing goal beyond the goal for Jarvis and every site in
-  the hub is *crash-free and getting better on its own* — errors are logged (Deck › Site
+  the hub is *crash-free and getting better on its own* — errors are logged (Jarvis › More › Work › Site
   errors), logged errors become Backlog cards, and the Improvements widget proposes the next
   rung. When working on any hub app, check it against the checklist and file what's missing.
 

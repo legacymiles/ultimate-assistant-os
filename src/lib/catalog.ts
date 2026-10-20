@@ -518,6 +518,22 @@ export const PROJECTS: CatalogProject[] = [
     hue: [245, 150],
   },
   {
+    slug: "youtube-videos",
+    title: "YouTube videos",
+    tag: "Paste a video link now, watch it later",
+    category: "AI",
+    overview:
+      "Paste any YouTube, Shorts, TikTok, Instagram, Facebook, X, Vimeo or Twitch link (or several at once, or paste anywhere on the page) " +
+      "and it lands at the top of your watch-later list, with its title, channel and thumbnail filled in by themselves. The same video " +
+      "pasted twice moves back to the top instead of saving twice, deletes can be undone, and YouTube and Vimeo play right inside the app. " +
+      "For you suggests what to watch next from what you save (real YouTube videos with a YouTube key, otherwise searches Jarvis picks). " +
+      "The hero is a 3D reel modeled in Blender that wears your saved thumbnails; every link you save flies into it. Also a widget on the Jarvis Dashboard.",
+    status: "live",
+    appUrl: "/apps/youtube-videos",
+    iconStyle: "pulse",
+    hue: [4, 195],
+  },
+  {
     slug: "personas-studio",
     title: "Personas Studio",
     tag: "Run every creator persona — ideas, auto-posting, analytics",
@@ -770,6 +786,7 @@ export function getProject(slug: string): CatalogProject | null {
  */
 const UNPREVIEWABLE = new Set([
   "dashboard",
+  "youtube-videos",
   "app-builder",
   "client-review",
   "jarvis",

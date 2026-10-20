@@ -22,6 +22,7 @@ import { PROJECTS, type CatalogProject } from "@/lib/catalog";
 /** The slugs allowed in, in the order they should appear. */
 export const PLUGIN_SLUGS = [
   "app-builder",
+  "youtube-videos",
   "seedance-studio",
   "jarvis-audio-studio",
   "image-studio",

@@ -5,7 +5,8 @@
 //
 //   hero        live core, greeting, one line of status
 //   launcher    favorite apps (starred on the Apps page) + last used
-//   widgets     Camera Autopilot, Notifications, To-do, Calendar — each a small
+//   widgets     Camera Autopilot, Notifications, To-do, Calendar, In Queue,
+//               Improvements, YouTube videos — each a small
 //               card that opens full-size on a tap (see Widgets.tsx)
 //
 // Camera Autopilot's widget shows a strip of the waiting photos (or the last
@@ -75,7 +76,7 @@ import {
 } from "./Widgets";
 import { ImprovementsExpanded, ImprovementsWidget } from "./Improvements";
 import { QueueExpanded, QueueWidget } from "./QueueWidget";
-import { SiteErrorsExpanded, SiteErrorsWidget, useSiteErrors } from "./SiteErrors";
+import { YouTubeVideosExpanded, YouTubeVideosWidget } from "../youtube-videos/YouTubeVideosWidget";
 import type { UseQueue } from "@/lib/new-jarvis/useQueue";
 import { useIdeas } from "@/lib/new-jarvis/useIdeas";
 import type { AuditProposalLike } from "@/lib/new-jarvis/ideas";
@@ -264,7 +265,6 @@ function recentFiled(n: number): Shot[] {
 
 export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camera, store, audit, queue: inQueue }: Props) {
   const widgets = useWidgetPrefs();
-  const siteErrors = useSiteErrors();
   const ideas = useIdeas({ store, audit });
   const [expanded, setExpanded] = useState<WidgetId | null>(null);
   // Re-render once a minute so "checked 3m ago" moves.
@@ -593,7 +593,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
             {!widgets.hidden.has("calendar") && <CalendarWidget events={events} onExpand={() => setExpanded("calendar")} />}
             {!widgets.hidden.has("improvements") && <ImprovementsWidget ideas={ideas} onExpand={() => setExpanded("improvements")} />}
             {!widgets.hidden.has("queue") && <QueueWidget queue={inQueue} onExpand={() => setExpanded("queue")} />}
-            {!widgets.hidden.has("errors") && <SiteErrorsWidget errors={siteErrors} onExpand={() => setExpanded("errors")} />}
+            {!widgets.hidden.has("youtube") && <YouTubeVideosWidget onExpand={() => setExpanded("youtube")} />}
           </div>
           {widgets.hidden.size === WIDGETS.length && (
             <p className="px-1 text-[11.5px] text-ink-faint">Every widget is hidden — turn some back on from Widgets above.</p>
@@ -726,7 +726,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
       {expanded === "calendar" && <CalendarExpanded events={events} go={go} onClose={() => setExpanded(null)} />}
       {expanded === "improvements" && <ImprovementsExpanded ideas={ideas} go={go} onClose={() => setExpanded(null)} />}
       {expanded === "queue" && <QueueExpanded queue={inQueue} go={go} onClose={() => setExpanded(null)} />}
-      {expanded === "errors" && <SiteErrorsExpanded errors={siteErrors} onClose={() => setExpanded(null)} />}
+      {expanded === "youtube" && <YouTubeVideosExpanded onClose={() => setExpanded(null)} />}
 
       {(open || openFiled) && (() => {
         const shot = open ? shotOf(open) : openFiled!;

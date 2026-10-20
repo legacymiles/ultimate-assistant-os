@@ -29,6 +29,7 @@ import { CommandLine } from "./CommandLine";
 import { StatusDock } from "./StatusDock";
 import { VoiceOrb } from "./VoiceOrb";
 import { QueueBoard } from "./QueueBoard";
+import { SiteErrorsPage } from "./SiteErrors";
 import { GoalCheck } from "./GoalCheck";
 import { TOPIC_LABEL, topicOf } from "@/lib/new-jarvis/felix";
 import { useQueue } from "@/lib/new-jarvis/useQueue";
@@ -99,7 +100,7 @@ import type { JarvisStore } from "@/lib/jarvis/types";
 import { useDashboardCalendar } from "@/lib/jarvis/useDashboardCalendar";
 
 type TabId =
-  | "dashboard" | "console" | "studio" | "harness" | "queue"
+  | "dashboard" | "console" | "studio" | "harness" | "queue" | "site-errors"
   | "folders" | "photos" | "lists" | "calendar" | "inbox"
   | "skills" | "tools" | "passwords" | "calls" | "router" | "architect" | "timeline" | "plugins" | "settings";
 
@@ -146,6 +147,9 @@ const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[]
       // (Claude Code or the DeepSeek harness) on the repo in its own branch.
       { id: "queue", label: "Queue", icon: "ListChecks" },
       { id: "harness", label: "Code", icon: "Layers" },
+      // The crash log. It sat on the Dashboard until 2026-10-19; it is a
+      // fix-it list for whoever builds, so it lives with the build tools.
+      { id: "site-errors", label: "Site errors", icon: "Flag" },
     ],
   },
   {
@@ -1275,6 +1279,8 @@ ${reflex.best.excerpt ?? ""}`.trim()
               // one signal that needs it, a store it treats as optional — so
               // it can draw itself fully while the dashboard is still loading.
               <QueueBoard queue={queue} />
+            ) : tab === "site-errors" ? (
+              <SiteErrorsPage />
             ) : !store ? (
               <div className="p-6 text-xs text-ink-muted">Loading your things…</div>
             ) : (

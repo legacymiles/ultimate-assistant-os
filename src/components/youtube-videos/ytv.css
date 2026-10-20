@@ -1,0 +1,710 @@
+/* ---------------------------------------------------------------------------
+   YouTube videos — tokens first, then the hero's planes, then the surface.
+   Motion uses transform and opacity only; all of it stops under
+   prefers-reduced-motion. Words always sit on their own scrim, never straight
+   on the moving 3D layer.
+   --------------------------------------------------------------------------- */
+
+.ytv {
+  --ytv-canvas: #07080c;
+  --ytv-surface: #10121a;
+  --ytv-surface-2: #171a24;
+  --ytv-line: rgb(255 255 255 / 0.08);
+  --ytv-ink: #f2f3f7;
+  --ytv-ink-soft: #a3a9b8;
+  --ytv-ink-faint: #6c7383;
+  --ytv-accent: #ff4b3e;
+  --ytv-accent-ink: #180706;
+  --ytv-cool: #3fd6ff;
+  --ytv-display: var(--font-display, "Syne"), ui-sans-serif, system-ui, sans-serif;
+  --ytv-p: 0;
+  --ytv-h: 100dvh;
+
+  position: relative;
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  background: var(--ytv-canvas);
+  color: var(--ytv-ink);
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+}
+.ytv--embedded {
+  height: 100%;
+}
+
+/* ---- hero: a pinned stage with a short runway to deal the tiles ---------- */
+
+.ytv-herowrap {
+  position: relative;
+  height: calc(var(--ytv-h) * 1.32);
+}
+.ytv-hero {
+  position: sticky;
+  top: 0;
+  height: var(--ytv-h);
+  min-height: 520px;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* plane 0 — ground: slow light, moves least */
+.ytv-ground {
+  position: absolute;
+  inset: -10% -5%;
+  z-index: 0;
+  background:
+    radial-gradient(52% 46% at 72% 44%, rgb(255 75 62 / 0.16), transparent 70%),
+    radial-gradient(40% 40% at 88% 78%, rgb(63 214 255 / 0.12), transparent 70%),
+    radial-gradient(60% 50% at 20% 110%, rgb(154 123 255 / 0.1), transparent 70%),
+    var(--ytv-canvas);
+  transform: translate3d(0, calc(var(--ytv-p) * 6%), 0);
+}
+.ytv-ground::after {
+  /* fine grain so the dark doesn't band */
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.06;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* plane 1 — the reel (canvas + Blender poster) */
+.ytv-reel {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.ytv-canvas,
+.ytv-poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.ytv-poster {
+  object-fit: cover;
+  object-position: 50% 50%;
+  opacity: 0.9;
+  transition: opacity 600ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  user-select: none;
+}
+.ytv-reel[data-state="live"] .ytv-poster {
+  opacity: 0;
+}
+.ytv-reel[data-state="loading"] .ytv-canvas {
+  opacity: 0;
+}
+@media (min-width: 820px) {
+  /* the live reel sits right of the copy; the poster follows it */
+  .ytv-poster {
+    object-position: 20% 50%;
+  }
+}
+
+/* plane 2 — the copy, on its own scrim */
+.ytv-copy {
+  position: absolute;
+  z-index: 2;
+  inset: auto 0 0 0;
+  padding: 0 16px 22px;
+  transform: translate3d(0, calc(var(--ytv-p) * -48px), 0);
+  opacity: calc(1 - var(--ytv-p) * 1.25);
+  pointer-events: none;
+}
+.ytv-scrim {
+  position: relative;
+  pointer-events: auto;
+  max-width: 560px;
+  padding: 20px 18px 16px;
+  border-radius: 22px;
+  background: rgb(7 8 12 / 0.7);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  border: 1px solid var(--ytv-line);
+  box-shadow: 0 30px 60px -30px rgb(0 0 0 / 0.8);
+}
+@media (min-width: 820px) {
+  .ytv-copy {
+    inset: 0 auto 0 0;
+    width: min(600px, 48%);
+    display: flex;
+    align-items: center;
+    padding: 0 0 0 clamp(24px, 5vw, 72px);
+  }
+  .ytv-scrim {
+    padding: 28px 28px 22px;
+  }
+}
+
+.ytv-h1 {
+  font-family: var(--ytv-display);
+  font-weight: 700;
+  font-size: clamp(34px, 5.2vw, 64px);
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--ytv-ink);
+}
+.ytv--embedded .ytv-h1 {
+  font-size: clamp(30px, 4.4vw, 54px);
+}
+.ytv-sub {
+  margin: 12px 0 18px;
+  max-width: 44ch;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--ytv-ink-soft);
+}
+
+.ytv-paste {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 40px;
+  border-radius: 999px;
+  background: var(--ytv-surface-2);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  transition: border-color 160ms ease, transform 200ms cubic-bezier(0.2, 0.9, 0.3, 1.3);
+}
+.ytv-paste:focus-within {
+  border-color: var(--ytv-accent);
+  transform: scale(1.01);
+}
+.ytv-paste-icon {
+  position: absolute;
+  left: 15px;
+  color: var(--ytv-ink-faint);
+}
+.ytv-paste input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  background: transparent;
+  border: 0;
+  outline: none;
+  font-size: 16px; /* 16px stops iOS zooming in */
+  color: var(--ytv-ink);
+}
+.ytv-paste input::placeholder {
+  color: var(--ytv-ink-faint);
+}
+.ytv-save {
+  flex: none;
+  height: 44px;
+  padding: 0 22px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--ytv-accent);
+  color: var(--ytv-accent-ink);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 160ms cubic-bezier(0.2, 0.9, 0.3, 1.4), opacity 160ms ease;
+}
+.ytv-save:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.03);
+}
+.ytv-save:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.ytv-save:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ytv-hint {
+  margin: 10px 4px 0;
+  font-size: 12px;
+  color: var(--ytv-ink-faint);
+}
+
+/* ---- the working surface ------------------------------------------------ */
+
+.ytv-body {
+  --ytv-pad: 16px;
+  position: relative;
+  z-index: 3;
+  margin-top: calc(var(--ytv-h) * -0.2);
+  padding: 0 var(--ytv-pad) 120px;
+  background: linear-gradient(to bottom, transparent, var(--ytv-canvas) 120px);
+}
+@media (min-width: 820px) {
+  .ytv-body {
+    --ytv-pad: clamp(24px, 4vw, 56px);
+  }
+}
+
+.ytv-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin: 0 calc(-1 * var(--ytv-pad)) 14px;
+  padding: 12px var(--ytv-pad);
+  background: rgb(7 8 12 / 0.82);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--ytv-line);
+}
+.ytv-tablist {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--ytv-surface);
+  border: 1px solid var(--ytv-line);
+}
+.ytv-tab {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: var(--ytv-ink-soft);
+  font-weight: 600;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+.ytv-tab[aria-selected="true"] {
+  background: var(--ytv-ink);
+  color: var(--ytv-canvas);
+}
+.ytv-count {
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.65;
+}
+.ytv-filters {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ytv-chip {
+  flex: none;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ytv-line);
+  background: var(--ytv-surface);
+  color: var(--ytv-ink-soft);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+.ytv-chip[aria-pressed="true"] {
+  border-color: var(--ytv-accent);
+  color: var(--ytv-ink);
+  background: rgb(255 75 62 / 0.14);
+}
+.ytv-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ytv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+@media (max-width: 520px) {
+  .ytv-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+}
+
+.ytv-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  background: var(--ytv-surface);
+  border: 1px solid var(--ytv-line);
+  overflow: hidden;
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), border-color 220ms ease;
+  animation: ytv-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.ytv-card:hover {
+  transform: translateY(-2px);
+  border-color: rgb(255 255 255 / 0.16);
+}
+.ytv-card[data-flash="true"] {
+  border-color: var(--ytv-accent);
+  box-shadow: 0 10px 30px -12px rgb(255 75 62 / 0.6);
+}
+.ytv-card[data-watched="true"] .ytv-thumb img {
+  opacity: 0.45;
+}
+/* Transform only: an entrance must never be able to leave a card invisible
+   (opacity keyframes stall when the main thread is busy). */
+@keyframes ytv-in {
+  from {
+    transform: translateY(14px) scale(0.98);
+  }
+}
+
+.ytv-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  padding: 0;
+  border: 0;
+  background: #000;
+  cursor: pointer;
+  overflow: hidden;
+}
+.ytv-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 400ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 200ms ease;
+}
+.ytv-thumb:hover img {
+  transform: scale(1.04);
+}
+.ytv-thumb-blank {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(80% 90% at 20% 0%, color-mix(in oklab, var(--c) 45%, transparent), transparent 70%),
+    linear-gradient(135deg, color-mix(in oklab, var(--c) 22%, #0b0d13), #0b0d13);
+}
+.ytv-thumb-blank span {
+  font-family: var(--ytv-display);
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--ytv-ink);
+  opacity: 0.9;
+}
+.ytv-play {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: var(--ytv-accent);
+  color: var(--ytv-accent-ink);
+  transform: scale(0.86);
+  opacity: 0.92;
+  transition: transform 200ms cubic-bezier(0.2, 0.9, 0.3, 1.4);
+}
+.ytv-thumb:hover .ytv-play,
+.ytv-thumb:focus-visible .ytv-play {
+  transform: scale(1);
+}
+.ytv-watched-badge {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgb(7 8 12 / 0.8);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ytv-ink);
+}
+
+.ytv-card-body {
+  flex: 1;
+  padding: 10px 12px 4px;
+  min-width: 0;
+}
+.ytv-card-title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.32;
+  color: var(--ytv-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ytv-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: var(--ytv-ink-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ytv-card-meta > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ytv-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+}
+.ytv-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 4px 6px 8px;
+}
+.ytv-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ytv-ink-soft);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.ytv-icon:hover {
+  background: var(--ytv-surface-2);
+  color: var(--ytv-ink);
+}
+.ytv-icon[aria-pressed="true"] {
+  color: #5be38f;
+}
+.ytv-icon--danger:hover {
+  color: var(--ytv-accent);
+}
+
+.ytv-card--search .ytv-search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 150px;
+  padding: 16px;
+  color: var(--ytv-ink);
+  text-decoration: none;
+  background: radial-gradient(90% 90% at 100% 0%, rgb(255 75 62 / 0.12), transparent 60%);
+}
+.ytv-search svg {
+  color: var(--ytv-accent);
+}
+.ytv-search-title {
+  font-family: var(--ytv-display);
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 1.15;
+}
+.ytv-search-why {
+  font-size: 12.5px;
+  color: var(--ytv-ink-soft);
+}
+.ytv-search-go {
+  margin-top: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ytv-ink-faint);
+}
+.ytv-search:hover .ytv-search-go {
+  color: var(--ytv-ink);
+}
+
+.ytv-note {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  color: var(--ytv-ink-faint);
+}
+.ytv-empty {
+  padding: 48px 8px;
+  text-align: center;
+  color: var(--ytv-ink-soft);
+  font-size: 13.5px;
+}
+.ytv-empty-h {
+  font-family: var(--ytv-display);
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--ytv-ink);
+  margin: 0 0 6px;
+}
+
+/* ---- player + toast ----------------------------------------------------- */
+
+.ytv-player {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  background: rgb(0 0 0 / 0.86);
+  animation: ytv-fade 200ms ease both;
+}
+.ytv-player-frame {
+  width: min(1100px, 100%);
+  aspect-ratio: 16 / 9;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #000;
+}
+.ytv-player-frame--tall {
+  width: auto;
+  height: min(82dvh, 760px);
+  aspect-ratio: 9 / 16;
+}
+.ytv-player-frame iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.ytv-player-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(1100px, 100%);
+}
+.ytv-player-bar .ytv-card-title {
+  flex: 1;
+}
+@keyframes ytv-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.ytv-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 12px 10px 18px;
+  border-radius: 999px;
+  background: var(--ytv-ink);
+  color: var(--ytv-canvas);
+  font-size: 13px;
+  font-weight: 600;
+  transform: translateX(-50%);
+  box-shadow: 0 18px 40px -16px rgb(0 0 0 / 0.7);
+  animation: ytv-toast 260ms cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
+}
+.ytv-toast button {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--ytv-canvas);
+  color: var(--ytv-ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+@keyframes ytv-toast {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+}
+
+.ytv :focus-visible {
+  outline: 2px solid var(--ytv-cool);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ytv *,
+  .ytv *::before,
+  .ytv *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .ytv-copy {
+    transform: none;
+  }
+}
+
+/* ---- the Dashboard widget's compact card -------------------------------- */
+
+.ytv-mini {
+  --ytv-ink: #f2f3f7;
+  --ytv-display: var(--font-display, "Syne"), ui-sans-serif, system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+.ytv-mini-paste {
+  display: flex;
+  gap: 6px;
+}
+.ytv-mini-paste input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--color-line, rgb(255 255 255 / 0.1));
+  background: var(--color-panel-2, #141722);
+  color: var(--color-ink, #f2f3f7);
+  font-size: 13px;
+}
+.ytv-mini-paste input:focus {
+  outline: none;
+  border-color: #ff4b3e;
+}
+.ytv-mini-paste button {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 0;
+  background: #ff4b3e;
+  color: #180706;
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.ytv-mini-paste button:disabled {
+  opacity: 0.45;
+}
+.ytv-mini-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ytv-mini-strip li {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0b0d13;
+  border: 1px solid var(--color-line-soft, rgb(255 255 255 / 0.06));
+}
+.ytv-mini-strip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ytv-mini-strip .ytv-thumb-blank span {
+  font-size: 10px;
+}

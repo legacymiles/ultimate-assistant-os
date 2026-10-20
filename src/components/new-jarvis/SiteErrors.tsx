@@ -1,10 +1,13 @@
 "use client";
 
 // ---------------------------------------------------------------------------
-// Site errors — the crash log, on the Deck.
+// Site errors — the crash log. Its own tab under More › Work (it left the
+// Dashboard on 2026-10-19: it's a fix-it list for the builder, not something
+// to glance at every morning).
 //
-// Compact: how many open crashes this week, and the top few with their site
-// and count. Expanded: every open crash with its pages, browsers and stack;
+// SiteErrorsPage is the tab. SiteErrorsWidget / SiteErrorsExpanded stay
+// exported so the log can come back to the Dashboard in one line if wanted.
+// The page shows every open crash with its pages, browsers and stack;
 // "Mark fixed" (a repeat re-opens it); "Send to board" (a bug card in Backlog,
 // written the way super-board wants bugs); the one line to put on a client
 // site so its crashes land here too; and the one build checklist this log is
@@ -110,10 +113,6 @@ const SNIPPET = (origin: string) => `<script src="${origin}/jarvis-errors.js" da
 
 export function SiteErrorsExpanded({ errors, onClose }: { errors: UseSiteErrors; onClose: () => void }) {
   const open = errors.data?.open ?? [];
-  const [note, setNote] = useState<Record<string, string>>({});
-  const [copied, setCopied] = useState(false);
-  const origin = typeof window === "undefined" ? "https://ultimate-assistant-os.vercel.app" : window.location.origin;
-
   return (
     <WidgetSheet
       title="Site errors"
@@ -125,6 +124,43 @@ export function SiteErrorsExpanded({ errors, onClose }: { errors: UseSiteErrors;
         </button>
       }
     >
+      <SiteErrorsBody errors={errors} />
+    </WidgetSheet>
+  );
+}
+
+/** The tab: More › Work › Site errors (also /apps/jarvis#site-errors, where crash notifications link). */
+export function SiteErrorsPage() {
+  const errors = useSiteErrors();
+  const open = errors.data?.open ?? [];
+  return (
+    <div className="deck mx-auto max-w-5xl p-3 sm:p-6">
+      <div className="deck-glass overflow-hidden">
+        <header className="flex items-center gap-2 border-b border-line px-4 py-3">
+          <Icon.Flag width={14} height={14} className="text-[var(--hud)]" aria-hidden />
+          <div className="min-w-0 flex-1">
+            <p className="deck-kicker">{`${open.length} open · ${errors.data?.week ?? 0} this week · hub and client sites`}</p>
+            <h1 className="deck-display text-[17px] font-semibold text-ink">Site errors</h1>
+          </div>
+          <button type="button" className="deck-btn" onClick={errors.refresh}>
+            <Icon.Refresh width={12} height={12} aria-hidden /> Check again
+          </button>
+        </header>
+        {errors.error && <p className="px-4 py-2 text-[11.5px] text-[var(--hud-amber)]">{errors.error}</p>}
+        <SiteErrorsBody errors={errors} />
+      </div>
+    </div>
+  );
+}
+
+function SiteErrorsBody({ errors }: { errors: UseSiteErrors }) {
+  const open = errors.data?.open ?? [];
+  const [note, setNote] = useState<Record<string, string>>({});
+  const [copied, setCopied] = useState(false);
+  const origin = typeof window === "undefined" ? "https://ultimate-assistant-os.vercel.app" : window.location.origin;
+
+  return (
+    <>
       {errors.data && !errors.data.persistent && (
         <p className="border-b border-line-soft px-4 py-2 text-[11.5px] text-[var(--hud-amber)]">
           This copy of Jarvis has no database key, so the log only lasts until the next restart.
@@ -214,6 +250,6 @@ export function SiteErrorsExpanded({ errors, onClose }: { errors: UseSiteErrors;
           ))}
         </ul>
       </details>
-    </WidgetSheet>
+    </>
   );
 }
