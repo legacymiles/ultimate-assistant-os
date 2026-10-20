@@ -35,8 +35,11 @@ const FOLDER_TO_SLUG = {
   recall: "dashboard",
   dashboard: "dashboard",
   blueprint: "prompt-architect",
-  dances: "tiktok-dances",
-  "dance-studio": "tiktok-dances",
+  // Dance Vault became Viral Studio Content (Oct 2026); its history moves with it.
+  dances: "viral-studio-content",
+  "dance-studio": "viral-studio-content",
+  "tiktok-dances": "viral-studio-content",
+  "viral-studio": "viral-studio-content",
   reveal: "fire-reveal",
   studio3d: "3d-studio",
   cookbook: "cookbook-genie",
