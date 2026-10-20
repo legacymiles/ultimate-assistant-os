@@ -138,7 +138,7 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
           <div className="p-4">
             <p className="text-[13px] leading-relaxed text-[var(--cc-ink-muted)]">
               The hand deals itself the moment four seats are taken. If you would rather not wait, the
-              computer will take whatever is left — and hand the seat back if someone real turns up.
+              computer will take whatever is left, and hand the seat back if someone real turns up.
             </p>
             <div className="mt-3 flex flex-wrap gap-1.5">
               {!game.isSeated && (

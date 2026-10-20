@@ -190,7 +190,7 @@ export function useSpadesMoments({
       const r = (state.reneges ?? []).filter((x) => x.calledBy !== undefined).at(-1)!;
       announce({
         text: theme.renege.text,
-        sub: `${nameOf(r.calledBy!)} caught ${nameOf(r.seat)} — ${RENEGE_PENALTY_TRICKS} tricks to Team ${getTeam(r.seat) === 1 ? 2 : 1}`,
+        sub: `${nameOf(r.calledBy!)} caught ${nameOf(r.seat)}. ${RENEGE_PENALTY_TRICKS} tricks to Team ${getTeam(r.seat) === 1 ? 2 : 1}`,
         color: RENEGE_RED,
         stamp: true,
         dur: 2100,
@@ -206,7 +206,7 @@ export function useSpadesMoments({
           for (const r of recap.reneges.filter((x) => x.calledBy === undefined)) {
             announce({
               text: theme.renege.text,
-              sub: `Revealed: ${nameOf(r.seat)} threw ${cardName(r.card)} holding ${SUIT_SYMBOLS[r.led]} — ${RENEGE_PENALTY_TRICKS} tricks`,
+              sub: `Revealed: ${nameOf(r.seat)} threw ${cardName(r.card)} holding ${SUIT_SYMBOLS[r.led]}. ${RENEGE_PENALTY_TRICKS} tricks`,
               color: RENEGE_RED, stamp: true, dur: 2000, shake: "small",
             });
           }

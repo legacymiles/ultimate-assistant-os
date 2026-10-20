@@ -36,6 +36,8 @@ export interface GameTheme {
   icon: string;
   /** Table felt: centre and edge of the radial gradient. */
   felt: [string, string];
+  /** The one accent: table circuitry, rim light, card backs, your turn. */
+  accent: string;
   /** Extra particles thrown on big moments (emoji). Empty for none. */
   confetti: string[];
   suits: Record<SuitKey, SuitStyle>;
@@ -87,7 +89,8 @@ export const CLASSIC: GameTheme = {
   id: "classic",
   name: "Classic",
   icon: "♠",
-  felt: ["#16261f", "#101720"],
+  felt: ["#15201d", "#0b0e12"],
+  accent: "#46d9b8",
   confetti: [],
   suits: CLASSIC_SUITS,
   ...CLASSIC_MOMENTS,
@@ -95,14 +98,14 @@ export const CLASSIC: GameTheme = {
 
 /** Start a theme from Classic and change only what makes it different. */
 function themed(
-  id: string, name: string, icon: string, felt: [string, string], confetti: string[],
+  id: string, name: string, icon: string, felt: [string, string], accent: string, confetti: string[],
   suits: Partial<Record<SuitKey, Partial<SuitStyle>>>,
   words: Partial<Record<"spadesBroken" | "trumpSteal" | "nilShield" | "set" | "renege" | "boston", string>>,
   nilColor?: string,
 ): GameTheme {
   const s = (k: SuitKey) => ({ ...CLASSIC_SUITS[k], ...suits[k] });
   return {
-    id, name, icon, felt, confetti,
+    id, name, icon, felt, accent, confetti,
     suits: { S: s("S"), H: s("H"), D: s("D"), C: s("C") },
     clash: { ...CLASSIC_MOMENTS.clash },
     spadesBroken: { ...CLASSIC_MOMENTS.spadesBroken, text: words.spadesBroken ?? CLASSIC_MOMENTS.spadesBroken.text },
@@ -120,7 +123,7 @@ function themed(
 
 export const PRESETS: GameTheme[] = [
   CLASSIC,
-  themed("halloween", "Halloween", "🎃", ["#2a1606", "#0d0a12"], ["🎃", "🦇", "👻"],
+  themed("halloween", "Halloween", "🎃", ["#2a1606", "#0d0a12"], "#ff8a3d", ["🎃", "🦇", "👻"],
     {
       S: { attack: "Reaper's Scythe", color: "#c084fc" },
       H: { attack: "Witchfire", color: "#fb923c" },
@@ -129,7 +132,7 @@ export const PRESETS: GameTheme[] = [
     },
     { spadesBroken: "THE SPADES HAVE RISEN", trumpSteal: "SPOOKED!", set: "BURIED!", renege: "CURSED! RENEGE!" },
     "#fb923c"),
-  themed("christmas", "Christmas", "🎄", ["#0f2a1a", "#0a1414"], ["❄️", "🎁", "⭐"],
+  themed("christmas", "Christmas", "🎄", ["#0f2a1a", "#0a1414"], "#8fd8ff", ["❄️", "🎁", "⭐"],
     {
       S: { attack: "Frostbite Slash", color: "#bae6fd" },
       H: { attack: "Yule Flame", color: "#ef4444" },
@@ -138,7 +141,7 @@ export const PRESETS: GameTheme[] = [
     },
     { spadesBroken: "SPADES CAME DOWN THE CHIMNEY", trumpSteal: "STOLE CHRISTMAS!", set: "COAL!", renege: "NAUGHTY LIST! RENEGE!" },
     "#fde68a"),
-  themed("valentines", "Valentine's", "💘", ["#2a0d1a", "#14070e"], ["💘", "🌹", "💋"],
+  themed("valentines", "Valentine's", "💘", ["#2a0d1a", "#14070e"], "#f472b6", ["💘", "🌹", "💋"],
     {
       S: { attack: "Heartbreaker", color: "#f472b6" },
       H: { attack: "Cupid's Arrow", color: "#fb7185" },
@@ -147,7 +150,7 @@ export const PRESETS: GameTheme[] = [
     },
     { spadesBroken: "SPADES BROKE MY HEART", trumpSteal: "HEARTBREAKER!", set: "DUMPED!", renege: "CHEATER! RENEGE!" },
     "#f9a8d4"),
-  themed("fourth-of-july", "Fourth of July", "🎆", ["#0c1a33", "#070b16"], ["🎆", "🇺🇸", "🎇"],
+  themed("fourth-of-july", "Fourth of July", "🎆", ["#0c1a33", "#070b16"], "#6aa8ff", ["🎆", "🇺🇸", "🎇"],
     {
       S: { attack: "Rocket's Red Glare", color: "#f87171" },
       H: { attack: "Liberty Flame", color: "#ef4444" },
@@ -156,7 +159,7 @@ export const PRESETS: GameTheme[] = [
     },
     { spadesBroken: "SPADES ARE FREE", trumpSteal: "INDEPENDENCE!", set: "FIZZLED!" },
     "#93c5fd"),
-  themed("new-year", "New Year", "🥂", ["#1a1606", "#0b0a07"], ["🥂", "🎉", "✨"],
+  themed("new-year", "New Year", "🥂", ["#1a1606", "#0b0a07"], "#f5cf55", ["🥂", "🎉", "✨"],
     {
       S: { attack: "Midnight Strike", color: "#fcd34d" },
       H: { attack: "Toast of Fire", color: "#fbbf24" },
@@ -260,6 +263,7 @@ export function cleanTheme(v: unknown): GameTheme | null {
     name: str(o.name, id, 40),
     icon: str(o.icon, "♠", 8),
     felt: [color(felt[0], CLASSIC.felt[0]), color(felt[1], CLASSIC.felt[1])],
+    accent: color(o.accent, CLASSIC.accent),
     confetti: Array.isArray(o.confetti)
       ? o.confetti.filter((c): c is string => typeof c === "string" && c.trim().length > 0).map((c) => c.trim().slice(0, 8)).slice(0, 6)
       : [],

@@ -1,0 +1,625 @@
+/* ---------------------------------------------------------------------------
+   The holo table. Dark graphite stage, a tilted oval of WebGL felt, seat pods
+   floating around it, and every hand held as a curved fan.
+
+   Theme-driven variables, set on .hx-root by the table:
+     --hx-accent   the one accent colour (from Game Play Design Styling)
+   Pointer-driven variables (set without React re-renders):
+     --tx, --ty    the hand's tilt toward the pointer, in degrees
+     --sx          where the foil sheen sits across the cards
+   --------------------------------------------------------------------------- */
+
+.hx-root {
+  --hx-accent: #46d9b8;
+  --hx-ink: #e9edf2;
+  --hx-ink-dim: #8b95a3;
+  --hx-ink-faint: #5d6672;
+  --hx-glass: rgba(16, 19, 25, 0.72);
+  --hx-line: rgba(233, 237, 242, 0.09);
+  --hx-red: #d93a4f;
+  --hx-black: #171a21;
+  --tx: 0deg;
+  --ty: 0deg;
+  --sx: 50%;
+  position: relative;
+  color: var(--hx-ink);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* --- the stage ------------------------------------------------------------ */
+.hx-stage {
+  position: relative;
+  height: clamp(330px, 44vw, 440px);
+  border-radius: 22px;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 58%, color-mix(in srgb, var(--hx-accent, #46d9b8) 7%, transparent) 0%, transparent 70%),
+    linear-gradient(180deg, #0d1015 0%, #0a0c10 100%);
+  border: 1px solid var(--hx-line);
+  overflow: hidden;
+  isolation: isolate;
+}
+.hx-stage::after {
+  /* a faint floor grid receding under the table */
+  content: "";
+  position: absolute;
+  inset: 45% -20% -10%;
+  background:
+    linear-gradient(90deg, rgba(233, 237, 242, 0.05) 1px, transparent 1px) 0 0 / 44px 44px,
+    linear-gradient(0deg, rgba(233, 237, 242, 0.05) 1px, transparent 1px) 0 0 / 44px 44px;
+  transform: perspective(500px) rotateX(62deg);
+  transform-origin: 50% 0;
+  mask-image: linear-gradient(180deg, transparent, #000 30%, transparent 95%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+.hx-table {
+  position: absolute;
+  inset: 13% 7% 6%;
+  perspective: 900px;
+  perspective-origin: 50% 0%;
+}
+.hx-plane {
+  position: absolute;
+  inset: 0;
+  transform: rotateX(34deg);
+  transform-origin: 50% 60%;
+  transform-style: preserve-3d;
+  border-radius: 50% / 46%;
+}
+.hx-felt {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--hx-accent, #46d9b8) 35%, transparent),
+    0 0 0 7px #11151b,
+    0 0 0 8px rgba(233, 237, 242, 0.08),
+    0 40px 60px -20px rgba(0, 0, 0, 0.8);
+}
+.hx-felt-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+/* rim light: a slow arc of accent running round the edge */
+.hx-rim {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50% / 46%;
+  padding: 1.5px;
+  background: conic-gradient(from var(--hx-rim, 0deg), transparent 0deg, var(--hx-accent, #46d9b8) 40deg, transparent 90deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.55;
+  pointer-events: none;
+  animation: hx-rim-spin 9s linear infinite;
+}
+@property --hx-rim {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes hx-rim-spin {
+  to { --hx-rim: 360deg; }
+}
+.hx-rim.is-hot { opacity: 1; animation-duration: 2.4s; }
+
+/* --- the trick, lying on the felt ----------------------------------------- */
+.hx-trick {
+  pointer-events: none;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+}
+.hx-slot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%) translate(var(--px), var(--py)) rotate(var(--pr));
+}
+.hx-slot-in {
+  animation: hx-land 520ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+@keyframes hx-land {
+  0% { transform: translate(var(--fx0), var(--fy0)) rotate(var(--fr0)) scale(1.35); opacity: 0; }
+  55% { opacity: 1; }
+  80% { transform: translate(0, 0) rotate(0) scale(0.97); }
+  100% { transform: none; }
+}
+.hx-slot-in::after {
+  /* the touchdown: a flash of accent where the card lands */
+  content: "";
+  position: absolute;
+  inset: -14px;
+  border-radius: 14px;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--hx-accent, #46d9b8) 45%, transparent) 0%, transparent 65%);
+  opacity: 0;
+  animation: hx-touchdown 640ms ease-out 300ms both;
+  pointer-events: none;
+}
+@keyframes hx-touchdown {
+  0% { opacity: 0.9; transform: scale(0.6); }
+  100% { opacity: 0; transform: scale(1.4); }
+}
+
+/* --- center status (upright, over the table) ------------------------------ */
+.hx-status {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--hx-ink-dim);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.hx-badge {
+  position: absolute;
+  left: 50%;
+  top: 6%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--hx-accent, #46d9b8);
+  background: rgba(10, 12, 16, 0.7);
+  border: 1px solid color-mix(in srgb, var(--hx-accent, #46d9b8) 45%, transparent);
+  pointer-events: none;
+}
+
+/* --- seat pods ------------------------------------------------------------- */
+.hx-seat {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 3;
+}
+.hx-seat--top { left: 50%; top: 8px; transform: translateX(-50%); flex-direction: column; gap: 2px; }
+.hx-seat--left { left: 10px; top: 46%; transform: translateY(-50%); flex-direction: column; }
+.hx-seat--right { right: 10px; top: 46%; transform: translateY(-50%); flex-direction: column; }
+.hx-seat--bottom { left: 50%; bottom: 58px; transform: translateX(-50%); }
+
+.hx-pod {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 5px;
+  border-radius: 999px;
+  background: var(--hx-glass);
+  border: 1px solid var(--hx-line);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  min-width: 0;
+}
+.hx-pod.is-turn { border-color: color-mix(in srgb, var(--hx-accent, #46d9b8) 55%, transparent); }
+.hx-pod.is-empty { opacity: 0.55; border-style: dashed; }
+
+.hx-avatar {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #1a1f27;
+  color: var(--hx-ink-dim);
+}
+.hx-avatar > * { border-radius: 999px; overflow: hidden; }
+.hx-turn-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 999px;
+  padding: 2px;
+  background: conic-gradient(from var(--hx-ring, 0deg), var(--hx-accent, #46d9b8), transparent 70%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: hx-ring-spin 1.4s linear infinite;
+}
+@property --hx-ring {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes hx-ring-spin { to { --hx-ring: 360deg; } }
+
+.hx-pod-name {
+  max-width: 82px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--hx-ink);
+}
+.hx-pod-name.is-me { color: var(--hx-accent, #46d9b8); }
+.hx-score {
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 750;
+  line-height: 1;
+}
+.hx-score small { font-size: 10px; font-weight: 600; color: var(--hx-ink-faint); }
+.hx-score-label { font-size: 9px; letter-spacing: 0.06em; color: var(--hx-ink-faint); text-transform: uppercase; }
+.hx-chip {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  color: #0b0d11;
+  background: var(--hx-ink);
+}
+.hx-team { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; color: var(--hx-ink-faint); }
+
+/* --- fans: every hand is held ----------------------------------------------- */
+.hx-backfan {
+  position: relative;
+  width: 64px;
+  height: 46px;
+  pointer-events: none;
+}
+.hx-backfan .hx-card {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  margin-left: -13px;
+  transform-origin: 50% 240%;
+}
+.hx-seat--top .hx-backfan { transform: rotate(180deg); }
+.hx-seat--left .hx-backfan { transform: rotate(90deg); margin: 8px 0; }
+.hx-seat--right .hx-backfan { transform: rotate(-90deg); margin: 8px 0; }
+
+.hx-hand-zone {
+  position: relative;
+  z-index: 4;
+  margin-top: -54px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  perspective: 1200px;
+}
+.hx-turnline {
+  height: 18px;
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--hx-ink-dim);
+}
+.hx-turnline.is-mine { color: var(--hx-accent, #46d9b8); }
+
+.hx-fan {
+  --cw: 74px;
+  --ch: 106px;
+  position: relative;
+  width: min(100%, 560px);
+  height: calc(var(--ch) + 74px);
+  transform: rotateX(var(--ty)) rotateY(var(--tx));
+  transform-style: preserve-3d;
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.hx-fan-sway {
+  position: absolute;
+  inset: 0;
+  animation: hx-sway 7s ease-in-out infinite;
+  transform-origin: 50% 300%;
+}
+@keyframes hx-sway {
+  0%, 100% { transform: rotate(-0.6deg) translateY(0); }
+  50% { transform: rotate(0.6deg) translateY(-3px); }
+}
+.hx-fan-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 70%;
+  height: 26px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.55) 0%, transparent 70%);
+  filter: blur(4px);
+  pointer-events: none;
+}
+.hx-fan-slot {
+  position: absolute;
+  left: 50%;
+  bottom: 34px;
+  width: var(--cw);
+  height: var(--ch);
+  margin-left: calc(var(--cw) / -2);
+  transform-origin: 50% 380%;
+  /* --k narrows the whole fan on small screens without changing the maths. */
+  transform: rotate(calc(var(--a) * var(--k, 1))) translateY(var(--lift, 0px));
+  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.hx-fan.is-dealing .hx-fan-slot {
+  animation: hx-deal 560ms cubic-bezier(0.2, 0.85, 0.25, 1) both;
+  animation-delay: calc(var(--i) * 38ms);
+}
+@keyframes hx-deal {
+  0% { transform: rotate(0deg) translateY(70px); opacity: 0; }
+  40% { opacity: 1; }
+}
+.hx-fan-slot > .hx-card { width: 100%; height: 100%; }
+.hx-armed-tag {
+  position: absolute;
+  left: 50%;
+  top: -22px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #1a0609;
+  background: #f87171;
+}
+
+/* --- cards -------------------------------------------------------------------- */
+.hx-card {
+  position: relative;
+  display: block;
+  flex: none;
+  border-radius: 9px;
+  overflow: hidden;
+}
+.hx-card--sm { width: 26px; height: 37px; border-radius: 4px; }
+.hx-card--md { width: 46px; height: 66px; border-radius: 7px; }
+.hx-card--lg { width: 62px; height: 89px; border-radius: 8px; }
+.hx-card--xl { width: 74px; height: 106px; border-radius: 10px; }
+
+.hx-card--face {
+  background: linear-gradient(162deg, #fbfcfd 0%, #eef0f3 60%, #e3e6eb 100%);
+  border: 1px solid rgba(15, 18, 24, 0.14);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 10px 22px -12px rgba(0, 0, 0, 0.85), 0 2px 5px -2px rgba(0, 0, 0, 0.45);
+  color: var(--hx-black, #171a21);
+}
+/* Two classes on purpose: Cook Connect makes every button inherit its text colour. */
+.hx-card.hx-card--face { color: var(--hx-black, #171a21); }
+.hx-card.hx-card--face.hx-red { color: var(--hx-red, #d93a4f); }
+.hx-frame {
+  position: absolute;
+  inset: 12% 14%;
+  border-radius: 5px;
+  border: 1px solid currentColor;
+  opacity: 0.14;
+}
+.hx-index {
+  position: absolute;
+  left: 5%;
+  top: 3%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.9;
+}
+.hx-index--flip { left: auto; top: auto; right: 5%; bottom: 3%; transform: rotate(180deg); }
+.hx-rank { font-weight: 800; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.hx-pip { margin-top: 1px; }
+.hx-rank--ten { letter-spacing: -0.11em; margin-left: -0.08em; }
+.hx-card--sm .hx-index--flip, .hx-card--sm .hx-frame, .hx-card--sm .hx-center, .hx-card--sm .hx-court { display: none; }
+.hx-card--sm .hx-rank { font-size: 10px; }
+.hx-card--sm .hx-pip { font-size: 9px; }
+.hx-card--md .hx-rank { font-size: 13px; }
+.hx-card--md .hx-pip { font-size: 11px; }
+.hx-card--lg .hx-rank { font-size: 17px; }
+.hx-card--lg .hx-pip { font-size: 14px; }
+.hx-card--xl .hx-rank { font-size: 20px; }
+.hx-card--xl .hx-pip { font-size: 16px; }
+
+.hx-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.7));
+}
+.hx-card--md .hx-center { font-size: 22px; }
+.hx-card--lg .hx-center { font-size: 32px; }
+.hx-card--xl .hx-center { font-size: 40px; }
+.hx-center--ace { transform: scale(1.35); }
+.hx-center--spade-ace::before {
+  content: "";
+  position: absolute;
+  width: 62%;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--hx-accent, #46d9b8) 80%, #0b0d11);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--hx-accent, #46d9b8) 14%, transparent);
+}
+.hx-court {
+  position: absolute;
+  inset: 18% 20%;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: linear-gradient(160deg, color-mix(in srgb, currentColor 9%, transparent), color-mix(in srgb, currentColor 18%, transparent));
+}
+.hx-court-letter { font-weight: 900; letter-spacing: -0.06em; line-height: 1; }
+.hx-court-pip { position: absolute; right: 8%; bottom: 4%; line-height: 1; }
+.hx-card--md .hx-court-letter { font-size: 20px; }
+.hx-card--md .hx-court-pip { font-size: 9px; }
+.hx-card--lg .hx-court-letter { font-size: 28px; }
+.hx-card--lg .hx-court-pip { font-size: 12px; }
+.hx-card--xl .hx-court-letter { font-size: 34px; }
+.hx-card--xl .hx-court-pip { font-size: 14px; }
+
+.hx-sheen {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, 0.85) 44%, color-mix(in srgb, var(--hx-accent, #46d9b8) 40%, transparent) 50%, transparent 62%);
+  background-size: 260% 100%;
+  background-position: var(--sx, 50%) 0;
+  mix-blend-mode: soft-light;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.hx-card--back {
+  background:
+    radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--hx-accent, #46d9b8) 18%, transparent), transparent 70%),
+    linear-gradient(160deg, #1a1f27, #0f1217);
+  border: 1px solid color-mix(in srgb, var(--hx-accent, #46d9b8) 40%, transparent);
+  box-shadow: 0 6px 14px -8px rgba(0, 0, 0, 0.9);
+}
+.hx-back-etch {
+  position: absolute;
+  inset: 3px;
+  border-radius: inherit;
+  background:
+    repeating-linear-gradient(45deg, color-mix(in srgb, var(--hx-accent, #46d9b8) 22%, transparent) 0 1px, transparent 1px 5px),
+    repeating-linear-gradient(-45deg, color-mix(in srgb, var(--hx-accent, #46d9b8) 22%, transparent) 0 1px, transparent 1px 5px);
+  opacity: 0.55;
+}
+.hx-back-emblem {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--hx-accent, #46d9b8);
+  font-size: 40%;
+  text-shadow: 0 0 6px color-mix(in srgb, var(--hx-accent, #46d9b8) 60%, transparent);
+}
+.hx-card--sm .hx-back-emblem { font-size: 11px; }
+.hx-card--md .hx-back-emblem { font-size: 18px; }
+
+/* Interactive states */
+.hx-playable { cursor: pointer; }
+.hx-playable:focus-visible { outline: 2px solid var(--hx-accent, #46d9b8); outline-offset: 2px; }
+.hx-locked { cursor: not-allowed; }
+.hx-dimmed { filter: grayscale(0.5) brightness(0.62); }
+.hx-renege-card { box-shadow: 0 0 0 1.5px rgba(248, 113, 113, 0.75), 0 10px 22px -12px rgba(0, 0, 0, 0.85); }
+.hx-armed-card { box-shadow: 0 0 0 2.5px #f87171, 0 0 22px -2px rgba(248, 113, 113, 0.7); }
+
+/* --- bidding, on the table ---------------------------------------------- */
+.hx-bid {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  width: min(92%, 420px);
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(12, 14, 19, 0.82);
+  border: 1px solid color-mix(in srgb, var(--hx-accent, #46d9b8) 40%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.9);
+  animation: hx-bid-in 360ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+@keyframes hx-bid-in {
+  from { opacity: 0; transform: translate(-50%, -42%) scale(0.96); }
+}
+.hx-bid h3 { font-size: 15px; font-weight: 750; letter-spacing: -0.01em; }
+.hx-bid p { margin-top: 2px; font-size: 11.5px; line-height: 1.45; color: var(--hx-ink-dim); }
+.hx-bid-grid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+.hx-bid-chip {
+  height: 34px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--hx-ink);
+  background: rgba(233, 237, 242, 0.05);
+  border: 1px solid var(--hx-line);
+  transition: transform 120ms, background 120ms, border-color 120ms, color 120ms;
+}
+.hx-bid-chip:hover, .hx-bid-chip:focus-visible {
+  color: #0b0d11;
+  background: var(--hx-accent, #46d9b8);
+  border-color: var(--hx-accent, #46d9b8);
+  outline: none;
+}
+.hx-bid-chip:active { transform: scale(0.96); }
+.hx-bid-chip.is-nil { color: #e8c26a; border-color: rgba(232, 194, 106, 0.45); }
+.hx-bid-chip.is-nil:hover { color: #0b0d11; background: #e8c26a; }
+
+/* --- controls under the hand ---------------------------------------------- */
+.hx-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 22px;
+}
+@media (max-width: 640px) { .hx-controls { margin-top: 6px; } }
+.hx-hint--inline { flex: 1 1 220px; margin: 0; }
+.hx-hint { font-size: 11.5px; line-height: 1.45; color: var(--hx-ink-faint); text-align: center; max-width: 60ch; margin: 2px auto 0; }
+.hx-btn {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--hx-ink);
+  background: rgba(233, 237, 242, 0.05);
+  border: 1px solid var(--hx-line);
+}
+.hx-btn:hover { border-color: color-mix(in srgb, var(--hx-accent, #46d9b8) 55%, transparent); color: var(--hx-accent, #46d9b8); }
+.hx-btn:active { transform: translateY(1px); }
+.hx-seg { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--hx-ink-faint); }
+.hx-seg-group { display: flex; overflow: hidden; border-radius: 9px; border: 1px solid var(--hx-line); }
+.hx-seg-group button { padding: 5px 10px; font-size: 11px; font-weight: 650; color: var(--hx-ink-dim); }
+.hx-seg-group button[aria-pressed="true"] { color: #0b0d11; background: var(--hx-accent, #46d9b8); }
+
+/* --- phones --------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .hx-table { inset: 17% 4% 8%; }
+  .hx-plane { transform: rotateX(30deg); }
+  .hx-fan { --cw: 54px; --ch: 78px; --k: 0.88; }
+  .hx-fan-slot { transform-origin: 50% 330%; bottom: 30px; }
+  .hx-seat--left { left: 4px; }
+  .hx-seat--right { right: 4px; }
+  .hx-seat--left .hx-pod, .hx-seat--right .hx-pod { flex-direction: column; padding: 6px 5px; border-radius: 16px; gap: 4px; }
+  .hx-seat--left .hx-pod-name, .hx-seat--right .hx-pod-name { max-width: 52px; font-size: 11px; text-align: center; }
+  .hx-seat--left .hx-score-label, .hx-seat--right .hx-score-label,
+  .hx-seat--left .hx-team, .hx-seat--right .hx-team { display: none; }
+  .hx-seat--left .hx-pod > span:last-child, .hx-seat--right .hx-pod > span:last-child { align-items: center; }
+  .hx-seat--left .hx-backfan { margin: 18px 0 0; transform: rotate(90deg) scale(0.8); }
+  .hx-seat--right .hx-backfan { margin: 18px 0 0; transform: rotate(-90deg) scale(0.8); }
+  .hx-pod-name { max-width: 64px; }
+  .hx-backfan { width: 52px; height: 38px; }
+  .hx-seat--bottom { bottom: 50px; }
+  .hx-hand-zone { margin-top: -46px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hx-rim, .hx-turn-ring, .hx-fan-sway, .hx-slot-in, .hx-slot-in::after, .hx-fan.is-dealing .hx-fan-slot, .hx-bid {
+    animation: none !important;
+  }
+  .hx-fan { transform: none !important; }
+}
