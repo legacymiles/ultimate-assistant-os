@@ -1,5 +1,14 @@
 [
  {
+  "id": "b473c1f:cook-connect",
+  "date": "2026-10-20",
+  "slug": "cook-connect",
+  "title": "Holo table redesign, every hand held as a curved fan",
+  "detail": "The spades table is rebuilt (taste-skill + webgl-trail-reveal): a tilted oval of WebGL felt on a dark stage, where the pointer paints a fading trail that scans glowing circuitry in, with a thin chromatic edge, and the felt pulses out from whoever wins each trick. Your hand is a tight curved fan held",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "23f69ea:client-review",
   "date": "2026-10-20",
   "slug": "client-review",
