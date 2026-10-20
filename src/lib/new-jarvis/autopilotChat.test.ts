@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeAction, localReply, parseActions, parseReply, systemPrompt, type AutopilotRequest } from "./autopilotChat";
+import { describeAction, localReply, parseActions, parseReply, settleForFiled, systemPrompt, type AutopilotRequest } from "./autopilotChat";
 
 const req = (text: string, selectedId: string | null = "p1"): AutopilotRequest => ({
   messages: [{ role: "user", content: text }],
@@ -119,5 +119,50 @@ describe("tasks — jobs go to the super chat", () => {
 
   it("describes a task on its card", () => {
     expect(describeAction({ type: "task", id: "p1", task: "Build the app" }, () => "x")).toBe("Do it: Build the app");
+  });
+});
+
+describe("an already-filed photo (opened from Recently filed, e.g. on a phone)", () => {
+  const filedReq = (text: string): AutopilotRequest => ({
+    messages: [{ role: "user", content: text }],
+    photos: [{ id: "f1", title: "Repo screenshot", caption: "A GitHub repo", where: "Folders › Repos", tags: [], filed: "Folders › Repos" }],
+    selectedId: "f1",
+    rules: [],
+  });
+
+  it("tells the model it is filed, so it proposes jobs not filing", () => {
+    expect(systemPrompt(filedReq("hi"))).toContain("ALREADY FILED");
+  });
+
+  it("turns what you say into a job for chat, never file/reject/re-read", () => {
+    for (const t of ["this is a song", "delete it", "file it", "build an app from this"]) {
+      const types = localReply(filedReq(t)).actions.map((a) => a.type);
+      expect(types).not.toContain("file");
+      expect(types).not.toContain("reject");
+      expect(types).not.toContain("reroute");
+      expect(types).toContain("task");
+    }
+  });
+
+  it("keeps a pure habit as a rule", () => {
+    expect(localReply(filedReq("screenshots of repos go to Folders › Repos")).actions.map((a) => a.type)).toEqual(["rule"]);
+  });
+
+  it("settles whatever the model proposed", () => {
+    const r = settleForFiled(
+      {
+        reply: "ok",
+        actions: [
+          { type: "file", ids: ["f1"] },
+          { type: "reject", ids: ["f1"] },
+          { type: "reroute", id: "f1", instruction: "move it to Folders › Work" },
+          { type: "rule", text: "x" },
+        ],
+      },
+      filedReq("x").photos,
+    );
+    expect(r.actions.map((a) => a.type)).toEqual(["task", "rule"]);
+    const t = r.actions[0];
+    if (t.type === "task") expect(t.task).toContain("Folders › Work");
   });
 });

@@ -120,11 +120,11 @@ export function WidgetSheet({
       <div className="deck-glass deck-ring deck-sheet flex h-[92dvh] w-full flex-col overflow-hidden sm:h-[86dvh] sm:max-w-5xl">
         <header className="flex shrink-0 items-center gap-2 border-b border-line px-4 py-3">
           <div className="min-w-0 flex-1">
-            {kicker && <p className="deck-kicker">{kicker}</p>}
+            {kicker && <p className="deck-kicker truncate">{kicker}</p>}
             <h2 className="deck-display truncate text-[17px] font-semibold text-ink">{title}</h2>
           </div>
-          {actions}
-          <button type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-lg text-ink-muted hover:bg-panel-2 hover:text-ink">
+          {actions && <div className="flex shrink-0 items-center">{actions}</div>}
+          <button type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-ink-muted hover:bg-panel-2 hover:text-ink">
             <Icon.Close width={14} height={14} aria-hidden />
           </button>
         </header>

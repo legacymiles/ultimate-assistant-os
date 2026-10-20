@@ -38,6 +38,13 @@ export interface AutopilotPhotoBrief {
   where: string;
   tags: string[];
   flagged?: string;
+  /**
+   * Set when the photo is NOT in the queue but already filed (the owner tapped
+   * a "recently filed" picture — on a phone that is often all there is, since
+   * the queue lives on the device that pulled the photos in). Names where it
+   * went. Filing, removing and re-reading make no sense for it; jobs do.
+   */
+  filed?: string;
 }
 
 export interface AutopilotTurn {
@@ -128,6 +135,10 @@ export function systemPrompt(req: AutopilotRequest): string {
     `RULES ${owner.toUpperCase()} HAS ALREADY SET:\n${req.rules.length ? req.rules.map((r) => `- ${r}`).join("\n") : "- (none yet)"}\n\n` +
     `QUEUE (${req.photos.length} ready):\n${list || "- (empty)"}\n\n` +
     (sel ? `The user is looking at: id=${sel.id} "${sel.title}".\n\n` : "") +
+    (sel?.filed
+      ? `That photo is ALREADY FILED (in ${sel.filed}), not waiting in the queue. Do not propose "file", "reject" or "reroute" for it. ` +
+        'To do anything with it — move it, build from it, look it up, make a note — propose a "task" (the photo goes along).\n\n'
+      : "") +
     'Reply as JSON only: {"reply": string, "actions": [ {"type":"file","ids":[...]} | {"type":"reject","ids":[...]} | ' +
     '{"type":"reroute","id":string,"instruction":string} | {"type":"rule","text":string} | {"type":"task","id":string,"task":string} ]}'
   );
@@ -185,6 +196,17 @@ export function localReply(req: AutopilotRequest): AutopilotReply {
   const generalRule = /\b(go|goes|belong|belongs|put|send)\b.*\b(to|in|into)\b/.test(t);
   if (generalRule && last.length > 8) actions.push({ type: "rule", text: last.trim() });
 
+  if (sel?.filed) {
+    // Already filed: the only things left to do with it are jobs (and habits).
+    const words = last.trim();
+    // A pure habit ("screenshots go to Repos") stays a rule; anything else is a job.
+    if (words && (!generalRule || isJob(t, true))) actions.push({ type: "task", id: sel.id, task: taskFor(words, sel) });
+    const reply = actions.length
+      ? "Here's what I'd do with it — tap Yes and I'll take it to chat with the photo. (Simple mode: no AI key is set.)"
+      : "Tell me what to do with this photo — build something from it, look it up, move it — and I'll take it to chat.";
+    return { reply, actions };
+  }
+
   if (sel && isJob(t, generalRule)) {
     actions.push({ type: "task", id: sel.id, task: taskFor(last.trim(), sel) });
   } else if (/\b(song|music|track|spotify|classifier)\b/.test(t) && sel) {
@@ -204,6 +226,27 @@ export function localReply(req: AutopilotRequest): AutopilotReply {
     ? "Here's what I'd do — tap Yes on anything you want. (Simple mode: no AI key is set, so I'm matching keywords.)"
     : "I'm in simple mode (no AI key set). Pick a photo and tell me where it goes, or say \"file all\".";
   return { reply, actions };
+}
+
+/**
+ * A photo that is already filed can't be filed, removed or re-read — those
+ * act on the queue. Turn a re-read into a job ("move it to …") and drop the
+ * rest, whatever the model proposed.
+ */
+export function settleForFiled(reply: AutopilotReply, photos: AutopilotPhotoBrief[]): AutopilotReply {
+  const filed = new Map(photos.filter((p) => p.filed).map((p) => [p.id, p]));
+  if (!filed.size) return reply;
+  const actions: AutopilotAction[] = [];
+  for (const a of reply.actions) {
+    if (a.type === "file" || a.type === "reject") {
+      const ids = a.ids.filter((id) => !filed.has(id));
+      if (ids.length) actions.push({ ...a, ids });
+    } else if (a.type === "reroute" && filed.has(a.id)) {
+      const p = filed.get(a.id)!;
+      actions.push({ type: "task", id: a.id, task: taskFor(`It's filed in ${p.filed} now. ${a.instruction}`, p) });
+    } else actions.push(a);
+  }
+  return { ...reply, actions };
 }
 
 /** One line for the confirm card. */

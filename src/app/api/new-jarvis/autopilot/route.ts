@@ -4,6 +4,7 @@ import { callerIsMember } from "@/lib/recall/lists/session";
 import {
   localReply,
   parseReply,
+  settleForFiled,
   systemPrompt,
   type AutopilotRequest,
 } from "@/lib/new-jarvis/autopilotChat";
@@ -42,7 +43,7 @@ export async function POST(req: Request) {
   }
 
   const ids = body.photos.map((p) => p.id);
-  if (!aiEndpoint()) return NextResponse.json({ ...localReply(body), engine: "local" });
+  if (!aiEndpoint()) return NextResponse.json({ ...settleForFiled(localReply(body), body.photos), engine: "local" });
 
   try {
     const res = await aiFetch({
@@ -63,13 +64,13 @@ export async function POST(req: Request) {
     if (!res.ok) {
       const why = await describeFailure(res);
       console.error("[autopilot] model failed:", why);
-      return NextResponse.json({ ...localReply(body), engine: "local", warning: why });
+      return NextResponse.json({ ...settleForFiled(localReply(body), body.photos), engine: "local", warning: why });
     }
     const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     const text = data.choices?.[0]?.message?.content ?? "";
-    return NextResponse.json({ ...parseReply(text, ids), engine: "ai" });
+    return NextResponse.json({ ...settleForFiled(parseReply(text, ids), body.photos), engine: "ai" });
   } catch (err) {
     console.error("[autopilot] failed:", err);
-    return NextResponse.json({ ...localReply(body), engine: "local" });
+    return NextResponse.json({ ...settleForFiled(localReply(body), body.photos), engine: "local" });
   }
 }

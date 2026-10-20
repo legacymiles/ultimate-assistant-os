@@ -24,6 +24,9 @@
 //   • A job ("find this repo and add it as a skill", "build an app in my
 //     plugins") comes back as a "Do it" card. Its Yes hands the job and the
 //     photo to the super chat, which runs it with every tool the chat has.
+//   • Recently FILED photos open the same sheet. The queue lives on the device
+//     that pulled the photos in, so on a phone the filed strip is often all
+//     there is — every picture you can see must open a chat you can act in.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -45,7 +48,7 @@ import {
 import { getQueue } from "@/lib/recall/photos/store";
 import { approvePhotos, importPhotos, reanalyze, rejectPhotos } from "@/lib/recall/photos/pipeline";
 import { gatherKnownPlaces, destinationById } from "@/lib/dashboard/destinations/registry";
-import { getData } from "@/lib/recall/store";
+import { folderPathString, getData } from "@/lib/recall/store";
 import { getFile } from "@/lib/recall/files";
 import { folderPaths } from "@/lib/recall/classify";
 import { describeAction, type AutopilotAction, type AutopilotReply } from "@/lib/new-jarvis/autopilotChat";
@@ -138,6 +141,44 @@ function recallCtx() {
 
 const titleOfPhoto = (p?: PendingPhoto | null) => p?.analysis?.title || p?.name || "photo";
 
+/**
+ * What the photo sheet talks about: a photo waiting in the queue, or one that
+ * is already filed. Both open the same chat; only a queued one can be filed.
+ */
+interface Shot {
+  id: string;
+  title: string;
+  thumb?: string;
+  caption: string;
+  tags: string[];
+  /** The full picture in this browser's IndexedDB, when it is here. */
+  fileId?: string;
+  /** Already filed — where it went. */
+  filed?: string;
+  /** In the queue. */
+  pending?: PendingPhoto;
+}
+
+const shotOf = (p: PendingPhoto): Shot => ({
+  id: p.id,
+  title: titleOfPhoto(p),
+  thumb: p.thumb,
+  caption: p.analysis?.caption ?? "",
+  tags: p.analysis?.tags ?? [],
+  fileId: p.fileId,
+  pending: p,
+});
+
+/** The picture itself, for a job sent to chat: the full file if this device has it, else the preview. */
+async function shotFile(s: Shot): Promise<File | null> {
+  let blob: Blob | null = s.fileId ? await getFile(s.fileId).catch(() => null) : null;
+  if (!blob && s.thumb) blob = await fetch(s.thumb).then((r) => (r.ok ? r.blob() : null)).catch(() => null);
+  if (!blob) return null;
+  const type = blob.type || "image/jpeg";
+  const ext = type.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
+  return new File([blob], `${s.title.slice(0, 60) || "photo"}.${ext}`, { type });
+}
+
 /** Pointer-driven 3D tilt and a glare that follows the cursor. Mouse only. */
 function tilt(max = 8) {
   return {
@@ -200,13 +241,22 @@ function since(t: number | null): string {
 }
 
 /** The last photos filed, for the preview strip when nothing is waiting. */
-function recentFiled(n: number): { id: string; thumb: string; title: string }[] {
+function recentFiled(n: number): Shot[] {
   try {
-    return getData()
-      .items.filter((i) => i.kind === "image" && i.attachment?.url)
+    const data = getData();
+    return data.items
+      .filter((i) => i.kind === "image" && i.attachment?.url)
       .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
       .slice(0, n)
-      .map((i) => ({ id: i.id, thumb: i.attachment!.url!, title: i.title }));
+      .map((i) => ({
+        id: i.id,
+        title: i.title || "photo",
+        thumb: i.attachment!.url!,
+        caption: i.summary || i.body?.slice(0, 200) || "",
+        tags: i.tags ?? [],
+        fileId: i.attachment?.fileId,
+        filed: folderPathString(data.folders, i.folderId),
+      }));
   } catch {
     return [];
   }
@@ -259,6 +309,8 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
   const [filing, setFiling] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  /** A filed photo opened from the "recently filed" strip. */
+  const [openFiled, setOpenFiled] = useState<Shot | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false);
   /** One conversation per photo, so closing and reopening keeps the thread. */
   const [threads, setThreads] = useState<Record<string, ChatMsg[]>>({});
@@ -342,6 +394,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
   const [typed, typing] = useTyped(greeting(ownerName));
   const working = Boolean(busy || camera.busy || analyzing || filing.size);
   const preview = queue.length ? null : recentFiled(8);
+  const filedGrid = expanded === "camera" && !queue.length ? recentFiled(24) : [];
 
   return (
     <div className="deck deck-stage">
@@ -511,11 +564,21 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                   </>
                 ) : preview && preview.length > 0 ? (
                   <>
-                    <p className="mb-1.5 text-[11px] text-ink-muted">All caught up · recently filed</p>
+                    <p className="mb-1.5 text-[11px] text-ink-muted">All caught up · recently filed — tap one to talk to me about it</p>
                     <ul className="grid grid-cols-4 gap-1.5 sm:grid-cols-6 lg:grid-cols-8">
                       {preview.map((p) => (
-                        <li key={p.id} className="aspect-square overflow-hidden rounded-lg border border-line-soft opacity-80">
-                          <img src={p.thumb} alt={p.title} className="h-full w-full object-cover" />
+                        <li key={p.id}>
+                          <button
+                            type="button"
+                            aria-label={`Open ${p.title} to talk it through with Jarvis`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenFiled(p);
+                            }}
+                            className="deck-thumb block aspect-square w-full overflow-hidden rounded-lg border border-line-soft opacity-90 transition hover:opacity-100"
+                          >
+                            <img src={p.thumb} alt="" className="h-full w-full object-cover" />
+                          </button>
                         </li>
                       ))}
                     </ul>
@@ -554,15 +617,16 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
       {expanded === "camera" && (
         <WidgetSheet
           title="Camera Autopilot"
-          kicker={`${queue.length} to sort · auto · iPhone checked ${since(camera.lastChecked)}`}
+          kicker={`${queue.length} to sort · iPhone checked ${since(camera.lastChecked)}`}
           onClose={() => setExpanded(null)}
           actions={
             <div className="flex items-center gap-1">
               <IconBtn label="Add photos" onClick={() => fileInput.current?.click()} disabled={Boolean(busy)}>
                 <Icon.Upload width={14} height={14} aria-hidden />
               </IconBtn>
-              <button type="button" className="deck-btn" onClick={() => go("iphone")}>
-                <Icon.Camera width={13} height={13} aria-hidden /> iPhone setup
+              <button type="button" className="deck-btn" onClick={() => go("iphone")} aria-label="iPhone setup" title="iPhone setup">
+                <Icon.Camera width={13} height={13} aria-hidden />
+                <span className="hidden sm:inline">iPhone setup</span>
               </button>
               <IconBtn label="Check for new photos now" onClick={() => void camera.check()} disabled={Boolean(camera.busy)}>
                 <Icon.Refresh width={14} height={14} aria-hidden />
@@ -576,9 +640,34 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
           <div className="p-3 sm:p-4">
           {(camera.busy || camera.error) && <p className="mb-2 text-[11.5px] text-ink-muted">{camera.busy || camera.error}</p>}
           {queue.length === 0 ? (
-            <div className="mt-3 rounded-xl border border-dashed border-line px-4 py-10 text-center text-[12px] text-ink-muted">
-              All caught up. New photos from your camera roll land here with my guess for where they go.
-            </div>
+            <>
+              <div className="mt-1 rounded-xl border border-dashed border-line px-4 py-4 text-center text-[12px] text-ink-muted">
+                Nothing waiting to sort. New photos from your camera roll land here with my guess for where they go.
+              </div>
+              {filedGrid.length > 0 && (
+                <>
+                  <p className="mb-2 mt-4 text-[11.5px] text-ink-muted">Recently filed — tap a photo to talk to me about it or tell me what to do with it</p>
+                  <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+                    {filedGrid.map((p) => (
+                      <li key={p.id}>
+                        <button
+                          type="button"
+                          onClick={() => setOpenFiled(p)}
+                          aria-label={`Open ${p.title} to talk it through with Jarvis`}
+                          className="deck-thumb block w-full overflow-hidden rounded-xl border border-line-soft text-left"
+                        >
+                          <span className="block aspect-square w-full overflow-hidden">
+                            <img src={p.thumb} alt="" className="h-full w-full object-cover" />
+                          </span>
+                          <span className="block truncate px-2 pt-1.5 text-[11.5px] font-semibold text-ink">{p.title}</span>
+                          <span className="block truncate px-2 pb-1.5 font-mono text-[10px] text-ink-muted">in {p.filed}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </>
           ) : (
             <ul className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {queue.map((p) => {
@@ -639,41 +728,50 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
       {expanded === "queue" && <QueueExpanded queue={inQueue} go={go} onClose={() => setExpanded(null)} />}
       {expanded === "errors" && <SiteErrorsExpanded errors={siteErrors} onClose={() => setExpanded(null)} />}
 
-      {open && (
-        <PhotoSheet
-          photo={open}
-          thread={threads[open.id] ?? []}
-          setThread={(fn) => setThreads((t) => ({ ...t, [open.id]: fn(t[open.id] ?? []) }))}
-          filing={filing.has(open.id)}
-          rules={rules.rules.filter((r) => r.on).map((r) => r.text)}
-          ownerName={ownerName}
-          onClose={() => setOpenId(null)}
-          onFile={() => {
-            const id = open.id;
-            setOpenId(null);
-            void fileNow([id]);
-          }}
-          onRemove={() => {
-            const id = open.id;
-            setOpenId(null);
-            void removeNow(id);
-          }}
-          onTask={async (task) => {
-            // The photo goes along: the agent reads the repo name, the link,
-            // whatever the job needs, off the picture itself.
-            const photo = open;
-            const blob = await getFile(photo.fileId).catch(() => null);
-            const type = blob?.type || "image/jpeg";
-            const ext = type.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
-            const files = blob ? [new File([blob], `${titleOfPhoto(photo).slice(0, 60) || "photo"}.${ext}`, { type })] : [];
-            setOpenId(null);
-            setExpanded(null);
-            go("chat");
-            askJarvis({ text: task, files, send: true, mode: "do" });
-          }}
-          refresh={refresh}
-        />
-      )}
+      {(open || openFiled) && (() => {
+        const shot = open ? shotOf(open) : openFiled!;
+        const close = () => (open ? setOpenId(null) : setOpenFiled(null));
+        return (
+          <PhotoSheet
+            key={shot.id}
+            shot={shot}
+            thread={threads[shot.id] ?? []}
+            setThread={(fn) => setThreads((t) => ({ ...t, [shot.id]: fn(t[shot.id] ?? []) }))}
+            filing={filing.has(shot.id)}
+            rules={rules.rules.filter((r) => r.on).map((r) => r.text)}
+            ownerName={ownerName}
+            onClose={close}
+            onFile={
+              open
+                ? () => {
+                    const id = open.id;
+                    setOpenId(null);
+                    void fileNow([id]);
+                  }
+                : undefined
+            }
+            onRemove={
+              open
+                ? () => {
+                    const id = open.id;
+                    setOpenId(null);
+                    void removeNow(id);
+                  }
+                : undefined
+            }
+            onTask={async (task) => {
+              // The photo goes along: the agent reads the repo name, the link,
+              // whatever the job needs, off the picture itself.
+              const file = await shotFile(shot);
+              close();
+              setExpanded(null);
+              go("chat");
+              askJarvis({ text: task, files: file ? [file] : [], send: true, mode: "do" });
+            }}
+            refresh={refresh}
+          />
+        );
+      })()}
 
       {rulesOpen && <RulesSheet data={rules} onClose={() => setRulesOpen(false)} />}
 
@@ -702,7 +800,20 @@ function IconBtn({ label, onClick, disabled, children }: { label: string; onClic
 }
 
 /** Shared frame for the two pop-ups: a centred sheet on a laptop, bottom sheet on a phone. */
-function Sheet({ label, onClose, children, wide }: { label: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
+function Sheet({
+  label,
+  onClose,
+  children,
+  wide,
+  full,
+}: {
+  label: string;
+  onClose: () => void;
+  children: React.ReactNode;
+  wide?: boolean;
+  /** Fill the phone's screen (a chat needs the room); a normal pop-up on a laptop. */
+  full?: boolean;
+}) {
   // Only the sheet on top closes: a photo opened from the expanded Camera
   // widget sits over that widget's sheet, and Escape must close just the photo.
   useTopEscape(onClose);
@@ -715,15 +826,28 @@ function Sheet({ label, onClose, children, wide }: { label: string; onClose: () 
       aria-label={label}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className={`deck-glass deck-ring deck-sheet flex max-h-[92dvh] w-full flex-col overflow-hidden ${wide ? "sm:max-w-4xl" : "sm:max-w-lg"}`}>
+      <div
+        className={`deck-glass deck-ring deck-sheet flex w-full flex-col overflow-hidden ${full ? "h-[100dvh] sm:h-auto sm:max-h-[92dvh]" : "max-h-[92dvh]"} ${wide ? "sm:max-w-4xl" : "sm:max-w-lg"}`}
+      >
         {children}
       </div>
     </div>
   );
 }
 
+/** Starters for a phone, where typing is the slow part. */
+const QUICK_ASKS = [
+  "Build an app from this in App Builder",
+  "Find what this shows and add it as a skill",
+  "Look this up and tell me what it is",
+  "Make a note from this",
+];
+
+/** Touch screens: no autofocus (it throws the keyboard over the picture). */
+const isTouch = () => typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+
 function PhotoSheet({
-  photo,
+  shot,
   thread,
   setThread,
   filing,
@@ -735,15 +859,16 @@ function PhotoSheet({
   onTask,
   refresh,
 }: {
-  photo: PendingPhoto;
+  shot: Shot;
   thread: ChatMsg[];
   setThread: (fn: (t: ChatMsg[]) => ChatMsg[]) => void;
   filing: boolean;
   rules: string[];
   ownerName?: string;
   onClose: () => void;
-  onFile: () => void;
-  onRemove: () => void;
+  /** Only for a photo in the queue. */
+  onFile?: () => void;
+  onRemove?: () => void;
   /** Hand a job about this photo to the super chat (the card's Yes is the go-ahead). */
   onTask: (task: string) => Promise<void>;
   refresh: () => void;
@@ -751,28 +876,42 @@ function PhotoSheet({
   const [draft, setDraft] = useState("");
   const [thinking, setThinking] = useState(false);
   const [full, setFull] = useState<string | null>(null);
-  const input = useRef<HTMLInputElement>(null);
-  const flag = photo.status === "ready" ? flagOf(photo) : undefined;
-  const where = photo.status === "ready" ? destinationLabel(photo) : null;
+  const input = useRef<HTMLTextAreaElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const photo = shot.pending;
+  const flag = photo?.status === "ready" ? flagOf(photo) : undefined;
+  const where = photo ? (photo.status === "ready" ? destinationLabel(photo) : null) : shot.filed ?? null;
 
-  // The card only has a 180px thumbnail; the sheet shows the real picture.
+  // The card only has a small thumbnail; the sheet shows the real picture when
+  // this device has it (a filed photo pulled in on the laptop only has its
+  // preview on the phone, which is still a good-sized picture).
   useEffect(() => {
     let url: string | null = null;
-    void getFile(photo.fileId).then((b) => {
-      if (!b) return;
-      url = URL.createObjectURL(b);
-      setFull(url);
-    });
-    input.current?.focus();
+    if (shot.fileId) {
+      void getFile(shot.fileId)
+        .then((b) => {
+          if (!b) return;
+          url = URL.createObjectURL(b);
+          setFull(url);
+        })
+        .catch(() => {});
+    }
+    if (!isTouch()) input.current?.focus();
     return () => {
       if (url) URL.revokeObjectURL(url);
     };
-  }, [photo.fileId]);
+  }, [shot.fileId]);
+
+  // Keep the newest message in view, as any chat does.
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+  }, [thread.length, thinking]);
 
   const setActionState = (msgId: string, idx: number, state: ActionState, note?: string) =>
     setThread((m) => m.map((x) => (x.id !== msgId ? x : { ...x, actions: x.actions?.map((a, i) => (i === idx ? { ...a, state, note } : a)) })));
 
   const reread = async (instruction: string) => {
+    if (!photo) return null;
     const ctx = recallCtx();
     await reanalyze(photo.id, ctx.folderPaths, ctx.existingTags, { userPrompt: instruction, knownPlaces: await gatherKnownPlaces() });
     refresh();
@@ -781,8 +920,8 @@ function PhotoSheet({
   };
 
   const runAction = async (msgId: string, idx: number, a: AutopilotAction) => {
-    if (a.type === "file") return onFile();
-    if (a.type === "reject") return onRemove();
+    if (a.type === "file") return onFile?.();
+    if (a.type === "reject") return onRemove?.();
     setActionState(msgId, idx, "running");
     try {
       if (a.type === "rule") {
@@ -816,27 +955,28 @@ function PhotoSheet({
           messages: history.slice(-12).map((m) => ({ role: m.role === "you" ? "user" : "assistant", content: m.text })),
           photos: [
             {
-              id: photo.id,
-              title: titleOfPhoto(photo),
-              caption: photo.analysis?.caption ?? "",
+              id: shot.id,
+              title: shot.title,
+              caption: shot.caption,
               where: where ?? "not decided",
-              tags: photo.analysis?.tags ?? [],
+              tags: shot.tags,
               flagged: flag,
+              filed: photo ? undefined : shot.filed || "Folders",
             },
           ],
-          selectedId: photo.id,
+          selectedId: shot.id,
           rules,
           ownerName,
         }),
       });
-      const d = (await r.json()) as AutopilotReply & { error?: string };
-      if (!r.ok) throw new Error(d.error || "Jarvis couldn't answer");
+      const d = (await r.json().catch(() => ({}))) as AutopilotReply & { error?: string };
+      if (!r.ok) throw new Error(d.error || "Jarvis couldn't answer just now — try again.");
 
       // A re-read only changes the GUESS, so it runs straight away and the
       // new destination shows on the File it button. Everything that writes
       // or deletes still waits for a tap.
-      const reroutes = (d.actions ?? []).filter((a): a is Extract<AutopilotAction, { type: "reroute" }> => a.type === "reroute");
-      const rest = (d.actions ?? []).filter((a) => a.type !== "reroute" && a.type !== "file");
+      const reroutes = photo ? (d.actions ?? []).filter((a): a is Extract<AutopilotAction, { type: "reroute" }> => a.type === "reroute") : [];
+      const rest = (d.actions ?? []).filter((a) => a.type !== "reroute" && a.type !== "file" && (photo || a.type !== "reject"));
       const reply: ChatMsg = { id: mid(), role: "jarvis", text: d.reply, actions: rest.map((action) => ({ action, state: "pending" })) };
       setThread((t) => [...t, reply]);
       for (const a of reroutes) {
@@ -851,105 +991,148 @@ function PhotoSheet({
     }
   };
 
+  const status = photo
+    ? `→ ${where ?? (photo.status === "failed" ? "couldn't read it" : "reading…")}`
+    : `Filed in ${shot.filed || "Folders"}`;
+
   return (
-    <Sheet label={`${titleOfPhoto(photo)} — talk it through with Jarvis`} onClose={onClose} wide>
+    <Sheet label={`${shot.title} — talk it through with Jarvis`} onClose={onClose} wide full>
+      {/* One scroll on a phone (picture, then the chat), side by side on a laptop.
+          The typing box stays pinned at the bottom either way. */}
       <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
-        {/* the picture */}
-        <div className="relative flex shrink-0 items-center justify-center bg-black/40 sm:w-[48%]">
-          {full || photo.thumb ? (
-            <img src={full ?? photo.thumb} alt={titleOfPhoto(photo)} className="max-h-[38dvh] w-full object-contain sm:max-h-[70dvh]" />
-          ) : (
-            <div className="h-48 w-full" />
-          )}
-          <button type="button" onClick={onClose} aria-label="Close" className="absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-full bg-black/60 text-ink-muted hover:text-ink sm:hidden">
-            <Icon.Close width={14} height={14} />
-          </button>
-        </div>
-
-        {/* the guess + the conversation */}
-        <div className="flex min-h-0 flex-1 flex-col">
-          <header className="flex items-start gap-2 border-b border-line px-4 py-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-[11px] text-[var(--hud)]">Jarvis read this as</p>
-              <h2 className="deck-display mt-0.5 truncate text-[17px] font-semibold text-ink">{titleOfPhoto(photo)}</h2>
-              {photo.analysis?.caption && <p className="mt-0.5 line-clamp-2 text-[11.5px] text-ink-muted">{photo.analysis.caption}</p>}
-            </div>
-            <button type="button" onClick={onClose} aria-label="Close" className="hidden h-8 w-8 place-items-center rounded text-ink-faint hover:text-ink sm:grid">
-              <Icon.Close width={13} height={13} />
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain sm:flex sm:overflow-hidden">
+          {/* the picture */}
+          <div className="relative flex shrink-0 items-center justify-center bg-black/40 sm:w-[48%]">
+            {full || shot.thumb ? (
+              <img src={full ?? shot.thumb} alt={shot.title} className="max-h-[42dvh] w-full object-contain sm:max-h-[70dvh]" />
+            ) : (
+              <div className="h-48 w-full" />
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="absolute right-2 top-2 grid h-11 w-11 place-items-center rounded-full bg-black/60 text-ink hover:text-ink sm:hidden"
+            >
+              <Icon.Close width={16} height={16} />
             </button>
-          </header>
+          </div>
 
-          <div className="space-y-2 px-4 py-3">
-            <div className="flex items-center gap-2">
-              <p className="min-w-0 flex-1 truncate font-mono text-[12px] text-ink">→ {where ?? (photo.status === "failed" ? "couldn't read it" : "reading…")}</p>
-              <button type="button" className="deck-btn deck-btn--go" disabled={photo.status !== "ready" || filing} onClick={onFile}>
-                {filing ? "Filing…" : "File it"}
+          {/* the guess + the conversation */}
+          <div className="flex min-h-0 flex-col sm:flex-1 sm:overflow-y-auto">
+            <header className="flex items-start gap-2 border-b border-line px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] text-[var(--hud)]">{photo ? "Jarvis read this as" : "Already filed — tell me what to do with it"}</p>
+                <h2 className="deck-display mt-0.5 line-clamp-2 text-[17px] font-semibold text-ink sm:truncate">{shot.title}</h2>
+                {shot.caption && <p className="mt-0.5 line-clamp-2 text-[11.5px] text-ink-muted">{shot.caption}</p>}
+              </div>
+              <button type="button" onClick={onClose} aria-label="Close" className="hidden h-8 w-8 place-items-center rounded text-ink-faint hover:text-ink sm:grid">
+                <Icon.Close width={13} height={13} />
               </button>
-            </div>
-            {flag && <p className="text-[11px] text-amber-300">{flag}</p>}
-          </div>
+            </header>
 
-          <div className="deck-msgs min-h-[120px] flex-1 border-t border-line-soft px-4 py-3">
-            <div className="flex flex-col gap-2">
-              {thread.length === 0 && (
-                <p className="text-[11.5px] leading-relaxed text-ink-faint">
-                  Tell me what to do with it — &ldquo;this is a song, put it in my Classifier&rdquo;, &ldquo;put it in Folders › Jobs&rdquo;, or a whole job:
-                  &ldquo;find this repo and add it as a skill&rdquo;, &ldquo;build an app in my plugins from this&rdquo;. Jobs go to chat with the photo, where I
-                  use your browser, files and apps to get them done.
-                </p>
-              )}
-              {thread.map((m) => (
-                <div key={m.id} className={`deck-bubble ${m.role === "jarvis" ? "deck-bubble--jarvis" : "deck-bubble--you"}`}>
-                  {m.text}
-                  {m.actions?.map((a, i) => (
-                    <div key={i} className="deck-action mt-2" data-state={a.state}>
-                      <p className="text-[11.5px] text-ink">{describeAction(a.action, () => titleOfPhoto(photo))}</p>
-                      {a.note && <p className="mt-0.5 text-[10.5px] text-ink-muted">{a.note}</p>}
-                      {a.state === "pending" && (
-                        <div className="mt-1.5 flex gap-1.5">
-                          <button type="button" className="deck-btn deck-btn--go text-[11px]" onClick={() => void runAction(m.id, i, a.action)}>
-                            Yes
-                          </button>
-                          <button type="button" className="deck-btn text-[11px]" onClick={() => setActionState(m.id, i, "declined")}>
-                            No
-                          </button>
-                        </div>
-                      )}
+            <div className="space-y-2 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <p className="min-w-0 flex-1 truncate font-mono text-[12px] text-ink">{status}</p>
+                {photo && onFile && (
+                  <button type="button" className="deck-btn deck-btn--go min-h-[40px]" disabled={photo.status !== "ready" || filing} onClick={onFile}>
+                    {filing ? "Filing…" : "File it"}
+                  </button>
+                )}
+              </div>
+              {flag && <p className="text-[11px] text-amber-300">{flag}</p>}
+            </div>
+
+            <div className="deck-msgs min-h-[120px] flex-1 border-t border-line-soft px-4 py-3">
+              <div className="flex flex-col gap-2">
+                {thread.length === 0 && (
+                  <>
+                    <p className="text-[12px] leading-relaxed text-ink-faint">
+                      Tell me what to do with it{photo ? " — “this is a song, put it in my Classifier”, “put it in Folders › Jobs”, or" : ""} a whole job:
+                      “find this repo and add it as a skill”, “build an app in my plugins from this”. Jobs go to chat with the photo, where I use your
+                      browser, files and apps to get them done.
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {QUICK_ASKS.map((q) => (
+                        <button
+                          key={q}
+                          type="button"
+                          onClick={() => void send(q)}
+                          disabled={thinking}
+                          className="min-h-[36px] rounded-full border border-line bg-panel-2 px-3 text-left text-[12px] text-ink-muted transition hover:border-[var(--hud)] hover:text-ink"
+                        >
+                          {q}
+                        </button>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              ))}
-              {thinking && <p className="font-mono text-[10px] text-[var(--hud)]">THINKING…</p>}
+                  </>
+                )}
+                {thread.map((m) => (
+                  <div key={m.id} className={`deck-bubble ${m.role === "jarvis" ? "deck-bubble--jarvis" : "deck-bubble--you"}`}>
+                    {m.text}
+                    {m.actions?.map((a, i) => (
+                      <div key={i} className="deck-action mt-2" data-state={a.state}>
+                        <p className="text-[12px] text-ink">{describeAction(a.action, () => shot.title)}</p>
+                        {a.note && <p className="mt-0.5 text-[11px] text-ink-muted">{a.note}</p>}
+                        {a.state === "pending" && (
+                          <div className="mt-1.5 flex gap-1.5">
+                            <button type="button" className="deck-btn deck-btn--go min-h-[40px] min-w-[64px] text-[12px]" onClick={() => void runAction(m.id, i, a.action)}>
+                              Yes
+                            </button>
+                            <button type="button" className="deck-btn min-h-[40px] min-w-[64px] text-[12px]" onClick={() => setActionState(m.id, i, "declined")}>
+                              No
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                {thinking && <p className="font-mono text-[10px] text-[var(--hud)]">THINKING…</p>}
+                <div ref={endRef} />
+              </div>
             </div>
-          </div>
 
-          <form
-            className="flex gap-1.5 border-t border-line px-3 py-2.5"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void send();
-            }}
-          >
-            <label htmlFor="sheet-ask" className="sr-only">
-              Tell Jarvis what to do with this photo
-            </label>
-            <input
-              id="sheet-ask"
-              ref={input}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder="Tell Jarvis what to do with this…"
-              className="min-h-[40px] min-w-0 flex-1 rounded-lg border border-line bg-panel-2 px-3 text-[12.5px] text-ink placeholder:text-ink-faint"
-            />
-            <button type="submit" className="deck-btn deck-btn--go" aria-label="Send" disabled={!draft.trim() || thinking}>
-              <Icon.Send width={14} height={14} aria-hidden />
-            </button>
-          </form>
-          <button type="button" onClick={onRemove} className="self-start px-4 pb-3 text-[11px] text-ink-faint hover:text-ink">
-            Remove from queue
-          </button>
+            {photo && onRemove && (
+              <button type="button" onClick={onRemove} className="self-start px-4 pb-3 text-[11.5px] text-ink-faint hover:text-ink">
+                Remove from queue
+              </button>
+            )}
+          </div>
         </div>
       </div>
+
+      <form
+        className="flex shrink-0 items-end gap-1.5 border-t border-line px-3 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))]"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void send();
+        }}
+      >
+        <label htmlFor="sheet-ask" className="sr-only">
+          Tell Jarvis what to do with this photo
+        </label>
+        {/* 16px on phones: anything smaller makes iOS zoom the page on tap. */}
+        <textarea
+          id="sheet-ask"
+          ref={input}
+          rows={1}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && !isTouch()) {
+              e.preventDefault();
+              void send();
+            }
+          }}
+          enterKeyHint="send"
+          placeholder="Tell Jarvis what to do with this…"
+          className="max-h-32 min-h-[44px] min-w-0 flex-1 resize-none rounded-lg border border-line bg-panel-2 px-3 py-2.5 text-[16px] leading-snug text-ink placeholder:text-ink-faint sm:text-[12.5px]"
+        />
+        <button type="submit" className="deck-btn deck-btn--go h-[44px] w-[44px] justify-center" aria-label="Send" disabled={!draft.trim() || thinking}>
+          <Icon.Send width={15} height={15} aria-hidden />
+        </button>
+      </form>
     </Sheet>
   );
 }
@@ -1004,7 +1187,7 @@ function RulesSheet({ data, onClose }: { data: AutopilotData; onClose: () => voi
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="e.g. Screenshots of houses go to Folders › Real Estate"
-          className="min-h-[38px] min-w-0 flex-1 rounded-lg border border-line bg-panel-2 px-3 text-[12px] text-ink placeholder:text-ink-faint"
+          className="min-h-[44px] min-w-0 flex-1 rounded-lg border border-line bg-panel-2 px-3 text-[16px] text-ink placeholder:text-ink-faint sm:min-h-[38px] sm:text-[12px]"
         />
         <button type="submit" className="deck-btn" disabled={!text.trim()}>
           Add
