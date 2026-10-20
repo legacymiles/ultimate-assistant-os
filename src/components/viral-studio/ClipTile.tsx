@@ -1,19 +1,24 @@
 "use client";
 
 // ---------------------------------------------------------------------------
-// One tile. A poster until it's hovered (or tapped), then the player.
+// One clip on the wall.
 //
-// The rule the whole board leans on: a player is mounted ONLY while the tile is
-// active. Every other tile is one <img>, which is what keeps a board of a few
-// hundred clips smooth and stops a mouse crossing it from spawning a dozen
-// embeds at once.
+//   rest   the real thumbnail, in black and white
+//   scan   (hovered) the WebGL trail paints its colour in where the pointer goes
+//   live   colour floods the frame and the clip plays — our own saved video
+//          inside the reveal itself, or the network's player faded in on top
+//
+// Only the active tile mounts anything heavier than an <img>: one WebGL
+// context and at most one player on the page, however many clips there are.
 // ---------------------------------------------------------------------------
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { PLATFORM_LABEL } from "@/lib/social-import/platform";
 import { embedUrl, mediaUrl, playbackLimit, posterUrl } from "@/lib/viral-studio/playback";
 import type { Clip, TabId } from "@/lib/viral-studio/types";
+
+import { TrailReveal } from "./TrailReveal";
 
 export interface PendingClip {
   tempId: string;
@@ -23,19 +28,23 @@ export interface PendingClip {
 
 function ago(iso: string): string {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return "now";
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h`;
-  if (s < 86400 * 30) return `${Math.floor(s / 86400)}d`;
+  if (s < 60) return "Just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  if (s < 86400 * 30) return `${Math.floor(s / 86400)}d ago`;
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function hostOf(url: string): string {
+export function hostOf(url: string): string {
   try {
-    return new URL(url).hostname.replace(/^www\./, "");
+    return new URL(url).hostname.replace(/^(www|m|vm|vt)\./, "");
   } catch {
     return url;
   }
+}
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 }
 
 interface Props {
@@ -50,83 +59,170 @@ interface Props {
 }
 
 export function ClipTile({ clip, active, sound, flash, onEnter, onLeave, onToggle, onDelete }: Props) {
-  const [posterFailed, setPosterFailed] = useState(false);
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  const [img, setImg] = useState<HTMLImageElement | null>(null);
+  const [vid, setVid] = useState<HTMLVideoElement | null>(null);
+  const [posterOk, setPosterOk] = useState<boolean | null>(null);
+  const [live, setLive] = useState(false);
+  const [plain, setPlain] = useState(false);
+  const [frameReady, setFrameReady] = useState(false);
+  const seed = useRef<[number, number] | null>(null);
+
+  const poster = posterUrl(clip);
+  const isFile = clip.play.kind === "file";
+  // Mounted (hidden) as soon as the tile is active, so the player is already
+  // buffering while the scan plays and appears the moment colour floods in.
   const embed = active ? embedUrl(clip, sound) : null;
   const limit = playbackLimit(clip);
   const label = PLATFORM_LABEL[clip.platform] ?? "Link";
-  const title = clip.title || (clip.author ? `@${clip.author.replace(/^@/, "")}` : hostOf(clip.url));
+  const handle = clip.author ? `@${clip.author.replace(/^@/, "")}` : "";
+  const title = clip.title || handle || hostOf(clip.url);
+
+  // Back to rest whenever the tile stops being the active one.
+  useEffect(() => {
+    if (active) {
+      if (prefersReducedMotion()) {
+        setPlain(true);
+        setLive(true);
+      }
+      return;
+    }
+    setLive(false);
+    setPlain(false);
+    setFrameReady(false);
+    seed.current = null;
+  }, [active]);
+
+  useEffect(() => {
+    if (vid) vid.muted = !sound;
+  }, [vid, sound]);
+
+  const showReveal = active && !plain && (posterOk || isFile);
+
+  // No still to scan (the cover couldn't be fetched): go straight to playing.
+  useEffect(() => {
+    if (active && !isFile && posterOk === false) setLive(true);
+  }, [active, isFile, posterOk]);
+  const vertical = clip.vertical !== false;
 
   return (
     <article
-      className={`vsc-tile${active ? " is-active" : ""}${flash ? " is-flash" : ""}`}
-      onMouseEnter={onEnter}
-      onMouseLeave={onLeave}
+      ref={setHost}
+      className={`vsc-tile${active ? " is-active" : ""}${live ? " is-live" : ""}${plain && active ? " is-plain" : ""}${flash ? " is-flash" : ""}`}
+      onPointerEnter={(e) => {
+        if (e.pointerType !== "mouse") return;
+        const r = e.currentTarget.querySelector(".vsc-tile__art")?.getBoundingClientRect();
+        if (r) seed.current = [(e.clientX - r.left) / r.width, 1 - (e.clientY - r.top) / r.height];
+        onEnter();
+      }}
+      onPointerLeave={(e) => {
+        if (e.pointerType === "mouse") onLeave();
+      }}
     >
-      <button
-        type="button"
-        className="vsc-tile__hit"
-        onClick={onToggle}
-        onFocus={onEnter}
-        onBlur={onLeave}
-        aria-label={`${active ? "Stop" : "Play"} ${title}`}
-      />
+      <div className="vsc-tile__art">
+        <button
+          type="button"
+          className="vsc-tile__hit"
+          onClick={onToggle}
+          onFocus={onEnter}
+          onBlur={onLeave}
+          aria-label={`${active ? "Stop" : "Play"} ${title}`}
+          aria-pressed={active}
+        />
 
-      <div className="vsc-tile__media" aria-hidden="true">
-        {posterFailed ? (
+        {poster && posterOk !== false ? (
+          // eslint-disable-next-line @next/next/no-img-element -- our own poster
+          // route; next/image would re-encode a frame the reveal reads as-is.
+          <img
+            ref={setImg}
+            className="vsc-tile__poster"
+            src={poster}
+            alt=""
+            crossOrigin="anonymous"
+            decoding="async"
+            loading="lazy"
+            onLoad={() => setPosterOk(true)}
+            onError={() => setPosterOk(false)}
+          />
+        ) : isFile && clip.play.kind === "file" ? (
+          // No saved cover: the clip's own opening frame is the still.
+          <video className="vsc-tile__poster" src={`${mediaUrl(clip.play.key)}#t=0.5`} preload="metadata" muted playsInline crossOrigin="anonymous" />
+        ) : (
           <div className="vsc-tile__blank">
             <span>{label}</span>
           </div>
-        ) : (
-          // eslint-disable-next-line @next/next/no-img-element -- covers come from
-          // several CDNs (and our own redirect route); next/image would need an
-          // allowlist for each with nothing gained on a fixed-size poster.
-          <img src={posterUrl(clip)} alt="" decoding="async" onError={() => setPosterFailed(true)} />
         )}
 
-        {active && clip.play.kind === "file" && (
-          <video className="vsc-tile__player" src={mediaUrl(clip.play.key)} autoPlay muted={!sound} loop playsInline />
+        {active && isFile && clip.play.kind === "file" && (
+          <video
+            ref={setVid}
+            className={`vsc-tile__video${plain ? " is-shown" : ""}`}
+            src={mediaUrl(clip.play.key)}
+            crossOrigin="anonymous"
+            autoPlay
+            muted={!sound}
+            loop
+            playsInline
+          />
         )}
+
+        {showReveal && (
+          <TrailReveal
+            host={host}
+            image={posterOk ? img : null}
+            video={vid}
+            seed={seed.current}
+            onFlooded={() => setLive(true)}
+            onUnsupported={() => {
+              setPlain(true);
+              setLive(true);
+            }}
+          />
+        )}
+
         {embed && (
           <iframe
-            className={`vsc-tile__player${clip.play.kind === "instagram" ? " is-interactive" : ""}`}
+            className={`vsc-tile__frame${vertical ? " is-vertical" : " is-landscape"}${frameReady && live ? " is-ready" : ""}${clip.play.kind === "instagram" ? " is-interactive" : ""}`}
             src={embed}
             title={title}
             allow="autoplay; encrypted-media; picture-in-picture"
             referrerPolicy="strict-origin-when-cross-origin"
+            onLoad={() => window.setTimeout(() => setFrameReady(true), 250)}
           />
         )}
-        {active && limit && clip.play.kind === "none" && <div className="vsc-tile__limit">{limit}</div>}
-      </div>
 
-      <div className="vsc-tile__top">
-        <span className={`vsc-chip vsc-chip--${clip.platform}`}>{label}</span>
-        {active && clip.play.kind !== "none" && (
-          <span className="vsc-live" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-            <i />
+        {live && limit && <p className="vsc-tile__limit">{limit}</p>}
+
+        {live && clip.play.kind !== "none" && (
+          <span className="vsc-playing" aria-hidden="true">
+            <span className="vsc-eq">
+              <i />
+              <i />
+              <i />
+            </span>
+            {sound ? "Playing" : "Muted"}
           </span>
         )}
+
+        <div className="vsc-tile__actions">
+          <a className="vsc-round" href={clip.url} target="_blank" rel="noreferrer" title={`Open on ${label}`} aria-label={`Open on ${label}`}>
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M6 3.5h6.5V10M12.5 3.5 4 12" />
+            </svg>
+          </a>
+          <button type="button" className="vsc-round vsc-round--delete" onClick={onDelete} title="Delete (Del)" aria-label={`Delete ${title}`}>
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
+            </svg>
+          </button>
+        </div>
       </div>
 
-      <div className="vsc-tile__actions">
-        <a className="vsc-icon-btn" href={clip.url} target="_blank" rel="noreferrer" title="Open original" aria-label="Open original">
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M6 3h7v7M13 3 4 12" />
-          </svg>
-        </a>
-        <button type="button" className="vsc-icon-btn vsc-icon-btn--danger" onClick={onDelete} title="Delete (or press Delete while hovering)" aria-label={`Delete ${title}`}>
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M4 4l8 8M12 4l-8 8" />
-          </svg>
-        </button>
-      </div>
-
-      <div className="vsc-tile__meta">
-        <p className="vsc-tile__title">{title}</p>
-        <p className="vsc-tile__sub">
-          {clip.author && clip.title ? <span>@{clip.author.replace(/^@/, "")}</span> : null}
+      <div className="vsc-tile__caption">
+        <h3 className="vsc-tile__title">{title}</h3>
+        <p className="vsc-tile__meta">
+          <span>{label}</span>
+          {handle && clip.title ? <span>{handle}</span> : null}
           <span>{ago(clip.addedAt)}</span>
         </p>
         {clip.note && <p className="vsc-tile__note">{clip.note}</p>}
@@ -138,19 +234,19 @@ export function ClipTile({ clip, active, sound, flash, onEnter, onLeave, onToggl
 export function PendingTile({ pending, onCancel }: { pending: PendingClip; onCancel: () => void }) {
   return (
     <article className="vsc-tile is-pending" aria-busy="true">
-      <div className="vsc-tile__media">
+      <div className="vsc-tile__art">
         <div className="vsc-tile__shimmer" />
+        <div className="vsc-tile__actions is-visible">
+          <button type="button" className="vsc-round vsc-round--delete" onClick={onCancel} aria-label="Cancel">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
+            </svg>
+          </button>
+        </div>
       </div>
-      <div className="vsc-tile__actions is-visible">
-        <button type="button" className="vsc-icon-btn vsc-icon-btn--danger" onClick={onCancel} aria-label="Cancel">
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M4 4l8 8M12 4l-8 8" />
-          </svg>
-        </button>
-      </div>
-      <div className="vsc-tile__meta">
-        <p className="vsc-tile__title">Grabbing video…</p>
-        <p className="vsc-tile__sub">
+      <div className="vsc-tile__caption">
+        <h3 className="vsc-tile__title">Getting the video…</h3>
+        <p className="vsc-tile__meta">
           <span>{hostOf(pending.url)}</span>
         </p>
       </div>

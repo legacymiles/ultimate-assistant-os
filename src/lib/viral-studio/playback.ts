@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// What a tile actually mounts: the poster before hover, the player during it.
+// What a tile actually mounts: the poster before hover, the player after.
 // Pure, so the exact embed parameters are tested rather than eyeballed.
 // ---------------------------------------------------------------------------
 
@@ -9,17 +9,20 @@ export function mediaUrl(key: string): string {
   return `/api/viral-studio/media?key=${encodeURIComponent(key)}`;
 }
 
-/** The still a tile shows when nothing is playing. */
-export function posterUrl(clip: Pick<Clip, "url" | "play">): string {
+/**
+ * The real still for a clip. Always same-origin (our own routes), because the
+ * hover reveal reads it as a WebGL texture and a cross-origin image without
+ * CORS headers can't be read. TikTok and Instagram cover links are signed and
+ * expire within days, so they are fetched fresh by the route, never stored.
+ */
+export function posterUrl(clip: Pick<Clip, "url" | "play">): string | null {
   const p = clip.play;
-  if (p.kind === "file" && p.posterKey) return mediaUrl(p.posterKey);
-  if (p.kind === "youtube") return `https://i.ytimg.com/vi/${p.ref}/hqdefault.jpg`;
-  // TikTok and Instagram cover links are signed and expire within days, so the
-  // tile asks our route for a fresh one each time instead of storing it.
+  if (p.kind === "file") return p.posterKey ? mediaUrl(p.posterKey) : null;
+  if (p.kind === "youtube") return `/api/viral-studio/poster?yt=${encodeURIComponent(p.ref)}`;
   return `/api/viral-studio/poster?u=${encodeURIComponent(clip.url)}`;
 }
 
-/** An iframe src for the embed kinds, or null when the tile plays a <video> (or nothing). */
+/** An iframe src for the embed kinds, or null when the tile plays its own video (or nothing). */
 export function embedUrl(clip: Pick<Clip, "play">, sound: boolean): string | null {
   const p = clip.play;
   if (p.kind === "youtube") {
@@ -61,7 +64,7 @@ export function embedUrl(clip: Pick<Clip, "play">, sound: boolean): string | nul
 
 /** Why a tile can't play inline, in words — or null when it can. */
 export function playbackLimit(clip: Pick<Clip, "play">): string | null {
-  if (clip.play.kind === "instagram") return "Instagram asks for a tap to play";
-  if (clip.play.kind === "none") return "Opens on the original site";
+  if (clip.play.kind === "instagram") return "Tap the clip to play — Instagram asks first";
+  if (clip.play.kind === "none") return "This one opens on the original site";
   return null;
 }

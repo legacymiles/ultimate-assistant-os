@@ -5,6 +5,7 @@ import {
   countsByTab,
   extractLinks,
   findDuplicate,
+  guessVertical,
   linkKey,
   offlinePlayback,
   removeClip,
@@ -131,11 +132,12 @@ describe("playback", () => {
     expect(embedUrl({ play: { kind: "file", key: "k" } }, false)).toBeNull();
   });
 
-  it("posters: stored file, YouTube CDN, or our fresh-cover route", () => {
+  it("posters are always same-origin, so the reveal can read them", () => {
     expect(posterUrl({ url: "x", play: { kind: "file", key: "k", posterKey: "u/posters/p.jpg" } })).toBe(
       "/api/viral-studio/media?key=u%2Fposters%2Fp.jpg",
     );
-    expect(posterUrl({ url: "x", play: { kind: "youtube", ref: "dQw4w9WgXcQ" } })).toContain("i.ytimg.com/vi/dQw4w9WgXcQ");
+    expect(posterUrl({ url: "x", play: { kind: "file", key: "k" } })).toBeNull();
+    expect(posterUrl({ url: "x", play: { kind: "youtube", ref: "dQw4w9WgXcQ" } })).toBe("/api/viral-studio/poster?yt=dQw4w9WgXcQ");
     expect(posterUrl({ url: "https://tiktok.com/v", play: { kind: "tiktok", ref: "1" } })).toBe(
       "/api/viral-studio/poster?u=https%3A%2F%2Ftiktok.com%2Fv",
     );
@@ -143,6 +145,9 @@ describe("playback", () => {
 
   it("says when a tile can't play inline", () => {
     expect(playbackLimit({ play: { kind: "none" } })).toMatch(/original site/);
+    expect(guessVertical("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe(false);
+    expect(guessVertical("https://youtube.com/shorts/dQw4w9WgXcQ")).toBe(true);
+    expect(guessVertical("https://www.tiktok.com/@a/video/1234567")).toBe(true);
     expect(playbackLimit({ play: { kind: "youtube", ref: "x" } })).toBeNull();
   });
 });

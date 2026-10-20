@@ -168,3 +168,14 @@ export function offlinePlayback(url: string): Playback {
   }
   return { kind: "none" };
 }
+
+/** Portrait unless the link says otherwise: viral clips are vertical; a YouTube /watch link usually isn't. */
+export function guessVertical(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (youTubeRef(u)) return /\/shorts\//.test(u.pathname);
+  } catch {
+    // Unknown shape — assume the common case.
+  }
+  return true;
+}

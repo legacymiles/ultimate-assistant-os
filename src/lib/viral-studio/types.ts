@@ -13,6 +13,8 @@ export type TabId = "audio" | "fights" | "dances" | "motion";
 export interface TabDef {
   id: TabId;
   label: string;
+  /** For the phone's tab bar, where four full labels don't fit. */
+  short: string;
   /** What belongs here, in the user's words. Shown under the tab name. */
   hint: string;
   /** Sound is the point of the audio tab, so it starts unmuted there. */
@@ -20,10 +22,10 @@ export interface TabDef {
 }
 
 export const TABS: readonly TabDef[] = [
-  { id: "audio", label: "Viral audio", hint: "Sounds & songs", soundByDefault: true },
-  { id: "fights", label: "Fights", hint: "Knockouts, scraps, highlights", soundByDefault: false },
-  { id: "dances", label: "Dances", hint: "Trends & choreo", soundByDefault: false },
-  { id: "motion", label: "Motion", hint: "Surfing, hoops, rap performances…", soundByDefault: false },
+  { id: "audio", label: "Viral audio", short: "Audio", hint: "Sounds & songs", soundByDefault: true },
+  { id: "fights", label: "Fights", short: "Fights", hint: "Knockouts, scraps, highlights", soundByDefault: false },
+  { id: "dances", label: "Dances", short: "Dances", hint: "Trends & choreo", soundByDefault: false },
+  { id: "motion", label: "Motion", short: "Motion", hint: "Surfing, hoops, rap performances…", soundByDefault: false },
 ] as const;
 
 export function isTabId(v: unknown): v is TabId {
@@ -56,6 +58,8 @@ export interface Clip {
   title: string;
   author: string;
   play: Playback;
+  /** Portrait footage (Shorts, TikTok, Reels). Decides how an embed is cropped to fill the tile. */
+  vertical?: boolean;
   /** A short plain-English line when the best playback wasn't possible. */
   note?: string;
   addedAt: string;
@@ -72,5 +76,6 @@ export interface ResolvedLink {
   title: string;
   author: string;
   play: Playback;
+  vertical?: boolean;
   note?: string;
 }

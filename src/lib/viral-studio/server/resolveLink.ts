@@ -18,7 +18,7 @@ import { PLATFORM_LABEL, parseLink } from "@/lib/social-import/platform";
 import { resolveSocialPost } from "@/lib/social-import/resolve";
 import { BlockedUrlError, assertPublic, fetchJson } from "@/lib/social-import/safeFetch";
 
-import { instagramRef, tiktokRef, youTubeRef } from "../board";
+import { guessVertical, instagramRef, tiktokRef, youTubeRef } from "../board";
 import type { Playback, ResolvedLink } from "../types";
 import { newKey, putMedia } from "./storage";
 
@@ -74,7 +74,7 @@ async function readMeta(url: URL, platform: string): Promise<Meta> {
   return { title: isGeneric(title) ? "" : title, author: post?.author ?? "" };
 }
 
-async function download(url: string, uid: string): Promise<{ play: Playback; title: string; author: string } | { error: string }> {
+async function download(url: string, uid: string): Promise<{ play: Playback; title: string; author: string; vertical?: boolean } | { error: string }> {
   try {
     const video = await importDanceVideo(url);
     const key = newKey(uid, "clips", video.contentType);
@@ -84,7 +84,8 @@ async function download(url: string, uid: string): Promise<{ play: Playback; tit
       const pk = newKey(uid, "posters", video.poster.contentType);
       if (await putMedia(pk, video.poster.bytes, video.poster.contentType)) posterKey = pk;
     }
-    return { play: { kind: "file", key, posterKey }, title: cleanTitle(video.title), author: video.author };
+    const vertical = video.width && video.height ? video.height >= video.width : undefined;
+    return { play: { kind: "file", key, posterKey }, title: cleanTitle(video.title), author: video.author, vertical };
   } catch (err) {
     if (err instanceof ImportError) return { error: err.message.replace(/\s*You can also save the video.*$/s, "").trim() };
     return { error: "Couldn't download that video." };
@@ -112,7 +113,7 @@ export async function resolveLink(input: string, uid: string | null): Promise<Re
   const yt = youTubeRef(url);
   if (yt) {
     const meta = await readMeta(url, platform);
-    return { ...base, title: meta.title, author: meta.author, play: { kind: "youtube", ref: yt } };
+    return { ...base, title: meta.title, author: meta.author, play: { kind: "youtube", ref: yt }, vertical: guessVertical(url.href) };
   }
 
   const [meta, got] = await Promise.all([
@@ -126,6 +127,7 @@ export async function resolveLink(input: string, uid: string | null): Promise<Re
       title: meta.title || (isGeneric(got.title) ? "" : got.title),
       author: meta.author || got.author,
       play: got.play,
+      vertical: got.vertical ?? guessVertical(url.href),
     };
   }
 
@@ -140,5 +142,5 @@ export async function resolveLink(input: string, uid: string | null): Promise<Re
       : uid && got.error
         ? `Playing through ${PLATFORM_LABEL[platform]}'s player — the file couldn't be saved.`
         : undefined;
-  return { ...base, title: meta.title, author: meta.author, play, note };
+  return { ...base, title: meta.title, author: meta.author, play, note, vertical: guessVertical(url.href) };
 }

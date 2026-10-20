@@ -18,13 +18,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useRemotePull } from "@/lib/sync/useSync";
-import { addClip, clipsIn, countsByTab, extractLinks, findDuplicate, linkKey, offlinePlayback, removeClip, restoreClip, storedKeys } from "@/lib/viral-studio/board";
+import { addClip, clipsIn, guessVertical, countsByTab, extractLinks, findDuplicate, linkKey, offlinePlayback, removeClip, restoreClip, storedKeys } from "@/lib/viral-studio/board";
 import { parseLink } from "@/lib/social-import/platform";
+import { posterUrl } from "@/lib/viral-studio/playback";
 import * as store from "@/lib/viral-studio/store";
 import { TABS, isTabId, type Board, type Clip, type ResolvedLink, type TabId } from "@/lib/viral-studio/types";
 
 import { ClipTile, PendingTile, type PendingClip } from "./ClipTile";
-import { TabIcon } from "./TabIcon";
 import "./viral-studio.css";
 
 interface Toast {
@@ -34,7 +34,7 @@ interface Toast {
 }
 
 const SOUND_KEY = "viral-studio:sound";
-const HOVER_DELAY_MS = 140;
+const HOVER_DELAY_MS = 60;
 const UNDO_MS = 6000;
 
 function newId(): string {
@@ -51,7 +51,8 @@ function freeFiles(keys: string[]) {
   }).catch(() => undefined);
 }
 
-export function ViralStudio() {
+export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
+  const geist = fontClass ? ` ${fontClass}` : "";
   // Storage is browser-only, so the first render matches the server's empty one.
   const [board, setBoard] = useState<Board>({ clips: [] });
   const boardRef = useRef<Board>(board);
@@ -65,6 +66,8 @@ export function ViralStudio() {
   const [soundPref, setSoundPref] = useState<Partial<Record<TabId, boolean>>>({});
   const [interacted, setInteracted] = useState(false);
   const [dropping, setDropping] = useState(false);
+  const [mod, setMod] = useState("Ctrl");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const hoverTimer = useRef<number | null>(null);
   const hoveredId = useRef<string | null>(null);
@@ -104,6 +107,7 @@ export function ViralStudio() {
     } catch {
       // A blocked or corrupt preference just means the defaults.
     }
+    if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) setMod("⌘");
     const fromUrl = new URLSearchParams(window.location.search).get("tab");
     if (isTabId(fromUrl)) setTab(fromUrl);
   }, [reload]);
@@ -198,6 +202,7 @@ export function ViralStudio() {
           title: "",
           author: "",
           play: offlinePlayback(url),
+          vertical: guessVertical(url),
           note: "Couldn't check this link yet — it plays through the site's own player.",
         };
       }
@@ -341,8 +346,8 @@ export function ViralStudio() {
   const enter = (id: string) => {
     hoveredId.current = id;
     if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
-    // A short delay, so sweeping the mouse across the board doesn't start
-    // a player in every tile it crosses.
+    // A beat of delay, so sweeping the mouse across the board doesn't spin up
+    // a WebGL context in every tile it crosses.
     hoverTimer.current = window.setTimeout(() => setActiveId(id), HOVER_DELAY_MS);
   };
   const leave = (id: string) => {
@@ -357,10 +362,14 @@ export function ViralStudio() {
   const visible = useMemo(() => clipsIn(board, tab), [board, tab]);
   const pendingHere = pending.filter((p) => p.tab === tab);
   const empty = ready && !visible.length && !pendingHere.length;
+  const total = visible.length;
+  const lead = visible[0];
+  const ambient = lead ? posterUrl(lead) : null;
+  const tabIndex = TABS.findIndex((t) => t.id === tab);
 
   return (
     <main
-      className={`vsc${dropping ? " is-dropping" : ""}`}
+      className={`vsc${dropping ? " is-dropping" : ""}${geist}`}
       data-tab={tab}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("text/uri-list") || e.dataTransfer.types.includes("text/plain")) {
@@ -373,106 +382,138 @@ export function ViralStudio() {
       }}
       onDrop={onDrop}
     >
-      <div className="vsc__glow" aria-hidden="true" />
-
-      <header className="vsc__head">
-        <Link href="/" className="vsc__back">
-          ← Hub
+      <header className="vsc-bar">
+        <Link href="/" className="vsc-bar__home" aria-label="Back to the hub">
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M10 3.5 5.5 8l4.5 4.5" />
+          </svg>
         </Link>
-        <h1 className="vsc__title">
-          Viral Studio <span>Content</span>
-        </h1>
+        <span className="vsc-bar__mark">Viral Studio</span>
+
+        <nav className="vsc-seg" role="tablist" aria-label="Boards" style={{ "--seg-i": tabIndex } as React.CSSProperties}>
+          <span className="vsc-seg__thumb" aria-hidden="true" />
+          {TABS.map((t, i) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              className={`vsc-seg__item${tab === t.id ? " is-on" : ""}`}
+              onClick={() => switchTab(t.id)}
+              title={`${t.label} — press ${i + 1}`}
+            >
+              <span className="vsc-seg__long">{t.label}</span>
+              <span className="vsc-seg__short">{t.short}</span>
+              <span className="vsc-seg__count">{counts[t.id]}</span>
+            </button>
+          ))}
+        </nav>
+
         <button
           type="button"
-          className={`vsc-sound${sound ? " is-on" : ""}`}
+          className={`vsc-bar__sound${sound ? " is-on" : ""}`}
           onClick={toggleSound}
           aria-pressed={sound}
-          title={sound ? "Hover plays with sound" : "Hover plays muted"}
+          aria-label={sound ? "Sound on — hover plays with sound" : "Muted — hover plays silently"}
+          title={sound ? "Sound on" : "Muted"}
         >
           <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M3 8v4h3l4 3V5L6 8H3z" />
-            {sound ? <path className="vsc-sound__wave" d="M13 7.5a3.5 3.5 0 0 1 0 5M15 5.5a6.5 6.5 0 0 1 0 9" /> : <path className="vsc-sound__wave" d="M13 8l4 4M17 8l-4 4" />}
+            <path className="vsc-fill" d="M3.5 8v4h3l4 3.2V4.8L6.5 8h-3z" />
+            {sound ? <path d="M13.2 7.3a3.6 3.6 0 0 1 0 5.4M15.4 5.2a6.6 6.6 0 0 1 0 9.6" /> : <path d="M13.5 8l4 4M17.5 8l-4 4" />}
           </svg>
-          <span>{sound ? "Sound on" : "Muted"}</span>
         </button>
       </header>
 
-      <nav className="vsc-tabs" role="tablist" aria-label="Boards">
-        {TABS.map((t, i) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            data-tab={t.id}
-            className={`vsc-tab${tab === t.id ? " is-on" : ""}`}
-            onClick={() => switchTab(t.id)}
-            title={`${t.label} (${i + 1})`}
-          >
-            <TabIcon tab={t.id} />
-            <span className="vsc-tab__text">
-              <span className="vsc-tab__label">{t.label}</span>
-              <span className="vsc-tab__hint">{t.hint}</span>
-            </span>
-            <span className="vsc-tab__count">{counts[t.id]}</span>
-          </button>
-        ))}
-      </nav>
+      <section className="vsc-hero" aria-labelledby="vsc-board-title">
+        <div className="vsc-hero__ambient" aria-hidden="true">
+          {ambient && (
+            // eslint-disable-next-line @next/next/no-img-element -- decorative ambient light from the newest clip
+            <img key={ambient} src={ambient} alt="" />
+          )}
+        </div>
+        <div className="vsc-hero__inner">
+          <h1 id="vsc-board-title" className="vsc-hero__title">
+            {def.label}
+          </h1>
+          <p className="vsc-hero__sub">
+            {def.hint}
+            <span aria-hidden="true"> · </span>
+            {total === 1 ? "1 clip" : `${total} clips`}
+          </p>
 
-      <form className="vsc-add" onSubmit={submit}>
-        <svg className="vsc-add__icon" viewBox="0 0 20 20" aria-hidden="true">
-          <path d="M8.5 11.5a3.5 3.5 0 0 0 5 0l2.5-2.5a3.5 3.5 0 0 0-5-5l-1 1M11.5 8.5a3.5 3.5 0 0 0-5 0L4 11a3.5 3.5 0 0 0 5 5l1-1" />
-        </svg>
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder={`Paste a TikTok, Reel, Short or any video link — it lands in ${def.label}`}
-          aria-label={`Link to add to ${def.label}`}
-          inputMode="url"
-          autoComplete="off"
-        />
-        <button type="submit" className="vsc-add__go" disabled={!draft.trim()}>
-          Add to {def.label}
-        </button>
-      </form>
-      <p className="vsc-tip">
-        Several links at once work · <kbd>Ctrl</kbd>+<kbd>V</kbd> anywhere · drag a link onto the board · <kbd>1</kbd>–<kbd>4</kbd> switch tabs ·{" "}
-        <kbd>Del</kbd> removes the tile you&apos;re on
-        {sound && !interacted ? <strong> · Click anywhere once so sound can play</strong> : null}
-      </p>
-
-      <section className="vsc-grid" aria-label={def.label} aria-live="polite">
-        {pendingHere.map((p) => (
-          <PendingTile key={p.tempId} pending={p} onCancel={() => cancelPending(p.tempId)} />
-        ))}
-        {visible.map((c) => (
-          <div key={c.id} id={`vsc-${c.id}`} className="vsc-cell">
-            <ClipTile
-              clip={c}
-              active={activeId === c.id}
-              sound={sound && interacted}
-              flash={flashId === c.id}
-              onEnter={() => enter(c.id)}
-              onLeave={() => leave(c.id)}
-              onToggle={() => setActiveId((a) => (a === c.id ? null : c.id))}
-              onDelete={() => deleteClip(c.id)}
+          <form className="vsc-paste" onSubmit={submit}>
+            <svg className="vsc-paste__icon" viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M8.6 11.4a3.4 3.4 0 0 0 4.8 0l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-.9.9M11.4 8.6a3.4 3.4 0 0 0-4.8 0L4.2 11a3.4 3.4 0 0 0 4.8 4.8l.9-.9" />
+            </svg>
+            <input
+              ref={inputRef}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder={`Paste a TikTok, Reel, Short or post link`}
+              aria-label={`Link to add to ${def.label}`}
+              inputMode="url"
+              autoComplete="off"
+              spellCheck={false}
             />
-          </div>
-        ))}
+            <button type="submit" className="vsc-paste__go" disabled={!draft.trim()}>
+              Add<span className="vsc-paste__to"> to {def.label}</span>
+            </button>
+          </form>
+          <p className="vsc-hero__tip">
+            Several links at once work. Or press <kbd>{mod}</kbd>
+            <kbd>V</kbd> anywhere, or drop a link on the page.
+            {sound && !interacted ? <strong> Click once anywhere so clips can play with sound.</strong> : null}
+          </p>
+        </div>
       </section>
 
-      {empty && (
-        <div className="vsc-empty">
-          <TabIcon tab={tab} />
-          <h2>Nothing in {def.label} yet</h2>
-          <p>Paste a link above, or drop one anywhere on this page. It lands here, plays when you hover it, and one tap on × removes it.</p>
+      <section className="vsc-wall" aria-label={`${def.label} clips`}>
+        {(visible.length > 0 || pendingHere.length > 0) && (
+          <div className="vsc-wall__head">
+            <h2>Newest first</h2>
+            <p>Hover to watch · <kbd>Del</kbd> removes the one you&apos;re on</p>
+          </div>
+        )}
+
+        <div className="vsc-grid" aria-live="polite">
+          {pendingHere.map((p) => (
+            <PendingTile key={p.tempId} pending={p} onCancel={() => cancelPending(p.tempId)} />
+          ))}
+          {visible.map((c) => (
+            <div key={c.id} id={`vsc-${c.id}`} className="vsc-cell">
+              <ClipTile
+                clip={c}
+                active={activeId === c.id}
+                sound={sound && interacted}
+                flash={flashId === c.id}
+                onEnter={() => enter(c.id)}
+                onLeave={() => leave(c.id)}
+                onToggle={() => setActiveId((a) => (a === c.id ? null : c.id))}
+                onDelete={() => deleteClip(c.id)}
+              />
+            </div>
+          ))}
         </div>
-      )}
-      {!ready && <p className="vsc-loading">Opening…</p>}
+
+        {empty && (
+          <div className="vsc-empty">
+            <h2>Nothing in {def.label} yet.</h2>
+            <p>
+              Paste a link above and it lands here, newest first. Hover a clip to watch it in colour; the × on its corner removes it.
+            </p>
+            <button type="button" className="vsc-empty__go" onClick={() => inputRef.current?.focus()}>
+              Paste your first link
+            </button>
+          </div>
+        )}
+        {!ready && <p className="vsc-loading">Opening…</p>}
+      </section>
 
       {dropping && (
         <div className="vsc-drop" aria-hidden="true">
-          <span>Drop to add to {def.label}</span>
+          <p>
+            Drop to add to <strong>{def.label}</strong>
+          </p>
         </div>
       )}
 
