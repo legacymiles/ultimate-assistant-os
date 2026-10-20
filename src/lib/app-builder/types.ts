@@ -147,6 +147,45 @@ export interface Handoff {
   cards?: { number: number; url?: string; title: string }[];
 }
 
+/** One approved client edit, with where the client pointed. */
+export interface ClientEditItem {
+  /** The feature it became on the list. */
+  featureId: string;
+  requestId: string;
+  /** What gets built (the owner's rewording when there is one). */
+  text: string;
+  /** The client's own words, when the owner reworded them. */
+  clientText?: string;
+  /** Where on the visible screen, as fractions, and the screen's width in px. */
+  pin?: { x: number; y: number; viewport: number };
+}
+
+/**
+ * An App Builder project that came from Client Review: approved edits to a
+ * client's existing site, built on a branch of their repo and posted back to
+ * their review link as the next version.
+ */
+export interface ClientEdit {
+  reviewId: string;
+  batchId: string;
+  siteName: string;
+  clientName: string;
+  /** The version the client asked against, and its address. */
+  fromVersion: string;
+  fromUrl: string;
+  /** The version being built. */
+  version: string;
+  versionId: string;
+  repo?: string;
+  vercelProject?: string;
+  /** Branch from this (the branch on the client's screen, or main); build on that. */
+  baseBranch: string;
+  branch: string;
+  /** The owner's approved build brief. */
+  brief: string;
+  items: ClientEditItem[];
+}
+
 export interface BuilderProject {
   id: string;
   createdAt: string;
@@ -168,7 +207,9 @@ export interface BuilderProject {
   /** Which engine wrote the last agent step. */
   engine?: "ai" | "offline";
   /** Where the request came from. */
-  origin?: "app" | "chat" | "autopilot";
+  origin?: "app" | "chat" | "autopilot" | "client-review";
+  /** Set when this is a client edit from Client Review rather than a new app. */
+  edit?: ClientEdit;
   /** Handed over from Jarvis chat and not started yet: App Builder starts it on open. */
   pending?: boolean;
 }

@@ -28,7 +28,8 @@ export const INSTRUCTIONS =
   "The owner's In Queue is here too: requests they typed for you, filed by app, workflow or skill. " +
   "When asked to work the queue, call queue_list, queue_start the one you take, and when it is finished and verified call queue_complete — " +
   "that removes it from their queue. Whenever you finish any work, check queue_list for a request it satisfies and complete that too. " +
-  "Never complete a request that is not actually done; queue_note the blocker instead.";
+  "Never complete a request that is not actually done; queue_note the blocker instead. " +
+  "A \"Client edit\" request ends with client_review_preview (posts the preview to the client), then queue_complete.";
 
 export interface ToolDef {
   name: string;
@@ -200,6 +201,25 @@ export const TOOLS: ToolDef[] = [
         video: { type: "boolean", description: "True when you uploaded its video with queue_video_link's commands." },
       },
       required: ["id"],
+    },
+  },
+  {
+    name: "client_review_preview",
+    description:
+      "Post a finished client edit to Client Review: the Vercel preview of the branch you built becomes the new version on the client's screen and the client is notified. " +
+      "Use it for In Queue requests that start with \"Client edit\" (App Builder, folder app:app-builder), after the edits are verified at their pinned spots, the branch is pushed, the pull request is open (never merged — the owner merges to go live) and the preview opens without a login. " +
+      "review_id and version_id are in the request. Then call queue_complete.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        review_id: { type: "string", description: "The Client Review project id (crp_…), from the request." },
+        version_id: { type: "string", description: "The version being built (ver_…), from the request." },
+        preview_url: { type: "string", description: "The Vercel preview URL for the branch — must open without a Vercel login." },
+        pr_url: { type: "string", description: "The pull request that puts it live when the owner merges it." },
+        branch: { type: "string", description: "The branch the edits are on." },
+        summary: { type: "string", description: "What changed, in plain words the client will read (one line per edit)." },
+      },
+      required: ["review_id", "version_id", "preview_url"],
     },
   },
 ];

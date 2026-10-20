@@ -15,6 +15,27 @@ export function Pipeline({ project }: { project: BuilderProject | null }) {
   const t = tally(project?.features ?? []);
   const hasFeatures = project?.stage === "features";
   const watched = Boolean(project?.teardown || project?.sources?.length);
+  if (project?.edit) {
+    const queued = Boolean(project.handoff?.queueId);
+    const edit = [
+      { skill: "felix", label: "Felix", state: "done", note: "end goal first" },
+      { skill: "prompt-enhancer", label: "Prompt enhancer", state: t.accepted ? "done" : "now", note: "exact changes" },
+      { skill: "interactive-web-studio", label: "Match the site", state: "done", note: "no redesign" },
+      { skill: "claude-security", label: "Claude Security", state: queued ? "now" : "wait", note: "scan the diff" },
+      { skill: "client_review_preview", label: "Preview → client", state: queued ? "now" : "wait", note: project.edit.version },
+    ];
+    return (
+      <ol className="ab-pipeline" aria-label="What this client edit runs">
+        {edit.map((s) => (
+          <li key={s.skill} className={`ab-step is-${s.state}`} title={s.skill}>
+            <span className="ab-step-dot" aria-hidden />
+            <span className="ab-step-label">{s.label}</span>
+            <span className="ab-step-note">{s.note}</span>
+          </li>
+        ))}
+      </ol>
+    );
+  }
   const steps = [
     ...(watched
       ? [{ skill: "reverse-engineer-anything", label: "Reverse engineer", state: project?.teardown ? "done" : "now", note: "rea + video-analyzer" }]
@@ -73,6 +94,7 @@ export function Blueprint({
   return (
     <section className="ab-blueprint" aria-label="Blueprint and hand-off">
       {(project.teardown || project.sources?.length) && <Recording project={project} />}
+      {project.edit && <ClientEditPanel project={project} />}
       <div className="ab-purpose">
         <div className="ab-purpose-top">
           {naming ? (
@@ -137,7 +159,13 @@ export function Blueprint({
 
       <div className="ab-launch">
         <button className="ab-primary ab-build" disabled={!t.accepted || busy !== null} onClick={onQueue}>
-          {busy === "queue" ? "Queuing…" : project.handoff?.queueId ? "Queue the build again" : `Build it · ${t.accepted} feature${t.accepted === 1 ? "" : "s"}`}
+          {busy === "queue"
+            ? "Queuing…"
+            : project.handoff?.queueId
+              ? "Queue the build again"
+              : project.edit
+                ? `Build ${t.accepted} edit${t.accepted === 1 ? "" : "s"} · ${project.edit.version}`
+                : `Build it · ${t.accepted} feature${t.accepted === 1 ? "" : "s"}`}
           <span aria-hidden>→</span>
         </button>
         <p className="ab-launch-note">
@@ -146,7 +174,9 @@ export function Blueprint({
               ? `${t.proposed} still open — undecided features are left out.`
               : "Every feature decided."
             : "Accept at least one feature to build."}{" "}
-          Claude Code on your PC/VPS picks it up from In Queue and runs the whole pipeline.
+          {project.edit
+            ? `Claude Code builds them on ${project.edit.branch}, opens a pull request for you to merge, and posts the preview to ${project.edit.clientName || "the client"}'s review link.`
+            : "Claude Code on your PC/VPS picks it up from In Queue and runs the whole pipeline."}
         </p>
         <div className="ab-launch-row">
           <button className="ab-ghost" disabled={!t.accepted || busy !== null} onClick={onCards}>
@@ -179,7 +209,7 @@ export function Blueprint({
         <details className="ab-skills">
           <summary>The pipeline this build runs</summary>
           <ol>
-            {pipeline(u, project.teardown, Boolean(project.sources?.length)).map((s) => (
+            {pipeline(u, project.teardown, Boolean(project.sources?.length), Boolean(project.edit)).map((s) => (
               <li key={s.skill}>
                 <code>{s.skill}</code> — {s.role}
               </li>
@@ -244,6 +274,51 @@ export function Recording({ project }: { project: BuilderProject }) {
       ) : (
         <p className="ab-rec-summary ab-rec-faint">Not watched yet — the frames go with the build so Claude Code on your PC can take it apart.</p>
       )}
+    </div>
+  );
+}
+
+/** A client edit from Client Review: whose site, which version, where it builds. */
+export function ClientEditPanel({ project }: { project: BuilderProject }) {
+  const e = project.edit!;
+  return (
+    <div className="ab-recording ab-edit">
+      <div className="ab-rec-head">
+        <span className="ab-rec-title">
+          Client edit · {e.fromVersion ? `${e.fromVersion} → ` : ""}
+          {e.version}
+        </span>
+        <span className="ab-rec-sub">from Client Review · {e.clientName || "client"}</span>
+      </div>
+      <dl className="ab-facts">
+        <div>
+          <dt>Repo</dt>
+          <dd>{e.repo ? <code>{e.repo}</code> : <span className="is-warn">Not set — add it in Client Review</span>}</dd>
+        </div>
+        <div>
+          <dt>Branch</dt>
+          <dd>
+            <code>{e.branch}</code> off <code>{e.baseBranch}</code>
+          </dd>
+        </div>
+        {e.fromUrl && (
+          <div>
+            <dt>Client sees</dt>
+            <dd>
+              <a href={e.fromUrl} target="_blank" rel="noreferrer">
+                {e.fromUrl}
+              </a>
+            </dd>
+          </div>
+        )}
+        <div>
+          <dt>Goes live</dt>
+          <dd>When you merge the pull request. The preview goes to the client first.</dd>
+        </div>
+      </dl>
+      <a className="ab-ghost ab-edit-back" href="/apps/client-review">
+        Open Client Review ↗
+      </a>
     </div>
   );
 }

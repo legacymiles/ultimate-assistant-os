@@ -104,6 +104,47 @@ function cleanPin(raw: unknown): RequestPin | undefined {
   };
 }
 
+/**
+ * The client's GitHub repo as "owner/name". Takes what people paste — the
+ * repo page, the clone URL, "owner/name" — and refuses anything else, because
+ * Claude Code clones and pushes to exactly this string.
+ */
+export function cleanRepo(raw: unknown): string | undefined {
+  const s = typeof raw === "string" ? raw.trim() : "";
+  if (!s) return undefined;
+  const m =
+    /^(?:https?:\/\/)?(?:www\.)?github\.com[/:]([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?(?:[?#].*)?$/i.exec(s) ??
+    /^git@github\.com:([\w.-]+)\/([\w.-]+?)(?:\.git)?$/i.exec(s) ??
+    /^([\w.-]+)\/([\w.-]+?)(?:\.git)?$/.exec(s);
+  if (!m || m[1].startsWith(".") || m[2].startsWith(".")) {
+    throw new ReviewError("Add the repo as owner/name — for example legacymiles/glow-spa-site — or paste its GitHub link.");
+  }
+  return `${m[1]}/${m[2]}`;
+}
+
+/** The Vercel project's name (or its dashboard link, which ends in it). */
+export function cleanVercelProject(raw: unknown): string | undefined {
+  const s = typeof raw === "string" ? raw.trim() : "";
+  if (!s) return undefined;
+  const fromUrl = /vercel\.com\/[\w.-]+\/([\w.-]+)/i.exec(s)?.[1];
+  const name = (fromUrl ?? s).toLowerCase();
+  if (!/^[a-z0-9][a-z0-9._-]{0,99}$/.test(name)) {
+    throw new ReviewError("Add the Vercel project's name — the one in its dashboard link (vercel.com/<team>/<project>).");
+  }
+  return name;
+}
+
+/** A branch name a git host will take: "jarvis/glow-spa-v3". */
+export function branchFor(p: Pick<ClientProject, "name">, versionNumber: string): string {
+  const slug =
+    p.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "site";
+  return `jarvis/${slug}-${versionNumber.toLowerCase().replace(/[^a-z0-9.]+/g, "")}`;
+}
+
 export function cleanLane(raw: unknown): ContentLane {
   return raw === "standard" || raw === "uncensored" ? raw : "auto";
 }
@@ -149,6 +190,8 @@ export interface NewProjectInput {
   lane?: unknown;
   timelineProjectId?: unknown;
   inviteEmail?: unknown;
+  repo?: unknown;
+  vercelProject?: unknown;
 }
 
 export function createProject(input: NewProjectInput, now = new Date().toISOString()): ClientProject {
@@ -173,6 +216,8 @@ export function createProject(input: NewProjectInput, now = new Date().toISOStri
       typeof input.timelineProjectId === "string" && input.timelineProjectId ? input.timelineProjectId : undefined,
     lane: cleanLane(input.lane),
     inviteEmail: cleanEmail(input.inviteEmail),
+    repo: cleanRepo(input.repo),
+    vercelProject: cleanVercelProject(input.vercelProject),
     versions: [v1],
     requests: [],
     batches: [],
@@ -328,6 +373,8 @@ export function updateProjectMeta(
     timelineProjectId?: unknown;
     archived?: unknown;
     inviteEmail?: unknown;
+    repo?: unknown;
+    vercelProject?: unknown;
   },
   now = new Date().toISOString(),
 ): ClientProject {
@@ -341,6 +388,8 @@ export function updateProjectMeta(
   }
   if (patch.archived !== undefined) p.archived = patch.archived === true;
   if (patch.inviteEmail !== undefined) p.inviteEmail = cleanEmail(patch.inviteEmail);
+  if (patch.repo !== undefined) p.repo = cleanRepo(patch.repo);
+  if (patch.vercelProject !== undefined) p.vercelProject = cleanVercelProject(patch.vercelProject);
   return touch(p, now);
 }
 
@@ -575,6 +624,7 @@ export function markVersionReady(
   if (typeof input.summary === "string" && input.summary.trim()) v.summary = input.summary.trim().slice(0, 4000);
   v.status = "review";
   v.readyAt = now;
+  v.shippedBy = v.shippedBy ?? "owner";
   for (const other of p.versions) if (other.id !== v.id && other.status === "review") other.status = "superseded";
 
   const shipped = new Set(p.batches.filter((b) => b.nextVersionId === v.id).flatMap((b) => b.requestIds));
@@ -582,6 +632,67 @@ export function markVersionReady(
 
   pushNotice(p, `${v.number} is ready`, `Your updated website is ready to review. Open your link to see ${v.number}.`, now);
   return { project: touch(p, now), version: v };
+}
+
+// ----- App Builder: approved edits built without the owner ------------------------
+
+/** Record that an approved batch was handed to App Builder and queued. */
+export function noteBuild(
+  src: ClientProject,
+  input: { batchId: unknown; builderId: unknown; queueId?: unknown },
+  now = new Date().toISOString(),
+): ClientProject {
+  const p = clone(src);
+  const b = p.batches.find((x) => x.id === input.batchId);
+  if (!b) throw new ReviewError("That batch no longer exists.", 404);
+  if (b.status !== "approved" || !b.nextVersionId) throw new ReviewError("Approve the batch before building it.", 409);
+  if (typeof input.builderId !== "string" || !input.builderId) throw new ReviewError("No App Builder project was given.");
+  b.build = {
+    builderId: input.builderId.slice(0, 80),
+    queueId: typeof input.queueId === "string" && input.queueId ? input.queueId.slice(0, 80) : b.build?.queueId,
+    at: now,
+  };
+  return touch(p, now);
+}
+
+/** The branch the next build starts from: the version on the client's screen, or main. */
+export function baseBranchFor(p: ClientProject): string {
+  return currentVersion(p)?.branch || "main";
+}
+
+/**
+ * Claude Code finished an approved batch: post the preview it deployed as the
+ * version being built, so the client is told and sees it on their link.
+ *
+ * Calling it twice with the same URL is harmless (a retried tool call); a
+ * version that has already moved on is refused, so an old build can never
+ * replace a newer one on the client's screen.
+ */
+export function shipPreview(
+  src: ClientProject,
+  input: { versionId: unknown; siteUrl: unknown; prUrl?: unknown; branch?: unknown; summary?: unknown },
+  now = new Date().toISOString(),
+): { project: ClientProject; version: ReviewVersion; already: boolean } {
+  const v = src.versions.find((x) => x.id === input.versionId);
+  if (!v) throw new ReviewError("No version with that id in this project — check version_id in the queue request.", 404);
+  const url = cleanUrl(input.siteUrl);
+  if (!url) throw new ReviewError("Give the preview's address (preview_url).");
+  if (v.status !== "building") {
+    if (v.siteUrl === url) return { project: src, version: v, already: true };
+    throw new ReviewError(
+      `${v.number} isn't being built any more (it's ${v.status === "review" ? "already on the client's screen" : "superseded by a newer version"}), so this preview was not posted.`,
+      409,
+    );
+  }
+  const prUrl = typeof input.prUrl === "string" && input.prUrl.trim() ? cleanUrl(input.prUrl) : undefined;
+  const branch =
+    typeof input.branch === "string" && /^[\w./-]{1,120}$/.test(input.branch.trim()) ? input.branch.trim() : undefined;
+  const out = markVersionReady(src, { versionId: v.id, siteUrl: url, summary: input.summary }, now);
+  const shipped = out.project.versions.find((x) => x.id === v.id)!;
+  shipped.prUrl = prUrl ?? shipped.prUrl;
+  shipped.branch = branch ?? shipped.branch;
+  shipped.shippedBy = "claude-code";
+  return { project: out.project, version: shipped, already: false };
 }
 
 /** Add a version by hand (the owner shipped something without a request batch). */
@@ -616,7 +727,17 @@ export function portalView(p: ClientProject, vapidPublicKey: string | null): Por
   return {
     name: p.name,
     clientName: p.clientName,
-    versions: sortVersions(p.versions).filter((v) => v.siteUrl || v.status === "building"),
+    versions: sortVersions(p.versions)
+      .filter((v) => v.siteUrl || v.status === "building")
+      .map((v) => ({
+        id: v.id,
+        number: v.number,
+        siteUrl: v.siteUrl,
+        summary: v.summary,
+        status: v.status,
+        createdAt: v.createdAt,
+        readyAt: v.readyAt,
+      })),
     currentVersionId: current?.id ?? null,
     buildingVersionId: building?.id ?? null,
     requests: p.requests.map((r) => ({

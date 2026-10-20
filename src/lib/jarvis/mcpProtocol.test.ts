@@ -29,6 +29,7 @@ describe("mcp protocol", () => {
     const res = await handleRpc({ jsonrpc: "2.0", id: 2, method: "tools/list" }, noop);
     const tools = (res?.result as { tools: typeof TOOLS }).tools;
     expect(tools.map((t) => t.name).sort()).toEqual([
+      "client_review_preview",
       "delete_memory",
       "get_skill",
       "list_recent",

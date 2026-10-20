@@ -34,6 +34,15 @@ export interface ReviewVersion {
   createdAt: string;
   /** When the owner marked it ready for the client. */
   readyAt?: string;
+  /**
+   * Built by App Builder from a client edit batch: the branch it lives on in
+   * the client's repo and the pull request that puts it live once the owner
+   * merges it. Owner-only — never sent to the client.
+   */
+  branch?: string;
+  prUrl?: string;
+  /** Who posted the URL: the owner by hand, or Claude Code through the connector. */
+  shippedBy?: "owner" | "claude-code";
 }
 
 /**
@@ -86,6 +95,17 @@ export interface RequestBatch {
   decidedAt?: string;
   /** The version this batch opened when it was approved. */
   nextVersionId?: string;
+  /** Handed to App Builder and queued for Claude Code. */
+  build?: BatchBuild;
+}
+
+/** Where an approved batch went to be built. */
+export interface BatchBuild {
+  /** The App Builder project made from it. */
+  builderId: string;
+  /** The In Queue request Claude Code picks up. */
+  queueId?: string;
+  at: string;
 }
 
 export interface ClientSettings {
@@ -118,6 +138,13 @@ export interface ClientProject {
   /** Projects Timeline project this mirrors into, when linked. */
   timelineProjectId?: string;
   /**
+   * Where the client's site lives, so approved edits can be built without the
+   * owner: the GitHub repo ("owner/name") and the Vercel project that deploys
+   * it (a preview per branch). Set once per client.
+   */
+  repo?: string;
+  vercelProject?: string;
+  /**
    * Who may open the link. The client signs in with their Jarvis account
    * (Google); the first account to open it claims it, and after that only that
    * account (and the owner) can. `inviteEmail`, when the owner set one, is the
@@ -140,7 +167,7 @@ export interface ClientProject {
 }
 
 /** What the owner's dashboard is told about. */
-export type AdminEventKind = "batch_sent" | "request_added" | "notify_on" | "claimed";
+export type AdminEventKind = "batch_sent" | "request_added" | "notify_on" | "claimed" | "preview_sent";
 
 export interface AdminEvent {
   id: string;
@@ -182,10 +209,13 @@ export interface PortalRequest {
   adminNote?: string;
 }
 
+/** A version as the client sees it: no branch, no pull request. */
+export type PortalVersion = Pick<ReviewVersion, "id" | "number" | "siteUrl" | "summary" | "status" | "createdAt" | "readyAt">;
+
 export interface PortalView {
   name: string;
   clientName: string;
-  versions: ReviewVersion[];
+  versions: PortalVersion[];
   /** The version the client is looking at: the newest one with a URL. */
   currentVersionId: string | null;
   /** A version being built right now, if any. */

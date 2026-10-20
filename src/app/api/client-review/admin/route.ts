@@ -5,8 +5,8 @@ import {
   addVersion,
   approveBatch,
   createProject,
-  dropPushSubs,
   markVersionReady,
+  noteBuild,
   rejectBatch,
   releaseClaim,
   removeFromIndex,
@@ -17,7 +17,8 @@ import {
   updateProjectMeta,
   upsertIndex,
 } from "@/lib/client-review/logic";
-import { pushToClient, vapidPublicKey } from "@/lib/client-review/push";
+import { vapidPublicKey } from "@/lib/client-review/push";
+import { tell } from "@/lib/client-review/ship";
 import { lanePlan } from "@/lib/client-review/routing";
 import {
   deleteProjectDoc,
@@ -28,7 +29,7 @@ import {
   updateProject,
   writeProject,
 } from "@/lib/client-review/store";
-import type { ClientNotice, ClientProject } from "@/lib/client-review/types";
+import type { ClientProject } from "@/lib/client-review/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,21 +89,6 @@ export async function GET(req: Request) {
   }
 }
 
-/** Push the newest notice to the client's devices, and forget any that are gone. */
-async function tell(p: ClientProject, notice: ClientNotice | undefined, origin: string): Promise<ClientProject> {
-  if (!notice) return p;
-  const { gone } = await pushToClient(p, {
-    title: notice.title,
-    body: notice.body,
-    url: `${origin}/apps/client-review?site=${p.token}`,
-    tag: `client-review-${p.id}`,
-  });
-  if (!gone.length) return p;
-  const next = dropPushSubs(p, gone);
-  await writeProject(next).catch(() => {});
-  return next;
-}
-
 export async function POST(req: Request) {
   let body: Record<string, unknown>;
   try {
@@ -124,6 +110,8 @@ export async function POST(req: Request) {
           lane: body.lane,
           timelineProjectId: body.timelineProjectId,
           inviteEmail: body.inviteEmail,
+          repo: body.repo,
+          vercelProject: body.vercelProject,
         });
         await writeProject(p);
         await updateIndex((i) => upsertIndex(i, p));
@@ -216,6 +204,15 @@ export async function POST(req: Request) {
         const told = live ? await tell(project, project.notices.at(-1), origin) : project;
         await updateIndex((i) => upsertIndex(i, told));
         return NextResponse.json({ project: told, version: result });
+      }
+
+      // App Builder made a project from an approved batch and queued it.
+      case "buildQueued": {
+        const { project } = await updateProject(id, (p) => ({
+          project: noteBuild(p, { batchId: body.batchId, builderId: body.builderId, queueId: body.queueId }),
+          result: null,
+        }));
+        return NextResponse.json({ project });
       }
 
       case "dismissEvents": {

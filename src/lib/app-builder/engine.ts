@@ -19,6 +19,7 @@
 // ---------------------------------------------------------------------------
 
 import { CHECKLIST, type BoardTicket } from "../new-jarvis/felix";
+import { EDIT_CHECKLIST, editMasterPrompt, editPipeline, editQueueText } from "./clientEdit";
 import {
   APP_TYPE_LABEL,
   KIND_LABEL,
@@ -931,7 +932,13 @@ export const OFFLINE_HELP = HELP;
 // ----- the hand-off -------------------------------------------------------------------------
 
 /** The always-on skill pipeline, in the order the build runs it. */
-export function pipeline(u: Understanding, t?: Teardown | null, recorded = false): { skill: string; role: string }[] {
+export function pipeline(
+  u: Understanding,
+  t?: Teardown | null,
+  recorded = false,
+  isEdit = false,
+): { skill: string; role: string }[] {
+  if (isEdit) return editPipeline();
   const mode = t?.mode ?? "recreate";
   const re = t || recorded
     ? [
@@ -954,7 +961,8 @@ export function pipeline(u: Understanding, t?: Teardown | null, recorded = false
 }
 
 /** The checklist lines this build is held to. */
-export function checklistLines(p: Pick<BuilderProject, "answers" | "features" | "understanding">) {
+export function checklistLines(p: Pick<BuilderProject, "answers" | "features" | "understanding" | "edit">) {
+  if (p.edit) return CHECKLIST.filter((c) => EDIT_CHECKLIST.includes(c.id));
   const ids = new Set(["R1", "R2", "R3", "R4", "R6", "D5", "U1", "U2", "S1", "S4", "O1", "O6", "O7", "U4", "U6", "A1", "R5"]);
   const touches = asText(p.answers.touches).toLowerCase();
   const audience = p.understanding?.audience ?? asText(p.answers.audience);
@@ -974,6 +982,7 @@ const byImpact = (a: Feature, b: Feature) => b.impact - a.impact || KINDS.indexO
  * context, the owner's features their way, the bar, the pipeline, the judge).
  */
 export function masterPrompt(p: BuilderProject): string {
+  if (p.edit) return editMasterPrompt(p);
   const u = p.understanding ?? understand(p.idea, p.answers);
   const accepted = p.features.filter((f) => f.status === "accepted").sort(byImpact);
   const denied = p.features.filter((f) => f.status === "denied");
@@ -1010,6 +1019,7 @@ export const QUEUE_LIMIT = 4000;
 
 /** The short brief the PC/VPS Claude Code picks up from In Queue. Always under QUEUE_LIMIT. */
 export function queueText(p: BuilderProject): string {
+  if (p.edit) return editQueueText(p);
   const u = p.understanding ?? understand(p.idea, p.answers);
   const accepted = p.features.filter((f) => f.status === "accepted").sort(byImpact);
   const denied = p.features.filter((f) => f.status === "denied");

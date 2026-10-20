@@ -29,14 +29,14 @@ import {
   mergeTeardown,
   newId,
   newProject,
-  queueText,
 } from "./engine";
+import { noteBuildInReview, postToQueue, QUEUE_FOLDER } from "./queue";
 import { dropMedia, getMedia } from "./inbox";
 import { forWire, keyframesOf, type PreparedMedia } from "./media";
 import type { Answers, BuilderProject, Feature, FeatureOp, MediaSource, Question, Teardown, Understanding } from "./types";
 
 export const STORE_KEY = "app-builder:v1";
-export const QUEUE_FOLDER = "app:app-builder";
+export { QUEUE_FOLDER };
 
 export interface Store {
   projects: BuilderProject[];
@@ -339,20 +339,8 @@ export function useAppBuilder() {
       run("queue", async () => {
         const p = find(storeRef.current.currentId ?? "");
         if (!p) return;
-        const res = await fetch("/api/new-jarvis/requests", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "add",
-            folder: QUEUE_FOLDER,
-            text: queueText(p),
-            images: (p.keyframes ?? []).slice(0, 4),
-            from: "app-builder",
-          }),
-        }).catch(() => null);
-        const data = (await res?.json().catch(() => ({}))) as { added?: { id: string }[]; error?: string } | undefined;
-        if (!res || !res.ok) throw new Error(data?.error || "In Queue didn't take it. Sign in to Jarvis and try again.");
-        const id = data?.added?.[0]?.id;
+        const id = await postToQueue(p);
+        const noted = p.edit ? await noteBuildInReview(p, id) : false;
         const skills = `${p.teardown ? "video-analyzer, rea (reverse-engineer-anything), " : ""}felix, prompt-enhancer, ${p.understanding?.designSkill ?? "the design skill"}, software-factory and claude-security`;
         update(p.id, (x) => ({
           ...x,
@@ -361,7 +349,9 @@ export function useAppBuilder() {
             ...x.chat,
             chatMsg(
               "agent",
-              id
+              id && x.edit
+                ? `Queued as ${id}. Claude Code builds the ${x.edit.items.length} edit${x.edit.items.length === 1 ? "" : "s"} on ${x.edit.branch} in ${x.edit.repo ?? "the client's repo"}, opens a pull request for you to merge, and posts the preview to ${x.edit.clientName || "the client"}'s review link as ${x.edit.version}${noted ? "" : " (Client Review couldn't be updated — the build still runs)"}.`
+                : id
                 ? `Queued as ${id} in In Queue › App Builder${x.keyframes?.length ? `, with ${Math.min(4, x.keyframes.length)} frames from the recording` : ""}. Claude Code on your PC or VPS builds it the next time it works the queue ("work my Jarvis queue") — running ${skills}.`
                 : "That exact build is already in the queue.",
             ),

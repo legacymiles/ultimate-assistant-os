@@ -11,9 +11,15 @@
 //
 // Approving a batch also writes the new version and the brief into the linked
 // Projects Timeline project, so the timeline stays the one source of truth.
+//
+// With the client's GitHub repo set, "Approve & build" hands the batch to App
+// Builder (edit mode) and queues it for Claude Code, which builds it on a
+// branch, opens a pull request, and posts the Vercel preview back here as the
+// next version through the connector — the client is told with no URL pasted.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { buildClientEdit } from "@/lib/app-builder/fromClientReview";
 import { admin, type AdminState, type BriefOut } from "@/lib/client-review/client";
 import { buildText, currentVersion, plainBrief, sortVersions } from "@/lib/client-review/logic";
 import type { ClientProject, ContentLane, EditRequest, RequestBatch, ReviewVersion } from "@/lib/client-review/types";
@@ -469,6 +475,8 @@ function ProjectDetail({
             <span className="mt-1 block">Approved versions and briefs are added there.</span>
           </label>
         </div>
+
+        <SiteHome project={p} run={run} say={say} />
       </section>
 
       {/* waiting on you */}
@@ -661,24 +669,49 @@ function BatchCard({
         {briefInfo?.note && <p className="mt-1 text-[11.5px] text-amber-200">{briefInfo.note}</p>}
 
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <button
-            className="rounded-md bg-emerald-500/80 px-3 py-1.5 text-xs font-semibold text-black hover:bg-emerald-400 disabled:opacity-40"
-            disabled={!live || busy === "approve"}
-            onClick={async () => {
-              const out = await run<{ project: ClientProject; version: ReviewVersion; approved: EditRequest[] }>("approve", {
-                action: "approve",
-                id: p.id,
-                batchId: b.id,
-                brief,
-              });
-              if (!out) return;
-              const done = out.project.batches.find((x) => x.id === b.id);
-              const extra = await syncTimeline(out.project, out.version, done?.brief ?? brief, out.approved);
-              say(`Approved — ${out.version.number} is now building and ${p.clientName || "the client"} was told.${extra}`);
-            }}
-          >
-            {busy === "approve" ? "Approving…" : `Approve ${live} → next version`}
-          </button>
+          {(["build", "approve"] as const)
+            .filter((mode) => mode === "approve" || p.repo)
+            .map((mode) => (
+              <button
+                key={mode}
+                className={
+                  mode === "build" || !p.repo
+                    ? "rounded-md bg-emerald-500/80 px-3 py-1.5 text-xs font-semibold text-black hover:bg-emerald-400 disabled:opacity-40"
+                    : "rounded-md border border-emerald-500/40 px-2.5 py-1.5 text-xs text-emerald-200 disabled:opacity-40"
+                }
+                disabled={!live || busy === "approve" || busy === "buildQueued"}
+                title={mode === "build" ? `Approve, then Claude Code builds it in ${p.repo} and sends the preview to the client` : "Approve only — you build it and post the URL yourself"}
+                onClick={async () => {
+                  const out = await run<{ project: ClientProject; version: ReviewVersion; approved: EditRequest[] }>("approve", {
+                    action: "approve",
+                    id: p.id,
+                    batchId: b.id,
+                    brief,
+                  });
+                  if (!out) return;
+                  const done = out.project.batches.find((x) => x.id === b.id);
+                  const extra = await syncTimeline(out.project, out.version, done?.brief ?? brief, out.approved);
+                  if (mode === "approve") {
+                    say(`Approved — ${out.version.number} is now building and ${p.clientName || "the client"} was told.${extra}`);
+                    return;
+                  }
+                  const queued = await queueBuild(out.project, b.id, run);
+                  say(
+                    queued
+                      ? `Approved and queued — Claude Code builds ${out.version.number}, then ${p.clientName || "the client"} gets the preview on their link.${extra}`
+                      : `Approved — ${out.version.number} is building, but it couldn't be queued. Use “Build in App Builder” on ${out.version.number} below.${extra}`,
+                  );
+                }}
+              >
+                {busy === "approve" || busy === "buildQueued"
+                  ? "Approving…"
+                  : mode === "build"
+                    ? `Approve & build ${live} →`
+                    : p.repo
+                      ? "Approve only"
+                      : `Approve ${live} → next version`}
+              </button>
+            ))}
           <input
             className="min-w-0 flex-1 rounded-md border border-line bg-panel-2 px-2 py-1.5 text-xs outline-none"
             placeholder="Note to the client if you reject all of these (optional)"
@@ -790,11 +823,12 @@ function VersionRow({
       </div>
       <div className="min-w-0 space-y-1.5">
         {v.summary && <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-ink-muted">{v.summary}</p>}
+        {v.status === "building" && <BuildStatus project={p} version={v} busy={busy} run={run} say={say} />}
         {v.status === "building" ? (
           <div className="flex flex-wrap gap-2">
             <input
               className="min-w-0 flex-1 rounded-md border border-line bg-panel-2 px-2 py-1.5 text-xs outline-none focus:border-brand/60"
-              placeholder="https://… where this version is deployed"
+              placeholder={p.repo ? "…or paste the address yourself" : "https://… where this version is deployed"}
               value={url}
               onChange={(e) => setUrl(e.target.value)}
             />
@@ -814,6 +848,15 @@ function VersionRow({
             {v.siteUrl}
           </a>
         ) : null}
+        {v.prUrl && (
+          <p className="flex flex-wrap items-center gap-2 text-[11.5px]">
+            <span className="rounded bg-violet-400/15 px-1.5 py-0.5 text-violet-200">built by Claude Code</span>
+            {v.branch && <code className="text-ink-faint">{v.branch}</code>}
+            <a className="text-accent underline" href={v.prUrl} target="_blank" rel="noreferrer">
+              {current ? "Merge the pull request to put it live ↗" : "Pull request ↗"}
+            </a>
+          </p>
+        )}
         <p className="text-[11px] text-ink-faint">
           created {ago(v.createdAt)}
           {v.readyAt ? ` · shown to client ${ago(v.readyAt)}` : ""}
@@ -821,6 +864,117 @@ function VersionRow({
           {p.requests.filter((r) => r.versionId === v.id).length} requests on it
         </p>
       </div>
+    </div>
+  );
+}
+
+/** Queue an approved batch through App Builder and record it here. */
+async function queueBuild(project: ClientProject, batchId: string, run: Run): Promise<boolean> {
+  try {
+    const out = await buildClientEdit(project, batchId, { note: false });
+    const noted = await run("buildQueued", {
+      action: "buildQueued",
+      id: project.id,
+      batchId,
+      builderId: out.project.id,
+      queueId: out.queueId,
+    });
+    return Boolean(noted);
+  } catch {
+    return false;
+  }
+}
+
+/** Where the client's site lives — the two fields that let approved edits build themselves. */
+function SiteHome({ project: p, run, say }: { project: ClientProject; run: Run; say: (m: string) => void }) {
+  const ready = Boolean(p.repo);
+  return (
+    <div className="mt-3 rounded-md border border-line-soft bg-panel-2/60 p-2.5">
+      <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[11px]">
+        <span className="uppercase tracking-[0.12em] text-ink-faint">Where the site lives</span>
+        <span className={ready ? "text-emerald-300" : "text-ink-faint"}>
+          {ready ? "● Approved edits build themselves" : "○ Add the repo to build approved edits automatically"}
+        </span>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="block text-[11px] text-ink-faint">
+          GitHub repo
+          <InlineText
+            value={p.repo ?? ""}
+            placeholder="owner/name or the GitHub link"
+            className="mt-0.5 rounded-md border border-line font-mono text-[12px] text-ink"
+            onSave={async (repo) => {
+              if (await run("meta", { action: "meta", id: p.id, repo })) say(repo ? "Repo saved — approved edits now build themselves." : "Repo removed.");
+            }}
+          />
+        </label>
+        <label className="block text-[11px] text-ink-faint">
+          Vercel project
+          <InlineText
+            value={p.vercelProject ?? ""}
+            placeholder="project name (optional)"
+            className="mt-0.5 rounded-md border border-line font-mono text-[12px] text-ink"
+            onSave={(vercelProject) => run("meta", { action: "meta", id: p.id, vercelProject })}
+          />
+        </label>
+      </div>
+      <p className="mt-1.5 text-[11px] leading-snug text-ink-faint">
+        Approve &amp; build sends the edits to Claude Code, which makes them on a branch, opens a pull request for you to merge, and
+        posts the Vercel preview here as the next version — {p.clientName || "the client"} is notified. Previews must open without a
+        login: in Vercel › Settings › Deployment Protection, turn Vercel Authentication off.
+      </p>
+    </div>
+  );
+}
+
+/** On a version being built: where the build is, and the button that starts it. */
+function BuildStatus({
+  project: p,
+  version: v,
+  busy,
+  run,
+  say,
+}: {
+  project: ClientProject;
+  version: ReviewVersion;
+  busy: string;
+  run: Run;
+  say: (m: string) => void;
+}) {
+  const batch = p.batches.find((b) => b.nextVersionId === v.id && b.build) ?? p.batches.find((b) => b.nextVersionId === v.id);
+  if (!batch) return null;
+  const build = batch.build;
+  const appLink = build ? `/apps/app-builder?p=${encodeURIComponent(build.builderId)}` : "";
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-md bg-sky-500/10 px-2 py-1.5 text-[11.5px]">
+      {build ? (
+        <>
+          <span className="text-sky-200">
+            ● Queued for Claude Code {ago(build.at)}
+            {build.queueId ? <span className="text-ink-faint"> · {build.queueId}</span> : null}
+          </span>
+          <span className="text-ink-faint">— the preview comes back here and {p.clientName || "the client"} is told.</span>
+          <a className="ml-auto text-accent underline" href={appLink}>
+            Open in App Builder ↗
+          </a>
+        </>
+      ) : p.repo ? (
+        <>
+          <span className="text-ink-muted">Not sent to Claude Code yet.</span>
+          <button
+            className="ml-auto rounded-md border border-sky-400/50 bg-sky-400/20 px-2.5 py-1 text-[11.5px] text-sky-100 disabled:opacity-40"
+            disabled={busy === "buildQueued"}
+            onClick={async () => {
+              const ok = await queueBuild(p, batch.id, run);
+              say(ok ? `${v.number} queued — Claude Code builds it and sends the preview to ${p.clientName || "the client"}.` : "Couldn't queue it — check you're signed in to Jarvis and try again.");
+            }}
+          >
+            {busy === "buildQueued" ? "Queuing…" : "Build in App Builder →"}
+          </button>
+        </>
+      ) : (
+        <span className="text-ink-faint">Add the client&apos;s GitHub repo above to have Claude Code build this — or paste the address below when it&apos;s deployed.</span>
+      )}
     </div>
   );
 }
@@ -934,6 +1088,8 @@ function CreateDialog({
   const [summary, setSummary] = useState("");
   const [lane, setLane] = useState<ContentLane>("auto");
   const [timelineProjectId, setTimelineProjectId] = useState("");
+  const [repo, setRepo] = useState("");
+  const [vercelProject, setVercelProject] = useState("");
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
       <form
@@ -941,7 +1097,7 @@ function CreateDialog({
         onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
-          onCreate({ name, clientName, inviteEmail, siteUrl, summary, lane, timelineProjectId });
+          onCreate({ name, clientName, inviteEmail, siteUrl, summary, lane, timelineProjectId, repo, vercelProject });
         }}
       >
         <h2 className="text-base font-semibold">New client project</h2>
@@ -975,6 +1131,14 @@ function CreateDialog({
         <Field label="v1 website URL">
           <input className="w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm" value={siteUrl} onChange={(e) => setSiteUrl(e.target.value)} placeholder="https://glow-spa.vercel.app" />
         </Field>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Field label="GitHub repo (lets approved edits build themselves)">
+            <input className="w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 font-mono text-[13px]" value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="legacymiles/glow-spa-site" />
+          </Field>
+          <Field label="Vercel project (optional)">
+            <input className="w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 font-mono text-[13px]" value={vercelProject} onChange={(e) => setVercelProject(e.target.value)} placeholder="glow-spa-site" />
+          </Field>
+        </div>
         <Field label="What v1 is (optional)">
           <textarea className="h-16 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-sm" value={summary} onChange={(e) => setSummary(e.target.value)} />
         </Field>

@@ -30,6 +30,7 @@ import "./app-builder.css";
 type Pane = "features" | "chat" | "blueprint";
 
 const CHAT_CHIPS = ["More ideas like the best ones", "What would make people pay for this?", "What's missing for launch?", "Accept all"];
+const EDIT_CHIPS = ["Which of these edits are vague?", "What could these edits break on a phone?"];
 
 export function AppBuilder() {
   const ab = useAppBuilder();
@@ -67,7 +68,7 @@ export function AppBuilder() {
       chat={current?.chat ?? []}
       busy={busy === "chat"}
       onSay={(text, media) => ab.say(text, media)}
-      chips={stage === "features" ? CHAT_CHIPS : []}
+      chips={stage === "features" ? (current?.edit ? EDIT_CHIPS : CHAT_CHIPS) : []}
       placeholder={stage === "interview" ? "Tell the agent more, or attach another recording" : undefined}
     />
   );
@@ -88,7 +89,7 @@ export function AppBuilder() {
             {ab.projects.map((p) => (
               <option key={p.id} value={p.id}>
                 {(p.understanding?.name ?? p.idea).slice(0, 40)}
-                {p.origin === "chat" ? " · from chat" : p.origin === "autopilot" ? " · from camera" : ""}
+                {p.edit ? ` · ${p.edit.version} client edit` : p.origin === "chat" ? " · from chat" : p.origin === "autopilot" ? " · from camera" : ""}
               </option>
             ))}
           </select>
@@ -112,7 +113,7 @@ export function AppBuilder() {
               <b className="is-yes">{t.accepted}</b> in · <b className="is-open">{t.proposed}</b> open · <b className="is-no">{t.denied}</b> out
             </span>
             <button className="ab-primary-sm" disabled={!t.accepted || busy !== null} onClick={ab.sendToQueue}>
-              {busy === "queue" ? "Queuing…" : "Build it →"}
+              {busy === "queue" ? "Queuing…" : current.edit ? (current.handoff?.queueId ? "Queue again →" : "Build edits →") : "Build it →"}
             </button>
           </div>
         )}
@@ -192,7 +193,7 @@ export function AppBuilder() {
             <section className={`ab-col ab-col-main${pane === "features" ? " is-pane" : ""}`}>
               <div className="ab-orbit-wrap">
                 <div className="ab-orbit-label">
-                  <span>{APP_TYPE_LABEL[current.understanding.appType]}</span>
+                  <span>{current.edit ? `Client edits · ${current.edit.version}` : APP_TYPE_LABEL[current.understanding.appType]}</span>
                   <span className="ab-orbit-hint">Drag a feature into the core to accept · fling it out to deny · tap to see it</span>
                 </div>
                 <Orbit features={current.features} name={name} selectedId={selected} hoverId={hover} {...orbitProps} />

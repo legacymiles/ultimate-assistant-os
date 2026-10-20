@@ -39,6 +39,8 @@ import {
 import { readRequests, updateRequests } from "@/lib/new-jarvis/server/requestsStore";
 import { folderName } from "@/lib/new-jarvis/server/requestsAuth";
 import { videoUploadLink } from "@/lib/new-jarvis/server/requestVideo";
+import { ReviewError } from "@/lib/client-review/logic";
+import { shipPreviewNow } from "@/lib/client-review/ship";
 
 export const runtime = "nodejs";
 // Embedding plus a Supabase round trip can outrun the default on a cold start.
@@ -141,6 +143,30 @@ async function runTool(
         `# ${sk.name}${sk.complete ? "" : " (summary only — the full skill has not been saved to Jarvis yet)"}\n\n${sk.body}` +
         (refs.length ? `\n\n---\nReference files:\n${refs.map(([k, v]) => `\n=== ${k} ===\n${v}`).join("\n")}` : "")
       );
+    }
+
+    case "client_review_preview": {
+      try {
+        const out = await shipPreviewNow(
+          {
+            reviewId: str(args.review_id),
+            versionId: str(args.version_id),
+            siteUrl: str(args.preview_url),
+            prUrl: str(args.pr_url) || undefined,
+            branch: str(args.branch) || undefined,
+            summary: str(args.summary) || undefined,
+          },
+          origin,
+        );
+        const who = out.project.clientName || "the client";
+        return out.already
+          ? `${out.version.number} already shows that preview — nothing changed. Call queue_complete if you haven't.`
+          : `Posted: ${out.version.number} (${out.version.siteUrl}) is now on ${who}'s Client Review link and they were notified. ` +
+              `It goes live when the owner merges ${out.version.prUrl ?? "the pull request"}. Now call queue_complete.`;
+      } catch (e) {
+        if (e instanceof ReviewError) return `Not posted: ${e.message}`;
+        throw e;
+      }
     }
 
     case "delete_memory": {

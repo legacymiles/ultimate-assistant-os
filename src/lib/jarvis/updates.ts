@@ -586,15 +586,22 @@ export interface ClientReviewEvent {
 /** A client sent edit requests (or switched on notifications) on their review link. */
 export function clientUpdates(events: ClientReviewEvent[], now: number): JarvisUpdate[] {
   return events
-    .filter((e) => e.kind === "batch_sent" || e.kind === "notify_on")
+    .filter((e) => e.kind === "batch_sent" || e.kind === "notify_on" || e.kind === "preview_sent")
     .map((e) => ({
       id: `clients:${e.id}`,
       source: "clients" as const,
       title:
         e.kind === "batch_sent"
           ? `${e.clientName || e.projectName} sent edit requests`
-          : `${e.clientName || e.projectName} turned on notifications`,
-      detail: e.kind === "batch_sent" ? `${e.detail} · ${e.projectName} — waiting for your approval` : e.projectName,
+          : e.kind === "preview_sent"
+            ? `${e.clientName || e.projectName}'s edits are built`
+            : `${e.clientName || e.projectName} turned on notifications`,
+      detail:
+        e.kind === "batch_sent"
+          ? `${e.detail} · ${e.projectName} — waiting for your approval`
+          : e.kind === "preview_sent"
+            ? `${e.detail} · merge the pull request when you want it live`
+            : e.projectName,
       at: e.at,
       when: ago(e.at, now),
       who: e.clientName || undefined,
