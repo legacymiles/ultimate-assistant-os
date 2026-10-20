@@ -1,5 +1,383 @@
 [
  {
+  "id": "23f69ea:client-review",
+  "date": "2026-10-20",
+  "slug": "client-review",
+  "title": "Approved edits build themselves through App Builder",
+  "detail": "- Client Review projects get \"Where the site lives\" (GitHub repo + Vercel project), also on the New project dialog. - \"Approve & build\" approves the batch, turns it into an App Builder project in edit mode (every approved request accepted, owner's wording, the client's pins kept) and queues it for C",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "23f69ea:jarvis",
+  "date": "2026-10-20",
+  "slug": "jarvis",
+  "title": "Approved edits build themselves through App Builder",
+  "detail": "- Client Review projects get \"Where the site lives\" (GitHub repo + Vercel project), also on the New project dialog. - \"Approve & build\" approves the batch, turns it into an App Builder project in edit mode (every approved request accepted, owner's wording, the client's pins kept) and queues it for C",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "23f69ea:app-builder",
+  "date": "2026-10-20",
+  "slug": "app-builder",
+  "title": "Approved edits build themselves through App Builder",
+  "detail": "- Client Review projects get \"Where the site lives\" (GitHub repo + Vercel project), also on the New project dialog. - \"Approve & build\" approves the batch, turns it into an App Builder project in edit mode (every approved request accepted, owner's wording, the client's pins kept) and queues it for C",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "078cc37:cook-connect",
+  "date": "2026-10-20",
+  "slug": "cook-connect",
+  "title": "Spades matchmaking with bots, merged with the cinematic spades; renig follows the owner's spec",
+  "detail": "Matchmaking: \"Play bots now\" (you + a computer partner vs two computers) or \"Find real players\" (join the fullest waiting table, or open one). While waiting everyone at the table can chat and video. One person can start with bots at once; two or three must all agree (\"Play with bots\" / \"Keep waiting",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "29a3169:personas-studio",
+  "date": "2026-10-20",
+  "slug": "personas-studio",
+  "title": "Message inbox tab — every DM and comment in one place",
+  "detail": "Each persona gets a Message inbox tab (also in the Jarvis Personas pane): - Live read + reply for Instagram (DMs + comments), Facebook Pages (Messenger + comments) and YouTube (comments), on the persona's normal Connect login. One sign-in now asks for sync + auto-post + inbox; the callback quietly r",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:ai-rankings",
+  "date": "2026-10-20",
+  "slug": "ai-rankings",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:app-builder",
+  "date": "2026-10-20",
+  "slug": "app-builder",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:financial-bible",
+  "date": "2026-10-20",
+  "slug": "financial-bible",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:prompt-architect",
+  "date": "2026-10-20",
+  "slug": "prompt-architect",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:client-review",
+  "date": "2026-10-20",
+  "slug": "client-review",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:cook-connect",
+  "date": "2026-10-20",
+  "slug": "cook-connect",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:cookbook-genie",
+  "date": "2026-10-20",
+  "slug": "cookbook-genie",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:viral-studio-content",
+  "date": "2026-10-20",
+  "slug": "viral-studio-content",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:dashboard",
+  "date": "2026-10-20",
+  "slug": "dashboard",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:dump-finder",
+  "date": "2026-10-20",
+  "slug": "dump-finder",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:ea-world",
+  "date": "2026-10-20",
+  "slug": "ea-world",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:jarvis",
+  "date": "2026-10-20",
+  "slug": "jarvis",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:friends-night-out",
+  "date": "2026-10-20",
+  "slug": "friends-night-out",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:game-creator",
+  "date": "2026-10-20",
+  "slug": "game-creator",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:gods-eye-view",
+  "date": "2026-10-20",
+  "slug": "gods-eye-view",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:h3-experiments",
+  "date": "2026-10-20",
+  "slug": "h3-experiments",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:image-studio",
+  "date": "2026-10-20",
+  "slug": "image-studio",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:jarvis-audio-studio",
+  "date": "2026-10-20",
+  "slug": "jarvis-audio-studio",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:realtime-lucy",
+  "date": "2026-10-20",
+  "slug": "realtime-lucy",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:website-redesigner",
+  "date": "2026-10-20",
+  "slug": "website-redesigner",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:projects-timeline",
+  "date": "2026-10-20",
+  "slug": "projects-timeline",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:seedance-studio",
+  "date": "2026-10-20",
+  "slug": "seedance-studio",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:skills-library",
+  "date": "2026-10-20",
+  "slug": "skills-library",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:smart-shot-videos",
+  "date": "2026-10-20",
+  "slug": "smart-shot-videos",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:personas-studio",
+  "date": "2026-10-20",
+  "slug": "personas-studio",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:std-safe",
+  "date": "2026-10-20",
+  "slug": "std-safe",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:3d-studio",
+  "date": "2026-10-20",
+  "slug": "3d-studio",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:video-studio-arena",
+  "date": "2026-10-20",
+  "slug": "video-studio-arena",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:youtube-videos",
+  "date": "2026-10-20",
+  "slug": "youtube-videos",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:baby-no-scroll",
+  "date": "2026-10-20",
+  "slug": "baby-no-scroll",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:fire-reveal",
+  "date": "2026-10-20",
+  "slug": "fire-reveal",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:kart-showcase",
+  "date": "2026-10-20",
+  "slug": "kart-showcase",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:multi-order-calculator",
+  "date": "2026-10-20",
+  "slug": "multi-order-calculator",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:slippery-escape",
+  "date": "2026-10-20",
+  "slug": "slippery-escape",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:amhe",
+  "date": "2026-10-20",
+  "slug": "amhe",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:soundprint",
+  "date": "2026-10-20",
+  "slug": "soundprint",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c98f383:voice-studio",
+  "date": "2026-10-20",
+  "slug": "voice-studio",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "0369d10:cook-connect",
   "date": "2026-10-20",
   "slug": "cook-connect",
