@@ -3,6 +3,8 @@ import {
   createDeck, dealCards, initGameState, isValidPlay, determineTrickWinner,
   calculateRoundScore, applyRoundScore, sortHand, getTeam, nextSeat,
   WINNING_SCORE, type TrickPlay,
+  isRenege, isPlayable, trackRenege, callableReneges, callRenege, renegeTransfer,
+  recapRound, trumpSteal,
 } from "./spades";
 import { chooseBid, chooseCard } from "./spadesBot";
 
@@ -213,5 +215,81 @@ describe("the computer player", () => {
     state.currentTrick = [];
     const card = chooseCard(state, 2);
     expect(card).not.toBe("2S");
+  });
+});
+
+describe("reneging", () => {
+  // Seat 1 holds hearts but throws a club on a heart lead.
+  const led = trick([0, "KH"]);
+  const hand = ["2H", "4C", "9D"];
+
+  it("spots a renege only when the led suit was still in hand", () => {
+    expect(isRenege("4C", hand, led)).toBe(true);
+    expect(isRenege("2H", hand, led)).toBe(false);
+    expect(isRenege("4C", ["4C", "9D"], led)).toBe(false);
+    expect(isRenege("4C", hand, [])).toBe(false);
+  });
+
+  it("lets you renege only with the house rule on, and never lead spades early", () => {
+    expect(isPlayable("4C", hand, led, false, true)).toBe(true);
+    expect(isPlayable("4C", hand, led, false, false)).toBe(false);
+    expect(isPlayable("3S", ["3S", "2H"], [], false, true)).toBe(false);
+  });
+
+  it("logs the renege and exposes it once they play the skipped suit", () => {
+    let log = trackRenege([], 1, "4C", hand, led, 3);
+    expect(log).toEqual([{ seat: 1, trick: 3, card: "4C", led: "H" }]);
+    expect(callableReneges(log, 0)).toHaveLength(0); // not provable yet
+    log = trackRenege(log, 1, "2H", ["2H", "9D"], trick([2, "5S"]), 4);
+    expect(log[0].exposed).toBe(true);
+  });
+
+  it("only lets the other team call it, and only once", () => {
+    const log = [{ seat: 1, trick: 3, card: "4C", led: "H", exposed: true }];
+    expect(callRenege(log, 3).caught).toBeNull(); // partner can't call it
+    const first = callRenege(log, 0);
+    expect(first.caught?.calledBy).toBe(0);
+    expect(callRenege(first.reneges, 2).caught).toBeNull();
+  });
+
+  it("moves three tricks to the other team per renege", () => {
+    const won = { 0: 2, 1: 4, 2: 2, 3: 1 };
+    expect(renegeTransfer([{ seat: 1, trick: 1, card: "4C", led: "H" }], won)).toEqual({ team1: -3, team2: 3 });
+    // Can't give up more than they won.
+    expect(renegeTransfer([{ seat: 0, trick: 1, card: "4C", led: "H" }], { 0: 1, 1: 6, 2: 0, 3: 6 }))
+      .toEqual({ team1: 1, team2: -1 });
+  });
+
+  it("can set a team that otherwise made its bid, without breaking a nil", () => {
+    const bids = { 0: 3, 1: 4, 2: 0, 3: 2 };
+    const won = { 0: 4, 1: 5, 2: 0, 3: 4 };
+    const clean = calculateRoundScore(bids, won);
+    expect(clean.team1Score).toBe(30 + 1 + 100);
+    const penalised = calculateRoundScore(bids, won, [{ seat: 0, trick: 2, card: "4C", led: "H" }]);
+    expect(penalised.team1Score).toBe(-30 + 100); // 4 - 3 = 1 trick < 3 bid, nil still made
+    expect(penalised.team2Score).toBe(60 + 6);
+  });
+
+  it("recaps the hand: who got set, which nils held, every renege revealed", () => {
+    const recap = recapRound(2, { 0: 3, 1: 4, 2: 0, 3: 2 }, { 0: 4, 1: 5, 2: 0, 3: 4 },
+      [{ seat: 0, trick: 2, card: "4C", led: "H" }]);
+    expect(recap.set).toEqual([1]);
+    expect(recap.nils).toEqual([{ seat: 2, made: true }]);
+    expect(recap.reneges[0].exposed).toBe(true);
+  });
+});
+
+describe("trump steals", () => {
+  it("is a low spade taking down a picture card", () => {
+    const steal = trumpSteal(trick([0, "AH"], [1, "2S"], [2, "3H"]));
+    expect(steal?.winner.card).toBe("2S");
+    expect(steal?.victim.card).toBe("AH");
+    expect(steal?.upset).toBe(1);
+  });
+
+  it("isn't one when spades were led or no picture card fell", () => {
+    expect(trumpSteal(trick([0, "AS"], [1, "2S"]))).toBeNull();
+    expect(trumpSteal(trick([0, "9H"], [1, "2S"]))).toBeNull();
+    expect(trumpSteal(trick([0, "KH"], [1, "AH"]))).toBeNull();
   });
 });

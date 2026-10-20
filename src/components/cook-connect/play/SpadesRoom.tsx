@@ -2,11 +2,12 @@
 
 // A spades table: the board, the running score, and the room around it.
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useCook } from "../CookConnect";
 import { Columns } from "../Columns";
 import { useSpades } from "@/lib/cook-connect/hooks/useSpades";
-import { WINNING_SCORE, getTeam } from "@/lib/cook-connect/spades";
+import { WINNING_SCORE, getTeam, renegeRuleOn, RENEGE_PENALTY_TRICKS } from "@/lib/cook-connect/spades";
+import { useFxLevel, useGameStyle } from "@/lib/cook-connect/hooks/useGameStyle";
 import { rooms } from "@/lib/cook-connect/types";
 import {
   Button, EmptyState, Loading, Panel, SectionHead, Tag, cx,
@@ -19,6 +20,9 @@ import { VideoPanel } from "./VideoPanel";
 export function SpadesRoom({ matchId }: { matchId: string }) {
   const { sb, userId, navigate, notify } = useCook();
   const game = useSpades(sb, userId, matchId);
+  const style = useGameStyle();
+  const [fxLevel, setFxLevel] = useFxLevel();
+  const [crumbleTeam, setCrumbleTeam] = useState<number | null>(null);
 
   // The hook raises its own notices; surface them through the app's toast.
   useEffect(() => {
@@ -80,7 +84,9 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
                       </span>
                     </span>
                     <span className="text-right">
-                      <span className="cc-num block text-[19px] font-bold leading-none">{score}</span>
+                      <span className={cx("cc-num block text-[19px] font-bold leading-none", crumbleTeam === team && "fx-crumble")}>
+                        {score}
+                      </span>
                       <span className="cc-num block text-[10px] text-[var(--cc-ink-faint)]">
                         {bags} bag{bags === 1 ? "" : "s"}
                       </span>
@@ -95,6 +101,29 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
                 )}
                 . Ten bags costs a hundred points.
               </p>
+              {state && (
+                <label
+                  className={cx(
+                    "mt-2 flex items-start gap-2 border-t border-[var(--cc-line-soft)] pt-2 text-[11px] leading-relaxed",
+                    state.phase === "bidding" && game.isSeated ? "cursor-pointer" : "opacity-70",
+                  )}
+                  title={state.phase === "bidding" ? undefined : "House rules change while everyone is bidding"}
+                >
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={renegeRuleOn(state)}
+                    disabled={state.phase !== "bidding" || !game.isSeated}
+                    onChange={(e) => void game.setRenegeRule(e.target.checked)}
+                  />
+                  <span>
+                    <span className="font-semibold">Renege rule</span>
+                    <span className="block text-[var(--cc-ink-faint)]">
+                      Off-suit plays are allowed. Get caught and your team gives up {RENEGE_PENALTY_TRICKS} tricks.
+                    </span>
+                  </span>
+                </label>
+              )}
             </div>
           </Panel>
 
@@ -162,6 +191,12 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
             mySeat={game.mySeat}
             onBid={(bid) => void game.makeBid(bid)}
             onPlay={(card) => void game.playCard(card)}
+            theme={style.theme}
+            fxLevel={fxLevel}
+            onFxLevel={setFxLevel}
+            round={game.game.current_round}
+            onCallRenege={() => void game.callRenege()}
+            onCrumble={setCrumbleTeam}
           />
 
           <div className="mt-3 flex flex-wrap items-center gap-1.5">

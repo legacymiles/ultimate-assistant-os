@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  type GameState, initGameState, isValidPlay, determineTrickWinner,
+  type GameState, initGameState, isPlayable, determineTrickWinner,
   calculateRoundScore, applyRoundScore, nextSeat, getSuit, getTeam,
+  renegeRuleOn, trackRenege, callRenege as callRenegeOn, callableReneges, recapRound,
+  RENEGE_PENALTY_TRICKS,
 } from "../spades";
 import { botName, chooseBid, chooseCard } from "../spadesBot";
 import { sounds } from "../sounds";
@@ -15,8 +17,8 @@ import type { Match, MatchPlayer, SpadesGame } from "../types";
 type Backend = any;
 
 const BOT_DELAY_MS = 1100;
-/** A little longer before leading, so a finished trick is readable. */
-const BOT_LEAD_DELAY_MS = BOT_DELAY_MS + 900;
+/** Longer before leading, so a finished trick gets its moment on screen. */
+const BOT_LEAD_DELAY_MS = BOT_DELAY_MS + 1400;
 
 export interface SeatView {
   seat: number;
@@ -151,6 +153,11 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
     };
   });
 
+  const seatName = (seat: number) => {
+    if (seat === mySeat) return "You";
+    return table.find((t) => t.seat === seat)?.name.split(" ")[0] ?? "Someone";
+  };
+
   /** Score the finished game once, from whichever browser gets there first. */
   const closeOut = useCallback(async (winningTeam: number, finalBots: number[]) => {
     if (!matchId) return;
@@ -200,18 +207,26 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
     if (!state || !game || !match || state.currentTurn !== seat || state.phase !== "playing") return;
     const hand = state.hands[seat];
     if (!hand?.includes(card)) return;
-    if (!isValidPlay(card, hand, state.currentTrick, state.spadeBroken)) {
-      setNotice("Follow the suit that was led if you can, and don't lead spades until they're broken.");
+    const rule = renegeRuleOn(state);
+    if (!isPlayable(card, hand, state.currentTrick, state.spadeBroken, rule)) {
+      setNotice(
+        rule
+          ? "You can't lead spades until they're broken."
+          : "Follow the suit that was led if you can, and don't lead spades until they're broken.",
+      );
       return;
     }
 
     const hands = { ...state.hands, [seat]: hand.filter((c) => c !== card) };
     const trick = [...state.currentTrick, { seat, card }];
     const spadeBroken = state.spadeBroken || getSuit(card) === "S";
+    const reneges = rule
+      ? trackRenege(state.reneges ?? [], seat, card, hand, state.currentTrick, state.trickNumber)
+      : state.reneges ?? [];
 
     if (trick.length < 4) {
       await commit({
-        state: { ...state, hands, currentTrick: trick, currentTurn: nextSeat(seat), spadeBroken },
+        state: { ...state, hands, currentTrick: trick, currentTurn: nextSeat(seat), spadeBroken, reneges },
       });
       return;
     }
@@ -224,14 +239,16 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
       await commit({
         state: {
           ...state, hands, currentTrick: [], trickLeader: winner, currentTurn: winner,
-          tricksWon, spadeBroken, trickNumber, lastTrick: trick, lastTrickWinner: winner,
+          tricksWon, spadeBroken, trickNumber, lastTrick: trick, lastTrickWinner: winner, reneges,
         },
       });
       return;
     }
 
-    // Thirteen tricks played: score the round.
-    const round = calculateRoundScore(state.bids, tricksWon);
+    // Thirteen tricks played: score the round. Every renege is revealed and
+    // paid for now, called or not.
+    const round = calculateRoundScore(state.bids, tricksWon, reneges);
+    const lastRound = recapRound(game.current_round, state.bids, tricksWon, reneges);
     const totals = applyRoundScore(
       { team1: game.team1_score, team2: game.team2_score, bags1: game.team1_bags, bags2: game.team2_bags },
       round,
@@ -247,6 +264,7 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
         state: {
           ...state, phase: "gameEnd", hands, currentTrick: [], tricksWon,
           lastTrick: trick, lastTrickWinner: winner, spadeBroken, trickNumber: 14, rematch: [],
+          reneges: lastRound.reneges, lastRound,
         },
       });
       if (ok) await closeOut(totals.winningTeam, state.bots ?? []);
@@ -255,10 +273,47 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
       await commit({
         ...scorePatch,
         current_round: game.current_round + 1,
-        state: { ...initGameState((state.dealer + 1) % 4), bots: state.bots ?? [], rematch: [] },
+        state: {
+          ...initGameState((state.dealer + 1) % 4),
+          bots: state.bots ?? [],
+          rematch: [],
+          renegeRule: state.renegeRule,
+          lastRound,
+          // The last trick of the hand still gets its moment on every screen.
+          lastTrick: trick,
+          lastTrickWinner: winner,
+        },
       });
     }
   }, [state, game, match, commit, closeOut]);
+
+  /** Call out a provable renege by the other team. */
+  const callRenegeFor = useCallback(async (seat: number): Promise<boolean> => {
+    if (!state || !game || state.phase !== "playing" || seat < 0) return false;
+    const { reneges, caught } = callRenegeOn(state.reneges ?? [], seat);
+    if (!caught) {
+      if (!bots.includes(seat)) setNotice("Nothing you can prove yet. A renege shows once they play the suit they skipped.");
+      return false;
+    }
+    const ok = await commit({ state: { ...state, reneges } });
+    if (ok) {
+      const who = seatName(seat);
+      setNotice(`${who} called a renege! That's ${RENEGE_PENALTY_TRICKS} tricks to the other team at the end of the hand.`);
+    }
+    return ok;
+    // seatName is derived from the table each render; reading it here is intended.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, game, bots, commit]);
+
+  /** Turn the renege house rule on or off. Only between hands, while bidding. */
+  const setRenegeRule = useCallback(async (on: boolean) => {
+    if (!state || state.phase !== "bidding") {
+      setNotice("House rules can only change while everyone is bidding.");
+      return;
+    }
+    const ok = await commit({ state: { ...state, renegeRule: on } });
+    if (ok) setNotice(on ? "Renege rule on: off-suit plays are allowed, and caught." : "Renege rule off: you must follow suit.");
+  }, [state, commit]);
 
   const makeBid = useCallback((bid: number) => {
     sounds.bidSubmit();
@@ -277,6 +332,19 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
     .sort((a, b) => a.seat - b.seat)[0];
   const iDriveBots = !!userId && driver?.user_id === userId;
   const lastBotMove = useRef("");
+
+  // A computer player calls out a renege as soon as it becomes provable.
+  const lastBotCall = useRef("");
+  useEffect(() => {
+    if (!iDriveBots || !state || !game || state.phase !== "playing") return;
+    const caller = bots.find((seat) => callableReneges(state.reneges ?? [], seat).length > 0);
+    if (caller === undefined || lastBotCall.current === game.updated_at) return;
+    const timer = window.setTimeout(() => {
+      lastBotCall.current = game.updated_at;
+      void callRenegeFor(caller);
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [iDriveBots, state, game, bots, callRenegeFor]);
 
   useEffect(() => {
     if (!iDriveBots || !state || !game || !match) return;
@@ -363,7 +431,7 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
     if (votes.length >= votesNeeded) {
       const ok = await commit({
         team1_score: 0, team2_score: 0, team1_bags: 0, team2_bags: 0, current_round: 1,
-        state: { ...initGameState(Math.floor(Math.random() * 4)), bots, rematch: [] },
+        state: { ...initGameState(Math.floor(Math.random() * 4)), bots, rematch: [], renegeRule: state.renegeRule },
       });
       if (ok) {
         await sb.from("matches").update({ status: "live", updated_at: new Date().toISOString() }).eq("id", match.id);
@@ -379,6 +447,8 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
     match, game, state, table, seats, profiles, loading, notice, setNotice,
     mySeat, iLeft, isSeated: !!myRow, online,
     makeBid, playCard, sit, startWithBots, quit, retakeSeat,
+    callRenege: () => callRenegeFor(mySeat),
+    setRenegeRule,
     voteRematch, rematchVotes: rematchVotes.length, votesNeeded, iVotedRematch,
   };
 }
