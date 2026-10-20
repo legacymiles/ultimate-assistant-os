@@ -1,6 +1,6 @@
 [
  {
-  "id": "e7455bb:jarvis",
+  "id": "723c6b2:jarvis",
   "date": "2026-10-20",
   "slug": "jarvis",
   "title": "Improvements learn from app edits, not just chats",
@@ -9,7 +9,7 @@
   "source": "git"
  },
  {
-  "id": "80d68b6:projects-timeline",
+  "id": "4bd4e10:projects-timeline",
   "date": "2026-10-20",
   "slug": "projects-timeline",
   "title": "Every app edit recorded as a feature, plus the Game Play Design Styling folder",
@@ -18,11 +18,146 @@
   "source": "git"
  },
  {
-  "id": "28f2b26:cook-connect",
+  "id": "b2c7469:cook-connect",
   "date": "2026-10-20",
   "slug": "cook-connect",
   "title": "Renege rule and cinematic spades — every trick is a fight",
   "detail": "Renege house rule (on by default, switchable while bidding): off-suit plays are allowed with a two-tap confirm, every renege is logged, anyone on the other team can call it once it is provable (they later play the suit they skipped; computer players call it themselves), and each one moves 3 tricks t",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7f5e685:viral-studio-content",
+  "date": "2026-10-20",
+  "slug": "viral-studio-content",
+  "title": "Second review round",
+  "detail": "- Trim matched blurred side copies (sharpness), keep one-sided soft areas - Size the newest clip so the wall plus an add-a-link tile ends on a full row - Stronger pointer sheen and tilt; soft shade behind touch buttons - Record the visual system and review outcome in the surface brief",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "924a385:viral-studio-content",
+  "date": "2026-10-20",
+  "slug": "viral-studio-content",
+  "title": "Finish-review fixes",
+  "detail": "- Trim letterbox bars from each still (measured in the browser) and frame poster + WebGL reveal on the picture - Corner open/delete buttons always visible on touch screens - Newest clip shown large (2x2 on desktop, full width on phone) - Pointer-tracked sheen and slight tilt on the lifted tile",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "fb92c54:viral-studio-content",
+  "date": "2026-10-20",
+  "slug": "viral-studio-content",
+  "title": "Streaming-grade redesign with WebGL trail reveal",
+  "detail": "- Impeccable direction (owner chose clean streaming grid, Apple TV+ bar); surface brief recorded - Clips rest in black & white; webgl-trail-reveal ring-buffer trail scans colour in, then floods and plays - Real thumbnails served same-origin through /api/viral-studio/poster (YouTube maxres, TikTok/IG",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2eaeaa4:viral-studio-content",
+  "date": "2026-10-20",
+  "slug": "viral-studio-content",
+  "title": "4 link boards (audio, fights, dances, motion)",
+  "detail": "- New app at /apps/viral-studio-content; /apps/tiktok-dances redirects in - Paste social links (several at once, Ctrl+V anywhere, drag & drop) into the open tab, newest first, no duplicates per tab - Hover/tap to play: saved video file when signed in, else YouTube/TikTok/Instagram embeds - One-tap d",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "2eaeaa4:jarvis",
+  "date": "2026-10-20",
+  "slug": "jarvis",
+  "title": "4 link boards (audio, fights, dances, motion)",
+  "detail": "- New app at /apps/viral-studio-content; /apps/tiktok-dances redirects in - Paste social links (several at once, Ctrl+V anywhere, drag & drop) into the open tab, newest first, no duplicates per tab - Hover/tap to play: saved video file when signed in, else YouTube/TikTok/Instagram embeds - One-tap d",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2eaeaa4:website-redesigner",
+  "date": "2026-10-20",
+  "slug": "website-redesigner",
+  "title": "4 link boards (audio, fights, dances, motion)",
+  "detail": "- New app at /apps/viral-studio-content; /apps/tiktok-dances redirects in - Paste social links (several at once, Ctrl+V anywhere, drag & drop) into the open tab, newest first, no duplicates per tab - Hover/tap to play: saved video file when signed in, else YouTube/TikTok/Instagram embeds - One-tap d",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0ae2893:youtube-videos",
+  "date": "2026-10-20",
+  "slug": "youtube-videos",
+  "title": "YouTube videos v2 \"Holo Deck\"; key setup with clickable step guides",
+  "detail": "Design (interactive-web-studio, scroll-craft layering, blender-to-web): the hero is a Blender-modeled ring of glass screens round a play-prism core with glowing frames and orbit rings, over a shader grid floor with stars, with bloom. Drag or swipe to spin it (inertia, idle attract spin); hover lifts",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0ae2893:jarvis",
+  "date": "2026-10-20",
+  "slug": "jarvis",
+  "title": "YouTube videos v2 \"Holo Deck\"; key setup with clickable step guides",
+  "detail": "Design (interactive-web-studio, scroll-craft layering, blender-to-web): the hero is a Blender-modeled ring of glass screens round a play-prism core with glowing frames and orbit rings, over a shader grid floor with stars, with bloom. Drag or swipe to spin it (inertia, idle attract spin); hover lifts",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d3226f9:youtube-videos",
+  "date": "2026-10-20",
+  "slug": "youtube-videos",
+  "title": "YouTube videos widget + app; Site errors moves to its own tab",
+  "detail": "Dashboard: the Site errors widget leaves the Deck for More › Work › Site errors (also /apps/jarvis#site-errors, where crash notifications already link). Its slot goes to a new YouTube videos widget.",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "d3226f9:jarvis",
+  "date": "2026-10-20",
+  "slug": "jarvis",
+  "title": "YouTube videos widget + app; Site errors moves to its own tab",
+  "detail": "Dashboard: the Site errors widget leaves the Deck for More › Work › Site errors (also /apps/jarvis#site-errors, where crash notifications already link). Its slot goes to a new YouTube videos widget.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "15adf10:cookbook-genie",
+  "date": "2026-10-20",
+  "slug": "cookbook-genie",
+  "title": "Facebook share links + login-only reels import; Cook Connect starred by default",
+  "detail": "- Follow facebook.com/share/r links to the real reel before downloading - New Facebook strategy reads embed/desktop/mobile/crawler pages for the video - Owner connects Facebook/Instagram once in-app (Record extension button or paste panel under the error); saved server-side, used by yt-dlp and page ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "15adf10:dashboard",
+  "date": "2026-10-20",
+  "slug": "dashboard",
+  "title": "Facebook share links + login-only reels import; Cook Connect starred by default",
+  "detail": "- Follow facebook.com/share/r links to the real reel before downloading - New Facebook strategy reads embed/desktop/mobile/crawler pages for the video - Owner connects Facebook/Instagram once in-app (Record extension button or paste panel under the error); saved server-side, used by yt-dlp and page ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "15adf10:cook-connect",
+  "date": "2026-10-20",
+  "slug": "cook-connect",
+  "title": "Facebook share links + login-only reels import; Cook Connect starred by default",
+  "detail": "- Follow facebook.com/share/r links to the real reel before downloading - New Facebook strategy reads embed/desktop/mobile/crawler pages for the video - Owner connects Facebook/Instagram once in-app (Record extension button or paste panel under the error); saved server-side, used by yt-dlp and page ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "15adf10:viral-studio-content",
+  "date": "2026-10-20",
+  "slug": "viral-studio-content",
+  "title": "Facebook share links + login-only reels import; Cook Connect starred by default",
+  "detail": "- Follow facebook.com/share/r links to the real reel before downloading - New Facebook strategy reads embed/desktop/mobile/crawler pages for the video - Owner connects Facebook/Instagram once in-app (Record extension button or paste panel under the error); saved server-side, used by yt-dlp and page ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "15adf10:jarvis",
+  "date": "2026-10-20",
+  "slug": "jarvis",
+  "title": "Facebook share links + login-only reels import; Cook Connect starred by default",
+  "detail": "- Follow facebook.com/share/r links to the real reel before downloading - New Facebook strategy reads embed/desktop/mobile/crawler pages for the video - Owner connects Facebook/Instagram once in-app (Record extension button or paste panel under the error); saved server-side, used by yt-dlp and page ",
   "group": "supporting",
   "source": "git"
  },
@@ -3186,9 +3321,9 @@
   "source": "git"
  },
  {
-  "id": "c2ea16f:tiktok-dances",
+  "id": "c2ea16f:viral-studio-content",
   "date": "2026-09-13",
-  "slug": "tiktok-dances",
+  "slug": "viral-studio-content",
   "title": "Put a saved character into any dance video",
   "detail": "- Studio view in Dance Vault: reference dance (upload, link or library) + reusable character -> MiniMax H3 motion-transfer video, with a dance library, character library, every take kept and regenerate. - Swappable MotionProvider adapter (AI Gateway or MiniMax API), async start/status renders, media",
   "group": "supporting",
@@ -3537,9 +3672,9 @@
   "source": "git"
  },
  {
-  "id": "114dd28:tiktok-dances",
+  "id": "114dd28:viral-studio-content",
   "date": "2026-09-07",
-  "slug": "tiktok-dances",
+  "slug": "viral-studio-content",
   "title": "Fence each account off from the others",
   "detail": "Three ways one signed-in user could reach another are closed here, plus the migration that closes the matching gaps in the database.",
   "group": "supporting",
@@ -3609,9 +3744,9 @@
   "source": "git"
  },
  {
-  "id": "da91f30:tiktok-dances",
+  "id": "da91f30:viral-studio-content",
   "date": "2026-09-05",
-  "slug": "tiktok-dances",
+  "slug": "viral-studio-content",
   "title": "Give the last four apps somewhere real to save",
   "detail": "Recall, Voice Studio, STD Safe and the Recall Lists board were the apps still losing data on a deployed host. They failed for two different reasons and needed two different answers.",
   "group": "supporting",
@@ -3654,9 +3789,9 @@
   "source": "git"
  },
  {
-  "id": "df1f282:tiktok-dances",
+  "id": "df1f282:viral-studio-content",
   "date": "2026-09-05",
-  "slug": "tiktok-dances",
+  "slug": "viral-studio-content",
   "title": "Let the local-first apps follow the user between devices",
   "detail": "Nine apps each kept their whole state as one JSON blob under a single localStorage key. That is a good shape and it stays — it just stopped at the edge of the device, so opening the site on a phone quietly started a second copy that never met the first.",
   "group": "supporting",
@@ -3726,12 +3861,12 @@
   "source": "git"
  },
  {
-  "id": "f6dfb1e:tiktok-dances",
+  "id": "f6dfb1e:viral-studio-content",
   "date": "2026-08-31",
-  "slug": "tiktok-dances",
+  "slug": "viral-studio-content",
   "title": "Add Dance Vault — a wall of TikTok dances that never stops moving",
   "detail": "Rows of vertical tiles drift sideways forever in alternating directions; hovering one eases its row to a halt and plays that dance. Each record keeps the name people actually say, the song, the choreographer where documented, the year it broke, and a score out of 100 — with unrated kept as its own s",
-  "group": "core",
+  "group": "supporting",
   "source": "git"
  },
  {
