@@ -11,7 +11,7 @@
 // ---------------------------------------------------------------------------
 
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Icon } from "../icons";
 import { VaultStatus } from "./VaultStatus";
 import { MemoryMap } from "./MemoryMap";
@@ -32,7 +32,8 @@ import type { DueReminder } from "@/lib/recall/calendar/reminders";
 import type { UseQueue } from "@/lib/new-jarvis/useQueue";
 import { QueueBoard } from "./QueueBoard";
 import { Deck } from "./Deck";
-import { FinishSetup, resumeStep, type OnboardingStep } from "./Onboarding";
+import { FinishSetup, resumeStep, type OnboardingBridge, type OnboardingStep } from "./Onboarding";
+import { Connections, OPEN_CONNECTIONS, takePendingConnections } from "./Connections";
 import type { SetupStatus } from "@/lib/new-jarvis/useSetup";
 import { getOnboarding } from "@/lib/new-jarvis/onboarding";
 import type { CameraWatch } from "@/lib/new-jarvis/useCameraWatch";
@@ -98,6 +99,10 @@ interface Props {
   camera: CameraWatch;
   /** The backend checklist (shown in Profile), owned by the shell so it learns from any tab. */
   jarvisProfile: UseJarvisProfile;
+  /** The PC's local agent, for saving pasted keys (Profile › Connections). */
+  keysBridge: OnboardingBridge;
+  /** Hand a job to the super-agent chat ("Jarvis, do it"). */
+  ask: (task: string) => void;
 }
 
 export function DashboardPanel({
@@ -117,6 +122,8 @@ export function DashboardPanel({
   events,
   camera,
   jarvisProfile,
+  keysBridge,
+  ask,
 }: Props) {
   const [pane, setPane] = useState<Pane>("deck");
   /** Memory: the web, or the list. */
@@ -124,7 +131,21 @@ export function DashboardPanel({
   /** Bumped when a screen scan writes, to remount the profile beneath it. */
   const [profileKey, setProfileKey] = useState(0);
   /** Which half of the profile is showing. */
-  const [profileFace, setProfileFace] = useState<"details" | "aios" | "checklist">("details");
+  const [profileFace, setProfileFace] = useState<"details" | "aios" | "checklist" | "connections">("details");
+  /** A Connections row to open on arrival (from a link like #connections/youtube). */
+  const [connFocus, setConnFocus] = useState<string | null>(null);
+  useEffect(() => {
+    const open = () => {
+      const p = takePendingConnections();
+      if (!p) return;
+      setPane("profile");
+      setProfileFace("connections");
+      setConnFocus(p.capability);
+    };
+    open();
+    window.addEventListener(OPEN_CONNECTIONS, open);
+    return () => window.removeEventListener(OPEN_CONNECTIONS, open);
+  }, []);
 
   const notes = useMemo(() => vault.graph.nodes.filter((n) => n.kind === "note").length, [vault.graph.nodes]);
 
@@ -232,6 +253,8 @@ export function DashboardPanel({
                   // The one build checklist lives here, in the owner's
                   // Profile, rather than behind a tab of its own.
                   { id: "checklist", label: "Backend checklist" },
+                  // Every API key, each with a clickable step-by-step guide.
+                  { id: "connections", label: "Connections" },
                 ] as const
               ).map((t) => (
                 <button
@@ -249,7 +272,9 @@ export function DashboardPanel({
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto">
-              {profileFace === "checklist" ? (
+              {profileFace === "connections" ? (
+                <Connections setup={setup} bridge={keysBridge} ask={ask} focus={connFocus} />
+              ) : profileFace === "checklist" ? (
                 <BackendChecklist api={jarvisProfile} />
               ) : profileFace === "details" ? (
                 <>

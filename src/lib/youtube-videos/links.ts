@@ -254,3 +254,47 @@ export function parsePaste(text: string): ParsedLink[] {
   }
   return out;
 }
+
+/** Shorts, TikToks and Reels are tall; the player sizes itself to match. */
+export function isTall(v: { platform: Platform; kind: VideoKind }): boolean {
+  return v.kind === "short" || v.kind === "reel" || v.platform === "tiktok" || v.platform === "snapchat";
+}
+
+/**
+ * The in-app player for a saved video, or null when the platform has none
+ * (then the card opens the link instead). Worked out from the saved fields,
+ * so videos saved before a platform's player existed get one too. Twitch
+ * needs the page's own host name.
+ */
+export function embedFor(
+  v: { platform: Platform; kind: VideoKind; videoId?: string; url: string; start?: number },
+  host = "localhost",
+): string | null {
+  const id = v.videoId;
+  switch (v.platform) {
+    case "youtube":
+      return id ? `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&playsinline=1${v.start ? `&start=${v.start}` : ""}` : null;
+    case "vimeo":
+      return id ? `https://player.vimeo.com/video/${id}?autoplay=1&dnt=1` : null;
+    case "tiktok":
+      return id ? `https://www.tiktok.com/player/v1/${id}?autoplay=1&music_info=1&description=1` : null;
+    case "instagram":
+      return id ? `https://www.instagram.com/${v.kind === "post" ? "p" : "reel"}/${id}/embed/` : null;
+    case "x":
+      return id ? `https://platform.twitter.com/embed/Tweet.html?id=${id}&theme=dark&dnt=true` : null;
+    case "facebook":
+      return id ? `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(v.url)}&show_text=false&autoplay=true` : null;
+    case "twitch":
+      if (!id) return null;
+      return v.kind === "clip"
+        ? `https://clips.twitch.tv/embed?clip=${encodeURIComponent(id)}&parent=${encodeURIComponent(host)}&autoplay=true`
+        : `https://player.twitch.tv/?video=${encodeURIComponent(id)}&parent=${encodeURIComponent(host)}&autoplay=true`;
+    default:
+      return null;
+  }
+}
+
+/** A thumbnail that needs no lookup, from the saved fields alone. */
+export function instantThumb(v: { platform: Platform; videoId?: string }): string | undefined {
+  return v.platform === "youtube" && v.videoId ? `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg` : undefined;
+}

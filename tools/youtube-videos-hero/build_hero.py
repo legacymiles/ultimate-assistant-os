@@ -30,7 +30,7 @@ from mathutils import Vector
 
 argv = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else sys.argv[1:]
 ap = argparse.ArgumentParser()
-ap.add_argument("--direction", default="reel", choices=["reel", "deck", "jellies"])
+ap.add_argument("--direction", default="holo", choices=["holo", "reel", "deck", "jellies"])
 ap.add_argument("--out", default="out")
 ap.add_argument("--samples", type=int, default=64)
 ap.add_argument("--no-render", action="store_true")
@@ -48,6 +48,17 @@ def hexrgb(h, a=1.0):
 # ---- the three directions ---------------------------------------------------
 # Divergent on ground value, material, assembly and light (brief.md axes).
 DIRS = {
+    # Shipped (v2) · holo deck — a ring of glass screens you spin, glowing
+    # frames and orbit rings for the page's bloom to catch
+    "holo": dict(
+        ground="#05060a",
+        core="#ff4b3e",
+        tiles=["#3be3ff", "#ff4b3e", "#a67bff", "#23f0c7", "#ffd166", "#ff4b8b", "#5b8cff", "#3be3ff", "#ff7a59", "#a67bff"],
+        tile_mat="glass",
+        assembly="ring",
+        light="night",
+        flecks="#bff6ff",
+    ),
     # A · safe — dark like the rest of Jarvis, glass tiles in a rising helix
     "reel": dict(
         ground="#07080c",
@@ -228,7 +239,8 @@ core = play_prism("core", 0.62, core_mat)
 core.location = (0, 0, 0.05)
 
 tiles = []
-n = 9
+n = 10 if D["assembly"] == "ring" else 9
+RING_R = 2.35
 for i in range(n):
     col = D["tiles"][i % len(D["tiles"])]
     body = material(f"tile_{i:02d}", "#11131a" if D["tile_mat"] == "glass" else col, D["tile_mat"] if D["tile_mat"] != "crt" else "crt")
@@ -239,7 +251,31 @@ for i in range(n):
         t = rounded_slab(f"tile_{i:02d}", 0.96, 0.54, 0.07 if D["tile_mat"] == "glass" else 0.11, 0.03, body, screen if D["tile_mat"] == "glass" else None)
     tiles.append(t)
 
-    if D["assembly"] == "helix":
+    if D["assembly"] == "ring":
+        # A carousel: tiles evenly round the core, facing out, gently waved.
+        # The page spins it (drag, inertia, attract mode) about the up axis.
+        a = i / n * math.tau
+        t.location = (math.sin(a) * RING_R, -math.cos(a) * RING_R, 0.12 * math.sin(2 * a))
+        t.rotation_euler = (math.radians(-4), 0, a)
+        # A glowing frame behind the screen: what the bloom lights up.
+        glow = material(f"glow_{i:02d}", "#3be3ff" if i % 3 else "#ff4b3e", "gloss", emit=6.0)
+        # a thin frame, not a panel: inset the plane and drop its middle
+        bpy.ops.mesh.primitive_plane_add(size=1)
+        g = bpy.context.active_object
+        g.name = f"tile_{i:02d}_glow"
+        g.scale = (1.04, 0.62, 1)
+        bpy.ops.object.transform_apply(scale=True)
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.mesh.inset(thickness=0.022)
+        bpy.ops.mesh.delete(type="FACE")  # the inset leaves the middle selected
+        bpy.ops.object.mode_set(mode="OBJECT")
+        g.rotation_euler = (math.radians(90), 0, 0)
+        g.location = (0, -0.04, 0)
+        bpy.ops.object.transform_apply(rotation=True, location=True)
+        g.data.materials.append(glow)
+        g.parent = t
+    elif D["assembly"] == "helix":
         # A loose rising helix around the core. Tiles stay face-on to the
         # camera (they wear real thumbnails on the web), turning a little
         # toward the centre so the reel reads as one curved strip.
@@ -258,6 +294,17 @@ for i in range(n):
         rr = 0.65 + 0.55 * math.sqrt((i + 1) / n)
         t.location = (math.cos(g) * rr * 1.7, 0.3 + math.sin(g * 1.7) * 0.4, math.sin(g) * rr * 1.0)
         t.rotation_euler = (math.radians(6 * math.sin(i)), 0, math.radians(14 * math.cos(i)))
+
+# Orbit rings (holo): a wide one under the screens, a tight one round the core.
+if D["assembly"] == "ring":
+    for k, (radius, minor, z, col, emit) in enumerate([(RING_R + 0.08, 0.009, -0.42, "#3be3ff", 5.0), (0.98, 0.012, 0.05, "#ff4b3e", 6.0)]):
+        bpy.ops.mesh.primitive_torus_add(major_radius=radius, minor_radius=minor, major_segments=160, minor_segments=8, location=(0, 0, z))
+        o = bpy.context.active_object
+        o.name = f"orbit_{k}"
+        if k == 1:
+            o.rotation_euler = (math.radians(72), 0, math.radians(18))
+        shade_smooth(o)
+        o.data.materials.append(material(f"orbit_{k}", col, "gloss", emit=emit))
 
 # Foreground flecks: the near plane of the layered hero.
 fleck_mat = material("fleck", D["flecks"], "gloss", emit=1.5 if D["light"] != "studio" else 0.0)
@@ -300,7 +347,7 @@ cam_data.lens = 50
 cam = bpy.data.objects.new("cam", cam_data)
 scene.collection.objects.link(cam)
 scene.camera = cam
-cam.location = (0.0, -7.6, 0.55)
+cam.location = (0.0, -8.2, 2.0) if D["assembly"] == "ring" else (0.0, -7.6, 0.55)
 cam.rotation_euler = (Vector((0, 0, 0.05)) - cam.location).to_track_quat("-Z", "Y").to_euler()
 
 

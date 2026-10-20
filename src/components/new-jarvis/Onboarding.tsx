@@ -25,7 +25,7 @@ import { Icon } from "../icons";
 import "./deck.css";
 import { GOALS, ROLES, callSuggestions, getOnboarding, saveOnboarding, splitList } from "@/lib/new-jarvis/onboarding";
 import { CLAUDE_SUBSCRIPTION, isSubscription, modelLabel } from "@/lib/new-jarvis/chatModels";
-import { KEY_SOURCES, agentTaskForKeys, checkKey, keyRows, upsertEnvLine, type KeyRow } from "@/lib/new-jarvis/keySetup";
+import { KEY_SOURCES, agentTaskForKeys, checkKey, keyRows, stepsFor, upsertEnvLine, type KeyRow } from "@/lib/new-jarvis/keySetup";
 import { PRESET_RULES, addRule } from "@/lib/recall/photos/autopilot";
 import { addMemory } from "@/lib/jarvis/memoryClient";
 import { loadLocal, saveSynced } from "@/lib/sync/appState";
@@ -652,14 +652,17 @@ function KeysStep({
   );
 }
 
-function KeyRowView({
+export function KeyRowView({
   row,
   open,
   onToggle,
   bridge,
   onSaved,
   onHandOff,
+  anchor,
 }: {
+  /** Element id, so a link can scroll to this row. */
+  anchor?: string;
   row: KeyRow;
   open: boolean;
   onToggle: () => void;
@@ -718,7 +721,7 @@ function KeyRowView({
   };
 
   return (
-    <li className="px-3 py-2.5">
+    <li id={anchor} className="px-3 py-2.5">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <span
           className={`h-2 w-2 shrink-0 rounded-full ${live ? "bg-[var(--hud-green)]" : reading.status === "partial" ? "bg-[var(--hud-amber)]" : "bg-ink-faint"}`}
@@ -735,15 +738,15 @@ function KeyRowView({
           <span className="font-mono text-[10px] tracking-wider text-[var(--hud-green)]">WORKING</span>
         ) : (
           <div className="flex flex-wrap gap-1.5">
-            {sites.map((s) => (
+            <button type="button" className="deck-btn" aria-expanded={open} onClick={onToggle}>
+              {open ? "Hide steps" : "Show me how"}
+            </button>
+            {sites.slice(0, 1).map((s) => (
               <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="deck-btn" title={s.how}>
                 Get key{sites.length > 1 ? ` · ${s.site}` : ""}
                 <Icon.Launch width={10} height={10} className="ml-1 inline" aria-hidden />
               </a>
             ))}
-            <button type="button" className="deck-btn" aria-expanded={open} onClick={onToggle}>
-              Paste
-            </button>
             <button type="button" className="deck-btn deck-btn--go" onClick={() => onHandOff(agentTaskForKeys(ask))}>
               Jarvis, do it
             </button>
@@ -753,6 +756,23 @@ function KeyRowView({
 
       {open && !live && (
         <div className="mt-2.5 space-y-2 rounded-lg border border-line bg-panel-2 p-2.5">
+          {ask.map((k) => (
+            <ol key={`steps-${k}`} className="space-y-1.5" aria-label={`How to get ${KEY_SOURCES[k].site}'s key`}>
+              {KEY_SOURCES[k].cost && <li className="font-mono text-[10px] tracking-wider text-[var(--hud)]">{KEY_SOURCES[k].site.toUpperCase()} · {KEY_SOURCES[k].cost.toUpperCase()}</li>}
+              {stepsFor(k).map((st, i) => (
+                <li key={i} className="flex items-center gap-2.5 text-[11.5px] leading-snug text-ink">
+                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-[var(--hud-dim)] font-mono text-[10px] text-[var(--hud)]">{i + 1}</span>
+                  <span className="min-w-0 flex-1">{st.text}</span>
+                  {st.url && (
+                    <a href={st.url} target="_blank" rel="noreferrer" className="deck-btn shrink-0 text-[11px]">
+                      {st.cta ?? "Open"}
+                      <Icon.Launch width={10} height={10} className="ml-1 inline" aria-hidden />
+                    </a>
+                  )}
+                </li>
+              ))}
+            </ol>
+          ))}
           {ask.map((k) => (
             <div key={k} className="space-y-1">
               <label htmlFor={`key-${k}`} className="flex items-baseline justify-between gap-2 text-[10.5px]">

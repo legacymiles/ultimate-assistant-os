@@ -307,6 +307,15 @@ export const CAPABILITIES: Capability[] = [
 
   // --- the world -----------------------------------------------------------
   {
+    id: "youtube",
+    name: "YouTube picks",
+    what: "Real YouTube videos in YouTube videos › For you, picked from what you save.",
+    category: "world",
+    via: "key",
+    needs: ["YOUTUBE_API_KEY"],
+    without: "For you suggests searches instead of real videos.",
+  },
+  {
     id: "maps",
     name: "Maps & traffic",
     what: "Real routes and travel times.",

@@ -86,3 +86,29 @@ describe("onboarding helpers", () => {
     expect(setupChecklist({ ...base, subscriptionBrain: true }).find((i) => i.id === "brain")?.done).toBe(true);
   });
 });
+
+describe("connections guides", () => {
+  it("YouTube is asked in onboarding with a clickable walk-through ending on Vercel", async () => {
+    const { keyRows, stepsFor, checkKey } = await import("./keySetup");
+    expect(keyRows({}).some((r) => r.capability.id === "youtube" && r.ask.includes("YOUTUBE_API_KEY"))).toBe(true);
+    const steps = stepsFor("YOUTUBE_API_KEY");
+    expect(steps[0].url).toContain("console.cloud.google.com");
+    expect(steps.some((s) => s.url?.includes("youtube.googleapis.com"))).toBe(true);
+    expect(steps[steps.length - 1].url).toBe("https://vercel.com/dashboard");
+    expect(checkKey("YOUTUBE_API_KEY", "sk-wrong-key-123")).toMatch(/AIza/);
+    expect(checkKey("YOUTUBE_API_KEY", "AIzaSyExampleExample123")).toBe("");
+  });
+  it("keys with no own steps still get one step to their page", async () => {
+    const { stepsFor, KEY_SOURCES } = await import("./keySetup");
+    const s = stepsFor("RESEND_API_KEY");
+    expect(s[0]).toMatchObject({ url: KEY_SOURCES.RESEND_API_KEY.url });
+    expect(stepsFor("NOT_A_KEY")).toEqual([]);
+  });
+  it("Connections lists every key-switched capability we can source, setup ones first", async () => {
+    const { connectionRows, SETUP_CAPABILITIES } = await import("./keySetup");
+    const rows = connectionRows({});
+    expect(rows[0].capability.id).toBe(SETUP_CAPABILITIES[0]);
+    expect(rows.every((r) => r.capability.via === "key" && r.ask.length > 0)).toBe(true);
+    expect(connectionRows({ YOUTUBE_API_KEY: true }).find((r) => r.capability.id === "youtube")?.reading.status).toBe("live");
+  });
+});

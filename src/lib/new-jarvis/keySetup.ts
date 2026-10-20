@@ -14,6 +14,15 @@
 
 import { CAPABILITIES, read, type Capability, type Reading } from "@/lib/armory/catalog";
 
+export interface KeyStep {
+  /** What to do, in plain words. */
+  text: string;
+  /** The exact page for this step, opened by its button. */
+  url?: string;
+  /** The button's label. Defaults to "Open". */
+  cta?: string;
+}
+
 export interface KeySource {
   /** Who issues it, as the owner would say it. */
   site: string;
@@ -23,7 +32,21 @@ export interface KeySource {
   how: string;
   /** Optional shape check — a prefix the real key always has. */
   prefix?: string;
+  /** Free, or what it costs, in a few words. */
+  cost?: string;
+  /**
+   * The whole walk-through, each step with a button to the exact page, for
+   * keys that take more than one page to make (Google's take three).
+   */
+  steps?: KeyStep[];
 }
+
+/** The last step for every key on the live site: where it goes on Vercel. */
+export const VERCEL_STEP: KeyStep = {
+  text: "On the live site, add it in Vercel: your project → Settings → Environment Variables, then Redeploy.",
+  url: "https://vercel.com/dashboard",
+  cta: "Open Vercel",
+};
 
 /** Where each key is got. Names only; values never live in this file. */
 export const KEY_SOURCES: Record<string, KeySource> = {
@@ -32,6 +55,12 @@ export const KEY_SOURCES: Record<string, KeySource> = {
     url: "https://openrouter.ai/settings/keys",
     how: "Create key → copy it. Add a few dollars of credit or answers stop.",
     prefix: "sk-or-",
+    cost: "Pay as you go",
+    steps: [
+      { text: "Sign in to OpenRouter (Google sign-in works).", url: "https://openrouter.ai/sign-in", cta: "Sign in" },
+      { text: "Add a few dollars of credit, or answers stop.", url: "https://openrouter.ai/settings/credits", cta: "Add credit" },
+      { text: "Create a key named Jarvis and copy it.", url: "https://openrouter.ai/settings/keys", cta: "Create key" },
+    ],
   },
   AI_GATEWAY_API_KEY: {
     site: "Vercel AI Gateway",
@@ -85,6 +114,19 @@ export const KEY_SOURCES: Record<string, KeySource> = {
     url: "https://developer.ticketmaster.com/",
     how: "Sign in → My Apps → copy the Consumer Key.",
   },
+  YOUTUBE_API_KEY: {
+    site: "Google Cloud",
+    url: "https://console.cloud.google.com/apis/library/youtube.googleapis.com",
+    how: "Turn on YouTube Data API v3, then Credentials → Create credentials → API key.",
+    prefix: "AIza",
+    cost: "Free (10,000 lookups a day)",
+    steps: [
+      { text: "Sign in to Google Cloud and make a project (any name, e.g. Jarvis). Skip if you have one.", url: "https://console.cloud.google.com/projectcreate", cta: "New project" },
+      { text: "Turn on YouTube Data API v3: press Enable.", url: "https://console.cloud.google.com/apis/library/youtube.googleapis.com", cta: "Enable API" },
+      { text: "Create credentials → API key, then copy it (it starts with AIza).", url: "https://console.cloud.google.com/apis/credentials", cta: "Create key" },
+      { text: "Optional but safer: on that key, Restrict key → YouTube Data API v3 → Save.", url: "https://console.cloud.google.com/apis/credentials", cta: "Restrict" },
+    ],
+  },
   NEXT_PUBLIC_GOOGLE_API_KEY: {
     site: "Google Cloud",
     url: "https://console.cloud.google.com/apis/credentials",
@@ -100,7 +142,34 @@ export const KEY_SOURCES: Record<string, KeySource> = {
  * on a whole feature the owner will notice.
  */
 export const ESSENTIAL = ["openrouter"] as const;
-export const SETUP_CAPABILITIES = ["openrouter", "composio", "supabase", "tts", "video-h3", "maps", "alerts", "events"];
+export const SETUP_CAPABILITIES = ["openrouter", "composio", "supabase", "youtube", "tts", "video-h3", "maps", "alerts", "events"];
+
+/**
+ * Every capability switched on by a key we can say where to get — what
+ * Profile › Connections lists. Onboarding asks only the SETUP_CAPABILITIES.
+ */
+export function connectionRows(keys: Record<string, boolean>): KeyRow[] {
+  const env = { keys, bridge: {}, bridgeUp: false };
+  const order = [...SETUP_CAPABILITIES, ...CAPABILITIES.map((c) => c.id).filter((id) => !SETUP_CAPABILITIES.includes(id))];
+  return order
+    .map((id) => CAPABILITIES.find((c) => c.id === id))
+    .filter((c): c is Capability => Boolean(c) && c!.via === "key")
+    .map((capability) => {
+      const reading = read(capability, env);
+      const firstRoute = capability.anyOf?.[0] ?? capability.needs ?? [];
+      const ask = (reading.missing.length ? reading.missing : firstRoute).filter((k) => KEY_SOURCES[k]);
+      return { capability, reading, essential: (ESSENTIAL as readonly string[]).includes(capability.id), ask };
+    })
+    .filter((r) => r.ask.length > 0);
+}
+
+/** The walk-through for one key: its own steps, or one step from url + how. Always ends on Vercel. */
+export function stepsFor(name: string): KeyStep[] {
+  const s = KEY_SOURCES[name];
+  if (!s) return [];
+  const own = s.steps ?? [{ text: s.how, url: s.url, cta: `Open ${s.site}` }];
+  return [...own, { text: "Paste it into the box below and press Save." }, VERCEL_STEP];
+}
 
 export interface KeyRow {
   capability: Capability;

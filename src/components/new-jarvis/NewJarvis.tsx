@@ -30,6 +30,7 @@ import { StatusDock } from "./StatusDock";
 import { VoiceOrb } from "./VoiceOrb";
 import { QueueBoard } from "./QueueBoard";
 import { SiteErrorsPage } from "./SiteErrors";
+import { openConnections } from "./Connections";
 import { GoalCheck } from "./GoalCheck";
 import { TOPIC_LABEL, topicOf } from "@/lib/new-jarvis/felix";
 import { useQueue } from "@/lib/new-jarvis/useQueue";
@@ -68,7 +69,7 @@ import { AppShell } from "../AppShell";
 // The Dashboard, which now carries Memory, the Profile and the self-audit as
 // panels rather than as three more entries in the rail.
 import { DashboardPanel } from "./DashboardPanel";
-import { Onboarding, SetupButton, resumeStep, type OnboardingStep } from "./Onboarding";
+import { Onboarding, SetupButton, resumeStep, type OnboardingBridge, type OnboardingStep } from "./Onboarding";
 import { getOnboarding, useOnboarding } from "@/lib/new-jarvis/onboarding";
 import { useSetup } from "@/lib/new-jarvis/useSetup";
 import { useCameraWatch } from "@/lib/new-jarvis/useCameraWatch";
@@ -879,6 +880,23 @@ ${reflex.best.excerpt ?? ""}`.trim()
     gateResolvers.current.delete(id);
   }, []);
 
+  /** The PC's local agent as the key rows need it (onboarding and Profile › Connections). */
+  const keysBridge = useMemo<OnboardingBridge>(
+    () => ({
+      connected: bridge.health.up && bridge.health.paired,
+      files: bridge.health.up && bridge.health.paired && bridge.health.capabilities?.files === true,
+      browser: bridge.health.up && bridge.health.paired && bridge.health.capabilities?.browser === true,
+      run: bridge.run,
+    }),
+    [bridge.health.up, bridge.health.paired, bridge.health.capabilities?.files, bridge.health.capabilities?.browser, bridge.run],
+  );
+  /** "Jarvis, do it": straight to the super-agent, in Do mode, past the reflex — a job, not a question. */
+  const askAgent = useCallback((task: string) => {
+    setTab("console");
+    window.location.hash = "console";
+    submitRef.current(task, "typed", { mode: "do", skipReflex: true });
+  }, []);
+
   // The tab lives in the hash, so reload and back land where the owner was.
   useEffect(() => {
     const read = () => {
@@ -892,6 +910,13 @@ ${reflex.best.excerpt ?? ""}`.trim()
       if (h === "iphone") {
         setIphoneGuide(true);
         window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        return;
+      }
+      // Profile › Connections, optionally one row open: /apps/jarvis#connections/youtube
+      if (h === "connections" || h.startsWith("connections/")) {
+        setTab("dashboard");
+        openConnections(h.split("/")[1] || undefined);
+        window.history.replaceState(null, "", window.location.pathname + window.location.search + "#dashboard");
         return;
       }
       if (h === "setup" || h === "onboarding") {
@@ -976,19 +1001,8 @@ ${reflex.best.excerpt ?? ""}`.trim()
           setup={setup}
           brain={chatModel}
           onBrain={setChatModel}
-          bridge={{
-            connected: bridge.health.up && bridge.health.paired,
-            files: bridge.health.up && bridge.health.paired && bridge.health.capabilities?.files === true,
-            browser: bridge.health.up && bridge.health.paired && bridge.health.capabilities?.browser === true,
-            run: bridge.run,
-          }}
-          ask={(task) => {
-            // Straight to the super-agent, in Do mode so it can use the browser
-            // and files, and past the reflex — this is a job, not a question.
-            setTab("console");
-            window.location.hash = "console";
-            submitRef.current(task, "typed", { mode: "do", skipReflex: true });
-          }}
+          bridge={keysBridge}
+          ask={askAgent}
         />
       )}
       {/* The living background: a breathing galaxy, modeled in Blender
@@ -1200,6 +1214,8 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 events={widgetEvents}
                 camera={camera}
                 jarvisProfile={jarvisProfile}
+                keysBridge={keysBridge}
+                ask={askAgent}
               />
             ) : tab === "console" ? (
               <ChatView

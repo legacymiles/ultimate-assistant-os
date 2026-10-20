@@ -167,3 +167,34 @@ describe("recommendations", () => {
     expect(parseAi("no json here")).toEqual([]);
   });
 });
+
+describe("in-app players", async () => {
+  const { embedFor, isTall } = await import("./links");
+  it("every major platform plays inside the app", () => {
+    for (const u of [
+      "https://youtu.be/dQw4w9WgXcQ?t=5",
+      "https://vimeo.com/76979871",
+      "https://www.tiktok.com/@chef/video/7301234567890123456",
+      "https://www.instagram.com/reel/C1a2B3c4D5e/",
+      "https://x.com/nasa/status/1789012345678901234",
+      "https://www.facebook.com/watch/?v=1234567890",
+      "https://clips.twitch.tv/FunnyClipSlug",
+    ]) {
+      const p = parseLink(u)!;
+      expect(embedFor(p, "example.com"), u).toMatch(/^https:\/\//);
+    }
+  });
+  it("YouTube keeps the timestamp; Twitch names our host", () => {
+    expect(embedFor(parseLink("https://youtu.be/dQw4w9WgXcQ?t=5")!)).toContain("start=5");
+    expect(embedFor(parseLink("https://clips.twitch.tv/FunnyClipSlug")!, "ultimate-assistant-os.vercel.app")).toContain("parent=ultimate-assistant-os.vercel.app");
+  });
+  it("links with no player open instead", () => {
+    expect(embedFor(parseLink("https://example.com/a")!)).toBeNull();
+    expect(embedFor(parseLink("https://vm.tiktok.com/ZMabc123/")!)).toBeNull();
+  });
+  it("Shorts, TikToks and Reels are tall", () => {
+    expect(isTall(parseLink("https://youtube.com/shorts/dQw4w9WgXcQ")!)).toBe(true);
+    expect(isTall(parseLink("https://www.instagram.com/reel/C1a2B3c4D5e/")!)).toBe(true);
+    expect(isTall(parseLink("https://youtu.be/dQw4w9WgXcQ")!)).toBe(false);
+  });
+});

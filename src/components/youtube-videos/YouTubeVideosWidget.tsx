@@ -12,7 +12,7 @@ import { Icon } from "../icons";
 import { MiniBtn, Widget, WidgetSheet, stop } from "../new-jarvis/Widgets";
 import "./ytv.css";
 import { YouTubeVideosApp } from "./YouTubeVideosApp";
-import { PLATFORM_LABEL } from "@/lib/youtube-videos/links";
+import { PLATFORM_LABEL, instantThumb } from "@/lib/youtube-videos/links";
 import { useLibrary } from "@/lib/youtube-videos/useLibrary";
 
 export function YouTubeVideosWidget({ onExpand }: { onExpand: () => void }) {
@@ -79,8 +79,8 @@ export function YouTubeVideosWidget({ onExpand }: { onExpand: () => void }) {
           <ul className="ytv-mini-strip">
             {latest.map((v) => (
               <li key={v.id} title={v.title ?? v.url}>
-                {v.thumb ? (
-                  <img src={v.thumb} alt={v.title ?? ""} loading="lazy" />
+                {v.thumb || instantThumb(v) ? (
+                  <img src={v.thumb ?? instantThumb(v)} alt={v.title ?? ""} loading="lazy" />
                 ) : (
                   <span className="ytv-thumb-blank" style={{ ["--c" as string]: "#ff4b3e" }}>
                     <span>{PLATFORM_LABEL[v.platform]}</span>
