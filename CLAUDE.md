@@ -55,7 +55,7 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 |---|---|
 | `dashboard` | `recall` (+ `src/lib/dashboard` for the photo inbox and destinations) |
 | `prompt-architect` | `blueprint` |
-| `viral-studio-content` | `viral-studio` (the app is **Viral Studio Content**, was Dance Vault; four tabs audio/fights/dances/motion, synced key `viral-studio:v1`, downloaded clips in Storage bucket `viral-studio`; `/apps/tiktok-dances` redirects in. The old wall code in `dances/` is no longer mounted; `dance-studio` is the separate AI dance generator) |
+| `viral-studio-content` | `viral-studio` (the app is **Viral Studio Content**, was Dance Vault; four tabs audio/fights/dances/motion, synced key `viral-studio:v1`, downloaded clips in Storage bucket `viral-studio`; `/apps/tiktok-dances` redirects in. Look: Apple TV+-grade black gallery, clips B&W at rest, WebGL trail reveal on hover (`TrailReveal.tsx`, logic `trail.ts`), real thumbnails served same-origin by `/api/viral-studio/poster`; design record in `.impeccable/surfaces/src-components-viral-studio-viralstudio-tsx.md`. The old wall code in `dances/` is no longer mounted; `dance-studio` is the separate AI dance generator) |
 | `fire-reveal` | `reveal` |
 | `3d-studio` | `studio3d` |
 | `cookbook-genie` | `cookbook` |

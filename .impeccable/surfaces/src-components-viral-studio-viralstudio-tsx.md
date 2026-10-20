@@ -23,3 +23,19 @@ STORY: The owner sees their newest clip lit large, understands the four boards a
 FIRST VIEWPORT: Translucent top bar (wordmark left, four-segment board switcher centre, sound right). Hero: the board's name at display size, its count and hint, the paste field as the primary action; the newest clip's art blurred behind as ambient light. Below, the first row of 3:4 posters, four across.
 FORM: Category standard played straight (the standing exit, Apple TV+ bar); the roll assigned grounded candidate 4 (riso print wall) and the owner declined it. Seed key 1f745dc1. Signature interaction: webgl-trail-reveal ring-buffer trail from B&W to colour, flooding to full colour as the clip starts.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+
+## Visual system (as built)
+
+Lives in this surface only; the hub's DESIGN.md (Night Console) stays the global system — the owner chose a distinct world for this app.
+
+- Ground #000; raise #0e0e10 / #1c1c1e; hairlines white 9% and 16%; ink #f5f5f7, #a1a1a6, #8b8b91; warn #e5b94e; destructive #ff453a (delete hover only). No per-tab colour: content supplies all colour.
+- Type: Geist Sans (npm `geist`, next/font). Display 52–92px/700/-0.04em; body 15–16px; meta 13px; counts tabular.
+- Shape: 14px artwork radius, 999px pills. One curve cubic-bezier(0.16, 1, 0.3, 1); 220ms controls, 450–500ms lift.
+- Depth: soft offset shadow on the one lifted tile only; frosted blur only over imagery (bar, tile buttons, toast, pill).
+- Artwork: 3:4 posters, black and white at rest (grayscale 1, contrast 1.06, brightness .88). Stills are measured in the browser: dark letterbox bands and matched blurred side copies are trimmed (src/lib/viral-studio/trail.ts contentRegion/sharpRegion), one-sided soft areas are kept.
+- Signature: WebGL trail reveal (TrailReveal.tsx), 24-point ring buffer, thin RGB-split edge, 0.8s scan then 0.8s flood from the pointer; player preloads hidden during the scan. Lifted tile tilts ≤9° with a pointer-tracked screen-blend sheen.
+- Layout: 4 / 3 / 2 columns at >1180 / >860 / below; newest clip is 2×2, 2-wide or plain (leadSize) so the wall plus the add-a-link tile ends on a full row.
+
+## Finish review
+
+Reviewer (fresh subagent, degraded finish-reviewer.md; no QUALITY BAR board or comp — degraded roll, no image generation). Round 1: fix (crop, touch delete, lead, sheen). Round 2 verdict: touch delete and lead resolved; crop partial; sheen unresolved; regressions empty cell + buttons over captions. Round 3 (applied after the two-round budget, not re-scored): blurred-copy trim, add-a-link tile fills the last row, stronger sheen/tilt, touch scrim. Open: one-sided dark strips that are the clip's own content are not cropped by design.

@@ -18,7 +18,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useRemotePull } from "@/lib/sync/useSync";
-import { addClip, clipsIn, guessVertical, countsByTab, extractLinks, findDuplicate, linkKey, offlinePlayback, removeClip, restoreClip, storedKeys } from "@/lib/viral-studio/board";
+import { addClip, clipsIn, guessVertical, leadSize, countsByTab, extractLinks, findDuplicate, linkKey, offlinePlayback, removeClip, restoreClip, storedKeys } from "@/lib/viral-studio/board";
 import { parseLink } from "@/lib/social-import/platform";
 import { posterUrl } from "@/lib/viral-studio/playback";
 import * as store from "@/lib/viral-studio/store";
@@ -68,6 +68,16 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
   const [dropping, setDropping] = useState(false);
   const [mod, setMod] = useState("Ctrl");
   const [touch, setTouch] = useState(false);
+  const [cols, setCols] = useState(4);
+
+  // Mirrors the grid's breakpoints in viral-studio.css, so the newest clip can
+  // be sized to end the wall on a full row.
+  useEffect(() => {
+    const read = () => setCols(window.innerWidth > 1180 ? 4 : window.innerWidth > 860 ? 3 : 2);
+    read();
+    window.addEventListener("resize", read);
+    return () => window.removeEventListener("resize", read);
+  }, []);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const hoverTimer = useRef<number | null>(null);
@@ -366,10 +376,11 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
   const pendingHere = pending.filter((p) => p.tab === tab);
   const empty = ready && !visible.length && !pendingHere.length;
   const total = visible.length;
-  const lead = visible[0];
-  // The newest clip goes large once there's a wall around it to anchor.
-  const hasLead = visible.length >= 3 && !pendingHere.length;
-  const ambient = lead ? posterUrl(lead) : null;
+  const newest = visible[0];
+  // The newest clip goes large once there's a wall around it to anchor, sized
+  // so the wall (and the add tile after it) ends on a full row.
+  const lead = pendingHere.length ? "none" : leadSize(visible.length, cols);
+  const ambient = newest ? posterUrl(newest) : null;
   const tabIndex = TABS.findIndex((t) => t.id === tab);
 
   return (
@@ -485,10 +496,10 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
             <PendingTile key={p.tempId} pending={p} onCancel={() => cancelPending(p.tempId)} />
           ))}
           {visible.map((c, i) => (
-            <div key={c.id} id={`vsc-${c.id}`} className={`vsc-cell${i === 0 && hasLead ? " is-lead" : ""}`}>
+            <div key={c.id} id={`vsc-${c.id}`} className={`vsc-cell${i === 0 && lead !== "none" ? ` is-lead is-${lead}` : ""}`}>
               <ClipTile
                 clip={c}
-                lead={i === 0 && hasLead}
+                lead={i === 0 && lead !== "none"}
                 active={activeId === c.id}
                 sound={sound && interacted}
                 flash={flashId === c.id}
@@ -499,6 +510,17 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
               />
             </div>
           ))}
+          {visible.length > 0 && (
+            <button type="button" className="vsc-addtile" onClick={() => inputRef.current?.focus()}>
+              <span className="vsc-addtile__art">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              </span>
+              <span className="vsc-addtile__label">Add a link to {def.label}</span>
+              <span className="vsc-addtile__hint">or paste one anywhere</span>
+            </button>
+          )}
         </div>
 
         {empty && (

@@ -179,3 +179,27 @@ export function guessVertical(url: string): boolean {
   }
   return true;
 }
+
+export type LeadSize = "big" | "wide" | "none";
+
+/**
+ * How large the newest clip should be so the wall ends on a full row: a 2×2
+ * feature, a 2-wide banner, or a plain tile. `extra` counts the cells after
+ * the clips (the add-a-link tile). Picks the size that leaves the fewest empty
+ * cells, the bigger one on a tie. Under three clips there is no wall to
+ * anchor, and a 2×2 on a two-column phone would be a whole screen.
+ */
+export function leadSize(count: number, cols: number, extra = 1): LeadSize {
+  if (count < 3 || cols < 2) return "none";
+  const options: [LeadSize, number][] = cols >= 3 ? [["big", 4], ["wide", 2], ["none", 1]] : [["wide", 2], ["none", 1]];
+  let best: LeadSize = "none";
+  let bestEmpty = Infinity;
+  for (const [size, cells] of options) {
+    const empty = (cols - ((count - 1 + cells + extra) % cols)) % cols;
+    if (empty < bestEmpty) {
+      best = size;
+      bestEmpty = empty;
+    }
+  }
+  return best;
+}

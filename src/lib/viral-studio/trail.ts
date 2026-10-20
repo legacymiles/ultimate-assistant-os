@@ -163,3 +163,43 @@ export function regionCover(
     },
   };
 }
+
+/**
+ * Trim blurred side copies — the soft, enlarged duplicate of a clip that
+ * creators put behind a narrower video to fill a vertical frame. They aren't
+ * dark, so `contentRegion` keeps them; they are soft, so their columns carry
+ * far less edge detail than the real picture in the middle.
+ */
+export function sharpRegion(rgba: Uint8ClampedArray | number[], w: number, h: number, base: Region = FULL): Region {
+  const x0 = Math.round(base.x * w);
+  const x1 = Math.round((base.x + base.w) * w);
+  const y0 = Math.round(base.y * h);
+  const y1 = Math.round((base.y + base.h) * h);
+  if (x1 - x0 < 8 || y1 - y0 < 8) return base;
+  const lum = (x: number, y: number) => {
+    const i = (y * w + x) * 4;
+    return 0.299 * rgba[i] + 0.587 * rgba[i + 1] + 0.114 * rgba[i + 2];
+  };
+  const energy: number[] = [];
+  for (let x = x0; x < x1 - 1; x++) {
+    let e = 0;
+    for (let y = y0; y < y1; y++) e += Math.abs(lum(x + 1, y) - lum(x, y));
+    energy.push(e / (y1 - y0));
+  }
+  const mid = energy.slice(Math.floor(energy.length * 0.3), Math.ceil(energy.length * 0.7)).sort((a, b) => a - b);
+  const ref = mid[Math.floor(mid.length / 2)] ?? 0;
+  if (ref < 4) return base; // a flat frame has no detail to compare
+  const soft = (i: number) => energy[i] < ref * 0.4;
+  const cap = Math.floor(energy.length * 0.3);
+  let l = 0;
+  while (l < cap && soft(l)) l++;
+  let r = 0;
+  while (r < cap && soft(energy.length - 1 - r)) r++;
+  // Creators centre the real clip, so the copies are a matched pair. A soft
+  // band on one side only is the picture itself (open water, a clear sky) and
+  // must not be cropped.
+  if (l < 2 || r < 2 || Math.abs(l - r) > Math.max(2, Math.min(l, r) * 0.4)) return base;
+  const nx0 = x0 + l;
+  const nx1 = x1 - r;
+  return { x: nx0 / w, y: base.y, w: (nx1 - nx0) / w, h: base.h };
+}

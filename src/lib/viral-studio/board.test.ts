@@ -151,3 +151,20 @@ describe("playback", () => {
     expect(playbackLimit({ play: { kind: "youtube", ref: "x" } })).toBeNull();
   });
 });
+
+import { leadSize } from "./board";
+
+describe("lead size", () => {
+  it("fills the last row exactly, counting the add-a-link tile", () => {
+    expect(leadSize(8, 4)).toBe("big"); // 7 + 4 + 1 = 12 cells
+    expect(leadSize(6, 4)).toBe("wide"); // 5 + 2 + 1 = 8
+    expect(leadSize(7, 4)).toBe("none"); // 6 + 1 + 1 = 8
+    expect(leadSize(5, 3)).toBe("big"); // 4 + 4 + 1 = 9
+    expect(leadSize(8, 4, 0)).toBe("none"); // without the add tile, 7 + 1 = 8
+  });
+  it("never goes 2×2 on a phone, and needs a wall to anchor", () => {
+    expect(leadSize(8, 2)).toBe("wide"); // 7 + 2 + 1 = 10
+    expect(leadSize(9, 2)).toBe("none"); // 8 + 1 + 1 = 10
+    expect(leadSize(2, 4)).toBe("none");
+  });
+});

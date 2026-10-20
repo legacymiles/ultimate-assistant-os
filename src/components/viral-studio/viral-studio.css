@@ -290,13 +290,45 @@
 
 .vsc-tile { position: relative; min-width: 0; }
 
-/* The newest clip, lit large: two columns by two rows, still B&W at rest. */
-.vsc-cell.is-lead { grid-column: span 2; grid-row: span 2; display: flex; }
+/* The newest clip, lit large: 2×2, or a 2-wide banner when that ends the
+   wall on a full row. Still black and white at rest. */
+.vsc-cell.is-lead { grid-column: span 2; display: flex; }
+.vsc-cell.is-big { grid-row: span 2; }
 .vsc-tile.is-lead { display: flex; flex-direction: column; width: 100%; }
-.vsc-tile.is-lead .vsc-tile__art { aspect-ratio: auto; flex: 1; min-height: 320px; }
+.vsc-cell.is-big .vsc-tile__art { aspect-ratio: auto; flex: 1; min-height: 320px; }
+.vsc-cell.is-wide .vsc-tile__art { aspect-ratio: 3 / 2; flex: none; }
 .vsc-tile.is-lead .vsc-tile__title { font-size: clamp(18px, 1.6vw, 24px); font-weight: 650; letter-spacing: -0.02em; -webkit-line-clamp: 2; }
 .vsc-tile.is-lead .vsc-tile__meta { font-size: 14px; }
 .vsc-tile.is-lead .vsc-tile__caption { padding-top: 16px; }
+
+/* The last cell: somewhere obvious to add the next clip. */
+.vsc-addtile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.vsc-addtile__art {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  margin-bottom: 10px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--hair-2);
+  background: var(--raise);
+  color: var(--ink-3);
+  transition: background 0.22s var(--curve), border-color 0.22s var(--curve), color 0.22s var(--curve);
+}
+.vsc-addtile__art svg { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
+.vsc-addtile:hover .vsc-addtile__art { background: var(--raise-2); border-color: rgba(255, 255, 255, 0.35); color: var(--ink); }
+.vsc-addtile__label { font-size: 15px; font-weight: 600; letter-spacing: -0.012em; }
+.vsc-addtile__hint { color: var(--ink-3); font-size: 13px; }
 .vsc-tile__art {
   position: relative;
   aspect-ratio: 3 / 4;
@@ -310,7 +342,7 @@
 }
 .vsc-tile.is-active .vsc-tile__art {
   transform: perspective(1100px) translateY(-6px) scale(1.03)
-    rotateX(calc((0.5 - var(--my, 0.5)) * 4deg)) rotateY(calc((var(--mx, 0.5) - 0.5) * 5deg));
+    rotateX(calc((0.5 - var(--my, 0.5)) * 7deg)) rotateY(calc((var(--mx, 0.5) - 0.5) * 9deg));
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), 0 28px 50px -14px rgba(0, 0, 0, 0.9), 0 10px 20px -10px rgba(0, 0, 0, 0.7);
 }
 
@@ -382,8 +414,10 @@
   z-index: 5;
   pointer-events: none;
   opacity: 0;
-  background: radial-gradient(circle at calc(var(--mx, 0.5) * 100%) calc(var(--my, 0.3) * 100%), rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.04) 38%, transparent 60%);
-  mix-blend-mode: soft-light;
+  background:
+    radial-gradient(circle at calc(var(--mx, 0.5) * 100%) calc(var(--my, 0.3) * 100%), rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.08) 30%, transparent 58%),
+    linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.07) 50%, transparent 60%);
+  mix-blend-mode: screen;
   transition: opacity 0.45s var(--curve);
 }
 .vsc-tile.is-active .vsc-tile__sheen { opacity: 1; }
@@ -662,7 +696,17 @@
   .vsc-tile__meta { font-size: 12px; }
 }
 
-/* Touch screens have no hover: the corner buttons stay out. */
+/* Touch screens have no hover: the corner buttons stay out, on a soft shade
+   so they never sit straight on a clip's own captions. */
+.vsc.is-touch .vsc-tile__art::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 64px;
+  z-index: 5;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), transparent);
+}
 .vsc.is-touch .vsc-tile__actions { opacity: 1; transform: none; }
 @media (hover: none), (pointer: coarse) {
   .vsc-tile__actions { opacity: 1; transform: none; }

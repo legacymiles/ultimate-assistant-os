@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { FULL, TRAIL_N, ageTrail, contentRegion, coverTransform, floodEase, pushPoint, regionCover, trailUniforms } from "./trail";
+import { FULL, TRAIL_N, ageTrail, contentRegion, coverTransform, floodEase, pushPoint, regionCover, sharpRegion, trailUniforms } from "./trail";
 
 describe("trail ring buffer", () => {
   it("remembers a path, not just the current point", () => {
@@ -106,5 +106,25 @@ describe("letterbox trim", () => {
     expect(a.scale[0]).toBeCloseTo(b.scale[0]);
     expect(a.scale[1]).toBeCloseTo(b.scale[1]);
     expect(a.offset[1]).toBeCloseTo(b.offset[1]);
+  });
+});
+
+describe("blurred side copies", () => {
+  it("trims soft side columns around a detailed centre", () => {
+    // Centre columns 6..13 alternate light/dark (detail); the sides are a smooth ramp (blur).
+    const px = frame(20, 20, (x, y) => (x >= 6 && x < 14 ? ((x + y) % 2 ? 200 : 40) : 100 + x));
+    const r = sharpRegion(px, 20, 20);
+    expect(r.x).toBeGreaterThan(0.2);
+    expect(r.x + r.w).toBeLessThan(0.8);
+  });
+
+  it("keeps a smooth area on one side only (open water is picture, not a copy)", () => {
+    const px = frame(20, 20, (x, y) => (x < 12 ? ((x + y) % 2 ? 200 : 40) : 100 + x));
+    expect(sharpRegion(px, 20, 20)).toEqual(FULL);
+  });
+
+  it("leaves an evenly detailed frame alone", () => {
+    const px = frame(20, 20, (x, y) => ((x * 7 + y * 3) % 5) * 40);
+    expect(sharpRegion(px, 20, 20)).toEqual(FULL);
   });
 });

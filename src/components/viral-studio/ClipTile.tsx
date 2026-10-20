@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { PLATFORM_LABEL } from "@/lib/social-import/platform";
 import { embedUrl, mediaUrl, playbackLimit, posterUrl } from "@/lib/viral-studio/playback";
-import { FULL, contentRegion, regionCover, type Region } from "@/lib/viral-studio/trail";
+import { FULL, contentRegion, regionCover, sharpRegion, type Region } from "@/lib/viral-studio/trail";
 import type { Clip, TabId } from "@/lib/viral-studio/types";
 
 import { TrailReveal } from "./TrailReveal";
@@ -95,7 +95,8 @@ export function ClipTile({ clip, active, sound, flash, lead = false, onEnter, on
       const ctx = c.getContext("2d", { willReadFrequently: true });
       if (!ctx) return;
       ctx.drawImage(el, 0, 0, 60, 80);
-      setRegion(contentRegion(ctx.getImageData(0, 0, 60, 80).data, 60, 80));
+      const px = ctx.getImageData(0, 0, 60, 80).data;
+      setRegion(sharpRegion(px, 60, 80, contentRegion(px, 60, 80)));
     } catch {
       // An unreadable still just isn't trimmed.
     }
