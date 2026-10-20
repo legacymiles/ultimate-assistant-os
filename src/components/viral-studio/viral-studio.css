@@ -289,6 +289,14 @@
 }
 
 .vsc-tile { position: relative; min-width: 0; }
+
+/* The newest clip, lit large: two columns by two rows, still B&W at rest. */
+.vsc-cell.is-lead { grid-column: span 2; grid-row: span 2; display: flex; }
+.vsc-tile.is-lead { display: flex; flex-direction: column; width: 100%; }
+.vsc-tile.is-lead .vsc-tile__art { aspect-ratio: auto; flex: 1; min-height: 320px; }
+.vsc-tile.is-lead .vsc-tile__title { font-size: clamp(18px, 1.6vw, 24px); font-weight: 650; letter-spacing: -0.02em; -webkit-line-clamp: 2; }
+.vsc-tile.is-lead .vsc-tile__meta { font-size: 14px; }
+.vsc-tile.is-lead .vsc-tile__caption { padding-top: 16px; }
 .vsc-tile__art {
   position: relative;
   aspect-ratio: 3 / 4;
@@ -301,7 +309,8 @@
   transition: transform 0.5s var(--curve), box-shadow 0.5s var(--curve);
 }
 .vsc-tile.is-active .vsc-tile__art {
-  transform: translateY(-6px) scale(1.03);
+  transform: perspective(1100px) translateY(-6px) scale(1.03)
+    rotateX(calc((0.5 - var(--my, 0.5)) * 4deg)) rotateY(calc((var(--mx, 0.5) - 0.5) * 5deg));
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), 0 28px 50px -14px rgba(0, 0, 0, 0.9), 0 10px 20px -10px rgba(0, 0, 0, 0.7);
 }
 
@@ -325,6 +334,7 @@
   height: 100%;
   object-fit: cover;
 }
+.vsc-tile__poster.is-framed { object-fit: fill; inset: auto; max-width: none; max-height: none; }
 .vsc-tile__poster {
   filter: grayscale(1) contrast(1.06) brightness(0.88);
   transition: filter 0.6s var(--curve), transform 0.8s var(--curve);
@@ -364,6 +374,19 @@
   font-size: 13px;
   font-weight: 500;
 }
+
+/* Specular light that follows the pointer across the lifted tile. */
+.vsc-tile__sheen {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(circle at calc(var(--mx, 0.5) * 100%) calc(var(--my, 0.3) * 100%), rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.04) 38%, transparent 60%);
+  mix-blend-mode: soft-light;
+  transition: opacity 0.45s var(--curve);
+}
+.vsc-tile.is-active .vsc-tile__sheen { opacity: 1; }
 
 .vsc-playing {
   position: absolute;
@@ -621,6 +644,8 @@
   .vsc-seg__long { display: none; }
   .vsc-seg__short { display: inline; }
   .vsc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 14px; }
+  .vsc-cell.is-lead { grid-row: span 1; }
+  .vsc-tile.is-lead .vsc-tile__art { flex: none; aspect-ratio: 4 / 5; min-height: 0; }
   .vsc-wall__head p { display: none; }
   .vsc-hero__tip { display: none; }
 }
@@ -638,7 +663,8 @@
 }
 
 /* Touch screens have no hover: the corner buttons stay out. */
-@media (hover: none) {
+.vsc.is-touch .vsc-tile__actions { opacity: 1; transform: none; }
+@media (hover: none), (pointer: coarse) {
   .vsc-tile__actions { opacity: 1; transform: none; }
 }
 
@@ -651,4 +677,5 @@
     transition-duration: 0.001ms !important;
   }
   .vsc-tile.is-active .vsc-tile__art { transform: none; }
+  .vsc-tile__sheen { display: none; }
 }

@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { PLATFORM_LABEL } from "@/lib/social-import/platform";
 import { embedUrl, mediaUrl, playbackLimit, posterUrl } from "@/lib/viral-studio/playback";
+import { FULL, contentRegion, regionCover, type Region } from "@/lib/viral-studio/trail";
 import type { Clip, TabId } from "@/lib/viral-studio/types";
 
 import { TrailReveal } from "./TrailReveal";
@@ -52,13 +53,15 @@ interface Props {
   active: boolean;
   sound: boolean;
   flash: boolean;
+  /** The newest clip, shown large. */
+  lead?: boolean;
   onEnter: () => void;
   onLeave: () => void;
   onToggle: () => void;
   onDelete: () => void;
 }
 
-export function ClipTile({ clip, active, sound, flash, onEnter, onLeave, onToggle, onDelete }: Props) {
+export function ClipTile({ clip, active, sound, flash, lead = false, onEnter, onLeave, onToggle, onDelete }: Props) {
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const [vid, setVid] = useState<HTMLVideoElement | null>(null);
@@ -67,6 +70,46 @@ export function ClipTile({ clip, active, sound, flash, onEnter, onLeave, onToggl
   const [plain, setPlain] = useState(false);
   const [frameReady, setFrameReady] = useState(false);
   const seed = useRef<[number, number] | null>(null);
+  const artRef = useRef<HTMLDivElement>(null);
+  const [region, setRegion] = useState<Region>(FULL);
+  const [artSize, setArtSize] = useState<[number, number]>([3, 4]);
+
+  // The tile's real shape (the lead clip is not 3:4), for framing a trimmed still.
+  useEffect(() => {
+    const el = artRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const r = el.getBoundingClientRect();
+      if (r.width && r.height) setArtSize([r.width, r.height]);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  /** Find letterbox bars in the still so it can fill the tile edge to edge. */
+  const measure = (el: HTMLImageElement) => {
+    try {
+      const c = document.createElement("canvas");
+      c.width = 60;
+      c.height = 80;
+      const ctx = c.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return;
+      ctx.drawImage(el, 0, 0, 60, 80);
+      setRegion(contentRegion(ctx.getImageData(0, 0, 60, 80).data, 60, 80));
+    } catch {
+      // An unreadable still just isn't trimmed.
+    }
+  };
+  const framed =
+    img && region !== FULL && img.naturalWidth ? regionCover(img.naturalWidth, img.naturalHeight, region, artSize[0], artSize[1]).css : null;
+
+  /** Light on the lifted tile follows the pointer (a sheen and a slight tilt). */
+  const onArtMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== "mouse" || !artRef.current) return;
+    const r = artRef.current.getBoundingClientRect();
+    artRef.current.style.setProperty("--mx", ((e.clientX - r.left) / r.width).toFixed(3));
+    artRef.current.style.setProperty("--my", ((e.clientY - r.top) / r.height).toFixed(3));
+  };
 
   const poster = posterUrl(clip);
   const isFile = clip.play.kind === "file";
@@ -108,7 +151,7 @@ export function ClipTile({ clip, active, sound, flash, onEnter, onLeave, onToggl
   return (
     <article
       ref={setHost}
-      className={`vsc-tile${active ? " is-active" : ""}${live ? " is-live" : ""}${plain && active ? " is-plain" : ""}${flash ? " is-flash" : ""}`}
+      className={`vsc-tile${lead ? " is-lead" : ""}${active ? " is-active" : ""}${live ? " is-live" : ""}${plain && active ? " is-plain" : ""}${flash ? " is-flash" : ""}`}
       onPointerEnter={(e) => {
         if (e.pointerType !== "mouse") return;
         const r = e.currentTarget.querySelector(".vsc-tile__art")?.getBoundingClientRect();
@@ -119,7 +162,7 @@ export function ClipTile({ clip, active, sound, flash, onEnter, onLeave, onToggl
         if (e.pointerType === "mouse") onLeave();
       }}
     >
-      <div className="vsc-tile__art">
+      <div className="vsc-tile__art" ref={artRef} onPointerMove={onArtMove}>
         <button
           type="button"
           className="vsc-tile__hit"
@@ -135,13 +178,17 @@ export function ClipTile({ clip, active, sound, flash, onEnter, onLeave, onToggl
           // route; next/image would re-encode a frame the reveal reads as-is.
           <img
             ref={setImg}
-            className="vsc-tile__poster"
+            className={`vsc-tile__poster${framed ? " is-framed" : ""}`}
+            style={framed ? { left: `${framed.left}%`, top: `${framed.top}%`, width: `${framed.width}%`, height: `${framed.height}%` } : undefined}
             src={poster}
             alt=""
             crossOrigin="anonymous"
             decoding="async"
             loading="lazy"
-            onLoad={() => setPosterOk(true)}
+            onLoad={(e) => {
+              setPosterOk(true);
+              measure(e.currentTarget);
+            }}
             onError={() => setPosterOk(false)}
           />
         ) : isFile && clip.play.kind === "file" ? (
@@ -172,6 +219,7 @@ export function ClipTile({ clip, active, sound, flash, onEnter, onLeave, onToggl
             image={posterOk ? img : null}
             video={vid}
             seed={seed.current}
+            region={region}
             onFlooded={() => setLive(true)}
             onUnsupported={() => {
               setPlain(true);
@@ -203,6 +251,8 @@ export function ClipTile({ clip, active, sound, flash, onEnter, onLeave, onToggl
             {sound ? "Playing" : "Muted"}
           </span>
         )}
+
+        <span className="vsc-tile__sheen" aria-hidden="true" />
 
         <div className="vsc-tile__actions">
           <a className="vsc-round" href={clip.url} target="_blank" rel="noreferrer" title={`Open on ${label}`} aria-label={`Open on ${label}`}>

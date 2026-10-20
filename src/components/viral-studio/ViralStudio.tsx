@@ -67,6 +67,7 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
   const [interacted, setInteracted] = useState(false);
   const [dropping, setDropping] = useState(false);
   const [mod, setMod] = useState("Ctrl");
+  const [touch, setTouch] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const hoverTimer = useRef<number | null>(null);
@@ -108,6 +109,8 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
       // A blocked or corrupt preference just means the defaults.
     }
     if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) setMod("⌘");
+    // No hover on a phone: the corner buttons (open, delete) must always show.
+    if (window.matchMedia?.("(hover: none), (pointer: coarse)").matches) setTouch(true);
     const fromUrl = new URLSearchParams(window.location.search).get("tab");
     if (isTabId(fromUrl)) setTab(fromUrl);
   }, [reload]);
@@ -364,12 +367,14 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
   const empty = ready && !visible.length && !pendingHere.length;
   const total = visible.length;
   const lead = visible[0];
+  // The newest clip goes large once there's a wall around it to anchor.
+  const hasLead = visible.length >= 3 && !pendingHere.length;
   const ambient = lead ? posterUrl(lead) : null;
   const tabIndex = TABS.findIndex((t) => t.id === tab);
 
   return (
     <main
-      className={`vsc${dropping ? " is-dropping" : ""}${geist}`}
+      className={`vsc${dropping ? " is-dropping" : ""}${touch ? " is-touch" : ""}${geist}`}
       data-tab={tab}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("text/uri-list") || e.dataTransfer.types.includes("text/plain")) {
@@ -479,10 +484,11 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
           {pendingHere.map((p) => (
             <PendingTile key={p.tempId} pending={p} onCancel={() => cancelPending(p.tempId)} />
           ))}
-          {visible.map((c) => (
-            <div key={c.id} id={`vsc-${c.id}`} className="vsc-cell">
+          {visible.map((c, i) => (
+            <div key={c.id} id={`vsc-${c.id}`} className={`vsc-cell${i === 0 && hasLead ? " is-lead" : ""}`}>
               <ClipTile
                 clip={c}
+                lead={i === 0 && hasLead}
                 active={activeId === c.id}
                 sound={sound && interacted}
                 flash={flashId === c.id}

@@ -13,7 +13,7 @@
 
 import { useEffect, useRef } from "react";
 
-import { TRAIL_N, ageTrail, coverTransform, floodEase, pushPoint, trailUniforms, type TrailPoint } from "@/lib/viral-studio/trail";
+import { FULL, TRAIL_N, ageTrail, coverTransform, floodEase, pushPoint, regionCover, trailUniforms, type Region, type TrailPoint } from "@/lib/viral-studio/trail";
 
 const VERT = `
 attribute vec2 aPos;
@@ -108,6 +108,8 @@ interface Props {
   onUnsupported: () => void;
   /** Where the pointer entered, in uv — the scan starts there instead of empty. */
   seed?: [number, number] | null;
+  /** The picture part of the still (letterbox bars trimmed), so the reveal frames it like the poster. */
+  region?: Region;
 }
 
 function compile(gl: WebGLRenderingContext, type: number, src: string): WebGLShader | null {
@@ -125,13 +127,15 @@ function giveUp(why: string, done: () => void) {
   done();
 }
 
-export function TrailReveal({ host, image, video, onFlooded, onUnsupported, seed }: Props) {
+export function TrailReveal({ host, image, video, onFlooded, onUnsupported, seed, region = FULL }: Props) {
   const boxRef = useRef<HTMLDivElement>(null);
   const cb = useRef({ onFlooded, onUnsupported });
   cb.current = { onFlooded, onUnsupported };
   const sources = useRef({ image, video });
   sources.current = { image, video };
   const seedRef = useRef(seed);
+  const regionRef = useRef(region);
+  regionRef.current = region;
 
   useEffect(() => {
     const box = boxRef.current;
@@ -197,6 +201,7 @@ export function TrailReveal({ host, image, video, onFlooded, onUnsupported, seed
     let floodAt: [number, number] = s0 ?? [0.5, 0.65];
     let texW = 0;
     let texH = 0;
+    let fromVideo = false;
     let dead = false;
     let flooded = false;
     const start = performance.now();
@@ -240,6 +245,7 @@ export function TrailReveal({ host, image, video, onFlooded, onUnsupported, seed
           gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, vid);
           texW = vid.videoWidth;
           texH = vid.videoHeight;
+          fromVideo = true;
           return true;
         }
         if (img && img.complete && img.naturalWidth) {
@@ -273,7 +279,9 @@ export function TrailReveal({ host, image, video, onFlooded, onUnsupported, seed
       }
 
       if (upload()) {
-        const { scale, offset } = coverTransform(texW, texH, canvas.width, canvas.height);
+        const { scale, offset } = fromVideo
+          ? coverTransform(texW, texH, canvas.width, canvas.height)
+          : regionCover(texW, texH, regionRef.current, canvas.width, canvas.height);
         const { pos, age } = trailUniforms(trail);
         gl.uniform2f(uScale, scale[0], scale[1]);
         gl.uniform2f(uOffset, offset[0], offset[1]);

@@ -76,3 +76,90 @@ export function floodEase(t: number): number {
   const c = Math.min(1, Math.max(0, t));
   return 1 - Math.pow(1 - c, 3);
 }
+
+/** The part of a still that is picture, as fractions of its width and height (0..1). */
+export interface Region {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export const FULL: Region = { x: 0, y: 0, w: 1, h: 1 };
+
+/**
+ * Find letterbox and pillarbox bars: whole rows or columns at an edge that are
+ * near-black and flat. Shorts cut from TV footage often carry thick black
+ * bands; trimming them lets every poster fill its tile edge to edge.
+ * `rgba` is a small downsampled copy of the image (e.g. 48×64).
+ */
+export function contentRegion(rgba: Uint8ClampedArray | number[], w: number, h: number, threshold = 30): Region {
+  const lum = (i: number) => 0.299 * rgba[i] + 0.587 * rgba[i + 1] + 0.114 * rgba[i + 2];
+  // A band is "bar" when it is dark on average and almost nothing in it is
+  // bright. Judging by the brightest pixel instead fails on every real bar:
+  // compression noise, a watermark or a credit line sits in most of them.
+  const dark = (samples: number[]) => {
+    let sum = 0;
+    let bright = 0;
+    for (const v of samples) {
+      sum += v;
+      if (v > 70) bright++;
+    }
+    return sum / samples.length < threshold && bright / samples.length < 0.08;
+  };
+  const rowDark = (y: number) => {
+    const s: number[] = [];
+    for (let x = 0; x < w; x++) s.push(lum((y * w + x) * 4));
+    return dark(s);
+  };
+  const colDark = (x: number, y0: number, y1: number) => {
+    const s: number[] = [];
+    for (let y = y0; y < y1; y++) s.push(lum((y * w + x) * 4));
+    return dark(s);
+  };
+  let top = 0;
+  while (top < h - 1 && rowDark(top)) top++;
+  let bottom = h;
+  while (bottom > top + 1 && rowDark(bottom - 1)) bottom--;
+  let left = 0;
+  while (left < w - 1 && colDark(left, top, bottom)) left++;
+  let right = w;
+  while (right > left + 1 && colDark(right - 1, top, bottom)) right--;
+  const region = { x: left / w, y: top / h, w: (right - left) / w, h: (bottom - top) / h };
+  // Mostly-dark frames (a night shot) are content, not bars; and a trim of a
+  // pixel or two isn't worth the zoom.
+  if (region.w < 0.35 || region.h < 0.35) return FULL;
+  if (region.w > 0.96 && region.h > 0.96) return FULL;
+  return region;
+}
+
+/**
+ * object-fit: cover over a sub-region of the image. Returns the uv scale and
+ * offset for the shader (texture flipped, so y counts from the bottom) and the
+ * same framing as a CSS box in % of the tile.
+ */
+export function regionCover(
+  natW: number,
+  natH: number,
+  region: Region,
+  planeW: number,
+  planeH: number,
+): { scale: [number, number]; offset: [number, number]; css: { left: number; top: number; width: number; height: number } } {
+  const cw = region.w * natW;
+  const ch = region.h * natH;
+  const s = Math.max(planeW / cw, planeH / ch);
+  const vw = planeW / s;
+  const vh = planeH / s;
+  const sx = region.x * natW + (cw - vw) / 2;
+  const sy = region.y * natH + (ch - vh) / 2;
+  return {
+    scale: [vw / natW, vh / natH],
+    offset: [sx / natW, 1 - (sy + vh) / natH],
+    css: {
+      left: (-sx * s * 100) / planeW,
+      top: (-sy * s * 100) / planeH,
+      width: (natW * s * 100) / planeW,
+      height: (natH * s * 100) / planeH,
+    },
+  };
+}
