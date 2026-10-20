@@ -1,5 +1,23 @@
 [
  {
+  "id": "e9b00dd:cook-connect",
+  "date": "2026-10-20",
+  "slug": "cook-connect",
+  "title": "Holo table redesign, every hand held as a curved fan",
+  "detail": "The spades table is rebuilt (taste-skill + webgl-trail-reveal): a tilted oval of WebGL felt on a dark stage, where the pointer paints a fading trail that scans glowing circuitry in, with a thin chromatic edge, and the felt pulses out from whoever wins each trick. Your hand is a tight curved fan held",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "29a3169:personas-studio",
+  "date": "2026-10-20",
+  "slug": "personas-studio",
+  "title": "Message inbox tab — every DM and comment in one place",
+  "detail": "Each persona gets a Message inbox tab (also in the Jarvis Personas pane): - Live read + reply for Instagram (DMs + comments), Facebook Pages (Messenger + comments) and YouTube (comments), on the persona's normal Connect login. One sign-in now asks for sync + auto-post + inbox; the callback quietly r",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "723c6b2:jarvis",
   "date": "2026-10-20",
   "slug": "jarvis",
