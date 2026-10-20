@@ -133,10 +133,24 @@ export async function cookiesFor(platform: Platform): Promise<string | null> {
   const file = process.env[`${name}_FILE`];
   if (file) return fs.readFile(file, "utf8").catch(() => null);
   const raw = process.env[name]?.trim();
-  if (!raw) return null;
+  if (!raw) return storedCookies(platform);
   if (raw.includes("\t") || raw.startsWith("#")) return raw.replace(/\\n/g, "\n");
   try {
     return Buffer.from(raw, "base64").toString("utf8");
+  } catch {
+    return storedCookies(platform);
+  }
+}
+
+/**
+ * The session the owner connected from inside the app (cookieStore.ts).
+ * Loaded lazily: that module is server-only, and the tests that import this
+ * file never get this far.
+ */
+async function storedCookies(platform: Platform): Promise<string | null> {
+  try {
+    const { savedCookies } = await import("./cookieStore");
+    return await savedCookies(platform);
   } catch {
     return null;
   }

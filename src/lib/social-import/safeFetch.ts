@@ -66,19 +66,33 @@ export async function assertPublic(url: URL): Promise<void> {
 interface FetchOpts {
   timeoutMs?: number;
   accept?: string;
+  /** Extra request headers (a different user-agent, a Cookie for a site the owner connected). */
+  headers?: Record<string, string>;
+}
+
+/** "www.facebook.com" and "m.facebook.com" → "facebook.com". */
+function baseDomain(host: string): string {
+  return host.toLowerCase().split(".").slice(-2).join(".");
 }
 
 /** fetch() with the address check re-run on every redirect hop. */
-export async function safeFetch(input: string | URL, { timeoutMs = 15_000, accept = "*/*" }: FetchOpts = {}): Promise<Response> {
+export async function safeFetch(input: string | URL, { timeoutMs = 15_000, accept = "*/*", headers = {} }: FetchOpts = {}): Promise<Response> {
   let url = new URL(String(input));
   // One deadline for the whole exchange, body included.
   const signal = AbortSignal.timeout(timeoutMs);
+  // A Cookie header belongs to the site it was made for. If a redirect leaves
+  // that site, the cookies stay behind.
+  const site = baseDomain(url.hostname);
   for (let hop = 0; hop < 6; hop++) {
     await assertPublic(url);
+    const sent = { ...headers };
+    if (baseDomain(url.hostname) !== site) {
+      for (const k of Object.keys(sent)) if (k.toLowerCase() === "cookie") delete sent[k];
+    }
     const res = await fetch(url, {
       redirect: "manual",
       signal,
-      headers: { "user-agent": BROWSER_UA, accept, "accept-language": "en-US,en;q=0.9" },
+      headers: { "user-agent": BROWSER_UA, accept, "accept-language": "en-US,en;q=0.9", ...sent },
     });
     const next = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
     if (!next) return res;
@@ -127,8 +141,8 @@ export async function fetchBytes(
   }
 }
 
-export async function fetchText(url: string, maxBytes = 4_000_000): Promise<string | null> {
-  const got = await fetchBytes(url, { maxBytes, truncate: true, accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8" });
+export async function fetchText(url: string, maxBytes = 4_000_000, headers?: Record<string, string>): Promise<string | null> {
+  const got = await fetchBytes(url, { maxBytes, truncate: true, accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8", headers });
   return got ? got.bytes.toString("utf8") : null;
 }
 

@@ -1,19 +1,45 @@
 {
   "manifest_version": 3,
   "name": "Jarvis Record",
-  "version": "1.1.0",
-  "description": "Save what you type into job and benefits applications to your Jarvis Life Record, and fill the next one from it.",
-  "permissions": ["storage", "activeTab", "scripting"],
-  "host_permissions": ["http://localhost:3240/*", "https://*/*"],
-  "action": { "default_popup": "popup.html", "default_title": "Jarvis Record" },
-  "background": { "service_worker": "background.js" },
+  "version": "1.2.0",
+  "description": "Save what you type into job and benefits applications to your Jarvis Life Record, fill the next one from it, and connect Facebook & Instagram for video imports.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "optional_permissions": [
+    "cookies"
+  ],
+  "host_permissions": [
+    "http://localhost:3240/*",
+    "https://*/*"
+  ],
+  "optional_host_permissions": [
+    "https://*.facebook.com/*",
+    "https://*.instagram.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Jarvis Record"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
-      "matches": ["http://localhost:3240/*", "http://localhost:3000/*"],
-      "js": ["connect.js"],
+      "matches": [
+        "http://localhost:3240/*",
+        "http://localhost:3000/*"
+      ],
+      "js": [
+        "connect.js"
+      ],
       "run_at": "document_start"
     }
   ],
   "options_page": "options.html",
-  "icons": { "128": "icon.png" }
+  "icons": {
+    "128": "icon.png"
+  }
 }

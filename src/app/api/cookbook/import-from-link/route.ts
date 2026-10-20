@@ -173,7 +173,12 @@ export async function POST(req: Request) {
       videoProblem
         ? videoProblem.message
         : `${label} didn't let us see that post — it's probably private or needs a login. Paste the caption or upload the video instead.`,
-      { needsHelp: true, trail: post.trail }
+      {
+        needsHelp: true,
+        trail: post.trail,
+        // Lets the page offer "Connect Facebook" right there, then try again.
+        ...(videoProblem?.needsLogin && parsed ? { needsLogin: true, site: parsed.platform } : {}),
+      }
     );
   }
 

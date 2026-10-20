@@ -17,9 +17,10 @@
 // Below the tray, the draft arrives as a recipe you can read and edit in place,
 // with one box for changing it in words. You are never handed an empty form.
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useCook } from "../CookConnect";
 import { Columns, PageHead } from "../Columns";
+import { ConnectSitePanel } from "../ConnectSitePanel";
 import { recordActivity } from "@/lib/cook-connect/social";
 import { recipeImageUrl } from "@/components/cook-connect/imageGen";
 import {
@@ -84,6 +85,8 @@ export function RecipeEditorView({ cookbookId }: { cookbookId: string }) {
   const [stage, setStage] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [canWriteAnyway, setCanWriteAnyway] = useState(false);
+  /** The site an import said needs a sign-in — shows "Connect Facebook" under the error. */
+  const [connectSite, setConnectSite] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
   const [note, setNote] = useState("");
   const [revising, setRevising] = useState(false);
@@ -206,6 +209,7 @@ export function RecipeEditorView({ cookbookId }: { cookbookId: string }) {
     setBusy(true);
     setError(null);
     setCanWriteAnyway(false);
+    setConnectSite(null);
     setStage(0);
     try {
       const res = await fetch("/api/cookbook/import-from-link", {
@@ -223,6 +227,7 @@ export function RecipeEditorView({ cookbookId }: { cookbookId: string }) {
       const data = await res.json();
       if (!res.ok || data.error) {
         setError(String(data.error || `The read failed (${res.status}).`));
+        if (data.needsLogin && typeof data.site === "string") setConnectSite(data.site);
         // Pasting the caption only helps a post that wouldn't open.
         if (data.needsHelp && link.trim() && !data.needsKey) setShowCaption(true);
         // A note is a complete request on its own, so when the evidence can't
@@ -250,6 +255,13 @@ export function RecipeEditorView({ cookbookId }: { cookbookId: string }) {
       setBusy(false);
     }
   };
+
+  /** Once the site is connected, run the same read again — no second press. */
+  const readRef = useRef(read);
+  readRef.current = read;
+  const retryAfterConnect = useCallback(() => {
+    setTimeout(() => void readRef.current(), 600);
+  }, []);
 
   /** Words alone: the route with a template behind it, so a keyless hub answers. */
   const write = async () => {
@@ -483,6 +495,7 @@ export function RecipeEditorView({ cookbookId }: { cookbookId: string }) {
         {error && (
           <div role="alert" className="border-t border-[var(--cc-line)] px-3 py-2">
             <p className="text-[12px] leading-relaxed text-[var(--cc-loss)]">{error}</p>
+            {connectSite && <ConnectSitePanel site={connectSite} onConnected={retryAfterConnect} />}
             {canWriteAnyway && (
               <Button className="mt-2" onClick={() => void write()}>
                 <SparkIcon size={14} />

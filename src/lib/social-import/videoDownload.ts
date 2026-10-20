@@ -8,7 +8,8 @@
 //   tiktok     tikwm mirror → yt-dlp → cobalt
 //   youtube    yt-dlp → cobalt
 //   instagram  yt-dlp → cobalt → page og:video
-//   facebook   yt-dlp → cobalt → page og:video
+//   facebook   share link → real reel address, then
+//              facebook pages → yt-dlp → cobalt → page og:video
 //   x          fxtwitter API → yt-dlp → cobalt
 //   pinterest  yt-dlp → page og:video → cobalt
 //   web        page og:video → yt-dlp (it knows ~1,800 sites)
@@ -22,23 +23,30 @@
 //              COBALT_API_URL (+ COBALT_API_KEY); the public instance forbids
 //              third-party use
 //   page       the post page's own og:video tag
+//   facebook   facebook.ts — the embed player, desktop, mobile and crawler
+//              versions of the post, read for a direct video URL (no key,
+//              and no login for public reels)
+//
+// A Facebook or Instagram session the owner connected in the app
+// (cookieStore.ts) is used by every strategy that talks to that site.
 //
 // Downloading from these sites can breach their terms of service; use it for
 // content you have the right to use.
 // ---------------------------------------------------------------------------
 
+import { canonicalFacebookUrl, findFacebookVideo, isFacebookShareLink, resolveFacebookShare } from "./facebook";
 import { metaTags } from "./jsonld";
 import { PLATFORM_LABEL, type Platform } from "./platform";
 import { fetchBytes, fetchJson, fetchText } from "./safeFetch";
-import { YtDlpError, ytDlpDownload } from "./ytdlp";
+import { YtDlpError, cookiesFor, ytDlpDownload } from "./ytdlp";
 
-export type Strategy = "tikwm" | "fxtwitter" | "yt-dlp" | "cobalt" | "page";
+export type Strategy = "tikwm" | "fxtwitter" | "yt-dlp" | "cobalt" | "page" | "facebook";
 
 export const VIDEO_WORKFLOWS: Record<Platform, Strategy[]> = {
   tiktok: ["tikwm", "yt-dlp", "cobalt"],
   youtube: ["yt-dlp", "cobalt"],
   instagram: ["yt-dlp", "cobalt", "page"],
-  facebook: ["yt-dlp", "cobalt", "page"],
+  facebook: ["facebook", "yt-dlp", "cobalt", "page"],
   x: ["fxtwitter", "yt-dlp", "cobalt"],
   pinterest: ["yt-dlp", "page", "cobalt"],
   web: ["page", "yt-dlp"],
@@ -50,6 +58,7 @@ const STRATEGY_LABEL: Record<Strategy, string> = {
   "yt-dlp": "yt-dlp",
   cobalt: "cobalt",
   page: "the page's video tag",
+  facebook: "Facebook's video player",
 };
 
 export interface DownloadedVideo {
@@ -158,14 +167,39 @@ async function viaPage(url: URL, maxBytes: number): Promise<Found | null> {
   return { ...empty, bytes, title: meta["og:title"] ?? "", caption: meta["og:description"] ?? "", thumbnailUrl: meta["og:image"] ?? null };
 }
 
+async function viaFacebook(url: URL, maxBytes: number, cookies: string | null): Promise<Found | null> {
+  const found = await findFacebookVideo(url, cookies);
+  if (!found) return null;
+  const bytes = await grab(found.videoUrl, maxBytes);
+  if (!bytes) return null;
+  return { ...empty, bytes, title: found.title, caption: found.caption, thumbnailUrl: found.thumbnailUrl };
+}
+
 async function viaYtDlp(url: URL, platform: Platform, maxBytes: number): Promise<Found> {
   const v = await ytDlpDownload(url.href, platform, { maxBytes });
   return { bytes: v.bytes, title: v.title, caption: v.description, author: v.uploader, thumbnailUrl: v.thumbnail, durationSec: v.durationSec, width: v.width, height: v.height };
 }
 
-export async function downloadVideo(url: URL, platform: Platform, { maxBytes }: { maxBytes: number }): Promise<DownloadedVideo> {
+export async function downloadVideo(input: URL, platform: Platform, { maxBytes }: { maxBytes: number }): Promise<DownloadedVideo> {
   const trail: string[] = [];
   let needsLogin = false;
+  let url = input;
+  const cookies = platform === "facebook" || platform === "instagram" ? await cookiesFor(platform).catch(() => null) : null;
+
+  // The iPhone share sheet hands out facebook.com/share/r/<code> links, which
+  // send a logged-out visitor to the login page. Follow them to the real reel
+  // first, so nothing downstream mistakes a share redirect for a private video.
+  if (platform === "facebook") {
+    if (isFacebookShareLink(url)) {
+      const real = await resolveFacebookShare(url, cookies);
+      if (real) {
+        url = real;
+        trail.push("Opened the share link to find the reel.");
+      }
+    } else {
+      url = canonicalFacebookUrl(url);
+    }
+  }
 
   for (const strategy of VIDEO_WORKFLOWS[platform]) {
     const label = STRATEGY_LABEL[strategy];
@@ -179,7 +213,9 @@ export async function downloadVideo(url: URL, platform: Platform, { maxBytes }: 
               ? await viaCobalt(url, maxBytes)
               : strategy === "page"
                 ? await viaPage(url, maxBytes)
-                : await viaYtDlp(url, platform, maxBytes);
+                : strategy === "facebook"
+                  ? await viaFacebook(url, maxBytes, cookies)
+                  : await viaYtDlp(url, platform, maxBytes);
       if (!found) {
         trail.push(`${label}: no video found.`);
         continue;
@@ -198,8 +234,11 @@ export async function downloadVideo(url: URL, platform: Platform, { maxBytes }: 
   }
 
   const site = PLATFORM_LABEL[platform];
+  // Plain words only — this sentence is shown to the person who pasted the link.
   const message = needsLogin
-    ? `${site} only shows this video to logged-in accounts. Add YTDLP_COOKIES_${platform.toUpperCase()} (cookies exported from a logged-in browser) to fetch it, or save the video and upload it.`
-    : `Couldn't download a video from that ${site} link.`;
+    ? cookies
+      ? `${site} still wouldn't show this video, even signed in. It may be private, deleted, or only for the poster's friends — save it to your phone and upload it instead.`
+      : `${site} only shows this video to people who are signed in. Connect ${site} once (one tap) and links like this will work from now on — or save the video to your phone and upload it.`
+    : `Couldn't download a video from that ${site} link. Save the video to your phone and upload it instead.`;
   throw new VideoUnavailableError(message, needsLogin, trail);
 }

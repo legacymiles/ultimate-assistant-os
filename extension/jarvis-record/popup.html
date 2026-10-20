@@ -99,6 +99,8 @@
       ul { margin: 6px 0 0; padding-left: 16px; color: var(--ink-faint); font-size: 11px; }
       li { margin-bottom: 2px; }
       .hidden { display: none; }
+      .connect { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+      .hint { margin: 0; color: var(--ink-faint); font-size: 11px; line-height: 1.5; }
     </style>
   </head>
   <body>
@@ -116,6 +118,13 @@
       <button id="fill">Fill this form from my Record</button>
       <p class="status" id="status">Nothing is read from this page until you press one of these.</p>
       <ul id="detail"></ul>
+
+      <div class="connect">
+        <button id="connectSocial">Connect Facebook &amp; Instagram</button>
+        <p class="hint">For video imports in Cook Connect and the Studio: shares the Facebook/Instagram
+          sign-in you already have in this browser with your hub, so login-only reels open. Press it
+          again any time an import says to connect.</p>
+      </div>
     </div>
 
     <script src="popup.js"></script>

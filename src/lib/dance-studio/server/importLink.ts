@@ -89,7 +89,7 @@ export async function importDanceVideo(input: string): Promise<ImportedVideo> {
       hint = { durationSec: video.durationSec, width: video.width, height: video.height };
       trail = video.trail;
     } catch (err) {
-      if (err instanceof VideoUnavailableError) throw new ImportError(`${err.message} ${err.needsLogin ? "" : UPLOAD_INSTEAD}`.trim(), 422, err.trail);
+      if (err instanceof VideoUnavailableError) throw new ImportError(err.message, 422, err.trail);
       throw err;
     }
   }

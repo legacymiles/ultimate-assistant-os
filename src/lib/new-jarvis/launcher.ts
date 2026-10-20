@@ -31,16 +31,41 @@ export interface RecentEntry {
 export interface LauncherData {
   favorites: string[];
   recent: RecentEntry[];
+  /**
+   * Starred-by-default apps already handed to this person. Once a default is
+   * in here it is never added back, so unstarring it sticks.
+   */
+  seeded?: string[];
 }
 
-const EMPTY: LauncherData = { favorites: [], recent: [] };
+/**
+ * Apps every account starts with starred, so they sit on the Dashboard from
+ * the first visit — new users and existing ones alike. Keep this short: a
+ * default favorite is a promise that the app is worth a spot for everyone.
+ */
+export const DEFAULT_FAVORITES: readonly string[] = ["cook-connect"];
+
+const EMPTY: LauncherData = { favorites: [], recent: [], seeded: [] };
+
+/** Pure: add any default favorite this person hasn't been given yet. */
+export function withDefaults(d: LauncherData, defaults: readonly string[] = DEFAULT_FAVORITES): LauncherData {
+  const seeded = d.seeded ?? [];
+  const missing = defaults.filter((s) => !seeded.includes(s));
+  if (!missing.length) return d;
+  return {
+    ...d,
+    favorites: [...missing.filter((s) => !d.favorites.includes(s)), ...d.favorites],
+    seeded: [...seeded, ...missing],
+  };
+}
 
 export function getLauncher(): LauncherData {
   const d = loadLocal<LauncherData>(LAUNCHER_KEY, EMPTY);
-  return {
+  return withDefaults({
     favorites: Array.isArray(d?.favorites) ? d.favorites : [],
     recent: Array.isArray(d?.recent) ? d.recent : [],
-  };
+    seeded: Array.isArray(d?.seeded) ? d.seeded : [],
+  });
 }
 
 function save(d: LauncherData): LauncherData {

@@ -63,6 +63,9 @@ const TOKEN_AUTH_PATHS = new Set([
   "/api/jarvis/record/capture/push",
   "/api/jarvis/record/snapshot/pull",
   "/api/jarvis/record/map",
+  // The same extension's "Connect Facebook & Instagram" button — sends the
+  // signed-in session that video imports use. Verifies the token in the route.
+  "/api/social-import/cookies/push",
   // Shared memory over MCP. Claude Code on the PC and the VPS, and a
   // claude.ai connector, are not browsers and have no session here. The route
   // verifies JARVIS_MCP_TOKEN itself and is pinned to one account id read

@@ -17,6 +17,7 @@ const els = {
   status: document.getElementById("status"),
   detail: document.getElementById("detail"),
   openOptions: document.getElementById("openOptions"),
+  connectSocial: document.getElementById("connectSocial"),
 };
 
 function say(text, tone = "") {
@@ -219,6 +220,64 @@ els.fill.addEventListener("click", async () => {
   } finally {
     els.save.disabled = false;
     els.fill.disabled = false;
+  }
+});
+
+/**
+ * "Connect Facebook & Instagram": send the sign-in this browser already has to
+ * the hub, so video imports can open reels that are only shown to signed-in
+ * people.
+ *
+ * The cookies permission is optional and asked for HERE, on the click, only
+ * for those two sites — the extension cannot read any cookie until the owner
+ * says yes to Chrome's own prompt, and never reads any other site's.
+ */
+const SOCIAL = [
+  { site: "facebook", label: "Facebook", url: "https://www.facebook.com/" },
+  { site: "instagram", label: "Instagram", url: "https://www.instagram.com/" },
+];
+
+els.connectSocial?.addEventListener("click", async () => {
+  els.connectSocial.disabled = true;
+  detail([]);
+  try {
+    const granted = await chrome.permissions.request({
+      permissions: ["cookies"],
+      origins: ["https://*.facebook.com/*", "https://*.instagram.com/*"],
+    });
+    if (!granted) {
+      say("Chrome needs your OK to read the Facebook and Instagram sign-in. Press the button again and choose Allow.", "warn");
+      return;
+    }
+    const { hubUrl, token } = await config();
+    const lines = [];
+    let sent = 0;
+    for (const s of SOCIAL) {
+      const cookies = await chrome.cookies.getAll({ url: s.url });
+      if (!cookies.length) {
+        lines.push(`${s.label}: not signed in on this browser — skipped.`);
+        continue;
+      }
+      try {
+        await api(hubUrl, "/api/social-import/cookies/push", token, {
+          method: "POST",
+          body: JSON.stringify({ site: s.site, cookies }),
+        });
+        sent++;
+        lines.push(`${s.label}: connected.`);
+      } catch (e) {
+        lines.push(`${s.label}: ${e.message}`);
+      }
+    }
+    say(
+      sent ? "Done. Paste the link in Jarvis again and it will open now." : "Sign in to Facebook or Instagram in this browser first, then press this again.",
+      sent ? "good" : "warn",
+    );
+    detail(lines);
+  } catch (e) {
+    say(e.message || "That did not work.", "bad");
+  } finally {
+    els.connectSocial.disabled = false;
   }
 });
 
