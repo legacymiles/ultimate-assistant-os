@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/timeline-log.mjs --quiet-fail",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -14,7 +15,8 @@
     "skills:setup": "node scripts/skill-sync.mjs install",
     "skills:push": "node scripts/skill-sync.mjs push",
     "skills:pull": "node scripts/skill-sync.mjs pull",
-    "skills:sync": "node scripts/skill-sync.mjs sync"
+    "skills:sync": "node scripts/skill-sync.mjs sync",
+    "timeline:log": "node scripts/timeline-log.mjs"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.80",

@@ -1,0 +1,3908 @@
+[
+ {
+  "id": "2ea753e:jarvis",
+  "date": "2026-10-20",
+  "slug": "jarvis",
+  "title": "Every photo you can see opens a chat, on a phone too",
+  "detail": "On a phone the Camera Autopilot widget showed \"recently filed\" photos that did nothing when tapped, and the expanded sheet said \"All caught up\" with no pictures (the sort queue lives on the device that pulled the photos in). The header's \"iPhone setup\" button was also squeezed to \"iPhone set\".",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9c317f2:app-builder",
+  "date": "2026-10-19",
+  "slug": "app-builder",
+  "title": "Idea or screen recording → super agent → features → build",
+  "detail": "New Jarvis App plugin at /apps/app-builder. Type an app idea (simple or detailed) or drop a screen recording / screenshots of an app or workflow: - the super agent watches recordings (ordered frames + narration) and reverse-engineers them into a teardown (screens, flow, behaviour, data), recreating ",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "9c317f2:jarvis",
+  "date": "2026-10-19",
+  "slug": "jarvis",
+  "title": "Idea or screen recording → super agent → features → build",
+  "detail": "New Jarvis App plugin at /apps/app-builder. Type an app idea (simple or detailed) or drop a screen recording / screenshots of an app or workflow: - the super agent watches recordings (ordered frames + narration) and reverse-engineers them into a teardown (screens, flow, behaviour, data), recreating ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9ab712c:jarvis",
+  "date": "2026-10-19",
+  "slug": "jarvis",
+  "title": "Kids Animation Flow is a card again — prompt first, then its screen opens",
+  "detail": "The separate \"Kids flow\" tab is gone. The Kids Animation Flow card sits in the Stories shelf with the other workflows: pick it, attach the character in the Studio composer, type the story and press \"Make the storyboard\". The flow screen opens with that prompt and those pictures and writes the storyb",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a7aa7d6:personas-studio",
+  "date": "2026-10-19",
+  "slug": "personas-studio",
+  "title": "Reading layer over the galaxy; one-tap Connect with in-app setup",
+  "detail": "Words never sit on the moving background any more (new checklist rule U8): - Every Jarvis tab's content sits on a frosted reading layer (.nj-read); Chat frosts its conversation column and sidebar and keeps the open galaxy only for the empty hero. Solid fallback without backdrop-filter or with prefer",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a7aa7d6:jarvis",
+  "date": "2026-10-19",
+  "slug": "jarvis",
+  "title": "Reading layer over the galaxy; one-tap Connect with in-app setup",
+  "detail": "Words never sit on the moving background any more (new checklist rule U8): - Every Jarvis tab's content sits on a frosted reading layer (.nj-read); Chat frosts its conversation column and sidebar and keeps the open galaxy only for the empty hero. Solid fallback without backdrop-filter or with prefer",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4a306d6:jarvis",
+  "date": "2026-10-19",
+  "slug": "jarvis",
+  "title": "Kids Animation Flow — the whole animate-my-character pipeline as one screen",
+  "detail": "New \"Kids flow\" tab in Jarvis › Studio: Character → Story → Storyboard → Render → Watch.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e41e54f:jarvis",
+  "date": "2026-10-19",
+  "slug": "jarvis",
+  "title": "\"Animate my character\" card, rendered on the PC from the queue",
+  "detail": "New Stories card: upload a character, give a one-line story, pick Rebuild (cut-paper redraw, full motion) or Puppet (the exact art). Its last round calls the new studio_queue tool instead of studio_generate, filing the approved brief and the character picture in the card's In Queue folder. Claude Co",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3ab3803:jarvis",
+  "date": "2026-10-19",
+  "slug": "jarvis",
+  "title": "A chat-style request folder on every row, self-cleaning",
+  "detail": "Clicking a queue row now opens its folder: a box to type requests into (several at once as a \"- list\"), pictures allowed, newest first, plus an Inbox for ideas not filed under anything. Requests live in one per-account server doc, so the phone and the PC see the same queue.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "61422ae:skills-library",
+  "date": "2026-10-19",
+  "slug": "skills-library",
+  "title": "Sort by date added, filter by when it was added",
+  "detail": "- Sort row: Recommended (the old order), Newest, Oldest, Recently updated, A–Z - Added row: Any time, Last 7 days, Last 30 days, This year - Every skill row shows when it was added (\"Added today\", \"Added Sep 2, 2026\") - The choice is remembered per browser; undated skills sort last and only show und",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "871669a:personas-studio",
+  "date": "2026-10-19",
+  "slug": "personas-studio",
+  "title": "Social Personas grows into a full content studio",
+  "detail": "Every persona in one place: profile overview, accounts on TikTok, Instagram, YouTube, Facebook and X with their usernames and sign-ins (Recall logins, sealed by the vault — never in the persona blob), daily ideas, a pipeline and a drag-to-schedule calendar, auto-posting through the official APIs, an",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "871669a:jarvis",
+  "date": "2026-10-19",
+  "slug": "jarvis",
+  "title": "Social Personas grows into a full content studio",
+  "detail": "Every persona in one place: profile overview, accounts on TikTok, Instagram, YouTube, Facebook and X with their usernames and sign-ins (Recall logins, sealed by the vault — never in the persona blob), daily ideas, a pipeline and a drag-to-schedule calendar, auto-posting through the official APIs, an",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1f6a123:jarvis",
+  "date": "2026-10-19",
+  "slug": "jarvis",
+  "title": "Camera Autopilot can do jobs, not just sort photos",
+  "detail": "The photo sheet used to answer \"I can't build plugins — my only moves are filing, rerouting, rejecting, and rules\". Now a request like \"find this skill, add it to my Jarvis and build an app in my plugins\" comes back as a \"Do it\" card. Its Yes hands the job and the photo to the super chat, which runs",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6f6ac02:jarvis",
+  "date": "2026-10-19",
+  "slug": "jarvis",
+  "title": "The web view moves into Memory, Brain tab removed",
+  "detail": "Memory now opens on Map: a turning 3D web of everything Jarvis knows, built from real data so it is never empty. You at the centre; hubs for apps (by category), skills (by category), clients, crashes, tasks, memories and vault notes; cross-links where a crash hit an app or client, a memory mentions ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "64349a6:jarvis",
+  "date": "2026-10-19",
+  "slug": "jarvis",
+  "title": "Lives in Profile, no tab of its own",
+  "detail": "'Jarvis Profile' is renamed 'Backend checklist' and moved into the owner's Profile as a third section beside 'Who you are' and 'How you work'; its dashboard tab is gone. The published website-build-checklist skill, the chat brain's label, Site errors and the felix / prompt-enhancer / software-factor",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4e072d5:jarvis",
+  "date": "2026-10-19",
+  "slug": "jarvis",
+  "title": "Jev types too — picks the box and the words",
+  "detail": "Jev can't write, but it can choose. When the next step is a box: - Jev picks the box from the page's own empty free-text boxes (never password, card, ID or account boxes; never one already filled). - Then the words, cheapest first: 1. The label names a filled Life Record field (Email, Zip…) → no mod",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1820a23:jarvis",
+  "date": "2026-10-19",
+  "slug": "jarvis",
+  "title": "Merge the backend checklist into Jarvis Profile",
+  "detail": "There were two lists. Now there is one, the self-learning Jarvis Profile checklist, and it is the more detailed of the two: - Its 21 basics and the 36 backend lines are merged into 47 starter rules; the ten that said the same thing (plain-English errors, phone-friendly, admin locked on the server, n",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b8e069c:skills-library",
+  "date": "2026-10-19",
+  "slug": "skills-library",
+  "title": "Nicknames, categories always on screen, and Favorites",
+  "detail": "- Every skill shows how to call it (/name) and its nicknames, read from its own SKILL.md (Nicknames: in the description, metadata.nicknames); search matches names, nicknames and categories; same-nickname clashes are flagged. - 19 standard categories (Prompt Engineering, Web Design, Video Editing, Se",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "116d2a2:jarvis",
+  "date": "2026-10-19",
+  "slug": "jarvis",
+  "title": "Self-learning build checklist beside Profile",
+  "detail": "A new Dashboard pane, \"Jarvis Profile\", next to Profile: what Jarvis has learned about building for the owner.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0681140:jarvis",
+  "date": "2026-10-19",
+  "slug": "jarvis",
+  "title": "Enhance button and Goal check in the new chat composer",
+  "detail": "The conversations chat (PR #11) has its own composer, so the ✦ button and the 'set the end goal first' hint go there too, with Goal check shown just above the bar.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "97e5730:jarvis",
+  "date": "2026-10-19",
+  "slug": "jarvis",
+  "title": "End goal first, then a pro-level prompt",
+  "detail": "Goal check above chat asks the end goal first (app, website, plugin, fix, writing), then Enhance writes the prompt with Anthropic's practices and the backend checklist; works offline with no AI key. Send to board files a Felix-format card in Backlog from Goal check, Improvements ideas, unfinished Qu",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "315b44c:jarvis",
+  "date": "2026-10-19",
+  "slug": "jarvis",
+  "title": "Log every crash on the hub and client sites",
+  "detail": "Error boundaries with a plain-English screen (R1, R3), a reporter for uncaught errors and rejections (R2), one entry per fingerprint with a count, noise dropped. Public append-only ingest, owner list, bearer feed for super-board. Client sites add /jarvis-errors.js. Stored in server_docs, so no migra",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ec76833:dashboard",
+  "date": "2026-10-18",
+  "slug": "dashboard",
+  "title": "Duplicate photos never show",
+  "detail": "The look-alike check only warned, so the same picture could sit in the queue twice (the phone's IMG_6843.jpeg plus a re-sent copy).",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ec76833:jarvis",
+  "date": "2026-10-18",
+  "slug": "jarvis",
+  "title": "Duplicate photos never show",
+  "detail": "The look-alike check only warned, so the same picture could sit in the queue twice (the phone's IMG_6843.jpeg plus a re-sent copy).",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "08bf935:jarvis",
+  "date": "2026-10-18",
+  "slug": "jarvis",
+  "title": "Hovering its centre no longer whites it out",
+  "detail": "The pointer's glow eases off over the galaxy's bright heart (where Chat's box sits), and breathing lifts the bloom a little less. Adds ?world=step, which draws only when a recording calls __jarvisWorldStep(dt), so motion clips made on a machine with no GPU play at true speed.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "82c1242:jarvis",
+  "date": "2026-10-18",
+  "slug": "jarvis",
+  "title": "Keep it from washing out white in smaller windows",
+  "detail": "Stars are sized in pixels, tuned on a ~900 px tall window; on a laptop or a resized window the same pixels crowd together and the bloom whites the galaxy out. With bloom on, star size now scales with the window, so a 1280x720 screen looks like the big one. Phones and the light tier (no bloom) are un",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3fffffb:jarvis",
+  "date": "2026-10-18",
+  "slug": "jarvis",
+  "title": "V3 look, level ring, smoke; always breathing; talks with Talk",
+  "detail": "- Back to the v3 pose and nebula, with the rings level round the galaxy. Smoke swirls through the outer arms (the spiral's centre stays clear) and a billowing band of it streams round the ring. - It always breathes: swells, shrinks and presses flatter on each exhale. Reduced motion now slows and sof",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0c1d994:jarvis",
+  "date": "2026-10-18",
+  "slug": "jarvis",
+  "title": "In Queue widget",
+  "detail": "Compact card shows unfinished count, a finished/unfinished bar and the top five unfinished items; tapping a pip marks it finished in place. Tapping the card opens the full In Queue board in a sheet, with a jump to the Queue tab. Uses the shell's one queue hook, so verdicts agree everywhere. Toggle i",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7787b42:dashboard",
+  "date": "2026-10-18",
+  "slug": "dashboard",
+  "title": "Newest photos always at the top",
+  "detail": "The photo queue appended new arrivals, so a fresh batch from the iPhone landed below everything already waiting. The queue is now kept newest first by when the photo was taken (the phone's date, carried through the inbox), falling back to when it arrived — on the dashboard widget, the expanded Autop",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "68a0509:dashboard",
+  "date": "2026-10-18",
+  "slug": "dashboard",
+  "title": "Fully automatic iPhone photo pull, no buttons",
+  "detail": "- Checks on open, every minute while Jarvis is on screen, and at least every 10 minutes; photos come in and get read with no tap. - Fix: auto-pull claimed the whole inbox in one response, which Vercel refuses past ~4.5 MB (base64), so a backlog of photos never arrived (and could be deleted mid-failu",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "68a0509:jarvis",
+  "date": "2026-10-18",
+  "slug": "jarvis",
+  "title": "Fully automatic iPhone photo pull, no buttons",
+  "detail": "- Checks on open, every minute while Jarvis is on screen, and at least every 10 minutes; photos come in and get read with no tap. - Fix: auto-pull claimed the whole inbox in one response, which Vercel refuses past ~4.5 MB (base64), so a backlog of photos never arrived (and could be deleted mid-failu",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d832293:jarvis",
+  "date": "2026-10-18",
+  "slug": "jarvis",
+  "title": "Keep hero text and chips readable over the galaxy",
+  "detail": "A soft dark halo behind the subtitle, hint and note, a dark glass base under the Pictures/Video/Audio chips and suggestions, and slightly brighter muted text, so nothing washes out over the bright smoke.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8240f06:jarvis",
+  "date": "2026-10-18",
+  "slug": "jarvis",
+  "title": "V3 look with a level ring, dramatic smoke, richer sky",
+  "detail": "Back to the v3 galaxy (lopsided, semi-flattened) with the rings lying horizontal. Smoke at the heart is drawn larger and carved harder so its tendrils reach past the galaxy without bleaching white; two parallax smoke layers drift behind it. The sky is uneven: scattered stars leaning to one side, glo",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0f22347:jarvis",
+  "date": "2026-10-18",
+  "slug": "jarvis",
+  "title": "Jev clicks, Claude thinks, DeepSeek for explicit",
+  "detail": "- Fast lane (src/lib/new-jarvis/browserFast.ts). After a click, scroll, back or open, the next step is a page read with no model at all. After a read, Jev picks the next click from the page's own links/buttons/tabs in well under a second. It never picks an irreversible control (send, pay, delete, si",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5733139:client-review",
+  "date": "2026-10-18",
+  "slug": "client-review",
+  "title": "One page for clients and admin, Admin tab locked for clients",
+  "detail": "- /apps/client-review is now the single page for everyone. Tabs: Client (my websites → site + Chat Intake) and Admin. The Admin tab is faded with a lock icon and disabled for anyone who isn't the owner; the admin API stays owner-only in middleware, so forcing it open shows nothing. - The owner's Cli",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "fa4e00a:jarvis",
+  "date": "2026-10-18",
+  "slug": "jarvis",
+  "title": "Level Saturn-style ring, colourful core smoke, mist round the ring",
+  "detail": "- Rings lie flat (Blender) and live in their own group in the browser, held level and tilted just enough to read as an ellipse, Saturn-style, while the galaxy faces you. Ring stars behind the ball are hidden by it. - Smoke in the ball: a 64³ density grid (public/jarvis/smoke_64.bin) ray-marched insi",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "30c7f99:jarvis",
+  "date": "2026-10-18",
+  "slug": "jarvis",
+  "title": "Jev at the chat front door; Client Review back to word list only",
+  "detail": "- On the first step of a Do or Ask turn, Jev (70–500 ms) says whether the message is quick / remember / computer / build. A confident \"quick\" sends no tools, so the router can answer with a fast cheap model; \"remember\" keeps only memory, Record, lists, calendar and folders; \"build\" adds a nudge to o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "30c7f99:client-review",
+  "date": "2026-10-18",
+  "slug": "client-review",
+  "title": "Jev at the chat front door; Client Review back to word list only",
+  "detail": "- On the first step of a Do or Ask turn, Jev (70–500 ms) says whether the message is quick / remember / computer / build. A confident \"quick\" sends no tools, so the router can answer with a fast cheap model; \"remember\" keeps only memory, Record, lists, calendar and folders; \"build\" adds a nudge to o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "50067d2:client-review",
+  "date": "2026-10-18",
+  "slug": "client-review",
+  "title": "Decision models, self-audit, Client Review checks",
+  "detail": "Decision models (typed yes/no, choice and score answers — never text): - src/lib/ai/decisions.ts + decide.ts: OpenRouter Decisions API client for Jev 1.13, Span-01 Lite (free) and Span-02, with confidence bars so an unsure answer always takes the safe path.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "50067d2:jarvis",
+  "date": "2026-10-18",
+  "slug": "jarvis",
+  "title": "Decision models, self-audit, Client Review checks",
+  "detail": "Decision models (typed yes/no, choice and score answers — never text): - src/lib/ai/decisions.ts + decide.ts: OpenRouter Decisions API client for Jev 1.13, Span-01 Lite (free) and Span-02, with confidence bars so an unsure answer always takes the safe path.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0a9c2ae:client-review",
+  "date": "2026-10-18",
+  "slug": "client-review",
+  "title": "Clients sign in with Jarvis, app moves to plugins, push keys self-generate",
+  "detail": "- Review links now require a Jarvis (Google) account. The first account to open a link claims it; after that only that account and the owner can. Optional \"only allow this email\" per project, Release in the console. - /review is the client's \"My websites\" home; settings show the signed-in account wi",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0a9c2ae:jarvis",
+  "date": "2026-10-18",
+  "slug": "jarvis",
+  "title": "Clients sign in with Jarvis, app moves to plugins, push keys self-generate",
+  "detail": "- Review links now require a Jarvis (Google) account. The first account to open a link claims it; after that only that account and the owner can. Optional \"only allow this email\" per project, Release in the console. - /review is the client's \"My websites\" home; settings show the signed-in account wi",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "10ffe64:client-review",
+  "date": "2026-10-18",
+  "slug": "client-review",
+  "title": "Send clients their site, collect edit requests, ship v2",
+  "detail": "- /review/<code>: private client link (no account). Site fills the screen (desktop/phone preview), with a draggable, resizable Chat Intake that shrinks to an orb (bottom sheet on phones). Clients add many requests, \"Point at it\" to pin a spot, edit/remove drafts, then Send to Jarvis → animated \"Jarv",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "10ffe64:jarvis",
+  "date": "2026-10-18",
+  "slug": "jarvis",
+  "title": "Send clients their site, collect edit requests, ship v2",
+  "detail": "- /review/<code>: private client link (no account). Site fills the screen (desktop/phone preview), with a draggable, resizable Chat Intake that shrinks to an orb (bottom sheet on phones). Clients add many requests, \"Point at it\" to pin a spot, edit/remove drafts, then Send to Jarvis → animated \"Jarv",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9a037e7:jarvis",
+  "date": "2026-10-18",
+  "slug": "jarvis",
+  "title": "A round breathing ball in a coloured cosmos",
+  "detail": "Back to the compact, round galaxy ball, organic rather than symmetrical, keeping v2's colour and rings: - Ball: off-centre bulge; three arms of unequal length on a thick, gently warped disc; knots and dust; a lopsided shell of star streams (its glowing rim restored); three ribbons wrapping the ball ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "268767a:jarvis",
+  "date": "2026-10-18",
+  "slug": "jarvis",
+  "title": "Asymmetric, ringed, vivid, with depth",
+  "detail": "Blender (tools/jarvis-world/build_world.py): - No longer symmetrical: off-centre triaxial bulge, a bar, two major arms of unequal length + a minor arm + a spur on a warped disc, pink star-forming knots, dust lanes, a tidal tail curling out of the plane to a satellite dwarf galaxy, a lopsided shell. ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4c05330:jarvis",
+  "date": "2026-10-18",
+  "slug": "jarvis",
+  "title": "Clamp the time step and breath phase",
+  "detail": "A rAF timestamp can land a hair before the last performance.now(), and a clock jump can make a large negative step; breathCurve then received a negative phase and returned values far outside 0..1, which blew the whole galaxy out to white. dt is now clamped to 0..50 ms, the phase wraps positively, an",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "870ba51:jarvis",
+  "date": "2026-10-18",
+  "slug": "jarvis",
+  "title": "A breathing galaxy ball, modeled in Blender",
+  "detail": "- tools/jarvis-world/build_world.py (Blender 5.0.1, deterministic) builds the galaxy: blazing core, bulge, four logarithmic spiral arms with dust lanes, a ball of twisted star streams, a sparse halo. Exports public/jarvis/world.glb (~320 KB, glTF POINTS) and world.blend; re-imports to check counts; ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "775c9c6:jarvis",
+  "date": "2026-10-17",
+  "slug": "jarvis",
+  "title": "Improvements widget — ideas for your life, workflows, apps and Jarvis",
+  "detail": "A new Dashboard widget that reads what you've said to Jarvis and suggests ideas in four kinds: Life (what you're going through), Workflows (chores Jarvis could take over), Apps (tools worth building or adding) and Jarvis (friction in Jarvis itself, plus the existing self-audit's findings).",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "dd591a8:jarvis",
+  "date": "2026-10-17",
+  "slug": "jarvis",
+  "title": "A real chat — conversations side panel, centered chat bar",
+  "detail": "- Side panel of past conversations under Today / Yesterday / Previous 7 days / Older: New chat, search, rename, delete. Hides as a drawer on phones. - The conversation reads top to bottom: what you said on the right (with any pictures, clips or recordings), Jarvis on the left with its answer; the st",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "795b35f:jarvis",
+  "date": "2026-10-17",
+  "slug": "jarvis",
+  "title": "Futuristic skin everywhere, rail cut to Dashboard / Chat / Studio + More",
+  "detail": "Rebuilt on top of #8 (live Chat with model picker and media).",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "bf56e2c:dashboard",
+  "date": "2026-10-17",
+  "slug": "dashboard",
+  "title": "Old shell + Routines removed, Claude-subscription brain, plain errors",
+  "detail": "- /apps/jarvis is now the Jarvis (the former New Jarvis); /apps/new-jarvis redirects there keeping ?tab and #tab. Old shell (components/jarvis/ Jarvis.tsx), RoutinesTab and the components only it used are deleted; the panels Jarvis mounts stay. One \"Jarvis\" catalog entry. Legacy tab names (chat, mem",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "bf56e2c:jarvis",
+  "date": "2026-10-17",
+  "slug": "jarvis",
+  "title": "Old shell + Routines removed, Claude-subscription brain, plain errors",
+  "detail": "- /apps/jarvis is now the Jarvis (the former New Jarvis); /apps/new-jarvis redirects there keeping ?tab and #tab. Old shell (components/jarvis/ Jarvis.tsx), RoutinesTab and the components only it used are deleted; the panels Jarvis mounts stay. One \"Jarvis\" catalog entry. Legacy tab names (chat, mem",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ceff79c:jarvis",
+  "date": "2026-10-17",
+  "slug": "jarvis",
+  "title": "Model picker, pictures/video/audio, coding agents folded in",
+  "detail": "- Model picker in the command line: Auto (Claude), DeepSeek V4.1 Flash, MiMo V2.6 Flash, Gemini 3.8 Flash, GPT-6 Luna Pro, plus search across OpenRouter's live list or paste any id. Synced; the agent route accepts any OpenRouter-shaped id and the block shows which model answered. - Attachments: butt",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b917ad0:dashboard",
+  "date": "2026-10-17",
+  "slug": "dashboard",
+  "title": "A \"where did I get up to\" bookmark so runs walk forward",
+  "detail": "The Shortcut always sent the newest N, so taking more than N between runs lost the oldest. The inbox now remembers the newest photo date each phone has sent (moved by accepted and already-seen photos alike), and a new GET /api/dashboard/inbox/cursor (same key, session-exempt) returns it as the phone",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b917ad0:jarvis",
+  "date": "2026-10-17",
+  "slug": "jarvis",
+  "title": "A \"where did I get up to\" bookmark so runs walk forward",
+  "detail": "The Shortcut always sent the newest N, so taking more than N between runs lost the oldest. The inbox now remembers the newest photo date each phone has sent (moved by accepted and already-seen photos alike), and a new GET /api/dashboard/inbox/cursor (same key, session-exempt) returns it as the phone",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "49c0ad2:dashboard",
+  "date": "2026-10-17",
+  "slug": "dashboard",
+  "title": "Accept any file field name or a raw image body",
+  "detail": "\"No photos sent\" came from a field named anything but exactly \"photos\", or a Text field. The push endpoint now takes every file part whatever its key, and a raw image as the whole body (Request Body: File). A text-only field gets an error that says how to fix it. Verified locally: capitalised key, r",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "49c0ad2:jarvis",
+  "date": "2026-10-17",
+  "slug": "jarvis",
+  "title": "Accept any file field name or a raw image body",
+  "detail": "\"No photos sent\" came from a field named anything but exactly \"photos\", or a Text field. The push endpoint now takes every file part whatever its key, and a raw image as the whole body (Request Body: File). A text-only field gets an error that says how to fix it. Verified locally: capitalised key, r",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ef1ad77:jarvis",
+  "date": "2026-10-17",
+  "slug": "jarvis",
+  "title": "Resize before converting, send Converted Image",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1b7f7d8:jarvis",
+  "date": "2026-10-17",
+  "slug": "jarvis",
+  "title": "Send photos one at a time, resized (Vercel 4.5 MB body limit)",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "017ab73:jarvis",
+  "date": "2026-10-17",
+  "slug": "jarvis",
+  "title": "Fix for the 'sharing large amounts of data' error",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "38fdaab:jarvis",
+  "date": "2026-10-17",
+  "slug": "jarvis",
+  "title": "Put the link in its own URL action (fixes 'Rich Text to URL')",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "75ab9b4:dashboard",
+  "date": "2026-10-17",
+  "slug": "dashboard",
+  "title": "One personal link, what-goes-where table, video slot, pinned priorities",
+  "detail": "- Push link accepts the key as ?key=…, so the Shortcut needs one paste and no header. The guide makes \"your link\" with the key already inside. - Guide step 3 gains a field-by-field table for Get Contents of URL, with copy buttons, and says plainly the link is not a page to open. - Optional NEXT_PUBL",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "75ab9b4:jarvis",
+  "date": "2026-10-17",
+  "slug": "jarvis",
+  "title": "One personal link, what-goes-where table, video slot, pinned priorities",
+  "detail": "- Push link accepts the key as ?key=…, so the Shortcut needs one paste and no header. The guide makes \"your link\" with the key already inside. - Guide step 3 gains a field-by-field table for Get Contents of URL, with copy buttons, and says plainly the link is not a page to open. - Optional NEXT_PUBL",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d8d5e03:jarvis",
+  "date": "2026-10-17",
+  "slug": "jarvis",
+  "title": "Setup finds the token itself — same command on every machine",
+  "detail": "npm run skills:setup now reads the token from the jarvis-memory connector Claude Code already has on that computer (~/.claude.json, user or project scope, or the repo's .mcp.json; Bearer header or ?k=), and takes the hub address from the connector URL. The token is never printed. Without a connector",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "cd7ddfc:jarvis",
+  "date": "2026-10-17",
+  "slug": "jarvis",
+  "title": "Step-by-step iPhone setup guide inside Jarvis",
+  "detail": "No App Store app needed: Apple's Shortcuts app sends photos to the site and an Automation runs it when the Camera closes. The guide walks through it: QR code to open it on the phone, make/copy the link and key, every tap to build the \"Send to Jarvis\" Shortcut (with copy buttons), the Camera-closed a",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6cbb911:jarvis",
+  "date": "2026-10-17",
+  "slug": "jarvis",
+  "title": "Jarvis says whether memory + skill sync is set up, and the next step on this device",
+  "detail": "- Activity notes (app_state 'jarvis:sync-status'): the connector records which client called and when (throttled, after the response); the skills API records each computer that syncs (host, OS, last pull/push, skill count) from headers the sync script now sends. Env vars only prove the server is rea",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8d2df16:jarvis",
+  "date": "2026-10-17",
+  "slug": "jarvis",
+  "title": "Expandable widgets, notifications, camera auto-check",
+  "detail": "- Deck widgets: Camera Autopilot (preview strip of waiting photos, or the last filed), Notifications, To-do (tick off and quick-add inline) and Calendar. Every widget expands to its full surface on a tap; a Widgets picker shows/hides them (synced). - Camera Autopilot checks the iPhone inbox every 10",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "38d457c:jarvis",
+  "date": "2026-10-17",
+  "slug": "jarvis",
+  "title": "Jarvis is the one home for every skill (phone included)",
+  "detail": "Phone / claude.ai / cloud Claude Code sessions never run the PC/VPS hooks, so skills now live in Jarvis itself and every device syncs with it:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "38d457c:skills-library",
+  "date": "2026-10-17",
+  "slug": "skills-library",
+  "title": "Jarvis is the one home for every skill (phone included)",
+  "detail": "Phone / claude.ai / cloud Claude Code sessions never run the PC/VPS hooks, so skills now live in Jarvis itself and every device syncs with it:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "88f8aaa:jarvis",
+  "date": "2026-10-16",
+  "slug": "jarvis",
+  "title": "Universal one-command setup + Skills everywhere card",
+  "detail": "Make the whole thing universal — same setup on a desktop or a VPS, Windows or Linux, no hand-edited paths:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4bd919a:jarvis",
+  "date": "2026-10-16",
+  "slug": "jarvis",
+  "title": "Setup is always one click away, skippable, and fills in keys",
+  "detail": "- Setup button in the top bar with a progress ring; reopens on the step you closed it on. Also \"setup\" typed in the chat and /apps/new-jarvis#setup. - \"Skip setup entirely\" on the first screen (never auto-opens again), \"Skip the rest\" on every step, and a close X instead of a buried link. - Answers ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "bf5a0c2:ea-world",
+  "date": "2026-10-16",
+  "slug": "ea-world",
+  "title": "HFT Secret v2 and Fingerprint the original",
+  "detail": "- HFT_Secret_v2.mq4 + replay twin: the original's published rule (34-SMA channel on M1 highs/lows, US30) picks the side; v1's HFT engine trades it, now with breakeven, flatten at session end, daily target, and distances in price so one set of inputs works at any broker's digits. - Fingerprint the or",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18d5a3f:ea-world",
+  "date": "2026-10-16",
+  "slug": "ea-world",
+  "title": "Replay studio, Terminals studio, HFT Secret rebuild EA",
+  "detail": "- Replay (/apps/ea-world/replay): real Dukascopy bid/ask ticks for a past NY session, a simulated MT4 broker (latency, stop slippage, stop level, commission, margin), visual playback 1x-300x with the bot's orders drawn on the chart, scrubbing, trade/working/event ledgers and stats. - Bring a bot: po",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6617f1e:jarvis",
+  "date": "2026-10-16",
+  "slug": "jarvis",
+  "title": "Futuristic HUD — live field, reactor core, tilt, dissolve on file",
+  "detail": "- Live background canvas: drifting point network that leans toward the cursor, a radar sweep turning out of the reactor that lights points as it passes, and pulse rings while Jarvis is busy. Paused when the tab is hidden; one still frame under reduced motion. - Reactor core (segmented rings at diffe",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c504403:jarvis",
+  "date": "2026-10-16",
+  "slug": "jarvis",
+  "title": "Minimal layout, File it files instantly, card opens a photo popup",
+  "detail": "- Dashboard tabs collapse to the current pane + a \"more\" menu; vault sync line only shows on Brain. - Deck drops stat boxes, filter chips and the always-open chat. Hero is one line; favorites are a single row with recents beneath. - \"File it\" on a card files straight to Jarvis's guess (the tap is th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d173daa:jarvis",
+  "date": "2026-10-16",
+  "slug": "jarvis",
+  "title": "Fix double punctuation in the Autopilot subtitle",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1017a45:jarvis",
+  "date": "2026-10-16",
+  "slug": "jarvis",
+  "title": "Deck dashboard, Camera Autopilot + agent chat, favorites, onboarding",
+  "detail": "- Dashboard gets a new default \"Deck\" pane (futuristic HUD): favorite apps, last-used apps/tabs, Camera Autopilot queue and a Jarvis chat beside it. Brain graph, Memory, Profile, Improve and Queue panes are unchanged. - Camera Autopilot reads the existing photo review queue (same pipeline as Photos)",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1017a45:dashboard",
+  "date": "2026-10-16",
+  "slug": "dashboard",
+  "title": "Deck dashboard, Camera Autopilot + agent chat, favorites, onboarding",
+  "detail": "- Dashboard gets a new default \"Deck\" pane (futuristic HUD): favorite apps, last-used apps/tabs, Camera Autopilot queue and a Jarvis chat beside it. Brain graph, Memory, Profile, Improve and Queue panes are unchanged. - Camera Autopilot reads the existing photo review queue (same pipeline as Photos)",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6301a7d:financial-bible",
+  "date": "2026-10-16",
+  "slug": "financial-bible",
+  "title": "Mark progress complete",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ddf29c3:financial-bible",
+  "date": "2026-10-16",
+  "slug": "financial-bible",
+  "title": "Funding room — qualifier, lender table, cheat sheets, plays, mistakes, scripts, lesson index",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9cfbb32:financial-bible",
+  "date": "2026-10-16",
+  "slug": "financial-bible",
+  "title": "Funding knowledge base (lenders, playbook, lessons), qualifier, search, Timeline filing",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9cfbb32:projects-timeline",
+  "date": "2026-10-16",
+  "slug": "projects-timeline",
+  "title": "Funding knowledge base (lenders, playbook, lessons), qualifier, search, Timeline filing",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7d0e4a4:financial-bible",
+  "date": "2026-10-16",
+  "slug": "financial-bible",
+  "title": "All 4 courses read",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f90c95f:financial-bible",
+  "date": "2026-10-16",
+  "slug": "financial-bible",
+  "title": "Corporate Credit Secrets complete",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "66c3ed3:financial-bible",
+  "date": "2026-10-16",
+  "slug": "financial-bible",
+  "title": "Funding Secrets Bundle complete",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a9fa0b9:financial-bible",
+  "date": "2026-10-16",
+  "slug": "financial-bible",
+  "title": "Master go-to list + banker questions",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3ed492d:financial-bible",
+  "date": "2026-10-16",
+  "slug": "financial-bible",
+  "title": "6FF Mastery complete",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ba76ff5:financial-bible",
+  "date": "2026-10-16",
+  "slug": "financial-bible",
+  "title": "6FF Mastery through L106",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "768d979:financial-bible",
+  "date": "2026-10-16",
+  "slug": "financial-bible",
+  "title": "Course notes in progress (6FF Mastery L1-43)",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "35e7006:dump-finder",
+  "date": "2026-10-15",
+  "slug": "dump-finder",
+  "title": "Asphalt millings, landfills and recycling on a map (#1)",
+  "detail": "New app at /apps/dump-finder, offered as a Jarvis App plugin. It finds the device, draws the chosen radius (1-50 mi) and pins every asphalt plant / paving yard, concrete and rubble yard, landfill, transfer station, recycling center and scrap yard inside it, nearest first, with filter chips per kind.",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "35e7006:jarvis",
+  "date": "2026-10-15",
+  "slug": "jarvis",
+  "title": "Asphalt millings, landfills and recycling on a map (#1)",
+  "detail": "New app at /apps/dump-finder, offered as a Jarvis App plugin. It finds the device, draws the chosen radius (1-50 mi) and pins every asphalt plant / paving yard, concrete and rubble yard, landfill, transfer station, recycling center and scrap yard inside it, nearest first, with filter chips per kind.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1845757:jarvis",
+  "date": "2026-10-14",
+  "slug": "jarvis",
+  "title": "Let claude.ai in, since its connector dialog has no header field",
+  "detail": "The endpoint authenticated by header only. Claude Code sends one happily; claude.ai's \"Add custom connector\" takes a URL and an optional OAuth client and offers nowhere to put a header, so the third surface — the one this whole thing started from — could not be added at all.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "fc471d1:jarvis",
+  "date": "2026-10-13",
+  "slug": "jarvis",
+  "title": "One memory, reachable from claude.ai and the VPS",
+  "detail": "Jarvis already kept memory in Supabase and searched it by meaning. What it had no way to do was let anything without a browser session read it, so Claude Code on the PC and the VPS each kept their own separate notion of what had been said, and claude.ai kept a third.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "265b505:website-redesigner",
+  "date": "2026-10-04",
+  "slug": "website-redesigner",
+  "title": "Five things the first real bake-off found",
+  "detail": "Driving three live Claude lanes for twenty minutes taught more than the whole build did. Every fix here is a thing that was wrong on screen.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "62f73e2:baby-no-scroll",
+  "date": "2026-10-04",
+  "slug": "baby-no-scroll",
+  "title": "A drag across the whole screen is not a gesture a baby makes",
+  "detail": "Baby No Scroll: a child lock at /apps/baby-no-scroll, allowed into Jarvis as an App plugin. Pick a YouTube video or playlist, or one of four games, and that one thing fills the screen with everything else taken away - no scrolling, bouncing, pinch, double-tap zoom, long-press menus, back gesture or ",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "62f73e2:jarvis",
+  "date": "2026-10-04",
+  "slug": "jarvis",
+  "title": "A drag across the whole screen is not a gesture a baby makes",
+  "detail": "Baby No Scroll: a child lock at /apps/baby-no-scroll, allowed into Jarvis as an App plugin. Pick a YouTube video or playlist, or one of four games, and that one thing fills the screen with everything else taken away - no scrolling, bouncing, pinch, double-tap zoom, long-press menus, back gesture or ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6479ed7:website-redesigner",
+  "date": "2026-10-04",
+  "slug": "website-redesigner",
+  "title": "The bake-off console, and a crucible wired to the lanes",
+  "detail": "?v=2 on the Redesigner's own route is the bake-off; V1 is reached by every other spelling and is untouched. Four targets, N design skills, one harness thread per lane, three running builds compared side by side.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "54f8772:website-redesigner",
+  "date": "2026-10-04",
+  "slug": "website-redesigner",
+  "title": "The brief, the facts and the lanes - before any of it is drawn",
+  "detail": "The brief is the reason a bake-off can beat a tool that returns mockups: a lane does not get \"redesign this nicely\", it gets a contract. V2 never authors a design - no palette, no type scale, no layout - because a model that writes a token sheet and then builds to it returns the average of every lan",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f19eba1:jarvis",
+  "date": "2026-10-04",
+  "slug": "jarvis",
+  "title": "The column becomes a dock and an orb, and a board that shows its working",
+  "detail": "The right-hand column cost 300px of the widest surface in the hub to say two things the owner needs about once a session, and on a phone it did not exist at all. Its two halves go to different places.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9414502:cookbook-genie",
+  "date": "2026-10-04",
+  "slug": "cookbook-genie",
+  "title": "A photo of your nan's card and \"make it for six\" belong in the same box",
+  "detail": "Add a recipe was two tabs that could not see each other, so a picture of a dish with an instruction beside it had nowhere to go. It is now one tray: a link, up to six photos, a video and your own words, in any combination, read as one dish.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9414502:cook-connect",
+  "date": "2026-10-04",
+  "slug": "cook-connect",
+  "title": "A photo of your nan's card and \"make it for six\" belong in the same box",
+  "detail": "Add a recipe was two tabs that could not see each other, so a picture of a dish with an instruction beside it had nowhere to go. It is now one tray: a link, up to six photos, a video and your own words, in any combination, read as one dish.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9414502:dashboard",
+  "date": "2026-10-04",
+  "slug": "dashboard",
+  "title": "A photo of your nan's card and \"make it for six\" belong in the same box",
+  "detail": "Add a recipe was two tabs that could not see each other, so a picture of a dish with an instruction beside it had nowhere to go. It is now one tray: a link, up to six photos, a video and your own words, in any combination, read as one dish.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c897484:jarvis",
+  "date": "2026-10-04",
+  "slug": "jarvis",
+  "title": "The harness is a skill, so it can be named instead of re-explained",
+  "detail": "Claude and DeepSeek are documented as peers, because they are: listHarnesses checks each independently, and a run on dsh touches no Anthropic code. The two why strings are quoted in full and marked show-verbatim - a greyed model with no reason is a bug report the owner cannot file.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "df41823:jarvis",
+  "date": "2026-10-04",
+  "slug": "jarvis",
+  "title": "A lane can build without three hundred taps, and still not reach your checkout",
+  "detail": "The bake-off needs three threads writing a whole app at once, and every write gated is several hundred approvals - at which point nobody reads the patches and the gate is decoration. So laneWrites passes a write whose path is inside the thread's own worktree, and nothing else: a command still gates ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f2bf7c8:jarvis",
+  "date": "2026-10-04",
+  "slug": "jarvis",
+  "title": "Two coding agents, one gate, a worktree each",
+  "detail": "New Jarvis can now hold a conversation with a coding harness and let it change this repo. Claude Code runs through the Agent SDK and DeepSeek's dsh over Agent Client Protocol, behind one set of bridge routes, one ledger and one gate.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2e16e6a:jarvis-audio-studio",
+  "date": "2026-10-04",
+  "slug": "jarvis-audio-studio",
+  "title": "Preview icons for Mashup and Remix, and a tile that earns them",
+  "detail": "Made with the preview-icon skill, whose one rule is to depict the verb rather than the screen: a generated interface is garbled mush at tile size and dates the moment the real UI moves. So Mashup is two tall slabs, each banded into its parts, interlocking into one — the middle frame is already a sin",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f18c9b4:jarvis-audio-studio",
+  "date": "2026-10-02",
+  "slug": "jarvis-audio-studio",
+  "title": "Mashup hears the parts; Remix is one record and a sentence",
+  "detail": "Design driven by interactive-web-studio, with webgl-trail-reveal owning the mechanic. Each tab opens on a sealed plate; sweeping it drags a trail with memory across the surface and reveals the measured waveform of the records you actually loaded, with a thin chromatic scan band at the boundary that ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b6ce72f:financial-bible",
+  "date": "2026-10-02",
+  "slug": "financial-bible",
+  "title": "The sheet, the gate, and four rooms",
+  "detail": "Design driven by interactive-web-studio. Warm paper raised on a graphite chassis, one accent hue per room as ambient light, tabular numerals, no WebGL — every figure on this sheet is money about to be spent and an effect that made one harder to read would be a bug with an animation on it.",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "b6ce72f:jarvis",
+  "date": "2026-10-02",
+  "slug": "jarvis",
+  "title": "The sheet, the gate, and four rooms",
+  "detail": "Design driven by interactive-web-studio. Warm paper raised on a graphite chassis, one accent hue per room as ambient light, tabular numerals, no WebGL — every figure on this sheet is money about to be spent and an effect that made one harder to read would be a bug with an animation on it.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b67fdd5:financial-bible",
+  "date": "2026-10-02",
+  "slug": "financial-bible",
+  "title": "The logic, before a single component",
+  "detail": "Seven modules and 70 tests, because the trust in this app lives here rather than in the UI. Totals that are a function of the steps and so cannot disagree with them. A patch engine that drops an op naming a step it cannot find, and that treats done, skipped, note, every supplier and anything the own",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "65f1f19:jarvis",
+  "date": "2026-10-02",
+  "slug": "jarvis",
+  "title": "Keep the card, not just what it said",
+  "detail": "Reading a screen produced values and dropped the picture. For a form that is right. For an insurance card it is the wrong half: the card is the thing you need at the clinic desk, and it is the answer to \"where did this member ID come from?\"",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "23905cd:jarvis",
+  "date": "2026-10-02",
+  "slug": "jarvis",
+  "title": "Deciding before the model is woken up",
+  "detail": "A pass over what is already in memory, run as you type. Four routes, and two of them stop the round trip happening at all:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "dbe248a:jarvis",
+  "date": "2026-10-02",
+  "slug": "jarvis",
+  "title": "What it can do, what is half set up, what is one key away",
+  "detail": "## Not a wall of logos",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5d8a76a:jarvis",
+  "date": "2026-10-02",
+  "slug": "jarvis",
+  "title": "Built whole, shipped dormant, and it shows you the calls it did not make",
+  "detail": "A phone call is the most interruptive channel there is. A notification can be ignored; a ringing phone cannot. So this is almost entirely about restraint, and the decision engine reads as a list of reasons NOT to call.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b00a072:jarvis",
+  "date": "2026-10-02",
+  "slug": "jarvis",
+  "title": "Encrypted and synced, with a way back that is a precondition",
+  "detail": "One password manager in the Toolbox, over every saved login in every folder.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7757d2f:jarvis",
+  "date": "2026-10-02",
+  "slug": "jarvis",
+  "title": "Read a screen, keep only what it does not already know",
+  "detail": "Point it at a form and it proposes the facts worth keeping. The owner confirms, edits or refuses each one, and only then is anything written.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8ab8990:jarvis",
+  "date": "2026-10-02",
+  "slug": "jarvis",
+  "title": "A voice visualiser that shows which way the conversation is going",
+  "detail": "## The bug underneath it",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "167b04d:jarvis",
+  "date": "2026-10-02",
+  "slug": "jarvis",
+  "title": "A real knowledge graph over an Obsidian vault",
+  "detail": "The rail goes from thirteen entries to five. Memory stops being a tab and becomes a Dashboard panel beside the Profile; Record is gone, because its 47-field life record IS the profile and calling it a Record made it read as a filing cabinet rather than as the owner; Routines is unmounted (the tab on",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "dacff73:jarvis",
+  "date": "2026-10-01",
+  "slug": "jarvis",
+  "title": "Free the Agent chat tab, and stop the free rung costing a wasted request",
+  "detail": "The Agent chat tab pinned DeepSeek outright, so it could never reach the free rung. Nothing pins it now; the router decides, as it does everywhere else.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d21589d:jarvis",
+  "date": "2026-10-01",
+  "slug": "jarvis",
+  "title": "The routes, with RLS doing the isolating",
+  "detail": "Every query runs on the SIGNED-IN USER's Supabase client, never the service role — the same decision as Jarvis's memory, and for a stronger reason here. The service-role key would bypass exactly the protection bank transactions most need, so it appears nowhere in this feature.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f03bfa3:h3-experiments",
+  "date": "2026-10-01",
+  "slug": "h3-experiments",
+  "title": "A ledger for which video method actually works",
+  "detail": "Four films were made today with different methods and nothing recorded which method made which, so the same lessons kept being rediscovered — most expensively the H3 Face Refiner, an identity-anchored post-process that has been installed in WanGP the whole time and was never once run.",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "f03bfa3:jarvis",
+  "date": "2026-10-01",
+  "slug": "jarvis",
+  "title": "A ledger for which video method actually works",
+  "detail": "Four films were made today with different methods and nothing recorded which method made which, so the same lessons kept being rediscovered — most expensively the H3 Face Refiner, an identity-anchored post-process that has been installed in WanGP the whole time and was never once run.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "bc0c3ed:jarvis",
+  "date": "2026-10-01",
+  "slug": "jarvis",
+  "title": "A real Plaid feed found two things the fixtures could not",
+  "detail": "Connected a live Plaid sandbox item with the owner's keys and ran the engines over what Plaid actually returned — 14 accounts, 48 transactions, real liabilities. The payloads are recorded as fixtures/live-sandbox.json so this stays verifiable with no network, and the hand-made fixtures stay for the ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a67428f:jarvis",
+  "date": "2026-10-01",
+  "slug": "jarvis",
+  "title": "A sync loop whose cursor cannot outrun the write",
+  "detail": "Provider-agnostic paging, against an injected store so the ordering guarantee is testable without a database.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "805a1bd:jarvis",
+  "date": "2026-10-01",
+  "slug": "jarvis",
+  "title": "Plaid behind one interface, with the two traps pinned by tests",
+  "detail": "Plan 2 of 5. No new npm dependencies — Plaid's REST API is plain JSON POST and ES256 verification is Node's own crypto, so neither the plaid package nor jose earns its place.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "10ce2e1:jarvis",
+  "date": "2026-10-01",
+  "slug": "jarvis",
+  "title": "Free first, by what the request actually carries",
+  "detail": "Every general call now picks its model from the request rather than from a single default, at one seam (planCall in src/lib/ai/provider.ts), so none of the 37 call sites needed touching.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "10ce2e1:seedance-studio",
+  "date": "2026-10-01",
+  "slug": "seedance-studio",
+  "title": "Free first, by what the request actually carries",
+  "detail": "Every general call now picks its model from the request rather than from a single default, at one seam (planCall in src/lib/ai/provider.ts), so none of the 37 call sites needed touching.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "dbcd7eb:jarvis",
+  "date": "2026-10-01",
+  "slug": "jarvis",
+  "title": "Partial card payments are not a double charge",
+  "detail": "The owner clears cards in chunks, not in full. Two equal partial payments days apart are identical amount, identical payee, same account, inside the duplicate window — so the detector would have fired an urgent \"charged twice\" most months, which is exactly the false alarm the whole feature is built ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9cdce6d:jarvis",
+  "date": "2026-09-30",
+  "slug": "jarvis",
+  "title": "Two ledgers, one reconciliation, 141 tests",
+  "detail": "Plan 1 of 5 for the Personal Finance folder. Everything that decides what is TRUE — pure functions and the schema, no network, no UI, no API keys.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "086a69c:dashboard",
+  "date": "2026-09-29",
+  "slug": "dashboard",
+  "title": "A video branch, because a camera roll is not only photographs",
+  "detail": "Videos get their own folder under Photos, with sub-folders, and they do not go through the review queue. Nothing here can read a clip — no vision model accepts video — so there is no destination to propose and no guess for a human to agree with: the folder you pick is where it goes, stored and filed",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1af8955:dashboard",
+  "date": "2026-09-27",
+  "slug": "dashboard",
+  "title": "Instagram was never the problem, and cobalt earns its place",
+  "detail": "I reported Instagram as permanently login-walled. It is not. Public reels and posts download with no cookies at all, verified against four real reels through both yt-dlp and cobalt.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e1b08ab:cookbook-genie",
+  "date": "2026-09-27",
+  "slug": "cookbook-genie",
+  "title": "A Facebook link never reached the downloader",
+  "detail": "The recipe importer resolved a pasted link with resolveSocialPost(), which only ever reads the page. Facebook shows an anonymous page fetch no video and often nothing at all, so every Facebook link dead-ended — while the thing that actually fetches video files, downloadVideo() (yt-dlp -> cobalt -> o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e1b08ab:cook-connect",
+  "date": "2026-09-27",
+  "slug": "cook-connect",
+  "title": "A Facebook link never reached the downloader",
+  "detail": "The recipe importer resolved a pasted link with resolveSocialPost(), which only ever reads the page. Facebook shows an anonymous page fetch no video and often nothing at all, so every Facebook link dead-ended — while the thing that actually fetches video files, downloadVideo() (yt-dlp -> cobalt -> o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e1b08ab:dashboard",
+  "date": "2026-09-27",
+  "slug": "dashboard",
+  "title": "A Facebook link never reached the downloader",
+  "detail": "The recipe importer resolved a pasted link with resolveSocialPost(), which only ever reads the page. Facebook shows an anonymous page fetch no video and often nothing at all, so every Facebook link dead-ended — while the thing that actually fetches video files, downloadVideo() (yt-dlp -> cobalt -> o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "069b75d:jarvis",
+  "date": "2026-09-27",
+  "slug": "jarvis",
+  "title": "It can save what it reads, without reading it to anyone",
+  "detail": "The agent had hands and no memory: it opened a page, read it, and the knowledge died with the block. Six tools now write to the owner's own stores — the Life Record, memory proposals, folders, lists, the calendar — and they carry no `needs`, so they keep working with the local agent stopped, which i",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e7e995f:jarvis",
+  "date": "2026-09-26",
+  "slug": "jarvis",
+  "title": "A reassurance has to scope itself",
+  "detail": "\"Nothing on your PC was touched\" is true of the model round and can land at the bottom of a block whose ledger shows three completed shell steps directly above it — where, unscoped, it reads as a claim about the whole run and contradicts what is on screen. It now says what the 400 branch already sai",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7a12841:jarvis",
+  "date": "2026-09-26",
+  "slug": "jarvis",
+  "title": "An upstream payload is not an error message",
+  "detail": "The review's finding named two defects and the last commit closed one. This is the other half.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "87b23d8:jarvis",
+  "date": "2026-09-26",
+  "slug": "jarvis",
+  "title": "Echoing the raw message echoed its nulls too",
+  "detail": "Capturing a state I had been treating as optional — a git diff, to prove the diff renderer — is the only reason this was found. The diff rendered correctly and the step after it died:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a6ede17:jarvis",
+  "date": "2026-09-26",
+  "slug": "jarvis",
+  "title": "Hover was the same breach, moved",
+  "detail": "The second verdict shipped the eleven scored items and caught two more, both introduced by the batch before it.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c5ac29c:jarvis",
+  "date": "2026-09-26",
+  "slug": "jarvis",
+  "title": "The three the fix batch broke",
+  "detail": "The verdict pass scored six of eight closed and caught three regressions the batch introduced, all fair.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7687d43:jarvis",
+  "date": "2026-09-26",
+  "slug": "jarvis",
+  "title": "The review's eight, and the ledger that was a claim",
+  "detail": "The finish review came back \"fix\" and was right about two things that were not craft but truth. The catalog and the empty state both promised a block from an hour ago is still there; blocks lived in React state and a reload deleted the lot. And the design named JetBrains Mono as the voice of every c",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "24a16d9:website-redesigner",
+  "date": "2026-09-26",
+  "slug": "website-redesigner",
+  "title": "The skill rebuilds the page, not just its colours",
+  "detail": "The first pass only re-tinted the same page, which is not what a design skill does. Picking or hovering a skill now swaps the whole composition: seven arrangements of the same content, each the page that skill would have built.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1c48e47:website-redesigner",
+  "date": "2026-09-26",
+  "slug": "website-redesigner",
+  "title": "The skill rebuilds the page, not just its colours",
+  "detail": "The first pass only re-tinted the same page, which is not what a design skill does. Picking or hovering a skill now swaps the whole composition: seven arrangements of the same content, each the page that skill would have built.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2582bff:jarvis",
+  "date": "2026-09-26",
+  "slug": "jarvis",
+  "title": "An assistant that can reach the machine",
+  "detail": "The old Jarvis could think and remember but could not touch anything, and a six-step job arrived as one sentence saying \"Done\". This is the same data through a different frame.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "04ca055:website-redesigner",
+  "date": "2026-09-26",
+  "slug": "website-redesigner",
+  "title": "The page wears the design skill you pick",
+  "detail": "Reading \"warm monochrome, typographic contrast\" tells you nothing about a skill. Watching the console turn into warm paper with a serif headline tells you in half a second — so picking a skill in the dropdown now re-skins this whole page in that skill's aesthetic, and the roster becomes comparable b",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7104463:jarvis",
+  "date": "2026-09-26",
+  "slug": "jarvis",
+  "title": "The extension's icon was never in the repo",
+  "detail": "A blanket *.png rule in .gitignore swallowed extension/jarvis-record/icon.png, so it existed on one laptop and nowhere else. Downloads built here were whole and downloads built by the deployed hub were not, which is the worst shape a bug can have: it works for the person who wrote it. Chrome then re",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5bd5c6d:jarvis",
+  "date": "2026-09-26",
+  "slug": "jarvis",
+  "title": "A dead key repairs itself instead of asking",
+  "detail": "Minting a token takes it away from every other browser, so an extension can end up holding one the hub has stopped accepting -- which it did here, because each test download minted another. The panel already spotted it and offered Reconnect, but a button that has exactly one correct answer is a ques",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "630ef99:jarvis",
+  "date": "2026-09-26",
+  "slug": "jarvis",
+  "title": "The installer cannot quietly install nothing",
+  "detail": "Double-clicking \"Install on Windows.cmd\" inside the zip window is what a person actually does, and it was the one path that failed silently: Windows unpacks only the file you click, so the script had nothing beside it to copy, deleted itself from the destination, and reported success over an empty f",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b2b472d:jarvis",
+  "date": "2026-09-26",
+  "slug": "jarvis",
+  "title": "The extension installs itself, in one button",
+  "detail": "Loading an unpacked extension out of the repo was the wall. Chrome keeps two steps for itself -- Developer mode, Load unpacked -- and everything that used to surround them is gone.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3bd6b02:projects-timeline",
+  "date": "2026-09-26",
+  "slug": "projects-timeline",
+  "title": "Pod Play Connect off the shelf, two tools into Jarvis's Toolbox",
+  "detail": "Pod Play Connect loses its catalog entry, so it has no tile and no detail page. Only that went: the bundle in public/, the rewrite that serves it and the `pod` schema behind it are untouched, so the link still works and the accounts and games on it are still there. Cook Connect's own seed notes said",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3bd6b02:prompt-architect",
+  "date": "2026-09-26",
+  "slug": "prompt-architect",
+  "title": "Pod Play Connect off the shelf, two tools into Jarvis's Toolbox",
+  "detail": "Pod Play Connect loses its catalog entry, so it has no tile and no detail page. Only that went: the bundle in public/, the rewrite that serves it and the `pod` schema behind it are untouched, so the link still works and the accounts and games on it are still there. Cook Connect's own seed notes said",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3bd6b02:jarvis",
+  "date": "2026-09-26",
+  "slug": "jarvis",
+  "title": "Pod Play Connect off the shelf, two tools into Jarvis's Toolbox",
+  "detail": "Pod Play Connect loses its catalog entry, so it has no tile and no detail page. Only that went: the bundle in public/, the rewrite that serves it and the `pod` schema behind it are untouched, so the link still works and the accounts and games on it are still there. Cook Connect's own seed notes said",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3bd6b02:cook-connect",
+  "date": "2026-09-26",
+  "slug": "cook-connect",
+  "title": "Pod Play Connect off the shelf, two tools into Jarvis's Toolbox",
+  "detail": "Pod Play Connect loses its catalog entry, so it has no tile and no detail page. Only that went: the bundle in public/, the rewrite that serves it and the `pod` schema behind it are untouched, so the link still works and the accounts and games on it are still there. Cook Connect's own seed notes said",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7a48e14:jarvis",
+  "date": "2026-09-26",
+  "slug": "jarvis",
+  "title": "The life record and the extension that fills the next form",
+  "detail": "The Record tab and the jarvis-record Chrome extension were finished on this laptop and had never been committed — a crash away from being gone. What you type into a real application site is captured, and the next site it recognises is filled from it; sensitive values reach neither the model nor the ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "52ce35a:jarvis",
+  "date": "2026-09-26",
+  "slug": "jarvis",
+  "title": "The finished apps move out of the hub and into Jarvis",
+  "detail": "The hub was showing every app forever, including the ones that are done and only ever opened from the work they feed. Those nine now live in Jarvis's rail, on a page of their own above Settings, and the hub is what has not moved yet.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "52ce35a:jarvis-audio-studio",
+  "date": "2026-09-26",
+  "slug": "jarvis-audio-studio",
+  "title": "The finished apps move out of the hub and into Jarvis",
+  "detail": "The hub was showing every app forever, including the ones that are done and only ever opened from the work they feed. Those nine now live in Jarvis's rail, on a page of their own above Settings, and the hub is what has not moved yet.",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "52ce35a:seedance-studio",
+  "date": "2026-09-26",
+  "slug": "seedance-studio",
+  "title": "The finished apps move out of the hub and into Jarvis",
+  "detail": "The hub was showing every app forever, including the ones that are done and only ever opened from the work they feed. Those nine now live in Jarvis's rail, on a page of their own above Settings, and the hub is what has not moved yet.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "52ce35a:std-safe",
+  "date": "2026-09-26",
+  "slug": "std-safe",
+  "title": "The finished apps move out of the hub and into Jarvis",
+  "detail": "The hub was showing every app forever, including the ones that are done and only ever opened from the work they feed. Those nine now live in Jarvis's rail, on a page of their own above Settings, and the hub is what has not moved yet.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "52ce35a:dashboard",
+  "date": "2026-09-26",
+  "slug": "dashboard",
+  "title": "The finished apps move out of the hub and into Jarvis",
+  "detail": "The hub was showing every app forever, including the ones that are done and only ever opened from the work they feed. Those nine now live in Jarvis's rail, on a page of their own above Settings, and the hub is what has not moved yet.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "82c0bc5:realtime-lucy",
+  "date": "2026-09-26",
+  "slug": "realtime-lucy",
+  "title": "Name the bridge that is running but too old to start the engine",
+  "detail": "A bridge from before the /lucy routes answers /health and 404s the rest, and \"start it\" is the wrong fix there — the old copy holds the port, so a second one exits. The page now says which of the two it is and, when it's the old build, gives both commands in order.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8f417f7:cookbook-genie",
+  "date": "2026-09-26",
+  "slug": "cookbook-genie",
+  "title": "Take four apps off the shelf, keep the parts others stand on",
+  "detail": "Auteur, Cookbook Genie, Soundprint and Voice Studio are out of the catalog, and their pages, components and every file nothing else reached are deleted.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8f417f7:soundprint",
+  "date": "2026-09-26",
+  "slug": "soundprint",
+  "title": "Take four apps off the shelf, keep the parts others stand on",
+  "detail": "Auteur, Cookbook Genie, Soundprint and Voice Studio are out of the catalog, and their pages, components and every file nothing else reached are deleted.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8f417f7:voice-studio",
+  "date": "2026-09-26",
+  "slug": "voice-studio",
+  "title": "Take four apps off the shelf, keep the parts others stand on",
+  "detail": "Auteur, Cookbook Genie, Soundprint and Voice Studio are out of the catalog, and their pages, components and every file nothing else reached are deleted.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8f417f7:cook-connect",
+  "date": "2026-09-26",
+  "slug": "cook-connect",
+  "title": "Take four apps off the shelf, keep the parts others stand on",
+  "detail": "Auteur, Cookbook Genie, Soundprint and Voice Studio are out of the catalog, and their pages, components and every file nothing else reached are deleted.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8f417f7:dashboard",
+  "date": "2026-09-26",
+  "slug": "dashboard",
+  "title": "Take four apps off the shelf, keep the parts others stand on",
+  "detail": "Auteur, Cookbook Genie, Soundprint and Voice Studio are out of the catalog, and their pages, components and every file nothing else reached are deleted.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8f417f7:jarvis",
+  "date": "2026-09-26",
+  "slug": "jarvis",
+  "title": "Take four apps off the shelf, keep the parts others stand on",
+  "detail": "Auteur, Cookbook Genie, Soundprint and Voice Studio are out of the catalog, and their pages, components and every file nothing else reached are deleted.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3f530e7:realtime-lucy",
+  "date": "2026-09-26",
+  "slug": "realtime-lucy",
+  "title": "One button that starts the engine, not a command to copy",
+  "detail": "The page was only ever the WebRTC client, so with nothing running on the GPU it showed the webcam and told you to go and run a script — which reads as \"the prompt does nothing\". Start Lucy now asks the studio bridge on this PC to start the engine, watches the model land on the card, and goes live by",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "15bac66:smart-shot-videos",
+  "date": "2026-09-26",
+  "slug": "smart-shot-videos",
+  "title": "Say the lens in the words H3 reads, and give a cut an angle",
+  "detail": "The skill was a document the renderer never opened. plannerSystem told the model to vary \"aperture (f/1.4-f/5.6)\" and h3prompt.ts emitted \"on a 100mm lens at f/2\" — both in a notation that, measured across 72 prompts behind curated H3 clips, 4% of them use for focal length and none use for aperture,",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c69def6:jarvis",
+  "date": "2026-09-25",
+  "slug": "jarvis",
+  "title": "The tools list is read out of the code, not remembered",
+  "detail": "Toolbox › Tools was a hand-kept list of the models the hub uses, which means it was accurate on the day it was written. scripts/scan-tools.mjs now reads the call sites out of the source and commits them as toolUsage.generated.json, so re-running it is how the list stays true.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b7cc675:jarvis",
+  "date": "2026-09-25",
+  "slug": "jarvis",
+  "title": "A genre has to decide the story, not just the grade",
+  "detail": "A horror film came back as a sunlit family video — correctly framed, correctly graded, and not a horror film, because nothing frightening was ever planned to happen in it. Its opening shot was a photograph held for six and a half seconds, which is exactly what \"hold a beat before anything moves\" ask",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "cf17a33:jarvis",
+  "date": "2026-09-25",
+  "slug": "jarvis",
+  "title": "The sync could not write",
+  "detail": "Every master-folder sync has failed since the day it shipped, silently. The unique index it upserts against is partial — `where external_id is not null` — and Postgres will not infer a partial index for ON CONFLICT unless the statement repeats the predicate, which PostgREST cannot send. So every syn",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8dbdbff:jarvis",
+  "date": "2026-09-25",
+  "slug": "jarvis",
+  "title": "The Chat tab is an agent of its own, on DeepSeek",
+  "detail": "The Chat tab was the Studio composer wearing a different name: both tabs mounted ChatTab, so asking Jarvis a question meant looking at a camera deck, a workflow menu and a shot-plan sheet. They are two jobs. Studio plans and renders film; Chat answers, reads what the owner has, and drafts anything t",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5c70bd0:jarvis",
+  "date": "2026-09-24",
+  "slug": "jarvis",
+  "title": "An @ names the photo you just uploaded, in every chat",
+  "detail": "The Chat tab already offered this conversation's uploads behind @. The two other composers for the same conversation did not, which is the wrong two: the Studio idea box is where a shot actually starts, and Seedance's director is where a film gets cut. Uploading a picture and then typing @ is the mo",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5c70bd0:seedance-studio",
+  "date": "2026-09-24",
+  "slug": "seedance-studio",
+  "title": "An @ names the photo you just uploaded, in every chat",
+  "detail": "The Chat tab already offered this conversation's uploads behind @. The two other composers for the same conversation did not, which is the wrong two: the Studio idea box is where a shot actually starts, and Seedance's director is where a film gets cut. Uploading a picture and then typing @ is the mo",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "eb37e77:jarvis",
+  "date": "2026-09-24",
+  "slug": "jarvis",
+  "title": "The seam between two shots of one take",
+  "detail": "Follows the recommended v1.4 baseline from Herrgott Margott's H3 Infinite Continuation Suite, so we can judge his method on our own footage.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "60a621f:jarvis",
+  "date": "2026-09-24",
+  "slug": "jarvis",
+  "title": "Seedance Studio cuts to the song, and the Skills tab survives a deploy",
+  "detail": "The skills library was reading ~/.claude/skills, a folder that exists on one PC. Deployed, the Toolbox came back empty — the opposite of what a library is for. Every personal SKILL.md is now mirrored into skills/ and the scan reads that too, so the same 140 skills are there on the hub as on localhos",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "60a621f:seedance-studio",
+  "date": "2026-09-24",
+  "slug": "seedance-studio",
+  "title": "Seedance Studio cuts to the song, and the Skills tab survives a deploy",
+  "detail": "The skills library was reading ~/.claude/skills, a folder that exists on one PC. Deployed, the Toolbox came back empty — the opposite of what a library is for. Every personal SKILL.md is now mirrored into skills/ and the scan reads that too, so the same 140 skills are there on the hub as on localhos",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "60a621f:skills-library",
+  "date": "2026-09-24",
+  "slug": "skills-library",
+  "title": "Seedance Studio cuts to the song, and the Skills tab survives a deploy",
+  "detail": "The skills library was reading ~/.claude/skills, a folder that exists on one PC. Deployed, the Toolbox came back empty — the opposite of what a library is for. Every personal SKILL.md is now mirrored into skills/ and the scan reads that too, so the same 140 skills are there on the hub as on localhos",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ac12312:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "The work happens on the tab you started it on",
+  "detail": "Studio used to hand the mix to the Chat tab and move you there, so the forms, the shot plan and the renders all happened somewhere other than the tab you were working from — and the wall of workflows you were picking off was two clicks behind you the whole time. The conversation runs in Studio now. ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "691edcd:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "A cut-out laid over a video, without doing the arithmetic yourself",
+  "detail": "POST /composite takes the source video and a rendered plate and hands back the finished reaction: the reactor keyed, trimmed to their own edges, scaled and stood in a corner of the video. It polls on /job/:id like any other render, and it skips the queue — the queue exists because there is one GPU a",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "48658d4:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "An Influencers shelf, a reaction skill, and tempo out in front",
+  "detail": "Tempo leads the precedence order now. It is the only setting that is not a look at all — it decides how many cuts there are, how long each runs and how many beats each holds — so it is the skeleton everything else is hung on, and nothing below it can be chosen until it is. Style, genre, era, lightin",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "98ff2aa:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "The settings reach the film, and the film holds together",
+  "detail": "Watched the first stitched film frame by frame. Six of its seven faults were this repo's plumbing rather than H3.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "31fc3ac:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "A runtime you can set, and a renderer that is already running",
+  "detail": "Two things stood between a shot plan and a film.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3855883:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "A photograph on the last two cards",
+  "detail": "Shot free and local on Flux 2 Klein through WanGP, 14s each.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2e64605:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "Split the two moves that share a name",
+  "detail": "The card called \"Dolly zoom\" held the compensated inverse move, which is the Hitchcock effect and now has its own card under that name. What stays on the old id is the plain move people actually mean when they say \"push in on her\": a fixed lens, the camera genuinely travelling, a foreground element ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6bdb13d:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "Finish the transformation skill",
+  "detail": "The owner's paste cut off after the Role section, so the rest is written to match its seven siblings: when NOT to use it (a morph, a dissolve, a particle swarm, a seamless blob), the audio firewall verbatim, an ordered Round 3 return, scale and rights fields, and a sequence shape for anything over 1",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9590753:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "The Snorricam gets a gait metronome",
+  "detail": "No Dreamina original for this one, so the upgrade comes from craft. The bounce is 2 Hz at 2-4% of frame height with 1-3 degrees of roll on alternating footfalls -- numbers render as a mount, \"shaky\" renders as handheld. The lens is forced by the geometry: 40-60 cm off the sternum means an 18-24 mm f",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ca51f3e:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "The transformation learns seam doctrine",
+  "detail": "Same upgrade the other camera moves got. The craft it was missing: separations start at a seam the object really has, joints get named by type (rail, pivot, sleeve, latch) because naming the type is what renders mechanism instead of morphing, part maps for architecture and industrial gear, and a par",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "67d8ff2:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "The focus relay gets a distance ladder",
+  "detail": "Merged from the owner's Dreamina version. The craft it was missing is mostly arithmetic: planes at 0.6 / 3 / 9 m rather than 2 / 3 / 4, which is what makes the parallax rates differ at all; a long lens and a wide aperture feel, since a wide lens holds everything sharp and quietly kills the effect; 3",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "fa708fd:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "Split screen, and three camera moves that learned their trade",
+  "detail": "Split screen is new — parallel threads in a grid that never moves, one panel per narrative unit, ownership frozen from first frame to last, nothing invented to fill a cell. It sets structure, not style, so it layers under a look skill.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b631ec9:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "Photograph the test scene instead of drawing it",
+  "detail": "Every tile in the deck was an SVG of the same imagined scene. All 152 that are actually pictures now carry a real photograph of it — one field, one fence post, one figure on the horizon, one low sun — shot 152 times with exactly one thing changed each time. That is what the deck is for: comparing tw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "96403aa:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "The dolly zoom now knows its own arithmetic",
+  "detail": "The owner's Dreamina dolly-zoom skill, folded into the shipped one. What it adds: the focal-over-distance table so a route names real lenses and metres, an intensity choice, a sequence shape for when the beat needs a run-up, reference roles that say a motion plate carries camera motion only, render ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a2bfbe6:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "The + belongs in Studio, where the shot is described",
+  "detail": "The reference tray was only ever in Chat. Studio — the tab with the cards, the camera deck and the box you describe the shot in — had no way to add a photo, a clip or a track at all, which is where the owner kept looking for it.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "46b0dc5:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "A shot plan that renders as one film, and references you can name",
+  "detail": "Two things land together, because the second is what makes the first usable.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b47db71:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "A real photograph on every workflow card",
+  "detail": "The cards were CSS gradients with six animating <i> tags. All 123 now carry a still of what that workflow actually makes — a book with film unspooling from its pages, a sprinter's spike at push-off, a wax-sealed envelope — never a picture of a tool or an interface.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ff467a6:jarvis-audio-studio",
+  "date": "2026-09-23",
+  "slug": "jarvis-audio-studio",
+  "title": "Send every bridged file through Storage, not just the big ones",
+  "detail": "Every real download was failing with a 413 and I had proved the feature worked, because the file I tested with was the one size that happened to succeed.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "86a1ce2:jarvis-audio-studio",
+  "date": "2026-09-23",
+  "slug": "jarvis-audio-studio",
+  "title": "A bridged file must download, not play",
+  "detail": "Caught testing the bridge for real on the live site. The grab worked end to end — runner claimed the job, hit YouTube's 403, re-extracted itself, sent back 10.5 MB through the signed Storage link — and then the browser navigated to that link and started playing the MP3 in a bare tab.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a2d2ffb:jarvis-audio-studio",
+  "date": "2026-09-23",
+  "slug": "jarvis-audio-studio",
+  "title": "YouTube rows on the live site, with no yt-dlp and no key",
+  "detail": "The bridge I just built fetches files the deployed site cannot — but the rows you press Download on were still coming from yt-dlp, so on the live site there was nothing to press. The feature was half a feature and the page still said YouTube was off.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "27e986e:jarvis-audio-studio",
+  "date": "2026-09-23",
+  "slug": "jarvis-audio-studio",
+  "title": "Let the PC fetch what the live site cannot",
+  "detail": "yt-dlp is a program on the owner's machine and Vercel has no such binary, so on the deployed site the YouTube source was simply dark. Honest, and useless when you are on your phone and want the song.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f3795c7:jarvis-audio-studio",
+  "date": "2026-09-23",
+  "slug": "jarvis-audio-studio",
+  "title": "Find yt-dlp when PATH does not mention it, and say where it cannot run",
+  "detail": "Two different \"yt-dlp is not on this machine\", told apart at last.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "11173b6:jarvis-audio-studio",
+  "date": "2026-09-23",
+  "slug": "jarvis-audio-studio",
+  "title": "Sign in with Google, and fix the YouTube rows that never appeared",
+  "detail": "The login page is one button now. The email-and-password form with its Sign in / Sign up toggle asked a visitor to invent a credential before they had seen anything, and left this site holding a password it has no business holding. Google's prompt does the same job in one click.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2920abf:seedance-studio",
+  "date": "2026-09-23",
+  "slug": "seedance-studio",
+  "title": "Three lanes, and prompts only in the video blocks",
+  "detail": "The timeline is now exactly three lanes. Video prompts run end to end under the song and are the only place a prompt lives — its words, its camera deck, its reference images. The song sits in the middle so both other lanes touch the waveform. Lip sync is the third: plain ranges that carry no prompt ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2920abf:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "Three lanes, and prompts only in the video blocks",
+  "detail": "The timeline is now exactly three lanes. Video prompts run end to end under the song and are the only place a prompt lives — its words, its camera deck, its reference images. The song sits in the middle so both other lanes touch the waveform. Lip sync is the third: plain ranges that carry no prompt ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "eaa200d:jarvis-audio-studio",
+  "date": "2026-09-23",
+  "slug": "jarvis-audio-studio",
+  "title": "Find the song, prove it, then take it",
+  "detail": "A new hub app at /apps/mp3-download, and the first entry in Jarvis Studio's App plugins.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "eaa200d:jarvis",
+  "date": "2026-09-23",
+  "slug": "jarvis",
+  "title": "Find the song, prove it, then take it",
+  "detail": "A new hub app at /apps/mp3-download, and the first entry in Jarvis Studio's App plugins.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1f09b09:cook-connect",
+  "date": "2026-09-22",
+  "slug": "cook-connect",
+  "title": "A way back to Jarvis",
+  "detail": "A link in the top bar, beside Start a game. It is an anchor rather than an internal route, because it leaves the app rather than moving inside it, and it follows the arrow-plus-destination shape the other hub apps already use for going home.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e944966:skills-library",
+  "date": "2026-09-22",
+  "slug": "skills-library",
+  "title": "Show the Studio agents, which were invisible there",
+  "detail": "Studio workflows and the Skills Library grew up as separate things — a workflow is a card you pick in Studio, a skill is a prompt you keep in the library — so none of the 123 Studio agents appeared in Toolbox > Skills. To the owner they are the same object: the skills they have. The tab showed one e",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3b48bc7:cook-connect",
+  "date": "2026-09-22",
+  "slug": "cook-connect",
+  "title": "Groups, and their chat",
+  "detail": "Pod Play Connect's interest groups, which the first merge left out and are wanted after all. Join a group and its conversation and video room open; non-members see why they cannot read it rather than an empty panel. Only members can read or post, enforced in the database through cook.is_group_member",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "557e050:cook-connect",
+  "date": "2026-09-22",
+  "slug": "cook-connect",
+  "title": "Sign in with Google, and say when the schema is missing",
+  "detail": "Google goes through the hub's existing /auth/callback route, which nothing was using yet. The provider is already enabled on the hub's Supabase project; the button special-cases \"provider is not enabled\" anyway, because that error reads like a code bug and is not one.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9462516:jarvis",
+  "date": "2026-09-22",
+  "slug": "jarvis",
+  "title": "Nine romance, editorial and key-art agents",
+  "detail": "A new Romance & allure video shelf — romantic film, romantic montage, seduction film, noir seduction, boudoir film — plus three image sessions under Photo shoots and a poster campaign under Covers.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f88169e:cook-connect",
+  "date": "2026-09-22",
+  "slug": "cook-connect",
+  "title": "The parallel session's work so far",
+  "detail": "Committed on request from another session, not the one that wrote it. Cook Connect swaps Feed and People for Explore, Journal and Shared with me, adds an online rail and share/journal storage; Studio gains eleven influencer workflows with a skill file each.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f88169e:projects-timeline",
+  "date": "2026-09-22",
+  "slug": "projects-timeline",
+  "title": "The parallel session's work so far",
+  "detail": "Committed on request from another session, not the one that wrote it. Cook Connect swaps Feed and People for Explore, Journal and Shared with me, adds an online rail and share/journal storage; Studio gains eleven influencer workflows with a skill file each.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f88169e:jarvis",
+  "date": "2026-09-22",
+  "slug": "jarvis",
+  "title": "The parallel session's work so far",
+  "detail": "Committed on request from another session, not the one that wrote it. Cook Connect swaps Feed and People for Explore, Journal and Shared with me, adds an online rail and share/journal storage; Studio gains eleven influencer workflows with a skill file each.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "557fcce:dashboard",
+  "date": "2026-09-22",
+  "slug": "dashboard",
+  "title": "Fill in the links the old entries never had",
+  "detail": "The lookup only ran when an entry was SAVED, so a folder collected over months kept every one of its linkless rows — which is nearly all of them, and exactly the rows worth clicking. The folder header now offers \"Find links for N entries\", counting the sub-folders where the collection actually lives",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "557fcce:ai-rankings",
+  "date": "2026-09-22",
+  "slug": "ai-rankings",
+  "title": "Fill in the links the old entries never had",
+  "detail": "The lookup only ran when an entry was SAVED, so a folder collected over months kept every one of its linkless rows — which is nearly all of them, and exactly the rows worth clicking. The folder header now offers \"Find links for N entries\", counting the sub-folders where the collection actually lives",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6b2b0bc:dashboard",
+  "date": "2026-09-22",
+  "slug": "dashboard",
+  "title": "Fill in the links the old entries never had",
+  "detail": "The lookup only ran when an entry was SAVED, so a folder collected over months kept every one of its linkless rows — which is nearly all of them, and exactly the rows worth clicking. The folder header now offers \"Find links for N entries\", counting the sub-folders where the collection actually lives",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6b2b0bc:ai-rankings",
+  "date": "2026-09-22",
+  "slug": "ai-rankings",
+  "title": "Fill in the links the old entries never had",
+  "detail": "The lookup only ran when an entry was SAVED, so a folder collected over months kept every one of its linkless rows — which is nearly all of them, and exactly the rows worth clicking. The folder header now offers \"Find links for N entries\", counting the sub-folders where the collection actually lives",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f03c495:cook-connect",
+  "date": "2026-09-22",
+  "slug": "cook-connect",
+  "title": "@-mention a person the Photos library already knows",
+  "detail": "Written in a parallel session; committed here after checking it compiles, that all 776 tests pass and that a clean production build succeeds.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8089a19:ai-rankings",
+  "date": "2026-09-22",
+  "slug": "ai-rankings",
+  "title": "Match the name the owner actually used",
+  "detail": "The folder is called \"ai rankings folder\", and isRankingsName demanded the exact words \"AI Rankings\" — so on the live site not one entry in it had a Sync button and the new URL lookup never ran. The feature looked built and was unreachable.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e2a0260:ai-rankings",
+  "date": "2026-09-22",
+  "slug": "ai-rankings",
+  "title": "Match the name the owner actually used",
+  "detail": "The folder is called \"ai rankings folder\", and isRankingsName demanded the exact words \"AI Rankings\" — so on the live site not one entry in it had a Sync button and the new URL lookup never ran. The feature looked built and was unreachable.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5defbf2:jarvis",
+  "date": "2026-09-22",
+  "slug": "jarvis",
+  "title": "Use every face on the sheet, and make people @-mentionable",
+  "detail": "Recognition was failing for a reason that had nothing to do with the model. The contact sheet drew only the first two references per person, at 128px, so the third and fourth photo of somebody were stored, synced, counted on their card -- and never looked at. 128px is also below the size at which a ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5defbf2:dashboard",
+  "date": "2026-09-22",
+  "slug": "dashboard",
+  "title": "Use every face on the sheet, and make people @-mentionable",
+  "detail": "Recognition was failing for a reason that had nothing to do with the model. The contact sheet drew only the first two references per person, at 128px, so the third and fourth photo of somebody were stored, synced, counted on their card -- and never looked at. 128px is also below the size at which a ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c5f83a9:jarvis",
+  "date": "2026-09-22",
+  "slug": "jarvis",
+  "title": "Ten workflows for athletes and for events",
+  "detail": "Two new video shelves, and one image workflow filed under Photo shoots.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7903bb9:cook-connect",
+  "date": "2026-09-22",
+  "slug": "cook-connect",
+  "title": "Cookbook Genie and Pod Play Connect, merged",
+  "detail": "A new app at /apps/cook-connect where a person's cookbooks and their game record are the same profile. Publish and save cookbooks, search a directory of cooks, and challenge any of them to spades or chess without leaving the page. Neither source app is touched: both keep their routes, their code and",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c0d8fea:ai-rankings",
+  "date": "2026-09-22",
+  "slug": "ai-rankings",
+  "title": "A link on every entry, found from the name",
+  "detail": "An entry typed as a bare name was a dead end — nothing to click, and nothing for the board classifier to read. In this folder a website saved with no URL now gets one: the model names the official site, and with no key (or a name it does not know) the server probes the obvious domains and keeps the ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c0d8fea:dashboard",
+  "date": "2026-09-22",
+  "slug": "dashboard",
+  "title": "A link on every entry, found from the name",
+  "detail": "An entry typed as a bare name was a dead end — nothing to click, and nothing for the board classifier to read. In this folder a website saved with no URL now gets one: the model names the official site, and with no key (or a name it does not know) the server probes the obvious domains and keeps the ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6bd1e9a:jarvis",
+  "date": "2026-09-22",
+  "slug": "jarvis",
+  "title": "A visible aspect shape, lengths up to 5:00, readable menus",
+  "detail": "Both controls were native selects, which rendered their menu on the platform's own white background while inheriting this app's near-white text — white on white, unreadable. They are themed popovers now, which is also what lets them do the other two things.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e5a83e0:ai-rankings",
+  "date": "2026-09-22",
+  "slug": "ai-rankings",
+  "title": "Write the leaf-key separator as an escape, not a raw NUL",
+  "detail": "The separator itself was right: NUL cannot occur in a group or category name, so {group:\"AI\", category:\"Tools Chat\"} can never collide with {group:\"AI Tools\", category:\"Chat\"} the way a space or a colon would.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2fde6f1:jarvis",
+  "date": "2026-09-22",
+  "slug": "jarvis",
+  "title": "Reference clips, @Subject, a gallery and app plugins",
+  "detail": "References take video now, not only stills. No model here reads video, so a clip's attachment is a frame grabbed out of it, labelled a clip, with the file itself kept for the render step — the prompt can say \"the person in this clip\" without anyone pretending the motion was understood.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d01d602:jarvis",
+  "date": "2026-09-22",
+  "slug": "jarvis",
+  "title": "Chips that show the setting, and the wall underneath",
+  "detail": "The deck was a thin strip of line icons, which read as five buttons that might do something rather than five decisions already made. Each chip now carries a thumbnail of the setting itself — the owner's actual choice once they have made one, and a dimmed representative of that control until then, so",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ab0663c:jarvis",
+  "date": "2026-09-22",
+  "slug": "jarvis",
+  "title": "The camera deck, and 18 more guided skills",
+  "detail": "A prompt is now built from settings, not just prose. Five chips sit above the chat composer and the Studio mix bar — Film setup, Camera, Style, Color palette, Lighting — plus Movement, and together they write a binding shot spec into the model's context.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8711c1d:jarvis",
+  "date": "2026-09-22",
+  "slug": "jarvis",
+  "title": "74 guided video/image skills, forms in chat, Make it",
+  "detail": "- Every Studio card is now a full skill (src/lib/studio/skills/<id>.md): an expert role, rounds run through forms, option formulas, a strict final template, a craft library and constraints. micro-expressions and comedy-commercial are the owner's own; fight choreography and seven camera moves (dolly ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1dfe164:jarvis",
+  "date": "2026-09-22",
+  "slug": "jarvis",
+  "title": "74 guided video/image skills, forms in chat, Make it",
+  "detail": "- Every Studio card is now a full skill (src/lib/studio/skills/<id>.md): an expert role, rounds run through forms, option formulas, a strict final template, a craft library and constraints. micro-expressions and comedy-commercial are the owner's own; fight choreography and seven camera moves (dolly ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6ff1d53:jarvis",
+  "date": "2026-09-22",
+  "slug": "jarvis",
+  "title": "Video and image workflows, mixable, @-mentionable in chat",
+  "detail": "- New \"Studio\" tab (Create group): 42 video + 19 image workflows in category shelves, animated placeholder cards (CSS motifs, play on hover), a slot for real preview clips per card. - Workflows are data (src/lib/studio/workflows.ts): brief, format, optional style keywords, optional variant dropdown ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6ea4936:jarvis",
+  "date": "2026-09-22",
+  "slug": "jarvis",
+  "title": "Video and image workflows, mixable, @-mentionable in chat",
+  "detail": "- New \"Studio\" tab (Create group): 42 video + 19 image workflows in category shelves, animated placeholder cards (CSS motifs, play on hover), a slot for real preview clips per card. - Workflows are data (src/lib/studio/workflows.ts): brief, format, optional style keywords, optional variant dropdown ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3bd1947:jarvis",
+  "date": "2026-09-22",
+  "slug": "jarvis",
+  "title": "Bigger composer, image attachments, skills awareness",
+  "detail": "- Composer grows with text; attach up to 4 images by picker, paste or drop. Images are shrunk in the browser (1568px for the model, 240px thumbs saved). - Chat route passes images to the model as image_url parts (newest 6 kept). - Fix: the answer overwrote the question turn (stale store after await)",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6f67493:jarvis",
+  "date": "2026-09-22",
+  "slug": "jarvis",
+  "title": "Bigger composer, image attachments, skills awareness",
+  "detail": "- Composer grows with text; attach up to 4 images by picker, paste or drop. Images are shrunk in the browser (1568px for the model, 240px thumbs saved). - Chat route passes images to the model as image_url parts (newest 6 kept). - Fix: the answer overwrote the question turn (stale store after await)",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "487eb7a:ai-rankings",
+  "date": "2026-09-21",
+  "slug": "ai-rankings",
+  "title": "Toolbox (Skills, Tools, AI Rankings) and Settings",
+  "detail": "- Toolbox folds open in the rail to Skills, Tools and AI Rankings. - Tools: the models the owner actually works with — seeded from the models the hub's code calls by default, editable, reorderable, synced. - AI Rankings folder in Folders: every entry gets a Sync button that files it on the AI Rankin",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "487eb7a:jarvis",
+  "date": "2026-09-21",
+  "slug": "jarvis",
+  "title": "Toolbox (Skills, Tools, AI Rankings) and Settings",
+  "detail": "- Toolbox folds open in the rail to Skills, Tools and AI Rankings. - Tools: the models the owner actually works with — seeded from the models the hub's code calls by default, editable, reorderable, synced. - AI Rankings folder in Folders: every entry gets a Sync button that files it on the AI Rankin",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "487eb7a:dashboard",
+  "date": "2026-09-21",
+  "slug": "dashboard",
+  "title": "Toolbox (Skills, Tools, AI Rankings) and Settings",
+  "detail": "- Toolbox folds open in the rail to Skills, Tools and AI Rankings. - Tools: the models the owner actually works with — seeded from the models the hub's code calls by default, editable, reorderable, synced. - AI Rankings folder in Folders: every entry gets a Sync button that files it on the AI Rankin",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a2dd94f:ai-rankings",
+  "date": "2026-09-21",
+  "slug": "ai-rankings",
+  "title": "Toolbox (Skills, Tools, AI Rankings) and Settings",
+  "detail": "- Toolbox folds open in the rail to Skills, Tools and AI Rankings. - Tools: the models the owner actually works with — seeded from the models the hub's code calls by default, editable, reorderable, synced. - AI Rankings folder in Folders: every entry gets a Sync button that files it on the AI Rankin",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a2dd94f:jarvis",
+  "date": "2026-09-21",
+  "slug": "jarvis",
+  "title": "Toolbox (Skills, Tools, AI Rankings) and Settings",
+  "detail": "- Toolbox folds open in the rail to Skills, Tools and AI Rankings. - Tools: the models the owner actually works with — seeded from the models the hub's code calls by default, editable, reorderable, synced. - AI Rankings folder in Folders: every entry gets a Sync button that files it on the AI Rankin",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a2dd94f:dashboard",
+  "date": "2026-09-21",
+  "slug": "dashboard",
+  "title": "Toolbox (Skills, Tools, AI Rankings) and Settings",
+  "detail": "- Toolbox folds open in the rail to Skills, Tools and AI Rankings. - Tools: the models the owner actually works with — seeded from the models the hub's code calls by default, editable, reorderable, synced. - AI Rankings folder in Folders: every entry gets a Sync button that files it on the AI Rankin",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2fc7f95:jarvis",
+  "date": "2026-09-21",
+  "slug": "jarvis",
+  "title": "Know the owner's laptop specs",
+  "detail": "Adds aios/context/my-computer.md (Lenovo LOQ 15ARP9, RTX 3050 6 GB, 12 GB RAM, planned 32 GB upgrade) and puts it in Jarvis's master-folder files so every answer sees it.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5f56704:jarvis",
+  "date": "2026-09-21",
+  "slug": "jarvis",
+  "title": "One dashboard — Folders, Photos, Lists and Skills move in",
+  "detail": "- Folders, Photos and Lists (the old Dashboard) and the Skills Library are tabs in Jarvis's rail; /apps/dashboard and /apps/skills-library redirect. Storage keys, module paths and /api/recall/* are unchanged. - Jarvis sits behind the Dashboard app password; members still get only Lists. - Lists: pri",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5f56704:dashboard",
+  "date": "2026-09-21",
+  "slug": "dashboard",
+  "title": "One dashboard — Folders, Photos, Lists and Skills move in",
+  "detail": "- Folders, Photos and Lists (the old Dashboard) and the Skills Library are tabs in Jarvis's rail; /apps/dashboard and /apps/skills-library redirect. Storage keys, module paths and /api/recall/* are unchanged. - Jarvis sits behind the Dashboard app password; members still get only Lists. - Lists: pri",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5f56704:skills-library",
+  "date": "2026-09-21",
+  "slug": "skills-library",
+  "title": "One dashboard — Folders, Photos, Lists and Skills move in",
+  "detail": "- Folders, Photos and Lists (the old Dashboard) and the Skills Library are tabs in Jarvis's rail; /apps/dashboard and /apps/skills-library redirect. Storage keys, module paths and /api/recall/* are unchanged. - Jarvis sits behind the Dashboard app password; members still get only Lists. - Lists: pri",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "67bb19e:jarvis",
+  "date": "2026-09-21",
+  "slug": "jarvis",
+  "title": "One dashboard — Folders, Photos, Lists and Skills move in",
+  "detail": "- Folders, Photos and Lists (the old Dashboard) and the Skills Library are tabs in Jarvis's rail; /apps/dashboard and /apps/skills-library redirect. Storage keys, module paths and /api/recall/* are unchanged. - Jarvis sits behind the Dashboard app password; members still get only Lists. - Lists: pri",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "67bb19e:dashboard",
+  "date": "2026-09-21",
+  "slug": "dashboard",
+  "title": "One dashboard — Folders, Photos, Lists and Skills move in",
+  "detail": "- Folders, Photos and Lists (the old Dashboard) and the Skills Library are tabs in Jarvis's rail; /apps/dashboard and /apps/skills-library redirect. Storage keys, module paths and /api/recall/* are unchanged. - Jarvis sits behind the Dashboard app password; members still get only Lists. - Lists: pri",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "67bb19e:skills-library",
+  "date": "2026-09-21",
+  "slug": "skills-library",
+  "title": "One dashboard — Folders, Photos, Lists and Skills move in",
+  "detail": "- Folders, Photos and Lists (the old Dashboard) and the Skills Library are tabs in Jarvis's rail; /apps/dashboard and /apps/skills-library redirect. Storage keys, module paths and /api/recall/* are unchanged. - Jarvis sits behind the Dashboard app password; members still get only Lists. - Lists: pri",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "dc501ff:jarvis-audio-studio",
+  "date": "2026-09-20",
+  "slug": "jarvis-audio-studio",
+  "title": "Video Studio Arena, music-creator library and mashup, skills Design Guide",
+  "detail": "Work in progress across several apps, committed before a machine rebuild so none of it lives only on this disk.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "dc501ff:video-studio-arena",
+  "date": "2026-09-20",
+  "slug": "video-studio-arena",
+  "title": "Video Studio Arena, music-creator library and mashup, skills Design Guide",
+  "detail": "Work in progress across several apps, committed before a machine rebuild so none of it lives only on this disk.",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "dc501ff:skills-library",
+  "date": "2026-09-20",
+  "slug": "skills-library",
+  "title": "Video Studio Arena, music-creator library and mashup, skills Design Guide",
+  "detail": "Work in progress across several apps, committed before a machine rebuild so none of it lives only on this disk.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "dc501ff:website-redesigner",
+  "date": "2026-09-20",
+  "slug": "website-redesigner",
+  "title": "Video Studio Arena, music-creator library and mashup, skills Design Guide",
+  "detail": "Work in progress across several apps, committed before a machine rebuild so none of it lives only on this disk.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "68f4e43:website-redesigner",
+  "date": "2026-09-20",
+  "slug": "website-redesigner",
+  "title": "Add design skill preview-icon",
+  "detail": "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "555c14d:jarvis-audio-studio",
+  "date": "2026-09-19",
+  "slug": "jarvis-audio-studio",
+  "title": "Two songs, a blend you control, and one session of versions",
+  "detail": "The tool took one recording plus a line of prose about a second. It now takes two records and asks what each one contributes.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "de4cb2e:realtime-lucy",
+  "date": "2026-09-19",
+  "slug": "realtime-lucy",
+  "title": "Masked cond_mode, plus the fixes that made it runnable",
+  "detail": "The reported bug was \"I see myself but the prompt does nothing\". Root cause was that no GPU server was running at all -- the page is only a WebRTC client, so with the server down the local camera preview is all there is. Three real defects were in the way of ever noticing that:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b9ba27d:website-redesigner",
+  "date": "2026-09-19",
+  "slug": "website-redesigner",
+  "title": "Add design skills blender-threejs-export, hyperframes",
+  "detail": "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9a32977:website-redesigner",
+  "date": "2026-09-19",
+  "slug": "website-redesigner",
+  "title": "Correct the scroll-world roster description",
+  "detail": "Mirrors 06b55f4 on main, so this branch matches the live roster.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3c1484e:website-redesigner",
+  "date": "2026-09-19",
+  "slug": "website-redesigner",
+  "title": "\"Experimental WebGL\" redesign (design layer only)",
+  "detail": "Reskins /apps/website-redesigner in the direction's own palette (#050505 / #F5F5F5 / #FF4D2E). Behaviour is unchanged: same state, same POST to /api/redesign, same skill-picker semantics, same result rendering. engine.ts and the API route are untouched.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "06b55f4:website-redesigner",
+  "date": "2026-09-19",
+  "slug": "website-redesigner",
+  "title": "Correct the scroll-world roster description",
+  "detail": "The dropdown advertised scroll-world as \"using Higgsfield\". The installed skill renders through muapi.ai (Seedance 2 video + GPT Image 2 stills) per the owner's standing Higgsfield -> muapi rule, so the roster line was wrong.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "78dd3da:jarvis",
+  "date": "2026-09-19",
+  "slug": "jarvis",
+  "title": "Connected apps, inbox and calendar",
+  "detail": "One Connector interface with Composio behind it (Google-direct can slot in when the free tool-call allowance runs out). Tools are discovered per toolkit rather than hardcoded, filtered to the few that matter, and anything not provably read-only is treated as a write: the agent loop stops and the own",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a79c77a:jarvis",
+  "date": "2026-09-19",
+  "slug": "jarvis",
+  "title": "Voice — hold to talk, spoken answers, the ball breathes",
+  "detail": "Listening is the browser's own recogniser (no key, audio never leaves the device until it is text); speaking prefers the owner's fish.audio voice and falls back to the browser's. A spoken \"yes\" can confirm a prepared action, but only a clear yes: anything ambiguous leaves it pending.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "585b4c1:jarvis",
+  "date": "2026-09-19",
+  "slug": "jarvis",
+  "title": "Semantic memory, grounded chat, routines",
+  "detail": "Memories now live in Supabase with a meaning vector and a word vector; the two orders are fused by the same rank rule the on-device fallback uses. The agent searches memory before answering, cites what it read, proposes memories for review, and stops dead at any tool with outside effects so the owne",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d70a5ef:jarvis",
+  "date": "2026-09-19",
+  "slug": "jarvis",
+  "title": "Connected apps, inbox and calendar",
+  "detail": "One Connector interface with Composio behind it (Google-direct can slot in when the free tool-call allowance runs out). Tools are discovered per toolkit rather than hardcoded, filtered to the few that matter, and anything not provably read-only is treated as a write: the agent loop stops and the own",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "244eee3:jarvis",
+  "date": "2026-09-19",
+  "slug": "jarvis",
+  "title": "Voice — hold to talk, spoken answers, the ball breathes",
+  "detail": "Listening is the browser's own recogniser (no key, audio never leaves the device until it is text); speaking prefers the owner's fish.audio voice and falls back to the browser's. A spoken \"yes\" can confirm a prepared action, but only a clear yes: anything ambiguous leaves it pending.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "af16a3c:jarvis",
+  "date": "2026-09-19",
+  "slug": "jarvis",
+  "title": "Semantic memory, grounded chat, routines",
+  "detail": "Memories now live in Supabase with a meaning vector and a word vector; the two orders are fused by the same rank rule the on-device fallback uses. The agent searches memory before answering, cites what it read, proposes memories for review, and stops dead at any tool with outside effects so the owne",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3bf72a7:jarvis",
+  "date": "2026-09-19",
+  "slug": "jarvis",
+  "title": "Shell, memory core sphere, dashboard, memory tab",
+  "detail": "New Dashboard becomes Jarvis at /apps/jarvis; the old route redirects and the Four-Cs profile keeps its own store key, so no saved data moves. The memory core draws one glowing dot per real memory, coloured by source, and the tabs that do not exist yet say so rather than faking a screen.",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "b726354:jarvis",
+  "date": "2026-09-19",
+  "slug": "jarvis",
+  "title": "Store, types, memory client and rank fusion (stage 1 plan)",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "456d382:jarvis",
+  "date": "2026-09-19",
+  "slug": "jarvis",
+  "title": "Shell, memory core sphere, dashboard, memory tab",
+  "detail": "New Dashboard becomes Jarvis at /apps/jarvis; the old route redirects and the Four-Cs profile keeps its own store key, so no saved data moves. The memory core draws one glowing dot per real memory, coloured by source, and the tabs that do not exist yet say so rather than faking a screen.",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "d1e2d69:jarvis",
+  "date": "2026-09-19",
+  "slug": "jarvis",
+  "title": "Store, types, memory client and rank fusion (stage 1 plan)",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2b2b145:website-redesigner",
+  "date": "2026-09-19",
+  "slug": "website-redesigner",
+  "title": "Every design skill in the picker; sync pushes to main",
+  "detail": "- Roster now lists all 30 website design skills: frontend-design, the full taste-skill pack (taste-skill, v1, soft, minimalist, brutalist, gpt-taste, redesign, stitch, imagegen-frontend-web, image-to-code, brandkit), ui-ux-pro-max, theme-factory, web-artifacts-builder, web-design-guidelines and site",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2b2b145:skills-library",
+  "date": "2026-09-19",
+  "slug": "skills-library",
+  "title": "Every design skill in the picker; sync pushes to main",
+  "detail": "- Roster now lists all 30 website design skills: frontend-design, the full taste-skill pack (taste-skill, v1, soft, minimalist, brutalist, gpt-taste, redesign, stitch, imagegen-frontend-web, image-to-code, brandkit), ui-ux-pro-max, theme-factory, web-artifacts-builder, web-design-guidelines and site",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7c36c12:website-redesigner",
+  "date": "2026-09-19",
+  "slug": "website-redesigner",
+  "title": "Drop duplicate taste-skill entries added under frontmatter names",
+  "detail": "The Skill tool invokes these by folder name (taste-skill, soft-skill, ...), which the roster already lists.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e38847a:website-redesigner",
+  "date": "2026-09-19",
+  "slug": "website-redesigner",
+  "title": "Add design skills image-to-code, minimalist-ui, redesign-existing-projects, high-end-visual-design, stitch-design-taste, design-taste-fronte",
+  "detail": "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "215ae9a:skills-library",
+  "date": "2026-09-19",
+  "slug": "skills-library",
+  "title": "Add site-clone and taste-skill packs to the Web design guide",
+  "detail": "Guide entries and Web Design tags for clone-site, remix-site, shader-extract, dom-clone (cth9191/site-clone) and taste-skill plus its style presets: soft, minimalist, brutalist, gpt-taste, redesign, imagegen-frontend-web, image-to-code and stitch (Leonxlnx/taste-skill).",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a283a2c:jarvis-audio-studio",
+  "date": "2026-09-19",
+  "slug": "jarvis-audio-studio",
+  "title": "Every song saved to the account as MP3, Finished songs folders",
+  "detail": "Takes only lived on the GPU pod, so they stopped playing whenever it idle-stopped. Each finished take is now copied into the private `music-creator` Storage bucket under the account id (re-encoded to 256k MP3, ~5 MB vs ~28 MB FLAC) and plays from there with no GPU. Older takes backfill when the GPU ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6dfe707:skills-library",
+  "date": "2026-09-19",
+  "slug": "skills-library",
+  "title": "Web design guide dropdown and new design skills",
+  "detail": "A collapsible \"Web design guide\" above the skill list gives every web design skill a one-paragraph explanation, a \"best for\" line and a Yours/Anthropic/Added badge, with Open for skills in the library and GitHub links otherwise. Tags the newly installed skills (frontend-design, impeccable, ui-ux-pro",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5c7198e:website-redesigner",
+  "date": "2026-09-19",
+  "slug": "website-redesigner",
+  "title": "Add design skill h3-scroll-world",
+  "detail": "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "bcd7dae:website-redesigner",
+  "date": "2026-09-19",
+  "slug": "website-redesigner",
+  "title": "Add design skill cinematic-ui",
+  "detail": "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e12381f:website-redesigner",
+  "date": "2026-09-19",
+  "slug": "website-redesigner",
+  "title": "Add design skill scroll-world",
+  "detail": "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4b1f641:website-redesigner",
+  "date": "2026-09-19",
+  "slug": "website-redesigner",
+  "title": "Add design skill impeccable",
+  "detail": "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "bdd0a9c:website-redesigner",
+  "date": "2026-09-19",
+  "slug": "website-redesigner",
+  "title": "Add design skill h3-scroll-world",
+  "detail": "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2993d6a:website-redesigner",
+  "date": "2026-09-19",
+  "slug": "website-redesigner",
+  "title": "Add design skill cinematic-ui",
+  "detail": "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0147f1b:website-redesigner",
+  "date": "2026-09-19",
+  "slug": "website-redesigner",
+  "title": "Add design skill scroll-world",
+  "detail": "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0841f0f:website-redesigner",
+  "date": "2026-09-19",
+  "slug": "website-redesigner",
+  "title": "Add design skill impeccable",
+  "detail": "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ccc455b:friends-night-out",
+  "date": "2026-09-19",
+  "slug": "friends-night-out",
+  "title": "Survive busy map servers and an empty AI account",
+  "detail": "- map batches that fail in the first burst are retried once (Columbus came back with 28 places instead of ~460 without it) - a failed map check retries after the big search and is reported as a failure, never as 'couldn't be confirmed' (had dropped all 29 web finds) - out-of-credit is detected (402,",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "11a3321:friends-night-out",
+  "date": "2026-09-19",
+  "slug": "friends-night-out",
+  "title": "Log the provider's reason when an AI call fails",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f3c0816:friends-night-out",
+  "date": "2026-09-19",
+  "slug": "friends-night-out",
+  "title": "Any-city builder with web discovery, map verification and AI stars",
+  "detail": "- /api/fno/areas/build streams progress; reuses a covering area or builds one - perplexity/sonar finds food, gems, parks, kids, fun; every find must match a named OSM element in the radius (one alternation query: 45 s -> 5.6 s) - Overpass requests hedged across mirrors with a sick list (446 places i",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f474f01:friends-night-out",
+  "date": "2026-09-19",
+  "slug": "friends-night-out",
+  "title": "Section mapping, star rubric, discovery parsing, OSM name verification",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3afcc91:friends-night-out",
+  "date": "2026-09-19",
+  "slug": "friends-night-out",
+  "title": "Sections, blended AI + community stars, shared city area reuse",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "dbb148a:friends-night-out",
+  "date": "2026-09-19",
+  "slug": "friends-night-out",
+  "title": "AI sweep and link/flyer import only for signed-in visitors",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18135e1:personas-studio",
+  "date": "2026-09-19",
+  "slug": "personas-studio",
+  "title": "Creator persona grid with TikTok/IG/FB connect, AI daily ideas and brainstorm",
+  "detail": "Personas hold their accounts (platform login via official APIs when keys are set, handle + link import otherwise), a synced post table the AI watches/reads, a 'what the AI knows' memory, daily ideas and a niche-aware brainstorm chat. Works with no keys (offline ideas). social-import now records why ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18135e1:dashboard",
+  "date": "2026-09-19",
+  "slug": "dashboard",
+  "title": "Creator persona grid with TikTok/IG/FB connect, AI daily ideas and brainstorm",
+  "detail": "Personas hold their accounts (platform login via official APIs when keys are set, handle + link import otherwise), a synced post table the AI watches/reads, a 'what the AI knows' memory, daily ideas and a niche-aware brainstorm chat. Works with no keys (offline ideas). social-import now records why ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "68e8777:jarvis",
+  "date": "2026-09-18",
+  "slug": "jarvis",
+  "title": "The model pick sticks",
+  "detail": "- accept OpenRouter alias ids (~openai/gpt-sol-latest); they were silently dropped, so the pick snapped back to the default - a rejected pick now answers 400 and the panel says so - provider health goes to its own ai-health doc so no instance can overwrite the owner's choices; a failed read never re",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4eccd15:jarvis",
+  "date": "2026-09-18",
+  "slug": "jarvis",
+  "title": "One LLM picker for every app, with fallback models",
+  "detail": "- AI panel: searchable Model dropdown (OpenRouter catalogue, price, image support) + two fallback models; stored in the server ai-settings doc - aiFetch sends every general-model call (DEFAULT_MODEL, AI_MODEL, any hard-coded Claude model) to the pick, then the fallbacks; photo requests skip text-onl",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "34155a1:jarvis-audio-studio",
+  "date": "2026-09-18",
+  "slug": "jarvis-audio-studio",
+  "title": "Fix every render failing on first poll; SheetSage honest when skipped",
+  "detail": "- studio.watch read `jobId` inside the progress callback of the very call that declares it, so the first poll threw \"Cannot access 'jobId' before initialization\" and every render was filed as failed (the GPU job itself still ran). runJob now passes the id to onProgress. - SheetSage2 is only \"availab",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3be5adc:smart-shot-videos",
+  "date": "2026-09-18",
+  "slug": "smart-shot-videos",
+  "title": "AI director chat on the storyboard, Create video CTA, play+download video page",
+  "detail": "- /api/smart-shot/revise: chat request -> whole revised plan with kept ids; only panels whose content changed are redrawn - storyboard ends with Create video / Edit with AI; docked AI director chat - video page is now player + Download MP4; H3 prompt and per-cut retakes folded under Advanced - plann",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5ae8ba1:jarvis-audio-studio",
+  "date": "2026-09-18",
+  "slug": "jarvis-audio-studio",
+  "title": "Pick GPU+site from live stock, Blackwell torch, self-healing wake",
+  "detail": "- setup.mjs chooses GPU and data centre together from RunPod's availability catalog (volume-capable sites only, best stock then price); volume API uses `dataCenter`. - bootstrap swaps any venv's torch to the CUDA 12.8 build when it lacks kernels for the card (Blackwell sm_120); pip cache off the net",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "82d4aa0:ai-rankings",
+  "date": "2026-09-18",
+  "slug": "ai-rankings",
+  "title": "Pick OpenRouter or Vercel gateway, auto-fallback, status panel",
+  "detail": "- src/lib/ai/settings.ts: server-stored choice (auto/openrouter/vercel-gateway), fallback flags, and each provider's last error/success. - aiFetch() in provider.ts: calls the chosen provider and retries on the other on 401/402/403/429/5xx or a network error; 26 call sites moved onto it. - /api/ai/st",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "82d4aa0:prompt-architect",
+  "date": "2026-09-18",
+  "slug": "prompt-architect",
+  "title": "Pick OpenRouter or Vercel gateway, auto-fallback, status panel",
+  "detail": "- src/lib/ai/settings.ts: server-stored choice (auto/openrouter/vercel-gateway), fallback flags, and each provider's last error/success. - aiFetch() in provider.ts: calls the chosen provider and retries on the other on 401/402/403/429/5xx or a network error; 26 call sites moved onto it. - /api/ai/st",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "82d4aa0:cookbook-genie",
+  "date": "2026-09-18",
+  "slug": "cookbook-genie",
+  "title": "Pick OpenRouter or Vercel gateway, auto-fallback, status panel",
+  "detail": "- src/lib/ai/settings.ts: server-stored choice (auto/openrouter/vercel-gateway), fallback flags, and each provider's last error/success. - aiFetch() in provider.ts: calls the chosen provider and retries on the other on 401/402/403/429/5xx or a network error; 26 call sites moved onto it. - /api/ai/st",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "82d4aa0:game-creator",
+  "date": "2026-09-18",
+  "slug": "game-creator",
+  "title": "Pick OpenRouter or Vercel gateway, auto-fallback, status panel",
+  "detail": "- src/lib/ai/settings.ts: server-stored choice (auto/openrouter/vercel-gateway), fallback flags, and each provider's last error/success. - aiFetch() in provider.ts: calls the chosen provider and retries on the other on 401/402/403/429/5xx or a network error; 26 call sites moved onto it. - /api/ai/st",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "82d4aa0:jarvis-audio-studio",
+  "date": "2026-09-18",
+  "slug": "jarvis-audio-studio",
+  "title": "Pick OpenRouter or Vercel gateway, auto-fallback, status panel",
+  "detail": "- src/lib/ai/settings.ts: server-stored choice (auto/openrouter/vercel-gateway), fallback flags, and each provider's last error/success. - aiFetch() in provider.ts: calls the chosen provider and retries on the other on 401/402/403/429/5xx or a network error; 26 call sites moved onto it. - /api/ai/st",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "82d4aa0:jarvis",
+  "date": "2026-09-18",
+  "slug": "jarvis",
+  "title": "Pick OpenRouter or Vercel gateway, auto-fallback, status panel",
+  "detail": "- src/lib/ai/settings.ts: server-stored choice (auto/openrouter/vercel-gateway), fallback flags, and each provider's last error/success. - aiFetch() in provider.ts: calls the chosen provider and retries on the other on 401/402/403/429/5xx or a network error; 26 call sites moved onto it. - /api/ai/st",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "82d4aa0:dashboard",
+  "date": "2026-09-18",
+  "slug": "dashboard",
+  "title": "Pick OpenRouter or Vercel gateway, auto-fallback, status panel",
+  "detail": "- src/lib/ai/settings.ts: server-stored choice (auto/openrouter/vercel-gateway), fallback flags, and each provider's last error/success. - aiFetch() in provider.ts: calls the chosen provider and retries on the other on 401/402/403/429/5xx or a network error; 26 call sites moved onto it. - /api/ai/st",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "82d4aa0:website-redesigner",
+  "date": "2026-09-18",
+  "slug": "website-redesigner",
+  "title": "Pick OpenRouter or Vercel gateway, auto-fallback, status panel",
+  "detail": "- src/lib/ai/settings.ts: server-stored choice (auto/openrouter/vercel-gateway), fallback flags, and each provider's last error/success. - aiFetch() in provider.ts: calls the chosen provider and retries on the other on 401/402/403/429/5xx or a network error; 26 call sites moved onto it. - /api/ai/st",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "82d4aa0:projects-timeline",
+  "date": "2026-09-18",
+  "slug": "projects-timeline",
+  "title": "Pick OpenRouter or Vercel gateway, auto-fallback, status panel",
+  "detail": "- src/lib/ai/settings.ts: server-stored choice (auto/openrouter/vercel-gateway), fallback flags, and each provider's last error/success. - aiFetch() in provider.ts: calls the chosen provider and retries on the other on 401/402/403/429/5xx or a network error; 26 call sites moved onto it. - /api/ai/st",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "82d4aa0:smart-shot-videos",
+  "date": "2026-09-18",
+  "slug": "smart-shot-videos",
+  "title": "Pick OpenRouter or Vercel gateway, auto-fallback, status panel",
+  "detail": "- src/lib/ai/settings.ts: server-stored choice (auto/openrouter/vercel-gateway), fallback flags, and each provider's last error/success. - aiFetch() in provider.ts: calls the chosen provider and retries on the other on 401/402/403/429/5xx or a network error; 26 call sites moved onto it. - /api/ai/st",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "82d4aa0:friends-night-out",
+  "date": "2026-09-18",
+  "slug": "friends-night-out",
+  "title": "Pick OpenRouter or Vercel gateway, auto-fallback, status panel",
+  "detail": "- src/lib/ai/settings.ts: server-stored choice (auto/openrouter/vercel-gateway), fallback flags, and each provider's last error/success. - aiFetch() in provider.ts: calls the chosen provider and retries on the other on 401/402/403/429/5xx or a network error; 26 call sites moved onto it. - /api/ai/st",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "82d4aa0:gods-eye-view",
+  "date": "2026-09-18",
+  "slug": "gods-eye-view",
+  "title": "Pick OpenRouter or Vercel gateway, auto-fallback, status panel",
+  "detail": "- src/lib/ai/settings.ts: server-stored choice (auto/openrouter/vercel-gateway), fallback flags, and each provider's last error/success. - aiFetch() in provider.ts: calls the chosen provider and retries on the other on 401/402/403/429/5xx or a network error; 26 call sites moved onto it. - /api/ai/st",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "82d4aa0:image-studio",
+  "date": "2026-09-18",
+  "slug": "image-studio",
+  "title": "Pick OpenRouter or Vercel gateway, auto-fallback, status panel",
+  "detail": "- src/lib/ai/settings.ts: server-stored choice (auto/openrouter/vercel-gateway), fallback flags, and each provider's last error/success. - aiFetch() in provider.ts: calls the chosen provider and retries on the other on 401/402/403/429/5xx or a network error; 26 call sites moved onto it. - /api/ai/st",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "82d4aa0:std-safe",
+  "date": "2026-09-18",
+  "slug": "std-safe",
+  "title": "Pick OpenRouter or Vercel gateway, auto-fallback, status panel",
+  "detail": "- src/lib/ai/settings.ts: server-stored choice (auto/openrouter/vercel-gateway), fallback flags, and each provider's last error/success. - aiFetch() in provider.ts: calls the chosen provider and retries on the other on 401/402/403/429/5xx or a network error; 26 call sites moved onto it. - /api/ai/st",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "82d4aa0:3d-studio",
+  "date": "2026-09-18",
+  "slug": "3d-studio",
+  "title": "Pick OpenRouter or Vercel gateway, auto-fallback, status panel",
+  "detail": "- src/lib/ai/settings.ts: server-stored choice (auto/openrouter/vercel-gateway), fallback flags, and each provider's last error/success. - aiFetch() in provider.ts: calls the chosen provider and retries on the other on 401/402/403/429/5xx or a network error; 26 call sites moved onto it. - /api/ai/st",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "67bc9c4:game-creator",
+  "date": "2026-09-18",
+  "slug": "game-creator",
+  "title": "Pick the build model per game (Claude plan or OpenRouter LLMs)",
+  "detail": "Model dropdown on the new-game form; the choice is stored on the game and the PC builder runs claude -p --model with it. OpenRouter models route Claude Code through openrouter.ai (custom Authorization header, since the CLI drops ANTHROPIC_AUTH_TOKEN when a claude.ai login exists) and are only offere",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d29b8a3:jarvis-audio-studio",
+  "date": "2026-09-18",
+  "slug": "jarvis-audio-studio",
+  "title": "AI Producer + prompt engineer, style+lyrics only, GPU wakes on render",
+  "detail": "- Song Creator now takes only a style and lyrics. Per prompt, choose AI Producer (producer plan -> prompt engineer -> code QC -> one targeted revision) or send it exactly as typed. Shows original vs optimized prompt, a <=1,000-char style with counter, finished lyrics, vocal/production direction, arr",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ca677d2:jarvis-audio-studio",
+  "date": "2026-09-18",
+  "slug": "jarvis-audio-studio",
+  "title": "A style prompt on every song instead of a Style Prompt tab",
+  "detail": "The owner's users look up real songs; the job is to describe THAT recording as accurately as possible for a song generator. Every filed song now gets a <=1,000-character style prompt, written in parallel with its descriptions (after uploads and re-listens too); songs filed earlier get one when opene",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0273b84:jarvis-audio-studio",
+  "date": "2026-09-18",
+  "slug": "jarvis-audio-studio",
+  "title": "Restore StyleStudio.tsx swept into the previous commit",
+  "detail": "MusicClassified.tsx on main still imports it; the deletion belongs with the in-progress Music Classified rework, not the Pod Play Connect fix.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1ea3438:jarvis-audio-studio",
+  "date": "2026-09-18",
+  "slug": "jarvis-audio-studio",
+  "title": "Serve it from the hub instead of localhost:8080",
+  "detail": "The tile pointed at the local Vite dev server, so it was dead on the live site and whenever that server wasn't running. The app is now a prebuilt bundle in public/pod-play-connect (base /pod-play-connect/) with an SPA rewrite, and the page title no longer says \"Lovable App\".",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ce65142:jarvis-audio-studio",
+  "date": "2026-09-18",
+  "slug": "jarvis-audio-studio",
+  "title": "Style Prompt producer mode",
+  "detail": "Describe a song in plain words (plus optional genre, era, references, vocals, avoid) and the producer plans every production decision, then compresses them into a style prompt of at most 1,000 characters. A 12-point quality gate (length, identity, drums+bass, melody, human vocal behaviour, vocal pro",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2a8e212:game-creator",
+  "date": "2026-09-18",
+  "slug": "game-creator",
+  "title": "Play / Open buttons work through the PC's builder",
+  "detail": "The ueos:// link depends on the browser handing it to Windows, which can be blocked or framed away. The buttons now post a request; the builder picks it up on its next check-in (every 4 s) and opens the game itself. The direct link stays as a fallback.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "656f570:game-creator",
+  "date": "2026-09-18",
+  "slug": "game-creator",
+  "title": "Chat with the build agent, one build skill per game, realistic shooters",
+  "detail": "- Chat tab on each game: messages join the running Claude session (stream-json stdin); on a finished game they start a follow-up build that resumes the same session on the same project - Build skill drop-down: the PC reports every skill tagged game-creator, one default; the builder forces that skill",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6ffc022:website-redesigner",
+  "date": "2026-09-18",
+  "slug": "website-redesigner",
+  "title": "Add design skill real-estate-reveal",
+  "detail": "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f1059dd:dashboard",
+  "date": "2026-09-18",
+  "slug": "dashboard",
+  "title": "Download any photo from its detail view",
+  "detail": "Saves the full-size original from IndexedDB, falling back to the preview (with a note) when the original lives on another device.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e547142:website-redesigner",
+  "date": "2026-09-18",
+  "slug": "website-redesigner",
+  "title": "Add design skill blender-to-web",
+  "detail": "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "508b577:jarvis",
+  "date": "2026-09-18",
+  "slug": "jarvis",
+  "title": "Personal AI OS dashboard built on the AIS-OS kit, plus a folder routing manual",
+  "detail": "- /apps/new-dashboard: 7-question onboarding, Four-Cs setup coverage, connections, capabilities, cadence, decisions log, \"focus this week\", export/import, multi-person - Root CLAUDE.md routing manual and aios/ context folder - Loose root images moved to docs/images",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "394e990:website-redesigner",
+  "date": "2026-09-18",
+  "slug": "website-redesigner",
+  "title": "Add scroll-craft, and auto-add new website design skills",
+  "detail": "The design-skill roster moved from engine.ts into design-skills.json, and scripts/sync-design-skills.mjs appends any website design skill found in ~/.claude/skills, then commits and pushes only that file. The Skills Library tags every roster skill as Web Design from the same list.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "394e990:skills-library",
+  "date": "2026-09-18",
+  "slug": "skills-library",
+  "title": "Add scroll-craft, and auto-add new website design skills",
+  "detail": "The design-skill roster moved from engine.ts into design-skills.json, and scripts/sync-design-skills.mjs appends any website design skill found in ~/.claude/skills, then commits and pushes only that file. The Skills Library tags every roster skill as Web Design from the same list.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1684ec3:jarvis-audio-studio",
+  "date": "2026-09-17",
+  "slug": "jarvis-audio-studio",
+  "title": "One bar, one console, and the level ladder as a spectrum",
+  "detail": "The page was five full-bleed stripes stacked on top of each other — header, classify form, flash, filter strip, blueprint — each with its own bottom border, all of it set at 10-13px. Nothing led, and the song list got whatever height was left over. It is now four zones with real hierarchy:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5ce36f2:gods-eye-view",
+  "date": "2026-09-17",
+  "slug": "gods-eye-view",
+  "title": "Say STILL when it's a still, and make live video easy to find",
+  "detail": "Every camera card said \"LIVE\", including the ones that are a still picture the agency republishes once a minute — so a working feed looked broken.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4ba14e6:gods-eye-view",
+  "date": "2026-09-17",
+  "slug": "gods-eye-view",
+  "title": "Poll CCTV stills every second, and only swap real new frames",
+  "detail": "Stills refreshed every 4 s (30 s before that), which felt frozen.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "50364f6:gods-eye-view",
+  "date": "2026-09-17",
+  "slug": "gods-eye-view",
+  "title": "Live video for CCTV cameras that stream, fast stills for the rest",
+  "detail": "The camera card refreshed its still every 30 seconds, so feeds felt frozen.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "58aded3:gods-eye-view",
+  "date": "2026-09-16",
+  "slug": "gods-eye-view",
+  "title": "Cockpit, voice agent, radio scanner and the walkthrough's missing features",
+  "detail": "Built against the original's walkthrough video:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "383a3bb:gods-eye-view",
+  "date": "2026-09-16",
+  "slug": "gods-eye-view",
+  "title": "Load CCTV per network to fit Vercel's response limit",
+  "detail": "All ~24,000 cameras in one /api/gods-eye/cameras response was ~5 MB, past Vercel's 4.5 MB function response cap, so production returned an error and the layer stayed empty. Windy webcams were chained behind that request, so they never loaded either.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f8bdb9d:gods-eye-view",
+  "date": "2026-09-16",
+  "slug": "gods-eye-view",
+  "title": "CCTV cameras worldwide, not just London",
+  "detail": "The CCTV layer only drew TfL's JamCams, so flying anywhere else showed nothing. It now aggregates ~24,000 official, keyless traffic cameras from 23 open-data networks: TfL, fifteen 511 DOT sites (FL, GA, NY, UT, PA, ON, AZ, NV, WI, ID, New England, CT, AB, LA, AK), NYC DOT, Caltrans, DriveBC, Digitr",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9737720:dashboard",
+  "date": "2026-09-16",
+  "slug": "dashboard",
+  "title": "Stop each device overwriting the other's folders",
+  "detail": "Every page load wrote the Photos root (and, on a fresh device, an empty seed) before the remote pull ran. That stamped each device as the newest copy, so reconcile pushed local over the server instead of pulling — the laptop and phone each only ever saw their own folders.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "21dd10d:realtime-lucy",
+  "date": "2026-09-15",
+  "slug": "realtime-lucy",
+  "title": "Live webcam into LingBot-World-V2",
+  "detail": "The page streams the webcam to the GPU server in tools/realtime-lucy, which runs LingBot-World-V2's causal-fast path — SDEdit per chunk, KV cache and the streaming VAE kept — and streams frames back. Media goes straight to the server; the site only proxies the two signalling calls, and only when LUC",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "6ec771c:jarvis-audio-studio",
+  "date": "2026-09-15",
+  "slug": "jarvis-audio-studio",
+  "title": "A song studio, not a generate button",
+  "detail": "Song Creator writes the brief into a style line and a lyric sheet, then renders a 48 kHz stereo song on YuE2 — which plans before it plays, so the melody and chords come back as a readable score. Remix/Stems edits that score and re-renders, Mashup performs one song's transcribed melody in another's ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9cff681:gods-eye-view",
+  "date": "2026-09-15",
+  "slug": "gods-eye-view",
+  "title": "A spy-satellite globe over real, live data",
+  "detail": "A port of bilawalsidhu/gods-eye-view (MIT) as a hub app. CesiumJS globe behind a keyhole scope and a tactical HUD, with keyless live layers — OpenSky and adsb.lol aircraft, CelesTrak satellites propagated in the browser with SGP4, USGS earthquakes, TfL cameras, submarine cables — and the original's ",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "f901af5:website-redesigner",
+  "date": "2026-09-15",
+  "slug": "website-redesigner",
+  "title": "Pin the design skills a direction is built from",
+  "detail": "A direction can now be driven by several design skills at once, and the user can pin which ones in the dropdown. Pinned skills win over the preset's own choice, so the three directions differ by look rather than by technique.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b994ea9:dashboard",
+  "date": "2026-09-15",
+  "slug": "dashboard",
+  "title": "Cover folderDeleteImpact and correct the seed docs",
+  "detail": "The delete-what-is-inside change landed in f2f85ae but its tests and the project write-up still described the old lift-to-parent behaviour.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8093f04:dashboard",
+  "date": "2026-09-15",
+  "slug": "dashboard",
+  "title": "User-made folders, folder references, and collages from a batch",
+  "detail": "Google Drive was reported as \"not set up\" on the Photos tab of a deployment where the Folders tab was backing up happily. Two different checks: backing up needs NEXT_PUBLIC_GOOGLE_CLIENT_ID, and only the Picker (importing FROM Drive) also needs the API key — but Photos required both. Split into driv",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f2f85ae:dashboard",
+  "date": "2026-09-15",
+  "slug": "dashboard",
+  "title": "Folder delete removes what is inside it",
+  "detail": "Deleting a folder used to lift its subfolders and items up to the parent, which quietly left the contents scattered somewhere the user was not looking. It now removes the whole subtree, and the confirm prompt counts exactly what will go (folderDeleteImpact) so the warning is specific rather than gen",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6240a67:3d-studio",
+  "date": "2026-09-14",
+  "slug": "3d-studio",
+  "title": "Prompt -> AI animation director -> Blender render",
+  "detail": "An AI animation director at /apps/3d-studio. The director (AI with an offline fallback) interprets a prompt into story beats, cast, sets and a storyboard, and routes every motion to Mixamo, Cascadeur or Blender with a reason. The storyboard plays as an in-browser Three.js animatic that exports to We",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "049f7a6:game-creator",
+  "date": "2026-09-14",
+  "slug": "game-creator",
+  "title": "Wait for the editor to really exit; label template chips",
+  "detail": "- unreal-bridge close(): Unreal stays in the process table for a while after taskkill, and process.kill(pid, 0) stops seeing it before tasklist does, so close() reported \"closed\" while the editor was still listed. Wait on tasklist instead. - Template chips kept only a title, so screen readers announ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "fa47a49:game-creator",
+  "date": "2026-09-14",
+  "slug": "game-creator",
+  "title": "Prompt -> Unreal Engine game built on your PC",
+  "detail": "- tools/unreal-bridge: MCP server (registered at user scope) that creates UE 5.8 Blueprint projects from engine templates (with their shared content packs), launches the editor with Epic's built-in MCP server, proxies Epic's toolsets, takes player-view screenshots, and packages a content-only Window",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "513b0ce:smart-shot-videos",
+  "date": "2026-09-13",
+  "slug": "smart-shot-videos",
+  "title": "Prompt → editable shot plan → one MiniMax H3 film",
+  "detail": "A recreation of OpenArt's Smart Shot inside the hub, verified against the demo video. A prompt plus reference images becomes a production sheet — character or product reference sheet, set plates, top-down floor plan with camera marks, side elevation, one storyboard frame per cut with lens, aperture,",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "30558db:jarvis-audio-studio",
+  "date": "2026-09-13",
+  "slug": "jarvis-audio-studio",
+  "title": "Songs filed by energy, genre and sub-genre",
+  "detail": "Catalogue of favourite songs organised by how they sound, with a My Music tab for the user's own uploads. Built in a parallel session; committed here together with its catalog tile so the hub deploys with every app present.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9fb6705:image-studio",
+  "date": "2026-09-13",
+  "slug": "image-studio",
+  "title": "Fix reference uploads that silently did nothing",
+  "detail": "Photos whose MIME type the OS left blank were filtered out before decoding, and images dragged from a web page carry a URL rather than a file, so both cases added nothing and showed no message. Files are now accepted when they might be images and the decoder decides, with an <img> fallback and a vis",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7b0c4d0:image-studio",
+  "date": "2026-09-13",
+  "slug": "image-studio",
+  "title": "Specialist image agents with reference photos",
+  "detail": "Five agents (Nostalgia, Glamour, Family Portrait, Cartoon -> Real, GTA Life) defined in one registry. Prompt + Person/Style reference photos are rewritten by Sonnet 5 with the agent's brief, then generated through OpenRouter (Gemini 3.1 Flash Image), one image per request to stay under the response ",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "c2ea16f:tiktok-dances",
+  "date": "2026-09-13",
+  "slug": "tiktok-dances",
+  "title": "Put a saved character into any dance video",
+  "detail": "- Studio view in Dance Vault: reference dance (upload, link or library) + reusable character -> MiniMax H3 motion-transfer video, with a dance library, character library, every take kept and regenerate. - Swappable MotionProvider adapter (AI Gateway or MiniMax API), async start/status renders, media",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c2ea16f:dashboard",
+  "date": "2026-09-13",
+  "slug": "dashboard",
+  "title": "Put a saved character into any dance video",
+  "detail": "- Studio view in Dance Vault: reference dance (upload, link or library) + reusable character -> MiniMax H3 motion-transfer video, with a dance library, character library, every take kept and regenerate. - Swappable MotionProvider adapter (AI Gateway or MiniMax API), async start/status renders, media",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9eac6f3:cookbook-genie",
+  "date": "2026-09-13",
+  "slug": "cookbook-genie",
+  "title": "Create a recipe from a video link",
+  "detail": "New Recipe now opens on \"From a video link\": paste a TikTok, Instagram, Facebook or YouTube link and the server fetches the post, a video model watches it, and the title, ingredients and steps are written for you. Instagram and Facebook are login-walled, so the form falls back to pasting the caption",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "71ba95c:cookbook-genie",
+  "date": "2026-09-13",
+  "slug": "cookbook-genie",
+  "title": "Fix \"new row violates row-level security\" on new cookbook",
+  "detail": "The cookbooks SELECT policy re-queried the table through can_view_cookbook(), which cannot see a row inside the INSERT ... RETURNING that creates it, so every insert followed by .select() was refused.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "71ba95c:dashboard",
+  "date": "2026-09-13",
+  "slug": "dashboard",
+  "title": "Fix \"new row violates row-level security\" on new cookbook",
+  "detail": "The cookbooks SELECT policy re-queried the table through can_view_cookbook(), which cannot see a row inside the INSERT ... RETURNING that creates it, so every insert followed by .select() was refused.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8035006:ai-rankings",
+  "date": "2026-09-13",
+  "slug": "ai-rankings",
+  "title": "Make a whole entry from a pasted link",
+  "detail": "New is now a menu: Analyze a link, or Blank entry. The analyzer reads the page (SSRF-guarded), finds GitHub / Hugging Face / arXiv links - including ones an SPA only renders from script - reads their APIs for licence and stars, then files it with the same prompt as Auto-file. The record is written s",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8035006:dashboard",
+  "date": "2026-09-13",
+  "slug": "dashboard",
+  "title": "Make a whole entry from a pasted link",
+  "detail": "New is now a menu: Analyze a link, or Blank entry. The analyzer reads the page (SSRF-guarded), finds GitHub / Hugging Face / arXiv links - including ones an SPA only renders from script - reads their APIs for licence and stars, then files it with the same prompt as Auto-file. The record is written s",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "698d014:dashboard",
+  "date": "2026-09-13",
+  "slug": "dashboard",
+  "title": "Stop Google sign-in from failing silently",
+  "detail": "Drive linking works on the live site; this makes the failure cases talk.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7dab6c7:dashboard",
+  "date": "2026-09-13",
+  "slug": "dashboard",
+  "title": "Enlarge photos in review, and back the Folders tab up to Google Drive",
+  "detail": "Enlarge. Tapping the photo in the review screen, or a zoom button on any thumbnail, opens it full-screen from the ORIGINAL stored file — the review thumbnail is a 180px crop, exactly too small for checking a face or small print. The thumbnail shows first so it opens instantly. A large X, Esc or a cl",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "277712a:dashboard",
+  "date": "2026-09-12",
+  "slug": "dashboard",
+  "title": "Tell the agent what to do with each photo",
+  "detail": "The review screen gains \"Tell the agent what to do with this photo\". The message and the image go to the vision model together, and the message is FOLLOWED, not weighed: it can pick the app, say where inside that app the entry goes, what to include or leave out, and which album the picture itself be",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18f9d52:dashboard",
+  "date": "2026-09-12",
+  "slug": "dashboard",
+  "title": "Duplicate warnings, send-to-app, new albums, and a \"what are these\" note",
+  "detail": "Four things asked for while testing the photo import:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "566f077:dashboard",
+  "date": "2026-09-12",
+  "slug": "dashboard",
+  "title": "Say plainly that only the details go to other apps",
+  "detail": "A recipe photo sends the recipe — title, ingredients, steps — to Cookbook Genie, never the image; the photo stays in Dashboard. The old labels (\"Screenshots > Cookbook Genie\", \"Will be saved to\") read as though the image itself was being sent. Folder is now \"Sent to apps\", and the preview says the p",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4b9a6f2:dashboard",
+  "date": "2026-09-12",
+  "slug": "dashboard",
+  "title": "Stop deleting queued photos on every Dashboard load",
+  "detail": "Pre-existing data loss, found while testing the photo pipeline end to end. On mount the Dashboard sweeps IndexedDB for blobs nothing refers to, and it counted only ITEMS as owners. A photo waiting in the review queue is not an item yet, and its full-size blob lives in the same store — so every page ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "85b7cf7:dashboard",
+  "date": "2026-09-12",
+  "slug": "dashboard",
+  "title": "It wrote blank rows, failed locally, and duplicated",
+  "detail": "Found by running a real photo through the pipeline before pushing. The first version of the Cookbook destination had four independent bugs:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7850306:dashboard",
+  "date": "2026-09-12",
+  "slug": "dashboard",
+  "title": "Add Cookbook Genie and Skills Library destinations",
+  "detail": "Cookbook is the destination most likely to earn its keep: a recipe photo is dead weight in a camera roll — visible, but not searchable or cookable from a phone in a kitchen. It writes through the app's own Supabase/local client rather than its storage key, resolves or creates a \"From Photos\" cookboo",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6da17c6:dashboard",
+  "date": "2026-09-07",
+  "slug": "dashboard",
+  "title": "Say when AI is off, and add tests for the reported bug",
+  "detail": "The silent fallback was the bug: with no key the route returned null, the keyword search answered, and the reply read as a stupid AI rather than an absent one. It now names the missing variable and says it is a search.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "73e5e56:dashboard",
+  "date": "2026-09-07",
+  "slug": "dashboard",
+  "title": "File approved screenshots into other hub apps",
+  "detail": "resolveDestination now sends a registry-routed photo to a folder named after where its record went, so the picture stays searchable instead of vanishing into the other app; approvePhotos runs the destination's commit() through that app's own store module, never its storage key.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c5469d3:dashboard",
+  "date": "2026-09-07",
+  "slug": "dashboard",
+  "title": "Add the destination registry, with AI Rankings as the first entry",
+  "detail": "The photo pipeline routed to three hardcoded places, so a fourth meant editing the type, the prompt, the queue and the commit path separately. A Destination is now one file, and the vision prompt is GENERATED from the registry — a destination cannot be added without the model being told about it, wh",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18fb5df:dashboard",
+  "date": "2026-09-07",
+  "slug": "dashboard",
+  "title": "Add the iPhone Sources strip to the Photos tab",
+  "detail": "Two paths, with the difference between them stated rather than smoothed over: \"Import now\" opens the iOS picker and the 5/20/50/100 preset is a CAP (iOS will not let a web page auto-select the last N, so the label says so and the overflow is trimmed by capture date); \"Autopilot\" is the Shortcut, the",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "48d2df0:dashboard",
+  "date": "2026-09-07",
+  "slug": "dashboard",
+  "title": "Add the iPhone photo inbox",
+  "detail": "A web page cannot read an iPhone camera roll — iOS has no API, iCloud has no public one, and Google Photos went picker-only in 2025. So the phone pushes: an iOS Shortcut POSTs to /api/dashboard/inbox/push with a per-user device token, and the browser drains what arrives.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2a36e61:dashboard",
+  "date": "2026-09-07",
+  "slug": "dashboard",
+  "title": "Rename Recall to Dashboard",
+  "detail": "User-facing only. /apps/recall permanently redirects to /apps/dashboard, and the catalog, page titles and prose all read Dashboard now.",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "2a36e61:projects-timeline",
+  "date": "2026-09-07",
+  "slug": "projects-timeline",
+  "title": "Rename Recall to Dashboard",
+  "detail": "User-facing only. /apps/recall permanently redirects to /apps/dashboard, and the catalog, page titles and prose all read Dashboard now.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "52b05bc:dashboard",
+  "date": "2026-09-07",
+  "slug": "dashboard",
+  "title": "Add \"Move to...\" so folders can be reorganised without the assistant",
+  "detail": "moveFolder() has been in the store all along, callable only by the agent — so with no model configured there was no way to move a folder at all. That is what sent the user to the assistant for a structural edit in the first place.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "aeace39:ai-rankings",
+  "date": "2026-09-07",
+  "slug": "ai-rankings",
+  "title": "Point every AI call site at the shared provider",
+  "detail": "Twelve chat call sites were hardcoding the Vercel gateway, so every AI feature in the hub — not just the assistant — was 403ing on the free tier.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "aeace39:prompt-architect",
+  "date": "2026-09-07",
+  "slug": "prompt-architect",
+  "title": "Point every AI call site at the shared provider",
+  "detail": "Twelve chat call sites were hardcoding the Vercel gateway, so every AI feature in the hub — not just the assistant — was 403ing on the free tier.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "aeace39:cookbook-genie",
+  "date": "2026-09-07",
+  "slug": "cookbook-genie",
+  "title": "Point every AI call site at the shared provider",
+  "detail": "Twelve chat call sites were hardcoding the Vercel gateway, so every AI feature in the hub — not just the assistant — was 403ing on the free tier.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "aeace39:dashboard",
+  "date": "2026-09-07",
+  "slug": "dashboard",
+  "title": "Point every AI call site at the shared provider",
+  "detail": "Twelve chat call sites were hardcoding the Vercel gateway, so every AI feature in the hub — not just the assistant — was 403ing on the free tier.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "aeace39:website-redesigner",
+  "date": "2026-09-07",
+  "slug": "website-redesigner",
+  "title": "Point every AI call site at the shared provider",
+  "detail": "Twelve chat call sites were hardcoding the Vercel gateway, so every AI feature in the hub — not just the assistant — was 403ing on the free tier.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "aeace39:projects-timeline",
+  "date": "2026-09-07",
+  "slug": "projects-timeline",
+  "title": "Point every AI call site at the shared provider",
+  "detail": "Twelve chat call sites were hardcoding the Vercel gateway, so every AI feature in the hub — not just the assistant — was 403ing on the free tier.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "aeace39:friends-night-out",
+  "date": "2026-09-07",
+  "slug": "friends-night-out",
+  "title": "Point every AI call site at the shared provider",
+  "detail": "Twelve chat call sites were hardcoding the Vercel gateway, so every AI feature in the hub — not just the assistant — was 403ing on the free tier.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "aeace39:std-safe",
+  "date": "2026-09-07",
+  "slug": "std-safe",
+  "title": "Point every AI call site at the shared provider",
+  "detail": "Twelve chat call sites were hardcoding the Vercel gateway, so every AI feature in the hub — not just the assistant — was 403ing on the free tier.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6201ee8:dashboard",
+  "date": "2026-09-07",
+  "slug": "dashboard",
+  "title": "Route AI calls through OpenRouter so the assistant can actually run",
+  "detail": "The Vercel gateway serves no Anthropic model on the free tier even with a card on file — it needs purchased credits. OpenRouter carries the same claude-opus-5 at the same $5/$25, on credit already funded, so the picker prefers it and falls back to the gateway if OPENROUTER_API_KEY is unset.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "852cafe:dashboard",
+  "date": "2026-09-07",
+  "slug": "dashboard",
+  "title": "Pin the endpoint to a built commit, never to latest",
+  "detail": "The second render failed identically to the first, in 146 milliseconds, on the same worker id. The fix had been built and pushed but never reached the GPU: RunPod caches images by tag, so a warm worker on a mutable `latest` keeps running the old bytes. The symptom is particularly nasty because it lo",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "38965bc:dashboard",
+  "date": "2026-09-07",
+  "slug": "dashboard",
+  "title": "Match Comfy Org's own H3 workflow templates",
+  "detail": "Rather than keep inferring the graph, I found Comfy Org publish local- weight H3 templates alongside the cloud-API ones: video_minimax_h3_t2v and video_minimax_h3_r2v. Reading them settled the remaining guesses.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "df2db5f:jarvis",
+  "date": "2026-09-07",
+  "slug": "jarvis",
+  "title": "The rotating panel stand",
+  "detail": "The hub home now has two layouts behind a small V1/V2 toggle. V1 is untouched and is still the design across the rest of the site; V2 is a second VIEW of the same catalog, never a rewrite of the first, with its own stylesheet so V1 can inherit nothing from it. The choice persists per browser, and ?v",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b93e3de:dashboard",
+  "date": "2026-09-07",
+  "slug": "dashboard",
+  "title": "Give Recall a camera roll and a calendar",
+  "detail": "Recall gains two home tabs beside Folders and Lists.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "114dd28:projects-timeline",
+  "date": "2026-09-07",
+  "slug": "projects-timeline",
+  "title": "Fence each account off from the others",
+  "detail": "Three ways one signed-in user could reach another are closed here, plus the migration that closes the matching gaps in the database.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "114dd28:cookbook-genie",
+  "date": "2026-09-07",
+  "slug": "cookbook-genie",
+  "title": "Fence each account off from the others",
+  "detail": "Three ways one signed-in user could reach another are closed here, plus the migration that closes the matching gaps in the database.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "114dd28:dashboard",
+  "date": "2026-09-07",
+  "slug": "dashboard",
+  "title": "Fence each account off from the others",
+  "detail": "Three ways one signed-in user could reach another are closed here, plus the migration that closes the matching gaps in the database.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "114dd28:tiktok-dances",
+  "date": "2026-09-07",
+  "slug": "tiktok-dances",
+  "title": "Fence each account off from the others",
+  "detail": "Three ways one signed-in user could reach another are closed here, plus the migration that closes the matching gaps in the database.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "114dd28:friends-night-out",
+  "date": "2026-09-07",
+  "slug": "friends-night-out",
+  "title": "Fence each account off from the others",
+  "detail": "Three ways one signed-in user could reach another are closed here, plus the migration that closes the matching gaps in the database.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "114dd28:seedance-studio",
+  "date": "2026-09-07",
+  "slug": "seedance-studio",
+  "title": "Fence each account off from the others",
+  "detail": "Three ways one signed-in user could reach another are closed here, plus the migration that closes the matching gaps in the database.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "114dd28:skills-library",
+  "date": "2026-09-07",
+  "slug": "skills-library",
+  "title": "Fence each account off from the others",
+  "detail": "Three ways one signed-in user could reach another are closed here, plus the migration that closes the matching gaps in the database.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "114dd28:voice-studio",
+  "date": "2026-09-07",
+  "slug": "voice-studio",
+  "title": "Fence each account off from the others",
+  "detail": "Three ways one signed-in user could reach another are closed here, plus the migration that closes the matching gaps in the database.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e1a8064:ai-rankings",
+  "date": "2026-09-06",
+  "slug": "ai-rankings",
+  "title": "Filter the board by content rating and by date, and start it empty",
+  "detail": "contentRating (unknown | sfw | soft | explicit) joins cost, licence and hosting as an independent axis: for an image or video model, how far its filter lets you go decides whether it is a candidate at all, and it says nothing about the other three. The All/Safe/18+ control is deliberately NOT part o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "da91f30:dashboard",
+  "date": "2026-09-05",
+  "slug": "dashboard",
+  "title": "Give the last four apps somewhere real to save",
+  "detail": "Recall, Voice Studio, STD Safe and the Recall Lists board were the apps still losing data on a deployed host. They failed for two different reasons and needed two different answers.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "da91f30:voice-studio",
+  "date": "2026-09-05",
+  "slug": "voice-studio",
+  "title": "Give the last four apps somewhere real to save",
+  "detail": "Recall, Voice Studio, STD Safe and the Recall Lists board were the apps still losing data on a deployed host. They failed for two different reasons and needed two different answers.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "da91f30:tiktok-dances",
+  "date": "2026-09-05",
+  "slug": "tiktok-dances",
+  "title": "Give the last four apps somewhere real to save",
+  "detail": "Recall, Voice Studio, STD Safe and the Recall Lists board were the apps still losing data on a deployed host. They failed for two different reasons and needed two different answers.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "da91f30:std-safe",
+  "date": "2026-09-05",
+  "slug": "std-safe",
+  "title": "Give the last four apps somewhere real to save",
+  "detail": "Recall, Voice Studio, STD Safe and the Recall Lists board were the apps still losing data on a deployed host. They failed for two different reasons and needed two different answers.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d0b312f:projects-timeline",
+  "date": "2026-09-05",
+  "slug": "projects-timeline",
+  "title": "Make the schema a migration set the CLI can push",
+  "detail": "The schema lived in three hand-named .sql files applied by pasting them into the dashboard SQL Editor. That works exactly once per person who knows to do it, and nothing records which of them a given database has already seen.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "df1f282:ai-rankings",
+  "date": "2026-09-05",
+  "slug": "ai-rankings",
+  "title": "Let the local-first apps follow the user between devices",
+  "detail": "Nine apps each kept their whole state as one JSON blob under a single localStorage key. That is a good shape and it stays — it just stopped at the edge of the device, so opening the site on a phone quietly started a second copy that never met the first.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "df1f282:multi-order-calculator",
+  "date": "2026-09-05",
+  "slug": "multi-order-calculator",
+  "title": "Let the local-first apps follow the user between devices",
+  "detail": "Nine apps each kept their whole state as one JSON blob under a single localStorage key. That is a good shape and it stays — it just stopped at the edge of the device, so opening the site on a phone quietly started a second copy that never met the first.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "df1f282:tiktok-dances",
+  "date": "2026-09-05",
+  "slug": "tiktok-dances",
+  "title": "Let the local-first apps follow the user between devices",
+  "detail": "Nine apps each kept their whole state as one JSON blob under a single localStorage key. That is a good shape and it stays — it just stopped at the edge of the device, so opening the site on a phone quietly started a second copy that never met the first.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "df1f282:friends-night-out",
+  "date": "2026-09-05",
+  "slug": "friends-night-out",
+  "title": "Let the local-first apps follow the user between devices",
+  "detail": "Nine apps each kept their whole state as one JSON blob under a single localStorage key. That is a good shape and it stays — it just stopped at the edge of the device, so opening the site on a phone quietly started a second copy that never met the first.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "df1f282:seedance-studio",
+  "date": "2026-09-05",
+  "slug": "seedance-studio",
+  "title": "Let the local-first apps follow the user between devices",
+  "detail": "Nine apps each kept their whole state as one JSON blob under a single localStorage key. That is a good shape and it stays — it just stopped at the edge of the device, so opening the site on a phone quietly started a second copy that never met the first.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "cf96c3f:std-safe",
+  "date": "2026-09-05",
+  "slug": "std-safe",
+  "title": "Add STD Safe, and wire the hub up for a real deployment",
+  "detail": "STD Safe verifies a lab document, tracks per-infection status, and answers another person's request for a result via an approve-a-request grant. The store enforces every rule server-side rather than trusting the UI: you may only read a grant you requested and that was approved, and nobody but the ow",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "a66094c:dashboard",
+  "date": "2026-08-31",
+  "slug": "dashboard",
+  "title": "Rebuild Recall around folders, typed sections, and an encrypted vault",
+  "detail": "Recall was a flat pile of captured items with tags. That works until the pile is real, at which point everything looks alike and search is the only way back to anything. It now has folders and subfolders, and each folder is built from typed sections — links, websites, logins, notes — so an entry kno",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a66094c:projects-timeline",
+  "date": "2026-08-31",
+  "slug": "projects-timeline",
+  "title": "Rebuild Recall around folders, typed sections, and an encrypted vault",
+  "detail": "Recall was a flat pile of captured items with tags. That works until the pile is real, at which point everything looks alike and search is the only way back to anything. It now has folders and subfolders, and each folder is built from typed sections — links, websites, logins, notes — so an entry kno",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c0ded20:dashboard",
+  "date": "2026-08-31",
+  "slug": "dashboard",
+  "title": "Add Recall Lists — a shared board for a household",
+  "detail": "Recall's home now switches between Folders and Lists. Lists is the one server-side part of the app, because a board only works if everyone sees the same rows: members join through an invite link, each gets their own colour, and admins can do things members cannot.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4149fbd:ai-rankings",
+  "date": "2026-08-31",
+  "slug": "ai-rankings",
+  "title": "Add AI Rankings — a three-pane database of software worth tracking",
+  "detail": "Built as a dense database view rather than a card grid: a filter sidebar, a sortable table, and a detail panel, so a hundred records stay scannable instead of turning into a wall of tiles.",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "f6dfb1e:tiktok-dances",
+  "date": "2026-08-31",
+  "slug": "tiktok-dances",
+  "title": "Add Dance Vault — a wall of TikTok dances that never stops moving",
+  "detail": "Rows of vertical tiles drift sideways forever in alternating directions; hovering one eases its row to a halt and plays that dance. Each record keeps the name people actually say, the song, the choreographer where documented, the year it broke, and a score out of 100 — with unrated kept as its own s",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "162d4d2:dashboard",
+  "date": "2026-08-31",
+  "slug": "dashboard",
+  "title": "Add per-app password gates and isolate parallel dev builds",
+  "detail": "Some apps in the hub are private workspaces holding real data, so a visitor should not be able to browse straight into one. Gates are opt-in per app and read their password from an env var, which keeps them enforceable in edge middleware. Recall is deliberately excluded: its password must be changea",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "162d4d2:projects-timeline",
+  "date": "2026-08-31",
+  "slug": "projects-timeline",
+  "title": "Add per-app password gates and isolate parallel dev builds",
+  "detail": "Some apps in the hub are private workspaces holding real data, so a visitor should not be able to browse straight into one. Gates are opt-in per app and read their password from an env var, which keeps them enforceable in edge middleware. Recall is deliberately excluded: its password must be changea",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1e53128:friends-night-out",
+  "date": "2026-08-30",
+  "slug": "friends-night-out",
+  "title": "Fix the bugs gauntlet round two found in Friends Night Out",
+  "detail": "Events — the ranking was mathematically backwards. Confidence rises with corroboration and obscurity falls with it, so obscurity x confidence peaked in the middle and pushed the single-source local find away from the top. Confidence is now a gate, not a multiplier.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "60c3b97:friends-night-out",
+  "date": "2026-08-30",
+  "slug": "friends-night-out",
+  "title": "Add Friends Night Out — local event finder biased toward what nobody hears about",
+  "detail": "Two sides on one radius. Upcoming merges Ticketmaster, community RSS/iCal/ JSON-LD calendars, followed organizers and a verified AI web sweep. Always On builds a standing-and-seasonal board from OpenStreetMap, keylessly.",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "5b90379:prompt-architect",
+  "date": "2026-08-26",
+  "slug": "prompt-architect",
+  "title": "Kart showcase, fire reveal, slippery escape, cookbook genie, ea feature list, recall, skills library, soundprint, voice studio, seedance stu",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "5b90379:cookbook-genie",
+  "date": "2026-08-26",
+  "slug": "cookbook-genie",
+  "title": "Kart showcase, fire reveal, slippery escape, cookbook genie, ea feature list, recall, skills library, soundprint, voice studio, seedance stu",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "5b90379:dashboard",
+  "date": "2026-08-26",
+  "slug": "dashboard",
+  "title": "Kart showcase, fire reveal, slippery escape, cookbook genie, ea feature list, recall, skills library, soundprint, voice studio, seedance stu",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5b90379:website-redesigner",
+  "date": "2026-08-26",
+  "slug": "website-redesigner",
+  "title": "Kart showcase, fire reveal, slippery escape, cookbook genie, ea feature list, recall, skills library, soundprint, voice studio, seedance stu",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "5b90379:projects-timeline",
+  "date": "2026-08-26",
+  "slug": "projects-timeline",
+  "title": "Kart showcase, fire reveal, slippery escape, cookbook genie, ea feature list, recall, skills library, soundprint, voice studio, seedance stu",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5b90379:seedance-studio",
+  "date": "2026-08-26",
+  "slug": "seedance-studio",
+  "title": "Kart showcase, fire reveal, slippery escape, cookbook genie, ea feature list, recall, skills library, soundprint, voice studio, seedance stu",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "5b90379:skills-library",
+  "date": "2026-08-26",
+  "slug": "skills-library",
+  "title": "Kart showcase, fire reveal, slippery escape, cookbook genie, ea feature list, recall, skills library, soundprint, voice studio, seedance stu",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "5b90379:soundprint",
+  "date": "2026-08-26",
+  "slug": "soundprint",
+  "title": "Kart showcase, fire reveal, slippery escape, cookbook genie, ea feature list, recall, skills library, soundprint, voice studio, seedance stu",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "5b90379:ea-world",
+  "date": "2026-08-26",
+  "slug": "ea-world",
+  "title": "Kart showcase, fire reveal, slippery escape, cookbook genie, ea feature list, recall, skills library, soundprint, voice studio, seedance stu",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5b90379:fire-reveal",
+  "date": "2026-08-26",
+  "slug": "fire-reveal",
+  "title": "Kart showcase, fire reveal, slippery escape, cookbook genie, ea feature list, recall, skills library, soundprint, voice studio, seedance stu",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "5b90379:kart-showcase",
+  "date": "2026-08-26",
+  "slug": "kart-showcase",
+  "title": "Kart showcase, fire reveal, slippery escape, cookbook genie, ea feature list, recall, skills library, soundprint, voice studio, seedance stu",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "5b90379:multi-order-calculator",
+  "date": "2026-08-26",
+  "slug": "multi-order-calculator",
+  "title": "Kart showcase, fire reveal, slippery escape, cookbook genie, ea feature list, recall, skills library, soundprint, voice studio, seedance stu",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "5b90379:slippery-escape",
+  "date": "2026-08-26",
+  "slug": "slippery-escape",
+  "title": "Kart showcase, fire reveal, slippery escape, cookbook genie, ea feature list, recall, skills library, soundprint, voice studio, seedance stu",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "5b90379:voice-studio",
+  "date": "2026-08-26",
+  "slug": "voice-studio",
+  "title": "Kart showcase, fire reveal, slippery escape, cookbook genie, ea feature list, recall, skills library, soundprint, voice studio, seedance stu",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "5b90379:jarvis",
+  "date": "2026-08-26",
+  "slug": "jarvis",
+  "title": "Kart showcase, fire reveal, slippery escape, cookbook genie, ea feature list, recall, skills library, soundprint, voice studio, seedance stu",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5b90379:amhe",
+  "date": "2026-08-26",
+  "slug": "amhe",
+  "title": "Kart showcase, fire reveal, slippery escape, cookbook genie, ea feature list, recall, skills library, soundprint, voice studio, seedance stu",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8a0fec5:projects-timeline",
+  "date": "2026-06-25",
+  "slug": "projects-timeline",
+  "title": "Ultimate Assistant OS hub + Projects Timeline app",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "8a0fec5:jarvis",
+  "date": "2026-06-25",
+  "slug": "jarvis",
+  "title": "Ultimate Assistant OS hub + Projects Timeline app",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ }
+]

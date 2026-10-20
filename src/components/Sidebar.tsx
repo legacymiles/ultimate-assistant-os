@@ -5,6 +5,7 @@ import { useFilteredProjects, useStore } from "@/lib/store";
 import { relativeTime, cn } from "@/lib/utils";
 import { Icon } from "./icons";
 import { CreateProjectModal } from "./modals/CreateProjectModal";
+import { FOLDERS, activityOf } from "@/lib/timeline/appEdits";
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const projects = useFilteredProjects();
@@ -50,12 +51,40 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </button>
       </div>
 
-      <div className="px-4 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-ink-faint">
-        {search ? `${projects.length} of ${total}` : `${total} projects`}
-      </div>
-
       {/* List */}
       <div className="flex-1 overflow-y-auto px-2 pb-4">
+        {/* Folders: design systems that apps read from */}
+        {!search && (
+          <>
+            <div className="px-2 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-ink-faint">Folders</div>
+            <ul className="mb-3 space-y-1">
+              {FOLDERS.map((f) => {
+                const active = f.id === selectedId;
+                return (
+                  <li key={f.id}>
+                    <button
+                      onClick={() => { select(f.id); onNavigate?.(); }}
+                      className={cn(
+                        "flex w-full items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition",
+                        active ? "border-brand/40 bg-brand/10" : "border-line/70 bg-canvas/40 hover:bg-panel-2",
+                      )}
+                    >
+                      <span className="mt-0.5 text-base leading-none" aria-hidden="true">📁</span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-ink">{f.name}</span>
+                        <span className="mt-0.5 block line-clamp-2 text-xs text-ink-muted">{f.blurb}</span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+
+        <div className="px-2 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-ink-faint">
+          {search ? `${projects.length} of ${total}` : `${total} projects · newest edits first`}
+        </div>
         {projects.length === 0 && (
           <div className="px-3 py-8 text-center text-sm text-ink-faint">
             {total === 0 ? "No projects yet." : "No matches."}
@@ -88,11 +117,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                       {p.name}
                     </span>
                     <span className="shrink-0 text-[10px] text-ink-faint">
-                      {relativeTime(p.updated_at)}
+                      {relativeTime(activityOf(p))}
                     </span>
                   </div>
                   <p className="mt-0.5 line-clamp-2 text-xs text-ink-muted">
-                    {p.one_liner || "No summary yet."}
+                    {p.edits?.[0] ? `Latest: ${p.edits[0].title}` : p.one_liner || "No summary yet."}
                   </p>
                 </button>
               </li>

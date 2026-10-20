@@ -11,6 +11,7 @@ import type {
 } from "./repo/types";
 import type { AnalystResult, Feature, Project } from "./types";
 import { uid } from "./utils";
+import { isVirtualId, overlayAppEdits } from "./timeline/appEdits";
 
 interface StoreState {
   projects: Project[];
@@ -43,9 +44,33 @@ interface StoreState {
   applyAnalystResult: (projectId: string, result: AnalystResult) => Promise<void>;
 }
 
+/** Saved projects plus every app's edit history (see timeline/appEdits.ts). */
+async function loadProjects(): Promise<Project[]> {
+  return overlayAppEdits(await getRepo().getProjects());
+}
+
 async function reload(set: (p: Partial<StoreState>) => void) {
-  const projects = await getRepo().getProjects();
-  set({ projects });
+  set({ projects: await loadProjects() });
+}
+
+/**
+ * An app shown from the catalog has no saved project yet. The first edit to
+ * it saves one, then the edit goes to that. Returns the id to write to.
+ */
+async function realId(
+  get: () => StoreState,
+  set: (p: Partial<StoreState>) => void,
+  id: string,
+): Promise<string> {
+  if (!isVirtualId(id)) return id;
+  const p = get().projects.find((x) => x.id === id);
+  const created = await getRepo().createProject({
+    name: p?.name ?? id.slice("catalog:".length),
+    one_liner: p?.one_liner ?? "",
+    overview: p?.overview ?? "",
+  });
+  if (get().selectedId === id) set({ selectedId: created.id });
+  return created.id;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -59,7 +84,7 @@ export const useStore = create<StoreState>((set, get) => ({
   init: async () => {
     set({ loading: true, error: null });
     try {
-      const projects = await getRepo().getProjects();
+      const projects = await loadProjects();
       set({
         projects,
         loading: false,
@@ -83,13 +108,14 @@ export const useStore = create<StoreState>((set, get) => ({
 
   updateProjectMeta: async (id, patch) => {
     await guard(set, async () => {
-      await getRepo().updateProjectMeta(id, patch);
+      await getRepo().updateProjectMeta(await realId(get, set, id), patch);
       await reload(set);
     });
   },
 
   deleteProject: async (id) => {
     await guard(set, async () => {
+      if (isVirtualId(id)) return; // nothing saved to delete
       await getRepo().deleteProject(id);
       await reload(set);
       const remaining = get().projects;
@@ -101,14 +127,15 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setFeatures: async (projectId, features) => {
     await guard(set, async () => {
-      await getRepo().setFeatures(projectId, features);
+      const real = await realId(get, set, projectId);
+      await getRepo().setFeatures(real, features.map((f) => ({ ...f, project_id: real })));
       await reload(set);
     });
   },
 
   addVersion: async (projectId, input) => {
     await guard(set, async () => {
-      await getRepo().addVersion(projectId, input);
+      await getRepo().addVersion(await realId(get, set, projectId), input);
       await reload(set);
     });
   },
@@ -143,7 +170,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   addKnowledge: async (projectId, input) => {
     await guard(set, async () => {
-      await getRepo().addKnowledge(projectId, input);
+      await getRepo().addKnowledge(await realId(get, set, projectId), input);
       await reload(set);
     });
   },
@@ -160,6 +187,7 @@ export const useStore = create<StoreState>((set, get) => ({
       const repo = getRepo();
       const project = get().projects.find((p) => p.id === projectId);
       if (!project) return;
+      projectId = await realId(get, set, projectId);
 
       // 1. Update summary + basic overview + detailed explanation.
       await repo.updateProjectMeta(projectId, {

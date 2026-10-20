@@ -88,6 +88,30 @@ export interface Project {
   features: Feature[];
   versions: Version[];
   knowledge: KnowledgeEntry[];
+  /**
+   * App edits, newest first — every change shipped to this app, recorded
+   * from git (src/lib/timeline/feature-log.json). Read-only, added on load.
+   */
+  edits?: AppEditEntry[];
+  /** When this app last changed: its newest app edit, or updated_at. Drives "newest first". */
+  activity_at?: string;
+  /**
+   * True for an app that has no saved project yet: shown from the hub
+   * catalog and its edit log, and saved for real the first time it is edited.
+   */
+  virtual?: boolean;
+}
+
+export interface AppEditEntry {
+  /** "<commit>:<slug>" for edits from git; anything else for hand-written ones. */
+  id: string;
+  /** YYYY-MM-DD */
+  date: string;
+  slug: string;
+  title: string;
+  detail: string;
+  group: FeatureGroup;
+  source?: string;
 }
 
 // ----- AI Project Analyst -------------------------------------------------

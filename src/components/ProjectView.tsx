@@ -12,6 +12,7 @@ import { VersionTimeline } from "./VersionTimeline";
 import { EditProjectModal } from "./modals/EditProjectModal";
 import { SuperPromptModal } from "./modals/SuperPromptModal";
 import { Markdown } from "./Markdown";
+import { AppEditsSection } from "./AppEditsSection";
 
 type Tab = "overview" | "features" | "versions" | "knowledge";
 
@@ -28,7 +29,7 @@ export function ProjectView({ project }: { project: Project }) {
 
   const tabs: { id: Tab; label: string; icon: keyof typeof Icon; count?: number }[] = [
     { id: "overview", label: "Overview", icon: "Sparkles" },
-    { id: "features", label: "Features", icon: "Layers", count: project.features.length },
+    { id: "features", label: "Features", icon: "Layers", count: project.features.length + (project.edits?.length ?? 0) },
     { id: "versions", label: "Versions", icon: "Clock", count: project.versions.length },
     { id: "knowledge", label: "Knowledge", icon: "Inbox", count: project.knowledge.length },
   ];
@@ -47,6 +48,12 @@ export function ProjectView({ project }: { project: Project }) {
             )}
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-faint">
               <span>Updated {formatDate(project.updated_at)}</span>
+              {project.edits?.length ? (
+                <>
+                  <span>·</span>
+                  <span>{project.edits.length} app edits</span>
+                </>
+              ) : null}
               <span>·</span>
               <span>{project.versions.length} versions</span>
               <span>·</span>
@@ -62,7 +69,7 @@ export function ProjectView({ project }: { project: Project }) {
             >
               <Icon.Edit width={16} height={16} />
             </button>
-            <button
+            {!project.virtual && <button
               onClick={() => {
                 if (confirm(`Delete "${project.name}"? This cannot be undone.`))
                   deleteProject(project.id);
@@ -72,7 +79,7 @@ export function ProjectView({ project }: { project: Project }) {
               title="Delete project"
             >
               <Icon.Trash width={16} height={16} />
-            </button>
+            </button>}
           </div>
         </div>
       </header>
@@ -157,7 +164,12 @@ export function ProjectView({ project }: { project: Project }) {
             <AIPanel project={project} />
           </div>
         )}
-        {tab === "features" && <FeaturesSection project={project} />}
+        {tab === "features" && (
+          <div className="space-y-4">
+            <AppEditsSection project={project} />
+            <FeaturesSection project={project} />
+          </div>
+        )}
         {tab === "versions" && <VersionTimeline project={project} />}
         {tab === "knowledge" && <KnowledgeInbox project={project} />}
       </div>

@@ -9,6 +9,8 @@ import { forgetCurrentUser } from "@/lib/sync/identity";
 import { Icon } from "./icons";
 import { ProjectView } from "./ProjectView";
 import { Sidebar } from "./Sidebar";
+import { GameStylingView } from "./GameStylingView";
+import { GAME_STYLING_FOLDER, isFolderId } from "@/lib/timeline/appEdits";
 
 /**
  * `chromeless` fits the timeline inside Jarvis's Toolbox tab: the hub button
@@ -22,6 +24,8 @@ export function AppShell({ chromeless = false }: { chromeless?: boolean } = {}) 
   const loading = useStore((s) => s.loading);
   const error = useStore((s) => s.error);
   const project = useSelectedProject();
+  const selectedId = useStore((s) => s.selectedId);
+  const folder = isFolderId(selectedId) ? GAME_STYLING_FOLDER : null;
   const [drawer, setDrawer] = useState(false);
   const [backend, setBackend] = useState<"local" | "supabase">("local");
 
@@ -76,7 +80,7 @@ export function AppShell({ chromeless = false }: { chromeless?: boolean } = {}) 
             <Icon.Menu width={16} height={16} />
           </button>
           <span className="ml-1 truncate text-sm font-semibold text-ink">
-            {project?.name ?? "Projects Timeline"}
+            {folder?.name ?? project?.name ?? "Projects Timeline"}
           </span>
         </div>
 
@@ -87,6 +91,8 @@ export function AppShell({ chromeless = false }: { chromeless?: boolean } = {}) 
             <CenterMessage>
               <span className="text-red-400">{error}</span>
             </CenterMessage>
+          ) : folder ? (
+            <GameStylingView />
           ) : project ? (
             <ProjectView project={project} />
           ) : (
