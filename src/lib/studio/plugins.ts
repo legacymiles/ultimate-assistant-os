@@ -26,7 +26,7 @@ export const PLUGIN_SLUGS = [
   "seedance-studio",
   "jarvis-audio-studio",
   "image-studio",
-  "tiktok-dances",
+  "viral-studio-content",
   "gods-eye-view",
   "game-creator",
   "website-redesigner",
@@ -91,10 +91,10 @@ const WHY: Record<string, string> = {
     "Where a frame gets made before it moves. Its specialist agents keep a face across a whole set of "
     + "stills, so the first frame a video workflow is handed is already the person and the look you "
     + "meant, rather than something the video model guessed at.",
-  "tiktok-dances":
-    "The move itself, verified. Every tile is a real dance that actually plays, with the song and the "
-    + "year attached — so a dance workflow is pointed at footage that exists instead of a name a model "
-    + "invented.",
+  "viral-studio-content":
+    "The clips a video workflow is pointed at, kept in one place: viral sounds, fights, dances and "
+    + "motion, each on its own board. Paste a link and it lands where you are; hover and it plays — so "
+    + "the reference is real footage you picked, not a name a model guessed at.",
   "gods-eye-view":
     "Real satellite, aircraft and camera feeds to shoot from, or to grab a location plate no stock library has.",
   "game-creator":

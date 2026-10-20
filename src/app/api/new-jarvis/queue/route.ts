@@ -37,7 +37,7 @@ export const dynamic = "force-dynamic";
 const LIB_FOLDER: Record<string, string[]> = {
   dashboard: ["recall", "dashboard"],
   "prompt-architect": ["blueprint"],
-  "tiktok-dances": ["dances", "dance-studio"],
+  "viral-studio-content": ["viral-studio", "dance-studio"],
   "fire-reveal": ["reveal"],
   "3d-studio": ["studio3d"],
   "cookbook-genie": ["cookbook"],

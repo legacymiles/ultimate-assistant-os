@@ -29,7 +29,7 @@ import type { BriefFeature, Target, TargetFacts } from "./brief";
 const FOLDER_OVERRIDES: Record<string, string[]> = {
   dashboard: ["src/components/recall", "src/lib/dashboard"],
   "prompt-architect": ["src/components/blueprint", "src/lib/blueprint"],
-  "tiktok-dances": ["src/components/dances", "src/lib/dances", "src/components/dance-studio"],
+  "viral-studio-content": ["src/components/viral-studio", "src/lib/viral-studio", "src/components/dance-studio"],
   "fire-reveal": ["src/components/reveal", "src/lib/reveal"],
   "3d-studio": ["src/components/studio3d", "src/lib/studio3d"],
   "cookbook-genie": ["src/components/cookbook", "src/lib/cookbook"],

@@ -146,25 +146,21 @@ export const PROJECTS: CatalogProject[] = [
     hue: [315, 190],
   },
   {
-    slug: "tiktok-dances",
-    title: "Dance Vault",
-    tag: "The wall that never stops moving",
+    slug: "viral-studio-content",
+    title: "Viral Studio Content",
+    tag: "Paste it, hover it, keep it",
     category: "Video",
     overview:
-      "A living wall of TikTok dances. Rows of vertical tiles drift sideways forever, alternating " +
-      "direction; hover one and its row eases to a halt while that dance plays. Every record keeps " +
-      "the name people actually say, the song behind it, the choreographer who made it where that " +
-      "is documented, the year it broke, and your own score out of 100 — with unrated kept as its " +
-      "own honest state rather than collapsed into a zero. Sorting by score turns the front of the " +
-      "wall into your leaderboard, so there is no separate rankings page to keep in sync. " +
-      "The part that makes it trustworthy is what it refuses to do: every video is resolved by " +
-      "search, verified through a keyless oEmbed call, and then checked for whether it will " +
-      "actually play inside an embed — a dance that survives none of that is dropped rather than " +
-      "shipped as a tile that looks fine and plays nothing. Dance of the Day adds one new viral " +
-      "dance each morning through the same gate, so a name a model invented can never enter the " +
-      "vault. Runs with no API key at all; a key only buys better-named picks.",
+      "Four boards for the clips worth saving — Viral audio (sounds and songs), Fights, Dances and " +
+      "Motion (surfing, hoops, rap performances and anything else that moves). They all work the same " +
+      "way: paste a link from TikTok, Instagram, YouTube, X, Facebook or anywhere else and it lands in " +
+      "the tab you're on, newest first, with the same video never added twice. Hover a tile and it " +
+      "plays; one tap on the × deletes it, with Undo. Signed in, the video file itself is saved once " +
+      "into your private storage so it plays instantly and survives the post being taken down; when a " +
+      "network won't hand it over, the tile plays through that network's own player instead and says so. " +
+      "Paste several links at once, press Ctrl+V anywhere, or drag a link onto the board. Replaced Dance Vault.",
     status: "live",
-    appUrl: "/apps/tiktok-dances",
+    appUrl: "/apps/viral-studio-content",
     iconStyle: "pulse",
     hue: [335, 190],
   },

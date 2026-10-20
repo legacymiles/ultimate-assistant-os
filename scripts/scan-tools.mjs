@@ -59,8 +59,8 @@ const SERVICES = [
 // Most code folders match their /apps/<slug> route. These are the ones that
 // don't; the table is the same one CLAUDE.md documents.
 const FOLDER_TO_SLUG = {
-  recall: "dashboard", blueprint: "prompt-architect", dances: "tiktok-dances",
-  "dance-studio": "tiktok-dances", reveal: "fire-reveal", studio3d: "3d-studio",
+  recall: "dashboard", blueprint: "prompt-architect", "viral-studio": "viral-studio-content",
+  "dance-studio": "viral-studio-content", reveal: "fire-reveal", studio3d: "3d-studio",
   cookbook: "cookbook-genie", "gods-eye": "gods-eye-view", kart: "kart-showcase",
   calculator: "multi-order-calculator", stdsafe: "std-safe", ea: "ea-feature-list",
   "ea-features": "ea-feature-list", redesigner: "website-redesigner",

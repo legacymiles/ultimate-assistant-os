@@ -55,7 +55,7 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 |---|---|
 | `dashboard` | `recall` (+ `src/lib/dashboard` for the photo inbox and destinations) |
 | `prompt-architect` | `blueprint` |
-| `tiktok-dances` | `dances` (+ `dance-studio`) |
+| `viral-studio-content` | `viral-studio` (the app is **Viral Studio Content**, was Dance Vault; four tabs audio/fights/dances/motion, synced key `viral-studio:v1`, downloaded clips in Storage bucket `viral-studio`; `/apps/tiktok-dances` redirects in. The old wall code in `dances/` is no longer mounted; `dance-studio` is the separate AI dance generator) |
 | `fire-reveal` | `reveal` |
 | `3d-studio` | `studio3d` |
 | `cookbook-genie` | `cookbook` |

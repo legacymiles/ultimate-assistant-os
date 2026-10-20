@@ -1,11 +1,6 @@
-import { DanceVault } from "@/components/dances/DanceVault";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Dance Vault · Ultimate Assistant OS",
-  description:
-    "A living wall of TikTok dances that play on hover, each with the song, the choreographer and your own score out of 100 — plus one new viral dance added automatically every day.",
-};
-
+// Dance Vault became Viral Studio Content (Oct 2026). Old links and bookmarks land on the new app.
 export default function Page() {
-  return <DanceVault />;
+  redirect("/apps/viral-studio-content?tab=dances");
 }
