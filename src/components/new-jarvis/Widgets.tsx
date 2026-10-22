@@ -93,10 +93,12 @@ type SheetState = { njSheet?: number; __NA?: boolean } & Record<string, unknown>
 const sheetOnTop = (): number | undefined => (window.history.state as SheetState | null)?.njSheet;
 
 function onPop(e: PopStateEvent) {
-  // A sheet step from an older visit without the router's mark would make the
-  // router reload the page; keep it from seeing that one.
+  // While a sheet is open, Back is ours: the URL doesn't change, so the
+  // router has nothing to do — and left to it, it reloaded Jarvis or jumped a
+  // page too far. This listener is added when the module loads, before the
+  // router's, so stopping here keeps it out.
   const st = window.history.state as SheetState | null;
-  if (st?.njSheet !== undefined && !st.__NA) e.stopImmediatePropagation();
+  if (stack.length || (st?.njSheet !== undefined && !st.__NA)) e.stopImmediatePropagation();
   if (skipPops > 0) {
     skipPops--;
     return;
@@ -109,6 +111,14 @@ function onPop(e: PopStateEvent) {
     closers.get(id)?.();
   }
 }
+
+function bindPop() {
+  if (popBound || typeof window === "undefined") return;
+  window.addEventListener("popstate", onPop, { capture: true });
+  popBound = true;
+}
+// At load, so it runs before the router's own Back handler (see onPop).
+bindPop();
 
 export function useTopEscape(onClose: () => void) {
   const ref = useRef(onClose);
@@ -131,10 +141,7 @@ export function useTopEscape(onClose: () => void) {
         // Some embedded browsers refuse history writes; Escape and × still work.
       }
     }, 0);
-    if (!popBound) {
-      window.addEventListener("popstate", onPop, { capture: true });
-      popBound = true;
-    }
+    bindPop();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && stack[stack.length - 1] === id) ref.current();
     };
