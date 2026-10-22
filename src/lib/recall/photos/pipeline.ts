@@ -68,6 +68,10 @@ export interface ImportOutcome {
   duplicates: number;
   /** Non-image files that were ignored. */
   skipped: number;
+  /** iPhone inbox photos this device has now dealt with (queued, or dropped as copies). */
+  inboxHandled: string[];
+  /** Of those, the ones dropped as copies — nothing is waiting for them anywhere. */
+  inboxDropped: string[];
 }
 
 export interface ImportArgs {
@@ -85,6 +89,8 @@ export interface ImportArgs {
   onProgress?: (p: ImportProgress) => void;
   /** Called whenever the queue changes so the UI can re-render as it fills. */
   onQueue?: (queue: PendingPhoto[]) => void;
+  /** Which iPhone inbox photo a file is, when it came from there. */
+  inboxIdOf?: (file: File) => string | undefined;
 }
 
 /**
@@ -117,7 +123,10 @@ export async function importPhotos(args: ImportArgs): Promise<ImportOutcome> {
   const staged: { pending: PendingPhoto; file: File }[] = [];
   let stored = 0;
   let duplicates = 0;
+  const inboxHandled: string[] = [];
+  const inboxDropped: string[] = [];
   for (const file of accepted) {
+    const inboxId = args.inboxIdOf?.(file);
     args.onProgress?.({ stage: "storing", done: stored, total: accepted.length });
     const thumb = await toThumb(file);
     const fingerprint = await fingerprintImage(thumb);
@@ -133,6 +142,10 @@ export async function importPhotos(args: ImportArgs): Promise<ImportOutcome> {
     if (findSamePhoto(me, known)) {
       duplicates++;
       stored++;
+      if (inboxId) {
+        inboxHandled.push(inboxId);
+        inboxDropped.push(inboxId);
+      }
       continue;
     }
 
@@ -152,8 +165,10 @@ export async function importPhotos(args: ImportArgs): Promise<ImportOutcome> {
       size: file.size,
       thumb,
       takenAt,
+      ...(inboxId ? { inboxId } : {}),
       composite: args.composite ?? null,
     });
+    if (inboxId) inboxHandled.push(inboxId);
     known.push({ ...me, id: out.photo.id });
     // Look-alikes that are NOT the same photo (two shots of a burst) still
     // queue, with a warning naming the one they resemble.
@@ -203,7 +218,25 @@ export async function importPhotos(args: ImportArgs): Promise<ImportOutcome> {
     deferred,
     duplicates,
     skipped: args.files.length - images.length,
+    inboxHandled,
+    inboxDropped,
   };
+}
+
+/**
+ * Tell the iPhone inbox these photos are dealt with (filed, removed, or a
+ * copy), so it deletes them and every other device drops them from its own
+ * queue on its next check. Fire-and-forget: the inbox sweeps leftovers anyway.
+ */
+export function releaseInbox(ids: (string | undefined)[]): void {
+  const list = ids.filter((x): x is string => !!x);
+  if (!list.length || typeof fetch === "undefined") return;
+  void fetch("/api/dashboard/inbox/done", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids: list }),
+    keepalive: true,
+  }).catch(() => undefined);
 }
 
 /** Store an analysis against a pending photo along with its destination. */
@@ -440,6 +473,7 @@ export async function approvePhotos(args: ApproveArgs): Promise<ApproveResult> {
   const problemNames = new Set(result.problems.map((x) => x.name));
   const filedOk = queue.filter((p) => !problemNames.has(p.name));
   removePending(filedOk.map((p) => p.id));
+  releaseInbox(filedOk.map((p) => p.inboxId));
   // Camera Autopilot learns from what was actually filed — never from a
   // proposal, and never from a failure.
   learnFromApprovals(filedOk);
@@ -470,6 +504,24 @@ export async function approvePhotos(args: ApproveArgs): Promise<ApproveResult> {
 
 /** Discard photos from the queue, taking their blobs with them. */
 export async function rejectPhotos(photoIds: string[]): Promise<PendingPhoto[]> {
+  const wanted = new Set(photoIds);
+  const leaving = getQueue().filter((x) => wanted.has(x.id));
+  for (const p of leaving) {
+    await deleteFile(p.fileId).catch(() => {
+      /* already gone */
+    });
+  }
+  releaseInbox(leaving.map((p) => p.inboxId));
+  return removePending(photoIds);
+}
+
+/**
+ * Drop photos another device filed or removed, or that were deleted from the
+ * phone — quietly, with their pixels, and WITHOUT telling the inbox (it is the
+ * one that said they're gone) or learning anything from it.
+ */
+export async function dropGone(photoIds: string[]): Promise<PendingPhoto[]> {
+  if (!photoIds.length) return getQueue();
   const wanted = new Set(photoIds);
   for (const p of getQueue().filter((x) => wanted.has(x.id))) {
     await deleteFile(p.fileId).catch(() => {

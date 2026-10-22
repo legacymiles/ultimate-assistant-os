@@ -95,6 +95,14 @@ export function IphoneSources({ busy, onImport, onToast }: Props) {
     if (!entries.length) return;
     setClaiming(true);
     try {
+      // Inside Jarvis the shell's watch brings photos in, shared with every
+      // device; a second drain here would take them away from the others.
+      if ((window as unknown as { __jarvisCameraWatch?: boolean }).__jarvisCameraWatch) {
+        window.dispatchEvent(new Event("jarvis-camera-check-now"));
+        setEntries([]);
+        onToast("Bringing them in…");
+        return;
+      }
       const n = await drainInbox(entries, onImport);
       setEntries([]);
       if (!n) onToast("Nothing left to bring in");

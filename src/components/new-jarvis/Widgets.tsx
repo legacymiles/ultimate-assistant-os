@@ -71,27 +71,111 @@ export function useWidgetPrefs(): { hidden: Set<WidgetId>; toggle: (id: WidgetId
 // ----- frames ------------------------------------------------------------------
 
 /**
- * Escape closes only the sheet on top. Without the stack, Escape inside a
- * photo opened from the expanded Camera widget would close both.
+ * Escape — and the phone's Back gesture or the browser's Back button — close
+ * only the sheet on top. Without the stack, Escape inside a photo opened from
+ * the expanded Camera widget would close both.
+ *
+ * Back used to leave Jarvis altogether, because a sheet is not a page. Now
+ * each open sheet adds one history step: Back closes the top sheet and goes no
+ * further, and closing a sheet with its own button takes that step back off,
+ * so Back never has to be pressed twice. The step keeps the router's own
+ * history state and the same URL, so nothing else on the page reacts to it.
  */
 const stack: number[] = [];
+const closers = new Map<number, () => void>();
+/** Sheets whose history step Back already took. */
+const popped = new Set<number>();
+let skipPops = 0;
+let popBound = false;
 let nextSheet = 1;
+
+type SheetState = { njSheet?: number; __NA?: boolean } & Record<string, unknown>;
+const sheetOnTop = (): number | undefined => (window.history.state as SheetState | null)?.njSheet;
+
+function onPop(e: PopStateEvent) {
+  // A sheet step from an older visit without the router's mark would make the
+  // router reload the page; keep it from seeing that one.
+  const st = window.history.state as SheetState | null;
+  if (st?.njSheet !== undefined && !st.__NA) e.stopImmediatePropagation();
+  if (skipPops > 0) {
+    skipPops--;
+    return;
+  }
+  const target = sheetOnTop() ?? 0;
+  // Every sheet opened after the step we landed on closes, newest first.
+  for (const id of [...stack].reverse()) {
+    if (id <= target) break;
+    popped.add(id);
+    closers.get(id)?.();
+  }
+}
+
 export function useTopEscape(onClose: () => void) {
   const ref = useRef(onClose);
   ref.current = onClose;
   useEffect(() => {
     const id = nextSheet++;
     stack.push(id);
+    closers.set(id, () => ref.current());
+    // Added a beat later, so a sheet that mounts and unmounts at once (React's
+    // dev double-run, a sheet swapped for another) leaves no stray step.
+    let pushed = false;
+    const push = window.setTimeout(() => {
+      if (!closers.has(id)) return;
+      try {
+        // __NA marks the step as the router's own: on Back it keeps the page it
+        // has (same URL, no saved tree) instead of reloading all of Jarvis.
+        window.history.pushState({ ...((window.history.state as SheetState | null) ?? {}), __NA: true, njSheet: id }, "");
+        pushed = true;
+      } catch {
+        // Some embedded browsers refuse history writes; Escape and × still work.
+      }
+    }, 0);
+    if (!popBound) {
+      window.addEventListener("popstate", onPop, { capture: true });
+      popBound = true;
+    }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && stack[stack.length - 1] === id) ref.current();
     };
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
+      window.clearTimeout(push);
       const at = stack.indexOf(id);
       if (at >= 0) stack.splice(at, 1);
+      closers.delete(id);
+      // Closed with its own button: take its history step back off quietly.
+      if (!popped.delete(id) && pushed && sheetOnTop() === id) {
+        skipPops++;
+        window.history.back();
+      }
     };
   }, []);
+}
+
+/**
+ * Sheets draw at the top of the page, not inside the panel that opened them.
+ * Inside it, Jarvis's top bar and side rail sat over a sheet on a phone — the
+ * top of the photo and its way back were hidden under them. The faces Jarvis
+ * loads ride along from the page's [data-nj-fonts] wrapper.
+ */
+export function SheetPortal({ children }: { children: React.ReactNode }) {
+  // Drawn on Jarvis's root (.nj), which keeps its theme and is clear of the
+  // Dashboard's blurred scroll pane (a blur makes "fixed" stick to the pane,
+  // not the screen). Outside Jarvis, the page body, with the page's faces.
+  const anchor = useRef<HTMLSpanElement>(null);
+  const [host, setHost] = useState<{ el: Element; fonts: string } | null>(null);
+  useLayoutEffect(() => {
+    const nj = anchor.current?.closest(".nj");
+    setHost(nj ? { el: nj, fonts: "" } : { el: document.body, fonts: document.querySelector("[data-nj-fonts]")?.className ?? "" });
+  }, []);
+  return (
+    <>
+      <span ref={anchor} hidden />
+      {host && createPortal(host.fonts ? <div className={host.fonts}>{children}</div> : children, host.el)}
+    </>
+  );
 }
 
 /** The expanded view: a wide sheet on a laptop, a full-height sheet on a phone. */
@@ -101,53 +185,55 @@ export function WidgetSheet({
   actions,
   onClose,
   children,
+  footer,
 }: {
   title: string;
   kicker?: string;
   actions?: React.ReactNode;
   onClose: () => void;
   children: React.ReactNode;
+  /** Pinned under the scrolling body — a chat bar stays in reach on a phone. */
+  footer?: React.ReactNode;
 }) {
   useTopEscape(onClose);
-  // Two things kept this from being a real full-screen sheet, which on a phone
-  // came out narrow, under the chat box and cut off at the bottom:
-  //  • deck.css's `.deck { position: relative }` (unlayered) beats Tailwind's
-  //    `fixed` (a layered utility), so position is set inline below;
-  //  • the Dashboard's scroll pane has a backdrop blur, and a blur makes fixed
-  //    stick to that pane instead of the screen — so the sheet is drawn on
-  //    Jarvis's root (keeping its theme), where fixed means the whole screen.
-  const anchor = useRef<HTMLSpanElement>(null);
-  const [host, setHost] = useState<Element | null>(null);
-  useLayoutEffect(() => setHost(anchor.current?.closest(".nj") ?? document.body), []);
-  const sheet = (
+  return (
+    <SheetPortal>
     <div
-      className="deck fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4"
-      style={{ position: "fixed", background: "rgb(0 0 0 / 0.7)", minHeight: 0 }}
+      className="deck fixed inset-0 z-[70] flex items-end justify-center sm:items-center sm:p-4"
+      // Inline on purpose: the .deck class sets position: relative, which beat
+      // Tailwind's "fixed" and left the sheet in the page under Jarvis's bars.
+      style={{ position: "fixed", inset: 0, background: "rgb(0 0 0 / 0.7)", minHeight: 0 }}
       role="dialog"
       aria-modal="true"
       aria-label={title}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="deck-glass deck-ring deck-sheet flex h-[92dvh] w-full flex-col overflow-hidden sm:h-[86dvh] sm:max-w-5xl">
-        <header className="flex shrink-0 items-center gap-2 border-b border-line px-4 py-3">
+        <header className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-3 sm:px-4">
+          {/* A plain Back on a phone: the way out people look for first. */}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Back"
+            className="-ml-1 inline-flex h-10 shrink-0 items-center gap-0.5 rounded-lg pl-1 pr-2 text-[13px] text-ink-muted hover:bg-panel-2 hover:text-ink sm:hidden"
+          >
+            <Icon.ArrowLeft width={15} height={15} aria-hidden />
+            Back
+          </button>
           <div className="min-w-0 flex-1">
             {kicker && <p className="deck-kicker truncate">{kicker}</p>}
             <h2 className="deck-display truncate text-[17px] font-semibold text-ink">{title}</h2>
           </div>
           {actions && <div className="flex shrink-0 items-center">{actions}</div>}
-          <button type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-ink-muted hover:bg-panel-2 hover:text-ink">
+          <button type="button" onClick={onClose} aria-label="Close" className="hidden h-9 w-9 shrink-0 place-items-center rounded-lg text-ink-muted hover:bg-panel-2 hover:text-ink sm:grid">
             <Icon.Close width={14} height={14} aria-hidden />
           </button>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
+        {footer}
       </div>
     </div>
-  );
-  return (
-    <>
-      <span ref={anchor} hidden />
-      {host && createPortal(sheet, host)}
-    </>
+    </SheetPortal>
   );
 }
 

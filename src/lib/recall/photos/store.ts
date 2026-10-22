@@ -458,6 +458,8 @@ export interface QueueInput {
   thumb?: string;
   /** When the photo was taken, for newest-first order. */
   takenAt?: string;
+  /** The iPhone inbox photo this came from, when it did. */
+  inboxId?: string;
   /** Set when this picture was built here out of several uploads. */
   composite?: PendingPhoto["composite"];
 }

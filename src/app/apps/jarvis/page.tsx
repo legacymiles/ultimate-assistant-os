@@ -62,7 +62,8 @@ export default async function Page() {
   }
 
   return (
-    <div className={`${mono.variable} ${display.variable}`}>
+    // data-nj-fonts: sheets render at the top of the page (SheetPortal) and borrow these faces.
+    <div className={`${mono.variable} ${display.variable}`} data-nj-fonts>
       <NewJarvis />
     </div>
   );

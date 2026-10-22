@@ -1,3 +1,5 @@
+import { shortcutDateLocal } from "./shortcutDate";
+
 // ---------------------------------------------------------------------------
 // Bringing the iPhone inbox into the browser, a few photos at a time.
 //
@@ -52,9 +54,13 @@ interface Claimed {
   dataUrl: string;
 }
 
-/** The phone's photo date, carried on the File so the queue can sort by it. */
+/**
+ * The phone's photo date, carried on the File so the queue can sort by it.
+ * Read by hand in this browser's timezone: Safari can't parse the Shortcut's
+ * "Oct 21, 2026 at 11:34 PM", and every photo got the time it arrived instead.
+ */
 function lastModified(takenAt?: string): number | undefined {
-  const t = takenAt ? Date.parse(takenAt) : NaN;
+  const t = shortcutDateLocal(takenAt);
   return Number.isNaN(t) ? undefined : t;
 }
 
@@ -65,8 +71,13 @@ function lastModified(takenAt?: string): number | undefined {
  */
 export async function drainInbox(
   entries: DrainEntry[],
-  read: (files: File[]) => void | Promise<void>,
+  read: (files: File[], inboxIdOf: (f: File) => string | undefined) => void | Promise<void>,
   onProgress?: (done: number, total: number) => void,
+  /**
+   * Copy the photos in and leave them in the inbox, so every device gets
+   * them (Jarvis does this). Without it the inbox deletes them once read.
+   */
+  opts: { share?: boolean } = {},
 ): Promise<number> {
   let brought = 0;
   for (const batch of claimBatches(entries)) {
@@ -74,7 +85,7 @@ export async function drainInbox(
     const r = await fetch("/api/dashboard/inbox/claim", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: batch.map((e) => e.id), keep: true }),
+      body: JSON.stringify(opts.share ? { ids: batch.map((e) => e.id), share: true } : { ids: batch.map((e) => e.id), keep: true }),
     });
     if (!r.ok) {
       throw new Error(
@@ -85,19 +96,27 @@ export async function drainInbox(
     }
     const got = (await r.json()) as { photos?: Claimed[] };
     const photos = got.photos ?? [];
+    const idOf = new Map<File, string>();
     const files = await Promise.all(
-      photos.map(async (p) => new File([await (await fetch(p.dataUrl)).blob()], p.name, {
+      photos.map(async (p) => {
+        const f = new File([await (await fetch(p.dataUrl)).blob()], p.name, {
           type: p.contentType,
           lastModified: lastModified(p.takenAt),
-        })),
+        });
+        idOf.set(f, p.id);
+        return f;
+      }),
     );
-    if (files.length) await read(files);
-    // Only now is it safe to let the server delete them.
-    await fetch("/api/dashboard/inbox/done", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: batch.map((e) => e.id) }),
-    }).catch(() => undefined);
+    if (files.length) await read(files, (f) => idOf.get(f));
+    // Only now is it safe to let the server delete them — unless they're
+    // shared, when they stay until filed somewhere.
+    if (!opts.share) {
+      await fetch("/api/dashboard/inbox/done", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: batch.map((e) => e.id) }),
+      }).catch(() => undefined);
+    }
     brought += files.length;
   }
   onProgress?.(brought, entries.length);

@@ -42,6 +42,7 @@ const TOKEN_AUTH_PATHS = new Set([
   "/api/social-personas/publish/tick",
   "/api/dashboard/inbox/push",
   "/api/dashboard/inbox/cursor",
+  "/api/dashboard/inbox/present",
   "/api/game-creator/builder/claim",
   "/api/game-creator/builder/progress",
   "/api/game-creator/builder/screenshot",

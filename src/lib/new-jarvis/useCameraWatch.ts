@@ -9,8 +9,9 @@
 // one small request; whenever the phone's Shortcut has pushed photos, they are
 // claimed a few at a time and read straight into the Autopilot queue, so the
 // Deck shows them with a guess and the Updates feed raises "N new photos to
-// sort" without anyone tapping anything. A photo is only deleted from the
-// inbox once it is read in, so a failed check is retried, never lost.
+// sort" without anyone tapping anything. Photos stay in the inbox while they
+// wait, so the phone and the laptop both get every one; filing or removing one
+// anywhere drops it everywhere (see inboxSync.ts).
 //
 // The website cannot see the camera roll by itself — Apple gives a web page no
 // way in. The phone side is the iOS Shortcut (Photos tab › Link iPhone); with
@@ -22,7 +23,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { loadLocal, saveSynced } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
 import { drainInbox } from "@/lib/dashboard/drainInbox";
-import { importPhotos, removeDuplicatePhotos } from "@/lib/recall/photos/pipeline";
+import { dropGone, importPhotos, releaseInbox, removeDuplicatePhotos } from "@/lib/recall/photos/pipeline";
+import { getQueue } from "@/lib/recall/photos/store";
+import { planInboxSync, readHad, rememberHad } from "./inboxSync";
 import { getData } from "@/lib/recall/store";
 import { folderPaths } from "@/lib/recall/classify";
 
@@ -31,6 +34,8 @@ export const CAMERA_CHECK_MS = 10 * 60_000;
 /** How often it looks while Jarvis is on screen — one small request, no AI. */
 export const CAMERA_PEEK_MS = 60_000;
 export const CAMERA_CHANGED = "jarvis-camera-changed";
+/** Ask the shell's watch to check (and pull) now — the Photos tab's "Bring them in" uses it. */
+export const CAMERA_CHECK_NOW = "jarvis-camera-check-now";
 const SETTINGS_KEY = "jarvis-camera-watch:v1";
 
 export interface InboxEntry {
@@ -105,26 +110,41 @@ export function useCameraWatch(): CameraWatch {
       const r = await fetch("/api/dashboard/inbox", { cache: "no-store" });
       if (!r.ok) throw new Error(`The photo inbox answered ${r.status}.`);
       const d = (await r.json()) as { linked?: boolean; entries?: InboxEntry[] };
-      const entries = d.entries ?? [];
+      if (!Array.isArray(d.entries)) throw new Error("The photo inbox didn't send its list.");
+      const all = d.entries;
       setLinked(Boolean(d.linked));
-      setInbox(entries);
 
-      if (entries.length && (pull ?? settingsRef.current.autoPull)) {
-        const n = entries.length;
+      // Same photos on every device: drop what was filed or removed elsewhere
+      // (or deleted from the phone), and copy in what this device hasn't had.
+      const plan = planInboxSync(all.map((e) => e.id), getQueue(), readHad());
+      if (plan.toRemove.length) {
+        await dropGone(plan.toRemove);
+        window.dispatchEvent(new Event(CAMERA_CHANGED));
+      }
+      const fresh = all.filter((e) => plan.toImport.includes(e.id));
+      setInbox(fresh);
+
+      if (fresh.length && (pull ?? settingsRef.current.autoPull)) {
+        const n = fresh.length;
         setBusy(`Bringing in ${n} new photo${n === 1 ? "" : "s"} from your iPhone…`);
         await drainInbox(
-          entries,
-          async (files) => {
-            await importPhotos({
+          fresh,
+          async (files, inboxIdOf) => {
+            const out = await importPhotos({
               files,
               ...recallCtx(),
+              inboxIdOf,
               onQueue: () => window.dispatchEvent(new Event(CAMERA_CHANGED)),
             });
+            rememberHad(out.inboxHandled);
+            // A copy of a photo already filed or waiting isn't waiting anywhere.
+            releaseInbox(out.inboxDropped);
             window.dispatchEvent(new Event(CAMERA_CHANGED));
           },
           (done, total) => {
             if (done < total) setBusy(`Reading new photos from your iPhone… ${done} of ${total}`);
           },
+          { share: true },
         );
         setInbox([]);
         window.dispatchEvent(new Event(CAMERA_CHANGED));
@@ -147,6 +167,18 @@ export function useCameraWatch(): CameraWatch {
   // switched back to the tab, gets a check the moment Jarvis is looked at.
   const lastRef = useRef<number | null>(null);
   lastRef.current = lastChecked;
+  useEffect(() => {
+    // Other screens ask through this, so photos always come in one way —
+    // shared with every device — instead of a second drain that deletes them.
+    const now = () => void check(true);
+    window.addEventListener(CAMERA_CHECK_NOW, now);
+    (window as unknown as { __jarvisCameraWatch?: boolean }).__jarvisCameraWatch = true;
+    return () => {
+      window.removeEventListener(CAMERA_CHECK_NOW, now);
+      (window as unknown as { __jarvisCameraWatch?: boolean }).__jarvisCameraWatch = false;
+    };
+  }, [check]);
+
   useEffect(() => {
     void check();
     const due = (ms: number) => !lastRef.current || Date.now() - lastRef.current >= ms - 1000;

@@ -63,6 +63,8 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
   const myLink = token ? `${pushUrl}?key=${encodeURIComponent(token)}` : pushUrl;
   // "Where did I get up to?" — read first, so each run starts after the last photo sent.
   const cursorLink = `${origin}/api/dashboard/inbox/cursor${token ? `?key=${encodeURIComponent(token)}` : ""}`;
+  // "These are still on my phone" — anything waiting that isn't was deleted there.
+  const presentLink = `${origin}/api/dashboard/inbox/present${token ? `?key=${encodeURIComponent(token)}` : ""}`;
   const guideUrl = `${origin}/apps/jarvis#iphone`;
   const local = /localhost|127\.0\.0\.1/.test(origin);
   const idx = STEPS.findIndex((s) => s.id === step);
@@ -386,6 +388,36 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                 or a few <b className="text-ink">Time of Day</b> ones (9am, 1pm, 6pm, 10pm) — each set to Run Immediately. Running it often is fine: Jarvis
                 skips photos it already has.
               </p>
+              <div className="rounded-lg border border-[var(--hud)] px-3 py-3">
+                <p className="mb-1 text-[13px] font-semibold text-ink">Delete on your phone → gone from Jarvis too</p>
+                <p className="mb-2 text-[11.5px]">
+                  A website can&apos;t see your camera roll, so the Shortcut tells Jarvis which recent photos are still there. Anything waiting in Camera
+                  Autopilot that you deleted on your phone is then removed — on the phone and the laptop. Add these at the very{" "}
+                  <b className="text-ink">bottom</b> of <Code>{SHORTCUT_NAME}</Code>, below End Repeat:
+                </p>
+                <Steps
+                  items={[
+                    <>
+                      <b className="text-ink">Find Photos</b> → <b className="text-ink">Add Filter</b> → <b className="text-ink">Date Created</b> →{" "}
+                      <b className="text-ink">is in the last</b> <b className="text-ink">30 days</b>. Turn <b className="text-ink">Limit</b> off.
+                    </>,
+                    <>
+                      <b className="text-ink">Get Details of Images</b> → tap Detail → <b className="text-ink">Name</b>.
+                    </>,
+                    <>
+                      <b className="text-ink">Combine Text</b> → tap the separator → <b className="text-ink">Comma</b>.
+                    </>,
+                    <>
+                      A <b className="text-ink">URL</b> action with this link
+                      {token ? <InlineCopy onClick={() => copy(presentLink, "Clean-up link")} /> : <> <Code>…/api/dashboard/inbox/present</Code></>}, then{" "}
+                      <b className="text-ink">Get Contents of URL</b>: Method <b className="text-ink">POST</b>, Request Body <b className="text-ink">Form</b>,{" "}
+                      <b className="text-ink">Add new field → Text</b>, key <Code>names</Code>
+                      <InlineCopy onClick={() => copy("names", "Field name")} />, value <b className="text-ink">Combined Text</b>.
+                    </>,
+                  ]}
+                />
+                <p className="mt-2 text-[11px] text-ink-faint">Only photos still waiting to be sorted are removed. Anything you already filed stays filed.</p>
+              </div>
             </div>
           )}
 

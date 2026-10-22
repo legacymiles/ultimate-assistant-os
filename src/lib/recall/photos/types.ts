@@ -198,6 +198,11 @@ export interface PendingPhoto {
   addedAt: string;
   /** When the photo was taken (the phone's date, else the file's), for newest-first order. */
   takenAt?: string;
+  /**
+   * The iPhone inbox photo this came from. The same photo waits on every
+   * device; filing it here tells the inbox, and the others drop it.
+   */
+  inboxId?: string;
   status: PendingStatus;
   analysis?: PhotoAnalysis;
   /** The resolved destination folder path, e.g. ["Photos","Me & My Son"]. */

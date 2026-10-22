@@ -69,6 +69,7 @@ import {
   Widget,
   WidgetPicker,
   WidgetSheet,
+  SheetPortal,
   useTopEscape,
   useWidgetPrefs,
   WIDGETS,
@@ -81,6 +82,8 @@ import type { UseQueue } from "@/lib/new-jarvis/useQueue";
 import { useIdeas } from "@/lib/new-jarvis/useIdeas";
 import type { AuditProposalLike } from "@/lib/new-jarvis/ideas";
 import type { JarvisStore } from "@/lib/jarvis/types";
+import { MicButton } from "../jarvis/MicButton";
+import { useDictation } from "@/lib/new-jarvis/useDictation";
 
 interface Props {
   go: (tab: string) => void;
@@ -314,6 +317,17 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
   const [rulesOpen, setRulesOpen] = useState(false);
   /** One conversation per photo, so closing and reopening keeps the thread. */
   const [threads, setThreads] = useState<Record<string, ChatMsg[]>>({});
+  /** Camera Autopilot's own chat, about the whole queue or the photos picked. */
+  const [groupThread, setGroupThread] = useState<ChatMsg[]>([]);
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const togglePick = (id: string) =>
+    setPicked((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
 
   useEffect(() => {
     if (!toast) return;
@@ -380,6 +394,19 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
       refresh();
     },
     [refresh],
+  );
+
+  /** A job about one photo, handed to the super chat with the picture. */
+  const sendTask = useCallback(
+    async (shot: Shot, task: string) => {
+      const file = await shotFile(shot);
+      setOpenId(null);
+      setOpenFiled(null);
+      setExpanded(null);
+      go("chat");
+      askJarvis({ text: task, files: file ? [file] : [], send: true, mode: "do" });
+    },
+    [go],
   );
 
   // ---- render -------------------------------------------------------------
@@ -618,7 +645,43 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
         <WidgetSheet
           title="Camera Autopilot"
           kicker={`${queue.length} to sort · iPhone checked ${since(camera.lastChecked)}`}
-          onClose={() => setExpanded(null)}
+          onClose={() => {
+            setExpanded(null);
+            setSelecting(false);
+            setPicked(new Set());
+          }}
+          footer={
+            queue.length > 0 ? (
+              <AutopilotBar
+                queue={queue}
+                picked={picked}
+                selecting={selecting}
+                onSelecting={(on) => {
+                  setSelecting(on);
+                  if (!on) setPicked(new Set());
+                }}
+                thread={groupThread}
+                setThread={setGroupThread}
+                rules={rules.rules.filter((r) => r.on).map((r) => r.text)}
+                ownerName={ownerName}
+                onFile={(ids) => {
+                  setPicked(new Set());
+                  void fileNow(ids);
+                }}
+                onRemove={async (ids) => {
+                  await rejectPhotos(ids);
+                  setPicked(new Set());
+                  setToast(`Removed ${ids.length === 1 ? "it" : `${ids.length} photos`} from the queue — still on your phone`);
+                  refresh();
+                }}
+                onTask={(id, task) => {
+                  const p = getQueue().find((x) => x.id === id);
+                  if (p) void sendTask(shotOf(p), task);
+                }}
+                refresh={refresh}
+              />
+            ) : undefined
+          }
           actions={
             <div className="flex items-center gap-1">
               <IconBtn label="Add photos" onClick={() => fileInput.current?.click()} disabled={Boolean(busy)}>
@@ -682,11 +745,20 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                     <button
                       type="button"
                       className="text-left"
-                      onClick={() => setOpenId(p.id)}
-                      aria-label={`Open ${titleOfPhoto(p)} to talk it through with Jarvis`}
+                      onClick={() => (selecting ? togglePick(p.id) : setOpenId(p.id))}
+                      aria-pressed={selecting ? picked.has(p.id) : undefined}
+                      aria-label={selecting ? `${picked.has(p.id) ? "Unselect" : "Select"} ${titleOfPhoto(p)}` : `Open ${titleOfPhoto(p)} to talk it through with Jarvis`}
                     >
                       <div className="deck-thumb">
                         {p.thumb ? <img src={p.thumb} alt="" /> : null}
+                        {selecting && (
+                          <span
+                            className={`absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full border-2 ${picked.has(p.id) ? "border-[var(--hud)] bg-[var(--hud)] text-black" : "border-white/80 bg-black/40"}`}
+                            aria-hidden
+                          >
+                            {picked.has(p.id) ? "✓" : ""}
+                          </span>
+                        )}
                         {p.status === "analyzing" && <div className="deck-analyzing">READING…</div>}
                         {flag && (
                           <span
@@ -759,15 +831,9 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                   }
                 : undefined
             }
-            onTask={async (task) => {
-              // The photo goes along: the agent reads the repo name, the link,
-              // whatever the job needs, off the picture itself.
-              const file = await shotFile(shot);
-              close();
-              setExpanded(null);
-              go("chat");
-              askJarvis({ text: task, files: file ? [file] : [], send: true, mode: "do" });
-            }}
+            // The photo goes along: the agent reads the repo name, the link,
+            // whatever the job needs, off the picture itself.
+            onTask={(task) => sendTask(shot, task)}
             refresh={refresh}
           />
         );
@@ -776,7 +842,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
       {rulesOpen && <RulesSheet data={rules} onClose={() => setRulesOpen(false)} />}
 
       {toast && (
-        <div role="status" className="deck-toast fixed bottom-14 left-1/2 z-[60] -translate-x-1/2 rounded-full px-4 py-2 text-[12px] text-ink">
+        <div role="status" className="deck-toast fixed bottom-14 left-1/2 z-[90] -translate-x-1/2 rounded-full px-4 py-2 text-[12px] text-ink">
           {toast}
         </div>
       )}
@@ -818,9 +884,10 @@ function Sheet({
   // widget sits over that widget's sheet, and Escape must close just the photo.
   useTopEscape(onClose);
   return (
+    <SheetPortal>
     <div
-      className="deck fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-4"
-      style={{ background: "rgb(0 0 0 / 0.7)" }}
+      className="deck fixed inset-0 z-[75] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-4"
+      style={{ position: "fixed", inset: 0, background: "rgb(0 0 0 / 0.7)", minHeight: 0 }}
       role="dialog"
       aria-modal="true"
       aria-label={label}
@@ -832,6 +899,7 @@ function Sheet({
         {children}
       </div>
     </div>
+    </SheetPortal>
   );
 }
 
@@ -1011,10 +1079,11 @@ function PhotoSheet({
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close"
-              className="absolute right-2 top-2 grid h-11 w-11 place-items-center rounded-full bg-black/60 text-ink hover:text-ink sm:hidden"
+              aria-label="Back"
+              className="absolute left-2 top-2 inline-flex h-11 items-center gap-1 rounded-full bg-black/65 pl-3 pr-4 text-[14px] text-ink sm:hidden"
             >
-              <Icon.Close width={16} height={16} />
+              <Icon.ArrowLeft width={16} height={16} aria-hidden />
+              Back
             </button>
           </div>
 
@@ -1134,6 +1203,213 @@ function PhotoSheet({
         </button>
       </form>
     </Sheet>
+  );
+}
+
+/**
+ * Camera Autopilot's chat bar, pinned at the bottom of the expanded widget so
+ * it is always in reach on a phone: tell Jarvis what to do with every waiting
+ * photo, or with the ones picked in Select. Jarvis answers with Yes/No cards,
+ * exactly as in a single photo's chat — nothing is filed or removed until Yes.
+ */
+function AutopilotBar({
+  queue,
+  picked,
+  selecting,
+  onSelecting,
+  thread,
+  setThread,
+  rules,
+  ownerName,
+  onFile,
+  onRemove,
+  onTask,
+  refresh,
+}: {
+  queue: PendingPhoto[];
+  picked: Set<string>;
+  selecting: boolean;
+  onSelecting: (on: boolean) => void;
+  thread: ChatMsg[];
+  setThread: (fn: (t: ChatMsg[]) => ChatMsg[]) => void;
+  rules: string[];
+  ownerName?: string;
+  onFile: (ids: string[]) => void;
+  onRemove: (ids: string[]) => Promise<void>;
+  onTask: (id: string, task: string) => void;
+  refresh: () => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const [showThread, setShowThread] = useState(true);
+  const input = useRef<HTMLTextAreaElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const dictation = useDictation(() => input.current?.value ?? "", setDraft);
+
+  const targets = picked.size ? queue.filter((p) => picked.has(p.id)) : queue;
+  const scope = picked.size ? `${picked.size} selected` : `all ${queue.length} photo${queue.length === 1 ? "" : "s"}`;
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+  }, [thread.length, thinking]);
+
+  const setActionState = (msgId: string, idx: number, state: ActionState, note?: string) =>
+    setThread((m) => m.map((x) => (x.id !== msgId ? x : { ...x, actions: x.actions?.map((a, i) => (i === idx ? { ...a, state, note } : a)) })));
+
+  const runAction = async (msgId: string, idx: number, a: AutopilotAction) => {
+    setActionState(msgId, idx, "running");
+    try {
+      if (a.type === "file") {
+        onFile(a.ids);
+        setActionState(msgId, idx, "done", `Filing ${a.ids.length}…`);
+      } else if (a.type === "reject") {
+        await onRemove(a.ids);
+        setActionState(msgId, idx, "done", "Removed from the queue");
+      } else if (a.type === "rule") {
+        addRule(a.text, "told");
+        setActionState(msgId, idx, "done", "Saved — I'll use it on every new photo");
+      } else if (a.type === "reroute") {
+        const ctx = recallCtx();
+        await reanalyze(a.id, ctx.folderPaths, ctx.existingTags, { userPrompt: a.instruction, knownPlaces: await gatherKnownPlaces() });
+        refresh();
+        const p = getQueue().find((x) => x.id === a.id);
+        setActionState(msgId, idx, "done", p ? `New guess: ${destinationLabel(p)}` : "Re-read");
+      } else if (a.type === "task") {
+        setActionState(msgId, idx, "done", "Sent to chat — Jarvis is on it");
+        onTask(a.id, a.task);
+      }
+    } catch (err) {
+      setActionState(msgId, idx, "failed", err instanceof Error ? err.message : "That didn't work");
+    }
+  };
+
+  const send = async () => {
+    dictation.stop();
+    const text = draft.trim();
+    if (!text || thinking) return;
+    setDraft("");
+    setShowThread(true);
+    const mine: ChatMsg = { id: mid(), role: "you", text: picked.size ? `(${picked.size} selected) ${text}` : text };
+    const history = [...thread, mine];
+    setThread(() => history);
+    setThinking(true);
+    try {
+      const r = await fetch("/api/new-jarvis/autopilot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: history.slice(-12).map((m) => ({ role: m.role === "you" ? "user" : "assistant", content: m.text })),
+          photos: targets.slice(0, 60).map((p) => ({
+            id: p.id,
+            title: titleOfPhoto(p),
+            caption: p.analysis?.caption ?? "",
+            where: p.status === "ready" ? destinationLabel(p) : "not decided",
+            tags: p.analysis?.tags ?? [],
+            flagged: p.status === "ready" ? flagOf(p) : undefined,
+          })),
+          selectedId: targets.length === 1 ? targets[0].id : null,
+          rules,
+          ownerName,
+        }),
+      });
+      const d = (await r.json().catch(() => ({}))) as AutopilotReply & { error?: string };
+      if (!r.ok) throw new Error(d.error || "Jarvis couldn't answer just now — try again.");
+      setThread((t) => [...t, { id: mid(), role: "jarvis", text: d.reply, actions: (d.actions ?? []).map((action) => ({ action, state: "pending" as const })) }]);
+    } catch (err) {
+      setThread((t) => [...t, { id: mid(), role: "jarvis", text: err instanceof Error ? err.message : "I couldn't reach the model — try again." }]);
+    } finally {
+      setThinking(false);
+    }
+  };
+
+  const titleOf = (id: string) => titleOfPhoto(queue.find((p) => p.id === id));
+
+  return (
+    <div className="shrink-0 border-t border-line bg-[rgb(8_10_14/0.92)]">
+      {showThread && (thread.length > 0 || thinking) && (
+        <div className="deck-msgs max-h-[38dvh] overflow-y-auto overscroll-contain px-3 pt-2.5 sm:max-h-[30dvh]">
+          <div className="flex flex-col gap-2">
+            {thread.map((m) => (
+              <div key={m.id} className={`deck-bubble ${m.role === "jarvis" ? "deck-bubble--jarvis" : "deck-bubble--you"}`}>
+                {m.text}
+                {m.actions?.map((a, i) => (
+                  <div key={i} className="deck-action mt-2" data-state={a.state}>
+                    <p className="text-[12px] text-ink">{describeAction(a.action, titleOf)}</p>
+                    {a.note && <p className="mt-0.5 text-[11px] text-ink-muted">{a.note}</p>}
+                    {a.state === "pending" && (
+                      <div className="mt-1.5 flex gap-1.5">
+                        <button type="button" className="deck-btn deck-btn--go min-h-[40px] min-w-[64px] text-[12px]" onClick={() => void runAction(m.id, i, a.action)}>
+                          Yes
+                        </button>
+                        <button type="button" className="deck-btn min-h-[40px] min-w-[64px] text-[12px]" onClick={() => setActionState(m.id, i, "declined")}>
+                          No
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+            {thinking && <p className="font-mono text-[10px] text-[var(--hud)]">THINKING…</p>}
+            <div ref={endRef} />
+          </div>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-1.5 px-3 pt-2 text-[11.5px]">
+        <button
+          type="button"
+          onClick={() => onSelecting(!selecting)}
+          aria-pressed={selecting}
+          className={`min-h-[34px] rounded-full border px-3 ${selecting ? "border-[var(--hud)] text-[var(--hud)]" : "border-line text-ink-muted hover:text-ink"}`}
+        >
+          {selecting ? "Done selecting" : "Select photos"}
+        </button>
+        {picked.size > 0 && (
+          <button type="button" onClick={() => onFile([...picked].filter((id) => queue.find((p) => p.id === id)?.status === "ready"))} className="min-h-[34px] rounded-full border border-line px-3 text-ink-muted hover:text-ink">
+            File {picked.size}
+          </button>
+        )}
+        <span className="min-w-0 flex-1 truncate text-ink-faint">Talking about {scope}</span>
+        {thread.length > 0 && (
+          <button type="button" onClick={() => setShowThread((s) => !s)} className="min-h-[34px] px-2 text-ink-muted hover:text-ink">
+            {showThread ? "Hide chat" : `Show chat (${thread.length})`}
+          </button>
+        )}
+      </div>
+      {dictation.error && <p className="px-3 pt-1 text-[11px] text-amber-300">{dictation.error}</p>}
+      <form
+        className="flex items-end gap-1.5 px-3 pt-2 pb-[max(0.625rem,env(safe-area-inset-bottom))]"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void send();
+        }}
+      >
+        <label htmlFor="autopilot-ask" className="sr-only">
+          Tell Jarvis what to do with these photos
+        </label>
+        {/* 16px on phones: anything smaller makes iOS zoom the page on tap. */}
+        <textarea
+          id="autopilot-ask"
+          ref={input}
+          rows={1}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && !isTouch()) {
+              e.preventDefault();
+              void send();
+            }
+          }}
+          enterKeyHint="send"
+          placeholder={picked.size ? "What should I do with these?" : "Tell Jarvis what to do with your photos…"}
+          className="max-h-32 min-h-[44px] min-w-0 flex-1 resize-none rounded-lg border border-line bg-panel-2 px-3 py-2.5 text-[16px] leading-snug text-ink placeholder:text-ink-faint sm:text-[13px]"
+        />
+        <MicButton dictation={dictation} />
+        <button type="submit" className="deck-btn deck-btn--go h-[44px] w-[44px] justify-center" aria-label="Send" disabled={!draft.trim() || thinking}>
+          <Icon.Send width={15} height={15} aria-hidden />
+        </button>
+      </form>
+    </div>
   );
 }
 

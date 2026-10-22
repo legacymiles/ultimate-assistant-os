@@ -14,22 +14,23 @@ import { parseShortcutDate } from "./shortcutDate";
 // schedule is the Shortcuts app, which is why this exists: an endpoint a
 // Shortcut can POST to, and a short-lived buffer the browser later drains.
 //
-// This is a TRANSIT BUFFER, never a library. Photos live here only between the
-// phone sending them and a browser claiming them. Two consequences:
+// It is also what keeps the phone and the laptop showing THE SAME photos.
+// Each device's review queue is its own (the pixels live in that browser's
+// IndexedDB), so when the first device to check drained a photo and the server
+// deleted it, the other device never saw it — the phone and the laptop ended
+// up with different photos. Now (Oct 2026) a photo stays here while it waits:
 //
-//   * claimed blobs are deleted immediately, and
-//   * unclaimed ones are swept after SWEEP_DAYS.
-//
-// It is deliberately separate from `recall-photo-queue:v1`, which is NOT synced
-// because each pending photo points at an IndexedDB blob that exists on one
-// device only. Syncing that queue would show a laptop entries whose pixels are
-// not there. The inbox does not change that — it is the thing a device drains
-// FROM, not the queue itself.
+//   * every device copies each waiting photo in once (claim with `share`),
+//   * filing or removing it on ANY device deletes it here (done), and every
+//     other device drops it from its own queue on its next check,
+//   * deleting it from the phone's camera roll does the same: the Shortcut
+//     reports the photos still on the phone (prune), and the rest go,
+//   * anything never sorted is swept after SWEEP_DAYS.
 // ---------------------------------------------------------------------------
 
 const BUCKET = "dashboard-inbox";
 const DOC = "dashboard-inbox";
-const SWEEP_DAYS = 7;
+const SWEEP_DAYS = 60;
 
 /** Identifiers remembered per user, so a nightly re-send is not re-imported. */
 const SEEN_LIMIT = 2000;
@@ -240,7 +241,7 @@ export async function pending(uid: string): Promise<InboxEntry[]> {
 export async function claim(
   uid: string,
   ids: string[],
-  opts: { keep?: boolean } = {},
+  opts: { keep?: boolean; share?: boolean } = {},
 ): Promise<{ id: string; name: string; contentType: string; takenAt?: string; dataUrl: string }[]> {
   const doc = await load();
   const wanted = new Set(ids);
@@ -261,8 +262,12 @@ export async function claim(
       takenAt: e.takenAt,
       dataUrl: `data:${e.contentType};base64,${buf.toString("base64")}`,
     });
-    if (!opts.keep) await deleteBlob(BUCKET, `${uid}/${e.id}`, dataDir());
+    if (!opts.keep && !opts.share) await deleteBlob(BUCKET, `${uid}/${e.id}`, dataDir());
   }
+
+  // Shared: every device takes its own copy, and the photo stays until it is
+  // filed or removed somewhere (done) or deleted from the phone (prune).
+  if (opts.share) return out;
 
   if (opts.keep) {
     if (out.length) {
@@ -289,6 +294,41 @@ export async function done(uid: string, ids: string[]): Promise<number> {
   doc.entries = doc.entries.filter((e) => !(e.uid === uid && gone.has(e.id)));
   await save(doc);
   return mine.length;
+}
+
+/** "IMG_1234.jpeg" → "img_1234": how a photo is matched to the phone's own list. */
+export function nameStem(name: string): string {
+  return name.trim().toLowerCase().replace(/\.[a-z0-9]{2,5}$/, "");
+}
+
+/** Names that say nothing about which photo it is ("image.jpeg"); never pruned on name alone. */
+const GENERIC = /^(image|photo|file|picture|img|untitled)(\s*\d{0,2})?$/i;
+
+/**
+ * The phone reports the photos still in its camera roll from the last `days`
+ * days (by name). Waiting photos from that window that are no longer there
+ * were deleted on the phone, so they go here too — and every device drops
+ * them on its next check. Returns how many went.
+ */
+export async function prune(uid: string, names: string[], days = 30): Promise<number> {
+  const present = new Set(names.map(nameStem).filter(Boolean));
+  if (!present.size) return 0;
+  const doc = await load();
+  const since = Date.now() - days * 86_400_000;
+  const gone = doc.entries.filter((e) => {
+    if (e.uid !== uid) return false;
+    const stem = nameStem(e.name);
+    if (!stem || GENERIC.test(stem)) return false;
+    const taken = parseShortcutDate(e.takenAt);
+    const when = Number.isFinite(taken) ? taken : Date.parse(e.receivedAt);
+    return when >= since && !present.has(stem);
+  });
+  if (!gone.length) return 0;
+  for (const e of gone) await deleteBlob(BUCKET, `${uid}/${e.id}`, dataDir());
+  const ids = new Set(gone.map((e) => e.id));
+  doc.entries = doc.entries.filter((e) => !ids.has(e.id));
+  await save(doc);
+  return gone.length;
 }
 
 /** Drop anything older than SWEEP_DAYS. Lazy — runs when the inbox is read. */

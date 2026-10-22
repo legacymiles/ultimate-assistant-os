@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { claim } from "@/lib/dashboard/inbox";
 
-// POST /api/dashboard/inbox/claim { ids: string[], keep?: boolean }
+// POST /api/dashboard/inbox/claim { ids: string[], keep?: boolean, share?: boolean }
+//
+// `share` (what Jarvis uses now): hand over a copy and keep the photo, so the
+// phone and the laptop both get it. It goes once it's filed or removed on any
+// device (/done) or deleted from the phone (/present).
 //
 // Hands the bytes to the browser. Without `keep` they are deleted in the same
 // call. With `keep` (what the dashboard uses) they stay until the browser has
@@ -18,8 +22,8 @@ export const maxDuration = 120;
 
 export async function POST(req: Request) {
   const uid = (await cookies()).get("hub_uid")?.value ?? "local";
-  const body = (await req.json().catch(() => ({}))) as { ids?: string[]; keep?: boolean };
+  const body = (await req.json().catch(() => ({}))) as { ids?: string[]; keep?: boolean; share?: boolean };
   const ids = Array.isArray(body.ids) ? body.ids.filter((s) => typeof s === "string") : [];
   if (!ids.length) return NextResponse.json({ photos: [] });
-  return NextResponse.json({ photos: await claim(uid, ids, { keep: body.keep === true }) });
+  return NextResponse.json({ photos: await claim(uid, ids, { keep: body.keep === true, share: body.share === true }) });
 }
