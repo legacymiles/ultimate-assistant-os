@@ -1,5 +1,23 @@
 [
  {
+  "id": "fd64b63:cookbook-genie",
+  "date": "2026-10-22",
+  "slug": "cookbook-genie",
+  "title": "One video can give several recipes, bulk links/videos, keep or skip each",
+  "detail": "A video showing separate dishes now comes back as one recipe per dish (components of one dish stay one recipe). Pasting a list of links or dropping in several videos reads each on its own, two at a time. Every recipe lands in \"Recipes found\" where it is kept (with Undo), skipped (Bring back), or ope",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "fd64b63:cook-connect",
+  "date": "2026-10-22",
+  "slug": "cook-connect",
+  "title": "One video can give several recipes, bulk links/videos, keep or skip each",
+  "detail": "A video showing separate dishes now comes back as one recipe per dish (components of one dish stay one recipe). Pasting a list of links or dropping in several videos reads each on its own, two at a time. Every recipe lands in \"Recipes found\" where it is kept (with Undo), skipped (Bring back), or ope",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "77aa8e1:jarvis",
   "date": "2026-10-22",
   "slug": "jarvis",
