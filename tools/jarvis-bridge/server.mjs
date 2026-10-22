@@ -49,6 +49,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { bearer, originAllowed, refuseReason, tokenMatches } from "./guard.mjs";
+import { selfHeal, setup } from "./selfheal.mjs";
+import { spawn } from "node:child_process";
 import * as browser from "./browser.mjs";
 import * as computer from "./computer.mjs";
 import * as vault from "./vault.mjs";
@@ -207,7 +209,10 @@ function cors(res, origin) {
   if (origin && originAllowed(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Jarvis-Pair");
+    // Chrome asks before a website may talk to this PC ("Private Network
+    // Access"); without this the preflight fails and it looks like we're off.
+    res.setHeader("Access-Control-Allow-Private-Network", "true");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Max-Age", "600");
   }
@@ -264,7 +269,24 @@ const server = http.createServer(async (req, res) => {
       name: "jarvis-bridge",
       capabilities: await capabilities(),
       browserRunning: browser.browserRunning(),
+      // The page pairs itself through /pair, so no token ever has to be copied.
+      pairable: true,
+      setup,
+      // Where it lives, so the page can show the exact folder if it ever needs re-installing.
+      folder: HERE,
     });
+  }
+
+  // Automatic pairing. Hands the token ONLY to New Jarvis's own site (the
+  // allow-listed origins in guard.mjs), and only on a preflighted request (the
+  // custom header forces one), so no other website can read it. A program
+  // already on this PC could read out/token.txt anyway, so this gives nothing
+  // away that wasn't already on disk — it just stops the owner copying it.
+  if (path === "/pair" && req.method === "GET") {
+    if (!originAllowed(origin) || req.headers["x-jarvis-pair"] !== "1") {
+      return send(res, 403, { error: "Only New Jarvis can pair with this PC." });
+    }
+    return send(res, 200, { ok: true, token: TOKEN });
   }
 
   if (origin && !originAllowed(origin)) return send(res, 403, { error: "Origin not allowed." });
@@ -298,8 +320,16 @@ for (const sig of ["SIGINT", "SIGTERM"]) {
   });
 }
 
+// A self-restart starts the new copy a moment before the old one has let go
+// of the port, so try for a couple of seconds before deciding another copy is
+// already running.
+let bindTries = 0;
 server.on("error", (e) => {
   if (e.code === "EADDRINUSE") {
+    if (++bindTries <= 6) {
+      setTimeout(() => server.listen(PORT, "127.0.0.1"), 500);
+      return;
+    }
     console.error(`Port ${PORT} is already taken — the bridge is probably already running.`);
     process.exit(1);
   }
@@ -307,6 +337,15 @@ server.on("error", (e) => {
 });
 
 server.listen(PORT, "127.0.0.1", async () => {
+  // Keep itself working: Startup shortcut, the Start button's jarvis-agent://,
+  // and its own packages (see selfheal.mjs). Runs in the background.
+  void selfHeal(HERE, () => {
+    // Start a fresh copy (it waits for the port) and leave.
+    console.log("  restarting with the new packages…");
+    server.close();
+    spawn("wscript.exe", [join(HERE, "start-hidden.vbs")], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    setTimeout(() => process.exit(0), 300);
+  });
   const caps = await capabilities();
   console.log(`jarvis-bridge ${VERSION} listening on http://127.0.0.1:${PORT}`);
   console.log(`  shell ✓   files ✓   system ✓   browser ${caps.browser ? "✓" : "✗ (npx playwright install chromium)"}`);

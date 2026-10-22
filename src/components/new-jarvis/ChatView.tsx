@@ -59,6 +59,7 @@ export function ChatView({
   notice,
   above,
   paired,
+  pc,
   onNew,
   onSelect,
   onRename,
@@ -78,6 +79,8 @@ export function ChatView({
   /** Rendered just above the composer — the reflex strip. */
   above?: ReactNode;
   paired: boolean;
+  /** "Connect this PC" — the hero card on an empty chat, a slim strip over the composer otherwise. */
+  pc?: (variant: "hero" | "strip") => ReactNode;
   onNew: () => void;
   onSelect: (id: string) => void;
   onRename: (id: string, title: string) => void;
@@ -256,12 +259,7 @@ export function ChatView({
                 </li>
               ))}
             </ul>
-            {!paired && (
-              <p className="njc-hero__note">
-                Your PC isn&apos;t connected — that&apos;s fine. Jarvis searches the web, builds apps and hands code
-                changes to Claude Code from here. Only things on the PC itself (its files, apps and signed-in browser) wait for it.
-              </p>
-            )}
+            {!paired && pc?.("hero")}
           </div>
         ) : (
           <>
@@ -285,7 +283,10 @@ export function ChatView({
                 ))}
               </div>
             </div>
-            <div className="njc-dock">{bar}</div>
+            <div className="njc-dock">
+              {!paired && pc?.("strip")}
+              {bar}
+            </div>
           </>
         )}
       </section>

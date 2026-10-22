@@ -16,7 +16,16 @@
 // with a transcript pasted in front of it.
 // ---------------------------------------------------------------------------
 
-import { query } from "@anthropic-ai/claude-agent-sdk";
+// Loaded lazily: a static import made the WHOLE agent crash on start when the
+// packages were missing (e.g. after the folder moved), so nothing listened at
+// all. Now the agent starts, installs what is missing itself (selfheal.mjs),
+// and only this harness waits for the SDK.
+let query = null;
+try {
+  ({ query } = await import("@anthropic-ai/claude-agent-sdk"));
+} catch {
+  /* not installed yet — listHarnesses() reports it, selfheal.mjs installs it */
+}
 import { autoAllow, describeTool, denialMessage } from "./harness-gate.mjs";
 
 export const CLAUDE_LABEL = "Claude Code";
@@ -62,6 +71,7 @@ export function startClaude({ cwd, emit, gate, strict = false, laneWrites = fals
     }
   }
 
+  if (!query) throw Object.assign(new Error("The Claude Agent SDK is still being installed on this PC. Try again in a minute."), { status: 503 });
   const run = query({
     prompt: input(),
     options: {

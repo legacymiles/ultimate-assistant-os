@@ -6,7 +6,15 @@ tools\jarvis-bridge\install.cmd
 
 **Run that once.** It installs the dependencies, downloads the browser New Jarvis
 drives, starts the agent now and at every Windows sign-in with no console window,
-and pairs it with the hub. After it, `/apps/new-jarvis` can open real pages in a
+and opens Jarvis, which **pairs itself** (`GET /pair` hands the token only to the
+hub's own origin on a preflighted request — no token to copy).
+
+**It keeps itself working** (`selfheal.mjs`, every start): re-points the Startup
+shortcut at wherever this folder now lives, registers `jarvis-agent://` so
+Jarvis's **Connect** button can start it with one tap, and installs its own
+packages and Chromium if they are missing, then restarts. This is what broke in
+Oct 2026: the folder moved out of OneDrive, the shortcut kept pointing at the
+old place, and a static SDK import crashed the agent without its packages. After it, `/apps/new-jarvis` can open real pages in a
 browser that keeps your logins, run commands, read and write files, list and focus
 windows, and see your screen.
 

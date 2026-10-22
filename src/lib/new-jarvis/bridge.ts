@@ -38,12 +38,14 @@ export interface BridgeHealth {
   browserRunning?: boolean;
   /** Set when it is not usable, in the owner's language. */
   problem?: string;
+  /** The agent installing its own packages (first run, or after a move). */
+  settingUp?: boolean;
 }
 
 export const BRIDGE_OFFLINE: BridgeHealth = {
   up: false,
   paired: false,
-  problem: "The local agent is not running on this PC.",
+  problem: "Jarvis's PC helper isn't running on this computer.",
 };
 
 // --- the token ------------------------------------------------------------
@@ -95,7 +97,26 @@ export function claimPairedToken(): boolean {
 
 // --- talking to it --------------------------------------------------------
 
-/** Is it there? Never throws: "not there" is the normal answer. */
+/**
+ * Pair with the agent on this PC by itself — no token to copy, no pair.cmd.
+ *
+ * The agent hands its token only to this site's origin, on a preflighted
+ * request (the custom header forces one), so other websites can't read it.
+ */
+export async function autoPair(signal?: AbortSignal): Promise<boolean> {
+  try {
+    const res = await fetch(`${BRIDGE_URL}/pair`, { signal, cache: "no-store", headers: { "X-Jarvis-Pair": "1" } });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { token?: string };
+    if (!data.token || data.token.length < 20) return false;
+    saveToken(data.token);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Is it there? Never throws: "not there" is the normal answer. Pairs itself when it can. */
 export async function probe(signal?: AbortSignal): Promise<BridgeHealth> {
   try {
     const res = await fetch(`${BRIDGE_URL}/health`, { signal, cache: "no-store" });
@@ -104,20 +125,52 @@ export async function probe(signal?: AbortSignal): Promise<BridgeHealth> {
       version?: string;
       capabilities?: BridgeCapabilities;
       browserRunning?: boolean;
+      pairable?: boolean;
+      setup?: { state?: string; why?: string };
+      folder?: string;
     };
-    const paired = readToken().length > 0;
+    if (data.folder) rememberFolder(data.folder);
+    let paired = readToken().length > 0;
+    if (!paired && data.pairable) paired = await autoPair(signal);
+    const settingUp = data.setup?.state === "installing";
     return {
       up: true,
       paired,
       version: data.version,
       capabilities: data.capabilities,
       browserRunning: data.browserRunning,
-      problem: paired ? undefined : "Running, but New Jarvis is not paired with it yet.",
+      settingUp,
+      problem: !paired
+        ? "Running, but New Jarvis is not paired with it yet."
+        : data.setup?.state === "failed" || settingUp
+          ? data.setup?.why
+          : undefined,
     };
   } catch {
     return BRIDGE_OFFLINE;
   }
 }
+
+const FOLDER_KEY = "new-jarvis:bridge-folder";
+
+function rememberFolder(folder: string): void {
+  try {
+    window.localStorage.setItem(FOLDER_KEY, folder);
+  } catch { /* only used for a hint */ }
+}
+
+/** The agent's folder on this PC, as last reported — shown if it needs installing again. */
+export function knownFolder(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(FOLDER_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/** The jarvis-agent:// link the agent registers on Windows, so a tap can start it. */
+export const START_LINK = "jarvis-agent://start";
 
 export class BridgeError extends Error {
   constructor(message: string, readonly status: number) {
@@ -136,9 +189,10 @@ export class BridgeError extends Error {
 export async function call<T = Record<string, unknown>>(
   route: string,
   args: Record<string, unknown> = {},
-  opts: { signal?: AbortSignal; method?: "GET" | "POST" } = {},
+  opts: { signal?: AbortSignal; method?: "GET" | "POST"; retried?: boolean } = {},
 ): Promise<T> {
-  const token = readToken();
+  let token = readToken();
+  if (!token && (await autoPair(opts.signal))) token = readToken();
   if (!token) throw new BridgeError("Not paired with the local agent yet.", 401);
 
   let res: Response;
@@ -152,6 +206,11 @@ export async function call<T = Record<string, unknown>>(
     });
   } catch {
     throw new BridgeError("The local agent is not running on this PC.", 0);
+  }
+
+  // A stale token (the agent was reinstalled or moved) re-pairs itself once.
+  if (res.status === 401 && !opts.retried && (await autoPair(opts.signal)) && readToken() !== token) {
+    return call<T>(route, args, { ...opts, retried: true });
   }
 
   const data = (await res.json().catch(() => ({}))) as { error?: string } & Record<string, unknown>;

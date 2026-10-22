@@ -581,3 +581,45 @@
   .njc-chip,
   .njc-try { transition: none !important; }
 }
+
+/* --- Connect this PC (PcConnect.tsx) ------------------------------------
+   A solid panel, not text on the galaxy, so it always reads. */
+.pcc {
+  width: 100%;
+  max-width: 46rem;
+  margin: 0 auto 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: rgb(8 12 22 / 0.92);
+  backdrop-filter: blur(8px);
+  color: var(--color-ink);
+  text-align: left;
+}
+.pcc--hero { margin-top: 22px; }
+.pcc__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.pcc__dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: #ffb547; box-shadow: 0 0 10px #ffb54799; }
+.pcc__dot.is-busy { background: #47e8ff; animation: pcc-pulse 1.2s ease-in-out infinite; }
+.pcc__text { flex: 1 1 220px; min-width: 0; margin: 0; font-size: 13px; line-height: 1.45; color: var(--color-ink-muted); }
+.pcc__text b { color: var(--color-ink); font-weight: 600; }
+.pcc__go,
+.pcc__later,
+.pcc__copy {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pcc__go { border: 0; background: #47e8ff; color: #04121a; }
+.pcc__go:disabled { opacity: 0.6; cursor: progress; }
+.pcc__later,
+.pcc__copy { border: 1px solid var(--color-line); background: transparent; color: var(--color-ink-muted); }
+.pcc__later:hover,
+.pcc__copy:hover { color: var(--color-ink); }
+.pcc__first { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--color-line); }
+.pcc__first p { flex: 1 1 260px; margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--color-ink-muted); }
+.pcc__first b { color: var(--color-ink); }
+@keyframes pcc-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .pcc__dot.is-busy { animation: none; } }

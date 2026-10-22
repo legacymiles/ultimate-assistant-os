@@ -33,6 +33,7 @@ import { SiteErrorsPage } from "./SiteErrors";
 import { openConnections } from "./Connections";
 import { GoalCheck } from "./GoalCheck";
 import { AppBuilderSheet, type BuilderView } from "./AppBuilderSheet";
+import { PcConnect } from "./PcConnect";
 import { TOPIC_LABEL, topicOf } from "@/lib/new-jarvis/felix";
 import { useQueue } from "@/lib/new-jarvis/useQueue";
 import type { ReactorMode } from "@/lib/new-jarvis/reactor";
@@ -1280,7 +1281,8 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 threads={threads}
                 active={activeThread}
                 blocks={chatBlocks}
-                paired={bridge.health.paired && bridge.health.up}
+                paired={bridge.health.paired && bridge.health.up && !bridge.health.settingUp}
+                pc={(variant) => <PcConnect health={bridge.health} ready={bridge.ready} refresh={bridge.refresh} variant={variant} />}
                 notice={mediaError || undefined}
                 above={
                   goalFor !== null ? (
