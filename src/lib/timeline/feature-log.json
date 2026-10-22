@@ -1,5 +1,14 @@
 [
  {
+  "id": "7a2b01d:jarvis",
+  "date": "2026-10-22",
+  "slug": "jarvis",
+  "title": "Connects to your PC by itself, with a one-tap Connect button",
+  "detail": "Your PC was on but Jarvis couldn't reach it: the PC helper hadn't run since the project folder moved out of OneDrive (its start-with-Windows shortcut still pointed at the old folder) and it crashed on start without its packages. Now: - the helper fixes itself every start: re-points the Windows start",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "dd24393:jarvis",
   "date": "2026-10-22",
   "slug": "jarvis",
