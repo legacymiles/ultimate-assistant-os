@@ -428,6 +428,7 @@ function Hud({ count, unwatched, platforms }: { count: number; unwatched: number
         ))}
       </div>
       <div className="ytv-hud-hint">DRAG TO SPIN · CLICK A SCREEN TO PLAY</div>
+      <div className="ytv-hud-hint ytv-hud-hint--touch">SWIPE TO SPIN · TAP A SCREEN TO PLAY</div>
     </div>
   );
 }
@@ -587,7 +588,9 @@ function Library({
       const sc = scroller.current;
       const n = grid.current?.querySelector<HTMLElement>(`[data-flip="${openId}"]`);
       if (!sc || !n) return;
-      const top = n.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 84;
+      // clear the sticky tab bar, which is two rows tall on a phone
+      const bar = sc.querySelector<HTMLElement>(".ytv-tabs")?.offsetHeight ?? 76;
+      const top = n.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - bar - 8;
       sc.scrollTo({ top, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
     }, 60);
     return () => clearTimeout(t);

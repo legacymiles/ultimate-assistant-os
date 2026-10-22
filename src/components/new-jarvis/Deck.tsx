@@ -501,7 +501,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
           <div className="mb-2 flex items-center justify-end px-1">
             <WidgetPicker hidden={widgets.hidden} toggle={widgets.toggle} />
           </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {!widgets.hidden.has("camera") && (
               <Widget
                 title="Camera Autopilot"

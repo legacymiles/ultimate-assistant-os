@@ -12,7 +12,8 @@
 // the phone and the laptop agree.
 // ---------------------------------------------------------------------------
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Icon } from "../icons";
 import "./deck.css";
 import { UpdatesPanel } from "../jarvis/UpdatesPanel";
@@ -108,10 +109,20 @@ export function WidgetSheet({
   children: React.ReactNode;
 }) {
   useTopEscape(onClose);
-  return (
+  // Two things kept this from being a real full-screen sheet, which on a phone
+  // came out narrow, under the chat box and cut off at the bottom:
+  //  • deck.css's `.deck { position: relative }` (unlayered) beats Tailwind's
+  //    `fixed` (a layered utility), so position is set inline below;
+  //  • the Dashboard's scroll pane has a backdrop blur, and a blur makes fixed
+  //    stick to that pane instead of the screen — so the sheet is drawn on
+  //    Jarvis's root (keeping its theme), where fixed means the whole screen.
+  const anchor = useRef<HTMLSpanElement>(null);
+  const [host, setHost] = useState<Element | null>(null);
+  useLayoutEffect(() => setHost(anchor.current?.closest(".nj") ?? document.body), []);
+  const sheet = (
     <div
       className="deck fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4"
-      style={{ background: "rgb(0 0 0 / 0.7)", minHeight: 0 }}
+      style={{ position: "fixed", background: "rgb(0 0 0 / 0.7)", minHeight: 0 }}
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -131,6 +142,12 @@ export function WidgetSheet({
         <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
       </div>
     </div>
+  );
+  return (
+    <>
+      <span ref={anchor} hidden />
+      {host && createPortal(sheet, host)}
+    </>
   );
 }
 

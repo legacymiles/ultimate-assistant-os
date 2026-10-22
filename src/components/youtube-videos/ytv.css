@@ -274,6 +274,9 @@
   bottom: 6px;
   color: var(--ytv-ink-faint);
 }
+.ytv-hud-hint--touch {
+  display: none;
+}
 @media (max-width: 859px) {
   .ytv-hud-stats .ytv-hud-plat,
   .ytv-hud-hint,
@@ -588,6 +591,89 @@
   }
 }
 
+/* ---- phones ----------------------------------------------------------------
+   On a laptop the ring fills a full screen and the copy floats over it. On a
+   phone that left the top half empty, hid the ring behind the copy (so it
+   couldn't be swiped) and pushed the list a screen and a half down. Here the
+   ring gets its own band you can swipe, the copy sits under it on its own
+   glass, and the list starts inside the first screen. */
+@media (max-width: 859px) {
+  .ytv {
+    --ytv-stage: clamp(220px, 60vw, 330px);
+  }
+  .ytv-herowrap {
+    height: auto;
+  }
+  .ytv-hero {
+    position: relative;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+  .ytv-reel {
+    position: relative;
+    inset: auto;
+    height: var(--ytv-stage);
+    overflow: hidden;
+  }
+  .ytv-hud {
+    inset: 10px 10px auto;
+    height: calc(var(--ytv-stage) - 20px);
+  }
+  .ytv .ytv-hud-hint--touch {
+    display: block;
+    left: 50%;
+    right: auto;
+    bottom: 8px;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--ytv-line);
+    background: rgb(5 8 14 / 0.82); /* words never sit straight on the spinning ring */
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    color: var(--ytv-ink-soft);
+  }
+  .ytv-copy {
+    position: relative;
+    inset: auto;
+    margin-top: -16px;
+    padding: 0 12px;
+    transform: none;
+    opacity: 1;
+  }
+  .ytv-scrim {
+    max-width: none;
+    padding: 16px 14px 14px;
+  }
+  .ytv-h1,
+  .ytv--embedded .ytv-h1 {
+    font-size: clamp(28px, 8.6vw, 42px);
+  }
+  .ytv-sub {
+    margin: 10px 0 14px;
+    font-size: 13.5px;
+  }
+  /* the "what it understood" line only shows once there's a link in the box */
+  .ytv-cmd-wrap[data-ready="false"] .ytv-cmd-preview {
+    display: none;
+  }
+  .ytv-body {
+    margin-top: 0;
+    padding-top: 16px;
+    background: var(--ytv-canvas);
+  }
+}
+@media (max-width: 479px) {
+  .ytv-hud-top {
+    display: none;
+  }
+  .ytv-hud-stats {
+    right: 34px;
+  }
+}
+
 .ytv-tabs {
   position: sticky;
   top: 0;
@@ -655,9 +741,24 @@
 .ytv-filters {
   display: flex;
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   padding: 2px;
+}
+.ytv-filters::-webkit-scrollbar {
+  display: none;
+}
+@media (max-width: 859px) {
+  .ytv-filters {
+    flex: 1 1 100%;
+    padding-right: 28px;
+    -webkit-mask: linear-gradient(90deg, #000 calc(100% - 36px), transparent);
+    mask: linear-gradient(90deg, #000 calc(100% - 36px), transparent);
+  }
 }
 .ytv-chip {
   --c: var(--ytv-hud);
@@ -693,7 +794,7 @@
 
 .ytv-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr));
   grid-auto-flow: row dense;
   gap: 16px;
   margin: 0;
@@ -702,7 +803,7 @@
 }
 @media (max-width: 560px) {
   .ytv-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
 }
@@ -710,6 +811,7 @@
 /* a holo tile */
 .ytv-tile {
   --c: var(--ytv-hud);
+  min-width: 0;
   --rx: 0deg;
   --ry: 0deg;
   --mx: 50%;
@@ -1201,7 +1303,7 @@
 }
 .ytv-signals {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
   gap: 12px;
   margin: 0;
   padding: 0;
@@ -1448,6 +1550,7 @@
 
 .ytv-mini {
   --ytv-ink: #eef3fb;
+  min-width: 0;
   --ytv-display: var(--font-nj-display, "Oxanium"), ui-sans-serif, system-ui, sans-serif;
   display: flex;
   flex-direction: column;
@@ -1469,6 +1572,11 @@
   color: var(--color-ink, #f2f3f7);
   font-size: 13px;
 }
+@media (pointer: coarse) {
+  .ytv-mini-paste input {
+    font-size: 16px; /* under 16px, iPhone zooms the whole page when you tap the box */
+  }
+}
 .ytv-mini-paste input:focus {
   outline: none;
   border-color: #ff4b3e;
@@ -1489,7 +1597,9 @@
 }
 .ytv-mini-strip {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* minmax(0, …): four thumbnails share the card's width; they never set it
+     (a 1fr floor let them push the whole Dashboard off a phone's edge) */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
   margin: 0;
   padding: 0;
@@ -1497,6 +1607,7 @@
 }
 .ytv-mini-strip li {
   position: relative;
+  min-width: 0;
   aspect-ratio: 16 / 9;
   border-radius: 8px;
   overflow: hidden;
@@ -1511,4 +1622,31 @@
 }
 .ytv-mini-strip .ytv-thumb-blank span {
   font-size: 10px;
+}
+
+/* ---- phones: tiles and the open player -------------------------------------- */
+
+@media (max-width: 560px) {
+  .ytv-tile .ytv-thumb-blank span {
+    font-size: 14px;
+    letter-spacing: 0.05em;
+  }
+  .ytv-tile-body {
+    padding: 9px 10px 0;
+  }
+  .ytv-tile-title {
+    font-size: 13px;
+  }
+  .ytv-tile-actions {
+    padding: 2px 4px 6px;
+  }
+  .ytv-detail {
+    padding: 14px 14px 16px;
+  }
+}
+@media (max-width: 859px) {
+  /* a Short or Reel stays short enough that its controls and the Collapse button fit on screen */
+  .ytv-tile[data-tall="true"] .ytv-stage {
+    width: min(100%, calc(58svh * 9 / 16));
+  }
 }

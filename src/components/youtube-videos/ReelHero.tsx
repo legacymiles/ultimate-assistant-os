@@ -566,6 +566,13 @@ export const ReelHero = forwardRef<ReelHeroHandle, Props>(function ReelHero({ gl
       }
       settle(1400);
     };
+    // A vertical swipe hands the touch to the page scroll (touch-action: pan-y);
+    // the browser cancels the pointer, so stop dragging instead of spinning on.
+    const onCancel = () => {
+      dragging = false;
+      spinV = THREE.MathUtils.clamp(spinV, -2, 2);
+      settle(600);
+    };
     const onLeave = () => {
       hovered = null;
       ptr.x = 0;
@@ -576,6 +583,7 @@ export const ReelHero = forwardRef<ReelHeroHandle, Props>(function ReelHero({ gl
     canvas.addEventListener("pointerdown", onDown);
     window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
     canvas.addEventListener("pointerleave", onLeave);
 
     // ---- load the Blender asset -------------------------------------------
@@ -704,6 +712,7 @@ export const ReelHero = forwardRef<ReelHeroHandle, Props>(function ReelHero({ gl
       canvas.removeEventListener("pointerdown", onDown);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
       canvas.removeEventListener("pointerleave", onLeave);
       document.removeEventListener("visibilitychange", onVis);
       scroller?.removeEventListener("scroll", onScroll);
