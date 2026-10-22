@@ -1,5 +1,14 @@
 [
  {
+  "id": "dd24393:jarvis",
+  "date": "2026-10-22",
+  "slug": "jarvis",
+  "title": "Works with your PC off instead of saying \"this needs your PC\"",
+  "detail": "Jarvis no longer stops a request with \"This needs your PC, and the local agent is not reachable.\" With the PC off it now does the job from the website, like Claude Code: - searches the web and reads pages (new web_search / web_read tools) - new apps still open in App Builder - changes to an existing",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "11ab23a:jarvis",
   "date": "2026-10-22",
   "slug": "jarvis",
