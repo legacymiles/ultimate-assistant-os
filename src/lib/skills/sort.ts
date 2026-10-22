@@ -9,12 +9,14 @@
 // ---------------------------------------------------------------------------
 
 import type { Skill } from "./types";
+import { byMostUsed, type UsageData } from "./usage";
 
-export type SkillSort = "recommended" | "newest" | "oldest" | "updated" | "az";
+export type SkillSort = "recommended" | "most" | "newest" | "oldest" | "updated" | "az";
 export type AddedWithin = "any" | "7d" | "30d" | "year";
 
 export const SORTS: { id: SkillSort; label: string }[] = [
   { id: "recommended", label: "Recommended" },
+  { id: "most", label: "Most used" },
   { id: "newest", label: "Newest" },
   { id: "oldest", label: "Oldest" },
   { id: "updated", label: "Recently updated" },
@@ -57,7 +59,9 @@ function byDate(a: number | null, b: number | null, dir: 1 | -1): number {
   return dir * (b - a);
 }
 
-export function sortSkills(list: Skill[], sort: SkillSort = "recommended"): Skill[] {
+/** `usage` is only read by "Most used" (call counts; null = none yet, so A–Z). */
+export function sortSkills(list: Skill[], sort: SkillSort = "recommended", usage: UsageData | null = null): Skill[] {
+  if (sort === "most") return byMostUsed(list, usage);
   return [...list].sort((a, b) => {
     switch (sort) {
       case "newest":

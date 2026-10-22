@@ -75,6 +75,9 @@ const TOKEN_AUTH_PATHS = new Set([
   // The skill store for scripts/skill-sync.mjs on the PC and VPS — same token
   // and same pinned account as the memory MCP above, verified in the route.
   "/api/jarvis/skills",
+  // Skill call counts from the same script's Claude Code hook — same token and
+  // pinned account, verified in the route.
+  "/api/jarvis/skills/usage",
   // A picture attached to an In Queue request, fetched by the Claude Code
   // session working it — same token and pinned account as the memory MCP.
   "/api/new-jarvis/requests/image",

@@ -5,6 +5,7 @@ import { Icon } from "../icons";
 import type { Skill } from "@/lib/skills/types";
 import { skillMeta } from "@/lib/skills/categories";
 import { addedLabel } from "@/lib/skills/sort";
+import { callsLabel, lastUsedLabel, sourcesLabel, type SkillUse } from "@/lib/skills/usage";
 
 interface Props {
   skill: Skill;
@@ -13,9 +14,16 @@ interface Props {
   onDelete: (skill: Skill) => void;
   favorite?: boolean;
   onToggleFavorite?: (skill: Skill) => void;
+  /**
+   * How often it was called. undefined = counts aren't available here (local
+   * mode), so nothing is shown; null = counted, never called.
+   */
+  use?: SkillUse | null;
+  /** 1-based place among the most-called skills, for the top three. */
+  rank?: number;
 }
 
-export function SkillRow({ skill, onOpen, onEdit, onDelete, favorite = false, onToggleFavorite }: Props) {
+export function SkillRow({ skill, onOpen, onEdit, onDelete, favorite = false, onToggleFavorite, use, rank }: Props) {
   const meta = skillMeta(skill);
   return (
     <div
@@ -61,6 +69,7 @@ export function SkillRow({ skill, onOpen, onEdit, onDelete, favorite = false, on
               {addedLabel(skill.createdAt)}
             </time>
           )}
+          {use !== undefined && <UsageBadge use={use} rank={rank} pushRight={!addedLabel(skill.createdAt)} />}
         </div>
       </div>
 
@@ -167,5 +176,32 @@ export function FavoriteStar({
       />
       {label && <span>{label}</span>}
     </button>
+  );
+}
+
+/** "24 calls · used 2 days ago", or "Never used". The top three are lit. */
+export function UsageBadge({ use, rank, pushRight = false }: { use: SkillUse | null; rank?: number; pushRight?: boolean }) {
+  if (!use) {
+    return (
+      <span className={"rounded-md border border-dashed border-line px-1.5 py-0.5 text-[10px] text-ink-faint " + (pushRight ? "ml-auto" : "")}>
+        Never used
+      </span>
+    );
+  }
+  const top = rank !== undefined && rank <= 3;
+  const where = sourcesLabel(use);
+  return (
+    <span
+      title={`${callsLabel(use.count)}${where ? ` — ${where}` : ""}. Last ${lastUsedLabel(use.last)}${use.last ? ` (${new Date(use.last).toLocaleString()})` : ""}.`}
+      className={
+        "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium tabular-nums " +
+        (top ? "bg-amber-400/15 text-amber-300" : "bg-core/10 text-core") +
+        (pushRight ? " ml-auto" : "")
+      }
+    >
+      {top && <span aria-hidden>#{rank}</span>}
+      <span className="font-mono">{callsLabel(use.count)}</span>
+      <span className="opacity-70">· {lastUsedLabel(use.last)}</span>
+    </span>
   );
 }

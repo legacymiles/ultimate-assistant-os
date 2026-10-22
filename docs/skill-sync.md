@@ -72,6 +72,22 @@ It's safe to re-run. It replaces only its own hooks and keeps everything else in
 each up to 256 KB, and up to 1.5 MB per skill. Images, fonts and rendered media stay on the machine
 that has them.
 
+## Skill usage (how often each skill is called)
+
+Jarvis › Skills has a **Usage** filter (Any · Top 10 · Used · Never used), a **Most used** sort, and a
+call count on every skill. Calls are counted in three places:
+
+- **Claude Code on the PC/VPS**: a `PostToolUse` hook on the Skill tool and a `UserPromptSubmit`
+  hook for a typed `/<skill>` both run `skill-sync.mjs usage` (async, silent). Only the skill's name,
+  the time and the tool-use id are sent, never the prompt.
+- **The connector**: every `get_skill`.
+- **Jarvis Studio**: every chat turn that runs a workflow (`studio:<id>`).
+
+Nothing to set up: `install` writes the usage hooks, and on a machine set up earlier the next `pull`
+(the SessionStart hook) adds them by itself and counts that machine's past calls once from its
+session transcripts (`usage-backfill`, in the background, once per machine — the server refuses a
+second backfill from the same host; `--force` redoes it).
+
 ## By hand
 
 ```bash
@@ -91,4 +107,8 @@ npm run skills:push -- --git     # also mirror into the repo's skills/ and commi
   `meta`.
 - `src/app/api/jarvis/memory/mcp`: the connector, with `save_skill`, `list_skills` and `get_skill`.
 - `src/app/api/jarvis/skills`: the same store over plain HTTP, for the script.
-- `scripts/skill-sync.mjs`: install, pull and push for the PC and VPS.
+- `scripts/skill-sync.mjs`: install, pull and push for the PC and VPS, plus the `usage` hook and
+  `usage-backfill`.
+- `src/lib/skills/usage.ts` (pure, tested) + `src/lib/skills/server/usageStore.ts`: the call counts,
+  one `app_state` row (`jarvis:skill-usage`). Written by `/api/jarvis/skills/usage` (token), read by
+  `/api/skills/usage` (session) through `useSkillUsage.ts`.

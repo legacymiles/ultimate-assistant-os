@@ -18,7 +18,14 @@
 //     --quiet     one line per run (for hooks)
 //     --git       ALSO mirror into the hub repo's skills/ and commit + push (optional)
 //
-// The hooks `install` writes:  SessionStart -> pull,  Stop -> push.
+//   node scripts/skill-sync.mjs usage                 (hook) count one skill call — reads the hook JSON on stdin
+//   node scripts/skill-sync.mjs usage-backfill        count this machine's past skill calls once
+//     --force     count them again even if this machine already did
+//
+// The hooks `install` writes:  SessionStart -> pull,  Stop -> push,
+//   PostToolUse(Skill) + UserPromptSubmit -> usage (Skills Library › Usage).
+// `pull` adds the usage hooks on a machine set up before they existed, and
+// starts the one-time backfill in the background, so nobody re-runs setup.
 //
 // Safety:
 //  - It never deletes a skill anywhere. Updating a skill makes its folder match
@@ -31,9 +38,10 @@
 //  - A hook can never block a session: on any error it reports and exits 0.
 // ---------------------------------------------------------------------------
 
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdir, readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
-import { readFileSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync } from "node:fs";
+import { createInterface } from "node:readline";
 import { homedir, hostname } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -56,6 +64,7 @@ const mode = argv.find((a, i) => !a.startsWith("-") && !VALUE_FLAGS.has(argv[i -
 const CHECK = args.has("--check");
 const QUIET = args.has("--quiet");
 const GIT = args.has("--git");
+const FORCE = args.has("--force");
 
 const log = (...m) => console.log(...m);
 const vlog = (...m) => {
@@ -334,6 +343,7 @@ async function doPull() {
   if (pulled) log(`pull: ${pulled} skill(s) from Jarvis are now in ${HOME_SKILLS}.`);
   else vlog("pull: this machine already has every skill in Jarvis.");
   if (kept.length) log(`pull: kept your newer local edit of ${kept.join(", ")} — it will be pushed.`);
+  await ensureUsageTracking();
 }
 
 function hostLabel() {
@@ -429,6 +439,211 @@ async function adoptRepoSkills() {
   if (adopted) log(`Added ${adopted} skill(s) from the hub repo to Jarvis.`);
 }
 
+// ---- skill usage (Skills Library › Usage) ------------------------------------------
+//
+// Every time Claude Code runs a skill on this machine, one tiny POST tells
+// Jarvis "<skill> was called". Only the skill's name, a time and an id leave
+// the machine — never the prompt or anything in the session.
+
+const isUsageHook = (h) => typeof h?.command === "string" && h.command.includes("skill-sync.mjs") && /\susage(\s|$)/.test(h.command);
+
+/** Put (or replace) the two usage hooks in a settings object. */
+function addUsageHooks(settings, command) {
+  settings.hooks ??= {};
+  const strip = (arr) => (Array.isArray(arr) ? arr : []).filter((g) => !(g?.hooks ?? []).some(isUsageHook));
+  // async: a skill call never waits on the network.
+  const hook = { type: "command", command, async: true, timeout: 20 };
+  settings.hooks.PostToolUse = [...strip(settings.hooks.PostToolUse), { matcher: "Skill", hooks: [hook] }];
+  settings.hooks.UserPromptSubmit = [...strip(settings.hooks.UserPromptSubmit), { hooks: [hook] }];
+}
+
+/**
+ * Run from every `pull` (the SessionStart hook): on a machine set up before
+ * usage counting existed, add its hooks next to the pull/push ones, and count
+ * this machine's past calls once in the background. Never blocks the session.
+ */
+async function ensureUsageTracking() {
+  if (CHECK || !TOKEN) return;
+  try {
+    const settingsFile = path.join(CLAUDE_HOME, "settings.json");
+    const settings = readJson(settingsFile);
+    const groups = Object.values(settings.hooks ?? {}).flat();
+    const pullHook = groups.flatMap((g) => g?.hooks ?? []).find((h) => typeof h?.command === "string" && h.command.includes("skill-sync.mjs") && /\spull(\s|$)/.test(h.command));
+    const hasUsage = groups.some((g) => (g?.hooks ?? []).some(isUsageHook));
+    if (pullHook && !hasUsage) {
+      addUsageHooks(settings, pullHook.command.replace(/\spull(\s|$)/, " usage$1"));
+      await writeFile(settingsFile, JSON.stringify(settings, null, 2) + "\n");
+      vlog("usage: skill calls on this machine are now counted in Jarvis › Skills.");
+    }
+  } catch (e) {
+    vlog(`usage: could not add the hooks (${e instanceof Error ? e.message : e})`);
+  }
+  // `install` runs the backfill itself, in the foreground, right after this.
+  if (mode !== "install" && mode !== "setup" && !readJson(STATE_FILE).usageBackfilled) {
+    try {
+      const child = spawn(process.execPath, [SELF, "usage-backfill", "--quiet"], {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
+        // Same token and hub this run used, however it found them.
+        env: { ...process.env, JARVIS_MCP_TOKEN: TOKEN, JARVIS_HUB_URL: HUB },
+      });
+      child.unref();
+    } catch {
+      /* next session tries again */
+    }
+  }
+}
+
+const BUILTIN_COMMANDS = new Set([
+  "add-dir", "agents", "bug", "clear", "compact", "config", "context", "cost", "doctor", "exit", "export", "help",
+  "hooks", "ide", "init", "install-github-app", "login", "logout", "mcp", "memory", "model", "permissions",
+  "plugin", "plugins", "pr-comments", "privacy-settings", "release-notes", "resume", "review", "rewind", "status",
+  "statusline", "terminal-setup", "todos", "upgrade", "usage", "vim", "skills", "output-style", "security-review",
+]);
+
+let pluginSkillNames = null;
+/** Names of the installed plugin skills (`<plugin>/<ver>/skills/<name>/SKILL.md`). */
+async function pluginSkills() {
+  if (pluginSkillNames) return pluginSkillNames;
+  pluginSkillNames = new Set();
+  try {
+    const rel = await readdir(path.join(CLAUDE_HOME, "plugins", "cache"), { recursive: true });
+    for (const p of rel) {
+      const segs = String(p).split(/[\\/]/);
+      const n = segs.length;
+      if (segs[n - 1] === "SKILL.md" && segs[n - 3] === "skills") pluginSkillNames.add(segs[n - 2].toLowerCase());
+    }
+  } catch {
+    /* no plugins */
+  }
+  return pluginSkillNames;
+}
+
+/** Whether a typed /command is a skill (not /clear, /model, a plain command…). */
+async function isSkillCommand(name, cwd) {
+  const n = String(name || "").toLowerCase();
+  if (!n || BUILTIN_COMMANDS.has(n)) return false;
+  if (n.includes(":")) return true; // plugin:skill
+  if (existsSync(path.join(HOME_SKILLS, n, "SKILL.md"))) return true;
+  if (cwd && existsSync(path.join(cwd, ".claude", "skills", n, "SKILL.md"))) return true;
+  return (await pluginSkills()).has(n);
+}
+
+/** The skill a Skill tool call ran. */
+const skillOfTool = (input) => String(input?.skill ?? input?.command ?? input?.name ?? "").trim().replace(/^\//, "");
+
+async function readStdin() {
+  if (process.stdin.isTTY) return "";
+  let out = "";
+  process.stdin.setEncoding("utf8");
+  for await (const chunk of process.stdin) out += chunk;
+  return out;
+}
+
+/** The hook: one skill call -> Jarvis. Prints nothing (a prompt hook's output would reach Claude). */
+async function doUsage() {
+  if (!TOKEN) return;
+  let input = {};
+  try {
+    input = JSON.parse((await readStdin()) || "{}");
+  } catch {
+    return;
+  }
+  let skill = "";
+  let id = "";
+  if (input.tool_name === "Skill") {
+    skill = skillOfTool(input.tool_input);
+    id = String(input.tool_use_id ?? "");
+  } else if (typeof input.prompt === "string") {
+    const m = /^\s*\/([\w.:-]+)/.exec(input.prompt);
+    if (m && (await isSkillCommand(m[1], input.cwd))) skill = m[1];
+  }
+  if (!skill) return;
+  await api("/api/jarvis/skills/usage", {
+    method: "POST",
+    body: JSON.stringify({ events: [{ skill, source: "claude-code", at: new Date().toISOString(), ...(id ? { id } : {}) }] }),
+  });
+}
+
+/** Every *.jsonl session transcript under ~/.claude/projects. */
+async function transcriptFiles() {
+  const root = path.join(CLAUDE_HOME, "projects");
+  try {
+    const rel = await readdir(root, { recursive: true });
+    return rel.filter((p) => String(p).endsWith(".jsonl")).map((p) => path.join(root, String(p)));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Count this machine's past skill calls from its session transcripts, once.
+ * Only the totals per skill name are sent. Resumed sessions repeat earlier
+ * messages, so every call is counted once by its id.
+ */
+async function doBackfill() {
+  if (!TOKEN) return vlog("usage-backfill: no token on this machine.");
+  if (readJson(STATE_FILE).usageBackfilled && !FORCE) return vlog("usage-backfill: this machine was already counted.");
+  const seen = new Set();
+  const counts = {};
+  const add = (name, at) => {
+    const k = String(name || "").trim().replace(/^\//, "").toLowerCase();
+    if (!/^[a-z0-9][a-z0-9._:-]{0,119}$/.test(k)) return;
+    const t = typeof at === "string" && Number.isFinite(Date.parse(at)) ? new Date(at).toISOString() : "";
+    const c = (counts[k] ??= { count: 0, first: t, last: t });
+    c.count++;
+    if (t && (!c.first || t < c.first)) c.first = t;
+    if (t && t > c.last) c.last = t;
+  };
+  for (const file of await transcriptFiles()) {
+    const lines = createInterface({ input: createReadStream(file, { encoding: "utf8" }), crlfDelay: Infinity });
+    for await (const line of lines) {
+      const tool = line.includes('"Skill"');
+      const cmd = line.includes("<command-name>");
+      if (!tool && !cmd) continue;
+      let row;
+      try {
+        row = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      const content = row?.message?.content;
+      if (tool && row.type === "assistant" && Array.isArray(content)) {
+        for (const part of content) {
+          if (part?.type !== "tool_use" || part.name !== "Skill") continue;
+          const key = `t:${part.id ?? ""}`;
+          if (part.id && seen.has(key)) continue;
+          seen.add(key);
+          add(skillOfTool(part.input), row.timestamp);
+        }
+      }
+      if (cmd && row.type === "user") {
+        const text = typeof content === "string" ? content : Array.isArray(content) ? content.map((p) => p?.text ?? "").join("\n") : "";
+        const m = /<command-name>\/?([\w.:-]+)<\/command-name>/.exec(text);
+        if (!m) continue;
+        const key = `u:${row.uuid ?? ""}`;
+        if (row.uuid && seen.has(key)) continue;
+        seen.add(key);
+        if (await isSkillCommand(m[1], row.cwd)) add(m[1], row.timestamp);
+      }
+    }
+  }
+  const total = Object.values(counts).reduce((n, c) => n + c.count, 0);
+  if (CHECK) return log(`[check] would count ${total} past skill call(s) across ${Object.keys(counts).length} skill(s).`);
+  const r = await api("/api/jarvis/skills/usage", {
+    method: "POST",
+    body: JSON.stringify({ backfill: { host: hostLabel(), counts }, force: FORCE }),
+  });
+  // Re-read before writing: a pull may have saved the state file meanwhile.
+  const fresh = readJson(STATE_FILE);
+  fresh.usageBackfilled = new Date().toISOString();
+  await mkdir(CLAUDE_HOME, { recursive: true });
+  await writeFile(STATE_FILE, JSON.stringify(fresh, null, 2) + "\n");
+  if (r?.already) vlog("usage-backfill: Jarvis already had this machine's past calls.");
+  else log(`usage-backfill: counted ${total} past skill call(s) from this machine in Jarvis › Skills.`);
+}
+
 // ---- install ---------------------------------------------------------------------
 
 /**
@@ -454,6 +669,7 @@ async function doInstall() {
     (Array.isArray(arr) ? arr : []).filter((g) => !(g?.hooks ?? []).some((h) => typeof h?.command === "string" && h.command.includes("skill-sync.mjs")));
   settings.hooks.SessionStart = [...keepOthers(settings.hooks.SessionStart), { hooks: [{ type: "command", command: cmd("pull") }] }];
   settings.hooks.Stop = [...keepOthers(settings.hooks.Stop), { hooks: [{ type: "command", command: cmd("push") }] }];
+  addUsageHooks(settings, cmd("usage"));
 
   if (CHECK) {
     log(`[check] would write ${CONFIG_FILE} (hub ${hub}, ${token ? "token set" : "no token"}) and merge hooks into ${settingsFile}`);
@@ -464,7 +680,7 @@ async function doInstall() {
   await writeFile(settingsFile, JSON.stringify(settings, null, 2) + "\n");
   if (FOUND) log(`Using the token from your jarvis-memory connector (${FOUND.file}) — nothing to paste.`);
   log(`Saved this machine's settings to ${CONFIG_FILE}`);
-  log(`Merged hooks into ${settingsFile} (SessionStart -> pull, Stop -> push)`);
+  log(`Merged hooks into ${settingsFile} (SessionStart -> pull, Stop -> push, skill calls -> usage)`);
 
   if (!token) {
     log("No token found on this machine (no jarvis-memory connector in Claude Code's config).");
@@ -482,6 +698,7 @@ async function doInstall() {
   await doPush();
   await adoptRepoSkills();
   await doPull();
+  await doBackfill();
   log("Done. This machine now syncs skills with Jarvis on its own — including skills you create from your phone.");
 }
 
@@ -491,14 +708,17 @@ try {
   if (mode === "install" || mode === "setup") await doInstall();
   else if (mode === "pull") await doPull();
   else if (mode === "push") await doPush();
+  else if (mode === "usage") await doUsage();
+  else if (mode === "usage-backfill") await doBackfill();
   else if (mode === "sync") {
     await doPush();
     await doPull();
   } else {
-    log(`Unknown mode "${mode}". Use: install | pull | push | sync  [--check] [--quiet] [--git]`);
+    log(`Unknown mode "${mode}". Use: install | pull | push | sync | usage | usage-backfill  [--check] [--quiet] [--git] [--force]`);
     process.exit(2);
   }
 } catch (e) {
-  console.error(`skill-sync: ${e instanceof Error ? e.message : e}`);
+  // The usage hook stays silent: its output would land in Claude's context.
+  if (mode !== "usage") console.error(`skill-sync: ${e instanceof Error ? e.message : e}`);
   process.exit(0);
 }

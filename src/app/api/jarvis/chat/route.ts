@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { runAgent } from "@/lib/jarvis/server/agent";
 import { connector } from "@/lib/jarvis/server/connectors";
 import { resolveMention, studioContext, type Mention } from "@/lib/studio/workflows";
@@ -8,6 +8,8 @@ import { cleanStudioChain } from "@/lib/studio/models";
 import { loadSkill, loadSkills } from "@/lib/studio/server/skills";
 import { cleanTimeline, timelineBrief } from "@/lib/seedance/audio/timeline";
 import { scoreRules } from "@/lib/seedance/score";
+import { memoryContext } from "@/lib/jarvis/server/memory";
+import { noteSkillUse } from "@/lib/skills/server/usageStore";
 
 // Reads the master folder from disk and the memory database per request.
 export const runtime = "nodejs";
@@ -137,6 +139,17 @@ export async function POST(req: Request) {
 
   // Studio: the picked workflows' full skills, read from the catalog on disk.
   const studio = mentioned(body.workflows);
+  // Each Studio workflow that runs is a skill call — counted for Skills Library › Usage.
+  if (studio.length) {
+    const ids = [...new Set(studio.map((m) => m.workflow.id))];
+    // Resolved while the request is live (cookies), awaited after the answer.
+    const who = memoryContext().catch(() => null);
+    after(async () => {
+      const ctx = await who;
+      if (!ctx) return;
+      if (ctx.available) await noteSkillUse(ctx, ids.map((id) => ({ skill: `studio:${id}`, source: "jarvis" as const })));
+    });
+  }
   const studioBlock = studio.length
     ? studioContext(studio, await loadSkills(studio.map((m) => m.workflow.id)))
     : "";

@@ -25,6 +25,7 @@ import {
 import { MEMORY_SOURCES, type MemorySource } from "@/lib/jarvis/types";
 import { getSkill, listSkills, saveSkill, SkillError } from "@/lib/jarvis/server/skills";
 import { noteConnector } from "@/lib/jarvis/server/syncStatus";
+import { noteSkillUse } from "@/lib/skills/server/usageStore";
 import {
   addRequests,
   attachVideo,
@@ -138,6 +139,8 @@ async function runTool(
       const name = str(args.name);
       const sk = await getSkill(ctx, name);
       if (!sk) return `No skill named "${name}". Call list_skills to see what exists.`;
+      // Loading a skill to follow it is a call — counted for Skills Library › Usage.
+      after(() => noteSkillUse(ctx, [{ skill: sk.name, source: "connector" }]));
       const refs = Object.entries(sk.files);
       return (
         `# ${sk.name}${sk.complete ? "" : " (summary only — the full skill has not been saved to Jarvis yet)"}\n\n${sk.body}` +

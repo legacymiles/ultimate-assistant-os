@@ -21,19 +21,35 @@ import { useFavorites } from "@/lib/skills/favorites";
 import { SkillDetailModal } from "./SkillDetailModal";
 import { SkillEditorModal } from "./SkillEditorModal";
 import { DesignGuide } from "./DesignGuide";
+import {
+  USAGE_FILTERS,
+  byMostUsed,
+  callsLabel,
+  filterByUsage,
+  isUsageFilter,
+  usageFor,
+  type UsageFilter,
+} from "@/lib/skills/usage";
+import { useSkillUsage } from "@/lib/skills/useSkillUsage";
 
 type EditorState = { mode: "add" } | { mode: "edit"; skill: Skill } | null;
 type SyncMsg = { kind: "ok" | "info" | "error"; text: string } | null;
 
 const SORT_KEY = "skills-library:sort:v1";
 
-/** The last sort and "Added" window this browser used, if it saved one. */
-function readView(): { sort: SkillSort; added: AddedWithin } {
+type View = { sort: SkillSort; added: AddedWithin; usage: UsageFilter };
+
+/** The last sort, "Added" window and usage filter this browser used, if it saved them. */
+function readView(): View {
   try {
-    const raw = JSON.parse(localStorage.getItem(SORT_KEY) ?? "{}") as { sort?: unknown; added?: unknown };
-    return { sort: isSort(raw.sort) ? raw.sort : "recommended", added: isAdded(raw.added) ? raw.added : "any" };
+    const raw = JSON.parse(localStorage.getItem(SORT_KEY) ?? "{}") as { sort?: unknown; added?: unknown; usage?: unknown };
+    return {
+      sort: isSort(raw.sort) ? raw.sort : "recommended",
+      added: isAdded(raw.added) ? raw.added : "any",
+      usage: isUsageFilter(raw.usage) ? raw.usage : "any",
+    };
   } catch {
-    return { sort: "recommended", added: "any" };
+    return { sort: "recommended", added: "any", usage: "any" };
   }
 }
 
@@ -50,16 +66,21 @@ export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } =
   const [origin, setOrigin] = useState<string>("all");
   const [sort, setSort] = useState<SkillSort>("recommended");
   const [added, setAdded] = useState<AddedWithin>("any");
+  // How often each skill was called (Claude Code, the connector, Jarvis Studio).
+  const [usageFilter, setUsageFilter] = useState<UsageFilter>("any");
+  const { usage, loaded: usageLoaded, reason: usageReason } = useSkillUsage();
   // Restore after mount so the server render and the first client render agree.
   useEffect(() => {
     const v = readView();
     setSort(v.sort);
     setAdded(v.added);
+    setUsageFilter(v.usage);
   }, []);
-  const pickView = (next: { sort?: SkillSort; added?: AddedWithin }) => {
-    const v = { sort: next.sort ?? sort, added: next.added ?? added };
+  const pickView = (next: Partial<View>) => {
+    const v: View = { sort: next.sort ?? sort, added: next.added ?? added, usage: next.usage ?? usageFilter };
     setSort(v.sort);
     setAdded(v.added);
+    setUsageFilter(v.usage);
     try {
       localStorage.setItem(SORT_KEY, JSON.stringify(v));
     } catch {
@@ -153,8 +174,26 @@ export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } =
       if (!addedWithin(s, added)) return false;
       return matchesQuery(s, q);
     });
-    return sortSkills(list, sort);
-  }, [skills, query, category, origin, view, fav, sort, added]);
+    // "Top 10" is a ranking, so it keeps its own most-used order.
+    if (usageFilter === "top") return filterByUsage(list, "top", usage);
+    return sortSkills(filterByUsage(list, usageFilter, usage), sort, usage);
+  }, [skills, query, category, origin, view, fav, sort, added, usageFilter, usage]);
+
+  // Place among ALL skills by calls, so the #1–#3 badges mean the same thing
+  // whatever filter is on.
+  const ranks = useMemo(() => {
+    const m = new Map<string, number>();
+    if (!usage) return m;
+    byMostUsed(skills, usage)
+      .filter((s) => usageFor(s, usage))
+      .forEach((s, i) => m.set(s.id, i + 1));
+    return m;
+  }, [skills, usage]);
+  const usageCounts = useMemo(() => {
+    const used = ranks.size;
+    const calls = skills.reduce((n, s) => n + (usageFor(s, usage)?.count ?? 0), 0);
+    return { used, unused: skills.length - used, calls, top: Math.min(10, used) };
+  }, [skills, usage, ranks]);
 
   const handleSave = async (draft: SkillDraft) => {
     if (editor?.mode === "edit" && isBuiltIn(editor.skill)) {
@@ -369,6 +408,32 @@ export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } =
           ))}
         </div>
 
+        {/* How often each skill gets called — most used, never used */}
+        <div className="mb-1 flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:thin] sm:flex-wrap sm:overflow-visible">
+          <span className="mr-1 shrink-0 text-[11px] font-medium uppercase tracking-wider text-ink-faint">Usage</span>
+          {USAGE_FILTERS.map((o) => {
+            const n = o.id === "used" ? usageCounts.used : o.id === "unused" ? usageCounts.unused : o.id === "top" ? usageCounts.top : null;
+            return (
+              <FilterChip
+                key={o.id}
+                label={n === null || !usage ? o.label : `${o.label} ${n}`}
+                active={usageFilter === o.id}
+                dim={Boolean(usage) && n === 0}
+                onClick={() => pickView({ usage: o.id })}
+              />
+            );
+          })}
+        </div>
+        <p className="mb-4 text-[11px] text-ink-faint">
+          {!usageLoaded
+            ? "Counting skill calls…"
+            : usage
+              ? usageCounts.calls > 0
+                ? `${callsLabel(usageCounts.calls)} across ${usageCounts.used} of ${skills.length} skills — from Claude Code on your computers, the Jarvis connector and Studio. Updates by itself.`
+                : "No skill calls counted yet. Every skill Claude Code, the connector or Studio runs from now on shows up here by itself."
+              : `Call counts aren’t available here${usageReason ? ` (${usageReason.replace(/\.$/, "")})` : ""}.`}
+        </p>
+
         {/* Web design guide (separate dropdown) */}
         <DesignGuide skills={skills} onOpen={setDetail} />
 
@@ -385,7 +450,11 @@ export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } =
               ? "No favorites yet. Tap the ☆ on any skill to keep it here."
               : added !== "any"
                 ? "No skills added in that time. Try “Any time”."
-                : "No skills match your filters."}
+                : usageFilter === "unused"
+                  ? "Every skill here has been used at least once."
+                  : usageFilter !== "any"
+                    ? "None of these skills have been called yet. Try Usage “Any”."
+                    : "No skills match your filters."}
           </p>
         ) : (
           <>
@@ -402,6 +471,8 @@ export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } =
                   onOpen={setDetail}
                   onEdit={(s) => setEditor({ mode: "edit", skill: s })}
                   onDelete={handleDelete}
+                  use={usage ? usageFor(skill, usage) : undefined}
+                  rank={ranks.get(skill.id)}
                 />
               ))}
             </div>
