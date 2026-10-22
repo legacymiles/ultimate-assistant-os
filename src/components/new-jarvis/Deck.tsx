@@ -241,7 +241,15 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 function since(t: number | null): string {
   if (!t) return "not yet";
   const m = Math.floor((Date.now() - t) / 60_000);
-  return m < 1 ? "just now" : `${m}m ago`;
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  return h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
+}
+
+/** When the phone last sent a photo — the line that shows if its Shortcut stopped. */
+function lastFromPhone(t: number | null): string {
+  return t ? `last photo from iPhone ${since(t)}` : "iPhone hasn't sent a photo yet";
 }
 
 /** The last photos filed, for the preview strip when nothing is waiting. */
@@ -543,7 +551,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                   (inbox.linked
                     ? inbox.ids.length
                       ? `${inbox.ids.length} new from your iPhone — bringing them in…`
-                      : `Auto · iPhone checked ${since(camera.lastChecked)} · new photos show up by themselves`
+                      : `Auto · checked ${since(camera.lastChecked)} · ${lastFromPhone(camera.lastPush)}`
                     : "Not linked yet — tap 🔗 to set up your iPhone (5 min, no app needed)")
                 }
                 actions={
@@ -644,7 +652,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
       {expanded === "camera" && (
         <WidgetSheet
           title="Camera Autopilot"
-          kicker={`${queue.length} to sort · iPhone checked ${since(camera.lastChecked)}`}
+          kicker={`${queue.length} to sort · checked ${since(camera.lastChecked)} · ${lastFromPhone(camera.lastPush)}`}
           onClose={() => {
             setExpanded(null);
             setSelecting(false);

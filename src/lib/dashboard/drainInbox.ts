@@ -51,7 +51,33 @@ interface Claimed {
   name: string;
   contentType: string;
   takenAt?: string;
-  dataUrl: string;
+  /** A short-lived Storage link (sharing) — the browser downloads it itself. */
+  url?: string;
+  /** Or the bytes inline. */
+  dataUrl?: string;
+}
+
+/** The photo's bytes, or null when they can't be fetched right now. */
+async function bytesOf(p: Claimed): Promise<Blob | null> {
+  const src = p.url || p.dataUrl;
+  if (!src) return null;
+  try {
+    const r = await fetch(src, p.url ? { cache: "no-store" } : undefined);
+    return r.ok ? await r.blob() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** What went wrong in a drain, for the one line the owner sees. */
+export class DrainError extends Error {
+  constructor(
+    message: string,
+    readonly brought: number,
+    readonly failed: number,
+  ) {
+    super(message);
+  }
 }
 
 /**
@@ -80,45 +106,65 @@ export async function drainInbox(
   opts: { share?: boolean } = {},
 ): Promise<number> {
   let brought = 0;
+  let failed = 0;
+  let lastStatus = 0;
+  // One bad batch never blocks the rest. It used to throw on the first
+  // failure, and a single photo too big to hand over then stopped every
+  // newer photo behind it from ever showing up.
   for (const batch of claimBatches(entries)) {
     onProgress?.(brought, entries.length);
-    const r = await fetch("/api/dashboard/inbox/claim", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(opts.share ? { ids: batch.map((e) => e.id), share: true } : { ids: batch.map((e) => e.id), keep: true }),
-    });
-    if (!r.ok) {
-      throw new Error(
-        r.status === 413 || r.status === 500
-          ? "A photo from your iPhone was too big to bring in. Jarvis will try again on the next check."
-          : `Couldn't bring photos in from your iPhone (the server said ${r.status}). Jarvis will try again on the next check.`,
-      );
+    let photos: Claimed[] = [];
+    try {
+      const r = await fetch("/api/dashboard/inbox/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(opts.share ? { ids: batch.map((e) => e.id), share: true } : { ids: batch.map((e) => e.id), keep: true }),
+      });
+      if (!r.ok) {
+        lastStatus = r.status;
+        failed += batch.length;
+        continue;
+      }
+      photos = ((await r.json()) as { photos?: Claimed[] }).photos ?? [];
+    } catch {
+      failed += batch.length;
+      continue;
     }
-    const got = (await r.json()) as { photos?: Claimed[] };
-    const photos = got.photos ?? [];
+
     const idOf = new Map<File, string>();
-    const files = await Promise.all(
-      photos.map(async (p) => {
-        const f = new File([await (await fetch(p.dataUrl)).blob()], p.name, {
-          type: p.contentType,
-          lastModified: lastModified(p.takenAt),
-        });
-        idOf.set(f, p.id);
-        return f;
-      }),
-    );
+    const got = new Set<string>();
+    const files: File[] = [];
+    for (const p of photos) {
+      const blob = await bytesOf(p);
+      if (!blob) continue;
+      const f = new File([blob], p.name, { type: p.contentType, lastModified: lastModified(p.takenAt) });
+      idOf.set(f, p.id);
+      got.add(p.id);
+      files.push(f);
+    }
+    failed += batch.filter((e) => !got.has(e.id)).length;
     if (files.length) await read(files, (f) => idOf.get(f));
     // Only now is it safe to let the server delete them — unless they're
     // shared, when they stay until filed somewhere.
-    if (!opts.share) {
+    if (!opts.share && got.size) {
       await fetch("/api/dashboard/inbox/done", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: batch.map((e) => e.id) }),
+        body: JSON.stringify({ ids: [...got] }),
       }).catch(() => undefined);
     }
     brought += files.length;
   }
   onProgress?.(brought, entries.length);
+  if (failed) {
+    const what = failed === 1 ? "1 photo" : `${failed} photos`;
+    throw new DrainError(
+      lastStatus === 413
+        ? `${what} from your iPhone ${failed === 1 ? "was" : "were"} too big to bring in — the rest came in. Jarvis tries again on the next check.`
+        : `Couldn't bring in ${what} from your iPhone${lastStatus ? ` (the server said ${lastStatus})` : ""} — the rest came in. Jarvis tries again on the next check.`,
+      brought,
+      failed,
+    );
+  }
   return brought;
 }

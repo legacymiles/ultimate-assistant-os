@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { hasToken, pending } from "@/lib/dashboard/inbox";
+import { hasToken, lastPushFor, pending } from "@/lib/dashboard/inbox";
 
 // GET /api/dashboard/inbox — what this user's phone has pushed and not yet
 // claimed. Session-gated by middleware; the uid cookie identifies whose.
@@ -16,6 +16,9 @@ export async function GET() {
   const entries = await pending(uid);
   return NextResponse.json({
     linked: await hasToken(uid),
+    // When the phone last sent anything — tells "nothing new" apart from
+    // "the phone's Shortcut stopped running".
+    lastPush: await lastPushFor(uid),
     entries: entries.map((e) => ({
       id: e.id,
       name: e.name,

@@ -60,6 +60,8 @@ export interface CameraWatch {
   /** Photos on the server not pulled in yet. */
   inbox: InboxEntry[];
   lastChecked: number | null;
+  /** When the iPhone last sent a photo (ms), or null if it never has. */
+  lastPush: number | null;
   nextCheck: number | null;
   /** What is happening right now, or "". */
   busy: string;
@@ -86,6 +88,7 @@ export function useCameraWatch(): CameraWatch {
   const [linked, setLinked] = useState(false);
   const [inbox, setInbox] = useState<InboxEntry[]>([]);
   const [lastChecked, setLastChecked] = useState<number | null>(null);
+  const [lastPush, setLastPush] = useState<number | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [settings, setSettings] = useState<CameraWatchSettings>({ autoPull: true });
@@ -109,10 +112,12 @@ export function useCameraWatch(): CameraWatch {
     try {
       const r = await fetch("/api/dashboard/inbox", { cache: "no-store" });
       if (!r.ok) throw new Error(`The photo inbox answered ${r.status}.`);
-      const d = (await r.json()) as { linked?: boolean; entries?: InboxEntry[] };
+      const d = (await r.json()) as { linked?: boolean; entries?: InboxEntry[]; lastPush?: string | null };
       if (!Array.isArray(d.entries)) throw new Error("The photo inbox didn't send its list.");
       const all = d.entries;
       setLinked(Boolean(d.linked));
+      const pushed = d.lastPush ? Date.parse(d.lastPush) : NaN;
+      setLastPush(Number.isNaN(pushed) ? null : pushed);
 
       // Same photos on every device: drop what was filed or removed elsewhere
       // (or deleted from the phone), and copy in what this device hasn't had.
@@ -121,9 +126,14 @@ export function useCameraWatch(): CameraWatch {
         await dropGone(plan.toRemove);
         window.dispatchEvent(new Event(CAMERA_CHANGED));
       }
-      const fresh = all.filter((e) => plan.toImport.includes(e.id));
+      // Newest first, so the photo just taken is the first one in — not stuck
+      // behind a backlog (or behind one that can't be read).
+      const fresh = all
+        .filter((e) => plan.toImport.includes(e.id))
+        .sort((a, b) => (Date.parse(b.receivedAt ?? "") || 0) - (Date.parse(a.receivedAt ?? "") || 0));
       setInbox(fresh);
 
+      let heldBack = 0;
       if (fresh.length && (pull ?? settingsRef.current.autoPull)) {
         const n = fresh.length;
         setBusy(`Bringing in ${n} new photo${n === 1 ? "" : "s"} from your iPhone…`);
@@ -137,6 +147,7 @@ export function useCameraWatch(): CameraWatch {
               onQueue: () => window.dispatchEvent(new Event(CAMERA_CHANGED)),
             });
             rememberHad(out.inboxHandled);
+            heldBack += out.deferred;
             // A copy of a photo already filed or waiting isn't waiting anywhere.
             releaseInbox(out.inboxDropped);
             window.dispatchEvent(new Event(CAMERA_CHANGED));
@@ -148,6 +159,13 @@ export function useCameraWatch(): CameraWatch {
         );
         setInbox([]);
         window.dispatchEvent(new Event(CAMERA_CHANGED));
+      }
+      // Camera Autopilot holds a few hundred unsorted photos at most. Past
+      // that, new ones wait on the server — say so instead of going quiet.
+      if (heldBack) {
+        setError(
+          `Camera Autopilot is full, so ${heldBack} new photo${heldBack === 1 ? " is" : "s are"} waiting. File or remove some and they come straight in.`,
+        );
       }
       // Copies that slipped in before duplicates were stopped at the door
       // (or arrived from another device) are cleared on every check.
@@ -206,6 +224,7 @@ export function useCameraWatch(): CameraWatch {
     linked,
     inbox,
     lastChecked,
+    lastPush,
     nextCheck: lastChecked ? lastChecked + CAMERA_PEEK_MS : null,
     busy,
     error,

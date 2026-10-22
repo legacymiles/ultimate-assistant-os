@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import path from "node:path";
 import { readDoc, writeDoc } from "@/lib/server/docStore";
-import { deleteBlob, getBlob, putBlob } from "@/lib/server/blobStore";
+import { deleteBlob, getBlob, putBlob, signedBlobUrl } from "@/lib/server/blobStore";
 import { parseShortcutDate } from "./shortcutDate";
 
 // ---------------------------------------------------------------------------
@@ -78,14 +78,26 @@ interface InboxDoc {
    * instead of re-sending the same newest 20.
    */
   cursor: Record<string, { raw: string; t: number }>;
+  /**
+   * uid -> when the phone last sent a photo (ISO), accepted or skipped. Shown
+   * in Camera Autopilot so "nothing new" can be told apart from "the phone
+   * stopped sending" without anyone digging.
+   */
+  lastPush: Record<string, string>;
 }
 
-const EMPTY: InboxDoc = { tokens: {}, entries: [], seen: {}, cursor: {} };
+const EMPTY: InboxDoc = { tokens: {}, entries: [], seen: {}, cursor: {}, lastPush: {} };
 
 async function load(): Promise<InboxDoc> {
   const doc = await readDoc<InboxDoc>(DOC, dataDir());
   if (!doc) return { ...EMPTY };
-  return { tokens: doc.tokens ?? {}, entries: doc.entries ?? [], seen: doc.seen ?? {}, cursor: doc.cursor ?? {} };
+  return {
+    tokens: doc.tokens ?? {},
+    entries: doc.entries ?? [],
+    seen: doc.seen ?? {},
+    cursor: doc.cursor ?? {},
+    lastPush: doc.lastPush ?? {},
+  };
 }
 
 async function save(doc: InboxDoc): Promise<boolean> {
@@ -152,9 +164,59 @@ export interface IncomingPhoto {
  * this the review queue floods and the feature becomes unusable on day two.
  */
 export async function receive(uid: string, photos: IncomingPhoto[]): Promise<ReceiveResult> {
+  // The bytes go to Storage FIRST, with no copy of the inbox document held.
+  // Uploading takes seconds; loading the document, uploading, then saving
+  // meant anything another device saved meanwhile (filing a photo, the
+  // phone's clean-up list) was overwritten — and a save from the other side
+  // could wipe the photo that had just arrived, so it never showed up.
+  const before = await load();
+  const seenBefore = new Set(before.seen[uid] ?? []);
+  const out: ReceiveResult = { accepted: 0, skipped: 0, rejected: [] };
+  const staged: { entry: InboxEntry; keys: string[] }[] = [];
+  const skippedDates: (string | undefined)[] = [];
+  const batchSeen = new Set<string>();
+
+  for (const p of photos.slice(0, MAX_PER_REQUEST)) {
+    if (p.body.length > MAX_PHOTO_BYTES) {
+      out.rejected.push({ name: p.name, reason: "over 25 MB" });
+      continue;
+    }
+    // The exact same bytes are the same photo, whatever name or id a second
+    // Shortcut or automation gave them.
+    const sha = `sha:${createHash("sha256").update(p.body).digest("hex").slice(0, 32)}`;
+    const known = (k: string) => seenBefore.has(k) || batchSeen.has(k);
+    if ((p.deviceId && known(p.deviceId)) || known(sha)) {
+      out.skipped++;
+      skippedDates.push(p.takenAt);
+      continue;
+    }
+
+    const id = randomBytes(12).toString("hex");
+    const ok = await putBlob(BUCKET, `${uid}/${id}`, dataDir(), p.body, p.contentType);
+    if (!ok) {
+      out.rejected.push({ name: p.name, reason: "storage unavailable" });
+      continue;
+    }
+    const keys = p.deviceId ? [p.deviceId, sha] : [sha];
+    for (const k of keys) batchSeen.add(k);
+    staged.push({
+      keys,
+      entry: {
+        id,
+        uid,
+        deviceId: p.deviceId,
+        name: p.name,
+        contentType: p.contentType,
+        bytes: p.body.length,
+        takenAt: p.takenAt,
+        receivedAt: new Date().toISOString(),
+      },
+    });
+  }
+
+  // Now the short part: a fresh copy of the document, changed and saved at once.
   const doc = await load();
   const seen = new Set(doc.seen[uid] ?? []);
-  const out: ReceiveResult = { accepted: 0, skipped: 0, rejected: [] };
   const added: string[] = [];
 
   // The bookmark moves for every photo the phone sends — accepted or skipped
@@ -165,55 +227,37 @@ export async function receive(uid: string, photos: IncomingPhoto[]): Promise<Rec
     const cur = doc.cursor[uid];
     if (!cur || t > cur.t) doc.cursor[uid] = { raw: raw.trim(), t };
   };
+  for (const d of skippedDates) advance(d);
 
-  for (const p of photos.slice(0, MAX_PER_REQUEST)) {
-    if (p.body.length > MAX_PHOTO_BYTES) {
-      out.rejected.push({ name: p.name, reason: "over 25 MB" });
-      continue;
-    }
-    // The exact same bytes are the same photo, whatever name or id a second
-    // Shortcut or automation gave them.
-    const sha = `sha:${createHash("sha256").update(p.body).digest("hex").slice(0, 32)}`;
-    if ((p.deviceId && seen.has(p.deviceId)) || seen.has(sha)) {
+  for (const { entry, keys } of staged) {
+    // Another send of the same photo landed while this one was uploading.
+    if (keys.some((k) => seen.has(k))) {
+      await deleteBlob(BUCKET, `${uid}/${entry.id}`, dataDir());
       out.skipped++;
-      advance(p.takenAt);
+      advance(entry.takenAt);
       continue;
     }
-
-    const id = randomBytes(12).toString("hex");
-    const ok = await putBlob(BUCKET, `${uid}/${id}`, dataDir(), p.body, p.contentType);
-    if (!ok) {
-      out.rejected.push({ name: p.name, reason: "storage unavailable" });
-      continue;
+    doc.entries.push(entry);
+    for (const k of keys) {
+      seen.add(k);
+      added.push(k);
     }
-
-    doc.entries.push({
-      id,
-      uid,
-      deviceId: p.deviceId,
-      name: p.name,
-      contentType: p.contentType,
-      bytes: p.body.length,
-      takenAt: p.takenAt,
-      receivedAt: new Date().toISOString(),
-    });
-    if (p.deviceId) {
-      seen.add(p.deviceId);
-      added.push(p.deviceId);
-    }
-    seen.add(sha);
-    added.push(sha);
     out.accepted++;
-    advance(p.takenAt);
+    advance(entry.takenAt);
   }
 
   // Ring buffer: keep the most recent SEEN_LIMIT, so the document cannot grow
   // without bound on a phone that syncs every night for a year.
-  const ring = [...(doc.seen[uid] ?? []), ...added];
-  doc.seen[uid] = ring.slice(-SEEN_LIMIT);
+  doc.seen[uid] = [...(doc.seen[uid] ?? []), ...added].slice(-SEEN_LIMIT);
+  if (photos.length) doc.lastPush[uid] = new Date().toISOString();
 
   await save(doc);
   return out;
+}
+
+/** When the phone last sent anything, or null if it never has. */
+export async function lastPushFor(uid: string): Promise<string | null> {
+  return (await load()).lastPush[uid] ?? null;
 }
 
 /**
@@ -238,11 +282,30 @@ export async function pending(uid: string): Promise<InboxEntry[]> {
  * dashboard drains: a photo is only deleted here once it is safely read in,
  * so a failed read retries on the next check instead of losing the photo.
  */
+export interface ClaimedPhoto {
+  id: string;
+  name: string;
+  contentType: string;
+  takenAt?: string;
+  /**
+   * A short-lived link straight to the photo in Storage. Used when sharing:
+   * the browser downloads the bytes itself, so no photo is ever too big to
+   * hand over (a base64 answer over ~4.5 MB is refused by Vercel, and one
+   * photo that big used to block every photo after it).
+   */
+  url?: string;
+  /** The bytes inline — only when there is no Storage to link to. */
+  dataUrl?: string;
+}
+
+/** How long a share link lives; the browser uses it within seconds. */
+const SHARE_LINK_SECONDS = 10 * 60;
+
 export async function claim(
   uid: string,
   ids: string[],
   opts: { keep?: boolean; share?: boolean } = {},
-): Promise<{ id: string; name: string; contentType: string; takenAt?: string; dataUrl: string }[]> {
+): Promise<ClaimedPhoto[]> {
   const doc = await load();
   const wanted = new Set(ids);
   const now = Date.now();
@@ -250,9 +313,16 @@ export async function claim(
   const mine = doc.entries.filter(
     (e) => e.uid === uid && wanted.has(e.id) && !(opts.keep && e.claimedUntil && e.claimedUntil > now),
   );
-  const out = [];
+  const out: ClaimedPhoto[] = [];
 
   for (const e of mine) {
+    if (opts.share) {
+      const url = await signedBlobUrl(BUCKET, `${uid}/${e.id}`, SHARE_LINK_SECONDS);
+      if (url) {
+        out.push({ id: e.id, name: e.name, contentType: e.contentType, takenAt: e.takenAt, url });
+        continue;
+      }
+    }
     const buf = await getBlob(BUCKET, `${uid}/${e.id}`, dataDir());
     if (!buf) continue;
     out.push({
@@ -289,10 +359,12 @@ export async function done(uid: string, ids: string[]): Promise<number> {
   const wanted = new Set(ids);
   const mine = doc.entries.filter((e) => e.uid === uid && wanted.has(e.id));
   if (!mine.length) return 0;
-  for (const e of mine) await deleteBlob(BUCKET, `${uid}/${e.id}`, dataDir());
+  // Save first, delete bytes after: the document is held for one quick write,
+  // so a photo the phone sends meanwhile isn't overwritten by a stale copy.
   const gone = new Set(mine.map((e) => e.id));
   doc.entries = doc.entries.filter((e) => !(e.uid === uid && gone.has(e.id)));
   await save(doc);
+  for (const e of mine) await deleteBlob(BUCKET, `${uid}/${e.id}`, dataDir());
   return mine.length;
 }
 
@@ -324,10 +396,10 @@ export async function prune(uid: string, names: string[], days = 30): Promise<nu
     return when >= since && !present.has(stem);
   });
   if (!gone.length) return 0;
-  for (const e of gone) await deleteBlob(BUCKET, `${uid}/${e.id}`, dataDir());
   const ids = new Set(gone.map((e) => e.id));
   doc.entries = doc.entries.filter((e) => !ids.has(e.id));
   await save(doc);
+  for (const e of gone) await deleteBlob(BUCKET, `${uid}/${e.id}`, dataDir());
   return gone.length;
 }
 
