@@ -167,6 +167,13 @@ export interface YtDlpVideo {
   thumbnail: string | null;
   width: number | null;
   height: number | null;
+  /** A released song's name, when the site credits one (YouTube's "Music" panel, TikTok's sound). */
+  track: string;
+  artist: string;
+  views: number | null;
+  likes: number | null;
+  /** ISO date the post went up. */
+  postedAt: string | null;
 }
 
 /**
@@ -215,7 +222,7 @@ export async function ytDlpDownload(url: string, platform: Platform, opts: { max
       "--js-runtimes", `node:${process.execPath}`,
       "-f", FORMAT,
       "-o", path.join(dir, "video.%(ext)s"),
-      "--print", "after_move:%(.{title,description,uploader,duration,thumbnail,width,height,ext,filepath})j",
+      "--print", "after_move:%(.{title,description,uploader,duration,thumbnail,width,height,ext,filepath,track,artist,view_count,like_count,timestamp})j",
     ];
     const cookies = await cookiesFor(platform);
     if (cookies) {
@@ -251,6 +258,11 @@ export async function ytDlpDownload(url: string, platform: Platform, opts: { max
       thumbnail: typeof info.thumbnail === "string" ? info.thumbnail : null,
       width: Number(info.width) || null,
       height: Number(info.height) || null,
+      track: typeof info.track === "string" ? info.track : "",
+      artist: typeof info.artist === "string" ? info.artist : "",
+      views: Number.isFinite(Number(info.view_count)) && info.view_count !== null ? Number(info.view_count) : null,
+      likes: Number.isFinite(Number(info.like_count)) && info.like_count !== null ? Number(info.like_count) : null,
+      postedAt: Number(info.timestamp) > 0 ? new Date(Number(info.timestamp) * 1000).toISOString() : null,
     };
   } finally {
     await fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);

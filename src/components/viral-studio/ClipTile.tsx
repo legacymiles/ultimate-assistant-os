@@ -15,7 +15,9 @@
 import { useEffect, useRef, useState } from "react";
 
 import { PLATFORM_LABEL } from "@/lib/social-import/platform";
+import { HEAT_LABEL, heatOf, shortCount } from "@/lib/viral-studio/filters";
 import { embedUrl, mediaUrl, playbackLimit, posterUrl } from "@/lib/viral-studio/playback";
+import { songLine } from "@/lib/viral-studio/song";
 import { FULL, contentRegion, regionCover, sharpRegion, type Region } from "@/lib/viral-studio/trail";
 import type { Clip, TabId } from "@/lib/viral-studio/types";
 
@@ -59,9 +61,15 @@ interface Props {
   onLeave: () => void;
   onToggle: () => void;
   onDelete: () => void;
+  /** Audio tab: name the song in this clip. */
+  onFindSong?: () => void;
+  /** The song finder is listening to this clip right now. */
+  finding?: boolean;
+  /** Open the mood / category picker for this clip. */
+  onEditTags?: () => void;
 }
 
-export function ClipTile({ clip, active, sound, flash, lead = false, onEnter, onLeave, onToggle, onDelete }: Props) {
+export function ClipTile({ clip, active, sound, flash, lead = false, onEnter, onLeave, onToggle, onDelete, onFindSong, finding = false, onEditTags }: Props) {
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const [vid, setVid] = useState<HTMLVideoElement | null>(null);
@@ -120,6 +128,7 @@ export function ClipTile({ clip, active, sound, flash, lead = false, onEnter, on
   const limit = playbackLimit(clip);
   const label = PLATFORM_LABEL[clip.platform] ?? "Link";
   const handle = clip.author ? `@${clip.author.replace(/^@/, "")}` : "";
+  const heat = heatOf(clip.stats);
   const title = clip.title || handle || hostOf(clip.url);
 
   // Back to rest whenever the tile stops being the active one.
@@ -271,11 +280,45 @@ export function ClipTile({ clip, active, sound, flash, lead = false, onEnter, on
 
       <div className="vsc-tile__caption">
         <h3 className="vsc-tile__title">{title}</h3>
+        {/* The subtitle: only a real song gets one, and only on the audio tab. */}
+        {clip.tab === "audio" && clip.sound === "song" && clip.song ? (
+          clip.song.link ? (
+            <a className="vsc-tile__song" href={clip.song.link} target="_blank" rel="noreferrer" title="Play the song">
+              <SongIcon />
+              <span>{songLine(clip.song)}</span>
+            </a>
+          ) : (
+            <p className="vsc-tile__song">
+              <SongIcon />
+              <span>{songLine(clip.song)}</span>
+            </p>
+          )
+        ) : null}
         <p className="vsc-tile__meta">
           <span>{label}</span>
           {handle && clip.title ? <span>{handle}</span> : null}
+          {clip.stats?.views ? <span>{shortCount(clip.stats.views)} views</span> : null}
           <span>{ago(clip.addedAt)}</span>
         </p>
+        <div className="vsc-tile__tags">
+          {clip.tab === "audio" && clip.sound !== "song" && onFindSong ? (
+            <button type="button" className={`vsc-findsong${finding ? " is-listening" : ""}`} onClick={onFindSong} disabled={finding}>
+              <SongIcon />
+              {finding ? "Listening…" : clip.sound === "original" ? "Original sound · check again" : "Find song"}
+            </button>
+          ) : null}
+          {heat ? <span className={`vsc-chip is-heat is-${heat}`}>{HEAT_LABEL[heat]}</span> : null}
+          {[...(clip.tags?.moods ?? []), ...(clip.tags?.categories ?? []).filter((c) => c !== "Song")].slice(0, 3).map((t) => (
+            <span key={t} className="vsc-chip">
+              {t}
+            </span>
+          ))}
+          {onEditTags ? (
+            <button type="button" className="vsc-chip is-edit" onClick={onEditTags} aria-label={`Edit tags for ${title}`}>
+              {clip.tags?.moods.length || clip.tags?.categories.length ? "Edit" : "+ Tags"}
+            </button>
+          ) : null}
+        </div>
         {clip.note && <p className="vsc-tile__note">{clip.note}</p>}
       </div>
     </article>
@@ -302,5 +345,15 @@ export function PendingTile({ pending, onCancel }: { pending: PendingClip; onCan
         </p>
       </div>
     </article>
+  );
+}
+
+function SongIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" className="vsc-songicon">
+      <path d="M6 12.2V3.6l7-1.4v8.4" />
+      <circle cx="4.4" cy="12.2" r="1.6" />
+      <circle cx="11.4" cy="10.6" r="1.6" />
+    </svg>
   );
 }

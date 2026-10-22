@@ -61,6 +61,22 @@ const STRATEGY_LABEL: Record<Strategy, string> = {
   facebook: "Facebook's video player",
 };
 
+/** The sound a post credits, as the network reports it. */
+export interface SourceMusic {
+  title: string;
+  artist: string;
+  /** The poster's own "original sound" — a voice, a joke, a clip — not a released song. */
+  original: boolean;
+}
+
+/** How a post was doing when it was read. Any of these may be unknown. */
+export interface SourceStats {
+  views: number | null;
+  likes: number | null;
+  /** ISO date the post went up. */
+  postedAt: string | null;
+}
+
 export interface DownloadedVideo {
   bytes: Buffer;
   contentType: string;
@@ -73,6 +89,8 @@ export interface DownloadedVideo {
   durationSec: number | null;
   width: number | null;
   height: number | null;
+  music?: SourceMusic | null;
+  stats?: SourceStats | null;
   trail: string[];
 }
 
@@ -110,7 +128,42 @@ async function viaTikwm(url: URL, maxBytes: number): Promise<Found | null> {
   if (!d?.play) return null;
   const bytes = await grab(new URL(String(d.play), "https://www.tikwm.com").href, maxBytes);
   if (!bytes) return null;
-  return { ...empty, bytes, title: String(d.title ?? ""), caption: String(d.title ?? ""), author: String(d.author?.nickname ?? ""), thumbnailUrl: d.cover ?? null, durationSec: Number(d.duration) || null };
+  return {
+    ...empty,
+    bytes,
+    title: String(d.title ?? ""),
+    caption: String(d.title ?? ""),
+    author: String(d.author?.nickname ?? ""),
+    thumbnailUrl: d.cover ?? null,
+    durationSec: Number(d.duration) || null,
+    music: tikwmMusic(d),
+    stats: tikwmStats(d),
+  };
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- tikwm's JSON is untyped */
+function tikwmMusic(d: any): SourceMusic | null {
+  const m = d?.music_info;
+  if (!m || (!m.title && !m.author)) return null;
+  return { title: String(m.title ?? ""), artist: String(m.author ?? ""), original: m.original === true };
+}
+
+function tikwmStats(d: any): SourceStats | null {
+  const t = Number(d?.create_time);
+  return {
+    views: Number.isFinite(Number(d?.play_count)) ? Number(d.play_count) : null,
+    likes: Number.isFinite(Number(d?.digg_count)) ? Number(d.digg_count) : null,
+    postedAt: t > 0 ? new Date(t * 1000).toISOString() : null,
+  };
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/** A TikTok post's sound and numbers without downloading the video — for clips already on a board. */
+export async function tiktokDetails(url: URL): Promise<{ music: SourceMusic | null; stats: SourceStats | null } | null> {
+  const json = await fetchJson(`https://www.tikwm.com/api/?url=${encodeURIComponent(url.href)}`);
+  const d = json?.code === 0 ? json.data : null;
+  if (!d) return null;
+  return { music: tikwmMusic(d), stats: tikwmStats(d) };
 }
 
 async function viaFxTwitter(url: URL, maxBytes: number): Promise<Found | null> {
@@ -177,7 +230,18 @@ async function viaFacebook(url: URL, maxBytes: number, cookies: string | null): 
 
 async function viaYtDlp(url: URL, platform: Platform, maxBytes: number): Promise<Found> {
   const v = await ytDlpDownload(url.href, platform, { maxBytes });
-  return { bytes: v.bytes, title: v.title, caption: v.description, author: v.uploader, thumbnailUrl: v.thumbnail, durationSec: v.durationSec, width: v.width, height: v.height };
+  return {
+    bytes: v.bytes,
+    title: v.title,
+    caption: v.description,
+    author: v.uploader,
+    thumbnailUrl: v.thumbnail,
+    durationSec: v.durationSec,
+    width: v.width,
+    height: v.height,
+    music: v.track ? { title: v.track, artist: v.artist, original: false } : null,
+    stats: { views: v.views, likes: v.likes, postedAt: v.postedAt },
+  };
 }
 
 export async function downloadVideo(input: URL, platform: Platform, { maxBytes }: { maxBytes: number }): Promise<DownloadedVideo> {

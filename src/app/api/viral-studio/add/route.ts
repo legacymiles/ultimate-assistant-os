@@ -9,6 +9,7 @@
 import { NextResponse } from "next/server";
 
 import { currentUid } from "@/lib/dance-studio/server/library";
+import { isTabId } from "@/lib/viral-studio/types";
 import { LinkError, resolveLink } from "@/lib/viral-studio/server/resolveLink";
 
 export const dynamic = "force-dynamic";
@@ -17,8 +18,11 @@ export const maxDuration = 300;
 
 export async function POST(req: Request) {
   let url = "";
+  let tab: unknown = "audio";
   try {
-    url = String((await req.json())?.url ?? "").trim();
+    const body = await req.json();
+    url = String(body?.url ?? "").trim();
+    tab = body?.tab;
   } catch {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
@@ -26,7 +30,7 @@ export async function POST(req: Request) {
 
   const uid = await currentUid().catch(() => null);
   try {
-    return NextResponse.json(await resolveLink(url, uid));
+    return NextResponse.json(await resolveLink(url, uid, isTabId(tab) ? tab : "audio"));
   } catch (err) {
     if (err instanceof LinkError) return NextResponse.json({ error: err.message }, { status: err.status });
     return NextResponse.json({ error: "Couldn't read that link right now — try again in a moment." }, { status: 502 });

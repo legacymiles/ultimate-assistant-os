@@ -316,6 +316,16 @@ export const CAPABILITIES: Capability[] = [
     without: "For you suggests searches instead of real videos.",
   },
   {
+    id: "song-finder",
+    name: "Song finder",
+    what: "Names the song in each Viral Studio audio clip, like Shazam, and shows it under the title.",
+    category: "world",
+    // Works with no key (a few lookups a day); the key lifts the cap.
+    via: "built-in",
+    optional: ["AUDD_API_TOKEN"],
+    without: "Still works, but only a few new songs a day.",
+  },
+  {
     id: "maps",
     name: "Maps & traffic",
     what: "Real routes and travel times.",

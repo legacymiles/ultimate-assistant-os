@@ -127,6 +127,16 @@ export const KEY_SOURCES: Record<string, KeySource> = {
       { text: "Optional but safer: on that key, Restrict key → YouTube Data API v3 → Save.", url: "https://console.cloud.google.com/apis/credentials", cta: "Restrict" },
     ],
   },
+  AUDD_API_TOKEN: {
+    site: "AudD",
+    url: "https://dashboard.audd.io/",
+    how: "Sign up → copy the API token from the dashboard.",
+    cost: "A few free lookups a day without it; paid plans for more",
+    steps: [
+      { text: "Sign up at AudD (email or Google).", url: "https://dashboard.audd.io/", cta: "Sign up" },
+      { text: "Copy the API token shown on your dashboard.", url: "https://dashboard.audd.io/", cta: "Open dashboard" },
+    ],
+  },
   NEXT_PUBLIC_GOOGLE_API_KEY: {
     site: "Google Cloud",
     url: "https://console.cloud.google.com/apis/credentials",
@@ -153,10 +163,12 @@ export function connectionRows(keys: Record<string, boolean>): KeyRow[] {
   const order = [...SETUP_CAPABILITIES, ...CAPABILITIES.map((c) => c.id).filter((id) => !SETUP_CAPABILITIES.includes(id))];
   return order
     .map((id) => CAPABILITIES.find((c) => c.id === id))
-    .filter((c): c is Capability => Boolean(c) && c!.via === "key")
+    // Key-based ones, plus the few that work without a key but get better with
+    // one (the song finder), so their key has a guide too.
+    .filter((c): c is Capability => Boolean(c) && (c!.via === "key" || (c!.optional ?? []).some((k) => KEY_SOURCES[k])))
     .map((capability) => {
       const reading = read(capability, env);
-      const firstRoute = capability.anyOf?.[0] ?? capability.needs ?? [];
+      const firstRoute = capability.anyOf?.[0] ?? capability.needs ?? capability.optional ?? [];
       const ask = (reading.missing.length ? reading.missing : firstRoute).filter((k) => KEY_SOURCES[k]);
       return { capability, reading, essential: (ESSENTIAL as readonly string[]).includes(capability.id), ask };
     })

@@ -6,6 +6,7 @@
 // duplicates, deleting is one step and can be undone) are tested, not hoped.
 // ---------------------------------------------------------------------------
 
+import { coerceTags } from "./filters";
 import type { Board, Clip, Playback, TabId } from "./types";
 
 /** Every link in a blob of pasted text, cleaned and de-duplicated, in order. */
@@ -148,7 +149,11 @@ export function sanitize(raw: unknown): Board {
     if (!["audio", "fights", "dances", "motion"].includes(c.tab)) continue;
     if (seen.has(c.id)) continue;
     seen.add(c.id);
-    clips.push({ ...c, title: c.title ?? "", author: c.author ?? "" });
+    const clip: Clip = { ...c, title: c.title ?? "", author: c.author ?? "" };
+    if (clip.song && (typeof clip.song.title !== "string" || !clip.song.title)) delete clip.song;
+    if (clip.sound && !["song", "original", "unknown"].includes(clip.sound)) delete clip.sound;
+    if (clip.tags) clip.tags = coerceTags(clip.tags, clip.tab);
+    clips.push(clip);
   }
   return { clips };
 }

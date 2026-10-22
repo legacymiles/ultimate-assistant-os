@@ -21,8 +21,10 @@ import { useRemotePull } from "@/lib/sync/useSync";
 import { addClip, clipsIn, guessVertical, leadSize, countsByTab, extractLinks, findDuplicate, linkKey, offlinePlayback, removeClip, restoreClip, storedKeys } from "@/lib/viral-studio/board";
 import { parseLink } from "@/lib/social-import/platform";
 import { posterUrl } from "@/lib/viral-studio/playback";
+import { CATEGORIES, HEAT_LABEL, HEATS, MOODS, NO_FILTER, applyFilter, isFiltering, optionCounts, type Filter, type Heat } from "@/lib/viral-studio/filters";
+import { songLine } from "@/lib/viral-studio/song";
 import * as store from "@/lib/viral-studio/store";
-import { TABS, isTabId, type Board, type Clip, type ResolvedLink, type TabId } from "@/lib/viral-studio/types";
+import { TABS, isTabId, type Board, type Clip, type ClipStats, type ClipTags, type ResolvedLink, type Song, type SoundKind, type TabId } from "@/lib/viral-studio/types";
 
 import { ClipTile, PendingTile, type PendingClip } from "./ClipTile";
 import "./viral-studio.css";
@@ -69,6 +71,12 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
   const [mod, setMod] = useState("Ctrl");
   const [touch, setTouch] = useState(false);
   const [cols, setCols] = useState(4);
+  const [filters, setFilters] = useState<Partial<Record<TabId, Filter>>>({});
+  const [tray, setTray] = useState<"mood" | "heat" | "category" | null>(null);
+  const [finding, setFinding] = useState<Set<string>>(new Set());
+  const [editing, setEditing] = useState<string | null>(null);
+  /** Clips already sent to the tagger / song finder this visit, so nothing is asked twice. */
+  const asked = useRef({ tags: new Set<string>(), songs: new Set<string>(), songLimit: false });
 
   // Mirrors the grid's breakpoints in viral-studio.css, so the newest clip can
   // be sized to end the wall on a full row.
@@ -79,6 +87,20 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
     return () => window.removeEventListener("resize", read);
   }, []);
   const inputRef = useRef<HTMLInputElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  const barRef = useRef<HTMLElement>(null);
+
+  // The filter row sticks just under the header, whose height changes on a phone.
+  useEffect(() => {
+    const bar = barRef.current;
+    const main = mainRef.current;
+    if (!bar || !main || typeof ResizeObserver === "undefined") return;
+    const set = () => main.style.setProperty("--bar-h", `${bar.getBoundingClientRect().height}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(bar);
+    return () => ro.disconnect();
+  }, []);
 
   const hoverTimer = useRef<number | null>(null);
   const hoveredId = useRef<string | null>(null);
@@ -187,7 +209,7 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
         const res = await fetch("/api/viral-studio/add", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ url }),
+          body: JSON.stringify({ url, tab: into }),
           signal: ctl.signal,
         });
         const json = await res.json().catch(() => ({}));
@@ -321,6 +343,116 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
     [activeId, commit, finalizeFree, say],
   );
 
+  // --- song finder, tags --------------------------------------------------
+
+  const patchClip = useCallback(
+    (id: string, patch: Partial<Clip>) => {
+      commit((b) => {
+        const i = b.clips.findIndex((c) => c.id === id);
+        if (i < 0) return b;
+        const clips = b.clips.slice();
+        clips[i] = { ...clips[i], ...patch };
+        return { clips };
+      });
+    },
+    [commit],
+  );
+
+  /** Shazam for one clip: the post's sound credit, else listening to it. */
+  const findSong = useCallback(
+    async (id: string, quiet = false): Promise<"ok" | "limit" | "fail"> => {
+      const clip = boardRef.current.clips.find((c) => c.id === id);
+      if (!clip) return "fail";
+      setFinding((s) => new Set(s).add(id));
+      try {
+        const res = await fetch("/api/viral-studio/song", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ url: clip.url, key: clip.play.kind === "file" ? clip.play.key : null }),
+        });
+        const json = (await res.json().catch(() => ({}))) as { sound?: SoundKind; song?: Song; stats?: ClipStats; error?: string; limit?: boolean };
+        if (json.stats) patchClip(id, { stats: json.stats });
+        if (!res.ok || !json.sound) {
+          if (!quiet) say(json.error ?? "Couldn't check that clip's song right now.");
+          return json.limit ? "limit" : "fail";
+        }
+        const patch: Partial<Clip> = { sound: json.sound, song: json.song };
+        // A song found by listening makes "Song" a fair category, unless the owner tagged it by hand.
+        if (json.sound === "song" && clip.tags && !clip.tags.byHand && !clip.tags.categories.includes("Song")) {
+          patch.tags = { ...clip.tags, categories: ["Song", ...clip.tags.categories].slice(0, 3) };
+        }
+        patchClip(id, patch);
+        if (!quiet) say(json.sound === "song" && json.song ? `Found it: ${songLine(json.song)}` : json.sound === "original" ? "That's an original sound, not a song." : "Couldn't make out a song in that one.");
+        return "ok";
+      } catch {
+        if (!quiet) say("Couldn't reach the song finder. Try again in a moment.");
+        return "fail";
+      } finally {
+        setFinding((s) => {
+          const n = new Set(s);
+          n.delete(id);
+          return n;
+        });
+      }
+    },
+    [patchClip, say],
+  );
+
+  // Clips saved before tags and the song finder existed get them once, quietly.
+  useEffect(() => {
+    if (!ready) return;
+    const need = board.clips.filter((c) => !c.tags && !asked.current.tags.has(c.id)).slice(0, 20);
+    if (!need.length) return;
+    for (const c of need) asked.current.tags.add(c.id);
+    void (async () => {
+      try {
+        const res = await fetch("/api/viral-studio/tag", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            items: need.map((c) => ({
+              id: c.id,
+              tab: c.tab,
+              title: c.title,
+              author: c.author,
+              song: songLine(c.song),
+              isSong: c.sound === "song",
+              url: c.url,
+              needStats: !c.stats,
+            })),
+          }),
+        });
+        if (!res.ok) return;
+        const json = (await res.json()) as { tags?: Record<string, ClipTags>; stats?: Record<string, ClipStats> };
+        commit((b) => ({
+          clips: b.clips.map((c) => {
+            const t = json.tags?.[c.id];
+            const s = json.stats?.[c.id];
+            if (!t && !s) return c;
+            return { ...c, ...(t && !c.tags ? { tags: t } : {}), ...(s && !c.stats ? { stats: s } : {}) };
+          }),
+        }));
+      } catch {
+        // Untagged clips still show; they just don't match a filter yet.
+      }
+    })();
+  }, [board, commit, ready]);
+
+  useEffect(() => {
+    if (!ready || asked.current.songLimit) return;
+    const next = board.clips.find((c) => c.tab === "audio" && !c.sound && !asked.current.songs.has(c.id));
+    if (!next || finding.size) return;
+    asked.current.songs.add(next.id);
+    void findSong(next.id, true).then((r) => {
+      if (r === "limit") asked.current.songLimit = true;
+    });
+  }, [board, finding, findSong, ready]);
+
+  const saveTags = (id: string, tags: ClipTags) => {
+    patchClip(id, { tags: { ...tags, byHand: true } });
+    setEditing(null);
+  };
+
   // A tab closed mid-Undo still frees the files.
   useEffect(() => {
     const onHide = () => finalizeFree();
@@ -372,19 +504,27 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
   // --- view ----------------------------------------------------------------
 
   const counts = useMemo(() => countsByTab(board), [board]);
-  const visible = useMemo(() => clipsIn(board, tab), [board, tab]);
+  const filter = filters[tab] ?? NO_FILTER;
+  const inTab = useMemo(() => clipsIn(board, tab), [board, tab]);
+  const visible = useMemo(() => applyFilter(inTab, filter), [inTab, filter]);
+  const options = useMemo(() => optionCounts(inTab), [inTab]);
+  const filtering = isFiltering(filter);
+  const setFilter = (next: Partial<Filter>) => setFilters((f) => ({ ...f, [tab]: { ...(f[tab] ?? NO_FILTER), ...next } }));
+  const toggleIn = <T extends string>(list: T[], v: T): T[] => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+  const editingClip = editing ? board.clips.find((c) => c.id === editing) ?? null : null;
   const pendingHere = pending.filter((p) => p.tab === tab);
-  const empty = ready && !visible.length && !pendingHere.length;
-  const total = visible.length;
+  const empty = ready && !inTab.length && !pendingHere.length;
+  const total = inTab.length;
   const newest = visible[0];
   // The newest clip goes large once there's a wall around it to anchor, sized
   // so the wall (and the add tile after it) ends on a full row.
-  const lead = pendingHere.length ? "none" : leadSize(visible.length, cols);
+  const lead = pendingHere.length || filtering || filter.sort !== "newest" ? "none" : leadSize(visible.length, cols);
   const ambient = newest ? posterUrl(newest) : null;
   const tabIndex = TABS.findIndex((t) => t.id === tab);
 
   return (
     <main
+      ref={mainRef}
       className={`vsc${dropping ? " is-dropping" : ""}${touch ? " is-touch" : ""}${geist}`}
       data-tab={tab}
       onDragOver={(e) => {
@@ -398,7 +538,7 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
       }}
       onDrop={onDrop}
     >
-      <header className="vsc-bar">
+      <header className="vsc-bar" ref={barRef}>
         <Link href="/" className="vsc-bar__home" aria-label="Back to the hub">
           <svg viewBox="0 0 16 16" aria-hidden="true">
             <path d="M10 3.5 5.5 8l4.5 4.5" />
@@ -484,10 +624,82 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
       </section>
 
       <section className="vsc-wall" aria-label={`${def.label} clips`}>
-        {(visible.length > 0 || pendingHere.length > 0) && (
+        {(inTab.length > 0 || pendingHere.length > 0) && (
           <div className="vsc-wall__head">
-            <h2>Newest first</h2>
+            <h2>{filter.sort === "hottest" ? "Hottest first" : "Newest first"}</h2>
             <p>Hover to watch · <kbd>Del</kbd> removes the one you&apos;re on</p>
+          </div>
+        )}
+
+        {inTab.length > 0 && (
+          <div className="vsc-filters">
+            <div className="vsc-filters__row" role="toolbar" aria-label="Filter clips">
+              <div className="vsc-sort" role="group" aria-label="Order">
+                <button type="button" aria-pressed={filter.sort === "newest"} onClick={() => setFilter({ sort: "newest" })}>
+                  Newest
+                </button>
+                <button type="button" aria-pressed={filter.sort === "hottest"} onClick={() => setFilter({ sort: "hottest" })}>
+                  Hot now
+                </button>
+              </div>
+              {(
+                [
+                  ["mood", "Mood", filter.moods.length],
+                  ["heat", "Popularity", filter.heats.length],
+                  ["category", tab === "audio" ? "Type & genre" : tab === "fights" ? "Fight style" : tab === "dances" ? "Dance style" : "Sport & move", filter.categories.length],
+                ] as const
+              ).map(([id, label, n]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`vsc-filters__open${tray === id ? " is-open" : ""}${n ? " is-set" : ""}`}
+                  aria-expanded={tray === id}
+                  onClick={() => setTray((t) => (t === id ? null : id))}
+                >
+                  {label}
+                  {n ? <span className="vsc-filters__n">{n}</span> : null}
+                  <svg viewBox="0 0 12 12" aria-hidden="true">
+                    <path d="M3 4.5 6 7.5l3-3" />
+                  </svg>
+                </button>
+              ))}
+              {filtering && (
+                <button type="button" className="vsc-filters__clear" onClick={() => setFilter({ moods: [], heats: [], categories: [] })}>
+                  Clear
+                </button>
+              )}
+              <span className="vsc-filters__count">
+                {filtering ? `${visible.length} of ${inTab.length}` : `${inTab.length} clips`}
+              </span>
+            </div>
+            {tray && (
+              <div className="vsc-filters__tray">
+                {tray === "mood" &&
+                  MOODS.map((m) => (
+                    <button key={m} type="button" className="vsc-chip is-pick" aria-pressed={filter.moods.includes(m)} data-empty={!options.moods[m] || undefined} onClick={() => setFilter({ moods: toggleIn(filter.moods, m) })}>
+                      {m}
+                      <span>{options.moods[m] ?? 0}</span>
+                    </button>
+                  ))}
+                {tray === "heat" &&
+                  HEATS.map((h: Heat) => (
+                    <button key={h} type="button" className={`vsc-chip is-pick is-heat is-${h}`} aria-pressed={filter.heats.includes(h)} data-empty={!options.heats[h] || undefined} onClick={() => setFilter({ heats: toggleIn(filter.heats, h) })}>
+                      {HEAT_LABEL[h]}
+                      <span>{options.heats[h] ?? 0}</span>
+                    </button>
+                  ))}
+                {tray === "category" &&
+                  CATEGORIES[tab].map((c) => (
+                    <button key={c} type="button" className="vsc-chip is-pick" aria-pressed={filter.categories.includes(c)} data-empty={!options.categories[c] || undefined} onClick={() => setFilter({ categories: toggleIn(filter.categories, c) })}>
+                      {c}
+                      <span>{options.categories[c] ?? 0}</span>
+                    </button>
+                  ))}
+                {tray === "heat" && (
+                  <p className="vsc-filters__note">From each post&apos;s views per day since it went up, read when it was added.</p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -507,10 +719,13 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
                 onLeave={() => leave(c.id)}
                 onToggle={() => setActiveId((a) => (a === c.id ? null : c.id))}
                 onDelete={() => deleteClip(c.id)}
+                onFindSong={c.tab === "audio" ? () => void findSong(c.id) : undefined}
+                finding={finding.has(c.id)}
+                onEditTags={() => setEditing(c.id)}
               />
             </div>
           ))}
-          {visible.length > 0 && (
+          {visible.length > 0 && !filtering && (
             <button type="button" className="vsc-addtile" onClick={() => inputRef.current?.focus()}>
               <span className="vsc-addtile__art">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -523,6 +738,15 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
           )}
         </div>
 
+        {ready && filtering && !visible.length && inTab.length > 0 && (
+          <div className="vsc-empty">
+            <h2>No clips match those filters.</h2>
+            <p>Try fewer filters, or tag a clip with the Edit button under it.</p>
+            <button type="button" className="vsc-empty__go" onClick={() => setFilter({ moods: [], heats: [], categories: [] })}>
+              Clear filters
+            </button>
+          </div>
+        )}
         {empty && (
           <div className="vsc-empty">
             <h2>Nothing in {def.label} yet.</h2>
@@ -545,6 +769,8 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
         </div>
       )}
 
+      {editingClip && <TagSheet clip={editingClip} onClose={() => setEditing(null)} onSave={(t) => saveTags(editingClip.id, t)} />}
+
       {toast && (
         <div className="vsc-toast" role="status" key={toast.id}>
           <span>{toast.text}</span>
@@ -556,5 +782,48 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
         </div>
       )}
     </main>
+  );
+}
+
+/** Pick a clip's moods and categories by hand. A sheet from the bottom on a phone, a small panel on a laptop. */
+function TagSheet({ clip, onClose, onSave }: { clip: Clip; onClose: () => void; onSave: (tags: ClipTags) => void }) {
+  const [moods, setMoods] = useState<string[]>(clip.tags?.moods ?? []);
+  const [cats, setCats] = useState<string[]>(clip.tags?.categories ?? []);
+  const flip = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="vsc-sheet" role="dialog" aria-modal="true" aria-label="Tags" onClick={onClose}>
+      <div className="vsc-sheet__panel" onClick={(e) => e.stopPropagation()}>
+        <p className="vsc-sheet__title">{clip.title || "This clip"}</p>
+        <p className="vsc-sheet__label">Mood</p>
+        <div className="vsc-sheet__chips">
+          {MOODS.map((m) => (
+            <button key={m} type="button" className="vsc-chip is-pick" aria-pressed={moods.includes(m)} onClick={() => setMoods(flip(moods, m))}>
+              {m}
+            </button>
+          ))}
+        </div>
+        <p className="vsc-sheet__label">Category</p>
+        <div className="vsc-sheet__chips">
+          {CATEGORIES[clip.tab].map((c) => (
+            <button key={c} type="button" className="vsc-chip is-pick" aria-pressed={cats.includes(c)} onClick={() => setCats(flip(cats, c))}>
+              {c}
+            </button>
+          ))}
+        </div>
+        <div className="vsc-sheet__actions">
+          <button type="button" className="vsc-sheet__cancel" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="vsc-sheet__save" onClick={() => onSave({ moods, categories: cats })}>
+            Save tags
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

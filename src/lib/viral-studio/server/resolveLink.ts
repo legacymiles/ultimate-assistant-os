@@ -18,9 +18,14 @@ import { PLATFORM_LABEL, parseLink } from "@/lib/social-import/platform";
 import { resolveSocialPost } from "@/lib/social-import/resolve";
 import { BlockedUrlError, assertPublic, fetchJson } from "@/lib/social-import/safeFetch";
 
+import { tiktokDetails, type SourceMusic, type SourceStats } from "@/lib/social-import/videoDownload";
+
 import { guessVertical, instagramRef, tiktokRef, youTubeRef } from "../board";
-import type { Playback, ResolvedLink } from "../types";
-import { newKey, putMedia } from "./storage";
+import { judgeSound, songFromCredit, songLine } from "../song";
+import type { ClipStats, Playback, ResolvedLink, TabId } from "../types";
+import { listen } from "./songFinder";
+import { getMedia, newKey, putMedia, remoteStorage, signedReadUrl } from "./storage";
+import { tagClips } from "./tagger";
 
 export class LinkError extends Error {
   constructor(
@@ -74,7 +79,16 @@ async function readMeta(url: URL, platform: string): Promise<Meta> {
   return { title: isGeneric(title) ? "" : title, author: post?.author ?? "" };
 }
 
-async function download(url: string, uid: string): Promise<{ play: Playback; title: string; author: string; vertical?: boolean } | { error: string }> {
+interface Got {
+  play: Playback;
+  title: string;
+  author: string;
+  vertical?: boolean;
+  music: SourceMusic | null;
+  stats: SourceStats | null;
+}
+
+async function download(url: string, uid: string): Promise<Got | { error: string }> {
   try {
     const video = await importDanceVideo(url);
     const key = newKey(uid, "clips", video.contentType);
@@ -85,7 +99,7 @@ async function download(url: string, uid: string): Promise<{ play: Playback; tit
       if (await putMedia(pk, video.poster.bytes, video.poster.contentType)) posterKey = pk;
     }
     const vertical = video.width && video.height ? video.height >= video.width : undefined;
-    return { play: { kind: "file", key, posterKey }, title: cleanTitle(video.title), author: video.author, vertical };
+    return { play: { kind: "file", key, posterKey }, title: cleanTitle(video.title), author: video.author, vertical, music: video.music, stats: video.stats };
   } catch (err) {
     if (err instanceof ImportError) return { error: err.message.replace(/\s*You can also save the video.*$/s, "").trim() };
     return { error: "Couldn't download that video." };
@@ -96,7 +110,7 @@ async function download(url: string, uid: string): Promise<{ play: Playback; tit
  * `uid` is the signed-in owner, or null — signed out, nothing is downloaded
  * (there is nowhere private to keep it) and the embed is used instead.
  */
-export async function resolveLink(input: string, uid: string | null): Promise<ResolvedLink> {
+async function resolvePlayback(input: string, uid: string | null): Promise<ResolvedLink & { music?: SourceMusic | null; srcStats?: SourceStats | null }> {
   const link = parseLink(input);
   if (!link) throw new LinkError("That doesn't look like a link.");
   try {
@@ -128,6 +142,8 @@ export async function resolveLink(input: string, uid: string | null): Promise<Re
       author: meta.author || got.author,
       play: got.play,
       vertical: got.vertical ?? guessVertical(url.href),
+      music: got.music,
+      srcStats: got.stats,
     };
   }
 
@@ -143,4 +159,60 @@ export async function resolveLink(input: string, uid: string | null): Promise<Re
         ? `Playing through ${PLATFORM_LABEL[platform]}'s player — the file couldn't be saved.`
         : undefined;
   return { ...base, title: meta.title, author: meta.author, play, note, vertical: guessVertical(url.href) };
+}
+
+/** Where the song finder can hear a clip: a short signed link to the saved file, the file itself, or the post. */
+export async function audioSource(play: Playback, postUrl: string): Promise<{ url?: string; bytes?: Buffer }> {
+  if (play.kind === "file") {
+    if (remoteStorage()) {
+      const signed = await signedReadUrl(play.key, 900).catch(() => null);
+      if (signed) return { url: signed };
+    }
+    const bytes = await getMedia(play.key).catch(() => null);
+    if (bytes) return { bytes };
+  }
+  return { url: postUrl };
+}
+
+function toStats(s: SourceStats | null | undefined): ClipStats | undefined {
+  if (!s || (s.views === null && s.likes === null && !s.postedAt)) return undefined;
+  return { views: s.views, likes: s.likes, postedAt: s.postedAt, readAt: new Date().toISOString() };
+}
+
+/**
+ * A pasted link → a tile, for the tab it was pasted into. On the audio tab the
+ * song finder runs too: the post's own sound credit first, then listening to
+ * the audio when the credit isn't a song. Every tab gets mood/category tags
+ * and, where the network reports them, views and post date for "hot right now".
+ */
+export async function resolveLink(input: string, uid: string | null, tab: TabId = "audio"): Promise<ResolvedLink> {
+  const { music: credited, srcStats: counted, ...out } = await resolvePlayback(input, uid);
+  let music = credited ?? null;
+  let srcStats = counted ?? null;
+
+  // An embed-only TikTok still has its sound credit and numbers on the mirror.
+  if ((!music || !srcStats) && out.platform === "tiktok") {
+    const extra = await tiktokDetails(new URL(out.url)).catch(() => null);
+    music = music ?? extra?.music ?? null;
+    srcStats = srcStats ?? extra?.stats ?? null;
+  }
+  const stats = toStats(srcStats);
+
+  let songText = "";
+  let isSong = false;
+  if (tab === "audio") {
+    let heard = null;
+    if (!songFromCredit(music)) {
+      const got = await listen(await audioSource(out.play, out.url)).catch(() => null);
+      heard = got && got.ok ? got.song : null;
+    }
+    const judged = judgeSound(music, heard);
+    out.sound = judged.kind;
+    if (judged.song) out.song = judged.song;
+    songText = songLine(judged.song);
+    isSong = judged.kind === "song";
+  }
+
+  const tagged = await tagClips([{ id: "x", tab, title: out.title, author: out.author, song: songText, isSong }]).catch(() => null);
+  return { ...out, ...(stats ? { stats } : {}), ...(tagged?.x ? { tags: tagged.x } : {}) };
 }

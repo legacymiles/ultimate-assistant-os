@@ -49,6 +49,40 @@ export type Playback =
   | { kind: "instagram"; ref: string }
   | { kind: "none" };
 
+/** A released song heard in a clip. Shown as the subtitle under the clip's title, audio tab only. */
+export interface Song {
+  title: string;
+  artist: string;
+  /** Where the name came from: the post's own sound credit, or listening to the audio. */
+  via: "post" | "listen";
+  /** A page to play the song (Spotify, Apple Music…), when the finder had one. */
+  link?: string;
+}
+
+/**
+ * What the song finder concluded:
+ *   song      a released song — `song` holds its name
+ *   original  someone's own sound (a voice, a joke, a skit), not a song
+ *   unknown   it listened and couldn't tell; the Find song button stays
+ */
+export type SoundKind = "song" | "original" | "unknown";
+
+/** How the post was doing when it was read. */
+export interface ClipStats {
+  views?: number | null;
+  likes?: number | null;
+  postedAt?: string | null;
+  /** When these numbers were read. */
+  readAt?: string;
+}
+
+export interface ClipTags {
+  moods: string[];
+  categories: string[];
+  /** The owner set these by hand; the auto-tagger never overwrites them. */
+  byHand?: boolean;
+}
+
 export interface Clip {
   id: string;
   tab: TabId;
@@ -63,6 +97,11 @@ export interface Clip {
   /** A short plain-English line when the best playback wasn't possible. */
   note?: string;
   addedAt: string;
+  /** Audio tab: the song in it, once found. */
+  song?: Song;
+  sound?: SoundKind;
+  stats?: ClipStats;
+  tags?: ClipTags;
 }
 
 export interface Board {
@@ -78,4 +117,8 @@ export interface ResolvedLink {
   play: Playback;
   vertical?: boolean;
   note?: string;
+  song?: Song;
+  sound?: SoundKind;
+  stats?: ClipStats;
+  tags?: ClipTags;
 }

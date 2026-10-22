@@ -15,7 +15,7 @@ import "server-only";
 
 import { parseLink, type Platform } from "@/lib/social-import/platform";
 import { BlockedUrlError, assertPublic, fetchBytes } from "@/lib/social-import/safeFetch";
-import { VideoUnavailableError, downloadVideo } from "@/lib/social-import/videoDownload";
+import { VideoUnavailableError, downloadVideo, type SourceMusic, type SourceStats } from "@/lib/social-import/videoDownload";
 
 import { SOURCE_MAX_BYTES } from "../limits";
 import { readMp4Info } from "../mp4";
@@ -41,6 +41,8 @@ export interface ImportedVideo {
   author: string;
   platform: Platform;
   url: string;
+  music: SourceMusic | null;
+  stats: SourceStats | null;
   trail: string[];
 }
 
@@ -71,6 +73,8 @@ export async function importDanceVideo(input: string): Promise<ImportedVideo> {
   let thumbnail: string | null = null;
   let hint = { durationSec: null as number | null, width: null as number | null, height: null as number | null };
   let trail: string[] = [];
+  let music: SourceMusic | null = null;
+  let stats: SourceStats | null = null;
 
   if (link.platform === "web" && /\.(mp4|mov|m4v)$/i.test(link.url.pathname)) {
     const got = await fetchBytes(link.url.href, { maxBytes: SOURCE_MAX_BYTES, timeoutMs: 90_000, accept: "video/*" });
@@ -88,6 +92,8 @@ export async function importDanceVideo(input: string): Promise<ImportedVideo> {
       thumbnail = video.thumbnailUrl;
       hint = { durationSec: video.durationSec, width: video.width, height: video.height };
       trail = video.trail;
+      music = video.music ?? null;
+      stats = video.stats ?? null;
     } catch (err) {
       if (err instanceof VideoUnavailableError) throw new ImportError(err.message, 422, err.trail);
       throw err;
@@ -112,6 +118,8 @@ export async function importDanceVideo(input: string): Promise<ImportedVideo> {
     author,
     platform: link.platform,
     url: link.url.href,
+    music,
+    stats,
     trail,
   };
 }

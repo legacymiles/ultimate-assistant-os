@@ -108,7 +108,9 @@ describe("connections guides", () => {
     const { connectionRows, SETUP_CAPABILITIES } = await import("./keySetup");
     const rows = connectionRows({});
     expect(rows[0].capability.id).toBe(SETUP_CAPABILITIES[0]);
-    expect(rows.every((r) => r.capability.via === "key" && r.ask.length > 0)).toBe(true);
+    // Key-based, or working without a key but better with one (the song finder).
+    expect(rows.every((r) => (r.capability.via === "key" || (r.capability.optional ?? []).length > 0) && r.ask.length > 0)).toBe(true);
+    expect(rows.find((r) => r.capability.id === "song-finder")?.ask).toEqual(["AUDD_API_TOKEN"]);
     expect(connectionRows({ YOUTUBE_API_KEY: true }).find((r) => r.capability.id === "youtube")?.reading.status).toBe("live");
   });
 });
