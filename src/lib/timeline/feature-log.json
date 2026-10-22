@@ -1,5 +1,77 @@
 [
  {
+  "id": "52118a1:jarvis",
+  "date": "2026-10-22",
+  "slug": "jarvis",
+  "title": "Phone Back closes the open sheet one step at a time, never reloads Jarvis",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "61ae1cb:dashboard",
+  "date": "2026-10-22",
+  "slug": "dashboard",
+  "title": "Same photos on phone and laptop, newest first, deleted-on-phone photos removed, chat bar and Back on the phone",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "61ae1cb:jarvis",
+  "date": "2026-10-22",
+  "slug": "jarvis",
+  "title": "Same photos on phone and laptop, newest first, deleted-on-phone photos removed, chat bar and Back on the phone",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "09d22f1:viral-studio-content",
+  "date": "2026-10-22",
+  "slug": "viral-studio-content",
+  "title": "Song finder names the song under the title, filters by mood, popularity and category",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "09d22f1:jarvis",
+  "date": "2026-10-22",
+  "slug": "jarvis",
+  "title": "Song finder names the song under the title, filters by mood, popularity and category",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "09d22f1:dashboard",
+  "date": "2026-10-22",
+  "slug": "dashboard",
+  "title": "Song finder names the song under the title, filters by mood, popularity and category",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "cf2a7f8:jarvis",
+  "date": "2026-10-22",
+  "slug": "jarvis",
+  "title": "Studio talk-to-text mic, no Ask/Do/Browse bar on top or in Chat",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "397afbd:projects-timeline",
+  "date": "2026-10-22",
+  "slug": "projects-timeline",
+  "title": "Log the phone fixes; shallow clones no longer log a fake edit to every app",
+  "detail": "The oldest commit in a shallow clone (Vercel builds, cloud sessions) has no parent, so git lists it as adding every file and timeline-log filed it as an edit to every app. Boundary commits from .git/shallow are skipped now.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "53778d4:jarvis",
   "date": "2026-10-22",
   "slug": "jarvis",
