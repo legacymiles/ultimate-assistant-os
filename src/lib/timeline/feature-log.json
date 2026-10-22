@@ -1,5 +1,23 @@
 [
  {
+  "id": "11ab23a:jarvis",
+  "date": "2026-10-22",
+  "slug": "jarvis",
+  "title": "Chat opens App Builder on screen instead of sending a link",
+  "detail": "When Jarvis chat makes an app, App Builder now pops up right inside Jarvis with the super agent already working — full screen on a phone, a wide panel on a computer. Back arrow shrinks it to a pill at the top (it keeps working), Full page opens it on its own, X closes it. Phone polish in App Builder",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "11ab23a:app-builder",
+  "date": "2026-10-22",
+  "slug": "app-builder",
+  "title": "Chat opens App Builder on screen instead of sending a link",
+  "detail": "When Jarvis chat makes an app, App Builder now pops up right inside Jarvis with the super agent already working — full screen on a phone, a wide panel on a computer. Back arrow shrinks it to a pill at the top (it keeps working), Full page opens it on its own, X closes it. Phone polish in App Builder",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "b473c1f:cook-connect",
   "date": "2026-10-20",
   "slug": "cook-connect",
