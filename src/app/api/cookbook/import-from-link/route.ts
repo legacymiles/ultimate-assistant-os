@@ -13,6 +13,7 @@ import {
   recipeFromCaption,
   recipeFromStructured,
 } from "@/lib/cookbook/recipe";
+import { dedupeByTitle, recipeEntries } from "@/lib/cook-connect/found";
 import { findByType } from "@/lib/social-import/jsonld";
 import { PLATFORM_LABEL, parseLink } from "@/lib/social-import/platform";
 import { NotALinkError, emptyPost, resolveSocialPost, type SocialPost } from "@/lib/social-import/resolve";
@@ -43,8 +44,11 @@ const SYSTEM =
 //             ("dish" | "written" | "auto"). Built by lib/cook-connect/compose.
 //   note:     the cook's own words. Always honoured, and it outranks the rest
 //             wherever they disagree — it is the only part a person typed.
-// Returns { recipe, source, coverDataUrl, evidence, confidence, assumptions, trail }
+// Returns { recipes, recipe, source, coverDataUrl, evidence, confidence, assumptions, trail }
 // or { error, needsHelp?, trail? } when nothing usable could be read.
+//   recipes: every separate dish the source shows — a "3 easy dinners" video is
+//            three — each { recipe, confidence, assumptions }. `recipe`,
+//            `confidence` and `assumptions` repeat the first, for older callers.
 export async function POST(req: Request) {
   let body: Record<string, unknown>;
   try {
@@ -195,7 +199,7 @@ export async function POST(req: Request) {
         imageDataUrl: cover,
         images,
       });
-      if (u.data?.is_recipe === false) {
+      if (u.data?.is_recipe === false && !recipeEntries(u.data).some((r) => Array.isArray(r?.ingredients) && r.ingredients.length)) {
         return fail(
           422,
           images.length
@@ -204,13 +208,25 @@ export async function POST(req: Request) {
           { trail: post.trail },
         );
       }
-      const recipe = normalizeRecipe(u.data);
-      if (recipe.ingredients.length && recipe.instructions.length) {
+      const found = dedupeByTitle(
+        recipeEntries(u.data)
+          .map((raw) => ({
+            recipe: normalizeRecipe(raw),
+            confidence: pickConfidence(raw?.confidence ?? u.data?.confidence),
+            assumptions: Array.isArray(raw?.assumptions) ? raw.assumptions.map(String).slice(0, 12) : [],
+          }))
+          .filter((f) => f.recipe.ingredients.length && f.recipe.instructions.length),
+        (f) => f.recipe.title,
+      );
+      if (found.length) {
         if ((post.video || upload) && !u.watchedVideo) {
           post.trail.push("Couldn't watch the video, so this was built from the caption.");
         }
+        if (found.length > 1) post.trail.push(`Found ${found.length} separate recipes in it.`);
+        const first = found[0];
         return NextResponse.json({
-          recipe,
+          recipes: found,
+          recipe: first.recipe,
           source,
           coverDataUrl: cover,
           evidence: {
@@ -221,8 +237,8 @@ export async function POST(req: Request) {
             sawPhotos: images.length,
             usedNote: Boolean(note),
           },
-          confidence: ["high", "medium", "low"].includes(u.data?.confidence) ? u.data.confidence : null,
-          assumptions: Array.isArray(u.data?.assumptions) ? u.data.assumptions.map(String).slice(0, 12) : [],
+          confidence: first.confidence,
+          assumptions: first.assumptions,
           trail: post.trail,
         });
       }
@@ -247,7 +263,10 @@ export async function POST(req: Request) {
       { needsHelp: true, trail: post.trail }
     );
   }
+  const fallbackConfidence = structured ? "high" : "low";
+  const fallbackAssumptions = structured ? [] : ["Built from the caption text only — amounts and steps may be incomplete."];
   return NextResponse.json({
+    recipes: [{ recipe: fallback, confidence: fallbackConfidence, assumptions: fallbackAssumptions }],
     recipe: fallback,
     source,
     coverDataUrl: cover,
@@ -259,8 +278,8 @@ export async function POST(req: Request) {
       sawPhotos: 0,
       usedNote: Boolean(note),
     },
-    confidence: structured ? "high" : "low",
-    assumptions: structured ? [] : ["Built from the caption text only — amounts and steps may be incomplete."],
+    confidence: fallbackConfidence,
+    assumptions: fallbackAssumptions,
     trail: post.trail,
   });
 }
@@ -290,8 +309,11 @@ function buildTask(structured: any, photos: string, note: string): string {
       + `if they ask for a change, apply it to the amounts and the steps, don't just mention it):\n${note}\n`
     : "";
 
-  return `${creator}${photos ? `${photos}\n\n` : ""}Write down the recipe these sources show.
-- Every source above describes ONE dish. Combine them: the video or photos show what it looks like and how it's made, the caption and written recipe give the amounts, and a photo of writing gives both.
+  return `${creator}${photos ? `${photos}\n\n` : ""}Write down every recipe these sources show.
+- HOW MANY RECIPES: usually one. Return SEVERAL only when the sources really show separate dishes, each made on its own — "3 dinners under $10", "what I eat in a day", a full spread where the main, the side and the dessert are each cooked start to finish, a cookbook page with two recipes on it. One recipe per dish, in the order they appear.
+- A component of one dish is NOT its own recipe: a burger with its sauce, tacos with their salsa, a cake with its frosting stay ONE recipe with all their parts — unless the video presents that part as a separate recipe of its own (its own name, its own ingredient list).
+- The same dish shown twice (a recap, a "full recipe" at the end) is still one recipe.
+- For each recipe, combine the sources: the video or photos show what it looks like and how it's made, the caption and written recipe give the amounts, and a photo of writing gives both. Never mix one dish's ingredients into another's.
 - title: the dish's real name (e.g. "Baked Feta Pasta"), never the caption's hook or joke. Max 60 characters.
 - description: one appetizing sentence in your own words.
 - ingredients: every ingredient seen, said, or written — including oil, seasoning and garnish. Use amounts stated in speech, on-screen text, the caption, a photo of writing, or the creator's written recipe. If an amount is never stated, estimate a sensible one and say so in "assumptions".
@@ -300,11 +322,19 @@ function buildTask(structured: any, photos: string, note: string): string {
 - Set "is_recipe": false ONLY if none of the sources has anything to do with food. A photo of a finished dish with no text is still a recipe worth writing.${asked}
 
 Return JSON matching:
-${RECIPE_JSON_SCHEMA.replace(/\n}$/, `,
+{
   "is_recipe": boolean,
-  "confidence": "high" | "medium" | "low" (how completely the post showed the recipe),
-  "assumptions": string[] (each amount or step you had to guess)
-}`)}`;
+  "recipes": [ one object per separate dish (at most 8), each:
+${RECIPE_JSON_SCHEMA.replace(/\n}$/, `,
+  "confidence": "high" | "medium" | "low" (how completely the post showed THIS recipe),
+  "assumptions": string[] (each amount or step you had to guess for THIS recipe)
+}`)}
+  ]
+}`;
+}
+
+function pickConfidence(v: unknown): "high" | "medium" | "low" | null {
+  return v === "high" || v === "medium" || v === "low" ? v : null;
 }
 
 function imageOf(recipe: any): string | null {

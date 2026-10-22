@@ -45,6 +45,10 @@ export const MAX_IMAGE_CHARS = 4_000_000;
 /** Every image together, so six large photos can't make a request nothing accepts. */
 export const MAX_IMAGES_CHARS = 14_000_000;
 export const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
+/** Videos in one go. Past one, each video is read on its own (a bulk upload). */
+export const MAX_VIDEOS = 6;
+/** Links in one paste. Each is read on its own. */
+export const MAX_LINKS = 20;
 
 export function images(c: Composition): Attachment[] {
   return c.attachments.filter((a) => a.kind === "image");
@@ -52,6 +56,95 @@ export function images(c: Composition): Attachment[] {
 
 export function video(c: Composition): Attachment | null {
   return c.attachments.find((a) => a.kind === "video") ?? null;
+}
+
+export function videos(c: Composition): Attachment[] {
+  return c.attachments.filter((a) => a.kind === "video");
+}
+
+/**
+ * Every link in what was pasted, in order, once each.
+ *
+ * People paste a column of links copied from Notes, a row of them separated by
+ * commas, or a share sheet's "Check this out https://…" — so links are found
+ * wherever they sit rather than by splitting on one separator. A bare
+ * "tiktok.com/@x/video/1" counts; a word with no dot in it does not.
+ */
+export function parseLinks(text: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of text.split(/[\s,;]+/)) {
+    const token = raw.trim().replace(/^[<("'\[]+|[>)"'\].!?]+$/g, "");
+    if (!token) continue;
+    const withScheme = /^https?:\/\//i.test(token) ? token : `https://${token}`;
+    let url: URL;
+    try {
+      url = new URL(withScheme);
+    } catch {
+      continue;
+    }
+    if (!url.hostname.includes(".") || url.hostname.endsWith(".")) continue;
+    // A bare word like "dinner." would parse as a host; a link has a real TLD.
+    if (!/\.[a-z]{2,}$/i.test(url.hostname)) continue;
+    const key = url.href.replace(/\/$/, "").toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(/^https?:\/\//i.test(token) ? token : withScheme);
+    if (out.length >= MAX_LINKS) break;
+  }
+  return out;
+}
+
+/**
+ * More than one link, or more than one video: each one is its own read.
+ *
+ * One link with one video stays a single read — that is usually the video
+ * downloaded from that same post, and reading them together is what made the
+ * single-dish case good.
+ */
+export function isBulk(c: Composition): boolean {
+  return parseLinks(c.link).length > 1 || videos(c).length > 1;
+}
+
+/** One read the composer will run. In a single read every part goes together. */
+export interface ReadJob {
+  id: string;
+  /** Shown on the job's row: "that TikTok link", "dinner.mp4", "your photos". */
+  label: string;
+  link?: string;
+  /** Attachment id of the one video this job reads. */
+  videoId?: string;
+  /** Attachment ids of the photos this job reads. */
+  photoIds: string[];
+}
+
+/**
+ * How a composition splits into reads.
+ *
+ * Single: one job carrying everything. Bulk: one job per link and per video,
+ * and the photos (if any) together as one more — a photo can't be pinned to
+ * one of six videos, and reading it six times would pay six times for one
+ * picture. The cook's note goes with every job; it is an instruction, not
+ * evidence, so it belongs to all of them.
+ */
+export function jobsFor(c: Composition): ReadJob[] {
+  const links = parseLinks(c.link);
+  const vids = videos(c);
+  const photoIds = images(c).map((a) => a.id);
+  if (!isBulk(c)) {
+    return [{
+      id: "j1",
+      label: links[0] ? linkLabel(links[0]) : vids[0]?.name ?? (photoIds.length ? "your photos" : "your note"),
+      link: links[0],
+      videoId: vids[0]?.id,
+      photoIds,
+    }];
+  }
+  const jobs: ReadJob[] = [];
+  links.forEach((link, i) => jobs.push({ id: `l${i + 1}`, label: linkLabel(link), link, photoIds: [] }));
+  vids.forEach((v, i) => jobs.push({ id: `v${i + 1}`, label: v.name, videoId: v.id, photoIds: [] }));
+  if (photoIds.length) jobs.push({ id: "p1", label: photoIds.length === 1 ? "your photo" : "your photos", photoIds });
+  return jobs;
 }
 
 /** Anything at all to work from. */
@@ -77,8 +170,20 @@ export function needsReading(c: Composition): boolean {
  * before it is paid for.
  */
 export function summarise(c: Composition): string {
+  if (isBulk(c)) {
+    const n = parseLinks(c.link).length;
+    const v = videos(c).length;
+    const p = images(c).length;
+    const parts: string[] = [];
+    if (n) parts.push(count(n, "link"));
+    if (v) parts.push(count(v, "video"));
+    if (p) parts.push(`${count(p, "photo")} together`);
+    const each = `Reading ${list(parts)}, each on its own`;
+    const note = c.note.trim() ? ", with your note applied to every one" : "";
+    return `${each}${note}. Every recipe found comes back for you to keep or skip.`;
+  }
   const parts: string[] = [];
-  const link = c.link.trim();
+  const link = parseLinks(c.link)[0] ?? c.link.trim();
   if (link) parts.push(linkLabel(link));
 
   const v = video(c);
@@ -103,7 +208,7 @@ export function summarise(c: Composition): string {
 }
 
 /** "a TikTok link", "a YouTube link", "that link" — never the raw URL, which is too long to read. */
-function linkLabel(link: string): string {
+export function linkLabel(link: string): string {
   let host = "";
   try {
     host = new URL(link.startsWith("http") ? link : `https://${link}`).hostname.replace(/^www\./, "");
@@ -127,7 +232,7 @@ function linkLabel(link: string): string {
 }
 
 function count(n: number, noun: string): string {
-  const words = ["", "one", "two", "three", "four", "five", "six"];
+  const words = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
   return `${words[n] ?? n} ${noun}${n === 1 ? "" : "s"}`;
 }
 
@@ -159,7 +264,7 @@ const READING_INSTRUCTION: Record<Reading, string> = {
 /** Why this file can't be attached, or null when it can. */
 export function rejectFile(file: { type: string; size: number }, already: Composition): string | null {
   if (file.type.startsWith("video/")) {
-    if (video(already)) return "One video at a time. Remove the one you've attached first.";
+    if (videos(already).length >= MAX_VIDEOS) return `${MAX_VIDEOS} videos at a time is the limit. Read these, then add more.`;
     if (file.size > MAX_VIDEO_BYTES) return "That video is over 20 MB. Trim it, or paste the caption into your note instead.";
     return null;
   }

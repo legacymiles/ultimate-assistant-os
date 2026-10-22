@@ -3,8 +3,13 @@ import {
   type Attachment,
   type Composition,
   type Reading,
+  MAX_LINKS,
+  MAX_VIDEOS,
   hasEvidence,
+  isBulk,
+  jobsFor,
   needsReading,
+  parseLinks,
   readingBrief,
   rejectFile,
   summarise,
@@ -14,8 +19,8 @@ function img(reading: Reading = "auto", name = "photo.jpg"): Attachment {
   return { id: `i${Math.random()}`, kind: "image", name, dataUrl: "data:image/jpeg;base64,x", reading };
 }
 
-function vid(): Attachment {
-  return { id: "v1", kind: "video", name: "clip.mp4", dataUrl: "data:video/mp4;base64,x", reading: "auto" };
+function vid(id = "v1", name = "clip.mp4"): Attachment {
+  return { id, kind: "video", name, dataUrl: "data:video/mp4;base64,x", reading: "auto" };
 }
 
 function compose(c: Partial<Composition> = {}): Composition {
@@ -120,11 +125,12 @@ describe("rejectFile", () => {
     expect(rejectFile({ type: "image/png", size: 10_000 }, six)).toMatch(/limit/);
   });
 
-  it("takes one video, under 20 MB", () => {
+  it("takes several videos for a bulk read, each under 20 MB, up to the limit", () => {
     expect(rejectFile({ type: "video/mp4", size: 5_000_000 }, compose())).toBeNull();
     expect(rejectFile({ type: "video/mp4", size: 40_000_000 }, compose())).toMatch(/20 MB/);
-    expect(rejectFile({ type: "video/mp4", size: 1000 }, compose({ attachments: [vid()] })))
-      .toMatch(/One video at a time/);
+    expect(rejectFile({ type: "video/mp4", size: 1000 }, compose({ attachments: [vid()] }))).toBeNull();
+    const full = compose({ attachments: Array.from({ length: MAX_VIDEOS }, (_, i) => vid(`v${i}`)) });
+    expect(rejectFile({ type: "video/mp4", size: 1000 }, full)).toMatch(/limit/);
   });
 
   it("refuses a PDF, and says what it wanted", () => {
@@ -137,5 +143,64 @@ describe("rejectFile", () => {
     expect(rejectFile({ type: "image/jpeg", size: 1000 }, withVideo)).toBeNull();
     const withPhotos = compose({ attachments: [img(), img()] });
     expect(rejectFile({ type: "video/mp4", size: 1000 }, withPhotos)).toBeNull();
+  });
+});
+
+describe("parseLinks", () => {
+  it("finds every link in a column, a comma list or a share sheet's sentence", () => {
+    expect(parseLinks("https://www.tiktok.com/@a/video/1\nhttps://youtu.be/xyz")).toEqual([
+      "https://www.tiktok.com/@a/video/1",
+      "https://youtu.be/xyz",
+    ]);
+    expect(parseLinks("https://a.com/x, https://b.com/y;https://c.com/z")).toHaveLength(3);
+    expect(parseLinks("Check this out! https://www.instagram.com/reel/abc/ so good"))
+      .toEqual(["https://www.instagram.com/reel/abc/"]);
+  });
+
+  it("accepts a link without https and ignores plain words", () => {
+    expect(parseLinks("tiktok.com/@cook/video/9 dinner tonight e.g.")).toEqual(["https://tiktok.com/@cook/video/9"]);
+  });
+
+  it("keeps each link once, in the order pasted", () => {
+    expect(parseLinks("https://a.com/1\nhttps://b.com/2\nhttps://a.com/1/")).toEqual(["https://a.com/1", "https://b.com/2"]);
+  });
+
+  it("stops at the limit", () => {
+    const many = Array.from({ length: MAX_LINKS + 5 }, (_, i) => `https://a.com/${i}`).join("\n");
+    expect(parseLinks(many)).toHaveLength(MAX_LINKS);
+  });
+});
+
+describe("isBulk and jobsFor", () => {
+  it("one link, one video, photos and a note stay ONE read about one dish", () => {
+    const c = compose({ link: "https://www.tiktok.com/@a/video/1", note: "for six", attachments: [vid(), img()] });
+    expect(isBulk(c)).toBe(false);
+    const jobs = jobsFor(c);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({ link: "https://www.tiktok.com/@a/video/1", videoId: "v1" });
+    expect(jobs[0].photoIds).toHaveLength(1);
+  });
+
+  it("several links become one read each", () => {
+    const c = compose({ link: "https://www.tiktok.com/@a/video/1\nhttps://youtu.be/b" });
+    expect(isBulk(c)).toBe(true);
+    const jobs = jobsFor(c);
+    expect(jobs.map((j) => j.label)).toEqual(["that TikTok link", "that YouTube link"]);
+    expect(jobs.every((j) => j.photoIds.length === 0 && !j.videoId)).toBe(true);
+  });
+
+  it("several videos become one read each, and the photos one more together", () => {
+    const c = compose({ attachments: [vid("v1", "tacos.mp4"), vid("v2", "pasta.mp4"), img(), img()] });
+    const jobs = jobsFor(c);
+    expect(jobs.map((j) => j.label)).toEqual(["tacos.mp4", "pasta.mp4", "your photos"]);
+    expect(jobs[2].photoIds).toHaveLength(2);
+    expect(new Set(jobs.map((j) => j.id)).size).toBe(jobs.length);
+  });
+
+  it("says a bulk read reads each on its own and that every recipe comes back to be kept or skipped", () => {
+    const c = compose({ link: "https://a.com/1\nhttps://b.com/2", note: "no dairy", attachments: [vid()] });
+    expect(summarise(c)).toBe(
+      "Reading two links and one video, each on its own, with your note applied to every one. Every recipe found comes back for you to keep or skip.",
+    );
   });
 });
