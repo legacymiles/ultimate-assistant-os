@@ -1,5 +1,356 @@
 [
  {
+  "id": "77aa8e1:jarvis",
+  "date": "2026-10-22",
+  "slug": "jarvis",
+  "title": "Usage filter — see your most-used and never-used skills, with a call count on each",
+  "detail": "- Usage filter (Any · Top 10 · Used · Never used), a \"Most used\" sort, and a \"N calls · used X ago\" badge on every skill (#1–#3 lit) - Counts every skill call: Claude Code on the PC/VPS (Skill tool + typed /<skill>, via a silent async skill-sync hook), the connector's get_skill, and Jarvis Studio wo",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "77aa8e1:skills-library",
+  "date": "2026-10-22",
+  "slug": "skills-library",
+  "title": "Usage filter — see your most-used and never-used skills, with a call count on each",
+  "detail": "- Usage filter (Any · Top 10 · Used · Never used), a \"Most used\" sort, and a \"N calls · used X ago\" badge on every skill (#1–#3 lit) - Counts every skill call: Claude Code on the PC/VPS (Skill tool + typed /<skill>, via a silent async skill-sync hook), the connector's get_skill, and Jarvis Studio wo",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:ai-rankings",
+  "date": "2026-10-22",
+  "slug": "ai-rankings",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:app-builder",
+  "date": "2026-10-22",
+  "slug": "app-builder",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:financial-bible",
+  "date": "2026-10-22",
+  "slug": "financial-bible",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:prompt-architect",
+  "date": "2026-10-22",
+  "slug": "prompt-architect",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:client-review",
+  "date": "2026-10-22",
+  "slug": "client-review",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:cook-connect",
+  "date": "2026-10-22",
+  "slug": "cook-connect",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:cookbook-genie",
+  "date": "2026-10-22",
+  "slug": "cookbook-genie",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:viral-studio-content",
+  "date": "2026-10-22",
+  "slug": "viral-studio-content",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:dashboard",
+  "date": "2026-10-22",
+  "slug": "dashboard",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:dump-finder",
+  "date": "2026-10-22",
+  "slug": "dump-finder",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:ea-world",
+  "date": "2026-10-22",
+  "slug": "ea-world",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:jarvis",
+  "date": "2026-10-22",
+  "slug": "jarvis",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:friends-night-out",
+  "date": "2026-10-22",
+  "slug": "friends-night-out",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:game-creator",
+  "date": "2026-10-22",
+  "slug": "game-creator",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:gods-eye-view",
+  "date": "2026-10-22",
+  "slug": "gods-eye-view",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:h3-experiments",
+  "date": "2026-10-22",
+  "slug": "h3-experiments",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:image-studio",
+  "date": "2026-10-22",
+  "slug": "image-studio",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:jarvis-audio-studio",
+  "date": "2026-10-22",
+  "slug": "jarvis-audio-studio",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:realtime-lucy",
+  "date": "2026-10-22",
+  "slug": "realtime-lucy",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:website-redesigner",
+  "date": "2026-10-22",
+  "slug": "website-redesigner",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:projects-timeline",
+  "date": "2026-10-22",
+  "slug": "projects-timeline",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:seedance-studio",
+  "date": "2026-10-22",
+  "slug": "seedance-studio",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:skills-library",
+  "date": "2026-10-22",
+  "slug": "skills-library",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:smart-shot-videos",
+  "date": "2026-10-22",
+  "slug": "smart-shot-videos",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:personas-studio",
+  "date": "2026-10-22",
+  "slug": "personas-studio",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:std-safe",
+  "date": "2026-10-22",
+  "slug": "std-safe",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:3d-studio",
+  "date": "2026-10-22",
+  "slug": "3d-studio",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:video-studio-arena",
+  "date": "2026-10-22",
+  "slug": "video-studio-arena",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:youtube-videos",
+  "date": "2026-10-22",
+  "slug": "youtube-videos",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:baby-no-scroll",
+  "date": "2026-10-22",
+  "slug": "baby-no-scroll",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:fire-reveal",
+  "date": "2026-10-22",
+  "slug": "fire-reveal",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:kart-showcase",
+  "date": "2026-10-22",
+  "slug": "kart-showcase",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:multi-order-calculator",
+  "date": "2026-10-22",
+  "slug": "multi-order-calculator",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:slippery-escape",
+  "date": "2026-10-22",
+  "slug": "slippery-escape",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:amhe",
+  "date": "2026-10-22",
+  "slug": "amhe",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:soundprint",
+  "date": "2026-10-22",
+  "slug": "soundprint",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "41092e6:voice-studio",
+  "date": "2026-10-22",
+  "slug": "voice-studio",
+  "title": "Log app edits",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "7a2b01d:jarvis",
   "date": "2026-10-22",
   "slug": "jarvis",
