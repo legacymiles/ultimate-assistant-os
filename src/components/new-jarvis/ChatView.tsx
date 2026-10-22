@@ -25,7 +25,7 @@ import "./new-jarvis-chat.css";
 import { ACCEPT_CHAT_MEDIA, type ChatMedia } from "@/lib/new-jarvis/chatMedia";
 import { modelLabel } from "@/lib/new-jarvis/chatModels";
 import { groupThreads, type Thread } from "@/lib/new-jarvis/threads";
-import { elapsed, MODES, type Block, type Mode } from "@/lib/new-jarvis/types";
+import { elapsed, type Block, type Mode } from "@/lib/new-jarvis/types";
 import type { VoiceState } from "@/lib/new-jarvis/useWakeVoice";
 
 export interface ComposerProps {
@@ -491,8 +491,6 @@ function Composer({
   value,
   onChange,
   onSubmit,
-  mode,
-  onMode,
   voiceState,
   heard,
   micSupported,
@@ -614,13 +612,6 @@ function Composer({
           <span className="njc-model">
             <ModelPicker value={model} onChange={onModel} up={docked} />
           </span>
-          <div className="njc-modes" role="group" aria-label="How Jarvis should work">
-            {MODES.map((m) => (
-              <button key={m.id} type="button" onClick={() => onMode(m.id)} title={m.hint} aria-pressed={mode === m.id}>
-                {m.label}
-              </button>
-            ))}
-          </div>
           {onEnhance && (
             <button
               type="button"
@@ -657,7 +648,7 @@ function Composer({
             ✦ {goalHint}? Set the end goal first ·
           </button>
         )}
-        {MODES.find((m) => m.id === mode)?.hint} · Enter to send, Shift+Enter for a new line
+        Enter to send, Shift+Enter for a new line
       </p>
     </div>
   );

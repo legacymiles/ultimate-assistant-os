@@ -38,6 +38,8 @@ import type { JarvisStore } from "@/lib/jarvis/types";
 import type { Profile } from "@/lib/new-dashboard/types";
 import { useCinemaOutput, useCinemaSelection } from "@/lib/studio/useCinema";
 import { Icon } from "../icons";
+import { MicButton } from "./MicButton";
+import { useDictation } from "@/lib/new-jarvis/useDictation";
 import { ReferenceTile } from "./ReferenceTile";
 import {
   ACCEPT_REFERENCES,
@@ -119,6 +121,8 @@ export function StudioTab({
   const [mention, setMention] = useState<{ start: number; caret: number; query: string } | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
   const ideaRef = useRef<HTMLTextAreaElement>(null);
+  // Talk to type: say what you want built, the words land in the box.
+  const dictation = useDictation(() => ideaRef.current?.value ?? "", setIdea);
   /** The reference token the caret is naming, lowercased, so its tile lights up. */
   const [highlight, setHighlight] = useState<string | null>(null);
   /** Everyone the Photos tab knows well enough to put in a shot. */
@@ -283,6 +287,7 @@ export function StudioTab({
     setIdea((t) => `${t}${t && !/\s$/.test(t) ? " " : ""}@${token} `);
 
   const start = () => {
+    dictation.stop();
     // A picked card, a typed idea or an attached reference — any one of them is
     // something to start from. It used to demand a card, so an idea with a photo
     // and no workflow pressed the button and nothing happened.
@@ -567,6 +572,7 @@ export function StudioTab({
               </ul>
             )}
             {problem && <p className="px-2 pt-2 text-[11px] text-amber-400">{problem}</p>}
+            {dictation.error && <p className="px-2 pt-2 text-[11px] text-amber-400">{dictation.error}</p>}
             <textarea
               ref={ideaRef}
               value={idea}
@@ -641,6 +647,7 @@ export function StudioTab({
               <Icon.Plus width={14} height={14} />
               {attachments.length ? `${attachments.length}/${MAX_ATTACHMENTS}` : "Image, clip or audio"}
             </button>
+            <MicButton dictation={dictation} />
             <span className="mx-0.5 h-5 w-px bg-line" aria-hidden />
             <CinemaOutputRow output={output} onOutput={setOutput} />
             <span className="mx-0.5 h-5 w-px bg-line" aria-hidden />

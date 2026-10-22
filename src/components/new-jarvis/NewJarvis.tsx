@@ -25,7 +25,6 @@ import "./new-jarvis-hud.css";
 import { HudField, Reactor } from "./HudField";
 import { WorldField } from "./WorldField";
 
-import { CommandLine } from "./CommandLine";
 import { StatusDock } from "./StatusDock";
 import { VoiceOrb } from "./VoiceOrb";
 import { QueueBoard } from "./QueueBoard";
@@ -1185,62 +1184,10 @@ ${reflex.best.excerpt ?? ""}`.trim()
               </div>
             </div>
           )}
-          {/* The coding agent has its own composer (it talks to a branch, not
-              to Jarvis), so the command line steps aside on that one tab. */}
-          {tab !== "harness" && tab !== "console" && (
-            <CommandLine
-              value={input}
-              onChange={setInput}
-              onSubmit={() => void submit()}
-              mode={mode}
-              onMode={setMode}
-              voiceState={voice.state}
-              heard={voice.heard}
-              micSupported={voice.supported}
-              onMic={voice.toggle}
-              busy={running}
-              model={chatModel}
-              onModel={setChatModel}
-              media={media}
-              onFiles={addFiles}
-              onRemoveMedia={(id) => setMedia((list) => list.filter((m) => m.id !== id))}
-              preparing={preparing}
-              onEnhance={() => setGoalFor(input)}
-              goalHint={goalTopic && goalFor === null ? TOPIC_LABEL[goalTopic] : null}
-            />
-          )}
-          {tab !== "harness" && tab !== "console" && goalFor !== null && (
-            <GoalCheck
-              key={goalFor}
-              text={goalFor}
-              topic={topicOf(goalFor)}
-              onClose={() => setGoalFor(null)}
-              onUse={(prompt) => {
-                setInput(prompt);
-                setGoalFor(null);
-              }}
-            />
-          )}
+          {/* No command bar across the top (owner's ask, Oct 2026): Chat has its
+              own composer and Studio its own, each with a mic. */}
           {mediaError && tab !== "console" && (
             <p className="border-b border-line bg-panel px-4 py-1.5 text-[11px] text-amber-300">{mediaError}</p>
-          )}
-
-          {/* The reflex, over whatever is in the box. Hidden when there is
-              nothing to judge, so an empty console is not a readout. */}
-          {input.trim() && tab !== "console" && (
-            <ReflexStrip
-              reflex={reflex}
-              onAccept={() => {
-                setOverrideFor("");
-                void submit();
-              }}
-              onAnyway={() => {
-                setOverrideFor(input.trim());
-                // The override is read on the next submit, so it has to run
-                // after this state has landed.
-                setTimeout(() => submitRef.current(input.trim(), "typed"), 0);
-              }}
-            />
           )}
 
           {/* The phone-only strip that used to stand in for the missing right

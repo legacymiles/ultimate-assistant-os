@@ -77,6 +77,8 @@ import { cancelFilm, startFilm, watchFilm, type FilmView } from "@/lib/studio/fi
 import { boardBrief, hydrate, runtimeSec, timecode, type Storyboard } from "@/lib/studio/storyboard";
 import type { PanelFace } from "@/lib/studio/panels";
 import { sendStudioJobToQueue } from "@/lib/studio/queueJob";
+import { MicButton } from "./MicButton";
+import { useDictation } from "@/lib/new-jarvis/useDictation";
 import { SOURCE_LABEL, type ChatTurn, type Conversation, type JarvisStore, type PendingAction } from "@/lib/jarvis/types";
 import type { Profile } from "@/lib/new-dashboard/types";
 
@@ -218,6 +220,8 @@ export function ChatTab({
   const [dragging, setDragging] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Talk to type in Studio's chat too: the words land in the box, Send stops the mic.
+  const dictation = useDictation(() => inputRef.current?.value ?? "", setInput);
   const fileRef = useRef<HTMLInputElement>(null);
   // Full-size copies of pictures sent this session, by turn id. The saved turn
   // keeps only thumbnails, so this is what lets a follow-up still see them.
@@ -405,6 +409,7 @@ export function ChatTab({
    * browser and has never travelled to the route.
    */
   const ask = async (text: string, extra: Attachment[] = [], brief = "") => {
+    dictation.stop();
     const question = text.trim();
     const attached = [...attachments, ...extra];
     // Sound is split off here and never again mixed in with the pictures.
@@ -1437,9 +1442,14 @@ ${board.shots.length} shots, ${runtimeSec(board)}s, cut together.`,
             >
               #
             </button>
+            <MicButton dictation={dictation} />
             <span className="mx-0.5 h-5 w-px bg-line" aria-hidden />
             <CinemaOutputRow output={output} onOutput={setOutput} />
-            <span className="hidden text-[11px] text-ink-faint xl:inline">Enter to send</span>
+            {dictation.error ? (
+              <span className="text-[11px] text-amber-400">{dictation.error}</span>
+            ) : (
+              <span className="hidden text-[11px] text-ink-faint xl:inline">Enter to send</span>
+            )}
             <button
               type="submit"
               disabled={busy || (!input.trim() && !attachments.length)}
