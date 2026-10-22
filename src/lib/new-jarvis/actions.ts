@@ -325,6 +325,16 @@ export function classify(op: BridgeOp): Verdict {
       // (features, the build) is the owner's own tap there.
       return free(`Open "${truncate(String(args.idea ?? "a new app"), 50)}" in App Builder.`);
 
+    case "hub/web_search":
+      return free(`Search the web for "${truncate(String(args.query ?? ""), 60)}".`);
+
+    case "hub/web_read":
+      return free(`Read ${truncate(String(args.url ?? "a page"), 70)}.`);
+
+    case "hub/queue_build":
+      // Only files a request in In Queue, where the owner can see or delete it.
+      return free(`Hand "${truncate(String(args.request ?? "a change"), 50)}" to Claude Code for ${truncate(String(args.app ?? "the app"), 30)}.`);
+
     case "browser/close":
       return free("Close that tab.");
     case "browser/quit":

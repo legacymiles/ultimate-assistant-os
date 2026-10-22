@@ -13,8 +13,8 @@
 //
 //   wait     the sentence is not finished, or was not addressed to it
 //   answer   it is already in the vault; show it now, for nothing
-//   cannot   it needs the PC, and the PC is not there — say so instantly
-//            rather than spending a round trip to be told
+//   cannot   (retired) — the PC being off used to stop a request here. Now
+//            the model always gets it and works from the website instead
 //   think    hand it to the model, which is the normal path
 //
 // And it is local, so it is microseconds rather than 200 milliseconds. The
@@ -222,19 +222,12 @@ export function reflex(input: ReflexInput): Reflex {
     return settle("wait", "Still mid-sentence.");
   }
 
-  // Fail fast rather than spending a round trip to be told the same thing.
-  if (machine.value > 0.6 && machine.which) {
-    const able = capabilities[machine.which] === true && bridgeReady;
-    if (!able) {
-      return settle(
-        "cannot",
-        bridgeReady
-          ? `This needs ${machine.which} on your PC, which the agent says it cannot do.`
-          : "This needs your PC, and the local agent is not reachable.",
-        { missing: machine.which },
-      );
-    }
-  }
+  // The PC being off is NOT a reason to stop (the owner's rule: Jarvis works
+  // like Claude Code). The model gets the job and does it from the website —
+  // web search/read, App Builder, a build handed to Claude Code — so the
+  // reflex only notes what is missing and never answers "cannot" itself.
+  const missing =
+    machine.value > 0.6 && machine.which && !(capabilities[machine.which] === true && bridgeReady) ? machine.which : undefined;
 
   // Already written down. Shown instantly, for nothing — but only when nothing
   // is being asked FOR, because "open my notes on X" is not answered by X.
@@ -242,6 +235,9 @@ export function reflex(input: ReflexInput): Reflex {
     return settle("answer", `You have already written this down: ${match.title}.`);
   }
 
+  if (missing) {
+    return settle("think", "Your PC is off, so Jarvis does this from the website instead.", { missing });
+  }
   return settle("think", "Nothing could be settled here, so it goes to the model.");
 }
 

@@ -665,6 +665,45 @@ export function NewJarvis() {
         };
       }
 
+      if (tool === "web_search" || tool === "web_read") {
+        // Run by the website, so a lookup never needs the PC.
+        const res = await fetch("/api/new-jarvis/web", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            tool === "web_search" ? { action: "search", q: String(args.query ?? "") } : { action: "read", url: String(args.url ?? "") },
+          ),
+        }).catch(() => null);
+        const data = (await res?.json().catch(() => null)) as Record<string, unknown> | null;
+        if (!res || !data) throw new Error(plainSiteError(res?.status ?? 0));
+        if (typeof data.error === "string") throw new Error(data.error);
+        return data;
+      }
+
+      if (tool === "queue_build") {
+        // A change to an existing app, handed to Claude Code through In Queue —
+        // how code gets written with the PC off.
+        const { buildRequest } = await import("@/lib/new-jarvis/queueBuild");
+        const { PROJECTS } = await import("@/lib/catalog");
+        const job = buildRequest(String(args.app ?? ""), String(args.request ?? ""), PROJECTS);
+        if (String(args.request ?? "").trim().length < 3) throw new Error("Say what should change, in a line or more.");
+        const images = turnRef.current.media.flatMap((m) =>
+          m.parts.flatMap((p) => (p.type === "image_url" && p.image_url.url.startsWith("data:image/") ? [p.image_url.url] : [])),
+        ).slice(0, 4);
+        const res = await fetch("/api/new-jarvis/requests", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "add", folder: job.folder, text: job.text, images, from: "jarvis-chat" }),
+        }).catch(() => null);
+        const data = (await res?.json().catch(() => null)) as { added?: { id: string }[]; error?: string } | null;
+        if (!res || !res.ok) throw new Error(data?.error ?? "In Queue didn't take it. Sign in to Jarvis and try again.");
+        return {
+          queued: job.app ? job.app.title : "Inbox",
+          already: !data?.added?.length,
+          note: `${data?.added?.length ? "Filed" : "That exact request was already waiting"} in In Queue › ${job.app ? job.app.title : "Inbox"}. Claude Code builds it from the repo and clears it when it's done — the owner can watch it in the Queue tab. Tell them that in one short line.`,
+        };
+      }
+
       if (isDashboardTool(tool)) {
         const said = await runDashboardTool(tool, args);
         dash.refresh();
@@ -789,12 +828,9 @@ ${reflex.best.excerpt ?? ""}`.trim()
 
             // Claude on the person's own plan: the PC's local agent thinks,
             // with exactly the instructions and tools the cloud brain gets.
-            if (isSubscription(chatModel)) {
-              if (!bridge.health.up || !bridge.health.paired) {
-                throw new Error(
-                  "Jarvis's brain is set to Claude (your subscription), which thinks through the local agent on your PC — and Jarvis can't reach it right now. Start the PC's local agent, or pick a cloud model in the brain picker.",
-                );
-              }
+            // With the PC off it does NOT stop: the cloud brain takes the turn,
+            // same instructions and tools, so the job still gets done.
+            if (isSubscription(chatModel) && bridge.health.up && bridge.health.paired) {
               // Sent with the messages so the fast lane (Jev clicks, reads
               // after a click) can answer this step without the PC thinking.
               const prepared = await post({ ...ask, messages, prepare: true });
@@ -807,7 +843,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
               }
             }
 
-            return (await post({ messages, ...ask, ...(chatModel ? { model: chatModel } : {}) })) as never;
+            return (await post({ messages, ...ask, ...(chatModel && !isSubscription(chatModel) ? { model: chatModel } : {}) })) as never;
           },
           runTool,
           askGate: (gate: Gate) =>

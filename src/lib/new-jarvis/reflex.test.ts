@@ -52,34 +52,39 @@ describe("waiting — not everything typed is a request", () => {
   });
 });
 
-describe("cannot — failing fast instead of paying to be told", () => {
-  it("says so immediately when the job needs the PC and the agent is down", () => {
+describe("PC off — never a dead end", () => {
+  it("hands a PC-sounding job to the model instead of refusing it", () => {
+    // The owner's rule: Jarvis works like Claude Code. "This needs your PC"
+    // used to come back here before the model ever saw the request.
     const r = reflex(input({ text: "open my Vercel dashboard", mode: "browse", bridgeReady: false, capabilities: {} }));
-    expect(r.route).toBe("cannot");
+    expect(r.route).toBe("think");
     expect(r.missing).toBe("browser");
-    expect(r.because).toContain("not reachable");
+    expect(r.because).toMatch(/from the website/);
+    expect(savedACall(r.route)).toBe(false);
   });
 
-  it("distinguishes 'the agent is down' from 'the agent cannot do that one thing'", () => {
-    // Chromium not being downloaded is a different sentence from the agent not
-    // running, and sends the owner to a different fix.
+  it("does the same when the agent is up but lacks that one ability", () => {
     const r = reflex(input({ text: "open my Vercel dashboard", mode: "browse", bridgeReady: true, capabilities: { shell: true, browser: false } }));
-    expect(r.route).toBe("cannot");
-    expect(r.because).toContain("cannot do");
+    expect(r.route).toBe("think");
+    expect(r.missing).toBe("browser");
   });
 
-  it("lets it through when the capability is there", () => {
-    expect(route({ text: "open my Vercel dashboard", mode: "browse" })).toBe("think");
+  it("never blocks building a website or app", () => {
+    for (const text of ["build me a website for my roofing client", "make an app that runs my workouts", "run npm test on my computer"]) {
+      expect(route({ text, mode: "do", bridgeReady: false, capabilities: {} })).toBe("think");
+    }
   });
 
-  it("picks the right capability from the words when no mode says", () => {
-    const r = reflex(input({ text: "run npm test on my computer", bridgeReady: false, capabilities: {} }));
-    expect(r.route).toBe("cannot");
-    expect(r.missing).toBe("shell");
+  it("notes nothing missing when the capability is there", () => {
+    const r = reflex(input({ text: "open my Vercel dashboard", mode: "browse" }));
+    expect(r.route).toBe("think");
+    expect(r.missing).toBeUndefined();
   });
 
   it("does not claim a plain question needs the PC", () => {
-    expect(route({ text: "what time is my dentist appointment?", bridgeReady: false, capabilities: {} })).toBe("think");
+    const r = reflex(input({ text: "what time is my dentist appointment?", bridgeReady: false, capabilities: {} }));
+    expect(r.route).toBe("think");
+    expect(r.missing).toBeUndefined();
   });
 });
 

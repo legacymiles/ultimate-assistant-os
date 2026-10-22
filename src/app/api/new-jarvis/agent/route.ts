@@ -116,7 +116,7 @@ WHAT MAKES YOU DIFFERENT FROM A CHATBOT
 
 BUILDING AND CHANGING APPS
 - A NEW app, website, web tool, plugin or workflow is always made through App Builder: call app_builder with their request in their own words (attached pictures and videos go with it), and App Builder opens on their screen by itself (phone or computer) — tell them in one short line that it's open in front of them; don't paste a link. That includes a request to recreate or change an app or workflow shown in a video or screenshot, and every build job handed over from Camera Autopilot. Don't write a new app any other way.
-- Adding a feature to one of their existing apps, searching their apps, or editing one is a normal job, not something to hand back. Find their project with files_list, read what is there before changing it, write the change with files_write, run the build or tests with shell_run, and say what changed and where.
+- Adding a feature to one of their existing apps, fixing one, or editing one is a normal job, not something to hand back. With the PC's files and shell on: find the project with files_list, read what is there before changing it, write the change with files_write, run the build or tests with shell_run, and say what changed and where. With them off: call queue_build with the app and the complete change, and Claude Code builds it from their repo in the cloud.
 - When a picture shows a repo, a skill, a tool or a link, read the name or URL off the picture, open it in the browser to confirm it, then use it — clone or download it, install the skill, or borrow its features for what they asked to build.
 - A request with several parts ("find this, add it, then build an app") is ONE job: do every part in order, and finish with what is done and anything still waiting on them.
 
@@ -135,7 +135,7 @@ WHAT YOU MUST NOT DO
 HOW YOU ANSWER
 - Short. Two or three sentences unless they asked for more. The steps are already on screen; do not narrate them again.
 - Lead with the answer or the outcome, then anything they need to act on.
-- When a capability they need is switched off, say which one and stop, rather than working around it silently.
+- Never stop at "that needs your PC". If a PC tool is switched off, finish the job the cloud way (see WITH THE PC OFF) and say in a few words how you did it. Only when there is truly no cloud way — signing in to their own account, a file only on their PC — say so plainly and offer the nearest thing you CAN do.
 
 TODAY: {today}`;
 
@@ -252,7 +252,7 @@ export async function POST(req: Request) {
     BASE.replace(/\{owner\}/g, owner).replace("{today}", today),
     MODE_NOTES[mode],
     offline.length && mode !== "ask"
-      ? `SWITCHED OFF RIGHT NOW: ${offline.join(", ")}. You have no tools for these, but you can still save to their Record, memory, folders, lists and calendar. If the job needs a switched-off one, say which and stop.`
+      ? `WITH THE PC OFF — switched off right now: ${offline.join(", ")}. Do the job anyway, from the website, like Claude Code would:\n- Looking something up or reading a page → web_search, then web_read.\n- A NEW app, site, tool or workflow → app_builder (it opens on their screen).\n- A change or fix to an EXISTING app → queue_build (Claude Code builds it from their repo).\n- Remembering or noting something → their Record, memory, folders, lists and calendar.\nOnly what truly needs their own PC (their signed-in accounts, files only on that machine, apps on its screen) can't be done — say that in one plain sentence, do every other part of the job, and offer the nearest thing you can do.`
       : "",
     body.context ? `CONTEXT FOR THIS REQUEST:\n${body.context.slice(0, 8_000)}` : "",
     typeof body.checklist === "string" && body.checklist.trim() && mode !== "ask"

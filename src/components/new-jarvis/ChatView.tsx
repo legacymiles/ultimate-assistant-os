@@ -258,8 +258,8 @@ export function ChatView({
             </ul>
             {!paired && (
               <p className="njc-hero__note">
-                Working on your PC (files, apps, its browser) needs the local agent running. Without it Jarvis can still
-                think, remember, look and answer.
+                Your PC isn&apos;t connected — that&apos;s fine. Jarvis searches the web, builds apps and hands code
+                changes to Claude Code from here. Only things on the PC itself (its files, apps and signed-in browser) wait for it.
               </p>
             )}
           </div>

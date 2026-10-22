@@ -471,6 +471,47 @@ export const AGENT_TOOLS: AgentTool[] = [
       required: ["idea"],
     },
   },
+  // Cloud tools: run by the website itself, so a job never stops at "this
+  // needs your PC". See src/lib/new-jarvis/web.ts and /api/new-jarvis/web.
+  {
+    name: "web_search",
+    kind: "hub",
+    route: "hub/web_search",
+    description:
+      "Search the web from the website (works with the PC off). Returns titles, links and snippets. Use it to look things up, find a repo, docs, a product or a page, then web_read the best result for detail.",
+    parameters: {
+      type: "object",
+      properties: { query: str("What to search for, as you'd type it into a search box.") },
+      required: ["query"],
+    },
+  },
+  {
+    name: "web_read",
+    kind: "hub",
+    route: "hub/web_read",
+    description:
+      "Read a public web page from the website (works with the PC off) and get its text, with links shown as \"text (url)\". Use for docs, articles, GitHub READMEs, product pages. It cannot sign in or click — pages that need a login or the owner's own accounts need the PC's browser.",
+    parameters: {
+      type: "object",
+      properties: { url: str("The page's full address.") },
+      required: ["url"],
+    },
+  },
+  {
+    name: "queue_build",
+    kind: "hub",
+    route: "hub/queue_build",
+    description:
+      "Hand a change to one of the owner's EXISTING apps (a fix, a feature, a redesign) to Claude Code, which builds it in the cloud from the owner's repo — this is how code gets written when the PC is off. Files it in that app's In Queue folder; Claude Code picks it up, builds, and removes it when done. Pictures attached to this message go with it. Write the request complete and specific: what to change, where, and how it should behave on phone and computer. Not for NEW apps — those go to app_builder.",
+    parameters: {
+      type: "object",
+      properties: {
+        app: str("Which app — its name as the owner says it (e.g. \"Cook Connect\", \"Jarvis\") or its /apps/ slug."),
+        request: str("The full change, in plain words, with everything the owner said about it."),
+      },
+      required: ["app", "request"],
+    },
+  },
 ];
 
 const BY_NAME = new Map(AGENT_TOOLS.map((t) => [t.name, t]));
