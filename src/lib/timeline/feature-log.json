@@ -1,5 +1,41 @@
 [
  {
+  "id": "53778d4:jarvis",
+  "date": "2026-10-22",
+  "slug": "jarvis",
+  "title": "Works on a phone — fits the screen, ring above the paste box, list in the first screen",
+  "detail": "- The Dashboard card's four thumbnails could push the whole widget column past the phone's edge (cut off, no way to scroll sideways). They now share the card's width, and the widget grid can't be widened by any one card. - Widget sheets were never really full-screen: `.deck` overrode `fixed`, and th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "53778d4:youtube-videos",
+  "date": "2026-10-22",
+  "slug": "youtube-videos",
+  "title": "Works on a phone — fits the screen, ring above the paste box, list in the first screen",
+  "detail": "- The Dashboard card's four thumbnails could push the whole widget column past the phone's edge (cut off, no way to scroll sideways). They now share the card's width, and the widget grid can't be widened by any one card. - Widget sheets were never really full-screen: `.deck` overrode `fixed`, and th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0e45231:app-builder",
+  "date": "2026-10-22",
+  "slug": "app-builder",
+  "title": "Backend checklist now leads every build with \"Make it mobile friendly\"",
+  "detail": "U1 rewritten in the owner's words with the concrete phone checks a build must pass (finger scrolling everywhere, sideways rows swipe, hero never hides the content, videos and pop-ups fit, checked at 390 px with a screenshot). Phones is now the first section, so it heads Profile, every Jarvis chat bu",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0e45231:jarvis",
+  "date": "2026-10-22",
+  "slug": "jarvis",
+  "title": "Backend checklist now leads every build with \"Make it mobile friendly\"",
+  "detail": "U1 rewritten in the owner's words with the concrete phone checks a build must pass (finger scrolling everywhere, sideways rows swipe, hero never hides the content, videos and pop-ups fit, checked at 390 px with a screenshot). Phones is now the first section, so it heads Profile, every Jarvis chat bu",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "fd64b63:cookbook-genie",
   "date": "2026-10-22",
   "slug": "cookbook-genie",

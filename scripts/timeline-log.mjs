@@ -135,12 +135,28 @@ function detailOf(body) {
     .slice(0, 300);
 }
 
+/**
+ * In a shallow clone the oldest commit has no parent, so git shows it as
+ * adding every file in the repo — which would log it as an edit to every app.
+ * Those boundary commits are listed in .git/shallow; skip them.
+ */
+function shallowBoundary() {
+  try {
+    const file = execFileSync("git", ["rev-parse", "--git-path", "shallow"], { cwd: ROOT, encoding: "utf8" }).trim();
+    return readFileSync(path.resolve(ROOT, file), "utf8").split("\n").map((l) => l.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 function build() {
   let existing = [];
   try { existing = JSON.parse(readFileSync(OUT, "utf8")); } catch { existing = []; }
   const known = new Set(existing.map((e) => e.id));
   const fresh = [];
+  const boundary = shallowBoundary();
   for (const c of commits()) {
+    if (boundary.some((full) => full.startsWith(c.hash))) continue;
     if (NOT_FEATURES.test(c.subject)) continue;
     // A commit that only records the log is bookkeeping, not an app edit.
     if (c.files.length && c.files.every((f) => f.endsWith("timeline/feature-log.json"))) continue;
