@@ -1,5 +1,23 @@
 [
  {
+  "id": "0227483:dashboard",
+  "date": "2026-10-22",
+  "slug": "dashboard",
+  "title": "Camera Autopilot photos no longer get stuck before reaching the widget",
+  "detail": "- One photo too big to hand over (base64 over Vercel's 4.5 MB) used to throw on every check and block every newer photo behind it. Shared photos now come over as short-lived Storage links, and a failed batch is skipped instead of stopping the rest. - Newest photos are brought in first. - The inbox d",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0227483:jarvis",
+  "date": "2026-10-22",
+  "slug": "jarvis",
+  "title": "Camera Autopilot photos no longer get stuck before reaching the widget",
+  "detail": "- One photo too big to hand over (base64 over Vercel's 4.5 MB) used to throw on every check and block every newer photo behind it. Shared photos now come over as short-lived Storage links, and a failed batch is skipped instead of stopping the rest. - Newest photos are brought in first. - The inbox d",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "52118a1:jarvis",
   "date": "2026-10-22",
   "slug": "jarvis",
