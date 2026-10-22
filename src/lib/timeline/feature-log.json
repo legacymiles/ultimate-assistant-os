@@ -1,5 +1,23 @@
 [
  {
+  "id": "044faed:dashboard",
+  "date": "2026-10-22",
+  "slug": "dashboard",
+  "title": "Camera Autopilot shows the same photos in the same order on phone and laptop",
+  "detail": "- Photos waiting on only one device (added with the upload button, or brought in before sharing) now go up to the inbox, so every device gets them. If the other device already has the same picture, it adopts the shared copy instead of throwing it away. The phone's clean-up list never removes these. ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "044faed:jarvis",
+  "date": "2026-10-22",
+  "slug": "jarvis",
+  "title": "Camera Autopilot shows the same photos in the same order on phone and laptop",
+  "detail": "- Photos waiting on only one device (added with the upload button, or brought in before sharing) now go up to the inbox, so every device gets them. If the other device already has the same picture, it adopts the shared copy instead of throwing it away. The phone's clean-up list never removes these. ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "0227483:dashboard",
   "date": "2026-10-22",
   "slug": "dashboard",
