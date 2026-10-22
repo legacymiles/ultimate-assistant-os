@@ -963,7 +963,7 @@ export function pipeline(
 /** The checklist lines this build is held to. */
 export function checklistLines(p: Pick<BuilderProject, "answers" | "features" | "understanding" | "edit">) {
   if (p.edit) return CHECKLIST.filter((c) => EDIT_CHECKLIST.includes(c.id));
-  const ids = new Set(["R1", "R2", "R3", "R4", "R6", "D5", "U1", "U2", "S1", "S4", "O1", "O6", "O7", "U4", "U6", "A1", "R5"]);
+  const ids = new Set(["R1", "R2", "R3", "R4", "R6", "D5", "U1", "U9", "U2", "S1", "S4", "O1", "O6", "O7", "U4", "U6", "A1", "R5"]);
   const touches = asText(p.answers.touches).toLowerCase();
   const audience = p.understanding?.audience ?? asText(p.answers.audience);
   if (touches.includes("account") || audience !== "Just me / my team") ["L1", "S2", "S3", "D4"].forEach((c) => ids.add(c));

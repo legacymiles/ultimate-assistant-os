@@ -138,7 +138,7 @@ const BY_ID = new Map(CHECKLIST.map((c) => [c.id, c]));
 /** The checklist lines a brief should hold itself to, in checklist order. */
 export function checklistFor(topic: FelixTopic, answers: FelixAnswers): CheckLine[] {
   if (topic === "content") return [];
-  const ids = new Set(["R1", "R2", "R3", "R4", "R6", "D5", "U1", "U2", "U8", "S1", "O1", "O6"]);
+  const ids = new Set(["R1", "R2", "R3", "R4", "R6", "D5", "U1", "U9", "U2", "U8", "S1", "O1", "O6"]);
   const add = (...codes: string[]) => codes.forEach((c) => ids.add(c));
   if (topic === "fix") add("O5", "O7");
   if (topic === "website") add("P1", "P2", "P3", "U3", "U4", "S6", "C1", "C2", "C3", "C4", "C5", "C6");

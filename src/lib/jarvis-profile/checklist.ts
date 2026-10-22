@@ -27,13 +27,16 @@
 
 export type RuleArea = "users" | "data" | "display" | "auto" | "words" | "phone" | "speed" | "setup" | "safety" | "client";
 
+// Phones lead: the owner builds most apps to be used on a phone, so "make it
+// mobile friendly" is the first thing every build reads (and never the part a
+// length limit cuts off).
 export const RULE_AREAS: { id: RuleArea; label: string }[] = [
+  { id: "phone", label: "Phones" },
   { id: "users", label: "Users & logins" },
   { id: "data", label: "Data" },
   { id: "display", label: "What shows" },
   { id: "auto", label: "Automatic" },
   { id: "words", label: "Words & errors" },
-  { id: "phone", label: "Phones" },
   { id: "speed", label: "Speed" },
   { id: "setup", label: "Setup & shipping" },
   { id: "safety", label: "Safety" },
@@ -121,7 +124,7 @@ const STARTERS: Omit<ChecklistRule, "source" | "on" | "said" | "addedAt">[] = [
   { id: "s-plain", code: "R3", level: "Must", area: "words", when: ALWAYS, then: "Errors and messages in plain English with a next step — never raw codes or stack traces.", check: "Read every error message: none shows a code, \"Error:\" or JSON." },
   { id: "s-nokeys", code: "R4", level: "Must", area: "words", when: "If it needs an API key or outside service", then: "Still work without one (demo mode), and say plainly what the key unlocks — never a crash.", check: "Run it with no keys: every page loads." },
   // Phones
-  { id: "s-mobile", code: "U1", level: "Must", area: "phone", when: ALWAYS, then: "Works on a phone: fits the screen, big enough to tap, nothing hidden off the edge.", check: "At 375 px wide: no sideways scroll, every button tappable." },
+  { id: "s-mobile", code: "U1", level: "Must", area: "phone", when: ALWAYS, then: "Make it mobile friendly — build it for a phone first: it fits the screen with nothing cut off the edge, buttons are big enough to tap, the page scrolls with a finger everywhere (3D, maps and drag areas never trap the swipe), rows of chips or cards swipe sideways, a big hero never hides the content (it starts within one screen), and videos and pop-ups fit the width.", check: "Open it at 390 px on a touch screen (a phone or the browser's phone mode) and screenshot it: swipe up, down and sideways on every screen, play a video, open every pop-up — nothing stuck, nothing cut off, the page itself never scrolls sideways, every button tappable." },
   { id: "s-phone-parity", code: "U9", level: "Must", area: "phone", when: ALWAYS, then: "Everything you can do on a computer you can do just as easily on a phone: anything you can see (a photo, a card, a row) opens on a tap and lets you act on it or chat about it, pop-ups fit the screen with every button readable, and typing boxes don't make the phone zoom in.", check: "On an iPhone: tap every picture and card — each opens something you can act on; no cut-off labels; typing boxes are 16 px so the page never zooms." },
   { id: "s-uploads", code: "P5", level: "Should", area: "phone", when: "If people upload photos or files", then: "Resize big photos and send them a few at a time, so uploads never hit size limits.", check: "Upload 20 phone photos at once: all arrive." },
   // Speed

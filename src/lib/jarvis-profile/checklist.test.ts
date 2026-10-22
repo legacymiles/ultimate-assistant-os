@@ -25,6 +25,29 @@ describe("starter checklist", () => {
     expect(text).toContain("plain english");
     expect(p.rules.every((r) => r.on)).toBe(true);
   });
+
+  it("leads every build with 'make it mobile friendly'", () => {
+    const p = emptyProfile(NOW);
+    const prompt = checklistPrompt(p);
+    expect(prompt.startsWith("Phones:")).toBe(true);
+    expect(prompt.split("\n")[1]).toMatch(/\[U1\] Make it mobile friendly/);
+    const u1 = p.rules.find((r) => r.code === "U1")!;
+    expect(u1.when).toBe("Always");
+    expect(u1.then).toMatch(/swipe sideways/);
+    expect(u1.check).toMatch(/390 px/);
+  });
+
+  it("an owner's older copy of the phone rule picks up the new wording", () => {
+    const old = emptyProfile(NOW);
+    const stale = {
+      ...old,
+      rules: old.rules.map((r) => (r.id === "s-mobile" ? { ...r, then: "Works on a phone: fits the screen, big enough to tap, nothing hidden off the edge.", on: false, said: 3 } : r)),
+    };
+    const u1 = coerceProfile(JSON.parse(JSON.stringify(stale)), NOW).rules.find((r) => r.id === "s-mobile")!;
+    expect(u1.then).toMatch(/^Make it mobile friendly/);
+    expect(u1.on).toBe(false); // the owner's on/off stays theirs
+    expect(u1.said).toBe(3);
+  });
 });
 
 describe("parseRule", () => {
