@@ -41,6 +41,16 @@ export function AppBuilder() {
   const [pane, setPane] = useState<Pane>("features");
   const [side, setSide] = useState<"chat" | "blueprint">("chat");
 
+  // Opened inside Jarvis (the chat pulls App Builder up over itself): Jarvis
+  // already shows the name and a back button, so drop the duplicate brand.
+  useEffect(() => {
+    try {
+      if (window.self !== window.top) document.documentElement.dataset.abEmbed = "1";
+    } catch {
+      document.documentElement.dataset.abEmbed = "1";
+    }
+  }, []);
+
   useEffect(() => {
     setSelected(null);
     setHover(null);

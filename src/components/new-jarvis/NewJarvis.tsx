@@ -32,6 +32,7 @@ import { QueueBoard } from "./QueueBoard";
 import { SiteErrorsPage } from "./SiteErrors";
 import { openConnections } from "./Connections";
 import { GoalCheck } from "./GoalCheck";
+import { AppBuilderSheet, type BuilderView } from "./AppBuilderSheet";
 import { TOPIC_LABEL, topicOf } from "@/lib/new-jarvis/felix";
 import { useQueue } from "@/lib/new-jarvis/useQueue";
 import type { ReactorMode } from "@/lib/new-jarvis/reactor";
@@ -208,6 +209,9 @@ export function NewJarvis() {
   const galaxyOff = tab === "studio" || tab === "plugins";
   /** The More sheet — every section that is not on the rail. */
   const [moreOpen, setMoreOpen] = useState(false);
+  /** App Builder opened over Jarvis by the app_builder tool (shrunk = a pill, still working). */
+  const [builder, setBuilder] = useState<BuilderView | null>(null);
+  const [builderMin, setBuilderMin] = useState(false);
   /** Files dragged over the window: anywhere is a drop target for Chat. */
   const [dropping, setDropping] = useState(false);
   /** The rail's core — the point the fallback field's sweep turns around. */
@@ -648,11 +652,16 @@ export function NewJarvis() {
         const { handToAppBuilder } = await import("@/lib/app-builder/fromChat");
         const turn = turnRef.current;
         const out = await handToAppBuilder({ idea: String(args.idea ?? ""), media: turn.media, origin: turn.origin });
+        // Pull App Builder up for them right here — on a phone too — instead
+        // of handing back a link to go find.
+        setBuilder((b) => ({ url: out.url, name: out.name, n: (b?.n ?? 0) + 1 }));
+        setBuilderMin(false);
         return {
           opened: out.url,
           project: out.name,
+          shownOnScreen: true,
           ...(out.media ? { recordings: out.media } : {}),
-          note: `It's in App Builder (${out.url}) — its super agent ${out.media ? "watches what was attached, " : ""}asks what the app is for, and proposes features to accept, deny or edit. Give the owner that link.`,
+          note: `App Builder is now OPEN on their screen with this request, and its super agent has started — it ${out.media ? "watches what was attached, " : ""}asks what the app is for, and proposes features to accept, deny or edit. Tell them in one short line that it's open in front of them and what to do next (answer its questions there). Do not paste the link.`,
         };
       }
 
@@ -1085,6 +1094,19 @@ ${reflex.best.excerpt ?? ""}`.trim()
             {queue.counts.wip > 0 && <span className="nj-pip nj-pip-wip absolute right-1.5 top-1.5" aria-hidden />}
           </button>
         </nav>
+
+        {builder && (
+          <AppBuilderSheet
+            view={builder}
+            minimized={builderMin}
+            onMinimize={() => setBuilderMin(true)}
+            onRestore={() => setBuilderMin(false)}
+            onClose={() => {
+              setBuilder(null);
+              setBuilderMin(false);
+            }}
+          />
+        )}
 
         {moreOpen && (
           <MoreSheet

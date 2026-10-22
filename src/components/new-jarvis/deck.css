@@ -584,3 +584,9 @@
   }
   .deck-tilt { transform: none !important; }
 }
+
+/* App Builder opened over Jarvis: edge to edge on a phone, a framed sheet from tablet up. */
+.nj-abs-sheet { border-radius: 0; border-width: 0; }
+@media (min-width: 640px) {
+  .nj-abs-sheet { border-radius: 18px; border-width: 1px; }
+}

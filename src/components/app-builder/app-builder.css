@@ -50,6 +50,7 @@
   border-bottom: 1px solid var(--ab-line-soft);
 }
 .ab-brand { display: flex; align-items: center; gap: 8px; }
+[data-ab-embed] .ab-brand { display: none; }
 .ab-mark {
   width: 14px; height: 14px; border-radius: 50%;
   background: radial-gradient(circle at 35% 35%, #fff, #a5aaff 45%, #4f46e5);
@@ -381,6 +382,12 @@
   .ab-q-free { margin-left: 0; width: 100%; }
   .ab-interview { padding: 16px; }
   .ab-composer.is-hero .ab-primary { width: 100%; }
+}
+
+/* Phones: a box under 16px makes iPhone zoom the page on every tap. */
+@media (max-width: 1023px) {
+  .ab textarea, .ab input, .ab select { font-size: 16px; }
+  .ab-projects select { max-width: 46vw; }
 }
 
 @media (prefers-reduced-motion: reduce) {
