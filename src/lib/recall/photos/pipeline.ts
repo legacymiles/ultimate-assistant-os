@@ -139,12 +139,20 @@ export async function importPhotos(args: ImportArgs): Promise<ImportOutcome> {
       takenAt,
       composite: Boolean(args.composite),
     };
-    if (findSamePhoto(me, known)) {
+    const same = findSamePhoto(me, known);
+    if (same) {
       duplicates++;
       stored++;
       if (inboxId) {
         inboxHandled.push(inboxId);
-        inboxDropped.push(inboxId);
+        // The same photo is already waiting HERE but only on this device:
+        // it adopts the inbox copy instead of the copy being thrown away, so
+        // the two devices end up sharing one photo rather than losing it.
+        const local = queue.find((p) => p.id === same.id);
+        if (local && !local.inboxId) queue = updatePending(local.id, { inboxId });
+        else if (!local) inboxDropped.push(inboxId);
+        // Waiting here already under another inbox copy: this one is spare.
+        else if (local.inboxId !== inboxId) inboxDropped.push(inboxId);
       }
       continue;
     }

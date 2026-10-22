@@ -22,9 +22,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { loadLocal, saveSynced } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
-import { drainInbox } from "@/lib/dashboard/drainInbox";
+import { drainInbox, inboxPhotoTime } from "@/lib/dashboard/drainInbox";
 import { dropGone, importPhotos, releaseInbox, removeDuplicatePhotos } from "@/lib/recall/photos/pipeline";
-import { getQueue } from "@/lib/recall/photos/store";
+import { getQueue, updatePending } from "@/lib/recall/photos/store";
+import { getFile } from "@/lib/recall/files";
+import { addShareSkip, fitForUpload, planRestamp, planShareUp, readShareSkip } from "./shareUp";
 import { planInboxSync, readHad, rememberHad } from "./inboxSync";
 import { getData } from "@/lib/recall/store";
 import { folderPaths } from "@/lib/recall/classify";
@@ -75,6 +77,50 @@ export interface CameraWatch {
 function readSettings(): CameraWatchSettings {
   loadLocal<Partial<CameraWatchSettings>>(SETTINGS_KEY, {});
   return { autoPull: true };
+}
+
+/**
+ * Send a few photos that are waiting only on this device up to the inbox.
+ * Each gets the inbox id, so this device keeps it and the others copy it in.
+ * Returns how many were linked.
+ */
+async function shareUp(): Promise<number> {
+  let linked = 0;
+  for (const p of planShareUp(getQueue(), readShareSkip())) {
+    const blob = await getFile(p.fileId).catch(() => null);
+    if (!blob) {
+      addShareSkip(p.id);
+      continue;
+    }
+    const form = new FormData();
+    form.append("photo", await fitForUpload(blob), p.name);
+    form.append("name", p.name);
+    if (p.takenAt || p.addedAt) form.append("takenAt", p.takenAt ?? p.addedAt);
+    try {
+      const r = await fetch("/api/dashboard/inbox/upload", { method: "POST", body: form });
+      if (!r.ok) {
+        // Too big or unreadable: don't keep retrying it every minute.
+        if (r.status === 413 || r.status === 422 || r.status === 400) addShareSkip(p.id);
+        continue;
+      }
+      const { id } = (await r.json()) as { id?: string | null };
+      if (!id) {
+        addShareSkip(p.id);
+        continue;
+      }
+      // Still waiting here? (It may have been filed while it uploaded.)
+      if (!getQueue().some((q) => q.id === p.id)) {
+        releaseInbox([id]);
+        continue;
+      }
+      updatePending(p.id, { inboxId: id });
+      rememberHad([id]);
+      linked++;
+    } catch {
+      // Offline: next check.
+    }
+  }
+  return linked;
 }
 
 function recallCtx() {
@@ -167,6 +213,16 @@ export function useCameraWatch(): CameraWatch {
           `Camera Autopilot is full, so ${heldBack} new photo${heldBack === 1 ? " is" : "s are"} waiting. File or remove some and they come straight in.`,
         );
       }
+      // Same order on every device: each waiting inbox photo sorts by the
+      // time the inbox gives it, not when this device happened to copy it in.
+      const times = new Map(all.map((e) => [e.id, inboxPhotoTime(e.takenAt, e.receivedAt)]));
+      const restamp = planRestamp(getQueue(), times);
+      for (const r of restamp) updatePending(r.id, { takenAt: r.takenAt });
+      if (restamp.length) window.dispatchEvent(new Event(CAMERA_CHANGED));
+
+      // Photos waiting only on this device go up, so the others get them too.
+      if (await shareUp()) window.dispatchEvent(new Event(CAMERA_CHANGED));
+
       // Copies that slipped in before duplicates were stopped at the door
       // (or arrived from another device) are cleared on every check.
       if (await removeDuplicatePhotos().catch(() => 0)) window.dispatchEvent(new Event(CAMERA_CHANGED));

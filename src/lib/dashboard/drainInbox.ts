@@ -51,6 +51,8 @@ interface Claimed {
   name: string;
   contentType: string;
   takenAt?: string;
+  /** When it reached the inbox — the same on every device. */
+  receivedAt?: string;
   /** A short-lived Storage link (sharing) — the browser downloads it itself. */
   url?: string;
   /** Or the bytes inline. */
@@ -85,9 +87,22 @@ export class DrainError extends Error {
  * Read by hand in this browser's timezone: Safari can't parse the Shortcut's
  * "Oct 21, 2026 at 11:34 PM", and every photo got the time it arrived instead.
  */
-function lastModified(takenAt?: string): number | undefined {
-  const t = shortcutDateLocal(takenAt);
+function lastModified(takenAt?: string, receivedAt?: string): number | undefined {
+  const t = inboxPhotoTime(takenAt, receivedAt);
   return Number.isNaN(t) ? undefined : t;
+}
+
+/**
+ * The time an inbox photo sorts by: when it was taken, or — when the phone
+ * sent no readable date — when it reached the inbox. Never "when this device
+ * happened to bring it in", which differed per device and is why the phone
+ * and the laptop showed the same photos in a different order.
+ */
+export function inboxPhotoTime(takenAt?: string, receivedAt?: string): number {
+  const t = shortcutDateLocal(takenAt);
+  if (!Number.isNaN(t)) return t;
+  const r = receivedAt ? Date.parse(receivedAt) : NaN;
+  return Number.isNaN(r) ? NaN : r;
 }
 
 /**
@@ -137,7 +152,7 @@ export async function drainInbox(
     for (const p of photos) {
       const blob = await bytesOf(p);
       if (!blob) continue;
-      const f = new File([blob], p.name, { type: p.contentType, lastModified: lastModified(p.takenAt) });
+      const f = new File([blob], p.name, { type: p.contentType, lastModified: lastModified(p.takenAt, p.receivedAt) });
       idOf.set(f, p.id);
       got.add(p.id);
       files.push(f);

@@ -53,6 +53,13 @@ export interface InboxEntry {
   /** When the photo was taken, if the Shortcut sent it. */
   takenAt?: string;
   receivedAt: string;
+  /** Short hash of the bytes, so a re-send can be pointed at the photo already here. */
+  sha?: string;
+  /**
+   * Sent up by a browser (a photo added on one device), not by the phone —
+   * so the phone's "still on my phone" list never removes it.
+   */
+  fromBrowser?: boolean;
   /**
    * Set while a browser is reading this photo in (claim with keep). Until it
    * passes, other devices don't see the photo, so two open dashboards can't
@@ -146,6 +153,21 @@ export interface ReceiveResult {
   accepted: number;
   skipped: number;
   rejected: { name: string; reason: string }[];
+  /**
+   * Per photo sent, in order: the inbox id it now has — a new one, or the
+   * waiting photo it is a copy of — or null when it was refused or is a copy
+   * of one already filed.
+   */
+  ids: (string | null)[];
+}
+
+export interface ReceiveOptions {
+  /**
+   * From a browser rather than the phone: it must not move the phone's
+   * bookmark (that would make the Shortcut skip photos) or count as the
+   * phone having sent something.
+   */
+  fromBrowser?: boolean;
 }
 
 export interface IncomingPhoto {
@@ -163,7 +185,7 @@ export interface IncomingPhoto {
  * 50" every night re-sends 45 photos it already sent on its second run; without
  * this the review queue floods and the feature becomes unusable on day two.
  */
-export async function receive(uid: string, photos: IncomingPhoto[]): Promise<ReceiveResult> {
+export async function receive(uid: string, photos: IncomingPhoto[], opts: ReceiveOptions = {}): Promise<ReceiveResult> {
   // The bytes go to Storage FIRST, with no copy of the inbox document held.
   // Uploading takes seconds; loading the document, uploading, then saving
   // meant anything another device saved meanwhile (filing a photo, the
@@ -171,12 +193,14 @@ export async function receive(uid: string, photos: IncomingPhoto[]): Promise<Rec
   // could wipe the photo that had just arrived, so it never showed up.
   const before = await load();
   const seenBefore = new Set(before.seen[uid] ?? []);
-  const out: ReceiveResult = { accepted: 0, skipped: 0, rejected: [] };
-  const staged: { entry: InboxEntry; keys: string[] }[] = [];
+  const list = photos.slice(0, MAX_PER_REQUEST);
+  const out: ReceiveResult = { accepted: 0, skipped: 0, rejected: [], ids: list.map(() => null) };
+  const staged: { entry: InboxEntry; keys: string[]; at: number }[] = [];
+  const skippedAt: { at: number; keys: string[] }[] = [];
   const skippedDates: (string | undefined)[] = [];
   const batchSeen = new Set<string>();
 
-  for (const p of photos.slice(0, MAX_PER_REQUEST)) {
+  for (const [at, p] of list.entries()) {
     if (p.body.length > MAX_PHOTO_BYTES) {
       out.rejected.push({ name: p.name, reason: "over 25 MB" });
       continue;
@@ -188,6 +212,7 @@ export async function receive(uid: string, photos: IncomingPhoto[]): Promise<Rec
     if ((p.deviceId && known(p.deviceId)) || known(sha)) {
       out.skipped++;
       skippedDates.push(p.takenAt);
+      skippedAt.push({ at, keys: p.deviceId ? [p.deviceId, sha] : [sha] });
       continue;
     }
 
@@ -200,6 +225,7 @@ export async function receive(uid: string, photos: IncomingPhoto[]): Promise<Rec
     const keys = p.deviceId ? [p.deviceId, sha] : [sha];
     for (const k of keys) batchSeen.add(k);
     staged.push({
+      at,
       keys,
       entry: {
         id,
@@ -210,6 +236,8 @@ export async function receive(uid: string, photos: IncomingPhoto[]): Promise<Rec
         bytes: p.body.length,
         takenAt: p.takenAt,
         receivedAt: new Date().toISOString(),
+        sha,
+        ...(opts.fromBrowser ? { fromBrowser: true } : {}),
       },
     });
   }
@@ -222,6 +250,7 @@ export async function receive(uid: string, photos: IncomingPhoto[]): Promise<Rec
   // The bookmark moves for every photo the phone sends — accepted or skipped
   // as already seen — because either way the phone is done with it.
   const advance = (raw?: string) => {
+    if (opts.fromBrowser) return;
     const t = parseShortcutDate(raw);
     if (!raw || !Number.isFinite(t)) return;
     const cur = doc.cursor[uid];
@@ -229,15 +258,23 @@ export async function receive(uid: string, photos: IncomingPhoto[]): Promise<Rec
   };
   for (const d of skippedDates) advance(d);
 
-  for (const { entry, keys } of staged) {
+  // The waiting photo a copy points at, if it is still waiting.
+  const waitingFor = (keys: string[]) =>
+    doc.entries.find((e) => e.uid === uid && ((e.sha && keys.includes(e.sha)) || (e.deviceId && keys.includes(e.deviceId))))?.id ??
+    null;
+  for (const { at, keys } of skippedAt) out.ids[at] = waitingFor(keys);
+
+  for (const { entry, keys, at } of staged) {
     // Another send of the same photo landed while this one was uploading.
     if (keys.some((k) => seen.has(k))) {
       await deleteBlob(BUCKET, `${uid}/${entry.id}`, dataDir());
       out.skipped++;
+      out.ids[at] = waitingFor(keys);
       advance(entry.takenAt);
       continue;
     }
     doc.entries.push(entry);
+    out.ids[at] = entry.id;
     for (const k of keys) {
       seen.add(k);
       added.push(k);
@@ -249,7 +286,7 @@ export async function receive(uid: string, photos: IncomingPhoto[]): Promise<Rec
   // Ring buffer: keep the most recent SEEN_LIMIT, so the document cannot grow
   // without bound on a phone that syncs every night for a year.
   doc.seen[uid] = [...(doc.seen[uid] ?? []), ...added].slice(-SEEN_LIMIT);
-  if (photos.length) doc.lastPush[uid] = new Date().toISOString();
+  if (photos.length && !opts.fromBrowser) doc.lastPush[uid] = new Date().toISOString();
 
   await save(doc);
   return out;
@@ -287,6 +324,8 @@ export interface ClaimedPhoto {
   name: string;
   contentType: string;
   takenAt?: string;
+  /** When it reached the inbox — the same on every device, for ordering. */
+  receivedAt?: string;
   /**
    * A short-lived link straight to the photo in Storage. Used when sharing:
    * the browser downloads the bytes itself, so no photo is ever too big to
@@ -319,7 +358,7 @@ export async function claim(
     if (opts.share) {
       const url = await signedBlobUrl(BUCKET, `${uid}/${e.id}`, SHARE_LINK_SECONDS);
       if (url) {
-        out.push({ id: e.id, name: e.name, contentType: e.contentType, takenAt: e.takenAt, url });
+        out.push({ id: e.id, name: e.name, contentType: e.contentType, takenAt: e.takenAt, receivedAt: e.receivedAt, url });
         continue;
       }
     }
@@ -330,6 +369,7 @@ export async function claim(
       name: e.name,
       contentType: e.contentType,
       takenAt: e.takenAt,
+      receivedAt: e.receivedAt,
       dataUrl: `data:${e.contentType};base64,${buf.toString("base64")}`,
     });
     if (!opts.keep && !opts.share) await deleteBlob(BUCKET, `${uid}/${e.id}`, dataDir());
@@ -388,7 +428,7 @@ export async function prune(uid: string, names: string[], days = 30): Promise<nu
   const doc = await load();
   const since = Date.now() - days * 86_400_000;
   const gone = doc.entries.filter((e) => {
-    if (e.uid !== uid) return false;
+    if (e.uid !== uid || e.fromBrowser) return false;
     const stem = nameStem(e.name);
     if (!stem || GENERIC.test(stem)) return false;
     const taken = parseShortcutDate(e.takenAt);
