@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { hasToken, lastPushFor, pending } from "@/lib/dashboard/inbox";
+import { pending, phoneStatus } from "@/lib/dashboard/inbox";
+import { currentViewer } from "@/lib/client-review/viewer";
 
 // GET /api/dashboard/inbox — what this user's phone has pushed and not yet
 // claimed. Session-gated by middleware; the uid cookie identifies whose.
@@ -14,11 +15,13 @@ async function currentUid(): Promise<string> {
 export async function GET() {
   const uid = await currentUid();
   const entries = await pending(uid);
+  const viewer = await currentViewer().catch(() => null);
+  const owner = viewer === "none" || Boolean(viewer && viewer.owner);
+  // What the phone has been doing — last send, last check-in, an old link,
+  // a send turned away — so Camera Autopilot can say WHY nothing came.
+  const phone = await phoneStatus(uid, { owner });
   return NextResponse.json({
-    linked: await hasToken(uid),
-    // When the phone last sent anything — tells "nothing new" apart from
-    // "the phone's Shortcut stopped running".
-    lastPush: await lastPushFor(uid),
+    ...phone,
     entries: entries.map((e) => ({
       id: e.id,
       name: e.name,

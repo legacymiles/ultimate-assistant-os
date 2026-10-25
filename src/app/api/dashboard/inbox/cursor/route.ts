@@ -1,4 +1,4 @@
-import { cursorFor, uidForToken } from "@/lib/dashboard/inbox";
+import { cursorFor, noteCheckIn, noteRefused, uidForToken } from "@/lib/dashboard/inbox";
 
 // GET /api/dashboard/inbox/cursor — "where did I get up to?"
 //
@@ -18,11 +18,15 @@ export async function GET(req: Request) {
   const token = req.headers.get("x-dashboard-token") || new URL(req.url).searchParams.get("key") || "";
   const uid = await uidForToken(token);
   if (!uid) {
+    await noteRefused(token).catch(() => undefined);
     return new Response("Unknown device token — make a new link in New Jarvis › Camera Autopilot › iPhone setup.", {
       status: 401,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   }
+  // The Shortcut is running — if it then sends nothing, Jarvis can say
+  // "checked in but found no new photos" instead of looking dead.
+  await noteCheckIn(uid).catch(() => undefined);
   const raw = (await cursorFor(uid)) ?? new Date(Date.now() - 86_400_000).toISOString();
   return new Response(raw, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
 }

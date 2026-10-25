@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { MAX_PER_REQUEST, receive, uidForToken, type IncomingPhoto } from "@/lib/dashboard/inbox";
+import { MAX_PER_REQUEST, noteProblem, noteRefused, receive, uidForToken, type IncomingPhoto } from "@/lib/dashboard/inbox";
 
 // POST /api/dashboard/inbox/push
 //
@@ -21,6 +21,7 @@ export async function POST(req: Request) {
   const token = req.headers.get("x-dashboard-token") || new URL(req.url).searchParams.get("key") || "";
   const uid = await uidForToken(token);
   if (!uid) {
+    await noteRefused(token).catch(() => undefined);
     return NextResponse.json(
       { error: "Unknown device token — the link is old or cut off. Make a new one in Jarvis › Camera Autopilot › iPhone setup." },
       { status: 401 },
@@ -43,6 +44,7 @@ export async function POST(req: Request) {
     try {
       form = await req.formData();
     } catch {
+      await noteProblem(uid, "the form couldn't be read — in Get Contents of URL set Request Body to Form").catch(() => undefined);
       return NextResponse.json({ error: "Couldn't read the form. In Get Contents of URL set Request Body to Form (or File)." }, { status: 400 });
     }
     for (const [key, value] of form.entries()) {
@@ -63,6 +65,12 @@ export async function POST(req: Request) {
   }
 
   if (!files.length) {
+    await noteProblem(
+      uid,
+      sawText.length
+        ? `the photo field "${sawText[0]}" arrived as text, not a picture — in Get Contents of URL make it a File field`
+        : "no photo came through — check the File field in Get Contents of URL points at the Converted Image",
+    ).catch(() => undefined);
     return NextResponse.json(
       {
         error: sawText.length

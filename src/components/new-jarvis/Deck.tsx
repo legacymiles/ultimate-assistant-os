@@ -85,6 +85,7 @@ import type { AuditProposalLike } from "@/lib/new-jarvis/ideas";
 import type { JarvisStore } from "@/lib/jarvis/types";
 import { MicButton } from "../jarvis/MicButton";
 import { useDictation } from "@/lib/new-jarvis/useDictation";
+import { phoneLine, type PhoneSignals } from "@/lib/dashboard/phoneStatus";
 
 interface Props {
   go: (tab: string) => void;
@@ -248,9 +249,12 @@ function since(t: number | null): string {
   return h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
 }
 
-/** When the phone last sent a photo — the line that shows if its Shortcut stopped. */
-function lastFromPhone(t: number | null): string {
-  return t ? `last photo from iPhone ${since(t)}` : "iPhone hasn't sent a photo yet";
+/**
+ * What the phone has been doing — the last photo, or WHY none came (an old
+ * link, a Shortcut that finds nothing, a send that wasn't a photo).
+ */
+function lastFromPhone(phone: PhoneSignals): string {
+  return phoneLine(phone, (t) => since(t)).text;
 }
 
 /** The last photos filed, for the preview strip when nothing is waiting. */
@@ -552,7 +556,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                   (inbox.linked
                     ? inbox.ids.length
                       ? `${inbox.ids.length} new from your iPhone — bringing them in…`
-                      : `Auto · checked ${since(camera.lastChecked)} · ${lastFromPhone(camera.lastPush)}`
+                      : `Auto · checked ${since(camera.lastChecked)} · ${lastFromPhone(camera.phone)}`
                     : "Not linked yet — tap 🔗 to set up your iPhone (5 min, no app needed)")
                 }
                 actions={
@@ -654,7 +658,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
       {expanded === "camera" && (
         <WidgetSheet
           title="Camera Autopilot"
-          kicker={`${queue.length} to sort · checked ${since(camera.lastChecked)} · ${lastFromPhone(camera.lastPush)}`}
+          kicker={`${queue.length} to sort · checked ${since(camera.lastChecked)} · ${lastFromPhone(camera.phone)}`}
           onClose={() => {
             setExpanded(null);
             setSelecting(false);

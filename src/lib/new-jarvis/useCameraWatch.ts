@@ -30,6 +30,7 @@ import { addShareSkip, fitForUpload, planRestamp, planShareUp, readShareSkip } f
 import { planInboxSync, readHad, rememberHad } from "./inboxSync";
 import { getData } from "@/lib/recall/store";
 import { folderPaths } from "@/lib/recall/classify";
+import { NO_SIGNALS, readSignals, type PhoneSignals } from "@/lib/dashboard/phoneStatus";
 
 /** The longest Jarvis ever goes between checks, even in a background tab. */
 export const CAMERA_CHECK_MS = 10 * 60_000;
@@ -64,6 +65,8 @@ export interface CameraWatch {
   lastChecked: number | null;
   /** When the iPhone last sent a photo (ms), or null if it never has. */
   lastPush: number | null;
+  /** Everything the phone has been doing — the line that says WHY nothing came. */
+  phone: PhoneSignals;
   nextCheck: number | null;
   /** What is happening right now, or "". */
   busy: string;
@@ -135,6 +138,7 @@ export function useCameraWatch(): CameraWatch {
   const [inbox, setInbox] = useState<InboxEntry[]>([]);
   const [lastChecked, setLastChecked] = useState<number | null>(null);
   const [lastPush, setLastPush] = useState<number | null>(null);
+  const [phone, setPhone] = useState<PhoneSignals>(NO_SIGNALS);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [settings, setSettings] = useState<CameraWatchSettings>({ autoPull: true });
@@ -158,12 +162,20 @@ export function useCameraWatch(): CameraWatch {
     try {
       const r = await fetch("/api/dashboard/inbox", { cache: "no-store" });
       if (!r.ok) throw new Error(`The photo inbox answered ${r.status}.`);
-      const d = (await r.json()) as { linked?: boolean; entries?: InboxEntry[]; lastPush?: string | null };
+      const d = (await r.json()) as {
+        linked?: boolean;
+        entries?: InboxEntry[];
+        lastPush?: string | null;
+        lastCheckIn?: string | null;
+        problem?: { at?: string; message?: string } | null;
+        refusedAt?: string | null;
+      };
       if (!Array.isArray(d.entries)) throw new Error("The photo inbox didn't send its list.");
       const all = d.entries;
       setLinked(Boolean(d.linked));
       const pushed = d.lastPush ? Date.parse(d.lastPush) : NaN;
       setLastPush(Number.isNaN(pushed) ? null : pushed);
+      setPhone(readSignals(d));
 
       // Same photos on every device: drop what was filed or removed elsewhere
       // (or deleted from the phone), and copy in what this device hasn't had.
@@ -281,6 +293,7 @@ export function useCameraWatch(): CameraWatch {
     inbox,
     lastChecked,
     lastPush,
+    phone,
     nextCheck: lastChecked ? lastChecked + CAMERA_PEEK_MS : null,
     busy,
     error,

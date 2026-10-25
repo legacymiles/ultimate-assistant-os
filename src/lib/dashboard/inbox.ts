@@ -91,9 +91,17 @@ interface InboxDoc {
    * stopped sending" without anyone digging.
    */
   lastPush: Record<string, string>;
+  /** uid -> when the Shortcut last asked for its bookmark or reported its photos (ISO). */
+  checkIn?: Record<string, string>;
+  /** uid -> the last send from that phone that was turned away, and why. */
+  problem?: Record<string, { at: string; message: string }>;
+  /** uid -> hashes of that user's replaced tokens, so an old link can be named as theirs. */
+  retired?: Record<string, string[]>;
+  /** Sends with a key nobody has — newest last. `uid` when it was someone's old key. */
+  refused?: { at: string; uid?: string }[];
 }
 
-const EMPTY: InboxDoc = { tokens: {}, entries: [], seen: {}, cursor: {}, lastPush: {} };
+const EMPTY: InboxDoc = { tokens: {}, entries: [], seen: {}, cursor: {}, lastPush: {}, checkIn: {}, problem: {}, retired: {}, refused: [] };
 
 async function load(): Promise<InboxDoc> {
   const doc = await readDoc<InboxDoc>(DOC, dataDir());
@@ -104,6 +112,10 @@ async function load(): Promise<InboxDoc> {
     seen: doc.seen ?? {},
     cursor: doc.cursor ?? {},
     lastPush: doc.lastPush ?? {},
+    checkIn: doc.checkIn ?? {},
+    problem: doc.problem ?? {},
+    retired: doc.retired ?? {},
+    refused: doc.refused ?? [],
   };
 }
 
@@ -127,6 +139,10 @@ function hash(token: string): string {
 export async function mintToken(uid: string): Promise<string | null> {
   const token = randomBytes(24).toString("base64url");
   const doc = await load();
+  // Remember the key this replaces, so a phone still using it can be told
+  // "your link is out of date" instead of failing with no sign anywhere.
+  const old = doc.tokens[uid];
+  if (old) doc.retired![uid] = [...(doc.retired![uid] ?? []).filter((h) => h !== old), old].slice(-RETIRED_LIMIT);
   doc.tokens[uid] = hash(token);
   return (await save(doc)) ? token : null;
 }
@@ -145,6 +161,67 @@ export async function uidForToken(token: string): Promise<string | null> {
     if (got.length === want.length && timingSafeEqual(got, want)) return uid;
   }
   return null;
+}
+
+// ----- what the phone has been doing -------------------------------------
+//
+// Every way the Shortcut can fail used to look the same in Jarvis ("iPhone
+// hasn't sent a photo yet"). These record each kind of contact, so Camera
+// Autopilot can say which one it is — see phoneStatus.ts.
+
+const RETIRED_LIMIT = 5;
+const REFUSED_LIMIT = 10;
+/** A refused send is only written down this often, so junk traffic can't hammer the document. */
+const REFUSED_EVERY_MS = 30_000;
+
+/** The Shortcut asked for its bookmark or reported its photos: it is running. */
+export async function noteCheckIn(uid: string): Promise<void> {
+  const doc = await load();
+  doc.checkIn![uid] = new Date().toISOString();
+  await save(doc);
+}
+
+/** This user's phone sent something that was turned away; the message says why. */
+export async function noteProblem(uid: string, message: string): Promise<void> {
+  const doc = await load();
+  doc.problem![uid] = { at: new Date().toISOString(), message: message.slice(0, 240) };
+  await save(doc);
+}
+
+/** A send with a key that isn't anyone's now — named as theirs when it is a user's old key. */
+export async function noteRefused(token: string): Promise<void> {
+  const doc = await load();
+  const list = doc.refused!;
+  const last = list.length ? Date.parse(list[list.length - 1].at) : 0;
+  if (Date.now() - last < REFUSED_EVERY_MS) return;
+  const h = token ? hash(token) : "";
+  const uid = h ? Object.entries(doc.retired!).find(([, hs]) => hs.includes(h))?.[0] : undefined;
+  doc.refused = [...list, { at: new Date().toISOString(), ...(uid ? { uid } : {}) }].slice(-REFUSED_LIMIT);
+  await save(doc);
+}
+
+export interface PhoneStatus {
+  linked: boolean;
+  lastPush: string | null;
+  lastCheckIn: string | null;
+  problem: { at: string; message: string } | null;
+  /** The newest refused send that is this user's — their old key, or (for the owner) a key nobody has. */
+  refusedAt: string | null;
+  /** The bookmark the Shortcut starts from. */
+  cursor: string | null;
+}
+
+export async function phoneStatus(uid: string, opts: { owner?: boolean } = {}): Promise<PhoneStatus> {
+  const doc = await load();
+  const refused = [...(doc.refused ?? [])].reverse().find((r) => r.uid === uid || (!r.uid && opts.owner));
+  return {
+    linked: Boolean(doc.tokens[uid]),
+    lastPush: doc.lastPush[uid] ?? null,
+    lastCheckIn: doc.checkIn?.[uid] ?? null,
+    problem: doc.problem?.[uid] ?? null,
+    refusedAt: refused?.at ?? null,
+    cursor: doc.cursor[uid]?.raw ?? null,
+  };
 }
 
 // ----- receiving -----------------------------------------------------------

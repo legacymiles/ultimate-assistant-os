@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prune, uidForToken } from "@/lib/dashboard/inbox";
+import { noteCheckIn, noteRefused, prune, uidForToken } from "@/lib/dashboard/inbox";
 
 // POST /api/dashboard/inbox/present
 //
@@ -18,6 +18,7 @@ export async function POST(req: Request) {
   const token = req.headers.get("x-dashboard-token") || new URL(req.url).searchParams.get("key") || "";
   const uid = await uidForToken(token);
   if (!uid) {
+    await noteRefused(token).catch(() => undefined);
     return NextResponse.json({ error: "Unknown device token — make a new link in Jarvis › Camera Autopilot › iPhone setup." }, { status: 401 });
   }
 
@@ -43,6 +44,7 @@ export async function POST(req: Request) {
   const names = (Array.isArray(raw) ? raw.map(String) : String(raw ?? "").split(/[,\n]/)).map((s) => s.trim()).filter(Boolean);
   if (!names.length) return NextResponse.json({ error: "No photo names came through. Set the field to the combined names." }, { status: 400 });
   const window = Math.min(90, Math.max(1, Number(days) || 30));
+  await noteCheckIn(uid).catch(() => undefined);
   const removed = await prune(uid, names, window);
   return NextResponse.json({ removed, checked: names.length });
 }
