@@ -1,5 +1,23 @@
 [
  {
+  "id": "fb72894:dashboard",
+  "date": "2026-10-25",
+  "slug": "dashboard",
+  "title": "Making a new iPhone link no longer breaks the one already in the Shortcut, and says which URL block is wrong",
+  "detail": "A user's last few keys all keep working, so making a link on the laptop (or twice on the phone) can't silently break the Shortcut. When a key is refused, Jarvis now says which of the Shortcut's URL blocks has it: the bookmark at the top, the photo send inside the Repeat, or the still-on-my-phone che",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "fb72894:jarvis",
+  "date": "2026-10-25",
+  "slug": "jarvis",
+  "title": "Making a new iPhone link no longer breaks the one already in the Shortcut, and says which URL block is wrong",
+  "detail": "A user's last few keys all keep working, so making a link on the laptop (or twice on the phone) can't silently break the Shortcut. When a key is refused, Jarvis now says which of the Shortcut's URL blocks has it: the bookmark at the top, the photo send inside the Repeat, or the still-on-my-phone che",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "9af47f7:dashboard",
   "date": "2026-10-25",
   "slug": "dashboard",
