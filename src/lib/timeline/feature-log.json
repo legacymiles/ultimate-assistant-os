@@ -1,5 +1,14 @@
 [
  {
+  "id": "1f3536e:cook-connect",
+  "date": "2026-10-25",
+  "slug": "cook-connect",
+  "title": "Spades gets a four-colour deck, bigger hand, Place Bid, two-step card play and Next screens",
+  "detail": "- Each suit has its own colour on the cards (spades black, hearts red, diamonds blue, clubs green), set by the theme and editable in Game Play Design Styling - Your hand is much bigger and overlapped so every card's corner reads at a glance - Bidding is a wheel (Nil to 13, opens on a suggested bid) ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "407ea3c:viral-studio-content",
   "date": "2026-10-25",
   "slug": "viral-studio-content",
