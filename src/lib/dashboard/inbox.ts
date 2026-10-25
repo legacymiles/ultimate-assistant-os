@@ -296,13 +296,19 @@ export async function phoneStatus(uid: string, opts: { owner?: boolean } = {}): 
   const doc = await load();
   const kd = await loadKeys();
   const mine = (r: { uid?: string }) => r.uid === uid || (!r.uid && opts.owner);
-  const refused = [...(doc.refused ?? [])].reverse().find(mine);
+  const known = new Set((kd.keys[uid] ?? []).map((k) => k.h));
+  const refused = [...(doc.refused ?? [])].reverse().find((r) => mine(r) && !(r.h && known.has(r.h)));
   return {
     linked: Boolean(kd.keys[uid]?.length || doc.tokens[uid]),
     keys: kd.mints.filter((m) => m.uid === uid).map(({ at, h6 }) => ({ at, h6 })),
     refusals: (doc.refused ?? []).filter(mine).map(({ at, where, h6 }) => ({ at, where, h6 })),
     adoptable:
-      opts.owner && refused?.h && Date.now() - Date.parse(refused.at) < ADOPT_WINDOW_MS && !(doc.lastPush[uid] && doc.lastPush[uid] > refused.at)
+      opts.owner &&
+      refused?.h &&
+      Date.now() - Date.parse(refused.at) < ADOPT_WINDOW_MS &&
+      !(doc.lastPush[uid] && doc.lastPush[uid] > refused.at) &&
+      // Already let in: nothing left to tap.
+      !kd.keys[uid]?.some((k) => k.h === refused.h)
         ? refused.at
         : null,
     lastPush: doc.lastPush[uid] ?? null,
