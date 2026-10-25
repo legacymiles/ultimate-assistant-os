@@ -76,6 +76,9 @@ import { useSetup } from "@/lib/new-jarvis/useSetup";
 import { useCameraWatch } from "@/lib/new-jarvis/useCameraWatch";
 import { readChecklistPrompt, useJarvisProfile } from "@/lib/jarvis-profile/useJarvisProfile";
 import { IphoneGuide } from "./IphoneGuide";
+import { BirthdaysSheet } from "../birthdays/BirthdaysSheet";
+import { addBirthday, deleteBirthday, getBirthdays, useBirthdays } from "@/lib/birthdays/store";
+import { birthdayDigest, birthdayEvents, formatBirthday, possessive } from "@/lib/birthdays/engine";
 import { CHAT_MODEL_KEY, isSubscription } from "@/lib/new-jarvis/chatModels";
 import { plainBridgeError, plainSiteError } from "@/lib/new-jarvis/plainErrors";
 import { BridgeError } from "@/lib/new-jarvis/bridge";
@@ -379,6 +382,11 @@ export function NewJarvis() {
   // The iPhone setup guide. Opened from the Camera widget, Settings, setup's
   // Connect step, or /apps/jarvis#iphone — which is what its QR code opens.
   const [iphoneGuide, setIphoneGuide] = useState(false);
+  // Family & friends' birthdays: one list, shown on the Calendar every year
+  // and in Notifications from 2 days before. Sheet opens from the Calendar
+  // tab, the Calendar widget, or /apps/jarvis#birthdays.
+  const [birthdaysOpen, setBirthdaysOpen] = useState(false);
+  const birthdays = useBirthdays().list;
   const updates = useUpdates(briefStore, commit, dash.events, camera.inbox);
   // The Calendar widget wants one list: the Dashboard calendar plus anything
   // typed straight into Jarvis, in the Dashboard's event shape.
@@ -398,8 +406,21 @@ export function NewJarvis() {
         createdAt: "",
         updatedAt: "",
       })),
+      // Birthdays for the coming year, derived — never copied into a store.
+      ...birthdayEvents(birthdays, new Date(), new Date(Date.now() + 366 * 86_400_000)).map((b) => ({
+        id: b.id,
+        title: b.title,
+        date: b.date,
+        time: null,
+        endTime: null,
+        notes: b.notes,
+        reminders: [],
+        source: "manual" as CalendarEvent["source"],
+        createdAt: "",
+        updatedAt: "",
+      })),
     ],
-    [dash.events, store?.events],
+    [dash.events, store?.events, birthdays],
   );
   const vault = useVault(bridge);
   // The queue is mounted up here rather than inside its own tab because the
@@ -704,6 +725,31 @@ export function NewJarvis() {
         };
       }
 
+      if (tool === "birthday_add") {
+        // One list feeds the calendar (every year) and notifications (2 days out).
+        const out = addBirthday({
+          name: String(args.name ?? ""),
+          date: String(args.date ?? ""),
+          relation: typeof args.relation === "string" ? args.relation : undefined,
+          circle: typeof args.circle === "string" ? args.circle : undefined,
+          notes: typeof args.notes === "string" ? args.notes : undefined,
+        });
+        if ("error" in out) throw new Error(out.error);
+        return {
+          [out.outcome]: `${out.birthday.name} — ${formatBirthday(out.birthday)}`,
+          note: `${out.outcome === "updated" ? "Updated (they were already saved — no duplicate)" : "Saved"}. It's on their calendar every year and they'll be reminded on the Dashboard 2 days before, the day before and on the day. Say that in one short line.`,
+        };
+      }
+
+      if (tool === "birthday_remove") {
+        const gone = deleteBirthday(String(args.name ?? ""));
+        if (!gone) {
+          const names = getBirthdays().map((b) => b.name);
+          throw new Error(names.length ? `No birthday saved for "${String(args.name ?? "")}". Saved: ${names.join(", ")}.` : "There are no birthdays saved yet.");
+        }
+        return { removed: `${possessive(gone.name)} birthday` };
+      }
+
       if (isDashboardTool(tool)) {
         const said = await runDashboardTool(tool, args);
         dash.refresh();
@@ -811,6 +857,9 @@ ${reflex.best.excerpt ?? ""}`.trim()
               timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
               // The owner's backend checklist (in Profile), followed on every build.
               checklist: readChecklistPrompt(),
+              // Saved birthdays, so "when is Mom's birthday?" answers and a
+              // re-add updates instead of duplicating.
+              context: birthdayDigest(getBirthdays()),
             };
             const post = async (body: Record<string, unknown>) => {
               const res = await fetch("/api/new-jarvis/agent", {
@@ -957,6 +1006,11 @@ ${reflex.best.excerpt ?? ""}`.trim()
         window.history.replaceState(null, "", window.location.pathname + window.location.search);
         return;
       }
+      if (h === "birthdays") {
+        setBirthdaysOpen(true);
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        return;
+      }
       // Profile › Connections, optionally one row open: /apps/jarvis#connections/youtube
       if (h === "connections" || h.startsWith("connections/")) {
         setTab("dashboard");
@@ -1032,6 +1086,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
   return (
     <div className="nj nj-hud">
       {iphoneGuide && <IphoneGuide camera={camera} onClose={() => setIphoneGuide(false)} />}
+      {birthdaysOpen && <BirthdaysSheet onClose={() => setBirthdaysOpen(false)} />}
       {setupStep && (
         <Onboarding
           start={setupStep}
@@ -1317,7 +1372,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
                   </div>
                 )}
                 {tab === "calendar" && (
-                  <CalendarTab store={store} commit={commit} dashboard={dash.events} onDashboard={dash.setEvents} />
+                  <CalendarTab store={store} commit={commit} dashboard={dash.events} onDashboard={dash.setEvents} onBirthdays={() => setBirthdaysOpen(true)} />
                 )}
                 {tab === "inbox" && <InboxTab store={store} commit={commit} profile={profile} />}
                 {tab === "studio" && (

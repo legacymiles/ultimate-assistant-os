@@ -9,6 +9,51 @@
   "source": "git"
  },
  {
+  "id": "5507878:birthdays",
+  "date": "2026-10-25",
+  "slug": "birthdays",
+  "title": "Family & friends' birthdays in onboarding, calendar, notifications and chat",
+  "detail": "- New \"Birthdays\" onboarding step (after You) + Finish setup item: add family and friends with taps (who they are, month, day, optional year). - One synced list (jarvis-birthdays:v1) feeds everything: every birthday shows on the Calendar tab and Calendar widget every year (derived, never copied, so ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5507878:jarvis",
+  "date": "2026-10-25",
+  "slug": "jarvis",
+  "title": "Family & friends' birthdays in onboarding, calendar, notifications and chat",
+  "detail": "- New \"Birthdays\" onboarding step (after You) + Finish setup item: add family and friends with taps (who they are, month, day, optional year). - One synced list (jarvis-birthdays:v1) feeds everything: every birthday shows on the Calendar tab and Calendar widget every year (derived, never copied, so ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "23b588b:jarvis",
+  "date": "2026-10-25",
+  "slug": "jarvis",
+  "title": "IPhone setup shows a finished Shortcut, screenshot by screenshot",
+  "detail": "The \"Make the Shortcut\" step now shows the owner's own working Shortcut top to bottom (Find Photos → Repeat → Resize → Convert → URL → Get contents of URL), with the key blurred out, so a new user can match theirs block for block. It also says what to do when a pasted link keeps being refused: re-pi",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6c79a99:jarvis",
+  "date": "2026-10-25",
+  "slug": "jarvis",
+  "title": "3D Animation Flow card — live 3D storyboard, render in the browser or on the PC",
+  "detail": "A new grid card in Studio (Stories), \"3D Animation Flow\". Pick it, attach the character, type the story in the Studio composer (or @film-3d in the Studio chat) and the flow opens with the storyboard already written:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d444cc7:jarvis",
+  "date": "2026-10-25",
+  "slug": "jarvis",
+  "title": "A Three.js film engine that makes 3D animated shorts in code",
+  "detail": "The engine behind the new 3D Animation Flow (src/lib/studio/film3d): - plan.ts: the closed beat vocabulary (11 worlds, 4 times of day, 15 moves, 9 shots, 10 props, 6 faces), a no-AI storyboard from the story line, plan checks, and the compact film code an In Queue request carries to the PC - directo",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "407ea3c:viral-studio-content",
   "date": "2026-10-25",
   "slug": "viral-studio-content",
