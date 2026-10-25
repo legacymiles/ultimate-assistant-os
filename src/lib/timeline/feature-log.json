@@ -1,5 +1,23 @@
 [
  {
+  "id": "5507878:birthdays",
+  "date": "2026-10-25",
+  "slug": "birthdays",
+  "title": "Family & friends' birthdays in onboarding, calendar, notifications and chat",
+  "detail": "- New \"Birthdays\" onboarding step (after You) + Finish setup item: add family and friends with taps (who they are, month, day, optional year). - One synced list (jarvis-birthdays:v1) feeds everything: every birthday shows on the Calendar tab and Calendar widget every year (derived, never copied, so ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5507878:jarvis",
+  "date": "2026-10-25",
+  "slug": "jarvis",
+  "title": "Family & friends' birthdays in onboarding, calendar, notifications and chat",
+  "detail": "- New \"Birthdays\" onboarding step (after You) + Finish setup item: add family and friends with taps (who they are, month, day, optional year). - One synced list (jarvis-birthdays:v1) feeds everything: every birthday shows on the Calendar tab and Calendar widget every year (derived, never copied, so ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "23b588b:jarvis",
   "date": "2026-10-25",
   "slug": "jarvis",
