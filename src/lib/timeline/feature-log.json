@@ -1,5 +1,23 @@
 [
  {
+  "id": "0279565:contradicting",
+  "date": "2026-10-25",
+  "slug": "contradicting",
+  "title": "New Jarvis app plugin — Omi recorder receipts for \"I never said that\"",
+  "detail": "Clip-on Omi pendant (or Omi phone app) streams transcripts to a per-account webhook; denials are matched to the person's earlier line (same words, or same meaning via Claude) and answered on the phone with the time and quote, plus a replay of the lead-up. Consent-first: only people who agreed are ke",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "0279565:jarvis",
+  "date": "2026-10-25",
+  "slug": "jarvis",
+  "title": "New Jarvis app plugin — Omi recorder receipts for \"I never said that\"",
+  "detail": "Clip-on Omi pendant (or Omi phone app) streams transcripts to a per-account webhook; denials are matched to the person's earlier line (same words, or same meaning via Claude) and answered on the phone with the time and quote, plus a replay of the lead-up. Consent-first: only people who agreed are ke",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "044faed:dashboard",
   "date": "2026-10-22",
   "slug": "dashboard",
