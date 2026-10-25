@@ -450,11 +450,48 @@ export const AGENT_TOOLS: AgentTool[] = [
     name: "dashboard_add_event",
     kind: "hub",
     route: "hub/dashboard_add_event",
-    description: "Put something on the owner's calendar, with a reminder.",
+    description:
+      "Put something on the owner's calendar (the one their Dashboard Calendar widget, Calendar tab and reminders read). Use it whenever they say \"add this to my calendar\", \"remind me on…\", \"I have X on Friday\" — or attach a flyer/screenshot of an event: read the title, date, time and place off it. Work out the real date from TODAY (\"Friday\" = the coming Friday). A person's yearly birthday goes to birthday_add instead, not here. After it's added, say in one line what went on which day.",
     parameters: {
       type: "object",
-      properties: { title: str("What it is."), date: str("YYYY-MM-DD."), time: str("HH:MM, optional.") },
+      properties: {
+        title: str("What it is."),
+        date: str("YYYY-MM-DD, worked out from today when they said a weekday or 'tomorrow'."),
+        time: str("HH:MM 24-hour, optional — leave out for an all-day event."),
+        location: str("Where, optional."),
+        notes: str("Anything else worth keeping, optional."),
+        reminder_minutes: { type: "number", description: "Minutes before to remind them. Default 1440 (a day before)." },
+      },
       required: ["title", "date"],
+    },
+  },
+  {
+    name: "birthday_add",
+    kind: "hub",
+    route: "hub/birthday_add",
+    description:
+      "Save a family member's or friend's birthday (\"add Mom's birthday, March 14\", \"my friend Tyler was born 7/4/1995\"). ONE call puts it everywhere: on their calendar every year, and in their Dashboard notifications starting 2 days before. If that person is already saved it updates them instead of adding a duplicate. Several people in one message = one call each. Afterwards say in one line who was saved and when.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: str("Their name, or what the owner calls them (\"Mom\") when no name was given."),
+        date: str("The birthday as said: \"March 14\", \"3/14\", \"1990-03-14\". Include the birth year only if they said it."),
+        relation: str("Who they are to the owner: Mom, cousin, best friend… optional."),
+        circle: str("family or friend. Optional — guessed from the relation."),
+        notes: str("Gift ideas or anything else they said, optional."),
+      },
+      required: ["name", "date"],
+    },
+  },
+  {
+    name: "birthday_remove",
+    kind: "hub",
+    route: "hub/birthday_remove",
+    description: "Remove a saved birthday by the person's name (it disappears from the calendar and notifications).",
+    parameters: {
+      type: "object",
+      properties: { name: str("The person's name as saved.") },
+      required: ["name"],
     },
   },
   {

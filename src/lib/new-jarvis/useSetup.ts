@@ -9,6 +9,7 @@ import { CHAT_MODEL_KEY, isSubscription } from "./chatModels";
 import { loadLocal } from "@/lib/sync/appState";
 import { useSyncStatus } from "@/lib/jarvis/useSyncStatus";
 import type { SyncPlan } from "@/lib/jarvis/syncSteps";
+import { useBirthdays } from "@/lib/birthdays/store";
 
 export interface ConnectorApp {
   slug: string;
@@ -42,6 +43,7 @@ export function useSetup(): SetupStatus {
   const [keys, setKeys] = useState<Record<string, boolean> | null>(null);
   const [brain, setBrain] = useState("");
   const sync = useSyncStatus();
+  const birthdays = useBirthdays().list.length;
 
   const refresh = useCallback(() => {
     setBrain(loadLocal<string>(CHAT_MODEL_KEY, ""));
@@ -78,6 +80,7 @@ export function useSetup(): SetupStatus {
     iphoneLinked,
     rules,
     favorites: launcher.favorites.length,
+    birthdays,
     thinkingReady: keys ? thinkingReady(keys) : false,
     subscriptionBrain: isSubscription(brain),
     sync: sync.plan

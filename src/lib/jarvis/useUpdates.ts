@@ -42,6 +42,7 @@ import type { JarvisStore } from "./types";
 import { getQueue } from "@/lib/recall/photos/store";
 import { CAMERA_CHANGED, type InboxEntry } from "@/lib/new-jarvis/useCameraWatch";
 import { useWatches } from "@/lib/new-jarvis/watches";
+import { useBirthdays } from "@/lib/birthdays/store";
 
 /** How often the family board is re-read. */
 const POLL_MS = 60_000;
@@ -112,6 +113,8 @@ export function useUpdates(
     };
   }, [readCamera, tick]);
   const watches = useWatches();
+  // Family & friends' birthdays: news only from 2 days out (src/lib/birthdays).
+  const birthdays = useBirthdays().list;
 
   // commit needs the store as it is at the moment of the click, not as it was
   // when the callback was made — a pop-up firing mid-edit must not resurrect
@@ -202,6 +205,7 @@ export function useUpdates(
         inbox,
         watches,
         clients,
+        birthdays,
       },
       settings,
       state,
@@ -210,7 +214,7 @@ export function useUpdates(
     // `tick` is the clock: it is in the deps precisely so time passing
     // recomputes the feed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [board, spend, events, recall.items, photoFolderIds, store?.proposals, store?.actions, settings, state, tick, camera, inbox, watches, clients]);
+  }, [board, spend, events, recall.items, photoFolderIds, store?.proposals, store?.actions, settings, state, tick, camera, inbox, watches, clients, birthdays]);
 
   // ----- pop-ups -----------------------------------------------------------
   useEffect(() => {

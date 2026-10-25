@@ -314,11 +314,18 @@ export function classify(op: BridgeOp): Verdict {
       );
 
     case "hub/dashboard_add_event":
-      return gate(
-        "act",
-        `Put "${truncate(String(args.title ?? ""), 40)}" on your calendar on ${String(args.date ?? "")}${args.time ? ` at ${String(args.time)}` : ""}.`,
-        "",
-      );
+      // Free (owner's ask, Oct 2026): "add this to my calendar" should just
+      // happen. It's reversible — the event can be edited or deleted on the
+      // Calendar tab — and the step shows in the chat.
+      return free(`Put "${truncate(String(args.title ?? ""), 40)}" on your calendar on ${String(args.date ?? "")}${args.time ? ` at ${String(args.time)}` : ""}.`);
+
+    case "hub/birthday_add":
+      // Same reasoning: reversible from Calendar › Birthdays, and the owner
+      // asked for the chat to just add it everywhere.
+      return free(`Save ${truncate(String(args.name ?? "their"), 30)}'s birthday (${truncate(String(args.date ?? ""), 20)}) to your calendar and reminders.`);
+
+    case "hub/birthday_remove":
+      return gate("act", `Remove ${truncate(String(args.name ?? "that"), 30)}'s birthday.`, "It comes off your calendar and reminders.");
 
     case "hub/app_builder":
       // Only opens a draft project in App Builder; every real step after it
