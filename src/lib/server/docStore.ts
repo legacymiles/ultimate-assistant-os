@@ -96,6 +96,27 @@ export async function readDoc<T>(name: string, dir: string): Promise<T | null> {
 }
 
 /**
+ * Like readDoc, but a failed read THROWS instead of looking like "never
+ * written". For documents that are read, changed and saved whole: treating a
+ * hiccup as an empty document and then saving it wipes everything in it.
+ */
+export async function readDocStrict<T>(name: string, dir: string): Promise<T | null> {
+  const db = remote();
+  if (db) {
+    const { data, error } = await db.from(TABLE).select("data").eq("name", name).maybeSingle();
+    if (error) throw new Error(`Couldn't read ${name}: ${error.message}`);
+    return (data?.data as T) ?? null;
+  }
+  try {
+    const raw = await fs.readFile(localPath(name, dir), "utf8");
+    return JSON.parse(raw) as T;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException)?.code === "ENOENT") return null;
+    throw e;
+  }
+}
+
+/**
  * Persist a document. Returns whether it actually landed — callers surface
  * that rather than assuming, because "the host silently discarded your health
  * record" is not something to find out later.

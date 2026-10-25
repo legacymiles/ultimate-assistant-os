@@ -1,7 +1,7 @@
 import "server-only";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import path from "node:path";
-import { readDoc, writeDoc } from "@/lib/server/docStore";
+import { readDocStrict, writeDoc } from "@/lib/server/docStore";
 import { deleteBlob, getBlob, putBlob, signedBlobUrl } from "@/lib/server/blobStore";
 import { parseShortcutDate } from "./shortcutDate";
 
@@ -98,13 +98,16 @@ interface InboxDoc {
   /** uid -> hashes of that user's replaced tokens, so an old link can be named as theirs. */
   retired?: Record<string, string[]>;
   /** Sends with a key nobody has — newest last. `uid` when it was someone's old key. */
-  refused?: { at: string; uid?: string; where?: string }[];
+  refused?: { at: string; uid?: string; where?: string; h6?: string }[];
 }
 
 const EMPTY: InboxDoc = { tokens: {}, entries: [], seen: {}, cursor: {}, lastPush: {}, checkIn: {}, problem: {}, retired: {}, refused: [] };
 
 async function load(): Promise<InboxDoc> {
-  const doc = await readDoc<InboxDoc>(DOC, dataDir());
+  // Strict: a failed read throws. It used to come back as an EMPTY document,
+  // and the next save then wrote that over everything — keys, waiting photos,
+  // the phone's bookmark — which is how a working iPhone link could vanish.
+  const doc = await readDocStrict<InboxDoc>(DOC, dataDir());
   if (!doc) return { ...EMPTY };
   return {
     tokens: doc.tokens ?? {},
@@ -129,8 +132,30 @@ function hash(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+// The keys live in a document of their OWN, written only when a link is made.
+// They used to sit inside the inbox document, which every device rewrites
+// whole many times a minute (claims, filing, the phone's sends, check-ins) —
+// a save holding a copy from a moment before a new link was made put the old
+// key back, so the link just pasted into the Shortcut was refused.
+const KEYS_DOC = "dashboard-inbox-keys";
+/** A user's last few keys all work, so a new link never breaks the one already pasted. */
+const KEYS_PER_USER = 5;
+
+interface KeysDoc {
+  /** uid -> that user's keys (sha256 hashes), newest last. */
+  keys: Record<string, { h: string; at: string }[]>;
+  /** Every link made, newest last: when, whose, and the hash's first characters (for matching a refusal). */
+  mints: { at: string; uid: string; h6: string }[];
+}
+
+async function loadKeys(): Promise<KeysDoc> {
+  const doc = await readDocStrict<KeysDoc>(KEYS_DOC, dataDir());
+  return { keys: doc?.keys ?? {}, mints: doc?.mints ?? [] };
+}
+
 /**
- * Mint (or rotate) the device token for one user.
+ * Mint a device token for one user — their newest link. Their few before it
+ * keep working.
  *
  * Returned in the clear exactly once — only the hash is stored, so a leaked
  * document cannot be replayed against the endpoint. Per user, so every person
@@ -138,35 +163,41 @@ function hash(token: string): string {
  */
 export async function mintToken(uid: string): Promise<string | null> {
   const token = randomBytes(24).toString("base64url");
-  const doc = await load();
-  // The key this replaces keeps working (see uidForToken), so a link already
-  // pasted into the Shortcut isn't broken by making a new one somewhere else.
-  const old = doc.tokens[uid];
-  if (old) doc.retired![uid] = [...(doc.retired![uid] ?? []).filter((h) => h !== old), old].slice(-RETIRED_LIMIT);
-  doc.tokens[uid] = hash(token);
-  return (await save(doc)) ? token : null;
+  const h = hash(token);
+  const at = new Date().toISOString();
+  const kd = await loadKeys();
+  // Carry over the key this user had in the old place, so it keeps working too.
+  if (!kd.keys[uid]?.length) {
+    const legacy = await load().catch(() => null);
+    const olds = [...(legacy?.retired?.[uid] ?? []), ...(legacy?.tokens[uid] ? [legacy.tokens[uid]] : [])];
+    kd.keys[uid] = olds.map((oh) => ({ h: oh, at: "" }));
+  }
+  kd.keys[uid] = [...kd.keys[uid].filter((k) => k.h !== h), { h, at }].slice(-KEYS_PER_USER);
+  kd.mints = [...kd.mints, { at, uid, h6: h.slice(0, 6) }].slice(-20);
+  if (!(await writeDoc(KEYS_DOC, dataDir(), kd))) return null;
+  // Read it back: say so now if it didn't stick, instead of the Shortcut finding out.
+  const check = await loadKeys().catch(() => null);
+  return check?.keys[uid]?.some((k) => k.h === h) ? token : null;
 }
 
 export async function hasToken(uid: string): Promise<boolean> {
+  const kd = await loadKeys();
+  if (kd.keys[uid]?.length) return true;
   return Boolean((await load()).tokens[uid]);
 }
 
-/**
- * The uid this token belongs to, or null. Constant-time per candidate.
- *
- * A user's last few keys all keep working (Oct 2026): making a new link on
- * the laptop used to silently break the link already pasted into the phone's
- * Shortcut, and the Shortcut has up to three URL blocks to keep in step — the
- * owner kept ending up with a Shortcut that was refused and no idea why.
- */
+/** The uid this token belongs to, or null. Constant-time per candidate. */
 export async function uidForToken(token: string): Promise<string | null> {
   if (!token) return null;
   const want = Buffer.from(hash(token), "hex");
-  const doc = await load();
   const same = (stored: string) => {
     const got = Buffer.from(stored, "hex");
     return got.length === want.length && timingSafeEqual(got, want);
   };
+  const kd = await loadKeys();
+  for (const [uid, list] of Object.entries(kd.keys)) if (list.some((k) => same(k.h))) return uid;
+  // Keys made before they had their own document.
+  const doc = await load();
   for (const [uid, stored] of Object.entries(doc.tokens)) if (same(stored)) return uid;
   for (const [uid, old] of Object.entries(doc.retired ?? {})) if (old.some(same)) return uid;
   return null;
@@ -178,7 +209,6 @@ export async function uidForToken(token: string): Promise<string | null> {
 // hasn't sent a photo yet"). These record each kind of contact, so Camera
 // Autopilot can say which one it is — see phoneStatus.ts.
 
-const RETIRED_LIMIT = 5;
 const REFUSED_LIMIT = 10;
 /** A refused send is only written down this often, so junk traffic can't hammer the document. */
 const REFUSED_EVERY_MS = 30_000;
@@ -205,7 +235,10 @@ export async function noteRefused(token: string, where?: string): Promise<void> 
   if (Date.now() - last < REFUSED_EVERY_MS) return;
   const h = token ? hash(token) : "";
   const uid = h ? Object.entries(doc.retired!).find(([, hs]) => hs.includes(h))?.[0] : undefined;
-  doc.refused = [...list, { at: new Date().toISOString(), ...(uid ? { uid } : {}), ...(where ? { where } : {}) }].slice(-REFUSED_LIMIT);
+  doc.refused = [
+    ...list,
+    { at: new Date().toISOString(), ...(uid ? { uid } : {}), ...(where ? { where } : {}), h6: h ? h.slice(0, 6) : "empty" },
+  ].slice(-REFUSED_LIMIT);
   await save(doc);
 }
 
@@ -220,13 +253,24 @@ export interface PhoneStatus {
   refusedWhere: string | null;
   /** The bookmark the Shortcut starts from. */
   cursor: string | null;
+  /**
+   * For working out a refused link: when this user's links were made and the
+   * first characters of each one's hash, and the same for recent refusals.
+   * Hash prefixes only — nothing here can be used as a key.
+   */
+  keys: { at: string; h6: string }[];
+  refusals: { at: string; where?: string; h6?: string }[];
 }
 
 export async function phoneStatus(uid: string, opts: { owner?: boolean } = {}): Promise<PhoneStatus> {
   const doc = await load();
-  const refused = [...(doc.refused ?? [])].reverse().find((r) => r.uid === uid || (!r.uid && opts.owner));
+  const kd = await loadKeys();
+  const mine = (r: { uid?: string }) => r.uid === uid || (!r.uid && opts.owner);
+  const refused = [...(doc.refused ?? [])].reverse().find(mine);
   return {
-    linked: Boolean(doc.tokens[uid]),
+    linked: Boolean(kd.keys[uid]?.length || doc.tokens[uid]),
+    keys: kd.mints.filter((m) => m.uid === uid).map(({ at, h6 }) => ({ at, h6 })),
+    refusals: (doc.refused ?? []).filter(mine).map(({ at, where, h6 }) => ({ at, where, h6 })),
     lastPush: doc.lastPush[uid] ?? null,
     lastCheckIn: doc.checkIn?.[uid] ?? null,
     problem: doc.problem?.[uid] ?? null,
