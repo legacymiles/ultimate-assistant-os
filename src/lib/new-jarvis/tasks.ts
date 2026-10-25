@@ -35,6 +35,17 @@ export const PINNED_TASKS: PinnedTask[] = [
     folder: "flow:animate-my-character",
   },
   {
+    id: "test-film-3d",
+    name: "Test the 3D Animation Flow",
+    blurb:
+      "The Studio card: pick “3D Animation Flow”, attach a character, type the story and press Make the storyboard — the 3D film plays live. "
+      + "Press Make it now to render the MP4 in the browser; or Send to my PC and say “work my Jarvis queue” in Claude Code — it renders "
+      + "in HD with the threejs-film-story skill. Type story ideas for it in this row's folder.",
+    priority: 0,
+    href: "/apps/jarvis#studio",
+    folder: "flow:film-3d",
+  },
+  {
     id: "iphone-setup-video",
     name: "iPhone setup video",
     blurb:

@@ -31,9 +31,13 @@ import { StudioGallery } from "./StudioGallery";
 import { ChatTab } from "./ChatTab";
 import { KidsFlow } from "./kids-flow/KidsFlow";
 import type { KidsSeed } from "@/lib/studio/kids-flow/useKidsFlow";
+import { Film3DFlow } from "./film3d/Film3DFlow";
+import type { Film3DSeed } from "@/lib/studio/film3d/useFilm3D";
 
 /** The card whose prompt opens the Kids Animation Flow screen instead of a chat. */
 const KIDS_FLOW_ID = "animate-my-character";
+/** The card whose prompt opens the 3D Animation Flow screen (a Three.js film made in code). */
+const FILM3D_ID = "film-3d";
 import type { JarvisStore } from "@/lib/jarvis/types";
 import type { Profile } from "@/lib/new-dashboard/types";
 import { useCinemaOutput, useCinemaSelection } from "@/lib/studio/useCinema";
@@ -108,6 +112,8 @@ export function StudioTab({
   const [view, setView] = useState<"browse" | "gallery">("browse");
   // The Kids Animation Flow card opens its own screen once the prompt is sent.
   const [kids, setKids] = useState<KidsSeed | null>(null);
+  // …and so does the 3D Animation Flow card.
+  const [film3d, setFilm3d] = useState<Film3DSeed | null>(null);
   /**
    * The conversation this Studio has going, if any.
    *
@@ -190,6 +196,7 @@ export function StudioTab({
     .filter((s) => s.items.length);
 
   const kidsPicked = picked.some((p) => p.id === KIDS_FLOW_ID) || /@animate-my-character\b/.test(idea);
+  const film3dPicked = picked.some((p) => p.id === FILM3D_ID) || /@film-3d\b/.test(idea);
 
   const pickedWorkflows = picked
     .map((p) => ({ p, w: WORKFLOWS.find((w) => w.id === p.id)! }))
@@ -312,11 +319,30 @@ export function StudioTab({
       clear();
       return;
     }
+    // 3D Animation Flow: same hand-off — its screen plans the shots and plays the film.
+    if (picked.some((p) => p.id === FILM3D_ID) || typed.has(FILM3D_ID)) {
+      setFilm3d({
+        text: idea.trim(),
+        keywords,
+        images: attachments.filter((a) => a.kind === "image").map((a) => a.full),
+        nonce: Date.now(),
+      });
+      clear();
+      return;
+    }
     // The camera moves ride along inside `idea` as #tokens; the look travels on
     // its own, shared with Chat through localStorage.
     setSession({ text: `${mentions} ${idea.trim()}${style}`.trim(), nonce: Date.now(), attachments });
     clear();
   };
+
+  if (film3d) {
+    return (
+      <div className="flex h-[calc(100dvh-49px)] flex-col">
+        <Film3DFlow seed={film3d} onClose={() => setFilm3d(null)} />
+      </div>
+    );
+  }
 
   if (kids) {
     return (
@@ -364,6 +390,10 @@ export function StudioTab({
             onKidsFlow={(seed) => {
               setSession(null);
               setKids({ text: seed.text, keywords: [], images: seed.images, nonce: Date.now() });
+            }}
+            onFilm3D={(seed) => {
+              setSession(null);
+              setFilm3d({ text: seed.text, keywords: [], images: seed.images, nonce: Date.now() });
             }}
             {...(onDashboardChanged ? { onDashboardChanged } : {})}
           />
@@ -614,7 +644,9 @@ export function StudioTab({
               }}
               rows={2}
               placeholder={
-                kidsPicked
+                film3dPicked
+                  ? "3D Animation Flow: attach your character's picture, then tell the story in a line — e.g. Zoe's balloon floats away and she follows it across the beach to the city at night, 30 seconds, vertical"
+                  : kidsPicked
                   ? "Kids Animation Flow: attach your character's picture, then tell the story in a line — e.g. my son Milo loses his kite and chases it through town, 45 seconds"
                   : "Describe the shot: whose story, which product, what happens…  (@ for a person, an upload or a workflow, # for a camera move)"
               }
@@ -686,7 +718,7 @@ export function StudioTab({
               disabled={!picked.length && !idea.trim() && !attachments.length}
               className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-ink px-4 py-2 text-xs font-semibold text-canvas transition hover:opacity-90 disabled:opacity-40"
             >
-              <Icon.Send width={13} height={13} /> {kidsPicked ? "Make the storyboard" : "Start"}
+              <Icon.Send width={13} height={13} /> {kidsPicked || film3dPicked ? "Make the storyboard" : "Start"}
             </button>
           </div>
         </div>

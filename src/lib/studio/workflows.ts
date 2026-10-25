@@ -169,6 +169,29 @@ export const WORKFLOWS: Workflow[] = [
     isNew: true,
   },
   {
+    // Made in CODE as a real Three.js scene (src/lib/studio/film3d): the
+    // card's prompt opens the 3D Animation Flow screen, which plans the shots,
+    // plays the film live, renders the MP4 in the browser, or hands the exact
+    // film to the PC (threejs-film-story skill) for an HD render via
+    // studio_queue. One character, one rig, every shot.
+    id: "film-3d",
+    name: "3D Animation Flow",
+    medium: "video",
+    category: "stories",
+    blurb: "Attach your character, type the story — a 3D animated short made in code, plays live, renders right here",
+    brief:
+      "Read the uploaded character into a 3D toy figure (build, hair style and colour, skin, each garment with its colour, "
+      + "one signature item, the one colour that means them), then write 7–12 beats for 30–60 s in the engine's own words: "
+      + "a world, a time of day, a move, a face, a shot and a prop per beat, captions of six words or fewer, a silence before "
+      + "the payoff and the loudest hit on it, the end returning to the first image changed. It renders in code (Three.js), "
+      + "in the browser or on the owner's PC: hand the approved film over with studio_queue, never studio_generate.",
+    format: "16:9 / 9:16 · 30–60 s · 3D",
+    keywords: ["toy box", "clay", "storybook", "neon", "cozy", "funny", "adventurous"],
+    motif: "orbit",
+    hue: 200,
+    isNew: true,
+  },
+  {
     id: "short-drama",
     name: "Short story drama",
     medium: "video",
