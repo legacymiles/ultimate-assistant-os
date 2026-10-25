@@ -270,6 +270,7 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                   </>,
                 ]}
               />
+              <FinishedExample />
               <div className="overflow-hidden rounded-lg border border-line">
                 <p className="border-b border-line bg-panel-2 px-3 py-1.5 font-mono text-[10.5px] uppercase tracking-wider text-ink-faint">
                   Get Contents of URL — what goes where
@@ -517,6 +518,42 @@ function CopyRow({ label, value, onCopy, secret }: { label: string; value: strin
           <Icon.Copy width={12} height={12} aria-hidden /> Copy
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The owner's own working Shortcut, top to bottom, so a new user can match
+ * theirs block for block. Their key is blurred out of the URL block.
+ */
+const EXAMPLE_SHOTS = [
+  { src: "/images/iphone-guide/1-find-photos.png", cap: "Find Photos (Latest First) → Repeat with each item → Resize to 1600" },
+  { src: "/images/iphone-guide/2-convert-and-url.png", cap: "Convert to JPEG → a URL block with your link pasted in" },
+  { src: "/images/iphone-guide/3-get-contents.png", cap: "Get contents of URL: POST, Form, a File field named photos → End Repeat" },
+];
+
+function FinishedExample() {
+  return (
+    <div className="rounded-lg border border-line">
+      <p className="border-b border-line bg-panel-2 px-3 py-1.5 font-mono text-[10.5px] uppercase tracking-wider text-ink-faint">
+        A finished Shortcut — yours should look like this
+      </p>
+      <div className="flex snap-x gap-3 overflow-x-auto p-3">
+        {EXAMPLE_SHOTS.map((s, i) => (
+          <figure key={s.src} className="w-[min(220px,70vw)] shrink-0 snap-start">
+            {/* eslint-disable-next-line @next/next/no-img-element -- static screenshots from /public */}
+            <img src={s.src} alt={`Step ${i + 1}: ${s.cap}`} loading="lazy" className="w-full rounded-lg border border-line bg-white" />
+            <figcaption className="mt-1.5 text-[11px] leading-snug text-ink-muted">
+              <b className="text-ink">{i + 1}.</b> {s.cap}
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+      <p className="border-t border-line px-3 py-2 text-[11px] text-ink-faint">
+        Pasted a new link and it still says &ldquo;Unknown device token&rdquo;? In <b className="text-ink">Get contents of</b>, tap the blue{" "}
+        <b className="text-ink">URL</b>, clear it, and pick the URL block right above — it can hold on to an old copy. Or tap{" "}
+        <b className="text-ink">That&apos;s my iPhone — let it in</b> in Camera Autopilot.
+      </p>
     </div>
   );
 }
