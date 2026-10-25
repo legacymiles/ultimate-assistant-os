@@ -591,6 +591,29 @@ export const PROJECTS: CatalogProject[] = [
     hue: [330, 200],
   },
   {
+    slug: "money-agent-studio",
+    title: "Money Agent Studio",
+    tag: "Agents that make videos that make money",
+    category: "Video",
+    overview:
+      "Standing agents whose only job is income from video. A Clipper takes a podcast, stream or long " +
+      "YouTube video and finds the moments people share — timestamped, scored, with the on-screen hook " +
+      "and a ready caption — read from the video's own captions, a pasted transcript, or by an AI watching " +
+      "it. A Faceless channel pitches topics for its niche, writes a retention-first script line by line " +
+      "with what goes on screen, and has it made as a voiced explainer. A Campaign clipper works a paid " +
+      "clipping campaign: the web is searched for live ones, its rate per 1,000 views, minimums, budget " +
+      "and rules ride with every clip. Your PC makes the files through In Queue (link-to-video, ffmpeg, " +
+      "burned captions, faceless-explainer), each one comes back to Approve, and nothing posts until you " +
+      "say yes — then it lands in Personas Studio, ready or scheduled on the persona's own accounts. A " +
+      "conveyor shows the whole pipeline from Idea to Posted; Earnings puts the money that arrived next " +
+      "to what the views say it should be, per agent and per video, and all of it shows in Financial " +
+      "Bible's Money Plays room.",
+    status: "live",
+    appUrl: "/apps/money-agent-studio",
+    iconStyle: "pulse",
+    hue: [152, 44],
+  },
+  {
     slug: "game-creator",
     title: "Game Creator",
     tag: "Describe a game → Unreal Engine builds it",
@@ -818,6 +841,7 @@ export function getProject(slug: string): CatalogProject | null {
  * panel. Neither is wanted, so they keep the animated icon instead.
  */
 const UNPREVIEWABLE = new Set([
+  "money-agent-studio",
   "dashboard",
   "find-my-life",
   "contradicting",

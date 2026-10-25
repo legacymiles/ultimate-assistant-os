@@ -40,6 +40,7 @@ export const PLUGIN_SLUGS = [
   "dump-finder",
   "client-review",
   "personas-studio",
+  "money-agent-studio",
   "contradicting",
 ] as const;
 
@@ -73,6 +74,9 @@ function firstSentence(text: string): string {
 }
 
 const WHY: Record<string, string> = {
+  "money-agent-studio":
+    "Agents that make videos that make money: clip the best moments out of long videos, run faceless channels, and work paid "
+    + "clipping campaigns. Your PC makes them, you approve every one, Personas Studio posts them, and the money shows in Financial Bible.",
   contradicting:
     "Receipts for “I never said that.” A clip-on Omi recorder streams the conversation in; when someone denies a line, the "
     + "exact words and time come back on your phone, with the lead-up one tap away. Consent-first and fair to both people.",
