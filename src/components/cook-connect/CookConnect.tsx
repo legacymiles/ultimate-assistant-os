@@ -8,6 +8,7 @@ import {
 } from "react";
 import { getCookBackend, isSchemaMissing, SCHEMA_MISSING_MESSAGE } from "@/lib/cook-connect/client";
 import type { Profile } from "@/lib/cook-connect/types";
+import { HOME_PAGE, landingSide, parseSide, type Side } from "@/lib/cook-connect/sides";
 import { CookShell } from "./CookShell";
 import { AuthView } from "./views/AuthView";
 import { ExploreView } from "./views/ExploreView";
@@ -42,8 +43,17 @@ export type Route =
   | { page: "group"; id: string }
   | { page: "shared" };
 
-/** The five destinations the nav rail offers. */
-export const NAV_PAGES = ["explore", "cookbooks", "play", "leaderboards"] as const;
+/** One step of history: the screen, and which half of the app it was on. */
+interface Step { route: Route; side: Side }
+
+const SIDE_KEY = "cook-connect:side";
+
+const homeStep = (side: Side): Step => ({ route: { page: HOME_PAGE[side] } as Route, side });
+
+function rememberedSide(): Side {
+  if (typeof window === "undefined") return "cookbook";
+  try { return parseSide(window.localStorage.getItem(SIDE_KEY)); } catch { return "cookbook"; }
+}
 
 interface CookContextValue {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -52,6 +62,10 @@ interface CookContextValue {
   userId: string | null;
   profile: Profile | null;
   route: Route;
+  /** Which half of the app is showing: Cookbook or Connect. */
+  side: Side;
+  /** Flip halves — back to wherever you last were on that side. */
+  setSide: (side: Side) => void;
   navigate: (route: Route) => void;
   back: () => void;
   canGoBack: boolean;
@@ -69,17 +83,40 @@ export function CookConnect() {
   const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [ready, setReady] = useState(false);
-  // Play is home: it carries the lobby and the activity feed together.
-  const [history, setHistory] = useState<Route[]>([{ page: "play" }]);
+  // Two apps in one: each side has its own home, and you open on the side you
+  // used last on this device.
+  const [history, setHistory] = useState<Step[]>(() => [homeStep(rememberedSide())]);
   const [notice, setNotice] = useState<string | null>(null);
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
   // Set when Supabase is configured but the `cook` schema is not reachable.
   const [schemaMissing, setSchemaMissing] = useState(false);
 
-  const route = history[history.length - 1];
+  const { route, side } = history[history.length - 1];
 
+  // Remember the side for next time (a per-device convenience, so storage).
+  useEffect(() => {
+    try { window.localStorage.setItem(SIDE_KEY, side); } catch { /* private mode */ }
+  }, [side]);
+
+  /** A screen that belongs to one side takes you there; a shared one stays put. */
   const navigate = useCallback((next: Route) => {
-    setHistory((prev) => [...prev, next]);
+    setHistory((prev) => {
+      const current = prev[prev.length - 1].side;
+      return [...prev, { route: next, side: landingSide(next.page, current) }];
+    });
+    if (typeof window !== "undefined") window.scrollTo({ top: 0 });
+  }, []);
+
+  /** The big toggle. Lands where you left that side, or on its home. */
+  const setSide = useCallback((next: Side) => {
+    setHistory((prev) => {
+      if (prev[prev.length - 1].side === next) {
+        // Tapping the side you are on takes you to its front door.
+        return [...prev, homeStep(next)];
+      }
+      const last = [...prev].reverse().find((step) => step.side === next);
+      return [...prev, last ?? homeStep(next)];
+    });
     if (typeof window !== "undefined") window.scrollTo({ top: 0 });
   }, []);
 
@@ -188,11 +225,11 @@ export function CookConnect() {
 
   const signOut = useCallback(async () => {
     await sb.auth.signOut();
-    setHistory([{ page: "play" }]);
+    setHistory([homeStep(rememberedSide())]);
   }, [sb]);
 
   const value: CookContextValue = {
-    sb, isLocal, userId, profile, route, navigate, back,
+    sb, isLocal, userId, profile, route, side, setSide, navigate, back,
     canGoBack: history.length > 1, onlineIds,
     notify: setNotice, refreshProfile, signOut,
   };

@@ -1,8 +1,12 @@
 "use client";
 
-// Explore — where you find people. Who is online right now, a search over
-// everyone, an invite to a table that actually reaches them, and a look at
-// what they cook without having to leave the row.
+// Explore — where you find people. It is on both halves of the app and shows
+// that half's side of everyone (owner's rule):
+//   Cookbook: cooks — their city, their cookbooks (opened in place), their saves,
+//             and the cooking groups.
+//   Connect:  players — who is online, their record and win rate, and an
+//             invite to any game that actually reaches them.
+// Following is the same on both sides: one account, one set of followers.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCook } from "../CookConnect";
@@ -14,6 +18,7 @@ import {
 import { formatWinRate, type PlayerRecord } from "@/lib/cook-connect/stats";
 import { createMatch } from "@/lib/cook-connect/matches";
 import { rooms, type Cookbook, type Profile } from "@/lib/cook-connect/types";
+import { GAMES, type GameId } from "@/lib/cook-connect/sides";
 import {
   Avatar, Button, EmptyState, Loading, Panel, SearchField, SectionHead, Tag, TabStrip, cx,
 } from "../ui";
@@ -23,7 +28,8 @@ import { GroupsPanel } from "../social/GroupsPanel";
 type Scope = "online" | "all" | "following" | "followers";
 
 export function ExploreView() {
-  const { sb, userId, profile, navigate, onlineIds, notify } = useCook();
+  const { sb, userId, profile, navigate, onlineIds, notify, side } = useCook();
+  const isConnect = side === "connect";
   const [term, setTerm] = useState("");
   const [scope, setScope] = useState<Scope>("all");
   const [people, setPeople] = useState<Profile[]>([]);
@@ -34,7 +40,9 @@ export function ExploreView() {
   const [graph, setGraph] = useState({ following: new Set<string>(), followers: new Set<string>() });
   const [expanded, setExpanded] = useState<string | null>(null);
   // Explore covers both halves of "who else is here": people, and groups.
-  const [half, setHalf] = useState<"people" | "groups">("people");
+  const [halfPick, setHalf] = useState<"people" | "groups">("people");
+  // Groups are cooking rooms, so they live on the Cookbook side only.
+  const half = isConnect ? "people" : halfPick;
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -58,6 +66,13 @@ export function ExploreView() {
 
   useEffect(() => { void load(); }, [load]);
 
+  const savesBy = useCallback(
+    (ownerId: string) => books
+      .filter((b) => b.owner_id === ownerId)
+      .reduce((sum, b) => sum + (saveCounts[b.id] ?? 0), 0),
+    [books, saveCounts],
+  );
+
   const booksBy = useCallback(
     (ownerId: string) => books.filter((b) => b.owner_id === ownerId),
     [books],
@@ -79,9 +94,13 @@ export function ExploreView() {
         const aOn = onlineIds.has(a.id) ? 1 : 0;
         const bOn = onlineIds.has(b.id) ? 1 : 0;
         if (aOn !== bOn) return bOn - aOn;
+        // Then the busiest on this side: most games played, or most cookbooks.
+        const aN = isConnect ? (records[a.id]?.played ?? 0) : books.filter((x) => x.owner_id === a.id).length;
+        const bN = isConnect ? (records[b.id]?.played ?? 0) : books.filter((x) => x.owner_id === b.id).length;
+        if (aN !== bN) return bN - aN;
         return a.display_name.localeCompare(b.display_name);
       });
-  }, [people, term, scope, graph, userId, onlineIds]);
+  }, [people, term, scope, graph, userId, onlineIds, isConnect, records, books]);
 
   const onlineCount = people.filter((p) => p.id !== userId && onlineIds.has(p.id)).length;
 
@@ -105,7 +124,7 @@ export function ExploreView() {
    * notices it in the lobby is not an invitation, so this puts a line in their
    * direct messages naming the game.
    */
-  const invite = async (target: Profile, game: "spades" | "chess") => {
+  const invite = async (target: Profile, game: GameId) => {
     if (!userId) return;
     setBusy(target.id);
     const matchId = await createMatch(sb, { game, userId, isPublic: true });
@@ -123,22 +142,24 @@ export function ExploreView() {
   return (
     <Columns>
       <PageHead
-        title="Explore"
+        title={isConnect ? "Explore players" : "Explore cooks"}
         subtitle={
-          half === "people"
-            ? "Everyone on Cook Connect. Search by name, handle or city, see who is around right now, look through what they cook, and pull them into a game."
-            : "Groups are rooms with a subject — people who cook the same way, and one conversation between them. Joining opens its chat and its video room."
+          isConnect
+            ? "Everyone who plays. See who is around right now, how they play, and pull them into a game. Follow someone here and they're followed on the Cookbook side too — it's one account."
+            : half === "people"
+              ? "Everyone who cooks. Search by name, handle or city and look through their cookbooks without leaving the row. Following is shared with Connect."
+              : "Groups are rooms with a subject — people who cook the same way, and one conversation between them. Joining opens its chat and its video room."
         }
-        action={
+        action={isConnect ? undefined : (
           <TabStrip
             tabs={[
-              { id: "people" as const, label: "People" },
+              { id: "people" as const, label: "Cooks" },
               { id: "groups" as const, label: "Groups" },
             ]}
             active={half}
             onChange={setHalf}
           />
-        }
+        )}
       />
 
       {half === "groups" ? <GroupsPanel /> : (
@@ -148,7 +169,7 @@ export function ExploreView() {
             <SearchField
               value={term}
               onChange={setTerm}
-              placeholder="Name, handle, city or what they cook"
+              placeholder={isConnect ? "Name or handle" : "Name, handle, city or what they cook"}
               icon={<SearchIcon size={14} />}
             />
           </div>
@@ -164,7 +185,7 @@ export function ExploreView() {
           />
         </div>
 
-        <SectionHead title={scope === "all" ? "Members" : scope} count={shown.length} />
+        <SectionHead title={scope === "all" ? (isConnect ? "Players" : "Cooks") : scope} count={shown.length} />
 
         {loading ? (
           <Loading label="Looking around" />
@@ -179,15 +200,23 @@ export function ExploreView() {
                       : "You are the first one here"
             }
             body={
-              term ? "Try a first name, a handle, or the city someone cooks in."
-                : scope === "online" ? "Open a table anyway — the computer fills the empty seats until someone turns up."
-                  : scope === "following" ? "Switch to Everyone and follow a few cooks to shape your feed."
-                    : scope === "followers" ? "Publishing a cookbook is the fastest way to change that."
-                      : "When other people sign up they appear here, with what they cook and how they play."
+              term ? (isConnect ? "Try a first name or a handle." : "Try a first name, a handle, or the city someone cooks in.")
+                : scope === "online"
+                  ? (isConnect
+                    ? "Open a table anyway — the computer fills the empty seats until someone turns up."
+                    : "Nobody else is cooking right now. Their cookbooks are still here under Everyone.")
+                  : scope === "following" ? `Switch to Everyone and follow a few ${isConnect ? "players" : "cooks"} to shape your feed.`
+                    : scope === "followers"
+                      ? (isConnect ? "Win a few games — people follow who they keep losing to." : "Publishing a cookbook is the fastest way to change that.")
+                      : isConnect
+                        ? "When other people sign up they appear here, with how they play."
+                        : "When other people sign up they appear here, with what they cook."
             }
             action={
               scope === "all" || scope === "online" ? (
-                <Button variant="primary" onClick={() => navigate({ page: "play" })}>Open a table</Button>
+                isConnect
+                  ? <Button variant="primary" onClick={() => navigate({ page: "play" })}>Open a table</Button>
+                  : <Button variant="primary" onClick={() => navigate({ page: "new-cookbook" })}>Start a cookbook</Button>
               ) : (
                 <Button onClick={() => setScope("all")}>Show everyone</Button>
               )
@@ -197,12 +226,21 @@ export function ExploreView() {
           <>
             <div className="hidden items-center gap-3 border-b border-[var(--cc-line-soft)] px-3 py-1.5
                             text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--cc-ink-faint)] lg:flex">
-              <span className="flex-1">Member</span>
-              <span className="w-[120px]">City</span>
-              <span className="w-[62px] text-right">Books</span>
-              <span className="w-[70px] text-right">Record</span>
-              <span className="w-[48px] text-right">Win %</span>
-              <span className="w-[232px]" />
+              <span className="flex-1">{isConnect ? "Player" : "Cook"}</span>
+              {isConnect ? (
+                <>
+                  <span className="w-[70px] text-right">Record</span>
+                  <span className="w-[48px] text-right">Win %</span>
+                  <span className="w-[86px] text-right">Plays most</span>
+                </>
+              ) : (
+                <>
+                  <span className="w-[120px]">City</span>
+                  <span className="w-[62px] text-right">Books</span>
+                  <span className="w-[54px] text-right">Saves</span>
+                </>
+              )}
+              <span className={isConnect ? "w-[256px]" : "w-[96px]"} />
             </div>
 
             <ul>
@@ -235,11 +273,23 @@ export function ExploreView() {
                           </span>
                           <span className="block truncate text-[11px] text-[var(--cc-ink-faint)]">
                             @{p.handle}
+                            {/* On a phone the columns are hidden, so the key number rides along here. */}
+                            {isConnect && record && (
+                              <span className="cc-num text-[var(--cc-ink-muted)] lg:hidden">
+                                {" · "}{record.wins}–{record.losses}
+                              </span>
+                            )}
+                            {!isConnect && theirBooks.length > 0 && (
+                              <span className="cc-num text-[var(--cc-ink-muted)] lg:hidden">
+                                {" · "}{theirBooks.length} book{theirBooks.length === 1 ? "" : "s"}
+                              </span>
+                            )}
                             {p.bio && <span className="text-[var(--cc-ink-muted)]"> · {p.bio}</span>}
                           </span>
                         </span>
                       </button>
 
+                      {!isConnect && (<>
                       <span className="hidden w-[120px] truncate text-[12px] text-[var(--cc-ink-muted)] lg:block">
                         {p.city ?? "—"}
                       </span>
@@ -263,15 +313,27 @@ export function ExploreView() {
                         <BookIcon size={13} />
                         <span className="cc-num">{theirBooks.length}</span>
                       </button>
+                      <span className="cc-num hidden w-[54px] text-right text-[12px] font-semibold text-[var(--cc-ember)] lg:block">
+                        {savesBy(p.id)}
+                      </span>
+                      </>)}
 
+                      {isConnect && (<>
                       <span className="cc-num hidden w-[70px] text-right text-[12px] lg:block">
                         {record ? `${record.wins}–${record.losses}` : "—"}
                       </span>
                       <span className="cc-num hidden w-[48px] text-right text-[12px] text-[var(--cc-ink-muted)] lg:block">
                         {record ? formatWinRate(record.winRate) : "—"}
                       </span>
+                      <span className="hidden w-[86px] text-right text-[12px] text-[var(--cc-ink-muted)] lg:block">
+                        {favouriteGame(record) ?? "—"}
+                      </span>
+                      </>)}
 
-                      <span className="flex shrink-0 items-center gap-1.5 lg:w-[232px] lg:justify-end">
+                      <span className={cx(
+                        "flex shrink-0 items-center gap-1.5 lg:justify-end",
+                        isConnect ? "lg:w-[256px]" : "lg:w-[96px]",
+                      )}>
                         <Button
                           variant={isFollowing ? "secondary" : "primary"}
                           disabled={busy === p.id}
@@ -279,27 +341,22 @@ export function ExploreView() {
                         >
                           {isFollowing ? "Following" : "Follow"}
                         </Button>
-                        <Button
-                          variant="secondary"
-                          disabled={busy === p.id}
-                          onClick={() => void invite(p, "spades")}
-                          title={`Invite ${p.display_name} to spades`}
-                        >
-                          <PlayIcon size={13} />
-                          Spades
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          disabled={busy === p.id}
-                          onClick={() => void invite(p, "chess")}
-                          title={`Invite ${p.display_name} to chess`}
-                        >
-                          Chess
-                        </Button>
+                        {isConnect && GAMES.map((g, gi) => (
+                          <Button
+                            key={g.id}
+                            variant={gi === 0 ? "secondary" : "ghost"}
+                            disabled={busy === p.id}
+                            onClick={() => void invite(p, g.id)}
+                            title={`Invite ${p.display_name} to ${g.label.toLowerCase()}`}
+                          >
+                            {gi === 0 && <PlayIcon size={13} />}
+                            {g.label}
+                          </Button>
+                        ))}
                       </span>
                     </div>
 
-                    {open && theirBooks.length > 0 && (
+                    {!isConnect && open && theirBooks.length > 0 && (
                       <ul className="border-t border-[var(--cc-line-soft)] bg-[var(--cc-panel-2)] px-3 py-1.5">
                         {theirBooks.map((b) => (
                           <li key={b.id} className="flex items-center gap-3 py-1.5">
@@ -341,9 +398,16 @@ export function ExploreView() {
         <p className="mt-3 text-[12px] leading-relaxed text-[var(--cc-ink-faint)]">
           <Tag>Quiet</Tag>{" "}
           Cook Connect starts empty on purpose — nothing is here until you or someone else puts it
-          here. Everything still works alone: the computer will play you at either game.
+          here. {isConnect ? "Everything still works alone: the computer will play you at any game." : "Your cookbooks and journal work fine on your own."}
         </p>
       )}
     </Columns>
   );
+}
+
+/** The game someone has played most, for the Connect row. */
+function favouriteGame(record: PlayerRecord | undefined): string | null {
+  if (!record || record.played === 0) return null;
+  const best = [...GAMES].sort((a, b) => record.byGame[b.id].played - record.byGame[a.id].played)[0];
+  return best.label;
 }

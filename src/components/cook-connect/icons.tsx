@@ -244,3 +244,12 @@ export const PlateIcon = (p: IconProps) => (
     <circle cx="12" cy="12" r="4.2" />
   </Svg>
 );
+
+/** Connect's mark: two dealt cards, the front one a spade. */
+export const CardsIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3.2" y="5.2" width="10" height="14" rx="1.6" transform="rotate(-10 8.2 12.2)" />
+    <rect x="9.8" y="4.2" width="10" height="14" rx="1.6" />
+    <path d="M14.8 8.6c-1.6 1.4-2.6 2.3-2.6 3.4a1.3 1.3 0 0 0 2.2.9l.4-.4.4.4a1.3 1.3 0 0 0 2.2-.9c0-1.1-1-2-2.6-3.4zM14.8 12.8v2" />
+  </Svg>
+);

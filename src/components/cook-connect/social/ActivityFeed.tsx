@@ -1,11 +1,13 @@
 "use client";
 
-// The activity feed. It used to be its own tab; it lives on Play now, because
-// what people are cooking and who is at a table are the same glance.
+// The activity feed. Each half of the app shows its own: cookbooks and recipes
+// on the Cookbook side, wins on the Connect side. Follows show on both — it is
+// one account with one set of followers.
 
 import { useCallback, useEffect, useState } from "react";
 import { useCook } from "../CookConnect";
 import { feedSummary, loadFeed, loadFollowGraph, type FeedEntry } from "@/lib/cook-connect/social";
+import { FEED_KINDS } from "@/lib/cook-connect/sides";
 import {
   Avatar, Button, EmptyState, Loading, Panel, SectionHead, TabStrip, relativeTime, cx,
 } from "../ui";
@@ -28,7 +30,7 @@ const KIND_TONE: Record<string, string> = {
 };
 
 export function ActivityFeed({ limit = 40 }: { limit?: number }) {
-  const { sb, userId, navigate, onlineIds } = useCook();
+  const { sb, userId, navigate, onlineIds, side } = useCook();
   const [scope, setScope] = useState<"following" | "everyone">("everyone");
   const [entries, setEntries] = useState<FeedEntry[]>([]);
   const [followingCount, setFollowingCount] = useState(0);
@@ -42,9 +44,10 @@ export function ActivityFeed({ limit = 40 }: { limit?: number }) {
       userId,
       following: scope === "following" ? graph.following : undefined,
       limit,
+      kinds: FEED_KINDS[side],
     }));
     setLoading(false);
-  }, [sb, userId, scope, limit]);
+  }, [sb, userId, scope, limit, side]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -72,9 +75,13 @@ export function ActivityFeed({ limit = 40 }: { limit?: number }) {
           icon={<FeedIcon size={24} />}
           title={scope === "following" ? "Nothing from the people you follow" : "Nothing has happened yet"}
           body={
-            scope === "following"
-              ? "Follow a few cooks in Explore and their cookbooks, recipes and results land here."
-              : "Publish a cookbook or finish a game and this fills itself in. Everyone's activity shows up here."
+            side === "connect"
+              ? scope === "following"
+                ? "Follow a few players in Explore and their wins land here."
+                : "Finish a game and this fills itself in. Everyone's wins show up here."
+              : scope === "following"
+                ? "Follow a few cooks in Explore and their cookbooks and recipes land here."
+                : "Publish a cookbook or add a recipe and this fills itself in. Everyone's cooking shows up here."
           }
           action={
             <Button variant="primary" onClick={() => navigate({ page: "explore" })}>

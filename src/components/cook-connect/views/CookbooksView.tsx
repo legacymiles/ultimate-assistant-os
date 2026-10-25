@@ -14,6 +14,7 @@ import {
   Avatar, Button, EmptyState, Loading, Panel, SearchField, SectionHead, Tag, TabStrip, cx,
 } from "../ui";
 import { BookIcon, BookmarkIcon, PlusIcon, SearchIcon } from "../icons";
+import { ActivityFeed } from "../social/ActivityFeed";
 
 type Scope = "discover" | "mine" | "saved";
 
@@ -227,6 +228,11 @@ export function CookbooksView() {
           </>
         )}
       </Panel>
+
+      {/* The Cookbook side's home carries its feed, the way Play carries Connect's. */}
+      <div className="mt-4">
+        <ActivityFeed />
+      </div>
     </Columns>
   );
 }

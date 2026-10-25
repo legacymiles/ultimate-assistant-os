@@ -11,6 +11,8 @@
   --cc-ember: #f0873c;
   --cc-ember-dim: #b5622a;
   --cc-ember-wash: rgba(240, 135, 60, 0.12);
+  --cc-ember-hot: #ff9b4f;
+  --cc-on-accent: #1b0f05;
   --cc-live: #34d17a;
   --cc-live-wash: rgba(52, 209, 122, 0.12);
   --cc-loss: #f4517b;
@@ -133,4 +135,116 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  Two apps in one: Cookbook and Connect                              */
+/*                                                                     */
+/*  `--cc-ember` is the side's accent. Cookbook keeps ember; Connect   */
+/*  turns the whole app holo-blue, so you always know which half you   */
+/*  are in. Live-green still means online / your turn on both.         */
+/* ------------------------------------------------------------------ */
+
+/* Any element can carry a side (the leaderboard's own switch does), so the
+   accent is set per element, not only on the app root. */
+.cc[data-side="cookbook"],
+.cc [data-side="cookbook"],
+.cc-side-toggle[data-active="cookbook"] {
+  --cc-ember: #f0873c;
+  --cc-ember-dim: #b5622a;
+  --cc-ember-wash: rgba(240, 135, 60, 0.12);
+  --cc-ember-hot: #ff9b4f;
+  --cc-on-accent: #1b0f05;
+}
+
+.cc[data-side="connect"],
+.cc [data-side="connect"],
+.cc-side-toggle[data-active="connect"] {
+  --cc-ember: #7aa7ff;
+  --cc-ember-dim: #4d6fbf;
+  --cc-ember-wash: rgba(122, 167, 255, 0.13);
+  --cc-ember-hot: #9dbdff;
+  --cc-on-accent: #07122a;
+}
+
+.cc-side-toggle {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--cc-line);
+  background: var(--cc-canvas);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+  isolation: isolate;
+}
+
+.cc-side-thumb {
+  position: absolute;
+  z-index: -1;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--cc-ember-hot), var(--cc-ember));
+  box-shadow: 0 6px 18px -6px var(--cc-ember), 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+  transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1), background 320ms ease, box-shadow 320ms ease;
+}
+.cc-side-toggle[data-active="connect"] .cc-side-thumb {
+  transform: translateX(100%);
+}
+
+.cc-side-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--cc-ink-muted);
+  transition: color 200ms ease;
+  white-space: nowrap;
+}
+.cc-side-option { min-width: 0; }
+.cc-side-option:hover { color: var(--cc-ink); }
+.cc-side-option.is-active { color: var(--cc-on-accent); }
+
+/* In the desktop rail the switch is a tall two-app tile: icon over name. */
+.cc-side-toggle--rail { border-radius: 16px; }
+.cc-side-toggle--rail .cc-side-thumb { border-radius: 12px; }
+.cc-side-toggle--rail .cc-side-option {
+  flex-direction: column;
+  gap: 3px;
+  height: 54px;
+  padding: 0 6px;
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.cc-side-toggle--md .cc-side-option {
+  height: 32px;
+  font-size: 13px;
+  padding: 0 14px;
+}
+
+/* Flipping halves: the new side slides in from the direction of its switch. */
+.cc-side-enter {
+  animation: cc-side-in 260ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.cc[data-side="cookbook"] .cc-side-enter { --cc-from: -10px; }
+.cc[data-side="connect"] .cc-side-enter { --cc-from: 10px; }
+@keyframes cc-side-in {
+  from { opacity: 0; transform: translateX(var(--cc-from, 0)); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-side-thumb { transition: none; }
+  .cc-side-enter { animation: none; }
 }

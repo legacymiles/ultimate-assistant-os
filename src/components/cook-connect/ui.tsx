@@ -21,7 +21,7 @@ const BUTTON_BASE =
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   primary:
-    "border-transparent bg-[var(--cc-ember)] text-[#1b0f05] hover:bg-[#ff9b4f] "
+    "border-transparent bg-[var(--cc-ember)] text-[var(--cc-on-accent)] hover:bg-[var(--cc-ember-hot)] "
     + "disabled:hover:bg-[var(--cc-ember)]",
   secondary:
     "border-[var(--cc-line)] bg-[var(--cc-elevated)] text-[var(--cc-ink)] "

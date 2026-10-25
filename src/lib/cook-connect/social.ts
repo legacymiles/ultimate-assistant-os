@@ -149,10 +149,15 @@ export function feedSummary(entry: FeedEntry): string {
  */
 export async function loadFeed(
   sb: Backend,
-  opts: { userId: string | null; following?: Set<string>; limit?: number },
+  opts: { userId: string | null; following?: Set<string>; limit?: number; kinds?: string[] },
 ): Promise<FeedEntry[]> {
   const { data } = await sb.from("activity").select("*").order("created_at", { ascending: false }).limit(400);
   let rows = (data ?? []) as Activity[];
+  // Each half of the app has its own feed: cooking on Cookbook, games on Connect.
+  if (opts.kinds) {
+    const kinds = new Set(opts.kinds);
+    rows = rows.filter((r) => kinds.has(r.kind));
+  }
   if (opts.following && opts.following.size > 0) {
     rows = rows.filter((r) => opts.following!.has(r.actor_id) || r.actor_id === opts.userId);
   }
