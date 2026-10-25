@@ -1,5 +1,14 @@
 [
  {
+  "id": "72fa706:dashboard",
+  "date": "2026-10-25",
+  "slug": "dashboard",
+  "title": "New iPhone links stick — keys get their own store, and a failed read can't wipe the inbox",
+  "detail": "The device keys lived inside the inbox document that every device rewrites whole many times a minute, so a save holding a copy from just before a new link was made put the old key back and the freshly pasted link was refused. Keys now live in their own document written only when a link is made (read",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "fb72894:dashboard",
   "date": "2026-10-25",
   "slug": "dashboard",
