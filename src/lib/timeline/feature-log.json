@@ -1,5 +1,14 @@
 [
  {
+  "id": "96baa7a:cook-connect",
+  "date": "2026-10-25",
+  "slug": "cook-connect",
+  "title": "Two apps in one — Cookbook / Connect switch with its own tabs, Explore and leaderboards",
+  "detail": "A big Cookbook | Connect switch (top of the rail, and the phone header) splits Cook Connect into two halves on one account. Cookbook: Cookbooks, Explore, Journal, Boards. Connect: Play, Explore, Boards. Profile, follows and followers are shared. Each side has its own accent, its own feed, and flippi",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "629971d:find-my-life",
   "date": "2026-10-25",
   "slug": "find-my-life",
