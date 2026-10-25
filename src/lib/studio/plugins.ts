@@ -39,6 +39,7 @@ export const PLUGIN_SLUGS = [
   "dump-finder",
   "client-review",
   "personas-studio",
+  "contradicting",
 ] as const;
 
 /**
@@ -71,6 +72,9 @@ function firstSentence(text: string): string {
 }
 
 const WHY: Record<string, string> = {
+  contradicting:
+    "Receipts for “I never said that.” A clip-on Omi recorder streams the conversation in; when someone denies a line, the "
+    + "exact words and time come back on your phone, with the lead-up one tap away. Consent-first and fair to both people.",
   "app-builder":
     "Where every new app starts. Say the idea — or show a recording of an app or workflow — and its super agent takes it "
     + "apart, asks what it is for, and proposes the features that would make it the best in its category for you to accept, "

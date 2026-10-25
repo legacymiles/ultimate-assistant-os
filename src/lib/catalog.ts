@@ -530,6 +530,24 @@ export const PROJECTS: CatalogProject[] = [
     hue: [4, 195],
   },
   {
+    slug: "contradicting",
+    title: "Contradicting",
+    tag: "Receipts for “I never said that”",
+    category: "AI",
+    overview:
+      "A clip-on recorder (the Omi pendant, or the Omi app on your phone) streams what was said, and Contradicting keeps each " +
+      "person's words with the exact time. When someone says “I never called you that”, it finds the line where they did and " +
+      "answers on your phone: “Actually, at 3:47 PM 10-18-26 you did say…”, with a Replay of the back-and-forth that led up to it. " +
+      "It catches the same words instantly and the same meaning in different words with Claude, flags promises and always/never " +
+      "lines as key points, keeps Omi's summary of each conversation, and searches everything ever said. Consent-first and fair: " +
+      "only people who agreed are recorded, withdrawing deletes what they said, unnamed voices are dropped after two days, and " +
+      "everyone is checked the same way — you included.",
+    status: "live",
+    appUrl: "/apps/contradicting",
+    iconStyle: "waves",
+    hue: [36, 352],
+  },
+  {
     slug: "personas-studio",
     title: "Personas Studio",
     tag: "Run every creator persona — ideas, auto-posting, analytics",
@@ -782,6 +800,7 @@ export function getProject(slug: string): CatalogProject | null {
  */
 const UNPREVIEWABLE = new Set([
   "dashboard",
+  "contradicting",
   "youtube-videos",
   "app-builder",
   "client-review",
