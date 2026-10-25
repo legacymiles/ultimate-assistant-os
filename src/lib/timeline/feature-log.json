@@ -1,5 +1,23 @@
 [
  {
+  "id": "629971d:find-my-life",
+  "date": "2026-10-25",
+  "slug": "find-my-life",
+  "title": "Every device and thing you own on one live radar",
+  "detail": "New Jarvis app plugin + Dashboard widget + onboarding \"Find\" step. Phone, laptop, Meta glasses, car, keys, wallet and more on a Life Radar (true bearing, log distance, sweep-synced blips, Compass mode) or a dark map.",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "629971d:jarvis",
+  "date": "2026-10-25",
+  "slug": "jarvis",
+  "title": "Every device and thing you own on one live radar",
+  "detail": "New Jarvis app plugin + Dashboard widget + onboarding \"Find\" step. Phone, laptop, Meta glasses, car, keys, wallet and more on a Life Radar (true bearing, log distance, sweep-synced blips, Compass mode) or a dark map.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "0279565:contradicting",
   "date": "2026-10-25",
   "slug": "contradicting",
