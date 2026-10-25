@@ -14,6 +14,8 @@ export interface MatchResult {
   /** Newest last — order decides the streak. */
   finishedAt: string;
   game: "spades" | "chess";
+  /** The match it came from — lets a game-over screen rank "before" and "after". */
+  matchId?: string;
 }
 
 export interface PlayerRecord {

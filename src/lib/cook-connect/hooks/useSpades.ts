@@ -572,21 +572,49 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
       });
       if (ok) await closeOut(totals.winningTeam, state.bots ?? []);
     } else {
+      // The hand is over: hold here on the results screen. Nothing is dealt
+      // until the players press Next (see nextHand).
       sounds.roundEnd();
       await commit({
         ...scorePatch,
-        current_round: game.current_round + 1,
         state: {
-          ...initGameState((state.dealer + 1) % 4),
-          ...carry({ ...state, reneges }),
-          lastRound,
-          // The last trick of the hand still gets its moment on every screen.
-          lastTrick: trick,
-          lastTrickWinner: winner,
+          ...state, phase: "roundEnd", hands, currentTrick: [], tricksWon, reneges,
+          lastTrick: trick, lastTrickWinner: winner, spadeBroken, trickNumber: 14,
+          lastRound, ready: [],
         },
       });
     }
   }, [state, game, match, table, commit, closeOut]);
+
+  /* ── Between hands ───────────────────────────────────────────── */
+
+  // Everyone still at the table (not a computer, and with the table open) has
+  // to press Next before the next hand is dealt.
+  const readyNeeded = humanRows
+    .filter((s) => !bots.includes(seatOf(s)) && (online.has(s.user_id) || s.user_id === userId))
+    .map((s) => s.user_id);
+  const readyIds = (state?.ready ?? []).filter((id) => readyNeeded.includes(id));
+  const iAmReady = !!userId && readyIds.includes(userId);
+  const waitingOnNext = readyNeeded.filter((id) => !readyIds.includes(id));
+
+  /** "Next": I'm ready for the next hand. The last one in deals it. */
+  const nextHand = useCallback(async () => {
+    if (!userId || !state || !game || state.phase !== "roundEnd") return;
+    const ready = [...new Set([...readyIds, userId])];
+    if (readyNeeded.every((id) => ready.includes(id))) {
+      await commit({
+        current_round: game.current_round + 1,
+        state: {
+          ...initGameState((state.dealer + 1) % 4),
+          ...carry(state),
+          // Kept so the hand's moments are not replayed; the last trick is not.
+          lastRound: state.lastRound,
+        },
+      });
+    } else {
+      await commit({ state: { ...state, ready } });
+    }
+  }, [userId, state, game, readyIds, readyNeeded, commit]);
 
   const makeBid = useCallback((bid: number) => {
     sounds.bidSubmit();
@@ -737,6 +765,8 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
     mySeat, iLeft, isSeated: !!myRow, online, busy,
     makeBid, playCard, sit, quit, retakeSeat, leaveTable,
     voteRematch, rematchVotes: rematchVotes.length, votesNeeded, iVotedRematch,
+    // Between hands
+    nextHand, iAmReady, waitingOnNext,
     // The waiting room
     lobby, starting, firstName, agreeToBots, keepWaiting, movedTo,
     // Renig
