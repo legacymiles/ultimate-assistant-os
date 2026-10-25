@@ -39,6 +39,11 @@ describe("phoneLine", () => {
     expect(l.warn).toBe(true);
   });
 
+  it("names the URL block that has the old link", () => {
+    const l = phoneLine({ ...NO_SIGNALS, refusedAt: 50 * MIN, refusedWhere: "bookmark" }, since);
+    expect(l.text).toContain("top URL block");
+  });
+
   it("forgets an old refusal once the phone gets through", () => {
     const l = phoneLine({ ...NO_SIGNALS, refusedAt: 50 * MIN, lastPush: 60 * MIN }, since);
     expect(l.text).toBe(`last photo from iPhone @${60 * MIN}`);

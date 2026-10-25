@@ -98,7 +98,7 @@ interface InboxDoc {
   /** uid -> hashes of that user's replaced tokens, so an old link can be named as theirs. */
   retired?: Record<string, string[]>;
   /** Sends with a key nobody has — newest last. `uid` when it was someone's old key. */
-  refused?: { at: string; uid?: string }[];
+  refused?: { at: string; uid?: string; where?: string }[];
 }
 
 const EMPTY: InboxDoc = { tokens: {}, entries: [], seen: {}, cursor: {}, lastPush: {}, checkIn: {}, problem: {}, retired: {}, refused: [] };
@@ -139,8 +139,8 @@ function hash(token: string): string {
 export async function mintToken(uid: string): Promise<string | null> {
   const token = randomBytes(24).toString("base64url");
   const doc = await load();
-  // Remember the key this replaces, so a phone still using it can be told
-  // "your link is out of date" instead of failing with no sign anywhere.
+  // The key this replaces keeps working (see uidForToken), so a link already
+  // pasted into the Shortcut isn't broken by making a new one somewhere else.
   const old = doc.tokens[uid];
   if (old) doc.retired![uid] = [...(doc.retired![uid] ?? []).filter((h) => h !== old), old].slice(-RETIRED_LIMIT);
   doc.tokens[uid] = hash(token);
@@ -151,15 +151,24 @@ export async function hasToken(uid: string): Promise<boolean> {
   return Boolean((await load()).tokens[uid]);
 }
 
-/** The uid this token belongs to, or null. Constant-time per candidate. */
+/**
+ * The uid this token belongs to, or null. Constant-time per candidate.
+ *
+ * A user's last few keys all keep working (Oct 2026): making a new link on
+ * the laptop used to silently break the link already pasted into the phone's
+ * Shortcut, and the Shortcut has up to three URL blocks to keep in step — the
+ * owner kept ending up with a Shortcut that was refused and no idea why.
+ */
 export async function uidForToken(token: string): Promise<string | null> {
   if (!token) return null;
   const want = Buffer.from(hash(token), "hex");
   const doc = await load();
-  for (const [uid, stored] of Object.entries(doc.tokens)) {
+  const same = (stored: string) => {
     const got = Buffer.from(stored, "hex");
-    if (got.length === want.length && timingSafeEqual(got, want)) return uid;
-  }
+    return got.length === want.length && timingSafeEqual(got, want);
+  };
+  for (const [uid, stored] of Object.entries(doc.tokens)) if (same(stored)) return uid;
+  for (const [uid, old] of Object.entries(doc.retired ?? {})) if (old.some(same)) return uid;
   return null;
 }
 
@@ -189,14 +198,14 @@ export async function noteProblem(uid: string, message: string): Promise<void> {
 }
 
 /** A send with a key that isn't anyone's now — named as theirs when it is a user's old key. */
-export async function noteRefused(token: string): Promise<void> {
+export async function noteRefused(token: string, where?: string): Promise<void> {
   const doc = await load();
   const list = doc.refused!;
   const last = list.length ? Date.parse(list[list.length - 1].at) : 0;
   if (Date.now() - last < REFUSED_EVERY_MS) return;
   const h = token ? hash(token) : "";
   const uid = h ? Object.entries(doc.retired!).find(([, hs]) => hs.includes(h))?.[0] : undefined;
-  doc.refused = [...list, { at: new Date().toISOString(), ...(uid ? { uid } : {}) }].slice(-REFUSED_LIMIT);
+  doc.refused = [...list, { at: new Date().toISOString(), ...(uid ? { uid } : {}), ...(where ? { where } : {}) }].slice(-REFUSED_LIMIT);
   await save(doc);
 }
 
@@ -207,6 +216,8 @@ export interface PhoneStatus {
   problem: { at: string; message: string } | null;
   /** The newest refused send that is this user's — their old key, or (for the owner) a key nobody has. */
   refusedAt: string | null;
+  /** Which of the Shortcut's links was refused: "bookmark", "photo" or "still-on-phone". */
+  refusedWhere: string | null;
   /** The bookmark the Shortcut starts from. */
   cursor: string | null;
 }
@@ -220,6 +231,7 @@ export async function phoneStatus(uid: string, opts: { owner?: boolean } = {}): 
     lastCheckIn: doc.checkIn?.[uid] ?? null,
     problem: doc.problem?.[uid] ?? null,
     refusedAt: refused?.at ?? null,
+    refusedWhere: refused?.where ?? null,
     cursor: doc.cursor[uid]?.raw ?? null,
   };
 }

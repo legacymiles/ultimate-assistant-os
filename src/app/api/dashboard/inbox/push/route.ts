@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   const token = req.headers.get("x-dashboard-token") || new URL(req.url).searchParams.get("key") || "";
   const uid = await uidForToken(token);
   if (!uid) {
-    await noteRefused(token).catch(() => undefined);
+    await noteRefused(token, "photo").catch(() => undefined);
     return NextResponse.json(
       { error: "Unknown device token — the link is old or cut off. Make a new one in Jarvis › Camera Autopilot › iPhone setup." },
       { status: 401 },

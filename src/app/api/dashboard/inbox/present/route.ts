@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   const token = req.headers.get("x-dashboard-token") || new URL(req.url).searchParams.get("key") || "";
   const uid = await uidForToken(token);
   if (!uid) {
-    await noteRefused(token).catch(() => undefined);
+    await noteRefused(token, "still-on-phone").catch(() => undefined);
     return NextResponse.json({ error: "Unknown device token — make a new link in Jarvis › Camera Autopilot › iPhone setup." }, { status: 401 });
   }
 

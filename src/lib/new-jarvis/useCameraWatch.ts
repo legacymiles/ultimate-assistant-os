@@ -169,6 +169,7 @@ export function useCameraWatch(): CameraWatch {
         lastCheckIn?: string | null;
         problem?: { at?: string; message?: string } | null;
         refusedAt?: string | null;
+        refusedWhere?: string | null;
       };
       if (!Array.isArray(d.entries)) throw new Error("The photo inbox didn't send its list.");
       const all = d.entries;

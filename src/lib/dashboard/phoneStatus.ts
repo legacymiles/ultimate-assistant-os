@@ -18,9 +18,18 @@ export interface PhoneSignals {
   problem: { at: number; message: string } | null;
   /** The phone used an out-of-date link. */
   refusedAt: number | null;
+  /** Which of the Shortcut's links was refused, when known. */
+  refusedWhere?: string | null;
 }
 
 export const NO_SIGNALS: PhoneSignals = { lastPush: null, lastCheckIn: null, problem: null, refusedAt: null };
+
+/** The Shortcut's URL blocks, as the owner sees them. */
+const WHERE: Record<string, string> = {
+  bookmark: "the top URL block (above Find Photos)",
+  photo: "the URL block inside the Repeat",
+  "still-on-phone": "the last URL block (still on my phone)",
+};
 
 export interface PhoneLine {
   text: string;
@@ -41,8 +50,11 @@ export function phoneLine(s: PhoneSignals, since: (t: number) => string): PhoneL
   if (!newest) return { text: "iPhone hasn't sent a photo yet", warn: false };
 
   if (refused === newest) {
+    const block = s.refusedWhere ? WHERE[s.refusedWhere] : undefined;
     return {
-      text: `your iPhone tried ${since(refused)} with an old link — tap 🔗 iPhone setup, make a new link and paste it into every URL block in the Shortcut`,
+      text: block
+        ? `your iPhone tried ${since(refused)} with an old link in ${block} — paste your link from 🔗 iPhone setup there`
+        : `your iPhone tried ${since(refused)} with an old link — tap 🔗 iPhone setup, make a new link and paste it into every URL block in the Shortcut`,
       warn: true,
     };
   }
@@ -65,6 +77,7 @@ export function readSignals(d: {
   lastCheckIn?: string | null;
   problem?: { at?: string; message?: string } | null;
   refusedAt?: string | null;
+  refusedWhere?: string | null;
 }): PhoneSignals {
   const t = (iso?: string | null) => {
     const n = iso ? Date.parse(iso) : NaN;
@@ -76,5 +89,6 @@ export function readSignals(d: {
     lastCheckIn: t(d.lastCheckIn),
     problem: pAt && d.problem?.message ? { at: pAt, message: d.problem.message } : null,
     refusedAt: t(d.refusedAt),
+    refusedWhere: d.refusedWhere ?? null,
   };
 }
