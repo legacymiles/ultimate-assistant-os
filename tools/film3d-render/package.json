@@ -1,0 +1,15 @@
+{
+  "name": "film3d-render",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Renders a Jarvis Studio 3D Animation Flow film to an HD MP4 on the PC: the same Three.js engine as the website, frame by frame in headless Chromium, piped into ffmpeg. Used by the threejs-film-story skill.",
+  "scripts": {
+    "render": "node render.mjs",
+    "doctor": "node render.mjs --doctor"
+  },
+  "dependencies": {
+    "esbuild": "^0.25.0",
+    "playwright": "^1.56.0"
+  }
+}
