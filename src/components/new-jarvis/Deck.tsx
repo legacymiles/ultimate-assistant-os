@@ -556,7 +556,23 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                   (inbox.linked
                     ? inbox.ids.length
                       ? `${inbox.ids.length} new from your iPhone — bringing them in…`
-                      : `Auto · checked ${since(camera.lastChecked)} · ${lastFromPhone(camera.phone)}`
+                      : camera.phone.adoptable
+                        ? (
+                            <span>
+                              Your iPhone tried {since(Date.parse(camera.phone.adoptable))} with a link Jarvis didn&apos;t know.{" "}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void camera.adoptPhone().then(() => camera.check());
+                                }}
+                                className="font-semibold text-[var(--hud)] underline underline-offset-2"
+                              >
+                                That&apos;s my iPhone — let it in
+                              </button>
+                            </span>
+                          )
+                        : `Auto · checked ${since(camera.lastChecked)} · ${lastFromPhone(camera.phone)}`
                     : "Not linked yet — tap 🔗 to set up your iPhone (5 min, no app needed)")
                 }
                 actions={

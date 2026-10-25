@@ -73,6 +73,8 @@ export interface CameraWatch {
   error: string;
   settings: CameraWatchSettings;
   setAutoPull: (on: boolean) => void;
+  /** "That's my iPhone": let the key the phone was refused with in, then check. */
+  adoptPhone: () => Promise<void>;
   /** Check now; pulls too when auto-pull is on, or when `pull` is true. */
   check: (pull?: boolean) => Promise<void>;
 }
@@ -170,6 +172,7 @@ export function useCameraWatch(): CameraWatch {
         problem?: { at?: string; message?: string } | null;
         refusedAt?: string | null;
         refusedWhere?: string | null;
+        adoptable?: string | null;
       };
       if (!Array.isArray(d.entries)) throw new Error("The photo inbox didn't send its list.");
       const all = d.entries;
@@ -248,6 +251,27 @@ export function useCameraWatch(): CameraWatch {
     }
   }, []);
 
+  const adoptPhone = useCallback(async () => {
+    const at = phone.adoptable;
+    if (!at) return;
+    setBusy("Letting your iPhone in…");
+    try {
+      const r = await fetch("/api/dashboard/inbox/adopt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ at }),
+      });
+      const d = (await r.json().catch(() => ({}))) as { error?: string };
+      if (!r.ok) throw new Error(d.error ?? "Couldn't let your iPhone in.");
+      setPhone((p) => ({ ...p, refusedAt: null, adoptable: null }));
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't let your iPhone in.");
+    } finally {
+      setBusy("");
+    }
+  }, [phone.adoptable]);
+
   // On load; every minute while Jarvis is on screen; and every 10 minutes no
   // matter what (browsers slow timers in background tabs, so the 10-minute
   // check is the floor, not the plan). A laptop that slept, or a phone that
@@ -295,6 +319,7 @@ export function useCameraWatch(): CameraWatch {
     lastChecked,
     lastPush,
     phone,
+    adoptPhone,
     nextCheck: lastChecked ? lastChecked + CAMERA_PEEK_MS : null,
     busy,
     error,
