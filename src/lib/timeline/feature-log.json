@@ -1,5 +1,23 @@
 [
  {
+  "id": "4556f02:dashboard",
+  "date": "2026-10-25",
+  "slug": "dashboard",
+  "title": "\"That's my iPhone — let it in\" lets a refused Shortcut through with one tap",
+  "detail": "The owner's Shortcut kept sending the same old key however many new links were pasted into it — its send step was holding on to an older copy. When the phone is refused, Camera Autopilot now offers \"That's my iPhone — let it in\": one tap makes that key one of the owner's, so the next run gets throug",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4556f02:jarvis",
+  "date": "2026-10-25",
+  "slug": "jarvis",
+  "title": "\"That's my iPhone — let it in\" lets a refused Shortcut through with one tap",
+  "detail": "The owner's Shortcut kept sending the same old key however many new links were pasted into it — its send step was holding on to an older copy. When the phone is refused, Camera Autopilot now offers \"That's my iPhone — let it in\": one tap makes that key one of the owner's, so the next run gets throug",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "72fa706:dashboard",
   "date": "2026-10-25",
   "slug": "dashboard",
