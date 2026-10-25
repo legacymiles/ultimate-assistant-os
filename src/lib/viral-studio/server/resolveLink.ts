@@ -22,6 +22,7 @@ import { tiktokDetails, type SourceMusic, type SourceStats } from "@/lib/social-
 
 import { guessVertical, instagramRef, tiktokRef, youTubeRef } from "../board";
 import { judgeSound, songFromCredit, songLine } from "../song";
+import { stuckNote } from "../stuck";
 import type { ClipStats, Playback, ResolvedLink, TabId } from "../types";
 import { listen } from "./songFinder";
 import { getMedia, newKey, putMedia, remoteStorage, signedReadUrl } from "./storage";
@@ -88,7 +89,7 @@ interface Got {
   stats: SourceStats | null;
 }
 
-async function download(url: string, uid: string): Promise<Got | { error: string }> {
+async function download(url: string, uid: string): Promise<Got | { error: string; needsLogin?: boolean }> {
   try {
     const video = await importDanceVideo(url);
     const key = newKey(uid, "clips", video.contentType);
@@ -101,7 +102,7 @@ async function download(url: string, uid: string): Promise<Got | { error: string
     const vertical = video.width && video.height ? video.height >= video.width : undefined;
     return { play: { kind: "file", key, posterKey }, title: cleanTitle(video.title), author: video.author, vertical, music: video.music, stats: video.stats };
   } catch (err) {
-    if (err instanceof ImportError) return { error: err.message.replace(/\s*You can also save the video.*$/s, "").trim() };
+    if (err instanceof ImportError) return { error: err.message.replace(/\s*You can also save the video.*$/s, "").trim(), needsLogin: err.needsLogin };
     return { error: "Couldn't download that video." };
   }
 }
@@ -151,14 +152,9 @@ async function resolvePlayback(input: string, uid: string | null): Promise<Resol
   const tt = platform === "tiktok" ? (tiktokRef(url) ?? meta.tiktokId) : null;
   const ig = platform === "instagram" ? instagramRef(url) : null;
   const play: Playback = tt ? { kind: "tiktok", ref: tt } : ig ? { kind: "instagram", ref: ig } : { kind: "none" };
-  const why = !uid ? "Sign in to save the video itself." : got.error;
-  const note =
-    play.kind === "none"
-      ? `${PLATFORM_LABEL[platform]} wouldn't hand over this video, so it opens on the original site.${why ? ` ${why}` : ""}`
-      : uid && got.error
-        ? `Playing through ${PLATFORM_LABEL[platform]}'s player — the file couldn't be saved.`
-        : undefined;
-  return { ...base, title: meta.title, author: meta.author, play, note, vertical: guessVertical(url.href) };
+  const needsLogin = Boolean(uid && "needsLogin" in got && got.needsLogin);
+  const note = stuckNote(PLATFORM_LABEL[platform], play.kind === "none", uid ? got.error : "", !uid, needsLogin);
+  return { ...base, title: meta.title, author: meta.author, play, note, vertical: guessVertical(url.href), ...(needsLogin ? { needsLogin } : {}) };
 }
 
 /** Where the song finder can hear a clip: a short signed link to the saved file, the file itself, or the post. */

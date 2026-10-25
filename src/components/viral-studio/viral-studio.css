@@ -861,7 +861,65 @@ a.vsc-tile__song:hover { color: var(--ink); }
 .vsc-sheet__cancel { border: 1px solid var(--hair-2); background: transparent; color: var(--ink); }
 .vsc-sheet__save { border: 0; background: var(--ink); color: #000; }
 
+/* ---------------------------------------------------------------------------
+   A tile with no video: Upload the video · Connect Facebook · Try again
+   --------------------------------------------------------------------------- */
+.vsc-fix { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.vsc-fix__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 13px;
+  border-radius: 999px;
+  border: 1px solid var(--hair-2);
+  background: var(--raise-2);
+  color: var(--ink);
+  font: 600 12.5px/1 var(--font);
+  cursor: pointer;
+  transition: background 0.2s var(--curve), border-color 0.2s var(--curve);
+}
+.vsc-fix__btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.vsc-fix__btn:hover { background: #2c2c2e; border-color: rgba(255, 255, 255, 0.28); }
+.vsc-fix__btn.is-main { border-color: transparent; background: var(--ink); color: #000; }
+.vsc-fix__btn.is-main:hover { background: #fff; }
+.vsc-fix__btn.is-quiet { border-color: transparent; background: transparent; color: var(--ink-2); padding: 0 8px; }
+.vsc-fix__btn.is-quiet:hover { color: var(--ink); background: transparent; }
+.vsc-fix__status { color: var(--ink-2); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.vsc-fix__status.is-busy { animation: vsc-fix-pulse 1.2s ease-in-out infinite; }
+.vsc-fix__bar { position: relative; flex: 1 1 100%; height: 3px; border-radius: 3px; background: var(--hair-2); overflow: hidden; }
+.vsc-fix__bar i { position: absolute; inset: 0 auto 0 0; background: var(--ink); border-radius: 3px; transition: width 0.25s linear; }
+@keyframes vsc-fix-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+.vsc-connect__lead { margin: -4px 0 12px; color: var(--ink-2); font-size: 14px; line-height: 1.5; }
+.vsc-connect__steps { margin: 0; padding-left: 20px; list-style: decimal; color: var(--ink); font-size: 14px; line-height: 1.55; }
+.vsc-connect__steps li + li { margin-top: 6px; }
+.vsc-connect__steps a { color: #8cc4ff; }
+.vsc-connect__wait { display: flex; align-items: center; gap: 8px; margin: 14px 0 0; color: var(--ink-3); font-size: 12.5px; }
+.vsc-connect__dot { width: 7px; height: 7px; border-radius: 50%; background: #30d158; animation: vsc-fix-pulse 1.2s ease-in-out infinite; }
+.vsc-connect__toggle { margin-top: 12px; padding: 0; border: 0; background: none; color: #8cc4ff; font: 500 13px/1.4 var(--font); cursor: pointer; text-align: left; }
+.vsc-connect__paste { display: grid; gap: 8px; margin-top: 10px; }
+.vsc-connect__paste textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--hair-2);
+  background: var(--raise);
+  color: var(--ink);
+  font: 13px/1.4 var(--font);
+  resize: vertical;
+}
+.vsc-connect__paste .vsc-sheet__save { justify-self: start; }
+.vsc-connect__paste .vsc-sheet__save:disabled { opacity: 0.4; cursor: default; }
+.vsc-connect__error { margin: 10px 0 0; color: var(--danger); font-size: 13px; }
+.vsc-connect .vsc-sheet__actions { flex-wrap: wrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  .vsc-fix__status.is-busy, .vsc-connect__dot { animation: none; }
+}
+
 @media (max-width: 520px) {
+  .vsc-fix__btn { min-height: 38px; }
   .vsc-filters { margin-bottom: 18px; }
   .vsc-tile__song { font-size: 12.5px; }
   .vsc-sheet { place-items: end stretch; padding: 0; }
