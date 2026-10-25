@@ -31,6 +31,13 @@ const FundingRoom = dynamic(() => import("./funding/FundingRoom").then((m) => m.
   loading: () => <div className="bible-skeleton" />,
 });
 
+// Money Plays reads Money Agent Studio's board — the two apps stay separate,
+// the earnings flow in here.
+const PlaysRoom = dynamic(() => import("./rooms/PlaysRoom").then((m) => m.PlaysRoom), {
+  ssr: false,
+  loading: () => <div className="bible-skeleton" />,
+});
+
 export function Bible({ initialRoom }: { initialRoom: RoomId | null }) {
   const [room, setRoom] = useState<RoomId>(initialRoom ?? DEFAULT_ROOM);
   const [homeBase, setBase] = useState<HomeBase | null>(null);
@@ -99,6 +106,8 @@ export function Bible({ initialRoom }: { initialRoom: RoomId | null }) {
           <EmptyRoom room={def} />
         ) : room === "funding" ? (
           <FundingRoom />
+        ) : room === "plays" ? (
+          <PlaysRoom />
         ) : (
           <PlansRoom homeBase={homeBase} />
         )}

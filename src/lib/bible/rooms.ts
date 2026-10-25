@@ -52,11 +52,12 @@ export const ROOMS: RoomDef[] = [
   {
     id: "plays",
     label: "Money Plays",
-    hint: "what could I run?",
+    hint: "what is making money?",
     blurb:
-      "Ways to make money filed and rated — what each one needs up front, what it pays, and how "
-      + "quickly you would know it was working. Not built yet.",
-    built: false,
+      "Every money agent running in Money Agent Studio — clippers, faceless channels, paid clipping "
+      + "campaigns — with what each has made, its views, what it is estimated to earn and what it actually "
+      + "paid. The two apps stay separate; the earnings flow in here.",
+    built: true,
     hue: 268,
   },
   {

@@ -18,8 +18,8 @@ describe("rooms", () => {
 
   // The rail must be honest about what is not built. A room with `built: false`
   // renders a panel saying so; a dead link would be worse than no link.
-  it("has Build Plans and Funding built, and the rest say what they will hold", () => {
-    expect(ROOMS.filter((r) => r.built).map((r) => r.id)).toEqual(["plans", "funding"]);
+  it("has Build Plans, Money Plays and Funding built, and the rest say what they will hold", () => {
+    expect(ROOMS.filter((r) => r.built).map((r) => r.id)).toEqual(["plans", "plays", "funding"]);
     for (const room of ROOMS.filter((r) => !r.built)) {
       expect(room.blurb.length).toBeGreaterThan(40);
     }
