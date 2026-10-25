@@ -78,6 +78,7 @@ import {
 import { ImprovementsExpanded, ImprovementsWidget } from "./Improvements";
 import { QueueExpanded, QueueWidget } from "./QueueWidget";
 import { YouTubeVideosExpanded, YouTubeVideosWidget } from "../youtube-videos/YouTubeVideosWidget";
+import { FindMyLifeExpanded, FindMyLifeWidget } from "../find-my-life/FindMyLifeWidget";
 import type { UseQueue } from "@/lib/new-jarvis/useQueue";
 import { useIdeas } from "@/lib/new-jarvis/useIdeas";
 import type { AuditProposalLike } from "@/lib/new-jarvis/ideas";
@@ -629,6 +630,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
             {!widgets.hidden.has("improvements") && <ImprovementsWidget ideas={ideas} onExpand={() => setExpanded("improvements")} />}
             {!widgets.hidden.has("queue") && <QueueWidget queue={inQueue} onExpand={() => setExpanded("queue")} />}
             {!widgets.hidden.has("youtube") && <YouTubeVideosWidget onExpand={() => setExpanded("youtube")} />}
+            {!widgets.hidden.has("findmy") && <FindMyLifeWidget onExpand={() => setExpanded("findmy")} />}
           </div>
           {widgets.hidden.size === WIDGETS.length && (
             <p className="px-1 text-[11.5px] text-ink-faint">Every widget is hidden — turn some back on from Widgets above.</p>
@@ -807,6 +809,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
       {expanded === "improvements" && <ImprovementsExpanded ideas={ideas} go={go} onClose={() => setExpanded(null)} />}
       {expanded === "queue" && <QueueExpanded queue={inQueue} go={go} onClose={() => setExpanded(null)} />}
       {expanded === "youtube" && <YouTubeVideosExpanded onClose={() => setExpanded(null)} />}
+      {expanded === "findmy" && <FindMyLifeExpanded onClose={() => setExpanded(null)} />}
 
       {(open || openFiled) && (() => {
         const shot = open ? shotOf(open) : openFiled!;

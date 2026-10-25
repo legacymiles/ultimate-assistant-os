@@ -316,6 +316,15 @@ export const CAPABILITIES: Capability[] = [
     without: "For you suggests searches instead of real videos.",
   },
   {
+    id: "cars",
+    name: "Cars (live location)",
+    what: "Find My Life shows your car live — location, fuel or charge, locked or not — after you sign in with your car-maker account through Smartcar.",
+    category: "world",
+    via: "key",
+    needs: ["SMARTCAR_CLIENT_ID", "SMARTCAR_CLIENT_SECRET", "SMARTCAR_APPLICATION_ID"],
+    without: "Your car shows where you parked (your iPhone pins it when CarPlay disconnects), not live.",
+  },
+  {
     id: "song-finder",
     name: "Song finder",
     what: "Names the song in each Viral Studio audio clip, like Shazam, and shows it under the title.",

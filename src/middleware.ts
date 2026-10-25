@@ -40,6 +40,9 @@ const TOKEN_AUTH_PATHS = new Set([
   // Contradicting's recorder webhook (the Omi pendant/app has no session).
   // The per-account key in the URL is checked in the route.
   "/api/contradicting/omi",
+  // Find My Life's background ping (iPhone Shortcuts has no session). The
+  // per-account key in the URL is checked in the route.
+  "/api/find-my-life/ping",
   // Personas Studio's scheduler tick (GitHub Actions). Only sends posts their
   // owners already scheduled, behind a per-job lock; optional bearer token.
   "/api/social-personas/publish/tick",

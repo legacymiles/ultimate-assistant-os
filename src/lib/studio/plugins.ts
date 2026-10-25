@@ -23,6 +23,7 @@ import { PROJECTS, type CatalogProject } from "@/lib/catalog";
 export const PLUGIN_SLUGS = [
   "app-builder",
   "youtube-videos",
+  "find-my-life",
   "seedance-studio",
   "jarvis-audio-studio",
   "image-studio",

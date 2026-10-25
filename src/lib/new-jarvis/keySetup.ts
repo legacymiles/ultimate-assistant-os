@@ -127,6 +127,31 @@ export const KEY_SOURCES: Record<string, KeySource> = {
       { text: "Optional but safer: on that key, Restrict key → YouTube Data API v3 → Save.", url: "https://console.cloud.google.com/apis/credentials", cta: "Restrict" },
     ],
   },
+  SMARTCAR_CLIENT_ID: {
+    site: "Smartcar",
+    url: "https://dashboard.smartcar.com/",
+    how: "Sign up → your application → API Credentials → copy the Client ID.",
+    cost: "Free to start (a few vehicles); paid plans for more",
+    steps: [
+      { text: "Sign up for a free Smartcar developer account.", url: "https://dashboard.smartcar.com/signup", cta: "Sign up" },
+      { text: "Open your application → Configuration → add the redirect URI https://ultimate-assistant-os.vercel.app/api/find-my-life/car/callback and save.", url: "https://dashboard.smartcar.com/", cta: "Open dashboard" },
+      { text: "Go to API Credentials and copy the Client ID.", url: "https://dashboard.smartcar.com/", cta: "API Credentials" },
+    ],
+  },
+  SMARTCAR_CLIENT_SECRET: {
+    site: "Smartcar",
+    url: "https://dashboard.smartcar.com/",
+    how: "Same page as the Client ID → API Credentials → copy (or regenerate) the Client Secret.",
+    cost: "Free to start",
+    steps: [{ text: "In API Credentials, copy the Client Secret (regenerate it if it's hidden).", url: "https://dashboard.smartcar.com/", cta: "API Credentials" }],
+  },
+  SMARTCAR_APPLICATION_ID: {
+    site: "Smartcar",
+    url: "https://dashboard.smartcar.com/",
+    how: "Your application → the Application details tab → copy the Application ID.",
+    cost: "Free to start",
+    steps: [{ text: "Open your application's details tab and copy the Application ID.", url: "https://dashboard.smartcar.com/", cta: "Open dashboard" }],
+  },
   AUDD_API_TOKEN: {
     site: "AudD",
     url: "https://dashboard.audd.io/",

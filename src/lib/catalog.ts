@@ -530,6 +530,25 @@ export const PROJECTS: CatalogProject[] = [
     hue: [4, 195],
   },
   {
+    slug: "find-my-life",
+    title: "Find My Life",
+    tag: "Every device and thing you own, on one radar",
+    category: "AI",
+    overview:
+      "Your phone, laptop, Meta glasses, car, keys and wallet in one place, on a live radar with you in the middle. " +
+      "Every thing sits at its real direction and distance (or on a dark street map), with a dense list of how fresh each location " +
+      "is, battery and how far away. Apple's Find My and Google's Find Hub have no API, so each thing gets the best " +
+      "source that really works, picked automatically: devices report themselves while Jarvis is open on them (and ring on command), an " +
+      "iPhone Shortcut checks in in the background, cars connect through Smartcar for live location, fuel and locks, Bluetooth things " +
+      "(glasses, earbuds, the car) get a last-seen pin the moment they disconnect from your phone, tagged things open their AirTag/Tile/" +
+      "SmartTag app and show a pasted Share Item Location link, and anything can be pinned by hand. Compass mode turns the radar with " +
+      "your phone so blips point at the real things around you. Also a widget on the Jarvis Dashboard and a step in onboarding.",
+    status: "live",
+    appUrl: "/apps/find-my-life",
+    iconStyle: "rings",
+    hue: [190, 150],
+  },
+  {
     slug: "contradicting",
     title: "Contradicting",
     tag: "Receipts for “I never said that”",
@@ -800,6 +819,7 @@ export function getProject(slug: string): CatalogProject | null {
  */
 const UNPREVIEWABLE = new Set([
   "dashboard",
+  "find-my-life",
   "contradicting",
   "youtube-videos",
   "app-builder",

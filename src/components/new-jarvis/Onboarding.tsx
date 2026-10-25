@@ -35,8 +35,9 @@ import type { JarvisStore } from "@/lib/jarvis/types";
 import type { SetupItem } from "@/lib/new-jarvis/onboarding";
 import type { SetupStatus } from "@/lib/new-jarvis/useSetup";
 import { SyncStatusPanel } from "../jarvis/SyncStatusPanel";
+import { FindMyLifeOnboard } from "../find-my-life/FindMyLifeOnboard";
 
-export type OnboardingStep = "welcome" | "about" | "brain" | "keys" | "accounts" | "habits" | "devices" | "ready";
+export type OnboardingStep = "welcome" | "about" | "brain" | "keys" | "accounts" | "habits" | "devices" | "find" | "ready";
 const STEPS: { id: OnboardingStep; label: string }[] = [
   { id: "welcome", label: "Welcome" },
   { id: "about", label: "You" },
@@ -45,6 +46,7 @@ const STEPS: { id: OnboardingStep; label: string }[] = [
   { id: "accounts", label: "Connect" },
   { id: "habits", label: "Camera" },
   { id: "devices", label: "Devices" },
+  { id: "find", label: "Find" },
   { id: "ready", label: "Ready" },
 ];
 
@@ -512,6 +514,17 @@ export function Onboarding({ start = "welcome", onClose, go, store, commit, onPr
             </div>
           )}
 
+          {step === "find" && (
+            <div className="space-y-4">
+              <h2 className="text-[20px] font-semibold text-ink">Find My Life: everything you own, on one radar</h2>
+              <p className="text-[12.5px] text-ink-muted">
+                Your phone, laptop, car, keys, wallet, Meta glasses — see them all in one place on your Dashboard. Start with the device
+                you&apos;re holding; it takes one tap.
+              </p>
+              <FindMyLifeOnboard />
+            </div>
+          )}
+
           {step === "ready" && (
             <div className="space-y-4">
               <h2 className="text-[24px] font-semibold text-ink">{about.call || about.name ? `You're live, ${about.call || about.name}.` : "You're live."}</h2>
@@ -568,7 +581,7 @@ export function Onboarding({ start = "welcome", onClose, go, store, commit, onPr
                 Save {habits.length} habit{habits.length === 1 ? "" : "s"}
               </button>
             )}
-            {step === "devices" && (
+            {(step === "devices" || step === "find") && (
               <button type="button" className="deck-btn deck-btn--go" onClick={next}>
                 Continue
               </button>
