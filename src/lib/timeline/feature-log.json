@@ -1,5 +1,23 @@
 [
  {
+  "id": "9af47f7:dashboard",
+  "date": "2026-10-25",
+  "slug": "dashboard",
+  "title": "Says why no iPhone photos came — old link, Shortcut found nothing, or a bad send",
+  "detail": "\"iPhone hasn't sent a photo yet\" was the only thing Jarvis could say, whatever was wrong. The phone's three addresses now leave a note: the bookmark and still-on-my-phone calls count as a check-in, a send that isn't a photo records what was wrong, and a key that is no longer valid is written down (n",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9af47f7:jarvis",
+  "date": "2026-10-25",
+  "slug": "jarvis",
+  "title": "Says why no iPhone photos came — old link, Shortcut found nothing, or a bad send",
+  "detail": "\"iPhone hasn't sent a photo yet\" was the only thing Jarvis could say, whatever was wrong. The phone's three addresses now leave a note: the bookmark and still-on-my-phone calls count as a check-in, a send that isn't a photo records what was wrong, and a key that is no longer valid is written down (n",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "96baa7a:cook-connect",
   "date": "2026-10-25",
   "slug": "cook-connect",
