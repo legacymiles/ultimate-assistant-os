@@ -53,6 +53,12 @@ export interface GameState {
   renigCall?: RenigCall | null;
   /** What the hand that just ended came to — drives the "SET!" moment. */
   lastRound?: RoundRecap;
+  /**
+   * Between hands (phase "roundEnd"): who has pressed Next. The next hand is
+   * dealt only once everyone at the table who is still here has pressed it —
+   * it never deals by itself (owner's rule, Oct 2026).
+   */
+  ready?: string[];
 }
 
 /** A finished hand, kept on the next hand's state so every screen can replay it. */
