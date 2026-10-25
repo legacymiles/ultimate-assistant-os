@@ -1,5 +1,14 @@
 [
  {
+  "id": "407ea3c:viral-studio-content",
+  "date": "2026-10-25",
+  "slug": "viral-studio-content",
+  "title": "Facebook videos that need a sign-in now get Upload the video, Connect Facebook and Try again right on the tile",
+  "detail": "The tile used to stop at \"Facebook wouldn't hand over this video\". Now: - Upload the video: pick it from the phone or computer; it goes straight to storage (signed upload link, up to 500 MB) and plays on the tile. - Connect Facebook / Instagram: a sheet with the Jarvis Record extension steps (or pas",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "b545b81:dashboard",
   "date": "2026-10-25",
   "slug": "dashboard",
