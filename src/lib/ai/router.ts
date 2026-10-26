@@ -56,6 +56,12 @@ export interface TaskHint {
   /** Which app or feature asked, for the spend ledger. */
   app?: string;
   /**
+   * The skill or Studio workflow this call runs for ("felix", "studio:film-3d").
+   * Its tokens count toward that skill in Skills Library › Spend, and when the
+   * router is choosing, Jev picks the tier it needs (skills/server/routeSkill.ts).
+   */
+  skill?: string;
+  /**
    * This surface's OWN chain, in order, overruling the ladder below.
    *
    * For a surface where the owner picks the models themselves — the Studio's

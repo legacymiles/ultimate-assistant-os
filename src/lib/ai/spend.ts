@@ -4,6 +4,8 @@ import path from "node:path";
 import { listModels } from "./models";
 import { isPremiumClaude, routerModel, type RoutePlan } from "./router";
 import type { ProviderId } from "./settings";
+import { isRouteTier, type RouteTier } from "@/lib/skills/spend";
+import { noteSpend } from "@/lib/skills/server/spendStore";
 
 // ---------------------------------------------------------------------------
 // What the AI actually cost, call by call.
@@ -168,6 +170,10 @@ export interface RecordInput {
   failed?: boolean;
   /** What refused on the way here. */
   skipped?: { model: string; status?: number; why: string }[];
+  /** The skill this call ran for — its cost also counts in Skills Library › Spend. */
+  skill?: string;
+  /** Where Jev / a pin / a cap routed that skill run. */
+  route?: { tier: RouteTier | null; saved: boolean };
 }
 
 /**
@@ -205,6 +211,20 @@ export function recordCall(input: RecordInput): void {
       if (input.skipped?.length) record.skipped = input.skipped.slice(0, 4);
 
       pending.push(record);
+      if (input.skill && !input.failed) {
+        noteSpend([
+          {
+            skill: input.skill,
+            source: "jarvis",
+            cost,
+            promptTokens: record.promptTokens,
+            completionTokens: record.completionTokens,
+            estimated: Boolean(record.estimated),
+            tier: input.route?.tier ?? (isRouteTier(input.plan?.tier) ? (input.plan!.tier as RouteTier) : undefined),
+            saved: input.route?.saved,
+          },
+        ]);
+      }
       const urgent = premium || cost >= 0.25;
       if (urgent || Date.now() - flushAt > FLUSH_MS) await flush();
     } catch {

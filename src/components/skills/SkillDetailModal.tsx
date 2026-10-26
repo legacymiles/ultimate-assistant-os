@@ -5,6 +5,8 @@ import { Icon } from "../icons";
 import { FavoriteStar, OriginBadge } from "./SkillRow";
 import type { Skill } from "@/lib/skills/types";
 import { skillMeta } from "@/lib/skills/categories";
+import { ROUTE_TIERS, TIER_LABEL, capState, controlKey, dollars, routedLabel, spendFor, tokensLabel, type RouteTier } from "@/lib/skills/spend";
+import type { SkillSpendState } from "@/lib/skills/useSkillSpend";
 
 interface Props {
   skill: Skill;
@@ -13,9 +15,11 @@ interface Props {
   onDelete: (skill: Skill) => void;
   favorite?: boolean;
   onToggleFavorite?: (skill: Skill) => void;
+  /** Spend + the cap / model controls. Left out where spend isn't available. */
+  spend?: SkillSpendState;
 }
 
-export function SkillDetailModal({ skill, onClose, onEdit, onDelete, favorite = false, onToggleFavorite }: Props) {
+export function SkillDetailModal({ skill, onClose, onEdit, onDelete, favorite = false, onToggleFavorite, spend }: Props) {
   const [copied, setCopied] = useState(false);
   const meta = skillMeta(skill);
 
@@ -95,6 +99,8 @@ export function SkillDetailModal({ skill, onClose, onEdit, onDelete, favorite = 
           </button>
         </div>
 
+        {spend?.spend && <SpendControls skill={skill} state={spend} />}
+
         {/* Body — raw markdown prompt, ideal for copy/paste */}
         <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
           <pre className="whitespace-pre-wrap break-words rounded-xl border border-line bg-canvas p-4 font-mono text-[13px] leading-relaxed text-ink-muted">
@@ -172,6 +178,72 @@ export function SkillDetailModal({ skill, onClose, onEdit, onDelete, favorite = 
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * What this skill costs, plus the owner's two controls: a weekly dollar cap
+ * (over it, Jarvis runs it on the free model until Monday) and a fixed model
+ * tier (otherwise Jev picks per run).
+ */
+function SpendControls({ skill, state }: { skill: Skill; state: SkillSpendState }) {
+  const doc = state.spend!;
+  const key = controlKey(skill);
+  const s = spendFor(skill, doc);
+  const cap = capState(doc, key);
+  const pin = doc.pins[key] ?? null;
+  const [draft, setDraft] = useState(cap.cap != null ? String(cap.cap) : "");
+  useEffect(() => setDraft(cap.cap != null ? String(cap.cap) : ""), [cap.cap]);
+  const saveCap = () => {
+    const n = Number(draft);
+    void state.setCap(key, draft.trim() && Number.isFinite(n) && n > 0 ? n : null);
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-5 py-2.5 text-[12px]">
+      <span className="text-ink-muted">
+        {s ? (
+          <>
+            <span className="font-mono text-ink">{dollars(s.weekCost)}</span> this week · {tokensLabel(s.weekTokens)} tokens ·{" "}
+            <span className="font-mono">{dollars(s.cost)}</span>
+            {s.estimated ? " est." : ""} lifetime
+            {routedLabel(s) ? ` · ${routedLabel(s)}` : ""}
+          </>
+        ) : (
+          "No metered runs yet."
+        )}
+      </span>
+      <label className="ml-auto flex items-center gap-1.5 text-ink-muted">
+        Weekly cap $
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value.replace(/[^0-9.]/g, ""))}
+          onBlur={saveCap}
+          onKeyDown={(e) => e.key === "Enter" && saveCap()}
+          inputMode="decimal"
+          placeholder="none"
+          aria-label="Weekly dollar cap"
+          className="w-16 rounded-md border border-line bg-canvas px-1.5 py-0.5 font-mono text-ink outline-none focus:border-brand"
+        />
+        {cap.over && <span className="text-red-300">over — free model till Monday</span>}
+      </label>
+      <label className="flex items-center gap-1.5 text-ink-muted">
+        Model
+        <select
+          value={pin ?? ""}
+          onChange={(e) => void state.setPin(key, (e.target.value || null) as RouteTier | null)}
+          aria-label="Model tier for this skill"
+          className="rounded-md border border-line bg-canvas px-1.5 py-0.5 text-ink outline-none focus:border-brand"
+        >
+          <option value="">Jev picks</option>
+          {ROUTE_TIERS.map((t) => (
+            <option key={t} value={t}>
+              {TIER_LABEL[t]}
+            </option>
+          ))}
+        </select>
+      </label>
+      {state.error && <span className="w-full text-red-300">{state.error}</span>}
     </div>
   );
 }

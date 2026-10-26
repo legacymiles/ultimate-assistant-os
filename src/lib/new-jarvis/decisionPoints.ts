@@ -56,6 +56,17 @@ export const DECISION_POINTS: DecisionPoint[] = [
     effort: "minutes",
   },
   {
+    id: "skill-tier",
+    label: "Which model a skill run gets",
+    decides: "Free, cheap or best model for each Jarvis skill / Studio workflow run",
+    where: "src/lib/skills/server/routeSkill.ts (called from planCall in src/lib/ai/provider.ts)",
+    today: "Jev picks the tier per run; the owner's pin and the skill's weekly cap outrank it; unsure → the router's own plan",
+    model: "typesafe/jev-1.14",
+    gain: "Simple skill runs stop paying for the big model. Routing and savings show in Skills Library › Most spend.",
+    wired: true,
+    effort: "hours",
+  },
+  {
     id: "chat-triage",
     label: "Chat front door",
     decides: "Is this message a quick answer, a coding job for the harness, a browser task, or a photo/audio job?",

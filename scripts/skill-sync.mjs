@@ -20,6 +20,9 @@
 //
 //   node scripts/skill-sync.mjs usage                 (hook) count one skill call — reads the hook JSON on stdin
 //   node scripts/skill-sync.mjs usage-backfill        count this machine's past skill calls once
+//   node scripts/skill-sync.mjs usage-cost            (Stop hook) tokens per skill for this turn — Skills Library › Spend
+//   node scripts/skill-sync.mjs rules                 Jarvis memory rules (areas, daily log, findings) -> markdown
+//                                                     in ~/Jarvis Vault/jarvis-memory (also runs on every pull)
 //     --force     count them again even if this machine already did
 //
 // The hooks `install` writes:  SessionStart -> pull,  Stop -> push,
@@ -446,15 +449,19 @@ async function adoptRepoSkills() {
 // the machine — never the prompt or anything in the session.
 
 const isUsageHook = (h) => typeof h?.command === "string" && h.command.includes("skill-sync.mjs") && /\susage(\s|$)/.test(h.command);
+const isCostHook = (h) => typeof h?.command === "string" && h.command.includes("skill-sync.mjs") && /\susage-cost(\s|$)/.test(h.command);
 
 /** Put (or replace) the two usage hooks in a settings object. */
 function addUsageHooks(settings, command) {
   settings.hooks ??= {};
-  const strip = (arr) => (Array.isArray(arr) ? arr : []).filter((g) => !(g?.hooks ?? []).some(isUsageHook));
+  const strip = (arr) => (Array.isArray(arr) ? arr : []).filter((g) => !(g?.hooks ?? []).some((h) => isUsageHook(h) || isCostHook(h)));
   // async: a skill call never waits on the network.
   const hook = { type: "command", command, async: true, timeout: 20 };
   settings.hooks.PostToolUse = [...strip(settings.hooks.PostToolUse), { matcher: "Skill", hooks: [hook] }];
   settings.hooks.UserPromptSubmit = [...strip(settings.hooks.UserPromptSubmit), { hooks: [hook] }];
+  // Skills Library › Spend: tokens per skill, read from the transcript after each turn.
+  const costHook = { ...hook, command: command.replace(/\susage(\s|$)/, " usage-cost$1") };
+  settings.hooks.Stop = [...strip(settings.hooks.Stop), { hooks: [costHook] }];
 }
 
 /**
@@ -469,7 +476,7 @@ async function ensureUsageTracking() {
     const settings = readJson(settingsFile);
     const groups = Object.values(settings.hooks ?? {}).flat();
     const pullHook = groups.flatMap((g) => g?.hooks ?? []).find((h) => typeof h?.command === "string" && h.command.includes("skill-sync.mjs") && /\spull(\s|$)/.test(h.command));
-    const hasUsage = groups.some((g) => (g?.hooks ?? []).some(isUsageHook));
+    const hasUsage = groups.some((g) => (g?.hooks ?? []).some(isUsageHook)) && groups.some((g) => (g?.hooks ?? []).some(isCostHook));
     if (pullHook && !hasUsage) {
       addUsageHooks(settings, pullHook.command.replace(/\spull(\s|$)/, " usage$1"));
       await writeFile(settingsFile, JSON.stringify(settings, null, 2) + "\n");
@@ -564,6 +571,151 @@ async function doUsage() {
     method: "POST",
     body: JSON.stringify({ events: [{ skill, source: "claude-code", at: new Date().toISOString(), ...(id ? { id } : {}) }] }),
   });
+}
+
+// ---- skill spend (Skills Library › Spend) ---------------------------------------------
+//
+// The Stop hook. After each turn it reads ONLY the new part of this session's
+// transcript, works out which skill each model reply was working for (from the
+// Skill tool call or the /command that started it, until the next plain
+// prompt), and sends the token counts per skill. Only numbers, the model id
+// and the skill's name leave the machine — never the prompt, the reply or any
+// file. Jarvis prices them from its model catalogue.
+
+/** Where each session's transcript was last read up to, so a turn is counted once. */
+function costCursor(state, session) {
+  return (state.costCursor ?? {})[session] ?? "";
+}
+
+async function doUsageCost() {
+  if (!TOKEN) return;
+  let input = {};
+  try {
+    input = JSON.parse((await readStdin()) || "{}");
+  } catch {
+    return;
+  }
+  const file = String(input.transcript_path ?? "");
+  const session = String(input.session_id ?? "");
+  if (!file || !session || !existsSync(file)) return;
+  const state = readJson(STATE_FILE);
+  const after = costCursor(state, session);
+
+  /** skill -> { model, input, output, cacheRead, cacheWrite, lastId } */
+  const per = new Map();
+  const counted = new Set();
+  let current = "";
+  let passed = !after;
+  let lastUuid = after;
+  let lastAny = "";
+  const rl = createInterface({ input: createReadStream(file, { encoding: "utf8" }), crlfDelay: Infinity });
+  for await (const line of rl) {
+    let e;
+    try {
+      e = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (e?.uuid) {
+      lastAny = e.uuid;
+      if (!passed) {
+        if (e.uuid === after) passed = true;
+        // Replay the skill state so a turn that started before the cursor is still attributed.
+      } else lastUuid = e.uuid;
+    }
+    const msg = e?.message;
+    if (e?.type === "user" && msg) {
+      const content = msg.content;
+      const text = typeof content === "string" ? content : Array.isArray(content) ? content.filter((c) => c?.type === "text").map((c) => c.text).join(" ") : "";
+      const isToolResult = Array.isArray(content) && content.some((c) => c?.type === "tool_result");
+      if (!isToolResult && text) {
+        const m = /^\s*\/([\w.:-]+)/.exec(text) || /<command-name>\/?([\w.:-]+)<\/command-name>/.exec(text);
+        current = m && (await isSkillCommand(m[1], input.cwd)) ? m[1] : "";
+      }
+      continue;
+    }
+    if (e?.type !== "assistant" || !msg) continue;
+    for (const c of Array.isArray(msg.content) ? msg.content : []) {
+      if (c?.type === "tool_use" && c.name === "Skill") {
+        const s = skillOfTool(c.input);
+        if (s) current = s;
+      }
+    }
+    if (!passed || !current || !msg.usage || !msg.id || counted.has(msg.id)) continue;
+    // Claude Code writes one API reply as several lines with the same id and usage.
+    counted.add(msg.id);
+    const u = msg.usage;
+    const key = current.toLowerCase();
+    const row = per.get(key) ?? { model: msg.model || "", input: 0, output: 0, cacheRead: 0, cacheWrite: 0, lastId: "" };
+    row.input += u.input_tokens || 0;
+    row.output += u.output_tokens || 0;
+    row.cacheRead += u.cache_read_input_tokens || 0;
+    row.cacheWrite += u.cache_creation_input_tokens || 0;
+    if (msg.model) row.model = msg.model;
+    row.lastId = msg.id;
+    per.set(key, row);
+  }
+
+  if (per.size) {
+    const spend = [...per.entries()].map(([skill, r]) => ({
+      skill,
+      model: r.model,
+      input: r.input,
+      output: r.output,
+      cacheRead: r.cacheRead,
+      cacheWrite: r.cacheWrite,
+      at: new Date().toISOString(),
+      id: `${session}:${r.lastId}:${skill}`.slice(0, 120),
+    }));
+    await api("/api/jarvis/skills/usage", { method: "POST", body: JSON.stringify({ spend }) });
+  }
+  // A cursor the transcript no longer has (it was compacted or rewritten) would
+  // stop counting forever: start again from the end.
+  if (!passed) lastUuid = lastAny;
+  // Move the cursor even when nothing was a skill turn, so the next Stop reads less.
+  const fresh = readJson(STATE_FILE);
+  const cur = { ...(fresh.costCursor ?? {}), [session]: lastUuid };
+  // Keep the 50 most recent sessions' cursors.
+  fresh.costCursor = Object.fromEntries(Object.entries(cur).slice(-50));
+  await writeFile(STATE_FILE, JSON.stringify(fresh, null, 2) + "\n");
+}
+
+// ---- memory rules as markdown (areas, daily log, findings) ------------------------------
+//
+// Writes Jarvis's memory rules into a folder Claude Code can read as plain
+// text: ~/Jarvis Vault/jarvis-memory when that vault exists, else
+// ~/.claude/jarvis-memory (or JARVIS_RULES_DIR). The website's database stays
+// the source of truth: files here are rewritten on every pull, and nothing is
+// ever deleted.
+
+function rulesDir() {
+  if (process.env.JARVIS_RULES_DIR) return process.env.JARVIS_RULES_DIR;
+  const vault = path.join(homedir(), "Jarvis Vault");
+  return existsSync(vault) ? path.join(vault, "jarvis-memory") : path.join(CLAUDE_HOME, "jarvis-memory");
+}
+
+async function doRules() {
+  if (!TOKEN) return vlog("rules: no token on this machine.");
+  const body = await api("/api/jarvis/memory/rules/export");
+  const files = body?.files && typeof body.files === "object" ? body.files : {};
+  const root = path.resolve(rulesDir());
+  let wrote = 0;
+  for (const [rel, text] of Object.entries(files)) {
+    // Only plain relative paths inside the folder.
+    if (typeof text !== "string" || !/^[\w./-]+\.md$/.test(rel) || rel.split("/").some((p) => p === ".." || p === "")) continue;
+    const dest = path.resolve(root, ...rel.split("/"));
+    if (!dest.startsWith(root + path.sep)) continue;
+    if (CHECK) {
+      wrote++;
+      continue;
+    }
+    await mkdir(path.dirname(dest), { recursive: true });
+    const old = existsSync(dest) ? await readFile(dest, "utf8").catch(() => "") : "";
+    if (old === text) continue;
+    await writeFile(dest, text);
+    wrote++;
+  }
+  vlog(`rules: ${CHECK ? "would write" : "updated"} ${wrote} file(s) in ${root}`);
 }
 
 /** Every *.jsonl session transcript under ~/.claude/projects. */
@@ -706,7 +858,12 @@ async function doInstall() {
 
 try {
   if (mode === "install" || mode === "setup") await doInstall();
-  else if (mode === "pull") await doPull();
+  else if (mode === "pull") {
+    await doPull();
+    // The memory rules ride along with the skills; never let them fail a pull.
+    await doRules().catch((e) => vlog(`rules: ${e instanceof Error ? e.message : e}`));
+  } else if (mode === "rules") await doRules();
+  else if (mode === "usage-cost") await doUsageCost();
   else if (mode === "push") await doPush();
   else if (mode === "usage") await doUsage();
   else if (mode === "usage-backfill") await doBackfill();
@@ -714,11 +871,11 @@ try {
     await doPush();
     await doPull();
   } else {
-    log(`Unknown mode "${mode}". Use: install | pull | push | sync | usage | usage-backfill  [--check] [--quiet] [--git] [--force]`);
+    log(`Unknown mode "${mode}". Use: install | pull | push | sync | rules | usage | usage-cost | usage-backfill  [--check] [--quiet] [--git] [--force]`);
     process.exit(2);
   }
 } catch (e) {
   // The usage hook stays silent: its output would land in Claude's context.
-  if (mode !== "usage") console.error(`skill-sync: ${e instanceof Error ? e.message : e}`);
+  if (mode !== "usage" && mode !== "usage-cost") console.error(`skill-sync: ${e instanceof Error ? e.message : e}`);
   process.exit(0);
 }

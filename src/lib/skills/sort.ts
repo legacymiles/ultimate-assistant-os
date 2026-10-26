@@ -10,13 +10,15 @@
 
 import type { Skill } from "./types";
 import { byMostUsed, type UsageData } from "./usage";
+import { bySpend, type SpendDoc } from "./spend";
 
-export type SkillSort = "recommended" | "most" | "newest" | "oldest" | "updated" | "az";
+export type SkillSort = "recommended" | "most" | "spend" | "newest" | "oldest" | "updated" | "az";
 export type AddedWithin = "any" | "7d" | "30d" | "year";
 
 export const SORTS: { id: SkillSort; label: string }[] = [
   { id: "recommended", label: "Recommended" },
   { id: "most", label: "Most used" },
+  { id: "spend", label: "Most spend" },
   { id: "newest", label: "Newest" },
   { id: "oldest", label: "Oldest" },
   { id: "updated", label: "Recently updated" },
@@ -59,9 +61,13 @@ function byDate(a: number | null, b: number | null, dir: 1 | -1): number {
   return dir * (b - a);
 }
 
-/** `usage` is only read by "Most used" (call counts; null = none yet, so A–Z). */
-export function sortSkills(list: Skill[], sort: SkillSort = "recommended", usage: UsageData | null = null): Skill[] {
+/**
+ * `usage` is only read by "Most used" (call counts; null = none yet, so A–Z),
+ * `spend` only by "Most spend" (dollars, then tokens).
+ */
+export function sortSkills(list: Skill[], sort: SkillSort = "recommended", usage: UsageData | null = null, spend: SpendDoc | null = null): Skill[] {
   if (sort === "most") return byMostUsed(list, usage);
+  if (sort === "spend") return bySpend(list, spend);
   return [...list].sort((a, b) => {
     switch (sort) {
       case "newest":
