@@ -108,6 +108,42 @@
   "source": "git"
  },
  {
+  "id": "d20a3db:financial-bible",
+  "date": "2026-10-25",
+  "slug": "financial-bible",
+  "title": "Money Plays room shows every money agent's views and earnings",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a7c1c21:money-agents",
+  "date": "2026-10-25",
+  "slug": "money-agents",
+  "title": "Agents that clip, run faceless channels and work paid campaigns — you approve, Personas Studio posts",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a7c1c21:money-agent-studio",
+  "date": "2026-10-25",
+  "slug": "money-agent-studio",
+  "title": "Agents that clip, run faceless channels and work paid campaigns — you approve, Personas Studio posts",
+  "detail": "",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "a7c1c21:jarvis",
+  "date": "2026-10-25",
+  "slug": "jarvis",
+  "title": "Agents that clip, run faceless channels and work paid campaigns — you approve, Personas Studio posts",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "72fa706:dashboard",
   "date": "2026-10-25",
   "slug": "dashboard",
