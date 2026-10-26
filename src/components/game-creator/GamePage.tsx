@@ -128,7 +128,7 @@ export function GamePage({ id }: { id: string }) {
     setBusy(true);
     try {
       await deleteGame(id);
-      router.push("/apps/game-creator");
+      router.push("/apps/game-studio?section=create");
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);
@@ -139,7 +139,7 @@ export function GamePage({ id }: { id: string }) {
     <div className="min-h-dvh">
       <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-line bg-panel px-3 py-2">
         <Link
-          href="/apps/game-creator"
+          href="/apps/game-studio?section=create"
           className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-elevated hover:text-ink"
         >
           <Icon.ArrowLeft width={13} height={13} />
@@ -156,7 +156,7 @@ export function GamePage({ id }: { id: string }) {
       {error && !game && (
         <div className="mx-auto max-w-3xl px-4 py-16 text-center">
           <p className="text-sm text-ink">{error}</p>
-          <Link href="/apps/game-creator" className="mt-3 inline-block text-xs text-brand hover:underline">
+          <Link href="/apps/game-studio?section=create" className="mt-3 inline-block text-xs text-brand hover:underline">
             Back to your games
           </Link>
         </div>

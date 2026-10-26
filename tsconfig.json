@@ -86,7 +86,6 @@
   ],
   "exclude": [
     "node_modules",
-    "item-storm-arena",
     "claude-home",
     "skills",
     "docs",

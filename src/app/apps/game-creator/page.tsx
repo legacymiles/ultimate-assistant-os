@@ -1,11 +1,7 @@
-import { GameCreator } from "@/components/game-creator/GameCreator";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Game Creator · Ultimate Assistant OS",
-  description:
-    "Describe a game and Unreal Engine on your PC builds it: design, Blueprint gameplay, playtest, screenshots and a packaged game, all collected in one gallery.",
-};
-
+// Game Creator is now the Create section of Game Studio. Only the index moved:
+// each game's own page still lives at /apps/game-creator/<id>.
 export default function Page() {
-  return <GameCreator />;
+  redirect("/apps/game-studio?section=create");
 }
