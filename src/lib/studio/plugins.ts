@@ -24,6 +24,7 @@ export const PLUGIN_SLUGS = [
   "app-builder",
   "youtube-videos",
   "find-my-life",
+  "iphone-notes",
   "seedance-studio",
   "jarvis-audio-studio",
   "image-studio",

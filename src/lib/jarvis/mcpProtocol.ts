@@ -29,7 +29,11 @@ export const INSTRUCTIONS =
   "When asked to work the queue, call queue_list, queue_start the one you take, and when it is finished and verified call queue_complete — " +
   "that removes it from their queue. Whenever you finish any work, check queue_list for a request it satisfies and complete that too. " +
   "Never complete a request that is not actually done; queue_note the blocker instead. " +
-  "A \"Client edit\" request ends with client_review_preview (posts the preview to the client), then queue_complete.";
+  "A \"Client edit\" request ends with client_review_preview (posts the preview to the client), then queue_complete. " +
+  "Memory rules: call get_router first to see the areas of the owner's world, then get_router with one area for what lives there — open only what the task needs. " +
+  "Memories the owner wrote by hand (notes, profile, vault) are read-only for you. " +
+  "Before running a workflow or skill, call get_findings for it; after a run, add_finding with what worked or what to avoid. " +
+  "When you finish a piece of work, log_activity one line saying what you did, so it lands in the owner's daily log.";
 
 export interface ToolDef {
   name: string;
@@ -132,6 +136,53 @@ export const TOOLS: ToolDef[] = [
       type: "object",
       properties: { id: { type: "string", description: "The memory's id, as returned by search or list." } },
       required: ["id"],
+    },
+  },
+  {
+    name: "get_router",
+    description:
+      "The map of the owner's world. With no area: the index of every area (app categories, skill categories, client sites, findings, the owner's own notes). With an area key or name: what lives in that area and how to reach it. Read this before searching, so you open only what the task needs.",
+    inputSchema: {
+      type: "object",
+      properties: { area: { type: "string", description: "An area key from the index (e.g. skills/video-editing, clients, owner-notes) or a loose name. Leave out for the index." } },
+    },
+  },
+  {
+    name: "log_activity",
+    description:
+      "Write one line into the owner's daily log saying what you just did — after finishing a piece of work, not for every step. The log feeds the Jarvis memory map's timeline.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string", description: "What you did, in one plain sentence." },
+        about: { type: "string", description: "The app, skill or workflow it touched (e.g. cook-connect, felix, studio:film-3d)." },
+        timezone: { type: "string", description: "The owner's IANA timezone, so the line lands on their local day." },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "get_findings",
+    description:
+      "What past runs of a workflow or skill learned — what worked and what to avoid. Call this BEFORE running that workflow, and do not repeat anything marked Avoid.",
+    inputSchema: {
+      type: "object",
+      properties: { workflow: { type: "string", description: "The workflow or skill name (e.g. film-3d, animate-character-story, felix)." } },
+      required: ["workflow"],
+    },
+  },
+  {
+    name: "add_finding",
+    description:
+      "After a run of a workflow or skill, save one lesson from it: something that worked (win), something to avoid next time (miss), or a note. One short sentence per finding.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workflow: { type: "string", description: "The workflow or skill name." },
+        text: { type: "string", description: "The lesson, in one sentence." },
+        kind: { type: "string", enum: ["win", "miss", "note"], description: "win = worked, miss = avoid next time, note = anything else." },
+      },
+      required: ["workflow", "text"],
     },
   },
   {

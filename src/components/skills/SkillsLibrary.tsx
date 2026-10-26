@@ -31,6 +31,8 @@ import {
   type UsageFilter,
 } from "@/lib/skills/usage";
 import { useSkillUsage } from "@/lib/skills/useSkillUsage";
+import { useSkillSpend } from "@/lib/skills/useSkillSpend";
+import { capState, controlKey, dollars, jevAverageMs, spendFor, tokensLabel, weekKey } from "@/lib/skills/spend";
 
 type EditorState = { mode: "add" } | { mode: "edit"; skill: Skill } | null;
 type SyncMsg = { kind: "ok" | "info" | "error"; text: string } | null;
@@ -69,6 +71,8 @@ export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } =
   // How often each skill was called (Claude Code, the connector, Jarvis Studio).
   const [usageFilter, setUsageFilter] = useState<UsageFilter>("any");
   const { usage, loaded: usageLoaded, reason: usageReason } = useSkillUsage();
+  // What each skill costs, its weekly cap and its fixed model tier (Jev picks otherwise).
+  const skillSpend = useSkillSpend();
   // Restore after mount so the server render and the first client render agree.
   useEffect(() => {
     const v = readView();
@@ -176,8 +180,8 @@ export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } =
     });
     // "Top 10" is a ranking, so it keeps its own most-used order.
     if (usageFilter === "top") return filterByUsage(list, "top", usage);
-    return sortSkills(filterByUsage(list, usageFilter, usage), sort, usage);
-  }, [skills, query, category, origin, view, fav, sort, added, usageFilter, usage]);
+    return sortSkills(filterByUsage(list, usageFilter, usage), sort, usage, skillSpend.spend);
+  }, [skills, query, category, origin, view, fav, sort, added, usageFilter, usage, skillSpend.spend]);
 
   // Place among ALL skills by calls, so the #1–#3 badges mean the same thing
   // whatever filter is on.
@@ -192,8 +196,30 @@ export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } =
   const usageCounts = useMemo(() => {
     const used = ranks.size;
     const calls = skills.reduce((n, s) => n + (usageFor(s, usage)?.count ?? 0), 0);
-    return { used, unused: skills.length - used, calls, top: Math.min(10, used) };
+    return { used, unused: skills.length - used, calls, top: Math.min(10, used), retire: filterByUsage(skills, "retire", usage).length };
   }, [skills, usage, ranks]);
+
+  // This week's spend across every metered skill, and what Jev's routing did.
+  const spendTotals = useMemo(() => {
+    const doc = skillSpend.spend;
+    if (!doc) return null;
+    const week = weekKey();
+    let weekCost = 0;
+    let weekTokens = 0;
+    let skillsSpent = 0;
+    let saved = 0;
+    let estimated = false;
+    for (const v of Object.values(doc.skills)) {
+      saved += v.savedRuns;
+      if (v.week !== week) continue;
+      weekCost += v.weekCost;
+      weekTokens += v.weekTokens;
+      if (v.weekTokens > 0) skillsSpent += 1;
+      if (v.estimated) estimated = true;
+    }
+    const capped = Object.keys(doc.caps).filter((k) => capState(doc, k).over).length;
+    return { weekCost, weekTokens, skillsSpent, saved, estimated, capped, jev: doc.jev };
+  }, [skillSpend.spend]);
 
   const handleSave = async (draft: SkillDraft) => {
     if (editor?.mode === "edit" && isBuiltIn(editor.skill)) {
@@ -412,7 +438,7 @@ export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } =
         <div className="mb-1 flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:thin] sm:flex-wrap sm:overflow-visible">
           <span className="mr-1 shrink-0 text-[11px] font-medium uppercase tracking-wider text-ink-faint">Usage</span>
           {USAGE_FILTERS.map((o) => {
-            const n = o.id === "used" ? usageCounts.used : o.id === "unused" ? usageCounts.unused : o.id === "top" ? usageCounts.top : null;
+            const n = o.id === "used" ? usageCounts.used : o.id === "unused" ? usageCounts.unused : o.id === "top" ? usageCounts.top : o.id === "retire" ? usageCounts.retire : null;
             return (
               <FilterChip
                 key={o.id}
@@ -432,7 +458,19 @@ export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } =
                 ? `${callsLabel(usageCounts.calls)} across ${usageCounts.used} of ${skills.length} skills — from Claude Code on your computers, the Jarvis connector and Studio. Updates by itself.`
                 : "No skill calls counted yet. Every skill Claude Code, the connector or Studio runs from now on shows up here by itself."
               : `Call counts aren’t available here${usageReason ? ` (${usageReason.replace(/\.$/, "")})` : ""}.`}
+          {usageFilter === "retire" && " Retire? = never called, or idle 45+ days. Open one to delete it or keep it."}
         </p>
+        {spendTotals && (
+          <p className="-mt-3 mb-4 text-[11px] text-ink-faint" title="Jarvis runs are priced by OpenRouter. Claude Code runs are priced at API rates from the model list — on a subscription they cost nothing extra; the figure shows which skills are heavy.">
+            <span className="font-mono text-ink-muted">{dollars(spendTotals.weekCost)}</span>
+            {spendTotals.estimated ? " (est.)" : ""} and {tokensLabel(spendTotals.weekTokens)} tokens this week across {spendTotals.skillsSpent} skills
+            {spendTotals.capped > 0 ? ` · ${spendTotals.capped} over cap (running on the free model)` : ""}
+            {spendTotals.jev.calls > 0
+              ? ` · Jev routed ${spendTotals.jev.used} of ${spendTotals.jev.calls} runs (${jevAverageMs(spendTotals.jev)} ms avg, ${dollars(spendTotals.jev.cost)}), ${spendTotals.saved} sent to a cheaper model`
+              : " · Jev picks each Jarvis skill run’s model"}
+            . Sort by “Most spend” to find the heavy ones.
+          </p>
+        )}
 
         {/* Web design guide (separate dropdown) */}
         <DesignGuide skills={skills} onOpen={setDetail} />
@@ -472,6 +510,8 @@ export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } =
                   onEdit={(s) => setEditor({ mode: "edit", skill: s })}
                   onDelete={handleDelete}
                   use={usage ? usageFor(skill, usage) : undefined}
+                  spend={skillSpend.spend ? spendFor(skill, skillSpend.spend) : undefined}
+                  cap={skillSpend.spend ? capState(skillSpend.spend, controlKey(skill)) : undefined}
                   rank={ranks.get(skill.id)}
                 />
               ))}
@@ -484,6 +524,7 @@ export function SkillsLibrary({ chromeless = false }: { chromeless?: boolean } =
       {detail && (
         <SkillDetailModal
           skill={detail}
+          spend={skillSpend}
           favorite={fav.has(detail)}
           onToggleFavorite={fav.toggle}
           onClose={() => setDetail(null)}

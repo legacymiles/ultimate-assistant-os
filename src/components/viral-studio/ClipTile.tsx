@@ -18,6 +18,7 @@ import { PLATFORM_LABEL } from "@/lib/social-import/platform";
 import { HEAT_LABEL, heatOf, shortCount } from "@/lib/viral-studio/filters";
 import { embedUrl, mediaUrl, playbackLimit, posterUrl } from "@/lib/viral-studio/playback";
 import { songLine } from "@/lib/viral-studio/song";
+import { SITE_LABEL, connectSiteFor, isStuck } from "@/lib/viral-studio/stuck";
 import { FULL, contentRegion, regionCover, sharpRegion, type Region } from "@/lib/viral-studio/trail";
 import type { Clip, TabId } from "@/lib/viral-studio/types";
 
@@ -67,9 +68,35 @@ interface Props {
   finding?: boolean;
   /** Open the mood / category picker for this clip. */
   onEditTags?: () => void;
+  /** No video to play: the saved video, picked from the phone or computer. */
+  onUpload?: (file: File) => void;
+  /** No video to play because the site wants a sign-in: connect that site once. */
+  onConnect?: () => void;
+  /** No video to play: ask for the link again. */
+  onRetry?: () => void;
+  /** A fix is running: "retry", or how far an upload is (0–1). */
+  fixing?: "retry" | number | null;
 }
 
-export function ClipTile({ clip, active, sound, flash, lead = false, onEnter, onLeave, onToggle, onDelete, onFindSong, finding = false, onEditTags }: Props) {
+export function ClipTile({
+  clip,
+  active,
+  sound,
+  flash,
+  lead = false,
+  onEnter,
+  onLeave,
+  onToggle,
+  onDelete,
+  onFindSong,
+  finding = false,
+  onEditTags,
+  onUpload,
+  onConnect,
+  onRetry,
+  fixing = null,
+}: Props) {
+  const fileRef = useRef<HTMLInputElement>(null);
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const [vid, setVid] = useState<HTMLVideoElement | null>(null);
@@ -319,7 +346,29 @@ export function ClipTile({ clip, active, sound, flash, lead = false, onEnter, on
             </button>
           ) : null}
         </div>
-        {clip.note && <p className="vsc-tile__note">{clip.note}</p>}
+        {clip.note && fixing === null && <p className="vsc-tile__note">{clip.note}</p>}
+        {isStuck(clip) && (onUpload || onConnect || onRetry) ? (
+          <StuckFixes
+            site={connectSiteFor(clip)}
+            fixing={fixing}
+            onUpload={onUpload ? () => fileRef.current?.click() : undefined}
+            onConnect={clip.needsLogin || connectSiteFor(clip) ? onConnect : undefined}
+            onRetry={onRetry}
+          />
+        ) : null}
+        {onUpload ? (
+          <input
+            ref={fileRef}
+            type="file"
+            accept="video/*"
+            hidden
+            onChange={(e) => {
+              const f = e.currentTarget.files?.[0];
+              e.currentTarget.value = "";
+              if (f) onUpload(f);
+            }}
+          />
+        ) : null}
       </div>
     </article>
   );
@@ -345,6 +394,61 @@ export function PendingTile({ pending, onCancel }: { pending: PendingClip; onCan
         </p>
       </div>
     </article>
+  );
+}
+
+/** The ways out for a tile with no video: upload it, connect the site, or ask again. */
+function StuckFixes({
+  site,
+  fixing,
+  onUpload,
+  onConnect,
+  onRetry,
+}: {
+  site: keyof typeof SITE_LABEL | null;
+  fixing: "retry" | number | null;
+  onUpload?: () => void;
+  onConnect?: () => void;
+  onRetry?: () => void;
+}) {
+  if (typeof fixing === "number") {
+    return (
+      <div className="vsc-fix" role="status">
+        <span className="vsc-fix__bar" aria-hidden="true">
+          <i style={{ width: `${Math.round(Math.max(0.04, fixing) * 100)}%` }} />
+        </span>
+        <span className="vsc-fix__status">Uploading… {Math.round(fixing * 100)}%</span>
+      </div>
+    );
+  }
+  if (fixing === "retry") {
+    return (
+      <div className="vsc-fix" role="status">
+        <span className="vsc-fix__status is-busy">Getting the video…</span>
+      </div>
+    );
+  }
+  return (
+    <div className="vsc-fix">
+      {onUpload ? (
+        <button type="button" className="vsc-fix__btn is-main" onClick={onUpload}>
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M8 11V3.5M4.8 6.5 8 3.3l3.2 3.2M3 12.5h10" />
+          </svg>
+          Upload the video
+        </button>
+      ) : null}
+      {onConnect && site ? (
+        <button type="button" className="vsc-fix__btn" onClick={onConnect}>
+          Connect {SITE_LABEL[site]}
+        </button>
+      ) : null}
+      {onRetry ? (
+        <button type="button" className="vsc-fix__btn is-quiet" onClick={onRetry} aria-label="Try getting the video again">
+          Try again
+        </button>
+      ) : null}
+    </div>
   );
 }
 

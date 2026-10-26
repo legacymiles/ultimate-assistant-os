@@ -6,6 +6,7 @@ import type { Skill } from "@/lib/skills/types";
 import { skillMeta } from "@/lib/skills/categories";
 import { addedLabel } from "@/lib/skills/sort";
 import { callsLabel, lastUsedLabel, sourcesLabel, type SkillUse } from "@/lib/skills/usage";
+import { dollars, routedLabel, tokensLabel, type CapState, type SkillSpend } from "@/lib/skills/spend";
 
 interface Props {
   skill: Skill;
@@ -21,9 +22,13 @@ interface Props {
   use?: SkillUse | null;
   /** 1-based place among the most-called skills, for the top three. */
   rank?: number;
+  /** What it has cost. undefined = spend isn't available here; null = nothing metered yet. */
+  spend?: SkillSpend | null;
+  /** Its weekly cap, when one is set. */
+  cap?: CapState;
 }
 
-export function SkillRow({ skill, onOpen, onEdit, onDelete, favorite = false, onToggleFavorite, use, rank }: Props) {
+export function SkillRow({ skill, onOpen, onEdit, onDelete, favorite = false, onToggleFavorite, use, rank, spend, cap }: Props) {
   const meta = skillMeta(skill);
   return (
     <div
@@ -70,6 +75,7 @@ export function SkillRow({ skill, onOpen, onEdit, onDelete, favorite = false, on
             </time>
           )}
           {use !== undefined && <UsageBadge use={use} rank={rank} pushRight={!addedLabel(skill.createdAt)} />}
+          {spend && <SpendBadge spend={spend} cap={cap} />}
         </div>
       </div>
 
@@ -202,6 +208,28 @@ export function UsageBadge({ use, rank, pushRight = false }: { use: SkillUse | n
       {top && <span aria-hidden>#{rank}</span>}
       <span className="font-mono">{callsLabel(use.count)}</span>
       <span className="opacity-70">· {lastUsedLabel(use.last)}</span>
+    </span>
+  );
+}
+
+/** "$0.42 · 1.2M tok", amber near the cap, red over it. Hover: where Jev sent its runs. */
+export function SpendBadge({ spend, cap }: { spend: SkillSpend; cap?: CapState }) {
+  const capped = cap?.cap != null;
+  const tone = cap?.over ? "bg-red-500/15 text-red-300" : capped && cap.share >= 0.8 ? "bg-amber-400/15 text-amber-300" : "bg-panel-2 text-ink-muted";
+  const routed = routedLabel(spend);
+  const title = [
+    `${dollars(spend.cost)}${spend.estimated ? " (estimated)" : ""} lifetime over ${spend.runs} metered run${spend.runs === 1 ? "" : "s"}; ${dollars(spend.weekCost)} this week.`,
+    capped ? `Weekly cap ${dollars(cap!.cap!)}${cap!.over ? " — over it, so it runs on the free model until Monday." : "."}` : "",
+    routed ? `Models used: ${routed}.` : "",
+    spend.savedRuns ? `${spend.savedRuns} run${spend.savedRuns === 1 ? "" : "s"} sent to a cheaper model by Jev.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <span title={title} className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium tabular-nums ${tone}`}>
+      <span className="font-mono">{dollars(spend.weekCost)}</span>
+      <span className="opacity-70">/wk · {tokensLabel(spend.weekTokens)} tok</span>
+      {capped && <span className="opacity-70">· cap {dollars(cap!.cap!)}</span>}
     </span>
   );
 }

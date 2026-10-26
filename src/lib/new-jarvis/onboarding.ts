@@ -121,7 +121,7 @@ export function useOnboarding(): [OnboardingData, boolean] {
 }
 
 export interface SetupItem {
-  id: "about" | "brain" | "keys" | "accounts" | "iphone" | "habits" | "favorites" | "sync";
+  id: "about" | "birthdays" | "brain" | "keys" | "accounts" | "iphone" | "habits" | "favorites" | "sync";
   label: string;
   detail: string;
   done: boolean;
@@ -134,6 +134,8 @@ export function setupChecklist(input: {
   iphoneLinked: boolean;
   rules: number;
   favorites: number;
+  /** Family & friends' birthdays saved. Undefined = don't list the item (older callers). */
+  birthdays?: number;
   /** An AI key is set (OpenRouter or the gateway). Unknown counts as not yet. */
   thinkingReady?: boolean;
   /** Jarvis thinks with the person's own Claude subscription (through their PC). */
@@ -149,6 +151,16 @@ export function setupChecklist(input: {
       detail: "Your name, what you do and your businesses",
       done: Boolean(a.name.trim() && a.role.trim()),
     },
+    ...(input.birthdays === undefined
+      ? []
+      : [
+          {
+            id: "birthdays" as const,
+            label: "Add family & friends' birthdays",
+            detail: "On your Calendar every year, reminders 2 days before",
+            done: input.birthdays > 0,
+          },
+        ]),
     {
       id: "brain",
       label: "Choose Jarvis's brain",

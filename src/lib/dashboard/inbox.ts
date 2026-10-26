@@ -98,7 +98,7 @@ interface InboxDoc {
   /** uid -> hashes of that user's replaced tokens, so an old link can be named as theirs. */
   retired?: Record<string, string[]>;
   /** Sends with a key nobody has — newest last. `uid` when it was someone's old key. */
-  refused?: { at: string; uid?: string; where?: string; h6?: string }[];
+  refused?: { at: string; uid?: string; where?: string; h6?: string; h?: string }[];
 }
 
 const EMPTY: InboxDoc = { tokens: {}, entries: [], seen: {}, cursor: {}, lastPush: {}, checkIn: {}, problem: {}, retired: {}, refused: [] };
@@ -237,9 +237,33 @@ export async function noteRefused(token: string, where?: string): Promise<void> 
   const uid = h ? Object.entries(doc.retired!).find(([, hs]) => hs.includes(h))?.[0] : undefined;
   doc.refused = [
     ...list,
-    { at: new Date().toISOString(), ...(uid ? { uid } : {}), ...(where ? { where } : {}), h6: h ? h.slice(0, 6) : "empty" },
+    { at: new Date().toISOString(), ...(uid ? { uid } : {}), ...(where ? { where } : {}), h6: h ? h.slice(0, 6) : "empty", ...(h ? { h } : {}) },
   ].slice(-REFUSED_LIMIT);
   await save(doc);
+}
+
+/** How long after a refused send the owner can still say "that's my iPhone". */
+const ADOPT_WINDOW_MS = 60 * 60_000;
+
+/**
+ * "That's my iPhone": make the key a refused send used one of this user's
+ * keys. For a Shortcut whose send step holds on to an old link however many
+ * new ones are pasted — the owner taps once instead of rebuilding it. Only
+ * the owner, only a send from the last hour, picked by its time.
+ */
+export async function adoptRefused(uid: string, at: string): Promise<boolean> {
+  const doc = await load();
+  const r = (doc.refused ?? []).find((x) => x.at === at);
+  if (!r?.h || Date.now() - Date.parse(r.at) > ADOPT_WINDOW_MS) return false;
+  if (r.uid && r.uid !== uid) return false;
+  const kd = await loadKeys();
+  for (const [other, list] of Object.entries(kd.keys)) if (other !== uid && list.some((k) => k.h === r.h)) return false;
+  const now = new Date().toISOString();
+  kd.keys[uid] = [...(kd.keys[uid] ?? []).filter((k) => k.h !== r.h), { h: r.h, at: now }].slice(-KEYS_PER_USER);
+  kd.mints = [...kd.mints, { at: now, uid, h6: r.h.slice(0, 6) }].slice(-20);
+  if (!(await writeDoc(KEYS_DOC, dataDir(), kd))) return false;
+  const check = await loadKeys().catch(() => null);
+  return Boolean(check?.keys[uid]?.some((k) => k.h === r.h));
 }
 
 export interface PhoneStatus {
@@ -260,17 +284,33 @@ export interface PhoneStatus {
    */
   keys: { at: string; h6: string }[];
   refusals: { at: string; where?: string; h6?: string }[];
+  /**
+   * The newest refused send, when the owner can take that key as theirs with
+   * one tap ("Yes, that's my iPhone") — its time is the handle; the key's hash
+   * itself never leaves the server.
+   */
+  adoptable: string | null;
 }
 
 export async function phoneStatus(uid: string, opts: { owner?: boolean } = {}): Promise<PhoneStatus> {
   const doc = await load();
   const kd = await loadKeys();
   const mine = (r: { uid?: string }) => r.uid === uid || (!r.uid && opts.owner);
-  const refused = [...(doc.refused ?? [])].reverse().find(mine);
+  const known = new Set((kd.keys[uid] ?? []).map((k) => k.h));
+  const refused = [...(doc.refused ?? [])].reverse().find((r) => mine(r) && !(r.h && known.has(r.h)));
   return {
     linked: Boolean(kd.keys[uid]?.length || doc.tokens[uid]),
     keys: kd.mints.filter((m) => m.uid === uid).map(({ at, h6 }) => ({ at, h6 })),
     refusals: (doc.refused ?? []).filter(mine).map(({ at, where, h6 }) => ({ at, where, h6 })),
+    adoptable:
+      opts.owner &&
+      refused?.h &&
+      Date.now() - Date.parse(refused.at) < ADOPT_WINDOW_MS &&
+      !(doc.lastPush[uid] && doc.lastPush[uid] > refused.at) &&
+      // Already let in: nothing left to tap.
+      !kd.keys[uid]?.some((k) => k.h === refused.h)
+        ? refused.at
+        : null,
     lastPush: doc.lastPush[uid] ?? null,
     lastCheckIn: doc.checkIn?.[uid] ?? null,
     problem: doc.problem?.[uid] ?? null,

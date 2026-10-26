@@ -38,6 +38,8 @@ export interface AutopilotPhotoBrief {
   where: string;
   tags: string[];
   flagged?: string;
+  /** How sure Jarvis is about the proposed place, 0-100 (self-calibrated). */
+  sure?: number;
   /**
    * Set when the photo is NOT in the queue but already filed (the owner tapped
    * a "recently filed" picture — on a phone that is often all there is, since
@@ -113,7 +115,8 @@ export function systemPrompt(req: AutopilotRequest): string {
       (p) =>
         `- id=${p.id} | "${p.title}" | ${p.caption.slice(0, 140)} | proposed: ${p.where}` +
         (p.tags.length ? ` | tags: ${p.tags.slice(0, 5).join(", ")}` : "") +
-        (p.flagged ? ` | flag: ${p.flagged}` : ""),
+        (p.flagged ? ` | flag: ${p.flagged}` : "") +
+        (typeof p.sure === "number" ? ` | sure: ${Math.round(p.sure)}%` : ""),
     )
     .join("\n");
   return (
@@ -131,6 +134,7 @@ export function systemPrompt(req: AutopilotRequest): string {
     '- When the user says a specific photo goes somewhere else, propose "reroute" with their instruction in their words.\n' +
     '- "file" files photos to their proposed destination; "reject" removes them from the queue (the picture is deleted from the queue, not from the phone).\n' +
     "- Only use photo ids from the list. If unsure which photo they mean, ask.\n" +
+    '- "sure" is how confident you are in each proposed place, learned from what the user filed and moved before. "File the sure ones" means the photos at 80% or more — still propose them as a "file" action for the user\'s yes; never treat a score as permission.\n' +
     "- Destinations that exist: Folders (any folder path), Photos albums for people, Calendar, Audio Studio › Classifier (songs), Folders › Repos (code repositories, looked up on GitHub), Skills Library (prompts), Cookbook (recipes), AI Rankings.\n\n" +
     `RULES ${owner.toUpperCase()} HAS ALREADY SET:\n${req.rules.length ? req.rules.map((r) => `- ${r}`).join("\n") : "- (none yet)"}\n\n` +
     `QUEUE (${req.photos.length} ready):\n${list || "- (empty)"}\n\n` +

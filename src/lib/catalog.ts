@@ -530,6 +530,23 @@ export const PROJECTS: CatalogProject[] = [
     hue: [4, 195],
   },
   {
+    slug: "iphone-notes",
+    title: "iPhone Notes",
+    tag: "Your notes, read by Jarvis — you approve every one",
+    category: "AI",
+    overview:
+      "An iPhone Shortcut sends the notes you wrote or changed lately, and Jarvis reads each one into what it would do: a to-do, a " +
+      "calendar event, a birthday, something to remember, an app idea for In Queue, a job for the chat agent, or just keep it in " +
+      "Folders. Every proposal shows a confidence score that teaches itself — it follows what you actually approve, so a kind of " +
+      "guess you keep declining drops even when the AI is sure. Nothing runs until you tap Approve; edit it first, decline it, or " +
+      "tell Jarvis what the note really is. Sort by most or least sure, drag the Confidence Rail to filter, search everything. " +
+      "Re-sending a note never makes a duplicate. Also a widget on the Jarvis Dashboard.",
+    status: "live",
+    appUrl: "/apps/iphone-notes",
+    iconStyle: "pulse",
+    hue: [190, 140],
+  },
+  {
     slug: "find-my-life",
     title: "Find My Life",
     tag: "Every device and thing you own, on one radar",
@@ -897,6 +914,7 @@ const UNPREVIEWABLE = new Set([
   "money-agent-studio",
   "dashboard",
   "find-my-life",
+  "iphone-notes",
   "contradicting",
   "youtube-videos",
   "app-builder",

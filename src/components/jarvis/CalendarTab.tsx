@@ -35,6 +35,8 @@ import { toCalEvent } from "@/lib/jarvis/useDashboardCalendar";
 import { localDate, overlaps } from "@/lib/jarvis/brief";
 import { uid } from "@/lib/jarvis/store";
 import type { CalEvent, JarvisStore, PendingAction } from "@/lib/jarvis/types";
+import { useBirthdays } from "@/lib/birthdays/store";
+import { birthdayEvents } from "@/lib/birthdays/engine";
 
 const btn =
   "inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink disabled:opacity-50";
@@ -64,12 +66,15 @@ export function CalendarTab({
   commit,
   dashboard,
   onDashboard,
+  onBirthdays,
 }: {
   store: JarvisStore;
   commit: (s: JarvisStore) => void;
   /** The Dashboard calendar, the one with reminders. Owned by the shell. */
   dashboard: CalendarEvent[];
   onDashboard: (events: CalendarEvent[]) => void;
+  /** Open the Birthdays sheet (family & friends). */
+  onBirthdays?: () => void;
 }) {
   const today = new Date();
   const [cursor, setCursor] = useState({ y: today.getFullYear(), m: today.getMonth() });
@@ -136,9 +141,27 @@ export function CalendarTab({
     void load();
   }, [load]);
 
+  // Family & friends' birthdays, every year, derived from the one list — never
+  // copied into a calendar store, so editing a birthday moves every year of it.
+  const birthdays = useBirthdays().list;
+  const bdayEvents = useMemo<CalEvent[]>(
+    () =>
+      birthdayEvents(birthdays, grid[0], grid[41]).map((b) => ({
+        id: b.id,
+        title: b.title,
+        date: b.date,
+        start: "",
+        end: "",
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        notes: b.notes,
+        app: "birthday",
+      })),
+    [birthdays, grid],
+  );
+
   const events = useMemo<CalEvent[]>(
-    () => [...(remote ?? []), ...store.events, ...dashboard.map(toCalEvent)],
-    [remote, store.events, dashboard],
+    () => [...bdayEvents, ...(remote ?? []), ...store.events, ...dashboard.map(toCalEvent)],
+    [bdayEvents, remote, store.events, dashboard],
   );
   const clashes = useMemo(() => new Set(overlaps(events).flat()), [events]);
   const byDay = useMemo(() => {
@@ -266,6 +289,11 @@ export function CalendarTab({
           >
             <Icon.Download width={13} height={13} /> Export .ics
           </button>
+          {onBirthdays && (
+            <button className={btn} onClick={onBirthdays} title="Family & friends' birthdays — they show here every year and notify 2 days before">
+              <Icon.Users width={13} height={13} /> Birthdays{birthdays.length ? ` (${birthdays.length})` : ""}
+            </button>
+          )}
           <button className={btn} onClick={() => void load()} disabled={loading}>
             <Icon.Refresh width={13} height={13} /> Refresh
           </button>
@@ -349,7 +377,9 @@ export function CalendarTab({
                           ? ORIGIN[dashById.get(e.id)?.source ?? "manual"]
                           : e.app === "manual"
                             ? "entered by you"
-                            : e.app}
+                            : e.app === "birthday"
+                              ? "birthday · notifies 2 days before"
+                              : e.app}
                         {e.app === "dashboard" && (dashById.get(e.id)?.reminders.length ?? 0) > 0
                           ? " · reminder on"
                           : ""}
@@ -360,6 +390,15 @@ export function CalendarTab({
                       <button
                         onClick={() => setEditing(dashById.get(e.id) ?? null)}
                         aria-label={`Edit ${e.title}`}
+                        className="shrink-0 text-ink-faint hover:text-ink"
+                      >
+                        <Icon.Edit width={12} height={12} />
+                      </button>
+                    )}
+                    {e.app === "birthday" && onBirthdays && (
+                      <button
+                        onClick={onBirthdays}
+                        aria-label={`Edit birthdays`}
                         className="shrink-0 text-ink-faint hover:text-ink"
                       >
                         <Icon.Edit width={12} height={12} />

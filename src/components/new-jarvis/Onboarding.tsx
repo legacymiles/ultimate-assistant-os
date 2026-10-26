@@ -13,6 +13,8 @@
 //
 // Each step writes where that fact already lives:
 //   about    → the Profile's name, and Jarvis memory (source "profile")
+//   birthdays→ family & friends' birthdays (src/lib/birthdays), which the
+//              Calendar and Notifications (2 days before) read from
 //   keys     → .env.local on the PC via the local agent, or the chat agent
 //              goes and gets the key in the browser
 //   accounts → real connections through the existing Composio connectors
@@ -36,11 +38,13 @@ import type { SetupItem } from "@/lib/new-jarvis/onboarding";
 import type { SetupStatus } from "@/lib/new-jarvis/useSetup";
 import { SyncStatusPanel } from "../jarvis/SyncStatusPanel";
 import { FindMyLifeOnboard } from "../find-my-life/FindMyLifeOnboard";
+import { BirthdaysEditor } from "../birthdays/BirthdaysEditor";
 
-export type OnboardingStep = "welcome" | "about" | "brain" | "keys" | "accounts" | "habits" | "devices" | "find" | "ready";
+export type OnboardingStep = "welcome" | "about" | "birthdays" | "brain" | "keys" | "accounts" | "habits" | "devices" | "find" | "ready";
 const STEPS: { id: OnboardingStep; label: string }[] = [
   { id: "welcome", label: "Welcome" },
   { id: "about", label: "You" },
+  { id: "birthdays", label: "Birthdays" },
   { id: "brain", label: "Brain" },
   { id: "keys", label: "Keys" },
   { id: "accounts", label: "Connect" },
@@ -53,6 +57,7 @@ const STEPS: { id: OnboardingStep; label: string }[] = [
 /** Which step a checklist item is finished on. */
 const STEP_FOR: Partial<Record<SetupItem["id"], OnboardingStep>> = {
   about: "about",
+  birthdays: "birthdays",
   brain: "brain",
   keys: "keys",
   accounts: "accounts",
@@ -367,6 +372,17 @@ export function Onboarding({ start = "welcome", onClose, go, store, commit, onPr
             </div>
           )}
 
+          {step === "birthdays" && (
+            <div className="space-y-4">
+              <h2 className="text-[20px] font-semibold text-ink">Family &amp; friends&apos; birthdays</h2>
+              <p className="-mt-2 text-[12px] text-ink-muted">
+                Add the people you never want to forget. Each birthday goes on your Calendar every year, and Jarvis reminds you on your
+                Dashboard 2 days before, the day before and on the day. Add as many as you like — or skip and tell the chat later.
+              </p>
+              <BirthdaysEditor compact />
+            </div>
+          )}
+
           {step === "brain" && (
             <BrainStep
               brain={brain}
@@ -571,7 +587,7 @@ export function Onboarding({ start = "welcome", onClose, go, store, commit, onPr
                 Save & continue
               </button>
             )}
-            {(step === "brain" || step === "keys" || step === "accounts") && (
+            {(step === "birthdays" || step === "brain" || step === "keys" || step === "accounts") && (
               <button type="button" className="deck-btn deck-btn--go" onClick={next}>
                 Continue
               </button>

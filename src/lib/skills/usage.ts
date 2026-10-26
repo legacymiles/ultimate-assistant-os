@@ -183,13 +183,14 @@ export function usageFor(s: Pick<Skill, "slug" | "title">, data: UsageData | nul
   return null;
 }
 
-export type UsageFilter = "any" | "top" | "used" | "unused";
+export type UsageFilter = "any" | "top" | "used" | "unused" | "retire";
 
 export const USAGE_FILTERS: { id: UsageFilter; label: string }[] = [
   { id: "any", label: "Any" },
   { id: "top", label: "Top 10" },
   { id: "used", label: "Used" },
   { id: "unused", label: "Never used" },
+  { id: "retire", label: "Retire?" },
 ];
 
 export function isUsageFilter(v: unknown): v is UsageFilter {
@@ -215,9 +216,20 @@ export function byMostUsed(list: Skill[], data: UsageData | null): Skill[] {
  * Narrow an already-filtered list by usage. "top" keeps the 10 most-called
  * skills (only ones actually called) and returns them most-used first.
  */
-export function filterByUsage(list: Skill[], filter: UsageFilter, data: UsageData | null): Skill[] {
+/** A skill idle this many days (or never called) is suggested for retiring. */
+export const RETIRE_DAYS = 45;
+
+export function filterByUsage(list: Skill[], filter: UsageFilter, data: UsageData | null, now = Date.now()): Skill[] {
   if (filter === "any") return list;
   if (filter === "unused") return list.filter((s) => callsOf(s, data) === 0);
+  // Worth retiring: never called, or idle for RETIRE_DAYS. Idle longest first.
+  if (filter === "retire") {
+    const idle = (s: Skill) => {
+      const u = usageFor(s, data);
+      return u ? Math.floor((now - Date.parse(u.last)) / 86_400_000) : Infinity;
+    };
+    return list.filter((s) => idle(s) >= RETIRE_DAYS).sort((a, b) => idle(b) - idle(a) || a.title.localeCompare(b.title));
+  }
   const used = list.filter((s) => callsOf(s, data) > 0);
   return filter === "top" ? byMostUsed(used, data).slice(0, 10) : used;
 }

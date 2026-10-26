@@ -137,6 +137,7 @@ export function ChatTab({
   draft,
   embedded,
   onKidsFlow,
+  onFilm3D,
 }: {
   store: JarvisStore;
   commit: (s: JarvisStore) => void;
@@ -163,6 +164,8 @@ export function ChatTab({
    * answered here — the screen writes the storyboard from them.
    */
   onKidsFlow?: (seed: { text: string; images: string[] }) => void;
+  /** Studio only: a message naming @film-3d opens the 3D Animation Flow screen with it. */
+  onFilm3D?: (seed: { text: string; images: string[] }) => void;
 }) {
   const memory = useMemory(store, commit);
   const [input, setInput] = useState("");
@@ -419,6 +422,13 @@ export function ChatTab({
     const pictures = attached.filter((a) => !isDescribed(a));
     const heard = attached.filter(isDescribed);
     if ((!question && !attached.length) || busy) return;
+    if (onFilm3D && /@film-3d\b/i.test(question)) {
+      const now = pictures.filter((a) => a.kind === "image").map((a) => a.full);
+      onFilm3D({ text: question, images: now.length ? now : referenceImages().slice(0, 1) });
+      setInput("");
+      setAttachments([]);
+      return;
+    }
     if (onKidsFlow && /@animate-my-character\b/i.test(question)) {
       const now = pictures.filter((a) => a.kind === "image").map((a) => a.full);
       // No picture on this message: the character is the one already in the conversation.

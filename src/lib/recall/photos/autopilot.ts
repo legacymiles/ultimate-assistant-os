@@ -23,6 +23,8 @@
 
 import { loadLocal, saveSynced } from "@/lib/sync/appState";
 import { destinationById } from "@/lib/dashboard/destinations/registry";
+import { normalizeOutcomes, recordOutcome, type Outcome } from "@/lib/confidence/calibrate";
+import { photoKind, rawConfidence } from "./confidence";
 import type { PendingPhoto } from "./types";
 
 export const AUTOPILOT_KEY = "photo-autopilot:v1";
@@ -52,6 +54,11 @@ export interface AutopilotExample {
 export interface AutopilotData {
   rules: AutopilotRule[];
   examples: AutopilotExample[];
+  /**
+   * Every yes and no on a guess, for the self-improving confidence score
+   * (photos/confidence.ts). Optional so docs written before it still load.
+   */
+  outcomes?: Outcome[];
 }
 
 const MAX_RULES = 40;
@@ -74,11 +81,12 @@ export function getAutopilot(): AutopilotData {
   return {
     rules: Array.isArray(d?.rules) ? d.rules.map((r) => ({ ...r })) : [],
     examples: Array.isArray(d?.examples) ? [...d.examples] : [],
+    outcomes: normalizeOutcomes(d?.outcomes),
   };
 }
 
 function save(d: AutopilotData): AutopilotData {
-  const next = { rules: d.rules.slice(-MAX_RULES), examples: d.examples.slice(-MAX_EXAMPLES) };
+  const next = { rules: d.rules.slice(-MAX_RULES), examples: d.examples.slice(-MAX_EXAMPLES), outcomes: d.outcomes ?? [] };
   saveSynced(AUTOPILOT_KEY, next);
   if (typeof window !== "undefined") window.dispatchEvent(new Event(AUTOPILOT_CHANGED));
   return next;
@@ -145,6 +153,12 @@ export function learnFromApprovals(photos: PendingPhoto[]): void {
   const at = new Date().toISOString();
 
   for (const p of photos) {
+    // Filed as guessed = a right guess; moved by hand first = a miss. Photos
+    // filed on the owner's own words were scored on those words, so they teach
+    // the confidence nothing either way.
+    if (p.analysis?.engine === "ai" && !p.userPrompt) {
+      d.outcomes = recordOutcome(d.outcomes ?? [], { kind: photoKind(p, destinationLabel(p)), raw: rawConfidence(p), ok: !p.overridden, at });
+    }
     const tags = (p.analysis?.tags ?? []).slice(0, 4);
     const title = p.analysis?.title || p.name;
     d.examples.push({
@@ -176,6 +190,19 @@ export function learnFromApprovals(photos: PendingPhoto[]): void {
     }
   }
 
+  save(d);
+}
+
+/**
+ * The owner said no to a guess — removed the photo, or told Jarvis it goes
+ * somewhere else. Lowers the score for guesses like it. Never called for
+ * photos that left for other reasons (duplicates, deleted on the phone).
+ */
+export function learnFromMisses(photos: PendingPhoto[]): void {
+  const misses = photos.filter((p) => p.status === "ready" && p.analysis?.engine === "ai" && !p.overridden);
+  if (!misses.length) return;
+  const d = getAutopilot();
+  for (const p of misses) d.outcomes = recordOutcome(d.outcomes ?? [], { kind: photoKind(p, destinationLabel(p)), raw: rawConfidence(p), ok: false });
   save(d);
 }
 

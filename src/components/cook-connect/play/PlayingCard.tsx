@@ -3,16 +3,17 @@
 // A card. Face up: a cool-white face with a thin inner frame, a bold corner
 // index (readable from the left edge alone, which is all a fanned hand shows),
 // monogram court cards, and a foil sheen that follows the hand's tilt. Face
-// down: a graphite back etched in the table's accent.
+// down: a graphite back etched in the table's accent. Each suit is printed in
+// its own colour (the theme's four-colour deck), not just red and black.
 //
 // Every colour that belongs to the table comes from CSS variables set on the
 // table (--hx-accent), so a theme swap restyles the backs too.
 
 import "./holo-table.css";
-import { getRank, getSuit, isRedSuit, RANK_DISPLAY, SUIT_SYMBOLS } from "@/lib/cook-connect/spades";
+import { getRank, getSuit, RANK_DISPLAY, SUIT_SYMBOLS } from "@/lib/cook-connect/spades";
 import { cx } from "../ui";
 
-export type CardSize = "sm" | "md" | "lg" | "xl";
+export type CardSize = "sm" | "md" | "lg" | "xl" | "hand";
 
 interface Props {
   card?: string;
@@ -47,7 +48,6 @@ export function PlayingCard({
 
   const suit = getSuit(card);
   const rank = getRank(card);
-  const red = isRedSuit(suit);
   const label = `${RANK_DISPLAY[rank]} of ${SUIT_NAMES[suit]}`;
   const court = rank === "J" || rank === "Q" || rank === "K";
   const ace = rank === "A";
@@ -80,7 +80,8 @@ export function PlayingCard({
   const shell = cx(
     "hx-card hx-card--face",
     `hx-card--${size}`,
-    red ? "hx-red" : "hx-black",
+    // Four-colour deck: each suit has its own ink (--hx-suit-S/H/D/C from the theme).
+    `hx-suit-${suit}`,
     dimmed && "hx-dimmed",
     className,
   );

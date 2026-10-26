@@ -100,3 +100,49 @@ describe("search and neighbourhood", () => {
     expect(n.has("memory:m1")).toBe(true);
   });
 });
+
+describe("four layers, the daily log, findings and the timeline", () => {
+  const g = buildMap({
+    ...input,
+    logs: [{ day: "2026-10-25", entries: [{ at: "2026-10-25T22:00:00Z", by: "claude-code", text: "Rebuilt the replay", about: "ea-world" }, { at: "2026-10-25T23:00:00Z", by: "jarvis", text: "Planned a film", about: "studio:felix" }] }],
+    findings: { felix: [{ at: "2026-10-24T10:00:00Z", by: "jarvis", text: "Ask the end goal first", kind: "win" }] },
+    appEdits: [
+      { slug: "ea-world", date: "2026-10-20", title: "EA World: faster replay" },
+      { slug: "ea-world", date: "2026-10-25", title: "EA World: v2 strategy" },
+    ],
+  });
+  const node = (k: string) => g.nodes.find((n) => n.key === k)!;
+
+  it("puts every node on its layer", () => {
+    expect(node("you").layer).toBe(0);
+    expect(node("hub:app").layer).toBe(1);
+    expect(node("group:app:trading").layer).toBe(1);
+    expect(node("app:ea-world").layer).toBe(2);
+    expect(node("skill:felix").layer).toBe(2);
+    expect(node("memory:m1").layer).toBe(3);
+    expect(node("log:2026-10-25").layer).toBe(3);
+    expect(g.nodes.every((n) => n.layer !== undefined)).toBe(true);
+  });
+
+  it("wires the day's log to what it touched, and findings to their skill", () => {
+    expect(has(g, "log:2026-10-25", "app:ea-world")).toBe(true);
+    expect(has(g, "log:2026-10-25", "skill:felix")).toBe(true);
+    expect(has(g, "finding:felix", "skill:felix")).toBe(true);
+    expect(has(g, "finding:felix", "hub:finding")).toBe(true);
+  });
+
+  it("stamps an app with its latest edit", () => {
+    expect(node("app:ea-world").at?.startsWith("2026-10-25")).toBe(true);
+  });
+
+  it("builds a newest-first timeline that only points at nodes on the map", async () => {
+    const { timelineOf, changedSince } = await import("./build");
+    const t = timelineOf(g, { ...input, logs: [{ day: "2026-10-25", entries: [{ at: "2026-10-25T23:00:00Z", by: "jarvis", text: "Planned a film", about: "studio:felix" }] }], appEdits: [{ slug: "ea-world", date: "2026-10-25", title: "EA World: v2 strategy" }, { slug: "gone", date: "2026-10-25", title: "x" }] });
+    expect(t[0]).toMatchObject({ key: "skill:felix", by: "jarvis", what: "Planned a film" });
+    expect(t.every((e) => g.nodes.some((n) => n.key === e.key))).toBe(true);
+    expect(t.map((e) => e.at)).toEqual([...t.map((e) => e.at)].sort().reverse());
+    const recent = changedSince(g, t, 1, Date.parse("2026-10-26T00:00:00Z"));
+    expect(recent.has("skill:felix")).toBe(true);
+    expect(recent.has("memory:m2")).toBe(false);
+  });
+});

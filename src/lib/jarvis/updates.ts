@@ -31,6 +31,7 @@ import type { BoardPayload } from "@/lib/recall/lists/types";
 import type { Item } from "@/lib/recall/types";
 import type { MemoryProposal, PendingAction } from "./types";
 import { customUpdates, type Watch } from "@/lib/new-jarvis/watchRules";
+import { birthdayNotices, type Birthday } from "@/lib/birthdays/engine";
 
 /**
  * The shape /api/ai/spend answers with, named here rather than imported so this
@@ -56,13 +57,14 @@ export interface SpendFeed {
   account: { credits: number; used: number; remaining: number } | null;
 }
 
-export type UpdateSource = "lists" | "calendar" | "photos" | "camera" | "memory" | "actions" | "spend" | "clients" | "custom";
+export type UpdateSource = "lists" | "calendar" | "birthdays" | "photos" | "camera" | "memory" | "actions" | "spend" | "clients" | "custom";
 
-export const UPDATE_SOURCES: UpdateSource[] = ["clients", "camera", "custom", "lists", "calendar", "photos", "memory", "actions", "spend"];
+export const UPDATE_SOURCES: UpdateSource[] = ["clients", "camera", "custom", "birthdays", "lists", "calendar", "photos", "memory", "actions", "spend"];
 
 export const UPDATE_LABEL: Record<UpdateSource, string> = {
   lists: "Lists",
   calendar: "Calendar",
+  birthdays: "Birthdays",
   photos: "Photos",
   camera: "Camera Autopilot",
   memory: "Memory",
@@ -76,6 +78,7 @@ export const UPDATE_LABEL: Record<UpdateSource, string> = {
 export const UPDATE_ABOUT: Record<UpdateSource, string> = {
   lists: "Someone adds or ticks off an item on the family board.",
   calendar: "An event on your calendar is about to start.",
+  birthdays: "A family member or friend has a birthday — starting 2 days before, then tomorrow and the day itself.",
   photos: "Photos arrive from your phone.",
   camera: "You take a new photo — it lands in Camera Autopilot with Jarvis's guess. Checked every 10 minutes.",
   custom: "Notifications you asked for in your own words — \"every weekday at 9 remind me to call leads\".",
@@ -89,6 +92,7 @@ export const UPDATE_ABOUT: Record<UpdateSource, string> = {
 export const UPDATE_COLOR: Record<UpdateSource, string> = {
   lists: "#5ee0c0", // mint
   calendar: "#ff5fa2", // pink
+  birthdays: "#ffd36b", // gold
   photos: "#ff9f7f", // coral
   camera: "#ffb86b", // tangerine
   custom: "#c3f584", // lime
@@ -102,6 +106,7 @@ export const UPDATE_COLOR: Record<UpdateSource, string> = {
 export const UPDATE_TAB: Record<UpdateSource, string> = {
   lists: "lists",
   calendar: "calendar",
+  birthdays: "calendar",
   photos: "photos",
   camera: "dashboard",
   custom: "settings",
@@ -191,6 +196,8 @@ export interface UpdateInputs {
   watches?: Watch[];
   /** Client Review: what website clients sent, from the server feed. */
   clients?: ClientReviewEvent[];
+  /** Family & friends' birthdays (src/lib/birthdays). */
+  birthdays?: Birthday[];
 }
 
 /** Ids kept per list before the oldest are forgotten. */
@@ -206,7 +213,7 @@ export function defaultUpdateSettings(): UpdateSettings {
     // choice; having one interrupt you unasked is not. The two exceptions are
     // the owner's own workflow rules (writing one IS the choice) and new
     // camera photos, which they asked to be told about by name.
-    sources[s] = { on: true, popup: s === "custom" || s === "camera" || s === "clients" };
+    sources[s] = { on: true, popup: s === "custom" || s === "camera" || s === "clients" || s === "birthdays" };
   }
   return { sources, includeMine: false, windowDays: 7, aheadHours: 3 };
 }
@@ -353,6 +360,23 @@ export function calendarUpdates(events: CalendarEvent[], aheadHours: number, now
     });
   }
   return out;
+}
+
+/**
+ * Family and friends' birthdays. Owner's rule: a birthday is news ONLY from
+ * 2 days before ("in 2 days", "tomorrow", "today") — never earlier. Each day
+ * of that countdown is its own row, so each one pops up once.
+ */
+export function birthdayUpdates(list: Birthday[], now: number): JarvisUpdate[] {
+  return birthdayNotices(list, new Date(now)).map((n) => ({
+    id: n.id,
+    source: "birthdays" as const,
+    title: n.title,
+    detail: n.detail,
+    at: n.at,
+    startsAt: n.startsAt,
+    when: n.when,
+  }));
 }
 
 /**
@@ -629,6 +653,7 @@ export function collectUpdates(
   const raw: JarvisUpdate[] = [
     ...(on("lists") ? listUpdates(inputs.board, settings.includeMine, now) : []),
     ...(on("calendar") ? calendarUpdates(inputs.events, settings.aheadHours, now) : []),
+    ...(on("birthdays") ? birthdayUpdates(inputs.birthdays ?? [], now) : []),
     ...(on("photos") ? photoUpdates(inputs.items, inputs.photoFolderIds, now) : []),
     ...(on("memory") ? memoryUpdates(inputs.proposals, now) : []),
     ...(on("actions") ? actionUpdates(inputs.actions, now) : []),

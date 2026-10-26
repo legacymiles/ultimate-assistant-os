@@ -14,11 +14,12 @@ import { rooms } from "@/lib/cook-connect/types";
 import {
   Avatar, Button, EmptyState, Loading, Panel, SectionHead, Tag, cx,
 } from "../ui";
-import { BotIcon, CheckIcon, ClockIcon, FlagIcon, PlayIcon, TrophyIcon } from "../icons";
+import { BotIcon, CheckIcon, ClockIcon, FlagIcon, PlayIcon } from "../icons";
 import { SpadesTable } from "./SpadesTable";
 import { ChatPanel } from "./ChatPanel";
 import { VideoPanel } from "./VideoPanel";
 import { PlayingCard } from "./PlayingCard";
+import { GameOverPopup, HandOverPopup, PopBar, useRankShift } from "./SpadesPopups";
 
 const cardName = (card: string) => `${RANK_DISPLAY[getRank(card)]}${SUIT_SYMBOLS[getSuit(card)]}`;
 
@@ -29,6 +30,11 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
   const style = useGameStyle();
   const [fxLevel, setFxLevel] = useFxLevel();
   const [crumbleTeam, setCrumbleTeam] = useState<number | null>(null);
+  /** Which results screen was shrunk to a bar ("round:N" or "game:<round>"). */
+  const [minimized, setMinimized] = useState<string | null>(null);
+
+  const finished = game.state?.phase === "gameEnd" || game.match?.status === "done";
+  const rank = useRankShift(sb, matchId, userId, finished && game.mySeat >= 0);
 
   // Matchmaking found an older waiting table; follow it there.
   useEffect(() => {
@@ -67,6 +73,18 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
   const myTeam = game.mySeat >= 0 ? getTeam(game.mySeat) : null;
   const winningTeam = call?.winningTeam ?? match.winning_team
     ?? (game.game.team1_score > game.game.team2_score ? 1 : 2);
+  const handOver = !waiting && state?.phase === "roundEnd" && !!state.lastRound;
+  const handKey = `round:${game.game.current_round}`;
+  const gameKey = `game:${game.game.current_round}`;
+  const teamNames = {
+    1: game.table.filter((t) => t.team === 1).map((m) => (m.userId ? (m.seat === game.mySeat ? "You" : m.name.split(" ")[0]) : "open")).join(" & "),
+    2: game.table.filter((t) => t.team === 2).map((m) => (m.userId ? (m.seat === game.mySeat ? "You" : m.name.split(" ")[0]) : "open")).join(" & "),
+  };
+  const nextGameLabel = game.iVotedRematch ? `Waiting (${game.rematchVotes}/${game.votesNeeded})` : "Next game";
+  const seatFirst = (seat: number) => {
+    const s = game.table.find((t) => t.seat === seat);
+    return seat === game.mySeat ? "You" : s?.userId ? s.name.split(" ")[0] : "Open";
+  };
 
   return (
     <Columns
@@ -173,33 +191,6 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
             </Panel>
           )}
 
-          {over && (
-            <Panel className="mb-4 border-[var(--cc-gold)]">
-              <div className="flex flex-wrap items-center gap-3 p-3">
-                <span className="text-[var(--cc-gold)]"><TrophyIcon size={22} /></span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[14px] font-semibold">
-                    {myTeam === winningTeam ? "You won." : myTeam ? "Team " + winningTeam + " took it." : `Team ${winningTeam} won.`}
-                  </p>
-                  <p className="cc-num text-[12px] text-[var(--cc-ink-muted)]">
-                    {game.game.team1_score} – {game.game.team2_score}
-                  </p>
-                </div>
-                <Button
-                  variant="primary"
-                  disabled={game.iVotedRematch}
-                  onClick={() => void game.voteRematch()}
-                >
-                  <PlayIcon size={14} />
-                  {game.iVotedRematch
-                    ? `Waiting (${game.rematchVotes}/${game.votesNeeded})`
-                    : "Play again"}
-                </Button>
-                <Button onClick={() => navigate({ page: "play" })}>Lobby</Button>
-              </div>
-            </Panel>
-          )}
-
           <SpadesTable
             state={state!}
             table={game.table}
@@ -214,7 +205,61 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
             unlocked={game.unlocked}
             onToggleUnlock={canCall ? () => game.setUnlocked(!game.unlocked) : undefined}
             onCallRenig={canCall && !accusing ? () => setAccusing(true) : undefined}
+            scores={{ team1: game.game.team1_score, team2: game.game.team2_score }}
           />
+
+          {/* End of a hand: results, then Next. It never deals by itself. */}
+          {handOver && game.isSeated && (minimized === handKey ? (
+            <PopBar
+              text={game.iAmReady ? "Waiting for the others…" : `Hand ${state!.lastRound!.round} is over.`}
+              action={game.iAmReady ? "Waiting…" : "Next hand"}
+              onAction={() => void game.nextHand()}
+              onOpen={() => setMinimized(null)}
+            />
+          ) : (
+            <HandOverPopup
+              recap={state!.lastRound!}
+              totals={{
+                team1: game.game.team1_score, team2: game.game.team2_score,
+                bags1: game.game.team1_bags, bags2: game.game.team2_bags,
+              }}
+              myTeam={myTeam}
+              nameOf={seatFirst}
+              theme={style.theme}
+              onNext={() => void game.nextHand()}
+              iAmReady={game.iAmReady}
+              waitingOn={game.waitingOnNext.map(game.firstName)}
+              onMinimize={() => setMinimized(handKey)}
+            />
+          ))}
+
+          {/* End of the game: the result and the leaderboard move, then Next game. */}
+          {over && (minimized === gameKey || !game.isSeated ? (
+            <PopBar
+              text={myTeam === winningTeam ? "You won." : myTeam ? `Team ${winningTeam} took it.` : `Team ${winningTeam} won.`}
+              action={game.isSeated ? nextGameLabel : "Lobby"}
+              onAction={() => (game.isSeated ? void game.voteRematch() : navigate({ page: "play" }))}
+              onOpen={() => setMinimized(null)}
+            />
+          ) : (
+            <GameOverPopup
+              won={myTeam === winningTeam}
+              spectator={!myTeam}
+              finalScore={{ team1: game.game.team1_score, team2: game.game.team2_score }}
+              myTeam={myTeam}
+              teamNames={teamNames}
+              headline={call ? callHeadline(call, game.nameOfSeat) : null}
+              theme={style.theme}
+              rank={rank.shift}
+              rankState={rank.state}
+              onNext={() => void game.voteRematch()}
+              nextLabel={nextGameLabel}
+              nextDisabled={game.iVotedRematch}
+              onLeaderboard={() => navigate({ page: "leaderboards" })}
+              onLobby={() => navigate({ page: "play" })}
+              onMinimize={() => setMinimized(gameKey)}
+            />
+          ))}
 
           {canCall && accusing && (
             <Panel className="mt-3 border-[var(--cc-ember)]">

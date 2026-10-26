@@ -1,3 +1,4 @@
+import { clamp01 } from "@/lib/confidence/calibrate";
 import { NextResponse } from "next/server";
 import { DESTINATION_ROUTES, destinationPromptBlock } from "@/lib/dashboard/destinations/registry";
 import { aiEndpoint, aiFetch, DEFAULT_MODEL } from "@/lib/ai/provider";
@@ -181,7 +182,8 @@ function systemPrompt(
     `{"route":${['"people"','"info"','"event"',...DESTINATION_ROUTES.map((r) => `"${r}"`)].join("|")},"title":string,"caption":string,"text":string,` +
     '"people":[{"slot":number,"confidence":number}],"unknownPeople":number,' +
     '"folderPath":string[],"tags":string[],' +
-    '"event":{"title":string,"date":"YYYY-MM-DD"|null,"time":"HH:MM"|null,"location":string}|null}\n' +
+    '"event":{"title":string,"date":"YYYY-MM-DD"|null,"time":"HH:MM"|null,"location":string}|null,' +
+    '"confidence":number,"confidenceWhy":string}\n' +
     "  title      — a short human name for the photo.\n" +
     "  caption    — one or two factual sentences about what it shows.\n" +
     "  text       — every legible word in the image, verbatim. \"\" when there is none.\n" +
@@ -189,7 +191,12 @@ function systemPrompt(
     '  event      — only for route "event". Resolve relative dates ("this Friday") ' +
     `against ${today}. Use null for date or time when the image truly does not say; ` +
     "never invent one. 24-hour time.\n" +
-    "  tags       — short, lowercase, hyphenated." +
+    "  tags       — short, lowercase, hyphenated.\n" +
+    "  confidence — 0 to 1: how sure you are that the route and destination you chose are " +
+    "where the user wants THIS photo. Be honest — blurry or ambiguous shots, guessed people, " +
+    "a destination the rules and examples don't clearly back, or a photo that could go two " +
+    "places get low numbers; a photo that plainly matches a rule or a recent filing gets a high one.\n" +
+    "  confidenceWhy — one short line on what decided it." +
     // Generated from the destination registry, so a destination can never be
     // added without the model being told about it.
     destinationPromptBlock() +
@@ -329,6 +336,10 @@ function normalize(p: Record<string, unknown>, legend: LegendEntry[]) {
     photoAlbum: null as string | null,
     albumMatch: matchedAlbum(p, albumBySlot),
     agentNote: null as { followed: string[]; couldNot: string[] } | null,
+    // How sure the model is of the route + destination. Calibrated in the
+    // browser against what the owner actually did (recall/photos/confidence).
+    confidence: typeof p?.confidence === "number" || typeof p?.confidence === "string" ? clamp01(p.confidence) : undefined,
+    confidenceWhy: String(p?.confidenceWhy ?? "").trim().slice(0, 200) || undefined,
     engine: "ai" as const,
   };
 }

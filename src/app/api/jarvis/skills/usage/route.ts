@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { mcpContext } from "@/lib/jarvis/server/mcpAuth";
 import { recordBackfill, recordSkillUse } from "@/lib/skills/server/usageStore";
 import type { UsageEvent } from "@/lib/skills/usage";
+import type { SpendEvent } from "@/lib/skills/spend";
+import { recordSpendNow } from "@/lib/skills/server/spendStore";
+import { priceTurn } from "@/lib/skills/server/priceTokens";
 
 // ---------------------------------------------------------------------------
 // Skill calls from Claude Code on the PC and the VPS.
@@ -25,10 +28,22 @@ export async function POST(req: Request) {
     events?: unknown;
     backfill?: { host?: unknown; counts?: unknown };
     force?: unknown;
+    spend?: unknown;
   } | null;
   if (!body) return NextResponse.json({ error: "Body was not JSON." }, { status: 400 });
 
   try {
+    // Tokens each skill's turn used, from the Stop hook (`skill-sync.mjs usage-cost`).
+    if (Array.isArray(body.spend)) {
+      const events: SpendEvent[] = [];
+      for (const raw of body.spend.slice(0, 50)) {
+        const r = (raw ?? {}) as Record<string, unknown>;
+        const n = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+        const priced = await priceTurn({ model: String(r.model ?? ""), input: n(r.input), output: n(r.output), cacheRead: n(r.cacheRead), cacheWrite: n(r.cacheWrite) });
+        events.push({ skill: String(r.skill ?? ""), source: "claude-code", ...priced, at: typeof r.at === "string" ? r.at : undefined, id: typeof r.id === "string" ? r.id : undefined });
+      }
+      return NextResponse.json({ counted: await recordSpendNow(events) });
+    }
     if (body.backfill) {
       const host = String(body.backfill.host ?? "").trim();
       const counts = body.backfill.counts;

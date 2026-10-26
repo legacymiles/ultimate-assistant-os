@@ -41,6 +41,11 @@ export interface GameTheme {
   /** Extra particles thrown on big moments (emoji). Empty for none. */
   confetti: string[];
   suits: Record<SuitKey, SuitStyle>;
+  /**
+   * The ink each suit is printed in on a card face. Four colours, not just red
+   * and black (owner's rule, Oct 2026), so a fanned hand reads at a glance.
+   */
+  deck: Record<SuitKey, string>;
   /** Every trick is a fight: the winning card strikes, the rest are defeated. */
   clash: { on: boolean; intensity: 1 | 2 | 3 };
   spadesBroken: Moment & { thunder: boolean };
@@ -80,6 +85,14 @@ const CLASSIC_SUITS: Record<SuitKey, SuitStyle> = {
   C: { attack: "Ground Pound", kind: "quake", color: "#4ade80" },
 };
 
+/** The four-colour deck: spades black, hearts red, diamonds blue, clubs green. */
+export const FOUR_COLOR_DECK: Record<SuitKey, string> = {
+  S: "#14171d",
+  H: "#d42a43",
+  D: "#1d5fd6",
+  C: "#14894a",
+};
+
 const CLASSIC_MOMENTS = {
   clash: { on: true, intensity: 2 as const },
   spadesBroken: { on: true, text: "SPADES HAVE BEEN BROKEN", thunder: true },
@@ -98,6 +111,7 @@ export const CLASSIC: GameTheme = {
   accent: "#46d9b8",
   confetti: [],
   suits: CLASSIC_SUITS,
+  deck: { ...FOUR_COLOR_DECK },
   ...CLASSIC_MOMENTS,
 };
 
@@ -112,6 +126,7 @@ function themed(
   return {
     id, name, icon, felt, accent, confetti,
     suits: { S: s("S"), H: s("H"), D: s("D"), C: s("C") },
+    deck: { ...FOUR_COLOR_DECK },
     clash: { ...CLASSIC_MOMENTS.clash },
     spadesBroken: { ...CLASSIC_MOMENTS.spadesBroken, text: words.spadesBroken ?? CLASSIC_MOMENTS.spadesBroken.text },
     trumpSteal: { ...CLASSIC_MOMENTS.trumpSteal, text: words.trumpSteal ?? CLASSIC_MOMENTS.trumpSteal.text },
@@ -262,6 +277,9 @@ export function cleanTheme(v: unknown): GameTheme | null {
       color: color(s.color, CLASSIC_SUITS[k].color),
     };
   }
+  const deckIn = (o.deck && typeof o.deck === "object" ? o.deck : {}) as Record<string, unknown>;
+  const deck = {} as Record<SuitKey, string>;
+  for (const k of ["S", "H", "D", "C"] as SuitKey[]) deck[k] = color(deckIn[k], FOUR_COLOR_DECK[k]);
   const felt = Array.isArray(o.felt) ? o.felt : [];
   const clash = (o.clash && typeof o.clash === "object" ? o.clash : {}) as Record<string, unknown>;
   const intensity = [1, 2, 3].includes(clash.intensity as number) ? (clash.intensity as 1 | 2 | 3) : 2;
@@ -277,6 +295,7 @@ export function cleanTheme(v: unknown): GameTheme | null {
       ? o.confetti.filter((c): c is string => typeof c === "string" && c.trim().length > 0).map((c) => c.trim().slice(0, 8)).slice(0, 6)
       : [],
     suits,
+    deck,
     clash: { on: bool(clash.on, true), intensity },
     spadesBroken: { ...cleanMoment(broken, CLASSIC.spadesBroken), thunder: bool(broken.thunder, true) },
     trumpSteal: cleanMoment(o.trumpSteal, CLASSIC.trumpSteal),

@@ -27,13 +27,15 @@ import { listsApi } from "@/lib/recall/lists/client";
 import { PRIORITY_RANK, priorityMeta, type BoardPayload, type ListItem } from "@/lib/recall/lists/types";
 import { eventStart, type CalendarEvent } from "@/lib/recall/calendar/types";
 import { notificationPermission, notificationsAvailable, requestNotifications } from "@/lib/recall/calendar/reminders";
+import { BirthdaysEditor } from "../birthdays/BirthdaysEditor";
 
-export type WidgetId = "notifications" | "todo" | "camera" | "calendar" | "improvements" | "queue" | "youtube" | "findmy";
+export type WidgetId = "notifications" | "todo" | "camera" | "notes" | "calendar" | "improvements" | "queue" | "youtube" | "findmy";
 
 export const WIDGETS: { id: WidgetId; label: string }[] = [
   { id: "notifications", label: "Notifications" },
   { id: "todo", label: "To-do" },
   { id: "camera", label: "Camera Autopilot" },
+  { id: "notes", label: "iPhone Notes" },
   { id: "calendar", label: "Calendar" },
   { id: "improvements", label: "Improvements" },
   { id: "queue", label: "In Queue" },
@@ -584,12 +586,26 @@ export function CalendarWidget({ events, onExpand }: { events: CalendarEvent[]; 
 
 export function CalendarExpanded({ events, go, onClose }: { events: CalendarEvent[]; go: (tab: string) => void; onClose: () => void }) {
   const next = useMemo(() => upcoming(events, 30), [events]);
+  // Family & friends' birthdays, managed right from here.
+  const [people, setPeople] = useState(false);
   return (
+    <>
+    {people && (
+      <WidgetSheet title="Birthdays" kicker="Family & friends" onClose={() => setPeople(false)}>
+        <div className="mx-auto max-w-2xl p-4">
+          <BirthdaysEditor />
+        </div>
+      </WidgetSheet>
+    )}
     <WidgetSheet
       title="Coming up"
       kicker="Next 30 days"
       onClose={onClose}
       actions={
+        <>
+        <button type="button" className="deck-btn mr-1.5" onClick={() => setPeople(true)}>
+          <Icon.Users width={12} height={12} aria-hidden /> Birthdays
+        </button>
         <button
           type="button"
           className="deck-btn"
@@ -600,6 +616,7 @@ export function CalendarExpanded({ events, go, onClose }: { events: CalendarEven
         >
           Open calendar
         </button>
+        </>
       }
     >
       {next.length === 0 ? (
@@ -618,6 +635,7 @@ export function CalendarExpanded({ events, go, onClose }: { events: CalendarEven
         </ul>
       )}
     </WidgetSheet>
+    </>
   );
 }
 

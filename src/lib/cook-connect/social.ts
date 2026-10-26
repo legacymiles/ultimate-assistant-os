@@ -169,6 +169,11 @@ export async function loadFeed(
 /* ── Leaderboards ──────────────────────────────────────────────── */
 
 export async function loadPlayerLeaderboard(sb: Backend): Promise<PlayerRecord[]> {
+  return leaderboard(await loadMatchResults(sb));
+}
+
+/** Every finished, human result, oldest-agnostic (ranking sorts them itself). */
+export async function loadMatchResults(sb: Backend): Promise<MatchResult[]> {
   const [{ data: matchRows }, { data: playerRows }] = await Promise.all([
     sb.from("matches").select("*").eq("status", "done"),
     sb.from("match_players").select("*"),
@@ -183,9 +188,10 @@ export async function loadPlayerLeaderboard(sb: Backend): Promise<PlayerRecord[]
       result: p.result,
       game: match.game,
       finishedAt: match.finished_at ?? match.updated_at,
+      matchId: match.id,
     });
   }
-  return leaderboard(results);
+  return results;
 }
 
 export async function loadCookbookLeaderboard(sb: Backend): Promise<CookbookStanding[]> {

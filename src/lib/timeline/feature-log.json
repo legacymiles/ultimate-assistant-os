@@ -1,145 +1,163 @@
 [
  {
-  "id": "e3b0c9d:jarvis",
+  "id": "9f4b9ba:dashboard",
+  "date": "2026-10-26",
+  "slug": "dashboard",
+  "title": "Self-improving confidence score on every photo, with most/least sure sorting and Sure/Maybe/Unsure filters",
+  "detail": "The vision model rates its own guess; the score is calibrated against what the owner filed, moved and removed (photos/confidence.ts, outcomes in photo-autopilot:v1). Shown as a chip on each photo and in the photo sheet with why; the Autopilot chat sees it too. Scores only sort — every photo still wa",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9f4b9ba:jarvis",
   "date": "2026-10-26",
   "slug": "jarvis",
-  "title": "Merged apps leave the grid and App plugins for their new homes",
-  "detail": "Catalog entries for trading-studio, game-studio and item-storm-arena. A single MERGED_INTO map in src/lib/studio/plugins.ts (EA World, EA Lab, EA Feature List, Multi-Order Calculator -> Trading Studio; Game Creator, Slippery Escape, Item Storm Arena -> Game Studio; Website Redesigner -> App Builder;",
+  "title": "Self-improving confidence score on every photo, with most/least sure sorting and Sure/Maybe/Unsure filters",
+  "detail": "The vision model rates its own guess; the score is calibrated against what the owner filed, moved and removed (photos/confidence.ts, outcomes in photo-autopilot:v1). Shown as a chip on each photo and in the photo sheet with why; the Autopilot chat sees it too. Scores only sort — every photo still wa",
   "group": "supporting",
   "source": "git"
  },
  {
-  "id": "1d48e86:app-builder",
+  "id": "4224d91:iphone-notes",
   "date": "2026-10-26",
-  "slug": "app-builder",
-  "title": "One home for building, with Website Redesigner inside",
-  "detail": "/apps/app-builder gets a StudioHome switcher: Build (App Builder, unchanged) and Website Redesigner (V1, the V2 bake-off and a new Showcase view, moved into a component so the route is a thin page). Showcase lists EMBER Reveal and the APEX/01 Kart Teardown, each playable in place with Open full scre",
-  "group": "supporting",
-  "source": "git"
- },
- {
-  "id": "1d48e86:website-redesigner",
-  "date": "2026-10-26",
-  "slug": "website-redesigner",
-  "title": "One home for building, with Website Redesigner inside",
-  "detail": "/apps/app-builder gets a StudioHome switcher: Build (App Builder, unchanged) and Website Redesigner (V1, the V2 bake-off and a new Showcase view, moved into a component so the route is a thin page). Showcase lists EMBER Reveal and the APEX/01 Kart Teardown, each playable in place with Open full scre",
-  "group": "supporting",
-  "source": "git"
- },
- {
-  "id": "1d48e86:jarvis",
-  "date": "2026-10-26",
-  "slug": "jarvis",
-  "title": "One home for building, with Website Redesigner inside",
-  "detail": "/apps/app-builder gets a StudioHome switcher: Build (App Builder, unchanged) and Website Redesigner (V1, the V2 bake-off and a new Showcase view, moved into a component so the route is a thin page). Showcase lists EMBER Reveal and the APEX/01 Kart Teardown, each playable in place with Open full scre",
-  "group": "supporting",
-  "source": "git"
- },
- {
-  "id": "e2830d0:game-creator",
-  "date": "2026-10-26",
-  "slug": "game-creator",
-  "title": "Make a game and finish the unfinished ones",
-  "detail": "/apps/game-studio puts Game Creator (embedded) under Create and a dense Unfinished games shelf beside it: Slippery Escape and Item Storm Arena, each playable in place in a frame (one at a time, nothing runs until asked), with Open full screen and a Finish it button that files the request in In Queue",
-  "group": "supporting",
-  "source": "git"
- },
- {
-  "id": "e2830d0:game-studio",
-  "date": "2026-10-26",
-  "slug": "game-studio",
-  "title": "Make a game and finish the unfinished ones",
-  "detail": "/apps/game-studio puts Game Creator (embedded) under Create and a dense Unfinished games shelf beside it: Slippery Escape and Item Storm Arena, each playable in place in a frame (one at a time, nothing runs until asked), with Open full screen and a Finish it button that files the request in In Queue",
+  "slug": "iphone-notes",
+  "title": "New app + Dashboard widget — iPhone notes read into to-dos, events, birthdays, memory and ideas with a self-improving confidence score; noth",
+  "detail": "A \"Notes to Jarvis\" iPhone Shortcut posts each recent note to /api/iphone-notes/push (per-account key, session-exempt, no duplicates on re-send). Jarvis proposes up to 6 actions per note, each scored by the model and calibrated against the owner's past approvals/declines (src/lib/confidence/calibrat",
   "group": "core",
   "source": "git"
  },
  {
-  "id": "e2830d0:item-storm-arena",
-  "date": "2026-10-26",
-  "slug": "item-storm-arena",
-  "title": "Make a game and finish the unfinished ones",
-  "detail": "/apps/game-studio puts Game Creator (embedded) under Create and a dense Unfinished games shelf beside it: Slippery Escape and Item Storm Arena, each playable in place in a frame (one at a time, nothing runs until asked), with Open full screen and a Finish it button that files the request in In Queue",
-  "group": "core",
-  "source": "git"
- },
- {
-  "id": "e2830d0:jarvis",
+  "id": "4224d91:jarvis",
   "date": "2026-10-26",
   "slug": "jarvis",
-  "title": "Make a game and finish the unfinished ones",
-  "detail": "/apps/game-studio puts Game Creator (embedded) under Create and a dense Unfinished games shelf beside it: Slippery Escape and Item Storm Arena, each playable in place in a frame (one at a time, nothing runs until asked), with Open full screen and a Finish it button that files the request in In Queue",
+  "title": "New app + Dashboard widget — iPhone notes read into to-dos, events, birthdays, memory and ideas with a self-improving confidence score; noth",
+  "detail": "A \"Notes to Jarvis\" iPhone Shortcut posts each recent note to /api/iphone-notes/push (per-account key, session-exempt, no duplicates on re-send). Jarvis proposes up to 6 actions per note, each scored by the model and calibrated against the owner's past approvals/declines (src/lib/confidence/calibrat",
   "group": "supporting",
   "source": "git"
  },
  {
-  "id": "f9d1118:ea-world",
+  "id": "4224d91:confidence",
   "date": "2026-10-26",
-  "slug": "ea-world",
-  "title": "EA tools behind one front door",
-  "detail": "A reusable StudioHome shell (src/components/studio-home) generalises the Jarvis Audio Studio pattern: a sliding-thumb tablist that scrolls sideways on a phone, an accent hue per section, ?section= in the address, last section remembered, and \"pending\" sections that explain in plain words that the ap",
+  "slug": "confidence",
+  "title": "New app + Dashboard widget — iPhone notes read into to-dos, events, birthdays, memory and ideas with a self-improving confidence score; noth",
+  "detail": "A \"Notes to Jarvis\" iPhone Shortcut posts each recent note to /api/iphone-notes/push (per-account key, session-exempt, no duplicates on re-send). Jarvis proposes up to 6 actions per note, each scored by the model and calibrated against the owner's past approvals/declines (src/lib/confidence/calibrat",
   "group": "supporting",
   "source": "git"
  },
  {
-  "id": "f9d1118:multi-order-calculator",
-  "date": "2026-10-26",
-  "slug": "multi-order-calculator",
-  "title": "EA tools behind one front door",
-  "detail": "A reusable StudioHome shell (src/components/studio-home) generalises the Jarvis Audio Studio pattern: a sliding-thumb tablist that scrolls sideways on a phone, an accent hue per section, ?section= in the address, last section remembered, and \"pending\" sections that explain in plain words that the ap",
-  "group": "supporting",
-  "source": "git"
- },
- {
-  "id": "f9d1118:trading-studio",
-  "date": "2026-10-26",
-  "slug": "trading-studio",
-  "title": "EA tools behind one front door",
-  "detail": "A reusable StudioHome shell (src/components/studio-home) generalises the Jarvis Audio Studio pattern: a sliding-thumb tablist that scrolls sideways on a phone, an accent hue per section, ?section= in the address, last section remembered, and \"pending\" sections that explain in plain words that the ap",
-  "group": "core",
-  "source": "git"
- },
- {
-  "id": "f9d1118:jarvis",
+  "id": "98ec63a:jarvis",
   "date": "2026-10-26",
   "slug": "jarvis",
-  "title": "EA tools behind one front door",
-  "detail": "A reusable StudioHome shell (src/components/studio-home) generalises the Jarvis Audio Studio pattern: a sliding-thumb tablist that scrolls sideways on a phone, an accent hue per section, ?section= in the address, last section remembered, and \"pending\" sections that explain in plain words that the ap",
+  "title": "Memory rules, per-skill spend and caps, and Jev picks each skill's model",
+  "detail": "Memory rules on top of the memory rows (the database stays the source of truth): - Owner-written notes, profile and vault are read-only for agents: the connector's save_memory never files as them and delete_memory refuses them. - A router per area (app categories, skill categories, clients, findings",
   "group": "supporting",
   "source": "git"
  },
  {
-  "id": "d20a3db:financial-bible",
+  "id": "98ec63a:skills-library",
+  "date": "2026-10-26",
+  "slug": "skills-library",
+  "title": "Memory rules, per-skill spend and caps, and Jev picks each skill's model",
+  "detail": "Memory rules on top of the memory rows (the database stays the source of truth): - Owner-written notes, profile and vault are read-only for agents: the connector's save_memory never files as them and delete_memory refuses them. - A router per area (app categories, skill categories, clients, findings",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "98ec63a:memory-rules",
+  "date": "2026-10-26",
+  "slug": "memory-rules",
+  "title": "Memory rules, per-skill spend and caps, and Jev picks each skill's model",
+  "detail": "Memory rules on top of the memory rows (the database stays the source of truth): - Owner-written notes, profile and vault are read-only for agents: the connector's save_memory never files as them and delete_memory refuses them. - A router per area (app categories, skill categories, clients, findings",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1f3536e:cook-connect",
   "date": "2026-10-25",
-  "slug": "financial-bible",
-  "title": "Money Plays room shows every money agent's views and earnings",
+  "slug": "cook-connect",
+  "title": "Spades gets a four-colour deck, bigger hand, Place Bid, two-step card play and Next screens",
+  "detail": "- Each suit has its own colour on the cards (spades black, hearts red, diamonds blue, clubs green), set by the theme and editable in Game Play Design Styling - Your hand is much bigger and overlapped so every card's corner reads at a glance - Bidding is a wheel (Nil to 13, opens on a suggested bid) ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5507878:birthdays",
+  "date": "2026-10-25",
+  "slug": "birthdays",
+  "title": "Family & friends' birthdays in onboarding, calendar, notifications and chat",
+  "detail": "- New \"Birthdays\" onboarding step (after You) + Finish setup item: add family and friends with taps (who they are, month, day, optional year). - One synced list (jarvis-birthdays:v1) feeds everything: every birthday shows on the Calendar tab and Calendar widget every year (derived, never copied, so ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5507878:jarvis",
+  "date": "2026-10-25",
+  "slug": "jarvis",
+  "title": "Family & friends' birthdays in onboarding, calendar, notifications and chat",
+  "detail": "- New \"Birthdays\" onboarding step (after You) + Finish setup item: add family and friends with taps (who they are, month, day, optional year). - One synced list (jarvis-birthdays:v1) feeds everything: every birthday shows on the Calendar tab and Calendar widget every year (derived, never copied, so ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "23b588b:jarvis",
+  "date": "2026-10-25",
+  "slug": "jarvis",
+  "title": "IPhone setup shows a finished Shortcut, screenshot by screenshot",
+  "detail": "The \"Make the Shortcut\" step now shows the owner's own working Shortcut top to bottom (Find Photos → Repeat → Resize → Convert → URL → Get contents of URL), with the key blurred out, so a new user can match theirs block for block. It also says what to do when a pasted link keeps being refused: re-pi",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6c79a99:jarvis",
+  "date": "2026-10-25",
+  "slug": "jarvis",
+  "title": "3D Animation Flow card — live 3D storyboard, render in the browser or on the PC",
+  "detail": "A new grid card in Studio (Stories), \"3D Animation Flow\". Pick it, attach the character, type the story in the Studio composer (or @film-3d in the Studio chat) and the flow opens with the storyboard already written:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d444cc7:jarvis",
+  "date": "2026-10-25",
+  "slug": "jarvis",
+  "title": "A Three.js film engine that makes 3D animated shorts in code",
+  "detail": "The engine behind the new 3D Animation Flow (src/lib/studio/film3d): - plan.ts: the closed beat vocabulary (11 worlds, 4 times of day, 15 moves, 9 shots, 10 props, 6 faces), a no-AI storyboard from the story line, plan checks, and the compact film code an In Queue request carries to the PC - directo",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "407ea3c:viral-studio-content",
+  "date": "2026-10-25",
+  "slug": "viral-studio-content",
+  "title": "Facebook videos that need a sign-in now get Upload the video, Connect Facebook and Try again right on the tile",
+  "detail": "The tile used to stop at \"Facebook wouldn't hand over this video\". Now: - Upload the video: pick it from the phone or computer; it goes straight to storage (signed upload link, up to 500 MB) and plays on the tile. - Connect Facebook / Instagram: a sheet with the Jarvis Record extension steps (or pas",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b545b81:dashboard",
+  "date": "2026-10-25",
+  "slug": "dashboard",
+  "title": "The \"old link\" warning clears once that iPhone has been let in",
   "detail": "",
   "group": "supporting",
   "source": "git"
  },
  {
-  "id": "a7c1c21:money-agents",
+  "id": "4556f02:dashboard",
   "date": "2026-10-25",
-  "slug": "money-agents",
-  "title": "Agents that clip, run faceless channels and work paid campaigns — you approve, Personas Studio posts",
-  "detail": "",
+  "slug": "dashboard",
+  "title": "\"That's my iPhone — let it in\" lets a refused Shortcut through with one tap",
+  "detail": "The owner's Shortcut kept sending the same old key however many new links were pasted into it — its send step was holding on to an older copy. When the phone is refused, Camera Autopilot now offers \"That's my iPhone — let it in\": one tap makes that key one of the owner's, so the next run gets throug",
   "group": "supporting",
   "source": "git"
  },
  {
-  "id": "a7c1c21:money-agent-studio",
-  "date": "2026-10-25",
-  "slug": "money-agent-studio",
-  "title": "Agents that clip, run faceless channels and work paid campaigns — you approve, Personas Studio posts",
-  "detail": "",
-  "group": "core",
-  "source": "git"
- },
- {
-  "id": "a7c1c21:jarvis",
+  "id": "4556f02:jarvis",
   "date": "2026-10-25",
   "slug": "jarvis",
-  "title": "Agents that clip, run faceless channels and work paid campaigns — you approve, Personas Studio posts",
-  "detail": "",
+  "title": "\"That's my iPhone — let it in\" lets a refused Shortcut through with one tap",
+  "detail": "The owner's Shortcut kept sending the same old key however many new links were pasted into it — its send step was holding on to an older copy. When the phone is refused, Camera Autopilot now offers \"That's my iPhone — let it in\": one tap makes that key one of the owner's, so the next run gets throug",
   "group": "supporting",
   "source": "git"
  },

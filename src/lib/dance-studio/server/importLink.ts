@@ -25,6 +25,8 @@ export class ImportError extends Error {
     message: string,
     public status = 422,
     public trail: string[] = [],
+    /** The site only shows this video to signed-in visitors — connecting it would fix this. */
+    public needsLogin = false,
   ) {
     super(message);
   }
@@ -95,7 +97,7 @@ export async function importDanceVideo(input: string): Promise<ImportedVideo> {
       music = video.music ?? null;
       stats = video.stats ?? null;
     } catch (err) {
-      if (err instanceof VideoUnavailableError) throw new ImportError(err.message, 422, err.trail);
+      if (err instanceof VideoUnavailableError) throw new ImportError(err.message, 422, err.trail, err.needsLogin);
       throw err;
     }
   }

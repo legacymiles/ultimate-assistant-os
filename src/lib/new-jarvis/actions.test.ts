@@ -118,7 +118,10 @@ describe("classify", () => {
   it("gates notes, lists and calendar entries like the old assistant did", () => {
     expect(classify({ route: "hub/dashboard_add_note", args: { title: "x" } }).confirm).toBe(true);
     expect(classify({ route: "hub/lists_add_item", args: { text: "milk" } }).confirm).toBe(true);
-    expect(classify({ route: "hub/dashboard_add_event", args: { title: "x", date: "2026-10-01" } }).confirm).toBe(true);
+    // Calendar adds and birthdays just happen (owner's ask) — reversible from the Calendar tab.
+    expect(classify({ route: "hub/dashboard_add_event", args: { title: "x", date: "2026-10-01" } }).confirm).toBe(false);
+    expect(classify({ route: "hub/birthday_add", args: { name: "Mom", date: "March 14" } }).confirm).toBe(false);
+    expect(classify({ route: "hub/birthday_remove", args: { name: "Mom" } }).confirm).toBe(true);
   });
 
   it("gates a route nobody classified", () => {

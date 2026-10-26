@@ -25,6 +25,8 @@ import { DEFAULT_FALLBACKS, canRead, mediaIn } from "./models";
 import { planRoute, readRequest, type RoutePlan, type TaskHint } from "./router";
 import { cachedSettings, loadSettings, recordError, recordOk, type ProviderId } from "./settings";
 import { recordCall, usageOf, type RawUsage } from "./spend";
+import { spendKey, type RouteTier } from "@/lib/skills/spend";
+import { routeSkill } from "@/lib/skills/server/routeSkill";
 import { troubleBody, type Attempt } from "./trouble";
 import { markRefused, skipCooling } from "./cooldown";
 
@@ -212,7 +214,7 @@ export async function aiFetch(init: RequestInit = {}): Promise<Response> {
     if (res instanceof Response && (res.ok || res.status === 413)) {
       const skipped = attempts.map((a) => ({ model: a.model, status: a.status, why: a.message }));
       return meter(res, (usage) =>
-        recordCall({ model, provider: usedProvider, usage, plan: call.plan, app: call.app, skipped }),
+        recordCall({ model, provider: usedProvider, usage, plan: call.plan, app: call.app, skipped, skill: call.skill, route: call.route }),
       );
     }
     last = res;
@@ -363,6 +365,10 @@ interface PlannedCall {
   plan: RoutePlan | null;
   /** Which app asked, when it declared itself. */
   app?: string;
+  /** The skill this call runs for, when it said — metered per skill. */
+  skill?: string;
+  /** Jev's routing for that skill, when it changed the plan. */
+  route?: { tier: RouteTier | null; saved: boolean };
 }
 
 /**
@@ -396,11 +402,12 @@ async function planCall(raw: BodyInit | null | undefined): Promise<PlannedCall |
   // it is read and then removed before the body goes anywhere.
   const hint = body.task as TaskHint | undefined;
   const app = typeof hint?.app === "string" ? hint.app : undefined;
+  const skill = spendKey(hint?.skill) || undefined;
   if ("task" in body) delete body.task;
 
   const asked = typeof body.model === "string" ? body.model : "";
   const general = asked === DEFAULT_MODEL || asked === process.env.AI_MODEL || asked.startsWith("anthropic/");
-  if (!general) return { body, models: [asked], plan: null, app };
+  if (!general) return { body, models: [asked], plan: null, app, skill };
 
   // A surface that carries its own chain — the Studio's Film setup deck — is the
   // owner choosing per film, which outranks both the router and the front-page
@@ -411,7 +418,7 @@ async function planCall(raw: BodyInit | null | undefined): Promise<PlannedCall |
     const need = mediaIn(body);
     const readable: string[] = [];
     for (const m of declared) if (await canRead(m, need).catch(() => true)) readable.push(m);
-    if (readable.length) return { body, models: skipCooling(readable), plan: null, app };
+    if (readable.length) return { body, models: skipCooling(readable), plan: null, app, skill };
     // Nothing they picked can read this request; the router finds something that
     // can rather than sending it somewhere it is guaranteed to fail.
   }
@@ -426,10 +433,16 @@ async function planCall(raw: BodyInit | null | undefined): Promise<PlannedCall |
     const need = mediaIn(body);
     const readable: string[] = [];
     for (const m of wanted) if (await canRead(m, need).catch(() => true)) readable.push(m);
-    return { body, models: (readable.length ? readable : wanted).slice(0, 3), plan: null, app };
+    return { body, models: (readable.length ? readable : wanted).slice(0, 3), plan: null, app, skill };
   }
 
-  const plan = planRoute(readRequest(hint ? { ...body, task: hint } : body));
+  const req = readRequest(hint ? { ...body, task: hint } : body);
+  const plan = planRoute(req);
+  // A skill run: the owner's pin, its weekly cap, or Jev picks the tier it needs.
+  if (skill) {
+    const r = await routeSkill(skill, body, req, plan);
+    return { body, models: skipCooling(r.models), plan, app, skill, route: { tier: r.tier, saved: r.saved } };
+  }
   // The plan is what the rules say; this is what is actually answering today.
   return { body, models: skipCooling(plan.models), plan, app };
 }

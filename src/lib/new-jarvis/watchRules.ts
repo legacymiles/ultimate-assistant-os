@@ -45,7 +45,7 @@ export interface ParsedWatch {
   rule: WatchRule;
 }
 
-const MATCH_SOURCES: MatchSource[] = ["any", "lists", "calendar", "photos", "camera", "memory", "actions", "spend", "clients"];
+const MATCH_SOURCES: MatchSource[] = ["any", "lists", "calendar", "birthdays", "photos", "camera", "memory", "actions", "spend", "clients"];
 const DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
 // ----- validation ------------------------------------------------------------
@@ -109,6 +109,7 @@ const SOURCE_WORD: Record<MatchSource, string> = {
   any: "anything",
   lists: "a list item",
   calendar: "a calendar event",
+  birthdays: "a birthday",
   photos: "a filed photo",
   camera: "a new photo",
   memory: "a memory",
@@ -165,6 +166,7 @@ function parseDays(t: string): number[] {
 
 function sourceIn(t: string): MatchSource {
   if (/\b(list|to-?do|shopping|to-?buy|bill)s?\b/.test(t)) return "lists";
+  if (/\bbirthdays?\b/.test(t)) return "birthdays";
   if (/\b(calendar|event|meeting|appointment)s?\b/.test(t)) return "calendar";
   if (/\bmemor(y|ies)\b/.test(t)) return "memory";
   return "any";

@@ -96,6 +96,12 @@ export interface Clip {
   vertical?: boolean;
   /** A short plain-English line when the best playback wasn't possible. */
   note?: string;
+  /**
+   * The network only shows this video to signed-in people (Facebook, Instagram).
+   * The tile offers "Connect" and "Upload the video", and retries by itself
+   * once the site is connected.
+   */
+  needsLogin?: boolean;
   addedAt: string;
   /** Audio tab: the song in it, once found. */
   song?: Song;
@@ -117,6 +123,7 @@ export interface ResolvedLink {
   play: Playback;
   vertical?: boolean;
   note?: string;
+  needsLogin?: boolean;
   song?: Song;
   sound?: SoundKind;
   stats?: ClipStats;

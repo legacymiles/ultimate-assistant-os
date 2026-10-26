@@ -24,6 +24,7 @@ import { posterUrl } from "@/lib/viral-studio/playback";
 import { CATEGORIES, HEAT_LABEL, HEATS, MOODS, NO_FILTER, applyFilter, isFiltering, optionCounts, type Filter, type Heat } from "@/lib/viral-studio/filters";
 import { songLine } from "@/lib/viral-studio/song";
 import * as store from "@/lib/viral-studio/store";
+import { SITE_LABEL, isStuck, mergeRetry, retryAfterConnect, uploadProblem, uploadType, withUpload, type ConnectSite } from "@/lib/viral-studio/stuck";
 import { TABS, isTabId, type Board, type Clip, type ClipStats, type ClipTags, type ResolvedLink, type Song, type SoundKind, type TabId } from "@/lib/viral-studio/types";
 
 import { ClipTile, PendingTile, type PendingClip } from "./ClipTile";
@@ -75,8 +76,12 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
   const [tray, setTray] = useState<"mood" | "heat" | "category" | null>(null);
   const [finding, setFinding] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<string | null>(null);
-  /** Clips already sent to the tagger / song finder this visit, so nothing is asked twice. */
-  const asked = useRef({ tags: new Set<string>(), songs: new Set<string>(), songLimit: false });
+  /** Clips being fixed right now: "retry", or an upload's progress 0–1. */
+  const [fixing, setFixing] = useState<Record<string, "retry" | number>>({});
+  /** The Connect sheet: which site, and the clip that opened it. */
+  const [connecting, setConnecting] = useState<{ site: ConnectSite; clipId: string } | null>(null);
+  /** Clips already sent to the tagger / song finder / a quiet retry this visit, so nothing is asked twice. */
+  const asked = useRef({ tags: new Set<string>(), songs: new Set<string>(), songLimit: false, retries: new Set<string>() });
 
   // Mirrors the grid's breakpoints in viral-studio.css, so the newest clip can
   // be sized to end the wall on a full row.
@@ -448,6 +453,129 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
     });
   }, [board, finding, findSong, ready]);
 
+  // --- fixing a clip with no video ----------------------------------------
+
+  const setFix = useCallback((id: string, v: "retry" | number | null) => {
+    setFixing((f) => {
+      const n = { ...f };
+      if (v === null) delete n[id];
+      else n[id] = v;
+      return n;
+    });
+  }, []);
+
+  /** Ask for a stuck clip's link again; swaps the video in when it comes back. */
+  const retryClip = useCallback(
+    async (id: string, quiet = false): Promise<boolean> => {
+      const clip = boardRef.current.clips.find((c) => c.id === id);
+      if (!clip) return false;
+      setFix(id, "retry");
+      try {
+        const res = await fetch("/api/viral-studio/add", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ url: clip.url, tab: clip.tab }),
+        });
+        const json = (await res.json().catch(() => ({}))) as ResolvedLink & { error?: string };
+        const now = boardRef.current.clips.find((c) => c.id === id);
+        const next = res.ok && now ? mergeRetry(now, json) : null;
+        if (next) {
+          commit((b) => ({ clips: b.clips.map((c) => (c.id === id ? next : c)) }));
+          if (!quiet) say("Got the video.");
+          flash(id);
+          return true;
+        }
+        if (res.ok && now && json.note && json.note !== now.note) patchClip(id, { note: json.note, needsLogin: json.needsLogin });
+        if (!quiet) say(json.needsLogin ? `Still locked — connect ${PLATFORM_NAME[clip.platform] ?? "the site"} or upload the video.` : "Still couldn't get it. Upload the video instead.");
+        return false;
+      } catch {
+        if (!quiet) say("Couldn't reach the hub. Try again in a moment.");
+        return false;
+      } finally {
+        setFix(id, null);
+      }
+    },
+    [commit, flash, patchClip, say, setFix],
+  );
+
+  /** The owner's own copy of the video, straight into their storage. */
+  const uploadTo = useCallback(
+    async (id: string, file: File) => {
+      const problem = uploadProblem(file);
+      if (problem) return say(problem);
+      const type = uploadType(file)!;
+      setFix(id, 0);
+      try {
+        const res = await fetch("/api/viral-studio/upload", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ type, size: file.size, name: file.name }),
+        });
+        const json = (await res.json().catch(() => ({}))) as { key?: string; uploadUrl?: string; error?: string };
+        if (!res.ok || !json.key) return say(json.error ?? "Couldn't start the upload. Try again in a moment.");
+        const key = json.key;
+        const target = json.uploadUrl ?? `/api/viral-studio/upload?key=${encodeURIComponent(key)}`;
+        const [ok, vertical] = await Promise.all([
+          new Promise<boolean>((resolve) => {
+            const x = new XMLHttpRequest();
+            x.open("PUT", target);
+            x.setRequestHeader("Content-Type", type);
+            x.upload.onprogress = (e) => e.lengthComputable && setFix(id, Math.min(0.99, e.loaded / e.total));
+            x.onload = () => resolve(x.status >= 200 && x.status < 300);
+            x.onerror = () => resolve(false);
+            x.send(file);
+          }),
+          isPortrait(file),
+        ]);
+        if (!ok) return say("The upload didn't finish. Check your connection and try again.");
+        const now = boardRef.current.clips.find((c) => c.id === id);
+        if (!now) return freeFiles([key]);
+        commit((b) => ({ clips: b.clips.map((c) => (c.id === id ? withUpload(c, key, vertical) : c)) }));
+        say("Uploaded — it plays here now.");
+        flash(id);
+      } catch {
+        say("The upload didn't finish. Check your connection and try again.");
+      } finally {
+        setFix(id, null);
+      }
+    },
+    [commit, flash, say, setFix],
+  );
+
+  /** Every stuck clip from a site, asked for again — right after it was connected. */
+  const retrySite = useCallback(
+    async (site: ConnectSite) => {
+      const stuck = retryAfterConnect(boardRef.current.clips, site);
+      let got = 0;
+      for (const c of stuck) if (await retryClip(c.id, true)) got++;
+      if (stuck.length) say(got ? `${SITE_LABEL[site]} connected — got ${got === 1 ? "the video" : `${got} videos`}.` : `${SITE_LABEL[site]} connected, but those videos still wouldn't come. Upload them instead.`);
+    },
+    [retryClip, say],
+  );
+
+  // A site connected somewhere else (Cook Connect, the extension, another
+  // device): stuck clips from it are fetched again once, quietly.
+  useEffect(() => {
+    if (!ready) return;
+    const stuck = board.clips.filter((c) => isStuck(c) && c.needsLogin && !asked.current.retries.has(c.id));
+    if (!stuck.length) return;
+    for (const c of stuck) asked.current.retries.add(c.id);
+    void (async () => {
+      try {
+        const res = await fetch("/api/social-import/cookies", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { sites?: { site: string; connected: boolean; updatedAt: string | null }[] };
+        for (const c of stuck) {
+          const s = data.sites?.find((x) => x.site === c.platform);
+          // Connected after this clip got stuck (or by env, with no date): worth one more go.
+          if (s?.connected && (!s.updatedAt || s.updatedAt > c.addedAt)) await retryClip(c.id, true);
+        }
+      } catch {
+        // Offline — the buttons are still there.
+      }
+    })();
+  }, [board, ready, retryClip]);
+
   const saveTags = (id: string, tags: ClipTags) => {
     patchClip(id, { tags: { ...tags, byHand: true } });
     setEditing(null);
@@ -722,6 +850,10 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
                 onFindSong={c.tab === "audio" ? () => void findSong(c.id) : undefined}
                 finding={finding.has(c.id)}
                 onEditTags={() => setEditing(c.id)}
+                onUpload={isStuck(c) ? (f) => void uploadTo(c.id, f) : undefined}
+                onConnect={isStuck(c) && (c.platform === "facebook" || c.platform === "instagram") ? () => setConnecting({ site: c.platform as ConnectSite, clipId: c.id }) : undefined}
+                onRetry={isStuck(c) ? () => void retryClip(c.id) : undefined}
+                fixing={fixing[c.id] ?? null}
               />
             </div>
           ))}
@@ -769,6 +901,23 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
         </div>
       )}
 
+      {connecting && (
+        <ConnectSheet
+          site={connecting.site}
+          onClose={() => setConnecting(null)}
+          onUpload={() => {
+            const id = connecting.clipId;
+            setConnecting(null);
+            document.querySelector<HTMLInputElement>(`#vsc-${id} input[type=file]`)?.click();
+          }}
+          onConnected={() => {
+            const site = connecting.site;
+            setConnecting(null);
+            void retrySite(site);
+          }}
+        />
+      )}
+
       {editingClip && <TagSheet clip={editingClip} onClose={() => setEditing(null)} onSave={(t) => saveTags(editingClip.id, t)} />}
 
       {toast && (
@@ -782,6 +931,163 @@ export function ViralStudio({ fontClass = "" }: { fontClass?: string }) {
         </div>
       )}
     </main>
+  );
+}
+
+const PLATFORM_NAME: Record<string, string> = { facebook: "Facebook", instagram: "Instagram" };
+
+/** Portrait footage? Read from the file's own first frame size; unknown → undefined. */
+function isPortrait(file: File): Promise<boolean | undefined> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement("video");
+    const done = (r: boolean | undefined) => {
+      URL.revokeObjectURL(url);
+      resolve(r);
+    };
+    v.preload = "metadata";
+    v.muted = true;
+    v.onloadedmetadata = () => done(v.videoWidth && v.videoHeight ? v.videoHeight >= v.videoWidth : undefined);
+    v.onerror = () => done(undefined);
+    window.setTimeout(() => done(undefined), 8000);
+    v.src = url;
+  });
+}
+
+interface SiteStatus {
+  site: string;
+  connected: boolean;
+  updatedAt: string | null;
+}
+
+/**
+ * "Connect Facebook" — once, then every login-only link works. The Jarvis
+ * Record extension sends the sign-in Chrome already has; on a phone, paste it.
+ * Watches for the connection to land and closes itself, and the board fetches
+ * every stuck clip from that site again — nothing else to press.
+ */
+function ConnectSheet({ site, onClose, onConnected, onUpload }: { site: ConnectSite; onClose: () => void; onConnected: () => void; onUpload: () => void }) {
+  const label = SITE_LABEL[site];
+  const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [paste, setPaste] = useState("");
+  const [showPaste, setShowPaste] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const since = useRef<string | null | undefined>(undefined);
+  const doneRef = useRef(false);
+  const connectedRef = useRef(onConnected);
+  connectedRef.current = onConnected;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  // Watch for the extension's push. Starts from what's saved now, so an old
+  // (expired) connection doesn't count as the new one.
+  useEffect(() => {
+    let stop = false;
+    let timer = 0;
+    const check = async () => {
+      try {
+        const res = await fetch("/api/social-import/cookies", { cache: "no-store" });
+        if (res.status === 401 || res.status === 403) return setAllowed(false);
+        const data = (await res.json()) as { sites?: SiteStatus[] };
+        setAllowed(true);
+        const s = data.sites?.find((x) => x.site === site);
+        if (since.current === undefined) since.current = s?.updatedAt ?? null;
+        else if (s?.updatedAt && s.updatedAt !== since.current && !doneRef.current) {
+          doneRef.current = true;
+          return connectedRef.current();
+        }
+      } catch {
+        // Offline for a moment — keep watching.
+      }
+      if (!stop) timer = window.setTimeout(check, 3000);
+    };
+    void check();
+    return () => {
+      stop = true;
+      window.clearTimeout(timer);
+    };
+  }, [site]);
+
+  const save = async () => {
+    if (!paste.trim() || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch("/api/social-import/cookies", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ site, cookies: paste }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) return setError(data.error || "That didn't save.");
+      doneRef.current = true;
+      onConnected();
+    } catch {
+      setError("Couldn't reach the hub. Check your connection and try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="vsc-sheet" role="dialog" aria-modal="true" aria-label={`Connect ${label}`} onClick={onClose}>
+      <div className="vsc-sheet__panel vsc-connect" onClick={(e) => e.stopPropagation()}>
+        <p className="vsc-sheet__title">Connect {label} once</p>
+        {allowed === false ? (
+          <p className="vsc-connect__lead">Only this hub&apos;s owner can connect {label}. Save the video to your phone or computer and upload it instead.</p>
+        ) : (
+          <>
+            <p className="vsc-connect__lead">
+              {label} hides some videos from anyone who isn&apos;t signed in — and the server never is. Connect it once and every {label} link works from then on.
+            </p>
+            <ol className="vsc-connect__steps">
+              <li>On your computer, be signed in to {label} in Chrome.</li>
+              <li>
+                Click the <strong>Jarvis Record</strong> extension (puzzle piece, top right) → <strong>Connect Facebook &amp; Instagram</strong>.{" "}
+                <a href="/apps/jarvis#dashboard" target="_blank" rel="noreferrer">
+                  Don&apos;t have it? Get it in Jarvis › Profile › Details.
+                </a>
+              </li>
+              <li>That&apos;s it — this closes by itself and the stuck videos load.</li>
+            </ol>
+            <p className="vsc-connect__wait" aria-live="polite">
+              <span className="vsc-connect__dot" aria-hidden="true" />
+              {allowed === null ? "Checking…" : `Waiting for ${label} to connect…`}
+            </p>
+            <button type="button" className="vsc-connect__toggle" onClick={() => setShowPaste((v) => !v)} aria-expanded={showPaste}>
+              {showPaste ? "Hide" : "On a phone? Paste your sign-in instead"}
+            </button>
+            {showPaste && (
+              <div className="vsc-connect__paste">
+                <textarea
+                  rows={3}
+                  value={paste}
+                  onChange={(e) => setPaste(e.target.value)}
+                  placeholder={`Paste your ${label} cookies (a cookies.txt, a JSON export, or the Cookie header)…`}
+                />
+                <button type="button" className="vsc-sheet__save" disabled={!paste.trim() || saving} onClick={() => void save()}>
+                  {saving ? "Saving…" : "Save & get the videos"}
+                </button>
+              </div>
+            )}
+            {error && <p className="vsc-connect__error">{error}</p>}
+          </>
+        )}
+        <div className="vsc-sheet__actions">
+          <button type="button" className="vsc-sheet__cancel" onClick={onUpload}>
+            Upload the video instead
+          </button>
+          <button type="button" className="vsc-sheet__cancel" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

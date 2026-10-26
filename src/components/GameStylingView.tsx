@@ -219,6 +219,23 @@ export function GameStylingView() {
           </div>
 
           <div>
+            <h3 className="mb-1.5 text-xs font-semibold text-ink">Card colours: the ink each suit is printed in</h3>
+            <div className="flex flex-wrap items-center gap-3">
+              {SUITS.map((s) => (
+                <label key={s.key} className="flex items-center gap-2 text-sm text-ink-muted">
+                  <span className="grid h-9 w-7 place-items-center rounded-md bg-white text-lg font-bold shadow-sm" style={{ color: editing.deck[s.key] }}>
+                    {s.sym}
+                  </span>
+                  <ColorBox
+                    value={editing.deck[s.key]}
+                    onChange={(v) => updateTheme((t) => ({ ...t, deck: { ...t.deck, [s.key]: v } }))}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
             <h3 className="mb-1.5 text-xs font-semibold text-ink">Every trick is a fight</h3>
             <div className="flex flex-wrap items-center gap-3 text-sm text-ink-muted">
               <label className="flex items-center gap-2">

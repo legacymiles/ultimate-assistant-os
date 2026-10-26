@@ -42,6 +42,8 @@ import { folderName } from "@/lib/new-jarvis/server/requestsAuth";
 import { videoUploadLink } from "@/lib/new-jarvis/server/requestVideo";
 import { ReviewError } from "@/lib/client-review/logic";
 import { shipPreviewNow } from "@/lib/client-review/ship";
+import { addFinding, addLog, agentDeleteRefusal, agentSource, findingsBlock, findRouter, routerIndex, routerMarkdown } from "@/lib/memory-rules/rules";
+import { readRules, routersFor, updateRules } from "@/lib/memory-rules/server/store";
 
 export const runtime = "nodejs";
 // Embedding plus a Supabase round trip can outrun the default on a cold start.
@@ -85,12 +87,11 @@ async function runTool(
     case "save_memory": {
       const content = str(args.content);
       if (!content) return "Nothing to save: content was empty.";
-      const asked = str(args.source) as MemorySource;
-      // An external client may not invent a source. Anything it does not name
-      // correctly becomes "chat", which is what a fact stated in conversation
-      // is — and keeps file-mirroring sources off limits from out here.
-      const source: MemorySource =
-        MEMORY_SOURCES.includes(asked) && !MIRRORED.includes(asked) ? asked : "chat";
+      // An external client may not invent a source, and may not write as the
+      // owner: notes, profile and vault are the human side of memory. Anything
+      // else it does not name correctly becomes "chat", which is what a fact
+      // stated in conversation is.
+      const source: MemorySource = agentSource(str(args.source), MEMORY_SOURCES);
       const title = str(args.title) || content.split("\n")[0].slice(0, 120);
       const tags = Array.isArray(args.tags)
         ? args.tags.filter((t): t is string => typeof t === "string").slice(0, 20)
@@ -180,8 +181,48 @@ async function runTool(
       if (MIRRORED.includes(source)) {
         return `That memory mirrors a real file (${source}), so deleting the row here would not remove anything. Delete the file instead.`;
       }
+      const refusal = agentDeleteRefusal(source);
+      if (refusal) return refusal;
       await deleteMemory(ctx, id);
       return `Deleted ${id}.`;
+    }
+
+    case "get_router": {
+      const routers = await routersFor(ctx);
+      const area = str(args.area);
+      if (!area) return routerIndex(routers);
+      const hit = findRouter(routers, area);
+      return hit ? routerMarkdown(hit) : `No area matches "${area}".\n\n${routerIndex(routers)}`;
+    }
+
+    case "log_activity": {
+      const text = str(args.text);
+      if (!text) return "Nothing logged: text was empty.";
+      let added = 0;
+      await updateRules(ctx.userId, (d) => {
+        const r = addLog(d, [{ text, by: client, about: str(args.about) || undefined, timeZone: str(args.timezone) || undefined }]);
+        added = r.added;
+        return r.doc;
+      });
+      return added ? "Logged in today's daily log." : "Already in today's log.";
+    }
+
+    case "get_findings": {
+      const workflow = str(args.workflow);
+      if (!workflow) return "Name the workflow or skill.";
+      const block = findingsBlock(await readRules(ctx.userId), workflow, 25);
+      return block || `No findings yet for ${workflow}. After this run, add_finding with what worked or what to avoid.`;
+    }
+
+    case "add_finding": {
+      let res = { added: false, key: "" };
+      await updateRules(ctx.userId, (d) => {
+        const r = addFinding(d, { workflow: str(args.workflow), text: str(args.text), by: client, kind: str(args.kind) as "win" | "miss" | "note" });
+        res = { added: r.added, key: r.key };
+        return r.doc;
+      });
+      if (!res.key) return "Not saved: name the workflow and write the lesson.";
+      return res.added ? `Saved a finding for ${res.key}.` : `Already on file for ${res.key}.`;
     }
 
     default:

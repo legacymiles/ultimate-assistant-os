@@ -16,10 +16,22 @@
 //
 // Cross-links are what make it a web rather than a tree: a crash points at the
 // app it happened on, a memory points at the client it's about, a skill points
-// at the app it builds. Pure — tested without a browser.
+// at the app it builds.
+//
+// FOUR LAYERS (Oct 2026, owner's ask — the RoboNuggets-style second brain):
+//   0  core       you
+//   1  areas      the routers: hubs and category groups (what an agent reads first)
+//   2  abilities  apps, skills, client sites — what can do things
+//   3  memories   memories, notes, tasks, crashes, the daily log, findings
+// Every node carries its layer; the renderer pulls each layer onto its own
+// shell (3D) or ring (flat), and the links are what cross between them.
+//
+// Also: the daily log and the findings per workflow (lib/memory-rules), and
+// `timelineOf` — who changed what, newest first.
+// Pure — tested without a browser.
 // ---------------------------------------------------------------------------
 
-export type MapType = "you" | "hub" | "group" | "app" | "skill" | "client" | "crash" | "task" | "memory" | "note";
+export type MapType = "you" | "hub" | "group" | "app" | "skill" | "client" | "crash" | "task" | "memory" | "note" | "log" | "finding";
 
 export const TYPE_META: Record<Exclude<MapType, "you" | "hub" | "group">, { label: string; color: string }> = {
   app: { label: "Apps", color: "#47e8ff" },
@@ -29,7 +41,25 @@ export const TYPE_META: Record<Exclude<MapType, "you" | "hub" | "group">, { labe
   task: { label: "Tasks", color: "#ffb547" },
   memory: { label: "Memories", color: "#7aa7ff" },
   note: { label: "Notes", color: "#e9ecf3" },
+  log: { label: "Daily log", color: "#ffd27a" },
+  finding: { label: "Findings", color: "#ff8fd8" },
 };
+
+export type Layer = 0 | 1 | 2 | 3;
+
+export const LAYERS: { layer: Layer; label: string; what: string }[] = [
+  { layer: 0, label: "Core", what: "You" },
+  { layer: 1, label: "Areas", what: "The routers an agent reads first" },
+  { layer: 2, label: "Abilities", what: "Apps, skills and client sites" },
+  { layer: 3, label: "Memories", what: "Memories, notes, tasks, crashes, the daily log, findings" },
+];
+
+export function layerOf(type: MapType): Layer {
+  if (type === "you") return 0;
+  if (type === "hub" || type === "group") return 1;
+  if (type === "app" || type === "skill" || type === "client") return 2;
+  return 3;
+}
 
 export type ItemType = keyof typeof TYPE_META;
 export const ITEM_TYPES = Object.keys(TYPE_META) as ItemType[];
@@ -37,6 +67,10 @@ export const ITEM_TYPES = Object.keys(TYPE_META) as ItemType[];
 export interface MapNode {
   key: string;
   type: MapType;
+  /** 0 core · 1 areas · 2 abilities · 3 memories. Set by the builder from the type. */
+  layer?: Layer;
+  /** Who last changed it, when known ("claude-code", "jarvis", "owner", "git"). */
+  by?: string;
   /** For hubs and groups: which item type they gather. */
   of?: ItemType;
   title: string;
@@ -120,6 +154,27 @@ export interface NoteIn {
   strength: number;
 }
 
+export interface LogEntryIn {
+  at: string;
+  by: string;
+  text: string;
+  about?: string;
+}
+
+export interface FindingIn {
+  at: string;
+  by: string;
+  text: string;
+  kind: "win" | "miss" | "note";
+}
+
+export interface AppEditIn {
+  slug: string;
+  /** YYYY-MM-DD. */
+  date: string;
+  title: string;
+}
+
 export interface MapInputs {
   queue?: QueueRowIn[];
   skills?: SkillIn[];
@@ -127,6 +182,12 @@ export interface MapInputs {
   clients?: ClientIn[];
   memories?: MemoryIn[];
   notes?: NoteIn[];
+  /** The daily log, newest day first (lib/memory-rules recentLog). */
+  logs?: { day: string; entries: LogEntryIn[] }[];
+  /** Findings per workflow key. */
+  findings?: Record<string, FindingIn[]>;
+  /** Every commit that touched an app (Projects Timeline's feature log). */
+  appEdits?: AppEditIn[];
 }
 
 /** Hard ceilings so a huge vault or log can never make the map unusable. */
@@ -174,9 +235,16 @@ export function buildMap(input: MapInputs): MapGraph {
   };
   const add = (n: MapNode) => {
     if (nodes.size >= LIMITS.total && n.type !== "you" && n.type !== "hub") return false;
+    n.layer = layerOf(n.type);
     nodes.set(n.key, n);
     return true;
   };
+  // The newest edit per app, so an app glows when it was just worked on.
+  const lastEdit = new Map<string, AppEditIn>();
+  for (const e of input.appEdits ?? []) {
+    const cur = lastEdit.get(e.slug);
+    if (!cur || e.date > cur.date) lastEdit.set(e.slug, e);
+  }
 
   add({ key: "you", type: "you", title: "You", weight: 1, links: [] });
   const hub = (of: ItemType) => {
@@ -204,7 +272,8 @@ export function buildMap(input: MapInputs): MapGraph {
     if (r.kind === "app") {
       const slug = r.id.replace(/^app:/, "");
       const key = `app:${slug}`;
-      if (!add({ key, type: "app", title: r.name, subtitle: r.group, detail: r.note ? `${r.blurb}\nLeft to do: ${r.note}` : r.blurb, state: r.state, weight: r.state === "wip" ? 0.55 : 0.45, links: [], href: r.href, ref: r.id }))
+      const edit = lastEdit.get(slug);
+      if (!add({ key, type: "app", title: r.name, subtitle: r.group, detail: r.note ? `${r.blurb}\nLeft to do: ${r.note}` : r.blurb, state: r.state, weight: r.state === "wip" ? 0.55 : 0.45, links: [], href: r.href, ref: r.id, ...(edit ? { at: `${edit.date}T12:00:00.000Z`, by: "git" } : {}) }))
         continue;
       link(key, r.group ? group("app", r.group) : hub("app"));
       appNeedles.push([key, needles(r.name, slug)]);
@@ -296,6 +365,45 @@ export function buildMap(input: MapInputs): MapGraph {
   // A note cluster with no path to "you" still needs one, or it drifts off alone.
   if (notes.length) link(hub("note"), `note:${notes[0].key}`);
 
+  // --- the daily log: one node per day, wired to what it touched ------------------------
+  const target = (about?: string): string | null => {
+    if (!about) return null;
+    const bare = about.replace(/^studio:/, "").replace(/^app:/, "").replace(/^skill:/, "");
+    for (const k of [`app:${bare}`, `skill:${bare}`, `skill:${about}`, `client:${slugify(bare)}`]) if (nodes.has(k)) return k;
+    return null;
+  };
+  for (const { day, entries } of (input.logs ?? []).slice(0, 14)) {
+    if (!entries.length) continue;
+    const key = `log:${day}`;
+    const last = entries[entries.length - 1];
+    const who = [...new Set(entries.map((e) => e.by))].join(", ");
+    const label = new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+    if (!add({ key, type: "log", title: `Daily log · ${label}`, subtitle: `${entries.length} ${entries.length === 1 ? "entry" : "entries"} · ${who}`, detail: entries.slice(-12).map((e) => `${e.at.slice(11, 16)} ${e.by}: ${e.text}`).join("\n"), weight: Math.min(0.75, 0.35 + entries.length / 40), links: [], at: last.at, by: last.by }))
+      continue;
+    link(key, hub("log"));
+    let wired = 0;
+    for (const e of entries) {
+      const t = target(e.about);
+      if (t && wired < 6) {
+        link(key, t);
+        wired += 1;
+      }
+    }
+  }
+
+  // --- findings: one node per workflow, wired to its skill or app ---------------------------
+  for (const [wf, list] of Object.entries(input.findings ?? {})) {
+    if (!list.length) continue;
+    const key = `finding:${wf}`;
+    const last = list[list.length - 1];
+    const misses = list.filter((f) => f.kind === "miss").length;
+    if (!add({ key, type: "finding", title: `Findings · ${wf.replace(/^studio:/, "")}`, subtitle: `${list.length} lessons${misses ? ` · ${misses} to avoid` : ""}`, detail: list.slice(-10).map((f) => `${f.kind === "miss" ? "Avoid" : f.kind === "win" ? "Worked" : "Note"}: ${f.text}`).join("\n"), weight: Math.min(0.7, 0.35 + list.length / 30), links: [], at: last.at, by: last.by }))
+      continue;
+    link(key, hub("finding"));
+    const t = target(wf);
+    if (t) link(key, t);
+  }
+
   // links on each node, for the inspector and the layout
   for (const [a, b] of edges.values()) {
     nodes.get(a)!.links.push(b);
@@ -326,6 +434,56 @@ export function neighbourhood(graph: Pick<MapGraph, "nodes">, key: string, hops 
     frontier = next;
   }
   return seen;
+}
+
+// ----- the timeline ------------------------------------------------------------------
+
+export interface TimelineEvent {
+  /** ISO. */
+  at: string;
+  /** The map node it points at, so a click flies there. */
+  key: string;
+  title: string;
+  /** What changed, in a line. */
+  what: string;
+  type: MapType;
+  by: string;
+}
+
+/**
+ * Who changed what, newest first: app edits (git), what agents logged,
+ * findings, memories saved, crashes seen. Every event points at a node that
+ * is on the map, so clicking one flies to it.
+ */
+export function timelineOf(graph: Pick<MapGraph, "nodes">, input: MapInputs, limit = 150): TimelineEvent[] {
+  const by = new Map(graph.nodes.map((n) => [n.key, n]));
+  const out: TimelineEvent[] = [];
+  const push = (key: string, at: string, what: string, who: string) => {
+    const n = by.get(key);
+    if (!n || !at) return;
+    out.push({ at, key, title: n.title, what, type: n.type, by: who });
+  };
+  for (const e of input.appEdits ?? []) push(`app:${e.slug}`, `${e.date}T12:00:00.000Z`, e.title, "Claude Code (git)");
+  for (const { day, entries } of input.logs ?? []) {
+    for (const e of entries) {
+      const bare = (e.about ?? "").replace(/^(studio|app|skill):/, "");
+      const key = [`app:${bare}`, `skill:${bare}`].find((k) => bare && by.has(k)) ?? `log:${day}`;
+      push(key, e.at, e.text, e.by);
+    }
+  }
+  for (const [wf, list] of Object.entries(input.findings ?? {})) for (const f of list) push(`finding:${wf}`, f.at, `${f.kind === "miss" ? "Avoid" : f.kind === "win" ? "Worked" : "Note"}: ${f.text}`, f.by);
+  for (const m of input.memories ?? []) push(`memory:${m.id}`, m.capturedAt, "Remembered", m.source);
+  for (const c of input.crashes ?? []) push(`crash:${c.id}`, c.lastSeen, `Crashed (${c.count}×)`, c.site);
+  return out.sort((a, b) => b.at.localeCompare(a.at)).slice(0, limit);
+}
+
+/** Keys of nodes changed within `days` of `now` — what the "since" filter lights up. */
+export function changedSince(graph: Pick<MapGraph, "nodes">, events: TimelineEvent[], days: number, now = Date.now()): Set<string> {
+  const cutoff = new Date(now - days * 86_400_000).toISOString();
+  const out = new Set<string>();
+  for (const e of events) if (e.at >= cutoff) out.add(e.key);
+  for (const n of graph.nodes) if (n.at && n.at >= cutoff) out.add(n.key);
+  return out;
 }
 
 /** Search across titles, subtitles, commands and detail. */

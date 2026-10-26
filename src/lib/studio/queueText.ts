@@ -4,6 +4,7 @@
 /** Workflows that render in code on the PC, and the skill that renders each. */
 export const PC_SKILLS: Record<string, string> = {
   "flow:animate-my-character": "animate-character-story",
+  "flow:film-3d": "threejs-film-story",
 };
 
 export function queueRequestText(args: Record<string, unknown>): string {

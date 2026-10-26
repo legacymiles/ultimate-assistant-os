@@ -20,6 +20,8 @@ export interface PhoneSignals {
   refusedAt: number | null;
   /** Which of the Shortcut's links was refused, when known. */
   refusedWhere?: string | null;
+  /** The refused send the owner can take as their iPhone with one tap (its time), or null. */
+  adoptable?: string | null;
 }
 
 export const NO_SIGNALS: PhoneSignals = { lastPush: null, lastCheckIn: null, problem: null, refusedAt: null };
@@ -78,6 +80,7 @@ export function readSignals(d: {
   problem?: { at?: string; message?: string } | null;
   refusedAt?: string | null;
   refusedWhere?: string | null;
+  adoptable?: string | null;
 }): PhoneSignals {
   const t = (iso?: string | null) => {
     const n = iso ? Date.parse(iso) : NaN;
@@ -90,5 +93,6 @@ export function readSignals(d: {
     problem: pAt && d.problem?.message ? { at: pAt, message: d.problem.message } : null,
     refusedAt: t(d.refusedAt),
     refusedWhere: d.refusedWhere ?? null,
+    adoptable: d.adoptable ?? null,
   };
 }

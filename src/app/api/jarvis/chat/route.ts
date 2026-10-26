@@ -10,6 +10,8 @@ import { cleanTimeline, timelineBrief } from "@/lib/seedance/audio/timeline";
 import { scoreRules } from "@/lib/seedance/score";
 import { memoryContext } from "@/lib/jarvis/server/memory";
 import { noteSkillUse } from "@/lib/skills/server/usageStore";
+import { findingsBlock } from "@/lib/memory-rules/rules";
+import { noteLog, readRules } from "@/lib/memory-rules/server/store";
 
 // Reads the master folder from disk and the memory database per request.
 export const runtime = "nodejs";
@@ -154,6 +156,23 @@ export async function POST(req: Request) {
     ? studioContext(studio, await loadSkills(studio.map((m) => m.workflow.id)))
     : "";
 
+  // Memory rule 4: every workflow reads what its past runs learned before it
+  // runs again, so a miss is never repeated. Best effort — no findings, or no
+  // database, just means no block.
+  const findings = studio.length
+    ? await memoryContext()
+        .then(async (ctx) => {
+          if (!ctx.available) return "";
+          const doc = await readRules(ctx.userId);
+          return [...new Set(studio.map((m) => m.workflow.id))].map((id) => findingsBlock(doc, `studio:${id}`)).filter(Boolean).join("\n\n");
+        })
+        .catch(() => "")
+    : "";
+
+  // Memory rule 3: what Jarvis did lands in the owner's daily log. Resolved
+  // while the request is live (cookies), written after the answer.
+  const logCtx = memoryContext().catch(() => null);
+
   // The planning doctrine under every workflow: what lands in which field of
   // the board, what the render gate will refuse, and how sound is decided. It
   // is not a workflow the owner picks — a film planned without it is a film
@@ -197,6 +216,7 @@ export async function POST(req: Request) {
         body.extraContext?.slice(0, 18000),
         castBlock,
         planBlock,
+        findings,
         studioBlock,
         shotBlock,
         skillsBlock(body.skills),
@@ -205,8 +225,21 @@ export async function POST(req: Request) {
         .join("\n\n"),
       profileId: body.profileId,
       studio: studio.length > 0,
-      task: { app: studio.length ? "Jarvis Studio" : "Jarvis chat", models: cleanStudioChain(body.models) },
+      task: {
+        app: studio.length ? "Jarvis Studio" : "Jarvis chat",
+        models: cleanStudioChain(body.models),
+        // The skill this turn runs, so its tokens count toward it in Skills
+        // Library › Spend and Jev can pick its model tier.
+        ...(studio.length ? { skill: `studio:${studio[0].workflow.id}` } : {}),
+      },
     });
+    if (result.did?.length) {
+      const about = studio.length ? `studio:${studio[0].workflow.id}` : undefined;
+      after(async () => {
+        const ctx = await logCtx;
+        if (ctx?.available) await noteLog(ctx.userId, result.did.map((text) => ({ text, by: "jarvis", about, timeZone: body.timezone })));
+      });
+    }
     return NextResponse.json(result);
   } catch (e) {
     // A failure here must read as a failure, never as an answer.
