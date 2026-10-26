@@ -1,5 +1,50 @@
 [
  {
+  "id": "9f4b9ba:dashboard",
+  "date": "2026-10-26",
+  "slug": "dashboard",
+  "title": "Self-improving confidence score on every photo, with most/least sure sorting and Sure/Maybe/Unsure filters",
+  "detail": "The vision model rates its own guess; the score is calibrated against what the owner filed, moved and removed (photos/confidence.ts, outcomes in photo-autopilot:v1). Shown as a chip on each photo and in the photo sheet with why; the Autopilot chat sees it too. Scores only sort — every photo still wa",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9f4b9ba:jarvis",
+  "date": "2026-10-26",
+  "slug": "jarvis",
+  "title": "Self-improving confidence score on every photo, with most/least sure sorting and Sure/Maybe/Unsure filters",
+  "detail": "The vision model rates its own guess; the score is calibrated against what the owner filed, moved and removed (photos/confidence.ts, outcomes in photo-autopilot:v1). Shown as a chip on each photo and in the photo sheet with why; the Autopilot chat sees it too. Scores only sort — every photo still wa",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4224d91:iphone-notes",
+  "date": "2026-10-26",
+  "slug": "iphone-notes",
+  "title": "New app + Dashboard widget — iPhone notes read into to-dos, events, birthdays, memory and ideas with a self-improving confidence score; noth",
+  "detail": "A \"Notes to Jarvis\" iPhone Shortcut posts each recent note to /api/iphone-notes/push (per-account key, session-exempt, no duplicates on re-send). Jarvis proposes up to 6 actions per note, each scored by the model and calibrated against the owner's past approvals/declines (src/lib/confidence/calibrat",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "4224d91:jarvis",
+  "date": "2026-10-26",
+  "slug": "jarvis",
+  "title": "New app + Dashboard widget — iPhone notes read into to-dos, events, birthdays, memory and ideas with a self-improving confidence score; noth",
+  "detail": "A \"Notes to Jarvis\" iPhone Shortcut posts each recent note to /api/iphone-notes/push (per-account key, session-exempt, no duplicates on re-send). Jarvis proposes up to 6 actions per note, each scored by the model and calibrated against the owner's past approvals/declines (src/lib/confidence/calibrat",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4224d91:confidence",
+  "date": "2026-10-26",
+  "slug": "confidence",
+  "title": "New app + Dashboard widget — iPhone notes read into to-dos, events, birthdays, memory and ideas with a self-improving confidence score; noth",
+  "detail": "A \"Notes to Jarvis\" iPhone Shortcut posts each recent note to /api/iphone-notes/push (per-account key, session-exempt, no duplicates on re-send). Jarvis proposes up to 6 actions per note, each scored by the model and calibrated against the owner's past approvals/declines (src/lib/confidence/calibrat",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "98ec63a:jarvis",
   "date": "2026-10-26",
   "slug": "jarvis",
