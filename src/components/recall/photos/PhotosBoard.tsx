@@ -411,7 +411,7 @@ export function PhotosBoard({
   }
 
   async function reject(ids: string[]) {
-    setPending(await rejectPhotos(ids));
+    setPending(await rejectPhotos(ids, { learn: true }));
     onToast(`Discarded ${ids.length}`);
   }
 

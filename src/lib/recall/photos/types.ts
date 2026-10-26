@@ -178,6 +178,13 @@ export interface PhotoAnalysis {
   albumMatch?: { categoryId: string; name: string; confidence: number } | null;
   /** What the agent did because of the user's instructions, and what it could not do. */
   agentNote?: { followed: string[]; couldNot: string[] } | null;
+  /**
+   * The model's own 0-1 read of how sure it is about the route + destination.
+   * Shown calibrated against what the owner did with past guesses
+   * (photos/confidence.ts) — it orders the queue, it never files anything.
+   */
+  confidence?: number;
+  confidenceWhy?: string;
   engine: "ai" | "heuristic";
 }
 

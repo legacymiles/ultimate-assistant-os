@@ -79,6 +79,7 @@ import { ImprovementsExpanded, ImprovementsWidget } from "./Improvements";
 import { QueueExpanded, QueueWidget } from "./QueueWidget";
 import { YouTubeVideosExpanded, YouTubeVideosWidget } from "../youtube-videos/YouTubeVideosWidget";
 import { FindMyLifeExpanded, FindMyLifeWidget } from "../find-my-life/FindMyLifeWidget";
+import { IphoneNotesExpanded, IphoneNotesWidget } from "../iphone-notes/IphoneNotesWidget";
 import type { UseQueue } from "@/lib/new-jarvis/useQueue";
 import { useIdeas } from "@/lib/new-jarvis/useIdeas";
 import type { AuditProposalLike } from "@/lib/new-jarvis/ideas";
@@ -86,6 +87,8 @@ import type { JarvisStore } from "@/lib/jarvis/types";
 import { MicButton } from "../jarvis/MicButton";
 import { useDictation } from "@/lib/new-jarvis/useDictation";
 import { phoneLine, type PhoneSignals } from "@/lib/dashboard/phoneStatus";
+import { photoConfidence } from "@/lib/recall/photos/confidence";
+import { passesFilter, sortByConfidence, type Confidence, type ConfidenceFilter, type ConfidenceSort } from "@/lib/confidence/calibrate";
 
 interface Props {
   go: (tab: string) => void;
@@ -321,6 +324,45 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
     return () => window.removeEventListener(AUTOPILOT_CHANGED, read);
   }, []);
 
+  // ---- confidence: a self-improving score per photo; it sorts, never files ----
+  const [confSort, setConfSort] = useState<ConfidenceSort>("newest");
+  const [confFilter, setConfFilter] = useState<ConfidenceFilter>("all");
+  useEffect(() => {
+    try {
+      const p = JSON.parse(localStorage.getItem(CONF_PREF) || "{}") as { sort?: ConfidenceSort; filter?: ConfidenceFilter };
+      if (CONF_SORTS.some((x) => x.id === p.sort)) setConfSort(p.sort!);
+      if (CONF_FILTERS.some((x) => x.id === p.filter)) setConfFilter(p.filter!);
+    } catch {
+      /* private window: defaults */
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem(CONF_PREF, JSON.stringify({ sort: confSort, filter: confFilter }));
+    } catch {
+      /* not remembered — fine */
+    }
+  }, [confSort, confFilter]);
+  const confOf = useMemo(() => {
+    const outcomes = rules.outcomes ?? [];
+    const m = new Map<string, Confidence | null>();
+    for (const p of queue) m.set(p.id, photoConfidence(p, p.status === "ready" ? destinationLabel(p) : "", outcomes));
+    return m;
+  }, [queue, rules]);
+  // The queue as the owner chose to see it: sorted by how sure, filtered by band.
+  const ordered = useMemo(
+    () =>
+      confSort === "newest"
+        ? queue
+        : sortByConfidence(queue, confSort, (p) => confOf.get(p.id)?.score ?? null, when),
+    [queue, confSort, confOf],
+  );
+  const visible = useMemo(
+    () => (confFilter === "all" ? ordered : ordered.filter((p) => passesFilter(confOf.get(p.id)?.score ?? null, confFilter))),
+    [ordered, confFilter, confOf],
+  );
+  const bandCount = (f: ConfidenceFilter) => (f === "all" ? queue.length : queue.filter((p) => passesFilter(confOf.get(p.id)?.score ?? null, f)).length);
+
   const [busy, setBusy] = useState<string | null>(null);
   const [filing, setFiling] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
@@ -402,7 +444,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
 
   const removeNow = useCallback(
     async (id: string) => {
-      await rejectPhotos([id]);
+      await rejectPhotos([id], { learn: true });
       setToast("Removed from the queue — it's still on your phone");
       refresh();
     },
@@ -597,7 +639,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                       {queue.length} waiting{analyzing ? ` · reading ${analyzing}` : ""} — tap one to file it or tell me where it goes
                     </p>
                     <ul className="grid grid-cols-4 gap-1.5 sm:grid-cols-6 lg:grid-cols-8">
-                      {queue.slice(0, 8).map((p, i) => (
+                      {ordered.slice(0, 8).map((p, i) => (
                         <li key={p.id} className="relative">
                           <button
                             type="button"
@@ -610,6 +652,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                           >
                             {p.thumb ? <img src={p.thumb} alt="" className="h-full w-full object-cover" /> : null}
                             {p.status === "analyzing" && <span className="deck-analyzing text-[8px]">READING…</span>}
+                            {!(i === 7 && queue.length > 8) && <ConfBadge c={confOf.get(p.id)} small />}
                             {i === 7 && queue.length > 8 && (
                               <span className="absolute inset-0 grid place-items-center bg-black/60 font-mono text-[12px] text-ink">+{queue.length - 8}</span>
                             )}
@@ -644,6 +687,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                 )}
               </Widget>
             )}
+            {!widgets.hidden.has("notes") && <IphoneNotesWidget onExpand={() => setExpanded("notes")} />}
             {!widgets.hidden.has("notifications") && <NotificationsWidget updates={updates} onExpand={() => setExpanded("notifications")} />}
             {!widgets.hidden.has("todo") && <TodoWidget onExpand={() => setExpanded("todo")} />}
             {!widgets.hidden.has("calendar") && <CalendarWidget events={events} onExpand={() => setExpanded("calendar")} />}
@@ -699,7 +743,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                   void fileNow(ids);
                 }}
                 onRemove={async (ids) => {
-                  await rejectPhotos(ids);
+                  await rejectPhotos(ids, { learn: true });
                   setPicked(new Set());
                   setToast(`Removed ${ids.length === 1 ? "it" : `${ids.length} photos`} from the queue — still on your phone`);
                   refresh();
@@ -709,6 +753,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                   if (p) void sendTask(shotOf(p), task);
                 }}
                 refresh={refresh}
+                confOf={confOf}
               />
             ) : undefined
           }
@@ -762,8 +807,36 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
               )}
             </>
           ) : (
+            <>
+            <div className="flex flex-wrap items-center gap-2" aria-label="Sort and filter by confidence">
+              <div className="deck-seg" role="group" aria-label="Sort">
+                {CONF_SORTS.map((o) => (
+                  <button key={o.id} type="button" aria-pressed={confSort === o.id} onClick={() => setConfSort(o.id)}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              <div className="deck-seg" role="group" aria-label="Show">
+                {CONF_FILTERS.map((o) => (
+                  <button key={o.id} type="button" aria-pressed={confFilter === o.id} onClick={() => setConfFilter(o.id)} data-band={o.id}>
+                    {o.label} <span className="font-mono text-[10px] opacity-70">{bandCount(o.id)}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="w-full text-[11px] text-ink-faint sm:w-auto">
+                Scores learn from what you file, move and remove — they never file anything on their own.
+              </p>
+            </div>
+            {visible.length === 0 && (
+              <p className="mt-3 rounded-xl border border-dashed border-line px-4 py-4 text-center text-[12px] text-ink-muted">
+                No photos in that group.{" "}
+                <button type="button" className="text-[var(--hud)] underline-offset-2 hover:underline" onClick={() => setConfFilter("all")}>
+                  Show all {queue.length}
+                </button>
+              </p>
+            )}
             <ul className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {queue.map((p) => {
+              {visible.map((p) => {
                 const flag = p.status === "ready" ? flagOf(p) : undefined;
                 const isFiling = filing.has(p.id);
                 return (
@@ -790,6 +863,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                           </span>
                         )}
                         {p.status === "analyzing" && <div className="deck-analyzing">READING…</div>}
+                        <ConfBadge c={confOf.get(p.id)} />
                         {flag && (
                           <span
                             className="absolute left-2 top-2 h-2.5 w-2.5 rounded-full bg-[var(--hud-amber)] shadow-[0_0_8px_var(--hud-amber)]"
@@ -819,6 +893,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                 );
               })}
             </ul>
+            </>
           )}
           </div>
         </WidgetSheet>
@@ -830,6 +905,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
       {expanded === "queue" && <QueueExpanded queue={inQueue} go={go} onClose={() => setExpanded(null)} />}
       {expanded === "youtube" && <YouTubeVideosExpanded onClose={() => setExpanded(null)} />}
       {expanded === "findmy" && <FindMyLifeExpanded onClose={() => setExpanded(null)} />}
+      {expanded === "notes" && <IphoneNotesExpanded onClose={() => setExpanded(null)} />}
 
       {(open || openFiled) && (() => {
         const shot = open ? shotOf(open) : openFiled!;
@@ -838,6 +914,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
           <PhotoSheet
             key={shot.id}
             shot={shot}
+            confidence={open ? confOf.get(open.id) : null}
             thread={threads[shot.id] ?? []}
             setThread={(fn) => setThreads((t) => ({ ...t, [shot.id]: fn(t[shot.id] ?? []) }))}
             filing={filing.has(shot.id)}
@@ -880,6 +957,30 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
     </div>
   );
 }
+
+/** How sure Jarvis is about a photo's guess, as a small coloured chip. */
+function ConfBadge({ c, small = false }: { c: Confidence | null | undefined; small?: boolean }) {
+  if (!c) return null;
+  return (
+    <span className={`deck-conf ${small ? "deck-conf--sm" : ""}`} data-band={c.band} title={`${c.score}% sure — ${c.why}`} aria-label={`${c.score}% sure`}>
+      {c.score}%
+    </span>
+  );
+}
+
+const CONF_SORTS: { id: ConfidenceSort; label: string }[] = [
+  { id: "newest", label: "Newest" },
+  { id: "most", label: "Most sure" },
+  { id: "least", label: "Least sure" },
+];
+const CONF_FILTERS: { id: ConfidenceFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "high", label: "Sure 80+" },
+  { id: "medium", label: "Maybe" },
+  { id: "low", label: "Unsure" },
+];
+const CONF_PREF = "camera-autopilot:confidence-view";
+const when = (p: PendingPhoto) => Date.parse(p.takenAt ?? p.addedAt) || Date.parse(p.addedAt) || 0;
 
 function IconBtn({ label, onClick, disabled, children }: { label: string; onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
   return (
@@ -947,6 +1048,7 @@ const isTouch = () => typeof window !== "undefined" && window.matchMedia("(point
 
 function PhotoSheet({
   shot,
+  confidence,
   thread,
   setThread,
   filing,
@@ -959,6 +1061,8 @@ function PhotoSheet({
   refresh,
 }: {
   shot: Shot;
+  /** How sure Jarvis is about the guess (queued photos only). */
+  confidence?: Confidence | null;
   thread: ChatMsg[];
   setThread: (fn: (t: ChatMsg[]) => ChatMsg[]) => void;
   filing: boolean;
@@ -1140,6 +1244,12 @@ function PhotoSheet({
                   </button>
                 )}
               </div>
+              {confidence && (
+                <p className="flex items-start gap-2 text-[11.5px] text-ink-muted">
+                  <ConfBadge c={confidence} />
+                  <span className="min-w-0">{confidence.why}</span>
+                </p>
+              )}
               {flag && <p className="text-[11px] text-amber-300">{flag}</p>}
             </div>
 
@@ -1256,6 +1366,7 @@ function AutopilotBar({
   onRemove,
   onTask,
   refresh,
+  confOf,
 }: {
   queue: PendingPhoto[];
   picked: Set<string>;
@@ -1269,6 +1380,8 @@ function AutopilotBar({
   onRemove: (ids: string[]) => Promise<void>;
   onTask: (id: string, task: string) => void;
   refresh: () => void;
+  /** Each photo's confidence, so "file the sure ones" can be understood. */
+  confOf?: Map<string, Confidence | null>;
 }) {
   const [draft, setDraft] = useState("");
   const [thinking, setThinking] = useState(false);
@@ -1337,6 +1450,7 @@ function AutopilotBar({
             where: p.status === "ready" ? destinationLabel(p) : "not decided",
             tags: p.analysis?.tags ?? [],
             flagged: p.status === "ready" ? flagOf(p) : undefined,
+            sure: confOf?.get(p.id)?.score,
           })),
           selectedId: targets.length === 1 ? targets[0].id : null,
           rules,

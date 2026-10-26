@@ -15,7 +15,8 @@ vi.stubGlobal("window", {
   removeEventListener: () => {},
 });
 
-import { addRule, getAutopilot, learnFromApprovals, removeRule, standingGuidance, toggleRule } from "./autopilot";
+import { addRule, getAutopilot, learnFromApprovals, learnFromMisses, removeRule, standingGuidance, toggleRule } from "./autopilot";
+import { photoConfidence, rawConfidence } from "./confidence";
 import type { PendingPhoto } from "./types";
 
 beforeEach(() => store.clear());
@@ -38,8 +39,11 @@ function photo(over: Partial<PendingPhoto> & { tags?: string[]; title?: string; 
       people: [],
       unknownPeople: 0,
       tags: over.tags ?? ["receipt"],
-      engine: "ai",
+      engine: over.analysis?.engine ?? "ai",
+      confidence: over.analysis?.confidence,
     },
+    userPrompt: over.userPrompt,
+    duplicateOf: over.duplicateOf,
   };
 }
 
@@ -96,5 +100,40 @@ describe("learning from filing", () => {
   it("learns nothing from an empty approval", () => {
     learnFromApprovals([]);
     expect(getAutopilot().examples).toHaveLength(0);
+  });
+});
+
+describe("confidence that teaches itself", () => {
+  const sure = () => photo({ analysis: { confidence: 0.9 } as PendingPhoto["analysis"] });
+
+  it("starts as the model's own read", () => {
+    expect(photoConfidence(sure(), "Receipts", [])?.score).toBe(90);
+  });
+
+  it("drops for a destination the owner keeps moving photos away from", () => {
+    for (let i = 0; i < 8; i++) learnFromApprovals([photo({ overridden: true, analysis: { confidence: 0.9 } as PendingPhoto["analysis"] })]);
+    const c = photoConfidence(sure(), "Receipts", getAutopilot().outcomes ?? []);
+    expect(c!.score).toBeLessThan(60);
+  });
+
+  it("rises when the owner keeps filing it as guessed", () => {
+    for (let i = 0; i < 8; i++) learnFromApprovals([photo({ analysis: { confidence: 0.55 } as PendingPhoto["analysis"] })]);
+    const c = photoConfidence(photo({ analysis: { confidence: 0.55 } as PendingPhoto["analysis"] }), "Receipts", getAutopilot().outcomes ?? []);
+    expect(c!.score).toBeGreaterThan(75);
+  });
+
+  it("removing a photo counts as a miss", () => {
+    learnFromMisses([sure()]);
+    expect(getAutopilot().outcomes?.at(-1)?.ok).toBe(false);
+  });
+
+  it("knows what the queue already doubts", () => {
+    expect(rawConfidence(photo({ analysis: { engine: "heuristic" } as PendingPhoto["analysis"] }))).toBe(0.15);
+    expect(rawConfidence(photo({ duplicateOf: { label: "x", identical: true }, analysis: { confidence: 1 } as PendingPhoto["analysis"] }))).toBe(0.6);
+  });
+
+  it("a place the owner chose by hand is certain, and nothing is scored while reading", () => {
+    expect(photoConfidence(photo({ overridden: true }), "Receipts", [])?.score).toBe(99);
+    expect(photoConfidence({ ...sure(), status: "analyzing" }, "", [])).toBeNull();
   });
 });

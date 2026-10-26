@@ -47,7 +47,7 @@ import { duplicateIds, findSamePhoto, type PhotoIdentity } from "./sameness";
 import type { PendingPhoto, PhotoAnalysis, PhotosData } from "./types";
 import { PHOTOS_ROOT } from "./types";
 import { closestPlace } from "@/lib/dashboard/places";
-import { learnFromApprovals } from "./autopilot";
+import { learnFromApprovals, learnFromMisses } from "./autopilot";
 
 /** Photos analysed at once. Three keeps a big import moving without
  *  stampeding the gateway (and its rate limit) from one browser tab. */
@@ -313,6 +313,9 @@ export async function reanalyze(
   if (!pending) return getQueue();
   // Instructions given once keep applying: a later plain Re-read follows them too.
   const prompt = options.userPrompt ?? pending.userPrompt;
+  // New words from the owner mean the guess on screen was wrong — remember that
+  // for the confidence score before it is replaced.
+  if (options.userPrompt && options.userPrompt !== pending.userPrompt) learnFromMisses([pending]);
   updatePending(photoId, { status: "analyzing", userPrompt: prompt });
   const blob = await getFile(pending.fileId);
   if (!blob) {
@@ -511,9 +514,12 @@ export async function approvePhotos(args: ApproveArgs): Promise<ApproveResult> {
 }
 
 /** Discard photos from the queue, taking their blobs with them. */
-export async function rejectPhotos(photoIds: string[]): Promise<PendingPhoto[]> {
+export async function rejectPhotos(photoIds: string[], opts: { learn?: boolean } = {}): Promise<PendingPhoto[]> {
   const wanted = new Set(photoIds);
   const leaving = getQueue().filter((x) => wanted.has(x.id));
+  // The owner turning a guess down teaches the confidence score; clearing
+  // duplicates (removeDuplicatePhotos) does not.
+  if (opts.learn) learnFromMisses(leaving);
   for (const p of leaving) {
     await deleteFile(p.fileId).catch(() => {
       /* already gone */
