@@ -1,5 +1,113 @@
 [
  {
+  "id": "e3b0c9d:jarvis",
+  "date": "2026-10-26",
+  "slug": "jarvis",
+  "title": "Merged apps leave the grid and App plugins for their new homes",
+  "detail": "Catalog entries for trading-studio, game-studio and item-storm-arena. A single MERGED_INTO map in src/lib/studio/plugins.ts (EA World, EA Lab, EA Feature List, Multi-Order Calculator -> Trading Studio; Game Creator, Slippery Escape, Item Storm Arena -> Game Studio; Website Redesigner -> App Builder;",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1d48e86:app-builder",
+  "date": "2026-10-26",
+  "slug": "app-builder",
+  "title": "One home for building, with Website Redesigner inside",
+  "detail": "/apps/app-builder gets a StudioHome switcher: Build (App Builder, unchanged) and Website Redesigner (V1, the V2 bake-off and a new Showcase view, moved into a component so the route is a thin page). Showcase lists EMBER Reveal and the APEX/01 Kart Teardown, each playable in place with Open full scre",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1d48e86:website-redesigner",
+  "date": "2026-10-26",
+  "slug": "website-redesigner",
+  "title": "One home for building, with Website Redesigner inside",
+  "detail": "/apps/app-builder gets a StudioHome switcher: Build (App Builder, unchanged) and Website Redesigner (V1, the V2 bake-off and a new Showcase view, moved into a component so the route is a thin page). Showcase lists EMBER Reveal and the APEX/01 Kart Teardown, each playable in place with Open full scre",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1d48e86:jarvis",
+  "date": "2026-10-26",
+  "slug": "jarvis",
+  "title": "One home for building, with Website Redesigner inside",
+  "detail": "/apps/app-builder gets a StudioHome switcher: Build (App Builder, unchanged) and Website Redesigner (V1, the V2 bake-off and a new Showcase view, moved into a component so the route is a thin page). Showcase lists EMBER Reveal and the APEX/01 Kart Teardown, each playable in place with Open full scre",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e2830d0:game-creator",
+  "date": "2026-10-26",
+  "slug": "game-creator",
+  "title": "Make a game and finish the unfinished ones",
+  "detail": "/apps/game-studio puts Game Creator (embedded) under Create and a dense Unfinished games shelf beside it: Slippery Escape and Item Storm Arena, each playable in place in a frame (one at a time, nothing runs until asked), with Open full screen and a Finish it button that files the request in In Queue",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e2830d0:game-studio",
+  "date": "2026-10-26",
+  "slug": "game-studio",
+  "title": "Make a game and finish the unfinished ones",
+  "detail": "/apps/game-studio puts Game Creator (embedded) under Create and a dense Unfinished games shelf beside it: Slippery Escape and Item Storm Arena, each playable in place in a frame (one at a time, nothing runs until asked), with Open full screen and a Finish it button that files the request in In Queue",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "e2830d0:item-storm-arena",
+  "date": "2026-10-26",
+  "slug": "item-storm-arena",
+  "title": "Make a game and finish the unfinished ones",
+  "detail": "/apps/game-studio puts Game Creator (embedded) under Create and a dense Unfinished games shelf beside it: Slippery Escape and Item Storm Arena, each playable in place in a frame (one at a time, nothing runs until asked), with Open full screen and a Finish it button that files the request in In Queue",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "e2830d0:jarvis",
+  "date": "2026-10-26",
+  "slug": "jarvis",
+  "title": "Make a game and finish the unfinished ones",
+  "detail": "/apps/game-studio puts Game Creator (embedded) under Create and a dense Unfinished games shelf beside it: Slippery Escape and Item Storm Arena, each playable in place in a frame (one at a time, nothing runs until asked), with Open full screen and a Finish it button that files the request in In Queue",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f9d1118:ea-world",
+  "date": "2026-10-26",
+  "slug": "ea-world",
+  "title": "EA tools behind one front door",
+  "detail": "A reusable StudioHome shell (src/components/studio-home) generalises the Jarvis Audio Studio pattern: a sliding-thumb tablist that scrolls sideways on a phone, an accent hue per section, ?section= in the address, last section remembered, and \"pending\" sections that explain in plain words that the ap",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f9d1118:multi-order-calculator",
+  "date": "2026-10-26",
+  "slug": "multi-order-calculator",
+  "title": "EA tools behind one front door",
+  "detail": "A reusable StudioHome shell (src/components/studio-home) generalises the Jarvis Audio Studio pattern: a sliding-thumb tablist that scrolls sideways on a phone, an accent hue per section, ?section= in the address, last section remembered, and \"pending\" sections that explain in plain words that the ap",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f9d1118:trading-studio",
+  "date": "2026-10-26",
+  "slug": "trading-studio",
+  "title": "EA tools behind one front door",
+  "detail": "A reusable StudioHome shell (src/components/studio-home) generalises the Jarvis Audio Studio pattern: a sliding-thumb tablist that scrolls sideways on a phone, an accent hue per section, ?section= in the address, last section remembered, and \"pending\" sections that explain in plain words that the ap",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "f9d1118:jarvis",
+  "date": "2026-10-26",
+  "slug": "jarvis",
+  "title": "EA tools behind one front door",
+  "detail": "A reusable StudioHome shell (src/components/studio-home) generalises the Jarvis Audio Studio pattern: a sliding-thumb tablist that scrolls sideways on a phone, an accent hue per section, ?section= in the address, last section remembered, and \"pending\" sections that explain in plain words that the ap",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "72fa706:dashboard",
   "date": "2026-10-25",
   "slug": "dashboard",
