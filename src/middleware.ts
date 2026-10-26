@@ -43,6 +43,10 @@ const TOKEN_AUTH_PATHS = new Set([
   // Find My Life's background ping (iPhone Shortcuts has no session). The
   // per-account key in the URL is checked in the route.
   "/api/find-my-life/ping",
+  // iPhone Notes' Shortcut ("Notes to Jarvis") has no session either. The
+  // per-account key in the URL is checked in the route; it only stores notes,
+  // and nothing it stores runs without the owner's Approve.
+  "/api/iphone-notes/push",
   // Personas Studio's scheduler tick (GitHub Actions). Only sends posts their
   // owners already scheduled, behind a per-job lock; optional bearer token.
   "/api/social-personas/publish/tick",
