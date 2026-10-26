@@ -1,5 +1,32 @@
 [
  {
+  "id": "98ec63a:jarvis",
+  "date": "2026-10-26",
+  "slug": "jarvis",
+  "title": "Memory rules, per-skill spend and caps, and Jev picks each skill's model",
+  "detail": "Memory rules on top of the memory rows (the database stays the source of truth): - Owner-written notes, profile and vault are read-only for agents: the connector's save_memory never files as them and delete_memory refuses them. - A router per area (app categories, skill categories, clients, findings",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "98ec63a:skills-library",
+  "date": "2026-10-26",
+  "slug": "skills-library",
+  "title": "Memory rules, per-skill spend and caps, and Jev picks each skill's model",
+  "detail": "Memory rules on top of the memory rows (the database stays the source of truth): - Owner-written notes, profile and vault are read-only for agents: the connector's save_memory never files as them and delete_memory refuses them. - A router per area (app categories, skill categories, clients, findings",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "98ec63a:memory-rules",
+  "date": "2026-10-26",
+  "slug": "memory-rules",
+  "title": "Memory rules, per-skill spend and caps, and Jev picks each skill's model",
+  "detail": "Memory rules on top of the memory rows (the database stays the source of truth): - Owner-written notes, profile and vault are read-only for agents: the connector's save_memory never files as them and delete_memory refuses them. - A router per area (app categories, skill categories, clients, findings",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "1f3536e:cook-connect",
   "date": "2026-10-25",
   "slug": "cook-connect",
