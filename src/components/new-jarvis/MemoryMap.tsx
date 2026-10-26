@@ -20,19 +20,34 @@
 //   double-click    fly to it        Esc              let go
 //   search          light up matches; Enter flies to the first
 //   chips           show or hide a kind of thing
+//   layers          four rings of depth: you · areas · abilities · memories
+//                   (lib/memory-map/layers.ts pulls each onto its own shell)
+//   3D / Flat       zoom far out and the sphere unfolds into flat rings;
+//                   the button pins either view
+//   Changed         light up what changed in the last day / week / month
+//   Timeline        who changed what, newest first — click to fly to it
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "../icons";
 import { DEFAULT_FORCE } from "@/lib/jarvis/graph/types";
-import { isSettled, makeState, reheat, settle, step } from "@/lib/jarvis/graph/force";
+import { isSettled, makeState, reheat, step } from "@/lib/jarvis/graph/force";
+import { SHELLS, applyShells, autoFlat, flatPoint, outerRadius } from "@/lib/memory-map/layers";
 import {
   ITEM_TYPES,
+  LAYERS,
   TYPE_META,
   buildMap,
+  changedSince,
   neighbourhood,
   searchMap,
+  timelineOf,
+  type AppEditIn,
+  type FindingIn,
+  type Layer,
+  type LogEntryIn,
+  type TimelineEvent,
   type ClientIn,
   type ItemType,
   type MapNode,
@@ -94,14 +109,18 @@ interface Extra {
   skills: SkillIn[];
   crashes: ErrorEntry[];
   clients: ClientIn[];
+  /** Memory rules: the daily log, findings per workflow, and recent app edits. */
+  logs: { day: string; entries: LogEntryIn[] }[];
+  findings: Record<string, FindingIn[]>;
+  appEdits: AppEditIn[];
 }
 
 function useExtra(): Extra {
-  const [extra, setExtra] = useState<Extra>({ skills: [], crashes: [], clients: [] });
+  const [extra, setExtra] = useState<Extra>({ skills: [], crashes: [], clients: [], logs: [], findings: {}, appEdits: [] });
   useEffect(() => {
     let live = true;
     const get = (url: string) => fetch(url, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-    void Promise.all([get("/api/skills/scan"), get("/api/site-errors"), get("/api/client-review/admin")]).then(([sk, er, cr]) => {
+    void Promise.all([get("/api/skills/scan"), get("/api/site-errors"), get("/api/client-review/admin"), get("/api/jarvis/memory/rules")]).then(([sk, er, cr, ru]) => {
       if (!live) return;
       const skills: SkillIn[] = ((sk?.skills ?? []) as { slug: string; title: string; overview: string; body: string; origin: string }[]).map((s) => {
         const as: Skill = { id: s.slug, slug: s.slug, title: s.title, overview: s.overview, body: s.body, source: "claude-code", origin: s.origin, createdAt: "", updatedAt: "" };
@@ -111,7 +130,14 @@ function useExtra(): Extra {
       const clients: ClientIn[] = ((cr?.projects ?? []) as { id: string; name: string; clientName?: string; archived?: boolean }[])
         .filter((p) => !p.archived)
         .map((p) => ({ id: p.id, name: p.name, clientName: p.clientName }));
-      setExtra({ skills, crashes: (er?.open ?? []) as ErrorEntry[], clients });
+      setExtra({
+        skills,
+        crashes: (er?.open ?? []) as ErrorEntry[],
+        clients,
+        logs: Array.isArray(ru?.log) ? ru.log : [],
+        findings: ru?.findings && typeof ru.findings === "object" ? ru.findings : {},
+        appEdits: Array.isArray(ru?.appEdits) ? ru.appEdits : [],
+      });
     });
     return () => {
       live = false;
@@ -132,18 +158,22 @@ export function MemoryMap({ queue, store, vault }: Props) {
   const router = useRouter();
   const extra = useExtra();
 
-  const graph = useMemo(
-    () =>
-      buildMap({
-        queue: queue.all,
-        skills: extra.skills,
-        crashes: extra.crashes,
-        clients: extra.clients,
-        memories: store.memories,
-        notes: vault.graph.nodes,
-      }),
+  const inputs = useMemo(
+    () => ({
+      queue: queue.all,
+      skills: extra.skills,
+      crashes: extra.crashes,
+      clients: extra.clients,
+      memories: store.memories,
+      notes: vault.graph.nodes,
+      logs: extra.logs,
+      findings: extra.findings,
+      appEdits: extra.appEdits,
+    }),
     [queue.all, extra, store.memories, vault.graph.nodes],
   );
+  const graph = useMemo(() => buildMap(inputs), [inputs]);
+  const timeline = useMemo(() => timelineOf(graph, inputs), [graph, inputs]);
 
   const [hidden, setHidden] = useState<Set<ItemType>>(new Set());
   const [query, setQuery] = useState("");
@@ -151,8 +181,20 @@ export function MemoryMap({ queue, store, vault }: Props) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [spin, setSpin] = useState(true);
   const [note, setNote] = useState<string | null>(null);
+  // null = automatic (zoom far out and it unfolds); true/false = pinned by the button.
+  const [forcedFlat, setForcedFlat] = useState<boolean | null>(null);
+  const [isFlat, setIsFlat] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(false);
+  const [since, setSince] = useState<0 | 1 | 7 | 30>(0);
+  const [layerFocus, setLayerFocus] = useState<Layer | null>(null);
 
   const matches = useMemo(() => searchMap(graph, query), [graph, query]);
+  const changed = useMemo(() => (since ? changedSince(graph, timeline, since) : new Set<string>()), [graph, timeline, since]);
+  const layerCounts = useMemo(() => {
+    const c = [0, 0, 0, 0];
+    for (const n of graph.nodes) c[n.layer ?? 3] += 1;
+    return c;
+  }, [graph]);
   const byKey = useMemo(() => new Map(graph.nodes.map((n, i) => [n.key, { n, i }])), [graph]);
   const sel = selected ? byKey.get(selected)?.n ?? null : null;
 
@@ -171,7 +213,17 @@ export function MemoryMap({ queue, store, vault }: Props) {
     center: [0, 0, 0] as [number, number, number],
     target: null as [number, number, number] | null,
     targetZoom: null as number | null,
+    /** The node a fly-to is heading for, so flat view can centre on it too. */
+    targetIdx: -1,
     spread: 1,
+    /** Layer per node, and the outer shell's radius. */
+    layers: new Uint8Array(0),
+    outer: 1,
+    /** 0 = 3D, 1 = flat; eased toward what the zoom / button asks for. */
+    flat: 0,
+    forced: null as boolean | null,
+    fcenter: [0, 0] as [number, number],
+    layerFocus: -1,
     hover: -1,
     focus: null as Set<string> | null,
     match: new Set<string>(),
@@ -195,9 +247,18 @@ export function MemoryMap({ queue, store, vault }: Props) {
       const p = prev.get(n.key);
       if (p) L.state.positions.set(p, i * 3);
     });
+    L.layers = Uint8Array.from(graph.nodes.map((n) => n.layer ?? 3));
     if (prev.size) reheat(L.state, 0.5);
-    // First time: arrive mostly settled, then let it breathe — no exploding hairball on open.
-    else settle(L.state, PARAMS, 500);
+    else {
+      // First time: arrive mostly settled, then let it breathe — no exploding hairball on open.
+      // The force layout finds the clusters first, then the shells sort them into layers.
+      for (let t = 0; t < 300; t++) step(L.state, PARAMS);
+      L.outer = outerRadius(L.state.positions, graph.nodes.length);
+      for (let t = 0; t < 220; t++) {
+        step(L.state, PARAMS);
+        applyShells(L.state.positions, L.layers, L.outer, 0.12);
+      }
+    }
     L.hover = -1;
     L.nodes = graph.nodes;
     L.edges = graph.edges.map(([a, b]) => [byKey.get(a)!.i, byKey.get(b)!.i]);
@@ -212,7 +273,11 @@ export function MemoryMap({ queue, store, vault }: Props) {
     L.selected = selected ? byKey.get(selected)?.i ?? -1 : -1;
     const anchor = hovered ?? selected;
     L.focus = anchor ? neighbourhood(graph, anchor, 1) : null;
-  }, [hidden, matches, spin, selected, hovered, graph, byKey]);
+    // Search wins; otherwise the "Changed" filter lights what moved.
+    L.match = query.trim() ? matches : changed;
+    L.forced = forcedFlat;
+    L.layerFocus = layerFocus ?? -1;
+  }, [hidden, matches, changed, query, spin, selected, hovered, graph, byKey, forcedFlat, layerFocus]);
 
   const flyTo = useCallback(
     (key: string) => {
@@ -221,6 +286,7 @@ export function MemoryMap({ queue, store, vault }: Props) {
       const L = live.current;
       const p = L.state.positions;
       L.target = [p[hit.i * 3], p[hit.i * 3 + 1], p[hit.i * 3 + 2]];
+      L.targetIdx = hit.i;
       L.targetZoom = hit.n.type === "you" || hit.n.type === "hub" ? 1.3 : 2.2;
       setSelected(key);
     },
@@ -254,6 +320,8 @@ export function MemoryMap({ queue, store, vault }: Props) {
 
     let raf = 0;
     let t = 0;
+    let flatShown = false;
+    let ringLabels: { l: number; x: number; y: number }[] = [];
     let last = performance.now();
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
@@ -267,7 +335,21 @@ export function MemoryMap({ queue, store, vault }: Props) {
       const n = nodes.length;
       if (!isSettled(state)) {
         step(state, PARAMS);
-        if (L.reduced) for (let k = 0; k < 40 && !isSettled(state); k++) step(state, PARAMS);
+        applyShells(state.positions, L.layers, L.outer, 0.06);
+        if (L.reduced)
+          for (let k = 0; k < 40 && !isSettled(state); k++) {
+            step(state, PARAMS);
+            applyShells(state.positions, L.layers, L.outer, 0.06);
+          }
+      }
+      // 3D ↔ flat: the zoom (or the button) decides, the view eases there.
+      const wantFlat = autoFlat(L.zoom, L.forced);
+      L.flat += (wantFlat - L.flat) * Math.min(1, ease * 0.8);
+      if (Math.abs(wantFlat - L.flat) < 0.002) L.flat = wantFlat;
+      const nowFlat = L.flat > 0.5;
+      if (nowFlat !== flatShown) {
+        flatShown = nowFlat;
+        setIsFlat(nowFlat);
       }
       if (L.spin && !L.dragging && !L.reduced) L.rotY += 0.096 * dt;
 
@@ -316,6 +398,20 @@ export function MemoryMap({ queue, store, vault }: Props) {
       const sx = Math.sin(L.rotX);
       const camD = 3.2;
       const depth = new Float32Array(n);
+      const F = L.flat;
+      // Flat view's scale shows every ring, and keeps growing if you zoom back in.
+      const fscale = ((Math.min(w, h) * 0.44) / L.outer) * Math.max(0.85, L.zoom / 0.5);
+      // Flat view centres on the fly-to target too, so double-click works in both.
+      const flatOf = (i: number): [number, number] => {
+        const px = p[i * 3];
+        const pz = p[i * 3 + 2];
+        return flatPoint(px * cy + pz * sy, p[i * 3 + 1], -px * sy + pz * cy, L.layers[i], L.outer);
+      };
+      if (F > 0) {
+        const want = L.targetIdx >= 0 && (L.target || L.selected === L.targetIdx) ? flatOf(L.targetIdx) : ([0, 0] as [number, number]);
+        L.fcenter[0] += (want[0] - L.fcenter[0]) * ease;
+        L.fcenter[1] += (want[1] - L.fcenter[1]) * ease;
+      }
       for (let i = 0; i < n; i++) {
         const x0 = p[i * 3] - L.center[0];
         const y0 = p[i * 3 + 1] - L.center[1];
@@ -326,10 +422,22 @@ export function MemoryMap({ queue, store, vault }: Props) {
         const z2 = y0 * sx + z1 * cx;
         const zN = z2 / L.spread;
         const s = camD / (camD + zN);
-        screen[i * 3] = w / 2 + x1 * scale * s;
-        screen[i * 3 + 1] = h / 2 + y2 * scale * s;
-        screen[i * 3 + 2] = s;
-        depth[i] = zN;
+        let scrX = w / 2 + x1 * scale * s;
+        let scrY = h / 2 + y2 * scale * s;
+        let scrS = s;
+        if (F > 0) {
+          const [fx, fy] = flatOf(i);
+          const flx = w / 2 + (fx - L.fcenter[0]) * fscale;
+          const fly = h / 2 + (fy - L.fcenter[1]) * fscale;
+          scrX += (flx - scrX) * F;
+          scrY += (fly - scrY) * F;
+          scrS += (1 - scrS) * F;
+        }
+        screen[i * 3] = scrX;
+        screen[i * 3 + 1] = scrY;
+        screen[i * 3 + 2] = scrS;
+        // Flat: inner layers draw on top.
+        depth[i] = zN * (1 - F) - L.layers[i] * F;
       }
 
       const visible = (i: number) => {
@@ -338,6 +446,7 @@ export function MemoryMap({ queue, store, vault }: Props) {
       };
       const lit = (i: number) => {
         const key = nodes[i].key;
+        if (L.layerFocus >= 0 && L.layers[i] !== L.layerFocus && !L.focus) return false;
         if (L.focus) return L.focus.has(key);
         if (L.match.size) return L.match.has(key);
         return true;
@@ -350,6 +459,32 @@ export function MemoryMap({ queue, store, vault }: Props) {
       bg.addColorStop(1, "rgba(4,6,12,0)");
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, w, h);
+
+      // The four layers as faint rings — solid in flat view, a whisper in 3D.
+      {
+        const cxr = w / 2 - L.fcenter[0] * fscale * F;
+        const cyr = h / 2 - L.fcenter[1] * fscale * F;
+        const ringScale = scale * (1 - F) + fscale * F;
+        ctx.font = "500 10px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif";
+        ctx.textBaseline = "bottom";
+        for (let l = 1; l <= 3; l++) {
+          const r = SHELLS[l] * L.outer * ringScale;
+          const on = L.layerFocus < 0 || L.layerFocus === l;
+          ctx.strokeStyle = `rgba(150,175,255,${(0.1 + 0.12 * F) * (on ? 1 : 0.35)})`;
+          ctx.setLineDash(F > 0.5 ? [] : [3, 6]);
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(cxr, cyr, r, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        // Where each ring's name goes: just inside its top-left, placed in the label pass.
+        ringLabels = [];
+        for (let l = 1; l <= 3; l++) {
+          const r = SHELLS[l] * L.outer * ringScale;
+          ringLabels.push({ l, x: cxr - r * 0.71 + 4, y: cyr - r * 0.71 + 2 });
+        }
+      }
 
       // Edges.
       ctx.lineWidth = 1;
@@ -439,15 +574,39 @@ export function MemoryMap({ queue, store, vault }: Props) {
       }
       cands.sort((a, b) => b.pri - a.pri);
       const placed: [number, number, number, number][] = [];
+      const hits = (b: [number, number, number, number]) => placed.some((q) => b[0] < q[2] && b[2] > q[0] && b[1] < q[3] && b[3] > q[1]);
+      // Ring names first, so nothing lands on them.
+      for (const rl of ringLabels) {
+        const text = `${rl.l} · ${LAYERS[rl.l].label}`;
+        const tw = ctx.measureText(text).width;
+        const box: [number, number, number, number] = [rl.x - 4, rl.y - 8, rl.x + tw + 4, rl.y + 8];
+        const show = Math.max(F, 0.35);
+        placed.push(box);
+        ctx.fillStyle = `rgba(6,8,14,${0.6 * show})`;
+        ctx.fillRect(box[0], box[1], tw + 8, 16);
+        ctx.fillStyle = `rgba(190,205,255,${0.8 * show * (L.layerFocus < 0 || L.layerFocus === rl.l ? 1 : 0.4)})`;
+        ctx.fillText(text, rl.x, rl.y);
+      }
       for (const { i, pri } of cands) {
         const node = nodes[i];
         const s = screen[i * 3 + 2];
         const label = node.title.length > 34 ? `${node.title.slice(0, 33)}…` : node.title;
         const x = screen[i * 3] + radiusOf(node) * s + 7;
-        const y = screen[i * 3 + 1];
         const tw = ctx.measureText(label).width;
-        const box: [number, number, number, number] = [x - 4, y - 8, x + tw + 4, y + 8];
-        if (pri < 80 && placed.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) continue;
+        // Structure labels (you, hubs) always show: if their spot is taken, try just above or below.
+        let y = screen[i * 3 + 1];
+        let box: [number, number, number, number] = [x - 4, y - 8, x + tw + 4, y + 8];
+        if (hits(box)) {
+          if (pri < 80) continue;
+          for (const dy of [-17, 17, -34, 34]) {
+            const b: [number, number, number, number] = [x - 4, y + dy - 8, x + tw + 4, y + dy + 8];
+            if (!hits(b)) {
+              y += dy;
+              box = b;
+              break;
+            }
+          }
+        }
         placed.push(box);
         ctx.fillStyle = "rgba(6,8,14,0.72)";
         ctx.fillRect(box[0], box[1], tw + 8, 16);
@@ -555,8 +714,19 @@ export function MemoryMap({ queue, store, vault }: Props) {
     const L = live.current;
     L.target = [0, 0, 0];
     L.targetZoom = 1;
+    L.targetIdx = -1;
     L.rotX = -0.25;
+    setForcedFlat(null);
+    setLayerFocus(null);
     setSelected(null);
+  };
+  /** Pin the opposite of what's showing; zooming in or out also changes it while it's on auto. */
+  const toggleFlat = () => {
+    const L = live.current;
+    const next = !isFlat;
+    setForcedFlat(next);
+    // Leaving flat while zoomed far out: bring the zoom back so 3D isn't a speck.
+    if (!next && L.zoom < 0.7) L.targetZoom = 1;
   };
 
   // ----- actions -------------------------------------------------------------------------------
@@ -628,6 +798,24 @@ export function MemoryMap({ queue, store, vault }: Props) {
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <button
               type="button"
+              onClick={toggleFlat}
+              aria-pressed={isFlat}
+              title={isFlat ? "Back to the 3D view" : "Lay the four layers flat (or just zoom far out)"}
+              className="rounded-lg border border-white/10 bg-black/50 px-2 py-1.5 text-[11px] text-ink-muted backdrop-blur hover:text-ink"
+            >
+              {isFlat ? "3D" : "Flat"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowTimeline((v) => !v)}
+              aria-pressed={showTimeline}
+              title="Who changed what, newest first"
+              className={`rounded-lg border px-2 py-1.5 text-[11px] backdrop-blur ${showTimeline ? "border-[var(--hud)] bg-black/60 text-ink" : "border-white/10 bg-black/50 text-ink-muted hover:text-ink"}`}
+            >
+              Timeline
+            </button>
+            <button
+              type="button"
               onClick={() => setSpin((s) => !s)}
               aria-pressed={spin}
               title={spin ? "Stop turning" : "Turn slowly"}
@@ -639,6 +827,39 @@ export function MemoryMap({ queue, store, vault }: Props) {
               Reset<span className="hidden sm:inline"> view</span>
             </button>
           </div>
+        </div>
+        <div className="pointer-events-auto flex flex-wrap items-center gap-1">
+          {LAYERS.map((l) => {
+            const on = layerFocus === l.layer;
+            return (
+              <button
+                key={l.layer}
+                type="button"
+                aria-pressed={on}
+                title={`${l.what}. Tap to light up only this layer.`}
+                onClick={() => setLayerFocus((f) => (f === l.layer ? null : l.layer))}
+                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] backdrop-blur transition ${on ? "border-[var(--hud)] bg-black/65 text-ink" : "border-white/10 bg-black/45 text-ink-muted hover:text-ink"}`}
+              >
+                <span className="font-mono text-[9.5px] text-ink-faint">{l.layer}</span>
+                {l.label}
+                <span className="font-mono text-[9.5px] text-ink-faint">{layerCounts[l.layer]}</span>
+              </button>
+            );
+          })}
+          <span className="mx-1 h-3 w-px bg-white/15" aria-hidden />
+          <span className="text-[10.5px] text-ink-faint">Changed</span>
+          {([0, 1, 7, 30] as const).map((d) => (
+            <button
+              key={d}
+              type="button"
+              aria-pressed={since === d}
+              onClick={() => setSince(d)}
+              className={`rounded-full border px-2 py-0.5 text-[11px] backdrop-blur transition ${since === d ? "border-[var(--hud)] bg-black/65 text-ink" : "border-white/10 bg-black/45 text-ink-muted hover:text-ink"}`}
+            >
+              {d === 0 ? "Any" : d === 1 ? "24h" : `${d}d`}
+              {d !== 0 && since === d && <span className="ml-1 font-mono text-[9.5px] text-ink-faint">{changed.size}</span>}
+            </button>
+          ))}
         </div>
         <div className="pointer-events-auto flex flex-wrap gap-1">
           {ITEM_TYPES.filter((t) => graph.counts[t] > 0).map((t) => {
@@ -669,8 +890,18 @@ export function MemoryMap({ queue, store, vault }: Props) {
 
       {/* footer hint */}
       <p className="pointer-events-none absolute bottom-2 left-3 text-[10.5px] text-ink-faint">
-        {total} things · {graph.edges.length} links<span className="hidden sm:inline"> · drag to turn · scroll to zoom · double-click to fly in</span>
+        {total} things · {graph.edges.length} links · 4 layers<span className="hidden sm:inline"> · drag to turn · scroll to zoom (far out lays it flat) · double-click to fly in</span>
       </p>
+
+      {/* timeline — who changed what, newest first */}
+      {showTimeline && (
+        <Timeline
+          events={since ? timeline.filter((e) => changed.has(e.key)) : timeline}
+          onPick={flyTo}
+          onClose={() => setShowTimeline(false)}
+          hideOnPhone={Boolean(sel)}
+        />
+      )}
 
       {/* inspector */}
       {sel && (
@@ -690,6 +921,12 @@ export function MemoryMap({ queue, store, vault }: Props) {
             </button>
           </div>
           {sel.detail && <p className="mt-2 line-clamp-6 whitespace-pre-line text-[11.5px] leading-relaxed text-ink-muted">{sel.detail}</p>}
+          {sel.at && (
+            <p className="mt-1.5 text-[10.5px] text-ink-faint">
+              Layer {sel.layer ?? 3} · {LAYERS[sel.layer ?? 3].label} · last changed {new Date(sel.at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+              {sel.by ? ` by ${sel.by}` : ""}
+            </p>
+          )}
 
           <div className="mt-2.5 flex flex-wrap gap-1.5">
             {sel.href && sel.type !== "crash" && (
@@ -762,5 +999,72 @@ export function MemoryMap({ queue, store, vault }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+// ----- timeline --------------------------------------------------------------------------
+
+function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  const today = new Date();
+  const y = new Date(Date.now() - 86_400_000);
+  if (d.toDateString() === today.toDateString()) return "Today";
+  if (d.toDateString() === y.toDateString()) return "Yesterday";
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
+
+function colorOfType(t: TimelineEvent["type"]): string {
+  if (t === "you") return YOU_COLOR;
+  if (t === "hub" || t === "group") return "#9fb4ff";
+  return TYPE_META[t as ItemType]?.color ?? "#9fb4ff";
+}
+
+function Timeline({ events, onPick, onClose, hideOnPhone }: { events: TimelineEvent[]; onPick: (key: string) => void; onClose: () => void; hideOnPhone: boolean }) {
+  const groups = useMemo(() => {
+    const out: { day: string; items: TimelineEvent[] }[] = [];
+    for (const e of events.slice(0, 120)) {
+      const day = dayLabel(e.at);
+      const last = out[out.length - 1];
+      if (last && last.day === day) last.items.push(e);
+      else out.push({ day, items: [e] });
+    }
+    return out;
+  }, [events]);
+  return (
+    <aside
+      className={`absolute inset-x-2 bottom-2 max-h-[50%] overflow-y-auto rounded-xl border border-white/10 bg-black/75 p-3 backdrop-blur-md sm:inset-x-auto sm:bottom-auto sm:left-3 sm:top-[7.5rem] sm:max-h-[calc(100%-9rem)] sm:w-[290px] ${hideOnPhone ? "hidden sm:block" : ""}`}
+      aria-label="Timeline of changes"
+    >
+      <div className="mb-1.5 flex items-center justify-between">
+        <p className="text-[10px] uppercase tracking-wider text-ink-faint">Timeline · {events.length} changes</p>
+        <button type="button" onClick={onClose} aria-label="Close timeline" className="rounded p-1 text-ink-faint hover:text-ink">
+          <Icon.Close width={12} height={12} aria-hidden />
+        </button>
+      </div>
+      {groups.length === 0 && <p className="py-4 text-center text-[11.5px] text-ink-muted">Nothing changed in that window.</p>}
+      {groups.map((g) => (
+        <div key={g.day} className="mb-2">
+          <p className="sticky top-0 bg-black/80 py-0.5 text-[10.5px] font-medium text-ink-muted backdrop-blur">{g.day}</p>
+          <ul className="space-y-0.5">
+            {g.items.map((e, i) => (
+              <li key={`${e.key}-${e.at}-${i}`}>
+                <button type="button" onClick={() => onPick(e.key)} className="flex w-full items-start gap-2 rounded px-1 py-1 text-left hover:bg-white/5">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: colorOfType(e.type), boxShadow: `0 0 6px ${colorOfType(e.type)}` }} aria-hidden />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[11.5px] text-ink">{e.title}</span>
+                    <span className="block truncate text-[10.5px] text-ink-muted">{e.what}</span>
+                  </span>
+                  <span className="shrink-0 text-right text-[9.5px] leading-tight text-ink-faint">
+                    {new Date(e.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                    <br />
+                    {e.by.length > 14 ? `${e.by.slice(0, 13)}…` : e.by}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </aside>
   );
 }
