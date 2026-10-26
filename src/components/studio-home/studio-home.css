@@ -1,0 +1,523 @@
+/* ===========================================================================
+   Studio home — the one chrome a home's sections share.
+
+   Generalised from Jarvis Audio Studio. One gray family from the hub's tokens,
+   one accent whose HUE is the section's own (--sh-hue): opening a section
+   glides the whole home's light to its colour, so which part you are in is
+   felt before it is read. The ground never moves — text sits on a still,
+   near-black surface at every moment.
+
+   Everything is scoped under `.sh`; nothing leaks into the hub, and every
+   section still runs standalone at its old address with its original look.
+   =========================================================================== */
+
+@property --sh-hue {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 240;
+}
+
+@property --sh-glow-x {
+  syntax: "<length-percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+.sh {
+  --sh-canvas: var(--color-canvas, #0a0b0f);
+  --sh-panel: var(--color-panel, #12141c);
+  --sh-panel-2: var(--color-panel-2, #181b25);
+  --sh-line: var(--color-line, #262a38);
+  --sh-line-2: #333849;
+  --sh-ink: var(--color-ink, #e9ecf3);
+  --sh-ink-2: var(--color-ink-muted, #9aa3b5);
+  --sh-ink-3: var(--color-ink-faint, #6b7385);
+
+  /* The accent is a hue, not a colour — each section supplies its own. Kept
+     at a lightness that holds 4.5:1 on the panel for small text. */
+  --sh-accent: oklch(0.74 0.15 var(--sh-hue));
+  --sh-accent-soft: oklch(0.74 0.15 var(--sh-hue) / 0.16);
+  --sh-accent-line: oklch(0.74 0.15 var(--sh-hue) / 0.45);
+
+  --sh-r-lg: 14px;
+  --sh-r: 10px;
+  --sh-r-sm: 7px;
+  --sh-ease: cubic-bezier(0.22, 1, 0.24, 1);
+  --sh-top: 52px;
+
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--sh-canvas);
+  color: var(--sh-ink);
+  /* Never a page-level sideways scroll, whatever a section draws. */
+  overflow-x: clip;
+  transition: --sh-hue 520ms var(--sh-ease);
+}
+
+.sh *,
+.sh *::before,
+.sh *::after {
+  box-sizing: border-box;
+}
+
+.sh :focus-visible {
+  outline: 2px solid var(--sh-accent);
+  outline-offset: 2px;
+}
+
+/* Framed (App Builder inside Jarvis): no chrome at all, before or after
+   hydration. The section renders exactly as it does on its own. */
+[data-sh-framed] .sh-bar,
+[data-sh-framed] .sh-skip,
+.sh--framed .sh-bar {
+  display: none;
+}
+[data-sh-framed] .sh,
+.sh--framed {
+  --sh-top: 0px;
+}
+
+.sh-skip {
+  position: absolute;
+  left: 8px;
+  top: -60px;
+  z-index: 90;
+  padding: 8px 14px;
+  border-radius: var(--sh-r);
+  background: var(--sh-accent);
+  color: #0a0b0f;
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: top 160ms ease;
+}
+.sh-skip:focus {
+  top: 8px;
+}
+
+/* --- The bar ------------------------------------------------------------ */
+
+.sh-bar {
+  position: sticky;
+  top: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 52px;
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--sh-canvas) 86%, transparent);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  transition: --sh-glow-x 440ms var(--sh-ease);
+}
+/* The hairline under the bar is lit from the open section outward: brightest
+   under the sliding pane, fading to the plain line at the edges. */
+.sh-bar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background:
+    radial-gradient(260px 1px at var(--sh-glow-x, 50%) 50%, var(--sh-accent-line), transparent 100%),
+    var(--sh-line);
+  pointer-events: none;
+}
+.sh--scrolling .sh-bar {
+  position: relative;
+}
+
+.sh-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  min-height: 34px;
+  padding: 7px 11px 7px 9px;
+  border-radius: var(--sh-r);
+  border: 1px solid var(--sh-line);
+  background: var(--sh-panel);
+  color: var(--sh-ink-2);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  transition:
+    color 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    transform 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.sh-back:hover {
+  color: var(--sh-ink);
+  border-color: var(--sh-line-2);
+  background: var(--sh-panel-2);
+}
+.sh-back:active {
+  transform: scale(0.97);
+}
+.sh-back svg {
+  transition: transform 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.sh-back:hover svg {
+  transform: translateX(-2px);
+}
+
+/* --- Wordmark ----------------------------------------------------------- */
+
+.sh-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex: none;
+}
+.sh-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background:
+    radial-gradient(circle at 34% 28%, var(--sh-accent-soft) 0%, transparent 70%),
+    linear-gradient(160deg, #1b2032 0%, #12141c 100%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.07),
+    0 4px 14px -8px var(--sh-accent);
+  color: var(--sh-accent);
+}
+.sh-brand-t {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.12;
+  min-width: 0;
+}
+.sh-brand-n {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--sh-ink);
+  white-space: nowrap;
+}
+.sh-brand-n em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--sh-ink-3);
+}
+.sh-brand-s {
+  font-size: 10.5px;
+  color: var(--sh-ink-3);
+  white-space: nowrap;
+}
+
+/* --- The switcher ------------------------------------------------------- */
+
+.sh-switch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 3px;
+  border-radius: 12px;
+  border: 1px solid var(--sh-line);
+  background: var(--sh-panel);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.03);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+}
+.sh-switch::-webkit-scrollbar {
+  display: none;
+}
+
+.sh-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 9px;
+  background: linear-gradient(180deg, oklch(0.74 0.15 var(--sh-hue) / 0.26) 0%, oklch(0.74 0.15 var(--sh-hue) / 0.14) 100%);
+  box-shadow:
+    inset 0 0 0 1px var(--sh-accent-line),
+    0 6px 18px -12px var(--sh-accent);
+  transition:
+    left 440ms var(--sh-ease),
+    width 440ms var(--sh-ease);
+  pointer-events: none;
+}
+
+.sh-seg {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 7px;
+  min-height: 34px;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--sh-ink-3);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 200ms ease,
+    transform 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.sh-seg:hover {
+  color: var(--sh-ink-2);
+}
+/* Hovering a section previews its colour on its own glyph — a hint of where
+   the light will go before you commit. */
+.sh-seg:hover svg {
+  color: oklch(0.74 0.15 var(--seg-hue));
+  opacity: 1;
+}
+.sh-seg:active {
+  transform: scale(0.97);
+}
+.sh-seg[aria-selected="true"] {
+  color: var(--sh-ink);
+  font-weight: 600;
+}
+.sh-seg svg {
+  flex: none;
+  opacity: 0.75;
+  transition: color 200ms ease, opacity 200ms ease;
+}
+.sh-seg[aria-selected="true"] svg {
+  opacity: 1;
+  color: var(--sh-accent);
+}
+.sh-seg-pc {
+  padding: 1px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--sh-line-2);
+  color: var(--sh-ink-3);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+.sh-seg-h {
+  display: none;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--sh-ink-3);
+}
+
+/* --- The mounted section ------------------------------------------------ */
+
+.sh-stage {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  animation: sh-in 280ms var(--sh-ease);
+}
+@keyframes sh-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Each section was written to own the viewport. Inside the home it owns what
+   is left under the bar instead. Set here, so the standalone routes keep
+   working unchanged. */
+.sh-stage > .min-h-dvh {
+  min-height: calc(100dvh - var(--sh-top));
+}
+
+/* --- Pending: the app is on the PC, not the website ---------------------- */
+
+.sh-pending {
+  width: min(640px, calc(100% - 32px));
+  margin: clamp(28px, 8vh, 80px) auto;
+  padding: 26px 24px 22px;
+  border-radius: var(--sh-r-lg);
+  border: 1px solid var(--sh-line);
+  background:
+    radial-gradient(420px 160px at 0% 0%, var(--sh-accent-soft), transparent 70%),
+    var(--sh-panel);
+  box-shadow: 0 26px 60px -34px rgb(6 8 18 / 1);
+}
+.sh-pending-mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--sh-accent-line);
+  color: var(--sh-accent);
+  background: var(--sh-canvas);
+}
+.sh-pending-k {
+  margin: 16px 0 4px;
+  color: var(--sh-accent);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.sh-pending h2 {
+  margin: 0 0 10px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+.sh-pending-p {
+  margin: 0 0 10px;
+  max-width: 60ch;
+  color: var(--sh-ink-2);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.sh-pending-act {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-top: 16px;
+}
+.sh-pending-note {
+  color: var(--sh-ink-3);
+  font-size: 12px;
+}
+
+.sh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 8px 14px;
+  border-radius: var(--sh-r);
+  border: 1px solid var(--sh-accent-line);
+  background: var(--sh-accent-soft);
+  color: var(--sh-ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 180ms ease, transform 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.sh-btn:hover:not(:disabled) {
+  background: oklch(0.74 0.15 var(--sh-hue) / 0.26);
+}
+.sh-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.sh-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.sh-btn--quiet {
+  border-color: var(--sh-line);
+  background: var(--sh-panel-2);
+  color: var(--sh-ink-2);
+}
+.sh-btn--quiet:hover:not(:disabled) {
+  background: var(--sh-panel);
+  color: var(--sh-ink);
+}
+
+/* --- Skeleton ----------------------------------------------------------- */
+
+.sh-skel {
+  padding: 18px 16px;
+}
+.sh-skel-bar,
+.sh-skel-cell {
+  border-radius: var(--sh-r);
+  background: var(--sh-panel);
+  border: 1px solid var(--sh-line);
+}
+.sh-skel-bar {
+  height: 40px;
+}
+.sh-skel-body {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+.sh-skel-cell {
+  height: 44px;
+}
+.sh-skel[data-shape="grid"] .sh-skel-body {
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+}
+.sh-skel[data-shape="grid"] .sh-skel-cell {
+  height: 120px;
+}
+.sh-skel[data-shape="canvas"] .sh-skel-cell {
+  height: calc(100dvh - var(--sh-top) - 110px);
+}
+
+/* --- Layout ------------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .sh-bar {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .sh-switch {
+    order: 3;
+    width: 100%;
+    margin: 0;
+  }
+}
+@media (max-width: 560px) {
+  .sh-brand-s {
+    display: none;
+  }
+  .sh-seg {
+    padding: 7px 10px;
+  }
+  .sh-back span {
+    display: none;
+  }
+}
+@media (min-width: 1280px) {
+  .sh-seg-h::before {
+    content: "· ";
+  }
+  .sh-seg-h {
+    display: inline;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sh,
+  .sh-bar,
+  .sh-thumb,
+  .sh-seg,
+  .sh-seg svg,
+  .sh-back,
+  .sh-back svg,
+  .sh-btn {
+    transition: none;
+  }
+  .sh-stage {
+    animation: none;
+  }
+  .sh-switch {
+    scroll-behavior: auto;
+  }
+}

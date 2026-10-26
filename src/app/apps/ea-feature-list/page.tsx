@@ -1,11 +1,8 @@
-import { EaFeatureList } from "@/components/ea/EaFeatureList";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Expert Advisor Feature List · Ultimate Assistant OS",
-  description:
-    "A tagged, searchable list of every Expert Advisor feature spec — click any feature to read the full spec and copy it in one click.",
-};
-
+// The EA Feature List is now the Feature List section of Trading Studio. The
+// route stays alive because links to it exist (bookmarks, notes, Jarvis), and a
+// merge should not turn those into 404s.
 export default function Page() {
-  return <EaFeatureList />;
+  redirect("/apps/trading-studio?section=features");
 }

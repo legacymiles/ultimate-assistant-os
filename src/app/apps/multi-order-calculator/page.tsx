@@ -1,11 +1,7 @@
-import { Calculator } from "@/components/calculator/Calculator";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Multi-Order Calculator · Ultimate Assistant OS",
-  description:
-    "Professional multi-order basket P/L calculator for MT4 XAUUSD (gold) trading.",
-};
-
+// The Multi-Order Calculator is now the Calculator section of Trading Studio.
+// The route stays alive so old links land in the right place.
 export default function Page() {
-  return <Calculator />;
+  redirect("/apps/trading-studio?section=calculator");
 }

@@ -53,7 +53,11 @@ const initialSettings = (): BasketSettings => ({
   accountCurrency: "USD",
 });
 
-export function Calculator() {
+/**
+ * @param embedded Mounted inside Trading Studio: its bar is the way back, so
+ *   the hub link goes and the symbol badge moves into a slim strip of its own.
+ */
+export function Calculator({ embedded = false }: { embedded?: boolean }) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [settings, setSettings] = useState<BasketSettings>(initialSettings);
   const [mode, setMode] = useState<Mode>("exit-to-pnl");
@@ -172,14 +176,16 @@ export function Calculator() {
     <div className="min-h-dvh">
       {/* Top bar with Hub link */}
       <div className="flex items-center gap-2 border-b border-line bg-panel px-3 py-2.5 sm:px-4">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
-          aria-label="Back to hub"
-        >
-          <Icon.ArrowLeft width={14} height={14} />
-          <span className="hidden sm:inline">Hub</span>
-        </Link>
+        {!embedded && (
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
+            aria-label="Back to hub"
+          >
+            <Icon.ArrowLeft width={14} height={14} />
+            <span className="hidden sm:inline">Hub</span>
+          </Link>
+        )}
         <span className="ml-1 text-sm font-semibold text-ink">Multi-Order Calculator</span>
         <span className="ml-2 rounded-md bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand">
           {settings.symbol}

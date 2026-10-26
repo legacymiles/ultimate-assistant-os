@@ -8,7 +8,11 @@ import type { EaFeature } from "@/lib/ea-features/types";
 import { EaFeatureRow } from "./EaFeatureRow";
 import { EaFeatureDetailModal } from "./EaFeatureDetailModal";
 
-export function EaFeatureList() {
+/**
+ * @param embedded Mounted inside Trading Studio, whose bar already carries the
+ *   way back and the name — so the hub link and title bar are dropped.
+ */
+export function EaFeatureList({ embedded = false }: { embedded?: boolean }) {
   const [query, setQuery] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [detail, setDetail] = useState<EaFeature | null>(null);
@@ -25,6 +29,7 @@ export function EaFeatureList() {
   return (
     <div className="min-h-dvh">
       {/* Top bar */}
+      {!embedded && (
       <div className="flex items-center gap-2 border-b border-line bg-panel px-3 py-2.5 sm:px-4">
         <Link
           href="/"
@@ -38,6 +43,7 @@ export function EaFeatureList() {
           Expert Advisor Feature List
         </span>
       </div>
+      )}
 
       <div className="mx-auto max-w-3xl px-3 py-5 sm:px-5 sm:py-8">
         {/* Heading */}

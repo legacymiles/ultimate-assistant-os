@@ -446,7 +446,7 @@ export function ReplayStudio({ embedded = false }: { embedded?: boolean }) {
       <header className="rpl-top">
         <div className="rpl-title">
           <h1>Replay</h1>
-          {!embedded && <Link href="/apps/ea-world">EA World</Link>}
+          {!embedded && <Link href="/apps/trading-studio">Trading Studio</Link>}
         </div>
         <label className="rpl-field">
           <span>Symbol</span>

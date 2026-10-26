@@ -1,0 +1,9 @@
+/* Trading Studio — fitting Replay and Terminals under the home's bar.
+   Both were written to fill the viewport exactly (their chart and table
+   scroll inside them); embedded, they fill what the bar leaves, whatever
+   height the bar wrapped to on a phone. */
+
+.sh-stage > .rpl.rpl--embedded {
+  height: calc(100dvh - var(--sh-top));
+  min-height: 520px;
+}

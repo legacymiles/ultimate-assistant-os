@@ -57,14 +57,14 @@ export function TerminalsStudio({ embedded = false }: { embedded?: boolean }) {
       <header className="rpl-top">
         <div className="rpl-title">
           <h1>Terminals</h1>
-          {!embedded && <Link href="/apps/ea-world">EA World</Link>}
+          {!embedded && <Link href="/apps/trading-studio">Trading Studio</Link>}
         </div>
         <span className="muted">Three outside terminals for the market around your bots. They run on this PC.</span>
         <div className="rpl-source">
           <button className="rpl-btn" onClick={() => void check()}>
             Check again
           </button>
-          <Link className="rpl-btn" href="/apps/ea-world/replay">
+          <Link className="rpl-btn" href="/apps/trading-studio?section=replay">
             Open Replay
           </Link>
         </div>
