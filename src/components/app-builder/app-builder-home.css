@@ -1,0 +1,52 @@
+/* ===========================================================================
+   App Builder's home — fitting two apps that each own the viewport under one
+   bar.
+
+   Build has its own sticky header (.ab-top) and sticky side columns measured
+   from the top of the page, so on Build the home bar scrolls away instead of
+   sticking: App Builder then behaves exactly as it did on its own, a bar's
+   height lower.
+
+   Website Redesigner pins things to `top: 0` (its sidebar, its toolbar, the
+   reel letterbox, the bake-off HUD). The home bar sticks there, so each of
+   those moves down by the bar's measured height (--sh-top).
+   =========================================================================== */
+
+.sh[data-section="build"] .sh-bar {
+  position: relative;
+}
+
+/* App Builder's ambient wordmark is the home's brand now. */
+.sh:not(.sh--framed)[data-section="build"] .ab-brand {
+  display: none;
+}
+
+/* The home bar is the way back; the redesigner's own hub link is redundant. */
+.sh .rdx-back {
+  display: none;
+}
+
+.sh .rdx-toolbar {
+  top: var(--sh-top);
+}
+.sh .rdx-bar-top {
+  top: var(--sh-top);
+}
+.sh .bo-hud-tl,
+.sh .bo-hud-tr {
+  top: var(--sh-top);
+}
+@media (min-width: 900px) {
+  .sh .rdx-side {
+    top: var(--sh-top);
+    height: calc(100dvh - var(--sh-top));
+  }
+}
+.sh-stage > .rdx-home > .rdx,
+.sh-stage > .rdx-home > .bo {
+  min-height: calc(100dvh - var(--sh-top));
+}
+/* Room under the docked V1 / V2 / Showcase toggle. */
+.rdx-showcase {
+  padding-bottom: 56px;
+}

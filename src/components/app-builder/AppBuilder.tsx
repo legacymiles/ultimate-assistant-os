@@ -56,6 +56,18 @@ export function AppBuilder() {
     setHover(null);
   }, [current?.id]);
 
+  // `?idea=` (Website Redesigner › Showcase › Use this idea) means a new app:
+  // put the idea stage on screen, which prefills its box from the address.
+  const { ready, open } = ab;
+  useEffect(() => {
+    if (!ready) return;
+    try {
+      if (new URLSearchParams(window.location.search).get("idea")) open(null);
+    } catch {
+      /* nothing to read */
+    }
+  }, [ready, open]);
+
   const t = tally(current?.features ?? []);
   const stage = current?.stage ?? "idea";
   const name = current?.understanding?.name ?? "New app";

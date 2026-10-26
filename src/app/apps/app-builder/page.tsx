@@ -1,11 +1,15 @@
 import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono, Syne } from "next/font/google";
-import { AppBuilder } from "@/components/app-builder/AppBuilder";
+import { AppBuilderHome } from "@/components/app-builder/AppBuilderHome";
+import { BUILDER_SECTIONS } from "@/lib/studio-home/builder";
+import { pickSection } from "@/lib/studio-home/sections";
 
-// App Builder — a Jarvis App plugin. Type an idea or drop a recording of an
-// app or workflow; the super agent takes it apart, asks what it's for, designs
-// the features, and hands the build to Claude Code with the owner's skills.
-// Owner-only (middleware), so it is never indexed or previewed.
+// App Builder — a Jarvis App plugin, and the one home for building. Build:
+// type an idea or drop a recording of an app or workflow; the super agent
+// takes it apart, asks what it's for, designs the features, and hands the
+// build to Claude Code with the owner's skills. Website Redesigner: a new look
+// for an existing site, plus a Showcase of app ideas. Owner-only (middleware),
+// so it is never indexed or previewed.
 
 const syne = Syne({ subsets: ["latin"], weight: ["600", "700", "800"], variable: "--font-syne", display: "swap" });
 const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-jbm", display: "swap" });
@@ -23,10 +27,11 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ section?: string | string[] }> }) {
+  const { section } = await searchParams;
   return (
     <div className={`${syne.variable} ${mono.variable}`}>
-      <AppBuilder />
+      <AppBuilderHome initialSection={pickSection(BUILDER_SECTIONS, section)} />
     </div>
   );
 }
