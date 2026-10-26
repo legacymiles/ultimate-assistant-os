@@ -3,7 +3,7 @@
 // The first two rooms: the idea (type it any way you like) and the interview
 // (the super agent's questions about what the app is FOR — Felix step 1).
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { asList } from "@/lib/app-builder/engine";
 import type { PreparedMedia } from "@/lib/app-builder/media";
 import { Composer } from "./Composer";
@@ -27,6 +27,22 @@ export function IdeaStage({
   onType: (n: number) => void;
 }) {
   const fill = useRef<((t: string) => void) | null>(null);
+  // `?idea=` — another part of the hub (Website Redesigner › Showcase › Use
+  // this idea) handing over a starting line. It only fills the box; nothing
+  // starts until the owner presses send, and it is dropped from the address
+  // so a reload does not type it again over what he wrote.
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      const idea = url.searchParams.get("idea");
+      if (!idea) return;
+      fill.current?.(idea.slice(0, 2_000));
+      url.searchParams.delete("idea");
+      window.history.replaceState(window.history.state, "", url);
+    } catch {
+      /* no URL to read — nothing to prefill */
+    }
+  }, []);
   return (
     <div className="ab-idea">
       <p className="ab-eyebrow">App Builder · super agent</p>

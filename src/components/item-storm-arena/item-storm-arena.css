@@ -1,0 +1,153 @@
+/* ===========================================================================
+   Item Storm Arena — scoped under `.isa`.
+
+   Ported from the stand-alone Next app that sat at the repo root. Its global
+   sheet styled `body` and every `a`/`button` on the page; here all of it is
+   scoped to the arena's own root so nothing leaks into the hub.
+   =========================================================================== */
+
+.isa {
+  --isa-bg: #0a0c1e;
+  --isa-fg: #f4f2ff;
+  --isa-accent: #22e6c8;
+
+  position: relative;
+  /* Its own stacking context, so the calm backdrop (z -10) sits above this
+     root's background instead of behind the hub's body. */
+  isolation: isolate;
+  min-height: 100dvh;
+  background: var(--isa-bg);
+  color: var(--isa-fg);
+  font-family: var(--font-isa-body), system-ui, sans-serif;
+  overflow-x: clip;
+  /* The whole page is a game surface. */
+  cursor: crosshair;
+  -webkit-font-smoothing: antialiased;
+}
+
+.isa .font-display {
+  font-family: var(--font-isa-display), system-ui, sans-serif;
+}
+
+/* Interactive DOM elements opt back into normal cursors and clicks. */
+.isa a,
+.isa button,
+.isa [data-ui] {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.isa ::selection {
+  background: var(--isa-accent);
+  color: #06251f;
+}
+
+.isa :focus-visible {
+  outline: 2px solid var(--isa-accent);
+  outline-offset: 3px;
+}
+
+/* ---- HUD ---- */
+.isa .hud-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  background: rgb(8 10 26 / 0.55);
+  backdrop-filter: blur(10px);
+}
+
+/* ---- the way out ---- */
+.isa-back {
+  position: fixed;
+  left: max(14px, env(safe-area-inset-left));
+  bottom: max(14px, env(safe-area-inset-bottom));
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 8px 13px 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.16);
+  background: rgb(8 10 26 / 0.72);
+  backdrop-filter: blur(10px);
+  color: var(--isa-fg);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+.isa-back:hover {
+  background: rgb(8 10 26 / 0.92);
+  border-color: rgb(255 255 255 / 0.3);
+}
+
+/* ---- loader ---- */
+.isa .loader-orb {
+  width: 48px;
+  height: 48px;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 35%, #7ef0ff, #22e6c8 45%, #0a0c1e 80%);
+  animation: isa-orb-bounce 1.1s cubic-bezier(0.34, 1.56, 0.64, 1) infinite alternate;
+  box-shadow: 0 0 40px 6px rgb(34 230 200 / 0.35);
+}
+@keyframes isa-orb-bounce {
+  from {
+    transform: translateY(-14px) scale(1);
+  }
+  to {
+    transform: translateY(10px) scale(0.92, 1.06);
+  }
+}
+
+/* ---- scroll cue ---- */
+.isa .scroll-cue {
+  width: 22px;
+  height: 36px;
+  margin: 0 auto;
+  border: 2px solid rgb(255 255 255 / 0.4);
+  border-radius: 12px;
+  position: relative;
+}
+.isa .scroll-cue::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 7px;
+  width: 4px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--isa-accent);
+  transform: translateX(-50%);
+  animation: isa-cue 1.6s ease-in-out infinite;
+}
+@keyframes isa-cue {
+  0%,
+  100% {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+  60% {
+    transform: translate(-50%, 12px);
+    opacity: 0.2;
+  }
+}
+
+/* ---- static fallback backdrop ---- */
+.isa .fallback-bg {
+  background:
+    radial-gradient(ellipse 80% 55% at 50% 115%, rgb(255 155 184 / 0.5), transparent),
+    radial-gradient(ellipse 60% 40% at 80% -10%, rgb(125 111 196 / 0.45), transparent),
+    linear-gradient(180deg, #14173a 0%, #0a0c1e 60%, #1c1030 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .isa .loader-orb,
+  .isa .scroll-cue::after {
+    animation: none;
+  }
+}

@@ -633,6 +633,39 @@ export const PROJECTS: CatalogProject[] = [
     hue: [265, 330],
   },
   {
+    slug: "game-studio",
+    title: "Game Studio",
+    tag: "Make a game, finish the ones in progress",
+    category: "Apps",
+    overview:
+      "Every game in one place. Create is Game Creator: describe a game and Unreal Engine on your PC designs it, builds " +
+      "the gameplay, playtests it, takes screenshots from the player's eye and packages it, all in a gallery that updates " +
+      "live. Unfinished games is the shelf of games that play but are not done yet — Slippery Escape and Item Storm Arena " +
+      "today — each playable right there in the list, one tap from full screen, with a Finish it button that hands the " +
+      "rest of the work to Claude Code through your In Queue.",
+    status: "live",
+    appUrl: "/apps/game-studio",
+    iconStyle: "orbit",
+    hue: [285, 32],
+  },
+  {
+    slug: "item-storm-arena",
+    title: "Item Storm Arena",
+    tag: "An interactive gravity playground",
+    category: "Apps",
+    overview:
+      "A storm of living objects circles a floating arena, and your cursor is a gravity well. Drift near the storm and it " +
+      "notices you; collect it, then click to launch everything at the kart — coins bank, crystals shield, paint splashes the " +
+      "arena, an energy shell shatters the headline. Three secret sequences set off arena-wide events the page never " +
+      "explains, and scrolling migrates the whole world through four biomes. React Three Fiber with bloom on a capable GPU, " +
+      "a lighter arena on a weak one, and a calm still version with reduced motion or no WebGL. Not finished yet — it lives " +
+      "in Game Studio › Unfinished games.",
+    status: "live",
+    appUrl: "/apps/item-storm-arena",
+    iconStyle: "pulse",
+    hue: [168, 320],
+  },
+  {
     slug: "3d-studio",
     title: "3D Studio Video Creator",
     tag: "Describe a video → an AI animation director makes it",
@@ -736,6 +769,26 @@ export const PROJECTS: CatalogProject[] = [
     appUrl: "/apps/ea-lab",
     iconStyle: "mesh",
     hue: [150, 35],
+  },
+  {
+    slug: "trading-studio",
+    title: "Trading Studio",
+    tag: "Every trading-bot tool, one front door",
+    category: "Utilities",
+    overview:
+      "Six trading tools that used to be six apps, behind one switcher the way Jarvis Audio Studio holds its three — " +
+      "each still the app it was, each with its own accent so where you are is felt before it is read. EA World is the " +
+      "vault of what you learned about your bots and EA Lab is the bench that measures them; both run on this PC and open " +
+      "here once their code is brought onto the website. Replay plays a bot against a real past New York session tick by " +
+      "tick on real Dukascopy bid/ask, with a simulated MT4 broker that charges latency, slippage and commission. " +
+      "Terminals starts and opens the three outside market terminals that run beside it. The Feature List holds every " +
+      "dictated Expert Advisor spec, tagged and searchable and one click from your clipboard. And the Calculator prices a " +
+      "whole basket of gold orders at once — where it breaks even, what it makes at any exit, and the exit that lands a " +
+      "target profit. Old links to any of the six land in the right section.",
+    status: "live",
+    appUrl: "/apps/trading-studio",
+    iconStyle: "rings",
+    hue: [205, 45],
   },
   {
     slug: "financial-bible",
@@ -853,6 +906,7 @@ const UNPREVIEWABLE = new Set([
   "personas-studio",
   "ea-lab",
   "ea-world",
+  "trading-studio",
   "financial-bible",
 ]);
 

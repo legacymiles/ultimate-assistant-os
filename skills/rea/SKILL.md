@@ -83,7 +83,7 @@ bash. The hub's model router and keys are separate from REA — REA runs its own
 
 ## Where results go in this hub
 
-Findings about trading bots feed **EA World** (`/apps/ea-world`): a strategy understood here can be
+Findings about trading bots feed **EA World** (Trading Studio › EA World, `/apps/trading-studio?section=world`): a strategy understood here can be
 written as an MT4 `.mq4` or a Replay bot (`src/lib/ea-replay/strategies/`) and measured in Replay.
 For anything else, summarize the mechanism and the evidence in the reply; commit rebuilt code to the
 relevant app, not the decompiler output.

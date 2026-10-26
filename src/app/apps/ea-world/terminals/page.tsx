@@ -1,10 +1,6 @@
-import { TerminalsStudio } from "@/components/ea-replay/TerminalsStudio";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Terminals · EA World · Ultimate Assistant OS",
-  description: "OpenTerminal, Vibe-Trading and Fincept Terminal, started on this PC and opened from EA World.",
-};
-
+// Terminals is now a section of Trading Studio. Old links land in it.
 export default function Page() {
-  return <TerminalsStudio />;
+  redirect("/apps/trading-studio?section=terminals");
 }

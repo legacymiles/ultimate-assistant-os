@@ -203,7 +203,38 @@ describe("app plugins", () => {
     }
     // No slug is in both lists — an app is a door out or a tab, never both.
     expect(new Set(moved).size).toBe(moved.length);
-    expect(hub.length).toBe(PROJECTS.length - moved.length);
+    const { MERGED_INTO } = await import("./plugins");
+    const merged = Object.keys(MERGED_INTO).filter((s) => !moved.includes(s as never) && PROJECTS.some((p) => p.slug === s));
+    expect(hub.length).toBe(PROJECTS.length - moved.length - merged.length);
+  });
+
+  // One home per kind of thing: an app merged into another keeps its catalog
+  // entry (detail page, history, old links) but has no tile anywhere, and the
+  // home it moved into is itself offered somewhere.
+  it("keeps merged apps in the catalog but off the hub and the plugin page", async () => {
+    const { PROJECTS } = await import("@/lib/catalog");
+    const { MERGED_INTO, PLUGIN_SLUGS, hubProjects, studioPlugins, homeOf } = await import("./plugins");
+    const hub = hubProjects().map((p) => p.slug);
+    const plugins = studioPlugins().map((p) => p.slug);
+    // Every app that HAD a catalog entry before its merge still has one. (EA
+    // Feature List, the Multi-Order Calculator and Slippery Escape never had
+    // one — they were routes only — so they are merged without one.)
+    for (const slug of ["ea-world", "ea-lab", "game-creator", "website-redesigner", "fire-reveal", "kart-showcase"]) {
+      expect(PROJECTS.some((p) => p.slug === slug)).toBe(true);
+    }
+    for (const [slug, into] of Object.entries(MERGED_INTO)) {
+      expect(PROJECTS.some((p) => p.slug === into)).toBe(true);
+      expect(hub).not.toContain(slug);
+      expect(plugins).not.toContain(slug);
+      expect(PLUGIN_SLUGS as readonly string[]).not.toContain(slug);
+      const home = homeOf(slug)!;
+      expect(home).toBeTruthy();
+      expect(hub.includes(home) || plugins.includes(home)).toBe(true);
+    }
+    expect(homeOf("fire-reveal")).toBe("app-builder");
+    expect(homeOf("ea-world")).toBe("trading-studio");
+    expect(homeOf("trading-studio")).toBeNull();
+    expect(plugins).toEqual(expect.arrayContaining(["trading-studio", "game-studio", "app-builder"]));
   });
 });
 

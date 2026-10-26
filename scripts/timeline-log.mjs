@@ -60,6 +60,12 @@ const FOLDER_TO_SLUG = {
   "music-classified": "jarvis-audio-studio",
   "music-creator": "jarvis-audio-studio",
   slippery: "slippery-escape",
+  // Studio homes (Oct 2026): the shells. The merged apps keep their own
+  // folders and their own history; edits to the home itself land on the home.
+  "studio-home": "jarvis",
+  "trading-studio": "trading-studio",
+  "game-studio": "game-studio",
+  "item-storm-arena": "item-storm-arena",
   "social-personas": "personas-studio",
   bible: "financial-bible",
   repo: "projects-timeline",

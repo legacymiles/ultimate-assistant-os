@@ -29,6 +29,18 @@ const nextConfig = {
   // Pod Play Connect is a prebuilt Vite SPA in public/pod-play-connect (rebuild:
   // POD_BASE=/pod-play-connect/ vite build in its repo). Real files are served
   // first; every other path under it falls back to its index.html.
+  // Apps merged into a studio home whose old page cannot live in this repo:
+  // src/app/apps/ea-world/page.tsx and src/app/apps/ea-lab/ hold uncommitted
+  // work on the owner's PC, and a file at either path would block his pull.
+  // Exact paths only — /apps/ea-world/replay and /terminals are pages of their
+  // own (redirect pages) and must not be swallowed by a wildcard. Temporary,
+  // so a browser forgets them the day EA World's real page is committed.
+  async redirects() {
+    return [
+      { source: "/apps/ea-world", destination: "/apps/trading-studio?section=world", permanent: false },
+      { source: "/apps/ea-lab", destination: "/apps/trading-studio?section=lab", permanent: false },
+    ];
+  },
   async rewrites() {
     return [
       { source: "/pod-play-connect", destination: "/pod-play-connect/index.html" },

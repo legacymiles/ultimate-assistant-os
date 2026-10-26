@@ -1,11 +1,6 @@
-import { ReplayStudio } from "@/components/ea-replay/ReplayStudio";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Replay · EA World · Ultimate Assistant OS",
-  description:
-    "Watch a trading bot trade a real past New York session tick by tick — real Dukascopy bid/ask, a simulated MT4 broker with latency, slippage and commission.",
-};
-
+// Replay is now a section of Trading Studio. Old links land in it.
 export default function Page() {
-  return <ReplayStudio />;
+  redirect("/apps/trading-studio?section=replay");
 }

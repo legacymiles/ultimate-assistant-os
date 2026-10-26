@@ -19,7 +19,12 @@ const EXAMPLES = [
 
 type Filter = "all" | "building" | "ready" | "failed";
 
-export function GameCreator() {
+/**
+ * @param embedded Mounted as Game Studio's Create section: the studio's bar is
+ *   the way back and stays on top, so the hub link goes and the count row no
+ *   longer sticks under a bar that is already sticky.
+ */
+export function GameCreator({ embedded = false }: { embedded?: boolean }) {
   const [games, setGames] = useState<Game[] | null>(null);
   const [builder, setBuilder] = useState<BuilderInfo | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -111,14 +116,18 @@ export function GameCreator() {
 
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-line bg-panel px-3 py-2">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-elevated hover:text-ink"
-        >
-          <Icon.ArrowLeft width={13} height={13} />
-          Hub
-        </Link>
+      <header
+        className={`${embedded ? "" : "sticky top-0 z-30 "}flex items-center gap-2 border-b border-line bg-panel px-3 py-2`}
+      >
+        {!embedded && (
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-elevated hover:text-ink"
+          >
+            <Icon.ArrowLeft width={13} height={13} />
+            Hub
+          </Link>
+        )}
         <span className="text-sm font-semibold text-ink">Game Creator</span>
         <span className="ml-auto text-xs text-ink-faint">
           {games === null ? "Loading…" : `${counts.all} game${counts.all === 1 ? "" : "s"} · ${counts.ready} ready`}

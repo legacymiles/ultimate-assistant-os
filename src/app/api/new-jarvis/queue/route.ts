@@ -53,6 +53,9 @@ const LIB_FOLDER: Record<string, string[]> = {
   "skills-library": ["skills"],
   "jarvis-audio-studio": ["jarvis-audio-studio", "mp3-download", "music-classified", "music-creator"],
   "slippery-escape": ["slippery"],
+  // Studio homes: the shell is shared, the sections are the merged apps' own folders.
+  "trading-studio": ["studio-home", "trading-studio", "ea-replay", "ea-features", "ea", "calculator"],
+  "game-studio": ["studio-home", "game-studio", "game-creator", "slippery", "item-storm-arena"],
   "projects-timeline": ["repo"],
 };
 

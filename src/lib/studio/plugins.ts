@@ -29,12 +29,10 @@ export const PLUGIN_SLUGS = [
   "image-studio",
   "viral-studio-content",
   "gods-eye-view",
-  "game-creator",
-  "website-redesigner",
+  "game-studio",
   "ai-rankings",
   "cook-connect",
-  "ea-lab",
-  "ea-world",
+  "trading-studio",
   "financial-bible",
   "baby-no-scroll",
   "dump-finder",
@@ -53,6 +51,42 @@ export const PLUGIN_SLUGS = [
  * two are no longer tiles on the front page.
  */
 export const TOOLBOX_SLUGS = ["prompt-architect", "projects-timeline"] as const;
+
+/**
+ * Apps that now live inside another app — "one home per kind of thing".
+ *
+ * Each still has its catalog entry (the detail page, the Projects Timeline
+ * history and old links all read it) and its old route redirects into its new
+ * home with the right section open. What it loses is a tile of its own: a
+ * merged slug leaves the hub grid AND the App plugins page, because the home
+ * it moved into is already listed in one of them. The value is the slug of
+ * that home — which may itself be merged (EMBER Reveal and the Kart Teardown
+ * are the Showcase inside Website Redesigner, which is inside App Builder).
+ */
+export const MERGED_INTO: Record<string, string> = {
+  "ea-world": "trading-studio",
+  "ea-lab": "trading-studio",
+  "ea-feature-list": "trading-studio",
+  "multi-order-calculator": "trading-studio",
+  "game-creator": "game-studio",
+  "slippery-escape": "game-studio",
+  "item-storm-arena": "game-studio",
+  "website-redesigner": "app-builder",
+  "fire-reveal": "website-redesigner",
+  "kart-showcase": "website-redesigner",
+};
+
+/** Whether this app now lives inside another app, and so has no tile of its own. */
+export function isMerged(slug: string): boolean {
+  return Object.prototype.hasOwnProperty.call(MERGED_INTO, slug);
+}
+
+/** The top-level home a merged app lives in today (follows a chain), or null. */
+export function homeOf(slug: string): string | null {
+  let at = slug;
+  for (let i = 0; i < 8 && isMerged(at); i++) at = MERGED_INTO[at];
+  return at === slug ? null : at;
+}
 
 export interface StudioPlugin {
   slug: string;
@@ -84,7 +118,8 @@ const WHY: Record<string, string> = {
     "Where every new app starts. Say the idea — or show a recording of an app or workflow — and its super agent takes it "
     + "apart, asks what it is for, and proposes the features that would make it the best in its category for you to accept, "
     + "deny or edit. Build it hands the brief to Claude Code with felix, prompt-enhancer, the design skill, software-factory "
-    + "and claude-security (plus video-analyzer and rea for a recording). Jarvis chat and Camera Autopilot send new apps here.",
+    + "and claude-security (plus video-analyzer and rea for a recording). Jarvis chat and Camera Autopilot send new apps here. "
+    + "Website Redesigner lives here too — a new look for a site that keeps what it does, and a Showcase of app ideas worth building again.",
   "seedance-studio":
     "Studio the other way round. Every workflow here starts from a prompt and the audio arrives last; "
     + "this one starts from the track — it measures the tempo, the bar lines, the sections and the "
@@ -106,13 +141,14 @@ const WHY: Record<string, string> = {
     + "the reference is real footage you picked, not a name a model guessed at.",
   "gods-eye-view":
     "Real satellite, aircraft and camera feeds to shoot from, or to grab a location plate no stock library has.",
-  "game-creator":
-    "The one plugin that renders nothing and builds something. Describe a game and Unreal on this PC "
-    + "builds it, playtests it and packages it — and the screenshots it takes from the player's eye are "
-    + "plates a workflow can shoot from.",
-  "website-redesigner":
-    "For the work that ends on a page. Point it at a site, keep what the site does, and take away three "
-    + "redesign directions and a build prompt — so a finished film or image has somewhere worth living.",
+  "game-studio":
+    "Every game in one place. Create is Game Creator — describe a game and Unreal on this PC builds it, "
+    + "playtests it and packages it — and Unfinished games is the shelf of games that play but are not "
+    + "done, each playable right in the list with a Finish it button that hands the rest to Claude Code.",
+  "trading-studio":
+    "Every trading-bot tool behind one switcher: EA World for what you learned and EA Lab for what you "
+    + "measured (both on this PC for now), Replay to watch a bot trade a real past session tick by tick, "
+    + "the outside Terminals, the Feature List of every spec, and the gold basket Calculator.",
   "ai-rankings":
     "The written case for which model to reach for. Cost, whether it runs on your own machine, and "
     + "whether it needs a key you hold — with your own notes as the reason a tool keeps its rank.",
@@ -164,8 +200,9 @@ export function studioPlugins(): StudioPlugin[] {
   return PLUGIN_SLUGS.flatMap((slug) => {
     const p = PROJECTS.find((x) => x.slug === slug);
     // An allowlisted slug that has left the catalog simply stops appearing,
-    // rather than rendering a card that goes nowhere.
-    if (!p) return [];
+    // rather than rendering a card that goes nowhere — and one that has moved
+    // inside another app is reached through that app's card instead.
+    if (!p || isMerged(slug)) return [];
     return [
       {
         slug: p.slug,
@@ -203,5 +240,5 @@ export function inJarvis(slug: string): boolean {
  * moved rather than a second copy of the list.
  */
 export function hubProjects(): CatalogProject[] {
-  return PROJECTS.filter((p) => !inJarvis(p.slug));
+  return PROJECTS.filter((p) => !inJarvis(p.slug) && !isMerged(p.slug));
 }

@@ -21,7 +21,7 @@
 import type { CSSProperties } from "react";
 import { DEFAULT_SKILLS } from "./engine";
 
-/** The faces loaded on this route (see app/apps/website-redesigner/page.tsx). */
+/** The faces Website Redesigner loads (see components/redesigner/fonts.ts). */
 export type FontKey = "black" | "grotesk" | "mono" | "serif" | "sans" | "syne";
 
 /**
