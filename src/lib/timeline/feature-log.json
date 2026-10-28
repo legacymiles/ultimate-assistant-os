@@ -1,5 +1,32 @@
 [
  {
+  "id": "6d9bd2e:text-inbox",
+  "date": "2026-10-28",
+  "slug": "text-inbox",
+  "title": "AI drafts replies to your iPhone texts, you approve, your phone sends",
+  "detail": "New Jarvis app + Dashboard widget. An iPhone automation sends each text from chosen contacts; Jarvis drafts a reply in the user's voice (tone + learned rewrites). Approve on the iPhone sends at once via the Jarvis Send Shortcut; approve on the computer buzzes the phone (web push) so one tap sends it",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "6d9bd2e:jarvis",
+  "date": "2026-10-28",
+  "slug": "jarvis",
+  "title": "AI drafts replies to your iPhone texts, you approve, your phone sends",
+  "detail": "New Jarvis app + Dashboard widget. An iPhone automation sends each text from chosen contacts; Jarvis drafts a reply in the user's voice (tone + learned rewrites). Approve on the iPhone sends at once via the Jarvis Send Shortcut; approve on the computer buzzes the phone (web push) so one tap sends it",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6d9bd2e:client-review",
+  "date": "2026-10-28",
+  "slug": "client-review",
+  "title": "AI drafts replies to your iPhone texts, you approve, your phone sends",
+  "detail": "New Jarvis app + Dashboard widget. An iPhone automation sends each text from chosen contacts; Jarvis drafts a reply in the user's voice (tone + learned rewrites). Approve on the iPhone sends at once via the Jarvis Send Shortcut; approve on the computer buzzes the phone (web push) so one tap sends it",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "e3b0c9d:jarvis",
   "date": "2026-10-26",
   "slug": "jarvis",
