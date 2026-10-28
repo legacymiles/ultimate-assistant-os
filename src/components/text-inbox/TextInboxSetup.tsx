@@ -217,14 +217,18 @@ export function TextInboxSetup({
           Add <b>Repeat with Each</b> — it fills in <i>Dictionary Value</i> by itself.
         </Step>
         <Step id="out-5" n={5}>
-          Add <b>Send Message</b> and drag it <b>inside</b> the Repeat. For the message, tap <i>Message</i> → pick <b>Repeat Item</b> → tap <b>Repeat Item</b> → in{" "}
-          <b>Key</b> type <b className="txi-mono">text</b>. For <i>Recipients</i>, pick <b>Repeat Item</b> again → <b>Key</b> <b className="txi-mono">to</b>. Tap <b>▸</b> on Send
-          Message and turn <b>Show When Run</b> <b>off</b>.
-          <span className="txi-faint">
-            {" "}
-            No Key box when you tap Repeat Item? Add two <b>Get Dictionary Value</b> actions inside the Repeat instead (key <span className="txi-mono">text</span>, then key{" "}
-            <span className="txi-mono">to</span>) and use those.
-          </span>
+          Inside the Repeat (between <i>Repeat with Each</i> and <i>End Repeat</i>) add these five actions, in this order. New actions land at the bottom — drag each one up
+          so it sits above <i>End Repeat</i>.
+          <br />
+          <b>a.</b> <b>Get Dictionary Value</b> → tap <i>Key</i>, type <b className="txi-mono">to</b> → tap <i>Dictionary</i>, pick <b>Repeat Item</b>.
+          <br />
+          <b>b.</b> <b>Set Variable</b> → tap <i>Variable Name</i>, type <b>Number</b>. (Its input fills in with the Dictionary Value above by itself.)
+          <br />
+          <b>c.</b> <b>Get Dictionary Value</b> → <i>Key</i> <b className="txi-mono">text</b> → <i>Dictionary</i> <b>Repeat Item</b>.
+          <br />
+          <b>d.</b> <b>Set Variable</b> → name it <b>Words</b>.
+          <br />
+          <b>e.</b> <b>Send Message</b> → tap <i>Message</i>, pick <b>Words</b> → tap <i>Recipients</i>, pick <b>Number</b>. Tap <b>▸</b> and turn <b>Show When Run</b> <b>off</b>.
         </Step>
         <Step id="out-6" n={6}>
           Tap <b>Done</b>, then tap the Shortcut once to run it. When it asks to connect to the site and to send messages, choose <b>Always Allow</b> — after that it never asks.
