@@ -1,5 +1,41 @@
 [
  {
+  "id": "1c48d3f:iphone-hub",
+  "date": "2026-10-28",
+  "slug": "iphone-hub",
+  "title": "IPhone Notes and Text Inbox merged into one iPhone widget on the Dashboard, and taken off App plugins",
+  "detail": "One card with a Notes half and a Texts half (each opens the sheet on its side), sheet with a Notes / Texts switch. Both apps move to WIDGET_SLUGS so they leave App plugins and the hub grid; routes stay for the Text Inbox Home Screen app and push.Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1c48d3f:iphone-notes",
+  "date": "2026-10-28",
+  "slug": "iphone-notes",
+  "title": "IPhone Notes and Text Inbox merged into one iPhone widget on the Dashboard, and taken off App plugins",
+  "detail": "One card with a Notes half and a Texts half (each opens the sheet on its side), sheet with a Notes / Texts switch. Both apps move to WIDGET_SLUGS so they leave App plugins and the hub grid; routes stay for the Text Inbox Home Screen app and push.Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1c48d3f:jarvis",
+  "date": "2026-10-28",
+  "slug": "jarvis",
+  "title": "IPhone Notes and Text Inbox merged into one iPhone widget on the Dashboard, and taken off App plugins",
+  "detail": "One card with a Notes half and a Texts half (each opens the sheet on its side), sheet with a Notes / Texts switch. Both apps move to WIDGET_SLUGS so they leave App plugins and the hub grid; routes stay for the Text Inbox Home Screen app and push.Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1c48d3f:text-inbox",
+  "date": "2026-10-28",
+  "slug": "text-inbox",
+  "title": "IPhone Notes and Text Inbox merged into one iPhone widget on the Dashboard, and taken off App plugins",
+  "detail": "One card with a Notes half and a Texts half (each opens the sheet on its side), sheet with a Notes / Texts switch. Both apps move to WIDGET_SLUGS so they leave App plugins and the hub grid; routes stay for the Text Inbox Home Screen app and push.Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "da441ed:cook-connect",
   "date": "2026-10-28",
   "slug": "cook-connect",
