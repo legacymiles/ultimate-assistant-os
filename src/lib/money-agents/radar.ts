@@ -334,6 +334,8 @@ const BOOST: { re: RegExp; pts: number }[] = [
 
 const DRAG: { re: RegExp; pts: number }[] = [
   { re: /\b(lawsuit|fraud|probe|investigation|delay\w*|postpone\w*|halt\w*|bankrupt\w*)\b/i, pts: 10 },
+  // Markets a US investor can't easily buy (owner invests from the US).
+  { re: /₹|\b(lakh|crore|rs\.?\s?\d|sensex|nifty|bse|nse)\b/i, pts: 25 },
   { re: /\b(rumou?r|could|might|may)\b/i, pts: 4 },
 ];
 
@@ -392,6 +394,45 @@ export function ruleScore(item: NewsItem, now = new Date()): Opportunity {
     catalystDate: "",
     by: "rules",
   };
+}
+
+/**
+ * A reply cut off mid-list still holds every play written before the cut.
+ * Walk the "plays" array and keep each object that closes properly.
+ */
+export function salvagePlays(text: string): { plays: unknown[] } {
+  const start = text.indexOf("[", Math.max(0, text.indexOf('"plays"')));
+  const plays: unknown[] = [];
+  if (start < 0) return { plays };
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  let objStart = -1;
+  for (let i = start + 1; i < text.length; i++) {
+    const ch = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === "{") {
+      if (depth === 0) objStart = i;
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0 && objStart >= 0) {
+        try {
+          plays.push(JSON.parse(text.slice(objStart, i + 1)));
+        } catch {
+          /* a broken object is skipped, the rest still count */
+        }
+        objStart = -1;
+      }
+    } else if (ch === "]" && depth === 0) break;
+  }
+  return { plays };
 }
 
 // --------------------------------------------------------------------------

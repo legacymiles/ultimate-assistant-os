@@ -283,3 +283,20 @@ describe("seed data", () => {
     expect(inWindow(fed, new Date("2026-10-28T18:30:00Z"))).toBe(true);
   });
 });
+
+import { salvagePlays } from "./radar";
+
+describe("a reply cut off mid-list", () => {
+  it("keeps every complete play before the cut", () => {
+    const cut = '{"plays":[{"url":"a","why":"has a } and \\" inside"},{"url":"b","watch":["GC=F"]},{"url":"c","why":"cut off he';
+    expect(salvagePlays(cut).plays).toEqual([{ url: "a", why: 'has a } and " inside' }, { url: "b", watch: ["GC=F"] }]);
+    expect(salvagePlays("nothing here").plays).toEqual([]);
+  });
+
+  it("ranks foreign-only market stories lower for a US investor", () => {
+    const now = new Date("2026-10-27T12:00:00Z");
+    const india = ruleScore({ title: "Defence stocks soar 9% as DAC clears ₹2.12 lakh crore", url: "i", source: "", publishedAt: "" }, now);
+    const us = ruleScore({ title: "Defence stocks soar 9% after record Pentagon contract", url: "u", source: "", publishedAt: "" }, now);
+    expect(india.score).toBeLessThan(us.score - 20);
+  });
+});

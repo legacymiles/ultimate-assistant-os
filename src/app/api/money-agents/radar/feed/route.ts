@@ -1,5 +1,7 @@
-import { dedupeNews, normalizeOpportunities, parseRss, ruleScore, type NewsItem, type Opportunity } from "@/lib/money-agents/radar";
-import { aiReady, askJson } from "@/lib/money-agents/server/ai";
+import { DEFAULT_MODEL, aiFetch } from "@/lib/ai/provider";
+import { dedupeNews, normalizeOpportunities, parseRss, ruleScore, salvagePlays, type NewsItem, type Opportunity } from "@/lib/money-agents/radar";
+import { aiReady } from "@/lib/money-agents/server/ai";
+import { parseJsonLoose } from "@/lib/social-import/understand";
 import { parseDdgResults } from "@/lib/new-jarvis/web";
 
 export const runtime = "nodejs";
@@ -32,6 +34,39 @@ const QUERIES = [
 ];
 
 const TTL = 20 * 60 * 1000;
+
+/**
+ * Ten plays with reasoning is a long answer, so this asks for more room than
+ * the shared helper gives — and a reply cut off mid-list still keeps every
+ * play written before the cut (salvagePlays) instead of losing them all.
+ */
+async function askPlays(system: string, user: string): Promise<unknown> {
+  const res = await aiFetch({
+    method: "POST",
+    body: JSON.stringify({
+      model: process.env.AI_MODEL || DEFAULT_MODEL,
+      temperature: 0.3,
+      max_tokens: 12000,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    }),
+    signal: AbortSignal.timeout(200_000),
+  });
+  if (!res.ok) throw new Error(`AI ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  const body = await res.json();
+  const reply = body?.choices?.[0]?.message?.content;
+  if (typeof reply !== "string" || !reply.trim()) throw new Error("The AI returned an empty reply.");
+  try {
+    return parseJsonLoose(reply);
+  } catch {
+    const saved = salvagePlays(reply);
+    if (saved.plays.length) return saved;
+    throw new Error("The AI's reply wasn't readable.");
+  }
+}
 let cache: { at: number; body: Record<string, unknown> } | null = null;
 
 async function googleNews(q: string): Promise<NewsItem[]> {
@@ -63,6 +98,7 @@ const SYSTEM = [
   "You are the Opportunity Radar's analyst: a 40-year Wall Street desk trader and behavioural-finance expert who explains plays to a smart regular person in plain words.",
   "From the news list, pick the 10 stories with the biggest realistic money opportunity in the next days to 2 years: once-in-a-lifetime IPOs, scheduled macro releases (CPI, jobs, Fed) that move gold/stocks, adoption or regulation news (e.g. crypto ETFs, government use), companies with standout margins, dividends or growth.",
   "Your rules: (1) Separate scheduled catalysts (known date — where the predictable big moves cluster) from surprise news. (2) Ask whether it is already priced in — a story after a big run is usually late. (3) For IPOs, say day-one pops mostly go to insiders and the ~180-day lock-up expiry often gives a cheaper entry. (4) Say exactly how a US regular person gets exposure (the ticker, an ETF, a broker that offers it) — or plainly that they can't yet (private company, foreign-only listing). (5) Name the main way it loses money. (6) Never invent a number, date or ticker; leave a field empty when the story doesn't support it. (7) Score 0–100 = size of the possible move × likelihood × how soon; hype without substance scores low.",
+  "The owner invests from the US: prefer plays a US investor can act on; skip local-only stories from other countries unless they are globally significant (like Africa's biggest IPO).",
   "This is education and reasoning, not financial advice. Respond ONLY with minified JSON.",
 ].join(" ");
 
@@ -100,16 +136,15 @@ export async function GET(req: Request) {
 
   try {
     const today = new Date().toISOString().slice(0, 10);
-    const raw = await askJson(
+    const raw = await askPlays(
       SYSTEM,
       [
         `Today is ${today}.`,
         "News (newest first):",
         ...news.map((n, i) => `${i + 1}. ${n.title} — ${n.source}${n.publishedAt ? ` (${n.publishedAt.slice(0, 10)})` : ""}\n   ${n.url}`),
         "",
-        'Return {"plays":[{"url":"exact url from the list","title":"short plain-words headline","kind":"ipo|macro|gold|crypto|stock|dividend|policy","score":0,"horizon":"today|weeks|months|years","why":"2 sentences: why it could pay","risk":"1 sentence: how it loses money","howToGetIn":"ticker/ETF/broker, or why you can\'t yet","watch":["Yahoo symbols e.g. GC=F, ^GSPC, XRP-USD, MU"],"catalystDate":"YYYY-MM-DD or empty"}]}',
+        'Return {"plays":[{"url":"exact url from the list","title":"short plain-words headline","kind":"ipo|macro|gold|crypto|stock|dividend|policy","score":0,"horizon":"today|weeks|months|years","why":"2 short sentences: why it could pay","risk":"1 short sentence: how it loses money","howToGetIn":"1 short sentence: ticker/ETF/broker, or why you can\'t yet","watch":["Yahoo symbols e.g. GC=F, ^GSPC, XRP-USD, MU"],"catalystDate":"YYYY-MM-DD or empty"}]}',
       ].join("\n"),
-      0.3,
     );
     let plays = normalizeOpportunities(raw, news);
     if (plays.length < 4) plays = [...plays, ...byRules().filter((r) => !plays.some((p) => p.url === r.url))].slice(0, 16);
