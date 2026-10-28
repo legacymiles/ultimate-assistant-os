@@ -24,8 +24,6 @@ export const PLUGIN_SLUGS = [
   "app-builder",
   "youtube-videos",
   "find-my-life",
-  "iphone-notes",
-  "text-inbox",
   "seedance-studio",
   "jarvis-audio-studio",
   "image-studio",
@@ -52,6 +50,14 @@ export const PLUGIN_SLUGS = [
  * cannot supply. What lives here is the half the hub needs to know: that these
  * two are no longer tiles on the front page.
  */
+/**
+ * Apps that live ONLY as a Jarvis Dashboard widget — no App plugins card and
+ * no hub tile. iPhone Notes and Text Inbox share the one "iPhone" widget
+ * (owner's call, Oct 2026). Their routes stay for the widget's sheets, the
+ * Text Inbox Home Screen app and its notifications.
+ */
+export const WIDGET_SLUGS = ["iphone-notes", "text-inbox"] as const;
+
 export const TOOLBOX_SLUGS = ["prompt-architect", "projects-timeline"] as const;
 
 /**
@@ -232,7 +238,7 @@ export function isToolboxApp(slug: string): boolean {
 
 /** Whether this app has moved to Jarvis, either way, and has left the hub. */
 export function inJarvis(slug: string): boolean {
-  return isPlugin(slug) || isToolboxApp(slug);
+  return isPlugin(slug) || isToolboxApp(slug) || (WIDGET_SLUGS as readonly string[]).includes(slug);
 }
 
 /**

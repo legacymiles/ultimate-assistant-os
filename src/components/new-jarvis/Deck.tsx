@@ -79,8 +79,7 @@ import { ImprovementsExpanded, ImprovementsWidget } from "./Improvements";
 import { QueueExpanded, QueueWidget } from "./QueueWidget";
 import { YouTubeVideosExpanded, YouTubeVideosWidget } from "../youtube-videos/YouTubeVideosWidget";
 import { FindMyLifeExpanded, FindMyLifeWidget } from "../find-my-life/FindMyLifeWidget";
-import { IphoneNotesExpanded, IphoneNotesWidget } from "../iphone-notes/IphoneNotesWidget";
-import { TextInboxExpanded, TextInboxWidget } from "../text-inbox/TextInboxWidget";
+import { IphoneExpanded, IphoneWidget, type IphoneTab } from "../iphone-hub/IphoneWidget";
 import type { UseQueue } from "@/lib/new-jarvis/useQueue";
 import { useIdeas } from "@/lib/new-jarvis/useIdeas";
 import type { AuditProposalLike } from "@/lib/new-jarvis/ideas";
@@ -287,6 +286,8 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
   const widgets = useWidgetPrefs();
   const ideas = useIdeas({ store, audit });
   const [expanded, setExpanded] = useState<WidgetId | null>(null);
+  /** Which side of the iPhone widget to open on (the half that was tapped). */
+  const [iphoneTab, setIphoneTab] = useState<IphoneTab | undefined>(undefined);
   // Re-render once a minute so "checked 3m ago" moves.
   const [, setMinute] = useState(0);
   useEffect(() => {
@@ -688,8 +689,14 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                 )}
               </Widget>
             )}
-            {!widgets.hidden.has("notes") && <IphoneNotesWidget onExpand={() => setExpanded("notes")} />}
-            {!widgets.hidden.has("texts") && <TextInboxWidget onExpand={() => setExpanded("texts")} />}
+            {!widgets.hidden.has("iphone") && (
+              <IphoneWidget
+                onExpand={(tab) => {
+                  setIphoneTab(tab);
+                  setExpanded("iphone");
+                }}
+              />
+            )}
             {!widgets.hidden.has("notifications") && <NotificationsWidget updates={updates} onExpand={() => setExpanded("notifications")} />}
             {!widgets.hidden.has("todo") && <TodoWidget onExpand={() => setExpanded("todo")} />}
             {!widgets.hidden.has("calendar") && <CalendarWidget events={events} onExpand={() => setExpanded("calendar")} />}
@@ -907,8 +914,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
       {expanded === "queue" && <QueueExpanded queue={inQueue} go={go} onClose={() => setExpanded(null)} />}
       {expanded === "youtube" && <YouTubeVideosExpanded onClose={() => setExpanded(null)} />}
       {expanded === "findmy" && <FindMyLifeExpanded onClose={() => setExpanded(null)} />}
-      {expanded === "notes" && <IphoneNotesExpanded onClose={() => setExpanded(null)} />}
-      {expanded === "texts" && <TextInboxExpanded onClose={() => setExpanded(null)} />}
+      {expanded === "iphone" && <IphoneExpanded tab={iphoneTab} onClose={() => setExpanded(null)} />}
 
       {(open || openFiled) && (() => {
         const shot = open ? shotOf(open) : openFiled!;

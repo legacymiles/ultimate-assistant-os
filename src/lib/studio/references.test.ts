@@ -194,8 +194,8 @@ describe("app plugins", () => {
   // a Toolbox app too, which is mounted inside Jarvis rather than linked out to.
   it("keeps every app that moved in the catalog and out of the hub", async () => {
     const { PROJECTS } = await import("@/lib/catalog");
-    const { PLUGIN_SLUGS, TOOLBOX_SLUGS, hubProjects } = await import("./plugins");
-    const moved = [...PLUGIN_SLUGS, ...TOOLBOX_SLUGS];
+    const { PLUGIN_SLUGS, TOOLBOX_SLUGS, WIDGET_SLUGS, hubProjects } = await import("./plugins");
+    const moved = [...PLUGIN_SLUGS, ...TOOLBOX_SLUGS, ...WIDGET_SLUGS];
     const hub = hubProjects().map((p) => p.slug);
     for (const slug of moved) {
       expect(PROJECTS.some((p) => p.slug === slug)).toBe(true);

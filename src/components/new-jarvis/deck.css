@@ -658,3 +658,92 @@ p > .deck-conf {
 .deck-seg button[data-band="low"][aria-pressed="true"] {
   box-shadow: inset 0 0 0 1px var(--hud-amber);
 }
+
+/* ---------------------------------------------------------------------------
+   iPhone widget — Notes and Texts in one card. Each half is its own tap target
+   that opens the sheet on that side; text sits on solid rows.
+   --------------------------------------------------------------------------- */
+.iph-mini {
+  display: grid;
+  gap: 6px;
+}
+.iph-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--color-line);
+  background: var(--color-panel);
+  text-align: left;
+  transition: border-color var(--nj-fast);
+}
+.iph-row:hover,
+.iph-row:focus-visible {
+  border-color: var(--hud);
+}
+.iph-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--hud);
+}
+.iph-num {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+}
+.iph-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--color-ink);
+}
+.iph-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.iph-faint {
+  color: var(--color-ink-muted);
+  font-size: 11.5px;
+}
+.iph-score {
+  flex: none;
+  min-width: 28px;
+  padding: 0 5px;
+  border-radius: 6px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #05060a;
+  background: var(--hud);
+}
+.iph-score[data-band="high"] {
+  background: var(--hud-green);
+}
+.iph-score[data-band="low"] {
+  background: var(--hud-amber);
+}
+.iph-avatar {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 10.5px;
+  font-weight: 600;
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-line);
+}
