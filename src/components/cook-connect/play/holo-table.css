@@ -1327,3 +1327,89 @@
   .hx-dealfly, .hx-dealblur { display: none; }
   .hx-fan { transform: none !important; }
 }
+
+/* --- video at the table (Oct 2026) --------------------------------------- */
+/* Each player on video shows live on their own seat, a little bigger than an
+   avatar. Only one video is ever enlarged: the spotlight strip above the table. */
+.hx-avatar.has-video { width: 46px; height: 46px; background: transparent; }
+.hx-avatar.has-video .hx-turn-ring { inset: -4px; }
+.hx-vbubble {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #0d0f16;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.14), 0 6px 16px -6px rgba(0, 0, 0, 0.8);
+  cursor: pointer;
+  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms ease;
+}
+.hx-vbubble:hover { transform: scale(1.08); }
+.hx-vbubble:active { transform: scale(0.94); }
+.hx-vbubble > video { position: absolute; inset: 0; }
+.hx-vbubble.is-spot {
+  box-shadow: 0 0 0 2px var(--cc-ember, #7aa7ff), 0 0 18px -2px var(--cc-ember, #7aa7ff);
+}
+.hx-vbubble-busy {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  background: rgba(0, 0, 0, 0.45); color: rgba(255, 255, 255, 0.85);
+}
+.hx-vbubble-mute {
+  position: absolute; bottom: 2px; right: 50%; transform: translateX(50%);
+  display: grid; place-items: center; width: 15px; height: 15px; border-radius: 999px;
+  background: #2a131d; color: var(--cc-loss, #f4517b);
+}
+
+/* The strip above the table. Slim when nobody is enlarged, so the table keeps its room. */
+.hx-vstage {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px;
+  border-radius: var(--cc-radius, 10px);
+  border: 1px solid var(--cc-line, #262a38);
+  background: var(--cc-panel, #12141c);
+  animation: hx-vstage-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.hx-vstage.is-slim { display: flex; align-items: center; gap: 10px; padding: 8px 10px; }
+.hx-vstage-tile {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #0b0d13;
+  aspect-ratio: 16 / 9;
+  max-height: 30vh;
+  width: 100%;
+  justify-self: center;
+}
+.hx-vstage-tile > video { position: absolute; inset: 0; }
+.hx-vstage-side { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+@media (min-width: 768px) {
+  .hx-vstage.is-top:not(.is-slim) { grid-template-columns: minmax(0, 1fr) 220px; align-items: end; }
+  .hx-vstage-tile { max-height: 300px; }
+  .hx-vstage.is-top .hx-vstage-side { flex-direction: column; align-items: stretch; height: 100%; justify-content: flex-end; }
+}
+@keyframes hx-vstage-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (max-width: 640px) {
+  .hx-avatar.has-video { width: 40px; height: 40px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hx-vstage { animation: none; }
+  .hx-vbubble { transition: none; }
+}
+/* On a phone the spotlight stays compact so your hand stays on screen. */
+@media (max-width: 767px) {
+  .hx-vstage:not(.is-slim) { position: relative; padding: 6px; gap: 0; }
+  .hx-vstage-tile { aspect-ratio: auto; height: 19vh; min-height: 130px; max-height: 180px; }
+  .hx-vstage-side { position: absolute; right: 12px; bottom: 12px; }
+  .hx-vstage-side > p { display: none; }
+  .hx-vstage.is-slim > p { font-size: 11.5px; }
+}
+
+/* In the side column on a laptop: tile on top, controls under it, slim line flex. */
+.hx-vstage.is-rail { margin-bottom: 0; }
+.hx-vstage.is-rail:not(.is-slim) { grid-template-columns: 1fr; }
+.hx-vstage.is-rail.is-slim { flex-wrap: wrap; }
+.hx-vstage.is-rail .hx-vstage-tile { aspect-ratio: 4 / 3; max-height: none; }

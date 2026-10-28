@@ -17,15 +17,20 @@ import {
 import { BotIcon, CheckIcon, ClockIcon, FlagIcon, PlayIcon } from "../icons";
 import { SpadesTable } from "./SpadesTable";
 import { ChatPanel } from "./ChatPanel";
-import { VideoPanel } from "./VideoPanel";
+import { CallAudio, VideoStage, useSeatVideo } from "./TableVideo";
+import { useVideoCall } from "@/lib/cook-connect/hooks/useVideoCall";
 import { PlayingCard } from "./PlayingCard";
 import { GameOverPopup, HandOverPopup, OutOfTurnPopup, PopBar, useRankShift } from "./SpadesPopups";
 
 const cardName = (card: string) => `${RANK_DISPLAY[getRank(card)]}${SUIT_SYMBOLS[getSuit(card)]}`;
 
 export function SpadesRoom({ matchId }: { matchId: string }) {
-  const { sb, userId, navigate, notify } = useCook();
+  const { sb, userId, navigate, notify, profile } = useCook();
   const game = useSpades(sb, userId, matchId);
+  // One video call per table: each player shows live on their own seat, and
+  // one of them at a time is enlarged in the strip above the table.
+  const video = useVideoCall(sb, profile, rooms.match(matchId));
+  const seatVideo = useSeatVideo(video, game.table, userId);
   const [accusing, setAccusing] = useState(false);
   const style = useGameStyle();
   const [fxLevel, setFxLevel] = useFxLevel();
@@ -137,11 +142,16 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
             </div>
           </Panel>
 
-          <VideoPanel
-            room={rooms.match(matchId)}
-            title="Table video"
-            invitation={waiting ? "Say hello while you decide." : "Talk face to face while you play."}
-          />
+          <div className="hidden lg:block">
+            <VideoStage
+              call={video}
+              spotlit={seatVideo.spotlit}
+              onVideoCount={seatVideo.onVideoCount}
+              onClose={seatVideo.close}
+              waiting={waiting}
+              place="rail"
+            />
+          </div>
           <ChatPanel
             room={rooms.match(matchId)}
             title="Table chat"
@@ -151,6 +161,19 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
         </>
       }
     >
+      {/* Video gets its own room — above the table on a phone, in the side
+          column on a laptop — never on top of the cards. */}
+      <div className="lg:hidden">
+        <VideoStage
+          call={video}
+          spotlit={seatVideo.spotlit}
+          onVideoCount={seatVideo.onVideoCount}
+          onClose={seatVideo.close}
+          waiting={waiting}
+        />
+      </div>
+      <CallAudio feeds={video.remoteFeeds} />
+
       {waiting ? (
         <WaitingRoom game={game} onLobby={() => navigate({ page: "play" })} />
       ) : (
@@ -210,6 +233,7 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
             onDeal={() => void game.deal()}
             onAskOutOfTurn={(card) => setOutOfTurn(card)}
             tableId={matchId}
+            seatVideo={seatVideo.seatVideo}
           />
 
           {outOfTurn && state?.phase === "playing" && (

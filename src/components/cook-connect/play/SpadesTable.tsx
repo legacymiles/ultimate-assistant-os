@@ -20,6 +20,7 @@ import { handLayout } from "@/lib/cook-connect/handLayout";
 import type { SeatView } from "@/lib/cook-connect/hooks/useSpades";
 import { Avatar, cx } from "../ui";
 import { BotIcon } from "../icons";
+import { SeatVideoBubble, type SeatVideo } from "./TableVideo";
 import { PlayingCard } from "./PlayingCard";
 import { HoloFelt, type FeltPulse } from "./HoloFelt";
 import { Burst, FxStage, clashStyle, useSpadesMoments, useTableTalk, type NilFx } from "./SpadesFx";
@@ -52,6 +53,8 @@ interface Props {
   onAskOutOfTurn?: (card: string) => void;
   /** Seeds the computers' table talk, so every screen hears the same lines. */
   tableId?: string;
+  /** Seat → that player's live video, while they are on video. */
+  seatVideo?: Record<number, SeatVideo>;
 }
 
 const FX_LEVELS: { id: FxLevel; label: string }[] = [
@@ -95,7 +98,7 @@ const PULSE_AT: Record<Position, [number, number]> = {
 
 export function SpadesTable({
   state, table, mySeat, onBid, onPlay, theme, fxLevel, onFxLevel, round, onCrumble,
-  unlocked = false, onToggleUnlock, onCallRenig, scores, onDeal, onAskOutOfTurn, tableId = "table",
+  unlocked = false, onToggleUnlock, onCallRenig, scores, onDeal, onAskOutOfTurn, tableId = "table", seatVideo,
 }: Props) {
   const seated = mySeat >= 0;
   const viewFrom = seated ? mySeat : 0;
@@ -213,6 +216,7 @@ export function SpadesTable({
           nil={fx.shields[seat.seat]}
           nilColor={theme.nilShield.color}
           nilText={theme.nilShield.text}
+          video={seatVideo?.[seat.seat]}
         />
         {!isMe && seat.userId && state.phase !== "gameEnd" && cardsLeft > 0 && <BackFan count={cardsLeft} />}
         {/* Each bid shows at its seat the moment it is placed. */}
@@ -897,8 +901,9 @@ function BackFan({ count }: { count: number }) {
 }
 
 function SeatPod({
-  seat, isMe, bid, tricks, turn, dealer, nil, nilColor, nilText,
+  seat, isMe, bid, tricks, turn, dealer, nil, nilColor, nilText, video,
 }: {
+  video?: SeatVideo;
   seat: SeatView;
   isMe: boolean;
   bid: number | null;
@@ -924,9 +929,11 @@ function SeatPod({
     >
       {nil && nil !== "shatter" && <span className="fx-nil-label">{nilText}</span>}
       {dealer && !empty && <span className="hx-dealer" title="Dealer" aria-label="Dealer">D</span>}
-      <span className="hx-avatar">
+      <span className={cx("hx-avatar", video && "has-video")}>
         {turn && <span className="hx-turn-ring" />}
-        {empty ? null : seat.isBot ? (
+        {empty ? null : video ? (
+          <SeatVideoBubble v={video} />
+        ) : seat.isBot ? (
           <BotIcon size={15} />
         ) : (
           <Avatar id={seat.userId} name={seat.name} url={seat.avatar} size={30} online={seat.online} />
