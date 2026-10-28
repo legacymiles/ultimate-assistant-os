@@ -145,7 +145,7 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
           <div className="hidden lg:block">
             <VideoStage
               call={video}
-              spotlit={seatVideo.spotlit}
+              tiles={seatVideo.tiles}
               onVideoCount={seatVideo.onVideoCount}
               onClose={seatVideo.close}
               waiting={waiting}
@@ -166,7 +166,7 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
       <div className="lg:hidden">
         <VideoStage
           call={video}
-          spotlit={seatVideo.spotlit}
+          tiles={seatVideo.tiles}
           onVideoCount={seatVideo.onVideoCount}
           onClose={seatVideo.close}
           waiting={waiting}

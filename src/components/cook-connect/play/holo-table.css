@@ -1362,10 +1362,11 @@
   background: #2a131d; color: var(--cc-loss, #f4517b);
 }
 
-/* The strip above the table. Slim when nobody is enlarged, so the table keeps its room. */
+/* The video area: every seat's camera at once, at most ONE of them big.
+   Slim one-line bar before you join, so the table keeps its room. */
 .hx-vstage {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 12px;
   padding: 8px;
   border-radius: var(--cc-radius, 10px);
@@ -1374,22 +1375,76 @@
   animation: hx-vstage-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .hx-vstage.is-slim { display: flex; align-items: center; gap: 10px; padding: 8px 10px; }
-.hx-vstage-tile {
+.hx-vstage.is-rail { margin-bottom: 0; }
+.hx-vstage.is-rail.is-slim { flex-wrap: wrap; }
+.hx-vstage-side { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+
+/* The gallery grid. */
+.hx-vgrid { display: grid; gap: 6px; }
+.hx-vtile {
   position: relative;
   overflow: hidden;
-  border-radius: 12px;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 10px;
   background: #0b0d13;
-  aspect-ratio: 16 / 9;
-  max-height: 30vh;
-  width: 100%;
-  justify-self: center;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), border-color 200ms ease;
 }
-.hx-vstage-tile > video { position: absolute; inset: 0; }
-.hx-vstage-side { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+.hx-vtile > video { position: absolute; inset: 0; }
+.hx-vtile.is-live { cursor: pointer; }
+.hx-vtile.is-live:hover { border-color: var(--cc-ember, #7aa7ff); transform: scale(1.03); }
+.hx-vtile.is-live:active { transform: scale(0.97); }
+.hx-vtile.is-big { border-color: color-mix(in srgb, var(--cc-ember, #7aa7ff) 55%, transparent); }
+.hx-vtile.is-off { opacity: 0.55; }
+.hx-vtile-still {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  color: var(--cc-ink-faint, #6b7385);
+}
+.hx-vtile-status { font-size: 10px; color: rgba(255, 255, 255, 0.5); }
+.hx-vtile.is-big .hx-vtile-status { font-size: 12px; }
+.hx-vtile-busy { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.4); color: #fff; }
+.hx-vtile-name {
+  position: absolute; inset: auto 0 0 0; z-index: 1;
+  display: flex; align-items: center; gap: 4px;
+  padding: 10px 6px 4px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.78));
+  color: #fff; font-size: 10px; font-weight: 650; text-align: left;
+}
+.hx-vtile.is-big .hx-vtile-name { padding: 18px 10px 7px; font-size: 13px; }
+
+/* Above the table (phone / tablet): big on the left, the other three stacked on the right. */
+.hx-vstage.is-top.has-big .hx-vgrid {
+  grid-template-columns: minmax(0, 2.3fr) minmax(0, 1fr);
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  height: 186px;
+}
+.hx-vstage.is-top.has-big .hx-vtile.is-big { grid-row: 1 / -1; }
+.hx-vstage.is-top.all-even .hx-vgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); height: 96px; }
+
+/* In the side column on a laptop: big on top, the other three in a row under it. */
+.hx-vstage.is-rail.has-big .hx-vgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.hx-vstage.is-rail.has-big .hx-vtile { aspect-ratio: 1 / 1; }
+.hx-vstage.is-rail.has-big .hx-vtile.is-big { grid-column: 1 / -1; aspect-ratio: 4 / 3; }
+.hx-vstage.is-rail.all-even .hx-vgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.hx-vstage.is-rail.all-even .hx-vtile { aspect-ratio: 4 / 3; }
+
 @media (min-width: 768px) {
-  .hx-vstage.is-top:not(.is-slim) { grid-template-columns: minmax(0, 1fr) 220px; align-items: end; }
-  .hx-vstage-tile { max-height: 300px; }
-  .hx-vstage.is-top .hx-vstage-side { flex-direction: column; align-items: stretch; height: 100%; justify-content: flex-end; }
+  .hx-vstage.is-top.has-big .hx-vgrid { height: 270px; }
+  .hx-vstage.is-top.all-even .hx-vgrid { height: 130px; }
+}
+.hx-vtile-tag { flex: none; font-weight: 500; color: rgba(255, 255, 255, 0.5); }
+.hx-vtile-controls { display: none; }
+@media (max-width: 767px) {
+  .hx-vstage.is-gallery .hx-vstage-side > p { display: none; }
+  .hx-vstage.is-gallery .hx-vstage-side { justify-content: flex-end; }
+  /* With a big video on a phone, its buttons sit on it and the row under the strip goes. */
+  .hx-vstage.is-top.has-big .hx-vstage-side { display: none; }
+  .hx-vstage.is-top.has-big .hx-vtile-controls {
+    position: absolute; right: 6px; bottom: 6px; z-index: 2; display: flex;
+  }
+  .hx-vstage.is-top.has-big .hx-vtile-controls button { width: 30px; height: 30px; background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(6px); }
 }
 @keyframes hx-vstage-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 @media (max-width: 640px) {
@@ -1397,19 +1452,5 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .hx-vstage { animation: none; }
-  .hx-vbubble { transition: none; }
+  .hx-vbubble, .hx-vtile { transition: none; }
 }
-/* On a phone the spotlight stays compact so your hand stays on screen. */
-@media (max-width: 767px) {
-  .hx-vstage:not(.is-slim) { position: relative; padding: 6px; gap: 0; }
-  .hx-vstage-tile { aspect-ratio: auto; height: 19vh; min-height: 130px; max-height: 180px; }
-  .hx-vstage-side { position: absolute; right: 12px; bottom: 12px; }
-  .hx-vstage-side > p { display: none; }
-  .hx-vstage.is-slim > p { font-size: 11.5px; }
-}
-
-/* In the side column on a laptop: tile on top, controls under it, slim line flex. */
-.hx-vstage.is-rail { margin-bottom: 0; }
-.hx-vstage.is-rail:not(.is-slim) { grid-template-columns: 1fr; }
-.hx-vstage.is-rail.is-slim { flex-wrap: wrap; }
-.hx-vstage.is-rail .hx-vstage-tile { aspect-ratio: 4 / 3; max-height: none; }

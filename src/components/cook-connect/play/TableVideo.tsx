@@ -16,7 +16,7 @@ import {
   NO_SPOTLIGHT, resolveSpotlight, seatsOnVideo, tapSpotlight, type SeatPerson, type Spotlight,
 } from "@/lib/cook-connect/videoSeats";
 import { Avatar, Button, IconButton, Spinner, cx } from "../ui";
-import { CloseIcon, HangUpIcon, MicIcon, MicOffIcon, VideoIcon, VideoOffIcon } from "../icons";
+import { BotIcon, CloseIcon, HangUpIcon, MicIcon, MicOffIcon, VideoIcon, VideoOffIcon } from "../icons";
 
 type Call = ReturnType<typeof useVideoCall>;
 
@@ -84,8 +84,38 @@ export function useSeatVideo(call: Call, table: Person[], myId: string | null) {
     return out;
   }, [bySeatId, feedOf, spot.userId, tap]);
 
+  /**
+   * All four seats for the video gallery, starting with you and going round
+   * the table — so every camera can be seen at once, one of them big.
+   */
+  const tiles = useMemo<StageTile[]>(() => {
+    const mine = table.find((t) => t.userId === me)?.seat ?? 0;
+    return [...table]
+      .sort((a, b) => ((a.seat - mine + 4) % 4) - ((b.seat - mine + 4) % 4))
+      .map((t) => ({
+        seat: t.seat,
+        userId: t.userId,
+        name: t.userId === me ? "You" : t.name.split(" ")[0] || "Player",
+        avatar: t.avatar,
+        isBot: t.isBot,
+        empty: !t.userId,
+        video: seatVideo[t.seat] ?? null,
+      }));
+  }, [table, me, seatVideo]);
+
   const spotlit = spot.userId ? feedOf(spot.userId) : null;
-  return { seatVideo, spotlit, onVideoCount: onVideo.length, close, tap };
+  return { seatVideo, spotlit, tiles, onVideoCount: onVideo.length, close, tap };
+}
+
+/** One seat in the gallery: live video, a camera-off avatar, a computer, or an open seat. */
+export interface StageTile {
+  seat: number;
+  userId: string;
+  name: string;
+  avatar: string | null;
+  isBot: boolean;
+  empty: boolean;
+  video: SeatVideo | null;
 }
 
 /* ── The live picture ─────────────────────────────────────────── */
@@ -148,16 +178,17 @@ export function SeatVideoBubble({ v }: { v: SeatVideo }) {
   );
 }
 
-/* ── The spotlight strip above the table ──────────────────────── */
+/* ── The video gallery: every camera at once, one big ─────────── */
 
 export function VideoStage({
-  call, spotlit, onVideoCount, onClose, waiting, place = "top", className,
+  call, tiles, onVideoCount, onClose, waiting, place = "top", className,
 }: {
+  /** Every seat, starting with you — the gallery shows all of them at once. */
+  tiles: StageTile[];
   /** "top" = the strip above the table (phone/tablet); "rail" = the side column on a laptop. */
   place?: "top" | "rail";
   className?: string;
   call: Call;
-  spotlit: Omit<SeatVideo, "spotlit" | "onTap"> | null;
   onVideoCount: number;
   onClose: () => void;
   waiting?: boolean;
@@ -216,55 +247,82 @@ export function VideoStage({
     );
   }
 
-  // On video, nobody enlarged: a slim line with the controls.
-  if (!spotlit) {
-    return (
-      <div className={cx("hx-vstage is-slim", `is-${place}`, className)}>
-        <p className="min-w-0 flex-1 text-[12px] leading-snug text-[var(--cc-ink-muted)]">
-          <span className="cc-num font-semibold text-[var(--cc-ink)]">{onVideoCount}</span> on video · tap anyone&rsquo;s
-          video on the table to make it big.
+  // On video: every seat's camera at once, and at most ONE of them big.
+  const big = tiles.find((t) => t.video?.spotlit) ?? null;
+  const ordered = big ? [big, ...tiles.filter((t) => t !== big)] : tiles;
+  return (
+    <div className={cx("hx-vstage is-gallery", `is-${place}`, big ? "has-big" : "all-even", className)}>
+      <div className="hx-vgrid">
+        {ordered.map((t) => (
+          <GalleryTile key={t.seat} t={t} big={t === big} onShrink={onClose} controls={controls} />
+        ))}
+      </div>
+      <div className="hx-vstage-side">
+        <p className="min-w-0 text-[12px] leading-snug text-[var(--cc-ink-muted)]">
+          <span className="cc-num font-semibold text-[var(--cc-ink)]">{onVideoCount}</span> on video ·{" "}
+          {big ? "tap another camera to make it the big one." : "tap a camera to make it big."}
         </p>
         {controls}
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  const showVideo = !!spotlit.stream && spotlit.camOn && spotlit.stream.getVideoTracks().length > 0;
-  return (
-    <div className={cx("hx-vstage", `is-${place}`, className)}>
-      <div className="hx-vstage-tile">
-        <Live stream={spotlit.stream} camOn={spotlit.camOn} mirrored={spotlit.isMe} />
-        {!showVideo && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-            <Avatar id={spotlit.userId} name={spotlit.name} url={spotlit.avatar} size={72} />
-            <span className="text-[12px] text-white/60">{spotlit.camOn ? "Connecting…" : "Camera off"}</span>
-          </div>
-        )}
-        {spotlit.connecting && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-white/80"><Spinner size={18} /></div>
-        )}
-        <div className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-6">
-          {!spotlit.micOn && <span className="text-[var(--cc-loss)]" title="Muted"><MicOffIcon size={13} /></span>}
-          <span className="truncate text-[13px] font-semibold text-white">{spotlit.name}</span>
-        </div>
+function GalleryTile({
+  t, big, onShrink, controls,
+}: { t: StageTile; big: boolean; onShrink: () => void; controls: React.ReactNode }) {
+  const v = t.video;
+  const showVideo = !!v?.stream && v.camOn && v.stream.getVideoTracks().length > 0;
+  const status = t.empty ? "Open seat" : t.isBot ? "Computer" : !v ? "Not on video" : !v.camOn ? "Camera off" : v.connecting ? "Connecting…" : null;
+  const body = (
+    <>
+      {v && <Live stream={v.stream} camOn={v.camOn} mirrored={v.isMe} />}
+      {!showVideo && (
+        <span className="hx-vtile-still">
+          {t.empty ? null : t.isBot ? <BotIcon size={big ? 30 : 18} /> : (
+            <Avatar id={t.userId} name={t.name} url={t.avatar} size={big ? 64 : 34} />
+          )}
+          {status && big && <span className="hx-vtile-status">{status}</span>}
+        </span>
+      )}
+      {v?.connecting && <span className="hx-vtile-busy"><Spinner size={big ? 18 : 12} /></span>}
+      <span className="hx-vtile-name">
+        {v && !v.micOn && <span className="text-[var(--cc-loss)]" title="Muted"><MicOffIcon size={big ? 12 : 10} /></span>}
+        <span className="truncate">{t.name}</span>
+        {status && !big && <span className="hx-vtile-tag">{status}</span>}
+      </span>
+    </>
+  );
+  if (big) {
+    return (
+      <div className="hx-vtile is-big">
+        {body}
+        {/* On a phone the buttons ride on the big video, so the strip stays short. */}
+        <span className="hx-vtile-controls">{controls}</span>
         <button
           type="button"
-          onClick={onClose}
-          aria-label="Shrink this video"
+          onClick={onShrink}
+          aria-label="Make all cameras the same size"
           title="Shrink"
-          className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white/85
+          className="absolute right-2 top-2 z-[2] flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-white/85
                      backdrop-blur-sm transition-colors hover:bg-black/75 hover:text-white"
         >
           <CloseIcon size={14} />
         </button>
       </div>
-      <div className="hx-vstage-side">
-        <p className="text-[12px] leading-snug text-[var(--cc-ink-muted)]">
-          <span className="cc-num font-semibold text-[var(--cc-ink)]">{onVideoCount}</span> on video. Only one video is big at
-          a time — tap another player&rsquo;s seat to swap.
-        </p>
-        {controls}
-      </div>
-    </div>
+    );
+  }
+  return v ? (
+    <button
+      type="button"
+      onClick={v.onTap}
+      className="hx-vtile is-live"
+      aria-label={`Make ${t.name}'s camera big`}
+      title="Make big"
+    >
+      {body}
+    </button>
+  ) : (
+    <div className={cx("hx-vtile", (t.empty || t.isBot) && "is-off")}>{body}</div>
   );
 }
