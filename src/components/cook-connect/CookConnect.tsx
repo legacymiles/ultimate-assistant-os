@@ -25,10 +25,15 @@ import { LeaderboardsView } from "./views/LeaderboardsView";
 import { JournalView } from "./views/JournalView";
 import { GroupView } from "./views/GroupView";
 import { SharedWithMeView } from "./views/SharedWithMeView";
+import { FeedView } from "./views/FeedView";
+import { SettingsView } from "./views/SettingsView";
+import { readPersonal } from "@/lib/cook-connect/personal";
 import { Loading, Notice } from "./ui";
 
 export type Route =
   | { page: "explore" }
+  | { page: "feed" }
+  | { page: "settings" }
   | { page: "profile"; userId: string }
   | { page: "cookbooks" }
   | { page: "cookbook"; id: string }
@@ -209,6 +214,13 @@ export function CookConnect() {
     })();
   }, [sb, userId, navigate]);
 
+  // Settings › "Open the app on": once per sign-in, land on the chosen half.
+  useEffect(() => {
+    if (!userId) return;
+    const { openOn } = readPersonal(userId).settings;
+    if (openOn !== "last") setHistory([homeStep(openOn)]);
+  }, [userId]);
+
   // Who is online, app-wide. Drives the green dots and the challenge rail.
   useEffect(() => {
     if (!userId) return;
@@ -296,6 +308,8 @@ export function CookConnect() {
 function renderRoute(route: Route) {
   switch (route.page) {
     case "explore": return <ExploreView />;
+    case "feed": return <FeedView />;
+    case "settings": return <SettingsView />;
     case "profile": return <ProfileView userId={route.userId} />;
     case "cookbooks": return <CookbooksView />;
     case "cookbook": return <CookbookView cookbookId={route.id} />;

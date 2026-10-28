@@ -28,6 +28,7 @@ import { useCook } from "../CookConnect";
 import { Columns, PageHead } from "../Columns";
 import { ConnectSitePanel } from "../ConnectSitePanel";
 import { recordActivity } from "@/lib/cook-connect/social";
+import { MEALS, toggleIn } from "@/lib/cook-connect/categories";
 import { recipeImageUrl } from "@/components/cook-connect/imageGen";
 import {
   type Attachment,
@@ -1071,6 +1072,22 @@ function RecipeDraft({
                 <span className="text-[11px] text-[var(--cc-ink-faint)]">No tags</span>
               )}
             </div>
+          </div>
+
+          {/* What kind of dish — the filters on Explore and My recipes read these. */}
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--cc-ink-faint)]">Kind</span>
+            {MEALS.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                className="cc-chip !h-7 !px-2.5 !text-[11.5px]"
+                aria-pressed={draft.tags.includes(m.tag)}
+                onClick={() => onChange({ ...draft, tags: toggleIn(draft.tags, m.tag) })}
+              >
+                {m.label}
+              </button>
+            ))}
           </div>
 
           <div className="mt-4 grid gap-5 md:grid-cols-[minmax(0,260px)_minmax(0,1fr)]">

@@ -11,16 +11,19 @@ import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { useCook, type Route } from "./CookConnect";
 import {
-  BackIcon, BookIcon, FeedIcon, PeopleIcon, PlayIcon, PlusIcon, SoundOffIcon, SoundOnIcon, TrophyIcon, UserIcon,
+  BackIcon, BookIcon, FeedIcon, GearIcon, PeopleIcon, PlateIcon, PlayIcon, PlusIcon, SoundOffIcon, SoundOnIcon, TrophyIcon, UserIcon,
 } from "./icons";
 import { Avatar, Button, cx } from "./ui";
 import { SideToggle } from "./SideToggle";
 import { sounds } from "@/lib/cook-connect/sounds";
 import { SIDES, type Side } from "@/lib/cook-connect/sides";
+import { usePersonal } from "@/lib/cook-connect/personal";
 
 interface NavItem {
   id: string;
   label: string;
+  /** Shorter word for the phone's bottom bar, where six tabs share 375px. */
+  short?: string;
   route: Route;
   icon: (p: { size?: number }) => ReactNode;
 }
@@ -28,13 +31,15 @@ interface NavItem {
 /** Each half's own destinations. Explore and Boards are on both, showing that side's things. */
 const NAV: Record<Side, NavItem[]> = {
   cookbook: [
-    { id: "cookbooks", label: "Cookbooks", route: { page: "cookbooks" }, icon: BookIcon },
+    { id: "cookbooks", label: "Cookbooks", short: "Books", route: { page: "cookbooks" }, icon: BookIcon },
+    { id: "feed", label: "Feed", route: { page: "feed" }, icon: FeedIcon },
     { id: "explore", label: "Explore", route: { page: "explore" }, icon: PeopleIcon },
-    { id: "journal", label: "Journal", route: { page: "journal" }, icon: FeedIcon },
+    { id: "journal", label: "Journal", route: { page: "journal" }, icon: PlateIcon },
     { id: "leaderboards", label: "Boards", route: { page: "leaderboards" }, icon: TrophyIcon },
   ],
   connect: [
     { id: "play", label: "Play", route: { page: "play" }, icon: PlayIcon },
+    { id: "feed", label: "Feed", route: { page: "feed" }, icon: FeedIcon },
     { id: "explore", label: "Explore", route: { page: "explore" }, icon: PeopleIcon },
     { id: "leaderboards", label: "Boards", route: { page: "leaderboards" }, icon: TrophyIcon },
   ],
@@ -45,7 +50,9 @@ function sectionFor(route: Route): string {
   switch (route.page) {
     case "explore":
     case "group": return "explore";
-    case "profile": return "profile";
+    case "profile":
+    case "settings": return "profile";
+    case "feed": return "feed";
     case "cookbooks":
     case "cookbook":
     case "recipe":
@@ -62,6 +69,7 @@ function sectionFor(route: Route): string {
 
 const TITLES: Record<string, string> = {
   play: "Play",
+  feed: "Feed",
   explore: "Explore",
   cookbooks: "Cookbooks",
   journal: "Journal",
@@ -70,7 +78,8 @@ const TITLES: Record<string, string> = {
 };
 
 export function CookShell({ children }: { children: ReactNode }) {
-  const { route, side, setSide, navigate, back, canGoBack, profile, isLocal, signOut } = useCook();
+  const { route, side, setSide, navigate, back, canGoBack, profile, isLocal, signOut, userId } = useCook();
+  const { settings } = usePersonal(userId);
   const [muted, setMuted] = useState(() => sounds.muted);
   const section = sectionFor(route);
   const nav = NAV[side];
@@ -85,7 +94,11 @@ export function CookShell({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="cc flex min-h-screen flex-col md:flex-row" data-side={side}>
+    <div
+      className="cc flex min-h-screen flex-col md:flex-row"
+      data-side={side}
+      data-motion={settings.motion === "system" ? undefined : settings.motion}
+    >
       {/* Rail — desktop */}
       <nav
         aria-label="Cook Connect sections"
@@ -147,16 +160,25 @@ export function CookShell({ children }: { children: ReactNode }) {
             <button
               type="button"
               onClick={toggleSound}
-              className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] text-[var(--cc-ink-faint)]
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-1 text-[11px] text-[var(--cc-ink-faint)]
                          transition-colors duration-150 hover:text-[var(--cc-ink-muted)]"
             >
               {muted ? <SoundOffIcon size={14} /> : <SoundOnIcon size={14} />}
-              {muted ? "Sound off" : "Sound on"}
+              {muted ? "Muted" : "Sound"}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate({ page: "settings" })}
+              className="ml-auto flex items-center gap-1 whitespace-nowrap rounded-md px-1.5 py-1 text-[11px] text-[var(--cc-ink-faint)]
+                         transition-colors duration-150 hover:text-[var(--cc-ink-muted)]"
+            >
+              <GearIcon size={13} />
+              Settings
             </button>
             <button
               type="button"
               onClick={() => void signOut()}
-              className="ml-auto rounded-md px-1.5 py-1 text-[11px] text-[var(--cc-ink-faint)]
+              className="whitespace-nowrap rounded-md px-1.5 py-1 text-[11px] text-[var(--cc-ink-faint)]
                          transition-colors duration-150 hover:text-[var(--cc-ink-muted)]"
             >
               Sign out
@@ -246,7 +268,7 @@ export function CookShell({ children }: { children: ReactNode }) {
               )}
             >
               <Icon size={18} />
-              {item.label}
+              {item.short ?? item.label}
             </button>
           );
         })}

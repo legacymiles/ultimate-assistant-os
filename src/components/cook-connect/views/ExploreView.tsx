@@ -24,8 +24,9 @@ import {
 } from "../ui";
 import { BookIcon, BookmarkIcon, PeopleIcon, PlayIcon, SearchIcon } from "../icons";
 import { GroupsPanel } from "../social/GroupsPanel";
+import { RecipeBrowser } from "../social/RecipeBrowser";
 
-type Scope = "online" | "all" | "following" | "followers";
+type Scope = "online" | "all" | "friends" | "following" | "followers";
 
 export function ExploreView() {
   const { sb, userId, profile, navigate, onlineIds, notify, side } = useCook();
@@ -39,9 +40,9 @@ export function ExploreView() {
   const [saveCounts, setSaveCounts] = useState<Record<string, number>>({});
   const [graph, setGraph] = useState({ following: new Set<string>(), followers: new Set<string>() });
   const [expanded, setExpanded] = useState<string | null>(null);
-  // Explore covers both halves of "who else is here": people, and groups.
-  const [halfPick, setHalf] = useState<"people" | "groups">("people");
-  // Groups are cooking rooms, so they live on the Cookbook side only.
+  // Cookbook Explore: recipes (the default — what people come to find), cooks, and groups.
+  const [halfPick, setHalf] = useState<"recipes" | "people" | "groups">("recipes");
+  // Recipes and groups are cooking things, so Connect's Explore is people only.
   const half = isConnect ? "people" : halfPick;
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -85,6 +86,7 @@ export function ExploreView() {
       .filter((p) => (
         scope === "all"
         || (scope === "online" && onlineIds.has(p.id))
+        || (scope === "friends" && graph.following.has(p.id) && graph.followers.has(p.id))
         || (scope === "following" && graph.following.has(p.id))
         || (scope === "followers" && graph.followers.has(p.id))
       ))
@@ -103,6 +105,8 @@ export function ExploreView() {
   }, [people, term, scope, graph, userId, onlineIds, isConnect, records, books]);
 
   const onlineCount = people.filter((p) => p.id !== userId && onlineIds.has(p.id)).length;
+  /** Friends = you follow each other. */
+  const friendCount = [...graph.following].filter((id) => graph.followers.has(id)).length;
 
   const follow = async (target: Profile) => {
     if (!userId) return;
@@ -142,10 +146,12 @@ export function ExploreView() {
   return (
     <Columns>
       <PageHead
-        title={isConnect ? "Explore players" : "Explore cooks"}
+        title={isConnect ? "Explore players" : half === "recipes" ? "Explore recipes" : "Explore cooks"}
         subtitle={
           isConnect
             ? "Everyone who plays. See who is around right now, how they play, and pull them into a game. Follow someone here and they're followed on the Cookbook side too — it's one account."
+            : half === "recipes"
+              ? "Every recipe people have shared. Search by dish or main ingredient, pick a meal, and rank what you love from 1 to 10."
             : half === "people"
               ? "Everyone who cooks. Search by name, handle or city and look through their cookbooks without leaving the row. Following is shared with Connect."
               : "Groups are rooms with a subject — people who cook the same way, and one conversation between them. Joining opens its chat and its video room."
@@ -153,6 +159,7 @@ export function ExploreView() {
         action={isConnect ? undefined : (
           <TabStrip
             tabs={[
+              { id: "recipes" as const, label: "Recipes" },
               { id: "people" as const, label: "Cooks" },
               { id: "groups" as const, label: "Groups" },
             ]}
@@ -162,7 +169,7 @@ export function ExploreView() {
         )}
       />
 
-      {half === "groups" ? <GroupsPanel /> : (
+      {half === "recipes" ? <RecipeBrowser /> : half === "groups" ? <GroupsPanel /> : (
       <Panel>
         <div className="flex flex-wrap items-center gap-2 border-b border-[var(--cc-line)] p-2">
           <div className="min-w-[200px] flex-1">
@@ -177,6 +184,7 @@ export function ExploreView() {
             tabs={[
               { id: "all" as const, label: "Everyone", count: people.length - 1 },
               { id: "online" as const, label: "Online", count: onlineCount },
+              { id: "friends" as const, label: "Friends", count: friendCount },
               { id: "following" as const, label: "Following", count: graph.following.size },
               { id: "followers" as const, label: "Followers", count: graph.followers.size },
             ]}
@@ -195,6 +203,7 @@ export function ExploreView() {
             title={
               term ? `Nobody matches "${term}"`
                 : scope === "online" ? "Nobody else is online"
+                  : scope === "friends" ? "No friends yet"
                   : scope === "following" ? "You are not following anyone yet"
                     : scope === "followers" ? "Nobody follows you yet"
                       : "You are the first one here"
@@ -205,6 +214,7 @@ export function ExploreView() {
                   ? (isConnect
                     ? "Open a table anyway — the computer fills the empty seats until someone turns up."
                     : "Nobody else is cooking right now. Their cookbooks are still here under Everyone.")
+                  : scope === "friends" ? "Friends are people you follow who follow you back. Follow a few and they show up here."
                   : scope === "following" ? `Switch to Everyone and follow a few ${isConnect ? "players" : "cooks"} to shape your feed.`
                     : scope === "followers"
                       ? (isConnect ? "Win a few games — people follow who they keep losing to." : "Publishing a cookbook is the fastest way to change that.")

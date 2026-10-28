@@ -248,3 +248,154 @@
   .cc-side-thumb { transition: none; }
   .cc-side-enter { animation: none; }
 }
+
+
+/* ------------------------------------------------------------------ */
+/*  Social layer (Oct 2026): feed, recipe browser, ranks, settings     */
+/* ------------------------------------------------------------------ */
+
+/* Scroll-reveal. Items rise in once, staggered by --cc-delay. */
+.cc-reveal {
+  opacity: 0;
+  transform: translateY(18px) scale(0.985);
+  transition:
+    opacity 520ms cubic-bezier(0.16, 1, 0.3, 1) var(--cc-delay, 0ms),
+    transform 620ms cubic-bezier(0.16, 1, 0.3, 1) var(--cc-delay, 0ms);
+}
+.cc-reveal[data-seen] { opacity: 1; transform: none; }
+
+/* A number that changes gets a small spring. */
+@keyframes cc-pop {
+  0% { transform: scale(0.7); opacity: 0.4; }
+  60% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.cc-pop { display: inline-block; animation: cc-pop 300ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* The app's own "Calm animations" setting, on top of the device's. */
+.cc[data-motion="reduced"] .cc-reveal { opacity: 1; transform: none; transition: none; }
+.cc[data-motion="reduced"] *,
+.cc[data-motion="reduced"] *::before,
+.cc[data-motion="reduced"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cc:not([data-motion="full"]) .cc-reveal { opacity: 1; transform: none; transition: none; }
+}
+
+/* Filter chips: quiet until picked, then the side's accent. */
+.cc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--cc-line);
+  background: var(--cc-panel);
+  color: var(--cc-ink-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+.cc-chip:hover { color: var(--cc-ink); border-color: #39405a; }
+.cc-chip:active { transform: scale(0.95); }
+.cc-chip[aria-pressed="true"] {
+  color: var(--cc-on-accent);
+  background: linear-gradient(180deg, var(--cc-ember-hot), var(--cc-ember));
+  border-color: transparent;
+  box-shadow: 0 6px 16px -8px var(--cc-ember);
+}
+
+/* A row of chips that scrolls sideways on a phone instead of wrapping into a wall. */
+.cc-chip-rail {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 0 4px;
+  -webkit-mask-image: linear-gradient(90deg, #000 92%, transparent);
+          mask-image: linear-gradient(90deg, #000 92%, transparent);
+}
+.cc-chip-rail::-webkit-scrollbar { display: none; }
+
+/* Recipe and feed cards: a real photo, text on a scrim, never on the busy image itself. */
+.cc-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid var(--cc-line);
+  background: var(--cc-panel);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 18px 40px -28px rgba(0, 0, 0, 0.9);
+  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1), border-color 200ms ease, box-shadow 260ms ease;
+}
+.cc-card:hover {
+  transform: translateY(-3px);
+  border-color: #353b50;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 26px 50px -26px rgba(0, 0, 0, 0.95);
+}
+.cc-card-media { position: relative; overflow: hidden; background: var(--cc-panel-2); }
+.cc-card-media img { transition: transform 700ms cubic-bezier(0.16, 1, 0.3, 1); }
+.cc-card:hover .cc-card-media img { transform: scale(1.045); }
+.cc-card-scrim {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 60%;
+  background: linear-gradient(180deg, transparent, rgba(6, 7, 10, 0.86));
+  pointer-events: none;
+}
+
+/* Skeletons instead of spinners for lists of cards. */
+@keyframes cc-shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+.cc-skeleton {
+  border-radius: 12px;
+  background: linear-gradient(90deg, var(--cc-panel) 0%, var(--cc-panel-2) 50%, var(--cc-panel) 100%);
+  background-size: 200% 100%;
+  animation: cc-shimmer 1.4s linear infinite;
+}
+
+/* Settings switches. */
+.cc-switch {
+  position: relative;
+  width: 40px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--cc-elevated);
+  border: 1px solid var(--cc-line);
+  transition: background-color 200ms ease;
+  flex-shrink: 0;
+}
+.cc-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--cc-ink-muted);
+  transition: transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1), background-color 200ms ease;
+}
+.cc-switch[aria-checked="true"] { background: var(--cc-ember); border-color: transparent; }
+.cc-switch[aria-checked="true"]::after { transform: translateX(16px); background: #fff; }
+
+/* Profile cover: the person's colour, softly. */
+.cc-cover {
+  height: 120px;
+  background:
+    radial-gradient(120% 140% at 0% 0%, hsl(var(--cc-hue, 24) 70% 40% / 0.55), transparent 60%),
+    radial-gradient(90% 120% at 100% 100%, hsl(calc(var(--cc-hue, 24) + 50) 70% 35% / 0.45), transparent 60%),
+    var(--cc-panel-2);
+}
+@media (min-width: 768px) { .cc-cover { height: 150px; } }
+
+/* A sheet that rises from the bottom on a phone and sits centred on a laptop. */
+@keyframes cc-sheet-in { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes cc-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.cc-sheet-backdrop { animation: cc-fade-in 180ms ease both; }
+.cc-sheet { animation: cc-sheet-in 280ms cubic-bezier(0.16, 1, 0.3, 1) both; }

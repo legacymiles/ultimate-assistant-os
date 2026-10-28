@@ -15,12 +15,15 @@ import {
 } from "../ui";
 import { BookIcon, BookmarkIcon, PlusIcon, SearchIcon } from "../icons";
 import { ActivityFeed } from "../social/ActivityFeed";
+import { RecipeBrowser } from "../social/RecipeBrowser";
 
 type Scope = "discover" | "mine" | "saved";
 
 export function CookbooksView() {
   const { sb, userId, navigate, notify } = useCook();
   const [scope, setScope] = useState<Scope>("discover");
+  // Shelves of cookbooks, or every recipe in my cookbook with my ranks and filters.
+  const [view, setView] = useState<"books" | "recipes">("books");
   const [term, setTerm] = useState("");
   const [books, setBooks] = useState<Cookbook[]>([]);
   const [owners, setOwners] = useState<ProfileMap>({});
@@ -82,8 +85,10 @@ export function CookbooksView() {
   return (
     <Columns>
       <PageHead
-        title="Cookbooks"
-        subtitle="Every cookbook anyone has published. Saving one keeps it on your shelf and pushes it up the leaderboard."
+        title={view === "books" ? "Cookbooks" : "My recipes"}
+        subtitle={view === "books"
+          ? "Every cookbook anyone has published. Saving one keeps it on your shelf and pushes it up the leaderboard."
+          : "Everything you wrote, saved or ranked — filter by meal, main ingredient, or only what you ranked 8 and up."}
         action={
           <span className="flex items-center gap-1.5">
             <Button onClick={() => navigate({ page: "shared" })}>Shared with you</Button>
@@ -95,6 +100,18 @@ export function CookbooksView() {
         }
       />
 
+      <div className="mb-3">
+        <TabStrip
+          tabs={[
+            { id: "books" as const, label: "Cookbooks" },
+            { id: "recipes" as const, label: "My recipes" },
+          ]}
+          active={view}
+          onChange={setView}
+        />
+      </div>
+
+      {view === "recipes" ? <RecipeBrowser initialScope="mine" /> : (<>
       <Panel>
         <div className="flex flex-wrap items-center gap-2 border-b border-[var(--cc-line)] p-2">
           <div className="min-w-[200px] flex-1">
@@ -233,6 +250,7 @@ export function CookbooksView() {
       <div className="mt-4">
         <ActivityFeed />
       </div>
+      </>)}
     </Columns>
   );
 }

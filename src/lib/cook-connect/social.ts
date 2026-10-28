@@ -238,3 +238,47 @@ export async function countRecipes(sb: Backend): Promise<Record<string, number>>
   for (const r of (data ?? []) as Recipe[]) counts[r.cookbook_id] = (counts[r.cookbook_id] ?? 0) + 1;
   return counts;
 }
+
+/* ── Recipes across cookbooks (Explore › Recipes, My recipes, the feed) ── */
+
+export interface RecipeWithContext extends Recipe {
+  cookbook: Cookbook | null;
+  author: Profile | null;
+}
+
+/**
+ * Every recipe this person may read: everything in public cookbooks plus
+ * everything in their own. Newest first. One pass, so the browser can filter
+ * instantly as chips are tapped.
+ */
+export async function loadVisibleRecipes(sb: Backend, userId: string | null): Promise<RecipeWithContext[]> {
+  const [{ data: recipeRows }, books] = await Promise.all([
+    sb.from("recipes").select("*").order("created_at", { ascending: false }),
+    loadCookbooks(sb),
+  ]);
+  const bookMap = new Map(books.map((b) => [b.id, b]));
+  const visible = ((recipeRows ?? []) as Recipe[]).filter((r) => {
+    const book = bookMap.get(r.cookbook_id);
+    return book && (book.privacy === "public" || book.owner_id === userId);
+  });
+  const authors = await loadProfiles(sb, visible.map((r) => r.author_id));
+  return visible.map((r) => ({
+    ...r,
+    tags: r.tags ?? [],
+    ingredients: r.ingredients ?? [],
+    cookbook: bookMap.get(r.cookbook_id) ?? null,
+    author: authors[r.author_id] ?? null,
+  }));
+}
+
+/** People who follow `targetId`, and people `targetId` follows. */
+export async function loadFollowLists(sb: Backend, targetId: string): Promise<{ followers: Profile[]; following: Profile[] }> {
+  const { data } = await sb.from("follows").select("*");
+  const rows = (data ?? []) as { follower_id: string; following_id: string; created_at?: string }[];
+  const followerIds = rows.filter((r) => r.following_id === targetId).map((r) => r.follower_id);
+  const followingIds = rows.filter((r) => r.follower_id === targetId).map((r) => r.following_id);
+  const ids = [...followerIds, ...followingIds];
+  const profiles = ids.length ? await loadProfiles(sb, ids) : {};
+  const pick = (list: string[]) => list.map((id) => profiles[id]).filter(Boolean) as Profile[];
+  return { followers: pick(followerIds), following: pick(followingIds) };
+}

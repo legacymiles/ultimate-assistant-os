@@ -13,6 +13,9 @@ import {
 } from "../ui";
 import { ClockIcon, PeopleIcon, SparkIcon } from "../icons";
 import { recipeImageUrl } from "@/components/cook-connect/imageGen";
+import { usePersonal } from "@/lib/cook-connect/personal";
+import { MAIN_INGREDIENTS, MEALS, mainIngredientsOf, mealsOf, toggleIn } from "@/lib/cook-connect/categories";
+import { RankBadge, RankPicker } from "../social/RankPicker";
 
 /** Multiply an amount for a different number of servings, tidily. */
 function scaleAmount(amount: string, factor: number): string {
@@ -33,6 +36,7 @@ export function RecipeView({ recipeId, cookbookId }: { recipeId: string; cookboo
   const [note, setNote] = useState("");
   const [revising, setRevising] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const { ranks, setRank } = usePersonal(userId);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -125,6 +129,18 @@ export function RecipeView({ recipeId, cookbookId }: { recipeId: string; cookboo
     }
   };
 
+  /** Meal chips on your own recipe write straight to its tags. */
+  const toggleMeal = async (tag: string) => {
+    const next = toggleIn(recipe.tags.map((t) => t.toLowerCase()), tag);
+    setRecipe({ ...recipe, tags: next });
+    const { error } = await sb.from("recipes").update({ tags: next, updated_at: new Date().toISOString() }).eq("id", recipe.id);
+    if (error) notify(`Could not save that: ${error.message}`);
+  };
+
+  const myRank = ranks[recipe.id] ?? null;
+  const meals = mealsOf(recipe);
+  const mains = mainIngredientsOf(recipe);
+
   const newPhoto = async () => {
     if (!recipe) return;
     setRegenerating(true);
@@ -145,6 +161,41 @@ export function RecipeView({ recipeId, cookbookId }: { recipeId: string; cookboo
     <Columns
       rail={
         <>
+          <Panel className="hidden lg:block">
+            <SectionHead title="My rank" />
+            <div className="p-3">
+              <RankPicker
+                value={myRank}
+                onChange={(n) => {
+                  setRank(recipe.id, n);
+                  if (n) notify(`Ranked ${n}/10 in your cookbook.`);
+                }}
+              />
+              <p className="mt-2 text-[11px] leading-relaxed text-[var(--cc-ink-faint)]">
+                Just for you — how much you like it. Filter your recipes by &ldquo;8+&rdquo; to see your favourites.
+              </p>
+            </div>
+          </Panel>
+
+          {isMine && (
+            <Panel>
+              <SectionHead title="What kind of dish" />
+              <div className="flex flex-wrap gap-1.5 p-3">
+                {MEALS.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className="cc-chip !h-8"
+                    aria-pressed={recipe.tags.map((t) => t.toLowerCase()).includes(m.tag)}
+                    onClick={() => void toggleMeal(m.tag)}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </Panel>
+          )}
+
           <Panel>
             <SectionHead title="Ingredients" count={recipe.ingredients.length} />
             <div className="p-3">
@@ -252,11 +303,27 @@ export function RecipeView({ recipeId, cookbookId }: { recipeId: string; cookboo
           />
         )}
 
-        <h1 className="text-[26px] font-bold leading-tight tracking-tight">{recipe.title}</h1>
+        <div className="flex items-start gap-3">
+          <h1 className="flex-1 text-[26px] font-bold leading-tight tracking-tight">{recipe.title}</h1>
+          {myRank && <span className="mt-1"><RankBadge rank={myRank} size="md" /></span>}
+        </div>
+
+        {(meals.length > 0 || mains.length > 0) && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {meals.map((m) => <Tag key={m} tone="ember">{MEALS.find((x) => x.id === m)?.label}</Tag>)}
+            {mains.slice(0, 5).map((m) => <Tag key={m}>{MAIN_INGREDIENTS.find((x) => x.id === m)?.label}</Tag>)}
+          </div>
+        )}
 
         {recipe.description && (
           <p className="cc-prose mt-2 text-[var(--cc-ink-muted)]">{recipe.description}</p>
         )}
+
+        {/* On a phone the rail sits under the method, so the rank comes up here. */}
+        <div className="mt-4 rounded-[var(--cc-radius)] border border-[var(--cc-line)] bg-[var(--cc-panel)] p-3 lg:hidden">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--cc-ink-faint)]">My rank</p>
+          <RankPicker compact value={myRank} onChange={(n) => setRank(recipe.id, n)} />
+        </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-y border-[var(--cc-line)] py-2.5 text-[12px]">
           <button

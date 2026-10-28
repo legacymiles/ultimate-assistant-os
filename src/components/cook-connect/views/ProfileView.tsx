@@ -7,17 +7,22 @@ import { useCallback, useEffect, useState } from "react";
 import { useCook } from "../CookConnect";
 import { Columns } from "../Columns";
 import {
-  countRecipes, loadCookbooks, loadFollowGraph, loadPlayerLeaderboard, loadSaves, toggleFollow,
+  countRecipes, loadCookbooks, loadFollowGraph, loadFollowLists, loadPlayerLeaderboard, loadSaves, loadVisibleRecipes,
+  toggleFollow, type RecipeWithContext,
 } from "@/lib/cook-connect/social";
+import { usePersonal } from "@/lib/cook-connect/personal";
 import { formatStreak, formatWinRate, QUALIFYING_GAMES, type PlayerRecord } from "@/lib/cook-connect/stats";
 import { createMatch } from "@/lib/cook-connect/matches";
 import { rooms } from "@/lib/cook-connect/types";
 import type { Cookbook, Profile } from "@/lib/cook-connect/types";
 import {
-  Avatar, Button, EmptyState, Loading, Panel, SectionHead, Tag, cx,
+  Avatar, Button, EmptyState, Loading, Panel, SectionHead, Tag, TabStrip, avatarHue, cx,
 } from "../ui";
-import { BookIcon, BookmarkIcon, PlayIcon } from "../icons";
+import { BookIcon, BookmarkIcon, EditIcon, GearIcon, PlayIcon } from "../icons";
 import { ChatPanel } from "../play/ChatPanel";
+import { PeopleSheet, type PeopleTab } from "../social/PeopleSheet";
+import { RecipeCard } from "../social/RecipeCard";
+import { Reveal } from "../social/Reveal";
 
 export function ProfileView({ userId: targetId }: { userId: string }) {
   const { sb, userId, navigate, onlineIds, notify, profile: mine } = useCook();
@@ -29,6 +34,12 @@ export function ProfileView({ userId: targetId }: { userId: string }) {
   const [followers, setFollowers] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [followsMe, setFollowsMe] = useState(false);
+  const [lists, setLists] = useState<{ followers: Profile[]; following: Profile[] }>({ followers: [], following: [] });
+  const [sheet, setSheet] = useState<PeopleTab | null>(null);
+  const [recipes, setRecipes] = useState<RecipeWithContext[]>([]);
+  const [tab, setTab] = useState<"recipes" | "cookbooks">("recipes");
+  const { ranks, settings, setRank } = usePersonal(userId);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -36,14 +47,19 @@ export function ProfileView({ userId: targetId }: { userId: string }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [{ data }, allBooks, counts, saves, board, graph] = await Promise.all([
+    const [{ data }, allBooks, counts, saves, board, graph, people, visible] = await Promise.all([
       sb.from("profiles").select("*").eq("id", targetId).maybeSingle(),
       loadCookbooks(sb, { ownerId: targetId }),
       countRecipes(sb),
       loadSaves(sb),
       loadPlayerLeaderboard(sb),
       loadFollowGraph(sb, userId),
+      loadFollowLists(sb, targetId),
+      loadVisibleRecipes(sb, userId),
     ]);
+    setLists(people);
+    setRecipes(visible.filter((r) => r.author_id === targetId));
+    setFollowsMe(graph.followers.has(targetId));
     setPerson((data as Profile) ?? null);
     setBooks(allBooks.filter((b) => b.privacy === "public" || b.owner_id === userId));
     setRecipeCounts(counts);
@@ -51,8 +67,7 @@ export function ProfileView({ userId: targetId }: { userId: string }) {
     setRecord(board.find((r) => r.userId === targetId) ?? null);
     setFollowers(graph.followerCount[targetId] ?? 0);
     setIsFollowing(graph.following.has(targetId));
-    const { data: theirFollows } = await sb.from("follows").select("*").eq("follower_id", targetId);
-    setFollowingCount(((theirFollows ?? []) as unknown[]).length);
+    setFollowingCount(people.following.length);
     setLoading(false);
   }, [sb, targetId, userId]);
 
@@ -79,6 +94,12 @@ export function ProfileView({ userId: targetId }: { userId: string }) {
     await toggleFollow(sb, userId, targetId, isFollowing);
     setIsFollowing(!isFollowing);
     setFollowers((n) => n + (isFollowing ? -1 : 1));
+    if (mine) {
+      setLists((l) => ({
+        ...l,
+        followers: isFollowing ? l.followers.filter((p) => p.id !== mine.id) : [...l.followers, mine],
+      }));
+    }
     setBusy(false);
   };
 
@@ -109,17 +130,23 @@ export function ProfileView({ userId: targetId }: { userId: string }) {
         </>
       }
     >
-      <Panel className="mb-4 p-4">
-        <div className="flex flex-wrap items-start gap-4">
-          <Avatar
-            id={person.id}
-            name={person.display_name}
-            url={person.avatar_url}
-            size={64}
-            online={onlineIds.has(person.id)}
-          />
-          <div className="min-w-[220px] flex-1">
-            <h1 className="text-[20px] font-bold leading-tight tracking-tight">{person.display_name}</h1>
+      <Panel className="mb-4 overflow-hidden">
+        <div className="cc-cover" style={{ ["--cc-hue" as string]: avatarHue(person.id) }} />
+        <div className="flex flex-wrap items-start gap-4 px-4 pb-4">
+          <span className="-mt-11 rounded-full border-4 border-[var(--cc-panel)] md:-mt-14">
+            <Avatar
+              id={person.id}
+              name={person.display_name}
+              url={person.avatar_url}
+              size={96}
+              online={onlineIds.has(person.id)}
+            />
+          </span>
+          <div className="min-w-[220px] flex-1 pt-3">
+            <h1 className="flex flex-wrap items-center gap-2 text-[22px] font-bold leading-tight tracking-tight">
+              {person.display_name}
+              {!isMe && followsMe && <Tag tone={isFollowing ? "live" : "neutral"}>{isFollowing ? "Friends" : "Follows you"}</Tag>}
+            </h1>
             <p className="mt-0.5 text-[12px] text-[var(--cc-ink-faint)]">
               @{person.handle}
               {person.city && <> · {person.city}</>}
@@ -130,24 +157,31 @@ export function ProfileView({ userId: targetId }: { userId: string }) {
                 {person.bio}
               </p>
             )}
-            <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[12px]">
+            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[13px]">
+              <Stat label="Recipes" value={recipes.length} />
               <Stat label="Cookbooks" value={books.length} />
-              <Stat label="Followers" value={followers} />
-              <Stat label="Following" value={followingCount} />
+              <Stat label="Followers" value={followers} onClick={() => setSheet("followers")} />
+              <Stat label="Following" value={followingCount} onClick={() => setSheet("following")} />
               <Stat label="Games" value={record?.played ?? 0} />
-            </dl>
+            </div>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5 pt-3">
             {isMe ? (
-              <Button variant="primary" onClick={() => navigate({ page: "new-cookbook" })}>
-                <BookIcon size={14} />
-                New cookbook
-              </Button>
+              <>
+                <Button variant="primary" onClick={() => navigate({ page: "settings" })}>
+                  <EditIcon size={14} />
+                  Edit profile
+                </Button>
+                <Button onClick={() => navigate({ page: "settings" })} aria-label="Settings">
+                  <GearIcon size={14} />
+                  <span className="hidden sm:inline">Settings</span>
+                </Button>
+              </>
             ) : (
               <>
                 <Button variant={isFollowing ? "secondary" : "primary"} disabled={busy} onClick={() => void follow()}>
-                  {isFollowing ? "Following" : "Follow"}
+                  {isFollowing ? "Following" : followsMe ? "Follow back" : "Follow"}
                 </Button>
                 <Button variant="secondary" disabled={busy} onClick={() => void challenge("spades")}>
                   <PlayIcon size={13} />
@@ -162,6 +196,45 @@ export function ProfileView({ userId: targetId }: { userId: string }) {
         </div>
       </Panel>
 
+      <div className="mb-3">
+        <TabStrip
+          tabs={[
+            { id: "recipes" as const, label: "Recipes", count: recipes.length },
+            { id: "cookbooks" as const, label: "Cookbooks", count: books.length },
+          ]}
+          active={tab}
+          onChange={setTab}
+        />
+      </div>
+
+      {tab === "recipes" && (
+        recipes.length === 0 ? (
+          <Panel>
+            <EmptyState
+              icon={<BookIcon size={26} />}
+              title={isMe ? "No recipes yet" : `${person.display_name} hasn't shared a recipe yet`}
+              body={isMe ? "Add one from a link, a photo or your own words — it shows up here and in your followers' feeds." : "When they add one to a public cookbook it shows up here."}
+              action={isMe ? <Button variant="primary" onClick={() => navigate({ page: "cookbooks" })}>Go to my cookbooks</Button> : undefined}
+            />
+          </Panel>
+        ) : (
+          <ul className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+            {recipes.map((r, i) => (
+              <Reveal key={r.id} as="li" index={i}>
+                <RecipeCard
+                  recipe={r}
+                  rank={ranks[r.id] ?? null}
+                  showRank={settings.showRanksOnCards}
+                  onRank={(n) => setRank(r.id, n)}
+                  onOpen={() => navigate({ page: "recipe", id: r.id, cookbookId: r.cookbook_id })}
+                />
+              </Reveal>
+            ))}
+          </ul>
+        )
+      )}
+
+      {tab === "cookbooks" && (
       <Panel>
         <SectionHead title={isMe ? "Your cookbooks" : "Cookbooks"} count={books.length} />
         {books.length === 0 ? (
@@ -215,6 +288,17 @@ export function ProfileView({ userId: targetId }: { userId: string }) {
           </ul>
         )}
       </Panel>
+      )}
+
+      {sheet && (
+        <PeopleSheet
+          name={isMe ? "you" : person.display_name.split(" ")[0]}
+          followers={lists.followers}
+          following={lists.following}
+          initial={sheet}
+          onClose={() => setSheet(null)}
+        />
+      )}
 
       {isMe && mine && (
         <p className="mt-3 text-[12px] text-[var(--cc-ink-faint)]">
@@ -225,12 +309,19 @@ export function ProfileView({ userId: targetId }: { userId: string }) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex items-baseline gap-1.5">
-      <dt className="text-[var(--cc-ink-faint)]">{label}</dt>
-      <dd className="cc-num font-semibold">{value}</dd>
-    </div>
+function Stat({ label, value, onClick }: { label: string; value: number; onClick?: () => void }) {
+  const inner = (
+    <>
+      <span className="cc-num font-bold text-[var(--cc-ink)]">{value}</span>
+      <span className="text-[var(--cc-ink-faint)] transition-colors">{label}</span>
+    </>
+  );
+  return onClick ? (
+    <button type="button" onClick={onClick} className="flex items-baseline gap-1.5 rounded transition-colors [&>span]:hover:text-[var(--cc-ember)]">
+      {inner}
+    </button>
+  ) : (
+    <div className="flex items-baseline gap-1.5">{inner}</div>
   );
 }
 
