@@ -1,5 +1,14 @@
 [
  {
+  "id": "b72d08a:money-agents",
+  "date": "2026-10-28",
+  "slug": "money-agents",
+  "title": "Radar keeps the AI's reasoning even when its reply runs long, and ranks US-buyable plays first",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "2cafc9d:money-agents",
   "date": "2026-10-28",
   "slug": "money-agents",
