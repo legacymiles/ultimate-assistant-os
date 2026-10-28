@@ -25,6 +25,8 @@ export interface EditableApp {
   category: CatalogProject["category"];
   /** "/apps/<slug>" */
   path: string;
+  /** The app's two brand hues (0–360), for its card while the live preview loads. */
+  hue: [number, number];
 }
 
 /** Client Review can't usefully frame itself. */
@@ -38,7 +40,7 @@ const NOT_EDITABLE_HERE = new Set(["client-review"]);
 export function editableApps(projects: CatalogProject[] = PROJECTS): EditableApp[] {
   return projects
     .filter((p) => p.status === "live" && p.appUrl?.startsWith("/apps/") && !NOT_EDITABLE_HERE.has(p.slug) && !isMerged(p.slug))
-    .map((p) => ({ slug: p.slug, title: p.title, category: p.category, path: p.appUrl! }))
+    .map((p) => ({ slug: p.slug, title: p.title, category: p.category, path: p.appUrl!, hue: p.hue }))
     .sort((a, b) => a.title.localeCompare(b.title));
 }
 

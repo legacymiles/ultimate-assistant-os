@@ -15,12 +15,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { editableApps } from "@/lib/client-review/apps";
 import { admin } from "@/lib/client-review/client";
+import { currentVersion } from "@/lib/client-review/logic";
 import type { ClientProject } from "@/lib/client-review/types";
 
 export type Target = { kind: "app"; slug: string } | { kind: "site"; token: string };
 
-interface Row {
+export interface Row {
   key: string;
+  /** What the Client view frames for it: the version the client sees, or the app's route. */
+  url: string;
+  hue: [number, number];
   target: Target;
   title: string;
   sub: string;
@@ -47,7 +51,7 @@ function statusOf(p: ClientProject | undefined): Pick<Row, "status" | "tone"> {
 }
 
 /** Every client project and app, loaded once per picker. */
-function useRows(): { rows: Row[]; error: string; reload: () => void } {
+export function useRows(): { rows: Row[]; error: string; reload: () => void } {
   const [projects, setProjects] = useState<ClientProject[] | null>(null);
   const [error, setError] = useState("");
   const load = () =>
@@ -69,6 +73,8 @@ function useRows(): { rows: Row[]; error: string; reload: () => void } {
       .map((p) => ({
         key: `site:${p.token}`,
         target: { kind: "site", token: p.token },
+        url: currentVersion(p)?.siteUrl ?? "",
+        hue: [258, 192],
         title: p.name,
         sub: p.clientName || p.clientUserEmail || "Client website",
         group: "Client websites",
@@ -78,6 +84,8 @@ function useRows(): { rows: Row[]; error: string; reload: () => void } {
     const apps: Row[] = editableApps().map((a) => ({
       key: `app:${a.slug}`,
       target: { kind: "app", slug: a.slug },
+      url: (byApp.get(a.slug) && currentVersion(byApp.get(a.slug)!)?.siteUrl) || a.path,
+      hue: a.hue,
       title: a.title,
       sub: a.category,
       group: "My apps",
@@ -89,7 +97,7 @@ function useRows(): { rows: Row[]; error: string; reload: () => void } {
   return { rows, error, reload: () => void load() };
 }
 
-function matches(r: Row, q: string): boolean {
+export function matches(r: Row, q: string): boolean {
   if (!q) return true;
   const hay = `${r.title} ${r.sub} ${r.group}`.toLowerCase();
   return q
@@ -266,33 +274,6 @@ export function SitePickerMenu({ current, label, onPick }: { current: Target | n
         (phone
           ? createPortal(<div className="crp-scrim">{popover}</div>, document.body)
           : popover)}
-    </div>
-  );
-}
-
-/** The full list, for the Client view when nothing is open yet. */
-export function SitePickerPage({ onPick }: { onPick: (t: Target) => void }) {
-  const [q, setQ] = useState("");
-  const { rows, error } = useRows();
-  const shown = rows.filter((r) => matches(r, q));
-  return (
-    <div className="crp-page">
-      <div className="crp-page-head">
-        <p className="cr-kicker">Client view</p>
-        <h1>What do you want to work on?</h1>
-        <p>Open any of your apps or client websites, point at what you want changed, and Send &amp; build — Claude Code makes it and the preview shows up right here.</p>
-        <div className="crp-search big">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" />
-          </svg>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find an app or website…" aria-label="Find an app or website" autoFocus />
-        </div>
-      </div>
-      {error && <p className="crp-note">{error}</p>}
-      <div className="crp-page-list">
-        <RowList rows={shown} current={null} active={-1} onPick={onPick} dense />
-      </div>
     </div>
   );
 }

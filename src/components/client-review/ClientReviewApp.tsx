@@ -23,7 +23,8 @@ import { ClientPortal } from "./ClientPortal";
 import { ClientReviewAdmin } from "./ClientReviewAdmin";
 import { MyWebsites } from "./MyWebsites";
 import { SignInGate } from "./SignInGate";
-import { SitePickerMenu, SitePickerPage, type Target } from "./SitePicker";
+import { SiteGallery } from "./SiteGallery";
+import { SitePickerMenu, type Target } from "./SitePicker";
 import "./client-review.css";
 
 type Tab = "client" | "admin";
@@ -82,6 +83,21 @@ export function ClientReviewApp() {
   // An app's review link, once its project exists (made on first open).
   const [appTokens, setAppTokens] = useState<Record<string, string>>({});
   const [appError, setAppError] = useState("");
+  // Opening a card from the gallery: its live preview grows into the stage
+  // while the Client view loads underneath; the gallery fades once both are done.
+  const [morph, setMorph] = useState<null | { phase: "opening" | "leaving"; expanded: boolean; loaded: boolean }>(null);
+
+  useEffect(() => {
+    if (!morph || morph.phase !== "opening" || !morph.expanded) return;
+    const done = morph.loaded || appError;
+    const t = window.setTimeout(() => setMorph((m) => (m ? { ...m, phase: "leaving" } : m)), done ? 250 : 12_000);
+    return () => window.clearTimeout(t);
+  }, [morph, appError]);
+  useEffect(() => {
+    if (morph?.phase !== "leaving") return;
+    const t = window.setTimeout(() => setMorph(null), 420);
+    return () => window.clearTimeout(t);
+  }, [morph?.phase]);
 
   useEffect(() => {
     fetch("/api/client-review/portal/me", { cache: "no-store" })
@@ -102,6 +118,7 @@ export function ClientReviewApp() {
 
   useEffect(() => {
     const onPop = () => {
+      setMorph(null);
       const url = readUrl();
       setTarget(url.target);
       setTab(url.tab === "admin" && me?.owner ? "admin" : "client");
@@ -182,7 +199,11 @@ export function ClientReviewApp() {
   const picker = me.owner
     ? (name: string) => <SitePickerMenu current={target} label={name} onPick={(t) => go({ target: t, tab: "client" })} />
     : undefined;
-  const toList = () => go({ target: null, tab: "client" });
+  const toList = () => {
+    setMorph(null);
+    go({ target: null, tab: "client" });
+  };
+  const showGallery = me.owner && tab === "client" && (!target || Boolean(morph));
 
   return (
     <div className="cra-shell">
@@ -225,31 +246,50 @@ export function ClientReviewApp() {
       <div className="cra-body">
         {tab === "admin" && me.owner ? (
           <ClientReviewAdmin fill />
-        ) : token ? (
-          <ClientPortal key={token} token={token} embedded picker={picker} onBack={toList} />
-        ) : target?.kind === "app" ? (
-          <div className="cr-root cr-center is-embedded">
-            <div className="cr-empty">
-              {appError ? (
-                <>
-                  <h1>Couldn&apos;t open {label}</h1>
-                  <p>{appError}</p>
-                  <button className="cr-btn" onClick={toList}>Pick another</button>
-                </>
-              ) : (
-                <span className="cr-orb pulse" aria-hidden>
-                  <span className="cr-orb-core" />
-                  <span className="cr-orb-ring" />
-                </span>
-              )}
-            </div>
-          </div>
-        ) : me.owner ? (
-          <div className="cr-root is-embedded crp-page-wrap">
-            <SitePickerPage onPick={(t) => go({ target: t, tab: "client" })} />
-          </div>
         ) : (
-          <MyWebsites embedded onOpen={(t) => go({ target: { kind: "site", token: t }, tab: "client" })} />
+          <>
+            {target &&
+              (token ? (
+                <ClientPortal
+                  key={token}
+                  token={token}
+                  embedded
+                  picker={picker}
+                  onBack={toList}
+                  onFrameLoad={() => setMorph((m) => (m ? { ...m, loaded: true } : m))}
+                />
+              ) : target.kind === "app" ? (
+                <div className="cr-root cr-center is-embedded">
+                  <div className="cr-empty">
+                    {appError ? (
+                      <>
+                        <h1>Couldn&apos;t open {label}</h1>
+                        <p>{appError}</p>
+                        <button className="cr-btn" onClick={toList}>Pick another</button>
+                      </>
+                    ) : (
+                      <span className="cr-orb pulse" aria-hidden>
+                        <span className="cr-orb-core" />
+                        <span className="cr-orb-ring" />
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : null)}
+            {!target && !me.owner && (
+              <MyWebsites embedded onOpen={(t) => go({ target: { kind: "site", token: t }, tab: "client" })} />
+            )}
+            {showGallery && (
+              <SiteGallery
+                phase={morph?.phase ?? "idle"}
+                onOpen={(t) => {
+                  setMorph({ phase: "opening", expanded: false, loaded: false });
+                  go({ target: t, tab: "client" });
+                }}
+                onExpanded={() => setMorph((m) => (m ? { ...m, expanded: true } : m))}
+              />
+            )}
+          </>
         )}
       </div>
     </div>

@@ -129,6 +129,7 @@ export function ClientPortal({
   embedded = false,
   onBack,
   picker,
+  onFrameLoad,
 }: {
   token: string;
   /** Inside the Client Review page, under its tab bar, rather than the whole window. */
@@ -137,6 +138,8 @@ export function ClientPortal({
   onBack?: () => void;
   /** The owner's app/website dropdown, drawn in place of the title. */
   picker?: (name: string) => React.ReactNode;
+  /** The site's frame finished loading, or there is nothing to frame (the gallery's open animation waits for it). */
+  onFrameLoad?: () => void;
 }) {
   const [view, setView] = useState<PortalView | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -315,6 +318,11 @@ export function ClientPortal({
   const pinned = requests.filter((r) => r.pin);
 
   useEffect(() => setFrameStuck(false), [viewing?.siteUrl]);
+  // Nothing to frame yet (the first version is on its way): ready as soon as the view is.
+  useEffect(() => {
+    if (view && !viewing?.siteUrl) onFrameLoad?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, viewing?.siteUrl]);
   useEffect(() => {
     if (!viewing?.siteUrl) return;
     // A site that refuses to be framed shows a blank box with no error the page
@@ -540,6 +548,7 @@ export function ClientPortal({
               title={`${view.name} ${viewing.number}`}
               referrerPolicy="no-referrer"
               allow="clipboard-write; fullscreen"
+              onLoad={() => onFrameLoad?.()}
             />
             {showPins &&
               pinned.map((r) => (
