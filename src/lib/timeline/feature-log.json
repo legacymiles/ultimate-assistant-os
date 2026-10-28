@@ -1,5 +1,23 @@
 [
  {
+  "id": "cf0d0fb:client-review",
+  "date": "2026-10-28",
+  "slug": "client-review",
+  "title": "Every app and client site in one dropdown, edit any of them on the page",
+  "detail": "- Client view gets a searchable site picker (title dropdown + full list) with every client website and every hub app; \"/\" opens it; last pick reopens. - Opening an app makes its review project once (ensureApp): framed at its own route, hub repo set so edits build themselves. - The owner's Send is \"S",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "cf0d0fb:app-builder",
+  "date": "2026-10-28",
+  "slug": "app-builder",
+  "title": "Every app and client site in one dropdown, edit any of them on the page",
+  "detail": "- Client view gets a searchable site picker (title dropdown + full list) with every client website and every hub app; \"/\" opens it; last pick reopens. - Opening an app makes its review project once (ensureApp): framed at its own route, hub repo set so edits build themselves. - The owner's Send is \"S",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "1c48d3f:iphone-hub",
   "date": "2026-10-28",
   "slug": "iphone-hub",
