@@ -75,3 +75,36 @@
 @keyframes wm-shine { 0%, 60% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
 @keyframes wm-drift { to { transform: translateX(-50%); } }
 @keyframes wm-scan { from { left: 0; } to { left: calc(100% - 2px); } }
+
+/* What it makes: Workflow · Agent · App · Website · Game */
+.wm-kinds { align-self: flex-start; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.wm-kinds::-webkit-scrollbar { display: none; }
+
+/* The agent's kit */
+.wm-agent {
+  position: relative; display: grid; gap: 18px; padding: 16px; border-radius: 18px;
+  border: 1px solid rgba(231, 232, 234, 0.22);
+  background: radial-gradient(90% 120% at 100% 0%, rgba(231, 232, 234, 0.06), transparent 55%), var(--vs-panel-2);
+}
+.wm-agent::before { content: ""; position: absolute; inset: 0 24px auto; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent); }
+.wm-agent__head { display: grid; gap: 12px; align-items: start; }
+@media (min-width: 720px) { .wm-agent__head { grid-template-columns: auto minmax(0, 1fr) minmax(0, 0.8fr); } }
+.wm-agent__badge { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 999px; background: var(--vs-chrome); color: #0b0b0c; box-shadow: 0 0 22px rgba(231, 232, 234, 0.35); }
+.wm-agent__goal { border-radius: 14px; border: 1px solid var(--vs-line-2); padding: 8px 12px; background: rgba(0, 0, 0, 0.25); }
+.wm-agent__grid { display: grid; gap: 14px; }
+@media (min-width: 900px) { .wm-agent__grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); } }
+.wm-agent__run { display: grid; gap: 14px; }
+@media (min-width: 900px) { .wm-agent__run { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); } }
+.wm-tool { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--vs-line); background: var(--vs-panel); }
+.wm-ready { display: grid; place-items: center; width: 20px; height: 20px; margin-top: 2px; flex: none; border-radius: 999px; border: 1px dashed var(--vs-warn); color: var(--vs-warn); }
+.wm-ready.is-ready { border: none; background: var(--vs-chrome); color: #0b0b0c; }
+.wm-ready.is-site { border: 1px solid var(--vs-line-2); color: var(--vs-ink-2); }
+.wm-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; font-size: 11.5px; color: var(--vs-ink); border: 1px solid var(--vs-line-2); background: var(--vs-panel); }
+.wm-chip button { color: var(--vs-ink-3); }
+.wm-chip button:hover { color: var(--vs-ink); }
+.wm-chip--add { width: 92px; border-style: dashed; background: transparent; color: var(--vs-ink); }
+.wm-chip--add::placeholder { color: var(--vs-ink-3); }
+.wm-chip--add:focus { outline: none; border-color: rgba(255,255,255,.35); width: 160px; }
+
+/* Fields that grow with their words, so nothing is ever cut off mid-sentence. */
+.wm-grow { display: block; resize: none; overflow: hidden; field-sizing: content; min-height: 1.6em; line-height: 1.4; }

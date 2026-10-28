@@ -48,7 +48,7 @@ export interface Category {
 }
 
 export const CATEGORIES: Category[] = [
-  { id: "build", medium: "video", label: "Recast & build" },
+  { id: "build", medium: "video", label: "Special skills" },
   { id: "stories", medium: "video", label: "Stories" },
   { id: "ads", medium: "video", label: "Ads & brand" },
   { id: "social", medium: "video", label: "Social" },
@@ -120,7 +120,7 @@ const TONE = ["luxury", "funny", "cinematic", "heartfelt", "minimal", "bold", "p
 const LOOK = ["3D animated", "cartoon", "anime", "watercolor", "claymation", "photoreal", "vintage film"];
 
 export const WORKFLOWS: Workflow[] = [
-  // ----- Recast & build ---------------------------------------------------------
+  // ----- Special skills ---------------------------------------------------------
   {
     // Its prompt opens its own screen (src/components/jarvis/video-swap): the
     // driving video, each person → who they become, the new world. Rendered on
@@ -152,12 +152,13 @@ export const WORKFLOWS: Workflow[] = [
     name: "Workflow Maker",
     medium: "video",
     category: "build",
-    blurb: "Show it a video of any workflow — it watches, maps every step, and builds you the working tool",
+    blurb: "Show it any money method, workflow, website or game — it builds the tool or the agent that does it",
     brief:
       "Reverse-engineer the process shown in the owner's video or pictures (video-analyzer + rea), raise it with felix, "
-      + "scholar and the prompt enhancer, and turn it into a blueprint: inputs as upload slots, each AI stage with its "
-      + "model, the outputs, and the Studio card. It opens its own screen; building happens on the owner's PC with the "
-      + "rea-to-workflow skill via studio_queue.",
+      + "scholar and the prompt enhancer, and turn it into a blueprint of what to make — a workflow, an AGENT that goes "
+      + "and makes money (with its goal, tools, websites, resources, accounts, schedule and what it must ask first), an "
+      + "app, a website or a game: inputs as upload slots, each stage with its engine, the outputs, and its card. It opens "
+      + "its own screen; building happens on the owner's PC with the rea-to-workflow skill via studio_queue.",
     format: "Any process → a working pipeline",
     motif: "grid",
     hue: 160,

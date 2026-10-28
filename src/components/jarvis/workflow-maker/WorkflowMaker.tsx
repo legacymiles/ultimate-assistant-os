@@ -22,7 +22,18 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { Icon } from "../../icons";
 import { vsFonts } from "../video-swap/fonts";
 import { useWorkflowMaker, type MakerSeed, type WorkflowMakerState } from "@/lib/studio/workflow-maker/useWorkflowMaker";
-import type { BpSlot, Home, Mode, RunsOn, SlotKind } from "@/lib/studio/workflow-maker/blueprint";
+import {
+  KIND_LABEL,
+  MAKE_KINDS,
+  safeUrl,
+  type AgentKit,
+  type BpSlot,
+  type Home,
+  type Mode,
+  type RunsOn,
+  type SlotKind,
+  type ToolKind,
+} from "@/lib/studio/workflow-maker/blueprint";
 import { ACCEPT } from "@/lib/app-builder/media";
 
 const KIND_ICON: Record<SlotKind, ReactNode> = {
@@ -39,6 +50,7 @@ const RUNS: { id: RunsOn; label: string }[] = [
   { id: "browser", label: "Browser" },
 ];
 const HOMES: { id: Home; label: string }[] = [
+  { id: "agent", label: "Agent" },
   { id: "studio", label: "Studio card" },
   { id: "plugin", label: "App plugin" },
   { id: "widget", label: "Widget" },
@@ -66,7 +78,7 @@ export function WorkflowMaker({ seed, onClose }: { seed?: MakerSeed | null; onCl
         )}
         <div className="min-w-0">
           <h2 className="vs-title">Workflow Maker</h2>
-          <p className="vs-sub">Show it any process — it maps every step and builds you the working tool</p>
+          <p className="vs-sub">Show it any process — it builds the tool, or the agent that goes and does it</p>
         </div>
         <nav className="vs-steps ml-auto" aria-label="Progress">
           {[
@@ -169,7 +181,7 @@ function Source({ wm }: { wm: WorkflowMakerState }) {
           <span className="vs-slot__empty">
             <Icon.Upload width={20} height={20} aria-hidden />
             <span className="text-[12px] font-medium text-[var(--vs-ink-2)]">{wm.adding ? "Reading…" : "Drop the video or pictures"}</span>
-            <span>A tutorial, a money-making method, a creator&apos;s routine, an app you like</span>
+            <span>A money-making method, a tutorial, a website or game you like, a creator&apos;s routine</span>
           </span>
         </div>
         {wm.media.length > 0 && (
@@ -193,7 +205,7 @@ function Source({ wm }: { wm: WorkflowMakerState }) {
             className="vs-area"
             value={wm.request}
             onChange={(e) => wm.setRequest(e.target.value)}
-            placeholder="Do what this video does for clipping — I paste a podcast link and get 10 captioned shorts ready to post"
+            placeholder="Make me an agent that does what this video shows — finds local businesses with bad websites, rebuilds them and lines up the pitch"
           />
         </div>
         <button
@@ -248,8 +260,21 @@ function Empty({ watching }: { watching: boolean }) {
 
 function BlueprintView({ wm }: { wm: WorkflowMakerState }) {
   const bp = wm.blueprint!;
+  const root = useRef<HTMLDivElement>(null);
+  // Growing fields: CSS field-sizing where the browser has it, and this for the rest (iPhone Safari).
+  useEffect(() => {
+    if (typeof CSS !== "undefined" && CSS.supports?.("field-sizing", "content")) return;
+    const fit = () =>
+      root.current?.querySelectorAll<HTMLTextAreaElement>("textarea.wm-grow").forEach((t) => {
+        t.style.height = "auto";
+        t.style.height = `${t.scrollHeight}px`;
+      });
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [bp]);
   return (
-    <div className="grid gap-6">
+    <div ref={root} className="grid gap-6">
       {/* The card + the goal */}
       <div className="flex flex-col gap-5 sm:flex-row">
         <div className="wm-card" style={{ ["--h" as string]: bp.card.hue } as CSSProperties} aria-label="The card on your Studio wall">
@@ -275,9 +300,16 @@ function BlueprintView({ wm }: { wm: WorkflowMakerState }) {
             aria-label="Card line"
             placeholder="One line that shows the result"
           />
+          <div className="vs-seg wm-kinds" role="group" aria-label="What it makes">
+            {MAKE_KINDS.map((k) => (
+              <button key={k} type="button" aria-pressed={bp.kind === k} onClick={() => wm.setKind(k)}>
+                {KIND_LABEL[k]}
+              </button>
+            ))}
+          </div>
           <div className="flex flex-wrap gap-2">
             <div className="vs-seg" role="group" aria-label="Where it lives">
-              {HOMES.map((h) => (
+              {HOMES.filter((h) => (bp.kind === "agent" ? true : h.id !== "agent")).map((h) => (
                 <button key={h.id} type="button" aria-pressed={bp.home === h.id} onClick={() => wm.patch({ home: h.id })}>
                   {h.label}
                 </button>
@@ -313,6 +345,9 @@ function BlueprintView({ wm }: { wm: WorkflowMakerState }) {
           )}
         </div>
       </div>
+
+      {/* The agent's kit: what it needs to go and do it on its own */}
+      {bp.kind === "agent" && bp.agent && <AgentPanel kit={bp.agent} wm={wm} />}
 
       {/* The pipeline */}
       <div className="wm-flow">
@@ -402,6 +437,230 @@ function BlueprintView({ wm }: { wm: WorkflowMakerState }) {
   );
 }
 
+
+const TOOL_KINDS: ToolKind[] = ["skill", "app", "api", "model", "site"];
+
+/** The agent's kit, every part editable in place. */
+function AgentPanel({ kit, wm }: { kit: AgentKit; wm: WorkflowMakerState }) {
+  const notReady = kit.tools.filter((t) => !t.ready).length;
+  return (
+    <section className="wm-agent" aria-labelledby="wm-agent-h">
+      <div className="wm-agent__head">
+        <span className="wm-agent__badge" aria-hidden>
+          <Icon.Bot width={16} height={16} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h4 id="wm-agent-h" className="text-[14px] font-semibold tracking-tight">The agent&apos;s kit</h4>
+          <textarea
+            rows={2}
+            className="wm-field wm-grow text-[12.5px] leading-snug text-[var(--vs-ink-2)]"
+            value={kit.role}
+            onChange={(e) => wm.patchAgent({ role: e.target.value })}
+            placeholder="Who it is, in one line"
+            aria-label="The agent's role"
+          />
+        </div>
+        <div className="wm-agent__goal">
+          <span className="vs-label !mb-0.5">
+            <Icon.Target width={11} height={11} className="mr-1 inline -translate-y-px" aria-hidden />
+            Goal
+          </span>
+          <textarea
+            rows={2}
+            className="wm-field wm-grow text-[13px] font-medium leading-snug"
+            value={kit.goal}
+            onChange={(e) => wm.patchAgent({ goal: e.target.value })}
+            placeholder="A target it can be measured against"
+            aria-label="The agent's goal"
+          />
+        </div>
+      </div>
+
+      <div className="wm-agent__grid">
+        <div>
+          <div className="wm-col-h">
+            <span>
+              Tools it uses {notReady > 0 && <span className="text-[var(--vs-warn)]">· {notReady} to set up</span>}
+            </span>
+            <button
+              type="button"
+              className="wm-icon-btn"
+              onClick={() => wm.patchAgent({ tools: [...kit.tools, { name: "New tool", does: "", kind: "skill", ready: false }] })}
+              aria-label="Add a tool"
+            >
+              <Icon.Plus width={12} height={12} />
+            </button>
+          </div>
+          <ul className="grid gap-1.5">
+            {kit.tools.map((t, i) => (
+              <li key={i} className="wm-tool">
+                <button
+                  type="button"
+                  className={`wm-ready ${t.ready ? "is-ready" : ""}`}
+                  title={t.ready ? "Already in Jarvis — tap if it still needs setting up" : "Needs setting up — tap when it's ready"}
+                  onClick={() => wm.patchAgent({ tools: kit.tools.map((x, j) => (j === i ? { ...x, ready: !x.ready } : x)) })}
+                  aria-label={t.ready ? `${t.name} is ready` : `${t.name} needs setting up`}
+                >
+                  {t.ready ? <Icon.Check width={10} height={10} /> : <Icon.Key width={10} height={10} />}
+                </button>
+                <div className="grid min-w-0 flex-1 gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <input
+                      className="wm-field min-w-0 flex-1 text-[12.5px] font-medium"
+                      value={t.name}
+                      onChange={(e) => wm.patchAgent({ tools: kit.tools.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })}
+                      aria-label="Tool"
+                    />
+                    <select
+                      className="wm-runs"
+                      value={t.kind}
+                      onChange={(e) => wm.patchAgent({ tools: kit.tools.map((x, j) => (j === i ? { ...x, kind: e.target.value as ToolKind } : x)) })}
+                      aria-label="Kind of tool"
+                    >
+                      {TOOL_KINDS.map((k) => (
+                        <option key={k} value={k}>
+                          {k}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <textarea rows={1}
+                    className="wm-field wm-grow text-[11px] text-[var(--vs-ink-3)]"
+                    value={t.does}
+                    placeholder="What it uses it for"
+                    onChange={(e) => wm.patchAgent({ tools: kit.tools.map((x, j) => (j === i ? { ...x, does: e.target.value } : x)) })}
+                    aria-label="What it does"
+                  />
+                </div>
+                <button type="button" className="wm-icon-btn" onClick={() => wm.patchAgent({ tools: kit.tools.filter((_, j) => j !== i) })} aria-label={`Remove ${t.name}`}>
+                  <Icon.Close width={10} height={10} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <div className="wm-col-h">
+            <span>Websites & resources</span>
+            <button
+              type="button"
+              className="wm-icon-btn"
+              onClick={() => wm.patchAgent({ resources: [...kit.resources, { label: "New site", url: "", why: "" }] })}
+              aria-label="Add a website"
+            >
+              <Icon.Plus width={12} height={12} />
+            </button>
+          </div>
+          <ul className="grid gap-1.5">
+            {kit.resources.map((r, i) => {
+              const href = safeUrl(r.url);
+              return (
+                <li key={i} className="wm-tool">
+                  <span className="wm-ready is-site" aria-hidden>
+                    <Icon.Globe width={10} height={10} />
+                  </span>
+                  <div className="grid min-w-0 flex-1 gap-0.5">
+                    <div className="flex items-center gap-2">
+                      <input
+                        className="wm-field min-w-0 flex-1 text-[12.5px] font-medium"
+                        value={r.label}
+                        onChange={(e) => wm.patchAgent({ resources: kit.resources.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })}
+                        aria-label="Website"
+                      />
+                      {href && (
+                        <a className="wm-icon-btn" href={href} target="_blank" rel="noreferrer" aria-label={`Open ${r.label}`}>
+                          <Icon.Launch width={11} height={11} />
+                        </a>
+                      )}
+                    </div>
+                    <input
+                      className="wm-field mono text-[10.5px] text-[var(--vs-ink-3)]"
+                      value={r.url}
+                      placeholder="https://…"
+                      onChange={(e) => wm.patchAgent({ resources: kit.resources.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)) })}
+                      aria-label="Address"
+                    />
+                    <textarea rows={1}
+                      className="wm-field wm-grow text-[11px] text-[var(--vs-ink-3)]"
+                      value={r.why}
+                      placeholder="Why it uses it"
+                      onChange={(e) => wm.patchAgent({ resources: kit.resources.map((x, j) => (j === i ? { ...x, why: e.target.value } : x)) })}
+                      aria-label="Why"
+                    />
+                  </div>
+                  <button type="button" className="wm-icon-btn" onClick={() => wm.patchAgent({ resources: kit.resources.filter((_, j) => j !== i) })} aria-label={`Remove ${r.label}`}>
+                    <Icon.Close width={10} height={10} />
+                  </button>
+                </li>
+              );
+            })}
+            {!kit.resources.length && <li className="text-[11.5px] text-[var(--vs-ink-3)]">Your PC researches the right sites before it starts.</li>}
+          </ul>
+        </div>
+      </div>
+
+      <div className="wm-agent__run">
+        <div>
+          <span className="vs-label !mb-0.5">
+            <Icon.Clock width={11} height={11} className="mr-1 inline -translate-y-px" aria-hidden />
+            When it works
+          </span>
+          <textarea rows={1} className="wm-field wm-grow text-[12.5px]" value={kit.cadence} onChange={(e) => wm.patchAgent({ cadence: e.target.value })} aria-label="When it works" />
+        </div>
+        <ChipList label="Accounts you connect once" icon={<Icon.Link width={11} height={11} aria-hidden />} items={kit.accounts} onChange={(accounts) => wm.patchAgent({ accounts })} />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <EditableList title="Asks you first" hint="It never does these without your yes" items={kit.approvals} onChange={(approvals) => wm.patchAgent({ approvals })} />
+        <EditableList title="Keeps score on" hint="Earnings go to Financial Bible" items={kit.kpis} onChange={(kpis) => wm.patchAgent({ kpis })} />
+        <EditableList title="First moves" hint="What it does today" items={kit.firstMoves} onChange={(firstMoves) => wm.patchAgent({ firstMoves })} />
+      </div>
+    </section>
+  );
+}
+
+function ChipList({ label, icon, items, onChange }: { label: string; icon: ReactNode; items: string[]; onChange: (v: string[]) => void }) {
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const v = draft.trim();
+    if (v && !items.includes(v)) onChange([...items, v]);
+    setDraft("");
+  };
+  return (
+    <div>
+      <span className="vs-label !mb-1">
+        <span className="mr-1 inline-block -translate-y-px">{icon}</span>
+        {label}
+      </span>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((a) => (
+          <span key={a} className="wm-chip">
+            {a}
+            <button type="button" onClick={() => onChange(items.filter((x) => x !== a))} aria-label={`Remove ${a}`}>
+              <Icon.Close width={9} height={9} />
+            </button>
+          </span>
+        ))}
+        <input
+          className="wm-chip wm-chip--add"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+          onBlur={add}
+          placeholder="+ add"
+          aria-label={`Add to ${label}`}
+        />
+      </div>
+    </div>
+  );
+}
+
 function InputRow({ slot, wm }: { slot: BpSlot; wm: WorkflowMakerState }) {
   return (
     <div className="wm-in">
@@ -443,8 +702,8 @@ function EditableList({ title, hint, items, onChange }: { title: string; hint: s
         {items.map((m, i) => (
           <li key={i} className="flex items-start gap-2">
             <span className="mono mt-1 text-[10.5px] text-[var(--vs-ink-3)]">{String(i + 1).padStart(2, "0")}</span>
-            <input
-              className="wm-field flex-1 text-[12.5px] leading-snug"
+            <textarea rows={1}
+              className="wm-field wm-grow flex-1 text-[12.5px] leading-snug"
               value={m}
               onChange={(e) => onChange(items.map((x, j) => (j === i ? e.target.value : x)))}
               aria-label={`${title} ${i + 1}`}

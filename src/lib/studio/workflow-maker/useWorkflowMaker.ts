@@ -19,9 +19,11 @@ import {
   buildBrief,
   checkBlueprint,
   draftBlueprint,
+  type AgentKit,
   type Blueprint,
   type BpSlot,
   type BpStage,
+  type MakeKind,
 } from "./blueprint";
 
 export interface MakerSeed {
@@ -57,7 +59,12 @@ const keep = (m: PreparedMedia): PreparedMedia => {
 };
 
 export function useWorkflowMaker() {
-  const [saved, setSaved] = useState<Saved>(() => loadLocal<Saved | null>(KEY, null) ?? { request: "", media: [], blueprint: null, view: "design" });
+  const [saved, setSaved] = useState<Saved>(() => {
+    const s = loadLocal<Saved | null>(KEY, null);
+    if (!s) return { request: "", media: [], blueprint: null, view: "design" };
+    // Saves from before agents carry no kind/agent.
+    return s.blueprint ? { ...s, blueprint: { ...s.blueprint, kind: s.blueprint.kind ?? "workflow", agent: s.blueprint.agent ?? null } } : s;
+  });
   /** Full-resolution media for this session (what the watcher reads). */
   const full = useRef<PreparedMedia[]>([]);
   const [watching, setWatching] = useState(false);
@@ -78,6 +85,23 @@ export function useWorkflowMaker() {
   const setRequest = useCallback((request: string) => setSaved((s) => ({ ...s, request })), []);
   const patch = useCallback(
     (p: Partial<Blueprint>) => setSaved((s) => (s.blueprint ? { ...s, blueprint: { ...s.blueprint, ...p } } : s)),
+    [],
+  );
+  const patchAgent = useCallback(
+    (p: Partial<AgentKit>) =>
+      setSaved((s) => (s.blueprint?.agent ? { ...s, blueprint: { ...s.blueprint, agent: { ...s.blueprint.agent, ...p } } } : s)),
+    [],
+  );
+  /** Switch what it makes. Becoming an agent brings a starter kit for its field (kept if one exists). */
+  const setKind = useCallback(
+    (kind: MakeKind) =>
+      setSaved((s) => {
+        if (!s.blueprint) return s;
+        const bp = s.blueprint;
+        const agent = kind === "agent" ? (bp.agent ?? draftBlueprint(`${s.request} ${bp.name} agent`).agent) : bp.agent;
+        const home = kind === "agent" ? "agent" : bp.home === "agent" ? (kind === "workflow" ? "studio" : "plugin") : bp.home;
+        return { ...s, blueprint: { ...bp, kind, agent, home } };
+      }),
     [],
   );
   const patchInput = useCallback(
@@ -233,6 +257,8 @@ export function useWorkflowMaker() {
     problems,
     setRequest,
     patch,
+    patchAgent,
+    setKind,
     patchInput,
     patchStage,
     addInput,

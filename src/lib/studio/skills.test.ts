@@ -116,7 +116,7 @@ describe("PC-rendered workflows", () => {
   });
 });
 
-describe("Recast & build workflows", () => {
+describe("Special skills workflows", () => {
   for (const [file, folder] of [
     ["custom-video-swap.md", "flow:custom-video-swap"],
     ["workflow-maker.md", "flow:workflow-maker"],

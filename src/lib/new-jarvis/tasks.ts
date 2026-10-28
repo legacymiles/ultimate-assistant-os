@@ -49,7 +49,7 @@ export const PINNED_TASKS: PinnedTask[] = [
     id: "test-custom-video-swap",
     name: "Test Custom Video Swap",
     blurb:
-      "The Studio card (Recast & build): pick “Custom Video Swap”, drop a short clip, a face photo and a background picture, say who becomes who, press Open the swap — "
+      "The Studio card (Special skills): pick “Custom Video Swap”, drop a short clip, a face photo and a background picture, say who becomes who, press Open the swap — "
       + "everything lands in its slot. Tap the person on the frame, press Make it (the clip uploads with the job). Then in Claude Code on the PC say "
       + "“work my Jarvis queue” — it runs the custom-video-swap skill (Viggle → H3 plate → matte) and the before | after appears on the screen.",
     priority: 0,
@@ -60,7 +60,7 @@ export const PINNED_TASKS: PinnedTask[] = [
     id: "test-workflow-maker",
     name: "Test the Workflow Maker",
     blurb:
-      "The Studio card (Recast & build): pick “Workflow Maker”, drop a video of a money-making or step-by-step process and say what you want, press Watch it — "
+      "The Studio card (Special skills): pick “Workflow Maker”, drop a video of a money-making or step-by-step process and say what you want, press Watch it — "
       + "the blueprint appears (inputs, stages with engines, the card). Edit it, press Build it, then “work my Jarvis queue” in Claude Code builds the tool "
       + "with the rea-to-workflow skill.",
     priority: 0,

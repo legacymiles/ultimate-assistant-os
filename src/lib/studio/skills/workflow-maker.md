@@ -36,6 +36,7 @@ This workflow does **not** render a video: never call `studio_generate` for it.
   - `want` — "What should the tool do for you?" — `textarea` — placeholder "do what this video does for clipping — I paste a podcast link and get 10 captioned shorts ready to post"
   - `who` — "Who uses it" — `choice` — options: `Just me`, `Jarvis users`, `My clients` — default `Jarvis users`
   - `money` — "Is it for making money?" — `choice` — options: `Yes — it should earn`, `No — it saves time`, `Both` — default `Both`
+  - `make` — "What should I make?" — `choice` — options: `An agent that goes and does it`, `A tool I run`, `An app`, `A website`, `A game` — default `An agent that goes and does it` when they talk about money or an agent
 - After submit, **watch the source** frame by frame: every screen, every step the person takes, every
   tool and model they name, what goes in and what comes out at each step, and anything the video
   can't show (logins, costs, limits). Note what is visible versus guessed.
@@ -54,6 +55,24 @@ This workflow does **not** render a video: never call `studio_generate` for it.
      - `extras` — `multi` — the scholar's best two or three additions for this field, written for THIS
        workflow (e.g. "a hook score on every clip", "auto-captions in the creator's brand font")
 - Wait for the selection; do not advance.
+
+## Agents — when it should go and do it on its own
+
+It is not only for videos. When the owner wants to make money with a method (clipping, recreating
+websites for local businesses, publishing web games, faceless channels…) or asks for an agent, the
+thing to make is an **agent**, and the blueprint carries its kit:
+
+- **Role and goal** — who it is, and a target it can be measured against ("two paying website
+  clients this month"), never a promised income.
+- **Tools** — what it uses, the owner's own first (Money Agent Studio, Personas Studio, Client
+  Review, Game Studio, App Builder, link-to-video, apify, website-redesigner, seo-audit…), each
+  marked ready or "needs setting up".
+- **Websites & resources** — the marketplaces and platforms it works from, real addresses only.
+- **Accounts** to connect once, **when it works**, **what it asks first** (always posting,
+  messaging people, spending, publishing), **what it keeps score on** (earnings into Financial
+  Bible) and **its first three moves**.
+
+Research the method live (deep research) before trusting any rate, platform or rule.
 
 ## Round 3 — The blueprint (approve, then send to the PC)
 
@@ -79,9 +98,22 @@ INPUTS: [link] Long video · [text] Niche & tone · [image] Brand font sample (o
 STAGES: 1 Download (link-to-video, PC) → 2 Find moments (OpenRouter, cloud) → 3 Cut 9:16 + captions
 (ffmpeg + embedded-captions, PC) → 4 Hook score (scholar rules, cloud) → 5 Approve & queue to Personas
 OUTPUT: a grid of ten playable shorts with hook scores, approve one by one.
-CARD: "Clip Engine" — "Paste a long video, get ten shorts that earn" · Recast & build
+CARD: "Clip Engine" — "Paste a long video, get ten shorts that earn" · Special skills
 JUDGE: a new user gets ten captioned shorts from one link without help; every short plays; nothing
 posts without approval.
+```
+
+For an agent, add the kit under the blueprint:
+
+```
+AGENT: Site Flipper — finds local businesses with weak sites, rebuilds them, lines up the pitch
+GOAL: two paying website clients this month
+TOOLS: apify (ready) · seo-audit (ready) · website-redesigner (ready) · Client Review (ready) · Gmail drafts (ready) · Stripe (to set up)
+WEBSITES: Google Maps · PageSpeed Insights · Upwork · Fiverr
+RUNS: weekday mornings — 10 leads scored, the best 2 rebuilt by afternoon
+ASKS FIRST: sending any pitch · publishing on a client's domain · charging anyone
+SCORE: leads · redesigns ready · replies · clients won · monthly revenue
+FIRST MOVES: pull 20 barbers in Columbus · score their sites · rebuild the best one and draft the pitch
 ```
 
 - When the owner says yes, call **`studio_queue`** with `folder: "flow:workflow-maker"`, `title` = the
