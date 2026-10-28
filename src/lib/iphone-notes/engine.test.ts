@@ -50,6 +50,11 @@ describe("readIncoming — whatever the Shortcut sends", () => {
     expect(isBatched({ title: "a\nb", body: "x", folder: "Notes\nNotes", created: "Oct 1\nOct 2" })).toBe(true);
     expect(isBatched({ title: "Groceries", body: "milk\neggs", folder: "Notes", created: "Oct 1, 2026" })).toBe(false);
   });
+  it("never saves Jarvis's own earlier answer as a note", async () => {
+    const { isEcho } = await import("./engine");
+    expect(isEcho({ title: "push", body: '{"error":"No note came through.","ok":false}' })).toBe(true);
+    expect(isEcho({ body: "Buy milk" })).toBe(false);
+  });
   it("refuses an empty note", () => {
     expect(readIncoming({ title: "", body: "  " })).toBeNull();
     expect(readIncoming(null)).toBeNull();

@@ -100,7 +100,7 @@ export function IphoneNotesSetup({
           Search <b>Get Contents of URL</b> and drag it <b>inside</b> the Repeat (between <i>Repeat with Each</i> and <i>End Repeat</i>). Tap the blue <b>URL</b> and paste your link.
         </li>
         <li>
-          Tap the <b>▸</b> arrow on that action. Set <b>Method</b> to <b>POST</b> and <b>Request Body</b> to <b>JSON</b>. Then <b>Add new field → Text</b> for each of these — type the key, then for the value tap the variable bar above the keyboard:
+          Tap the <b>▸</b> arrow on that action. Set <b>Method</b> to <b>POST</b> and <b>Request Body</b> to <b>JSON</b>. Tap <b>Add new field → Text</b> <b>once</b>:
           <table className="ipn-table">
             <thead>
               <tr>
@@ -112,35 +112,14 @@ export function IphoneNotesSetup({
               <tr>
                 <td className="ipn-mono">body</td>
                 <td>
-                  <b>Repeat Item</b> (leave it as is — that&apos;s the whole note)
-                </td>
-              </tr>
-              <tr>
-                <td className="ipn-mono">title</td>
-                <td>
-                  <b>Repeat Item</b> → tap it → choose <b>Name</b>
-                </td>
-              </tr>
-              <tr>
-                <td className="ipn-mono">created</td>
-                <td>
-                  <b>Repeat Item</b> → tap it → <b>Creation Date</b>
-                </td>
-              </tr>
-              <tr>
-                <td className="ipn-mono">modified</td>
-                <td>
-                  <b>Repeat Item</b> → tap it → <b>Last Modified Date</b>
-                </td>
-              </tr>
-              <tr>
-                <td className="ipn-mono">folder</td>
-                <td>
-                  <b>Repeat Item</b> → tap it → <b>Folder</b> (optional)
+                  Tap the value box, then tap <b>Repeat Item</b> in the bar above the keyboard. It must be the blue <b>Repeat Item</b> bubble — not <i>Contents of URL</i>, not <i>Notes</i>, and not typed words.
                 </td>
               </tr>
             </tbody>
           </table>
+          <span className="ipn-faint">
+            That one field is all Jarvis needs — it reads the title from the note itself. (Optional extras, each a <b>Repeat Item</b> bubble you tap to pick a property: <span className="ipn-mono">created</span> = Creation Date, <span className="ipn-mono">folder</span> = Folder.)
+          </span>
         </li>
         <li>
           Tap <b>Done</b>, then tap the Shortcut once to run it. Allow it to use <b>Notes</b> and to connect to the site when it asks (<b>Always Allow</b>). Your notes show up here within a minute.

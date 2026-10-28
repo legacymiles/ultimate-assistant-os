@@ -236,6 +236,19 @@ export function isBatched(body: unknown): boolean {
   return ["created", "creationdate", "modified", "lastmodifieddate", "folder"].some((k) => lines(r[k]) > 1);
 }
 
+/**
+ * True when the "note" is Jarvis's own reply from an earlier push — the
+ * Shortcut's field points at "Contents of URL" (the previous answer) instead
+ * of "Repeat Item". Never saved.
+ */
+export function isEcho(body: unknown): boolean {
+  const vals = typeof body === "string" ? [body] : body && typeof body === "object" ? Object.values(body as Record<string, unknown>) : [];
+  return vals.some((v) => typeof v === "string" && /^\s*\{\s*"(ok|error|message)"\s*:/.test(v) && /"ok"\s*:\s*(true|false)/.test(v));
+}
+
+export const ECHO_REASON =
+  'The Shortcut sent Jarvis\'s last answer instead of a note — the body field is set to "Contents of URL". Fix: tap the body value, delete it, then tap "Repeat Item" in the bar above the keyboard.';
+
 export const BATCHED_REASON =
   'The Shortcut sent all your notes as one. Fix: drag "Get Contents of URL" so it sits INSIDE the Repeat (between "Repeat with Each" and "End Repeat"), and make every field\'s blue bubble say "Repeat Item" (not "Notes") before you pick Name, Creation Date and so on.';
 
