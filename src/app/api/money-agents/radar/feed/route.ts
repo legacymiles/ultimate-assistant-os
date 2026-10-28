@@ -3,7 +3,8 @@ import { aiReady, askJson } from "@/lib/money-agents/server/ai";
 import { parseDdgResults } from "@/lib/new-jarvis/web";
 
 export const runtime = "nodejs";
-export const maxDuration = 150;
+// 300 matches other routes so Vercel groups it into an existing function (Hobby plan: max 12).
+export const maxDuration = 300;
 
 // GET ?fresh=1 → { plays, news, by, at, warning? }
 //
