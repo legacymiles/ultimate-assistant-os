@@ -1,0 +1,280 @@
+/* ---------------------------------------------------------------------------
+   Custom Video Swap — design read (taste-skill): a premium creator tool for
+   people who sell their videos, in a Cold Luxury language — graphite and smoke
+   surfaces, chrome hairlines, ONE accent (platinum) used only for what acts.
+   Dials: variance 7 · motion 6 · density 3.
+   Shape lock: panels 18px, slots 14px, every button a full pill.
+   Type: Geist (display + UI) and Geist Mono (numbers, times, engines).
+   Every rule is scoped under .vs so nothing leaks into Jarvis.
+   --------------------------------------------------------------------------- */
+
+.vs {
+  --vs-bg: #09090a;
+  --vs-panel: #111113;
+  --vs-panel-2: #18181b;
+  --vs-raise: #1f1f23;
+  --vs-line: rgba(255, 255, 255, 0.075);
+  --vs-line-2: rgba(255, 255, 255, 0.14);
+  --vs-ink: #f3f3f1;
+  --vs-ink-2: #b3b3b8;
+  --vs-ink-3: #75757c;
+  --vs-plat: #e7e8ea;
+  --vs-plat-2: #b9bbc0;
+  --vs-chrome: linear-gradient(180deg, #fbfbfa 0%, #d9dadd 46%, #a9abb0 54%, #eeeeef 100%);
+  --vs-warn: #f2b37a;
+  --vs-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  background: radial-gradient(1200px 520px at 78% -10%, rgba(214, 220, 232, 0.07), transparent 60%),
+    radial-gradient(900px 480px at -10% 110%, rgba(200, 205, 214, 0.05), transparent 60%), var(--vs-bg);
+  color: var(--vs-ink);
+  font-family: var(--font-vs, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.vs .mono { font-family: var(--font-vs-mono, ui-monospace), ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+/* ---- Top bar ------------------------------------------------------------ */
+.vs-top { border-bottom: 1px solid var(--vs-line); background: rgba(9, 9, 10, 0.72); backdrop-filter: blur(14px); }
+.vs-back {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--vs-line-2); color: var(--vs-ink-2); font-size: 12px; transition: all 0.2s var(--vs-ease);
+}
+.vs-back:hover { color: var(--vs-ink); border-color: rgba(255, 255, 255, 0.26); }
+.vs-title {
+  font-size: 15px; font-weight: 600; letter-spacing: -0.02em;
+  background: var(--vs-chrome); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.vs-sub { font-size: 11.5px; color: var(--vs-ink-3); }
+
+/* the four-step progress in the bar */
+.vs-steps { display: flex; align-items: center; gap: 4px; }
+.vs-step { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 999px; font-size: 11px; color: var(--vs-ink-3); }
+.vs-step i { width: 6px; height: 6px; border-radius: 999px; background: var(--vs-ink-3); opacity: 0.5; transition: all 0.3s var(--vs-ease); }
+.vs-step.is-done { color: var(--vs-ink-2); }
+.vs-step.is-done i { background: var(--vs-plat); opacity: 1; box-shadow: 0 0 10px rgba(231, 232, 234, 0.55); }
+.vs-step + .vs-step::before { content: ""; width: 14px; height: 1px; background: var(--vs-line-2); margin-right: 2px; }
+
+/* ---- Panels -------------------------------------------------------------- */
+.vs-panel {
+  position: relative; border-radius: 18px; background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 40%), var(--vs-panel);
+  border: 1px solid var(--vs-line);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 24px 60px -32px rgba(0, 0, 0, 0.9);
+}
+.vs-panel::before { /* the chrome hairline along the top edge */
+  content: ""; position: absolute; inset: 0 18px auto; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.32), transparent);
+}
+.vs-h { display: flex; align-items: baseline; gap: 10px; padding: 16px 18px 0; }
+.vs-h h3 { font-size: 14px; font-weight: 600; letter-spacing: -0.015em; color: var(--vs-ink); }
+.vs-h p { font-size: 11.5px; color: var(--vs-ink-3); }
+.vs-n { font-size: 10.5px; color: var(--vs-ink-3); border: 1px solid var(--vs-line-2); border-radius: 999px; padding: 1px 7px; }
+
+/* ---- Slots (every placeholder an upload lands in) ------------------------ */
+.vs-slot {
+  position: relative; display: grid; place-items: center; overflow: hidden; border-radius: 14px;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.018) 0 10px, transparent 10px 20px), var(--vs-panel-2);
+  border: 1px dashed rgba(255, 255, 255, 0.16); color: var(--vs-ink-3);
+  transition: border-color 0.2s var(--vs-ease), transform 0.2s var(--vs-ease), box-shadow 0.25s var(--vs-ease);
+  cursor: pointer;
+}
+.vs-slot:hover { border-color: rgba(255, 255, 255, 0.34); color: var(--vs-ink-2); }
+.vs-slot:active { transform: scale(0.985); }
+.vs-slot:focus-visible { outline: 2px solid var(--vs-plat); outline-offset: 2px; }
+.vs-slot.is-over { border-style: solid; border-color: var(--vs-plat); box-shadow: 0 0 0 4px rgba(231, 232, 234, 0.08); }
+.vs-slot.is-full { border-style: solid; border-color: var(--vs-line-2); background: #0d0d0e; }
+.vs-slot img { width: 100%; height: 100%; object-fit: cover; }
+.vs-slot__empty { display: grid; justify-items: center; gap: 6px; padding: 10px; text-align: center; font-size: 11px; line-height: 1.35; }
+.vs-slot__x {
+  position: absolute; right: 6px; top: 6px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6); color: #fff; backdrop-filter: blur(6px); opacity: 0; transition: opacity 0.2s;
+}
+.vs-slot:hover .vs-slot__x, .vs-slot:focus-within .vs-slot__x { opacity: 1; }
+@media (hover: none) { .vs-slot__x { opacity: 1; } }
+.vs-slot__tag {
+  position: absolute; left: 8px; bottom: 8px; padding: 2px 8px; border-radius: 999px; font-size: 10.5px;
+  background: rgba(0, 0, 0, 0.62); color: var(--vs-ink); backdrop-filter: blur(6px);
+}
+
+/* ---- The driving video ---------------------------------------------------- */
+.vs-screen {
+  position: relative; overflow: hidden; border-radius: 14px; background: #050506;
+  border: 1px solid var(--vs-line-2); touch-action: manipulation;
+}
+.vs-screen video, .vs-screen img.vs-still { display: block; width: 100%; height: 100%; object-fit: contain; }
+.vs-screen.is-marking { cursor: crosshair; }
+.vs-mark {
+  position: absolute; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 999px;
+  border: 1.5px solid var(--vs-plat); box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.35), 0 0 22px rgba(231, 232, 234, 0.45);
+  display: grid; place-items: center; font-size: 12px; font-weight: 600; color: #0a0a0b; pointer-events: none;
+  animation: vs-pop 0.45s var(--vs-ease) both;
+}
+.vs-mark::after { content: attr(data-n); display: grid; place-items: center; width: 20px; height: 20px; border-radius: 999px; background: var(--vs-chrome); }
+.vs-mark::before {
+  content: ""; position: absolute; inset: -9px; border-radius: 999px; border: 1px solid rgba(231, 232, 234, 0.4);
+  animation: vs-ring 2.4s var(--vs-ease) infinite;
+}
+.vs-hint {
+  position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); padding: 6px 12px; border-radius: 999px;
+  font-size: 11.5px; background: rgba(0, 0, 0, 0.66); color: var(--vs-ink); backdrop-filter: blur(8px); white-space: nowrap;
+  border: 1px solid var(--vs-line-2); pointer-events: none;
+}
+.vs-seg { display: inline-flex; padding: 3px; border-radius: 999px; border: 1px solid var(--vs-line-2); background: rgba(0, 0, 0, 0.35); }
+.vs-seg button { height: 26px; padding: 0 11px; border-radius: 999px; font-size: 11.5px; color: var(--vs-ink-2); transition: all 0.2s var(--vs-ease); display: inline-flex; align-items: center; gap: 5px; }
+.vs-seg button[aria-pressed="true"] { background: var(--vs-chrome); color: #0b0b0c; font-weight: 600; }
+
+/* the scrub strip: stills of the clip, trim handles, the marking pin */
+.vs-strip { position: relative; height: 44px; border-radius: 10px; overflow: hidden; border: 1px solid var(--vs-line-2); background: #0b0b0c; display: flex; }
+.vs-strip img { flex: 1; min-width: 0; height: 100%; object-fit: cover; opacity: 0.85; }
+.vs-strip__out { position: absolute; top: 0; bottom: 0; background: rgba(5, 5, 6, 0.72); pointer-events: none; }
+.vs-strip__pin { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--vs-plat); box-shadow: 0 0 12px rgba(231, 232, 234, 0.8); pointer-events: none; }
+.vs-range { position: relative; height: 22px; }
+.vs-range input[type="range"] {
+  position: absolute; inset: 0; width: 100%; appearance: none; background: none; pointer-events: none;
+}
+.vs-range input[type="range"]::-webkit-slider-thumb {
+  appearance: none; pointer-events: auto; width: 14px; height: 22px; border-radius: 6px; background: var(--vs-chrome);
+  border: 1px solid rgba(0, 0, 0, 0.4); cursor: ew-resize; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+.vs-range input[type="range"]::-moz-range-thumb {
+  pointer-events: auto; width: 14px; height: 22px; border-radius: 6px; background: #dcdde0; border: 1px solid rgba(0, 0, 0, 0.4); cursor: ew-resize;
+}
+.vs-range__track { position: absolute; left: 0; right: 0; top: 10px; height: 2px; border-radius: 2px; background: var(--vs-line-2); }
+.vs-range__fill { position: absolute; top: 10px; height: 2px; border-radius: 2px; background: var(--vs-plat); }
+.vs-scrub { width: 100%; accent-color: #e7e8ea; }
+
+/* ---- Cast: original → new ------------------------------------------------- */
+.vs-pair { display: grid; grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr); align-items: center; gap: 4px; }
+.vs-pair + .vs-pair { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--vs-line); }
+.vs-arrow { position: relative; height: 40px; }
+.vs-arrow svg { width: 100%; height: 100%; overflow: visible; }
+.vs-arrow .vs-arrow__line { stroke: rgba(255, 255, 255, 0.18); stroke-width: 1.5; stroke-dasharray: 3 5; }
+.vs-arrow .vs-arrow__head { fill: none; stroke: rgba(255, 255, 255, 0.28); stroke-width: 1.5; }
+.vs-arrow .vs-arrow__spark { fill: var(--vs-plat); opacity: 0; }
+.vs-pair.is-linked .vs-arrow__line { stroke: url(#vs-chrome-line); stroke-dasharray: none; }
+.vs-pair.is-linked .vs-arrow__head { stroke: var(--vs-plat); }
+.vs-pair.is-linked .vs-arrow__spark { opacity: 1; animation: vs-spark 1.8s var(--vs-ease) infinite; filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.9)); }
+.vs-who { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; font-size: 11.5px; color: var(--vs-ink-2); }
+.vs-who b { font-weight: 600; color: var(--vs-ink); }
+.vs-note {
+  width: 100%; margin-top: 8px; height: 30px; padding: 0 12px; border-radius: 999px; font-size: 12px; color: var(--vs-ink);
+  background: var(--vs-panel-2); border: 1px solid var(--vs-line); transition: border-color 0.2s;
+}
+.vs-note::placeholder { color: var(--vs-ink-3); }
+.vs-note:focus { outline: none; border-color: rgba(255, 255, 255, 0.3); }
+
+/* ---- World ---------------------------------------------------------------- */
+.vs-area {
+  width: 100%; min-height: 78px; resize: vertical; padding: 10px 12px; border-radius: 14px; font-size: 13px; line-height: 1.5;
+  color: var(--vs-ink); background: var(--vs-panel-2); border: 1px solid var(--vs-line);
+}
+.vs-area::placeholder { color: var(--vs-ink-3); }
+.vs-area:focus { outline: none; border-color: rgba(255, 255, 255, 0.3); }
+.vs-label { display: block; margin-bottom: 6px; font-size: 11.5px; color: var(--vs-ink-2); }
+.vs-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.vs-chip {
+  height: 28px; padding: 0 12px; border-radius: 999px; font-size: 11.5px; color: var(--vs-ink-2);
+  border: 1px solid var(--vs-line-2); transition: all 0.2s var(--vs-ease);
+}
+.vs-chip:hover { color: var(--vs-ink); border-color: rgba(255, 255, 255, 0.28); }
+.vs-chip:active { transform: translateY(1px); }
+.vs-chip[aria-pressed="true"] { background: rgba(231, 232, 234, 0.1); border-color: rgba(231, 232, 234, 0.6); color: var(--vs-ink); }
+.vs-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--vs-ink-2); cursor: pointer; }
+.vs-switch input { position: absolute; opacity: 0; pointer-events: none; }
+.vs-switch span.vs-knob { position: relative; width: 34px; height: 20px; flex: none; border-radius: 999px; background: var(--vs-raise); border: 1px solid var(--vs-line-2); transition: background 0.25s var(--vs-ease); }
+.vs-switch span.vs-knob::after { content: ""; position: absolute; left: 2px; top: 2px; width: 14px; height: 14px; border-radius: 999px; background: var(--vs-ink-3); transition: all 0.25s var(--vs-ease); }
+.vs-switch input:checked + span.vs-knob { background: rgba(231, 232, 234, 0.2); }
+.vs-switch input:checked + span.vs-knob::after { left: 16px; background: var(--vs-chrome); }
+.vs-switch input:focus-visible + span.vs-knob { outline: 2px solid var(--vs-plat); outline-offset: 2px; }
+
+/* ---- The dock: the pipeline and Make it ------------------------------------ */
+.vs-dock { border-top: 1px solid var(--vs-line); background: rgba(10, 10, 11, 0.86); backdrop-filter: blur(18px); }
+.vs-rail { display: flex; align-items: stretch; gap: 0; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.vs-rail::-webkit-scrollbar { display: none; }
+/* Each stage: a dot on the thread, the label and its engine under it — the
+   thread runs ABOVE the words, never through them. */
+.vs-node { position: relative; display: grid; gap: 2px; padding: 18px 22px 0 0; flex: none; }
+.vs-node::before { content: ""; position: absolute; left: 0; top: 2px; width: 8px; height: 8px; border-radius: 999px; border: 1px solid var(--vs-ink-3); background: var(--vs-bg); z-index: 1; }
+.vs-node::after { content: ""; position: absolute; left: 10px; right: 4px; top: 6px; height: 1px; background: var(--vs-line-2); }
+.vs-node:last-child::after { display: none; }
+.vs-node b { font-size: 12px; font-weight: 600; color: var(--vs-ink-3); white-space: nowrap; }
+.vs-node small { font-size: 10.5px; color: var(--vs-ink-3); white-space: nowrap; }
+.vs-node.is-on::before { background: var(--vs-chrome); border-color: transparent; box-shadow: 0 0 12px rgba(231, 232, 234, 0.6); }
+.vs-node.is-on b { color: var(--vs-ink); }
+.vs-node.is-on small { color: var(--vs-ink-2); }
+.vs-node.is-on::after { background: linear-gradient(90deg, rgba(231, 232, 234, 0.7), rgba(231, 232, 234, 0.12)); }
+.vs-node.is-now::before { animation: vs-breathe 1.6s ease-in-out infinite; }
+/* On a phone the dock is the estimate and the button; the stages live in a one-line summary. */
+@media (max-width: 639px) {
+  .vs-rail { display: none; }
+  .vs-go { flex: 1; }
+}
+
+.vs-go {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 46px; padding: 0 26px;
+  border-radius: 999px; background: var(--vs-chrome); color: #0b0b0c; font-size: 14px; font-weight: 650; letter-spacing: -0.01em;
+  white-space: nowrap; overflow: hidden; box-shadow: 0 10px 30px -10px rgba(231, 232, 234, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+  transition: transform 0.2s var(--vs-ease), box-shadow 0.25s var(--vs-ease), opacity 0.2s;
+}
+.vs-go::after { /* the light sweep */
+  content: ""; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.85), transparent); transform: skewX(-18deg);
+  animation: vs-sweep 3.6s var(--vs-ease) infinite;
+}
+.vs-go:hover { transform: translateY(-1px); box-shadow: 0 16px 38px -12px rgba(231, 232, 234, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.6) inset; }
+.vs-go:active { transform: translateY(1px) scale(0.99); }
+.vs-go:disabled { opacity: 0.38; cursor: not-allowed; transform: none; box-shadow: none; }
+.vs-go:disabled::after { display: none; }
+.vs-ghost {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: 999px; font-size: 12px;
+  color: var(--vs-ink-2); border: 1px solid var(--vs-line-2); transition: all 0.2s var(--vs-ease); white-space: nowrap;
+}
+.vs-ghost:hover { color: var(--vs-ink); border-color: rgba(255, 255, 255, 0.3); }
+.vs-ghost:active { transform: translateY(1px); }
+.vs-ghost:disabled { opacity: 0.4; }
+.vs-bar { height: 3px; border-radius: 3px; background: var(--vs-line-2); overflow: hidden; }
+.vs-bar i { display: block; height: 100%; background: var(--vs-chrome); transition: width 0.3s var(--vs-ease); }
+.vs-warn { color: var(--vs-warn); font-size: 11.5px; }
+
+/* ---- Skeleton ------------------------------------------------------------- */
+.vs-skel { position: relative; overflow: hidden; background: var(--vs-panel-2); border-radius: 14px; }
+.vs-skel::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent); animation: vs-shimmer 1.4s infinite; }
+
+/* ---- Job view: before | after ---------------------------------------------- */
+.vs-compare { position: relative; overflow: hidden; border-radius: 16px; background: #050506; border: 1px solid var(--vs-line-2); user-select: none; touch-action: none; }
+.vs-compare video { display: block; width: 100%; height: 100%; object-fit: contain; }
+.vs-compare__after { position: absolute; inset: 0; }
+.vs-compare__line { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--vs-chrome); box-shadow: 0 0 18px rgba(255, 255, 255, 0.6); }
+.vs-compare__knob {
+  position: absolute; top: 50%; width: 38px; height: 38px; margin: -19px 0 0 -19px; border-radius: 999px; display: grid; place-items: center;
+  background: var(--vs-chrome); color: #0b0b0c; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.6); cursor: ew-resize;
+}
+.vs-compare__label { position: absolute; top: 10px; padding: 3px 10px; border-radius: 999px; font-size: 10.5px; background: rgba(0, 0, 0, 0.6); color: var(--vs-ink); backdrop-filter: blur(6px); }
+.vs-track { position: relative; display: grid; gap: 14px; }
+.vs-track li { position: relative; display: grid; grid-template-columns: 18px 1fr; gap: 10px; }
+.vs-track li::before { content: ""; position: absolute; left: 8px; top: 20px; bottom: -14px; width: 1px; background: var(--vs-line-2); }
+.vs-track li:last-child::before { display: none; }
+.vs-track .vs-dot { width: 17px; height: 17px; margin-top: 1px; border-radius: 999px; border: 1px solid var(--vs-ink-3); display: grid; place-items: center; color: transparent; }
+.vs-track li.is-done .vs-dot { background: var(--vs-chrome); border-color: transparent; color: #0b0b0c; }
+.vs-track li.is-now .vs-dot { border-color: var(--vs-plat); animation: vs-breathe 1.6s ease-in-out infinite; }
+
+.vs-list button { display: grid; grid-template-columns: 44px 1fr; gap: 10px; width: 100%; padding: 8px; border-radius: 12px; text-align: left; transition: background 0.2s; }
+.vs-list button:hover { background: rgba(255, 255, 255, 0.04); }
+.vs-list button[aria-current="true"] { background: rgba(231, 232, 234, 0.08); }
+
+/* ---- Entrance + motion ----------------------------------------------------- */
+.vs-rise { animation: vs-rise 0.7s var(--vs-ease) both; }
+.vs-rise-2 { animation: vs-rise 0.7s 0.08s var(--vs-ease) both; }
+.vs-rise-3 { animation: vs-rise 0.7s 0.16s var(--vs-ease) both; }
+
+@keyframes vs-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes vs-pop { from { transform: scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes vs-ring { 0% { transform: scale(0.8); opacity: 0.9; } 100% { transform: scale(1.5); opacity: 0; } }
+@keyframes vs-spark { 0% { transform: translateX(0); opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { transform: translateX(46px); opacity: 0; } }
+@keyframes vs-sweep { 0%, 55% { left: -60%; } 100% { left: 130%; } }
+@keyframes vs-breathe { 0%, 100% { box-shadow: 0 0 0 0 rgba(231, 232, 234, 0.5); } 50% { box-shadow: 0 0 0 6px rgba(231, 232, 234, 0); } }
+@keyframes vs-shimmer { to { transform: translateX(100%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .vs *, .vs *::before, .vs *::after { animation: none !important; transition-duration: 0.01ms !important; }
+}
+
+/* Inside Jarvis the voice orb floats over the bottom-right corner: keep Make it clear of it. */
+.nj .vs .vs-dock { padding-right: 5.75rem; }

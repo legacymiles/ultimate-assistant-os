@@ -17,6 +17,7 @@
 export type Medium = "video" | "image";
 
 export type CategoryId =
+  | "build"
   | "stories"
   | "talk"
   | "ads"
@@ -47,6 +48,7 @@ export interface Category {
 }
 
 export const CATEGORIES: Category[] = [
+  { id: "build", medium: "video", label: "Recast & build" },
   { id: "stories", medium: "video", label: "Stories" },
   { id: "ads", medium: "video", label: "Ads & brand" },
   { id: "social", medium: "video", label: "Social" },
@@ -118,6 +120,49 @@ const TONE = ["luxury", "funny", "cinematic", "heartfelt", "minimal", "bold", "p
 const LOOK = ["3D animated", "cartoon", "anime", "watercolor", "claymation", "photoreal", "vintage film"];
 
 export const WORKFLOWS: Workflow[] = [
+  // ----- Recast & build ---------------------------------------------------------
+  {
+    // Its prompt opens its own screen (src/components/jarvis/video-swap): the
+    // driving video, each person → who they become, the new world. Rendered on
+    // the owner's PC by the custom-video-swap skill: Viggle swaps the people,
+    // H3 builds a living plate from the background picture, Robust Video
+    // Matting lays the people on it. Sent with studio_queue, never studio_generate.
+    id: "custom-video-swap",
+    name: "Custom Video Swap",
+    medium: "video",
+    category: "build",
+    blurb: "Drop a clip + new faces + a new world — same motion, new characters, new background",
+    brief:
+      "Recast an existing clip. The driving video gives the motion, camera and timing; each marked person becomes the "
+      + "character in their picture (Viggle: one frame edited, carried through every frame); the background is replaced "
+      + "by a living H3 plate made from the owner's background picture, and the swapped people are matted onto it and "
+      + "graded to its light. It opens its own screen and renders on the owner's PC: hand the job over with studio_queue, "
+      + "never studio_generate.",
+    format: "As shot / 9:16 · up to 60 s",
+    motif: "flash",
+    hue: 220,
+    isNew: true,
+  },
+  {
+    // The owner's "rea to workflow": a video or picture of a workflow (or an
+    // app) + what they want → Jarvis watches it, writes the pipeline as a
+    // blueprint the owner edits, and Claude Code on the PC builds the working
+    // Studio card + screen (or App plugin) with the rea-to-workflow skill.
+    id: "workflow-maker",
+    name: "Workflow Maker",
+    medium: "video",
+    category: "build",
+    blurb: "Show it a video of any workflow — it watches, maps every step, and builds you the working tool",
+    brief:
+      "Reverse-engineer the process shown in the owner's video or pictures (video-analyzer + rea), raise it with felix, "
+      + "scholar and the prompt enhancer, and turn it into a blueprint: inputs as upload slots, each AI stage with its "
+      + "model, the outputs, and the Studio card. It opens its own screen; building happens on the owner's PC with the "
+      + "rea-to-workflow skill via studio_queue.",
+    format: "Any process → a working pipeline",
+    motif: "grid",
+    hue: 160,
+    isNew: true,
+  },
   // ----- Stories --------------------------------------------------------------
   {
     id: "story-to-video",

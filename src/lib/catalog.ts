@@ -651,6 +651,43 @@ export const PROJECTS: CatalogProject[] = [
     hue: [152, 44],
   },
   {
+    slug: "workflow-maker",
+    title: "Workflow Maker",
+    tag: "Show it any process — it builds the working tool",
+    category: "Video",
+    overview:
+      "The owner's \"rea to workflow\". Drop a video or pictures of any process — how people make money " +
+      "clipping videos, a fitness influencer's routine, an avatar agent, cooking ASMR, a step-by-step " +
+      "tutorial, an app you like — and say what you want. Jarvis watches it frame by frame (the " +
+      "video-analyzer and rea pass), raises it with felix and the scholar, and lays out the blueprint: " +
+      "every input as an upload slot, every stage with the engine that does it and where it runs, the one " +
+      "result, how we'll know it works, and the card exactly as it will sit on the Studio wall. Edit any of " +
+      "it, press Build it, and Claude Code on your PC builds the real, working tool with the " +
+      "rea-to-workflow skill, tests it and puts it live. Also a card in Jarvis › Studio.",
+    status: "live",
+    appUrl: "/apps/workflow-maker",
+    iconStyle: "mesh",
+    hue: [160, 200],
+  },
+  {
+    slug: "custom-video-swap",
+    title: "Custom Video Swap",
+    tag: "New characters, a new world, the original motion",
+    category: "Video",
+    overview:
+      "Recast any clip. Drop the driving video, a photo of each new character and the new background: each " +
+      "person in the clip sits next to who they become with an arrow between, you tap them on the frame " +
+      "where their faces are clearest, and the new world sits beside them. Make it sends the job — clip " +
+      "included — to your PC, where Viggle swaps the characters (one frame edited, carried through every " +
+      "frame), MiniMax H3 turns the background picture into a living plate, and Robust Video Matting lays " +
+      "the people onto it, graded to its light. It comes back as a before | after you drag across. Free, " +
+      "on your own GPU. Also a card in Jarvis › Studio.",
+    status: "live",
+    appUrl: "/apps/custom-video-swap",
+    iconStyle: "pulse",
+    hue: [220, 260],
+  },
+  {
     slug: "game-creator",
     title: "Game Creator",
     tag: "Describe a game → Unreal Engine builds it",
@@ -932,6 +969,8 @@ export function getProject(slug: string): CatalogProject | null {
  */
 const UNPREVIEWABLE = new Set([
   "money-agent-studio",
+  "workflow-maker",
+  "custom-video-swap",
   "dashboard",
   "find-my-life",
   "iphone-notes",

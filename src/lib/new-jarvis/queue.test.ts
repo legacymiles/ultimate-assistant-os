@@ -363,7 +363,9 @@ describe("pinned priorities", () => {
     const rows = sortQueue(toRows([app, ...taskFacts()], {}));
     expect(rows[0].id).toBe("task:test-animate-my-character");
     expect(rows[1].id).toBe("task:test-film-3d");
-    expect(rows[2].id).toBe("task:iphone-setup-video");
+    expect(rows[2].id).toBe("task:test-custom-video-swap");
+    expect(rows[3].id).toBe("task:test-workflow-maker");
+    expect(rows[4].id).toBe("task:iphone-setup-video");
     expect(rows[0].state).toBe("wip");
     const done = sortQueue(toRows([app, ...taskFacts([{ id: "t", name: "T", blurb: "", priority: 1, done: true }])], {}));
     expect(done[0].id).toBe("app:x");

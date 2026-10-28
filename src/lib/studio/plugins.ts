@@ -40,6 +40,8 @@ export const PLUGIN_SLUGS = [
   "personas-studio",
   "money-agent-studio",
   "contradicting",
+  "workflow-maker",
+  "custom-video-swap",
 ] as const;
 
 /**

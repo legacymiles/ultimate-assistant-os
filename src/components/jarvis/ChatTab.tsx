@@ -129,6 +129,10 @@ function profileContext(p: Profile | null): string {
   return lines.join("\n");
 }
 
+/** Studio workflows that open their own screen from a chat message. */
+export const FLOW_SCREENS = ["custom-video-swap", "workflow-maker"] as const;
+export type FlowScreen = (typeof FLOW_SCREENS)[number];
+
 export function ChatTab({
   store,
   commit,
@@ -138,6 +142,7 @@ export function ChatTab({
   embedded,
   onKidsFlow,
   onFilm3D,
+  onFlow,
 }: {
   store: JarvisStore;
   commit: (s: JarvisStore) => void;
@@ -166,6 +171,12 @@ export function ChatTab({
   onKidsFlow?: (seed: { text: string; images: string[] }) => void;
   /** Studio only: a message naming @film-3d opens the 3D Animation Flow screen with it. */
   onFilm3D?: (seed: { text: string; images: string[] }) => void;
+  /**
+   * Studio only: a message naming a workflow that has its own screen
+   * (@custom-video-swap, @workflow-maker) opens that screen with the message
+   * and EVERY attachment — clips included, which those screens need.
+   */
+  onFlow?: (id: FlowScreen, seed: { text: string; attachments: Attachment[] }) => void;
 }) {
   const memory = useMemory(store, commit);
   const [input, setInput] = useState("");
@@ -422,6 +433,13 @@ export function ChatTab({
     const pictures = attached.filter((a) => !isDescribed(a));
     const heard = attached.filter(isDescribed);
     if ((!question && !attached.length) || busy) return;
+    const screen = onFlow ? FLOW_SCREENS.find((id) => new RegExp(`@${id}\\b`, "i").test(question)) : undefined;
+    if (onFlow && screen) {
+      onFlow(screen, { text: question, attachments: attached });
+      setInput("");
+      setAttachments([]);
+      return;
+    }
     if (onFilm3D && /@film-3d\b/i.test(question)) {
       const now = pictures.filter((a) => a.kind === "image").map((a) => a.full);
       onFilm3D({ text: question, images: now.length ? now : referenceImages().slice(0, 1) });

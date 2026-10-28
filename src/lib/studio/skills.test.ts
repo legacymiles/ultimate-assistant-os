@@ -115,3 +115,17 @@ describe("PC-rendered workflows", () => {
     expect(text).toMatch(/never call `studio_generate`/i);
   });
 });
+
+describe("Recast & build workflows", () => {
+  for (const [file, folder] of [
+    ["custom-video-swap.md", "flow:custom-video-swap"],
+    ["workflow-maker.md", "flow:workflow-maker"],
+  ] as const) {
+    it(`${file} hands off with studio_queue to ${folder} and never renders here`, () => {
+      const text = readFileSync(path.join(DIR, file), "utf8");
+      expect(text).toContain("studio_queue");
+      expect(text).toContain(folder);
+      expect(text).toMatch(/never call `studio_generate`/i);
+    });
+  }
+});

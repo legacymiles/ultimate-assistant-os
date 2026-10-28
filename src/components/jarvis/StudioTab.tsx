@@ -33,11 +33,19 @@ import { KidsFlow } from "./kids-flow/KidsFlow";
 import type { KidsSeed } from "@/lib/studio/kids-flow/useKidsFlow";
 import { Film3DFlow } from "./film3d/Film3DFlow";
 import type { Film3DSeed } from "@/lib/studio/film3d/useFilm3D";
+import { VideoSwap } from "./video-swap/VideoSwap";
+import type { SwapSeed } from "@/lib/studio/video-swap/useVideoSwap";
+import { WorkflowMaker } from "./workflow-maker/WorkflowMaker";
+import type { MakerSeed } from "@/lib/studio/workflow-maker/useWorkflowMaker";
 
 /** The card whose prompt opens the Kids Animation Flow screen instead of a chat. */
 const KIDS_FLOW_ID = "animate-my-character";
 /** The card whose prompt opens the 3D Animation Flow screen (a Three.js film made in code). */
 const FILM3D_ID = "film-3d";
+/** The card whose prompt (and clip + pictures) opens the Custom Video Swap screen. */
+const SWAP_ID = "custom-video-swap";
+/** The card whose prompt (and video/pictures) opens the Workflow Maker — "rea to workflow". */
+const MAKER_ID = "workflow-maker";
 import type { JarvisStore } from "@/lib/jarvis/types";
 import type { Profile } from "@/lib/new-dashboard/types";
 import { useCinemaOutput, useCinemaSelection } from "@/lib/studio/useCinema";
@@ -114,6 +122,9 @@ export function StudioTab({
   const [kids, setKids] = useState<KidsSeed | null>(null);
   // …and so does the 3D Animation Flow card.
   const [film3d, setFilm3d] = useState<Film3DSeed | null>(null);
+  // …and Custom Video Swap, and the Workflow Maker — each with EVERY upload, clips included.
+  const [swapSeed, setSwapSeed] = useState<SwapSeed | null>(null);
+  const [makerSeed, setMakerSeed] = useState<MakerSeed | null>(null);
   /**
    * The conversation this Studio has going, if any.
    *
@@ -197,6 +208,8 @@ export function StudioTab({
 
   const kidsPicked = picked.some((p) => p.id === KIDS_FLOW_ID) || /@animate-my-character\b/.test(idea);
   const film3dPicked = picked.some((p) => p.id === FILM3D_ID) || /@film-3d\b/.test(idea);
+  const swapPicked = picked.some((p) => p.id === SWAP_ID) || /@custom-video-swap\b/.test(idea);
+  const makerPicked = picked.some((p) => p.id === MAKER_ID) || /@workflow-maker\b/.test(idea);
 
   const pickedWorkflows = picked
     .map((p) => ({ p, w: WORKFLOWS.find((w) => w.id === p.id)! }))
@@ -307,6 +320,20 @@ export function StudioTab({
       .map((p) => `@${p.id}${p.variant ? `:${p.variant}` : ""}`)
       .join(" ");
     const style = keywords.length ? `\nKeywords: ${keywords.join(", ")}` : "";
+    // Custom Video Swap: the line, the clip and the pictures go to its own
+    // screen, which drops each into its slot (driving video, who becomes who,
+    // the new world). Clips travel as files — this screen needs them whole.
+    if (picked.some((p) => p.id === SWAP_ID) || typed.has(SWAP_ID)) {
+      setSwapSeed({ text: idea.replace(/@custom-video-swap\b/gi, "").trim(), attachments, nonce: Date.now() });
+      clear();
+      return;
+    }
+    // Workflow Maker: the video and the line go to its screen, which watches it at once.
+    if (picked.some((p) => p.id === MAKER_ID) || typed.has(MAKER_ID)) {
+      setMakerSeed({ text: idea.trim(), attachments, nonce: Date.now() });
+      clear();
+      return;
+    }
     // Kids Animation Flow: the prompt and the pictures go to its own screen,
     // which writes the storyboard from them — the chat would only ask again.
     if (picked.some((p) => p.id === KIDS_FLOW_ID) || typed.has(KIDS_FLOW_ID)) {
@@ -335,6 +362,22 @@ export function StudioTab({
     setSession({ text: `${mentions} ${idea.trim()}${style}`.trim(), nonce: Date.now(), attachments });
     clear();
   };
+
+  if (swapSeed) {
+    return (
+      <div className="flex h-[calc(100dvh-49px-var(--nj-dock-h,0px))] flex-col">
+        <VideoSwap seed={swapSeed} onClose={() => setSwapSeed(null)} />
+      </div>
+    );
+  }
+
+  if (makerSeed) {
+    return (
+      <div className="flex h-[calc(100dvh-49px-var(--nj-dock-h,0px))] flex-col">
+        <WorkflowMaker seed={makerSeed} onClose={() => setMakerSeed(null)} />
+      </div>
+    );
+  }
 
   if (film3d) {
     return (
@@ -394,6 +437,14 @@ export function StudioTab({
             onFilm3D={(seed) => {
               setSession(null);
               setFilm3d({ text: seed.text, keywords: [], images: seed.images, nonce: Date.now() });
+            }}
+            onFlow={(id, seed) => {
+              setSession(null);
+              if (id === "custom-video-swap") {
+                setSwapSeed({ text: seed.text.replace(/@custom-video-swap\b/gi, "").trim(), attachments: seed.attachments, nonce: Date.now() });
+              } else {
+                setMakerSeed({ text: seed.text, attachments: seed.attachments, nonce: Date.now() });
+              }
             }}
             {...(onDashboardChanged ? { onDashboardChanged } : {})}
           />
@@ -644,7 +695,11 @@ export function StudioTab({
               }}
               rows={2}
               placeholder={
-                film3dPicked
+                swapPicked
+                  ? "Custom Video Swap: drop the clip, a photo of each new character and the new background, then say who becomes who — e.g. swap the dancer with picture 1, background a neon rooftop in Tokyo, vertical"
+                  : makerPicked
+                  ? "Workflow Maker: drop a video of the process and say what you want — e.g. build what this video shows for clipping podcasts into money-making shorts"
+                  : film3dPicked
                   ? "3D Animation Flow: attach your character's picture, then tell the story in a line — e.g. Zoe's balloon floats away and she follows it across the beach to the city at night, 30 seconds, vertical"
                   : kidsPicked
                   ? "Kids Animation Flow: attach your character's picture, then tell the story in a line — e.g. my son Milo loses his kite and chases it through town, 45 seconds"
@@ -718,7 +773,8 @@ export function StudioTab({
               disabled={!picked.length && !idea.trim() && !attachments.length}
               className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-ink px-4 py-2 text-xs font-semibold text-canvas transition hover:opacity-90 disabled:opacity-40"
             >
-              <Icon.Send width={13} height={13} /> {kidsPicked || film3dPicked ? "Make the storyboard" : "Start"}
+              <Icon.Send width={13} height={13} />{" "}
+              {swapPicked ? "Open the swap" : makerPicked ? "Watch it" : kidsPicked || film3dPicked ? "Make the storyboard" : "Start"}
             </button>
           </div>
         </div>
