@@ -1,5 +1,14 @@
 [
  {
+  "id": "ae5d9ee:iphone-notes",
+  "date": "2026-10-28",
+  "slug": "iphone-notes",
+  "title": "Shortcut setup down to one field (body = Repeat Item), and a reply echoed back by the Shortcut is never saved as a note",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "cfda4e4:text-inbox",
   "date": "2026-10-28",
   "slug": "text-inbox",
