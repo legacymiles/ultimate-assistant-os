@@ -1,5 +1,14 @@
 [
  {
+  "id": "cfda4e4:text-inbox",
+  "date": "2026-10-28",
+  "slug": "text-inbox",
+  "title": "Clearer Jarvis Send steps (no Key box needed)",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "62e6a34:iphone-notes",
   "date": "2026-10-28",
   "slug": "iphone-notes",
