@@ -1,5 +1,23 @@
 [
  {
+  "id": "64ade18:money-agents",
+  "date": "2026-10-28",
+  "slug": "money-agents",
+  "title": "Radar tab — opportunity feed, release calendar, smart companies and a move-alert bot",
+  "detail": "New first tab in Money Agent Studio. This week's market news (Google News, DuckDuckGo fallback) read by the AI with a desk trader's rules: why each play could pay, how it loses, how a regular person gets in, and a late-or-early check from the last month's price run. A radar dish (interactive-web-stu",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "64ade18:money-agent-studio",
+  "date": "2026-10-28",
+  "slug": "money-agent-studio",
+  "title": "Radar tab — opportunity feed, release calendar, smart companies and a move-alert bot",
+  "detail": "New first tab in Money Agent Studio. This week's market news (Google News, DuckDuckGo fallback) read by the AI with a desk trader's rules: why each play could pay, how it loses, how a regular person gets in, and a late-or-early check from the last month's price run. A radar dish (interactive-web-stu",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "b26cea5:iphone-notes",
   "date": "2026-10-28",
   "slug": "iphone-notes",
