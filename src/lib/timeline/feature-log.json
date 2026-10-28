@@ -1,5 +1,14 @@
 [
  {
+  "id": "62e6a34:iphone-notes",
+  "date": "2026-10-28",
+  "slug": "iphone-notes",
+  "title": "Refuses a push that glues many notes into one and tells the Shortcut exactly how to fix it",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "58c4168:text-inbox",
   "date": "2026-10-28",
   "slug": "text-inbox",
