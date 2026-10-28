@@ -19,12 +19,15 @@ export const SHORTCUT_NAME = "Notes to Jarvis";
 export function IphoneNotesSetup({
   push,
   pushError,
+  lastFail,
   busy,
   onRotate,
   onCopied,
 }: {
   push: string;
   pushError: string;
+  /** The last push that held no note — what arrived and the fix. */
+  lastFail?: { at: string; shape: string; reason: string } | null;
   busy: boolean;
   onRotate: () => void;
   onCopied: () => void;
@@ -80,6 +83,16 @@ export function IphoneNotesSetup({
           </>
         )}
       </div>
+
+      {lastFail && (
+        <div className="ipn-linkbox" role="status">
+          <p className="ipn-bad">Last try from your iPhone didn&apos;t bring a note ({new Date(lastFail.at).toLocaleString()}).</p>
+          <p className="ipn-soft ipn-mono" style={{ marginTop: 6 }}>{lastFail.shape}</p>
+          <p className="ipn-soft" style={{ marginTop: 6 }}>
+            <b>Fix:</b> {lastFail.reason}
+          </p>
+        </div>
+      )}
 
       <ol className="ipn-steps">
         <li>

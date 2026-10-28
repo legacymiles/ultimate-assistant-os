@@ -204,6 +204,7 @@ export function IphoneNotesApp({ embedded = false, inJarvis = false }: { embedde
           <IphoneNotesSetup
             push={view.push}
             pushError={view.pushError}
+            lastFail={view.lastFail && (!view.lastPushAt || view.lastFail.at > view.lastPushAt) ? view.lastFail : null}
             busy={busy === "rotate"}
             onRotate={() => void run("rotate", { action: "key.rotate" }, "New link made — paste it into your Shortcut. The old one stopped working.")}
             onCopied={() => say("Link copied — paste it into the Shortcut's URL.")}

@@ -22,6 +22,7 @@ export interface NotesView {
   push: string;
   pushError: string;
   lastPushAt: string | null;
+  lastFail: { at: string; shape: string; reason: string } | null;
   ai: boolean;
   now: string;
 }

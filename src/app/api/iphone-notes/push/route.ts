@@ -1,5 +1,5 @@
 import { after, NextResponse } from "next/server";
-import { BATCHED_REASON, ECHO_REASON, emptyReason, ingest, isBatched, isEcho, MAX_BODY, readIncoming } from "@/lib/iphone-notes/engine";
+import { BATCHED_REASON, describeArrival, ECHO_REASON, emptyReason, ingest, isBatched, isEcho, MAX_BODY, readIncoming } from "@/lib/iphone-notes/engine";
 import { readNote } from "@/lib/iphone-notes/server/brain";
 import { uidForPushKey, updateNotes } from "@/lib/iphone-notes/server/store";
 
@@ -49,11 +49,13 @@ export async function POST(req: Request) {
   else if (type.includes("form")) body = Object.fromEntries((await req.formData().catch(() => new FormData())).entries());
   else body = await req.text().catch(() => "");
 
-  if (isEcho(body)) return NextResponse.json({ ok: false, error: ECHO_REASON }, { status: 400 });
-  if (isBatched(body)) return NextResponse.json({ ok: false, error: BATCHED_REASON }, { status: 400 });
-  const incoming = readIncoming(body);
+  const incoming = isEcho(body) || isBatched(body) ? null : readIncoming(body);
   if (!incoming) {
-    return NextResponse.json({ ok: false, error: emptyReason(body) }, { status: 400 });
+    const reason = isEcho(body) ? ECHO_REASON : isBatched(body) ? BATCHED_REASON : emptyReason(body);
+    const shape = describeArrival(body, type);
+    // Kept (shape only) so the setup screen — and whoever is helping — can see what arrived.
+    await updateNotes(uid, (doc) => ({ doc: { ...doc, lastFail: { at: new Date().toISOString(), shape, reason } }, out: null })).catch(() => undefined);
+    return NextResponse.json({ ok: false, error: reason, got: shape }, { status: 400 });
   }
 
   try {

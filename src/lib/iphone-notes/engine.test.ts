@@ -55,6 +55,14 @@ describe("readIncoming — whatever the Shortcut sends", () => {
     expect(isEcho({ title: "push", body: '{"error":"No note came through.","ok":false}' })).toBe(true);
     expect(isEcho({ body: "Buy milk" })).toBe(false);
   });
+  it("takes the note from a field with an unexpected name", () => {
+    expect(readIncoming({ "Repeat Item": "Call mom tonight" })).toMatchObject({ body: "Call mom tonight", title: "Call mom tonight" });
+  });
+  it("describes what arrived without its words", async () => {
+    const { describeArrival } = await import("./engine");
+    expect(describeArrival({ body: "" }, "application/json")).toBe('Jarvis got: JSON with "body" (empty).');
+    expect(describeArrival({ body: "secret stuff" }, "application/json")).not.toContain("secret");
+  });
   it("refuses an empty note", () => {
     expect(readIncoming({ title: "", body: "  " })).toBeNull();
     expect(readIncoming(null)).toBeNull();

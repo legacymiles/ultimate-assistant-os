@@ -60,6 +60,7 @@ async function view(req: Request, uid: string, doc: NotesDoc, rotate = false) {
     push,
     pushError,
     lastPushAt: doc.lastPushAt ?? null,
+    lastFail: doc.lastFail ?? null,
     ai: Boolean(aiEndpoint()),
     now: new Date().toISOString(),
   });

@@ -108,6 +108,8 @@ export interface NotesDoc {
   /** The owner's timezone, from their browser — "today" for relative dates. */
   tz?: string;
   lastPushAt?: string;
+  /** The last push that held no usable note — its shape only, never its words. */
+  lastFail?: { at: string; shape: string; reason: string };
   /** Notes pushed per day, for the daily cap on AI reads. */
   daily?: { day: string; count: number };
 }
@@ -196,6 +198,17 @@ export function readIncoming(body: unknown): Incoming | null {
     return "";
   };
   let text = pick("body", "note", "text", "content", "notes").replace(/\r\n/g, "\n").trim().slice(0, MAX_BODY);
+  // The key was named something else ("Body ", "Repeat Item", a typo): any one
+  // field that holds real words is the note.
+  if (!text) {
+    const known = new Set(["title", "name", "folder", "folders", "created", "creationdate", "createdat", "datecreated", "modified", "lastmodifieddate", "modifiedat", "lastmodified", "datemodified"]);
+    text =
+      Object.entries(r)
+        .filter(([k, v]) => !known.has(k) && typeof v === "string" && v.trim() && !isPlaceholder(v))
+        .map(([, v]) => String(v).replace(/\r\n/g, "\n").trim())
+        .sort((a, b) => b.length - a.length)[0]
+        ?.slice(0, MAX_BODY) ?? "";
+  }
   let title = pick("title", "name").trim().slice(0, 200);
   if (!text && title) text = title;
   if (!text) return null;
@@ -253,12 +266,37 @@ export const BATCHED_REASON =
   'The Shortcut sent all your notes as one. Fix: drag "Get Contents of URL" so it sits INSIDE the Repeat (between "Repeat with Each" and "End Repeat"), and make every field\'s blue bubble say "Repeat Item" (not "Notes") before you pick Name, Creation Date and so on.';
 
 /** Why a push held no note, in words for the Shortcut's result. */
+/**
+ * What a push actually held, without its words: the shape the Shortcut sent
+ * (format, field names, how long each value was). Shown in the Shortcut's
+ * result and kept as the last failed push, so a bad setup can be seen.
+ */
+export function describeArrival(body: unknown, contentType = ""): string {
+  const kind = contentType.includes("json") ? "JSON" : contentType.includes("form") ? "a form" : contentType ? contentType.split(";")[0] : "no format";
+  if (body === null || body === undefined) return `Jarvis got: ${kind}, but it couldn't be read.`;
+  if (typeof body === "string") return `Jarvis got: ${kind}, plain text, ${body.trim().length} characters.`;
+  if (typeof body !== "object") return `Jarvis got: ${kind}, ${typeof body}.`;
+  const entries = Object.entries(body as Record<string, unknown>);
+  if (!entries.length) return `Jarvis got: ${kind} with no fields at all.`;
+  const parts = entries.slice(0, 8).map(([k, v]) => {
+    const name = `"${k.slice(0, 30)}"`;
+    if (typeof v === "string") return v.trim() ? `${name} (${v.trim().length} characters${isPlaceholder(v) ? ", step words" : ""})` : `${name} (empty)`;
+    if (v === null) return `${name} (empty)`;
+    return `${name} (${Array.isArray(v) ? "a list" : typeof v})`;
+  });
+  return `Jarvis got: ${kind} with ${parts.join(", ")}.`;
+}
+
 export function emptyReason(body: unknown): string {
   const vals = body && typeof body === "object" ? Object.values(body as Record<string, unknown>) : [body];
   if (vals.some((v) => typeof v === "string" && isPlaceholder(v))) {
     return 'The Shortcut sent the step words instead of the note. In each field, delete the text, tap "Repeat Item" in the bar above the keyboard, then tap the blue Repeat Item to pick Name, Creation Date and so on.';
   }
-  return "No note came through. In the Shortcut, check the body field is set to the note (Repeat Item).";
+  const vals2 = body && typeof body === "object" ? Object.values(body as Record<string, unknown>) : [];
+  if (vals2.length && vals2.every((v) => typeof v !== "string" || !v.trim())) {
+    return 'The note came through empty. Usually "Get Contents of URL" is below "End Repeat" — drag it up so it sits between "Repeat with Each" and "End Repeat", and make sure Find Notes actually finds notes (try "in the last 30 days").';
+  }
+  return 'No note came through. In "Get Contents of URL", set Request Body to JSON and add one Text field named body whose value is the blue "Repeat Item" bubble.';
 }
 
 /** The same note always gets the same key, however often it is sent. */
@@ -576,6 +614,7 @@ export function normalizeDoc(raw: unknown): NotesDoc {
     examples: Array.isArray(r.examples) ? r.examples.slice(-MAX_EXAMPLES) : [],
     tz: typeof r.tz === "string" ? r.tz : undefined,
     lastPushAt: typeof r.lastPushAt === "string" ? r.lastPushAt : undefined,
+    lastFail: r.lastFail && typeof r.lastFail.shape === "string" ? r.lastFail : undefined,
     daily: r.daily && typeof r.daily.day === "string" ? r.daily : undefined,
   };
 }
