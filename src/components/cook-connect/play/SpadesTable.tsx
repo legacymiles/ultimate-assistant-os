@@ -11,15 +11,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./holo-table.css";
 import type { GameState } from "@/lib/cook-connect/spades";
-import { getSuit, getTeam, isValidPlay, sortHand } from "@/lib/cook-connect/spades";
+import {
+  WINNING_SCORE, biddingOrder, canPlayOutOfTurn, finalHandThreats, getSuit, getTeam, isValidPlay, sortHand,
+} from "@/lib/cook-connect/spades";
 import type { FxLevel, GameTheme, SuitKey } from "@/lib/cook-connect/gameStyle";
 import { chooseBid } from "@/lib/cook-connect/spadesBot";
+import { handLayout } from "@/lib/cook-connect/handLayout";
 import type { SeatView } from "@/lib/cook-connect/hooks/useSpades";
 import { Avatar, cx } from "../ui";
 import { BotIcon } from "../icons";
 import { PlayingCard } from "./PlayingCard";
 import { HoloFelt, type FeltPulse } from "./HoloFelt";
-import { Burst, FxStage, clashStyle, useSpadesMoments, type NilFx } from "./SpadesFx";
+import { Burst, FxStage, clashStyle, useSpadesMoments, useTableTalk, type NilFx } from "./SpadesFx";
+import { DealPanel, DealBurst, FinalHandRibbon, TalkBubble } from "./SpadesDeal";
 
 interface Props {
   state: GameState;
@@ -42,6 +46,12 @@ interface Props {
   onCallRenig?: () => void;
   /** Running game score, shown in the stage's top corners. */
   scores?: { team1: number; team2: number };
+  /** "Stop & deal" on your own deal. */
+  onDeal?: () => void;
+  /** A confirmed play out of turn (double-tap / double-swipe / swipe-then-tap). */
+  onAskOutOfTurn?: (card: string) => void;
+  /** Seeds the computers' table talk, so every screen hears the same lines. */
+  tableId?: string;
 }
 
 const FX_LEVELS: { id: FxLevel; label: string }[] = [
@@ -54,12 +64,12 @@ const FX_LEVELS: { id: FxLevel; label: string }[] = [
 const POSITIONS = ["bottom", "left", "top", "right"] as const;
 type Position = (typeof POSITIONS)[number];
 
-/** Where each player's card lies in the trick, on the felt. */
+/** Where each player's card lies in the trick, on the felt (room for the bigger trick cards). */
 const SLOT: Record<Position, { x: string; y: string; r: string }> = {
-  bottom: { x: "0px", y: "44px", r: "-3deg" },
-  top: { x: "0px", y: "-44px", r: "4deg" },
-  left: { x: "-60px", y: "0px", r: "-9deg" },
-  right: { x: "60px", y: "0px", r: "7deg" },
+  bottom: { x: "0px", y: "52px", r: "-3deg" },
+  top: { x: "0px", y: "-52px", r: "4deg" },
+  left: { x: "-70px", y: "0px", r: "-9deg" },
+  right: { x: "70px", y: "0px", r: "7deg" },
 };
 /** Where a card flies in from: that player's side of the table. */
 const FROM: Record<Position, { x: string; y: string; r: string }> = {
@@ -85,20 +95,37 @@ const PULSE_AT: Record<Position, [number, number]> = {
 
 export function SpadesTable({
   state, table, mySeat, onBid, onPlay, theme, fxLevel, onFxLevel, round, onCrumble,
-  unlocked = false, onToggleUnlock, onCallRenig, scores,
+  unlocked = false, onToggleUnlock, onCallRenig, scores, onDeal, onAskOutOfTurn, tableId = "table",
 }: Props) {
   const seated = mySeat >= 0;
   const viewFrom = seated ? mySeat : 0;
   const positionOf = (seat: number): Position => POSITIONS[(seat - viewFrom + 4) % 4];
 
-  const myHand = seated ? sortHand(state.hands[mySeat] ?? []) : [];
-  const myTurn = seated && state.currentTurn === mySeat;
+  const dealing = state.phase === "dealing";
+  // Nothing is in anyone's hand until the dealer deals.
+  const myHand = seated && !dealing ? sortHand(state.hands[mySeat] ?? []) : [];
+  const myTurn = seated && state.currentTurn === mySeat && !dealing;
   const nameOf = (seat: number) =>
     seat === mySeat ? "You" : table.find((t) => t.seat === seat)?.name.split(" ")[0] ?? "Someone";
 
+  // Could this hand end the game? (Before the bids: being within a hand of
+  // the target. Once a team has bid: exactly whether its bid gets there.)
+  const live = state.phase === "dealing" || state.phase === "bidding" || state.phase === "playing";
+  const threats = scores && live
+    ? finalHandThreats(scores, state.phase === "dealing" ? undefined : state.bids)
+    : [];
+  const myTeamNo = seated ? getTeam(mySeat) : null;
+  const leader = threats.length === 0
+    ? null
+    : threats.length === 1
+      ? threats[0].team
+      : (scores!.team1 >= scores!.team2 ? 1 : 2);
+
   // The moments read only a settled call (state.renigCall), never the secret record.
-  const fx = useSpadesMoments({ state, round, theme, level: fxLevel, nameOf });
+  const fx = useSpadesMoments({ state, round, theme, level: fxLevel, nameOf, threats, myTeam: myTeamNo });
   const { clash } = fx;
+  const botSeats = table.filter((t) => t.isBot).map((t) => t.seat);
+  const talk = useTableTalk({ state, round, theme, tableId, botSeats, threats });
 
   useEffect(() => { onCrumble?.(fx.crumbleTeam); }, [fx.crumbleTeam]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -142,34 +169,66 @@ export function SpadesTable({
   }, []);
 
   const turnName = table.find((t) => t.seat === state.currentTurn)?.name.split(" ")[0] ?? "Someone";
+  const dealerName = nameOf(state.dealer);
+  const iDeal = seated && dealing && state.dealer === mySeat;
   const status = state.phase === "gameEnd"
     ? "Game over"
     : state.phase === "roundEnd"
       ? "Hand over"
+    : dealing
+      ? ""
     : state.phase === "bidding"
       ? myTurn ? "" : `${turnName} is calling a bid`
       : shownTrick.length === 0
         ? myTurn ? "Your lead" : `${turnName} to lead`
         : "";
 
+  const lastPhase = useRef(state.phase);
+  const [burst, setBurst] = useState(0);
+  useEffect(() => {
+    if (lastPhase.current === "dealing" && state.phase === "bidding") setBurst((b) => b + 1);
+    lastPhase.current = state.phase;
+  }, [state.phase]);
+
+  // Bids go round the table like a real game: dealer's left first, dealer last.
+  const order = biddingOrder(state.dealer);
+
   const renderSeat = (seat: SeatView) => {
     const position = positionOf(seat.seat);
     const isMe = seat.seat === mySeat;
-    const cardsLeft = (state.hands[seat.seat] ?? []).length;
+    const cardsLeft = dealing ? 0 : (state.hands[seat.seat] ?? []).length;
+    const bid = state.bids[seat.seat];
+    const bidding = state.phase === "bidding";
+    const thinking = bidding && state.currentTurn === seat.seat;
+    const line = talk[seat.seat];
     return (
       <div key={seat.seat} className={`hx-seat hx-seat--${position}`}>
         <SeatPod
           seat={seat}
           isMe={isMe}
-          bid={state.bids[seat.seat]}
+          bid={dealing ? null : bid}
           tricks={state.tricksWon[seat.seat] ?? 0}
-          turn={state.currentTurn === seat.seat && state.phase !== "gameEnd"}
+          turn={state.currentTurn === seat.seat && state.phase !== "gameEnd" && !dealing}
           dealer={state.dealer === seat.seat}
           nil={fx.shields[seat.seat]}
           nilColor={theme.nilShield.color}
           nilText={theme.nilShield.text}
         />
         {!isMe && seat.userId && state.phase !== "gameEnd" && cardsLeft > 0 && <BackFan count={cardsLeft} />}
+        {/* Each bid shows at its seat the moment it is placed. */}
+        {bidding && seat.userId && (bid !== null || (thinking && !isMe)) && (
+          <span
+            key={bid === null ? "think" : `bid-${bid}`}
+            className={cx("hx-bidtag", bid === null && "is-thinking", bid === 0 && "is-nil")}
+            aria-live="polite"
+          >
+            {bid === null
+              ? <>Bidding<span className="hx-dots" aria-hidden="true"><i /><i /><i /></span></>
+              : bid === 0 ? "Nil" : <>Bid <b>{bid}</b></>}
+            {bid === null && <small>{ordinal(order.indexOf(seat.seat) + 1)}</small>}
+          </span>
+        )}
+        {line && <TalkBubble key={line.id} text={line.text} position={position} />}
       </div>
     );
   };
@@ -187,6 +246,10 @@ export function SpadesTable({
       } as React.CSSProperties}
       onPointerMove={onPointerMove}
     >
+      {/* The hand that could end it: a slim ribbon over the table, never on it. */}
+      {theme.finalHand.on && threats.length > 0 && (
+        <FinalHandRibbon theme={theme} threats={threats} myTeam={myTeamNo} />
+      )}
       <div className={cx("hx-stage", fx.shake)}>
         {/* The table, tilted away from you */}
         <div className="hx-table">
@@ -226,23 +289,49 @@ export function SpadesTable({
           </div>
         </div>
 
-        {scores && (
-          <>
-            <div className="hx-total hx-total--us">
-              <span>{seated ? "Us" : "Team 1"}</span>
-              <b>{seated && getTeam(mySeat) === 2 ? scores.team2 : scores.team1}</b>
-            </div>
-            <div className="hx-total hx-total--them">
-              <span>{seated ? "Them" : "Team 2"}</span>
-              <b>{seated && getTeam(mySeat) === 2 ? scores.team1 : scores.team2}</b>
-            </div>
-          </>
-        )}
+        {scores && (() => {
+          const usTeam = seated && getTeam(mySeat) === 2 ? 2 : 1;
+          const themTeam = usTeam === 1 ? 2 : 1;
+          const fire = theme.finalHand.on ? leader : null;
+          return (
+            <>
+              <ScoreBox
+                side="us"
+                label={seated ? "Us" : "Team 1"}
+                score={usTeam === 1 ? scores.team1 : scores.team2}
+                fire={fire === usTeam}
+                color={theme.finalHand.color}
+              />
+              <ScoreBox
+                side="them"
+                label={seated ? "Them" : "Team 2"}
+                score={themTeam === 1 ? scores.team1 : scores.team2}
+                fire={fire === themTeam}
+                color={theme.finalHand.color}
+              />
+            </>
+          );
+        })()}
+
         {state.spadeBroken && state.phase === "playing" && <span className="hx-badge">♠ Spades broken</span>}
         {status && <p className="hx-status">{status}</p>}
 
         {table.filter((s) => positionOf(s.seat) !== "bottom" || !seated).map(renderSeat)}
         {seated && renderSeat(table.find((s) => s.seat === mySeat)!)}
+
+        {/* The deal: the dealer shuffles and deals; everyone else watches. */}
+        {dealing && state.phase !== "gameEnd" && (
+          <DealPanel
+            key={`${round}-deal`}
+            mine={iDeal}
+            dealerName={dealerName}
+            firstName={nameOf((state.dealer + 1) % 4)}
+            onDeal={onDeal}
+          />
+        )}
+        {burst > 0 && (
+          <DealBurst key={`deal-${burst}`} to={[0, 1, 2, 3].map((s) => positionOf(s))} reduced={fxLevel === "off"} />
+        )}
 
         {/* Bidding happens on the table */}
         {seated && state.phase === "bidding" && myTurn && (
@@ -251,13 +340,15 @@ export function SpadesTable({
             hand={state.hands[mySeat] ?? []}
             partnerBid={state.bids[(mySeat + 2) % 4]}
             partnerName={nameOf((mySeat + 2) % 4)}
+            others={[(mySeat + 1) % 4, (mySeat + 3) % 4].map((s) => ({ name: nameOf(s), bid: state.bids[s] }))}
+            dealer={state.dealer === mySeat}
             onBid={onBid}
           />
         )}
 
         {clash?.phase === "clash" && clash.dur > 0 && state.currentTrick.length === 0 && (
           <div
-            key={clash.id}
+            key={`clash-${clash.id}`}
             className="fx-stage"
             style={{ "--fx-dur": `${clash.dur}ms`, "--fx-color": clashColor } as React.CSSProperties}
             aria-hidden="true"
@@ -292,15 +383,17 @@ export function SpadesTable({
             cards={myHand}
             fresh={myHand.length === 13}
             playableOf={(card) => {
-              const live = myTurn && state.phase === "playing";
-              const legal = live && isValidPlay(card, state.hands[mySeat] ?? [], state.currentTrick, state.spadeBroken);
-              const playable = legal || (unlocked && live);
+              const playing = state.phase === "playing" && (myTurn || canPlayOutOfTurn(state, mySeat));
+              const legal = playing && isValidPlay(card, state.hands[mySeat] ?? [], state.currentTrick, state.spadeBroken);
+              const playable = legal || (unlocked && playing);
               // A faint red edge on an unlocked illegal card: only you see it.
               return { legal: playable, renege: playable && !legal };
             }}
             dimIllegal={myTurn && state.phase === "playing"}
             myTurn={myTurn && state.phase === "playing"}
+            canOutOfTurn={!!onAskOutOfTurn && seated && canPlayOutOfTurn(state, mySeat)}
             onCard={(card) => onPlay(card)}
+            onOutOfTurn={(card) => onAskOutOfTurn?.(card)}
           />
         </div>
       )}
@@ -345,6 +438,14 @@ export function SpadesTable({
 //   laptop  first click picks the card (it lifts and glows), the second plays it
 //   phone   tap picks it, tap again (a double tap) plays it, or swipe it up
 // Sliding a finger along the hand picks whichever card is under it.
+//
+// Out of turn (owner's rule, Oct 2026): while it is someone else's turn, a
+// double tap (click + click), two swipes up, or a swipe then a tap on the same
+// card asks "Are you sure you want to play out of turn?" (onOutOfTurn). A
+// single swipe or tap only picks the card, so nobody does it by accident.
+//
+// The hand is laid out from its measured width (handLayout.ts), so the whole
+// fan — including the outer cards' lean — always fits, from 360px up.
 
 const SWIPE_PLAY_PX = 56;
 const MOVE_SLOP_PX = 10;
@@ -356,19 +457,24 @@ type Press = {
   card: string;
   /** The card was already picked when this press began. */
   wasPicked: boolean;
+  /** Which card was picked when this press began. */
+  pickedAtStart: string | null;
   mode: "tap" | "scrub" | "drag";
   touch: boolean;
 };
 
 function HandFan({
-  cards, fresh, playableOf, dimIllegal, myTurn, onCard,
+  cards, fresh, playableOf, dimIllegal, myTurn, canOutOfTurn, onCard, onOutOfTurn,
 }: {
   cards: string[];
   fresh: boolean;
   playableOf: (card: string) => { legal: boolean; renege: boolean };
   dimIllegal: boolean;
   myTurn: boolean;
+  /** Someone else's turn, and you may still jump in on this trick. */
+  canOutOfTurn: boolean;
   onCard: (card: string) => void;
+  onOutOfTurn: (card: string) => void;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
@@ -379,9 +485,25 @@ function HandFan({
   const press = useRef<Press | null>(null);
   const fanRef = useRef<HTMLDivElement>(null);
 
+  // Measure the width the hand really has; the layout fits the fan inside it.
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const el = fanRef.current;
+    if (!el) return;
+    const read = () => setWidth(el.clientWidth);
+    read();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", read);
+      return () => window.removeEventListener("resize", read);
+    }
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   useEffect(() => {
     if (!dealing) return;
-    const t = window.setTimeout(() => setDealing(false), 560 + cards.length * 38);
+    const t = window.setTimeout(() => setDealing(false), 480 + cards.length * 30);
     return () => window.clearTimeout(t);
   }, [dealing, cards.length]);
 
@@ -406,17 +528,24 @@ function HandFan({
     window.setTimeout(() => setNope((c) => (c === card ? null : c)), 360);
   }, []);
 
-  /** The second step: play it if it can be played, otherwise shake it. */
+  /**
+   * The second step: play it if it can be played, otherwise shake it. Out of
+   * turn, the second step asks first (the room shows "Are you sure?").
+   */
   const attempt = useCallback((card: string) => {
     if (myTurn && playableOf(card).legal) {
       setPicked(null);
       setDrag(null);
       onCard(card);
+    } else if (!myTurn && canOutOfTurn && playableOf(card).legal) {
+      setPicked(null);
+      setDrag(null);
+      onOutOfTurn(card);
     } else {
       setPicked(card);
       shake(card);
     }
-  }, [myTurn, playableOf, onCard, shake]);
+  }, [myTurn, canOutOfTurn, playableOf, onCard, onOutOfTurn, shake]);
 
   // Which card is under a point. The hand is tilted in 3D, where the
   // browser's hit test and elementFromPoint can disagree, so this reads the
@@ -439,7 +568,9 @@ function HandFan({
     if (!card) return;
     const touch = e.pointerType !== "mouse";
     setTouchy(touch);
-    press.current = { id: e.pointerId, x0: e.clientX, y0: e.clientY, card, wasPicked: picked === card, mode: "tap", touch };
+    press.current = {
+      id: e.pointerId, x0: e.clientX, y0: e.clientY, card, wasPicked: picked === card, pickedAtStart: picked, mode: "tap", touch,
+    };
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* old browsers */ }
     if (touch) setPicked(card); // a finger shows the card straight away
   };
@@ -477,7 +608,11 @@ function HandFan({
     if (p.mode === "drag") {
       const dy = e.clientY - p.y0;
       setDrag(null);
-      if (dy <= -SWIPE_PLAY_PX) attempt(p.card);
+      if (dy > -SWIPE_PLAY_PX) return;
+      // Out of turn, one swipe only picks the card; a second swipe (or a tap)
+      // on the same card asks to play it.
+      if (!myTurn && canOutOfTurn && p.pickedAtStart !== p.card) { setPicked(p.card); return; }
+      attempt(p.card);
       return;
     }
     if (p.mode === "scrub") return; // the slide picked a card; it waits for a second tap
@@ -489,22 +624,36 @@ function HandFan({
 
   const n = cards.length;
   const mid = (n - 1) / 2;
+  const L = handLayout(width || 360, n);
   const pickedState = picked ? playableOf(picked) : null;
   const tag = !picked
     ? null
     : drag && drag.dy <= -SWIPE_PLAY_PX && myTurn && pickedState?.legal
       ? { text: "Let go to play", wait: false }
-      : !myTurn
-        ? { text: "Wait for your turn", wait: true }
-        : !pickedState?.legal
+      : !myTurn && canOutOfTurn && pickedState?.legal
+        ? { text: touchy ? "Not your turn · tap again to jump in" : "Not your turn · click again to jump in", wait: true }
+        : !myTurn && canOutOfTurn
           ? { text: "Follow the suit that was led", wait: true }
-          : { text: touchy ? "Tap again or swipe up" : "Click again to play", wait: false };
+          : !myTurn
+          ? { text: "Wait for your turn", wait: true }
+          : !pickedState?.legal
+            ? { text: "Follow the suit that was led", wait: true }
+            : { text: touchy ? "Tap again or swipe up" : "Click again to play", wait: false };
 
   return (
     <div
       ref={fanRef}
-      className={cx("hx-fan", dealing && "is-dealing")}
-      style={{ "--n": n, "--mid": mid } as React.CSSProperties}
+      className={cx("hx-fan", dealing && "is-dealing", !width && "is-measuring")}
+      style={{
+        "--n": n,
+        "--mid": mid,
+        "--cw": `${L.cw}px`,
+        "--ch": `${L.ch}px`,
+        "--step": `${L.step}px`,
+        "--hand-rank": `${L.rank}px`,
+        "--hand-ten": `${L.ten}px`,
+        "--hand-pip": `${L.pip}px`,
+      } as React.CSSProperties}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -531,7 +680,7 @@ function HandFan({
               style={{
                 "--i": i,
                 "--arc": `${(d * d * 0.9).toFixed(1)}px`,
-                "--rot": `${(d * 1.7).toFixed(2)}deg`,
+                "--rot": `${(d * L.rot).toFixed(2)}deg`,
                 "--lift": `${lift}px`,
                 "--drag": isDragging ? `${drag!.dy}px` : "0px",
                 "--pop": isPicked ? 1.06 : 1,
@@ -558,7 +707,11 @@ function HandFan({
                   className={cx(renege && "hx-renege-card")}
                 />
               </button>
-              {isPicked && tag && <span className={cx("hx-pick-tag", tag.wait && "is-wait")}>{tag.text}</span>}
+              {isPicked && tag && (
+                <span className={cx("hx-pick-tag", tag.wait && "is-wait", i < 3 && "is-start", i > n - 4 && n > 3 && "is-end")}>
+                  {tag.text}
+                </span>
+              )}
             </div>
           );
         })}
@@ -581,11 +734,15 @@ const cardLabel = (card: string) => {
 // the computer would bid with your hand, so a new player always has a sane start.
 
 function BidWheel({
-  hand, partnerBid, partnerName, onBid,
+  hand, partnerBid, partnerName, others, dealer, onBid,
 }: {
   hand: string[];
   partnerBid: number | null | undefined;
   partnerName: string;
+  /** The two opponents and what they bid so far (null: not yet). */
+  others: { name: string; bid: number | null | undefined }[];
+  /** You are the dealer: you bid last. */
+  dealer: boolean;
   onBid: (bid: number) => void;
 }) {
   const suggested = Math.max(0, Math.min(13, chooseBid(hand)));
@@ -666,6 +823,55 @@ function BidWheel({
           ? <>Your total team bid is <b>{team}</b> <span style={{ opacity: 0.7 }}>({partnerName} {label(partnerBid!)})</span></>
           : <>{partnerName} hasn&apos;t bid yet</>}
       </p>
+      {(() => {
+        const theirs = others.filter((o) => o.bid !== null && o.bid !== undefined);
+        if (!theirs.length && !dealer) return null;
+        return (
+          <p className="hx-bid-them">
+            {theirs.length > 0 && (
+              <>They bid {theirs.map((o) => `${o.name} ${label(o.bid!)}`).join(" · ")}</>
+            )}
+            {dealer && <>{theirs.length ? " — " : ""}You&apos;re the dealer: last to bid.</>}
+          </p>
+        );
+      })()}
+    </div>
+  );
+}
+
+const ordinal = (n: number) => (n === 1 ? "1st" : n === 2 ? "2nd" : n === 3 ? "3rd" : `${n}th`);
+
+/** A team's running score in a top corner. On fire when it could end the game this hand. */
+function ScoreBox({
+  side, label, score, fire, color,
+}: { side: "us" | "them"; label: string; score: number; fire: boolean; color: string }) {
+  const toWin = Math.max(0, WINNING_SCORE - score);
+  // On fire it can be poked: it flares up.
+  const [flare, setFlare] = useState(0);
+  useEffect(() => {
+    if (!flare) return;
+    const t = window.setTimeout(() => setFlare(0), 700);
+    return () => window.clearTimeout(t);
+  }, [flare]);
+  return (
+    <div
+      className={cx("hx-total", `hx-total--${side}`, fire && "is-fire", flare > 0 && "is-flare")}
+      style={fire ? ({ "--fire": color } as React.CSSProperties) : undefined}
+      title={fire ? `${toWin} to win` : undefined}
+      role={fire ? "button" : undefined}
+      tabIndex={fire ? 0 : undefined}
+      aria-label={fire ? `${label}: ${score}, ${toWin} to win` : undefined}
+      onClick={fire ? () => setFlare((f) => f + 1) : undefined}
+      onKeyDown={fire ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFlare((f) => f + 1); } } : undefined}
+    >
+      {fire && (
+        <span className="hx-flame" aria-hidden="true">
+          <i /><i /><i />
+        </span>
+      )}
+      <span>{label}</span>
+      <b>{score}</b>
+      {fire && <em>{toWin} to win</em>}
     </div>
   );
 }
@@ -717,6 +923,7 @@ function SeatPod({
       style={nil ? ({ "--fx-color": nilColor } as React.CSSProperties) : undefined}
     >
       {nil && nil !== "shatter" && <span className="fx-nil-label">{nilText}</span>}
+      {dealer && !empty && <span className="hx-dealer" title="Dealer" aria-label="Dealer">D</span>}
       <span className="hx-avatar">
         {turn && <span className="hx-turn-ring" />}
         {empty ? null : seat.isBot ? (
@@ -731,7 +938,6 @@ function SeatPod({
         </span>
         <span className="hx-team">
           T{getTeam(seat.seat)}
-          {dealer && <span className="hx-chip" style={{ marginLeft: 5 }} title="Dealer">D</span>}
         </span>
       </span>
       {!empty && (

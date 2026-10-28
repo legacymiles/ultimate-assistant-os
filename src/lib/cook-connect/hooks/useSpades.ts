@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type GameState, initGameState, isValidPlay, determineTrickWinner,
-  calculateRoundScore, applyRoundScore, nextSeat, getSuit, getTeam, recapRound,
+  calculateRoundScore, applyRoundScore, getSuit, getTeam, recapRound,
+  applyBid, canPlayOutOfTurn, dealHand, nextDealer, nextToPlay,
 } from "../spades";
 import { botName, chooseBid, chooseCard } from "../spadesBot";
 import { sounds } from "../sounds";
@@ -14,7 +15,7 @@ import {
   seatResults, tablesToJoin, withdrawVote, type LobbySeat,
 } from "../lobby";
 import {
-  botNotices, canAccuse, canPlay, completeEvidence, recordPlay, resolveCall,
+  botNotices, canAccuse, canPlay, completeEvidence, recordOutOfTurn, recordPlay, resolveCall,
 } from "../renege";
 import type { Match, MatchPlayer, SpadesGame } from "../types";
 
@@ -22,6 +23,15 @@ import type { Match, MatchPlayer, SpadesGame } from "../types";
 type Backend = any;
 
 const BOT_DELAY_MS = 1100;
+/** Computers bid a little quicker, so the bids come round the table like a real game. */
+const BOT_BID_DELAY_MS = 850;
+/** A computer dealer shuffles and deals almost at once. */
+const BOT_DEAL_DELAY_MS = 700;
+/**
+ * A person who is dealing but doesn't press Shuffle / Stop & deal: the table
+ * deals for them after this long, so the game never stalls.
+ */
+const HUMAN_DEAL_TIMEOUT_MS = 15000;
 /** Longer before leading, so a finished trick gets its moment on screen. */
 const BOT_LEAD_DELAY_MS = BOT_DELAY_MS + 1400;
 /** How often a lone searcher looks for an older waiting table to merge into. */
@@ -469,22 +479,30 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
     }
   }, [sb, matchId, humanRows, seatOf, table, mySeat]);
 
+  // One round of bidding, clockwise from the dealer's left; the dealer bids
+  // last, then the dealer's left leads (applyBid in spades.ts).
   const bidFor = useCallback(async (seat: number, bid: number) => {
-    if (!state || !game || state.currentTurn !== seat || state.phase !== "bidding" || pending) return;
-    const bids = { ...state.bids, [seat]: bid };
-    const allIn = Object.values(bids).every((b) => b !== null);
-    await commit({
-      state: {
-        ...state,
-        bids,
-        currentTurn: allIn ? state.trickLeader : nextSeat(state.currentTurn),
-        phase: allIn ? "playing" : "bidding",
-      },
-    });
+    if (!state || !game || pending) return;
+    const next = applyBid(state, seat, bid);
+    if (next) await commit({ state: next });
   }, [state, game, pending, commit]);
 
-  const playFor = useCallback(async (seat: number, card: string, opts: { unlocked?: boolean; userId?: string } = {}) => {
-    if (!state || !game || !match || state.currentTurn !== seat || state.phase !== "playing") return;
+  /** "Stop & deal" (or a computer dealer): the new hand goes out and bidding starts. */
+  const dealFor = useCallback(async (seat: number) => {
+    if (!state || !game || pending || state.phase !== "dealing" || state.dealer !== seat) return;
+    sounds.cardDeal();
+    await commit({ state: dealHand(state) });
+  }, [state, game, pending, commit]);
+
+  const playFor = useCallback(async (
+    seat: number,
+    card: string,
+    opts: { unlocked?: boolean; userId?: string; outOfTurn?: boolean } = {},
+  ) => {
+    if (!state || !game || !match || state.phase !== "playing") return;
+    // Out of turn only when the player confirmed it (see recordOutOfTurn).
+    const outOfTurn = state.currentTurn !== seat;
+    if (outOfTurn && (!opts.outOfTurn || !canPlayOutOfTurn(state, seat))) return;
     const hand = state.hands[seat];
     if (!hand?.includes(card)) return;
     if (!canPlay(card, hand, state.currentTrick, state.spadeBroken, !!opts.unlocked)) {
@@ -493,11 +511,20 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
     }
 
     // An illegal play goes through without a word; it is only written down.
+    // Playing out of turn is written down the same way: it is a renig that
+    // can be called. The card stays on the trick and that player's own turn
+    // in this trick is skipped.
     const round = game.current_round;
+    const who = opts.userId ?? `bot:${seat}`;
     let reneges = recordPlay(state.reneges, {
-      seat, userId: opts.userId ?? `bot:${seat}`, round, trickNumber: state.trickNumber,
+      seat, userId: who, round, trickNumber: state.trickNumber,
       card, hand, trick: state.currentTrick, spadeBroken: state.spadeBroken,
     });
+    if (outOfTurn) {
+      reneges = recordOutOfTurn(reneges, {
+        seat, userId: who, round, trickNumber: state.trickNumber, card, trick: state.currentTrick,
+      });
+    }
 
     const hands = { ...state.hands, [seat]: hand.filter((c) => c !== card) };
     const trick = [...state.currentTrick, { seat, card }];
@@ -505,7 +532,11 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
 
     if (trick.length < 4) {
       await commit({
-        state: { ...state, hands, currentTrick: trick, currentTurn: nextSeat(seat), spadeBroken, reneges },
+        state: {
+          ...state, hands, currentTrick: trick, spadeBroken, reneges,
+          // Out of turn: it is still the same person's turn.
+          currentTurn: outOfTurn ? state.currentTurn : nextToPlay(trick, seat),
+        },
       });
       return;
     }
@@ -552,14 +583,9 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
     // it stays secret, and callable, for the rest of the game.
     const roundScore = calculateRoundScore(state.bids, tricksWon);
     const lastRound = recapRound(round, state.bids, tricksWon);
-    const totals = applyRoundScore(
-      { team1: game.team1_score, team2: game.team2_score, bags1: game.team1_bags, bags2: game.team2_bags },
-      roundScore,
-    );
-    const scorePatch = {
-      team1_score: totals.team1, team2_score: totals.team2,
-      team1_bags: totals.bags1, team2_bags: totals.bags2,
-    };
+    // No bags: the team*_bags columns are left as they are and never shown.
+    const totals = applyRoundScore({ team1: game.team1_score, team2: game.team2_score }, roundScore);
+    const scorePatch = { team1_score: totals.team1, team2_score: totals.team2 };
 
     if (totals.gameOver) {
       const ok = await commit({
@@ -605,7 +631,8 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
       await commit({
         current_round: game.current_round + 1,
         state: {
-          ...initGameState((state.dealer + 1) % 4),
+          // The deal passes to the left; the new dealer's left bids and leads.
+          ...initGameState(nextDealer(state.dealer)),
           ...carry(state),
           // Kept so the hand's moments are not replayed; the last trick is not.
           lastRound: state.lastRound,
@@ -625,6 +652,15 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
     sounds.cardPlay();
     return playFor(mySeat, card, { unlocked, userId: userId ?? undefined });
   }, [playFor, mySeat, unlocked, userId]);
+
+  /** Confirmed "play out of turn": goes through, and is recorded like a renig. */
+  const playOutOfTurn = useCallback((card: string) => {
+    sounds.cardPlay();
+    return playFor(mySeat, card, { unlocked, userId: userId ?? undefined, outOfTurn: true });
+  }, [playFor, mySeat, unlocked, userId]);
+
+  /** "Stop & deal" on my own deal. */
+  const deal = useCallback(() => dealFor(mySeat), [dealFor, mySeat]);
 
   // A fresh deal locks the hand again.
   const dealKey = `${match?.id}:${game?.current_round}:${state?.dealer}:${state?.phase === "gameEnd"}`;
@@ -655,9 +691,30 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
 
   useEffect(() => {
     if (!iDriveBots || !state || !game || !match || pending) return;
-    if (match.status === "done" || !bots.includes(state.currentTurn)) return;
-    if (state.phase !== "bidding" && state.phase !== "playing") return;
+    if (match.status === "done") return;
     const key = game.updated_at;
+
+    // The deal: a computer dealer deals at once; a person who is dealing gets
+    // a while to shuffle, then the table deals for them so nobody waits.
+    if (state.phase === "dealing") {
+      if (lastBotMove.current === key) return;
+      const dealer = state.dealer;
+      const isBot = bots.includes(dealer);
+      const since = Date.parse(game.updated_at);
+      const waited = Number.isFinite(since) ? Date.now() - since : 0;
+      // (Clamped: a device clock that is off never makes the wait longer.)
+      const wait = isBot
+        ? BOT_DEAL_DELAY_MS
+        : Math.min(HUMAN_DEAL_TIMEOUT_MS, Math.max(500, HUMAN_DEAL_TIMEOUT_MS - waited));
+      const timer = window.setTimeout(() => {
+        lastBotMove.current = key;
+        void dealFor(dealer);
+      }, wait);
+      return () => window.clearTimeout(timer);
+    }
+
+    if (!bots.includes(state.currentTurn)) return;
+    if (state.phase !== "bidding" && state.phase !== "playing") return;
     if (lastBotMove.current === key) return;
     const seat = state.currentTurn;
     const leading = state.phase === "playing" && state.currentTrick.length === 0;
@@ -674,9 +731,9 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
         sounds.cardPlay();
         void playFor(seat, safe);
       }
-    }, leading ? BOT_LEAD_DELAY_MS : BOT_DELAY_MS);
+    }, state.phase === "bidding" ? BOT_BID_DELAY_MS : leading ? BOT_LEAD_DELAY_MS : BOT_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [iDriveBots, state, game, match, pending, bots, bidFor, playFor]);
+  }, [iDriveBots, state, game, match, pending, bots, bidFor, playFor, dealFor]);
 
   const sit = useCallback(async () => {
     if (!matchId || !userId) return false;
@@ -744,7 +801,7 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
         };
       }
       const ok = await commit({
-        team1_score: 0, team2_score: 0, team1_bags: 0, team2_bags: 0, current_round: 1,
+        team1_score: 0, team2_score: 0, current_round: 1,
         state: { ...initGameState(Math.floor(Math.random() * 4)), ...next },
       });
       if (ok) {
@@ -763,7 +820,7 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
   return {
     match, game, state, table, seats: rows, profiles, loading, notice, setNotice,
     mySeat, iLeft, isSeated: !!myRow, online, busy,
-    makeBid, playCard, sit, quit, retakeSeat, leaveTable,
+    makeBid, playCard, playOutOfTurn, deal, sit, quit, retakeSeat, leaveTable,
     voteRematch, rematchVotes: rematchVotes.length, votesNeeded, iVotedRematch,
     // Between hands
     nextHand, iAmReady, waitingOnNext,

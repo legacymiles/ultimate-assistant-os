@@ -15,7 +15,11 @@ export interface TrickPlay {
 }
 
 export interface GameState {
-  phase: "bidding" | "playing" | "roundEnd" | "gameEnd";
+  /**
+   * "dealing": a new hand is waiting for its dealer to shuffle and deal (the
+   * hands are not shown yet). Then one round of bidding, then the play.
+   */
+  phase: "dealing" | "bidding" | "playing" | "roundEnd" | "gameEnd";
   hands: Record<number, Card[]>;
   bids: Record<number, number | null>;
   currentTrick: TrickPlay[];
@@ -90,8 +94,9 @@ export const SUIT_SYMBOLS: Record<string, string> = { S: "♠", H: "♥", D: "�
 /** Target score, and the floor that ends a game early. */
 export const WINNING_SCORE = 500;
 export const LOSING_SCORE = -200;
-/** Ten bags costs a hundred points. */
-export const BAG_PENALTY_AT = 10;
+// No bags (owner's rule, Oct 2026): an overtrick is simply +1 point and is
+// never counted or penalised. The spades_games.team*_bags columns are kept in
+// the database but no longer read or written.
 
 export const getSuit = (card: Card): string => card[card.length - 1];
 export const getRank = (card: Card): string => card.slice(0, -1);
@@ -130,21 +135,104 @@ export function dealCards(): Record<number, Card[]> {
   };
 }
 
+// --- the deal, the bidding and who leads ----------------------------------
+//
+// Like a real table (owner's rule, Oct 2026): the player to the dealer's left
+// bids first, bidding goes clockwise (seat + 1) and the dealer bids last, one
+// round. The player to the dealer's left also leads the first trick; after
+// that whoever wins a trick leads the next. After each hand the deal passes to
+// the left, so the next player along bids first and leads next hand.
+
+/** The player to a seat's left (clockwise). */
+export const nextSeat = (seat: number): number => (seat + 1) % 4;
+/** Seats 0 and 2 are team 1; seats 1 and 3 are team 2. */
+export const getTeam = (seat: number): number => (seat % 2 === 0 ? 1 : 2);
+/** Seats on a team. */
+export const teamSeats = (team: number): [number, number] => (team === 1 ? [0, 2] : [1, 3]);
+
+/** Who bids first, and leads the first trick: the player to the dealer's left. */
+export const firstToAct = (dealer: number): number => nextSeat(dealer);
+/** The bidding order for a hand: dealer's left first, the dealer last. */
+export const biddingOrder = (dealer: number): number[] => [1, 2, 3, 4].map((k) => (dealer + k) % 4);
+/** The deal passes to the left after each hand. */
+export const nextDealer = (dealer: number): number => nextSeat(dealer);
+
+/**
+ * A new hand, waiting for the dealer to shuffle and deal. The cards are
+ * already dealt in the state (so old code and the tests always find 13 a
+ * seat), but nothing is shown until `dealHand` flips it to bidding.
+ */
 export function initGameState(dealer: number): GameState {
-  const firstBidder = (dealer + 1) % 4;
+  const first = firstToAct(dealer);
   return {
-    phase: "bidding",
+    phase: "dealing",
     hands: dealCards(),
     bids: { 0: null, 1: null, 2: null, 3: null },
     currentTrick: [],
-    trickLeader: firstBidder,
-    currentTurn: firstBidder,
+    trickLeader: first,
+    currentTurn: first,
     tricksWon: { 0: 0, 1: 0, 2: 0, 3: 0 },
     spadeBroken: false,
     trickNumber: 1,
     dealer,
   };
 }
+
+/** "Stop & deal": a fresh shuffle goes out and bidding starts at the dealer's left. */
+export function dealHand(state: GameState, hands: Record<number, Card[]> = dealCards()): GameState {
+  const first = firstToAct(state.dealer);
+  return {
+    ...state,
+    phase: "bidding",
+    hands,
+    bids: { 0: null, 1: null, 2: null, 3: null },
+    currentTrick: [],
+    trickLeader: first,
+    currentTurn: first,
+    tricksWon: { 0: 0, 1: 0, 2: 0, 3: 0 },
+    spadeBroken: false,
+    trickNumber: 1,
+  };
+}
+
+/**
+ * One bid, in turn. When the dealer (the last bidder) is in, play starts with
+ * the dealer's left leading. Returns null for a bid out of turn.
+ */
+export function applyBid(state: GameState, seat: number, bid: number): GameState | null {
+  if (state.phase !== "bidding" || state.currentTurn !== seat || state.bids[seat] !== null) return null;
+  const bids = { ...state.bids, [seat]: Math.max(0, Math.min(13, Math.round(bid))) };
+  const allIn = [0, 1, 2, 3].every((s) => bids[s] !== null && bids[s] !== undefined);
+  const first = firstToAct(state.dealer);
+  return {
+    ...state,
+    bids,
+    phase: allIn ? "playing" : "bidding",
+    trickLeader: allIn ? first : state.trickLeader,
+    currentTurn: allIn ? first : nextSeat(seat),
+  };
+}
+
+/**
+ * Who plays next in a trick: the next seat clockwise from `from` that has not
+ * played in it yet. Usually that is simply the next seat; it differs only
+ * after someone played out of turn (their turn is then skipped).
+ */
+export function nextToPlay(trick: TrickPlay[], from: number): number {
+  let seat = nextSeat(from);
+  for (let k = 0; k < 4 && trick.some((t) => t.seat === seat); k++) seat = nextSeat(seat);
+  return seat;
+}
+
+/**
+ * Can this seat play out of turn right now? Only while cards are being played,
+ * only when it is someone else's turn, only once per trick, and only after the
+ * trick has been led — so the leader's card always sets the suit to follow.
+ */
+export const canPlayOutOfTurn = (state: GameState, seat: number): boolean =>
+  state.phase === "playing" && state.currentTurn !== seat && seat >= 0 && seat <= 3
+  && state.currentTrick.length > 0
+  && !state.currentTrick.some((t) => t.seat === seat) && (state.hands[seat]?.length ?? 0) > 0;
 
 /** Follow the led suit if you can; don't lead spades until they're broken. */
 export function isValidPlay(
@@ -181,41 +269,52 @@ export function determineTrickWinner(trick: TrickPlay[]): number {
 export interface RoundScore {
   team1Score: number;
   team2Score: number;
-  team1Bags: number;
-  team2Bags: number;
+}
+
+/** What a team bid and took this hand. Nil bids are left out of the contract. */
+export interface TeamResult {
+  /** The team's combined bid, nil bids not counted. */
+  contract: number;
+  /** The team's combined tricks (a nil bidder's tricks count toward it). */
+  tricks: number;
+  /** Set: the TEAM took fewer than the TEAM bid. Never decided per player. */
+  set: boolean;
+  /** Points for the hand: contract, overtricks and nils. */
+  points: number;
 }
 
 /**
- * Ten a trick when a team makes its contract, one a bag over; nil is ±100.
- * (A renig is not scored here: a correct or wrong "Call renig" ends the whole
- * game — see renege.ts.)
+ * A partnership is scored as one (owner's rule, Oct 2026): partners who bid
+ * 2 and 2 need 4 between them, however they split them — 4 and 0 makes it.
+ * Made: ten a trick bid plus one a trick over (no bags, no penalty). Set: minus
+ * ten a trick bid. A nil stays a single player's: +100 held, -100 broken.
  */
+export function teamResult(
+  team: number,
+  bids: Record<number, number | null>,
+  tricksWon: Record<number, number>,
+): TeamResult {
+  const seats = teamSeats(team);
+  let points = 0;
+  for (const s of seats) {
+    if (bids[s] === 0) points += (tricksWon[s] || 0) === 0 ? 100 : -100;
+  }
+  const contract = seats.reduce((a, s) => a + (bids[s] ? bids[s]! : 0), 0);
+  const tricks = seats.reduce((a, s) => a + (tricksWon[s] || 0), 0);
+  const set = contract > 0 && tricks < contract;
+  if (contract > 0) points += set ? -contract * 10 : contract * 10 + (tricks - contract);
+  return { contract, tricks, set, points };
+}
+
+/** (A renig is not scored here: a "Call renig" ends the whole game — see renege.ts.) */
 export function calculateRoundScore(
   bids: Record<number, number | null>,
   tricksWon: Record<number, number>,
 ): RoundScore {
-  const team = (seats: number[]) => {
-    let score = 0;
-    for (const s of seats) {
-      if (bids[s] === 0) score += (tricksWon[s] || 0) === 0 ? 100 : -100;
-    }
-    const contract = seats.reduce((a, s) => a + (bids[s] !== 0 ? bids[s] || 0 : 0), 0);
-    const tricks = seats.reduce((a, s) => a + (tricksWon[s] || 0), 0);
-    let bags = 0;
-    if (contract > 0) {
-      if (tricks >= contract) {
-        bags = tricks - contract;
-        score += contract * 10 + bags;
-      } else {
-        score -= contract * 10;
-      }
-    }
-    return { score, bags };
+  return {
+    team1Score: teamResult(1, bids, tricksWon).points,
+    team2Score: teamResult(2, bids, tricksWon).points,
   };
-
-  const t1 = team([0, 2]);
-  const t2 = team([1, 3]);
-  return { team1Score: t1.score, team2Score: t2.score, team1Bags: t1.bags, team2Bags: t2.bags };
 }
 
 /** The story of a finished hand, for the end-of-hand moments. */
@@ -224,22 +323,13 @@ export function recapRound(
   bids: Record<number, number | null>,
   tricksWon: Record<number, number>,
 ): RoundRecap {
-  const score = calculateRoundScore(bids, tricksWon);
-  const set: number[] = [];
-  const teams: [number, number[]][] = [[1, [0, 2]], [2, [1, 3]]];
-  for (const [team, seats] of teams) {
-    const contract = seats.reduce((a, s) => a + (bids[s] !== 0 ? bids[s] || 0 : 0), 0);
-    const tricks = seats.reduce((a, s) => a + (tricksWon[s] || 0), 0);
-    if (contract > 0 && tricks < contract) set.push(team);
-  }
+  const t1 = teamResult(1, bids, tricksWon);
+  const t2 = teamResult(2, bids, tricksWon);
+  const set = [t1.set ? 1 : 0, t2.set ? 2 : 0].filter(Boolean);
   const nils = [0, 1, 2, 3]
     .filter((s) => bids[s] === 0)
     .map((seat) => ({ seat, made: (tricksWon[seat] || 0) === 0 }));
-  return {
-    round, bids, tricksWon, set, nils,
-    team1Score: score.team1Score,
-    team2Score: score.team2Score,
-  };
+  return { round, bids, tricksWon, set, nils, team1Score: t1.points, team2Score: t2.points };
 }
 
 // --- the big moments ---------------------------------------------------------
@@ -265,26 +355,79 @@ export function trumpSteal(trick: TrickPlay[]): { winner: TrickPlay; victim: Tri
   return { winner, victim, upset: Math.max(0, Math.min(1, upset)) };
 }
 
-/** Apply a round's result to a running total, including the ten-bag penalty. */
+/** Apply a round's result to a running total. No bags: nothing else is added. */
 export function applyRoundScore(
-  totals: { team1: number; team2: number; bags1: number; bags2: number },
+  totals: { team1: number; team2: number },
   round: RoundScore,
 ) {
-  let team1 = totals.team1 + round.team1Score;
-  let team2 = totals.team2 + round.team2Score;
-  let bags1 = totals.bags1 + round.team1Bags;
-  let bags2 = totals.bags2 + round.team2Bags;
-  if (bags1 >= BAG_PENALTY_AT) { team1 -= 100; bags1 -= BAG_PENALTY_AT; }
-  if (bags2 >= BAG_PENALTY_AT) { team2 -= 100; bags2 -= BAG_PENALTY_AT; }
+  const team1 = totals.team1 + round.team1Score;
+  const team2 = totals.team2 + round.team2Score;
   const over = team1 >= WINNING_SCORE || team2 >= WINNING_SCORE
     || team1 <= LOSING_SCORE || team2 <= LOSING_SCORE;
   return {
-    team1, team2, bags1, bags2,
+    team1, team2,
     gameOver: over && team1 !== team2,
     winningTeam: team1 > team2 ? 1 : 2,
   };
 }
 
-export const nextSeat = (seat: number): number => (seat + 1) % 4;
-/** Seats 0 and 2 are team 1; seats 1 and 3 are team 2. */
-export const getTeam = (seat: number): number => (seat % 2 === 0 ? 1 : 2);
+// --- the race to the target -------------------------------------------------
+
+/** How many points each team still needs to win (0 once there). */
+export function pointsToWin(
+  totals: { team1: number; team2: number },
+  target: number = WINNING_SCORE,
+): { target: number; 1: number; 2: number } {
+  return {
+    target,
+    1: Math.max(0, target - totals.team1),
+    2: Math.max(0, target - totals.team2),
+  };
+}
+
+/**
+ * A team this close to the target could finish the game in one ordinary hand
+ * (a ten-trick team bid is worth 100).
+ */
+export const FINAL_HAND_REACH = 100;
+
+/** What a team's bids are worth if they make them exactly (nils included). */
+export function contractPoints(team: number, bids: Record<number, number | null>): number | null {
+  const seats = teamSeats(team);
+  if (seats.some((s) => bids[s] === null || bids[s] === undefined)) return null;
+  return seats.reduce((a, s) => a + (bids[s] === 0 ? 100 : bids[s]! * 10), 0);
+}
+
+export interface FinalHandThreat {
+  team: 1 | 2;
+  /** Points still needed to reach the target. */
+  need: number;
+  /** True once the team has bid enough that making the bid wins the game. */
+  onBid: boolean;
+}
+
+/**
+ * Could the next (or current) hand end the game? A team is a threat when its
+ * score plus what it can plausibly make reaches the target: once both partners
+ * have bid, that is exactly their bid; before then, being within
+ * FINAL_HAND_REACH of the target. A team whose bid falls short is no threat.
+ */
+export function finalHandThreats(
+  totals: { team1: number; team2: number },
+  bids?: Record<number, number | null>,
+  target: number = WINNING_SCORE,
+): FinalHandThreat[] {
+  const out: FinalHandThreat[] = [];
+  for (const team of [1, 2] as const) {
+    const score = team === 1 ? totals.team1 : totals.team2;
+    const need = target - score;
+    if (need <= 0) continue;
+    const onBid = bids ? contractPoints(team, bids) : null;
+    if (onBid !== null) {
+      if (onBid >= need) out.push({ team, need, onBid: true });
+    } else if (need <= FINAL_HAND_REACH) {
+      out.push({ team, need, onBid: false });
+    }
+  }
+  return out;
+}

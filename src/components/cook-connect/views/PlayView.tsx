@@ -149,8 +149,8 @@ export function PlayView() {
           <SectionHead title="Spades" />
           <div className="p-3">
             <p className="text-[13px] leading-relaxed text-[var(--cc-ink-muted)]">
-              Bid what you can take, then take it. Partners sit across from each other, ten a trick when
-              you make your bid, a hundred off at ten bags. First to 500 wins.
+              Bid what you can take, then take it. Partners sit across from each other and share one bid —
+              ten a trick when your team makes it, no bags. First to 500 wins.
             </p>
             <div className="mt-3 flex flex-wrap gap-1.5">
               <Button variant="primary" disabled={busy} onClick={() => void findPlayers()}>

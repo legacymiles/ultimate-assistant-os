@@ -160,11 +160,12 @@ export function CookShell({ children }: { children: ReactNode }) {
             <button
               type="button"
               onClick={toggleSound}
+              title={muted ? "Sound off — tap to turn on" : "Sound on — tap to mute"}
               className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-1 text-[11px] text-[var(--cc-ink-faint)]
                          transition-colors duration-150 hover:text-[var(--cc-ink-muted)]"
             >
               {muted ? <SoundOffIcon size={14} /> : <SoundOnIcon size={14} />}
-              {muted ? "Muted" : "Sound"}
+              <span className="sr-only">{muted ? "Sound off" : "Sound on"}</span>
             </button>
             <button
               type="button"

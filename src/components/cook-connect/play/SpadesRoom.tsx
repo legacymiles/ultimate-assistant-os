@@ -19,7 +19,7 @@ import { SpadesTable } from "./SpadesTable";
 import { ChatPanel } from "./ChatPanel";
 import { VideoPanel } from "./VideoPanel";
 import { PlayingCard } from "./PlayingCard";
-import { GameOverPopup, HandOverPopup, PopBar, useRankShift } from "./SpadesPopups";
+import { GameOverPopup, HandOverPopup, OutOfTurnPopup, PopBar, useRankShift } from "./SpadesPopups";
 
 const cardName = (card: string) => `${RANK_DISPLAY[getRank(card)]}${SUIT_SYMBOLS[getSuit(card)]}`;
 
@@ -32,6 +32,8 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
   const [crumbleTeam, setCrumbleTeam] = useState<number | null>(null);
   /** Which results screen was shrunk to a bar ("round:N" or "game:<round>"). */
   const [minimized, setMinimized] = useState<string | null>(null);
+  /** A card waiting on "Are you sure you want to play out of turn?". */
+  const [outOfTurn, setOutOfTurn] = useState<string | null>(null);
 
   const finished = game.state?.phase === "gameEnd" || game.match?.status === "done";
   const rank = useRankShift(sb, matchId, userId, finished && game.mySeat >= 0);
@@ -95,7 +97,6 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
             <div className="p-3">
               {[1, 2].map((team) => {
                 const score = team === 1 ? game.game!.team1_score : game.game!.team2_score;
-                const bags = team === 1 ? game.game!.team1_bags : game.game!.team2_bags;
                 const members = game.table.filter((t) => t.team === team);
                 return (
                   <div
@@ -120,7 +121,7 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
                         {score}
                       </span>
                       <span className="cc-num block text-[10px] text-[var(--cc-ink-faint)]">
-                        {bags} bag{bags === 1 ? "" : "s"}
+                        {Math.max(0, WINNING_SCORE - score)} to win
                       </span>
                     </span>
                   </div>
@@ -131,7 +132,7 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
                 {state && state.phase !== "gameEnd" && (
                   <> · trick <span className="cc-num">{Math.min(13, state.trickNumber)}</span> of 13</>
                 )}
-                . Ten bags costs a hundred points.
+                . Dealer: <span className="font-semibold">{state ? seatFirst(state.dealer) : "—"}</span>.
               </p>
             </div>
           </Panel>
@@ -206,7 +207,19 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
             onToggleUnlock={canCall ? () => game.setUnlocked(!game.unlocked) : undefined}
             onCallRenig={canCall && !accusing ? () => setAccusing(true) : undefined}
             scores={{ team1: game.game.team1_score, team2: game.game.team2_score }}
+            onDeal={() => void game.deal()}
+            onAskOutOfTurn={(card) => setOutOfTurn(card)}
+            tableId={matchId}
           />
+
+          {outOfTurn && state?.phase === "playing" && (
+            <OutOfTurnPopup
+              card={outOfTurn}
+              theme={style.theme}
+              onCancel={() => setOutOfTurn(null)}
+              onConfirm={() => { const card = outOfTurn; setOutOfTurn(null); void game.playOutOfTurn(card); }}
+            />
+          )}
 
           {/* End of a hand: results, then Next. It never deals by itself. */}
           {handOver && game.isSeated && (minimized === handKey ? (
@@ -219,10 +232,7 @@ export function SpadesRoom({ matchId }: { matchId: string }) {
           ) : (
             <HandOverPopup
               recap={state!.lastRound!}
-              totals={{
-                team1: game.game.team1_score, team2: game.game.team2_score,
-                bags1: game.game.team1_bags, bags2: game.game.team2_bags,
-              }}
+              totals={{ team1: game.game.team1_score, team2: game.game.team2_score }}
               myTeam={myTeam}
               nameOf={seatFirst}
               theme={style.theme}

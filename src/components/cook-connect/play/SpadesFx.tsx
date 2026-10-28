@@ -12,6 +12,8 @@
 //   renig call    a knockout stamp the moment a "Call renig" settles —
 //                 the theme's RENEGE! when it was true, WRONG CALL when not
 //   set / boston  the end-of-hand stamps; a set team's score crumbles
+//   final hand    this hand could end the game: "Last chance to stop them"
+//   table talk    on some hands the computers say something at their seat
 //
 // The moments are worked out from how the game state CHANGES, so every screen
 // at the table plays them, and nothing replays when the page is reloaded.
@@ -19,10 +21,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./spades-fx.css";
 import {
-  type GameState, type TrickPlay, determineTrickWinner, getRank, getSuit, getTeam,
+  type FinalHandThreat, type GameState, type TrickPlay, determineTrickWinner, getRank, getSuit,
   trumpSteal, RANK_DISPLAY, SUIT_SYMBOLS,
 } from "@/lib/cook-connect/spades";
 import type { FxLevel, GameTheme, SuitKey } from "@/lib/cook-connect/gameStyle";
+import { bidCue, pickTalk, roundCues, threatCues, type TalkCandidate } from "@/lib/cook-connect/tableTalk";
 
 export interface Banner {
   id: number;
@@ -57,13 +60,16 @@ const RENEGE_RED = "#f87171";
 let nextId = 1;
 
 export function useSpadesMoments({
-  state, round, theme, level, nameOf,
+  state, round, theme, level, nameOf, threats = [], myTeam = null,
 }: {
   state: GameState;
   round: number;
   theme: GameTheme;
   level: FxLevel;
   nameOf: (seat: number) => string;
+  /** Teams that could end the game this hand (finalHandThreats). */
+  threats?: FinalHandThreat[];
+  myTeam?: number | null;
 }) {
   // Only a settled call is read here. The secret renig record itself
   // (state.reneges) is never looked at, so no moment can give one away.
@@ -82,6 +88,11 @@ export function useSpadesMoments({
     timers.current.push(window.setTimeout(fn, ms));
   }, []);
   useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), []);
+
+  // The final hand: announced once per hand, the first time it is in reach.
+  // Not on the first look at a table, so a reload never replays it (the
+  // ribbon and the burning score still show).
+  const finalSaid = useRef<string | null>(null);
 
   const announce = useCallback((b: Omit<Banner, "id">) => {
     if (!show) return;
@@ -103,6 +114,28 @@ export function useSpadesMoments({
     const t = window.setTimeout(() => setQueue((q) => q.slice(1)), current.dur);
     return () => window.clearTimeout(t);
   }, [current?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const threatKey = threats.map((t) => t.team).join(",");
+  useEffect(() => {
+    const key = `${round}:${state.dealer}`;
+    if (finalSaid.current === null) { finalSaid.current = threatKey ? key : ""; return; }
+    if (!threatKey || !theme.finalHand.on) return;
+    if (finalSaid.current === key) return;
+    finalSaid.current = key;
+    const teams = threats.map((t) => t.team);
+    const words = teams.length > 1 || !myTeam
+      ? theme.finalHand.both
+      : teams[0] === myTeam ? theme.finalHand.us : theme.finalHand.text;
+    const t = threats.length > 1 ? [...threats].sort((a, b) => a.need - b.need)[0] : threats[0];
+    const who = !myTeam ? `Team ${t.team}` : t.team === myTeam ? "You" : "They";
+    announce({
+      text: words,
+      sub: theme.finalHand.need.replace("{who}", who).replace("{n}", String(t.need)),
+      color: theme.finalHand.color,
+      dur: 2200,
+      shake: "small",
+    });
+  }, [threatKey, round, state.dealer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- watching the game change ---------------------------------------------
   const prev = useRef<{
@@ -247,6 +280,88 @@ export function useSpadesMoments({
   }, [show, theme.nilShield.on, state.bids, state.tricksWon, state.phase, nilFx]);
 
   return { banner: current, clash, shields, shake, crumbleTeam };
+}
+
+// --- table talk ---------------------------------------------------------------
+
+export interface SpokenLine { id: number; text: string }
+
+const TALK_MS = 2800;
+
+/**
+ * The computers' speech bubbles. Worked out from how the game CHANGES (a bid
+ * placed, a trick stolen, a hand scored, a final hand starting), seeded by the
+ * table and hand so every screen hears the same thing. Returns the line each
+ * seat is saying right now.
+ */
+export function useTableTalk({
+  state, round, theme, tableId, botSeats, threats,
+}: {
+  state: GameState;
+  round: number;
+  theme: GameTheme;
+  tableId: string;
+  botSeats: number[];
+  threats: FinalHandThreat[];
+}): Record<number, SpokenLine> {
+  const [lines, setLines] = useState<Record<number, SpokenLine>>({});
+  const timers = useRef<number[]>([]);
+  useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), []);
+
+  const say = useCallback((handKey: string, moment: string, candidates: TalkCandidate[], delay = 0) => {
+    const line = pickTalk(theme.talk, handKey, moment, candidates, botSeats);
+    if (!line) return;
+    const id = nextId++;
+    timers.current.push(window.setTimeout(() => {
+      setLines((l) => ({ ...l, [line.seat]: { id, text: line.text } }));
+      timers.current.push(window.setTimeout(() => {
+        setLines((l) => (l[line.seat]?.id === id ? (() => { const n = { ...l }; delete n[line.seat]; return n; })() : l));
+      }, TALK_MS));
+    }, delay));
+  }, [theme.talk, botSeats]);
+
+  const prev = useRef<{ bids: Record<number, number | null>; trickKey: string; recap: number; hand: string } | null>(null);
+  useEffect(() => {
+    const hand = `${tableId}:${round}:${state.dealer}`;
+    const now = {
+      bids: { ...state.bids },
+      trickKey: `${round}:${state.trickNumber}`,
+      recap: state.lastRound?.round ?? -1,
+      hand,
+    };
+    const p = prev.current;
+    prev.current = now;
+    if (!p) return; // nothing replays on a reload
+
+    // A new hand that could end the game.
+    if (hand !== p.hand && threats.length) say(hand, "threat", threatCues(threats), 900);
+
+    // A bid was just placed.
+    if (state.phase === "bidding" || state.phase === "playing") {
+      for (const seat of [0, 1, 2, 3]) {
+        const bid = state.bids[seat];
+        if (hand !== p.hand || bid === null || bid === undefined || p.bids[seat] !== null) continue;
+        const cue = bidCue(bid, state.bids[(seat + 2) % 4]);
+        if (cue) say(hand, `bid:${seat}`, [{ seat, cue }], 350);
+      }
+    }
+
+    // A low spade took down a picture card.
+    const trickEnded = now.trickKey !== p.trickKey && state.currentTrick.length === 0
+      && (state.lastTrick?.length ?? 0) === 4;
+    if (trickEnded) {
+      const steal = trumpSteal(state.lastTrick!);
+      if (steal) say(hand, `trick:${state.trickNumber}`, [{ seat: steal.winner.seat, cue: "steal" }], 1200);
+    }
+
+    // The hand was scored.
+    const recap = state.lastRound;
+    if (recap && recap.round !== p.recap) {
+      say(`${tableId}:${recap.round}:end`, "end", roundCues(recap), 1600);
+    }
+  }, [state, round]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return lines;
 }
 
 // --- drawing ----------------------------------------------------------------

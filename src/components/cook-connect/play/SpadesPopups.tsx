@@ -1,7 +1,8 @@
 "use client";
 
 // The two "what just happened" screens of a spades table:
-//   • end of a hand  — bids vs tricks, points, bags, set/nil, then Next hand
+//   • end of a hand  — bids vs tricks, points, set/nil, what each side still
+//                      needs to win, then Next hand (no bags: owner's rule)
 //   • end of a game  — who won, the final score, and where it moved you on
 //                      the spades leaderboard, then Next game
 // Neither one moves on by itself: a player always presses Next (owner's rule,
@@ -12,10 +13,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./holo-table.css";
 import type { GameTheme } from "@/lib/cook-connect/gameStyle";
-import type { RoundRecap } from "@/lib/cook-connect/spades";
+import { pointsToWin, FINAL_HAND_REACH, WINNING_SCORE, type RoundRecap } from "@/lib/cook-connect/spades";
 import { loadMatchResults } from "@/lib/cook-connect/social";
 import { rankShift, rankShiftLine, type RankShift } from "@/lib/cook-connect/rankShift";
 import { cx } from "../ui";
+import { PlayingCard } from "./PlayingCard";
 
 const WIN = "#fcd34d";
 const LOSS = "#f87171";
@@ -128,7 +130,7 @@ function Signed({ n }: { n: number }) {
 
 /* ── end of a hand ────────────────────────────────────────────── */
 
-export interface Totals { team1: number; team2: number; bags1: number; bags2: number }
+export interface Totals { team1: number; team2: number }
 
 export function HandOverPopup({
   recap, totals, myTeam, nameOf, theme, onNext, iAmReady, waitingOn, onMinimize,
@@ -144,7 +146,6 @@ export function HandOverPopup({
   waitingOn: string[];
   onMinimize: () => void;
 }) {
-  const teams = [1, 2] as const;
   const seatsOf = (team: number) => (team === 1 ? [0, 2] : [1, 3]);
   const pointsOf = (team: number) => (team === 1 ? recap.team1Score : recap.team2Score);
   const mine = myTeam ?? 1;
@@ -170,7 +171,6 @@ export function HandOverPopup({
           const won = seats.reduce((a, s) => a + (recap.tricksWon[s] || 0), 0);
           const nils = recap.nils.filter((n) => seats.includes(n.seat));
           const total = team === 1 ? totals.team1 : totals.team2;
-          const bags = team === 1 ? totals.bags1 : totals.bags2;
           return (
             <TeamBox
               key={team}
@@ -181,7 +181,6 @@ export function HandOverPopup({
               delta={pointsOf(team)}
             >
               <p className="hx-pop-team-line"><span>Bid / won</span><b>{bid} / {won}</b></p>
-              <p className="hx-pop-team-line"><span>Bags</span><b>{bags}</b></p>
               {recap.set.includes(team) && <span className="hx-pop-tag is-set">Set</span>}
               {nils.map((n) => (
                 <span key={n.seat} className="hx-pop-tag is-nil" style={{ marginLeft: 4 }}>
@@ -193,12 +192,70 @@ export function HandOverPopup({
         })}
       </div>
 
+      <NeedLine totals={totals} myTeam={myTeam} theme={theme} />
+
       <div className="hx-pop-actions">
         <button type="button" className="hx-place hx-pop-next" onClick={onNext} disabled={iAmReady} autoFocus>
           {iAmReady ? `Waiting for ${waitingOn.join(" & ") || "the table"}…` : <>Next hand <span className="chev">›</span></>}
         </button>
         <div className="hx-pop-row">
           <button type="button" className="hx-btn" onClick={onMinimize}>See the table</button>
+        </div>
+      </div>
+    </PopShell>
+  );
+}
+
+/** "You need 120 to win · They need 80", with the target under it. */
+function NeedLine({ totals, myTeam, theme }: { totals: Totals; myTeam: number | null; theme: GameTheme }) {
+  const need = pointsToWin(totals, WINNING_SCORE);
+  const order = myTeam === 2 ? [2, 1] : [1, 2];
+  const who = (team: number) => (!myTeam ? `Team ${team}` : team === myTeam ? "You" : "They");
+  return (
+    <p className="hx-pop-need" style={{ "--fire": theme.finalHand.color } as React.CSSProperties}>
+      {order.map((team, i) => {
+        const n = need[team as 1 | 2];
+        return (
+          <span key={team} className={cx(n <= FINAL_HAND_REACH && "is-close")}>
+            {i > 0 && <span style={{ color: "var(--hx-ink-faint)" }}> · </span>}
+            {who(team)} need <b>{n}</b> to win
+          </span>
+        );
+      })}
+      <small>First to {need.target} wins</small>
+    </p>
+  );
+}
+
+/** "Are you sure you want to play out of turn?" — the confirm before jumping in. */
+export function OutOfTurnPopup({
+  card, theme, onConfirm, onCancel,
+}: {
+  card: string;
+  theme: GameTheme;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCancel(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+  return (
+    <PopShell theme={theme} color={LOSS} sparks={[]} label="Play out of turn?">
+      <p className="hx-pop-kicker">Not your turn</p>
+      <h2 className="hx-pop-title" style={{ fontSize: "clamp(24px, 6.5vw, 32px)" }}>Play out of turn?</h2>
+      <p className="hx-confirm-text">
+        Are you sure you want to play out of turn? It goes on the table now, and it counts as a renig:
+        if someone calls it, your team loses.
+      </p>
+      <div className="hx-confirm-card"><PlayingCard card={card} size="xl" /></div>
+      <div className="hx-pop-actions">
+        <button type="button" className="hx-place hx-pop-next" onClick={onCancel} autoFocus>
+          Cancel
+        </button>
+        <div className="hx-pop-row">
+          <button type="button" className="hx-btn" onClick={onConfirm}>Yes, play it</button>
         </div>
       </div>
     </PopShell>

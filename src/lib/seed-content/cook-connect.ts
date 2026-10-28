@@ -82,7 +82,7 @@ Opening a table and hoping somebody notices it in the lobby is not an invitation
 
 Ported from \`C:\\Users\\honey\\OneDrive\\Desktop\\pod-play-connect\` and rewritten onto hub tokens and the \`cook\` schema.
 
-- **Spades** — full rules including nil, bags and the ten-bag penalty; 30 tests. Computer players fill empty seats and take over anyone who leaves.
+- **Spades** — full rules including nil and team bids (no bags), dealer rotation, shuffle & deal, bot table talk. Computer players fill empty seats and take over anyone who leaves.
 - **Chess** — alpha-beta with piece-square tables, quiescence and iterative deepening, in a worker with a main-thread fallback. **The board is authored here** (\`play/ChessBoard.tsx\`) rather than using \`react-chessboard\`.
 - Both rooms carry text chat and the WebRTC video mesh.
 
@@ -136,7 +136,7 @@ export function cookConnectFeatures(projectId: string): Feature[] {
     feature(
       "Spades",
       "Four seats in two partnerships. Bidding including nil, follow-suit enforcement with illegal "
-      + "cards dimmed, bags, the ten-bag penalty, rematch votes. Computer players fill empty seats.",
+      + "cards dimmed, team bids with no bags, dealer rotation, rematch votes. Computer players fill empty seats.",
     ),
     feature(
       "Chess",

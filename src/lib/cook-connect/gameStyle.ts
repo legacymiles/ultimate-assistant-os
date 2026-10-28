@@ -59,6 +59,34 @@ export interface GameTheme {
    */
   renege: Moment & { wrong: string };
   boston: Moment;
+  /**
+   * The next hand could end the game. `text` when the other team is one hand
+   * from the target ("Last chance to stop them"), `us` when your team is,
+   * `both` when either could (and for people watching). `need` is the line
+   * under it: {who} and {n} are filled in. `color` is the flame on the
+   * leading team's score.
+   */
+  finalHand: Moment & { us: string; both: string; need: string; color: string };
+  /** The computer players' table talk: speech bubbles at their seats on some hands. */
+  talk: TableTalkStyle;
+}
+
+/** What a computer player can say something about. */
+export type TalkCue =
+  | "bidHigh" | "bidLow" | "bidNil" | "steal" | "madeBid"
+  | "setThem" | "gotSet" | "nilBusted" | "nilHeld" | "closeOut" | "stopThem";
+
+export const TALK_CUES: TalkCue[] = [
+  "bidHigh", "bidLow", "bidNil", "steal", "madeBid", "setThem", "gotSet", "nilBusted", "nilHeld", "closeOut", "stopThem",
+];
+
+export interface TableTalkStyle {
+  on: boolean;
+  /** Share of hands (0–1) the computers are chatty on. Never every hand. */
+  handChance: number;
+  /** On a chatty hand, the chance (0–1) any one moment gets a line. */
+  lineChance: number;
+  lines: Record<TalkCue, string[]>;
 }
 
 /** Dates are "MM-DD", inclusive, and may wrap past New Year. */
@@ -101,6 +129,33 @@ const CLASSIC_MOMENTS = {
   set: { on: true, text: "SET!" },
   renege: { on: true, text: "RENEGE!", wrong: "WRONG CALL!" },
   boston: { on: true, text: "BOSTON!" },
+  finalHand: {
+    on: true,
+    text: "LAST CHANCE TO STOP THEM",
+    us: "ONE HAND FROM VICTORY",
+    both: "THIS HAND COULD END IT",
+    need: "{who} need {n} to win",
+    color: "#ff7a1a",
+  },
+};
+
+export const CLASSIC_TALK: TableTalkStyle = {
+  on: true,
+  handChance: 0.55,
+  lineChance: 0.6,
+  lines: {
+    bidHigh: ["I think we got you this round.", "Big hand. Hold on to something.", "We're coming for all of it."],
+    bidLow: ["Not much to work with here.", "I'll take what I can get.", "Keeping it honest this time."],
+    bidNil: ["Nil. Try and catch me.", "Going nil. Wish me luck."],
+    steal: ["Didn't see that coming, did you?", "Cut! Thank you very much.", "Spade says hello."],
+    madeBid: ["That's our bid. The rest is gravy.", "Made it. Now let's get greedy."],
+    setThem: ["Told you. Set!", "That's what you get.", "Set! Better luck next hand."],
+    gotSet: ["Ugh. We'll get it back.", "My fault, partner.", "That one hurt."],
+    nilBusted: ["There goes your nil!", "Nil? Not today."],
+    nilHeld: ["Clean as a whistle.", "Nil held. Easy."],
+    closeOut: ["Last hand. Let's finish this.", "One more and we're done."],
+    stopThem: ["We have to stop them now.", "Last chance, partner. Dig in."],
+  },
 };
 
 export const CLASSIC: GameTheme = {
@@ -113,6 +168,7 @@ export const CLASSIC: GameTheme = {
   suits: CLASSIC_SUITS,
   deck: { ...FOUR_COLOR_DECK },
   ...CLASSIC_MOMENTS,
+  talk: CLASSIC_TALK,
 };
 
 /** Start a theme from Classic and change only what makes it different. */
@@ -142,6 +198,8 @@ function themed(
       wrong: words.renegeWrong ?? CLASSIC_MOMENTS.renege.wrong,
     },
     boston: { ...CLASSIC_MOMENTS.boston, text: words.boston ?? CLASSIC_MOMENTS.boston.text },
+    finalHand: { ...CLASSIC_MOMENTS.finalHand },
+    talk: JSON.parse(JSON.stringify(CLASSIC_TALK)) as TableTalkStyle,
   };
 }
 
@@ -306,6 +364,44 @@ export function cleanTheme(v: unknown): GameTheme | null {
       wrong: str((o.renege && typeof o.renege === "object" ? (o.renege as Record<string, unknown>) : {}).wrong, CLASSIC.renege.wrong, 40),
     },
     boston: cleanMoment(o.boston, CLASSIC.boston),
+    finalHand: cleanFinalHand(o.finalHand),
+    talk: cleanTalk(o.talk),
+  };
+}
+
+function cleanFinalHand(v: unknown): GameTheme["finalHand"] {
+  const base = CLASSIC.finalHand;
+  const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+  return {
+    ...cleanMoment(o, base),
+    us: str(o.us, base.us, 40),
+    both: str(o.both, base.both, 40),
+    need: str(o.need, base.need, 40),
+    color: color(o.color, base.color),
+  };
+}
+
+const chance = (v: unknown, fallback: number) =>
+  (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : fallback);
+
+function cleanTalk(v: unknown): TableTalkStyle {
+  const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+  const linesIn = (o.lines && typeof o.lines === "object" ? o.lines : {}) as Record<string, unknown>;
+  const lines = {} as Record<TalkCue, string[]>;
+  for (const cue of TALK_CUES) {
+    const raw = Array.isArray(linesIn[cue]) ? (linesIn[cue] as unknown[]) : [];
+    const clean = raw
+      .filter((l): l is string => typeof l === "string" && l.trim().length > 0)
+      .map((l) => l.trim().slice(0, 60))
+      .slice(0, 8);
+    lines[cue] = clean.length ? clean : [...CLASSIC_TALK.lines[cue]];
+  }
+  return {
+    on: bool(o.on, CLASSIC_TALK.on),
+    // Capped below 1 on purpose: the computers never chat on every hand.
+    handChance: Math.min(0.9, chance(o.handChance, CLASSIC_TALK.handChance)),
+    lineChance: chance(o.lineChance, CLASSIC_TALK.lineChance),
+    lines,
   };
 }
 

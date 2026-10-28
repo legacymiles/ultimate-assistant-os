@@ -2,11 +2,13 @@ import { describe, it, expect } from "vitest";
 import {
   createDeck, dealCards, initGameState, isValidPlay, determineTrickWinner,
   calculateRoundScore, applyRoundScore, sortHand, getTeam, nextSeat,
-  WINNING_SCORE, type TrickPlay,
-  recapRound, trumpSteal,
+  WINNING_SCORE, type GameState, type TrickPlay,
+  recapRound, trumpSteal, teamResult,
+  applyBid, biddingOrder, canPlayOutOfTurn, dealHand, firstToAct, nextDealer, nextToPlay,
+  finalHandThreats, pointsToWin, contractPoints, FINAL_HAND_REACH,
 } from "./spades";
 import { chooseBid, chooseCard } from "./spadesBot";
-import { botNotices, canPlay, checkPlay, recordPlay, resolveCall } from "./renege";
+import { botNotices, canPlay, checkPlay, evidenceLine, recordOutOfTurn, recordPlay, resolveCall } from "./renege";
 
 const trick = (...plays: [number, string][]): TrickPlay[] =>
   plays.map(([seat, card]) => ({ seat, card }));
@@ -30,15 +32,18 @@ describe("the deck", () => {
 });
 
 describe("the deal", () => {
-  it("starts bidding to the dealer's left", () => {
-    const state = initGameState(2);
-    expect(state.currentTurn).toBe(3);
+  it("waits for the dealer to shuffle and deal, then bidding starts to the dealer's left", () => {
+    const waiting = initGameState(2);
+    expect(waiting.phase).toBe("dealing");
+    const state = dealHand(waiting);
     expect(state.phase).toBe("bidding");
+    expect(state.currentTurn).toBe(3);
     expect(state.spadeBroken).toBe(false);
+    expect(Object.values(state.hands).every((h) => h.length === 13)).toBe(true);
   });
 
   it("wraps past the last seat", () => {
-    expect(initGameState(3).currentTurn).toBe(0);
+    expect(dealHand(initGameState(3)).currentTurn).toBe(0);
     expect(nextSeat(3)).toBe(0);
   });
 
@@ -96,22 +101,32 @@ describe("who takes the trick", () => {
   });
 });
 
-describe("scoring a round", () => {
+describe("scoring a round: the team is one contract, no bags", () => {
   it("pays ten a trick for a made contract", () => {
     const score = calculateRoundScore({ 0: 3, 1: 3, 2: 2, 3: 2 }, { 0: 3, 1: 3, 2: 2, 3: 2 });
     expect(score.team1Score).toBe(50);
-    expect(score.team1Bags).toBe(0);
+    expect(score).not.toHaveProperty("team1Bags");
   });
 
-  it("adds a point a bag for overtricks", () => {
+  it("adds a point for each overtrick, and nothing else", () => {
     const score = calculateRoundScore({ 0: 2, 1: 3, 2: 2, 3: 2 }, { 0: 4, 1: 3, 2: 2, 3: 2 });
-    expect(score.team1Bags).toBe(2);
     expect(score.team1Score).toBe(42);
   });
 
-  it("takes the whole contract away when a team is set", () => {
-    const score = calculateRoundScore({ 0: 4, 1: 3, 2: 3, 3: 2 }, { 0: 2, 1: 4, 2: 2, 3: 3 });
-    expect(score.team1Score).toBe(-70);
+  it("is never set per player: 2 + 2 bid, 4 + 0 taken makes it", () => {
+    const bids = { 0: 2, 1: 4, 2: 2, 3: 3 };
+    const won = { 0: 4, 1: 5, 2: 0, 3: 4 };
+    expect(teamResult(1, bids, won)).toMatchObject({ contract: 4, tricks: 4, set: false, points: 40 });
+    expect(recapRound(1, bids, won).set).toEqual([]);
+    expect(calculateRoundScore(bids, won).team1Score).toBe(40);
+  });
+
+  it("sets the team only when its combined tricks fall short of its combined bid", () => {
+    const bids = { 0: 4, 1: 3, 2: 3, 3: 2 };
+    const won = { 0: 5, 1: 4, 2: 1, 3: 3 }; // team 1: 6 of 7
+    expect(teamResult(1, bids, won).set).toBe(true);
+    expect(calculateRoundScore(bids, won).team1Score).toBe(-70);
+    expect(recapRound(1, bids, won).set).toEqual([1]);
   });
 
   it("pays a hundred for a made nil", () => {
@@ -119,49 +134,144 @@ describe("scoring a round", () => {
     expect(score.team1Score).toBe(140); // 100 nil + 40 contract
   });
 
-  it("costs a hundred for a broken nil, and the tricks it took become bags", () => {
+  it("keeps nil a single player's: a broken nil costs 100, its tricks help the partner's bid", () => {
     const score = calculateRoundScore({ 0: 0, 1: 3, 2: 4, 3: 2 }, { 0: 2, 1: 3, 2: 4, 3: 2 });
-    expect(score.team1Score).toBe(-58); // -100 nil + 40 contract + 2 bags
-    expect(score.team1Bags).toBe(2);
+    expect(score.team1Score).toBe(-58); // -100 nil + 40 contract + 2 overtricks
+    // The nil's tricks count toward the partner: 3 + 1 makes a bid of 4.
+    expect(teamResult(1, { 0: 0, 1: 3, 2: 4, 3: 2 }, { 0: 1, 1: 3, 2: 3, 3: 2 }).set).toBe(false);
   });
 });
 
-describe("running totals", () => {
-  const totals = { team1: 0, team2: 0, bags1: 0, bags2: 0 };
+describe("running totals (no bags)", () => {
+  const totals = { team1: 0, team2: 0 };
 
-  it("docks a hundred at ten bags and carries the rest over", () => {
-    const after = applyRoundScore(
-      { ...totals, team1: 200, bags1: 9 },
-      { team1Score: 42, team2Score: 0, team1Bags: 2, team2Bags: 0 },
-    );
-    expect(after.team1).toBe(142); // 200 + 42 - 100
-    expect(after.bags1).toBe(1);
+  it("only adds the hand's points: no bag count, no penalty", () => {
+    const after = applyRoundScore({ team1: 200, team2: 0 }, { team1Score: 42, team2Score: 0 });
+    expect(after.team1).toBe(242);
+    expect(after).not.toHaveProperty("bags1");
   });
 
   it("ends the game once a team passes the target", () => {
     const after = applyRoundScore(
       { ...totals, team1: WINNING_SCORE - 10 },
-      { team1Score: 50, team2Score: 10, team1Bags: 0, team2Bags: 0 },
+      { team1Score: 50, team2Score: 10 },
     );
     expect(after.gameOver).toBe(true);
     expect(after.winningTeam).toBe(1);
   });
 
   it("keeps playing on a tie at the target", () => {
-    const after = applyRoundScore(
-      { ...totals, team1: 450, team2: 450 },
-      { team1Score: 50, team2Score: 50, team1Bags: 0, team2Bags: 0 },
-    );
+    const after = applyRoundScore({ team1: 450, team2: 450 }, { team1Score: 50, team2Score: 50 });
     expect(after.gameOver).toBe(false);
   });
 
   it("ends the game when a team falls through the floor", () => {
-    const after = applyRoundScore(
-      { ...totals, team1: 100, team2: -150 },
-      { team1Score: 0, team2Score: -60, team1Bags: 0, team2Bags: 0 },
-    );
+    const after = applyRoundScore({ team1: 100, team2: -150 }, { team1Score: 0, team2Score: -60 });
     expect(after.gameOver).toBe(true);
     expect(after.winningTeam).toBe(1);
+  });
+
+  it("says what each team still needs", () => {
+    expect(pointsToWin({ team1: 380, team2: 420 })).toEqual({ target: WINNING_SCORE, 1: 120, 2: 80 });
+    expect(pointsToWin({ team1: 520, team2: 0 })[1]).toBe(0);
+  });
+});
+
+describe("bidding and leading like a real table", () => {
+  const bidAll = (dealer: number, bids: number[]) => {
+    let s: GameState = dealHand(initGameState(dealer));
+    const seen: number[] = [];
+    for (const b of bids) {
+      seen.push(s.currentTurn);
+      s = applyBid(s, s.currentTurn, b)!;
+    }
+    return { s, seen };
+  };
+
+  it("bids clockwise from the dealer's left, the dealer last, one round", () => {
+    expect(biddingOrder(0)).toEqual([1, 2, 3, 0]);
+    expect(biddingOrder(3)).toEqual([0, 1, 2, 3]);
+    const { s, seen } = bidAll(2, [3, 4, 2, 4]);
+    expect(seen).toEqual([3, 0, 1, 2]);
+    expect(s.phase).toBe("playing");
+    expect(s.bids).toEqual({ 3: 3, 0: 4, 1: 2, 2: 4 });
+  });
+
+  it("lets the dealer's left lead the first trick", () => {
+    const { s } = bidAll(1, [3, 3, 3, 3]);
+    expect(firstToAct(1)).toBe(2);
+    expect(s.currentTurn).toBe(2);
+    expect(s.trickLeader).toBe(2);
+  });
+
+  it("refuses a bid out of turn, a second bid, or a bid outside bidding", () => {
+    const s = dealHand(initGameState(0));
+    expect(applyBid(s, 0, 3)).toBeNull(); // the dealer bids last
+    const one = applyBid(s, 1, 3)!;
+    expect(applyBid(one, 1, 5)).toBeNull();
+    expect(applyBid(initGameState(0), 1, 3)).toBeNull(); // still dealing
+  });
+
+  it("passes the deal to the left every hand, so the next player bids first and leads", () => {
+    const dealers = [0];
+    for (let i = 0; i < 5; i++) dealers.push(nextDealer(dealers[i]));
+    expect(dealers).toEqual([0, 1, 2, 3, 0, 1]);
+    expect(dealers.map(firstToAct)).toEqual([1, 2, 3, 0, 1, 2]);
+  });
+
+  it("lets the trick winner lead the next one (the next player clockwise plays next)", () => {
+    expect(nextToPlay([{ seat: 2, card: "5H" }], 2)).toBe(3);
+    expect(nextToPlay([{ seat: 3, card: "5H" }], 3)).toBe(0);
+  });
+});
+
+describe("playing out of turn", () => {
+  const playing = (): GameState => ({ ...dealHand(initGameState(0)), phase: "playing", currentTurn: 1, trickLeader: 1 });
+
+  it("is possible only while playing, after the lead, on someone else's turn, once a trick", () => {
+    const led = { ...playing(), currentTrick: [{ seat: 1, card: "9H" }], currentTurn: 2 };
+    expect(canPlayOutOfTurn(led, 2)).toBe(false); // it is their turn
+    expect(canPlayOutOfTurn(led, 0)).toBe(true);
+    expect(canPlayOutOfTurn(playing(), 3)).toBe(false); // nobody has led: the leader sets the suit
+    expect(canPlayOutOfTurn({ ...led, currentTrick: [{ seat: 1, card: "9H" }, { seat: 0, card: "2H" }] }, 0)).toBe(false);
+    expect(canPlayOutOfTurn({ ...led, phase: "bidding" }, 0)).toBe(false);
+  });
+
+  it("skips the jumper's own turn later in that trick", () => {
+    // Seat 1 led, seat 3 jumped in ahead of seat 2; after 2 plays the turn goes to 0.
+    const trick = [{ seat: 1, card: "9H" }, { seat: 3, card: "2H" }, { seat: 2, card: "4H" }];
+    expect(nextToPlay(trick, 2)).toBe(0);
+  });
+
+  it("is recorded in secret like a renig, and calling it is right", () => {
+    const log = recordOutOfTurn([], {
+      seat: 3, userId: "p3", round: 1, trickNumber: 2, card: "2H", trick: [],
+    });
+    expect(log[0]).toMatchObject({ seat: 3, kind: "turn", card: "2H" });
+    expect(resolveCall(log, { seat: 0, userId: "p0" }, { seat: 3, userId: "p3" })).toMatchObject({ correct: true, winningTeam: 1 });
+    expect(evidenceLine(log[0], (s) => `P${s}`, (c) => c)).toBe("P3 played the 2H out of turn (round 1, trick 2).");
+  });
+});
+
+describe("the final hand", () => {
+  it("is in reach when a team is within a hand of the target, before bids", () => {
+    expect(finalHandThreats({ team1: 400, team2: 380 })).toEqual([{ team: 1, need: 100, onBid: false }]);
+    expect(finalHandThreats({ team1: 300, team2: 200 })).toEqual([]);
+    expect(finalHandThreats({ team1: 450, team2: 460 }).map((t) => t.team)).toEqual([1, 2]);
+    expect(FINAL_HAND_REACH).toBe(100);
+  });
+
+  it("follows the bid once both partners have bid: score + bid must reach the target", () => {
+    const bids = { 0: 4, 1: 2, 2: 3, 3: 1 };
+    // Team 1 bid 7 (70) and needs 60: they can end it. Team 2 bid 3 (30) but needs 90.
+    expect(finalHandThreats({ team1: 440, team2: 410 }, bids)).toEqual([{ team: 1, need: 60, onBid: true }]);
+    // A team far away can still threaten with a nil.
+    expect(contractPoints(2, { 0: 3, 1: 0, 2: 3, 3: 5 })).toBe(150);
+    expect(finalHandThreats({ team1: 0, team2: 360 }, { 0: 3, 1: 0, 2: 3, 3: 5 }).map((t) => t.team)).toEqual([2]);
+  });
+
+  it("falls back to the score before a team's bids are all in", () => {
+    expect(finalHandThreats({ team1: 430, team2: 0 }, { 0: 2, 1: null, 2: null, 3: null })).toEqual([{ team: 1, need: 70, onBid: false }]);
   });
 });
 
@@ -180,7 +290,7 @@ describe("the computer player", () => {
   });
 
   it("only ever plays a legal card", () => {
-    const state = initGameState(0);
+    const state = dealHand(initGameState(0));
     state.phase = "playing";
     state.currentTrick = trick([0, "5H"]);
     const seat = 1;
