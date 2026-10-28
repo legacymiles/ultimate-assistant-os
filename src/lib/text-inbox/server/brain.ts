@@ -12,7 +12,7 @@ import "server-only";
 
 import { aiEndpoint, aiFetch, describeFailure, DEFAULT_MODEL } from "@/lib/ai/provider";
 import { sendWebPush } from "@/lib/client-review/push";
-import { applyDraft, cleanDraft, dropPushSubs, simpleDraft, spendDaily, systemPrompt, userPrompt, type TextDoc, type TextItem } from "../engine";
+import { applyDraft, cleanDraft, dropPushSubs, looksAutomated, simpleDraft, spendDaily, systemPrompt, userPrompt, type TextDoc, type TextItem } from "../engine";
 import { readTexts, updateTexts } from "./store";
 
 const PAGE = "/apps/text-inbox";
@@ -61,6 +61,11 @@ export async function draftText(uid: string, id: string, opts: { tz?: string; an
   const doc = await readTexts(uid);
   const item = doc.items.find((i) => i.id === id);
   if (!item || item.status !== "drafting") return;
+  // Codes, alerts and ads: skip without spending an AI draft or buzzing the phone.
+  if (!item.instruction && looksAutomated(item)) {
+    await updateTexts(uid, (fresh) => ({ doc: applyDraft(fresh, id, { draft: "", by: "simple", noReply: true }), out: null }));
+    return;
+  }
   const spent = spendDaily(doc, opts.tz);
   const useAi = Boolean(aiEndpoint()) && spent.allowed;
   const result = useAi

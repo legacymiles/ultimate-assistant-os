@@ -6,6 +6,7 @@ import {
   claimReady,
   cleanAddress,
   cleanDraft,
+  looksAutomated,
   decline,
   emptyDoc,
   ingest,
@@ -101,6 +102,20 @@ describe("drafting", () => {
   it("cleanDraft strips labels and quotes, and spots NO_REPLY", () => {
     expect(cleanDraft('Reply: "On my way!"')).toEqual({ draft: "On my way!", noReply: false });
     expect(cleanDraft("NO_REPLY")).toEqual({ draft: "", noReply: true });
+  });
+  it("a no-reply message is skipped straight to declined", () => {
+    const { doc, out } = withText(emptyDoc(), "Your code is 482913");
+    const next = applyDraft(doc, out.item.id, { draft: "", by: "ai", noReply: true });
+    expect(next.items[0]).toMatchObject({ status: "declined", draft: "" });
+  });
+  it("looksAutomated spots codes, short codes and ads but not people", () => {
+    expect(looksAutomated({ text: "Your verification code is 482913", to: "", from: "Bank" })).toBe(true);
+    expect(looksAutomated({ text: "482913 is your security code", to: "", from: "Bank" })).toBe(true);
+    expect(looksAutomated({ text: "hey", to: "72975", from: "72975" })).toBe(true);
+    expect(looksAutomated({ text: "50% off today! Reply STOP to opt out", to: "+16145550111", from: "Store" })).toBe(true);
+    expect(looksAutomated({ text: "what's the door code? 1234 didn't work", to: "+16145550100", from: "Mom" })).toBe(false);
+    expect(looksAutomated({ text: "you coming at 7?", to: "+16145550100", from: "Mom" })).toBe(false);
+    expect(looksAutomated({ text: "call me at 6145550100", to: "+16145550100", from: "Mom" })).toBe(false);
   });
   it("simpleDraft is short and safe", () => {
     const { out } = withText(emptyDoc(), "are you coming?");
