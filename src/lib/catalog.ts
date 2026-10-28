@@ -547,6 +547,22 @@ export const PROJECTS: CatalogProject[] = [
     hue: [190, 140],
   },
   {
+    slug: "text-inbox",
+    title: "Text Inbox",
+    tag: "Your texts, answered in your voice — you approve every reply",
+    category: "AI",
+    overview:
+      "An iPhone Shortcut automation sends each text from the people you pick, and Jarvis drafts a reply in your voice — your " +
+      "own words about how you text, plus every reply you rewrite, so drafts sound more like you over time. Nothing is ever sent " +
+      "until you approve it: edit the draft, ask for a redo (\"say no nicely\"), or decline. Approve on your iPhone and it sends " +
+      "right away through your own Messages app; approve on your computer and your phone buzzes — one tap sends it. Apple only " +
+      "lets the iPhone send a text as you, so the website never sends anything by itself. Also a widget on the Jarvis Dashboard.",
+    status: "live",
+    appUrl: "/apps/text-inbox",
+    iconStyle: "pulse",
+    hue: [160, 195],
+  },
+  {
     slug: "find-my-life",
     title: "Find My Life",
     tag: "Every device and thing you own, on one radar",
@@ -915,6 +931,7 @@ const UNPREVIEWABLE = new Set([
   "dashboard",
   "find-my-life",
   "iphone-notes",
+  "text-inbox",
   "contradicting",
   "youtube-videos",
   "app-builder",

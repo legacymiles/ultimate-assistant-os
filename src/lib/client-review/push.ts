@@ -74,6 +74,34 @@ async function ready(): Promise<boolean> {
 }
 
 /**
+ * Push one message to any list of browser subscriptions, signed with the same
+ * VAPID pair (so other apps — Text Inbox — reuse it instead of making their
+ * own). Same contract as pushToClient: returns the endpoints that are gone,
+ * never throws.
+ */
+export async function sendWebPush(
+  subs: { endpoint: string; keys: { p256dh: string; auth: string } }[],
+  message: { title: string; body: string; url: string; tag?: string },
+): Promise<{ sent: number; gone: string[] }> {
+  if (!subs.length || !(await ready())) return { sent: 0, gone: [] };
+  const payload = JSON.stringify(message);
+  let sent = 0;
+  const gone: string[] = [];
+  await Promise.all(
+    subs.map(async (s) => {
+      try {
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: s.keys }, payload, { TTL: 60 * 60 * 24 });
+        sent += 1;
+      } catch (err) {
+        const status = (err as { statusCode?: number }).statusCode;
+        if (status === 404 || status === 410) gone.push(s.endpoint);
+      }
+    }),
+  );
+  return { sent, gone };
+}
+
+/**
  * Push one message to every device the client allowed. Returns the endpoints
  * the push service says are gone (unsubscribed, expired), so the caller can
  * drop them. Never throws: a failed push must not undo the owner's approval.

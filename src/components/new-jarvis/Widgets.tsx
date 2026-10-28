@@ -29,13 +29,14 @@ import { eventStart, type CalendarEvent } from "@/lib/recall/calendar/types";
 import { notificationPermission, notificationsAvailable, requestNotifications } from "@/lib/recall/calendar/reminders";
 import { BirthdaysEditor } from "../birthdays/BirthdaysEditor";
 
-export type WidgetId = "notifications" | "todo" | "camera" | "notes" | "calendar" | "improvements" | "queue" | "youtube" | "findmy";
+export type WidgetId = "notifications" | "todo" | "camera" | "notes" | "calendar" | "improvements" | "queue" | "youtube" | "findmy" | "texts";
 
 export const WIDGETS: { id: WidgetId; label: string }[] = [
   { id: "notifications", label: "Notifications" },
   { id: "todo", label: "To-do" },
   { id: "camera", label: "Camera Autopilot" },
   { id: "notes", label: "iPhone Notes" },
+  { id: "texts", label: "Text Inbox" },
   { id: "calendar", label: "Calendar" },
   { id: "improvements", label: "Improvements" },
   { id: "queue", label: "In Queue" },

@@ -47,6 +47,12 @@ const TOKEN_AUTH_PATHS = new Set([
   // per-account key in the URL is checked in the route; it only stores notes,
   // and nothing it stores runs without the owner's Approve.
   "/api/iphone-notes/push",
+  // Text Inbox's two iPhone Shortcuts (no session). The per-account key in the
+  // URL is checked in each route. `push` only stores an incoming text; `outbox`
+  // only hands back replies the owner already approved — nothing is sent
+  // without the owner's Approve.
+  "/api/text-inbox/push",
+  "/api/text-inbox/outbox",
   // Personas Studio's scheduler tick (GitHub Actions). Only sends posts their
   // owners already scheduled, behind a per-job lock; optional bearer token.
   "/api/social-personas/publish/tick",

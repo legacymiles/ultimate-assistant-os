@@ -25,6 +25,7 @@ export const PLUGIN_SLUGS = [
   "youtube-videos",
   "find-my-life",
   "iphone-notes",
+  "text-inbox",
   "seedance-studio",
   "jarvis-audio-studio",
   "image-studio",
