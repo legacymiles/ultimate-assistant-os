@@ -1,5 +1,14 @@
 [
  {
+  "id": "94cbd6d:cook-connect",
+  "date": "2026-10-28",
+  "slug": "cook-connect",
+  "title": "Spades plays like a real table — dealer rotation, shuffle & deal, team bids, no bags",
+  "detail": "- Hand sized to the screen so no card is cut off; bigger ranks and suits; bigger trick cards - Real order: left of the dealer bids first and leads, dealer bids last, deal passes left each hand; dealer puck - Everyone's bids pop up at their seat as they're placed - Shuffle → Stop & deal on your deal,",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "b72d08a:money-agents",
   "date": "2026-10-28",
   "slug": "money-agents",
