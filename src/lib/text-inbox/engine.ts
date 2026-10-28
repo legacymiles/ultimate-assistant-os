@@ -326,13 +326,37 @@ export function spendDaily(doc: TextDoc, tz?: string, now = new Date()): { allow
   return { allowed: true, doc: { ...doc, daily: { day, count: count + 1 } } };
 }
 
-export function applyDraft(doc: TextDoc, id: string, d: { draft: string; by: DraftBy; note?: string; noReply?: boolean }): TextDoc {
+/**
+ * Codes, bank/delivery alerts and marketing texts — no reply wanted. Checked
+ * before any AI call, so "everyone" automations don't spend drafts on them.
+ * Short-code senders (5–6 digits) are always automated. A question is never
+ * treated as automated ("what's the door code? 1234 didn't work").
+ */
+export function looksAutomated(i: Pick<TextItem, "text" | "to" | "from">): boolean {
+  const raw = i.to || i.from;
+  if (/^\+?\d{5,6}$/.test(raw.trim())) return true;
+  const t = i.text;
+  if (/\b(reply|text)\s+stop\b|\bto (unsubscribe|opt[ -]?out)\b|msg ?& ?data rates/i.test(t)) return true;
+  if (t.includes("?")) return false;
+  if (/\b(code|passcode|otp|one-time)\b[^\d]{0,30}\b\d{4,8}\b/i.test(t)) return true;
+  if (/\b\d{4,8}\b[^\d]{0,30}\b(is your|verification|security) code\b/i.test(t)) return true;
+  return false;
+}
+
+/**
+ * The draft is in. A message that wants no reply (the model said NO_REPLY,
+ * or it looks automated) is skipped straight to declined so the inbox stays
+ * about people — it is still listed under Sent › declined.
+ */
+export function applyDraft(doc: TextDoc, id: string, d: { draft: string; by: DraftBy; note?: string; noReply?: boolean }, now = new Date()): TextDoc {
   return {
     ...doc,
     items: doc.items.map((i) =>
-      i.id === id && i.status === "drafting"
-        ? { ...i, status: "waiting", draft: d.draft, draftBy: d.by, draftNote: d.noReply ? "Looks automated — no reply needed. Decline it, or write one." : d.note, draftStartedAt: undefined }
-        : i,
+      i.id !== id || i.status !== "drafting"
+        ? i
+        : d.noReply
+          ? { ...i, status: "declined", draft: "", draftBy: d.by, draftNote: "Skipped — looks automated (a code, alert or ad).", declinedAt: now.toISOString(), draftStartedAt: undefined }
+          : { ...i, status: "waiting", draft: d.draft, draftBy: d.by, draftNote: d.note, draftStartedAt: undefined },
     ),
   };
 }

@@ -150,8 +150,14 @@ export function TextInboxSetup({
           Open <b>Shortcuts</b> → tap <b>Automation</b> at the bottom → <b>+</b> (or <b>New Automation</b>) → scroll to <b>Message</b>.
         </Step>
         <Step id="in-2" n={2}>
-          Tap <b>Sender</b> → <b>Choose</b> and pick the people Jarvis should draft replies for. Leave <i>Message Contains</i> empty. Choose <b>Run Immediately</b>, turn{" "}
-          <b>off</b> <i>Notify When Run</i>, then <b>Next</b> → <b>New Blank Automation</b>.
+          <b>Everyone:</b> leave <b>Sender</b> on <i>Any Sender</i>, tap <b>Message Contains</b> and type a single <b>space</b> (press the space bar once) — iPhone needs
+          something in one box, and almost every text has a space. <b>Only some people:</b> tap <b>Sender</b> → <b>Choose</b> and pick them instead. Then choose{" "}
+          <b>Run Immediately</b>, turn <b>off</b> <i>Notify When Run</i>, and tap <b>Next</b> → <b>New Blank Automation</b>.
+          <span className="txi-faint">
+            {" "}
+            One-word texts with no space (“ok”, “lol”) are skipped. To catch most of those too, make a copy of this automation with Message Contains set to the letter{" "}
+            <b>o</b> — Jarvis never shows the same text twice. Codes, bank alerts and spam get no draft.
+          </span>
         </Step>
         <Step id="in-3" n={3}>
           Tap <b>Add Action</b>, search <b>Get Phone Numbers from Input</b> and add it. Tap its blue <i>Input</i> → choose <b>Shortcut Input</b>, then tap <b>Shortcut Input</b> again
@@ -268,7 +274,7 @@ export function TextInboxSetup({
 
       <h3 className="txi-h3">Privacy</h3>
       <p className="txi-faint">
-        Only texts from the people you picked in Part 1 come here. Nothing is ever sent without your Approve. Finished texts are forgotten after 30 days.
+        Only texts your Part 1 automation sends come here (everyone, or just the people you picked). Nothing is ever sent without your Approve. Finished texts are forgotten after 30 days.
       </p>
       <div className="txi-row">
         <button type="button" className="txi-btn" onClick={onRotate} disabled={busy}>
