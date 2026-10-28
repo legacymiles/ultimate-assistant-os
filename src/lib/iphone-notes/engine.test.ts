@@ -32,6 +32,19 @@ describe("readIncoming — whatever the Shortcut sends", () => {
   it("takes a plain text body as the note, first line as the title", () => {
     expect(readIncoming("Call dentist\nbefore Friday")).toMatchObject({ title: "Call dentist", body: "Call dentist\nbefore Friday" });
   });
+  it("ignores setup words typed in place of a variable", () => {
+    const n = readIncoming({ title: "Repeat Item > tap it > Name", body: "Call dentist Friday", created: "Repeat Item → Creation Date" });
+    expect(n).toMatchObject({ title: "Call dentist Friday", body: "Call dentist Friday", created: undefined });
+    expect(readIncoming({ body: "Repeat Item" })).toBeNull();
+  });
+  it("fixes a note's title when the corrected Shortcut sends it again", () => {
+    let { doc } = ingest(emptyDoc(), { title: "Call dentist Friday", body: "Call dentist Friday" }, NOW);
+    const again = ingest(doc, { title: "Dentist", body: "Call dentist Friday", created: "Oct 27, 2026" }, NOW);
+    expect(again.out.kind).toBe("same");
+    expect(again.doc.notes).toHaveLength(1);
+    expect(again.doc.notes[0].title).toBe("Dentist");
+    doc = again.doc;
+  });
   it("refuses an empty note", () => {
     expect(readIncoming({ title: "", body: "  " })).toBeNull();
     expect(readIncoming(null)).toBeNull();

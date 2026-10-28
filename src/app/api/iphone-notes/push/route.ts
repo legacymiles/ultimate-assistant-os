@@ -1,5 +1,5 @@
 import { after, NextResponse } from "next/server";
-import { ingest, MAX_BODY, readIncoming } from "@/lib/iphone-notes/engine";
+import { emptyReason, ingest, MAX_BODY, readIncoming } from "@/lib/iphone-notes/engine";
 import { readNote } from "@/lib/iphone-notes/server/brain";
 import { uidForPushKey, updateNotes } from "@/lib/iphone-notes/server/store";
 
@@ -51,15 +51,12 @@ export async function POST(req: Request) {
 
   const incoming = readIncoming(body);
   if (!incoming) {
-    return NextResponse.json(
-      { ok: false, error: "No note came through. In the Shortcut, check the body field is set to the note (Repeat Item)." },
-      { status: 400 },
-    );
+    return NextResponse.json({ ok: false, error: emptyReason(body) }, { status: 400 });
   }
 
   try {
     const { out } = await updateNotes(uid, (doc) => ingest(doc, incoming));
-    if (out.kind === "same") return NextResponse.json({ ok: true, message: `Already have "${out.note.title}".` });
+    if (out.kind === "same") return NextResponse.json({ ok: true, message: `Already have "${out.note.title}" — no duplicate made.` });
     after(() => readNote(uid, out.note.id).catch((e) => console.error("[iphone-notes] read failed:", e)));
     return NextResponse.json({
       ok: true,

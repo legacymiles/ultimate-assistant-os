@@ -189,7 +189,8 @@ export function readIncoming(body: unknown): Incoming | null {
   const pick = (...keys: string[]) => {
     for (const k of keys) {
       const v = r[k];
-      if (typeof v === "string" && v.trim()) return v;
+      // A setup step typed in as text instead of the variable is not a value.
+      if (typeof v === "string" && v.trim() && !isPlaceholder(v)) return v;
       if (typeof v === "number") return String(v);
     }
     return "";
@@ -207,6 +208,26 @@ export function readIncoming(body: unknown): Incoming | null {
     created: pick("created", "creationdate", "createdat", "datecreated").trim().slice(0, 80) || undefined,
     modified: pick("modified", "lastmodifieddate", "modifiedat", "lastmodified", "datemodified").trim().slice(0, 80) || undefined,
   };
+}
+
+/**
+ * True when a Shortcut field holds the setup instructions themselves —
+ * "Repeat Item > tap it > Name" typed as text instead of picking the variable.
+ * Those values are ignored and the note falls back to what it can work out.
+ */
+export function isPlaceholder(v: string): boolean {
+  const t = v.toLowerCase().replace(/\s+/g, " ").trim();
+  if (t.length > 80) return false;
+  return /^(repeat item|repeat results?|shortcut input)( ?[>›→-]+ ?.*)?$/.test(t) || /\btap it\b/.test(t);
+}
+
+/** Why a push held no note, in words for the Shortcut's result. */
+export function emptyReason(body: unknown): string {
+  const vals = body && typeof body === "object" ? Object.values(body as Record<string, unknown>) : [body];
+  if (vals.some((v) => typeof v === "string" && isPlaceholder(v))) {
+    return 'The Shortcut sent the step words instead of the note. In each field, delete the text, tap "Repeat Item" in the bar above the keyboard, then tap the blue Repeat Item to pick Name, Creation Date and so on.';
+  }
+  return "No note came through. In the Shortcut, check the body field is set to the note (Repeat Item).";
 }
 
 /** The same note always gets the same key, however often it is sent. */
@@ -232,7 +253,21 @@ export function ingest(doc: NotesDoc, inc: Incoming, now = new Date()): { doc: N
   const at = now.toISOString();
   const found = doc.notes.find((n) => n.key === key) ?? doc.notes.find((n) => n.hash === hash);
   if (found) {
-    if (found.hash === hash) return { doc, out: { kind: "same", note: found } };
+    if (found.hash === hash) {
+      // Same words — but the Shortcut may now send a real title or dates where
+      // it used to send none (a setup mistake fixed). Take them, no re-read.
+      const better = (inc.title && inc.title !== found.title) || (inc.created && !found.createdAt) || (inc.folder && !found.folder);
+      if (!better) return { doc, out: { kind: "same", note: found } };
+      const note: Note = {
+        ...found,
+        key,
+        title: inc.title || found.title,
+        createdAt: inc.created ?? found.createdAt,
+        modifiedAt: inc.modified ?? found.modifiedAt,
+        folder: inc.folder ?? found.folder,
+      };
+      return { doc: { ...doc, notes: doc.notes.map((n) => (n.id === found.id ? note : n)) }, out: { kind: "same", note } };
+    }
     const note: Note = {
       ...found,
       title: inc.title || found.title,
