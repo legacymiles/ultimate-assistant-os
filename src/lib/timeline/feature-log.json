@@ -1,5 +1,14 @@
 [
  {
+  "id": "da441ed:cook-connect",
+  "date": "2026-10-28",
+  "slug": "cook-connect",
+  "title": "Video chat on every seat at the spades table, one enlarged at a time",
+  "detail": "- Each player on video shows live on their own seat in place of their avatar - Only one video is ever big: tap a seat to enlarge it (or swap), tap again to shrink - The big video has its own space — the side column on a laptop, a compact strip above the table on a phone — so it never covers the card",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "94cbd6d:cook-connect",
   "date": "2026-10-28",
   "slug": "cook-connect",
