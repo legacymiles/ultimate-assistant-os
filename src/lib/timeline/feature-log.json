@@ -1,5 +1,14 @@
 [
  {
+  "id": "e55b015:money-agents",
+  "date": "2026-10-28",
+  "slug": "money-agents",
+  "title": "Radar calendar and smart companies filled from a fresh fact check",
+  "detail": "Release calendar to Jan 2027 (Fed 28 Oct, jobs, CPI, PCE/GDP, PPI, ECI from BLS/BEA/Fed schedules; Anthropic and Dangote listings and Micron earnings marked expected). Smart companies with dated, sourced figures: MU (net ~69.5%, gross 86.8% — the \"72%\" figure is out of date), NVDA, V; dividend kings",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "64ade18:money-agents",
   "date": "2026-10-28",
   "slug": "money-agents",
