@@ -1,5 +1,14 @@
 [
  {
+  "id": "0683034:cook-connect",
+  "date": "2026-10-28",
+  "slug": "cook-connect",
+  "title": "Social feed, recipe filters and personal 1–10 ranks, profiles and settings",
+  "detail": "- Feed on both sides: recipes as photo posts with saves/follows/wins between, scroll-reveal, endless scroll, people to follow - Explore › Recipes and Cookbooks › My recipes: search by dish or main ingredient, meal chips (breakfast, lunch, dinner, snacks, desserts, healthy, fun food), ingredient chip",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "e55b015:money-agents",
   "date": "2026-10-28",
   "slug": "money-agents",
