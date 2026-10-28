@@ -45,6 +45,11 @@ describe("readIncoming — whatever the Shortcut sends", () => {
     expect(again.doc.notes[0].title).toBe("Dentist");
     doc = again.doc;
   });
+  it("spots many notes glued into one push", async () => {
+    const { isBatched } = await import("./engine");
+    expect(isBatched({ title: "a\nb", body: "x", folder: "Notes\nNotes", created: "Oct 1\nOct 2" })).toBe(true);
+    expect(isBatched({ title: "Groceries", body: "milk\neggs", folder: "Notes", created: "Oct 1, 2026" })).toBe(false);
+  });
   it("refuses an empty note", () => {
     expect(readIncoming({ title: "", body: "  " })).toBeNull();
     expect(readIncoming(null)).toBeNull();

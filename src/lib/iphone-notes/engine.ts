@@ -221,6 +221,24 @@ export function isPlaceholder(v: string): boolean {
   return /^(repeat item|repeat results?|shortcut input)( ?[>›→-]+ ?.*)?$/.test(t) || /\btap it\b/.test(t);
 }
 
+/**
+ * True when one push carries MANY notes glued together — the Shortcut used the
+ * whole "Notes" list (or sent from outside the Repeat), so every field is a
+ * list joined by line breaks: several creation dates, the folder name repeated.
+ * Those can't be split back into notes reliably, so the push is refused with
+ * the fix instead of saving one jumbled note.
+ */
+export function isBatched(body: unknown): boolean {
+  if (!body || typeof body !== "object") return false;
+  const r: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(body as Record<string, unknown>)) r[k.toLowerCase().replace(/[^a-z]/g, "")] = v;
+  const lines = (v: unknown) => (typeof v === "string" ? v.split(/\r?\n/).filter((l) => l.trim()).length : 0);
+  return ["created", "creationdate", "modified", "lastmodifieddate", "folder"].some((k) => lines(r[k]) > 1);
+}
+
+export const BATCHED_REASON =
+  'The Shortcut sent all your notes as one. Fix: drag "Get Contents of URL" so it sits INSIDE the Repeat (between "Repeat with Each" and "End Repeat"), and make every field\'s blue bubble say "Repeat Item" (not "Notes") before you pick Name, Creation Date and so on.';
+
 /** Why a push held no note, in words for the Shortcut's result. */
 export function emptyReason(body: unknown): string {
   const vals = body && typeof body === "object" ? Object.values(body as Record<string, unknown>) : [body];

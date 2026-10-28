@@ -1,5 +1,5 @@
 import { after, NextResponse } from "next/server";
-import { emptyReason, ingest, MAX_BODY, readIncoming } from "@/lib/iphone-notes/engine";
+import { BATCHED_REASON, emptyReason, ingest, isBatched, MAX_BODY, readIncoming } from "@/lib/iphone-notes/engine";
 import { readNote } from "@/lib/iphone-notes/server/brain";
 import { uidForPushKey, updateNotes } from "@/lib/iphone-notes/server/store";
 
@@ -49,6 +49,7 @@ export async function POST(req: Request) {
   else if (type.includes("form")) body = Object.fromEntries((await req.formData().catch(() => new FormData())).entries());
   else body = await req.text().catch(() => "");
 
+  if (isBatched(body)) return NextResponse.json({ ok: false, error: BATCHED_REASON }, { status: 400 });
   const incoming = readIncoming(body);
   if (!incoming) {
     return NextResponse.json({ ok: false, error: emptyReason(body) }, { status: 400 });
