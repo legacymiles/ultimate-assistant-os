@@ -8,11 +8,11 @@ import { MoneyAgentStudioMount } from "@/components/money-agents/Mount";
 export const metadata: Metadata = {
   title: "Money Agent Studio · Ultimate Assistant OS",
   description:
-    "Money agents for video: clip the best moments out of long videos, run faceless channels and work paid clipping campaigns — you approve every post, Personas Studio posts it, Earnings counts it.",
+    "Money agents: an opportunity radar (IPOs, CPI/Fed releases, gold, crypto, smart companies, a move-alert bot) plus video agents that clip, run faceless channels and work paid clipping campaigns — you approve every post.",
   robots: { index: false, follow: false },
 };
 
-const TABS = ["approve", "pipeline", "agents", "campaigns", "earnings"] as const;
+const TABS = ["radar", "approve", "pipeline", "agents", "campaigns", "earnings"] as const;
 type Tab = (typeof TABS)[number];
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {

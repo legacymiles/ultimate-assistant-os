@@ -640,7 +640,11 @@ export const PROJECTS: CatalogProject[] = [
       "say yes — then it lands in Personas Studio, ready or scheduled on the persona's own accounts. A " +
       "conveyor shows the whole pipeline from Idea to Posted; Earnings puts the money that arrived next " +
       "to what the views say it should be, per agent and per video, and all of it shows in Financial " +
-      "Bible's Money Plays room.",
+      "Bible's Money Plays room. Its Radar tab is the market side: this week's news read for the most " +
+      "lucrative plays (big IPOs, CPI/jobs/Fed releases, gold, crypto adoption) with why each could pay, " +
+      "how it loses, how you'd actually get in and whether you're early or late; a release calendar; smart " +
+      "companies by margin, dividend and growth; and a move bot that alerts on big moves and scores what " +
+      "following its catches would have paid.",
     status: "live",
     appUrl: "/apps/money-agent-studio",
     iconStyle: "pulse",

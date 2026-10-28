@@ -9,13 +9,18 @@
 // Studio posts them, and the money lands in Earnings — and in Financial
 // Bible's Money Plays room, which reads the same board.
 //
+// Radar (owner's ask, Oct 2026) is the market side: the most lucrative
+// opportunities right now with the reasoning why, the CPI/jobs/Fed calendar,
+// smart companies, and a move bot that runs while the studio is open.
+//
 // Design skill: interactive-web-studio. The conveyor is the toy; the rest is a
-// ledger.
+// ledger. On Radar, the radar dish takes the conveyor's place.
 // ---------------------------------------------------------------------------
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMoneyAgents } from "@/lib/money-agents/useMoneyAgents";
+import { useRadar } from "@/lib/money-agents/useRadar";
 import { STAGES, type ItemStage } from "@/lib/money-agents/types";
 import { compact, money } from "@/lib/money-agents/logic";
 import { AgentsTab } from "./AgentsTab";
@@ -23,11 +28,13 @@ import { ApproveTab } from "./ApproveTab";
 import { CampaignsTab } from "./CampaignsTab";
 import { EarningsTab } from "./EarningsTab";
 import { PipelineTab } from "./PipelineTab";
+import { RadarTab } from "./RadarTab";
 import "./money-agents.css";
 
-export type TabId = "approve" | "pipeline" | "agents" | "campaigns" | "earnings";
+export type TabId = "radar" | "approve" | "pipeline" | "agents" | "campaigns" | "earnings";
 
 const TABS: { id: TabId; label: string }[] = [
+  { id: "radar", label: "Radar" },
   { id: "approve", label: "Approve" },
   { id: "pipeline", label: "Pipeline" },
   { id: "agents", label: "Agents" },
@@ -39,11 +46,13 @@ const REMEMBERED = "money-agent-studio:tab";
 
 export function MoneyAgentStudio({ initialTab }: { initialTab: TabId | null }) {
   const m = useMoneyAgents();
-  const [tab, setTab] = useState<TabId>(initialTab ?? "agents");
+  const [tab, setTab] = useState<TabId>(initialTab ?? "radar");
+  // The move bot lives here so it keeps watching whichever tab is open.
+  const radar = useRadar((c) => m.say(`${c.label}: ${c.reason}`, undefined, c.dir === "up" ? "ok" : "warn"));
   const [stage, setStage] = useState<ItemStage | "all">("all");
   const [focusAgent, setFocusAgent] = useState<string | null>(null);
 
-  // Land where it matters: something waiting → Approve; no agents yet → Agents.
+  // Land where it matters: something waiting → Approve; else the last tab used, else Radar.
   useEffect(() => {
     if (initialTab) return;
     let saved: string | null = null;
@@ -92,13 +101,14 @@ export function MoneyAgentStudio({ initialTab }: { initialTab: TabId | null }) {
             <h1>
               Money Agent <em>Studio</em>
             </h1>
-            <span>Agents that make videos that make money</span>
+            <span>{tab === "radar" ? "The biggest money moves right now, and why" : "Agents that make videos that make money"}</span>
           </div>
           <Link href="/apps/financial-bible?studio=plays" className="mas-link" title="See every money play in Financial Bible">
             <span className="mas-link-text">Financial Bible</span> ↗
           </Link>
         </header>
 
+        {tab !== "radar" && (
         <section className="mas-hero" aria-label="Money and pipeline">
           <div>
             <div className="mas-money-label">Paid this month</div>
@@ -120,17 +130,20 @@ export function MoneyAgentStudio({ initialTab }: { initialTab: TabId | null }) {
           </div>
           <Conveyor counts={m.sums.stageCounts} active={tab === "pipeline" ? stage : tab === "approve" ? "ready" : null} onPress={pressStage} />
         </section>
+        )}
 
         <nav className="mas-tabs" role="tablist" aria-label="Money Agent Studio">
           {TABS.map((t) => (
             <button key={t.id} type="button" role="tab" className="mas-tab" aria-selected={tab === t.id} onClick={() => go(t.id)}>
               {t.label}
               {t.id === "approve" && m.sums.waiting > 0 && <span className="mas-badge">{m.sums.waiting}</span>}
+              {t.id === "radar" && radar.catchesToday > 0 && <span className="mas-badge">{radar.catchesToday}</span>}
             </button>
           ))}
         </nav>
 
         <main>
+          {tab === "radar" && <RadarTab r={radar} say={(text, tone) => m.say(text, undefined, tone)} />}
           {tab === "approve" && <ApproveTab m={m} onOpenAgent={openAgent} onGo={go} />}
           {tab === "pipeline" && <PipelineTab m={m} stage={stage} onStage={setStage} onOpenAgent={openAgent} />}
           {tab === "agents" && <AgentsTab m={m} focus={focusAgent} onFocus={setFocusAgent} />}
