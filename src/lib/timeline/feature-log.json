@@ -45,6 +45,15 @@
   "source": "git"
  },
  {
+  "id": "1bd7414:jarvis",
+  "date": "2026-10-26",
+  "slug": "jarvis",
+  "title": "Memory map in four layers, zoom out to flat, Changed filter and Timeline",
+  "detail": "- Each node is pulled onto its layer's shell (you, areas, abilities, memories); faint rings mark the layers in 3D, solid named rings in flat view. - Zoom far out and the sphere unfolds into flat rings; a 3D/Flat button pins either. - Layer chips light up one layer; \"Changed\" lights what moved in 24h",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "e3b0c9d:jarvis",
   "date": "2026-10-26",
   "slug": "jarvis",
