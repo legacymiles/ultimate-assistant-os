@@ -2,7 +2,8 @@ import { readRequests } from "@/lib/new-jarvis/server/requestsStore";
 import { browserUid } from "@/lib/new-jarvis/server/requestsAuth";
 import { readVideo, videoWatchLink } from "@/lib/new-jarvis/server/requestVideo";
 
-// GET /api/new-jarvis/requests/watch?id=q-abc123[&download=1]
+// GET /api/new-jarvis/requests/watch?id=q-abc123[&download=1][&input=1]
+// (input=1 = the clip the owner SENT with it — Custom Video Swap's "before")
 // The signed-in owner's video for one of their requests: a redirect to an
 // hour-long Storage link when deployed, the bytes themselves locally.
 
@@ -15,9 +16,11 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const id = url.searchParams.get("id") ?? "";
   const download = url.searchParams.has("download");
+  const wantInput = url.searchParams.has("input");
   const doc = await readRequests(uid);
-  const video = (doc.requests.find((r) => r.id === id) ?? doc.finished.find((f) => f.id === id))?.video;
-  if (!video) return Response.json({ error: "No video for that request yet." }, { status: 404 });
+  const row = doc.requests.find((r) => r.id === id) ?? doc.finished.find((f) => f.id === id);
+  const video = wantInput ? row?.input : row?.video;
+  if (!video) return Response.json({ error: wantInput ? "No clip was sent with that request." : "No video for that request yet." }, { status: 404 });
 
   const link = await videoWatchLink(video.key, download ? `${id}.mp4` : undefined);
   if (link) return Response.redirect(link, 302);

@@ -100,6 +100,8 @@ const TOKEN_AUTH_PATHS = new Set([
   "/api/new-jarvis/requests/image",
   // The finished video for a request, sent back by that same session.
   "/api/new-jarvis/requests/video",
+  // The clip the owner attached for that session to work from (Custom Video Swap).
+  "/api/new-jarvis/requests/input",
 ]);
 
 /** Stamp (or clear) the account id the browser is allowed to render as. */

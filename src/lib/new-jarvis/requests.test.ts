@@ -5,6 +5,8 @@ import {
   INBOX,
   RequestError,
   addRequests,
+  attachInput,
+  inputKey,
   completeRequest,
   describeForAgent,
   inFolder,
@@ -132,5 +134,24 @@ describe("videos sent back for a request", async () => {
     expect(done.finished[0].video?.key).toBe("queue/u/q-v.mp4");
     expect(attachVideo(done, "q-v", "k2", "pc", now).finished[0].video?.key).toBe("k2");
     expect(() => attachVideo(done, "q-nope", "k", "pc")).toThrow(RequestError);
+  });
+});
+
+describe("input clips (Custom Video Swap's driving video)", () => {
+  const now = new Date("2026-10-27T12:00:00Z");
+  it("keys the clip by account and request, never by a caller's path", () => {
+    expect(inputKey("u-1/../x", "q-ab../c")).toBe("inputs/u-1x/q-abc.mp4");
+  });
+  it("records the clip on the open request, lists it for the agent, and keeps it when finished", () => {
+    let d = addRequests(EMPTY_DOC, { folder: "flow:custom-video-swap", text: "swap" }, now, () => "q-in").doc;
+    d = attachInput(d, "q-in", inputKey("u", "q-in"), "this browser", now);
+    expect(d.requests[0].input?.key).toBe("inputs/u/q-in.mp4");
+    const text = describeForAgent(d, () => "Custom Video Swap", String, undefined, (id) => `https://hub/input?id=${id}`);
+    expect(text).toContain("driving clip: GET https://hub/input?id=q-in");
+    const done = completeRequest(d, "q-in", "claude-code", undefined, now);
+    expect(done.finished[0].input?.key).toBe("inputs/u/q-in.mp4");
+  });
+  it("refuses a clip for a request that isn't open", () => {
+    expect(() => attachInput(EMPTY_DOC, "q-none", "k", "x")).toThrow(/No open request/);
   });
 });

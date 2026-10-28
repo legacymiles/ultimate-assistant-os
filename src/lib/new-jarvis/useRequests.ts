@@ -47,6 +47,8 @@ export interface UseRequests {
   remove: (id: string) => Promise<void>;
   reopen: (id: string) => Promise<void>;
   release: (id: string) => Promise<void>;
+  /** Read the queue again now (after a route outside this hook changed it). */
+  refresh: () => Promise<void>;
 }
 
 type Action =
@@ -155,6 +157,7 @@ export function useRequests(): UseRequests {
     remove: async (id) => void (await send({ action: "remove", id })),
     reopen: async (id) => void (await send({ action: "reopen", id })),
     release: async (id) => void (await send({ action: "release", id })),
+    refresh: pull,
   };
 }
 

@@ -245,10 +245,12 @@ async function runQueueTool(
   const id = str(args.id);
   const imageUrl = (rid: string, n: number) =>
     `${origin}/api/new-jarvis/requests/image?id=${encodeURIComponent(rid)}&n=${n} (header Authorization: Bearer <the same token as this connector>)`;
+  const inputUrl = (rid: string) =>
+    `${origin}/api/new-jarvis/requests/input?id=${encodeURIComponent(rid)} (same header; follow the redirect)`;
   try {
     switch (name) {
       case "queue_list":
-        return describeForAgent(await readRequests(ctx.userId), folderName, imageUrl, str(args.folder) || undefined);
+        return describeForAgent(await readRequests(ctx.userId), folderName, imageUrl, str(args.folder) || undefined, inputUrl);
       case "queue_add": {
         let added = 0;
         await updateRequests(ctx.userId, (d) => {

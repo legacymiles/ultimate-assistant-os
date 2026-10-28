@@ -15,7 +15,7 @@ import "server-only";
 
 import { ensureBucket, getBlob, isRemoteConfigured, putBlob, signedBlobUrl, signedUploadUrl } from "@/lib/server/blobStore";
 import { dataDir } from "@/lib/recall/dataDir";
-import { videoKey } from "../requests";
+import { inputKey, videoKey } from "../requests";
 
 export const VIDEO_BUCKET = "queue-videos";
 /** Local uploads go through a request body, so cap them. Signed uploads are capped by Storage. */
@@ -44,4 +44,29 @@ export async function videoWatchLink(key: string, downloadAs?: string): Promise<
 
 export async function readVideo(key: string): Promise<Buffer | null> {
   return getBlob(VIDEO_BUCKET, key, dataDir());
+}
+
+// ----- The owner's input clip (Custom Video Swap's driving video) ---------------
+// Same bucket, its own key, derived the same way — never a path a caller chose.
+
+/** A one-time upload link for the owner's clip, or null on a local hub (post the file instead). */
+export async function inputUploadLink(uid: string, id: string): Promise<{ key: string; url: string } | null> {
+  if (!isRemoteConfigured()) return null;
+  await ensureBucket(VIDEO_BUCKET);
+  const key = inputKey(uid, id);
+  const url = await signedUploadUrl(VIDEO_BUCKET, key);
+  return url ? { key, url } : null;
+}
+
+export async function putInput(uid: string, id: string, bytes: Buffer, type = "video/mp4"): Promise<string | null> {
+  if (bytes.length > MAX_LOCAL_VIDEO) return null;
+  await ensureBucket(VIDEO_BUCKET);
+  const key = inputKey(uid, id);
+  return (await putBlob(VIDEO_BUCKET, key, dataDir(), bytes, type)) ? key : null;
+}
+
+/** Does the clip exist yet? (A signed upload can't tell the hub it finished.) */
+export async function hasBlob(key: string): Promise<boolean> {
+  if (isRemoteConfigured()) return Boolean(await signedBlobUrl(VIDEO_BUCKET, key, 60));
+  return Boolean(await getBlob(VIDEO_BUCKET, key, dataDir()));
 }

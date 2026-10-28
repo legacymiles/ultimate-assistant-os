@@ -43,6 +43,12 @@ export interface QueueRequest {
   notes: { at: string; text: string; by: string }[];
   /** A finished video the agent uploaded for it (Kids Animation Flow). */
   video?: RequestVideo;
+  /**
+   * A clip the owner attached for the agent to work FROM (Custom Video Swap's
+   * driving video). Too big for the doc, so it lives in Storage like `video`,
+   * always at `inputKey(uid, id)`.
+   */
+  input?: RequestVideo;
 }
 
 export interface RequestVideo {
@@ -62,6 +68,8 @@ export interface FinishedRequest {
   /** One line on what came of it, from whoever finished it. */
   result?: string;
   video?: RequestVideo;
+  /** The clip the owner sent with it, kept so the Watch view can show before and after. */
+  input?: RequestVideo;
 }
 
 export interface RequestsDoc {
@@ -219,6 +227,18 @@ export function videoKey(uid: string, id: string): string {
   return `queue/${uid.replace(/[^a-zA-Z0-9-]/g, "")}/${id.replace(/[^a-z0-9-]/g, "")}.mp4`;
 }
 
+/** Where a request's input clip (what the owner sent the agent to work from) lives in storage. */
+export function inputKey(uid: string, id: string): string {
+  return `inputs/${uid.replace(/[^a-zA-Z0-9-]/g, "")}/${id.replace(/[^a-z0-9-]/g, "")}.mp4`;
+}
+
+/** The owner's clip finished uploading: record it on the open request so the agent sees a link. */
+export function attachInput(doc: RequestsDoc, id: string, key: string, by: string, now = new Date()): RequestsDoc {
+  if (!doc.requests.some((r) => r.id === id)) throw new RequestError(`No open request ${id}.`);
+  const input: RequestVideo = { key, at: now.toISOString(), by };
+  return { ...doc, requests: doc.requests.map((r) => (r.id === id ? { ...r, input } : r)) };
+}
+
 /** The agent uploaded the video: record it on the request (open or already finished). */
 export function attachVideo(doc: RequestsDoc, id: string, key: string, by: string, now = new Date()): RequestsDoc {
   const video: RequestVideo = { key, at: now.toISOString(), by };
@@ -262,6 +282,7 @@ export function completeRequest(
     by,
     ...(result?.trim() ? { result: result.trim().slice(0, 600) } : {}),
     ...(r.video ? { video: r.video } : {}),
+    ...(r.input ? { input: r.input } : {}),
   };
   return prune({
     requests: doc.requests.filter((q) => q.id !== id),
@@ -326,6 +347,7 @@ export function describeForAgent(
   folderName: (folder: string) => string,
   imageUrl: (id: string, n: number) => string,
   folder?: string,
+  inputUrl?: (id: string) => string,
 ): string {
   const list = folder ? inFolder(doc, folder) : [...doc.requests].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   if (!list.length) return folder ? `Nothing queued in ${folderName(folder)}.` : "The queue is empty.";
@@ -335,6 +357,7 @@ export function describeForAgent(
       `  ${r.text.replace(/\n/g, "\n  ")}`,
     ];
     r.images.forEach((_, n) => lines.push(`  picture ${n + 1}: GET ${imageUrl(r.id, n)}`));
+    if (r.input) lines.push(`  driving clip: GET ${inputUrl ? inputUrl(r.id) : `/api/new-jarvis/requests/input?id=${r.id}`}`);
     if (r.video) lines.push(`  video uploaded ${r.video.at.slice(0, 16).replace("T", " ")}`);
     for (const note of r.notes) lines.push(`  note (${note.by}): ${note.text}`);
     return lines.join("\n");

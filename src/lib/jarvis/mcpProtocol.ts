@@ -233,7 +233,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: "queue_video_link",
     description:
-      "Before completing a request that produced a video (Kids Animation Flow / Animate my character), get the exact commands to upload the finished MP4 so the owner can watch it in Jarvis on any device. Run them, then call queue_complete with video: true.",
+      "Before completing a request that produced a video (Kids Animation Flow, 3D Animation Flow, Custom Video Swap), get the exact commands to upload the finished MP4 so the owner can watch it in Jarvis on any device. Run them, then call queue_complete with video: true.",
     inputSchema: {
       type: "object",
       properties: { id: { type: "string", description: "The request id." } },
