@@ -15,10 +15,11 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, portal, urlBase64ToUint8Array } from "@/lib/client-review/client";
+import { buildClientEdit } from "@/lib/app-builder/fromClientReview";
+import { admin, ApiError, portal, urlBase64ToUint8Array } from "@/lib/client-review/client";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SignInGate } from "./SignInGate";
-import type { PortalRequest, PortalView, RequestPin, ReviewVersion } from "@/lib/client-review/types";
+import type { ClientProject, PortalRequest, PortalView, RequestPin, ReviewVersion } from "@/lib/client-review/types";
 import "./client-review.css";
 
 type Device = "desktop" | "phone";
@@ -83,6 +84,38 @@ function useNarrow(): boolean {
   return narrow;
 }
 
+/** What happened after the owner's Send & build. */
+interface OwnerBuild {
+  state: "working" | "queued" | "approved" | "failed";
+  version?: string;
+  message?: string;
+}
+
+/**
+ * The owner is their own client and their own admin: what they send is
+ * approved on the spot and handed to Claude Code (App Builder → In Queue),
+ * the same path Admin's "Approve & build" takes.
+ */
+async function approveAndBuild(token: string, versionId: string): Promise<OwnerBuild> {
+  const { project } = await admin.byToken(token);
+  const batch = project.batches.filter((b) => b.versionId === versionId && b.status === "pending").at(-1);
+  if (!batch) return { state: "failed", message: "Sent — open Admin to approve it." };
+  const out = await admin.act<{ project: ClientProject; version: ReviewVersion }>({
+    action: "approve",
+    id: project.id,
+    batchId: batch.id,
+  });
+  if (!out.project.repo) {
+    return {
+      state: "approved",
+      version: out.version.number,
+      message: "Approved. Add the site's GitHub repo in Admin › Where the site lives so Claude Code can build it.",
+    };
+  }
+  const handoff = await buildClientEdit(out.project, batch.id);
+  return { state: "queued", version: out.version.number, message: handoff.queueId ? undefined : "That exact build was already queued." };
+}
+
 function isIos(): boolean {
   return typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
 }
@@ -95,12 +128,15 @@ export function ClientPortal({
   token,
   embedded = false,
   onBack,
+  picker,
 }: {
   token: string;
   /** Inside the Client Review page, under its tab bar, rather than the whole window. */
   embedded?: boolean;
   /** "← My websites", when there is a list to go back to. */
   onBack?: () => void;
+  /** The owner's app/website dropdown, drawn in place of the title. */
+  picker?: (name: string) => React.ReactNode;
 }) {
   const [view, setView] = useState<PortalView | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -123,7 +159,7 @@ export function ClientPortal({
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
 
   // Overlays.
-  const [sent, setSent] = useState<{ count: number } | null>(null);
+  const [sent, setSent] = useState<{ count: number; build?: OwnerBuild } | null>(null);
   const [folding, setFolding] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toast, setToast] = useState<{ title: string; body: string } | null>(null);
@@ -317,13 +353,25 @@ export function ClientPortal({
     }
   };
 
+  const owner = Boolean(view?.viewerOwner);
   const send = async () => {
     if (!viewing || !drafts.length) return;
     const count = drafts.length;
+    const versionId = viewing.id;
     setFolding(true);
-    const ok = await act("send", { action: "send", versionId: viewing.id });
+    const ok = await act("send", { action: "send", versionId });
     window.setTimeout(() => setFolding(false), 650);
-    if (ok) window.setTimeout(() => setSent({ count }), prefersReducedMotion() ? 0 : 520);
+    if (!ok) return;
+    if (!owner) {
+      window.setTimeout(() => setSent({ count }), prefersReducedMotion() ? 0 : 520);
+      return;
+    }
+    window.setTimeout(() => setSent((s) => s ?? { count, build: { state: "working" } }), prefersReducedMotion() ? 0 : 520);
+    const build = await approveAndBuild(token, versionId).catch(
+      (e: Error): OwnerBuild => ({ state: "failed", message: `Sent, but the build didn't start: ${e.message} Approve it in Admin.` }),
+    );
+    setSent({ count, build });
+    refresh();
   };
 
   const enableNotify = async () => {
@@ -433,15 +481,22 @@ export function ClientPortal({
       <header className="cr-top">
         <div className="cr-brand">
           {onBack ? (
-            <button className="cr-icon-btn ghost" onClick={onBack} aria-label="My websites" title="My websites">
+            <button
+              className="cr-icon-btn ghost"
+              onClick={onBack}
+              aria-label={picker ? "All apps and websites" : "My websites"}
+              title={picker ? "All apps and websites" : "My websites"}
+            >
               ←
             </button>
           ) : (
             <Orb small />
           )}
-          <div>
-            <p className="cr-kicker">{view.clientName ? `For ${view.clientName}` : "Website review"}</p>
-            <h1>{view.name}</h1>
+          <div className="cr-title">
+            <p className="cr-kicker">
+              {view.isApp ? "Your app" : view.clientName ? `For ${view.clientName}` : "Website review"}
+            </p>
+            {picker ? picker(view.name) : <h1>{view.name}</h1>}
           </div>
         </div>
         <div className="cr-top-actions">
@@ -553,7 +608,9 @@ export function ClientPortal({
               <li className="cr-list-empty">
                 <p>
                   {writable
-                    ? "Tell Jarvis what you'd like changed — one thing per request. Add as many as you want, then send them all at once."
+                    ? owner
+                      ? "Point at a spot, say what to change — one thing per request. Send & build hands them all to Claude Code; the preview comes back here as the next version."
+                      : "Tell Jarvis what you'd like changed — one thing per request. Add as many as you want, then send them all at once."
                     : building
                       ? `Your approved changes are being built into ${building.number}. You'll be able to request more edits on it.`
                       : "No requests on this version."}
@@ -657,10 +714,16 @@ export function ClientPortal({
               <button className="cr-send" onClick={send} disabled={!drafts.length || busy === "send"}>
                 <span className="cr-send-glow" aria-hidden />
                 {busy === "send"
-                  ? "Sending to Jarvis…"
-                  : drafts.length
-                    ? `Send ${drafts.length} request${drafts.length === 1 ? "" : "s"} to Jarvis`
-                    : "Send to Jarvis"}
+                  ? owner
+                    ? "Sending to Claude Code…"
+                    : "Sending to Jarvis…"
+                  : owner
+                    ? drafts.length
+                      ? `Send ${drafts.length} & build →`
+                      : "Send & build"
+                    : drafts.length
+                      ? `Send ${drafts.length} request${drafts.length === 1 ? "" : "s"} to Jarvis`
+                      : "Send to Jarvis"}
               </button>
             </div>
           ) : (
@@ -708,6 +771,7 @@ export function ClientPortal({
           notifyNote={notifyNote}
           onEnable={enableNotify}
           onClose={() => setSent(null)}
+          build={sent.build}
           busy={busy === "notify"}
         />
       )}
@@ -842,6 +906,7 @@ function SentScreen({
   onEnable,
   onClose,
   busy,
+  build,
 }: {
   count: number;
   view: PortalView;
@@ -849,9 +914,11 @@ function SentScreen({
   onEnable: () => void;
   onClose: () => void;
   busy: boolean;
+  build?: OwnerBuild;
 }) {
   const current = view.versions.find((v) => v.id === view.currentVersionId);
   const next = current ? `v${(Number(/\d+/.exec(current.number)?.[0] ?? 1) || 1) + 1}` : "your next version";
+  if (build) return <OwnerSent count={count} build={build} fallback={next} onClose={onClose} />;
   const steps = [
     { label: "Sent to Jarvis", done: true },
     { label: "Reviewed & approved", done: false },
@@ -895,6 +962,61 @@ function SentScreen({
           <button className="cr-btn ghost" onClick={onClose}>Back to my site</button>
         </div>
         {notifyNote && <p className="cr-note">{notifyNote}</p>}
+      </div>
+    </div>
+  );
+}
+
+/** After the owner's Send & build: where the build is. */
+function OwnerSent({ count, build, fallback, onClose }: { count: number; build: OwnerBuild; fallback: string; onClose: () => void }) {
+  const v = build.version ?? fallback;
+  const at = build.state === "working" ? 1 : build.state === "queued" ? 3 : build.state === "approved" ? 2 : 1;
+  const steps = ["Sent", "Approved", "Queued for Claude Code", `${v} preview shows up here`];
+  return (
+    <div className="cr-sent" role="dialog" aria-modal="true" aria-label="Send & build">
+      <div className="cr-reactor" aria-hidden>
+        <span className="r1" />
+        <span className="r2" />
+        <span className="r3" />
+        <span className="core" />
+      </div>
+      <div className="cr-sent-copy">
+        <p className="cr-kicker">{build.state === "failed" ? "Sent" : build.state === "working" ? "Starting the build" : "Building"}</p>
+        <h2>
+          {build.state === "queued"
+            ? `${count} edit${count === 1 ? "" : "s"} on the way to ${v}.`
+            : build.state === "working"
+              ? `Handing ${count} edit${count === 1 ? "" : "s"} to Claude Code…`
+              : build.state === "approved"
+                ? `${v} is approved.`
+                : "Your edits are sent."}
+        </h2>
+        <p>
+          {build.state === "queued"
+            ? `Claude Code makes them on a branch, opens a pull request, and posts the preview back here as ${v}. Merge the pull request when you like it to put it live.`
+            : (build.message ?? "One moment.")}
+        </p>
+        {build.state === "queued" && build.message && <p className="cr-note">{build.message}</p>}
+        <ol className="cr-steps">
+          {steps.map((s, i) => (
+            <li key={s} className={i < at ? "done" : i === at ? "now" : ""} style={{ animationDelay: `${0.25 + i * 0.12}s` }}>
+              <span />
+              {s}
+            </li>
+          ))}
+        </ol>
+        <div className="cr-sent-actions">
+          {build.state !== "working" && (
+            <button className="cr-btn ghost" onClick={onClose}>
+              Keep working
+            </button>
+          )}
+          {(build.state === "failed" || build.state === "approved") && (
+            <a className="cr-btn" href="/apps/client-review?tab=admin">
+              Open Admin
+            </a>
+          )}
+        </div>
       </div>
     </div>
   );

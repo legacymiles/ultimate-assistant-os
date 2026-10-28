@@ -57,9 +57,9 @@ async function load(token: string): Promise<ClientProject | null> {
   return projectForToken(token);
 }
 
-async function view(p: ClientProject, viewerEmail: string | null) {
+async function view(p: ClientProject, viewerEmail: string | null, viewerOwner: boolean) {
   return NextResponse.json(
-    { ...portalView(p, await vapidPublicKey()), viewerEmail },
+    { ...portalView(p, await vapidPublicKey()), viewerEmail, viewerOwner },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
@@ -70,15 +70,15 @@ const SIGN_IN = { error: "Sign in with your Jarvis account to see your website."
  * The project this signed-in person may open, claimed for them on first open.
  * Returns a Response for every way in that fails.
  */
-async function gate(token: string): Promise<{ project: ClientProject; email: string | null } | Response> {
+async function gate(token: string): Promise<{ project: ClientProject; email: string | null; owner: boolean } | Response> {
   const found = await load(token);
   if (!found) return NextResponse.json(NOT_FOUND, { status: 404 });
   const viewer = await currentViewer();
   // Accounts off (local demo mode): the link alone opens it.
-  if (viewer === "none") return { project: found, email: null };
+  if (viewer === "none") return { project: found, email: null, owner: true };
   if (!viewer) return NextResponse.json(SIGN_IN, { status: 401 });
   try {
-    if (viewer.owner || found.clientUserId === viewer.id) return { project: found, email: viewer.email };
+    if (viewer.owner || found.clientUserId === viewer.id) return { project: found, email: viewer.email, owner: viewer.owner };
     const { project, result } = await updateProject(found.id, (p) => {
       const out = admit(p, viewer);
       return { project: out.project, result: out.claimed };
@@ -86,7 +86,7 @@ async function gate(token: string): Promise<{ project: ClientProject; email: str
     if (result) {
       await updateIndex((i) => upsertIndex(pushEvent(i, project, "claimed", `opened their link as ${viewer.email}`), project)).catch(() => {});
     }
-    return { project, email: viewer.email };
+    return { project, email: viewer.email, owner: false };
   } catch (err) {
     if (err instanceof ReviewError) return NextResponse.json({ error: err.message, wrongAccount: true, viewerEmail: viewer.email }, { status: err.status });
     throw err;
@@ -97,7 +97,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
   const { token } = await ctx.params;
   const g = await gate(token);
   if (g instanceof Response) return g;
-  return view(g.project, g.email);
+  return view(g.project, g.email, g.owner);
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ token: string }> }) {
@@ -163,7 +163,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
     } else if (result.kind === "notify" && result.on && !result.was) {
       await updateIndex((i) => pushEvent(i, project, "notify_on", "turned on notifications")).catch(() => {});
     }
-    return view(project, g.email);
+    return view(project, g.email, g.owner);
   } catch (err) {
     if (err instanceof ReviewError) return NextResponse.json({ error: err.message }, { status: err.status });
     return NextResponse.json({ error: "Something went wrong saving that. Try again in a moment." }, { status: 500 });

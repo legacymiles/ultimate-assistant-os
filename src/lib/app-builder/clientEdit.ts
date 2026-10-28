@@ -20,6 +20,7 @@
 // ---------------------------------------------------------------------------
 
 import { CHECKLIST } from "../new-jarvis/felix";
+import { absoluteSiteUrl } from "../client-review/apps";
 import { baseBranchFor, branchFor, buildText, plainBrief } from "../client-review/logic";
 import type { ClientProject, EditRequest } from "../client-review/types";
 import type { BuilderProject, ClientEdit, ClientEditItem, Feature, Understanding } from "./types";
@@ -105,11 +106,12 @@ export function clientEditProject(
     siteName: p.name,
     clientName: p.clientName,
     fromVersion: from?.number ?? "",
-    fromUrl: from?.siteUrl ?? "",
+    fromUrl: from?.siteUrl ? absoluteSiteUrl(from.siteUrl) : "",
     version: version.number,
     versionId: version.id,
     ...(p.repo ? { repo: p.repo } : {}),
     ...(p.vercelProject ? { vercelProject: p.vercelProject } : {}),
+    ...(p.appPath ? { appPath: p.appPath } : {}),
     baseBranch: baseBranchFor(p),
     branch: branchFor(p, version.number),
     // The plain brief (no AI) only repeats the list, so it isn't carried twice.
@@ -185,6 +187,7 @@ function whereLine(edit: ClientEdit): string {
   return [
     edit.repo ? `Repo: ${edit.repo}` : "Repo: NOT SET — queue_note the owner to add the client's GitHub repo in Client Review, then stop",
     edit.vercelProject ? `Vercel project: ${edit.vercelProject}` : "Vercel project: the one linked to that repo",
+    ...(edit.appPath ? [`App: ${edit.appPath} (the owner's own hub app — CLAUDE.md says which folders it lives in; touch only that app)`] : []),
     `Branch: ${edit.branch} off ${edit.baseBranch}${edit.baseBranch === "main" ? "" : ` (if ${edit.baseBranch} is already merged or gone, branch off main)`}`,
   ].join(" · ");
 }
@@ -194,7 +197,7 @@ function finishSteps(edit: ClientEdit): string[] {
     `1. Before/after screenshots at each pin (Playwright at the client's screen width; ${edit.fromUrl || "the current site"} is "before").`,
     `2. Push ${edit.branch}; open a pull request into main titled "${edit.siteName}: ${edit.version} client edits". Never merge it — the owner merges to go live.`,
     "3. Wait for the Vercel preview of the branch (gh pr checks / the deployment status). It must open without a Vercel login — if it asks for one, queue_note the owner to turn off Vercel Authentication for previews (Vercel › Settings › Deployment Protection) and stop.",
-    `4. Call client_review_preview with review_id=${edit.reviewId}, version_id=${edit.versionId}, preview_url, pr_url, branch, and a plain-English summary (one line per edit). That puts it on ${edit.clientName || "the client"}'s link and notifies them.`,
+    `4. Call client_review_preview with review_id=${edit.reviewId}, version_id=${edit.versionId}, preview_url${edit.appPath ? ` (the branch preview's address + ${edit.appPath}, so it opens on that app)` : ""}, pr_url, branch, and a plain-English summary (one line per edit). That puts it on ${edit.clientName || "the client"}'s link and notifies them.`,
     "5. queue_complete with the preview and PR links.",
   ];
 }

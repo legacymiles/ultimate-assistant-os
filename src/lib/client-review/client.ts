@@ -74,6 +74,12 @@ export interface BriefOut {
 export const admin = {
   load: () => call<AdminState>("/api/client-review/admin"),
   feed: () => call<{ events: import("./types").AdminEvent[] }>("/api/client-review/admin?feed=1"),
+  /** One project by its link — the owner's Send & build needs its batches. */
+  byToken: (token: string) =>
+    call<{ project: ClientProject }>(`/api/client-review/admin?token=${encodeURIComponent(token)}`),
+  /** One of the owner's own apps: its project, made the first time it is opened. */
+  ensureApp: (slug: string) =>
+    call<{ project: ClientProject }>("/api/client-review/admin", { method: "POST", body: JSON.stringify({ action: "ensureApp", slug }) }),
   act: <T = { project: ClientProject }>(action: Record<string, unknown>) =>
     call<T>("/api/client-review/admin", { method: "POST", body: JSON.stringify(action) }),
 };

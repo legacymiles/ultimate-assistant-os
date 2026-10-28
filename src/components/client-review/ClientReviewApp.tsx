@@ -4,24 +4,26 @@
 // Client Review — one page for clients and the owner.
 //
 //   Client  every website this account has opened; pick one to see it with
-//           the Chat Intake on top. (For the owner: every project, to preview
-//           exactly what the client sees.)
+//           the Chat Intake on top. For the owner: a dropdown of EVERY app in
+//           the hub and every client website, each opened exactly as a client
+//           sees it, so the owner edits on the page too (?app=<slug>).
 //   Admin   the owner's console. Locked and faded for everyone else — they
 //           can see it exists but can't open it. The page decides what to
 //           SHOW from /api/client-review/portal/me; the admin API itself is
 //           owner-only in middleware, so forcing the tab open gets nothing.
 //
-// The URL carries the state (?site=<code>, ?tab=admin) so a client link,
+// The URL carries the state (?site=<code>, ?app=<slug>, ?tab=admin) so a client link,
 // a push notification and the back button all land in the right place.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useState } from "react";
+import { editableApp } from "@/lib/client-review/apps";
 import { admin } from "@/lib/client-review/client";
-import type { ClientProject } from "@/lib/client-review/types";
 import { ClientPortal } from "./ClientPortal";
 import { ClientReviewAdmin } from "./ClientReviewAdmin";
 import { MyWebsites } from "./MyWebsites";
 import { SignInGate } from "./SignInGate";
+import { SitePickerMenu, SitePickerPage, type Target } from "./SitePicker";
 import "./client-review.css";
 
 type Tab = "client" | "admin";
@@ -31,27 +33,55 @@ interface Me {
   email: string | null;
 }
 
-function readUrl(): { site: string | null; tab: Tab | null } {
+const LAST_KEY = "cr-last-target";
+
+function readUrl(): { target: Target | null; tab: Tab | null } {
   const q = new URLSearchParams(window.location.search);
   const t = q.get("tab");
-  return { site: q.get("site"), tab: t === "admin" || t === "client" ? t : null };
+  const site = q.get("site");
+  const app = q.get("app");
+  return {
+    target: site ? { kind: "site", token: site } : app ? { kind: "app", slug: app } : null,
+    tab: t === "admin" || t === "client" ? t : null,
+  };
 }
 
-function writeUrl(next: { site: string | null; tab: Tab }, push = true) {
+function writeUrl(next: { target: Target | null; tab: Tab }, push = true) {
   const q = new URLSearchParams();
   if (next.tab === "admin") q.set("tab", "admin");
-  else if (next.site) q.set("site", next.site);
+  else if (next.target?.kind === "site") q.set("site", next.target.token);
+  else if (next.target?.kind === "app") q.set("app", next.target.slug);
   const url = `/apps/client-review${q.toString() ? `?${q}` : ""}`;
   if (push) window.history.pushState(null, "", url);
   else window.history.replaceState(null, "", url);
+}
+
+/** The owner's last opened app or website, so the Client view reopens where they left off. */
+function readLast(): Target | null {
+  try {
+    const raw = window.localStorage.getItem(LAST_KEY);
+    const t = raw ? (JSON.parse(raw) as Target) : null;
+    if (t?.kind === "site" && typeof t.token === "string") return t;
+    if (t?.kind === "app" && editableApp(t.slug)) return t;
+  } catch {}
+  return null;
+}
+function writeLast(t: Target | null) {
+  try {
+    if (t) window.localStorage.setItem(LAST_KEY, JSON.stringify(t));
+    else window.localStorage.removeItem(LAST_KEY);
+  } catch {}
 }
 
 export function ClientReviewApp() {
   const [me, setMe] = useState<Me | null>(null);
   const [meError, setMeError] = useState("");
   const [tab, setTab] = useState<Tab>("client");
-  const [site, setSite] = useState<string | null>(null);
+  const [target, setTarget] = useState<Target | null>(null);
   const [denied, setDenied] = useState(false);
+  // An app's review link, once its project exists (made on first open).
+  const [appTokens, setAppTokens] = useState<Record<string, string>>({});
+  const [appError, setAppError] = useState("");
 
   useEffect(() => {
     fetch("/api/client-review/portal/me", { cache: "no-store" })
@@ -59,10 +89,12 @@ export function ClientReviewApp() {
       .then((m) => {
         setMe(m);
         const url = readUrl();
-        setSite(url.site);
-        // The owner opening the app with no link lands in Admin; anyone else
-        // (and the owner following a client link) lands in Client.
-        const want: Tab = url.tab ?? (m.owner && !url.site ? "admin" : "client");
+        // The owner with no link reopens what they had open last (or the
+        // picker); a client, or anyone following a link, lands in Client.
+        const target = url.target ?? (m.owner && !url.tab ? readLast() : null);
+        setTarget(target);
+        if (target && !url.target) writeUrl({ target, tab: "client" }, false);
+        const want: Tab = url.tab ?? "client";
         setTab(want === "admin" && !m.owner ? "client" : want);
       })
       .catch(() => setMeError("Couldn't reach the server — check your connection and refresh."));
@@ -71,27 +103,43 @@ export function ClientReviewApp() {
   useEffect(() => {
     const onPop = () => {
       const url = readUrl();
-      setSite(url.site);
+      setTarget(url.target);
       setTab(url.tab === "admin" && me?.owner ? "admin" : "client");
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [me?.owner]);
 
+  // Opening one of the owner's apps: find (or make) its project.
+  const appSlug = target?.kind === "app" ? target.slug : null;
+  useEffect(() => {
+    if (!appSlug || !me?.owner || appTokens[appSlug]) return;
+    setAppError("");
+    let live = true;
+    admin
+      .ensureApp(appSlug)
+      .then(({ project }) => live && setAppTokens((m) => ({ ...m, [appSlug]: project.token })))
+      .catch((e: Error) => live && setAppError(e.message));
+    return () => {
+      live = false;
+    };
+  }, [appSlug, me?.owner, appTokens]);
+
   const go = useCallback(
-    (next: { site?: string | null; tab?: Tab }) => {
+    (next: { target?: Target | null; tab?: Tab }) => {
       const t = next.tab ?? tab;
       if (t === "admin" && !me?.owner) {
         setDenied(true);
         window.setTimeout(() => setDenied(false), 2200);
         return;
       }
-      const s = next.site === undefined ? site : next.site;
+      const g = next.target === undefined ? target : next.target;
       setTab(t);
-      setSite(s);
-      writeUrl({ site: s, tab: t });
+      setTarget(g);
+      if (me?.owner && next.target !== undefined) writeLast(g);
+      writeUrl({ target: g, tab: t });
     },
-    [tab, site, me?.owner],
+    [tab, target, me?.owner],
   );
 
   if (meError) {
@@ -118,9 +166,9 @@ export function ClientReviewApp() {
     const next = typeof window === "undefined" ? "/apps/client-review" : `${window.location.pathname}${window.location.search}`;
     return (
       <SignInGate
-        title={site ? "Your website is ready to review" : "Client Review"}
+        title={target ? "Your website is ready to review" : "Client Review"}
         body={
-          site
+          target
             ? "Sign in with your Jarvis account to see it and send your edit requests."
             : "Sign in with your Jarvis account to see your websites."
         }
@@ -128,6 +176,13 @@ export function ClientReviewApp() {
       />
     );
   }
+
+  const token = target?.kind === "site" ? target.token : target?.kind === "app" ? appTokens[target.slug] : undefined;
+  const label = target?.kind === "app" ? (editableApp(target.slug)?.title ?? target.slug) : "Pick an app or website";
+  const picker = me.owner
+    ? (name: string) => <SitePickerMenu current={target} label={name} onPick={(t) => go({ target: t, tab: "client" })} />
+    : undefined;
+  const toList = () => go({ target: null, tab: "client" });
 
   return (
     <div className="cra-shell">
@@ -170,56 +225,31 @@ export function ClientReviewApp() {
       <div className="cra-body">
         {tab === "admin" && me.owner ? (
           <ClientReviewAdmin fill />
-        ) : site ? (
-          <ClientPortal key={site} token={site} embedded onBack={() => go({ site: null, tab: "client" })} />
+        ) : token ? (
+          <ClientPortal key={token} token={token} embedded picker={picker} onBack={toList} />
+        ) : target?.kind === "app" ? (
+          <div className="cr-root cr-center is-embedded">
+            <div className="cr-empty">
+              {appError ? (
+                <>
+                  <h1>Couldn&apos;t open {label}</h1>
+                  <p>{appError}</p>
+                  <button className="cr-btn" onClick={toList}>Pick another</button>
+                </>
+              ) : (
+                <span className="cr-orb pulse" aria-hidden>
+                  <span className="cr-orb-core" />
+                  <span className="cr-orb-ring" />
+                </span>
+              )}
+            </div>
+          </div>
         ) : me.owner ? (
-          <OwnerPreview onOpen={(t) => go({ site: t, tab: "client" })} />
+          <div className="cr-root is-embedded crp-page-wrap">
+            <SitePickerPage onPick={(t) => go({ target: t, tab: "client" })} />
+          </div>
         ) : (
-          <MyWebsites embedded onOpen={(t) => go({ site: t, tab: "client" })} />
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** The owner's Client tab: every project, opened exactly as its client sees it. */
-function OwnerPreview({ onOpen }: { onOpen: (token: string) => void }) {
-  const [projects, setProjects] = useState<ClientProject[] | null>(null);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    admin
-      .load()
-      .then((s) => setProjects(s.projects.filter((p) => !p.archived)))
-      .catch((e: Error) => setError(e.message));
-  }, []);
-  return (
-    <div className="cr-root cr-center is-embedded">
-      <div className="cr-empty">
-        <p className="cr-kicker">Client view</p>
-        <h1>See it the way your client does</h1>
-        <p>Pick a project to open it with the Chat Intake, exactly as the client gets it.</p>
-        {error && <p className="cr-error">{error}</p>}
-        {projects && !projects.length && <p>No client projects yet — make one in Admin.</p>}
-        {projects && projects.length > 0 && (
-          <ul className="cr-sites">
-            {projects.map((p) => (
-              <li key={p.id}>
-                <a
-                  href={`/apps/client-review?site=${p.token}`}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    onOpen(p.token);
-                  }}
-                >
-                  <span>
-                    <b>{p.name}</b>
-                    <small>{p.clientName || "No client name"}{p.clientUserEmail ? ` · ${p.clientUserEmail}` : " · not opened yet"}</small>
-                  </span>
-                  <span aria-hidden>→</span>
-                </a>
-              </li>
-            ))}
-          </ul>
+          <MyWebsites embedded onOpen={(t) => go({ target: { kind: "site", token: t }, tab: "client" })} />
         )}
       </div>
     </div>

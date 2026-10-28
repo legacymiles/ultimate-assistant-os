@@ -145,6 +145,14 @@ export interface ClientProject {
   repo?: string;
   vercelProject?: string;
   /**
+   * One of the owner's own hub apps (catalog slug), opened from the Client
+   * view's site picker so the owner can edit it on the page like a client.
+   * `appPath` is its route ("/apps/cook-connect"): v1 frames it same-origin,
+   * and builds post the branch preview at that path.
+   */
+  appSlug?: string;
+  appPath?: string;
+  /**
    * Who may open the link. The client signs in with their Jarvis account
    * (Google); the first account to open it claims it, and after that only that
    * account (and the owner) can. `inviteEmail`, when the owner set one, is the
@@ -191,6 +199,8 @@ export interface ReviewIndex {
     archived?: boolean;
     /** The client account that claimed the link, so /review can list their sites. */
     clientUserId?: string;
+    /** Set when the project is one of the owner's own hub apps. */
+    appSlug?: string;
   }[];
   events: AdminEvent[];
 }
@@ -229,4 +239,8 @@ export interface PortalView {
   vapidPublicKey: string | null;
   /** The signed-in account looking at it (added by the route). */
   viewerEmail?: string | null;
+  /** The owner is looking (added by the route): Send goes straight to the build. */
+  viewerOwner?: boolean;
+  /** One of the owner's own hub apps. */
+  isApp?: boolean;
 }

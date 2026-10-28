@@ -17,6 +17,7 @@ import {
   updateProjectMeta,
   upsertIndex,
 } from "@/lib/client-review/logic";
+import { appEntry, appProject } from "@/lib/client-review/apps";
 import { vapidPublicKey } from "@/lib/client-review/push";
 import { tell } from "@/lib/client-review/ship";
 import { lanePlan } from "@/lib/client-review/routing";
@@ -41,6 +42,7 @@ export const maxDuration = 120;
 //
 //   GET                → every project, the event feed, and what is configured
 //   GET ?feed=1        → just the events and pending counts (Jarvis polls this)
+//   GET ?token=<link>  → one project, by its link (the owner's Send & build)
 //   POST { action, … } → see the switch below
 // ---------------------------------------------------------------------------
 
@@ -67,6 +69,13 @@ export async function GET(req: Request) {
     const index = await readIndex();
     if (url.searchParams.get("feed")) {
       return NextResponse.json({ events: index.events.slice(-60) }, { headers: { "Cache-Control": "no-store" } });
+    }
+    const token = url.searchParams.get("token");
+    if (token) {
+      const entry = index.projects.find((p) => p.token === token);
+      const project = entry ? await readProject(entry.id) : null;
+      if (!project) throw new ReviewError("That project no longer exists.", 404);
+      return NextResponse.json({ project }, { headers: { "Cache-Control": "no-store" } });
     }
     const [projects, store] = await Promise.all([allProjects(), storage()]);
     const lanes = lanePlan("auto", {
@@ -113,6 +122,24 @@ export async function POST(req: Request) {
           repo: body.repo,
           vercelProject: body.vercelProject,
         });
+        await writeProject(p);
+        await updateIndex((i) => upsertIndex(i, p));
+        return NextResponse.json({ project: p });
+      }
+
+      // One of the owner's own apps, opened from the Client view's picker:
+      // its project, made the first time it is opened.
+      case "ensureApp": {
+        const slug = typeof body.slug === "string" ? body.slug : "";
+        const entry = appEntry(await readIndex(), slug);
+        const existing = entry ? await readProject(entry.id) : null;
+        if (existing) {
+          if (!existing.archived) return NextResponse.json({ project: existing });
+          const { project } = await updateProject(existing.id, (p) => ({ project: { ...p, archived: false }, result: null }));
+          await updateIndex((i) => upsertIndex(i, project));
+          return NextResponse.json({ project });
+        }
+        const p = appProject(slug);
         await writeProject(p);
         await updateIndex((i) => upsertIndex(i, p));
         return NextResponse.json({ project: p });

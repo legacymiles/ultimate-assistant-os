@@ -178,6 +178,12 @@ export interface ClientEdit {
   versionId: string;
   repo?: string;
   vercelProject?: string;
+  /**
+   * One of the owner's own hub apps: its route ("/apps/cook-connect"). The
+   * edit is to that app inside the hub repo, and the preview posted back is
+   * the branch preview at this path.
+   */
+  appPath?: string;
   /** Branch from this (the branch on the client's screen, or main); build on that. */
   baseBranch: string;
   branch: string;

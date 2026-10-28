@@ -754,6 +754,7 @@ export function portalView(p: ClientProject, vapidPublicKey: string | null): Por
     settings: p.settings,
     notices: p.notices.slice(-20),
     vapidPublicKey,
+    ...(p.appSlug ? { isApp: true } : {}),
   };
 }
 
@@ -772,6 +773,7 @@ export function indexEntry(p: ClientProject): ReviewIndex["projects"][number] {
     updatedAt: p.updatedAt,
     archived: p.archived,
     clientUserId: p.clientUserId,
+    ...(p.appSlug ? { appSlug: p.appSlug } : {}),
   };
 }
 
