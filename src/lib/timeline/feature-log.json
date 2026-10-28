@@ -1,5 +1,50 @@
 [
  {
+  "id": "973ff9d:jarvis",
+  "date": "2026-10-28",
+  "slug": "jarvis",
+  "title": "Makes money agents too — with their goal, tools, websites, accounts, schedule and approvals",
+  "detail": "It's not only for videos now. The blueprint says what it makes (workflow, agent, app, website or game). An agent comes with its kit, all editable: its role and goal, the tools it uses (ready or to set up), the websites and resources it works from, accounts to connect, when it works, what it asks fir",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "901032a:jarvis",
+  "date": "2026-10-28",
+  "slug": "jarvis",
+  "title": "Custom Video Swap and Workflow Maker cards with their own screens",
+  "detail": "Custom Video Swap: pick the card, drop a clip + new faces + a background, say who becomes who — the screen opens with every upload in its slot (driving video, original → new character with a lit arrow, new world). Tap people on the marked frame, trim, choose camera/shape/quality; Make it files the j",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "901032a:custom-video-swap",
+  "date": "2026-10-28",
+  "slug": "custom-video-swap",
+  "title": "Custom Video Swap and Workflow Maker cards with their own screens",
+  "detail": "Custom Video Swap: pick the card, drop a clip + new faces + a background, say who becomes who — the screen opens with every upload in its slot (driving video, original → new character with a lit arrow, new world). Tap people on the marked frame, trim, choose camera/shape/quality; Make it files the j",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "901032a:workflow-maker",
+  "date": "2026-10-28",
+  "slug": "workflow-maker",
+  "title": "Custom Video Swap and Workflow Maker cards with their own screens",
+  "detail": "Custom Video Swap: pick the card, drop a clip + new faces + a background, say who becomes who — the screen opens with every upload in its slot (driving video, original → new character with a lit arrow, new world). Tap people on the marked frame, trim, choose camera/shape/quality; Make it files the j",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "95bb8f7:jarvis",
+  "date": "2026-10-28",
+  "slug": "jarvis",
+  "title": "Requests can carry the owner's clip for the PC to work from",
+  "detail": "A request now holds an optional input clip (Storage key inputs/<uid>/<id>.mp4, never a caller's path). The agent downloads it from /api/new-jarvis/requests/input with the connector token; queue_list shows a 'driving clip' link; the owner's watch route plays it with &input=1 and it is kept when the r",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "cf0d0fb:client-review",
   "date": "2026-10-28",
   "slug": "client-review",
