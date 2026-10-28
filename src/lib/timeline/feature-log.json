@@ -1,5 +1,14 @@
 [
  {
+  "id": "2cafc9d:money-agents",
+  "date": "2026-10-28",
+  "slug": "money-agents",
+  "title": "Radar news feed shares an existing server function so the site deploys on the Hobby plan",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "0683034:cook-connect",
   "date": "2026-10-28",
   "slug": "cook-connect",
