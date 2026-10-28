@@ -1,5 +1,14 @@
 [
  {
+  "id": "a52e431:cook-connect",
+  "date": "2026-10-28",
+  "slug": "cook-connect",
+  "title": "Spades video shows all four cameras at once, one bigger than the rest",
+  "detail": "- Video area is now a gallery of every seat: the big camera plus the other three always visible - Tap any camera (or a player's seat) to make it the big one; ✕ makes all four the same size - Laptop: big camera on top of the side column, three under it. Phone: big on the left, three stacked on the ri",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "973ff9d:jarvis",
   "date": "2026-10-28",
   "slug": "jarvis",
