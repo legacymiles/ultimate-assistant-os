@@ -1,5 +1,14 @@
 [
  {
+  "id": "58c4168:text-inbox",
+  "date": "2026-10-28",
+  "slug": "text-inbox",
+  "title": "Works for every sender, skips codes and alerts",
+  "detail": "Setup now shows the everyone option (Any Sender + a single space in Message Contains), and automated texts (codes, short codes, ads) are skipped without an AI draft or a notification.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "264dd9d:iphone-notes",
   "date": "2026-10-28",
   "slug": "iphone-notes",
