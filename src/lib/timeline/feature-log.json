@@ -1,5 +1,14 @@
 [
  {
+  "id": "264dd9d:iphone-notes",
+  "date": "2026-10-28",
+  "slug": "iphone-notes",
+  "title": "Ignores Shortcut step words typed in place of a variable, fixes the title when the note is re-sent, and says exactly what to fix",
+  "detail": "A field like \"Repeat Item > tap it > Name\" typed as text is dropped (the title falls back to the note's first line). Re-sending the same note with a real title/date updates it in place, no duplicate.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "6d9bd2e:text-inbox",
   "date": "2026-10-28",
   "slug": "text-inbox",
