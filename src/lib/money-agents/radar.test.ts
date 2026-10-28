@@ -258,3 +258,28 @@ describe("state", () => {
     expect(t.length).toBeLessThan(4000);
   });
 });
+
+import { CATALYSTS, COMPANIES } from "./radarSeed";
+import { catalystTime } from "./radar";
+
+describe("seed data", () => {
+  it("every catalyst has a real time, a unique id and a source", () => {
+    expect(new Set(CATALYSTS.map((c) => c.id)).size).toBe(CATALYSTS.length);
+    for (const c of CATALYSTS) {
+      expect(Number.isFinite(catalystTime(c))).toBe(true);
+      expect(c.source).toMatch(/^https:\/\//);
+    }
+  });
+  it("every company has a valid symbol, a bucket, a date and a source", () => {
+    expect(new Set(COMPANIES.map((c) => c.ticker)).size).toBe(COMPANIES.length);
+    for (const c of COMPANIES) {
+      expect(toSymbol(c.ticker)).toBe(c.ticker);
+      expect(c.asOf).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(c.source).toMatch(/^https:\/\//);
+    }
+  });
+  it("the Fed decision tomorrow is live for two hours after 2 PM ET", () => {
+    const fed = CATALYSTS.find((c) => c.id === "fomc-2026-10")!;
+    expect(inWindow(fed, new Date("2026-10-28T18:30:00Z"))).toBe(true);
+  });
+});
