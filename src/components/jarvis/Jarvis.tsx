@@ -12,7 +12,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Icon } from "../icons";
-import { NewDashboard } from "../new-dashboard/NewDashboard";
+import { ProfileApp } from "../profile/ProfileApp";
 import { CalendarTab } from "./CalendarTab";
 import { AgentChatTab } from "./AgentChatTab";
 import { StudioTab } from "./StudioTab";
@@ -23,7 +23,10 @@ import { MemoryTab } from "./MemoryTab";
 import { RecordTab } from "./RecordTab";
 import { RoutinesTab } from "./RoutinesTab";
 import { VoiceModal } from "./VoiceModal";
+import { ScreenShareButton, ScreenShareHud } from "./ScreenShare";
+import { useScreenShare } from "@/lib/jarvis/screen/useScreenShare";
 import { isDashboardTool, runDashboardTool } from "@/lib/jarvis/dashboardBridge";
+import { isBrowserTool, runBrowserTool } from "@/lib/jarvis/browserBridge";
 import { ReminderBanner } from "./ReminderBanner";
 import { Recall } from "../recall/Recall";
 import { ListsBoard } from "../recall/lists/ListsBoard";
@@ -154,6 +157,9 @@ export function Jarvis() {
   );
 
   const [talking, setTalking] = useState(false);
+  // The share lives in the shell, not in the Chat tab: it survives a hop to
+  // Calendar and back, and the HUD stays stoppable from wherever the owner is.
+  const screen = useScreenShare();
   // The ball inside the voice window needs the same memories the Memory tab
   // draws. One empty store instance keeps the hook's inputs stable before the
   // real store has loaded.
@@ -192,6 +198,8 @@ export function Jarvis() {
       dash.refresh();
       return said;
     }
+    // The attached tab lives in this browser, so it is driven from here too.
+    if (isBrowserTool(action.tool)) return runBrowserTool(action.tool, args);
     const res = await fetch("/api/jarvis/action", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -310,6 +318,7 @@ export function Jarvis() {
           · {profile ? `${profile.name}'s assistant` : "your AI Operating System"}
         </span>
         <div className="ml-auto flex items-center gap-2">
+          <ScreenShareButton share={screen} />
           <button
             type="button"
             onClick={() => setTalking(true)}
@@ -356,7 +365,7 @@ export function Jarvis() {
           {tab === "plugins" && <PluginsTab />}
           {tab === "settings" && <SettingsTab go={go} updates={updates} />}
           {tab === "memory" && <MemoryTab store={store} commit={commit} />}
-          {tab === "profile" && <NewDashboard chromeless />}
+          {tab === "profile" && <ProfileApp />}
           {tab === "chat" && (
             <AgentChatTab
               store={store}
@@ -364,6 +373,7 @@ export function Jarvis() {
               profile={profile}
               onDashboardChanged={dash.refresh}
               onOpenRecord={() => go("record")}
+              screen={screen}
             />
           )}
           {tab === "inbox" && <InboxTab store={store} commit={commit} profile={profile} />}
@@ -373,6 +383,8 @@ export function Jarvis() {
           {tab === "routines" && <RoutinesTab store={store} commit={commit} profile={profile} />}
         </main>
       </div>
+
+      <ScreenShareHud share={screen} />
 
       <VoiceModal
         open={talking}
