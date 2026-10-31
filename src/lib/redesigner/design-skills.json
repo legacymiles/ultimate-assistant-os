@@ -130,5 +130,49 @@
   {
     "name": "preview-icon",
     "description": "Generate looping video preview icons that show what an app, product, website or workflow actually DOES — the kind of clip that sits in a tool grid on openart.ai or magiclight.ai and plays on hover."
+  },
+  {
+    "name": "app-builder",
+    "description": "Build an app, website, tool or workflow that was designed in the owner's App Builder (Jarvis › App plugins › App Builder) and filed to In Queue folder app:app-builder — including ones reverse-engineered from a screen recording, and CLIEN…"
+  },
+  {
+    "name": "commercial",
+    "description": "Make an app or website look and work like a premium commercial product. \"commercial\" = Apple-level design plus the full foundation a real business runs on (logins, user accounts, profiles, billing system wired and ready, onboarding, anal…"
+  },
+  {
+    "name": "eas-app-stores",
+    "description": "Build and submit iOS and Android apps with EAS to TestFlight, the App Store, or Google Play."
+  },
+  {
+    "name": "expo-design-system",
+    "description": "Build and maintain a design system inside an Expo app - a reusable theme of design tokens (color, spacing, typography, radius, shadow, motion), reusable component structure with variant/size/state prop conventions, and rules for when to…"
+  },
+  {
+    "name": "felix",
+    "description": "Ambitious, end-goal-first planning for anything worth doing well — building or improving an app, website, plugin or Jarvis itself, fixing something that keeps breaking, or any task where \"ok\" isn't good enough."
+  },
+  {
+    "name": "jarvis-harness",
+    "description": "Hand real coding work to a background agent — Claude Code or DeepSeek (dsh) — running in its own git worktree on this machine, driven from a web page or from a Claude Code session, with every risky step stopping at a gate the owner answe…"
+  },
+  {
+    "name": "promo-video",
+    "description": "Turn a website or app URL into a premium, beat-locked product promo / launch video with the claude-promo-video plugin (github.com/smit-vanani/claude-promo-video) — Remotion, an original design system per product, scenes locked to the mus…"
+  },
+  {
+    "name": "rea-to-workflow",
+    "description": "Turn a video or picture of ANY process, money-making method, website, game or app plus the owner's request into a real, working thing in Jarvis — a workflow, an AGENT that goes and makes money with its own tools, websites, resources, acc…"
+  },
+  {
+    "name": "scholar",
+    "description": "The Scholar agent, for every field. A world-class, all-knowing expert who has worked 40 years at the top of whatever field an app, website, game, tool, business or AI pipeline serves, and a king of psychology - the psychology people subc…"
+  },
+  {
+    "name": "supercut",
+    "description": "Make a real-footage demo video of an app the owner built — supercut (github.com/Co-Messi/supercut) drives the actual running app in a browser, films the 2-4 moments that show what it does, and renders a cinematic 1080p60 clip with zoom-t…"
+  },
+  {
+    "name": "website-build-checklist",
+    "description": "The owner's ONE build checklist for building, changing or reviewing ANY app or website — the common-sense rules they never want to repeat (logins for multi-user apps, no duplicates, newest first, updates by itself, plain-English errors,…"
   }
 ]
