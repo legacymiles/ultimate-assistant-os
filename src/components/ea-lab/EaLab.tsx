@@ -10,9 +10,10 @@
 // exposure) and the quality badge that says whether any of it can be believed.
 // ---------------------------------------------------------------------------
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { loadAll, health, scan, queueTest, BRIDGE } from "@/lib/ea-lab/client";
-import type { EaView, Health } from "@/lib/ea-lab/client";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { DragEvent, ReactNode } from "react";
+import { loadAll, health, scan, queueTest, upload, rigs, chooseRig, BRIDGE } from "@/lib/ea-lab/client";
+import type { EaView, Health, Rig } from "@/lib/ea-lab/client";
 import { qualityTier, TIER_LABEL } from "@/lib/ea-lab/rating";
 import type { StrategyClass } from "@/lib/ea-lab/types";
 import { DetailPanel } from "./DetailPanel";
@@ -41,6 +42,10 @@ export function EaLab() {
   const [filter, setFilter] = useState<StrategyClass | "all">("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("score");
+  const [notice, setNotice] = useState<{ tone: "ok" | "bad"; text: string } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const dragDepth = useRef(0);
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -99,6 +104,50 @@ export function EaLab() {
 
   const current = rows.find((v) => v.ea.id === selected) ?? null;
 
+  const uploadFiles = async (files: FileList | File[]) => {
+    const list = [...files];
+    if (!list.length) return;
+    setBusy(true);
+    const done: string[] = [];
+    let queued = 0;
+    try {
+      for (const f of list) {
+        const out = await upload(f);
+        done.push(f.name);
+        queued += out.queued.length;
+        setSelected(out.id);
+      }
+      const names = done.length === 1 ? done[0] : `${done.length} files`;
+      setNotice({
+        tone: "ok",
+        text: queued > 0
+          ? `${names} uploaded and queued for a backtest. Results fill in here when the tester finishes.`
+          : `${names} uploaded. It is filed but cannot be tested as it is. Select it to see why.`,
+      });
+      await refresh();
+    } catch (e) {
+      setNotice({ tone: "bad", text: `Upload failed: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setBusy(false);
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  };
+
+  // Drag a file anywhere over the bench. The depth counter stops the overlay
+  // flickering as the pointer crosses child elements.
+  const hasFiles = (e: DragEvent) => e.dataTransfer.types.includes("Files");
+  const dropProps = down ? {} : {
+    onDragEnter: (e: DragEvent) => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth.current++; setDragging(true); },
+    onDragOver: (e: DragEvent) => { if (hasFiles(e)) e.preventDefault(); },
+    onDragLeave: () => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); },
+    onDrop: (e: DragEvent) => {
+      e.preventDefault();
+      dragDepth.current = 0;
+      setDragging(false);
+      uploadFiles(e.dataTransfer.files);
+    },
+  };
+
   const runScan = async () => {
     setBusy(true);
     try { await scan(); await refresh(); } catch { setDown(true); } finally { setBusy(false); }
@@ -119,9 +168,38 @@ export function EaLab() {
     } catch { setDown(true); } finally { setBusy(false); }
   };
 
+  const needsRig = !down && hp !== null && !hp.rig.present;
+  const failure = hp?.lastFailure;
+
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-canvas text-ink">
-      <Header hp={hp} down={down} busy={busy} onScan={runScan} />
+    <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-canvas text-ink" {...dropProps}>
+      <input
+        ref={fileInput}
+        type="file"
+        accept=".ex4,.ex5,.mq4,.mq5"
+        multiple
+        className="hidden"
+        onChange={(e) => e.target.files && uploadFiles(e.target.files)}
+      />
+      <Header hp={hp} down={down} busy={busy} onScan={runScan} onUpload={() => fileInput.current?.click()} />
+
+      {notice && (
+        <Banner tone={notice.tone} onClose={() => setNotice(null)}>{notice.text}</Banner>
+      )}
+      {!notice && failure && !needsRig && (
+        <Banner tone="bad">
+          Last test failed, <span className="font-medium text-ink">{failure.name}</span>: {failure.error}
+        </Banner>
+      )}
+
+      {dragging && (
+        <div className="pointer-events-none absolute inset-2 z-30 flex items-center justify-center rounded-lg border-2 border-dashed border-brand bg-canvas/85">
+          <div className="text-center">
+            <p className="text-[15px] font-semibold text-ink">Drop to upload and test</p>
+            <p className="mt-1 font-mono text-[11.5px] text-ink-muted">.ex4 is backtested · .mq4 / .ex5 are filed</p>
+          </div>
+        </div>
+      )}
 
       <div className="flex min-h-0 flex-1">
         <Sidebar
@@ -146,8 +224,13 @@ export function EaLab() {
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto">
+            {needsRig && <RigPicker machine={hp?.machine} onChosen={() => refresh()} />}
             {down ? <BridgeDown /> : views === null ? <Skeleton /> : rows.length === 0 ? (
-              <Empty inbox={hp?.inbox} hasAny={(views?.length ?? 0) > 0} />
+              <Empty
+                inbox={hp?.inbox}
+                hasAny={(views?.length ?? 0) > 0}
+                onUpload={() => fileInput.current?.click()}
+              />
             ) : (
               <Table rows={rows} selected={selected} onSelect={setSelected} sort={sort} onSort={setSort} />
             )}
@@ -164,8 +247,29 @@ export function EaLab() {
 
 // ----- header ---------------------------------------------------------------
 
-function Header({ hp, down, busy, onScan }: {
-  hp: Health | null; down: boolean; busy: boolean; onScan: () => void;
+function Banner({ tone, onClose, children }: {
+  tone: "ok" | "bad"; onClose?: () => void; children: ReactNode;
+}) {
+  return (
+    <div
+      role="status"
+      className={`flex shrink-0 items-start gap-3 border-b px-3 py-2 text-[12.5px] leading-relaxed ${
+        tone === "ok" ? "border-green-500/25 bg-green-500/[0.07] text-ink-muted" : "border-red-500/25 bg-red-500/[0.07] text-ink-muted"
+      }`}
+    >
+      <span className={`mt-[7px] h-[7px] w-[7px] shrink-0 rounded-full ${tone === "ok" ? "bg-green-500" : "bg-red-500"}`} aria-hidden />
+      <p className="min-w-0 flex-1">{children}</p>
+      {onClose && (
+        <button onClick={onClose} className="shrink-0 font-mono text-[11.5px] text-ink-faint transition hover:text-ink">
+          dismiss
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Header({ hp, down, busy, onScan, onUpload }: {
+  hp: Health | null; down: boolean; busy: boolean; onScan: () => void; onUpload: () => void;
 }) {
   return (
     <header className="flex shrink-0 items-center gap-3 border-b border-line bg-panel-2 px-3 py-2">
@@ -179,15 +283,27 @@ function Header({ hp, down, busy, onScan }: {
             aria-hidden
           />
           <span className={down ? "text-red-400" : "text-ink-muted"}>
-            {down ? "runner not running" : hp?.queue ? `testing · ${hp.queue} queued` : "idle"}
+            {down ? "runner not running"
+              : hp && !hp.rig.present ? "no test terminal"
+              : hp?.queue ? `testing · ${hp.queue} queued` : "idle"}
           </span>
+          {!down && hp?.machine && (
+            <span className="hidden text-ink-faint sm:inline">on {hp.machine}</span>
+          )}
         </span>
         <button
           onClick={onScan}
           disabled={busy || down}
-          className="rounded-md px-3 py-1.5 text-[12px] text-ink-muted transition hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+          className="hidden rounded-md px-3 py-1.5 text-[12px] text-ink-muted transition hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 sm:block"
         >
-          {busy ? "Scanning…" : "Scan inbox"}
+          Scan inbox
+        </button>
+        <button
+          onClick={onUpload}
+          disabled={busy || down}
+          className="rounded-md bg-brand px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-brand-2 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {busy ? "Working…" : "Upload EA"}
         </button>
       </div>
     </header>
@@ -241,7 +357,7 @@ function Sidebar({ counts, filter, onFilter, inbox, waiting }: {
         <p className="mt-1.5 text-[12px] leading-relaxed text-ink-muted">
           {waiting > 0
             ? `${waiting} file${waiting === 1 ? "" : "s"} waiting to be taken in.`
-            : "Drop an .ex4 here and it is registered, installed and tested."}
+            : "Or use Upload EA. A file dropped in this folder is taken in and tested the same way."}
         </p>
       </div>
     </nav>
@@ -384,37 +500,133 @@ function Skeleton() {
 }
 
 function BridgeDown() {
+  const code = "mt-1 w-fit rounded-md bg-canvas px-2 py-1 font-mono text-[11.5px] text-ink ring-1 ring-inset ring-line";
   return (
     <div className="px-6 py-12">
       <p className="text-[13px] leading-relaxed text-ink">
-        The EA Lab runner is not running on this PC.
+        The EA Lab runner is not running on this computer.
       </p>
       <p className="mt-2 max-w-[65ch] text-[13px] leading-relaxed text-ink-muted">
-        The hub cannot reach MetaTrader by itself — testing happens on your machine, through a
-        local runner the page talks to on <span className="font-mono text-[11.5px]">{BRIDGE}</span>.
-        Start it and this table fills itself in.
+        Backtests run on the machine that has MetaTrader, your VPS, through a small runner. This
+        page can only reach a runner on the same computer it is open on, at{" "}
+        <span className="font-mono text-[11.5px]">{BRIDGE}</span>.
       </p>
-      <pre className="mt-3 w-fit rounded-lg bg-canvas px-3 py-2 font-mono text-[11.5px] text-ink ring-1 ring-inset ring-line">
-        node tools/ea-lab-runner/server.mjs
-      </pre>
+      <ol className="mt-4 max-w-[65ch] list-decimal space-y-2.5 pl-5 text-[13px] leading-relaxed text-ink-muted">
+        <li>
+          On the VPS, install Node.js (nodejs.org, the LTS version) if it is not there yet.
+        </li>
+        <li>
+          Copy the <span className="font-mono text-[11.5px] text-ink">tools\ea-lab-runner</span> folder
+          onto the VPS and double-click
+          <div className={code}>install-autostart.cmd</div>
+          It starts the runner now and every time the VPS signs in.
+        </li>
+        <li>
+          In a browser on the VPS, open
+          <div className={code}>http://127.0.0.1:42030</div>
+        </li>
+      </ol>
     </div>
   );
 }
 
-function Empty({ inbox, hasAny }: { inbox?: string; hasAny: boolean }) {
+function RigPicker({ machine, onChosen }: { machine?: string; onChosen: () => void }) {
+  const [list, setList] = useState<Rig[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    rigs(ac.signal).then(setList).catch(() => setList([]));
+    return () => ac.abort();
+  }, []);
+
+  const pick = async (exe: string) => {
+    setSaving(exe);
+    setError(null);
+    try { await chooseRig(exe); onChosen(); } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally { setSaving(null); }
+  };
+
+  return (
+    <section className="border-b border-line bg-panel px-4 py-4">
+      <h2 className="text-[13px] font-semibold text-ink">
+        Choose the MetaTrader 4 install to test with{machine ? ` on ${machine}` : ""}
+      </h2>
+      <p className="mt-1 max-w-[70ch] text-[12.5px] leading-relaxed text-ink-muted">
+        The runner closes and restarts this terminal for every test, so pick one you are{" "}
+        <span className="text-ink">not trading on</span>. A spare copy of MT4 logged into a demo
+        account, with history for the symbols you test, is ideal.
+      </p>
+
+      {list === null ? (
+        <div className="mt-3 h-10 w-full max-w-[640px] animate-pulse rounded-md bg-panel-2" />
+      ) : list.length === 0 ? (
+        <p className="mt-3 max-w-[70ch] text-[12.5px] leading-relaxed text-amber-400">
+          No MT4 install found on this machine. Install MetaTrader 4 (any broker&apos;s build), log
+          in to a demo account once so it creates its data folder, then reload this page.
+        </p>
+      ) : (
+        <ul className="mt-3 max-w-[760px] divide-y divide-line-soft rounded-md ring-1 ring-inset ring-line">
+          {list.map((r) => (
+            <li key={r.exe} className="flex items-center gap-3 px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-[12.5px] font-medium text-ink">{r.name}</span>
+                  {r.running && (
+                    <span className="shrink-0 rounded bg-amber-500/15 px-1 font-mono text-[9.5px] uppercase text-amber-400">
+                      open now
+                    </span>
+                  )}
+                </div>
+                <div className="truncate font-mono text-[11px] text-ink-faint">
+                  {r.exe} · {r.experts} EA{r.experts === 1 ? "" : "s"}
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  if (r.running && !window.confirm(
+                    `${r.name} is open right now. If you trade on it, testing will close it. Use it anyway?`,
+                  )) return;
+                  pick(r.exe);
+                }}
+                disabled={saving !== null}
+                className="shrink-0 rounded-md px-3 py-1.5 text-[12px] text-ink ring-1 ring-inset ring-line transition hover:bg-elevated disabled:opacity-40"
+              >
+                {saving === r.exe ? "Saving…" : "Test with this"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {error && <p className="mt-2 text-[12.5px] text-red-400">{error}</p>}
+    </section>
+  );
+}
+
+function Empty({ inbox, hasAny, onUpload }: { inbox?: string; hasAny: boolean; onUpload: () => void }) {
   return (
     <div className="px-6 py-12">
       <p className="text-[13px] leading-relaxed text-ink">
         {hasAny ? "Nothing matches that filter." : "No Expert Advisors yet."}
       </p>
       {!hasAny && (
-        <p className="mt-2 max-w-[65ch] text-[13px] leading-relaxed text-ink-muted">
-          Drop an <span className="font-mono text-[11.5px]">.ex4</span> or{" "}
-          <span className="font-mono text-[11.5px]">.ex5</span> into{" "}
-          <span className="font-mono text-[11.5px] text-ink">{inbox ?? "C:\\EA-Lab\\inbox"}</span>.
-          It is registered, installed into the test rig and backtested without the terminal being
-          touched by hand.
-        </p>
+        <>
+          <p className="mt-2 max-w-[65ch] text-[13px] leading-relaxed text-ink-muted">
+            Upload an <span className="font-mono text-[11.5px]">.ex4</span>, or drag one anywhere
+            onto this page. It is installed into the test terminal and backtested without
+            MetaTrader being touched by hand. Files dropped in{" "}
+            <span className="font-mono text-[11.5px] text-ink">{inbox ?? "C:\\EA-Lab\\inbox"}</span>{" "}
+            are taken in the same way.
+          </p>
+          <button
+            onClick={onUpload}
+            className="mt-4 rounded-md bg-brand px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-brand-2"
+          >
+            Upload EA
+          </button>
+        </>
       )}
     </div>
   );

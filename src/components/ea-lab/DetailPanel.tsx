@@ -167,7 +167,9 @@ export function DetailPanel({ view, busy, onTest }: {
         </div>
         {!ea.testable && (
           <p className="text-[13px] leading-relaxed text-amber-400">
-            This is source, not a compiled EA. Open it in MetaEditor and compile it before testing.
+            {ea.platform === "mt5"
+              ? "This is an MT5 EA. The test terminal is MT4, so it cannot be backtested here yet."
+              : "This is source, not a compiled EA. Open it in MetaEditor, compile it, and upload the .ex4."}
           </p>
         )}
       </section>

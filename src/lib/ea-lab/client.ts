@@ -1,9 +1,13 @@
 // ---------------------------------------------------------------------------
 // Talking to the EA Lab runner.
 //
-// The hub is on Vercel and cannot reach this PC or its MetaTrader installs;
+// The hub is on Vercel and cannot reach the machine with MetaTrader on it;
 // the owner's browser can. So every call here goes from the page straight to
-// 127.0.0.1:42030, the same shape as the Studio bridge.
+// the runner on 127.0.0.1:42030, the same shape as the Studio bridge.
+//
+// The runner also serves this page itself (tools/ea-lab-runner/ui), which is
+// how the VPS uses it: open http://127.0.0.1:42030 there and the calls go to
+// the same origin.
 //
 // The runner deliberately stores reports WITHOUT parsing them. Parsing happens
 // here, with the same tested code the unit tests run against, so there is one
@@ -16,15 +20,32 @@ import { classify, type Classification } from "./classify";
 import { rate } from "./rating";
 import type { TestRun, Rating, Sample, Platform } from "./types";
 
-export const BRIDGE = "http://127.0.0.1:42030";
+const RUNNER = "http://127.0.0.1:42030";
+
+/** Same origin when the runner served this page, otherwise the local runner. */
+export const BRIDGE =
+  typeof window !== "undefined" && window.location.port === "42030" ? window.location.origin : RUNNER;
 
 export interface Health {
   ok: boolean;
-  rig: { exe: string; present: boolean; data: string };
+  machine?: string;
+  rig: { exe: string | null; present: boolean; data: string | null; chosen?: boolean };
   inbox: string;
   waiting: number;
   library: number;
   queue: number;
+  lastFailure?: { eaId: string; name: string; error: string; at: number } | null;
+}
+
+/** An MT4 install the runner found on its machine. */
+export interface Rig {
+  exe: string;
+  data: string;
+  name: string;
+  portable: boolean;
+  running: boolean;
+  chosen: boolean;
+  experts: number;
 }
 
 export interface LibraryEa {
@@ -78,6 +99,35 @@ export const library = (signal?: AbortSignal) => get<LibraryEa[]>("/library", si
 export async function scan(): Promise<{ found: string[]; adopted: number; queued: string[] }> {
   const res = await fetch(`${BRIDGE}/scan`, { method: "POST" });
   if (!res.ok) throw new Error(`scan returned ${res.status}`);
+  return res.json();
+}
+
+export const rigs = (signal?: AbortSignal) => get<Rig[]>("/rigs", signal);
+
+/** Throw the runner's own words, which say what to do, not just a status code. */
+async function failWith(res: Response, what: string): Promise<never> {
+  let msg = `${what} returned ${res.status}`;
+  try { msg = ((await res.json()) as { error?: string }).error || msg; } catch {}
+  throw new Error(msg);
+}
+
+export async function chooseRig(exe: string): Promise<void> {
+  const res = await fetch(`${BRIDGE}/rig`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ exe }),
+  });
+  if (!res.ok) await failWith(res, "rig");
+}
+
+/** Send one EA file to the runner. It is filed, and queued for a test if it can be tested. */
+export async function upload(file: File): Promise<{ id: string; queued: string[] }> {
+  const res = await fetch(`${BRIDGE}/upload`, {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream", "X-File-Name": encodeURIComponent(file.name) },
+    body: file,
+  });
+  if (!res.ok) await failWith(res, "upload");
   return res.json();
 }
 

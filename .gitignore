@@ -97,3 +97,4 @@ public/__dump/
 # would keep forever, even after a delete. The engine that reads them is
 # committed; the series are re-pullable, so they are not.
 /tools/adaptive-recovery/*.npy
+/tools/ea-lab-runner/out/
