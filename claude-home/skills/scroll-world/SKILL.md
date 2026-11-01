@@ -64,7 +64,7 @@ not the framework.
    full mapping — that file is the authority on every generation call.
 3. **ffmpeg / ffprobe** on `$PATH` (frame extraction + encoding). This PC has neither on
    PATH — use the hub's bundled binary at
-   `C:/Users/honey/OneDrive/Desktop/claude code files/node_modules/ffmpeg-static/ffmpeg.exe`
+   `C:/dev/claude-code-files/node_modules/ffmpeg-static/ffmpeg.exe`
    (the same workaround `h3-scroll-world/scripts/probe.mjs` uses).
 4. **An image tool** for background knockout if you want floating scenes: PIL
    (`python3 -c "import PIL"`), or `cwebp`/`sips`. Optional — see Step 3.

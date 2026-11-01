@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 
 const BASE = 'https://api.muapi.ai';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const HUB_ENV = 'C:/Users/honey/OneDrive/Desktop/claude code files/.env.local';
+const HUB_ENV = 'C:/dev/claude-code-files/.env.local';
 
 function findKey() {
   if (process.env.MUAPI_API_KEY) return process.env.MUAPI_API_KEY.trim();

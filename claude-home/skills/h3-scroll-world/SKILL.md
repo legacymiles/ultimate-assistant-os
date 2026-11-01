@@ -56,7 +56,7 @@ framework.
 1. **H3 backends.** Run `node "$SKILL/scripts/h3.mjs" --check` — it prints which
    backends are configured and whether the RunPod endpoint is healthy. Keys come from
    the process env → `./.env.local` → the owner's hub `.env.local`
-   (`C:/Users/honey/OneDrive/Desktop/claude code files/.env.local`).
+   (`C:/dev/claude-code-files/.env.local`).
 
    | Backend | Env | first_frame | last_frame | Status for this owner |
    |---|---|---|---|---|
@@ -72,7 +72,7 @@ framework.
 2. **Stills.** `node "$SKILL/scripts/still.mjs"` needs `OPENROUTER_API_KEY` (configured).
    Default model `google/gemini-3.1-flash-image` (override with `--model`).
 3. **ffmpeg.** Not on PATH on the owner's machine; the hub ships one at
-   `C:/Users/honey/OneDrive/Desktop/claude code files/node_modules/ffmpeg-static/ffmpeg.exe`
+   `C:/dev/claude-code-files/node_modules/ffmpeg-static/ffmpeg.exe`
    (verified: 6.1.1 with libx264, libwebp and the psnr filter). The pipeline resolves it
    into `$FFMPEG` (pipeline.md top) — always call `"$FFMPEG"` quoted (the path has
    spaces). There is **no ffprobe**; use `node "$SKILL/scripts/probe.mjs" <file>`

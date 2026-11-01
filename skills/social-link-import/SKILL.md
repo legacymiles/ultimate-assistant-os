@@ -17,7 +17,7 @@ description: >-
 
 Paste a link → the app watches the post → structured data comes out. The reference
 implementation is **Cookbook Genie's "From a video link" tab** in the Assistant OS hub
-(`C:\Users\honey\OneDrive\Desktop\claude code files`). Reuse its library; don't rebuild it.
+(`C:\dev\claude-code-files`). Reuse its library; don't rebuild it.
 
 ## The pipeline (and why each stage exists)
 

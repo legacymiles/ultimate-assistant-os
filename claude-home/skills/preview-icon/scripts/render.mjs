@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SKILL = path.dirname(HERE);
 const require = createRequire(import.meta.url);
-const HUB_ENV = 'C:/Users/honey/OneDrive/Desktop/claude code files/.env.local';
+const HUB_ENV = 'C:/dev/claude-code-files/.env.local';
 
 const arg = (f, d) => { const i = process.argv.indexOf(f); return i > -1 ? process.argv[i + 1] : d; };
 const has = (f) => process.argv.includes(f);

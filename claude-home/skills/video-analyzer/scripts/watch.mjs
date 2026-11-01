@@ -10,14 +10,14 @@
 //   node watch.mjs <url> --json '{"shape": "..."}'   → asks for JSON only
 //
 // Key: OPENROUTER_API_KEY from the environment, else from the hub's .env.local
-// (C:\Users\honey\OneDrive\Desktop\claude code files\.env.local).
+// (C:\dev\claude-code-files\.env.local).
 // Model override: AI_VIDEO_MODEL. Prints the answer to stdout.
 // ---------------------------------------------------------------------------
 
 import { existsSync, readFileSync } from "node:fs";
 import { extname, resolve } from "node:path";
 
-const HUB_ENV = "C:/Users/honey/OneDrive/Desktop/claude code files/.env.local";
+const HUB_ENV = "C:/dev/claude-code-files/.env.local";
 
 function key() {
   if (process.env.OPENROUTER_API_KEY) return process.env.OPENROUTER_API_KEY;

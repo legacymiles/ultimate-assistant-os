@@ -51,11 +51,11 @@ wire       add previewIcon to the catalog entry so every hub version reads the s
 
 ```bash
 cd ~/.claude/skills/preview-icon
-node scripts/plan.mjs --catalog "C:/Users/honey/OneDrive/Desktop/claude code files/src/lib/catalog.ts" --out work/plan.json
+node scripts/plan.mjs --catalog "C:/dev/claude-code-files/src/lib/catalog.ts" --out work/plan.json
 node scripts/plan.mjs --describe "turns a reference song into Suno prompts" --slug soundprint --out work/plan.json
 node scripts/render.mjs work/plan.json --only music-creator
 node scripts/render.mjs work/plan.json --confirm
-node scripts/finish.mjs work/plan.json --public "C:/Users/honey/OneDrive/Desktop/claude code files/public/hub/icons"
+node scripts/finish.mjs work/plan.json --public "C:/dev/claude-code-files/public/hub/icons"
 ```
 
 Render one item first, always. Look at it, apply the read test below, and only then spend on a

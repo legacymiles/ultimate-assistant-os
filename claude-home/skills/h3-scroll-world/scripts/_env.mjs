@@ -7,7 +7,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { extname, resolve } from "node:path";
 
-export const HUB = "C:/Users/honey/OneDrive/Desktop/claude code files";
+export const HUB = "C:/dev/claude-code-files";
 
 function parseEnvFile(p) {
   const out = {};

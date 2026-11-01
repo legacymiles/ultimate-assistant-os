@@ -3,7 +3,7 @@
 Every video goes through `node "$SKILL/scripts/h3.mjs"` (MiniMax H3), every still through
 `node "$SKILL/scripts/still.mjs"` (OpenRouter). Both are Node 18+, zero deps, and read
 keys from the process env → `./.env.local` → the owner's hub `.env.local`
-(`C:/Users/honey/OneDrive/Desktop/claude code files/.env.local`). There is no ffprobe on
+(`C:/dev/claude-code-files/.env.local`). There is no ffprobe on
 this machine — `node "$SKILL/scripts/probe.mjs" <file>` prints
 `{width,height,fps,duration,frames}` instead.
 
@@ -17,7 +17,7 @@ mkdir -p "$WORK" "$ASSETS/vid"
 NAMES="farm kitchen shop delivery plaza finale"   # <-- your section ids, in order
 
 # ffmpeg: PATH first, else the hub's ffmpeg-static binary. ALWAYS quote "$FFMPEG" (spaces in path).
-FFMPEG="${FFMPEG:-$(command -v ffmpeg || echo "/c/Users/honey/OneDrive/Desktop/claude code files/node_modules/ffmpeg-static/ffmpeg.exe")}"
+FFMPEG="${FFMPEG:-$(command -v ffmpeg || echo "/c/dev/claude-code-files/node_modules/ffmpeg-static/ffmpeg.exe")}"
 
 # H3 backend — ONE for every chained clip (SKILL Step 4).
 #   runpod  : owner's own H3, first_frame only → architecture A (default)
