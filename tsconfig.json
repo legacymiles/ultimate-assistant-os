@@ -72,16 +72,19 @@
     ".next-preview-3263/types/**/*.ts",
     ".next-preview-3264/types/**/*.ts",
     ".next-preview-3270/types/**/*.ts",
+    ".next-preview-3272/types/**/*.ts",
+    ".next-preview-3273/types/**/*.ts",
     ".next-preview-3277/types/**/*.ts",
     ".next-ssbuild/types/**/*.ts",
     ".next-verify-cx/types/**/*.ts",
+    ".next-verify-nj/types/**/*.ts",
     ".next-verify-push/types/**/*.ts",
     ".next-verify-sheet/types/**/*.ts",
     ".next-verify-studio/types/**/*.ts",
     ".next-verify/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-verify-nj/types/**/*.ts"
+    ".next-preview-3274/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

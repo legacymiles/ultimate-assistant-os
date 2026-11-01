@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"C:/Users/honey/OneDrive/Desktop/claude code files/scripts/sync-design-skills.mjs\"",
+            "command": "node \"C:/dev/claude-code-files/scripts/sync-design-skills.mjs\"",
             "timeout": 60,
             "async": true
           }
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"C:/Users/honey/OneDrive/Desktop/claude code files/scripts/sync-design-skills.mjs\"",
+            "command": "node \"C:/dev/claude-code-files/scripts/sync-design-skills.mjs\"",
             "timeout": 60,
             "async": true
           }

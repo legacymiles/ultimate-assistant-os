@@ -102,7 +102,7 @@ tools/unreal-builder/
 - [ ] `unreal_screenshot({name, width=1920, height=1080})`: via Epic `execute_tool_script`, run `unreal.AutomationLibrary.take_high_res_screenshot(w,h,path)` with path `<project>/GameCreator/shots/<name>.png`; poll up to 20 s for the file; return the path.
 - [ ] `package.mjs` `packageGame(uproject, outDir, onLine)`: spawn `Engine\Build\BatchFiles\RunUAT.bat BuildCookRun -project=<uproject> -noP4 -platform=Win64 -clientconfig=Development -cook -build -stage -pak -archive -archivedirectory=<outDir> -unattended -utf8output`; resolve `{ok, exe, logTail}` where exe is found under `outDir/Windows/*.exe`. Editor must be closed first (the tool saves and closes it).
 - [ ] Smoke: `node server.mjs` under the SDK's in-memory or stdio client script `scripts/smoke.mjs` lists bridge tools, calls `unreal_status`.
-- [ ] Register: `claude mcp add --scope user unreal -- node "C:\Users\honey\OneDrive\Desktop\claude code files\tools\unreal-bridge\server.mjs"`; `claude mcp list` shows `unreal` connected.
+- [ ] Register: `claude mcp add --scope user unreal -- node "C:\dev\claude-code-files\tools\unreal-bridge\server.mjs"`; `claude mcp list` shows `unreal` connected.
 - [ ] Commit.
 
 ### Task 4: Skill + proof game
