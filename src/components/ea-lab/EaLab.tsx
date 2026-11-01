@@ -44,6 +44,7 @@ export function EaLab() {
   const [sort, setSort] = useState<SortKey>("score");
   const [notice, setNotice] = useState<{ tone: "ok" | "bad"; text: string } | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [showTerminals, setShowTerminals] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
 
@@ -110,20 +111,33 @@ export function EaLab() {
     setBusy(true);
     const done: string[] = [];
     let queued = 0;
+    const missing = new Set<string>();
+    let source = false;
     try {
       for (const f of list) {
         const out = await upload(f);
         done.push(f.name);
         queued += out.queued.length;
+        if (out.ea?.kind === "source") source = true;
+        if (out.rigReady === false && out.ea) missing.add(out.ea.platform.toUpperCase());
         setSelected(out.id);
       }
       const names = done.length === 1 ? done[0] : `${done.length} files`;
-      setNotice({
-        tone: "ok",
-        text: queued > 0
-          ? `${names} uploaded and queued for a backtest. Results fill in here when the tester finishes.`
-          : `${names} uploaded. It is filed but cannot be tested as it is. Select it to see why.`,
-      });
+      if (missing.size) {
+        const which = [...missing].join(" and ");
+        setShowTerminals(true);
+        setNotice({
+          tone: "bad",
+          text: `${names} uploaded, but no ${which} test terminal is chosen yet. Pick one below and test it from the record on the right.`,
+        });
+      } else {
+        setNotice({
+          tone: "ok",
+          text: queued > 0
+            ? `${names} uploaded and queued. ${source ? "It is compiled first, then backtested. " : ""}Results fill in here when the tester finishes.`
+            : `${names} uploaded.`,
+        });
+      }
       await refresh();
     } catch (e) {
       setNotice({ tone: "bad", text: `Upload failed: ${e instanceof Error ? e.message : String(e)}` });
@@ -168,7 +182,8 @@ export function EaLab() {
     } catch { setDown(true); } finally { setBusy(false); }
   };
 
-  const needsRig = !down && hp !== null && !hp.rig.present;
+  const noRig = !down && hp !== null && !hp.rigs.mt4.present && !hp.rigs.mt5.present;
+  const needsRig = noRig || (!down && showTerminals);
   const failure = hp?.lastFailure;
 
   return (
@@ -181,12 +196,19 @@ export function EaLab() {
         className="hidden"
         onChange={(e) => e.target.files && uploadFiles(e.target.files)}
       />
-      <Header hp={hp} down={down} busy={busy} onScan={runScan} onUpload={() => fileInput.current?.click()} />
+      <Header
+        hp={hp}
+        down={down}
+        busy={busy}
+        onScan={runScan}
+        onUpload={() => fileInput.current?.click()}
+        onTerminals={() => setShowTerminals((v) => !v)}
+      />
 
       {notice && (
         <Banner tone={notice.tone} onClose={() => setNotice(null)}>{notice.text}</Banner>
       )}
-      {!notice && failure && !needsRig && (
+      {!notice && failure && !noRig && (
         <Banner tone="bad">
           Last test failed, <span className="font-medium text-ink">{failure.name}</span>: {failure.error}
         </Banner>
@@ -196,7 +218,7 @@ export function EaLab() {
         <div className="pointer-events-none absolute inset-2 z-30 flex items-center justify-center rounded-lg border-2 border-dashed border-brand bg-canvas/85">
           <div className="text-center">
             <p className="text-[15px] font-semibold text-ink">Drop to upload and test</p>
-            <p className="mt-1 font-mono text-[11.5px] text-ink-muted">.ex4 is backtested · .mq4 / .ex5 are filed</p>
+            <p className="mt-1 font-mono text-[11.5px] text-ink-muted">.ex4 · .ex5 tested · .mq4 · .mq5 compiled, then tested</p>
           </div>
         </div>
       )}
@@ -224,7 +246,13 @@ export function EaLab() {
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto">
-            {needsRig && <RigPicker machine={hp?.machine} onChosen={() => refresh()} />}
+            {needsRig && (
+              <RigPicker
+                machine={hp?.machine}
+                onChosen={() => refresh()}
+                onClose={noRig ? undefined : () => setShowTerminals(false)}
+              />
+            )}
             {down ? <BridgeDown /> : views === null ? <Skeleton /> : rows.length === 0 ? (
               <Empty
                 inbox={hp?.inbox}
@@ -268,9 +296,11 @@ function Banner({ tone, onClose, children }: {
   );
 }
 
-function Header({ hp, down, busy, onScan, onUpload }: {
-  hp: Health | null; down: boolean; busy: boolean; onScan: () => void; onUpload: () => void;
+function Header({ hp, down, busy, onScan, onUpload, onTerminals }: {
+  hp: Health | null; down: boolean; busy: boolean;
+  onScan: () => void; onUpload: () => void; onTerminals: () => void;
 }) {
+  const noRig = hp !== null && !hp.rigs.mt4.present && !hp.rigs.mt5.present;
   return (
     <header className="flex shrink-0 items-center gap-3 border-b border-line bg-panel-2 px-3 py-2">
       <h1 className="text-[14px] font-semibold leading-tight">EA Lab</h1>
@@ -284,13 +314,28 @@ function Header({ hp, down, busy, onScan, onUpload }: {
           />
           <span className={down ? "text-red-400" : "text-ink-muted"}>
             {down ? "runner not running"
-              : hp && !hp.rig.present ? "no test terminal"
+              : noRig ? "no test terminal"
               : hp?.queue ? `testing · ${hp.queue} queued` : "idle"}
           </span>
           {!down && hp?.machine && (
             <span className="hidden text-ink-faint sm:inline">on {hp.machine}</span>
           )}
         </span>
+        {hp && !down && (
+          <button
+            onClick={onTerminals}
+            title="Choose the MT4 and MT5 installs used for testing"
+            className="hidden items-center gap-2 rounded-md px-2.5 py-1.5 font-mono text-[11.5px] text-ink-muted transition hover:bg-elevated hover:text-ink md:flex"
+          >
+            {(["mt4", "mt5"] as const).map((p) => (
+              <span key={p} className="flex items-center gap-1">
+                <span className={`h-[6px] w-[6px] rounded-full ${hp.rigs[p].present ? "bg-green-500" : "bg-ink-faint"}`} aria-hidden />
+                {p.toUpperCase()}
+                <span className="sr-only">{hp.rigs[p].present ? " ready" : " not set"}</span>
+              </span>
+            ))}
+          </button>
+        )}
         <button
           onClick={onScan}
           disabled={busy || down}
@@ -357,7 +402,7 @@ function Sidebar({ counts, filter, onFilter, inbox, waiting }: {
         <p className="mt-1.5 text-[12px] leading-relaxed text-ink-muted">
           {waiting > 0
             ? `${waiting} file${waiting === 1 ? "" : "s"} waiting to be taken in.`
-            : "Or use Upload EA. A file dropped in this folder is taken in and tested the same way."}
+            : "Or use Upload EA. An .ex4, .ex5, .mq4 or .mq5 dropped in this folder is taken in and tested the same way."}
         </p>
       </div>
     </nav>
@@ -421,9 +466,19 @@ function Table({ rows, selected, onSelect, sort, onSort }: {
               <td className="min-w-0 px-2 py-1.5">
                 <div className="flex items-center gap-2">
                   <span className="truncate font-medium text-ink">{v.ea.name}</span>
-                  {!v.ea.testable && (
-                    <span className="shrink-0 rounded bg-amber-500/15 px-1 font-mono text-[9.5px] uppercase text-amber-400">
-                      src
+                  {v.ea.platform === "mt5" && (
+                    <span className="shrink-0 rounded bg-sky-500/15 px-1 font-mono text-[9.5px] uppercase text-sky-300">
+                      mt5
+                    </span>
+                  )}
+                  {v.ea.kind === "source" && (
+                    <span
+                      title={v.ea.compileError ?? "Source: compiled by the runner before each test"}
+                      className={`shrink-0 rounded px-1 font-mono text-[9.5px] uppercase ${
+                        v.ea.compileError ? "bg-red-500/15 text-red-400" : "bg-amber-500/15 text-amber-400"
+                      }`}
+                    >
+                      {v.ea.compileError ? "won't compile" : "src"}
                     </span>
                   )}
                 </div>
@@ -530,75 +585,106 @@ function BridgeDown() {
   );
 }
 
-function RigPicker({ machine, onChosen }: { machine?: string; onChosen: () => void }) {
+function RigPicker({ machine, onChosen, onClose }: {
+  machine?: string; onChosen: () => void; onClose?: () => void;
+}) {
   const [list, setList] = useState<Rig[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
 
-  useEffect(() => {
-    const ac = new AbortController();
-    rigs(ac.signal).then(setList).catch(() => setList([]));
-    return () => ac.abort();
+  const load = useCallback((signal?: AbortSignal) => {
+    rigs(signal).then(setList).catch(() => setList([]));
   }, []);
 
-  const pick = async (exe: string) => {
-    setSaving(exe);
+  useEffect(() => {
+    const ac = new AbortController();
+    load(ac.signal);
+    return () => ac.abort();
+  }, [load]);
+
+  const pick = async (r: Rig) => {
+    if (r.running && !window.confirm(
+      `${r.name} is open right now. If you trade on it, testing will close it. Use it anyway?`,
+    )) return;
+    setSaving(r.exe);
     setError(null);
-    try { await chooseRig(exe); onChosen(); } catch (e) {
+    try { await chooseRig(r.exe); onChosen(); load(); } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally { setSaving(null); }
   };
 
   return (
     <section className="border-b border-line bg-panel px-4 py-4">
-      <h2 className="text-[13px] font-semibold text-ink">
-        Choose the MetaTrader 4 install to test with{machine ? ` on ${machine}` : ""}
-      </h2>
-      <p className="mt-1 max-w-[70ch] text-[12.5px] leading-relaxed text-ink-muted">
-        The runner closes and restarts this terminal for every test, so pick one you are{" "}
-        <span className="text-ink">not trading on</span>. A spare copy of MT4 logged into a demo
-        account, with history for the symbols you test, is ideal.
-      </p>
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[13px] font-semibold text-ink">
+            Test terminals{machine ? ` on ${machine}` : ""}
+          </h2>
+          <p className="mt-1 max-w-[70ch] text-[12.5px] leading-relaxed text-ink-muted">
+            Pick one MT4 install for MT4 EAs and one MT5 install for MT5 EAs. The runner closes and
+            restarts the chosen terminal for every test, so pick ones you are{" "}
+            <span className="text-ink">not trading on</span>: a spare copy logged into a demo account,
+            with history for the symbols you test, is ideal.
+          </p>
+        </div>
+        {onClose && (
+          <button onClick={onClose} className="shrink-0 font-mono text-[11.5px] text-ink-faint transition hover:text-ink">
+            close
+          </button>
+        )}
+      </div>
 
       {list === null ? (
         <div className="mt-3 h-10 w-full max-w-[640px] animate-pulse rounded-md bg-panel-2" />
-      ) : list.length === 0 ? (
-        <p className="mt-3 max-w-[70ch] text-[12.5px] leading-relaxed text-amber-400">
-          No MT4 install found on this machine. Install MetaTrader 4 (any broker&apos;s build), log
-          in to a demo account once so it creates its data folder, then reload this page.
-        </p>
       ) : (
-        <ul className="mt-3 max-w-[760px] divide-y divide-line-soft rounded-md ring-1 ring-inset ring-line">
-          {list.map((r) => (
-            <li key={r.exe} className="flex items-center gap-3 px-3 py-2">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-[12.5px] font-medium text-ink">{r.name}</span>
-                  {r.running && (
-                    <span className="shrink-0 rounded bg-amber-500/15 px-1 font-mono text-[9.5px] uppercase text-amber-400">
-                      open now
-                    </span>
-                  )}
-                </div>
-                <div className="truncate font-mono text-[11px] text-ink-faint">
-                  {r.exe} · {r.experts} EA{r.experts === 1 ? "" : "s"}
-                </div>
+        (["mt4", "mt5"] as const).map((p) => {
+          const mine = list.filter((r) => r.platform === p);
+          const label = p.toUpperCase();
+          return (
+            <div key={p} className="mt-4">
+              <div className="text-[10.5px] font-medium uppercase tracking-wide text-ink-muted">
+                MetaTrader {p === "mt4" ? "4" : "5"} <span className="text-ink-faint">· tests {p === "mt4" ? ".ex4 / .mq4" : ".ex5 / .mq5"}</span>
               </div>
-              <button
-                onClick={() => {
-                  if (r.running && !window.confirm(
-                    `${r.name} is open right now. If you trade on it, testing will close it. Use it anyway?`,
-                  )) return;
-                  pick(r.exe);
-                }}
-                disabled={saving !== null}
-                className="shrink-0 rounded-md px-3 py-1.5 text-[12px] text-ink ring-1 ring-inset ring-line transition hover:bg-elevated disabled:opacity-40"
-              >
-                {saving === r.exe ? "Saving…" : "Test with this"}
-              </button>
-            </li>
-          ))}
-        </ul>
+              {mine.length === 0 ? (
+                <p className="mt-1.5 max-w-[70ch] text-[12.5px] leading-relaxed text-amber-400">
+                  No {label} install found. Install MetaTrader {p === "mt4" ? "4" : "5"} (any broker&apos;s build), log in to
+                  a demo account once so it creates its data folder, then reopen this panel.
+                </p>
+              ) : (
+                <ul className="mt-1.5 max-w-[760px] divide-y divide-line-soft rounded-md ring-1 ring-inset ring-line">
+                  {mine.map((r) => (
+                    <li key={r.exe} className={`flex items-center gap-3 px-3 py-2 ${r.chosen ? "bg-elevated" : ""}`}>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-[12.5px] font-medium text-ink">{r.name}</span>
+                          {r.running && (
+                            <span className="shrink-0 rounded bg-amber-500/15 px-1 font-mono text-[9.5px] uppercase text-amber-400">
+                              open now
+                            </span>
+                          )}
+                        </div>
+                        <div className="truncate font-mono text-[11px] text-ink-faint">
+                          {r.exe} · {r.experts} EA{r.experts === 1 ? "" : "s"}
+                        </div>
+                      </div>
+                      {r.chosen ? (
+                        <span className="shrink-0 px-3 py-1.5 font-mono text-[11.5px] text-green-400">testing with this</span>
+                      ) : (
+                        <button
+                          onClick={() => pick(r)}
+                          disabled={saving !== null}
+                          className="shrink-0 rounded-md px-3 py-1.5 text-[12px] text-ink ring-1 ring-inset ring-line transition hover:bg-elevated disabled:opacity-40"
+                        >
+                          {saving === r.exe ? "Saving…" : "Test with this"}
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })
       )}
       {error && <p className="mt-2 text-[12.5px] text-red-400">{error}</p>}
     </section>
@@ -614,9 +700,12 @@ function Empty({ inbox, hasAny, onUpload }: { inbox?: string; hasAny: boolean; o
       {!hasAny && (
         <>
           <p className="mt-2 max-w-[65ch] text-[13px] leading-relaxed text-ink-muted">
-            Upload an <span className="font-mono text-[11.5px]">.ex4</span>, or drag one anywhere
-            onto this page. It is installed into the test terminal and backtested without
-            MetaTrader being touched by hand. Files dropped in{" "}
+            Upload an EA, or drag one anywhere onto this page:{" "}
+            <span className="font-mono text-[11.5px]">.ex4</span> and{" "}
+            <span className="font-mono text-[11.5px]">.ex5</span> are backtested as they are,{" "}
+            <span className="font-mono text-[11.5px]">.mq4</span> and{" "}
+            <span className="font-mono text-[11.5px]">.mq5</span> source is compiled first. All of
+            it happens without MetaTrader being touched by hand. Files dropped in{" "}
             <span className="font-mono text-[11.5px] text-ink">{inbox ?? "C:\\EA-Lab\\inbox"}</span>{" "}
             are taken in the same way.
           </p>

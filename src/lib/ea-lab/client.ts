@@ -14,7 +14,7 @@
 // parser rather than a second copy in the bridge quietly drifting out of sync.
 // ---------------------------------------------------------------------------
 
-import { parseMt4Report, decodeReport } from "./report";
+import { parseReport, decodeReport } from "./report";
 import { analyzeExposure } from "./exposure";
 import { classify, type Classification } from "./classify";
 import { rate } from "./rating";
@@ -29,7 +29,8 @@ export const BRIDGE =
 export interface Health {
   ok: boolean;
   machine?: string;
-  rig: { exe: string | null; present: boolean; data: string | null; chosen?: boolean };
+  /** The test terminal for each platform; present = chosen and found on disk. */
+  rigs: Record<Platform, RigStatus>;
   inbox: string;
   waiting: number;
   library: number;
@@ -37,8 +38,11 @@ export interface Health {
   lastFailure?: { eaId: string; name: string; error: string; at: number } | null;
 }
 
-/** An MT4 install the runner found on its machine. */
+export interface RigStatus { exe: string | null; data: string | null; present: boolean }
+
+/** An MT4 or MT5 install the runner found on its machine. */
 export interface Rig {
+  platform: Platform;
   exe: string;
   data: string;
   name: string;
@@ -52,9 +56,14 @@ export interface LibraryEa {
   id: string;
   name: string;
   platform: Platform;
+  /** "source" (.mq4/.mq5) is compiled by the runner before every test. */
+  kind?: "compiled" | "source";
   file: string;
   testable: boolean;
   path: string;
+  compiled?: { file: string; path: string; at: number } | null;
+  /** Why the last compile failed, in the owner's words; null once it compiles. */
+  compileError?: string | null;
   addedAt: number;
   seenAt: number;
   autoTest: boolean;
@@ -64,6 +73,7 @@ export interface LibraryEa {
 interface RawRun {
   id: string;
   eaId: string;
+  platform?: Platform;
   symbol: string;
   timeframe: string;
   from: number;
@@ -121,7 +131,7 @@ export async function chooseRig(exe: string): Promise<void> {
 }
 
 /** Send one EA file to the runner. It is filed, and queued for a test if it can be tested. */
-export async function upload(file: File): Promise<{ id: string; queued: string[] }> {
+export async function upload(file: File): Promise<{ id: string; queued: string[]; rigReady?: boolean; ea?: LibraryEa | null }> {
   const res = await fetch(`${BRIDGE}/upload`, {
     method: "POST",
     headers: { "Content-Type": "application/octet-stream", "X-File-Name": encodeURIComponent(file.name) },
@@ -146,7 +156,7 @@ async function loadRun(raw: RawRun, signal?: AbortSignal): Promise<TestRun | nul
   try {
     const res = await fetch(`${BRIDGE}/report/${encodeURIComponent(raw.report)}`, { signal });
     if (!res.ok) return null;
-    const parsed = parseMt4Report(decodeReport(new Uint8Array(await res.arrayBuffer())));
+    const parsed = parseReport(decodeReport(new Uint8Array(await res.arrayBuffer())), { model: raw.model });
     return {
       id: raw.id,
       eaId: raw.eaId,

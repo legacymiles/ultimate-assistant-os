@@ -37,6 +37,7 @@ export function DetailPanel({ view, busy, onTest }: {
         <h2 className="text-[14px] font-semibold leading-tight text-ink">{ea.name}</h2>
         <p className="mt-0.5 font-mono text-[11.5px] text-ink-faint">
           {ea.platform.toUpperCase()} · {ea.file}
+          {ea.compiled ? ` → ${ea.compiled.file}` : ""}
         </p>
       </header>
 
@@ -165,13 +166,16 @@ export function DetailPanel({ view, busy, onTest }: {
             In-sample
           </button>
         </div>
-        {!ea.testable && (
-          <p className="text-[13px] leading-relaxed text-amber-400">
-            {ea.platform === "mt5"
-              ? "This is an MT5 EA. The test terminal is MT4, so it cannot be backtested here yet."
-              : "This is source, not a compiled EA. Open it in MetaEditor, compile it, and upload the .ex4."}
+        {ea.compileError ? (
+          <p className="text-[13px] leading-relaxed text-red-400">
+            Did not compile. {ea.compileError.replace(/^did not compile:\s*/i, "")}
           </p>
-        )}
+        ) : ea.kind === "source" ? (
+          <p className="text-[12.5px] leading-relaxed text-ink-muted">
+            Source file: the runner compiles it with the {ea.platform.toUpperCase()} MetaEditor before
+            every test, so a re-upload is always what gets tested.
+          </p>
+        ) : null}
       </section>
     </div>
   );
