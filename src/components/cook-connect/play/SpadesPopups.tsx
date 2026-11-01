@@ -246,8 +246,9 @@ export function OutOfTurnPopup({
       <p className="hx-pop-kicker">Not your turn</p>
       <h2 className="hx-pop-title" style={{ fontSize: "clamp(24px, 6.5vw, 32px)" }}>Play out of turn?</h2>
       <p className="hx-confirm-text">
-        Are you sure you want to play out of turn? It goes on the table now, and it counts as a renig:
-        if someone calls it, your team loses.
+        Are you sure you want to play out of turn? It goes on the table now and your turn in this
+        trick is skipped. Playing out of turn is not a renig — only playing off suit while you
+        still hold the suit is.
       </p>
       <div className="hx-confirm-card"><PlayingCard card={card} size="xl" /></div>
       <div className="hx-pop-actions">

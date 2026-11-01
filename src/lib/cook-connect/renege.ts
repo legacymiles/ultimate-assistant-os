@@ -1,21 +1,20 @@
-// Reneging ("renig"): playing a card you were not allowed to.
+// Reneging ("renig"): acting like you are out of a suit when you are not.
 //
 // By default the table only lets you play legal cards. Pressing "Renig"
-// unlocks every card in your hand, on your screen only. If you then play a
-// card you should not have — a different suit while you still held the suit
-// that was led, or a spade lead before spades were broken — nothing happens
-// out loud: the game carries on and the play is written down quietly in the
-// game state. Any player may "Call renig" on an opponent:
+// unlocks every card in your hand, on your screen only. If you then play as
+// if you had none of a suit while you still held it — a different suit while
+// you still held the suit that was led, or a spade lead before spades were
+// broken while you still held other suits — nothing happens out loud: the
+// game carries on and the play is written down quietly in the game state.
+// Any player may "Call renig" on an opponent:
 //
 //   - they really did renig at some point this game → their team loses;
 //   - they did not → the caller was wrong, and the caller's team loses.
 //
-// Playing out of turn (owner's rule, Oct 2026) is allowed once the trick has
-// been led, after an "Are you sure?" on the player's screen, and is treated
-// exactly like a renig: the card
-// goes onto the trick, the play is written down in secret (kind "turn"), the
-// player's own turn in that trick is skipped, and it can be called like any
-// renig. One rule for every broken rule keeps the table simple.
+// Playing out of turn is NOT a renig (owner's rule, Nov 2026). It is still
+// allowed once the trick has been led, after an "Are you sure?", and the
+// player's own turn in that trick is skipped — but nothing is written down
+// for it. Only the card itself can be a renig, judged by the suit rule above.
 //
 // Either way the game ends there and then. Computer players never renig, and
 // now and then (a fixed chance per trick, from a seeded roll so every browser
@@ -29,7 +28,13 @@ import { type TrickPlay, getSuit, getTeam, isValidPlay } from "./spades";
 /** Chance per finished trick that a computer opponent notices a renig. */
 export const BOT_NOTICE_CHANCE = 0.25;
 
-export type RenegeKind = "suit" | "spades" | "turn";
+export type RenegeKind = "suit" | "spades";
+
+/**
+ * Games saved before Nov 2026 may hold "turn" records (a play out of turn).
+ * Those no longer count as a renig, so calls and computers skip them.
+ */
+const isRenig = (r: RenegeRecord): boolean => r.kind === "suit" || r.kind === "spades";
 
 /** One secret record of an illegal play. Never shown until a call resolves. */
 export interface RenegeRecord {
@@ -43,7 +48,7 @@ export interface RenegeRecord {
   ledSuit: string | null;
   /**
    * "suit": did not follow suit while holding it. "spades": led a spade before
-   * they were broken. "turn": played before it was their turn.
+   * they were broken while holding other suits.
    */
   kind: RenegeKind;
   /** They held the led suit (or a non-spade, for a spade lead) when they played. */
@@ -116,30 +121,6 @@ export function recordPlay(
   ];
 }
 
-/**
- * Write down a play made out of turn. It is recorded on its own (as well as
- * any suit renig the same card makes), so it can be called like a renig.
- */
-export function recordOutOfTurn(
-  records: RenegeRecord[] | undefined,
-  play: { seat: number; userId: string; round: number; trickNumber: number; card: string; trick: TrickPlay[] },
-): RenegeRecord[] {
-  return [
-    ...(records ?? []),
-    {
-      seat: play.seat,
-      userId: play.userId,
-      round: play.round,
-      trickNumber: play.trickNumber,
-      card: play.card,
-      ledSuit: play.trick.length ? getSuit(play.trick[0].card) : null,
-      kind: "turn",
-      heldLedSuit: true,
-      trick: [...play.trick, { seat: play.seat, card: play.card }],
-    },
-  ];
-}
-
 /** Once a trick is finished, keep the whole trick as the evidence. */
 export function completeEvidence(
   records: RenegeRecord[] | undefined,
@@ -167,7 +148,7 @@ export function resolveCall(
   accused: { seat: number; userId: string },
   opts: { byBot?: boolean; at?: number } = {},
 ): RenigCall {
-  const evidence = (records ?? []).find((r) => r.seat === accused.seat) ?? null;
+  const evidence = (records ?? []).find((r) => r.seat === accused.seat && isRenig(r)) ?? null;
   const correct = !!evidence;
   const accuserTeam = getTeam(accuser.seat);
   return {
@@ -211,7 +192,7 @@ export function botNotices(
 ): { accuserSeat: number; accusedSeat: number; record: RenegeRecord } | null {
   // Computers never renig, so every record is a person's. Skip anyone whose
   // seat a computer has since taken over: you call out the person, not the seat.
-  for (const record of (records ?? []).filter((r) => !botSeats.includes(r.seat))) {
+  for (const record of (records ?? []).filter((r) => isRenig(r) && !botSeats.includes(r.seat))) {
     const watcher = [...botSeats].sort((a, b) => a - b).find((b) => canAccuse(b, record.seat));
     if (watcher === undefined) continue;
     if (roll(rollKey) < chance) return { accuserSeat: watcher, accusedSeat: record.seat, record };
@@ -237,7 +218,6 @@ export function evidenceLine(record: RenegeRecord, nameOf: (seat: number) => str
   const who = nameOf(record.seat);
   const card = rankName(record.card);
   const where = `round ${record.round}, trick ${record.trickNumber}`;
-  if (record.kind === "turn") return `${who} played the ${card} out of turn (${where}).`;
   if (record.kind === "spades" || !record.ledSuit) {
     return `${who} led the ${card} before spades were broken, while still holding other suits (${where}).`;
   }
