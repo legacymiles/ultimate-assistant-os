@@ -74,9 +74,18 @@ async function readFile(file: File): Promise<string> {
   const name = file.name.toLowerCase();
 
   if (name.endsWith(".pdf")) {
-    const pdf = (await import("pdf-parse")).default;
-    const { text } = await pdf(Buffer.from(await file.arrayBuffer()));
-    return normalize(text);
+    // pdf-parse 2.x dropped the default export this used to call. It was not
+    // only a type error: `(await import("pdf-parse")).default` is undefined at
+    // runtime, so every PDF dropped here threw instead of being read.
+    const { PDFParse } = await import("pdf-parse");
+    const parser = new PDFParse({ data: new Uint8Array(await file.arrayBuffer()) });
+    try {
+      const { text } = await parser.getText();
+      return normalize(text);
+    } finally {
+      // The parser holds a worker. Without this an upload leaks one per call.
+      await parser.destroy();
+    }
   }
   if (name.endsWith(".docx")) {
     const mammoth = (await import("mammoth")).default;
