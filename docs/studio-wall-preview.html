@@ -1,0 +1,517 @@
+<title>Studio Wall</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap">
+
+<style>
+  /* Layout: a fixed explainer strip, then the rack — seven tall panels in one
+     row, the pointed-at one expanding and making room. Committed single dark
+     theme on purpose: this page exists to show what a dark app surface looks
+     like, so a light variant would be showing something that does not exist.
+     Tokens are the hub's own (globals.css), not invented for this page. */
+  :root {
+    color-scheme: dark;
+    --canvas: #0a0b0f;
+    --panel: #12141c;
+    --panel-2: #181b25;
+    --elevated: #1d212d;
+    --line: #262a38;
+    --line-soft: #1e222e;
+    --ink: #e9ecf3;
+    --ink-muted: #9aa3b5;
+    --ink-faint: #6b7385;
+    --brand: #6366f1;
+    --accent: #00cae0;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --gap: 16px;
+  }
+
+  body {
+    margin: 0;
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 22px 34px;
+    max-width: 1700px;
+    margin: 0 auto;
+  }
+
+  /* ---- the explainer ---------------------------------------------------- */
+  .intro { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 18px; margin-bottom: 20px; }
+  .intro h1 {
+    margin: 0;
+    font-size: clamp(26px, 3.4vw, 40px);
+    font-weight: 650;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    text-wrap: balance;
+  }
+  .intro p { margin: 7px 0 0; max-width: 62ch; font-size: 13px; line-height: 1.55; color: var(--ink-faint); }
+  .keys { display: flex; flex-wrap: wrap; gap: 7px; margin-left: auto; }
+  .key {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    border: 1px solid var(--line-soft);
+    border-radius: 999px;
+    padding: 6px 11px;
+    white-space: nowrap;
+  }
+
+  /* ---- the rack --------------------------------------------------------- */
+  .wall { position: relative; }
+
+  .wall::before {
+    content: "";
+    position: absolute;
+    inset: -14% -8%;
+    pointer-events: none;
+    background: radial-gradient(38% 34% at 50% 50%, rgb(0 202 224 / 0.07), transparent 70%);
+    animation: room 26s ease-in-out infinite alternate;
+  }
+  @keyframes room {
+    from { transform: translate3d(-16%, -5%, 0); }
+    to   { transform: translate3d(16%, 7%, 0); }
+  }
+
+  .rack { position: relative; display: flex; flex-wrap: nowrap; gap: var(--gap); align-items: stretch; }
+
+  .slot {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    height: clamp(380px, 72vh, 720px);
+    transition: flex-grow 620ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .slot.live { flex-grow: 2.9; }
+  /* Not flush: a few pixels of stagger stops seven rectangles reading as a
+     progress bar. Static, because a drift would fight the expand. */
+  .slot:nth-child(even) { transform: translateY(10px); }
+  .slot:nth-child(3n) { transform: translateY(-6px); }
+
+  .panel {
+    position: absolute;
+    inset: 0;
+    display: block;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--panel);
+    overflow: hidden;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+    transition: border-color 420ms cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .panel:focus-visible { outline: 2px solid hsl(var(--h) 90% 70%); outline-offset: 3px; }
+
+  .panel.is-live {
+    border-color: color-mix(in oklab, hsl(var(--h) 85% 62%) 55%, var(--line));
+    box-shadow: 0 0 0 1px color-mix(in oklab, hsl(var(--h) 85% 62%) 22%, transparent),
+                0 18px 50px -18px color-mix(in oklab, hsl(var(--h) 85% 55%) 48%, transparent);
+  }
+
+  .media { position: absolute; inset: 0; overflow: hidden; background: var(--panel-2); }
+  .media img, .media video {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; display: block;
+  }
+  .media video { opacity: 0; transition: opacity 520ms ease, filter 700ms ease; }
+  .panel.is-live .media video { opacity: 1; }
+  .panel.is-ghost .media video { opacity: 0; filter: saturate(0.2) brightness(0.75); }
+
+  /* Faint standby texture. The live panel wins on glow, size and motion; it
+     does not need its neighbours blacked out to be obvious. */
+  .dither {
+    position: absolute; inset: 0; pointer-events: none;
+    background:
+      repeating-linear-gradient(0deg, rgb(0 0 0 / 0.14) 0 1px, transparent 1px 3px),
+      linear-gradient(180deg, rgb(10 11 15 / 0.12), rgb(10 11 15 / 0.34));
+    transition: opacity 460ms ease;
+  }
+  .panel.is-live .dither { opacity: 0; }
+
+  /* A panel names itself twice and shows one: on its side when it is 150px
+     wide, horizontally when it opens. Crossfaded, because `writing-mode`
+     cannot be transitioned. */
+  .vname {
+    position: absolute; inset: auto 0 18px 0;
+    display: flex; justify-content: center; pointer-events: none;
+    transition: opacity 300ms ease;
+  }
+  .vname span {
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    font-size: 15px; font-weight: 620; white-space: nowrap;
+    text-shadow: 0 2px 12px rgb(0 0 0 / 0.9);
+  }
+  .panel.is-live .vname { opacity: 0; }
+
+  .body {
+    position: absolute; inset: auto 0 0 0; padding: 16px 16px 14px;
+    opacity: 0; transition: opacity 340ms ease 120ms;
+    background: linear-gradient(180deg, transparent, rgb(8 9 13 / 0.72) 38%, rgb(8 9 13 / 0.93));
+  }
+  .panel.is-live .body { opacity: 1; }
+  .body h2 { margin: 0; font-size: 19px; font-weight: 640; letter-spacing: -0.02em; line-height: 1.12; }
+  .body .tag {
+    margin-top: 4px; font-size: 11.5px; line-height: 1.35;
+    color: color-mix(in oklab, hsl(var(--h) 70% 76%) 70%, var(--ink-muted));
+  }
+
+  .spines { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 11px; }
+  .spine {
+    display: flex; align-items: center; gap: 6px;
+    border: 1px solid color-mix(in oklab, hsl(var(--h) 80% 60%) 36%, var(--line));
+    border-radius: 999px; padding: 3px 9px 3px 7px;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.04em;
+    color: var(--ink); background: rgb(255 255 255 / 0.03); white-space: nowrap;
+  }
+  .dot { width: 4px; height: 4px; border-radius: 50%; background: hsl(var(--h) 85% 64%); flex: none; }
+
+  .scrub {
+    position: absolute; inset: auto 0 0 0; height: 2px;
+    background: hsl(var(--h) 90% 64%);
+    transform-origin: left center; transform: scaleX(var(--p, 0));
+    opacity: 0; transition: opacity 180ms ease;
+  }
+  .panel.is-held .scrub { opacity: 1; }
+
+  /* ---- the studio you land in ------------------------------------------ */
+  .shell { display: none; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .shell.on { display: block; }
+  .wall.off { display: none; }
+
+  .bar {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+    padding: 10px 14px; border-bottom: 1px solid var(--line-soft);
+    background: linear-gradient(180deg, color-mix(in oklab, hsl(var(--h) 70% 50%) 9%, transparent), transparent), var(--panel);
+  }
+  .back {
+    display: flex; align-items: center; gap: 6px; flex: none;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2);
+    color: var(--ink-muted); padding: 6px 10px; font: inherit; font-size: 12px; cursor: pointer;
+    transition: color 180ms ease, border-color 180ms ease, transform 180ms ease;
+  }
+  .back:hover { color: var(--ink); border-color: color-mix(in oklab, hsl(var(--h) 80% 60%) 45%, var(--line)); transform: translateX(-2px); }
+  .who { flex: none; font-size: 13.5px; font-weight: 620; padding-left: 4px; }
+  .who span { display: block; font-weight: 450; font-size: 10.5px; color: color-mix(in oklab, hsl(var(--h) 70% 72%) 65%, var(--ink-faint)); }
+  .rail { display: flex; gap: 4px; margin-left: 10px; overflow-x: auto; scrollbar-width: none; }
+  .rail::-webkit-scrollbar { display: none; }
+  .rail button {
+    flex: none; border: 1px solid transparent; border-radius: 8px; background: transparent;
+    color: var(--ink-faint); padding: 6px 11px; font: inherit; font-size: 12.5px;
+    cursor: pointer; white-space: nowrap;
+    transition: color 180ms ease, background 180ms ease, border-color 180ms ease;
+  }
+  .rail button:hover { color: var(--ink); background: rgb(255 255 255 / 0.04); }
+  .rail button.on {
+    color: var(--ink);
+    background: color-mix(in oklab, hsl(var(--h) 80% 55%) 16%, var(--elevated));
+    border-color: color-mix(in oklab, hsl(var(--h) 80% 60%) 42%, var(--line));
+  }
+
+  .stage { min-height: 300px; display: grid; place-items: center; padding: 40px 20px; background: var(--canvas); }
+  .stage-in { max-width: 54ch; text-align: center; }
+  .stage-in .what { font-size: 11px; font-family: var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
+  .stage-in h3 { margin: 10px 0 0; font-size: 22px; font-weight: 640; letter-spacing: -0.02em; }
+  .stage-in p { margin: 10px 0 0; font-size: 13px; line-height: 1.6; color: var(--ink-muted); }
+  .stage-in .note {
+    margin-top: 18px; font-size: 11.5px; line-height: 1.5; color: var(--ink-faint);
+    border-top: 1px solid var(--line-soft); padding-top: 14px;
+  }
+
+  @media (max-width: 1080px) {
+    .rack { flex-wrap: wrap; }
+    .slot { flex: 1 1 200px; height: 340px; transform: none; }
+    .slot.live { flex-grow: 2; }
+  }
+  @media (max-width: 620px) {
+    .slot { flex: 1 1 100%; height: 300px; }
+    .slot.live { flex-grow: 1; }
+    .keys { margin-left: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before { animation: none !important; transition: none !important; }
+    .rack { flex-wrap: wrap; }
+    .slot { flex: 1 1 240px; height: 400px; transform: none; }
+    .vname { display: none; }
+    .body { opacity: 1; }
+    .dither { opacity: 0.3; }
+  }
+</style>
+
+<div class="page">
+  <header class="intro">
+    <div>
+      <h1>Studio</h1>
+      <p>
+        This is the Studio tab, with the real clips. Seven studios, each holding the apps that
+        make its kind of thing — and the one nearest your cursor is the one that is playing.
+      </p>
+    </div>
+    <div class="keys">
+      <span class="key">Point at a panel</span>
+      <span class="key">Hold to scrub</span>
+      <span class="key">Click to open</span>
+    </div>
+  </header>
+
+  <div class="wall" id="wall"><div class="rack" id="rack"></div></div>
+
+  <section class="shell" id="shell" aria-live="polite">
+    <div class="bar" id="bar"></div>
+    <div class="stage"><div class="stage-in" id="stage"></div></div>
+  </section>
+</div>
+
+<script>
+  // The seven, exactly as src/lib/studio/studios.ts has them.
+  const STUDIOS = [
+    { id: "video", name: "Video Studio", tagline: "The video agent", hue: 258,
+      sections: [
+        ["Workflows", "The wall, the composer and the camera deck"],
+        ["Smart Shot", "Prompt → editable storyboard → H3 video"],
+        ["Arena", "One prompt, five engines, one finished video"],
+        ["3D Director", "Describe a video, an AI animation director makes it"],
+        ["Gallery", "Everything this studio has made"],
+      ] },
+    { id: "image", name: "Image Studio", tagline: "Where the frame gets made", hue: 190,
+      sections: [
+        ["Agents", "Specialist image agents, one face across a set"],
+        ["Workflows", "Covers, posters and the rest of the image wall"],
+        ["Gallery", "Everything this studio has made"],
+      ] },
+    { id: "audio", name: "Audio Studio", tagline: "Find it, file it, make it", hue: 142,
+      sections: [
+        ["Find", "The exact recording, with its licence recorded"],
+        ["Classify", "Tempo, key and energy, read back off the file"],
+        ["Create", "Write and render the song itself"],
+      ] },
+    { id: "music-video", name: "Music Video Studio", tagline: "Studio the other way round", hue: 318,
+      sections: [["Engine", "Track → bars → cuts → lip-sync"]] },
+    { id: "game", name: "Game Creator Studio", tagline: "The studio that builds something", hue: 28,
+      sections: [
+        ["Game Creator", "Describe a game, Unreal builds and packages it"],
+        ["Kart Teardown", "The interactive 3D showcase"],
+        ["Slippery Escape", "First-person physics escape"],
+      ] },
+    { id: "personas", name: "Personas Studio", tagline: "Who the work is for, and who makes it", hue: 280,
+      sections: [
+        ["Personas", "Creator accounts, and an AI that knows them"],
+        ["Dance Vault", "Real dances that play, with the song and the year"],
+        ["Realtime Lucy", "Your webcam, re-imagined live by a world model"],
+      ] },
+    { id: "money", name: "Money Agent Studio", tagline: "Reads the setup. Never presses the button.", hue: 48,
+      sections: [
+        ["Trading Agent", "Reads a setup, argues the risk, signs nothing"],
+        ["EA Lab", "Backtests your bots, filed by how they fail"],
+        ["Calculator", "Sizes a multi-order position and charts it"],
+      ] },
+  ];
+
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const rack = document.getElementById("rack");
+  const wall = document.getElementById("wall");
+  const shell = document.getElementById("shell");
+  const bar = document.getElementById("bar");
+  const stage = document.getElementById("stage");
+
+  let live = null, ghost = null, ghostTimer = 0, held = null, heldRaf = 0;
+
+  for (const s of STUDIOS) {
+    const slot = document.createElement("div");
+    slot.className = "slot";
+    slot.style.setProperty("--h", s.hue);
+    slot.innerHTML = `
+      <button class="panel" data-id="${s.id}" style="--h:${s.hue}"
+              aria-label="${s.name} — ${s.tagline}. ${s.sections.length} apps inside.">
+        <span class="media">
+          <img src="clips/${s.id}.webp" alt="" loading="lazy" decoding="async">
+        </span>
+        <span class="dither" aria-hidden="true"></span>
+        <span class="vname" aria-hidden="true"><span>${s.name}</span></span>
+        <span class="scrub" aria-hidden="true"></span>
+        <span class="body">
+          <h2>${s.name}</h2>
+          <div class="tag">${s.tagline}</div>
+          <div class="spines">${s.sections
+            .map(([label]) => `<span class="spine"><span class="dot"></span>${label}</span>`)
+            .join("")}</div>
+        </span>
+      </button>`;
+    rack.appendChild(slot);
+  }
+
+  const panels = new Map([...rack.querySelectorAll(".panel")].map((p) => [p.dataset.id, p]));
+  const slots = new Map([...rack.querySelectorAll(".slot")].map((el, i) => [STUDIOS[i].id, el]));
+
+  /* One <video> on the page at a time. It is the performance budget and the
+     intended feel at once: playback travels with the pointer rather than seven
+     clips running at once. */
+  function setLive(id) {
+    if (id === live || reduced) return;
+    const leaving = live;
+    live = id;
+    for (const [key, panel] of panels) {
+      panel.classList.toggle("is-live", key === id);
+      slots.get(key).classList.toggle("live", key === id);
+    }
+    if (leaving) {
+      const old = panels.get(leaving);
+      old.classList.add("is-ghost");
+      clearTimeout(ghostTimer);
+      ghost = leaving;
+      ghostTimer = setTimeout(() => {
+        old.classList.remove("is-ghost");
+        old.querySelector("video")?.remove();
+        if (ghost === leaving) ghost = null;
+      }, 700);
+    }
+    if (!id) return;
+    const panel = panels.get(id);
+    let v = panel.querySelector("video");
+    if (!v) {
+      v = document.createElement("video");
+      v.src = `clips/${id}.mp4`;
+      v.poster = `clips/${id}.webp`;
+      v.muted = true; v.loop = true; v.playsInline = true; v.preload = "metadata";
+      panel.querySelector(".media").appendChild(v);
+    }
+    v.play().catch(() => {});
+  }
+
+  function nearest(x, y) {
+    let best = null, bestD = Infinity;
+    for (const [id, panel] of panels) {
+      const r = panel.getBoundingClientRect();
+      if (!r.width) continue;
+      const dx = x - (r.left + r.width / 2);
+      // Halved vertically: the panels are tall, so being level with one should
+      // not lose to the panel in the next column.
+      const dy = (y - (r.top + r.height / 2)) / 2;
+      const d = dx * dx + dy * dy;
+      if (d < bestD) { bestD = d; best = id; }
+    }
+    return best;
+  }
+
+  let idleAt = Date.now();
+  wall.addEventListener("pointermove", (e) => {
+    idleAt = Date.now();
+    const hit = nearest(e.clientX, e.clientY);
+    if (hit) setLive(hit);
+  }, { passive: true });
+
+  // Idle: playback starts wandering, so the rack breathes on standby.
+  setInterval(() => {
+    if (reduced || shell.classList.contains("on")) return;
+    if (Date.now() - idleAt < 8000) return;
+    const i = STUDIOS.findIndex((s) => s.id === live);
+    setLive(STUDIOS[(i + 1) % STUDIOS.length].id);
+  }, 2600);
+
+  // Hold to scrub: the clip maps to how long you have held it.
+  function startHold(id) {
+    held = id;
+    panels.get(id).classList.add("is-held");
+    const t0 = performance.now();
+    const step = (now) => {
+      if (held !== id) return;
+      const p = ((now - t0) % 1400) / 1400;
+      const v = panels.get(id).querySelector("video");
+      if (v && isFinite(v.duration) && v.duration > 0) { v.pause(); v.currentTime = p * v.duration; }
+      panels.get(id).style.setProperty("--p", p);
+      heldRaf = requestAnimationFrame(step);
+    };
+    heldRaf = requestAnimationFrame(step);
+  }
+  function endHold() {
+    if (!held) return;
+    cancelAnimationFrame(heldRaf);
+    const panel = panels.get(held);
+    panel.classList.remove("is-held");
+    panel.style.setProperty("--p", 0);
+    panel.querySelector("video")?.play().catch(() => {});
+    held = null;
+  }
+
+  function openStudio(s, sectionIndex = 0) {
+    wall.classList.add("off");
+    shell.classList.add("on");
+    shell.style.setProperty("--h", s.hue);
+    bar.style.setProperty("--h", s.hue);
+    bar.innerHTML = `
+      <button class="back" type="button">&larr; Studios</button>
+      <div class="who">${s.name}<span>${s.tagline}</span></div>
+      <nav class="rail" aria-label="${s.name} sections"></nav>`;
+    bar.querySelector(".back").addEventListener("click", closeStudio);
+    const rail = bar.querySelector(".rail");
+    s.sections.forEach(([label, blurb], i) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = label;
+      b.title = blurb;
+      b.className = i === sectionIndex ? "on" : "";
+      b.addEventListener("click", () => openStudio(s, i));
+      rail.appendChild(b);
+    });
+    const [label, blurb] = s.sections[sectionIndex];
+    stage.innerHTML = `
+      <div class="what">${s.name} › ${label}</div>
+      <h3>${blurb}</h3>
+      <p>In the app, the real ${label} app mounts here — the same code that runs at its own
+      route today, loaded only when you open this section.</p>
+      <div class="note">This preview draws the wall and the shell around it. It does not run the
+      apps themselves, because those need your machine: your renderer, your Unreal install, your
+      keys.</div>`;
+    shell.scrollIntoView({ block: "nearest", behavior: reduced ? "auto" : "smooth" });
+  }
+
+  function closeStudio() {
+    shell.classList.remove("on");
+    wall.classList.remove("off");
+  }
+
+  rack.addEventListener("pointerdown", (e) => {
+    const panel = e.target.closest(".panel");
+    if (panel && !reduced) startHold(panel.dataset.id);
+  });
+  addEventListener("pointerup", endHold);
+  addEventListener("pointercancel", endHold);
+
+  rack.addEventListener("click", (e) => {
+    const panel = e.target.closest(".panel");
+    if (!panel) return;
+    openStudio(STUDIOS.find((s) => s.id === panel.dataset.id));
+  });
+
+  rack.addEventListener("focusin", (e) => {
+    const panel = e.target.closest(".panel");
+    if (panel) setLive(panel.dataset.id);
+  });
+
+  addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && shell.classList.contains("on")) closeStudio();
+  });
+
+  // Nothing plays while the tab is hidden: a hidden page that keeps decoding is
+  // the frozen-preview bug, and it costs battery for a picture nobody sees.
+  document.addEventListener("visibilitychange", () => {
+    const v = live && panels.get(live)?.querySelector("video");
+    if (!v) return;
+    if (document.hidden) v.pause(); else v.play().catch(() => {});
+  });
+</script>

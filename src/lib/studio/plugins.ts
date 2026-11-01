@@ -18,9 +18,11 @@
 // ---------------------------------------------------------------------------
 
 import { PROJECTS, type CatalogProject } from "@/lib/catalog";
+import { MOVED_IN } from "./studios";
 
 /** The slugs allowed in, in the order they should appear. */
 export const PLUGIN_SLUGS = [
+  "money-agent",
   "seedance-studio",
   "jarvis-audio-studio",
   "image-studio",
@@ -30,6 +32,7 @@ export const PLUGIN_SLUGS = [
   "website-redesigner",
   "ai-rankings",
   "cook-connect",
+  "ea-lab",
 ] as const;
 
 /**
@@ -96,10 +99,25 @@ const WHY: Record<string, string> = {
   "cook-connect":
     "Recipes written well enough to hand straight to a food-photography or ASMR workflow, and a table to "
     + "play somebody at while a render runs.",
+  "ea-lab":
+    "The one plugin that renders nothing and refuses things. Drop a trading bot into a watched folder "
+    + "and it is backtested on this PC, filed by how it fails, and rated on results it has not seen "
+    + "before — with peak unhedged exposure, the number that decides whether an account survives and "
+    + "the one no MetaTrader report prints.",
 };
 
+/**
+ * The cards on the App plugins page.
+ *
+ * An app that is now a SECTION of one of the seven studios is dropped here,
+ * because the studio wall is already the way to it and two doors to one app is
+ * the duplication `PLUGIN_SLUGS` exists to prevent. It keeps its slug in
+ * `PLUGIN_SLUGS` all the same, and that is deliberate: `inJarvis` reads that
+ * list, so leaving it is what keeps the hub's own grid exactly as it was. The
+ * app moved behind a different door, not back onto the front page.
+ */
 export function studioPlugins(): StudioPlugin[] {
-  return PLUGIN_SLUGS.flatMap((slug) => {
+  return PLUGIN_SLUGS.filter((slug) => !(slug in MOVED_IN)).flatMap((slug) => {
     const p = PROJECTS.find((x) => x.slug === slug);
     // An allowlisted slug that has left the catalog simply stops appearing,
     // rather than rendering a card that goes nowhere.

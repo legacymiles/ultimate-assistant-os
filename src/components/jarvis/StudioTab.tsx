@@ -76,13 +76,33 @@ export function StudioTab({
   commit,
   profile,
   onDashboardChanged,
+  lockMedium,
 }: {
   store: JarvisStore;
   commit: (s: JarvisStore) => void;
   profile: Profile | null;
   onDashboardChanged?: () => void;
+  /**
+   * The medium this wall is fixed to, when it is mounted as a section of a
+   * studio rather than as the whole tab.
+   *
+   * The wall used to carry a video/image toggle because it was the only place
+   * either kind was made. Now Video Studio mounts it locked to `video` and
+   * Image Studio to `image`, so the studio you are standing in already answers
+   * the question the toggle was asking — and the toggle, the wordmark and the
+   * Gallery switch all come off, because the shell above is drawing them.
+   */
+  lockMedium?: Medium;
 }) {
-  const [medium, setMedium] = useState<Medium>("video");
+  const embedded = lockMedium !== undefined;
+  const [medium, setMedium] = useState<Medium>(lockMedium ?? "video");
+  // A locked wall follows its lock, never its own state.
+  useEffect(() => {
+    if (lockMedium) {
+      setMedium(lockMedium);
+      setCategory("all");
+    }
+  }, [lockMedium]);
   const [category, setCategory] = useState<CategoryId | "all">("all");
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<Picked[]>([]);
@@ -359,10 +379,11 @@ export function StudioTab({
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2">
-        <h2 className="text-xs font-semibold text-ink">Studio</h2>
+        {!embedded && <h2 className="text-xs font-semibold text-ink">Studio</h2>}
         <span className="text-[11px] text-ink-faint">
           {WORKFLOWS.filter((w) => w.medium === medium).length} {medium} workflows
         </span>
+        {!embedded && (
         <div role="tablist" aria-label="Studio view" className="ml-2 flex rounded-lg border border-line p-0.5">
           {([
             { id: "browse", label: "Workflows", icon: <Icon.Grid width={12} height={12} /> },
@@ -382,6 +403,8 @@ export function StudioTab({
             </button>
           ))}
         </div>
+        )}
+        {!embedded && (
         <div role="tablist" aria-label="Medium" className="ml-1 flex rounded-lg border border-line p-0.5">
           {(["video", "image"] as Medium[]).map((m) => (
             <button
@@ -401,6 +424,7 @@ export function StudioTab({
             </button>
           ))}
         </div>
+        )}
         {local && (
           <span
             className="flex items-center gap-1.5 rounded-full border border-line px-2 py-0.5 text-[11px] text-ink-muted"

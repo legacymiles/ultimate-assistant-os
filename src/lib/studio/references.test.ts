@@ -177,8 +177,12 @@ describe("gallery labels", () => {
 describe("app plugins", () => {
   it("resolves every allowed slug against the hub catalog", async () => {
     const { PLUGIN_SLUGS, studioPlugins } = await import("./plugins");
+    const { MOVED_IN } = await import("./studios");
     const list = studioPlugins();
-    expect(list.map((p) => p.slug)).toEqual([...PLUGIN_SLUGS]);
+    // Every allowed slug EXCEPT the ones that are now sections of one of the
+    // seven studios: the studio wall is already the way to those, and a second
+    // card for them is the duplication this allowlist exists to prevent.
+    expect(list.map((p) => p.slug)).toEqual(PLUGIN_SLUGS.filter((s) => !(s in MOVED_IN)));
     for (const p of list) {
       expect(p.title).toBeTruthy();
       expect(p.href).toMatch(/^\//);
@@ -186,6 +190,22 @@ describe("app plugins", () => {
       expect(p.blurb.length).toBeLessThan(260);
       expect(p.blurb).not.toContain("\n");
     }
+  });
+
+  it("offers no app from both the studio wall and the plugin page", async () => {
+    const { studioPlugins } = await import("./plugins");
+    const { MOVED_IN } = await import("./studios");
+    for (const p of studioPlugins()) {
+      expect(p.slug in MOVED_IN, `${p.slug} is a studio section AND a plugin card`).toBe(false);
+    }
+  });
+
+  it("still keeps the plugin page worth opening", async () => {
+    // Five studios moving out of this page could empty it, at which point the
+    // page should go rather than sit there as a shell. It has not: the doors
+    // out that are not studios are still here.
+    const { studioPlugins } = await import("./plugins");
+    expect(studioPlugins().length).toBeGreaterThanOrEqual(4);
   });
 
   // An app that has moved has ONE definition, in the catalog, and ONE place it

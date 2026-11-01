@@ -13,7 +13,7 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 | Need | Go to |
 |---|---|
 | Who the owner is, priorities, decisions | `aios/` (see `aios/README.md`) and the New Dashboard app |
-| Long-term memory of past work (per app) | `C:\Users\honey\.claude\projects\C--Users-honey-OneDrive-Desktop-claude-code-files\memory\MEMORY.md` |
+| Long-term memory of past work (per app) | `C:\Users\honey\.claude\projects\C--dev-claude-code-files\memory\MEMORY.md` |
 | List of all apps (single source of truth) | `src/lib/catalog.ts` — add an app = add one object to `PROJECTS` |
 | An app's page | `src/app/apps/<slug>/page.tsx` |
 | An app's UI | `src/components/<folder>/` (folder name ≠ slug for some — see table below) |
@@ -51,6 +51,7 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 | `smart-shot-videos` | `smart-shot` |
 | `video-studio-arena` | `video-studio` (engines: `src/lib/video-studio/methods/<id>/`) |
 | `skills-library` | `skills` |
+| `money-agent` | `money-agent` (the Trading Agent + its own shell; EA Lab and the calculator are mounted from their existing folders) |
 | `jarvis-audio-studio` | `jarvis-audio-studio` (the shell) + `mp3-download`, `music-classified`, `music-creator` (its three studios, each still its own folder). `/apps/{mp3-download,music-classified,music-creator}` redirect in with `?section=` |
 | `slippery-escape` | `slippery` |
 | `projects-timeline` | `src/components/AppShell.tsx` + `src/lib/repo` (the original app; `README.md` describes it) |
@@ -62,15 +63,17 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 - The Vercel AI Gateway free tier serves no Anthropic model — keep OpenRouter as the default.
 - Apps must work with no keys set (local demo mode, offline fallback). A missing key degrades visibly, never 500s.
 - Private apps holding the owner's data go in `UNPREVIEWABLE` in `catalog.ts` so the hub carousel never frames them.
+- **Jarvis's Studio tab is seven studios, not one wall.** `src/lib/studio/studios.ts` is the list (pure data, no React); `StudioRoot` is the tab, `StudioWall` the video-card grid, `StudioShell` one studio with its sections. A section's `mount` key must exist in `StudioShell`'s `MOUNTS` record or it will not compile — that is deliberate. The old workflow wall is now the Workflows section of Video Studio (`image`) and Image Studio (`video`), via `StudioTab`'s `lockMedium` prop. A studio section is addressed by hash: `#studio/<studio>/<section>`, and `MOVED_IN` is the forwarding map from an old app slug to where it lives now.
 - Moving a finished app off the hub and into Jarvis is one edit, in `src/lib/studio/plugins.ts`: add the slug to `PLUGIN_SLUGS` (a card on Jarvis › App plugins that opens the app in its own tab) or to `TOOLBOX_SLUGS` (a tab mounted inside Jarvis › Toolbox, wired to a component in `jarvis/Jarvis.tsx`). `hubProjects()` is the catalog minus both, so the two places cannot show the same app twice. Keep the catalog entry — deleting it is what silently killed the old Cookbook Genie card.
 
 ## How to work with the owner
 
 - Be direct and concise. Lead with what needs action.
 - They like dense, database-style UIs over card grids.
-- **Every new app here gets a design skill, unasked.** Invoke it before writing any UI: `impeccable`
-  for app/tool UIs (the default for hub apps), `taste-skill` for landing/hero/public pages. Say which
-  one is driving the look. Never auto-pick a skill that costs money or renders footage
+- **Every new app here gets a design skill, unasked.** Invoke it before writing any UI:
+  `interactive-web-studio` is the one default for everything now — app/tool UIs and hub apps as well
+  as landing/hero/public pages. Say which one is driving the look. `impeccable` and `taste-skill` are
+  opt-in swaps. Never auto-pick a skill that costs money or renders footage
   (`h3-scroll-world`, `scroll-world`, `scroll-craft`, `imagegen-frontend-*`, `image-to-code-skill`) —
   those are opt-in only. Full rule: the global CLAUDE.md.
 - When a decision is made, offer to log it in `aios/decisions/log.md`.

@@ -564,6 +564,60 @@ export const PROJECTS: CatalogProject[] = [
     hue: [330, 20],
     noPreview: true,
   },
+  {
+    slug: "ea-lab",
+    title: "EA Lab",
+    tag: "Test your trading bots",
+    category: "Utilities",
+    overview:
+      "A bench where a MetaTrader Expert Advisor stops being a claim and becomes a measurement. " +
+      "Drop an .ex4 into the watched folder and it is registered, installed into an idle test " +
+      "terminal, backtested headless, filed by strategy and rated — without the terminal being " +
+      "touched by hand. It reads like a database because it is one: strategy tree down the left, a " +
+      "dense sortable table in the middle, the full record on the right. Two columns do the work no " +
+      "MetaTrader report does. The first is NAKED: peak UNHEDGED exposure, reconstructed from the " +
+      "open book rather than from closed trades, which is the figure that actually ends accounts — " +
+      "one hedge EA from the owner's own folder posts a 71.6% win rate and quietly reaches 231x its " +
+      "base lot unhedged. The second is modelling quality, which rides with every number, because a " +
+      "profit factor from a 25%-quality run and one from real ticks are not the same kind of fact " +
+      "and the lab refuses to rank them together. Ratings are built on out-of-sample results only: " +
+      "ranking on in-sample profit factor just sorts the folder by how thoroughly each EA memorised " +
+      "the past. EAs are filed by HOW THEY FAIL — martingale, hedge-recovery, grid, scalper, trend, " +
+      "mean-reversion — since grouping by indicator would file a doubling grid next to a " +
+      "fixed-stop breakout for both reading an RSI. Testing runs on this PC through a local runner; " +
+      "with it off the app opens, says so plainly, and shows everything it already knows.",
+    status: "live",
+    appUrl: "/apps/ea-lab",
+    iconStyle: "mesh",
+    hue: [150, 35],
+  },
+  {
+    slug: "money-agent",
+    title: "Money Agent Studio",
+    tag: "Reads the setup. Never presses the button.",
+    category: "AI",
+    overview:
+      "The one studio that refuses the obvious feature. Inside it are three things: an agent that " +
+      "reads a trade setup, the EA Lab bench that backtests MetaTrader bots on this PC, and the " +
+      "calculator that sizes a multi-order position. The agent's screen is split, and the split is " +
+      "the design. Everything on the left — risk per unit, reward to risk, the breakeven win rate, " +
+      "position size, expectancy across a range of assumed win rates — is arithmetic computed in " +
+      "the browser by a pure module with tests on it, correct with no key set and no network up. " +
+      "Everything on the right is the only part that needs a model: it restates the bet with the " +
+      "reasons stripped off, names what the thesis is quietly assuming, lists what would falsify it " +
+      "BEFORE the stop is reached, and says where the argument is weakest. The model is never asked " +
+      "to do the sums, because a model that fumbles a ratio by a factor of ten is wrong about money " +
+      "— it is handed them, already right. It refuses three things on purpose and holds the refusal " +
+      "when asked directly: no verdict on whether to take a trade, no price or probability " +
+      "forecast, and no mention of orders, brokers or platforms. There is no broker connection and " +
+      "no order path to build one on. A tool that said \"yes, take it\" would be a tool you stop " +
+      "thinking next to, and the thinking is the only part of this with any value.",
+    status: "live",
+    appUrl: "/apps/money-agent",
+    iconStyle: "rings",
+    hue: [48, 150],
+    noPreview: true,
+  },
 ];
 
 export function getProject(slug: string): CatalogProject | null {
@@ -578,7 +632,7 @@ export function getProject(slug: string): CatalogProject | null {
  * for whoever IS signed in, put their own real data on a public-facing spinning
  * panel. Neither is wanted, so they keep the animated icon instead.
  */
-const UNPREVIEWABLE = new Set(["dashboard", "jarvis", "new-jarvis", "projects-timeline", "social-personas"]);
+const UNPREVIEWABLE = new Set(["dashboard", "jarvis", "new-jarvis", "projects-timeline", "social-personas", "ea-lab"]);
 
 /**
  * The preview a carousel panel should mount, or null for the animated icon.

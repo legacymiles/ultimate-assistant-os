@@ -15,7 +15,7 @@ import { Icon } from "../icons";
 import { ProfileApp } from "../profile/ProfileApp";
 import { CalendarTab } from "./CalendarTab";
 import { AgentChatTab } from "./AgentChatTab";
-import { StudioTab } from "./StudioTab";
+import { StudioRoot } from "./StudioRoot";
 import type { Attachment } from "@/lib/jarvis/chatImages";
 import { InboxTab } from "./InboxTab";
 import { DashboardTab } from "./DashboardTab";
@@ -128,7 +128,12 @@ export function Jarvis() {
   useEffect(() => {
     const read = () => {
       const h = window.location.hash.replace("#", "");
-      if (isTab(h)) setTab(h);
+      // A tab may address something inside itself after a slash — Studio does,
+      // with `#studio/video/arena` — so the tab is the part before the first
+      // one. Without this, reloading on a studio drops you on whatever tab
+      // happened to be open instead.
+      const head = h.split("/")[0];
+      if (isTab(head)) setTab(head);
     };
     read();
     window.addEventListener("hashchange", read);
@@ -341,7 +346,7 @@ export function Jarvis() {
             </div>
           )}
           {tab === "studio" && (
-            <StudioTab
+            <StudioRoot
               store={store}
               commit={commit}
               profile={profile}
