@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ROSTER = join(REPO, "src/lib/redesigner/design-skills.json");
+const SKINS_FILE = join(REPO, "src/lib/redesigner/skins.ts");
 const SKILLS_DIR = join(homedir(), ".claude/skills");
 const DRY = process.argv.includes("--dry-run");
 
@@ -38,6 +39,25 @@ const NOT_DESIGN = new Set([
   "higgsfield-models",
   "video-analyzer",
 ]);
+
+/**
+ * The skills skins.ts actually draws a look for.
+ *
+ * This is the real gate, and the keyword match below is only a first pass.
+ * Keywords always leak: `felix` is a planning skill whose description happens
+ * to say "building ... website", so it matched, got auto-committed, and left
+ * the Redesigner dropdown offering a design direction that does nothing —
+ * `skinFor` falls back to the house skin for any name without an entry, so
+ * picking it changes nothing on screen. A skill with no skin therefore has no
+ * business in the roster, and no regex can decide that; skins.ts can.
+ *
+ * Keys are quoted only where they must be, so `impeccable:` is written bare.
+ */
+function skinnedSkills() {
+  const src = readFileSync(SKINS_FILE, "utf8");
+  const block = src.slice(src.indexOf("const ENTRIES"), src.indexOf("export const HOUSE"));
+  return new Set([...block.matchAll(/^  "?([a-zA-Z0-9-]+)"?:\s*\{/gm)].map((m) => m[1]));
+}
 
 // A website design skill talks about building/designing sites, pages or frontends.
 const WEB = /\b(websites?|landing pages?|web ?design|web pages?|web ?apps?|hero sections?|scroll[- ]driven|scrollytelling|portfolio sites?|marketing pages?|frontend|front-end|interfaces?|design systems?|dashboards?|editorial sites?)\b/i;
@@ -73,7 +93,10 @@ function summarize(desc) {
 
 const roster = JSON.parse(readFileSync(ROSTER, "utf8"));
 const have = new Set(roster.map((s) => s.name));
+const skinned = skinnedSkills();
 const added = [];
+/** Matched the keywords but has no skin — reported, never added. */
+const needSkin = [];
 
 if (existsSync(SKILLS_DIR)) {
   for (const dir of readdirSync(SKILLS_DIR, { withFileTypes: true })) {
@@ -87,11 +110,25 @@ if (existsSync(SKILLS_DIR)) {
     const desc = fm.description || "";
     if (have.has(name) || have.has(fm.name) || NOT_DESIGN.has(name)) continue;
     if (!(WEB.test(desc) && DESIGN.test(desc))) continue;
+    // The gate. Adding a skill with no skin ships a dead dropdown entry and
+    // breaks skins.test.ts, and this script commits and pushes on its own, so
+    // it would land on main unattended.
+    if (!skinned.has(name)) {
+      needSkin.push(name);
+      continue;
+    }
     const entry = { name, description: summarize(desc) };
     roster.push(entry);
     have.add(name);
     added.push(entry);
   }
+}
+
+if (needSkin.length) {
+  console.log(
+    `sync-design-skills: ${needSkin.join(", ")} look like design skills but have no skin in `
+    + "src/lib/redesigner/skins.ts. Add an ENTRIES entry for each and re-run to roster them.",
+  );
 }
 
 if (!added.length) {
