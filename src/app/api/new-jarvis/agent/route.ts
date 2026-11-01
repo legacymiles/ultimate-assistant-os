@@ -234,7 +234,18 @@ export async function POST(req: Request) {
           }),
         )
       : planFromTriage(null);
-  if (triage.noTools) tools = [];
+  // `quick` may trim an Ask turn, never a Do turn.
+  //
+  // Do is the owner saying "do this". A lane that decides to answer instead
+  // has overruled a choice they already made, and the turn ends with a link
+  // where an action was asked for — "find the Pokémon channel and open it"
+  // came back as a URL and an apology, because the model had been left with
+  // no tools at all and a note telling it to just answer.
+  //
+  // Ask keeps the trim: Ask is given no PC tools in the first place, so
+  // there is nothing there for a wrong "quick" to cost.
+  const trimForQuick = triage.noTools && mode !== "do";
+  if (trimForQuick) tools = [];
   else if (triage.hubOnly) tools = tools.filter((t) => t.kind === "hub" && !t.needs);
   // The Chat's model picker. Only the id's shape is checked: OpenRouter is the
   // authority on which ids exist, and its error says so plainly if one does not.
@@ -258,7 +269,10 @@ export async function POST(req: Request) {
     typeof body.checklist === "string" && body.checklist.trim() && mode !== "ask"
       ? `${owner.toUpperCase()}'S BUILD CHECKLIST (the backend checklist in Profile)\nWhenever you build, change or review an app or website, follow every rule below that applies — they are things ${owner} should never have to say twice. Check the work against them before calling it done; if one can't apply, say so in one line.\n${body.checklist.slice(0, 4_000)}`
       : "",
-    triage.note,
+    // The "quick" note tells the model to just answer the question. Sending
+    // it while the tools are still in its hands is the same bug in a softer
+    // voice, so it only goes out when the trim above actually happened.
+    triage.lane === "quick" && !trimForQuick ? "" : triage.note,
   ]
     .filter(Boolean)
     .join("\n\n");
