@@ -16,6 +16,7 @@ import { Icon } from "../icons";
 import { Markdown } from "../jarvis/Markdown";
 import type { Block, Gate, Step } from "@/lib/new-jarvis/types";
 import { elapsed } from "@/lib/new-jarvis/types";
+import { describeKind } from "@/lib/new-jarvis/trust";
 
 const ms = (n: number | undefined) => (n === undefined ? "" : n < 1000 ? `${n} ms` : `${(n / 1000).toFixed(1)} s`);
 
@@ -363,7 +364,7 @@ function StepRow({ step, autoOpen }: { step: Step; autoOpen: boolean }) {
 
 // --- the gate -------------------------------------------------------------
 
-function GateCard({ gate, onAnswer }: { gate: Gate; onAnswer: (yes: boolean) => void }) {
+function GateCard({ gate, onAnswer }: { gate: Gate; onAnswer: (answer: boolean | "always") => void }) {
   // Focus the refusal, not the approval: the default action on a gate for
   // something that cannot be undone should be the one that changes nothing.
   const [el, setEl] = useState<HTMLButtonElement | null>(null);
@@ -384,6 +385,20 @@ function GateCard({ gate, onAnswer }: { gate: Gate; onAnswer: (yes: boolean) => 
         >
           Do it
         </button>
+        {/* The answer a run of thirty identical steps actually wants to give.
+            Shown only when the call is one that can be remembered: the card
+            for a payment or a delete has no such button, because there is no
+            level and no stored yes that lets one of those run quietly. */}
+        {gate.kind && (
+          <button
+            type="button"
+            onClick={() => onAnswer("always")}
+            title={`Stop asking about ${describeKind(gate.kind)} on this PC`}
+            className="rounded-md border border-line px-3 py-1.5 text-xs font-medium text-ink-muted transition hover:bg-elevated hover:text-ink"
+          >
+            Always
+          </button>
+        )}
         <button
           ref={setEl}
           type="button"
@@ -407,7 +422,7 @@ export function BlockView({
   onToggle,
 }: {
   block: Block;
-  onAnswerGate: (yes: boolean) => void;
+  onAnswerGate: (answer: boolean | "always") => void;
   onRerun: () => void;
   onStop: () => void;
   onToggle: () => void;

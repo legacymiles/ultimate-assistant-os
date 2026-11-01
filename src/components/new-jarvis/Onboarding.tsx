@@ -170,7 +170,11 @@ export function Onboarding({ start = "welcome", onClose, go, store, commit, onPr
               </p>
               <div className="grid gap-2 sm:grid-cols-3">
                 {[
-                  ["I ask first", "I suggest, you approve. Nothing is filed, sent or deleted on my own."],
+                  // Says what is actually true now. The old line promised to
+                  // ask before everything, which the Trust setting under the
+                  // command line no longer does — and a welcome screen that
+                  // mis-sells the thing is worse than one that undersells it.
+                  ["I get on with it", "I do the work. I stop and ask before anything sent, bought or deleted."],
                   ["I learn you", "Every yes and every correction makes my next guess better."],
                   ["You're in control", "Disconnect anything or switch off any rule, any time."],
                 ].map(([t, d]) => (

@@ -12,6 +12,7 @@
 import { useEffect, useRef } from "react";
 import { Icon } from "../icons";
 import { MODES, type Mode } from "@/lib/new-jarvis/types";
+import { TRUSTS, type Trust } from "@/lib/new-jarvis/trust";
 import type { VoiceState } from "@/lib/new-jarvis/useWakeVoice";
 
 export function CommandLine({
@@ -20,6 +21,8 @@ export function CommandLine({
   onSubmit,
   mode,
   onMode,
+  trust,
+  onTrust,
   voiceState,
   heard,
   micSupported,
@@ -31,6 +34,8 @@ export function CommandLine({
   onSubmit: () => void;
   mode: Mode;
   onMode: (m: Mode) => void;
+  trust: Trust;
+  onTrust: (t: Trust) => void;
   voiceState: VoiceState;
   heard: string;
   micSupported: boolean;
@@ -173,9 +178,37 @@ export function CommandLine({
           <span className="sr-only">{busy ? "Working" : "Send"}</span>
         </button>
       </div>
-      <p className="mt-1 px-1 text-[10.5px] text-ink-muted">
-        {MODES.find((m) => m.id === mode)?.hint}
-      </p>
+      {/* Under the box rather than beside the modes: the mode is what the job
+          IS and gets picked every time, where this is set once and then left
+          alone for weeks. Still on screen, though, because an assistant that
+          is quietly allowed to run commands should say so somewhere the owner
+          passes every day. */}
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 px-1">
+        <p className="text-[10.5px] text-ink-muted">{MODES.find((m) => m.id === mode)?.hint}</p>
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          <span className="text-[10px] uppercase tracking-wide text-ink-muted">Trust</span>
+          {TRUSTS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => onTrust(t.id)}
+              title={t.hint}
+              aria-pressed={trust === t.id}
+              // The selected one has to be unmistakable at a glance: on
+              // bg-elevated alone it read the same as the hover state, which
+              // means the owner cannot tell what is switched on without
+              // clicking something to compare it against.
+              className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition ${
+                trust === t.id
+                  ? "bg-brand-2/20 text-ink ring-1 ring-brand-2/50"
+                  : "text-ink-muted hover:bg-elevated hover:text-ink"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

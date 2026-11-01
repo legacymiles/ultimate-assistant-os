@@ -409,6 +409,11 @@ export function useBakeOff({ paired }: { paired: boolean }): UseBakeOff {
             harness,
             title: b.title,
             laneWrites: true,
+            // Pinned rather than inherited. A lane's deal has always been
+            // "write in your own worktree freely, ask before you RUN
+            // anything", and a bake-off is three threads at once — not the
+            // place to widen that because the chat happens to be on Trusted.
+            trust: "ask",
           });
           patch(b.skill, { id: session.id, summary: session });
           await call("harness/say", { id: session.id, text: b.brief });

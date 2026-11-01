@@ -7,6 +7,8 @@
 // one live gate. `model.ts` is the fold between them, and these are its ends.
 // ---------------------------------------------------------------------------
 
+import type { Trust } from "../trust";
+
 export type HarnessId = "claude" | "deepseek";
 
 /** What the bridge says it can run, and why not when it cannot. */
@@ -127,6 +129,12 @@ export interface ThreadSummary {
    * what it still stops.
    */
   laneWrites: boolean;
+  /**
+   * How much the thread may do without asking — the same setting the command
+   * line shows, so one answer governs the chat and the harness rather than
+   * the owner having to find two of them. See trust.ts and `autoAllow`.
+   */
+  trust: Trust;
   /** The dev server serving this worktree, once one has been started. */
   preview: { port: number; url: string; pid: number } | null;
   cursor: number;

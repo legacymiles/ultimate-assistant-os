@@ -101,9 +101,11 @@ function summary(s) {
     worktree: s.worktree,
     strict: s.strict,
     laneWrites: s.laneWrites,
+    trust: s.trust,
     preview: publicView(s.preview),
     cursor: s.seq,
     gate: s.pendingGate,
+    gatesParked: s.gates.size,
     landed: s.landed,
   };
 }
@@ -114,7 +116,7 @@ function mustGet(id) {
   return s;
 }
 
-export async function startThread({ harness = "claude", title = "", repo, strict = false, laneWrites = false, model = "" } = {}) {
+export async function startThread({ harness = "claude", title = "", repo, strict = false, laneWrites = false, trust = "trusted", model = "" } = {}) {
   const which = HARNESSES[harness];
   if (!which) throw Object.assign(new Error(`There is no "${harness}" harness.`), { status: 400 });
 
@@ -138,11 +140,17 @@ export async function startThread({ harness = "claude", title = "", repo, strict
     usd: 0,
     strict: Boolean(strict),
     laneWrites: Boolean(laneWrites),
+    // "trusted" by default: a thread works inside a worktree of its own, so
+    // writing there and running the build is the job, not a surprise. The
+    // graves and anything outside the worktree still stop and ask.
+    trust: trust === "ask" || trust === "auto" ? trust : "trusted",
     worktree,
     preview: null,
     events: [],
     seq: 0,
     gates: new Map(),
+    /** gateId -> card, in the order they were asked. The queue. */
+    cards: new Map(),
     pendingGate: null,
     landed: null,
     adapter: null,
@@ -192,29 +200,48 @@ export async function startThread({ harness = "claude", title = "", repo, strict
         if (!s.gates.has(gateId)) return;
         clearTimeout(timer);
         s.gates.delete(gateId);
-        if (s.pendingGate?.gateId === gateId) s.pendingGate = null;
+        s.cards.delete(gateId);
         emit({ kind: "gate_done", gateId, allow, how: how ?? "owner" });
-        // Asking set the status to "waiting"; answering has to take it back.
-        // Nothing else does: the adapter is blocked INSIDE the permission hook,
-        // so resolving this promise returns it to work without emitting a
-        // status of its own, and the thread then reads "waiting" while it is
-        // demonstrably writing files. Watched a lane report "needs you" for
-        // four minutes while it wrote two components.
+        // The next parked gate takes the slot, and the status follows from
+        // whether anything is still parked at all.
         //
-        // Only when no OTHER gate is parked: with several tools in flight,
-        // answering one does not unblock the thread.
+        // Both of these were watched failing on a real run. A harness calls
+        // tools IN PARALLEL, so two gates can be open at once — and
+        // `pendingGate` was a single slot that the newer gate overwrote.
+        // Answering the newer one cleared the slot while the older stayed
+        // parked, so the thread reported `gate: null, status: waiting` and sat
+        // there forever: the card could not be drawn, so it could not be
+        // answered, so the tool call never returned. A deadlock, not a cosmetic
+        // bug.
+        //
+        // And the status: asking set it to "waiting" and nothing took it back,
+        // because the adapter is blocked INSIDE the permission hook and
+        // resolving this promise returns it to work without emitting a status
+        // of its own. A lane read "needs you" for four minutes while it was
+        // writing components.
+        s.pendingGate = s.cards.values().next().value ?? null;
         if (!s.gates.size && s.status !== "ended") {
           emit({ kind: "status", status: "thinking" });
         }
         resolve(allow);
       };
       s.gates.set(gateId, finish);
-      s.pendingGate = card;
+      // Insertion order is the queue: the OLDEST unanswered gate is the one
+      // shown, so nothing can be buried by a later question.
+      s.cards.set(gateId, card);
+      s.pendingGate = s.cards.values().next().value ?? null;
       emit({ kind: "gate", ...card });
       emit({ kind: "status", status: "waiting" });
     });
 
-  const common = { cwd: worktree.path, emit, gate, strict: Boolean(strict), laneWrites: Boolean(laneWrites) };
+  const common = {
+    cwd: worktree.path,
+    emit,
+    gate,
+    strict: Boolean(strict),
+    laneWrites: Boolean(laneWrites),
+    trust: s.trust,
+  };
   s.adapter = harness === "claude" ? startClaude({ ...common, model }) : startAcp(common);
 
   if (worktree.notes.length) {
@@ -279,6 +306,8 @@ export async function stopThread({ id }) {
   // Refuse every parked gate first. Killing the child under a blocked
   // permission hook leaves the model's last tool call unanswered forever.
   for (const finish of [...s.gates.values()]) finish(false, "stopped");
+  s.cards.clear();
+  s.pendingGate = null;
   await s.adapter.stop();
   // The dev server is a separate child and does not die with the harness. Left
   // running it holds a port that the next thread on it cannot have.
@@ -322,6 +351,8 @@ export async function landThread({ id, message = "", merge = true, attribution =
 export async function discardThread({ id, keepBranch = false }) {
   const s = mustGet(id);
   for (const finish of [...s.gates.values()]) finish(false, "discarded");
+  s.cards.clear();
+  s.pendingGate = null;
   await s.adapter.stop().catch(() => {});
   // Before the folder goes: a server with its cwd deleted under it is a
   // process that cannot be explained afterwards.

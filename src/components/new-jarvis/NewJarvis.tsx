@@ -32,6 +32,14 @@ import type { ReactorMode } from "@/lib/new-jarvis/reactor";
 import { useBridge } from "@/lib/new-jarvis/useBridge";
 import { useWakeVoice } from "@/lib/new-jarvis/useWakeVoice";
 import { runBlock, type WireMessage } from "@/lib/new-jarvis/runner";
+import {
+  DEFAULT_TRUST,
+  readAllowed,
+  readTrust,
+  writeAllowed,
+  writeTrust,
+  type Trust,
+} from "@/lib/new-jarvis/trust";
 import { MAX_LIVE_BLOCKS, newBlock, type Block, type Gate, type Mode } from "@/lib/new-jarvis/types";
 import { BLOCKS_KEY, revive, slim } from "@/lib/new-jarvis/persist";
 
@@ -170,9 +178,49 @@ export function NewJarvis() {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<Mode>("do");
+  /**
+   * How much happens without being asked.
+   *
+   * Read from storage in an effect rather than in the initialiser: this
+   * component renders on the server first, where localStorage does not exist,
+   * and an initialiser that touches it takes the whole page down.
+   */
+  const [trust, setTrust] = useState<Trust>(DEFAULT_TRUST);
+  const [allowed, setAllowed] = useState<string[]>([]);
   const [speakReplies, setSpeakReplies] = useState(true);
   /** Which face the Reactor is showing. Theirs to pick; it is the thing they look at most. */
   const [reactorMode, setReactorMode] = useState<ReactorMode>("ring");
+
+  // Read by a run in progress, which must see the CURRENT answer rather than
+  // the one that was true when the block started.
+  const trustRef = useRef(trust);
+  const allowedRef = useRef(allowed);
+  useEffect(() => {
+    trustRef.current = trust;
+  }, [trust]);
+  useEffect(() => {
+    allowedRef.current = allowed;
+  }, [allowed]);
+  useEffect(() => {
+    setTrust(readTrust());
+    setAllowed(readAllowed());
+  }, []);
+
+  const chooseTrust = useCallback((t: Trust) => {
+    setTrust(t);
+    writeTrust(t);
+  }, []);
+
+  /** One "always" answer, kept for next time. */
+  const remember = useCallback((kind: string) => {
+    setAllowed((prev) => {
+      if (prev.includes(kind)) return prev;
+      const next = [...prev, kind];
+      allowedRef.current = next;
+      writeAllowed(next);
+      return next;
+    });
+  }, []);
 
   const bridge = useBridge();
 
@@ -371,7 +419,7 @@ export function NewJarvis() {
    */
   const stash = useRef(new FieldStash());
 
-  const gateResolvers = useRef(new Map<string, (yes: boolean) => void>());
+  const gateResolvers = useRef(new Map<string, (answer: boolean | "always") => void>());
   const aborts = useRef(new Map<string, AbortController>());
 
   const patch = useCallback((id: string, p: Partial<Block>) => {
@@ -538,7 +586,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
       const history = historyFor();
 
       const outcome = await runBlock(
-        { command, mode, history },
+        { command, mode, history, trust: trustRef.current, allowed: allowedRef.current },
         {
           signal: controller.signal,
           update: (p) => patch(block.id, p),
@@ -561,9 +609,10 @@ ${reflex.best.excerpt ?? ""}`.trim()
           },
           runTool,
           askGate: (gate: Gate) =>
-            new Promise<boolean>((resolve) => {
+            new Promise<boolean | "always">((resolve) => {
               gateResolvers.current.set(block.id, resolve);
             }),
+          remember,
         },
       );
 
@@ -584,7 +633,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
       }
       void bridge.refresh();
     },
-    [bridge, historyFor, input, mode, overrideFor, patch, profile?.name, reflex, runTool, voice],
+    [bridge, historyFor, input, mode, overrideFor, patch, profile?.name, reflex, remember, runTool, voice],
   );
 
   useEffect(() => {
@@ -592,7 +641,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
   }, [submit]);
 
   const answerGate = useCallback(
-    (id: string, yes: boolean) => {
+    (id: string, yes: boolean | "always") => {
       const resolve = gateResolvers.current.get(id);
       if (!resolve) {
         // The run that opened this gate is gone — the component remounted
@@ -747,6 +796,8 @@ ${reflex.best.excerpt ?? ""}`.trim()
             onSubmit={() => void submit()}
             mode={mode}
             onMode={setMode}
+            trust={trust}
+            onTrust={chooseTrust}
             voiceState={voice.state}
             heard={voice.heard}
             micSupported={voice.supported}

@@ -170,7 +170,7 @@ export const AGENT_TOOLS: AgentTool[] = [
     route: "shell",
     needs: "shell",
     description:
-      "Run one PowerShell command on the owner's PC and read its output. Anything that is not a plain read stops for their yes. Prefer one simple command over a chained pipeline — a chain always asks, because nothing can vouch for what comes after the pipe.",
+      "Run one PowerShell command on the owner's PC and read its output. Prefer one simple command over a chained pipeline — a chain cannot be vouched for, so it is treated as an action. Deleting, pushing and publishing always stop for their yes; everything else runs or asks according to how much they have trusted you, which is not yours to predict. Call the tool and let the gate decide — never ask in words first.",
     parameters: {
       type: "object",
       properties: {
@@ -202,7 +202,7 @@ export const AGENT_TOOLS: AgentTool[] = [
     route: "files/write",
     needs: "files",
     description:
-      "Write a text file on the owner's PC, replacing whatever is there. Always stops for their yes. Read it first if you mean to edit rather than replace.",
+      "Write a text file on the owner's PC, replacing whatever is there. Read it first if you mean to edit rather than replace. A path that holds secrets always stops for their yes; an ordinary file may simply be written, so do not ask in words first.",
     parameters: {
       type: "object",
       properties: { path: str("Absolute path."), text: str("The full new contents.") },
@@ -266,7 +266,7 @@ export const AGENT_TOOLS: AgentTool[] = [
     kind: "bridge",
     route: "system/clipboard/write",
     needs: "system",
-    description: "Put text on the owner's clipboard, replacing what was there. Stops for their yes.",
+    description: "Put text on the owner's clipboard, replacing what was there. May stop for their yes.",
     parameters: {
       type: "object",
       properties: { text: str("The text to copy.") },

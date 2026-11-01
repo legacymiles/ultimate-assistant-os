@@ -658,6 +658,14 @@ export function HarnessConsole({ paired }: { paired: boolean }) {
                 reads ask too
               </span>
             )}
+            {/* Only when it is NOT the default. A badge on every row is a badge
+                nobody reads, and "trusted" is what a thread normally is. */}
+            {!t.strict && t.trust && t.trust !== "trusted" && (
+              <span className="flex items-center gap-1 text-[10.5px] text-ink-muted">
+                <Icon.Lock width={10} height={10} aria-hidden />
+                {t.trust === "ask" ? "asks every step" : "asks almost nothing"}
+              </span>
+            )}
             <span className="ml-auto flex items-center gap-2">
               {h.view.usd > 0 && (
                 <span className="font-mono text-[10.5px] text-ink-muted" data-num>

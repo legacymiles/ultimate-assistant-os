@@ -54,6 +54,13 @@ export interface Gate {
   summary: string;
   why: string;
   risk: "read" | "act" | "grave";
+  /**
+   * The shape an "always allow these" answer would be filed under, from
+   * trust.gateKind. Empty for the acts that can never be remembered — money,
+   * sending, deleting — and the card then does not offer the button, rather
+   * than offering a promise it would refuse to keep.
+   */
+  kind: string;
 }
 
 export interface Block {

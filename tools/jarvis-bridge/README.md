@@ -6,7 +6,15 @@ tools\jarvis-bridge\install.cmd
 
 **Run that once.** It installs the dependencies, downloads the browser New Jarvis
 drives, starts the agent now and at every Windows sign-in with no console window,
-and pairs it with the hub. After it, `/apps/new-jarvis` can open real pages in a
+and opens Jarvis, which **pairs itself** (`GET /pair` hands the token only to the
+hub's own origin on a preflighted request — no token to copy).
+
+**It keeps itself working** (`selfheal.mjs`, every start): re-points the Startup
+shortcut at wherever this folder now lives, registers `jarvis-agent://` so
+Jarvis's **Connect** button can start it with one tap, and installs its own
+packages and Chromium if they are missing, then restarts. This is what broke in
+Oct 2026: the folder moved out of OneDrive, the shortcut kept pointing at the
+old place, and a static SDK import crashed the agent without its packages. After it, `/apps/new-jarvis` can open real pages in a
 browser that keeps your logins, run commands, read and write files, list and focus
 windows, and see your screen.
 
@@ -158,9 +166,14 @@ The token lives in `out\token.txt` and reaches the page through the URL
 Vercel, not to a proxy, not into an access log. The page stores it and strips it
 from the address bar immediately.
 
-Above all this sits the page's own gate: New Jarvis reads freely and stops for
-your yes on anything that cannot be undone. That gate is the one you read; this
-list is the one that holds when something bypasses it.
+Above all this sits the page's own gate, and how much it stops for is the Trust
+setting under the command line. **Trusted** is the default: it reads freely,
+writes and runs the ordinary things without asking, and still parks on money,
+on anything sent or published in your name, on deleting, on `git push`, and on
+any write that leaves the thread's own worktree. **Ask** parks on every effect;
+**Auto** parks on that short core and nothing else. A gate you answer with
+"Always" stops asking for that shape of call. That gate is the one you read;
+the list above is the one that holds when something bypasses it.
 
 ## When something is wrong
 
