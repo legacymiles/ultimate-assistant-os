@@ -275,6 +275,21 @@
   color: var(--color-ink);
   box-shadow: 0 0 22px -8px var(--hud);
 }
+/* A chip that cannot act must not look like one that can. Browser and Screen
+   need the local agent, and unpaired they were rendering at full strength —
+   you would press one and get nothing, with no hint why. Matched to
+   .njc-icon:disabled so the two read as the same "off". The second rule is
+   not redundant: :hover still matches a disabled button, so without it the
+   dead chip lifts and glows under the pointer, promising what it cannot do. */
+.njc-chip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.njc-chip:disabled:hover {
+  transform: none;
+  border-color: var(--hud-dim);
+  box-shadow: none;
+}
 
 /* --- the conversation ---------------------------------------------------- */
 

@@ -32,6 +32,7 @@ import { SiteErrorsPage } from "./SiteErrors";
 import { openConnections } from "./Connections";
 import { GoalCheck } from "./GoalCheck";
 import { AppBuilderSheet, type BuilderView } from "./AppBuilderSheet";
+import { ScreenScan } from "./ScreenScan";
 import { PcConnect } from "./PcConnect";
 import { TOPIC_LABEL, topicOf } from "@/lib/new-jarvis/felix";
 import { useQueue } from "@/lib/new-jarvis/useQueue";
@@ -264,6 +265,25 @@ export function NewJarvis() {
   const [reactorMode, setReactorMode] = useState<ReactorMode>("ring");
 
   const bridge = useBridge();
+
+  // The chat bar's two senses.
+  //
+  // Opening an EMPTY browser changes nothing in the world, so it does not go
+  // through the action gate — pressing a button labelled "Browser" is the
+  // intent. Everything the agent then does IN that browser is gated as usual
+  // by classify(), which is where the risk actually lives.
+  const [scanning, setScanning] = useState(false);
+  const [browserError, setBrowserError] = useState("");
+  const openBrowser = async () => {
+    setBrowserError("");
+    try {
+      await bridge.run("browser/open", {});
+    } catch (e) {
+      // A failure here must reach the owner: a button that silently does
+      // nothing is indistinguishable from a broken one.
+      setBrowserError(e instanceof BridgeError ? e.message : "The browser would not open on your PC.");
+    }
+  };
 
   // The ledger is kept, because the whole argument of this surface is that a
   // block from an hour ago is still there. Deliberately device-local rather
@@ -1186,6 +1206,38 @@ ${reflex.best.excerpt ?? ""}`.trim()
           </button>
         </nav>
 
+        {/* Read my screen, reached from the chat bar. ScreenScan is a plain
+            panel with no close of its own — the Dashboard renders it inline —
+            so the dismissal lives out here rather than being bolted into a
+            component another surface depends on. It is NOT closed on save:
+            the panel's own result is the confirmation that something was
+            kept, and whisking it away would be the one moment the owner most
+            wants to read. */}
+        {scanning && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Read my screen"
+            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setScanning(false);
+            }}
+          >
+            <div className="mt-10 w-full max-w-[min(94vw,34rem)]">
+              <div className="mb-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setScanning(false)}
+                  className="rounded-md border border-line bg-panel px-2 py-1 text-[11px] text-ink-muted transition hover:text-ink"
+                >
+                  Close
+                </button>
+              </div>
+              <ScreenScan />
+            </div>
+          </div>
+        )}
+
         {builder && (
           <AppBuilderSheet
             view={builder}
@@ -1285,7 +1337,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 blocks={chatBlocks}
                 paired={bridge.health.paired && bridge.health.up && !bridge.health.settingUp}
                 pc={(variant) => <PcConnect health={bridge.health} ready={bridge.ready} refresh={bridge.refresh} variant={variant} />}
-                notice={mediaError || undefined}
+                notice={mediaError || browserError || undefined}
                 above={
                   goalFor !== null ? (
                     <GoalCheck
@@ -1331,6 +1383,9 @@ ${reflex.best.excerpt ?? ""}`.trim()
                   preparing,
                   onEnhance: () => setGoalFor(input),
                   goalHint: goalTopic && goalFor === null ? TOPIC_LABEL[goalTopic] : null,
+                  paired: bridge.health.paired && bridge.health.up,
+                  onBrowser: () => void openBrowser(),
+                  onScan: () => setScanning(true),
                 }}
                 onNew={() => setActiveThread(null)}
                 onSelect={setActiveThread}

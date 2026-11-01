@@ -49,6 +49,17 @@ export interface ComposerProps {
   onEnhance?: () => void;
   /** Set when what's typed is about building or fixing something, e.g. "New app or feature". */
   goalHint?: string | null;
+  /**
+   * Opens a browser on the PC that Jarvis can see and drive (bridge
+   * "browser/open"). It needs the local agent, so with nothing paired this is
+   * DISABLED rather than hidden: a control that vanishes reads as a missing
+   * feature, and the owner goes hunting for a setting that was never there.
+   */
+  onBrowser?: () => void;
+  /** Opens Read my screen — it proposes facts off the screen, the owner keeps what is true. */
+  onScan?: () => void;
+  /** Whether the local agent is connected. Both of the above need it. */
+  paired?: boolean;
 }
 
 export function ChatView({
@@ -241,6 +252,29 @@ export function ChatView({
               <button type="button" className="njc-chip" style={{ "--i": 2 } as React.CSSProperties} onClick={() => pickKind("audio/*")}>
                 <Icon.Waveform width={14} height={14} /> Audio
               </button>
+              {/* The two that hand Jarvis a sense rather than a file. Same chip,
+                  same stagger — they are the same kind of offer, so they should
+                  not announce themselves as a different one. */}
+              <button
+                type="button"
+                className="njc-chip"
+                style={{ "--i": 3 } as React.CSSProperties}
+                disabled={!paired}
+                onClick={() => composer.onBrowser?.()}
+                title={paired ? "Open a browser Jarvis can see and drive" : "Needs the local agent — connect this PC first"}
+              >
+                <Icon.Globe width={14} height={14} /> Browser
+              </button>
+              <button
+                type="button"
+                className="njc-chip"
+                style={{ "--i": 4 } as React.CSSProperties}
+                disabled={!paired}
+                onClick={() => composer.onScan?.()}
+                title={paired ? "Read what is on your screen and keep what is true" : "Needs the local agent — connect this PC first"}
+              >
+                <Icon.Eye width={14} height={14} /> Screen
+              </button>
             </div>
             <ul className="njc-hero__try">
               {SUGGESTIONS.map((s, i) => (
@@ -248,7 +282,7 @@ export function ChatView({
                   <button
                     type="button"
                     className="njc-try"
-                    style={{ "--i": i + 3 } as React.CSSProperties}
+                    style={{ "--i": i + 5 } as React.CSSProperties}
                     onClick={() => {
                       composer.onChange(s);
                       field.current?.focus();
@@ -495,6 +529,9 @@ function Composer({
   heard,
   micSupported,
   onMic,
+  onBrowser,
+  onScan,
+  paired,
   busy,
   model,
   onModel,
@@ -607,6 +644,33 @@ function Composer({
             <Icon.Plus width={14} height={14} />
             <span className="hidden sm:inline">Image, clip or audio</span>
           </button>
+          {/* The hero's chips only exist on an empty chat; mid-conversation is
+              exactly when "look at this page with me" gets asked, so the same
+              two live here too. */}
+          {onBrowser && (
+            <button
+              type="button"
+              onClick={onBrowser}
+              disabled={!paired}
+              className="njc-icon"
+              title={paired ? "Open a browser Jarvis can see and drive" : "Needs the local agent — connect this PC first"}
+              aria-label="Open a browser Jarvis can drive"
+            >
+              <Icon.Globe width={15} height={15} />
+            </button>
+          )}
+          {onScan && (
+            <button
+              type="button"
+              onClick={onScan}
+              disabled={!paired}
+              className="njc-icon"
+              title={paired ? "Read what is on your screen and keep what is true" : "Needs the local agent — connect this PC first"}
+              aria-label="Read my screen"
+            >
+              <Icon.Eye width={15} height={15} />
+            </button>
+          )}
           <span className="njc-sep" aria-hidden />
           {/* Wrapped so the picker's own flex order stays inside it. */}
           <span className="njc-model">
