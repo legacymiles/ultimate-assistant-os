@@ -25,6 +25,7 @@ import "./new-jarvis-chat.css";
 import { ACCEPT_CHAT_MEDIA, type ChatMedia } from "@/lib/new-jarvis/chatMedia";
 import { modelLabel } from "@/lib/new-jarvis/chatModels";
 import { groupThreads, type Thread } from "@/lib/new-jarvis/threads";
+import { fixFor, type ErrorFix } from "@/lib/new-jarvis/errorFix";
 import { elapsed, type Block, type Mode } from "@/lib/new-jarvis/types";
 import type { VoiceState } from "@/lib/new-jarvis/useWakeVoice";
 
@@ -78,6 +79,7 @@ export function ChatView({
   onAnswerGate,
   onRerun,
   onStop,
+  onFix,
 }: {
   threads: Thread[];
   /** The open conversation; null = a new one, not started yet. */
@@ -99,6 +101,8 @@ export function ChatView({
   onAnswerGate: (blockId: string, yes: boolean) => void;
   onRerun: (block: Block) => void;
   onStop: (blockId: string) => void;
+  /** Runs the one-press fix offered under an error that names a chore. */
+  onFix?: (fix: ErrorFix) => void;
 }) {
   const [side, setSide] = useState(false);
   const [find, setFind] = useState("");
@@ -317,6 +321,7 @@ export function ChatView({
                     onAnswerGate={(yes) => onAnswerGate(b.id, yes)}
                     onRerun={() => onRerun(b)}
                     onStop={() => onStop(b.id)}
+                    onFix={onFix}
                   />
                 ))}
               </div>
@@ -420,16 +425,46 @@ function ThreadRow({
 // ---------------------------------------------------------------------------
 
 /** One request: what was said, then what Jarvis did and answered. */
+/**
+ * The error, and the thing that fixes it.
+ *
+ * The sentence stays exactly as it was — an owner who would rather do it by
+ * hand should still be told how — and the button goes under it only for the
+ * errors where Jarvis can do the walking itself. See lib/new-jarvis/errorFix.ts
+ * for why it is matched on words rather than a code.
+ */
+function FixOffer({ text, onFix }: { text: string; onFix?: (fix: ErrorFix) => void }) {
+  const fix = fixFor(text);
+  if (!fix || !onFix) return null;
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        className="njc-chip"
+        style={{ "--i": 0 } as React.CSSProperties}
+        onClick={() => onFix(fix)}
+      >
+        {fix.label}
+      </button>
+      {/* The button cannot finish the job — it can only remove the hunting —
+          so what is left to do is said next to it, not implied. */}
+      <span className="text-[11px] leading-relaxed text-ink-faint">{fix.then}</span>
+    </div>
+  );
+}
+
 function Turn({
   block,
   onAnswerGate,
   onRerun,
   onStop,
+  onFix,
 }: {
   block: Block;
   onAnswerGate: (yes: boolean) => void;
   onRerun: () => void;
   onStop: () => void;
+  onFix?: (fix: ErrorFix) => void;
 }) {
   const live = block.status === "running" || block.status === "waiting";
   const [, tick] = useState(0);
@@ -507,7 +542,12 @@ function Turn({
               <Markdown text={block.answer} />
             </div>
           )}
-          {block.error && <p className="njc-error">{block.error}</p>}
+          {block.error && (
+            <>
+              <p className="njc-error">{block.error}</p>
+              <FixOffer text={block.error} onFix={onFix} />
+            </>
+          )}
           {thinking && !block.gate && (
             <p className="njc-thinking">
               <i />

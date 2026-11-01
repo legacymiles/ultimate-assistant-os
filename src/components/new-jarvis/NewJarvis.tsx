@@ -33,6 +33,7 @@ import { openConnections } from "./Connections";
 import { GoalCheck } from "./GoalCheck";
 import { AppBuilderSheet, type BuilderView } from "./AppBuilderSheet";
 import { ScreenScan } from "./ScreenScan";
+import { routeForFix, type ErrorFix } from "@/lib/new-jarvis/errorFix";
 import { PcConnect } from "./PcConnect";
 import { TOPIC_LABEL, topicOf } from "@/lib/new-jarvis/felix";
 import { useQueue } from "@/lib/new-jarvis/useQueue";
@@ -282,6 +283,25 @@ export function NewJarvis() {
       // A failure here must reach the owner: a button that silently does
       // nothing is indistinguishable from a broken one.
       setBrowserError(e instanceof BridgeError ? e.message : "The browser would not open on your PC.");
+    }
+  };
+
+  /**
+   * The button under an error that named a chore.
+   *
+   * "Open Claude Code (type `claude` in a terminal), sign in with /login" is a
+   * correct sentence and a dead end, inside an assistant that can open a
+   * terminal itself. This is that sentence doing the walking.
+   */
+  const runFix = async (fix: ErrorFix) => {
+    setBrowserError("");
+    const { route, args } = routeForFix(fix);
+    try {
+      await bridge.run(route, args);
+    } catch (e) {
+      setBrowserError(
+        e instanceof BridgeError ? e.message : "That could not be opened on your PC.",
+      );
     }
   };
 
@@ -1387,6 +1407,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
                   onBrowser: () => void openBrowser(),
                   onScan: () => setScanning(true),
                 }}
+                onFix={(fix) => void runFix(fix)}
                 onNew={() => setActiveThread(null)}
                 onSelect={setActiveThread}
                 onRename={(id, title) => setThreads((ts) => ts.map((t) => (t.id === id ? { ...t, title } : t)))}
