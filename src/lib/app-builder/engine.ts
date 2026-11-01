@@ -20,6 +20,7 @@
 
 import { CHECKLIST, type BoardTicket } from "../new-jarvis/felix";
 import { EDIT_CHECKLIST, editMasterPrompt, editPipeline, editQueueText } from "./clientEdit";
+import { depthAxes, depthBrief, depthOf, depthSteps, type Depth } from "./depth";
 import {
   APP_TYPE_LABEL,
   KIND_LABEL,
@@ -937,6 +938,7 @@ export function pipeline(
   t?: Teardown | null,
   recorded = false,
   isEdit = false,
+  depth: Depth = "commercial",
 ): { skill: string; role: string }[] {
   if (isEdit) return editPipeline();
   const mode = t?.mode ?? "recreate";
@@ -953,7 +955,22 @@ export function pipeline(
     ...re,
     { skill: "felix", role: "Confirm the end goal and the goal beyond it, set the Altitude ladder, Depth target and Range crew before any code." },
     { skill: "prompt-enhancer", role: "Sharpen this brief (Felix pass + Anthropic best practices) and resolve any gaps from the repo first." },
+    ...(depth === "plain"
+      ? []
+      : [
+          {
+            skill: depth === "commercial-2x" ? "commercial 2x" : "commercial",
+            role: `Run Steps ${depthSteps(depth, u.appType).join(", ")} — ${
+              depth === "commercial-2x"
+                ? "the full foundation plus the money switched on (pricing, paywalls, upgrade moments), a competitor teardown and a critic panel to 9/10 on every axis"
+                : depthSteps(depth, u.appType).includes(3)
+                  ? "Apple-standard look, the full foundation (logins, profiles, roles, owner admin, billing wired but SWITCHED OFF, emails, legal pages), onboarding to the aha moment, growth and retention. The app stays completely free"
+                  : "Apple-standard look, the growth layer and the honest-product pass. No foundation to build on a site people only visit"
+            }. Score ${depthAxes(depth, u.appType).join(" · ")}.`,
+          },
+        ]),
     { skill: u.designSkill, role: `Invoke before writing any UI — ${u.designWhy}.` },
+    { skill: "impeccable", role: "The closing craft pass on every screen: spacing, hierarchy, type, contrast, and every state (hover, disabled, loading, error, empty)." },
     { skill: "software-factory", role: "Split the accepted features into Backlog cards (one PR under ~400 lines each), run super-board; a human approves every merge." },
     { skill: "claude-security", role: "Deep scan before launch or handoff; fix every high/critical finding in its own PR." },
     { skill: "website-build-checklist", role: "Hold every screen to the owner's one build checklist; cite the codes in each card." },
@@ -978,12 +995,33 @@ export function checklistLines(p: Pick<BuilderProject, "answers" | "features" | 
 const byImpact = (a: Feature, b: Feature) => b.impact - a.impact || KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind);
 
 /**
+ * The last thing the build does: post the deployed app to its Client Review
+ * link, so it lands somewhere the owner (or whoever they send the link to) can
+ * tap the page and ask for changes — and those changes come back to App Builder
+ * as an edit. Nobody pastes a URL by hand (R6, C6).
+ */
+export function reviewBrief(p: BuilderProject): string {
+  const r = p.handoff?.review;
+  if (!r) return "";
+  const who = r.clientName ? ` (${r.clientName})` : "";
+  return [
+    "<client_review>",
+    `This app has a Client Review link waiting for it${who}: review_id=${r.id}, version_id=${r.versionId}, ${r.number}.`,
+    "The LAST step of the build, after it is deployed and you have tested it live: call the jarvis-memory connector's `client_review_preview` with that review_id and version_id, the deployed URL as preview_url, the pull request as pr_url and the branch, and a summary of one plain-English line per feature built.",
+    "That puts the app on the review link, tells whoever is reviewing it, and means their edit requests come straight back to App Builder. Do not paste the URL anywhere by hand.",
+    "If it answers that the version is not being built any more, say so in the queue note and stop — a newer version replaced it.",
+    "</client_review>",
+  ].join("\n");
+}
+
+/**
  * The master build prompt: Felix + prompt-enhancer shape (goal and why first,
  * context, the owner's features their way, the bar, the pipeline, the judge).
  */
 export function masterPrompt(p: BuilderProject): string {
   if (p.edit) return editMasterPrompt(p);
   const u = p.understanding ?? understand(p.idea, p.answers);
+  const { depth, why: depthWhy } = depthOf(p);
   const accepted = p.features.filter((f) => f.status === "accepted").sort(byImpact);
   const denied = p.features.filter((f) => f.status === "denied");
   const lines = checklistLines(p);
@@ -1004,9 +1042,11 @@ export function masterPrompt(p: BuilderProject): string {
       .map((f, i) => `${i + 1}. ${f.title} [${KIND_LABEL[f.kind]}, impact ${f.impact}/3, effort ${f.effort}]${f.source === "you" || f.edited ? " (owner's own words)" : ""}\n   ${f.detail}${f.why ? `\n   Why: ${f.why}` : ""}`)
       .join("\n")}\n</features>`,
     denied.length ? `<declined>\nThe owner declined these; leave them out:\n${denied.map((f) => `- ${f.title}`).join("\n")}\n</declined>` : "",
-    `<skills_pipeline>\nRun these skills, in this order, for this build — every time:\n${pipeline(u, p.teardown, Boolean(p.sources?.length))
+    `<depth>\n${depthBrief(depth, u.appType)}\nWhy this depth: ${depthWhy}.\n</depth>`,
+    `<skills_pipeline>\nRun these skills, in this order, for this build — every time:\n${pipeline(u, p.teardown, Boolean(p.sources?.length), false, depth)
       .map((s, i) => `${i + 1}. ${s.skill} — ${s.role}`)
       .join("\n")}\n</skills_pipeline>`,
+    reviewBrief(p),
     `<standard>\nGo beyond the basics: a fully featured, production-quality, commercial-grade product with a distinctive design, purposeful motion and interactivity — the standard a top product team would ship. Better, not bigger: raise the quality around the accepted features rather than adding unrequested ones.\nHold it to these checklist lines:\n${lines.map((c) => `- ${c.id} (${c.level}): ${c.text}`).join("\n")}\n</standard>`,
     `<success_criteria>\n${u.judge.map((j) => `- ${j}`).join("\n")}\n- Typecheck and tests pass; every accepted feature has a test or a recorded click-through.\nReport honestly against these with real numbers, including anything that missed.\n</success_criteria>`,
     `<constraints>\nAct freely on local, reversible steps. Ask before anything that spends money, deletes data or can't be undone. If something needed is missing (a key, access, data), say exactly what and what it would unlock — never fake it. Commit and push finished work.\n</constraints>`,
@@ -1021,15 +1061,25 @@ export const QUEUE_LIMIT = 4000;
 export function queueText(p: BuilderProject): string {
   if (p.edit) return editQueueText(p);
   const u = p.understanding ?? understand(p.idea, p.answers);
+  const { depth } = depthOf(p);
   const accepted = p.features.filter((f) => f.status === "accepted").sort(byImpact);
   const denied = p.features.filter((f) => f.status === "denied");
+  const r = p.handoff?.review;
   const head = [
     `App Builder: build ${u.name} (${APP_TYPE_LABEL[u.appType]}).`,
-    `Run skills in order: ${p.teardown || p.sources?.length ? "video-analyzer → reverse-engineer-anything (rea) → " : ""}felix → prompt-enhancer → ${u.designSkill} → software-factory → claude-security, held to website-build-checklist.`,
+    `Run skills in order: ${p.teardown || p.sources?.length ? "video-analyzer → reverse-engineer-anything (rea) → " : ""}felix → prompt-enhancer${
+      depth === "plain" ? "" : ` → ${depth === "commercial-2x" ? "commercial 2x" : "commercial"} (Steps ${depthSteps(depth, u.appType).join(", ")})`
+    } → ${u.designSkill} → impeccable → software-factory → claude-security, held to website-build-checklist.`,
+    depthBrief(depth, u.appType),
     `End goal: ${u.endGoal || u.purpose}. For: ${u.audience}. Money: ${u.model}.`,
     `Beyond: ${u.beyond}.`,
     `Idea as typed: ${clean(p.idea)}`,
-  ];
+    r
+      ? `Client Review: when it is deployed and tested live, call the connector's client_review_preview with review_id=${r.id} version_id=${r.versionId} preview_url=<the deployed URL> pr_url=<the PR> branch=<the branch> and one plain line per feature as the summary. That posts ${r.number} to the review link${
+          r.clientName ? ` for ${r.clientName}` : ""
+        } so edit requests come back to App Builder. Never paste the URL by hand.`
+      : "",
+  ].filter(Boolean);
   const re = p.teardown
     ? [`Recording (${p.teardown.mode === "recreate" ? "recreate it" : "change it"}; frames attached — ask the owner for the full video if needed; original code and design, no copied branding):`, teardownText(p.teardown, 1_100)]
     : p.sources?.length

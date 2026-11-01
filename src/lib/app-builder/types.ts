@@ -141,10 +141,41 @@ export interface Teardown {
   unknowns: string[];
 }
 
+/**
+ * How far the build goes beyond the four stages — see ./depth.ts. Chosen for
+ * the app, overridable by the owner, and written into the build brief so the
+ * PC runs the right `commercial` steps.
+ */
+export type Depth = "plain" | "commercial" | "commercial-2x";
+
+/**
+ * The Client Review project this build posts itself to. App Builder opens it at
+ * hand-off, so the moment Claude Code deploys the app it appears on a private
+ * link where the owner (or whoever they send it to) can tap anything on the
+ * page and ask for a change — and that change comes back here as an App Builder
+ * edit (checklist C6).
+ */
+export interface ReviewLink {
+  /** Client Review project id — `review_id` in the queue request. */
+  id: string;
+  /** The version being built — `version_id` in the queue request. */
+  versionId: string;
+  /** The private link's secret: /apps/client-review?site=<token>. */
+  token: string;
+  /** "v1", "v2" … */
+  number: string;
+  clientName?: string;
+  at: string;
+}
+
 export interface Handoff {
   at: string;
   queueId?: string;
   cards?: { number: number; url?: string; title: string }[];
+  /** The review link opened for this build, when there is one. */
+  review?: ReviewLink;
+  /** Client Review couldn't be opened; the build still runs. Plain English. */
+  reviewError?: string;
 }
 
 /** One approved client edit, with where the client pointed. */
@@ -212,6 +243,10 @@ export interface BuilderProject {
   teardown?: Teardown;
   /** Which engine wrote the last agent step. */
   engine?: "ai" | "offline";
+  /** How far the build goes (./depth.ts). Unset = the depth the app earns. */
+  depth?: Depth;
+  /** The owner turned off opening a Client Review link at hand-off. */
+  noReview?: boolean;
   /** Where the request came from. */
   origin?: "app" | "chat" | "autopilot" | "client-review";
   /** Set when this is a client edit from Client Review rather than a new app. */
