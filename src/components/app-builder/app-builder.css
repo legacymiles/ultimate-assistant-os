@@ -191,6 +191,17 @@
 .ab-pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--ab-brand); display: inline-block; animation: ab-pulse 1.2s ease-in-out infinite; }
 @keyframes ab-pulse { 50% { transform: scale(1.8); opacity: 0.3; } }
 
+/* A wait with a clock on it: what is happening, how long, and that it ends. */
+.ab-waiting {
+  display: grid; grid-template-columns: 8px 1fr auto; gap: 4px 8px; align-items: center;
+  margin: 10px 0 0; padding: 9px 11px;
+  background: rgba(99, 102, 241, 0.06); border: 1px solid rgba(99, 102, 241, 0.28); border-radius: 11px;
+}
+.ab-waiting-what { font-size: 12.5px; color: var(--ab-ink); }
+.ab-waiting-clock { font-family: var(--ab-mono); font-variant-numeric: tabular-nums; font-size: 11px; color: var(--ab-muted); }
+.ab-waiting-note { grid-column: 2 / -1; font-size: 11.5px; color: var(--ab-faint); }
+.ab-thinking .ab-waiting { margin: 0; border: 0; background: none; padding: 0; }
+
 /* --- interview ------------------------------------------------------------ */
 .ab-stage-interview { padding: 20px 16px 40px; }
 .ab-interview-grid { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 16px; max-width: 1280px; margin: 0 auto; }
@@ -207,7 +218,7 @@
 .ab-q-opts { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0 30px; }
 .ab-opt {
   border: 1px solid var(--ab-line); background: var(--ab-panel); border-radius: 9px; padding: 6px 10px; font-size: 12px; color: var(--ab-muted);
-  display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s var(--ab-ease);
+  display: inline-flex; align-items: center; gap: 6px; transition: color 0.2s var(--ab-ease), border-color 0.2s var(--ab-ease), background-color 0.2s var(--ab-ease);
 }
 .ab-opt:hover { color: var(--ab-ink); }
 .ab-opt[aria-pressed="true"] { color: var(--ab-ink); border-color: var(--ab-yes); background: rgba(34, 197, 94, 0.1); }
@@ -280,16 +291,18 @@
 .ab-decide { display: flex; gap: 4px; }
 .ab-decide button {
   width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--ab-line); background: var(--ab-panel);
-  font-size: 13px; color: var(--ab-faint); transition: all 0.2s var(--ab-ease);
+  font-size: 13px; color: var(--ab-faint); transition: color 0.2s var(--ab-ease), border-color 0.2s var(--ab-ease), background-color 0.2s var(--ab-ease);
 }
 .ab-yes:hover, .ab-yes[aria-pressed="true"] { color: #fff; border-color: var(--ab-yes); background: rgba(34, 197, 94, 0.2); }
 .ab-no:hover, .ab-no[aria-pressed="true"] { color: #fff; border-color: var(--ab-no); background: rgba(239, 68, 68, 0.2); }
 .ab-pen:hover { color: var(--ab-ink); border-color: var(--ab-brand); }
-.ab-edit { display: flex; flex-direction: column; gap: 6px; }
-.ab-edit input, .ab-edit textarea, .ab-add input {
+/* The edit form inside a feature row (NOT .ab-edit, which is the client-edit
+   panel — the two shared a class and silently overwrote each other). */
+.ab-rowedit { display: flex; flex-direction: column; gap: 6px; }
+.ab-rowedit input, .ab-rowedit textarea, .ab-add input {
   background: var(--ab-panel); border: 1px solid var(--ab-line); border-radius: 8px; padding: 7px 9px; color: var(--ab-ink); font: inherit; font-size: 12.5px;
 }
-.ab-edit-actions { display: flex; gap: 6px; }
+.ab-rowedit-actions { display: flex; gap: 6px; }
 .ab-empty { padding: 20px; color: var(--ab-faint); text-align: center; margin: 0; }
 .ab-add { display: flex; align-items: center; gap: 8px; padding: 10px; }
 .ab-add > span { color: var(--ab-faint); }
@@ -348,6 +361,125 @@
 .ab-skills summary { cursor: pointer; color: var(--ab-faint); font-size: 11.5px; }
 .ab-skills ol { padding-left: 18px; display: grid; gap: 4px; margin: 8px 0 0; }
 
+/* --- depth, and the review link set up before the hand-off ---------------- */
+.ab-depth { border: 1px solid var(--ab-line-soft); border-radius: 12px; padding: 10px 12px 12px; margin: 0 0 12px; }
+.ab-depth legend { font-family: var(--ab-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ab-faint); padding: 0 4px; }
+.ab-depth-row { display: flex; gap: 2px; background: var(--ab-panel); border: 1px solid var(--ab-line-soft); border-radius: 9px; padding: 3px; }
+/* `1 1 auto`, not `1`: equal thirds clip "Commercial 2x" on a 375 px screen,
+   and a truncated label is a label that has stopped saying anything. */
+.ab-depth-opt { flex: 1 1 auto; min-width: 0; background: none; border: 0; border-radius: 7px; padding: 7px 8px; font-size: 12px; color: var(--ab-faint); white-space: nowrap; }
+.ab-depth-opt:hover { color: var(--ab-ink); }
+.ab-depth-opt[aria-checked="true"] { background: var(--ab-panel-2); color: var(--ab-ink); box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.45); }
+.ab-depth-why { margin: 8px 0 0; font-size: 11.5px; color: var(--ab-faint); }
+.ab-depth:disabled { border-style: dashed; }
+.ab-depth:disabled .ab-depth-opt { cursor: not-allowed; }
+.ab-depth:disabled .ab-depth-opt[aria-checked="true"] { color: var(--ab-muted); box-shadow: inset 0 0 0 1px var(--ab-line); }
+
+.ab-prereview { display: grid; gap: 8px; margin: 0 0 12px; }
+.ab-check { display: grid; grid-template-columns: 16px 1fr; gap: 8px; align-items: start; font-size: 12.5px; cursor: pointer; }
+.ab-check input { width: 16px; height: 16px; margin: 1px 0 0; accent-color: var(--ab-brand); }
+.ab-check em { display: block; font-style: normal; font-size: 11.5px; color: var(--ab-faint); margin-top: 2px; }
+.ab-who { width: 100%; background: var(--ab-panel); border: 1px solid var(--ab-line); border-radius: 9px; padding: 8px 10px; color: var(--ab-ink); font: inherit; font-size: 12.5px; }
+
+/* --- after Build it: where the build actually is --------------------------
+   The one spinner this app is not allowed to show. Tonal depth and hairlines
+   like every other panel; the step marks reuse the pipeline's colour grammar
+   (green done, amber waiting on you, indigo running, faint not yet). */
+.ab-build-status {
+  font-variant-numeric: tabular-nums;
+  background: rgba(12, 13, 19, 0.92);
+  border: 1px solid var(--ab-line-soft);
+  border-left: 2px solid var(--ab-open);
+  border-radius: 14px;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+.ab-build-status.is-work { border-left-color: var(--ab-brand); }
+.ab-build-status.is-done { border-left-color: var(--ab-yes); }
+.ab-build-status.is-gone { border-left-color: var(--ab-line); }
+
+.ab-bhead { display: grid; grid-template-columns: 10px 1fr auto; gap: 10px; align-items: start; }
+.ab-bhead-words h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.ab-bhead-words p { margin: 3px 0 0; font-size: 12px; color: var(--ab-muted); }
+.ab-bdot { width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--ab-open); box-shadow: 0 0 8px var(--ab-open); }
+.is-work .ab-bdot { background: var(--ab-brand); box-shadow: 0 0 8px var(--ab-brand); animation: ab-blink 1.6s ease-in-out infinite; }
+.is-done .ab-bdot { background: var(--ab-yes); box-shadow: 0 0 8px var(--ab-yes); }
+.is-gone .ab-bdot { background: var(--ab-faint); box-shadow: none; }
+.ab-bid { font-family: var(--ab-mono); font-size: 10.5px; color: var(--ab-muted); background: var(--ab-panel); border: 1px solid var(--ab-line-soft); border-radius: 6px; padding: 2px 6px; white-space: nowrap; }
+
+/* The one thing the owner has to do, where it cannot be missed. */
+.ab-bsay { background: rgba(245, 158, 11, 0.07); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 11px; padding: 10px 12px; }
+.ab-bsay-note { margin: 0 0 8px; font-size: 12px; color: #fcd34d; }
+.ab-bsay-row { display: flex; align-items: center; gap: 8px; }
+.ab-bsay-row code {
+  flex: 1; min-width: 0; font-family: var(--ab-mono); font-size: 11.5px; color: var(--ab-ink);
+  background: #05060a; border: 1px solid var(--ab-line-soft); border-radius: 8px; padding: 7px 9px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ab-bsay-row .ab-ghost { flex: none; }
+
+.ab-bsteps { list-style: none; margin: 0; padding: 0; display: grid; }
+.ab-bstep { display: grid; grid-template-columns: 18px 1fr; gap: 10px; padding: 0 0 12px; position: relative; }
+.ab-bstep:not(:last-child)::before { content: ""; position: absolute; left: 8px; top: 20px; bottom: 2px; width: 1px; background: var(--ab-line-soft); }
+.ab-bstep.is-done:not(:last-child)::before { background: rgba(34, 197, 94, 0.35); }
+.ab-bstep:last-child { padding-bottom: 0; }
+.ab-bstep-mark { width: 17px; height: 17px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--ab-line); background: var(--ab-panel); position: relative; z-index: 1; }
+.ab-bstep-mark i { width: 5px; height: 5px; border-radius: 50%; background: var(--ab-faint); }
+.ab-bstep-mark svg { width: 11px; height: 11px; color: var(--ab-yes); }
+.ab-bstep.is-done .ab-bstep-mark { border-color: rgba(34, 197, 94, 0.5); }
+.ab-bstep.is-now .ab-bstep-mark { border-color: rgba(99, 102, 241, 0.6); }
+.ab-bstep.is-now .ab-bstep-mark i { background: var(--ab-brand); animation: ab-blink 1.6s ease-in-out infinite; }
+.ab-bstep.is-yours .ab-bstep-mark { border-color: rgba(245, 158, 11, 0.6); }
+.ab-bstep.is-yours .ab-bstep-mark i { background: var(--ab-open); }
+.ab-bstep-title { margin: 0; display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; font-size: 13px; font-weight: 600; }
+.ab-bstep.is-wait .ab-bstep-title { color: var(--ab-muted); font-weight: 500; }
+.ab-bstep-n { font-family: var(--ab-mono); font-size: 10px; font-weight: 400; color: var(--ab-faint); }
+.ab-bstep-yours { font-family: var(--ab-mono); font-style: normal; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.45); border-radius: 5px; padding: 1px 5px; }
+.ab-bstep-at { font-family: var(--ab-mono); font-size: 10px; color: var(--ab-faint); margin-left: auto; }
+.ab-bstep-detail { margin: 3px 0 0; font-size: 12px; color: var(--ab-muted); }
+.ab-bstep.is-wait .ab-bstep-detail { color: var(--ab-faint); }
+
+.ab-notes { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.ab-notes li { display: grid; grid-template-columns: 76px 1fr; gap: 8px; font-size: 11.5px; padding: 5px 8px; background: var(--ab-panel); border: 1px solid var(--ab-line-soft); border-radius: 8px; }
+.ab-note-at { font-family: var(--ab-mono); font-size: 10px; color: var(--ab-faint); }
+.ab-note-text { color: var(--ab-muted); }
+
+.ab-bfacts { margin: 0; display: grid; gap: 7px; padding-top: 10px; border-top: 1px solid var(--ab-line-soft); }
+.ab-bfacts > div { display: grid; grid-template-columns: 70px 1fr; gap: 8px; }
+.ab-bfacts dt { font-family: var(--ab-mono); font-size: 10px; text-transform: uppercase; color: var(--ab-faint); padding-top: 2px; }
+.ab-bfacts dd { margin: 0; font-size: 12px; color: var(--ab-muted); }
+.ab-bfacts dd code { font-family: var(--ab-mono); font-size: 11px; color: #c7c9ff; }
+.ab-bfacts dd.is-warn { color: #fcd34d; }
+.ab-blink-btn { background: none; border: 0; padding: 0; color: #a5b4fc; text-decoration: underline; font: inherit; font-size: 12px; }
+
+.ab-breview { border: 1px solid rgba(52, 211, 153, 0.3); border-radius: 11px; padding: 10px 12px; background: rgba(16, 185, 129, 0.05); }
+.ab-breview-head { margin: 0; font-size: 12.5px; font-weight: 600; }
+.ab-breview-note { margin: 4px 0 8px; font-size: 11.5px; color: var(--ab-faint); }
+.ab-bwarn { margin: 0; font-size: 11.5px; color: #fcd34d; }
+
+.ab-brow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ab-brow .ab-ghost { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.ab-brow .ab-ghost svg { width: 13px; height: 13px; }
+.ab-brow .ab-ghost.is-no { color: #fca5a5; border-color: rgba(239, 68, 68, 0.45); }
+.ab-bconfirm { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--ab-muted); }
+
+/* The top bar once it is queued: a way back to the status, not a second press. */
+.ab-queued {
+  display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+  background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: 9px; padding: 6px 11px; font-size: 12px; color: #fcd34d;
+}
+.ab-queued:hover { background: rgba(245, 158, 11, 0.14); }
+.ab-queued code { font-family: var(--ab-mono); font-size: 10.5px; }
+.ab-queued-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ab-open); box-shadow: 0 0 7px var(--ab-open); animation: ab-blink 1.6s ease-in-out infinite; }
+.ab-queued.is-working { background: rgba(99, 102, 241, 0.1); border-color: rgba(99, 102, 241, 0.45); color: #c7c9ff; }
+.ab-queued.is-working .ab-queued-dot { background: var(--ab-brand); box-shadow: 0 0 7px var(--ab-brand); }
+.ab-queued.is-done { background: rgba(34, 197, 94, 0.08); border-color: rgba(34, 197, 94, 0.4); color: #86efac; }
+.ab-queued.is-done .ab-queued-dot { background: var(--ab-yes); box-shadow: 0 0 7px var(--ab-yes); animation: none; }
+.ab-queued.is-gone { background: transparent; border-color: var(--ab-line); color: var(--ab-faint); }
+.ab-queued.is-gone .ab-queued-dot { background: var(--ab-faint); box-shadow: none; animation: none; }
+
 /* --- phones --------------------------------------------------------------- */
 @media (max-width: 1023px) {
   .ab-top { padding: 8px 12px; gap: 8px; }
@@ -382,6 +514,22 @@
   .ab-q-free { margin-left: 0; width: 100%; }
   .ab-interview { padding: 16px; }
   .ab-composer.is-hero .ab-primary { width: 100%; }
+
+  /* The build panel on a phone: nothing clipped, nothing narrower than a
+     thumb, and the long machine strings wrap instead of scrolling sideways. */
+  .ab-build-status { padding: 12px; }
+  .ab-bhead { grid-template-columns: 10px 1fr; }
+  .ab-bid { grid-column: 2; justify-self: start; }
+  .ab-bsay-row { flex-wrap: wrap; }
+  .ab-bsay-row code { flex-basis: 100%; white-space: normal; overflow-wrap: anywhere; }
+  .ab-bsay-row .ab-ghost { padding: 10px 14px; }
+  .ab-bfacts > div, .ab-notes li { grid-template-columns: 1fr; gap: 2px; }
+  .ab-brow { gap: 8px; }
+  .ab-brow .ab-ghost, .ab-bconfirm .ab-ghost { padding: 10px 13px; }
+  .ab-bconfirm { width: 100%; }
+  /* "Commercial 2x" has to fit a third of a 375 px panel without an ellipsis. */
+  .ab-depth-opt { padding: 11px 4px; font-size: 11px; }
+  .ab-queued { padding: 8px 11px; }
 }
 
 /* Phones: a box under 16px makes iPhone zoom the page on every tap. */

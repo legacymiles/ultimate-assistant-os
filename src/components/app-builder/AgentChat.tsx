@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PreparedMedia } from "@/lib/app-builder/media";
 import type { ChatMsg } from "@/lib/app-builder/types";
 import { Composer } from "./Composer";
+import { Waiting } from "./Waiting";
 
 interface Props {
   chat: ChatMsg[];
@@ -58,8 +59,7 @@ export function AgentChat({ chat, busy, onSay, chips = [], placeholder }: Props)
         ))}
         {busy && (
           <div className="ab-msg ab-msg-agent ab-thinking">
-            <span className="ab-pulse" aria-hidden />
-            {THINKING[step]}…
+            <Waiting what={`${THINKING[step]}…`} />
           </div>
         )}
         <div ref={end} />

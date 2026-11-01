@@ -206,6 +206,46 @@ describe("the hand-off", () => {
     expect(prompt).toContain("L1"); // accounts → sign-in rule
   });
 
+  it("the master prompt and the queue text both carry the commercial depth", () => {
+    const p = decided();
+    const prompt = masterPrompt(p);
+    expect(prompt).toContain("<depth>");
+    expect(prompt).toContain("commercial");
+    // It is a step in the pipeline, after the brief is sharpened.
+    expect(prompt.indexOf("prompt-enhancer")).toBeLessThan(prompt.lastIndexOf("commercial"));
+    const t = queueText(p);
+    expect(t).toContain("commercial (Steps");
+    expect(t).toContain("impeccable");
+  });
+
+  it("leaves commercial out at plain depth, and says what plain means", () => {
+    const t = queueText({ ...decided(), depth: "plain" });
+    expect(t).toContain("felix → prompt-enhancer → ");
+    expect(t).not.toContain("commercial (Steps");
+    expect(t).toContain("Depth: plain");
+  });
+
+  it("tells the build to post itself to Client Review when a link was opened", () => {
+    const p = decided();
+    p.handoff = {
+      at: "2026-11-01T10:00:00Z",
+      review: { id: "crp_9", versionId: "ver_9", token: "tok", number: "v1", clientName: "Sam", at: "2026-11-01T10:00:00Z" },
+    };
+    const prompt = masterPrompt(p);
+    expect(prompt).toContain("<client_review>");
+    expect(prompt).toContain("client_review_preview");
+    expect(prompt).toContain("review_id=crp_9");
+    const t = queueText(p);
+    expect(t).toContain("review_id=crp_9");
+    expect(t).toContain("version_id=ver_9");
+    expect(t.length).toBeLessThanOrEqual(QUEUE_LIMIT);
+  });
+
+  it("says nothing about Client Review when no link was opened", () => {
+    expect(masterPrompt(decided())).not.toContain("<client_review>");
+    expect(queueText(decided())).not.toContain("client_review_preview");
+  });
+
   it("the queue text always fits In Queue, even with a huge list", () => {
     const p = decided();
     for (let i = 0; i < 30; i++) {

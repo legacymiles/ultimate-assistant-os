@@ -229,6 +229,27 @@ export function createProject(input: NewProjectInput, now = new Date().toISOStri
   };
 }
 
+/**
+ * A review project for an app App Builder is about to build — the other
+ * direction of the App Builder hand-off.
+ *
+ * Nothing is deployed yet, so v1 opens as `building` with no address: that is
+ * the one status `shipPreview` accepts, so when Claude Code finishes and calls
+ * `client_review_preview` the app lands here by itself, whoever is reviewing it
+ * is told, and their edit requests come back to App Builder (checklist C6).
+ */
+export function builderProject(
+  input: { name: unknown; clientName?: unknown; summary?: unknown; lane?: unknown; inviteEmail?: unknown; repo?: unknown; vercelProject?: unknown },
+  now = new Date().toISOString(),
+): { project: ClientProject; version: ReviewVersion } {
+  const project = createProject({ ...input, siteUrl: "" }, now);
+  const v1 = project.versions[0];
+  v1.status = "building";
+  v1.readyAt = undefined;
+  v1.summary = typeof input.summary === "string" ? input.summary.trim().slice(0, 4000) : "";
+  return { project, version: v1 };
+}
+
 // ----- the client's side ---------------------------------------------------------
 
 /** Can the client add to this version right now? */

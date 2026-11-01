@@ -1,14 +1,21 @@
 "use client";
 
 // The pipeline strip and the hand-off: what the agent understood the app is
-// for, the skills every build runs (always the same six, in order), and the
-// three ways out — build it from In Queue, file the features as board cards,
-// or copy the master prompt.
+// for, the skills every build runs (in order, with `commercial` sitting at the
+// depth the app earns), how far the build goes, where it lands for review, and
+// the three ways out — build it from In Queue, file the features as board
+// cards, or copy the master prompt.
+//
+// Once it has been handed off this panel stops being a launcher and becomes
+// BuildStatus: the live state of the build, rather than a button that spins.
 
 import { useMemo, useState } from "react";
+import { DEPTH_BLURB, DEPTH_LABEL, DEPTHS, depthOf, depthSteps } from "@/lib/app-builder/depth";
 import { checklistLines, masterPrompt, pipeline, tally } from "@/lib/app-builder/engine";
-import { APP_TYPE_LABEL, type BuilderProject } from "@/lib/app-builder/types";
-import type { Busy } from "@/lib/app-builder/useAppBuilder";
+import { etaFor, type BuildState } from "@/lib/app-builder/plan";
+import { APP_TYPE_LABEL, type BuilderProject, type Depth } from "@/lib/app-builder/types";
+import type { Busy, QueueStep } from "@/lib/app-builder/useAppBuilder";
+import { BuildStatus } from "./BuildStatus";
 
 export function Pipeline({ project }: { project: BuilderProject | null }) {
   const u = project?.understanding;
@@ -36,13 +43,25 @@ export function Pipeline({ project }: { project: BuilderProject | null }) {
       </ol>
     );
   }
+  const depth = project ? depthOf(project).depth : "commercial";
   const steps = [
     ...(watched
       ? [{ skill: "reverse-engineer-anything", label: "Reverse engineer", state: project?.teardown ? "done" : "now", note: "rea + video-analyzer" }]
       : []),
     { skill: "felix", label: "Felix", state: hasFeatures ? "done" : project?.stage === "interview" ? "now" : "wait", note: "end goal first" },
     { skill: "prompt-enhancer", label: "Prompt enhancer", state: t.accepted ? "done" : hasFeatures ? "now" : "wait", note: "sharp brief" },
+    ...(depth === "plain"
+      ? []
+      : [
+          {
+            skill: depth === "commercial-2x" ? "commercial 2x" : "commercial",
+            label: depth === "commercial-2x" ? "Commercial 2x" : "Commercial",
+            state: hasFeatures ? "done" : "wait",
+            note: `steps ${depthSteps(depth, u?.appType).join(",")}`,
+          },
+        ]),
     { skill: u?.designSkill ?? "interactive-web-studio", label: u?.designSkill ?? "Design skill", state: hasFeatures ? "done" : "wait", note: "drives the look" },
+    { skill: "impeccable", label: "Impeccable", state: hasFeatures ? "done" : "wait", note: "closing craft pass" },
     { skill: "software-factory", label: "Software factory", state: project?.handoff?.cards?.length ? "done" : t.accepted ? "now" : "wait", note: "board cards" },
     { skill: "claude-security", label: "Claude Security", state: project?.handoff?.queueId ? "now" : "wait", note: "scan before launch" },
   ];
@@ -62,15 +81,27 @@ export function Pipeline({ project }: { project: BuilderProject | null }) {
 export function Blueprint({
   project,
   busy,
+  step,
+  live,
+  onRefresh,
   onQueue,
+  onCancel,
   onCards,
   onRename,
+  onDepth,
+  onNoReview,
 }: {
   project: BuilderProject;
   busy: Busy;
-  onQueue: () => void;
+  step: QueueStep;
+  live: BuildState;
+  onRefresh: () => void;
+  onQueue: (clientName?: string) => void;
+  onCancel: () => void;
   onCards: () => void;
   onRename: (name: string) => void;
+  onDepth: (depth: Depth) => void;
+  onNoReview: (off: boolean) => void;
 }) {
   const u = project.understanding!;
   const t = tally(project.features);
@@ -79,7 +110,14 @@ export function Blueprint({
   const [copied, setCopied] = useState(false);
   const [show, setShow] = useState(false);
   const [naming, setNaming] = useState(false);
+  const [who, setWho] = useState("");
   const filed = project.handoff?.cards?.length ?? 0;
+  const { depth, why: depthWhy } = depthOf(project);
+  const eta = etaFor(t.accepted, depth);
+  const handedOff = Boolean(project.handoff?.queueId);
+  /** Queued or being built: the brief is already written, so the depth is set. */
+  const inFlight = handedOff && (live.phase === "queued" || live.phase === "working" || live.phase === "filing");
+  const wantsReview = !project.edit && !project.noReview;
 
   const copy = async () => {
     try {
@@ -157,11 +195,68 @@ export function Blueprint({
         </dl>
       </div>
 
+      {/* Handed off already: the live state of the build, not a launcher. */}
+      {handedOff && (
+        <BuildStatus project={project} busy={busy} live={live} onRefresh={onRefresh} onQueueAgain={() => onQueue(who || undefined)} onCancel={onCancel} />
+      )}
+
       <div className="ab-launch">
-        <button className="ab-primary ab-build" disabled={!t.accepted || busy !== null} onClick={onQueue}>
+        {!project.edit && (
+          <fieldset className="ab-depth" disabled={inFlight}>
+            <legend>How far it goes</legend>
+            <div className="ab-depth-row" role="radiogroup" aria-label="Build depth">
+              {DEPTHS.map((d) => (
+                <button
+                  key={d}
+                  role="radio"
+                  aria-checked={depth === d}
+                  className="ab-depth-opt"
+                  disabled={inFlight}
+                  onClick={() => onDepth(d)}
+                  title={DEPTH_BLURB[d]}
+                >
+                  {DEPTH_LABEL[d]}
+                </button>
+              ))}
+            </div>
+            <p className="ab-depth-why">
+              {inFlight
+                ? "Locked while this build is in the queue — the brief Claude Code reads is already written. Take it out of the queue to change it."
+                : `${DEPTH_BLURB[depth]} ${project.depth ? "Your choice." : `Chosen because ${depthWhy}.`}`}
+            </p>
+          </fieldset>
+        )}
+
+        {!project.edit && !handedOff && (
+          <div className="ab-prereview">
+            <label className="ab-check">
+              <input type="checkbox" checked={wantsReview} onChange={(e) => onNoReview(!e.target.checked)} />
+              <span>
+                Open a Client Review link for it
+                <em>The finished app posts itself there; tapping the page sends edits straight back here.</em>
+              </span>
+            </label>
+            {wantsReview && (
+              <input
+                className="ab-who"
+                value={who}
+                onChange={(e) => setWho(e.target.value)}
+                placeholder="Who’s reviewing it? (optional)"
+                aria-label="Who is reviewing it"
+                maxLength={60}
+              />
+            )}
+          </div>
+        )}
+
+        <button className="ab-primary ab-build" disabled={!t.accepted || busy !== null} onClick={() => onQueue(who || undefined)}>
           {busy === "queue"
-            ? "Queuing…"
-            : project.handoff?.queueId
+            ? step === "review"
+              ? "Opening the review link…"
+              : step === "noting"
+                ? "Telling Client Review…"
+                : "Filing it in In Queue…"
+            : handedOff
               ? "Queue the build again"
               : project.edit
                 ? `Build ${t.accepted} edit${t.accepted === 1 ? "" : "s"} · ${project.edit.version}`
@@ -176,7 +271,7 @@ export function Blueprint({
             : "Accept at least one feature to build."}{" "}
           {project.edit
             ? `Claude Code builds them on ${project.edit.branch}, opens a pull request for you to merge, and posts the preview to ${project.edit.clientName || "the client"}'s review link.`
-            : "Claude Code on your PC/VPS picks it up from In Queue and runs the whole pipeline."}
+            : `This files one request in In Queue — it does not start a build. Claude Code on your PC or VPS runs it the next time you say "work my Jarvis queue", and a build this size usually takes ${eta.label} once it starts.`}
         </p>
         <div className="ab-launch-row">
           <button className="ab-ghost" disabled={!t.accepted || busy !== null} onClick={onCards}>
@@ -209,7 +304,7 @@ export function Blueprint({
         <details className="ab-skills">
           <summary>The pipeline this build runs</summary>
           <ol>
-            {pipeline(u, project.teardown, Boolean(project.sources?.length), Boolean(project.edit)).map((s) => (
+            {pipeline(u, project.teardown, Boolean(project.sources?.length), Boolean(project.edit), depth).map((s) => (
               <li key={s.skill}>
                 <code>{s.skill}</code> — {s.role}
               </li>

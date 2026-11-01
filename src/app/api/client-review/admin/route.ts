@@ -4,6 +4,7 @@ import { writeBrief } from "@/lib/client-review/brief";
 import {
   addVersion,
   approveBatch,
+  builderProject,
   createProject,
   markVersionReady,
   noteBuild,
@@ -125,6 +126,37 @@ export async function POST(req: Request) {
         await writeProject(p);
         await updateIndex((i) => upsertIndex(i, p));
         return NextResponse.json({ project: p });
+      }
+
+      /**
+       * App Builder is about to build an app and wants somewhere for it to
+       * land. Opens a review project (or the next version of an existing one)
+       * whose version is `building`, which is the one status `shipPreview`
+       * accepts — so the finished build posts itself here through
+       * `client_review_preview` and edit requests come back to App Builder.
+       */
+      case "fromBuilder": {
+        if (id) {
+          if (!(await readProject(id))) throw new ReviewError("That review link no longer exists.", 404);
+          const { project, result } = await updateProject(id, (p) => {
+            const out = addVersion(p, { summary: body.summary, ready: false });
+            return { project: out.project, result: out.version };
+          });
+          await updateIndex((i) => upsertIndex(i, project));
+          return NextResponse.json({ project, version: result });
+        }
+        const { project, version } = builderProject({
+          name: body.name,
+          clientName: body.clientName,
+          summary: body.summary,
+          lane: body.lane,
+          inviteEmail: body.inviteEmail,
+          repo: body.repo,
+          vercelProject: body.vercelProject,
+        });
+        await writeProject(project);
+        await updateIndex((i) => upsertIndex(i, project));
+        return NextResponse.json({ project, version });
       }
 
       // One of the owner's own apps, opened from the Client view's picker:

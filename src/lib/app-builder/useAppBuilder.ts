@@ -30,10 +30,12 @@ import {
   newId,
   newProject,
 } from "./engine";
-import { noteBuildInReview, postToQueue, QUEUE_FOLDER } from "./queue";
+import { depthOf } from "./depth";
+import { dropFromQueue, noteBuildInReview, postToQueue, QUEUE_FOLDER } from "./queue";
+import { openReview } from "./review";
 import { dropMedia, getMedia } from "./inbox";
 import { forWire, keyframesOf, type PreparedMedia } from "./media";
-import type { Answers, BuilderProject, Feature, FeatureOp, MediaSource, Question, Teardown, Understanding } from "./types";
+import type { Answers, BuilderProject, Depth, Feature, FeatureOp, MediaSource, Question, Teardown, Understanding } from "./types";
 
 export const STORE_KEY = "app-builder:v1";
 export { QUEUE_FOLDER };
@@ -101,7 +103,10 @@ export function sourcesOf(media: PreparedMedia[], now = new Date()): MediaSource
   }));
 }
 
-export type Busy = null | "interview" | "features" | "chat" | "queue" | "board";
+export type Busy = null | "interview" | "features" | "chat" | "queue" | "board" | "cancel";
+
+/** What the hand-off is doing right now, so the button can say it (R5). */
+export type QueueStep = null | "review" | "filing" | "noting";
 
 interface StartReply {
   understanding: Understanding;
@@ -115,6 +120,7 @@ export function useAppBuilder() {
   const [store, setStore] = useState<Store>(EMPTY);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState<Busy>(null);
+  const [step, setStep] = useState<QueueStep>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const storeRef = useRef(store);
@@ -334,17 +340,50 @@ export function useAppBuilder() {
   );
 
   // ----- hand-off ------------------------------------------------------------------------
+  /**
+   * Build it, in the order the brief needs: open the Client Review link FIRST
+   * (so its review_id and version_id are in the text Claude Code reads and the
+   * finished app posts itself there), then file the request, then — for a
+   * client edit — tell Client Review it is on its way.
+   *
+   * A review link that can't be opened never stops the build: the reason is
+   * kept on the hand-off and shown in the panel, in plain English (R3).
+   */
   const sendToQueue = useCallback(
-    () =>
+    (clientName?: string) =>
       run("queue", async () => {
         const p = find(storeRef.current.currentId ?? "");
         if (!p) return;
-        const id = await postToQueue(p);
+        let review = p.handoff?.review;
+        let reviewError: string | undefined;
+        // A client edit already has its own review link and version — this is
+        // only for a new app on its way to one.
+        if (!p.edit && !p.noReview) {
+          setStep("review");
+          try {
+            review = await openReview(p, clientName);
+          } catch (e) {
+            reviewError = e instanceof Error ? e.message : "Client Review couldn't open a link for this build.";
+          }
+        }
+        const withReview: BuilderProject = review ? { ...p, handoff: { ...(p.handoff ?? { at: "" }), review } } : p;
+        setStep("filing");
+        const id = await postToQueue(withReview);
+        setStep(p.edit ? "noting" : null);
         const noted = p.edit ? await noteBuildInReview(p, id) : false;
-        const skills = `${p.teardown ? "video-analyzer, rea (reverse-engineer-anything), " : ""}felix, prompt-enhancer, ${p.understanding?.designSkill ?? "the design skill"}, software-factory and claude-security`;
+        const { depth } = depthOf(withReview);
+        const skills = `${p.teardown ? "video-analyzer, rea (reverse-engineer-anything), " : ""}felix, prompt-enhancer, ${
+          depth === "plain" ? "" : `${depth === "commercial-2x" ? "commercial 2x" : "commercial"}, `
+        }${p.understanding?.designSkill ?? "the design skill"}, impeccable, software-factory and claude-security`;
         update(p.id, (x) => ({
           ...x,
-          handoff: { ...x.handoff, at: new Date().toISOString(), queueId: id ?? x.handoff?.queueId },
+          handoff: {
+            ...x.handoff,
+            at: new Date().toISOString(),
+            queueId: id ?? x.handoff?.queueId,
+            ...(review ? { review } : {}),
+            ...(reviewError ? { reviewError } : { reviewError: undefined }),
+          },
           chat: [
             ...x.chat,
             chatMsg(
@@ -352,13 +391,50 @@ export function useAppBuilder() {
               id && x.edit
                 ? `Queued as ${id}. Claude Code builds the ${x.edit.items.length} edit${x.edit.items.length === 1 ? "" : "s"} on ${x.edit.branch} in ${x.edit.repo ?? "the client's repo"}, opens a pull request for you to merge, and posts the preview to ${x.edit.clientName || "the client"}'s review link as ${x.edit.version}${noted ? "" : " (Client Review couldn't be updated — the build still runs)"}.`
                 : id
-                ? `Queued as ${id} in In Queue › App Builder${x.keyframes?.length ? `, with ${Math.min(4, x.keyframes.length)} frames from the recording` : ""}. Claude Code on your PC or VPS builds it the next time it works the queue ("work my Jarvis queue") — running ${skills}.`
-                : "That exact build is already in the queue.",
+                  ? `Queued as ${id} in In Queue › App Builder${x.keyframes?.length ? `, with ${Math.min(4, x.keyframes.length)} frames from the recording` : ""}. Nothing is running yet — Claude Code on your PC or VPS builds it the next time you say "work my Jarvis queue", running ${skills}.${
+                      review ? ` When it's deployed it posts itself to its review link as ${review.number}, so edit requests come straight back here.` : ""
+                    }${reviewError ? ` ${reviewError}` : ""}`
+                  : "That exact build is already in the queue — nothing was filed twice.",
             ),
           ],
         }));
+      }).finally(() => setStep(null)),
+    [run, update],
+  );
+
+  /** Take a queued build back out, before anything has been built (D6). */
+  const cancelBuild = useCallback(
+    () =>
+      run("cancel", async () => {
+        const p = find(storeRef.current.currentId ?? "");
+        const queueId = p?.handoff?.queueId;
+        if (!p || !queueId) return;
+        await dropFromQueue(queueId);
+        update(p.id, (x) => ({
+          ...x,
+          handoff: { ...x.handoff, at: new Date().toISOString(), queueId: undefined },
+          chat: [...x.chat, chatMsg("agent", `Took ${queueId} back out of the queue. Nothing was built. Press Build it again whenever you want.`)],
+        }));
       }),
     [run, update],
+  );
+
+  /** How far the build goes — plain, commercial, or commercial 2x. */
+  const setDepth = useCallback(
+    (depth: Depth) => {
+      if (!current) return;
+      update(current.id, (p) => ({ ...p, depth }));
+    },
+    [current, update],
+  );
+
+  /** Don't open a Client Review link for this build. */
+  const setNoReview = useCallback(
+    (off: boolean) => {
+      if (!current) return;
+      update(current.id, (p) => ({ ...p, noReview: off || undefined }));
+    },
+    [current, update],
   );
 
   const sendCards = useCallback(
@@ -419,6 +495,7 @@ export function useAppBuilder() {
     projects: store.projects,
     current,
     busy,
+    step,
     error,
     notice,
     clearError: () => setError(null),
@@ -430,7 +507,10 @@ export function useAppBuilder() {
     apply,
     say,
     sendToQueue,
+    cancelBuild,
     sendCards,
+    setDepth,
+    setNoReview,
     open,
     remove,
     rename,

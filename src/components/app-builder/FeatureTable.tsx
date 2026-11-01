@@ -106,7 +106,7 @@ export function FeatureTable({ features, selectedId, hoverId, onSelect, onHover,
                 <div className="ab-cell-main">
                   {isEditing ? (
                     <form
-                      className="ab-edit"
+                      className="ab-rowedit"
                       onSubmit={(e) => {
                         e.preventDefault();
                         saveEdit(f);
@@ -126,7 +126,7 @@ export function FeatureTable({ features, selectedId, hoverId, onSelect, onHover,
                         rows={3}
                         onChange={(e) => setDraft((d) => ({ ...d, detail: e.target.value }))}
                       />
-                      <div className="ab-edit-actions">
+                      <div className="ab-rowedit-actions">
                         <button type="submit" className="ab-primary-sm">Save &amp; accept</button>
                         <button type="button" className="ab-ghost" onClick={() => setEditing(null)}>Cancel</button>
                       </div>
