@@ -265,13 +265,17 @@ export function ChatView({
               >
                 <Icon.Globe width={14} height={14} /> Browser
               </button>
+              {/* NOT gated on `paired`, unlike Browser. ScreenScan captures with
+                  getDisplayMedia in this tab and posts to the hub's own
+                  /api/jarvis/record/extract — it never touches the local agent,
+                  so requiring one would disable a feature that works fine
+                  without it. */}
               <button
                 type="button"
                 className="njc-chip"
                 style={{ "--i": 4 } as React.CSSProperties}
-                disabled={!paired}
                 onClick={() => composer.onScan?.()}
-                title={paired ? "Read what is on your screen and keep what is true" : "Needs the local agent — connect this PC first"}
+                title="Read what is on your screen and keep what is true"
               >
                 <Icon.Eye width={14} height={14} /> Screen
               </button>
@@ -663,9 +667,8 @@ function Composer({
             <button
               type="button"
               onClick={onScan}
-              disabled={!paired}
               className="njc-icon"
-              title={paired ? "Read what is on your screen and keep what is true" : "Needs the local agent — connect this PC first"}
+              title="Read what is on your screen and keep what is true"
               aria-label="Read my screen"
             >
               <Icon.Eye width={15} height={15} />
