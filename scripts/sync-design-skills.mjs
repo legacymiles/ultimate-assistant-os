@@ -61,7 +61,13 @@ function skinnedSkills() {
 
 // A website design skill talks about building/designing sites, pages or frontends.
 const WEB = /\b(websites?|landing pages?|web ?design|web pages?|web ?apps?|hero sections?|scroll[- ]driven|scrollytelling|portfolio sites?|marketing pages?|frontend|front-end|interfaces?|design systems?|dashboards?|editorial sites?)\b/i;
-const DESIGN = /\b(design|build|premium|cinematic|interactive|animat|motion|visual|style|layout|hero|ui)\b/i;
+// "build" is deliberately NOT here. A skill that BUILDS a website is not a
+// style to redesign one into, and with WEB it matched nearly every skill the
+// owner has — which is how a background coding agent and a build checklist
+// reached a design dropdown. The list above blocks the ones already found;
+// this is what stops the next one. (make-this-better walked in on "design"
+// + "website" the same day, while this was being fixed.)
+const DESIGN = /\b(design|premium|cinematic|interactive|animat|motion|visual|style|layout|hero|ui)\b/i;
 
 function frontmatter(text) {
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
