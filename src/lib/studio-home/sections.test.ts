@@ -60,7 +60,7 @@ describe("the three homes", () => {
   });
 
   it("opens Trading Studio on Replay, with EA World still waiting on the PC", () => {
-    expect(sectionIds(TRADING_SECTIONS)).toEqual(["world", "lab", "replay", "terminals", "features", "calculator"]);
+    expect(sectionIds(TRADING_SECTIONS)).toEqual(["world", "lab", "agent", "replay", "terminals", "features", "calculator"]);
     expect(TRADING_DEFAULT).toBe("replay");
     // EA Lab's code came in, so its pending panel went with it. World is the
     // one left on the PC. A section is pending or it is mounted, never both —

@@ -31,6 +31,10 @@ const COMPONENTS: Partial<Record<TradingSection, SectionComponent>> = {
     ssr: false,
     loading: () => <HomeSkeleton />,
   }),
+  agent: dynamic(() => import("../trading-agent/TradingAgent").then((m) => m.TradingAgent), {
+    ssr: false,
+    loading: () => <HomeSkeleton />,
+  }),
   replay: dynamic(() => import("../ea-replay/ReplayStudio").then((m) => m.ReplayStudio), {
     ssr: false,
     loading: () => <HomeSkeleton shape="canvas" />,

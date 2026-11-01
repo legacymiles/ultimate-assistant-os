@@ -13,7 +13,8 @@
 
 import type { HomeSection } from "./sections";
 
-export type TradingSection = "world" | "lab" | "replay" | "terminals" | "features" | "calculator";
+export type TradingSection =
+  | "world" | "lab" | "agent" | "replay" | "terminals" | "features" | "calculator";
 
 export const TRADING_FOLDER = "app:trading-studio";
 
@@ -47,6 +48,10 @@ export const TRADING_SECTIONS: readonly HomeSection<TradingSection>[] = [
     icon: "Target",
     hue: 150,
   },
+  // Reads a setup you bring and argues with the reasoning. It is the one
+  // section here that measures nothing and runs nothing — and the one that
+  // has no order path, by design.
+  { id: "agent", label: "Trading Agent", hint: "argue with the thesis", icon: "Bot", hue: 320 },
   { id: "replay", label: "Replay", hint: "watch it trade", icon: "Play", hue: 205 },
   { id: "terminals", label: "Terminals", hint: "the market around it", icon: "Server", hue: 175 },
   { id: "features", label: "Feature List", hint: "the specs", icon: "ListChecks", hue: 265 },
