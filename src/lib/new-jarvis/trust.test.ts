@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { classify, type BridgeOp } from "./actions";
-import { alwaysAsk, describeKind, escalate, gateKind, needsGate, type Trust } from "./trust";
+import { alwaysAsk, describeKind, escalate, gateKind, importantAsk, needsGate, type Trust } from "./trust";
 
 // What is being protected here, in both directions at once:
 //
@@ -24,7 +24,10 @@ describe("alwaysAsk — the core that every level obeys", () => {
     expect(alwaysAsk(op("browser/click", { name: "Pay $240.00" }))).toBe(true);
     expect(alwaysAsk(op("browser/click", { name: "Send" }))).toBe(true);
     expect(alwaysAsk(op("browser/click", { name: "Publish post" }))).toBe(true);
-    expect(alwaysAsk(op("browser/type", { name: "search", value: "hi", submit: true }))).toBe(true);
+    // A submit into something that SENDS. The same call into a search box is
+    // not one, and is the first thing the browser suite below checks.
+    expect(alwaysAsk(op("browser/type", { name: "message", value: "hi", submit: true }))).toBe(true);
+    expect(alwaysAsk(op("browser/type", { name: "search", value: "hi", submit: true }))).toBe(false);
   });
 
   it("stops destroying things from the shell, wherever it hides in the line", () => {
@@ -59,6 +62,12 @@ describe("alwaysAsk — the core that every level obeys", () => {
     expect(alwaysAsk(op("browser/click", { name: "Sign up" }))).toBe(false);
     expect(alwaysAsk(op("browser/click", { name: "Next" }))).toBe(false);
   });
+
+  it("does not even show the generic ones on Trusted", () => {
+    for (const name of ["Confirm", "Continue", "Next", "OK", "Approve", "Apply filters"]) {
+      expect(importantAsk(op("browser/click", { name }))).toBe(false);
+    }
+  });
 });
 
 describe("needsGate — the complaint", () => {
@@ -91,6 +100,70 @@ describe("needsGate — the complaint", () => {
       expect(asks(op("browser/read"), trust)).toBe(false);
       expect(asks(op("vault/scan"), trust)).toBe(false);
     }
+  });
+});
+
+// The second complaint, and the reason this file got a second pass: Trusted
+// still stopped on ordinary browsing. classify() calls a click grave on any of
+// a long list of words — confirm, accept, apply, register — and gating on
+// "grave" meant a browse job was interrupted every few steps.
+describe("needsGate — driving the browser", () => {
+  const browse: BridgeOp[] = [
+    op("browser/open", { url: "https://example.test" }),
+    op("browser/read"),
+    op("browser/click", { name: "Confirm" }),
+    op("browser/click", { name: "Continue" }),
+    op("browser/click", { name: "Next" }),
+    op("browser/click", { name: "Approve" }),
+    op("browser/click", { name: "Apply filters" }),
+    op("browser/type", { name: "search", value: "cheap flights", submit: true }),
+    op("browser/press", { key: "Enter" }),
+    op("browser/type", { name: "postcode", value: "SW1A 1AA" }),
+    op("browser/scroll", { direction: "down" }),
+    op("browser/screenshot"),
+  ];
+
+  it("gets through a whole browse job on Trusted without one tap", () => {
+    expect(browse.filter((o) => asks(o, "trusted"))).toEqual([]);
+  });
+
+  it("searches without asking — a search box is a submit, and that is not a reason to stop", () => {
+    expect(asks(op("browser/type", { name: "search", value: "x", submit: true }), "trusted")).toBe(false);
+    expect(asks(op("browser/type", { name: "q", value: "x", submit: true }), "auto")).toBe(false);
+  });
+
+  it("still stops before something is actually sent", () => {
+    for (const trust of ["ask", "trusted", "auto"] as Trust[]) {
+      expect(asks(op("browser/type", { name: "message", value: "hi", submit: true }), trust)).toBe(true);
+      expect(asks(op("browser/type", { name: "To", value: "sam@example.test", submit: true }), trust)).toBe(true);
+      expect(asks(op("browser/click", { name: "Send message" }), trust)).toBe(true);
+      expect(asks(op("browser/click", { name: "Pay now" }), trust)).toBe(true);
+    }
+  });
+
+  it("shows a commitment on Trusted and lets it through on Auto", () => {
+    const commitments = [
+      op("browser/click", { name: "Sign up" }),
+      op("browser/click", { name: "Create account" }),
+      op("browser/click", { name: "Book now" }),
+      op("browser/click", { name: "I agree to the terms" }),
+      op("browser/click", { name: "Authorize" }),
+    ];
+    for (const o of commitments) {
+      expect(importantAsk(o)).toBe(true);
+      expect(asks(o, "trusted")).toBe(true);
+      expect(asks(o, "auto")).toBe(false);
+      // Not the core, so Auto is allowed to pass them — but none of them can
+      // be handed a standing yes either.
+      expect(alwaysAsk(o)).toBe(false);
+      expect(gateKind(o)).toBe("");
+    }
+  });
+
+  it("asks about every one of them on Ask, which is what that level is for", () => {
+    const effects = browse.filter((o) => classify({ route: o.route, args: o.args }).confirm);
+    expect(effects.length).toBeGreaterThan(0);
+    expect(effects.filter((o) => asks(o, "ask")).length).toBe(effects.length);
   });
 });
 

@@ -33,7 +33,11 @@ export type Trust = "ask" | "trusted" | "auto";
 
 export const TRUSTS: { id: Trust; label: string; hint: string }[] = [
   { id: "ask", label: "Ask", hint: "Ask before anything with an effect. Slowest, most watchable." },
-  { id: "trusted", label: "Trusted", hint: "Get on with it. Only grave things stop to ask." },
+  {
+    id: "trusted",
+    label: "Trusted",
+    hint: "Get on with it. Stops for money, sending, deleting, and signing you up for things.",
+  },
   { id: "auto", label: "Auto", hint: "Nothing stops except money, sending, and deleting." },
 ];
 
@@ -76,6 +80,38 @@ const CLICK_NEVER = [
 ];
 
 /**
+ * Clicks that are a commitment rather than a step.
+ *
+ * Asked about on Trusted, free on Auto — the middle tier, and the reason those
+ * two levels are not the same setting written twice. Signing up, booking,
+ * agreeing to terms and handing over an OAuth scope are things the owner would
+ * want to have seen, but none of them spends money or says something in their
+ * name, so Auto is allowed to let them through.
+ *
+ * What is deliberately NOT here: Confirm, Approve, Continue, Next, OK, Apply.
+ * A browse job clicks those a dozen times — "Apply" is a filter at least as
+ * often as an application — and stopping on each one is the complaint this
+ * file exists to answer. The consequential spellings carry their own word
+ * anyway: "Confirm payment" is caught by pay, "Confirm order" by order.
+ */
+const CLICK_COMMITMENT = [
+  /\b(sign\s*up|create\s+account|register|join\s+now)\b/i,
+  /\b(book|reserve|apply\s+(for|now)|place\s+a\s+bid)\b/i,
+  /\b(agree|accept\s+(all|terms|cookies)|i\s+agree|terms)\b/i,
+  /\b(authori[sz]e|grant\s+access|allow\s+access)\b/i,
+  /\b(sign\s*out|log\s*out|deactivate)\b/i,
+];
+
+/**
+ * A field whose submit sends something, as opposed to a search box.
+ *
+ * `browser/type` with submit is classified grave whatever the field is, which
+ * is right for a summary and wrong for a gate: searching is the most common
+ * thing a browse job does, and a search is a submit.
+ */
+const FIELD_OUTWARD = /\b(message|comment|post|tweet|reply|email|mail|subject|body|to|recipient|chat)\b/i;
+
+/**
  * The acts that wait for a yes at every level, Auto included.
  *
  * Money, anything that leaves the machine with the owner's name on it,
@@ -96,7 +132,9 @@ export function alwaysAsk(op: BridgeOp): boolean {
     case "browser/click":
       return CLICK_NEVER.some((re) => re.test(name));
     case "browser/type":
-      return args.submit === true;
+      // Not every submit. A search box is a submit, and an assistant that has
+      // to ask before it can search is one the owner finishes by hand.
+      return args.submit === true && FIELD_OUTWARD.test(name);
     case "files/write":
       // Reaching out of the app's own folders to replace a file is not the
       // kind of write a build does; it is the kind a mistake does.
@@ -104,6 +142,24 @@ export function alwaysAsk(op: BridgeOp): boolean {
     default:
       return false;
   }
+}
+
+/**
+ * Worth being shown on Trusted, but not worth overriding Auto for.
+ *
+ * Everything in `alwaysAsk` is one of these by definition; this adds the
+ * commitments on top of it.
+ */
+export function importantAsk(op: BridgeOp): boolean {
+  if (alwaysAsk(op)) return true;
+  const { route, args } = op;
+  const name = String(args.name ?? args.text ?? args.ref ?? "");
+  if (route === "browser/click") return CLICK_COMMITMENT.some((re) => re.test(name));
+  // Nothing else. Opening a program was in here and came straight back out:
+  // "open Chrome and look something up" is the job, not a decision, and the
+  // window is closable. Everything outside the browser is either in the core
+  // or it simply runs.
+  return false;
 }
 
 /**
@@ -134,7 +190,9 @@ export function escalate(op: BridgeOp, verdict: Verdict): Verdict {
  * card hides the button rather than offering a promise it would not keep.
  */
 export function gateKind(op: BridgeOp): string {
-  if (alwaysAsk(op)) return "";
+  // A commitment cannot be remembered either: "always allow signing me up" is
+  // not a standing yes anyone means to give.
+  if (importantAsk(op)) return "";
   if (op.route === "shell") {
     const parts = String(op.args.command ?? "").trim().toLowerCase().split(/\s+/);
     const head = parts[0] ?? "";
@@ -158,6 +216,7 @@ export function needsGate(
   verdict: Verdict,
   { trust = DEFAULT_TRUST, allowed = [] }: { trust?: Trust; allowed?: string[] } = {},
 ): boolean {
+  // The core first, so no level and no remembered yes can get past it.
   if (alwaysAsk(op)) return true;
   if (!verdict.confirm) return false;
 
@@ -165,7 +224,12 @@ export function needsGate(
   if (kind && allowed.includes(kind)) return false;
 
   if (trust === "ask") return true;
-  if (trust === "trusted") return verdict.risk === "grave";
+  // NOT `verdict.risk === "grave"`, which is what this used to be and is why
+  // Trusted still stopped on ordinary browsing: classify calls a click grave
+  // on any of a long list of words — confirm, accept, apply, register — and a
+  // browse job hits those constantly. What stops the run is the short list
+  // above, which does not grow with the length of the job.
+  if (trust === "trusted") return importantAsk(op);
   return false;
 }
 
