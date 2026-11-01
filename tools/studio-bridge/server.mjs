@@ -70,7 +70,7 @@ import {
   writeFileSync,
   copyFileSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { analyzeClip, probeClip } from "./handover.mjs";
 import { stitchWindows } from "./windows.mjs";
@@ -103,31 +103,71 @@ let working = false;
 const RATE_FILE = join(OUT, "rate.json");
 const DEFAULT_RATE = { secondsPerFrame: 2.76, samples: 0 };
 
-function loadRate() {
-  try {
-    const r = JSON.parse(readFileSync(RATE_FILE, "utf8"));
-    if (Number.isFinite(r.secondsPerFrame) && r.secondsPerFrame > 0.05 && r.secondsPerFrame < 60) {
-      return { secondsPerFrame: r.secondsPerFrame, samples: Number(r.samples) || 1 };
-    }
-  } catch {
-    /* first run */
-  }
-  return { ...DEFAULT_RATE };
+/**
+ * Seconds per frame is not one number — it is one number PER CONFIGURATION.
+ *
+ * This was a single rolling average over every shot ever rendered, and the
+ * moment the sampler went from 4 steps to 10 it began reporting a rate from a
+ * different machine's worth of work: a 15-second render was announced at 33
+ * minutes and had not finished at 68. Worse, it self-corrects over twenty
+ * samples, so it is wrong in both directions for a whole evening after any
+ * change.
+ *
+ * Steps, resolution, phase count and whether the shot carries reference images
+ * each move the cost several-fold, so they are the key. An unseen combination
+ * has no estimate at all, which is the honest answer — better than confidently
+ * quoting a rate measured under settings that no longer apply.
+ */
+function rateKey(withRefs) {
+  const res = process.env.STUDIO_RES || "table";
+  return [STEPS, res, TWO_PHASE ? "2phase" : "1phase", withRefs ? "refs" : "norefs"].join("|");
 }
 
-let rate = loadRate();
+function loadRates() {
+  try {
+    const r = JSON.parse(readFileSync(RATE_FILE, "utf8"));
+    // Migrate the old single-average file by discarding it: it is an average
+    // across configurations and cannot be attributed to any of them.
+    if (r && typeof r === "object" && !r.byConfig) return {};
+    return r.byConfig && typeof r.byConfig === "object" ? r.byConfig : {};
+  } catch {
+    return {};
+  }
+}
+
+let rates = loadRates();
+
+/** What a frame costs under the CURRENT settings, or null if never measured. */
+function rateFor(withRefs = false) {
+  const r = rates[rateKey(withRefs)];
+  return r && Number.isFinite(r.secondsPerFrame) ? r.secondsPerFrame : null;
+}
+
+/**
+ * For the places that must show something. Falls back to the slowest rate
+ * measured under ANY configuration rather than the fastest or a stale mean —
+ * an estimate that runs long is a disappointment, one that runs short is a
+ * broken promise, and this whole change exists because of the second kind.
+ */
+function rateOrGuess(withRefs = false) {
+  const exact = rateFor(withRefs);
+  if (exact !== null) return exact;
+  const seen = Object.values(rates).map((r) => r.secondsPerFrame).filter(Number.isFinite);
+  return seen.length ? Math.max(...seen) : DEFAULT_RATE.secondsPerFrame;
+}
 
 /** A finished shot is evidence. Twenty of them is enough of an average. */
-function learnRate(seconds, frames) {
+function learnRate(seconds, frames, withRefs = false) {
   if (!frames || seconds < 2) return;
-  const observed = seconds / frames;
-  const n = Math.min(20, rate.samples);
-  rate = {
-    secondsPerFrame: (rate.secondsPerFrame * n + observed) / (n + 1),
+  const key = rateKey(withRefs);
+  const prev = rates[key] ?? { secondsPerFrame: seconds / frames, samples: 0 };
+  const n = Math.min(20, prev.samples);
+  rates[key] = {
+    secondsPerFrame: (prev.secondsPerFrame * n + seconds / frames) / (n + 1),
     samples: n + 1,
   };
   try {
-    writeFileSync(RATE_FILE, JSON.stringify(rate));
+    writeFileSync(RATE_FILE, JSON.stringify({ byConfig: rates }));
   } catch {
     /* the estimate is worth having even if it cannot be kept */
   }
@@ -264,6 +304,15 @@ const RESOLUTION = { "16:9": "832x480", "9:16": "480x832", "1:1": "640x640" };
  * 1 exactly where it has always rendered and makes phase 2 pure gain.
  */
 function outputSize(aspectRatio) {
+  // STUDIO_RES=1248x720 overrides the table outright. Resolution is the axis
+  // that falls off a cliff rather than scaling on a 6 GB card — once the working
+  // set stops fitting in VRAM it thrashes against system RAM — so it is worth
+  // being able to find that edge empirically instead of assuming it.
+  // An explicit STUDIO_RES is the FINAL output size, in both modes. Only the
+  // table default gets doubled for two-phase, so that phase 1 lands on the
+  // 832x480 that is known to render cleanly — asking for a size and silently
+  // rendering twice that is the kind of surprise that costs an afternoon.
+  if (process.env.STUDIO_RES) return process.env.STUDIO_RES;
   const base = RESOLUTION[aspectRatio] || RESOLUTION["16:9"];
   if (!TWO_PHASE) return base;
   const [w, h] = base.split("x").map(Number);
@@ -342,11 +391,11 @@ function saveDataUrl(file, dataUrl) {
 }
 
 /** The owner's track, kept with an extension so ffmpeg knows what it is. */
-function saveTrack(dir, dataUrl) {
+function saveTrack(dir, dataUrl, stem = "track") {
   const m = /^data:audio\/([\w.+-]+);base64,/.exec(typeof dataUrl === "string" ? dataUrl : "");
   if (!m) return null;
   const ext = { mpeg: "mp3", "x-m4a": "m4a", mp4: "m4a", "x-wav": "wav", vnd_wave: "wav" }[m[1]] ?? m[1].replace(/[^a-z0-9]/g, "");
-  return saveDataUrl(join(dir, `track.${ext || "mp3"}`), dataUrl);
+  return saveDataUrl(join(dir, `${stem}.${ext || "mp3"}`), dataUrl);
 }
 
 function saveRef(id, i, dataUrl) {
@@ -372,7 +421,7 @@ const flat = (t) => String(t).replace(/\s*\r?\n+\s*/g, " ").trim();
  * asked for is the wanted length PLUS the overlap — otherwise every chained
  * shot lands short, and on a film cut to music that shortfall compounds.
  */
-async function generate({ id, prompt, refFiles = [], durationSec, aspectRatio, chain = null, startImage = null }) {
+async function generate({ id, prompt, refFiles = [], durationSec, aspectRatio, chain = null, startImage = null, audioGuide = null }) {
   await ensureWanGP();
   // A start image is literally the first frame of the output, so it is not a
   // suggestion the model can weigh against others the way a reference is.
@@ -423,6 +472,12 @@ async function generate({ id, prompt, refFiles = [], durationSec, aspectRatio, c
       : {}),
     // Set last, from what was actually supplied, so the two can combine.
     ...(withStart || chain ? { image_prompt_type: `${withStart ? "S" : ""}${chain ? "V" : ""}` } : {}),
+    // An audio guide is not a soundtrack. `soundtrack` lays a track UNDER the
+    // finished cut; this hands the track to H3 as conditioning, and the model
+    // matches mouth movement and action to it — "A" in WanGP's own words is
+    // "condition on audio_guide". That is what makes a clip lip-sync to a
+    // supplied voice rather than inventing its own.
+    ...(audioGuide ? { audio_guide: resolve(audioGuide), audio_prompt_type: "A" } : {}),
   };
   const r = await rpc("tools/call", { name: "wangp_generate", arguments: { action: "generate", arguments: { source } } });
   const text = (r?.result?.content ?? []).map((c) => c.text).join("\n");
@@ -435,6 +490,106 @@ async function generate({ id, prompt, refFiles = [], durationSec, aspectRatio, c
   if (!result?.success) throw new Error(`WanGP failed: ${JSON.stringify(result?.errors ?? text).slice(0, 400)}`);
   const out = join(OUT, `${id}.mp4`);
   copyFileSync(result.generated_files[0], out);
+  return out;
+}
+
+// ----- stills -----------------------------------------------------------------
+//
+// A Studio image used to be painted by Nano Banana (google/gemini-3.1-flash-image)
+// on OpenRouter, at real money per picture. Flux 2 Klein 4B is already on this PC
+// inside WanGP — the same engine the video path uses — and it shot all 123 Studio
+// cards for nothing. So a still renders here by default and only reaches a paid
+// model when this bridge is not running.
+//
+// 4 steps and no guidance_scale: Klein is a DISTILLED model. Given a "better"
+// step count it returns washed-out mush, so these are WanGP's own defaults
+// (app/defaults/flux2_klein_4b.json), not a knob.
+
+const IMAGE_MODEL = process.env.STUDIO_IMAGE_MODEL || "flux2_klein_4b";
+const IMAGE_STEPS = Number(process.env.STUDIO_IMAGE_STEPS) || 4;
+
+// ~1 megapixel at each aspect the hub offers, every side a multiple of 16.
+const IMAGE_RESOLUTION = {
+  "1:1": "1024x1024",
+  "4:5": "896x1120",
+  "3:4": "864x1152",
+  "2:3": "832x1248",
+  "9:16": "768x1360",
+  "16:9": "1360x768",
+  "3:2": "1248x832",
+  "4:3": "1152x864",
+  "21:9": "1568x672",
+};
+
+// Klein will letter a sign or a UI if the prompt leaves it any room, and a
+// storyboard frame with invented text on it is worse than no frame.
+const IMAGE_NEGATIVE =
+  "text, letters, words, numbers, captions, subtitles, watermark, logo, signature, "
+  + "user interface, app window, browser, buttons, menus, cursor, collage, split screen, "
+  + "multiple panels, borders, blurry, low contrast, washed out, deformed hands, extra limbs";
+
+/** One local still. Returns the path of a PNG in OUT. */
+// Editing a picture is NOT the same call as drawing one from references.
+// WanGP gates it behind flags in video_prompt_type, and the letters are not the
+// ones the UI labels suggest: "V" enables Control Image (the picture being
+// edited, passed as image_guide) and "A" enables its mask. The qwen handler
+// spells the working combination out for the Plus models as
+// inpaint_video_prompt_type = "VAG", with image refs allowed on top because
+// inpaint_with_image_ref is set. Without "V" the model treats the source as mere
+// inspiration and repaints the whole frame, which is exactly what it did three
+// times before these flags were found.
+async function generateImage({ id, prompt, refFiles = [], aspectRatio, sourceSize = null, editGuide = null, editMask = null }) {
+  await ensureWanGP();
+  const withRefs = refFiles.length > 0;
+  // Flux reads a reference's ROLE from the prompt, not from the argument order,
+  // so the labels have to be said out loud or it composes a stranger.
+  const labels = refFiles.map((f, i) => `image ${i + 1} is ${f.label || `Subject ${i + 1}`}`).join("; ");
+  const source = {
+    model_type: IMAGE_MODEL,
+    prompt: flat(
+      withRefs && !editGuide
+        ? `${prompt} Reference images: ${labels}. Keep each one's exact face, features and details.`
+        : prompt,
+    ),
+    negative_prompt: IMAGE_NEGATIVE,
+    resolution: sourceSize ?? IMAGE_RESOLUTION[aspectRatio] ?? IMAGE_RESOLUTION["1:1"],
+    num_inference_steps: IMAGE_STEPS,
+    seed: Math.floor(Math.random() * 2 ** 31),
+    ...(editGuide
+      ? {
+        image_guide: resolve(editGuide),
+        ...(editMask ? { image_mask: resolve(editMask) } : {}),
+        ...(withRefs ? { image_refs: refFiles.map((f) => resolve(f.path)) } : {}),
+        // Only the masked pixels may change, so the background survives by
+        // construction rather than by asking the model nicely.
+        video_prompt_type: (editMask ? "VAG" : "V") + (withRefs ? "I" : ""),
+        // Without this, "V" resolves to Control VIDEO and WanGP rejects the job
+        // asking for a video it was never going to get: image_output is
+        // `model_def.image_outputs or image_mode > 0`, and the qwen handler
+        // registers inpainting as image_mode 2.
+        image_mode: editMask ? 2 : 1,
+        denoising_strength: 1,
+      }
+      : withRefs
+        ? { image_refs: refFiles.map((f) => resolve(f.path)), video_prompt_type: "I" }
+        : {}),
+  };
+  const r = await rpc("tools/call", { name: "wangp_generate", arguments: { action: "generate", arguments: { source } } });
+  const text = (r?.result?.content ?? []).map((c) => c.text).join("\n");
+  let result;
+  try {
+    result = JSON.parse(text).result;
+  } catch {
+    throw new Error(`WanGP: ${text.slice(0, 400) || JSON.stringify(r).slice(0, 400)}`);
+  }
+  if (!result?.success) throw new Error(`WanGP failed: ${JSON.stringify(result?.errors ?? text).slice(0, 400)}`);
+  // WanGP decides the format — measured: a Flux 2 Klein still comes back as
+  // JPEG, not PNG. Naming the file .png here made /file label it image/png and
+  // every caller build a data URL that misdescribed its own bytes.
+  const src = result.generated_files[0];
+  const ext = (extname(src) || ".jpg").toLowerCase();
+  const out = join(OUT, `${id}${ext}`);
+  copyFileSync(src, out);
   return out;
 }
 
@@ -922,6 +1077,16 @@ async function render(id, job) {
   const refFiles = refs
     .map((r, i) => ({ path: saveRef(id, i, r.dataUrl), label: r.label }))
     .filter((f) => f.path);
+  // A still shares the queue with the clips on purpose: there is one 6 GB card,
+  // and a Flux render started underneath an H3 render is how both of them die.
+  if (job.kind === "image") {
+    return generateImage({
+      id, prompt, refFiles, aspectRatio,
+      sourceSize: job.input.sourceSize ?? null,
+      editGuide: job.input.editGuide ? saveRef(`${id}-edit`, "guide", job.input.editGuide) : null,
+      editMask: job.input.editMask ? saveRef(`${id}-edit`, "mask", job.input.editMask) : null,
+    });
+  }
   return generate({ id, prompt, refFiles, durationSec, aspectRatio });
 }
 
@@ -960,12 +1125,18 @@ async function pump() {
     const job = jobs.get(id);
     job.status = "rendering";
     job.started = Date.now();
-    console.log(`▶ ${id} — ${job.input.durationSec ?? 5}s ${job.input.aspectRatio ?? "16:9"}, ${job.input.refs?.length ?? 0} ref(s)`);
+    console.log(
+      job.kind === "image"
+        ? `▶ ${id} — still, ${job.input.aspectRatio ?? "1:1"}, ${job.input.refs?.length ?? 0} ref(s)`
+        : `▶ ${id} — ${job.input.durationSec ?? 5}s ${job.input.aspectRatio ?? "16:9"}, ${job.input.refs?.length ?? 0} ref(s)`,
+    );
     try {
       job.file = await render(id, job);
       job.status = "done";
       const secs = Math.round((Date.now() - job.started) / 1000);
-      learnRate(secs, framesFor(job.input.durationSec));
+      // The measured rate is seconds PER FRAME of video. A still has no frames,
+      // so feeding it in would teach the clips' ETA a number from another job.
+      if (job.kind !== "image") learnRate(secs, framesFor(job.input.durationSec));
       console.log(`✓ ${id} in ${secs}s`);
     } catch (e) {
       job.status = "error";
@@ -1063,6 +1234,7 @@ async function renderFilm(id) {
         durationSec: shot.durationSec,
         aspectRatio: film.aspectRatio,
         chain,
+        ...(shot.audioGuideFile ? { audioGuide: shot.audioGuideFile } : {}),
       });
       const kept = join(dir, `shot-${i + 1}.mp4`);
       copyFileSync(clip, kept);
@@ -1083,7 +1255,7 @@ async function renderFilm(id) {
       }
       shot.status = "done";
       shot.seconds = Math.round((Date.now() - shot.startedAt) / 1000);
-      learnRate(shot.seconds, framesFor(shot.durationSec) + (chain ? chain.overlap : 0));
+      learnRate(shot.seconds, framesFor(shot.durationSec) + (chain ? chain.overlap : 0), Boolean(shot.refs?.length) && !chain);
       previousClip = shot;
       console.log(
         `✓ ${id} shot ${i + 1} in ${shot.seconds}s${chain ? ` (continued from ${chain.overlap}f)` : ""}`
@@ -1186,7 +1358,7 @@ function filmView(id) {
   const eta =
     film.status === "done" || film.status === "error"
       ? 0
-      : Math.max(0, Math.round(remainingFrames * rate.secondsPerFrame - elapsedOnCurrent + (film.shots.length > 1 ? 8 : 0)));
+      : Math.max(0, Math.round(remainingFrames * rateOrGuess() - elapsedOnCurrent + (film.shots.length > 1 ? 8 : 0)));
   return {
     status: film.status,
     error: film.error,
@@ -1195,7 +1367,7 @@ function filmView(id) {
     doneShots,
     etaSeconds: eta,
     elapsedSeconds: film.startedAt ? Math.round(((film.finishedAt ?? Date.now()) - film.startedAt) / 1000) : 0,
-    secondsPerFrame: Math.round(rate.secondsPerFrame * 100) / 100,
+    secondsPerFrame: Math.round(rateOrGuess() * 100) / 100,
     queue: filmQueue.length,
     shots: film.shots.map((s, i) => ({
       n: i + 1,
@@ -1211,7 +1383,7 @@ function filmView(id) {
         s.status === "done"
           ? 100
           : s.status === "rendering"
-            ? Math.min(97, Math.round(((Date.now() - s.startedAt) / 1000 / (framesFor(s.durationSec) * rate.secondsPerFrame)) * 100))
+            ? Math.min(97, Math.round(((Date.now() - s.startedAt) / 1000 / (framesFor(s.durationSec) * rateOrGuess())) * 100))
             : 0,
       error: s.error,
       // A shot that rendered fine and still has nothing happening in it is not
@@ -1371,6 +1543,15 @@ async function readBody(req, limit = 120_000_000) {
   return JSON.parse(raw);
 }
 
+/** Content type from the extension, so a still is served as what it actually is. */
+const MEDIA_TYPE = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".mp4": "video/mp4",
+};
+
 function sendFile(res, file, type) {
   res.writeHead(200, { "Content-Type": type, "Content-Length": statSync(file).size });
   createReadStream(file).pipe(res);
@@ -1388,8 +1569,13 @@ const server = http.createServer(async (req, res) => {
       wangp: await wangpUp(),
       quality: QUALITY,
       queue: queue.length + (working ? 1 : 0) + filmQueue.length + (filming ? 1 : 0),
-      rate: Math.round(rate.secondsPerFrame * 100) / 100,
+      rate: Math.round(rateOrGuess() * 100) / 100,
+      rateMeasured: rateFor() !== null,
       films: films.size,
+      // What the page needs to know before it decides where to send a still:
+      // that this bridge can paint one at all, and with what.
+      image: true,
+      imageModel: IMAGE_MODEL,
     });
   }
 
@@ -1422,6 +1608,34 @@ const server = http.createServer(async (req, res) => {
     if (typeof input.prompt !== "string" || !input.prompt.trim()) return json(res, 400, { error: "prompt required" });
     const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     jobs.set(id, { status: "queued", input: { ...input, refs: Array.isArray(input.refs) ? input.refs.slice(0, 6) : [] } });
+    queue.push(id);
+    void pump();
+    return json(res, 200, { id });
+  }
+
+  // One still, free, on this PC. Same queue as /video — one GPU.
+  if (req.method === "POST" && url.pathname === "/image") {
+    let input;
+    try {
+      input = await readBody(req, 40_000_000);
+    } catch (e) {
+      return json(res, e.message === "too large" ? 413 : 400, { error: e.message === "too large" ? "too large" : "bad json" });
+    }
+    if (typeof input.prompt !== "string" || !input.prompt.trim()) return json(res, 400, { error: "prompt required" });
+    const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    jobs.set(id, {
+      status: "queued",
+      kind: "image",
+      input: {
+        ...input,
+        refs: Array.isArray(input.refs) ? input.refs.slice(0, 6) : [],
+        // An edit must be rendered at the size of the picture it edits.
+        sourceSize: /^\d{2,4}x\d{2,4}$/.test(String(input.sourceSize ?? "")) ? String(input.sourceSize) : null,
+        // The picture being edited, and which of its pixels may change.
+        editGuide: typeof input.editGuide === "string" && input.editGuide.startsWith("data:image/") ? input.editGuide : null,
+        editMask: typeof input.editMask === "string" && input.editMask.startsWith("data:image/") ? input.editMask : null,
+      },
+    });
     queue.push(id);
     void pump();
     return json(res, 200, { id });
@@ -1492,11 +1706,21 @@ const server = http.createServer(async (req, res) => {
         // three of today's runs spent 25 minutes each re-making a clip that was
         // already on disk and already good.
         reuse: typeof s.reuse === "string" && existsSync(s.reuse) ? s.reuse : null,
+        // A voice or music track for THIS shot to lip-sync and move to. Kept as
+        // the raw data URL here and written to a file once the film has a
+        // directory, a few lines below.
+        audioGuide: typeof s.audioGuide === "string" && s.audioGuide.startsWith("data:audio/") ? s.audioGuide : null,
         status: "queued",
       }));
     if (!shots.length) return json(res, 400, { error: "a film needs at least one shot with a prompt" });
     const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     const dir = filmDir(id);
+    // Now there is a directory, each shot's audio guide becomes a file on disk,
+    // which is what WanGP's `audio_guide` wants.
+    for (const [i, shot] of shots.entries()) {
+      shot.audioGuideFile = shot.audioGuide ? saveTrack(dir, shot.audioGuide, `guide-${i}`) : null;
+      delete shot.audioGuide;
+    }
     films.set(id, {
       title: typeof input.title === "string" ? input.title.slice(0, 120) : "Untitled film",
       aspectRatio: RESOLUTION[input.aspectRatio] ? input.aspectRatio : "16:9",
@@ -1548,15 +1772,15 @@ const server = http.createServer(async (req, res) => {
       // A composite has no frames to render and no rate to predict from — it is
       // ffmpeg on finished files — so it reports none rather than borrowing the
       // GPU's arithmetic and promising five minutes of nothing.
-      ...(job.status === "rendering" && job.kind !== "composite"
-        ? { etaSeconds: Math.max(0, Math.round(framesFor(job.input.durationSec) * rate.secondsPerFrame - (Date.now() - job.started) / 1000)) }
+      ...(job.status === "rendering" && job.kind !== "composite" && job.kind !== "image"
+        ? { etaSeconds: Math.max(0, Math.round(framesFor(job.input.durationSec) * rateOrGuess() - (Date.now() - job.started) / 1000)) }
         : {}),
       ...(job.kind === "composite" ? { kind: "composite", ...(job.placed ? { placed: job.placed, key: job.key, cropped: job.cropped } : {}) } : {}),
     });
   }
   if (m && m[1] === "file") {
     if (job.status !== "done") return json(res, 409, { error: "not ready" });
-    return sendFile(res, job.file, "video/mp4");
+    return sendFile(res, job.file, MEDIA_TYPE[extname(job.file).toLowerCase()] ?? "application/octet-stream");
   }
   json(res, 404, { error: "not found" });
 });
@@ -1576,7 +1800,12 @@ server.listen(PORT, "127.0.0.1", () => {
   // Plain ASCII: this also goes to out\bridge.log when the hidden copy starts
   // it, and a log full of mojibake is a log nobody reads.
   console.log(`Studio bridge on http://127.0.0.1:${PORT} - renders with WanGP (${WANGP_DIR}), free.`);
-  console.log(`Measured render rate: ${rate.secondsPerFrame.toFixed(2)} s/frame from ${rate.samples} shot(s).`);
+  const here = rateFor();
+  console.log(
+    here === null
+      ? `No rate measured yet for ${rateKey(false)} — the first render of these settings is the measurement.`
+      : `Measured render rate: ${here.toFixed(2)} s/frame for ${rateKey(false)}.`,
+  );
   console.log("Ready for Jarvis -> Studio. If this is a visible window, leave it open.");
 });
 

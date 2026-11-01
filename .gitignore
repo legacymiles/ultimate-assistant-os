@@ -92,3 +92,8 @@ public/__dump/
 # cobalt is cloned, not vendored (tools/cobalt/install.mjs)
 /tools/cobalt/app/
 /tools/cobalt/out/
+
+# Market data pulled down for the recovery simulator: 43MB of .npy that git
+# would keep forever, even after a delete. The engine that reads them is
+# committed; the series are re-pullable, so they are not.
+/tools/adaptive-recovery/*.npy
