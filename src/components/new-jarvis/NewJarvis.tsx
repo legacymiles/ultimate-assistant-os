@@ -51,7 +51,7 @@ import { ChatView } from "./ChatView";
 import { Recall } from "../recall/Recall";
 import { ListsBoard } from "../recall/lists/ListsBoard";
 import { CalendarTab } from "../jarvis/CalendarTab";
-import { StudioTab } from "../jarvis/StudioTab";
+import { StudioRoot } from "../jarvis/StudioRoot";
 import { InboxTab } from "../jarvis/InboxTab";
 import { SkillsLibrary } from "../skills/SkillsLibrary";
 import { SyncStatusPanel } from "../jarvis/SyncStatusPanel";
@@ -1063,7 +1063,12 @@ ${reflex.best.excerpt ?? ""}`.trim()
         window.history.replaceState(null, "", window.location.pathname + window.location.search);
         return;
       }
-      if (isTab(h)) setTab(h);
+      // A tab may address something inside itself after a slash — Studio does,
+      // with #studio/workflows — so the tab is the part before the first one.
+      // The connections case above handles its own prefix and has returned by
+      // here; this is the general rule for the rest.
+      const head = h.split("/")[0];
+      if (isTab(head)) setTab(head);
     };
     read();
     window.addEventListener("hashchange", read);
@@ -1452,7 +1457,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 )}
                 {tab === "inbox" && <InboxTab store={store} commit={commit} profile={profile} />}
                 {tab === "studio" && (
-                  <StudioTab store={store} commit={commit} profile={profile} onDashboardChanged={dash.refresh} />
+                  <StudioRoot store={store} commit={commit} profile={profile} onDashboardChanged={dash.refresh} />
                 )}
                 {tab === "skills" && (
                   <>
