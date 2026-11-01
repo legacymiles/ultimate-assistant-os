@@ -343,6 +343,19 @@ const ENTRIES: Record<string, Entry> = {
     base: PRODUCT,
     note: "Token-exact product UI: slate surface, 10px radius, sentence case, one blue.",
   },
+  commercial: {
+    // Light, not dark: a retail product page sells off white, and PRODUCT's
+    // #0b0c10 console would have made this a recolour of capcut-design — which
+    // is exactly what the fingerprint test refuses, and rightly.
+    base: PAPER,
+    void: "#f5f5f7",
+    sig: "#0071e3",
+    display: "sans",
+    radius: 18,
+    // No glow. Everything on a page like this is either the product or out.
+    field: "off",
+    note: "Retail-grade: wide margins, one confident blue, the product photograph carrying the page.",
+  },
   "webgl-trail-reveal": {
     base: NEON,
     sig: "#ff5cf0",

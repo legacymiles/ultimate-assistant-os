@@ -37,11 +37,36 @@ const NOT_DESIGN = new Set([
   "imagegen-frontend-mobile",
   "higgsfield-models",
   "video-analyzer",
+  // Added by this script in 99334dc and wrong: every one of these BUILDS,
+  // PLANS or RESEARCHES something that may be a website. None of them is a
+  // look you could redesign a page into, which is the only thing this roster
+  // is for. They got in because DESIGN used to match "build", so any skill
+  // whose description said "build a website" satisfied both patterns.
+  "app-builder",
+  "eas-app-stores",
+  "expo-design-system",
+  "felix",
+  "jarvis-harness",
+  "promo-video",
+  "rea-to-workflow",
+  "scholar",
+  "supercut",
+  "website-build-checklist",
+  // Deciding when a thing is finished is not a look either. Caught by the
+  // dry-run while fixing the above, which is the point: the patterns below
+  // narrow the field, this list is what actually keeps it honest, and it
+  // needs a line adding whenever a new non-style skill mentions websites.
+  "make-this-better",
+  "knowing-when-to-stop",
 ]);
 
 // A website design skill talks about building/designing sites, pages or frontends.
 const WEB = /\b(websites?|landing pages?|web ?design|web pages?|web ?apps?|hero sections?|scroll[- ]driven|scrollytelling|portfolio sites?|marketing pages?|frontend|front-end|interfaces?|design systems?|dashboards?|editorial sites?)\b/i;
-const DESIGN = /\b(design|build|premium|cinematic|interactive|animat|motion|visual|style|layout|hero|ui)\b/i;
+// "build" is deliberately NOT here. A skill that BUILDS a website is not a
+// style to redesign one into, and together with WEB it matched almost every
+// skill the owner has — which is how a background coding agent and a build
+// checklist ended up in a design dropdown.
+const DESIGN = /\b(design|premium|cinematic|interactive|animat|motion|visual|style|layout|hero|ui)\b/i;
 
 function frontmatter(text) {
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
