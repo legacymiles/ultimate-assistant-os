@@ -22,6 +22,7 @@ import { ScreenScan } from "./ScreenScan";
 import { MemoryTab } from "../jarvis/MemoryTab";
 import { NewDashboard } from "../new-dashboard/NewDashboard";
 import { RecordTab } from "../jarvis/RecordTab";
+import { ProfileApp } from "../profile/ProfileApp";
 import { ReminderBanner } from "../jarvis/ReminderBanner";
 
 import type { UseVault } from "@/lib/new-jarvis/useVault";
@@ -131,7 +132,7 @@ export function DashboardPanel({
   /** Bumped when a screen scan writes, to remount the profile beneath it. */
   const [profileKey, setProfileKey] = useState(0);
   /** Which half of the profile is showing. */
-  const [profileFace, setProfileFace] = useState<"details" | "aios" | "checklist" | "connections">("details");
+  const [profileFace, setProfileFace] = useState<"details" | "record" | "aios" | "checklist" | "connections">("details");
   /** A Connections row to open on arrival (from a link like #connections/youtube). */
   const [connFocus, setConnFocus] = useState<string | null>(null);
   useEffect(() => {
@@ -249,6 +250,10 @@ export function DashboardPanel({
               {(
                 [
                   { id: "details", label: "Who you are" },
+                  // The form is still here, unchanged and reachable. The
+                  // folder tree holds what a fixed 47 fields never could,
+                  // and imports the record rather than replacing it.
+                  { id: "record", label: "Life record" },
                   { id: "aios", label: "How you work" },
                   // The one build checklist lives here, in the owner's
                   // Profile, rather than behind a tab of its own.
@@ -277,6 +282,8 @@ export function DashboardPanel({
               ) : profileFace === "checklist" ? (
                 <BackendChecklist api={jarvisProfile} />
               ) : profileFace === "details" ? (
+                <ProfileApp />
+              ) : profileFace === "record" ? (
                 <>
                   {/* Reading a screen belongs HERE, above the record it writes
                       into. What it proposes is judged against that record, so
