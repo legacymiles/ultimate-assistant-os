@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { NO_FREE_PAINTER, paidImagesAllowed, paintLocally } from "@/lib/ai/images";
 import { aiConfigured } from "@/lib/ai/provider";
 import { aspectRatio, extractResult, generationText, placeholderImage, userContent } from "@/lib/image-studio/prompt";
 import { chat, parseBody } from "@/lib/image-studio/server";
@@ -24,6 +25,24 @@ export async function POST(req: Request) {
   if (typeof parsed === "string") return NextResponse.json({ error: parsed }, { status: 400 });
   const { agent, prompt, refs } = parsed;
   const variant = Number((body as { variant?: unknown }).variant) || 0;
+
+  // Free on this PC first. Every agent here names the same paid painter
+  // (DEFAULT_IMAGE_MODEL), so without this the app cannot be opened without
+  // spending — see src/lib/ai/images.ts for what that cost measured.
+  try {
+    const local = await paintLocally({
+      prompt: generationText(agent, prompt, refs),
+      aspectRatio: aspectRatio(agent.aspect),
+      refs: refs.map((r) => ({ dataUrl: r.dataUrl })),
+    });
+    if (local) return NextResponse.json({ image: local, model: "flux2_klein_4b (local, free)" });
+  } catch (err) {
+    return NextResponse.json({ error: `The local renderer failed (${(err as Error).message.slice(0, 160)}).` }, { status: 502 });
+  }
+
+  if (!paidImagesAllowed()) {
+    return NextResponse.json({ error: NO_FREE_PAINTER }, { status: 503 });
+  }
 
   if (!aiConfigured()) {
     return NextResponse.json({ image: placeholderImage(agent, prompt, variant), offline: true, model: "placeholder" });

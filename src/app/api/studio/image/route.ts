@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { NO_FREE_PAINTER, paidImagesAllowed, paintLocally } from "@/lib/ai/images";
 import { aiConfigured } from "@/lib/ai/provider";
 import { DEFAULT_IMAGE_MODEL } from "@/lib/image-studio/agents";
 import { extractResult, userContent } from "@/lib/image-studio/prompt";
@@ -42,6 +43,20 @@ export async function POST(req: Request) {
         ? r.label.trim()
         : `Subject ${i + 1}`,
     }));
+
+  // Free first, always. When the hub runs on the owner's own PC this reaches
+  // Flux 2 Klein inside WanGP and the picture costs nothing; on Vercel 127.0.0.1
+  // is the serverless box, so it comes back null and the gate below decides.
+  try {
+    const local = await paintLocally({ prompt, aspectRatio: aspect, refs });
+    if (local) return NextResponse.json({ image: local, model: "flux2_klein_4b (local, free)" });
+  } catch (err) {
+    return NextResponse.json({ error: `The local renderer failed (${(err as Error).message.slice(0, 160)}).` }, { status: 502 });
+  }
+
+  if (!paidImagesAllowed()) {
+    return NextResponse.json({ error: NO_FREE_PAINTER }, { status: 503 });
+  }
 
   if (!aiConfigured()) {
     return NextResponse.json({ error: "No AI key is set on this deployment, so nothing can be rendered." }, { status: 503 });

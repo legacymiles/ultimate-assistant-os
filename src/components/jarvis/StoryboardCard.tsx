@@ -35,9 +35,7 @@ import {
   MIN_SHOT_SEC,
   blankShot,
   boardNotes,
-  etaSeconds,
   fitRuntime,
-  formatEta,
   h3Form,
   normalise,
   parseRuntime,
@@ -652,7 +650,6 @@ export function StoryboardCard({
   const [castDrawing, setCastDrawing] = useState<string[]>([]);
   const [drawError, setDrawError] = useState("");
   const runtime = runtimeSec(board);
-  const eta = useMemo(() => etaSeconds(board), [board]);
   // The pre-flight gate, ahead of the advisory notes. The card can start a
   // render just as the full sheet can, so it has to stop one just as the full
   // sheet does — a gate with a second way in is not a gate.
@@ -1231,7 +1228,7 @@ export function StoryboardCard({
         )}
         <p className="text-[10.5px] leading-tight text-ink-faint">
           {board.shots.length} {board.shots.length === 1 ? "clip" : "clips"} rendered in order on this PC and cut
-          together — <span className="tabular-nums text-ink-muted">about {formatEta(eta).replace(" left", "")}</span>.
+          together.
         </p>
         {stops.length > 0 && !busy && !done && (
           <p className="order-first w-full rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[10.5px] leading-snug text-rose-100/90 shadow-[inset_1px_0_0_theme(colors.rose.400)]">
@@ -1240,7 +1237,7 @@ export function StoryboardCard({
             </span>
             {stops.length === 1 ? "thing in this plan " : "things in this plan "}
             cannot become the film it describes. Fixing them now is free; finding out after the render
-            costs {formatEta(eta).replace(" left", "")}.{" "}
+            costs the whole render.{" "}
             <button
               type="button"
               onClick={showStops}

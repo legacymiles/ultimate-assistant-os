@@ -45,9 +45,7 @@ import {
   MIN_SHOT_SEC,
   blankShot,
   boardNotes,
-  etaSeconds,
   fitRuntime,
-  formatEta,
   h3Form,
   normalise,
   parseRuntime,
@@ -599,7 +597,6 @@ export function StoryboardSheet({
   const [plateDrawing, setPlateDrawing] = useState(false);
   const [drawError, setDrawError] = useState("");
   const runtime = runtimeSec(board);
-  const eta = useMemo(() => etaSeconds(board), [board]);
   // The pre-flight gate first, then the advisory notes. A film costs the better
   // part of an hour on this PC's GPU and cannot be skimmed until it is
   // finished, so a plan that cannot become the film it describes is stopped
@@ -1253,14 +1250,14 @@ export function StoryboardSheet({
             )}
             <p className="jb-hint">
               {board.shots.length} {board.shots.length === 1 ? "clip" : "clips"} rendered in order on this PC and
-              cut together — <b>about {formatEta(eta).replace(" left", "")}</b>.
+              cut together.
             </p>
             {stops.length > 0 && !busy && !done && (
               <p className="jb-stop" id="jb-stop-why">
                 <span className="jb-stop-n">{stops.length}</span>
                 {stops.length === 1 ? "thing in this plan " : "things in this plan "}
                 cannot become the film it describes. Fixing them now is free; finding out after the
-                render costs {formatEta(eta).replace(" left", "")}.{" "}
+                render costs the whole render.{" "}
                 <button type="button" onClick={showStops}>
                   Show me
                 </button>

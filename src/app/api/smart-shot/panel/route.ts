@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { CLOUD_IMAGE_MODEL, paidImagesAllowed, paintLocally } from "@/lib/ai/images";
 import { aiConfigured, aiFetch } from "@/lib/ai/provider";
 import { placeholderPanel } from "@/lib/smart-shot/placeholder";
 import type { PanelKind } from "@/lib/smart-shot/types";
@@ -32,11 +33,25 @@ export async function POST(req: Request) {
     .filter((u): u is string => typeof u === "string" && u.startsWith("data:image/"))
     .slice(0, 8);
 
-  if (!aiConfigured()) {
+  // A sheet is the hub's biggest image bill — a character sheet, a product
+  // sheet, a plate, a floor plan and one frame per cut, all in one click. Draw
+  // it free on this PC whenever this PC is the one serving the page.
+  try {
+    const local = await paintLocally({ prompt, aspectRatio: aspect, refs: refs.map((dataUrl) => ({ dataUrl })) });
+    if (local) return NextResponse.json({ image: local });
+  } catch {
+    // Fall through to the placeholder rather than failing the panel: a sheet
+    // with one grey frame in it is still a sheet worth reading.
+  }
+
+  // The paid painter stays off unless the owner turned it on. A placeholder, not
+  // an error — the sheet's own no-key path already draws one, and the caption is
+  // what the panel was going to say anyway.
+  if (!paidImagesAllowed() || !aiConfigured()) {
     return NextResponse.json({ image: placeholderPanel(kind, aspect, caption), placeholder: true });
   }
 
-  const model = process.env.SMART_SHOT_IMAGE_MODEL || "google/gemini-3.1-flash-image";
+  const model = process.env.SMART_SHOT_IMAGE_MODEL || CLOUD_IMAGE_MODEL;
   try {
     const res = await aiFetch({
       method: "POST",

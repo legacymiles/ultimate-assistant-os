@@ -8,7 +8,7 @@ import { ago, builderOnline, mintToken, type BuilderInfo } from "./api";
 // This panel shows what the PC reported it has, mints the token the builder
 // signs in with, and gives the exact commands to start it.
 
-const REPO = String.raw`C:\Users\honey\OneDrive\Desktop\claude code files`;
+const REPO = String.raw`C:\dev\claude-code-files`;
 
 export function StudioSetup({ builder, onLinked, compact = false }: { builder: BuilderInfo | null; onLinked: () => void; compact?: boolean }) {
   const [token, setToken] = useState<string | null>(null);

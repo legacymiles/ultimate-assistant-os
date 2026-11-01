@@ -196,7 +196,7 @@ async function post(url: string, body: unknown): Promise<Response> {
 export const BRIDGE = "http://127.0.0.1:42010";
 
 /** Is the local bridge running on this PC? */
-export async function bridgeStatus(): Promise<{ ok: boolean; wangp?: boolean; queue?: number }> {
+export async function bridgeStatus(): Promise<{ ok: boolean; wangp?: boolean; queue?: number; image?: boolean; imageModel?: string }> {
   try {
     const res = await fetch(`${BRIDGE}/health`, { signal: AbortSignal.timeout(1500) });
     return (await res.json()) as { ok: boolean; wangp?: boolean; queue?: number };
@@ -321,22 +321,127 @@ async function renderVideo(job: RenderJob, pool: RefPool, update: (p: Partial<Re
   throw new Error("Still not finished after 20 minutes — try again later.");
 }
 
-async function renderImage(job: RenderJob, pool: RefPool, update: (p: Partial<RenderState>) => void): Promise<void> {
-  const res = await post("/api/studio/image", {
-    prompt: job.prompt,
-    aspectRatio: job.aspectRatio,
-    refs: pick(job, pool.subjects, pool.characters),
+
+// ----- stills ---------------------------------------------------------------
+//
+// A still is painted on the owner's own PC when the bridge is running, and only
+// on a paid cloud model when it is not.
+//
+// This is not a preference about quality. The cloud painter here is Nano Banana
+// (google/gemini-3.1-flash-image) and it bills per picture, while Flux 2 Klein
+// inside WanGP bills nothing — and a shot plan is never ONE picture. A sheet
+// draws a cast sheet per invented character, a set plate, and a frame per cut,
+// then redraws the ones that came back wrong. That is where the credit went.
+//
+// The model picker on the hub's front page cannot help here: `modelChain` in
+// src/lib/ai/provider.ts deliberately exempts specialist models, so an image
+// model is never swapped for the owner's pick. The choice has to be made in
+// this file, where the free engine actually lives.
+
+/** How a still was painted, for the note the UI shows. */
+export type PaintEngine = "local" | "cloud";
+
+export interface Painted {
+  /** A data URL. */
+  image: string;
+  engine: PaintEngine;
+}
+
+/** Read the bridge's finished PNG as a data URL. */
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((ok, fail) => {
+    const fr = new FileReader();
+    fr.onload = () => ok(String(fr.result));
+    fr.onerror = () => fail(new Error("The local renderer's image couldn't be read."));
+    fr.readAsDataURL(blob);
+  });
+}
+
+/** One still on this PC, free. Throws when the bridge cannot produce it. */
+async function paintLocal(
+  body: { prompt: string; aspectRatio?: string; refs?: { label: string; dataUrl: string }[] },
+  signal?: AbortSignal,
+  onNote?: (note: string) => void,
+): Promise<string> {
+  const res = await fetch(`${BRIDGE}/image`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    ...(signal ? { signal } : {}),
+  });
+  const { id, error } = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
+  if (!id) throw new Error(error ?? "The local renderer refused the still.");
+  // ~40 s on the RTX 3050, and it queues behind any clip already rendering —
+  // one GPU, so the bridge runs stills and clips through the same queue.
+  for (let i = 0; i < 240; i += 1) {
+    await sleep(2000);
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const view = (await (await fetch(`${BRIDGE}/job/${id}`)).json().catch(() => ({}))) as {
+      status?: string;
+      position?: number;
+      error?: string;
+    };
+    if (view.status === "error") throw new Error(view.error ?? "The local still failed.");
+    if (view.status === "done") {
+      const file = await fetch(`${BRIDGE}/file/${id}`);
+      if (!file.ok) throw new Error("The still finished but couldn't be fetched from the local renderer.");
+      return blobToDataUrl(await file.blob());
+    }
+    onNote?.(view.status === "queued" ? `queued${view.position ? ` (${view.position})` : ""}` : "drawing on this PC");
+  }
+  throw new Error("The local still never finished.");
+}
+
+/**
+ * Paint one still.
+ *
+ * The browser goes straight to the bridge when it can, because that skips a
+ * round trip through the server for a job that is happening on this machine
+ * anyway. When it cannot, the server route gets a turn: served from this PC it
+ * reaches the same free renderer, and served from Vercel it refuses with the one
+ * thing to do about it (src/lib/ai/images.ts). Either way nothing here decides
+ * to spend money — that is the route's call, and it needs ALLOW_PAID_IMAGES=1.
+ */
+export async function paintImage(
+  body: { prompt: string; aspectRatio?: string; refs?: { label: string; dataUrl: string }[] },
+  opts: { signal?: AbortSignal; onNote?: (note: string) => void; cloudOnly?: boolean } = {},
+): Promise<Painted> {
+  const { signal, onNote, cloudOnly } = opts;
+  if (!cloudOnly && (await bridgeStatus()).ok) {
+    try {
+      return { image: await paintLocal(body, signal, onNote), engine: "local" };
+    } catch (err) {
+      // The owner's own abort is not a reason to spend money instead.
+      if ((err as Error)?.name === "AbortError") throw err;
+      onNote?.("the direct path failed — asking the server");
+    }
+  }
+  const res = await fetch("/api/studio/image", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    ...(signal ? { signal } : {}),
   });
   const data = (await res.json().catch(() => ({}))) as { image?: string; refusal?: string; error?: string };
-  if (data.image) {
-    // A data URL cannot be filed, so keep the bytes as well as the preview.
-    const blob = await fetch(data.image)
-      .then((r) => r.blob())
-      .catch(() => null);
-    update(blob ? { status: "done", url: data.image, blob } : { status: "done", url: data.image });
-    return;
-  }
-  throw new Error(data.refusal ?? data.error ?? `The image service failed (${res.status}).`);
+  if (!data.image) throw new Error(data.refusal ?? data.error ?? `The image service failed (${res.status}).`);
+  return { image: data.image, engine: "cloud" };
+}
+
+async function renderImage(job: RenderJob, pool: RefPool, update: (p: Partial<RenderState>) => void): Promise<void> {
+  const { image, engine } = await paintImage(
+    { prompt: job.prompt, aspectRatio: job.aspectRatio, refs: pick(job, pool.subjects, pool.characters) },
+    { onNote: (note) => update({ note }) },
+  );
+  // A data URL cannot be filed, so keep the bytes as well as the preview.
+  const blob = await fetch(image)
+    .then((r) => r.blob())
+    .catch(() => null);
+  update({
+    status: "done",
+    url: image,
+    note: engine === "local" ? "free, on this PC" : "drawn by the server",
+    ...(blob ? { blob } : {}),
+  });
 }
 
 /**

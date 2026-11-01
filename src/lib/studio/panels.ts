@@ -6,9 +6,16 @@
 // hour late. A drawn panel costs a few seconds and shows the same fault now:
 // the room is wrong, the light is wrong, cut 4 plainly does not follow cut 3.
 //
-// One request per panel, because /api/studio/image returns one image and a
-// generated PNG is a megabyte or two of base64 — several in one response would
-// pass Vercel's limit. They go out together and land as they land.
+// One request per panel, because a generated PNG is a megabyte or two of base64
+// and several in one response would pass Vercel's limit. They go out together
+// and land as they land.
+//
+// Every one of them is painted through `paintImage`, which draws on this PC for
+// nothing when the studio bridge is running (Flux 2 Klein inside WanGP) and only
+// reaches the paid cloud model when it is not. A sheet is a cast sheet per
+// invented character plus a plate plus a frame per cut, redrawn whenever one
+// comes back wrong, so this is the single biggest image bill in the hub and the
+// one most worth keeping local.
 //
 // What is kept is a THUMBNAIL. The board is saved into the synced conversation,
 // so full-size frames here would push megabytes per film between the owner's
@@ -18,6 +25,7 @@
 // soft at the size the sheet actually shows it.
 // ---------------------------------------------------------------------------
 
+import { paintImage } from "./render";
 import { castSheetPrompt, inventedIn, panelPrompt, platePrompt, type Storyboard } from "./storyboard";
 
 /** Long edge of the panel that is kept. Nearly twice the card it is read in. */
@@ -39,6 +47,26 @@ export interface PanelFace {
 }
 
 export class PanelError extends Error {}
+
+/**
+ * Draw one picture for the sheet.
+ *
+ * The sheet reports every failure as a PanelError, so the engine choice and the
+ * error translation live in one place rather than in each of the three drawing
+ * functions. An abort is passed through untouched — the sheet cancels these when
+ * the owner edits a field, and a cancelled draw is not a fault to report.
+ */
+async function paint(
+  body: { prompt: string; aspectRatio?: string; refs?: PanelFace[] },
+  signal?: AbortSignal,
+): Promise<{ image: string; engine: "local" | "cloud" }> {
+  try {
+    return await paintImage(body, { ...(signal ? { signal } : {}) });
+  } catch (err) {
+    if ((err as Error)?.name === "AbortError") throw err;
+    throw new PanelError((err as Error)?.message ?? "The image service failed.");
+  }
+}
 
 /**
  * Shrink a generated frame to something a synced store can carry.
@@ -133,17 +161,8 @@ export async function drawCastSheet(
   member: Storyboard["cast"][number],
   signal?: AbortSignal,
 ): Promise<string> {
-  const res = await fetch("/api/studio/image", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt: castSheetPrompt(board, member), aspectRatio: "1:1", refs: [] }),
-    ...(signal ? { signal } : {}),
-  });
-  const data = (await res.json().catch(() => ({}))) as { image?: string; refusal?: string; error?: string };
-  if (!data.image) {
-    throw new PanelError(data.refusal ?? data.error ?? `The image service failed (${res.status}).`);
-  }
-  return thumbnail(data.image, SHEET_EDGE);
+  const { image } = await paint({ prompt: castSheetPrompt(board, member), aspectRatio: "1:1", refs: [] }, signal);
+  return thumbnail(image, SHEET_EDGE);
 }
 
 /** Draw one cut. Resolves with the thumbnail to store on that shot. */
@@ -153,21 +172,11 @@ export async function drawPanel(
   faces: PanelFace[],
   signal?: AbortSignal,
 ): Promise<string> {
-  const res = await fetch("/api/studio/image", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      prompt: panelPrompt(board, index),
-      aspectRatio: board.aspectRatio,
-      refs: facesFor(board, index, faces),
-    }),
-    ...(signal ? { signal } : {}),
-  });
-  const data = (await res.json().catch(() => ({}))) as { image?: string; refusal?: string; error?: string };
-  if (!data.image) {
-    throw new PanelError(data.refusal ?? data.error ?? `The image service failed (${res.status}).`);
-  }
-  return thumbnail(data.image);
+  const { image } = await paint(
+    { prompt: panelPrompt(board, index), aspectRatio: board.aspectRatio, refs: facesFor(board, index, faces) },
+    signal,
+  );
+  return thumbnail(image);
 }
 
 /**
@@ -178,15 +187,6 @@ export async function drawPanel(
  * small to read cannot hold the geography of one.
  */
 export async function drawPlate(board: Storyboard, signal?: AbortSignal): Promise<string> {
-  const res = await fetch("/api/studio/image", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt: platePrompt(board), aspectRatio: board.aspectRatio, refs: [] }),
-    ...(signal ? { signal } : {}),
-  });
-  const data = (await res.json().catch(() => ({}))) as { image?: string; refusal?: string; error?: string };
-  if (!data.image) {
-    throw new PanelError(data.refusal ?? data.error ?? `The image service failed (${res.status}).`);
-  }
-  return thumbnail(data.image, SHEET_EDGE);
+  const { image } = await paint({ prompt: platePrompt(board), aspectRatio: board.aspectRatio, refs: [] }, signal);
+  return thumbnail(image, SHEET_EDGE);
 }
