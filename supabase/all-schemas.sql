@@ -1504,3 +1504,1177 @@ language sql stable security invoker as $$
   left join by_words w on w.id = s.id
   where v.id is not null or w.id is not null;
 $$;
+
+
+-- ####################################################################
+-- MIGRATION: 20260922000000_cook_connect.sql
+-- ####################################################################
+
+-- Cook Connect — the merged cooking + games social app.
+--
+-- Everything lives in its own `cook` schema. The hub already owns `public`
+-- (Cookbook Genie's tables are there) and Pod Play Connect owns `pod`, so this
+-- app can be installed, used and removed without either of those noticing.
+--
+-- After running this, add "cook" to Settings → Data API → Exposed schemas,
+-- or PostgREST answers every request with PGRST106.
+
+create schema if not exists cook;
+grant usage on schema cook to anon, authenticated;
+
+-- ── People ────────────────────────────────────────────────────────
+
+create table if not exists cook.profiles (
+  id           uuid primary key references auth.users(id) on delete cascade,
+  handle       text not null unique check (handle ~ '^[a-z0-9_]{2,24}$'),
+  display_name text not null default 'Member',
+  avatar_url   text,
+  bio          text,
+  city         text,
+  created_at   timestamptz not null default now()
+);
+
+create table if not exists cook.follows (
+  id           uuid primary key default gen_random_uuid(),
+  follower_id  uuid not null references cook.profiles(id) on delete cascade,
+  following_id uuid not null references cook.profiles(id) on delete cascade,
+  created_at   timestamptz not null default now(),
+  unique (follower_id, following_id),
+  check (follower_id <> following_id)
+);
+
+create index if not exists follows_following_idx on cook.follows(following_id);
+
+-- ── Cookbooks ─────────────────────────────────────────────────────
+
+create table if not exists cook.cookbooks (
+  id          uuid primary key default gen_random_uuid(),
+  owner_id    uuid not null references cook.profiles(id) on delete cascade,
+  title       text not null,
+  description text,
+  cover_url   text,
+  privacy     text not null default 'public' check (privacy in ('public','private')),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+create index if not exists cookbooks_owner_idx on cook.cookbooks(owner_id);
+
+create table if not exists cook.recipes (
+  id           uuid primary key default gen_random_uuid(),
+  cookbook_id  uuid not null references cook.cookbooks(id) on delete cascade,
+  author_id    uuid not null references cook.profiles(id) on delete cascade,
+  title        text not null,
+  description  text,
+  ingredients  jsonb not null default '[]'::jsonb,
+  instructions jsonb not null default '[]'::jsonb,
+  tags         text[] not null default '{}',
+  image_url    text,
+  prep_time    integer,
+  cook_time    integer,
+  servings     integer not null default 4,
+  position     integer not null default 0,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+
+create index if not exists recipes_cookbook_idx on cook.recipes(cookbook_id, position);
+
+-- Saving a cookbook is the currency of the cookbook leaderboard.
+create table if not exists cook.cookbook_saves (
+  id          uuid primary key default gen_random_uuid(),
+  cookbook_id uuid not null references cook.cookbooks(id) on delete cascade,
+  user_id     uuid not null references cook.profiles(id) on delete cascade,
+  created_at  timestamptz not null default now(),
+  unique (cookbook_id, user_id)
+);
+
+create index if not exists saves_cookbook_idx on cook.cookbook_saves(cookbook_id);
+
+-- ── Games ─────────────────────────────────────────────────────────
+
+create table if not exists cook.matches (
+  id           uuid primary key default gen_random_uuid(),
+  game         text not null check (game in ('spades','chess')),
+  status       text not null default 'pending'
+               check (status in ('pending','live','done','abandoned')),
+  created_by   uuid not null references cook.profiles(id) on delete cascade,
+  winner_id    uuid references cook.profiles(id) on delete set null,
+  winning_team integer,
+  is_public    boolean not null default true,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  finished_at  timestamptz
+);
+
+create index if not exists matches_status_idx on cook.matches(status, created_at desc);
+
+-- A seat. `user_id` is text rather than a uuid reference because a computer
+-- seat is stored as 'bot:<seat>' and has no profile behind it.
+create table if not exists cook.match_players (
+  id       uuid primary key default gen_random_uuid(),
+  match_id uuid not null references cook.matches(id) on delete cascade,
+  user_id  text not null,
+  seat     integer not null,
+  team     integer,
+  is_bot   boolean not null default false,
+  result   text check (result in ('win','loss','draw')),
+  unique (match_id, seat),
+  unique (match_id, user_id)
+);
+
+create index if not exists match_players_user_idx on cook.match_players(user_id);
+
+create table if not exists cook.spades_games (
+  id           uuid primary key default gen_random_uuid(),
+  match_id     uuid not null unique references cook.matches(id) on delete cascade,
+  state        jsonb not null default '{}'::jsonb,
+  team1_score  integer not null default 0,
+  team2_score  integer not null default 0,
+  team1_bags   integer not null default 0,
+  team2_bags   integer not null default 0,
+  current_round integer not null default 1,
+  updated_at   timestamptz not null default now()
+);
+
+create table if not exists cook.chess_games (
+  id         uuid primary key default gen_random_uuid(),
+  match_id   uuid not null unique references cook.matches(id) on delete cascade,
+  white_id   text,
+  black_id   text,
+  fen        text not null default 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+  pgn        text not null default '',
+  last_move  jsonb,
+  draw_offer text,
+  bot_level  text check (bot_level in ('easy','medium','hard')),
+  result     text,
+  end_reason text,
+  updated_at timestamptz not null default now()
+);
+
+-- ── Chat and the feed ─────────────────────────────────────────────
+
+-- Room keys: 'lounge', 'match:<id>', 'dm:<id>:<id>' (the two ids sorted).
+create table if not exists cook.messages (
+  id         uuid primary key default gen_random_uuid(),
+  room       text not null,
+  user_id    uuid not null references cook.profiles(id) on delete cascade,
+  content    text not null check (length(content) between 1 and 2000),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists messages_room_idx on cook.messages(room, created_at desc);
+
+create table if not exists cook.activity (
+  id         uuid primary key default gen_random_uuid(),
+  kind       text not null check (kind in
+             ('cookbook_published','cookbook_saved','recipe_added','match_won','followed')),
+  actor_id   uuid not null references cook.profiles(id) on delete cascade,
+  subject_id uuid,
+  summary    text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists activity_created_idx on cook.activity(created_at desc);
+
+-- ── The players leaderboard ───────────────────────────────────────
+--
+-- A view, not a table, so a standing can never drift from the match record it
+-- is supposed to summarise. The app ranks these rows itself (see stats.ts);
+-- this is the raw tally.
+
+create or replace view cook.player_stats as
+select
+  mp.user_id::uuid                                            as user_id,
+  count(*)                                                    as played,
+  count(*) filter (where mp.result = 'win')                   as wins,
+  count(*) filter (where mp.result = 'loss')                  as losses,
+  count(*) filter (where mp.result = 'draw')                  as draws,
+  (count(*) filter (where mp.result = 'win')
+    + 0.5 * count(*) filter (where mp.result = 'draw'))
+    / nullif(count(*), 0)                                     as win_rate
+from cook.match_players mp
+join cook.matches m on m.id = mp.match_id
+where m.status = 'done' and mp.is_bot = false and mp.result is not null
+group by mp.user_id;
+
+-- ── Row level security ────────────────────────────────────────────
+--
+-- This is a public social app: profiles, public cookbooks, the leaderboards
+-- and the match record are world-readable, and writes are restricted to the
+-- person or the people sitting at the table.
+
+alter table cook.profiles       enable row level security;
+alter table cook.follows        enable row level security;
+alter table cook.cookbooks      enable row level security;
+alter table cook.recipes        enable row level security;
+alter table cook.cookbook_saves enable row level security;
+alter table cook.matches        enable row level security;
+alter table cook.match_players  enable row level security;
+alter table cook.spades_games   enable row level security;
+alter table cook.chess_games    enable row level security;
+alter table cook.messages       enable row level security;
+alter table cook.activity       enable row level security;
+
+-- Is this user sitting at this table? Used by the game-write policies.
+create or replace function cook.is_seated(match uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = cook, public
+as $$
+  select exists (
+    select 1 from cook.match_players mp
+    where mp.match_id = match and mp.user_id = auth.uid()::text
+  );
+$$;
+
+drop policy if exists profiles_read on cook.profiles;
+create policy profiles_read on cook.profiles for select using (true);
+drop policy if exists profiles_write_own on cook.profiles;
+create policy profiles_write_own on cook.profiles for insert with check (id = auth.uid());
+drop policy if exists profiles_update_own on cook.profiles;
+create policy profiles_update_own on cook.profiles for update using (id = auth.uid());
+
+drop policy if exists follows_read on cook.follows;
+create policy follows_read on cook.follows for select using (true);
+drop policy if exists follows_write on cook.follows;
+create policy follows_write on cook.follows for insert with check (follower_id = auth.uid());
+drop policy if exists follows_delete on cook.follows;
+create policy follows_delete on cook.follows for delete using (follower_id = auth.uid());
+
+drop policy if exists cookbooks_read on cook.cookbooks;
+create policy cookbooks_read on cook.cookbooks for select
+  using (privacy = 'public' or owner_id = auth.uid());
+drop policy if exists cookbooks_write on cook.cookbooks;
+create policy cookbooks_write on cook.cookbooks for insert with check (owner_id = auth.uid());
+drop policy if exists cookbooks_update on cook.cookbooks;
+create policy cookbooks_update on cook.cookbooks for update using (owner_id = auth.uid());
+drop policy if exists cookbooks_delete on cook.cookbooks;
+create policy cookbooks_delete on cook.cookbooks for delete using (owner_id = auth.uid());
+
+-- Recipes are visible exactly when their cookbook is. The subquery reads the
+-- cookbook's own columns rather than calling a policy-checked helper, so an
+-- INSERT ... RETURNING can see the row it just wrote.
+drop policy if exists recipes_read on cook.recipes;
+create policy recipes_read on cook.recipes for select using (
+  exists (
+    select 1 from cook.cookbooks c
+    where c.id = recipes.cookbook_id
+      and (c.privacy = 'public' or c.owner_id = auth.uid())
+  )
+);
+drop policy if exists recipes_write on cook.recipes;
+create policy recipes_write on cook.recipes for insert with check (
+  author_id = auth.uid()
+  and exists (select 1 from cook.cookbooks c where c.id = cookbook_id and c.owner_id = auth.uid())
+);
+drop policy if exists recipes_update on cook.recipes;
+create policy recipes_update on cook.recipes for update using (
+  exists (select 1 from cook.cookbooks c where c.id = recipes.cookbook_id and c.owner_id = auth.uid())
+);
+drop policy if exists recipes_delete on cook.recipes;
+create policy recipes_delete on cook.recipes for delete using (
+  exists (select 1 from cook.cookbooks c where c.id = recipes.cookbook_id and c.owner_id = auth.uid())
+);
+
+drop policy if exists saves_read on cook.cookbook_saves;
+create policy saves_read on cook.cookbook_saves for select using (true);
+drop policy if exists saves_write on cook.cookbook_saves;
+create policy saves_write on cook.cookbook_saves for insert with check (user_id = auth.uid());
+drop policy if exists saves_delete on cook.cookbook_saves;
+create policy saves_delete on cook.cookbook_saves for delete using (user_id = auth.uid());
+
+drop policy if exists matches_read on cook.matches;
+create policy matches_read on cook.matches for select using (true);
+drop policy if exists matches_write on cook.matches;
+create policy matches_write on cook.matches for insert with check (created_by = auth.uid());
+-- Anyone at the table may move the match on, because the last move can come
+-- from any seat; the creator can always close their own table.
+drop policy if exists matches_update on cook.matches;
+create policy matches_update on cook.matches for update
+  using (created_by = auth.uid() or cook.is_seated(id));
+
+drop policy if exists match_players_read on cook.match_players;
+create policy match_players_read on cook.match_players for select using (true);
+drop policy if exists match_players_write on cook.match_players;
+create policy match_players_write on cook.match_players for insert with check (
+  user_id = auth.uid()::text
+  or (is_bot and cook.is_seated(match_id))
+);
+drop policy if exists match_players_update on cook.match_players;
+create policy match_players_update on cook.match_players for update using (cook.is_seated(match_id));
+drop policy if exists match_players_delete on cook.match_players;
+create policy match_players_delete on cook.match_players for delete using (user_id = auth.uid()::text);
+
+drop policy if exists spades_read on cook.spades_games;
+create policy spades_read on cook.spades_games for select using (true);
+drop policy if exists spades_write on cook.spades_games;
+create policy spades_write on cook.spades_games for insert with check (
+  exists (select 1 from cook.matches m where m.id = match_id and m.created_by = auth.uid())
+);
+drop policy if exists spades_update on cook.spades_games;
+create policy spades_update on cook.spades_games for update using (cook.is_seated(match_id));
+
+drop policy if exists chess_read on cook.chess_games;
+create policy chess_read on cook.chess_games for select using (true);
+drop policy if exists chess_write on cook.chess_games;
+create policy chess_write on cook.chess_games for insert with check (
+  exists (select 1 from cook.matches m where m.id = match_id and m.created_by = auth.uid())
+);
+-- A joining player writes their own id into the empty colour, so the update
+-- policy has to admit someone who is not seated yet but is taking a free seat.
+drop policy if exists chess_update on cook.chess_games;
+create policy chess_update on cook.chess_games for update using (
+  cook.is_seated(match_id) or white_id is null or black_id is null
+);
+
+-- Direct messages are readable only by the two people in the room key.
+drop policy if exists messages_read on cook.messages;
+create policy messages_read on cook.messages for select using (
+  room not like 'dm:%' or room like '%' || auth.uid()::text || '%'
+);
+drop policy if exists messages_write on cook.messages;
+create policy messages_write on cook.messages for insert with check (
+  user_id = auth.uid()
+  and (room not like 'dm:%' or room like '%' || auth.uid()::text || '%')
+);
+drop policy if exists messages_delete on cook.messages;
+create policy messages_delete on cook.messages for delete using (user_id = auth.uid());
+
+drop policy if exists activity_read on cook.activity;
+create policy activity_read on cook.activity for select using (true);
+drop policy if exists activity_write on cook.activity;
+create policy activity_write on cook.activity for insert with check (actor_id = auth.uid());
+
+grant select on cook.player_stats to anon, authenticated;
+grant select, insert, update, delete on all tables in schema cook to authenticated;
+grant select on all tables in schema cook to anon;
+alter default privileges in schema cook
+  grant select, insert, update, delete on tables to authenticated;
+
+-- ── Realtime ──────────────────────────────────────────────────────
+-- The tables a second browser has to hear about the moment they change.
+
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    alter publication supabase_realtime add table cook.spades_games;
+    alter publication supabase_realtime add table cook.chess_games;
+    alter publication supabase_realtime add table cook.matches;
+    alter publication supabase_realtime add table cook.match_players;
+    alter publication supabase_realtime add table cook.messages;
+  end if;
+exception
+  when duplicate_object then null; -- already published, nothing to do
+end $$;
+
+
+-- ####################################################################
+-- MIGRATION: 20260922120000_cook_connect_journal_and_shares.sql
+-- ####################################################################
+
+-- Cook Connect, second pass: the food journal and cookbook sharing.
+--
+-- These are the halves of Cookbook Genie the merge did not carry over the
+-- first time. The journal feeds a per-city restaurant leaderboard built from
+-- everybody's favourites, so cities and restaurants are world-readable while
+-- the dishes someone logs stay private to them.
+--
+-- Run after 20260922000000_cook_connect.sql.
+
+-- ── The food journal ──────────────────────────────────────────────
+
+create table if not exists cook.favorite_cities (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references cook.profiles(id) on delete cascade,
+  name       text not null,
+  country    text,
+  notes      text,
+  created_at timestamptz not null default now(),
+  unique (user_id, name)
+);
+
+create table if not exists cook.favorite_restaurants (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references cook.profiles(id) on delete cascade,
+  city_id      uuid not null references cook.favorite_cities(id) on delete cascade,
+  name         text not null,
+  cuisine_type text,
+  rating       integer check (rating between 1 and 5),
+  notes        text,
+  created_at   timestamptz not null default now()
+);
+
+create index if not exists restaurants_city_idx on cook.favorite_restaurants(city_id);
+
+-- A dish is a private note about one plate. It is never aggregated.
+create table if not exists cook.favorite_dishes (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references cook.profiles(id) on delete cascade,
+  restaurant_id uuid references cook.favorite_restaurants(id) on delete cascade,
+  name          text not null,
+  rating        integer check (rating between 1 and 5),
+  notes         text,
+  created_at    timestamptz not null default now()
+);
+
+-- ── Sharing a cookbook ────────────────────────────────────────────
+--
+-- Saving a cookbook is public and drives the leaderboard. Sharing is the
+-- other thing: handing one person a link to a cookbook that is not public.
+
+create table if not exists cook.cookbook_shares (
+  id                  uuid primary key default gen_random_uuid(),
+  cookbook_id         uuid not null references cook.cookbooks(id) on delete cascade,
+  shared_by           uuid not null references cook.profiles(id) on delete cascade,
+  /** Null until somebody redeems the link; then it belongs to them. */
+  shared_with_user_id uuid references cook.profiles(id) on delete cascade,
+  shared_with_email   text,
+  share_link_token    text not null unique,
+  access_level        text not null default 'view' check (access_level in ('view','copy')),
+  expires_at          timestamptz,
+  created_at          timestamptz not null default now()
+);
+
+create index if not exists shares_cookbook_idx on cook.cookbook_shares(cookbook_id);
+create index if not exists shares_recipient_idx on cook.cookbook_shares(shared_with_user_id);
+
+-- ── Row level security ────────────────────────────────────────────
+
+alter table cook.favorite_cities      enable row level security;
+alter table cook.favorite_restaurants enable row level security;
+alter table cook.favorite_dishes      enable row level security;
+alter table cook.cookbook_shares      enable row level security;
+
+-- Cities and restaurants are readable by everyone because the city board is
+-- an aggregate of them. They carry a place name and a rating, nothing private.
+drop policy if exists cities_read on cook.favorite_cities;
+create policy cities_read on cook.favorite_cities for select using (true);
+drop policy if exists cities_write on cook.favorite_cities;
+create policy cities_write on cook.favorite_cities for insert with check (user_id = auth.uid());
+drop policy if exists cities_update on cook.favorite_cities;
+create policy cities_update on cook.favorite_cities for update using (user_id = auth.uid());
+drop policy if exists cities_delete on cook.favorite_cities;
+create policy cities_delete on cook.favorite_cities for delete using (user_id = auth.uid());
+
+drop policy if exists restaurants_read on cook.favorite_restaurants;
+create policy restaurants_read on cook.favorite_restaurants for select using (true);
+drop policy if exists restaurants_write on cook.favorite_restaurants;
+create policy restaurants_write on cook.favorite_restaurants for insert with check (user_id = auth.uid());
+drop policy if exists restaurants_update on cook.favorite_restaurants;
+create policy restaurants_update on cook.favorite_restaurants for update using (user_id = auth.uid());
+drop policy if exists restaurants_delete on cook.favorite_restaurants;
+create policy restaurants_delete on cook.favorite_restaurants for delete using (user_id = auth.uid());
+
+-- Dishes are the one part of the journal nobody else sees.
+drop policy if exists dishes_own on cook.favorite_dishes;
+create policy dishes_own on cook.favorite_dishes for all
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- A share is visible to the person who made it and the person it went to.
+-- The link itself is redeemed through a function, not by reading the table,
+-- so holding a token does not let anyone enumerate everybody else's shares.
+drop policy if exists shares_read on cook.cookbook_shares;
+create policy shares_read on cook.cookbook_shares for select
+  using (shared_by = auth.uid() or shared_with_user_id = auth.uid());
+drop policy if exists shares_write on cook.cookbook_shares;
+create policy shares_write on cook.cookbook_shares for insert with check (
+  shared_by = auth.uid()
+  and exists (select 1 from cook.cookbooks c where c.id = cookbook_id and c.owner_id = auth.uid())
+);
+drop policy if exists shares_delete on cook.cookbook_shares;
+create policy shares_delete on cook.cookbook_shares for delete using (shared_by = auth.uid());
+
+-- A shared cookbook has to be readable by its recipient even though it is
+-- private, so the cookbook and recipe read policies gain a share clause.
+drop policy if exists cookbooks_read on cook.cookbooks;
+create policy cookbooks_read on cook.cookbooks for select using (
+  privacy = 'public'
+  or owner_id = auth.uid()
+  or exists (
+    select 1 from cook.cookbook_shares s
+    where s.cookbook_id = cookbooks.id
+      and s.shared_with_user_id = auth.uid()
+      and (s.expires_at is null or s.expires_at > now())
+  )
+);
+
+drop policy if exists recipes_read on cook.recipes;
+create policy recipes_read on cook.recipes for select using (
+  exists (
+    select 1 from cook.cookbooks c
+    where c.id = recipes.cookbook_id
+      and (
+        c.privacy = 'public'
+        or c.owner_id = auth.uid()
+        or exists (
+          select 1 from cook.cookbook_shares s
+          where s.cookbook_id = c.id
+            and s.shared_with_user_id = auth.uid()
+            and (s.expires_at is null or s.expires_at > now())
+        )
+      )
+  )
+);
+
+-- ── Claiming a share link ─────────────────────────────────────────
+--
+-- Security definer so redeeming does not need an unrestricted update policy.
+-- A link belongs to whoever claims it first, and returns nothing to anyone
+-- else — the same contract Cookbook Genie settled on.
+
+create or replace function cook.redeem_cookbook_share(_token text)
+returns uuid
+language plpgsql
+security definer
+set search_path = cook, public
+as $$
+declare
+  share cook.cookbook_shares%rowtype;
+begin
+  if auth.uid() is null or _token is null then return null; end if;
+
+  select * into share from cook.cookbook_shares where share_link_token = _token;
+  if not found then return null; end if;
+  if share.expires_at is not null and share.expires_at <= now() then return null; end if;
+
+  if share.shared_with_user_id is null then
+    update cook.cookbook_shares
+       set shared_with_user_id = auth.uid()
+     where id = share.id;
+    return share.cookbook_id;
+  end if;
+
+  -- Already claimed: only the claimant gets it back.
+  if share.shared_with_user_id = auth.uid() then return share.cookbook_id; end if;
+  return null;
+end;
+$$;
+
+grant execute on function cook.redeem_cookbook_share(text) to authenticated;
+
+-- Counting shares must not mean reading everyone's share rows.
+create or replace function cook.cookbook_share_counts()
+returns table (cookbook_id uuid, share_count bigint)
+language sql
+stable
+security definer
+set search_path = cook, public
+as $$
+  select s.cookbook_id, count(*) from cook.cookbook_shares s group by s.cookbook_id;
+$$;
+
+grant execute on function cook.cookbook_share_counts() to anon, authenticated;
+
+grant select, insert, update, delete on all tables in schema cook to authenticated;
+grant select on all tables in schema cook to anon;
+
+
+-- ####################################################################
+-- MIGRATION: 20260922180000_cook_connect_groups.sql
+-- ####################################################################
+
+-- Cook Connect, third pass: groups and group chat.
+--
+-- Pod Play Connect had interest groups — curated communities you join, each
+-- with its own conversation. They were left out of the first merge on purpose
+-- and are wanted after all, so they come across here with the cooking slant
+-- the rest of the app has.
+--
+-- Member counts are NOT stored on the group. Pod Play kept a member_count
+-- column and incremented it from the client, which drifts the moment a join
+-- fails halfway. Here the count is read from the membership table.
+--
+-- Run after 20260922120000_cook_connect_journal_and_shares.sql.
+
+create table if not exists cook.groups (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null check (length(trim(name)) between 2 and 60),
+  description text,
+  /** 0-359. Gives each group a consistent colour without storing a gradient. */
+  hue         integer not null default 24 check (hue between 0 and 359),
+  created_by  uuid not null references cook.profiles(id) on delete cascade,
+  is_active   boolean not null default true,
+  created_at  timestamptz not null default now()
+);
+
+create table if not exists cook.group_members (
+  id        uuid primary key default gen_random_uuid(),
+  group_id  uuid not null references cook.groups(id) on delete cascade,
+  user_id   uuid not null references cook.profiles(id) on delete cascade,
+  joined_at timestamptz not null default now(),
+  unique (group_id, user_id)
+);
+
+create index if not exists group_members_group_idx on cook.group_members(group_id);
+create index if not exists group_members_user_idx on cook.group_members(user_id);
+
+-- ── Row level security ────────────────────────────────────────────
+
+alter table cook.groups        enable row level security;
+alter table cook.group_members enable row level security;
+
+drop policy if exists groups_read on cook.groups;
+create policy groups_read on cook.groups for select using (is_active);
+drop policy if exists groups_write on cook.groups;
+create policy groups_write on cook.groups for insert with check (created_by = auth.uid());
+drop policy if exists groups_update on cook.groups;
+create policy groups_update on cook.groups for update using (created_by = auth.uid());
+drop policy if exists groups_delete on cook.groups;
+create policy groups_delete on cook.groups for delete using (created_by = auth.uid());
+
+-- Memberships are public: a group shows who is in it.
+drop policy if exists group_members_read on cook.group_members;
+create policy group_members_read on cook.group_members for select using (true);
+drop policy if exists group_members_join on cook.group_members;
+create policy group_members_join on cook.group_members for insert with check (user_id = auth.uid());
+drop policy if exists group_members_leave on cook.group_members;
+create policy group_members_leave on cook.group_members for delete using (user_id = auth.uid());
+
+-- ── Group chat ────────────────────────────────────────────────────
+--
+-- Group rooms are 'group:<id>'. Only members may read or post, so a group
+-- conversation is not readable by walking the messages table.
+
+create or replace function cook.is_group_member(room_key text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = cook, public
+as $$
+  select case
+    when room_key not like 'group:%' then true
+    else exists (
+      select 1 from cook.group_members m
+      where m.user_id = auth.uid()
+        and m.group_id::text = substring(room_key from 7)
+    )
+  end;
+$$;
+
+grant execute on function cook.is_group_member(text) to authenticated;
+
+drop policy if exists messages_read on cook.messages;
+create policy messages_read on cook.messages for select using (
+  (room not like 'dm:%' or room like '%' || auth.uid()::text || '%')
+  and cook.is_group_member(room)
+);
+
+drop policy if exists messages_write on cook.messages;
+create policy messages_write on cook.messages for insert with check (
+  user_id = auth.uid()
+  and (room not like 'dm:%' or room like '%' || auth.uid()::text || '%')
+  and cook.is_group_member(room)
+);
+
+grant select, insert, update, delete on all tables in schema cook to authenticated;
+grant select on all tables in schema cook to anon;
+
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    alter publication supabase_realtime add table cook.group_members;
+  end if;
+exception
+  when duplicate_object then null;
+end $$;
+
+
+-- ####################################################################
+-- MIGRATION: 20260925120000_jarvis_memory_upsert_index.sql
+-- ####################################################################
+
+-- ============================================================================
+-- Jarvis memory — make the sync's unique index usable.
+--
+-- The index this replaces was PARTIAL:
+--
+--   create unique index jarvis_memories_external_idx
+--     on public.jarvis_memories (user_id, source, external_id)
+--     where external_id is not null;
+--
+-- Postgres will not infer a partial index for ON CONFLICT unless the statement
+-- repeats the predicate, and PostgREST (so the Supabase client, so the app) has
+-- no way to send one. Every master-folder sync therefore failed with
+--
+--   42P10: there is no unique or exclusion constraint matching the
+--          ON CONFLICT specification
+--
+-- and the Memory tab stayed empty while ~100 skills and ~90 Claude Code memory
+-- files sat on disk.
+--
+-- A total index is safe here: in a unique index NULLs are never equal to each
+-- other, so the hand-written memories (external_id null) can still be as many
+-- as the owner likes — exactly what the partial predicate was protecting.
+--
+-- Additive and idempotent: safe to run twice.
+-- ============================================================================
+
+drop index if exists public.jarvis_memories_external_idx;
+
+create unique index if not exists jarvis_memories_external_idx
+  on public.jarvis_memories (user_id, source, external_id);
+
+
+-- ####################################################################
+-- MIGRATION: 20260930000000_jarvis_finance.sql
+-- ####################################################################
+
+-- ============================================================================
+-- Jarvis — Personal Finance.
+--
+-- Two ledgers and one reconciliation: `finance_bills` is what the owner says
+-- should happen, `finance_txns` is what the bank reports did happen, and every
+-- alert is a mismatch between them. See
+-- docs/superpowers/specs/2026-09-30-personal-finance-design.md.
+--
+-- Four decisions worth knowing before changing anything here:
+--
+-- 1. RLS IS OWNER-ONLY on every table, with no world-readable path, not even
+--    for aggregates — the same reasoning as jarvis_memories. This holds bank
+--    transactions.
+--
+-- 2. ACCESS TOKENS ARE ENCRYPTED BY THE APP, never stored raw, and no API route
+--    returns one. The column holds AES-256-GCM ciphertext.
+--
+-- 3. finance_alerts_fingerprint_idx IS NOT A PARTIAL INDEX. A PostgREST upsert
+--    cannot use a partial unique index — error 42P10, which is exactly what
+--    broke the Jarvis memory sync. Resist adding a WHERE clause to it.
+--
+-- 4. AMOUNTS ARE POSITIVE WHEN MONEY LEAVES, matching Plaid's sign convention,
+--    so spend is a plain sum and no adapter has to flip signs.
+--
+-- Additive and idempotent: safe to run twice.
+-- ============================================================================
+
+-- 1 of 6 --------------------------------------------------------------------
+create table if not exists public.finance_connections (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  provider text not null check (provider in ('plaid', 'gocardless', 'manual')),
+  institution_id text,
+  institution_name text not null default '',
+  -- AES-256-GCM ciphertext. Never a raw token, never returned to a client.
+  access_token_enc text,
+  item_id text,
+  sync_cursor text,
+  status text not null default 'active'
+    check (status in ('active', 'needs_reauth', 'error', 'revoked')),
+  status_detail text not null default '',
+  -- The EU 90-day consent clock. Null for providers without a fixed expiry.
+  consent_expires_at timestamptz,
+  last_synced_at timestamptz,
+  -- Enforces a provider's per-day call ceiling (GoCardless allows as few as 4).
+  sync_count_today smallint not null default 0,
+  sync_count_day date,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists finance_connections_user_idx
+  on public.finance_connections (user_id, provider);
+
+-- 2 of 6 --------------------------------------------------------------------
+create table if not exists public.finance_accounts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  connection_id uuid references public.finance_connections (id) on delete cascade,
+  provider_account_id text,
+  name text not null default '',
+  official_name text,
+  mask text,
+  type text not null default 'depository' check (type in ('depository', 'credit')),
+  subtype text,
+  currency text not null default 'GBP',
+  balance_current numeric(14, 2),
+  balance_available numeric(14, 2),
+  balances_as_of timestamptz,
+  -- Does this account's spending count toward the daily/weekly figures?
+  -- Credit cards yes, current accounts no, until the owner says otherwise.
+  count_in_spend boolean not null default true,
+  -- ---- credit only --------------------------------------------------------
+  credit_limit numeric(14, 2),
+  apr_purchase numeric(6, 3),
+  last_statement_balance numeric(14, 2),
+  statement_last_closed date,
+  statement_next_closing date,
+  statement_next_closing_estimated boolean not null default false,
+  next_due_date date,
+  minimum_payment numeric(14, 2),
+  is_overdue boolean not null default false,
+  cycle_days smallint,
+  -- Where the dates above came from. The UI shows this, so it cannot lie.
+  dates_source text not null default 'typed'
+    check (dates_source in ('bank', 'typed', 'inferred')),
+  dates_verified_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists finance_accounts_provider_idx
+  on public.finance_accounts (connection_id, provider_account_id)
+  where provider_account_id is not null;
+create index if not exists finance_accounts_user_idx
+  on public.finance_accounts (user_id, type);
+
+-- 3 of 6 --------------------------------------------------------------------
+create table if not exists public.finance_bills (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  name text not null,
+  payee text not null default '',
+  merchant_matchers text[] not null default '{}',
+  amount_expected numeric(14, 2) not null default 0,
+  amount_tolerance numeric(14, 2) not null default 1.00,
+  amount_tolerance_pct numeric(5, 2) not null default 5,
+  currency text not null default 'GBP',
+  account_id uuid references public.finance_accounts (id) on delete set null,
+  autopay boolean not null default false,
+  category text,
+  cadence text not null default 'monthly'
+    check (cadence in ('weekly', 'fortnightly', 'monthly', 'quarterly', 'annual', 'one_off')),
+  -- 31 means "the last day of the month", so a short February behaves.
+  day_of_month smallint check (day_of_month between 1 and 31),
+  weekday smallint check (weekday between 0 and 6),
+  month_of_year smallint check (month_of_year between 1 and 12),
+  first_due date not null,
+  end_date date,
+  grace_days smallint not null default 3,
+  -- Minutes before the due date, the same vocabulary as the Recall calendar.
+  reminders int[] not null default '{1440}',
+  paused boolean not null default false,
+  origin text not null default 'typed' check (origin in ('typed', 'detected')),
+  notes text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists finance_bills_user_idx
+  on public.finance_bills (user_id, paused, first_due);
+
+-- 4 of 6 --------------------------------------------------------------------
+create table if not exists public.finance_txns (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  account_id uuid not null references public.finance_accounts (id) on delete cascade,
+  provider_txn_id text not null,
+  date date not null,
+  authorized_date date,
+  -- Positive when money leaves, matching Plaid, so spend is a plain sum.
+  amount numeric(14, 2) not null,
+  currency text not null default 'GBP',
+  merchant_raw text not null default '',
+  merchant_norm text not null default '',
+  category text,
+  pending boolean not null default false,
+  -- On a POSTED row, the pending row it replaced. Folding this pair is what
+  -- stops an ordinary purchase being read as a double charge.
+  pending_txn_id text,
+  -- Soft delete, set by a TRANSACTIONS_REMOVED webhook. Hard-deleting would
+  -- lose the fact a charge was once seen, which matters when an alert cites it.
+  removed_at timestamptz,
+  raw jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists finance_txns_provider_idx
+  on public.finance_txns (account_id, provider_txn_id);
+create index if not exists finance_txns_user_date_idx
+  on public.finance_txns (user_id, date desc);
+create index if not exists finance_txns_merchant_idx
+  on public.finance_txns (user_id, merchant_norm);
+
+-- 5 of 6 --------------------------------------------------------------------
+create table if not exists public.finance_alerts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  kind text not null check (kind in (
+    'duplicate-charge', 'missed-bill', 'amount-changed',
+    'unplanned-recurring', 'card-due-soon', 'card-statement-closing'
+  )),
+  -- Stable identity across reconciliation runs, so a dismissal sticks.
+  fingerprint text not null,
+  state text not null default 'open'
+    check (state in ('open', 'acknowledged', 'dismissed', 'resolved')),
+  severity text not null default 'warn' check (severity in ('info', 'warn', 'urgent')),
+  title text not null,
+  -- The evidence sentence: amounts, payee, dates.
+  why text not null default '',
+  amount numeric(14, 2),
+  currency text not null default 'GBP',
+  bill_id uuid references public.finance_bills (id) on delete set null,
+  account_id uuid references public.finance_accounts (id) on delete set null,
+  txn_ids text[] not null default '{}',
+  noticed_at timestamptz not null default now(),
+  decided_at timestamptz,
+  note text not null default '',
+  updated_at timestamptz not null default now()
+);
+
+-- NOT partial. A PostgREST upsert cannot use a partial unique index (42P10).
+create unique index if not exists finance_alerts_fingerprint_idx
+  on public.finance_alerts (user_id, fingerprint);
+create index if not exists finance_alerts_open_idx
+  on public.finance_alerts (user_id, state, noticed_at desc);
+
+-- 6 of 6 --------------------------------------------------------------------
+create table if not exists public.finance_settings (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  lead_days int[] not null default '{7,3,1}',
+  duplicate_min_amount numeric(14, 2) not null default 1.00,
+  duplicate_window_days smallint not null default 3,
+  -- Payees where several same-amount charges in a day are normal. Grows from
+  -- the owner dismissing a real alert, not from a guessed seed list.
+  multi_charge_payees text[] not null default '{}',
+  email_kinds text[] not null default '{duplicate-charge,missed-bill,card-due-soon}',
+  quiet_hours_start smallint not null default 22,
+  quiet_hours_end smallint not null default 7,
+  -- 0 = Sunday, 1 = Monday.
+  week_starts_on smallint not null default 1 check (week_starts_on between 0 and 6),
+  alert_email text,
+  -- Null means "show each account in its own currency". Nothing is converted.
+  currency_display text,
+  updated_at timestamptz not null default now()
+);
+
+-- RLS ------------------------------------------------------------------------
+-- Owner-only on every table. Written out rather than looped: this file is
+-- pasted into the SQL editor by hand, and a dynamic-SQL failure there is a
+-- worse trade than six repeated statements.
+
+alter table public.finance_connections enable row level security;
+alter table public.finance_accounts    enable row level security;
+alter table public.finance_bills       enable row level security;
+alter table public.finance_txns        enable row level security;
+alter table public.finance_alerts      enable row level security;
+alter table public.finance_settings    enable row level security;
+
+drop policy if exists finance_connections_owner on public.finance_connections;
+create policy finance_connections_owner on public.finance_connections
+  for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop policy if exists finance_accounts_owner on public.finance_accounts;
+create policy finance_accounts_owner on public.finance_accounts
+  for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop policy if exists finance_bills_owner on public.finance_bills;
+create policy finance_bills_owner on public.finance_bills
+  for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop policy if exists finance_txns_owner on public.finance_txns;
+create policy finance_txns_owner on public.finance_txns
+  for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop policy if exists finance_alerts_owner on public.finance_alerts;
+create policy finance_alerts_owner on public.finance_alerts
+  for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop policy if exists finance_settings_owner on public.finance_settings;
+create policy finance_settings_owner on public.finance_settings
+  for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+
+-- ####################################################################
+-- MIGRATION: 20261001000000_jarvis_finance_recurring_min.sql
+-- ####################################################################
+
+-- ============================================================================
+-- Jarvis — Personal Finance, follow-up.
+--
+-- One column, added after the first migration had already been applied.
+--
+-- It exists because running the engines over a REAL Plaid feed showed the
+-- undeclared-subscription rule firing eleven times, including for McDonald's
+-- and Starbucks. Part of the fix was a floor below which a repeating charge is
+-- not worth calling a subscription, and the floor belongs with the owner's
+-- other thresholds rather than hardcoded.
+--
+-- The app does not depend on this: `toSettings` falls back to 3 when the column
+-- is absent, so running this is housekeeping, not a fix for anything broken.
+--
+-- Additive and idempotent: safe to run twice.
+-- ============================================================================
+
+alter table public.finance_settings
+  add column if not exists recurring_min_amount numeric(14, 2) not null default 3.00;
+
+
+-- ####################################################################
+-- MIGRATION: 20261002000000_jarvis_vault_ops.sql
+-- ####################################################################
+
+-- ============================================================================
+-- The vault outbox — notes captured where the vault cannot be reached.
+--
+-- The owner's Obsidian vault lives on their PC and is the source of truth. A
+-- phone has no route to it, so a thought captured on a phone has to be queued
+-- and written later, when New Jarvis is next open on that machine with the
+-- local agent running.
+--
+-- ## Why this is a table and not a field on app_state
+--
+-- Every other app in this hub keeps its state as one blob in `app_state`, and
+-- the obvious thing would be to put a pending-writes array there too. That is
+-- a silent data-loss bug, and the reason is written on app_state itself:
+-- last-write-wins, no merging. The failure runs:
+--
+--   1. a phone queues an op and pushes its whole blob
+--   2. the PC flushes the op to disk, clears the queue, pushes the cleared blob
+--   3. the owner edits that note in Obsidian
+--   4. the phone — which never reloaded — ticks something unrelated, so its
+--      stale blob is newer by its own stamp and is pushed WITH the queue in it
+--   5. the next flush replays the op and overwrites the Obsidian edit
+--
+-- "Already applied" has to be a row fact that no blob overwrite can undo.
+-- Hence `state`, here, per op.
+--
+-- ## Why only create and append
+--
+-- There is deliberately no `replace`. A device that cannot read the file cannot
+-- know what it would be replacing, so a blind full-body write is the conflict
+-- generator. Appends commute — the result does not depend on the order they
+-- arrive in — which is precisely why append is the one operation allowed
+-- against a file we cannot see. The check constraint enforces it at the
+-- database rather than trusting every caller.
+--
+-- Nothing here is the durable copy of anything: an applied op's content lives
+-- in the vault, and a pending op is also mirrored into `jarvis_memories` with
+-- `meta.pending` so it is searchable before it reaches disk.
+-- ============================================================================
+
+create table if not exists public.jarvis_vault_ops (
+  id          uuid        primary key default gen_random_uuid(),
+  user_id     uuid        not null references auth.users (id) on delete cascade,
+  profile_id  text        not null default 'owner',
+
+  -- Vault-relative, assigned at CAPTURE time rather than at write time. That
+  -- is what makes external_id stable before the file exists, lets the note be
+  -- searchable immediately, and makes the eventual write an idempotent
+  -- create-at-path rather than "find somewhere to put this".
+  path        text        not null,
+
+  op          text        not null check (op in ('create', 'append')),
+  body        text        not null,
+
+  -- What the capturing device believed the file hashed to; null for a create.
+  -- Diagnostic rather than a lock: an append to a file that changed since is
+  -- the SAFE case, so a mismatch is not a conflict. Idempotency is carried by
+  -- an invisible marker containing this row's id, written into the file itself.
+  base_hash   text,
+
+  state       text        not null default 'pending'
+                          check (state in ('pending', 'applied', 'conflict')),
+
+  -- Set when a create found the path already taken. The sibling note that was
+  -- written instead, so the owner can find both. Nothing is ever overwritten.
+  conflict_path text,
+
+  applied_at  timestamptz,
+  created_at  timestamptz not null default now()
+);
+
+-- The flush reads pending ops oldest-first for one person.
+create index if not exists jarvis_vault_ops_pending_idx
+  on public.jarvis_vault_ops (user_id, profile_id, state, created_at);
+
+-- ----- Row level security --------------------------------------------------
+-- As everywhere else in this schema: a row belongs to one user, and `with
+-- check` matters as much as `using`, or a signed-in user could write a row
+-- carrying someone else's user_id.
+alter table public.jarvis_vault_ops enable row level security;
+
+drop policy if exists jarvis_vault_ops_all on public.jarvis_vault_ops;
+create policy jarvis_vault_ops_all on public.jarvis_vault_ops for all
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+
+-- ####################################################################
+-- MIGRATION: 20261003000000_jarvis_record_files.sql
+-- ####################################################################
+
+-- Pictures of the documents behind the Life Record: insurance cards, pay
+-- stubs, benefits letters. Per-user folders (<user id>/<file id>.jpg).
+--
+-- The server also creates this bucket on first use (blobStore.ensureBucket),
+-- so nothing breaks before this runs; the migration is the record of intent.
+--
+-- Private with NO storage policy — same posture as std-safe-reports,
+-- dashboard-inbox and dance-studio. Only the server, holding the service-role
+-- key, reads or writes it, and whose file is whose is enforced in the route
+-- layer by the user-id key prefix.
+--
+-- Unlike the others, these are NEVER handed out as signed URLs: a signed link
+-- to a photograph of an insurance card is a bearer token for that card. The
+-- bytes are streamed through /api/jarvis/record/file/<id>, which re-checks the
+-- caller on every single view.
+--
+-- Safe to run twice.
+
+insert into storage.buckets (id, name, public)
+values ('jarvis-record-files', 'jarvis-record-files', false)
+on conflict (id) do nothing;
+
+
+-- ####################################################################
+-- MIGRATION: 20261031000000_jarvis_memory_vector_index.sql
+-- ####################################################################
+
+-- ============================================================================
+-- Jarvis memory — an index for the meaning search.
+--
+-- 20260919120000_jarvis_memory.sql deliberately shipped WITHOUT a vector index,
+-- and said exactly why:
+--
+--   "an ivfflat index. It is an optimisation for tens of thousands of rows,
+--    and an exact scan is both correct and fast below that."
+--
+-- scripts/sync-folder-rag.mjs crosses that line. It indexes the whole master
+-- folder as ~30,000 retrievable chunks, so every `embedding <=> $1` inside
+-- jarvis_search now scans ~30,000 × 1536 floats — roughly 180 MB of vector
+-- data per question. That cost lands on EVERY memory search, including the ones
+-- that only ever wanted a note the owner typed by hand, and the MCP route gives
+-- itself 60 seconds (`maxDuration`) for embedding plus the round trip.
+--
+-- So the condition the original file named has been met, and this is the index
+-- it told us to add — HNSW rather than ivfflat, because ivfflat's `lists` has
+-- to be guessed against the current row count and goes stale as the folder
+-- grows, while HNSW needs no such guess and gives better recall for the same
+-- time budget. The ivfflat form is kept as the fallback for an older pgvector.
+--
+-- Note that this changes search from exact to approximate: a question can now
+-- miss a chunk that an exhaustive scan would have ranked tenth. That is the
+-- normal trade for a corpus this size, and jarvis_search fuses the vector rank
+-- with a word rank (ts_rank_cd over the tsv column, which is exact and indexed
+-- by gin), so an exact-word match still cannot be missed.
+--
+-- Build it AFTER the first full run of sync-folder-rag.mjs: both index types
+-- cluster the vectors that exist at build time, and building against an empty
+-- table just means rebuilding later.
+--
+-- Additive and idempotent: safe to run twice.
+-- ============================================================================
+
+do $$
+begin
+  begin
+    create index if not exists jarvis_memories_embedding_idx
+      on public.jarvis_memories using hnsw (embedding vector_cosine_ops);
+  exception
+    when undefined_object or feature_not_supported or syntax_error then
+      -- pgvector older than 0.5 has no hnsw: fall back to the plan the first
+      -- migration wrote down, with lists sized for the ~30k rows we now hold.
+      create index if not exists jarvis_memories_embedding_idx
+        on public.jarvis_memories using ivfflat (embedding vector_cosine_ops)
+        with (lists = 100);
+  end;
+end $$;

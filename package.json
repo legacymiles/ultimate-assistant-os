@@ -16,7 +16,9 @@
     "skills:push": "node scripts/skill-sync.mjs push",
     "skills:pull": "node scripts/skill-sync.mjs pull",
     "skills:sync": "node scripts/skill-sync.mjs sync",
-    "timeline:log": "node scripts/timeline-log.mjs"
+    "timeline:log": "node scripts/timeline-log.mjs",
+    "memory:index": "node scripts/sync-folder-rag.mjs",
+    "memory:index:check": "node scripts/sync-folder-rag.mjs --check"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.80",
