@@ -59,10 +59,14 @@ describe("the three homes", () => {
     }
   });
 
-  it("opens Trading Studio on Replay, with EA World and EA Lab waiting on the PC", () => {
+  it("opens Trading Studio on Replay, with EA World still waiting on the PC", () => {
     expect(sectionIds(TRADING_SECTIONS)).toEqual(["world", "lab", "replay", "terminals", "features", "calculator"]);
     expect(TRADING_DEFAULT).toBe("replay");
-    expect(TRADING_SECTIONS.filter((s) => s.pending).map((s) => s.id)).toEqual(["world", "lab"]);
+    // EA Lab's code came in, so its pending panel went with it. World is the
+    // one left on the PC. A section is pending or it is mounted, never both —
+    // leaving the panel behind would have hidden the real app under a notice
+    // saying the real app does not exist yet.
+    expect(TRADING_SECTIONS.filter((s) => s.pending).map((s) => s.id)).toEqual(["world"]);
     for (const s of TRADING_SECTIONS.filter((x) => x.pending)) {
       expect(s.pending!.request!.folder).toBe("app:trading-studio");
       expect(s.pending!.body.join(" ")).toMatch(/PC/);

@@ -22,11 +22,15 @@ import "./trading-studio.css";
 // One section's JavaScript at a time: Replay alone pulls in a charting library
 // and a tick decoder, and someone checking a basket should not download them.
 const COMPONENTS: Partial<Record<TradingSection, SectionComponent>> = {
-  // EA World and EA Lab are pending (their code is only on the PC so far).
-  // Wiring each later is one edit here plus deleting its `pending` field in
-  // src/lib/studio-home/trading.ts:
+  // EA World is still pending (its code is only on the PC so far). Wiring it
+  // is one edit here plus deleting its `pending` field in
+  // src/lib/studio-home/trading.ts — which is exactly what `lab` below just
+  // went through:
   //   world: dynamic(() => import("../ea-world/EaWorld").then((m) => m.EaWorld), { ssr: false, loading: () => <HomeSkeleton /> }),
-  //   lab:   dynamic(() => import("../ea-lab/EaLab").then((m) => m.EaLab),       { ssr: false, loading: () => <HomeSkeleton /> }),
+  lab: dynamic(() => import("../ea-lab/EaLab").then((m) => m.EaLab), {
+    ssr: false,
+    loading: () => <HomeSkeleton />,
+  }),
   replay: dynamic(() => import("../ea-replay/ReplayStudio").then((m) => m.ReplayStudio), {
     ssr: false,
     loading: () => <HomeSkeleton shape="canvas" />,
