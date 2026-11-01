@@ -6,6 +6,7 @@
 
 import { useMemo } from "react";
 import { Icon } from "../icons";
+import { nicknameGroups } from "@/lib/social-personas/store";
 import { compact, personaTotals } from "@/lib/social-personas/studio";
 import { PLATFORM_NAME, type Persona } from "@/lib/social-personas/types";
 import { Avatar, PlatformDot } from "./bits";
@@ -14,6 +15,7 @@ import type { TabId } from "./Workspace";
 
 export function StudioHome({
   personas,
+  nicknameOrder,
   loaded,
   onOpen,
   onNew,
@@ -25,11 +27,18 @@ export function StudioHome({
   /** Which platforms can be connected right now. */
   ready: Partial<Record<"tiktok" | "instagram" | "facebook" | "youtube", boolean>>;
   personas: Persona[];
+  /** Display order of the nickname groups. */
+  nicknameOrder: string[];
   loaded: boolean;
   onOpen: (id: string, tab?: TabId) => void;
   onNew: () => void;
 }) {
   const rows = useMemo(() => personas.map((p) => ({ p, t: personaTotals(p) })), [personas]);
+  // Personas are filed under the job they do, so the table is grouped rather
+  // than flat: a nickname can hold several characters, and that hierarchy is
+  // the thing a flat list cannot show.
+  const groups = useMemo(() => nicknameGroups(personas, nicknameOrder), [personas, nicknameOrder]);
+  const totalsById = useMemo(() => new Map(rows.map((r) => [r.p.id, r.t])), [rows]);
   const sum = useMemo(
     () => ({
       followers: rows.reduce((s, r) => s + r.t.followers, 0),
@@ -107,16 +116,35 @@ export function StudioHome({
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ p, t }) => (
+                {groups.flatMap((g) => [
+                  <tr key={`g_${g.nickname}`} className="border-t border-line bg-panel/70">
+                    <th colSpan={7} className="px-3 py-1.5 text-left">
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-ink">{g.nickname}</span>
+                      <span className="ml-2 text-[11px] font-normal normal-case tracking-normal text-ink-faint">
+                        {g.personas.length} {g.personas.length === 1 ? "persona" : "personas"}
+                        {(() => {
+                          const proven = g.personas.reduce(
+                            (n, x) => n + (x.lessonLog?.[0]?.lessons.filter((l) => l.tier === "proven").length ?? 0),
+                            0,
+                          );
+                          return proven ? ` · ${proven} proven ${proven === 1 ? "rule" : "rules"}` : "";
+                        })()}
+                      </span>
+                    </th>
+                  </tr>,
+                  ...g.personas.map((p) => {
+                    const t = totalsById.get(p.id)!;
+                    return (
                   <tr key={p.id} className="ps-row group cursor-pointer border-t border-line bg-canvas/30 hover:bg-panel" onClick={() => onOpen(p.id)} style={{ ["--ps-hue" as string]: p.hue }}>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2.5">
-                        <Avatar name={p.name} hue={p.hue} size={30} />
+                        <Avatar name={p.name} hue={p.hue} size={30} src={p.avatar} />
                         <div className="min-w-0">
-                          <button className="block max-w-[220px] truncate text-left text-sm font-semibold text-ink outline-none group-hover:text-brand focus-visible:underline" onClick={(e) => (e.stopPropagation(), onOpen(p.id))}>
-                            {p.name}
+                          <button className="flex max-w-[240px] items-baseline gap-1.5 text-left outline-none focus-visible:underline" onClick={(e) => (e.stopPropagation(), onOpen(p.id))}>
+                            <span className="truncate text-sm font-semibold text-ink group-hover:text-brand">{p.name}</span>
+                            {p.username && <span className="truncate text-[11px] text-ink-faint">@{p.username}</span>}
                           </button>
-                          <div className="max-w-[220px] truncate text-ink-faint">{p.niche || "No niche set"}</div>
+                          <div className="max-w-[240px] truncate text-ink-faint">{p.niche || "No niche set"}</div>
                         </div>
                       </div>
                     </td>
@@ -159,8 +187,10 @@ export function StudioHome({
                         <span className="text-ink-faint">—</span>
                       )}
                     </td>
-                  </tr>
-                ))}
+                      </tr>
+                    );
+                  }),
+                ])}
               </tbody>
             </table>
           </div>
@@ -177,7 +207,7 @@ export function StudioHome({
                   <li key={d.id}>
                     <button onClick={() => onOpen(p.id, "plan")} className="flex w-full items-center gap-3 px-3 py-2 text-left text-xs hover:bg-panel-2">
                       <span className="w-36 shrink-0 whitespace-nowrap tabular-nums text-ink">{when(d.scheduledAt!)}</span>
-                      <Avatar name={p.name} hue={p.hue} size={20} />
+                      <Avatar name={p.name} hue={p.hue} size={20} src={p.avatar} />
                       <span className="min-w-0 flex-1 truncate text-ink">{d.title || "Untitled"}</span>
                       <span className="flex shrink-0 gap-1">
                         {d.accountIds.map((id) => {

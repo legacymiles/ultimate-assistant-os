@@ -4,11 +4,15 @@
 // heuristics that keep the app useful with no AI key.
 // ---------------------------------------------------------------------------
 
+import { HARD_AVOID_TEXT, RANKING_NOTE, checkPolicy, formatsFor } from "./formats";
+import { planBatch, sanitizeLeverKeys } from "./learn";
 import {
+  DEFAULT_LEARN,
   PLATFORM_NAME,
   SOCIAL_PLATFORMS,
   type Brain,
   type Idea,
+  type IdeaRole,
   type Persona,
   type Post,
   type PostStats,
@@ -34,8 +38,16 @@ export function localDay(d = new Date()): string {
 
 export function newPersona(partial: Partial<Persona> & { name: string }): Persona {
   const now = new Date().toISOString();
-  return {
+  const base: Persona = {
     id: uid("p_"),
+    nickname: "",
+    username: "",
+    avatar: null,
+    aboutMe: "",
+    aboutMeVersion: 1,
+    aboutMeHistory: [],
+    lessonLog: [],
+    learn: { ...DEFAULT_LEARN },
     niche: "",
     overview: "",
     contentTypes: [],
@@ -54,6 +66,79 @@ export function newPersona(partial: Partial<Persona> & { name: string }): Person
     updatedAt: now,
     ...partial,
   };
+  // A persona is never left without a character document: an empty about-me
+  // means the agent has no voice to hold, and asking the owner to write one
+  // into a blank box is the setup list the house rule forbids.
+  const aboutMe = base.aboutMe.trim() || aboutMeTemplate(base);
+  return {
+    ...base,
+    username: base.username.trim() || suggestUsername(base.name),
+    aboutMe,
+    aboutMeHistory: base.aboutMeHistory.length ? base.aboutMeHistory : [{ version: 1, at: now, markdown: aboutMe }],
+  };
+}
+
+/** A plausible handle from a display name: "Barry Knows Things" → barryknowsthings. */
+export function suggestUsername(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 28) || "newpersona";
+}
+
+/**
+ * The starting character document, written from what the owner already typed.
+ *
+ * Every heading the agent reads at generation time is present and filled with
+ * something true, so the document is useful on day one and the owner edits
+ * rather than authors. The prompt reads this verbatim, so a blank section here
+ * is a blank instruction there.
+ */
+export function aboutMeTemplate(p: Persona): string {
+  const types = p.contentTypes.length ? p.contentTypes : ["posts"];
+  const lib = formatsFor(p.nickname ?? "");
+  return `# ${p.name}
+
+## Purpose
+
+${p.overview || p.niche || `A ${(p.nickname || "social").toLowerCase()} persona`}${p.audience ? `, made for ${p.audience}` : ""}.
+
+Write here what this character is actually FOR — not what it posts, but what it
+is trying to make happen in the people who see it.
+
+## Voice
+
+${p.tone || "Describe how this character talks: sentence length, rhythm, how certain it sounds."}
+
+Sentence length, punctuation habits, how it sounds when it is confident and how
+it sounds when it is wrong.
+
+## Vocabulary and rhythm
+
+- Words it reaches for, and words it never uses.
+- Whether it uses hashtags, emoji or exclamation marks — and how many.
+- Spelling and references: which country, which decade.
+
+## Catchphrases
+
+One recurring line, not five. Write it here and the agent will use it sparingly.
+
+## In the comments
+
+How it replies when someone corrects it, agrees with it, or tries to start a
+fight. This matters more than the post: a reply inside twenty minutes is what
+keeps a post alive.
+
+## Never says
+
+${p.avoid ? p.avoid.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean).map((x) => `- ${x}`).join("\n") : "- List the subjects, phrasings and targets this character must never touch."}
+
+## Content ideas
+
+${types.map((t) => `- ${t}`).join("\n")}
+${lib.length ? `\nThe format library for this nickname holds ${lib.length} mechanics to draw on, and the agent will test the ones this page has never tried.` : ""}
+
+## Goals
+
+${p.goals || "What does success look like? Name the one number that matters, and the thing that must never be risked to get it."}
+`;
 }
 
 /** Handle from a profile link or "@name", without the @. */
@@ -159,7 +244,20 @@ function stamp(p: Post): number {
  */
 export function personaContext(p: Persona, { maxPosts = 40 } = {}): string {
   const lines: string[] = [];
-  lines.push(`PERSONA: ${p.name}`);
+  // The character document goes in FIRST and WHOLE.
+  //
+  // It is the style lock: the numbers can change what this persona talks about
+  // and which mechanic it reaches for, but never how it sounds. Summarise it
+  // and the voice drifts a little with every generation until, a month later,
+  // the character is gone and nobody can point at when it left.
+  if (p.aboutMe?.trim()) {
+    lines.push("## STYLE LOCK — the character document. Follow it exactly; the engagement data never overrides it.");
+    lines.push(p.aboutMe.trim());
+    lines.push(`(character document version ${p.aboutMeVersion})`);
+    lines.push("");
+  }
+  lines.push(`PERSONA: ${p.name}${p.username ? ` (@${p.username})` : ""}`);
+  if (p.nickname) lines.push(`NICKNAME / JOB: ${p.nickname}`);
   if (p.niche) lines.push(`NICHE: ${p.niche}`);
   if (p.overview) lines.push(`PROFILE OVERVIEW: ${p.overview}`);
   if (p.contentTypes.length) lines.push(`CONTENT TYPES: ${p.contentTypes.join(", ")}`);
@@ -167,6 +265,14 @@ export function personaContext(p: Persona, { maxPosts = 40 } = {}): string {
   if (p.tone) lines.push(`TONE / VOICE: ${p.tone}`);
   if (p.goals) lines.push(`GOALS: ${p.goals}`);
   if (p.avoid) lines.push(`NEVER SUGGEST: ${p.avoid}`);
+  if (formatsFor(p.nickname ?? "").length) {
+    lines.push("");
+    lines.push("## HARD LIMITS — not style notes. Breaking one costs the Page its reach, or gets it removed.");
+    lines.push(HARD_AVOID_TEXT);
+    lines.push(`- ${RANKING_NOTE}`);
+    lines.push("The governing test: funny-annoying about a THING, never mean about a PERSON.");
+    lines.push("");
+  }
   if (p.accounts.length) {
     lines.push(
       `ACCOUNTS: ${p.accounts
@@ -224,23 +330,52 @@ const strs = (v: unknown, max = 12): string[] =>
   Array.isArray(v) ? v.map((x) => String(x ?? "").trim()).filter(Boolean).slice(0, max) : [];
 const str = (v: unknown, max = 600): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
-export function normalizeIdeas(raw: unknown): Idea[] {
+export interface NormalizeIdeaOpts {
+  /** The persona's own avoid list, checked alongside the hard list. */
+  avoid?: string;
+  /** Stamped onto every idea so a result can be traced to what produced it. */
+  lessonVersion?: number;
+  aboutMeVersion?: number;
+}
+
+/**
+ * Turn a model's reply into ideas, and run the policy guard over every one.
+ *
+ * A blocked idea is KEPT, with its reason, rather than dropped. A silent
+ * filter looks exactly like the agent having an off day, and the owner would
+ * have no way to tell "it wrote nothing good" from "it wrote something that
+ * would have cost us the Page".
+ */
+export function normalizeIdeas(raw: unknown, opts: NormalizeIdeaOpts = {}): Idea[] {
   const list = Array.isArray(raw) ? raw : Array.isArray((raw as { ideas?: unknown })?.ideas) ? (raw as { ideas: unknown[] }).ideas : [];
+  const roles: IdeaRole[] = ["exploit", "explore", "wildcard"];
   return list
     .map((r): Idea | null => {
       const o = (r ?? {}) as Record<string, unknown>;
       const title = str(o.title, 140);
       if (!title) return null;
       const plat = str(o.platform).toLowerCase();
+      const role = str(o.role).toLowerCase() as IdeaRole;
+      const caption = str(o.caption, 1200);
+      const hook = str(o.hook, 240);
+      const firstComment = str(o.firstComment ?? o.first_comment, 300);
+      const verdict = checkPolicy([title, hook, caption, firstComment].filter(Boolean).join("\n"), opts.avoid ?? "");
       return {
         id: uid("i_"),
         title,
-        hook: str(o.hook, 240),
+        hook,
         format: str(o.format, 80),
         outline: strs(o.outline, 8),
         why: str(o.why, 400),
         platform: (SOCIAL_PLATFORMS as string[]).includes(plat) ? (plat as SocialPlatform) : "any",
         status: "new",
+        caption: caption || undefined,
+        firstComment: firstComment || undefined,
+        leverKeys: sanitizeLeverKeys(o.leverKeys ?? o.levers),
+        role: roles.includes(role) ? role : undefined,
+        basedOnLessonVersion: opts.lessonVersion,
+        aboutMeVersion: opts.aboutMeVersion,
+        blockedReason: verdict.ok ? undefined : verdict.reason,
       };
     })
     .filter((x): x is Idea => x !== null)
@@ -351,25 +486,95 @@ const HOOKS = [
   "{x}, but in 30 seconds",
 ];
 
-/** Deterministic per day, so a reload shows the same list. */
+/** The SUBJECTS this persona posts about — cars, kitchens, the 1990s.
+ *
+ *  Deliberately not `contentTypes`: those are mechanics ("impossible choice"),
+ *  and mixing the two produced titles like "Deliberately wrong fact about
+ *  wrong nostalgia" — a mechanic pointed at another mechanic, about nothing.
+ *  Caption keywords are out for the same reason: they surfaced filler. */
+function subjectsOf(p: Persona): string[] {
+  const fromPosts = [
+    ...new Set(p.posts.flatMap((x) => (x.topic ?? "").split(",").map((t) => t.trim().toLowerCase()))),
+  ].filter(Boolean);
+  if (fromPosts.length >= 2) return fromPosts;
+  const pillars = (p.brain?.pillars ?? []).map((x) => x.toLowerCase());
+  const seeds = [...new Set([...fromPosts, ...pillars])];
+  return seeds.length ? seeds : [p.niche.toLowerCase() || "your niche"];
+}
+
+/**
+ * Ideas with no AI key — and still the agent's own plan, not a generic list.
+ *
+ * The learning loop is pure arithmetic, so it runs whether or not a key is
+ * set. That means the offline path can honour the same exploit / explore /
+ * wildcard slots and the same proven levers; only the WORDING is mechanical.
+ * A fallback that ignored the plan would quietly stop the agent improving the
+ * moment the key went missing, which is the worst time not to notice.
+ *
+ * Deterministic per day, so a reload shows the same list.
+ */
 export function heuristicIdeas(p: Persona, day: string, count = 5): Idea[] {
-  const seeds = [...p.contentTypes, ...(p.brain?.pillars ?? []), ...topTerms(p.posts.map((x) => x.caption), 5)];
-  const topics = seeds.length ? seeds : [p.niche || "your niche"];
+  const plan = planBatch(p, count, day);
+  const subjects = subjectsOf(p);
+  const library = formatsFor(p.nickname ?? "");
   let h = 0;
   for (const c of day + p.id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+
   const out: Idea[] = [];
   for (let i = 0; i < count; i++) {
-    const topic = topics[(h + i) % topics.length];
-    const hook = HOOKS[(h + i * 3) % HOOKS.length].replace("{x}", topic);
+    const slot = plan.slots[i];
+    const subject = subjects[(h + i * 3) % subjects.length];
+    const bestFormat = plan.exploit.find((e) => e.key.startsWith("format:"));
+    const fmt =
+      slot?.format
+      ?? (slot?.leverKey?.startsWith("format:")
+        ? library.find((f) => f.slug === slot.leverKey!.slice("format:".length))
+        : undefined)
+      ?? (slot?.role === "exploit" && bestFormat
+        ? library.find((f) => f.slug === bestFormat.key.slice("format:".length))
+        : undefined);
+
+    if (fmt) {
+      out.push({
+        id: uid("i_"),
+        title: `${fmt.label} about ${subject}`,
+        hook: fmt.example,
+        format: fmt.label,
+        outline: [
+          fmt.mechanic,
+          `Point it at ${subject}, which this page already posts about.`,
+          "One line. No hashtags, no call to action.",
+          "Reply to the first few corrections within twenty minutes.",
+        ],
+        why:
+          slot.role === "wildcard"
+            ? `This page has never tried ${fmt.label.toLowerCase()}. Built offline — connect an AI key for wording in the character's own voice.`
+            : slot.role === "explore"
+              ? `Re-testing ${slot.label.toLowerCase()} because one result is not evidence. Built offline.`
+              : `${slot.label} is the strongest lever on this page. Built offline — an AI key writes the caption in character.`,
+        platform: p.accounts[0]?.platform ?? "any",
+        status: "new",
+        role: slot.role,
+        leverKeys: [`format:${fmt.slug}`],
+        basedOnLessonVersion: p.lessonLog?.[0]?.version,
+        aboutMeVersion: p.aboutMeVersion,
+      });
+      continue;
+    }
+
+    const hook = HOOKS[(h + i * 3) % HOOKS.length].replace("{x}", subject);
     out.push({
       id: uid("i_"),
       title: hook,
       hook,
       format: p.contentTypes[(h + i) % Math.max(1, p.contentTypes.length)] ?? "short video",
-      outline: ["Open on the hook in the first second", `Show the ${topic} moment`, "Pay it off", "End with a question for the comments"],
-      why: `Built offline from your ${seeds.length ? "content types and past posts" : "niche"}. Connect an AI key for ideas that read your actual videos.`,
+      outline: ["Open on the hook in the first second", `Show the ${subject} moment`, "Pay it off", "End with a question for the comments"],
+      why: "Built offline from this page's own topics and past posts. Connect an AI key for ideas that read the actual posts.",
       platform: "any",
       status: "new",
+      role: slot?.role,
+      basedOnLessonVersion: p.lessonLog?.[0]?.version,
+      aboutMeVersion: p.aboutMeVersion,
     });
   }
   return out;

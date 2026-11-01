@@ -1,13 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icons";
-import { newPersona } from "@/lib/social-personas/logic";
+import { newPersona, suggestUsername } from "@/lib/social-personas/logic";
 import { PRESETS, type Persona } from "@/lib/social-personas/types";
-import { Btn, inputCls } from "./bits";
+import { Avatar, Btn, inputCls } from "./bits";
+
+/** Longest side of a stored profile picture. Enough for a 48px avatar at 3x. */
+const AVATAR_PX = 256;
 
 export function PersonaForm({ initial, onClose, onSave }: { initial?: Persona; ai?: boolean; onClose: () => void; onSave: (p: Persona) => void }) {
   const [name, setName] = useState(initial?.name ?? "");
+  const [nickname, setNickname] = useState(initial?.nickname ?? "");
+  const [username, setUsername] = useState(initial?.username ?? "");
+  const [avatar, setAvatar] = useState<string | null>(initial?.avatar ?? null);
+  const [imgError, setImgError] = useState("");
+  const file = useRef<HTMLInputElement>(null);
   const [niche, setNiche] = useState(initial?.niche ?? "");
   const [overview, setOverview] = useState(initial?.overview ?? "");
   const [types, setTypes] = useState(initial?.contentTypes.join(", ") ?? "");
@@ -22,10 +30,42 @@ export function PersonaForm({ initial, onClose, onSave }: { initial?: Persona; a
     return () => window.removeEventListener("keydown", k);
   }, [onClose]);
 
+  /**
+   * Resize on the way in, never on the way out.
+   *
+   * A phone photo is several megabytes and this board is one synced JSON blob
+   * — storing the original would push the whole board past the platform's
+   * request cap and break syncing for every persona, not just this one.
+   */
+  const pickFile = async (f: File) => {
+    setImgError("");
+    if (!/^image\//.test(f.type)) return setImgError("That file isn't an image.");
+    if (f.size > 12 * 1024 * 1024) return setImgError("That image is over 12 MB. Pick a smaller one.");
+    try {
+      const bitmap = await createImageBitmap(f);
+      const scale = Math.min(1, AVATAR_PX / Math.max(bitmap.width, bitmap.height));
+      const w = Math.max(1, Math.round(bitmap.width * scale));
+      const h = Math.max(1, Math.round(bitmap.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("no canvas");
+      ctx.drawImage(bitmap, 0, 0, w, h);
+      bitmap.close?.();
+      setAvatar(canvas.toDataURL("image/jpeg", 0.86));
+    } catch {
+      setImgError("That image couldn't be read. Try a JPEG or PNG.");
+    }
+  };
+
   const save = () => {
     if (!name.trim()) return;
     const fields = {
       name: name.trim(),
+      nickname: nickname.trim() || niche.trim() || "Unfiled",
+      username: username.trim().replace(/^@/, "").replace(/\s+/g, ""),
+      avatar,
       niche: niche.trim(),
       overview: overview.trim(),
       contentTypes: types.split(",").map((s) => s.trim()).filter(Boolean),
@@ -75,6 +115,62 @@ export function PersonaForm({ initial, onClose, onSave }: { initial?: Persona; a
               </div>
             </div>
           )}
+          <Field label="Nickname" hint="The job. Several personas can share one.">
+            <input className={inputCls} value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="Trolling agent" list="nickname-options" />
+            <datalist id="nickname-options">
+              {[...new Set(PRESETS.map((x) => x.nickname).filter(Boolean))].map((n) => (
+                <option key={n} value={n} />
+              ))}
+            </datalist>
+          </Field>
+
+          {/* Identity, laid out the way a profile reads. */}
+          <div className="flex items-start gap-3 rounded-xl border border-line bg-canvas/40 p-2.5">
+            <div className="shrink-0 text-center">
+              <Avatar name={name || "?"} hue={initial?.hue ?? 210} size={56} src={avatar} />
+              <div className="mt-1.5 flex flex-col gap-1">
+                <button onClick={() => file.current?.click()} className="rounded border border-line px-1.5 py-0.5 text-[11px] text-ink-muted transition hover:bg-panel-2 hover:text-ink">
+                  <Icon.Upload width={10} height={10} className="inline" /> Picture
+                </button>
+                {avatar && (
+                  <button onClick={() => setAvatar(null)} className="text-[11px] text-ink-faint transition hover:text-ink">
+                    Remove
+                  </button>
+                )}
+              </div>
+              <input
+                ref={file}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void pickFile(f);
+                  e.target.value = "";
+                }}
+              />
+            </div>
+            <div className="min-w-0 flex-1 space-y-2">
+              <Field label="Username" hint="Shown next to the picture">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-ink-faint">@</span>
+                  <input className={inputCls} value={username} onChange={(e) => setUsername(e.target.value)} placeholder={name ? suggestUsername(name) : "barryknowsthings"} />
+                </div>
+              </Field>
+              {imgError && <p className="text-xs text-rose-300">{imgError}</p>}
+              {!avatar && (
+                <input
+                  className={inputCls}
+                  onChange={(e) => {
+                    const v = e.target.value.trim();
+                    if (/^https:\/\//i.test(v)) setAvatar(v);
+                  }}
+                  placeholder="…or paste an https:// image address"
+                />
+              )}
+            </div>
+          </div>
+
           <Field label="Persona name" hint="What you call this identity">
             <input autoFocus className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Lil Verse, Explain It Fast, Baby Mila" />
           </Field>

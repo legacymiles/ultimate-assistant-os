@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Illustrated portrait of a middle-aged man in square glasses and a navy polo shirt">
+  <title>Barry Knows Things</title>
+  <defs>
+    <linearGradient id="bk-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6a7a63"/>
+      <stop offset="1" stop-color="#3d4a3c"/>
+    </linearGradient>
+    <linearGradient id="bk-polo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#36496180"/>
+      <stop offset="0" stop-color="#364961"/>
+      <stop offset="1" stop-color="#26354a"/>
+    </linearGradient>
+    <linearGradient id="bk-lens" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#dfe7ee" stop-opacity=".46"/>
+      <stop offset="0.55" stop-color="#b9c7d4" stop-opacity=".16"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity=".28"/>
+    </linearGradient>
+    <clipPath id="bk-clip"><rect width="256" height="256"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#bk-clip)">
+    <rect width="256" height="256" fill="url(#bk-bg)"/>
+    <!-- a hint of a conservatory behind him, kept very low contrast -->
+    <g opacity=".17" fill="none" stroke="#dfe7d8" stroke-width="3">
+      <path d="M44 0v256M212 0v256M0 92h256"/>
+    </g>
+    <circle cx="128" cy="150" r="104" fill="#000" opacity=".1"/>
+
+    <!-- shoulders and polo -->
+    <path d="M128 176c-46 0-82 26-90 56-3 11-4 18-4 24h188c0-6-1-13-4-24-8-30-44-56-90-56z" fill="url(#bk-polo)"/>
+    <path d="M112 178l16 22 16-22-7-6h-18z" fill="#f0f3f7" opacity=".9"/>
+    <path d="M128 200l-8 10 8 46 8-46z" fill="#1f2c3e"/>
+    <circle cx="128" cy="222" r="2.6" fill="#f0f3f7" opacity=".8"/>
+    <circle cx="128" cy="238" r="2.6" fill="#f0f3f7" opacity=".8"/>
+
+    <!-- neck -->
+    <path d="M108 146h40v34c0 8-40 8-40 0z" fill="#c08f68"/>
+    <path d="M108 146h40v12c-13 7-27 7-40 0z" fill="#a87b58"/>
+
+    <!-- head -->
+    <path d="M78 104c0-32 22-54 50-54s50 22 50 54c0 30-22 60-50 60s-50-30-50-60z" fill="#d6a179"/>
+    <!-- ears -->
+    <path d="M78 102c-7-2-12 3-11 10 1 8 7 14 13 13z" fill="#c9926b"/>
+    <path d="M178 102c7-2 12 3 11 10-1 8-7 14-13 13z" fill="#c9926b"/>
+    <!-- greying hair, receding -->
+    <path d="M76 100c-2-30 20-52 52-52s54 22 52 52c-4-14-16-20-26-16-8-10-22-14-34-10-10 3-16 10-18 18-10-2-22 0-26 8z" fill="#8d867b"/>
+    <path d="M84 84c8-10 22-16 36-14-14 3-24 9-30 18z" fill="#a09a90" opacity=".8"/>
+    <!-- brows -->
+    <path d="M94 104c8-4 18-4 24 0" stroke="#6f6659" stroke-width="5" stroke-linecap="round" fill="none"/>
+    <path d="M138 104c6-4 16-4 24 0" stroke="#6f6659" stroke-width="5" stroke-linecap="round" fill="none"/>
+
+    <!-- square glasses: the frames are the character -->
+    <g fill="none" stroke="#24262b" stroke-width="5.5" stroke-linejoin="round">
+      <rect x="86" y="110" width="38" height="30" rx="4" fill="url(#bk-lens)"/>
+      <rect x="132" y="110" width="38" height="30" rx="4" fill="url(#bk-lens)"/>
+      <path d="M124 122h8"/>
+      <path d="M86 118l-10 2M170 118l10 2"/>
+    </g>
+    <!-- eyes, looking straight down the lens, entirely unbothered -->
+    <circle cx="105" cy="126" r="4.2" fill="#2d2a26"/>
+    <circle cx="151" cy="126" r="4.2" fill="#2d2a26"/>
+
+    <!-- nose and moustache -->
+    <path d="M128 132v12l-6 4" stroke="#bd8862" stroke-width="4" stroke-linecap="round" fill="none"/>
+    <path d="M106 152c8-5 14-5 22-3 8-2 14-2 22 3-6 7-16 9-22 6-6 3-16 1-22-6z" fill="#7f7669"/>
+    <!-- the faint, certain half-smile -->
+    <path d="M114 164c8 5 20 5 28 0" stroke="#a9765a" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+  </g>
+</svg>
