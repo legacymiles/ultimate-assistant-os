@@ -101,6 +101,7 @@ function summary(s) {
     worktree: s.worktree,
     strict: s.strict,
     laneWrites: s.laneWrites,
+    trust: s.trust,
     preview: publicView(s.preview),
     cursor: s.seq,
     gate: s.pendingGate,
@@ -114,7 +115,7 @@ function mustGet(id) {
   return s;
 }
 
-export async function startThread({ harness = "claude", title = "", repo, strict = false, laneWrites = false, model = "" } = {}) {
+export async function startThread({ harness = "claude", title = "", repo, strict = false, laneWrites = false, trust = "trusted", model = "" } = {}) {
   const which = HARNESSES[harness];
   if (!which) throw Object.assign(new Error(`There is no "${harness}" harness.`), { status: 400 });
 
@@ -138,6 +139,10 @@ export async function startThread({ harness = "claude", title = "", repo, strict
     usd: 0,
     strict: Boolean(strict),
     laneWrites: Boolean(laneWrites),
+    // "trusted" by default: a thread works inside a worktree of its own, so
+    // writing there and running the build is the job, not a surprise. The
+    // graves and anything outside the worktree still stop and ask.
+    trust: trust === "ask" || trust === "auto" ? trust : "trusted",
     worktree,
     preview: null,
     events: [],
@@ -214,7 +219,14 @@ export async function startThread({ harness = "claude", title = "", repo, strict
       emit({ kind: "status", status: "waiting" });
     });
 
-  const common = { cwd: worktree.path, emit, gate, strict: Boolean(strict), laneWrites: Boolean(laneWrites) };
+  const common = {
+    cwd: worktree.path,
+    emit,
+    gate,
+    strict: Boolean(strict),
+    laneWrites: Boolean(laneWrites),
+    trust: s.trust,
+  };
   s.adapter = harness === "claude" ? startClaude({ ...common, model }) : startAcp(common);
 
   if (worktree.notes.length) {

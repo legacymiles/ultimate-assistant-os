@@ -149,7 +149,19 @@ export function describeTool(name, input = {}, cwd = "") {
     why = "A tool from an MCP server. What it touches is not something this gate can read.";
   }
 
-  return { kind, title, why, risk, path, command, patch: previewPatch(name, input, cwd) };
+  return {
+    kind,
+    title,
+    why,
+    risk,
+    path,
+    command,
+    // An MCP server's tool is the one thing here whose reach cannot be read
+    // off its arguments, so the policy below treats it as its own category
+    // rather than as an ordinary command.
+    mcp: name.startsWith("mcp__"),
+    patch: previewPatch(name, input, cwd),
+  };
 }
 
 /**
@@ -194,12 +206,38 @@ export function insideWorktree(path) {
  * node_modules the main checkout shares), anything an MCP server does, and any
  * write that resolves outside the worktree — which is the exact event the
  * worktree exists to catch.
+ *
+ * `trust` is the fourth rule and the one a thread actually sets, because the
+ * three above left an ordinary job — write a file, run the build, commit —
+ * asking for permission at every single step, and a gate that fires forty
+ * times in a row is not read by the time it matters. It widens what passes;
+ * it never widens it past these two, at any level:
+ *
+ *   a grave act (deleting, pushing, changing installed packages) always asks;
+ *   a write outside the worktree always asks.
+ *
+ * Deliberately defaulted to "ask" HERE, so the policy on its own is the strict
+ * one and a caller that forgets to pass anything gets the careful answer.
+ * startThread() is where a thread's default of "trusted" lives.
  */
-export function autoAllow(described, { strict = false, laneWrites = false } = {}) {
+export function autoAllow(described, { strict = false, laneWrites = false, trust = "ask" } = {}) {
   if (strict) return false;
   if (described.kind === "read") return true;
-  if (laneWrites && described.kind === "write") return insideWorktree(described.path);
-  return false;
+  if (described.risk === "grave") return false;
+
+  if (described.kind === "write") {
+    if (!insideWorktree(described.path)) return false;
+    return laneWrites || trust === "trusted" || trust === "auto";
+  }
+
+  if (described.kind === "run") {
+    // An MCP tool's reach is not readable from here, so it is the one acting
+    // category that stays behind a gate until the owner says Auto.
+    if (described.mcp) return trust === "auto";
+    return trust === "trusted" || trust === "auto";
+  }
+
+  return trust === "auto";
 }
 
 /** The sentence on a refusal, phrased so the model does something useful next. */

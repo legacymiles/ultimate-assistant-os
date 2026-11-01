@@ -15,7 +15,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { autoAllow, insideWorktree } from "../../../../tools/jarvis-bridge/harness-gate.mjs";
+import { autoAllow, describeTool, insideWorktree } from "../../../../tools/jarvis-bridge/harness-gate.mjs";
 
 const read = { kind: "read", path: "src/app/page.tsx" };
 const write = (path: string) => ({ kind: "write", path });
@@ -80,5 +80,61 @@ describe("autoAllow", () => {
 
   it("lets strict win over laneWrites, so the stricter of two settings is the one that applies", () => {
     expect(autoAllow(write("src/app/page.tsx"), { laneWrites: true, strict: true })).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The trust level.
+//
+// Added because the policy above, correct as it is, left an ordinary thread —
+// write a file, run the build, commit — asking at every single step, and forty
+// gates in a row is a gate nobody reads. The level widens what passes. These
+// tests are mostly about what it still must not.
+// ---------------------------------------------------------------------------
+
+describe("autoAllow — trust levels", () => {
+  const grave = (command: string) => describeTool("Bash", { command }, "C:/wt/app");
+
+  it("defaults to the careful answer when a caller passes nothing", () => {
+    // The level a THREAD gets is "trusted", and that default lives in
+    // startThread. The policy on its own stays strict, so a future caller
+    // that forgets to pass anything is not quietly widened.
+    expect(autoAllow(write("src/app/page.tsx"))).toBe(false);
+    expect(autoAllow(run)).toBe(false);
+  });
+
+  it("lets a trusted thread write in its own worktree and run its build", () => {
+    expect(autoAllow(write("src/app/page.tsx"), { trust: "trusted" })).toBe(true);
+    expect(autoAllow(grave("npm run build"), { trust: "trusted" })).toBe(true);
+    expect(autoAllow(describeTool("Edit", { file_path: "C:/wt/app/src/a.ts" }, "C:/wt/app"), { trust: "trusted" })).toBe(true);
+  });
+
+  it("still asks before a grave act, at every level", () => {
+    for (const trust of ["ask", "trusted", "auto"]) {
+      expect(autoAllow(grave("rm -rf src"), { trust })).toBe(false);
+      expect(autoAllow(grave("git push origin main"), { trust })).toBe(false);
+      // node_modules is junctioned to the main checkout, which is why this one
+      // was grave in the first place.
+      expect(autoAllow(grave("npm install three"), { trust })).toBe(false);
+    }
+  });
+
+  it("still asks before a write that leaves the worktree, at every level", () => {
+    for (const trust of ["ask", "trusted", "auto"]) {
+      expect(autoAllow(write("../../.env.local"), { trust })).toBe(false);
+      expect(autoAllow(describeTool("Write", { file_path: "C:/Users/honey/.claude/settings.json" }, "C:/wt/app"), { trust })).toBe(false);
+    }
+  });
+
+  it("holds an MCP tool back until Auto, because its reach cannot be read", () => {
+    const mcp = describeTool("mcp__blender__execute_blender_code", { code: "x" }, "C:/wt/app");
+    expect(mcp.mcp).toBe(true);
+    expect(autoAllow(mcp, { trust: "trusted" })).toBe(false);
+    expect(autoAllow(mcp, { trust: "auto" })).toBe(true);
+  });
+
+  it("keeps strict as the override it always was", () => {
+    expect(autoAllow(read, { strict: true, trust: "auto" })).toBe(false);
+    expect(autoAllow(write("src/a.ts"), { strict: true, trust: "auto" })).toBe(false);
   });
 });

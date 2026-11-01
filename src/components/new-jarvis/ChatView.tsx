@@ -28,6 +28,7 @@ import { groupThreads, type Thread } from "@/lib/new-jarvis/threads";
 import { fixFor, type ErrorFix } from "@/lib/new-jarvis/errorFix";
 import { elapsed, type Block, type Mode } from "@/lib/new-jarvis/types";
 import type { VoiceState } from "@/lib/new-jarvis/useWakeVoice";
+import { TRUSTS, type Trust } from "@/lib/new-jarvis/trust";
 
 export interface ComposerProps {
   value: string;
@@ -35,6 +36,9 @@ export interface ComposerProps {
   onSubmit: () => void;
   mode: Mode;
   onMode: (m: Mode) => void;
+  /** How much happens without being asked. See trust.ts. */
+  trust: Trust;
+  onTrust: (t: Trust) => void;
   voiceState: VoiceState;
   heard: string;
   micSupported: boolean;
@@ -98,7 +102,7 @@ export function ChatView({
   onSelect: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onDelete: (id: string) => void;
-  onAnswerGate: (blockId: string, yes: boolean) => void;
+  onAnswerGate: (blockId: string, answer: boolean | "always") => void;
   onRerun: (block: Block) => void;
   onStop: (blockId: string) => void;
   /** Runs the one-press fix offered under an error that names a chore. */
@@ -461,7 +465,7 @@ function Turn({
   onFix,
 }: {
   block: Block;
-  onAnswerGate: (yes: boolean) => void;
+  onAnswerGate: (answer: boolean | "always") => void;
   onRerun: () => void;
   onStop: () => void;
   onFix?: (fix: ErrorFix) => void;
@@ -569,6 +573,8 @@ function Composer({
   value,
   onChange,
   onSubmit,
+  trust,
+  onTrust,
   voiceState,
   heard,
   micSupported,
@@ -756,6 +762,30 @@ function Composer({
           </button>
         )}
         Enter to send, Shift+Enter for a new line
+        {/* On the hint line rather than up among the icons: this is set once
+            and then left alone for weeks, where everything in the bar above it
+            is touched every message. It stays on screen, though — an assistant
+            quietly allowed to run commands should say so somewhere the owner
+            passes every day. */}
+        <span className="ml-2 inline-flex items-center gap-1 align-middle">
+          <span className="uppercase tracking-wide opacity-70">Trust</span>
+          {TRUSTS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => onTrust(t.id)}
+              title={t.hint}
+              aria-pressed={trust === t.id}
+              className={`rounded px-1.5 py-0.5 font-medium transition ${
+                trust === t.id
+                  ? "bg-brand-2/20 text-ink ring-1 ring-brand-2/50"
+                  : "text-ink-muted hover:bg-elevated hover:text-ink"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </span>
       </p>
     </div>
   );

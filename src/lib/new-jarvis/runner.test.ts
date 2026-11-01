@@ -152,6 +152,79 @@ describe("runBlock", () => {
     expect(runTool).not.toHaveBeenCalled();
   });
 
+  // --- the trust level ---------------------------------------------------
+  //
+  // The complaint this was built for: a job that writes a file and runs a
+  // command cost two taps on Do it, and a real one cost a hundred.
+
+  it("does not stop for an ordinary write or an ordinary command", async () => {
+    const { think } = scripted([
+      { toolCall: { id: "1", name: "files_write", args: { path: "C:/dev/app/src/page.tsx", text: "x" } } },
+      { toolCall: { id: "2", name: "shell_run", args: { command: "npm run build" } } },
+      { toolCall: null, text: "Built." },
+    ]);
+    const askGate = vi.fn(async () => true);
+    const out = await runBlock({ command: "build it", mode: "do" }, deps({ think, askGate }));
+
+    expect(askGate).not.toHaveBeenCalled();
+    expect(out.steps.map((s) => s.status)).toEqual(["ok", "ok"]);
+  });
+
+  it("still stops for the things no level waves through", async () => {
+    const { think } = scripted([
+      { toolCall: { id: "1", name: "shell_run", args: { command: "Remove-Item -Recurse C:/dev/app/src" } } },
+      { toolCall: null, text: "I did not." },
+    ]);
+    const gates: Gate[] = [];
+    const askGate = vi.fn(async (g: Gate) => {
+      gates.push(g);
+      return false;
+    });
+    const runTool = vi.fn(async () => ({ ok: true }));
+    const out = await runBlock({ command: "clear it out", mode: "run" }, deps({ think, runTool, askGate }));
+
+    expect(askGate).toHaveBeenCalledTimes(1);
+    expect(gates[0].risk).toBe("grave");
+    // And it cannot be remembered, so the card offers no "Always".
+    expect(gates[0].kind).toBe("");
+    expect(runTool).not.toHaveBeenCalled();
+    expect(out.steps[0].status).toBe("refused");
+  });
+
+  it("asks once per shape on Ask, and an \"always\" covers the rest of the SAME run", async () => {
+    const { think } = scripted([
+      { toolCall: { id: "1", name: "shell_run", args: { command: "git commit -m one" } } },
+      { toolCall: { id: "2", name: "shell_run", args: { command: "git commit -m two" } } },
+      { toolCall: { id: "3", name: "shell_run", args: { command: "git commit -m three" } } },
+      { toolCall: null, text: "Committed." },
+    ]);
+    const askGate = vi.fn(async () => "always" as const);
+    const remember = vi.fn();
+    const out = await runBlock(
+      { command: "commit each one", mode: "run", trust: "ask" },
+      deps({ think, askGate, remember }),
+    );
+
+    expect(askGate).toHaveBeenCalledTimes(1);
+    expect(remember).toHaveBeenCalledWith("shell:git commit");
+    expect(out.steps.map((s) => s.status)).toEqual(["ok", "ok", "ok"]);
+  });
+
+  it("honours a shape the owner said always to on an earlier run", async () => {
+    const { think } = scripted([
+      { toolCall: { id: "1", name: "shell_run", args: { command: "git commit -m later" } } },
+      { toolCall: null, text: "Committed." },
+    ]);
+    const askGate = vi.fn(async () => true);
+    const out = await runBlock(
+      { command: "commit", mode: "run", trust: "ask", allowed: ["shell:git commit"] },
+      deps({ think, askGate }),
+    );
+
+    expect(askGate).not.toHaveBeenCalled();
+    expect(out.steps[0].status).toBe("ok");
+  });
+
   it("gives up rather than looping forever", async () => {
     const think = vi.fn(async () => ({ toolCall: { id: "1", name: "browser_read", args: {} } }));
     const out = await runBlock({ command: "spin", mode: "browse" }, deps({ think }));

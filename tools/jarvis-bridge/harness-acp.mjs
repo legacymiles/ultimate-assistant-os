@@ -62,7 +62,7 @@ const aliasFor = (title) => {
   return TOOL_ALIAS[key] ?? (key ? key[0].toUpperCase() + key.slice(1) : "Tool");
 };
 
-export function startAcp({ cwd, emit, gate, strict = false, laneWrites = false, command = "npx", args = ["dsh", "--profile", "acp"] }) {
+export function startAcp({ cwd, emit, gate, strict = false, laneWrites = false, trust = "ask", command = "npx", args = ["dsh", "--profile", "acp"] }) {
   let sessionId = "";
   let nextId = 0;
   let closed = false;
@@ -173,7 +173,7 @@ export function startAcp({ cwd, emit, gate, strict = false, laneWrites = false, 
         // Under `read-only` dsh never asks about a read, so in practice this
         // only ever passes a lane's own write — but the policy is asked rather
         // than assumed, so this adapter and the Claude one cannot drift.
-        const ok = autoAllow(d, { strict, laneWrites })
+        const ok = autoAllow(d, { strict, laneWrites, trust })
           ? (emit({ kind: "allowed", name, title: d.title }), true)
           : await gate({
               name,

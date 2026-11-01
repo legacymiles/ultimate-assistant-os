@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { call, BridgeError } from "../bridge";
+import { readTrust } from "../trust";
 import { emptyThread, reduceEvents } from "./model";
 import type {
   GateCard, HarnessChoice, HarnessEvent, HarnessId, ThreadSummary, ThreadView, WorkSummary,
@@ -228,6 +229,11 @@ export function useHarness({ paired }: { paired: boolean }): UseHarness {
           title: opts.title,
           strict: Boolean(opts.strict),
           laneWrites: Boolean(opts.laneWrites),
+          // The one setting, read at the moment the thread is cut. A thread
+          // started while the owner had it on Trusted stays on Trusted: the
+          // alternative is a gate policy that changes under a job already
+          // running, which is worse than either answer.
+          trust: readTrust(),
         });
         setThreads((prev) => [...prev, data.session]);
         open(data.session.id);
