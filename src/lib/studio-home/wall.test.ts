@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Icon } from "@/components/icons";
 import { PROJECTS } from "@/lib/catalog";
-import { MERGED_INTO, isPlugin } from "@/lib/studio/plugins";
+import { MERGED_INTO, isPlugin, studioPlugins } from "@/lib/studio/plugins";
 import { wallCards } from "./wall";
 
 const cards = wallCards();
@@ -22,11 +22,21 @@ describe("the studio wall", () => {
     }
   });
 
-  it("only panels studios the owner can actually reach", () => {
-    // A panel for an app that is not offered anywhere else is a second,
-    // inconsistent front door. Every studio here is a plugin on main.
+  it("keeps every studio it panels off the hub's front grid", () => {
+    // PLUGIN_SLUGS is what `inJarvis` reads, so a studio dropped from it would
+    // get its hub tile back and be reachable two ways again. A panel is the
+    // studio's door; the allowlist entry is what closes the other one.
     for (const c of cards.slice(1)) {
       expect(isPlugin(c.id), `${c.id} is not in PLUGIN_SLUGS`).toBe(true);
+    }
+  });
+
+  it("is the only door to a studio — no App plugins card as well", () => {
+    // The wall is a picture of what the studio makes; a card is a line of
+    // text to the same place. Two doors, and the worse one listed first.
+    const carded = new Set(studioPlugins().map((p) => p.slug));
+    for (const c of cards.slice(1)) {
+      expect(carded.has(c.id), `${c.id} is on the wall AND on the plugins page`).toBe(false);
     }
   });
 

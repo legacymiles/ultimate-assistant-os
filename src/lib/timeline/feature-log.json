@@ -1,5 +1,221 @@
 [
  {
+  "id": "4b175f0:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "No card for a studio the Studio tab already panels",
+  "detail": "The seven studios had two doors. Each one has a tall panel on the Studio tab playing a clip of what it makes, and a line of text on the App plugins page going to the same route — so the plugins page was 21 cards, 7 of them the worse of two ways to the same place.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d6f8982:personas-studio",
+  "date": "2026-11-01",
+  "slug": "personas-studio",
+  "title": "A learning loop, and personas filed under the job they do",
+  "detail": "Adds three things the Studio did not have, without touching the Draft pipeline, the Message Inbox or publishing.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d6f8982:money-agents",
+  "date": "2026-11-01",
+  "slug": "money-agents",
+  "title": "A learning loop, and personas filed under the job they do",
+  "detail": "Adds three things the Studio did not have, without touching the Draft pipeline, the Message Inbox or publishing.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6d596d8:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "Stop interrupting an ordinary browse job",
+  "detail": "Trusted was still gating on `verdict.risk === \"grave\"`, and classify() calls a click grave on any of a long list of words — confirm, accept, agree, approve, authorize, apply, book, register, sign up. A browse job hits those constantly, so \"do this for me in the browser\" was still one tap after anoth",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3507f8f:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "A trust level, so one job is not a hundred taps",
+  "detail": "New Jarvis gated every call with an effect, because `confirm` in actions.ts was answering two questions at once: \"does this have an effect\" and \"should the owner be stopped and asked\". A twelve-step job meant twelve taps on Do it, and a real build meant a hundred — which is a gate nobody reads by th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3507f8f:website-redesigner",
+  "date": "2026-11-01",
+  "slug": "website-redesigner",
+  "title": "A trust level, so one job is not a hundred taps",
+  "detail": "New Jarvis gated every call with an effect, because `confirm` in actions.ts was answering two questions at once: \"does this have an effect\" and \"should the owner be stopped and asked\". A twelve-step job meant twelve taps on Do it, and a real build meant a hundred — which is a gate nobody reads by th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "96ba8be:client-review",
+  "date": "2026-11-01",
+  "slug": "client-review",
+  "title": "Commercial in the pipeline, a real build status, and the Client Review hand-off",
+  "detail": "Pressing \"Build it\" spun with nothing behind it. Nothing was loading — the request had been filed in In Queue and was WAITING for Claude Code on the PC, which only looks at the queue when it is asked to. The owner could not tell a slow call from a stuck one, did not know how long, where the app woul",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "96ba8be:app-builder",
+  "date": "2026-11-01",
+  "slug": "app-builder",
+  "title": "Commercial in the pipeline, a real build status, and the Client Review hand-off",
+  "detail": "Pressing \"Build it\" spun with nothing behind it. Nothing was loading — the request had been filed in In Queue and was WAITING for Claude Code on the PC, which only looks at the queue when it is asked to. The owner could not tell a slow call from a stuck one, did not know how long, where the app woul",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1114f7e:trading-agent",
+  "date": "2026-11-01",
+  "slug": "trading-agent",
+  "title": "A Trading Agent that reads a setup and signs nothing",
+  "detail": "Third section, after EA World and EA Lab — learn, measure, then reason. It is the one section here that measures nothing and runs nothing.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1114f7e:trading-studio",
+  "date": "2026-11-01",
+  "slug": "trading-studio",
+  "title": "A Trading Agent that reads a setup and signs nothing",
+  "detail": "Third section, after EA World and EA Lab — learn, measure, then reason. It is the one section here that measures nothing and runs nothing.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1114f7e:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "A Trading Agent that reads a setup and signs nothing",
+  "detail": "Third section, after EA World and EA Lab — learn, measure, then reason. It is the one section here that measures nothing and runs nothing.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "30052bb:ea-lab",
+  "date": "2026-11-01",
+  "slug": "ea-lab",
+  "title": "EA Lab is in, so its pending panel goes",
+  "detail": "Trading Studio's Lab tab has been a placeholder reading \"EA Lab is on your PC and isn't on the website yet. This tab is where it will open.\" The code it was waiting for existed, committed, on a feature branch nobody had merged. This is that code, and the instructions for wiring it came from the plac",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "30052bb:trading-studio",
+  "date": "2026-11-01",
+  "slug": "trading-studio",
+  "title": "EA Lab is in, so its pending panel goes",
+  "detail": "Trading Studio's Lab tab has been a placeholder reading \"EA Lab is on your PC and isn't on the website yet. This tab is where it will open.\" The code it was waiting for existed, committed, on a feature branch nobody had merged. This is that code, and the instructions for wiring it came from the plac",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "30052bb:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "EA Lab is in, so its pending panel goes",
+  "detail": "Trading Studio's Lab tab has been a placeholder reading \"EA Lab is on your PC and isn't on the website yet. This tab is where it will open.\" The code it was waiting for existed, committed, on a feature branch nobody had merged. This is that code, and the instructions for wiring it came from the plac",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9edb2b9:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "A wall of studios, from the studios that already exist",
+  "detail": "The Studio tab opened straight onto the workflow wall, so every studio behind it — Image, Audio, Music Video, Personas, Money Agent, Game, Trading — sat on the App plugins page and you had to remember which door. This is the other front page: eight tall panels standing side by side, each playing a c",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3ab5fb0:cook-connect",
+  "date": "2026-11-01",
+  "slug": "cook-connect",
+  "title": "Playing out of turn is no longer a renig",
+  "detail": "A renig is now only acting like you are out of a suit when you still hold it (off-suit while holding the led suit, or an early spade lead while holding other suits). Out-of-turn play is still allowed after the \"Are you sure?\" and still skips your turn, but nothing is recorded for it. Old \"turn\" reco",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e6ba09f:website-redesigner",
+  "date": "2026-11-01",
+  "slug": "website-redesigner",
+  "title": "The roster only holds skills that have a skin",
+  "detail": "Takes the guard from ad9986a (feat/studio-hub-studios), written in parallel with 75fc8d0 while both of us were chasing the same red test. Theirs is the better mechanism and this keeps it.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "75fc8d0:website-redesigner",
+  "date": "2026-11-01",
+  "slug": "website-redesigner",
+  "title": "A skill that builds a site is not a style",
+  "detail": "skins.test.ts has been red on main since 99334dc, which added 11 \"design skills\" to the roster without skins. Nine of them are not design skills: jarvis-harness hands coding to a background agent, website-build-checklist is a list of build rules, felix plans, scholar researches, eas-app-stores submi",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "33ee191:website-redesigner",
+  "date": "2026-11-01",
+  "slug": "website-redesigner",
+  "title": "Add design skills app-builder, commercial, eas-app-stores, expo-design-system, felix, hyperframes, impeccable, jarvis-harness, make-this-bet",
+  "detail": "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "30fb8cf:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "Errors that name a chore now do the walking",
+  "detail": "\"Claude isn't signed in on this PC. Open Claude Code (type `claude` in a terminal), sign in with /login, then try again.\" is a correct sentence and a dead end. It names a terminal the owner has to find, a command to remember and a slash command to type - inside an assistant that can open a terminal ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d84c5c5:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "\"quick\" must not disarm a Do turn",
+  "detail": "\"Find the Pokemon channel and open it\" came back as a URL and an apology that the browser could not be opened. The model was not ignoring the instruction - it had been left with no tools at all.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3ee5449:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "Screen does not need the local agent",
+  "detail": "I gated both new chips on `paired`. That is right for Browser, which calls browser/open on the bridge, and wrong for Screen: ScreenScan captures with getDisplayMedia in the tab and posts to the hub's own /api/jarvis/record/extract. It never touches the local agent - screenCapture.ts says so in its o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a51a00c:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "Browser and Screen on the chat bar",
+  "detail": "Two chips beside Pictures, Video and Audio, and the same pair in the composer row. The hero's chips only exist on an empty chat, and \"look at this page with me\" is asked mid-conversation, so both places need them.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "99334dc:website-redesigner",
+  "date": "2026-10-30",
+  "slug": "website-redesigner",
+  "title": "Add design skills app-builder, commercial, eas-app-stores, expo-design-system, felix, jarvis-harness, promo-video, rea-to-workflow, scholar,",
+  "detail": "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "a52e431:cook-connect",
   "date": "2026-10-28",
   "slug": "cook-connect",
