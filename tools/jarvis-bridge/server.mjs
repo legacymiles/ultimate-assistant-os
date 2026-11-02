@@ -56,6 +56,23 @@ import * as computer from "./computer.mjs";
 import * as vault from "./vault.mjs";
 import * as harness from "./harness.mjs";
 
+/**
+ * Forget the Claude Code session this agent may have been started from.
+ *
+ * Whatever launches the bridge hands it that process's environment, and if
+ * that process was a Claude Code session the child inherits its credentials:
+ * ANTHROPIC_AUTH_TOKEN overrides the owner's own subscription login, and when
+ * that borrowed token expires EVERY harness thread fails with "401 Invalid
+ * bearer token" — which the SDK reports as a successful turn that merely said
+ * nothing. A whole afternoon went into finding that once.
+ *
+ * The agent's children should authenticate as the owner on this machine, never
+ * as whoever started the agent, so the inheritance is cut here at the door.
+ */
+for (const key of Object.keys(process.env)) {
+  if (/^(ANTHROPIC_|CLAUDE_CODE_|CLAUDECODE$|CLAUDE_AGENT_SDK_|CLAUDE_PID$)/.test(key)) delete process.env[key];
+}
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "out");
 const PROFILE = join(OUT, "browser-profile");
