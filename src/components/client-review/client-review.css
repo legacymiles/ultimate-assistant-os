@@ -1156,6 +1156,19 @@
 .cr-sites li.is-building small {
   color: #93c5fd;
 }
+/* Which rows a client can actually open. Quiet by design: most of the owner's
+   apps are not shared, so the marked few are the exception worth seeing. */
+.crp-shared {
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 5px;
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  color: #6ee7b7;
+  white-space: nowrap;
+}
+
 .cr-sites li.is-building small::before {
   content: "";
   display: inline-block;

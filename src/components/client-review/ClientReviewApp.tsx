@@ -4,9 +4,12 @@
 // Client Review — one page for clients and the owner.
 //
 //   Client  every website this account has opened; pick one to see it with
-//           the Chat Intake on top. For the owner: a dropdown of EVERY app in
-//           the hub and every client website, each opened exactly as a client
-//           sees it, so the owner edits on the page too (?app=<slug>).
+//           the Chat Intake on top. For the owner the tab is "Open as client":
+//           a dropdown of EVERY app in the hub and every client website, each
+//           opened exactly as a client sees it, so the owner edits on the page
+//           too (?app=<slug>). It is named for what it DOES, not "Client
+//           view" — a list of all 36 apps under those words reads as what the
+//           client can see, which is the opposite of true.
 //   Admin   the owner's console. Locked and faded for everyone else — they
 //           can see it exists but can't open it. The page decides what to
 //           SHOW from /api/client-review/portal/me; the admin API itself is
@@ -201,7 +204,7 @@ export function ClientReviewApp() {
             className={tab === "client" ? "on" : ""}
             onClick={() => go({ tab: "client" })}
           >
-            {me.owner ? "Client view" : "My websites"}
+            {me.owner ? "Open as client" : "My websites"}
           </button>
           <button
             role="tab"
