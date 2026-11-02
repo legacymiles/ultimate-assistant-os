@@ -12,9 +12,11 @@
 import { useMemo, useState } from "react";
 import { DEPTH_BLURB, DEPTH_LABEL, DEPTHS, depthOf, depthSteps } from "@/lib/app-builder/depth";
 import { checklistLines, masterPrompt, pipeline, tally } from "@/lib/app-builder/engine";
-import { etaFor, type BuildState } from "@/lib/app-builder/plan";
+import { etaFor } from "@/lib/app-builder/plan";
 import { APP_TYPE_LABEL, type BuilderProject, type Depth } from "@/lib/app-builder/types";
+import type { UseBuild } from "@/lib/app-builder/useBuild";
 import type { Busy, QueueStep } from "@/lib/app-builder/useAppBuilder";
+import type { BridgeHealth } from "@/lib/new-jarvis/bridge";
 import { BuildStatus } from "./BuildStatus";
 
 export function Pipeline({ project }: { project: BuilderProject | null }) {
@@ -82,10 +84,11 @@ export function Blueprint({
   project,
   busy,
   step,
-  live,
-  onRefresh,
-  onQueue,
-  onCancel,
+  build,
+  bridge,
+  onBuild,
+  onFileForLater,
+  onStop,
   onCards,
   onRename,
   onDepth,
@@ -94,10 +97,11 @@ export function Blueprint({
   project: BuilderProject;
   busy: Busy;
   step: QueueStep;
-  live: BuildState;
-  onRefresh: () => void;
-  onQueue: (clientName?: string) => void;
-  onCancel: () => void;
+  build: UseBuild;
+  bridge: BridgeHealth;
+  onBuild: (clientName?: string) => void;
+  onFileForLater: (clientName?: string) => void;
+  onStop: () => void;
   onCards: () => void;
   onRename: (name: string) => void;
   onDepth: (depth: Depth) => void;
@@ -114,10 +118,13 @@ export function Blueprint({
   const filed = project.handoff?.cards?.length ?? 0;
   const { depth, why: depthWhy } = depthOf(project);
   const eta = etaFor(t.accepted, depth);
-  const handedOff = Boolean(project.handoff?.queueId);
-  /** Queued or being built: the brief is already written, so the depth is set. */
-  const inFlight = handedOff && (live.phase === "queued" || live.phase === "working" || live.phase === "filing");
+  /** A build has been started for this project, whether or not it is finished. */
+  const started = Boolean(project.handoff?.thread?.id);
+  /** Running right now: the brief is already written, so the depth is set. */
+  const inFlight = started && (build.phase === "starting" || build.phase === "working" || build.phase === "asking");
   const wantsReview = !project.edit && !project.noReview;
+  /** Nothing to build with: the PC isn't reachable from this browser. */
+  const offline = !bridge.paired;
 
   const copy = async () => {
     try {
@@ -195,9 +202,9 @@ export function Blueprint({
         </dl>
       </div>
 
-      {/* Handed off already: the live state of the build, not a launcher. */}
-      {handedOff && (
-        <BuildStatus project={project} busy={busy} live={live} onRefresh={onRefresh} onQueueAgain={() => onQueue(who || undefined)} onCancel={onCancel} />
+      {/* A build has been started: the build itself, not a launcher. */}
+      {started && (
+        <BuildStatus project={project} busy={busy} build={build} bridge={bridge} onBuildAgain={() => onBuild(who || undefined)} onStop={onStop} />
       )}
 
       <div className="ab-launch">
@@ -221,13 +228,13 @@ export function Blueprint({
             </div>
             <p className="ab-depth-why">
               {inFlight
-                ? "Locked while this build is in the queue — the brief Claude Code reads is already written. Take it out of the queue to change it."
+                ? "Locked while it builds — Claude already has the brief. Stop the build to change it."
                 : `${DEPTH_BLURB[depth]} ${project.depth ? "Your choice." : `Chosen because ${depthWhy}.`}`}
             </p>
           </fieldset>
         )}
 
-        {!project.edit && !handedOff && (
+        {!project.edit && !started && (
           <div className="ab-prereview">
             <label className="ab-check">
               <input type="checkbox" checked={wantsReview} onChange={(e) => onNoReview(!e.target.checked)} />
@@ -249,18 +256,31 @@ export function Blueprint({
           </div>
         )}
 
-        <button className="ab-primary ab-build" disabled={!t.accepted || busy !== null} onClick={() => onQueue(who || undefined)}>
-          {busy === "queue"
+        {offline && (
+          <p className="ab-bwarn ab-offline" role="status">
+            Your PC isn&rsquo;t reachable from this browser, so there&rsquo;s nothing to build with. Open Jarvis on that computer to start its helper — or file
+            this for later and it will be waiting.
+          </p>
+        )}
+
+        <button
+          className="ab-primary ab-build"
+          disabled={!t.accepted || busy !== null || offline || inFlight}
+          onClick={() => onBuild(who || undefined)}
+        >
+          {busy === "build"
             ? step === "review"
               ? "Opening the review link…"
-              : step === "noting"
-                ? "Telling Client Review…"
-                : "Filing it in In Queue…"
-            : handedOff
-              ? "Queue the build again"
-              : project.edit
-                ? `Build ${t.accepted} edit${t.accepted === 1 ? "" : "s"} · ${project.edit.version}`
-                : `Build it · ${t.accepted} feature${t.accepted === 1 ? "" : "s"}`}
+              : step === "starting"
+                ? "Starting the build…"
+                : "Getting ready…"
+            : inFlight
+              ? "Building…"
+              : started
+                ? "Build it again"
+                : project.edit
+                  ? `Build ${t.accepted} edit${t.accepted === 1 ? "" : "s"} · ${project.edit.version}`
+                  : `Build it · ${t.accepted} feature${t.accepted === 1 ? "" : "s"}`}
           <span aria-hidden>→</span>
         </button>
         <p className="ab-launch-note">
@@ -271,9 +291,21 @@ export function Blueprint({
             : "Accept at least one feature to build."}{" "}
           {project.edit
             ? `Claude Code builds them on ${project.edit.branch}, opens a pull request for you to merge, and posts the preview to ${project.edit.clientName || "the client"}'s review link.`
-            : `This files one request in In Queue — it does not start a build. Claude Code on your PC or VPS runs it the next time you say "work my Jarvis queue", and a build this size usually takes ${eta.label} once it starts.`}
+            : `This builds it now, on your PC, in a folder and repository of its own — usually ${eta.label}. You'll watch every step, and it stops to ask before anything leaves the machine.`}
         </p>
         <div className="ab-launch-row">
+          {/* The old path, kept where it belongs: for when the PC is off, or
+              the owner wants it built later rather than now. */}
+          {!project.edit && !inFlight && (
+            <button
+              className="ab-ghost"
+              disabled={!t.accepted || busy !== null}
+              title="Put it in In Queue instead, and build it whenever you next work the queue"
+              onClick={() => onFileForLater(who || undefined)}
+            >
+              {busy === "queue" ? "Filing…" : project.handoff?.queueId ? "Filed for later ✓" : "File it for later"}
+            </button>
+          )}
           <button className="ab-ghost" disabled={!t.accepted || busy !== null} onClick={onCards}>
             {busy === "board" ? "Filing cards…" : filed ? `Board · ${filed} filed` : `Send ${t.accepted} card${t.accepted === 1 ? "" : "s"} to board`}
           </button>

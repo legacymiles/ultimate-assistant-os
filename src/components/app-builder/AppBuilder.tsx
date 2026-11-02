@@ -26,7 +26,7 @@ import { FeatureTable } from "./FeatureTable";
 import { Orbit } from "./Orbit";
 import { IdeaStage, Interview } from "./Stages";
 import { Waiting } from "./Waiting";
-import { useBuildWatch } from "@/lib/app-builder/useBuildWatch";
+import { PHASE_LABEL } from "@/lib/app-builder/build";
 import "./app-builder.css";
 
 type Pane = "features" | "chat" | "blueprint";
@@ -60,17 +60,19 @@ export function AppBuilder() {
 
   // One watcher for the whole screen, so the top bar and the build panel can
   // never say different things about the same request.
-  const queueId = current?.handoff?.queueId;
-  const { live, refresh } = useBuildWatch(queueId, current?.handoff?.at);
+  // One build per project, read straight off the hook that owns it, so the
+  // top bar and the panel can never say different things about it.
+  const threadId = current?.handoff?.thread?.id;
+  const build = ab.thread;
 
   // The moment a build is handed off, put the build panel on screen. The
   // status used to live in a side tab the owner wasn't looking at, which is
   // half the reason pressing Build it felt like nothing had happened.
   useEffect(() => {
-    if (!queueId) return;
+    if (!threadId) return;
     setSide("blueprint");
     setPane("blueprint");
-  }, [queueId]);
+  }, [threadId]);
 
   // `?idea=` (Website Redesigner › Showcase › Use this idea) means a new app:
   // put the idea stage on screen, which prefills its box from the address.
@@ -152,9 +154,9 @@ export function AppBuilder() {
             </span>
             {/* Once it is handed off this stops being a button that can be
                 pressed twice and becomes the way back to the live status. */}
-            {queueId ? (
+            {threadId ? (
               <button
-                className={`ab-queued is-${live.phase}`}
+                className={`ab-queued is-${build.phase}`}
                 title="Show where this build is"
                 onClick={() => {
                   setSide("blueprint");
@@ -162,12 +164,11 @@ export function AppBuilder() {
                 }}
               >
                 <span className="ab-queued-dot" aria-hidden />
-                {live.phase === "working" ? "Building" : live.phase === "done" ? "Built" : live.phase === "gone" ? "Not queued" : "Queued"} ·{" "}
-                <code>{queueId}</code>
+                {PHASE_LABEL[build.phase]}
               </button>
             ) : (
-              <button className="ab-primary-sm" disabled={!t.accepted || busy !== null} onClick={() => ab.sendToQueue()}>
-                {busy === "queue" ? "Filing…" : current.edit ? "Build edits →" : "Build it →"}
+              <button className="ab-primary-sm" disabled={!t.accepted || busy !== null} onClick={() => ab.build()}>
+                {busy === "build" ? "Starting…" : current.edit ? "Build edits →" : "Build it →"}
               </button>
             )}
           </div>
@@ -246,7 +247,7 @@ export function AppBuilder() {
           <nav className="ab-panes" aria-label="Sections">
             {(["features", "chat", "blueprint"] as Pane[]).map((p) => (
               <button key={p} aria-pressed={pane === p} onClick={() => setPane(p)}>
-                {p === "features" ? `Features ${t.accepted}/${current.features.length}` : p === "chat" ? "Agent" : queueId ? "Build ·" : "Build"}
+                {p === "features" ? `Features ${t.accepted}/${current.features.length}` : p === "chat" ? "Agent" : threadId ? "Build ·" : "Build"}
               </button>
             ))}
           </nav>
@@ -274,7 +275,7 @@ export function AppBuilder() {
                   Agent
                 </button>
                 <button role="tab" aria-selected={side === "blueprint"} onClick={() => setSide("blueprint")}>
-                  {queueId ? `Build · ${live.phase === "working" ? "building" : live.phase === "done" ? "built" : live.phase === "gone" ? "not queued" : "queued"}` : "Blueprint & build"}
+                  {threadId ? `Build · ${PHASE_LABEL[build.phase].toLowerCase()}` : "Blueprint & build"}
                 </button>
               </div>
               <div className={`ab-side-chat${side === "chat" ? " is-desk" : ""}${pane === "chat" ? " is-mob" : ""}`}>{chat}</div>
@@ -283,10 +284,11 @@ export function AppBuilder() {
                   project={current}
                   busy={busy}
                   step={ab.step}
-                  live={live}
-                  onRefresh={refresh}
-                  onQueue={ab.sendToQueue}
-                  onCancel={ab.cancelBuild}
+                  build={build}
+                  bridge={ab.bridge}
+                  onBuild={ab.build}
+                  onFileForLater={ab.fileForLater}
+                  onStop={ab.thread.stop}
                   onCards={ab.sendCards}
                   onRename={ab.rename}
                   onDepth={ab.setDepth}

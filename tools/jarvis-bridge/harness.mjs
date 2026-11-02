@@ -32,7 +32,7 @@ import { existsSync } from "node:fs";
 import { startClaude, CLAUDE_LABEL } from "./harness-claude.mjs";
 import { startAcp, DEEPSEEK_LABEL, DSH_CWD } from "./harness-acp.mjs";
 import {
-  createWorktree, landWorktree, removeWorktree, worktreeDiff, worktreeStatus,
+  createProject, createWorktree, landWorktree, removeWorktree, worktreeDiff, worktreeStatus,
   DEFAULT_REPO, WORKTREE_ROOT,
 } from "./worktree.mjs";
 import { startPreview, stopPreview, publicView } from "./harness-preview.mjs";
@@ -115,7 +115,13 @@ function mustGet(id) {
   return s;
 }
 
-export async function startThread({ harness = "claude", title = "", repo, strict = false, laneWrites = false, trust = "trusted", model = "" } = {}) {
+/**
+ * `project` is App Builder's case: a brand-new app that exists nowhere yet, so
+ * there is no repository to cut a worktree from. Pass the slug it should be
+ * built under and the thread gets a real project folder with a repository of
+ * its own instead. Everything else about a thread is identical.
+ */
+export async function startThread({ harness = "claude", title = "", repo, project = "", strict = false, laneWrites = false, trust = "trusted", model = "" } = {}) {
   const which = HARNESSES[harness];
   if (!which) throw Object.assign(new Error(`There is no "${harness}" harness.`), { status: 400 });
 
@@ -124,7 +130,9 @@ export async function startThread({ harness = "claude", title = "", repo, strict
   if (!found?.available) throw Object.assign(new Error(found?.why ?? "That harness is not available."), { status: 400 });
 
   const id = randomUUID();
-  const worktree = await createWorktree({ id, repo, title: title || harness });
+  const worktree = project
+    ? await createProject({ id, slug: project, title })
+    : await createWorktree({ id, repo, title: title || harness });
 
   const s = {
     id,

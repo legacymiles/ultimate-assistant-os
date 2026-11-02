@@ -30,9 +30,9 @@
 // ---------------------------------------------------------------------------
 
 import { execFile } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, copyFileSync, rmdirSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, copyFileSync, readdirSync, rmdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 
 /** Where threads live. Outside the repo, and outside OneDrive. */
 export const WORKTREE_ROOT =
@@ -41,6 +41,15 @@ export const WORKTREE_ROOT =
 /** The repo a thread works on when the page does not name one. */
 export const DEFAULT_REPO =
   process.env.JARVIS_REPO || resolve(homedir(), "OneDrive", "Desktop", "claude code files");
+
+/**
+ * Where a brand-new app is built.
+ *
+ * App Builder's "Build it" makes a product that is not part of any existing
+ * repository, so there is nothing to cut a worktree from. Those threads get a
+ * real project folder here instead, with a repository of its own.
+ */
+export const PROJECTS_ROOT = process.env.JARVIS_PROJECTS_ROOT || join(homedir(), "Projects");
 
 /**
  * Files copied into a new worktree although git does not track them.
@@ -169,6 +178,66 @@ export async function createWorktree({ id, repo = DEFAULT_REPO, title = "" }) {
   return { path, branch, base, repo: root, notes };
 }
 
+/**
+ * Make a project folder for one thread: a brand-new app, in a repository of
+ * its own, under PROJECTS_ROOT.
+ *
+ * This is the other half of createWorktree. A worktree needs something to be
+ * cut from, and App Builder's "Build it" has nothing — the app does not exist
+ * anywhere yet. So the thread gets a real folder with `git init`, and the same
+ * record shape back, so the rest of the harness does not care which it got.
+ *
+ * Two deliberate differences from a worktree, both of which would be bugs if
+ * copied over:
+ *
+ *   `.env.local` is NOT carried. A worktree is the same product as its repo,
+ *   so it may hold the same keys. A new app is a different product heading for
+ *   a repository of its own, and copying the hub's env file in would put every
+ *   key the owner has into a repo that is about to be pushed to GitHub.
+ *
+ *   node_modules is NOT junctioned. A new app has its own dependencies; a
+ *   junction back to an unrelated project's packages would resolve imports
+ *   that the new app never declared, and the first clean install elsewhere
+ *   would be the first time anyone found out.
+ */
+export async function createProject({ id, slug = "", title = "" }) {
+  const name = slugify(slug || title, "new-app");
+  const root = resolve(PROJECTS_ROOT);
+  const path = resolve(root, name);
+  // `slugify` cannot emit a separator or a dot segment, but the check is cheap
+  // and this value decides where a harness is allowed to write.
+  if (path !== root && !path.startsWith(root + sep)) {
+    throw Object.assign(new Error("A project folder has to sit inside the projects folder."), { status: 400 });
+  }
+  if (existsSync(path) && readdirSync(path).length > 0) {
+    throw Object.assign(
+      new Error(`There is already something at ${path}. Rename the app, or move that folder, and build again.`),
+      { status: 409 },
+    );
+  }
+
+  mkdirSync(path, { recursive: true });
+  const notes = [];
+  await git(["init", "-b", "main"], path, 60_000);
+  writeFileSync(
+    join(path, ".gitignore"),
+    ["node_modules/", ".next/", ".env", ".env.local", ".env*.local", "dist/", "build/", ".DS_Store", "*.log", ""].join("\n"),
+    "utf8",
+  );
+  writeFileSync(join(path, "README.md"), `# ${title || name}\n\nBuilt from Jarvis App Builder.\n`, "utf8");
+  try {
+    await git(["add", "-A"], path, 60_000);
+    await git(["commit", "-m", `${title || name}: first commit`], path, 60_000);
+  } catch (e) {
+    // Almost always a missing user.name/user.email. The folder and the repo
+    // are real either way, so the thread opens and says what is missing.
+    notes.push(`The first commit did not run (${String(e?.message ?? e).trim().split("\n")[0]}).`);
+  }
+  notes.push("A new project: its own folder and repository, no node_modules and no keys carried over.");
+
+  return { path, branch: "main", base: "", repo: path, project: true, notes };
+}
+
 /** `git status --porcelain`, parsed into the rows a panel can draw. */
 export async function worktreeStatus(path) {
   if (!path || !existsSync(path)) return { exists: false, files: [], added: 0, removed: 0, dirty: false };
@@ -228,6 +297,13 @@ export async function landWorktree({ path, repo, base, message, merge = true, at
     out.committed = true;
   }
   out.sha = (await git(["rev-parse", "--short", "HEAD"], path)).trim();
+
+  // A project thread IS its own repository — there is no base checkout behind
+  // it to merge into, so committing on main is the whole of landing.
+  if (!base || resolve(repo) === resolve(path)) {
+    out.why = "Committed on main in its own repository. Nothing is pushed — that is still yours to do.";
+    return out;
+  }
 
   if (!merge) {
     out.why = "Committed on its branch. Nothing merged, because you did not ask for it.";
@@ -299,6 +375,15 @@ function unlinkModules(path) {
 
 /** Throw the thread away: the worktree, and the branch if nothing was kept. */
 export async function removeWorktree({ path, repo, branch, deleteBranch = true }) {
+  // A project thread is not a worktree — its folder IS the owner's new app, and
+  // `git worktree remove` fails on it, which would drop through to the rmSync
+  // below and delete the whole project. Discarding a thread must never do that.
+  if (!repo || resolve(repo) === resolve(path)) {
+    return {
+      removed: false,
+      why: `${path} is a project of its own, not a worktree, so it was left alone. Delete the folder yourself if you do not want it.`,
+    };
+  }
   unlinkModules(path);
   await git(["worktree", "remove", "--force", path], repo, 120_000).catch(() => {
     // A worktree whose folder is already gone still leaves an entry behind,
