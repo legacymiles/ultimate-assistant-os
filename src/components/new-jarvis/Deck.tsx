@@ -86,7 +86,7 @@ import type { AuditProposalLike } from "@/lib/new-jarvis/ideas";
 import type { JarvisStore } from "@/lib/jarvis/types";
 import { MicButton } from "../jarvis/MicButton";
 import { useDictation } from "@/lib/new-jarvis/useDictation";
-import { phoneLine, type PhoneSignals } from "@/lib/dashboard/phoneStatus";
+import { phoneLine, sweepReport, type PhoneSignals } from "@/lib/dashboard/phoneStatus";
 import { photoConfidence } from "@/lib/recall/photos/confidence";
 import { passesFilter, sortByConfidence, type Confidence, type ConfidenceFilter, type ConfidenceSort } from "@/lib/confidence/calibrate";
 
@@ -258,6 +258,29 @@ function since(t: number | null): string {
  */
 function lastFromPhone(phone: PhoneSignals): string {
   return phoneLine(phone, (t) => since(t)).text;
+}
+
+/**
+ * What the phone last said it still has — its own row, not the subtitle.
+ *
+ * "Did the clean-up work?" had no answer anywhere in Jarvis: the Shortcut's
+ * reply is JSON behind a tap on the phone, and the widget's subtitle is taken
+ * by "N new from your iPhone" whenever anything is waiting. This row is always
+ * there once a report has arrived.
+ */
+function PhoneReport({ phone }: { phone: PhoneSignals }) {
+  const r = sweepReport(phone, (t) => since(t));
+  if (!r) return null;
+  return (
+    <p
+      className={`mb-1.5 flex items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] ${
+        r.warn ? "border-amber-500/40 bg-amber-500/10 text-amber-200" : "border-line-soft bg-panel-2 text-ink-muted"
+      }`}
+    >
+      <Icon.Camera width={12} height={12} className="mt-[1px] shrink-0" aria-hidden />
+      <span>{r.text}</span>
+    </p>
+  );
 }
 
 /** The last photos filed, for the preview strip when nothing is waiting. */
@@ -635,6 +658,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                   </>
                 }
               >
+                <PhoneReport phone={camera.phone} />
                 {queue.length > 0 ? (
                   <>
                     <p className="mb-1.5 text-[11px] text-ink-muted">
@@ -785,6 +809,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
           }
         >
           <div className="p-3 sm:p-4">
+          <PhoneReport phone={camera.phone} />
           {(camera.busy || camera.error) && <p className="mb-2 text-[11.5px] text-ink-muted">{camera.busy || camera.error}</p>}
           {queue.length === 0 ? (
             <>

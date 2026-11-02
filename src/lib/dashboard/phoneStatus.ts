@@ -55,6 +55,40 @@ const SAME_RUN_MS = 5 * 60_000;
  */
 const THIN_REPORT = 3;
 
+export interface SweepReport extends PhoneLine {
+  at: number;
+}
+
+/**
+ * The last "still on my phone" report as a line of its own.
+ *
+ * phoneLine can only ever be one string, and it is the widget's subtitle —
+ * which a queue with photos in it replaces outright, so on the one account
+ * that most needs this (photos always waiting) the report was never on
+ * screen. Camera Autopilot gives this its own row instead, and unlike the
+ * subtitle it is kept however old it is: `since` dates it, and "yesterday" is
+ * the answer to "did my clean-up run?" just as much as "just now" is.
+ */
+export function sweepReport(s: PhoneSignals, since: (t: number) => string): SweepReport | null {
+  const r = s.sweep;
+  if (!r) return null;
+  if (r.checked < THIN_REPORT) {
+    const n = r.checked === 1 ? "1 photo" : `${r.checked} photos`;
+    return {
+      at: r.at,
+      warn: true,
+      text: `Your phone reported only ${n} still on it ${since(r.at)} — the clean-up's Combine Text isn't picking up the names, so nothing was deleted.`,
+    };
+  }
+  return {
+    at: r.at,
+    warn: false,
+    text: r.removed
+      ? `Phone checked ${since(r.at)} · ${r.checked} photos still on it · ${r.removed} deleted here`
+      : `Phone checked ${since(r.at)} · ${r.checked} photos still on it · nothing to delete`,
+  };
+}
+
 export function phoneLine(s: PhoneSignals, since: (t: number) => string): PhoneLine {
   const push = s.lastPush ?? 0;
   const checkIn = s.lastCheckIn ?? 0;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NO_SIGNALS, phoneLine, readSignals } from "./phoneStatus";
+import { NO_SIGNALS, phoneLine, readSignals, sweepReport } from "./phoneStatus";
 
 const since = (t: number) => `@${t}`;
 const MIN = 60_000;
@@ -114,5 +114,34 @@ describe("phoneLine — what the phone still has", () => {
     const s = readSignals({ sweep: { at: "2026-10-25T21:00:00.000Z", checked: 38, removed: 2 } });
     expect(s.sweep).toEqual({ at: Date.parse("2026-10-25T21:00:00.000Z"), checked: 38, removed: 2 });
     expect(readSignals({ sweep: { at: "nope", checked: 3, removed: 0 } }).sweep).toBeNull();
+  });
+});
+
+describe("sweepReport — the row Camera Autopilot shows", () => {
+  const at = 100 * MIN;
+
+  it("is nothing at all until the phone has reported", () => {
+    expect(sweepReport(NO_SIGNALS, since)).toBeNull();
+  });
+
+  it("says what was still there and what went", () => {
+    const r = sweepReport({ ...NO_SIGNALS, sweep: { at, checked: 38, removed: 2 } }, since);
+    expect(r).toEqual({ at, warn: false, text: `Phone checked @${at} · 38 photos still on it · 2 deleted here` });
+  });
+
+  it("says so when there was nothing to delete", () => {
+    expect(sweepReport({ ...NO_SIGNALS, sweep: { at, checked: 38, removed: 0 } }, since)?.text).toContain("nothing to delete");
+  });
+
+  it("warns on the report that is really a miswired Shortcut", () => {
+    const r = sweepReport({ ...NO_SIGNALS, sweep: { at, checked: 1, removed: 0 } }, since);
+    expect(r?.warn).toBe(true);
+    expect(r?.text).toContain("Combine Text");
+  });
+
+  it("keeps an old report, because when it last ran is the answer too", () => {
+    // Unlike the status line, this row is not gated on the newest run: a
+    // report from yesterday still answers "did my clean-up ever work?".
+    expect(sweepReport({ ...NO_SIGNALS, lastPush: 999 * MIN, sweep: { at: 1 * MIN, checked: 38, removed: 0 } }, since)?.at).toBe(1 * MIN);
   });
 });

@@ -550,6 +550,11 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                   ]}
                 />
                 <p className="mt-2 text-[11px] text-ink-faint">Only photos still waiting to be sorted are removed. Anything you already filed stays filed.</p>
+                <p className="mt-2 text-[11.5px]">
+                  <b className="text-ink">To check it worked:</b> run the Shortcut, then look at the top of the Camera Autopilot widget. It says what
+                  your phone reported — <i>“38 photos still on it · 2 deleted here”</i>. The Shortcut’s own result box is a line of code you can
+                  ignore.
+                </p>
               </div>
             </div>
           )}
