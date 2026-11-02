@@ -39,15 +39,30 @@ this one is taken apart.
    - the one at the top, ending `/inbox/cursor?key=`
    - the one inside the Repeat, ending `/inbox/push?key=`
    - the one at the bottom, ending `/inbox/present?key=`
-4. Tap the **ⓘ** (or the name at the top → **Details**). Find **Import
+
+   Each URL must now **end in a blue chip**. One that still ends in `=` has no
+   key attached, and every install will send an empty one. This is the step
+   that silently failed the first time it was tried: deleting the old key
+   looks like the whole job, and the Shortcut runs perfectly happily without
+   the chip.
+4. In the **Get Contents of URL** that sends the photos, swipe left on the
+   `X-Dashboard-Token` header row and **delete it**. The `?key=` in the URL is
+   the only credential the site needs, and a header is a second copy that
+   cannot be answered by an import question — so it ships to everyone.
+5. Tap the **ⓘ** (or the name at the top → **Details**). Find **Import
    Questions** → **Add Import Question** → choose the empty **Text** action →
    type the question: *Paste your Jarvis key*.
-5. Test it: type the owner's own key into the Text box, run it, check photos
+6. Test it: type the owner's own key into the Text box, run it, check photos
    arrive and Camera Autopilot's row reports back.
-6. **Clear the Text box again.** This is the step that keeps the key out of the
+7. **Clear the Text box again.** This is the step that keeps the key out of the
    shared file. The import question does not remove a value that is already
    there — it only asks the installer to replace it.
-7. **Share** → **Copy iCloud Link**.
+8. **Share** → **Copy iCloud Link**.
+
+A duplicate is not always a faithful copy of what was working: the first one
+made this way came back with Combine Text emptied and the clean-up POST
+pointing at the sending link. Run the check below before trusting it — that is
+what it is for.
 
 ## Before publishing the link
 
@@ -55,10 +70,12 @@ this one is taken apart.
 node scripts/check-shortcut-link.mjs https://www.icloud.com/shortcuts/<id>
 ```
 
-It downloads the Shortcut Apple is actually serving, reads every string out of
-the plist, and refuses the link if a key, token, secret or password is sitting
-inside it — or if the import question is missing, which would leave every
-installer with an empty key and no prompt.
+It downloads the Shortcut Apple is actually serving, parses the property list,
+and reads the thing the way Shortcuts does — which action feeds which, and what
+is typed where. It prints the action list, then refuses the link if a key,
+token, secret or password is sitting inside it, if the import question is
+missing, if a URL stops at `?key=` without the chip, if Combine Text is empty,
+or if the clean-up posts its names to the sending link.
 
 Exit 0 means it is safe to hand out.
 
