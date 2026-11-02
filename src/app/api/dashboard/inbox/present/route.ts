@@ -45,6 +45,9 @@ export async function POST(req: Request) {
   if (!names.length) return NextResponse.json({ error: "No photo names came through. Set the field to the combined names." }, { status: 400 });
   const window = Math.min(90, Math.max(1, Number(days) || 30));
   await noteCheckIn(uid).catch(() => undefined);
-  const removed = await prune(uid, names, window);
+  const { removed, refused } = await prune(uid, names, window);
+  // `refused` is the interesting case and it is read on a phone, in the
+  // Shortcut's own result box, so it goes at the top as plain prose.
+  if (refused) return NextResponse.json({ error: refused, removed: 0, checked: names.length });
   return NextResponse.json({ removed, checked: names.length });
 }

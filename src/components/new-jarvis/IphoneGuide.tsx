@@ -55,6 +55,7 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
   const [minting, setMinting] = useState(false);
   const [note, setNote] = useState("");
   const [qr, setQr] = useState("");
+  const [shortcutQr, setShortcutQr] = useState("");
   const [testFrom, setTestFrom] = useState<number | null>(null);
   /** A link the user already has, pasted back in to unlock the other two. */
   const [pasted, setPasted] = useState("");
@@ -97,6 +98,13 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
       .then(setQr)
       .catch(() => setQr(""));
   }, [guideUrl]);
+
+  useEffect(() => {
+    if (!SHORTCUT_LINK) return;
+    void QRCode.toDataURL(SHORTCUT_LINK, { margin: 1, width: 220, color: { dark: "#e8f6ff", light: "#00000000" } })
+      .then(setShortcutQr)
+      .catch(() => setShortcutQr(""));
+  }, []);
 
   useEffect(() => {
     if (!note) return;
@@ -297,13 +305,31 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                     <a href={SHORTCUT_LINK} className="deck-btn deck-btn--go">
                       Add the Shortcut
                     </a>
-                    {token && (
+                    {key && (
                       <button type="button" className="deck-btn" onClick={() => copy(myLink, "Your link")}>
                         <Icon.Copy width={12} height={12} aria-hidden /> Copy your link first
                       </button>
                     )}
                   </div>
-                  <p className="mt-2 text-[11px] text-ink-faint">Prefer to build it yourself? The steps are below.</p>
+                  {/*
+                    Reading this on a laptop is the common case — the link is
+                    useless there, since Shortcuts only exists on the phone. The
+                    QR hands it over without typing anything.
+                  */}
+                  {shortcutQr && !phone && (
+                    <div className="mt-3 flex items-center gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={shortcutQr} alt="QR code to add the Shortcut on your iPhone" className="h-[104px] w-[104px] rounded-md" />
+                      <p className="text-[11px] leading-snug text-ink-muted">
+                        On a laptop? Point your iPhone camera at this. It opens the Shortcut ready to add — then come back here for your
+                        links.
+                      </p>
+                    </div>
+                  )}
+                  <p className="mt-2 text-[11px] text-ink-faint">
+                    It arrives with placeholder links in its three URL actions; replace them with yours from the step before. Prefer to
+                    build it from scratch? The steps are below.
+                  </p>
                 </div>
               )}
               <p>

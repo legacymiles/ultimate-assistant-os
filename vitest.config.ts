@@ -13,5 +13,12 @@ export default defineConfig({
     include: ["src/**/*.test.ts"],
     exclude: ["**/node_modules/**", "src/lib/auteur/director/director.test.ts"],
   },
-  resolve: { alias: { "@": path.resolve(__dirname, "src") } },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "src"),
+      // See test/stubs/server-only.ts — without this, importing any
+      // `server-only` module throws at collection time.
+      "server-only": path.resolve(__dirname, "test/stubs/server-only.ts"),
+    },
+  },
 });
