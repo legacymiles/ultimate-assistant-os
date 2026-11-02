@@ -18,6 +18,7 @@ import type { UseBuild } from "@/lib/app-builder/useBuild";
 import type { Busy, QueueStep } from "@/lib/app-builder/useAppBuilder";
 import type { BridgeHealth } from "@/lib/new-jarvis/bridge";
 import { BuildStatus } from "./BuildStatus";
+import { MoveIntoHub } from "./MoveIntoHub";
 
 export function Pipeline({ project }: { project: BuilderProject | null }) {
   const u = project?.understanding;
@@ -86,7 +87,10 @@ export function Blueprint({
   step,
   build,
   bridge,
+  moving,
   onBuild,
+  onMove,
+  onRetire,
   onFileForLater,
   onStop,
   onCards,
@@ -99,7 +103,11 @@ export function Blueprint({
   step: QueueStep;
   build: UseBuild;
   bridge: BridgeHealth;
+  /** The second thread: the one moving this app into the hub. */
+  moving: UseBuild;
   onBuild: (clientName?: string) => void;
+  onMove: () => void;
+  onRetire: () => void;
   onFileForLater: (clientName?: string) => void;
   onStop: () => void;
   onCards: () => void;
@@ -206,6 +214,7 @@ export function Blueprint({
       {started && (
         <BuildStatus project={project} busy={busy} build={build} bridge={bridge} onBuildAgain={() => onBuild(who || undefined)} onStop={onStop} />
       )}
+      <MoveIntoHub project={project} busy={busy} moving={moving} onMove={onMove} onRetire={onRetire} />
 
       <div className="ab-launch">
         {!project.edit && (

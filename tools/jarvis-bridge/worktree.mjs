@@ -200,9 +200,11 @@ export async function createWorktree({ id, repo = DEFAULT_REPO, title = "" }) {
  *   that the new app never declared, and the first clean install elsewhere
  *   would be the first time anyone found out.
  */
-export async function createProject({ id, slug = "", title = "" }) {
+export async function createProject({ id, slug = "", title = "", client = false }) {
   const name = slugify(slug || title, "new-app");
-  const root = resolve(PROJECTS_ROOT);
+  // Work built FOR someone else is kept apart from the owner's own, so the
+  // folder you hand over is obviously theirs and nothing of yours is beside it.
+  const root = resolve(client ? join(PROJECTS_ROOT, "clients") : PROJECTS_ROOT);
   const path = resolve(root, name);
   // `slugify` cannot emit a separator or a dot segment, but the check is cheap
   // and this value decides where a harness is allowed to write.
@@ -233,7 +235,11 @@ export async function createProject({ id, slug = "", title = "" }) {
     // are real either way, so the thread opens and says what is missing.
     notes.push(`The first commit did not run (${String(e?.message ?? e).trim().split("\n")[0]}).`);
   }
-  notes.push("A new project: its own folder and repository, no node_modules and no keys carried over.");
+  notes.push(
+    client
+      ? "A client project: its own folder under Projects/clients and its own repository, no node_modules and no keys carried over."
+      : "A new project: its own folder and repository, no node_modules and no keys carried over.",
+  );
 
   return { path, branch: "main", base: "", repo: path, project: true, notes };
 }

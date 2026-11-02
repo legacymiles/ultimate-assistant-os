@@ -193,6 +193,12 @@ export interface Handoff {
   thread?: { id: string; at: string };
   /** Set once the build finished and said where it put things. */
   built?: BuiltApp;
+  /**
+   * Moving this app INTO the hub: the thread doing it, and the pull request it
+   * opened. The standalone repository is untouched until `retiredAt`, so a
+   * move that goes wrong costs a branch and nothing else.
+   */
+  absorb?: { threadId: string; at: string; prUrl?: string; retiredAt?: string };
   /** Only when the owner chose to file it for later instead of building now. */
   queueId?: string;
   cards?: { number: number; url?: string; title: string }[];

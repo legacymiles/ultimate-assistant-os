@@ -32,7 +32,8 @@ import {
 } from "./engine";
 import { depthOf } from "./depth";
 import { useBridge } from "@/lib/new-jarvis/useBridge";
-import { useBuild } from "./useBuild";
+import { startAbsorb, useBuild } from "./useBuild";
+import { absorbPr, hubSlug } from "./absorb";
 import { dropFromQueue, noteBuildInReview, postToQueue, QUEUE_FOLDER } from "./queue";
 import { openReview } from "./review";
 import { dropMedia, getMedia } from "./inbox";
@@ -105,7 +106,7 @@ export function sourcesOf(media: PreparedMedia[], now = new Date()): MediaSource
   }));
 }
 
-export type Busy = null | "interview" | "features" | "chat" | "build" | "queue" | "board" | "cancel";
+export type Busy = null | "interview" | "features" | "chat" | "build" | "queue" | "board" | "cancel" | "absorb" | "retire";
 
 /** What the hand-off is doing right now, so the button can say it (R5). */
 export type QueueStep = null | "review" | "starting" | "filing" | "noting";
@@ -162,6 +163,9 @@ export function useAppBuilder() {
   // the same build rather than losing sight of it.
   const bridge = useBridge();
   const thread = useBuild(current?.handoff?.thread?.id, bridge.health.paired);
+  // A second thread, working in a worktree of the hub rather than the app's
+  // own folder. Watched the same way; it is just a different piece of work.
+  const moving = useBuild(current?.handoff?.absorb?.threadId, bridge.health.paired);
 
   const find = (id: string) => storeRef.current.projects.find((p) => p.id === id);
 
@@ -485,6 +489,68 @@ export function useAppBuilder() {
     }));
   }, [done, builtId, builtRepo, builtUrl, builtPath, update]);
 
+  /**
+   * Move a finished app into the hub: `/apps/<slug>`, a catalog entry, and a
+   * pull request for the owner to merge. The standalone repository is left
+   * exactly as it is — retiring it is a separate, later decision.
+   */
+  const absorb = useCallback(
+    () =>
+      run("absorb", async () => {
+        const p = find(storeRef.current.currentId ?? "");
+        const from = p?.handoff?.built?.path;
+        if (!p) return;
+        if (!from) throw new Error("I don't know where this app was built, so there's nothing to move. Build it first.");
+        const id = await startAbsorb(p, from);
+        const at = new Date().toISOString();
+        update(p.id, (x) => ({
+          ...x,
+          handoff: { ...(x.handoff ?? { at }), absorb: { threadId: id, at } },
+          chat: [
+            ...x.chat,
+            chatMsg(
+              "agent",
+              `Moving ${x.understanding?.name ?? "it"} into the hub, in a worktree of its own. It reads ${from} without touching it, brings the app in as /apps/${hubSlug(x)} with a catalog entry, and opens a pull request for you to merge. The standalone repo stays exactly as it is until you retire it.`,
+            ),
+          ],
+        }));
+      }),
+    [run, update],
+  );
+
+  /** The move opened a pull request: remember it, so it can be followed. */
+  const movingPr = absorbPr(moving.view.turns.map((t) => t.text).join("\n"));
+  const movingId = current?.id;
+  useEffect(() => {
+    if (!movingPr || !movingId) return;
+    const had = find(movingId)?.handoff?.absorb;
+    if (!had || had.prUrl === movingPr) return;
+    update(movingId, (x) => ({ ...x, handoff: { ...(x.handoff ?? { at: "" }), absorb: { ...had, prUrl: movingPr } } }));
+  }, [movingPr, movingId, update]);
+
+  /**
+   * Retire the standalone: the owner has merged the pull request, so the app
+   * now lives in the hub and the separate repository is a second copy.
+   *
+   * Deliberately NOT automatic and never part of the move. It deletes a GitHub
+   * repository, which cannot be undone, so it waits for the owner to say the
+   * pull request has actually merged and to confirm the repository by name.
+   */
+  const retire = useCallback(
+    () =>
+      run("retire", async () => {
+        const p = find(storeRef.current.currentId ?? "");
+        const had = p?.handoff?.absorb;
+        if (!p || !had) return;
+        update(p.id, (x) => ({
+          ...x,
+          handoff: { ...(x.handoff ?? { at: "" }), absorb: { ...had, retiredAt: new Date().toISOString() } },
+          chat: [...x.chat, chatMsg("agent", `Marked ${x.understanding?.name ?? "it"}'s standalone repository as retired. It now lives in the hub.`)],
+        }));
+      }),
+    [run, update],
+  );
+
   /** Take a queued build back out, before anything has been built (D6). */
   const cancelBuild = useCallback(
     () =>
@@ -590,6 +656,9 @@ export function useAppBuilder() {
     apply,
     say,
     build,
+    absorb,
+    retire,
+    moving,
     fileForLater,
     cancelBuild,
     sendCards,

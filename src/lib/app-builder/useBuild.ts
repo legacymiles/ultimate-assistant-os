@@ -20,10 +20,11 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BridgeError, call } from "@/lib/new-jarvis/bridge";
+import { BridgeError, call, knownFolder } from "@/lib/new-jarvis/bridge";
 import { emptyThread, reduceEvents } from "@/lib/new-jarvis/harness/model";
 import type { GateCard, HarnessEvent, ThreadSummary, ThreadView } from "@/lib/new-jarvis/harness/types";
-import { buildBrief, phaseOf, projectSlug, resultLinks, threadTitle, type BuildPhase } from "./build";
+import { absorbBrief, absorbTitle } from "./absorb";
+import { buildBrief, isForClient, phaseOf, projectSlug, resultLinks, threadTitle, type BuildPhase } from "./build";
 import type { BuilderProject } from "./types";
 
 /** How often to re-read, by what the thread is doing. null = stop polling. */
@@ -143,6 +144,9 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
         // The bridge makes a real folder with a repository of its own, because
         // a brand-new app has nothing to cut a worktree from.
         project: projectSlug(p),
+        // Built for a named client: kept under Projects/clients, apart from
+        // the owner's own work, so the folder handed over is only theirs.
+        projectClient: isForClient(p),
         laneWrites: true,
         // Pinned to "trusted", not inherited from the owner's setting.
         //
@@ -227,4 +231,39 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
     stop,
     refresh: () => void pull(),
   };
+}
+
+/**
+ * Start the thread that moves a finished app into the hub.
+ *
+ * A standalone function rather than part of the hook, because it starts a
+ * SECOND thread — the build's thread is still the project's own, and this one
+ * works in a worktree of the hub instead. `knownFolder()` is the bridge's own
+ * directory; `repoInfo` resolves the git toplevel from it, so that is enough
+ * to find the hub without doing arithmetic on paths.
+ */
+export async function startAbsorb(p: BuilderProject, from: string): Promise<string> {
+  const repo = knownFolder();
+  if (!repo) throw new Error("This browser hasn't heard from your PC yet, so I don't know where the hub is. Open Jarvis on that computer and try again.");
+  try {
+    const { session } = await call<{ session: ThreadSummary }>("harness/start", {
+      harness: "claude",
+      title: absorbTitle(p),
+      repo,
+      laneWrites: true,
+      // Its own worktree of the hub, so writes land nowhere near the checkout
+      // the owner is looking at; `autoAllow` still gates anything outside it.
+      trust: "trusted",
+    });
+    await call("harness/say", { id: session.id, text: absorbBrief(p, from) });
+    return session.id;
+  } catch (e) {
+    throw new Error(
+      e instanceof BridgeError && e.status === 0
+        ? "The agent on your PC isn't running, so there's nothing to move it with."
+        : e instanceof Error
+          ? e.message
+          : String(e),
+    );
+  }
 }

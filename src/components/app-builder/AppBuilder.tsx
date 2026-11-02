@@ -286,7 +286,10 @@ export function AppBuilder() {
                   step={ab.step}
                   build={build}
                   bridge={ab.bridge}
+                  moving={ab.moving}
                   onBuild={ab.build}
+                  onMove={ab.absorb}
+                  onRetire={ab.retire}
                   onFileForLater={ab.fileForLater}
                   onStop={ab.thread.stop}
                   onCards={ab.sendCards}

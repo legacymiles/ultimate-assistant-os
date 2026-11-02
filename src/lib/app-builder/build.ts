@@ -27,6 +27,18 @@ export function projectSlug(p: BuilderProject): string {
   return slugOf(p.understanding?.name ?? p.idea);
 }
 
+/**
+ * Is this being built FOR someone else?
+ *
+ * The review link's client name is the signal, because that is the one place
+ * the owner has already said who it is for. A client build is kept in its own
+ * folder so the thing handed over is obviously theirs, with none of the
+ * owner's work beside it.
+ */
+export function isForClient(p: BuilderProject): boolean {
+  return Boolean(p.handoff?.review?.clientName?.trim() || p.edit?.clientName?.trim());
+}
+
 /** What the thread is called in the bridge's own thread list. */
 export function threadTitle(p: BuilderProject): string {
   return (p.understanding?.name ?? p.idea).slice(0, 48) || "New app";

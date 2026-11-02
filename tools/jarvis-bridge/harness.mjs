@@ -121,7 +121,7 @@ function mustGet(id) {
  * built under and the thread gets a real project folder with a repository of
  * its own instead. Everything else about a thread is identical.
  */
-export async function startThread({ harness = "claude", title = "", repo, project = "", strict = false, laneWrites = false, trust = "trusted", model = "" } = {}) {
+export async function startThread({ harness = "claude", title = "", repo, project = "", projectClient = false, strict = false, laneWrites = false, trust = "trusted", model = "" } = {}) {
   const which = HARNESSES[harness];
   if (!which) throw Object.assign(new Error(`There is no "${harness}" harness.`), { status: 400 });
 
@@ -131,7 +131,7 @@ export async function startThread({ harness = "claude", title = "", repo, projec
 
   const id = randomUUID();
   const worktree = project
-    ? await createProject({ id, slug: project, title })
+    ? await createProject({ id, slug: project, title, client: projectClient })
     : await createWorktree({ id, repo, title: title || harness });
 
   const s = {
