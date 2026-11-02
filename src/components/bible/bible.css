@@ -67,6 +67,20 @@
   z-index: 0;
 }
 
+/* Mounted as Money Agent Studio's Bible tab: it is a panel in someone else's
+   page now, not the page. So it stops reserving a whole viewport, and its
+   ambient light is painted inside its own box rather than over the window —
+   a fixed glow would still be lying across the studio's other tabs. */
+.bible[data-embedded] {
+  min-height: min(78dvh, 900px);
+  border-top: 1px solid var(--hair);
+  overflow: clip;
+}
+
+.bible[data-embedded]::before {
+  position: absolute;
+}
+
 /* ---- the rail ---------------------------------------------------------- */
 
 .bible-rail {

@@ -4,6 +4,7 @@
 // mounted in the browser only — a server render would disagree with it.
 
 import dynamic from "next/dynamic";
+import type { RoomId } from "@/lib/bible/rooms";
 import type { TabId } from "./MoneyAgentStudio";
 
 const Studio = dynamic(() => import("./MoneyAgentStudio").then((m) => m.MoneyAgentStudio), {
@@ -13,6 +14,13 @@ const Studio = dynamic(() => import("./MoneyAgentStudio").then((m) => m.MoneyAge
   ),
 });
 
-export function MoneyAgentStudioMount({ initialTab }: { initialTab: TabId | null }) {
-  return <Studio initialTab={initialTab} />;
+export function MoneyAgentStudioMount({
+  initialTab,
+  initialRoom = null,
+}: {
+  initialTab: TabId | null;
+  /** The Bible tab's own room, when a link named one. */
+  initialRoom?: RoomId | null;
+}) {
+  return <Studio initialTab={initialTab} initialRoom={initialRoom} />;
 }

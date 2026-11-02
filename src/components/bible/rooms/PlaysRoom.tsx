@@ -3,12 +3,15 @@
 // ---------------------------------------------------------------------------
 // Money Plays — the money that is actually running.
 //
-// The owner's rule (Oct 2026): Money Agent Studio and Financial Bible are two
-// apps, but its earnings flow in here. So this room does not keep its own
-// copy of anything: it reads Money Agent Studio's synced board and Personas
-// Studio's (for views) and shows every agent as a play — what it is, what it
-// has made, what it paid, what each video is worth. Ideas not running yet
-// stay in Build Plans.
+// This room does not keep its own copy of anything: it reads Money Agent
+// Studio's synced board and Personas Studio's (for views) and shows every
+// agent as a play — what it is, what it has made, what it paid, what each
+// video is worth. Ideas not running yet stay in Build Plans.
+//
+// The two were separate apps sharing that board (Oct 2026) and are now one:
+// the Bible is a tab of Money Agent Studio. `embedded` is which of those this
+// render is, because "Open Money Agent Studio ↗" is a door to the room you
+// are standing in.
 // ---------------------------------------------------------------------------
 
 import Link from "next/link";
@@ -19,7 +22,7 @@ import { AGENT_KINDS } from "@/lib/money-agents/types";
 import { KEY as PERSONAS_KEY, loadBoard as loadPersonas } from "@/lib/social-personas/store";
 import { useRemotePull } from "@/lib/sync/useSync";
 
-export function PlaysRoom() {
+export function PlaysRoom({ embedded = false }: { embedded?: boolean }) {
   const [board, setBoard] = useState(() => loadBoard());
   const [personas, setPersonas] = useState(() => loadPersonas().personas);
   useRemotePull(KEY, () => setBoard(loadBoard()));
@@ -35,11 +38,16 @@ export function PlaysRoom() {
       <header className="bible-plays-head">
         <div>
           <h2>Money Plays</h2>
-          <p>Every money agent you run, with what it actually paid. Kept in Money Agent Studio — this room reads it live.</p>
+          <p>
+            Every money agent you run, with what it actually paid.{" "}
+            {embedded ? "The Agents tab runs them; this room is the ledger." : "Kept in Money Agent Studio — this room reads it live."}
+          </p>
         </div>
-        <Link className="bb" data-tone="go" href="/apps/money-agent-studio">
-          Open Money Agent Studio ↗
-        </Link>
+        {!embedded && (
+          <Link className="bb" data-tone="go" href="/apps/money-agent-studio">
+            Open Money Agent Studio ↗
+          </Link>
+        )}
       </header>
 
       <div className="bible-plays-sums">
