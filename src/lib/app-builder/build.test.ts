@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBrief, latestWord, phaseOf, projectSlug, resultLinks, tally, threadTitle } from "./build";
+import { buildBrief, latestWord, phaseOf, projectSlug, resultLinks, stalled, tally, threadTitle } from "./build";
 import { applyOps, bestGuesses, intakeQuestions, newProject, offlineFeatures, understand } from "./engine";
 import type { BuilderProject } from "./types";
 import type { ThreadSummary, ThreadView, Turn } from "@/lib/new-jarvis/harness/types";
@@ -137,5 +137,39 @@ describe("what it is doing now", () => {
       ],
     });
     expect(tally(view([t]))).toEqual({ reads: 1, changes: 1, runs: 1, asked: 0 });
+  });
+});
+
+describe("an agent that answered without working", () => {
+  // The real failure on this machine: Claude Code was not signed in, so every
+  // turn came back instantly having said nothing and cost nothing. It looks
+  // exactly like a finished build unless it is checked for.
+  const empty = view([turn("")]);
+
+  it("is spotted as a stall, not a build", () => {
+    expect(stalled(empty)).toBe(true);
+  });
+
+  it("is reported as failed rather than built, whether ended or idle", () => {
+    expect(phaseOf(summary("ended"), empty)).toBe("failed");
+    expect(phaseOf(summary("idle"), empty)).toBe("failed");
+  });
+
+  it("is not a stall once it has actually said something", () => {
+    expect(stalled(view([turn("Setting up Next.")]))).toBe(false);
+    expect(phaseOf(summary("ended"), view([turn("Done.")]))).toBe("done");
+  });
+
+  it("is not a stall when it used a tool but has not spoken yet", () => {
+    const t = turn("", { tools: [{ callId: "c1", name: "Write", title: "page.tsx", kindOf: "write", path: "", command: "", status: "ok", output: "", at: 0 }] });
+    expect(stalled(view([t]))).toBe(false);
+  });
+
+  it("is not a stall when the turn carried a real error", () => {
+    expect(stalled(view([turn("", { status: "failed", error: "npm install died" })]))).toBe(false);
+  });
+
+  it("says nothing about a thread that has not run a turn at all", () => {
+    expect(stalled(emptyThread())).toBe(false);
   });
 });

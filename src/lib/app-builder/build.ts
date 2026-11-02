@@ -67,7 +67,7 @@ export const PHASE_LABEL: Record<BuildPhase, string> = {
   working: "Building now",
   asking: "Waiting on your answer",
   done: "Built",
-  failed: "The build stopped",
+  failed: "The build didn’t run",
   stopped: "Stopped",
 };
 
@@ -78,6 +78,24 @@ export const PHASE_LABEL: Record<BuildPhase, string> = {
  * panel must say that and nothing else, because it is the one state where the
  * build is waiting on the owner rather than on itself.
  */
+/**
+ * A turn that ended having said nothing, used no tools and cost nothing.
+ *
+ * The headless agent returns this shape when it cannot run at all — most often
+ * because Claude Code is not signed in on that PC. It looks identical to a
+ * finished build unless you check, so it is checked.
+ */
+export function stalled(view: ThreadView): boolean {
+  if (!view.turns.length) return false;
+  const did = view.turns.some((t) => t.text.trim() || t.tools.length || t.error);
+  return !did && view.usd === 0;
+}
+
+/** Why nothing happened, in words the owner can act on. */
+export function stalledWhy(): string {
+  return "Claude Code answered without doing anything, which almost always means it is not signed in on that PC. Open a terminal there, run `claude`, and sign in with /login — then press Build it again.";
+}
+
 export function phaseOf(summary: ThreadSummary | null, view: ThreadView): BuildPhase {
   if (!summary) return "starting";
   if (view.liveGate) return "asking";
@@ -89,12 +107,17 @@ export function phaseOf(summary: ThreadSummary | null, view: ThreadView): BuildP
     case "waiting":
       return "asking";
     case "ended":
-      return view.turns.some((t) => t.status === "failed") ? "failed" : "done";
+      if (view.turns.some((t) => t.status === "failed") || stalled(view)) return "failed";
+      return "done";
     case "ready":
     case "idle":
-      // Idle with work behind it means the turn finished; idle with nothing
-      // behind it means it has only just opened.
-      return view.turns.length ? "done" : "starting";
+      // Idle with nothing behind it means it has only just opened.
+      if (!view.turns.length) return "starting";
+      // Idle with a turn that produced NOTHING is not a finished build. It is
+      // the agent answering without working — which on this machine means
+      // Claude Code is not signed in. Calling that "Built" would be exactly
+      // the lie the old spinner told.
+      return stalled(view) ? "failed" : "done";
     default:
       return "working";
   }

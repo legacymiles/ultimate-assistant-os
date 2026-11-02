@@ -20,7 +20,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { DEPTH_LABEL, depthOf } from "@/lib/app-builder/depth";
-import { latestWord, PHASE_LABEL, projectSlug, tally as toolTally, type BuildPhase } from "@/lib/app-builder/build";
+import { latestWord, PHASE_LABEL, projectSlug, stalled, stalledWhy, tally as toolTally, type BuildPhase } from "@/lib/app-builder/build";
 import { landsIn, relTime } from "@/lib/app-builder/plan";
 import { reviewHref } from "@/lib/app-builder/review";
 import type { BuilderProject } from "@/lib/app-builder/types";
@@ -66,6 +66,8 @@ function sub(phase: BuildPhase, project: BuilderProject, build: UseBuild): strin
         ? "Finished, pushed and live."
         : "Claude has stopped working. Read its last words below to see how far it got.";
     case "failed":
+      // The commonest failure by far, and the one that otherwise looks like success.
+      if (stalled(build.view)) return stalledWhy();
       return "It hit something it could not get past. Its last words are below.";
     case "stopped":
       return "You stopped it. The project folder keeps everything it had written.";
