@@ -21,7 +21,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BridgeError, call } from "@/lib/new-jarvis/bridge";
-import { readTrust } from "@/lib/new-jarvis/trust";
 import { emptyThread, reduceEvents } from "@/lib/new-jarvis/harness/model";
 import type { GateCard, HarnessEvent, ThreadSummary, ThreadView } from "@/lib/new-jarvis/harness/types";
 import { buildBrief, phaseOf, projectSlug, resultLinks, threadTitle, type BuildPhase } from "./build";
@@ -144,11 +143,17 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
         // The bridge makes a real folder with a repository of its own, because
         // a brand-new app has nothing to cut a worktree from.
         project: projectSlug(p),
-        // Write freely inside its own project; still stop and ask before
-        // anything that reaches outside it — and this build pushes to GitHub
-        // and deploys, which are exactly those steps.
         laneWrites: true,
-        trust: readTrust() === "auto" ? "ask" : readTrust(),
+        // Pinned to "trusted", not inherited from the owner's setting.
+        //
+        // A build is hours of writing files and running npm, and on "ask" it
+        // stops at every single command — which is not a build, it is a
+        // hostage situation. "trusted" is safe HERE in a way it would not be
+        // elsewhere, because the thread stands in a folder created seconds
+        // ago that contains nothing to lose: `autoAllow` still gates every
+        // write outside that folder, and still gates anything grave whatever
+        // the trust setting says.
+        trust: "trusted",
       });
       setSummary(session);
       setStarting("Handing over the brief…");
