@@ -38,7 +38,7 @@ const LIMIT = 20;
 type StepId = "phone" | "token" | "build" | "auto" | "test";
 const STEPS: { id: StepId; label: string }[] = [
   { id: "phone", label: "Open on iPhone" },
-  { id: "token", label: "Your link" },
+  { id: "token", label: "Your links" },
   { id: "build", label: "Make the Shortcut" },
   { id: "auto", label: "Run it automatically" },
   { id: "test", label: "Test" },
@@ -165,16 +165,42 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
 
           {step === "token" && (
             <div className="space-y-4">
-              <h3 className="text-[18px] font-semibold text-ink">Get your link</h3>
+              <h3 className="text-[18px] font-semibold text-ink">Get your links</h3>
               <p>
-                This is the one thing you paste into the Shortcut. It&apos;s your own private link — it already has your key inside, so there&apos;s
-                nothing else to copy.
+                Three links, all yours, each with your key already inside. They were previously shown one per step, which meant hunting
+                for the right one mid-build — they all live here now. The Shortcut uses one in each of its three{" "}
+                <b className="text-ink">URL</b> actions, and the note under each says which.
               </p>
               {token ? (
                 <>
-                  <CopyRow label="Your link" value={myLink} onCopy={() => copy(myLink, "Your link")} secret />
+                  <CopyRow
+                    label="1 · Your link"
+                    hint="The URL action INSIDE the loop. This is the one that sends the photos — the only link you need if you just want photos arriving."
+                    value={myLink}
+                    onCopy={() => copy(myLink, "Your link")}
+                    secret
+                  />
+                  <CopyRow
+                    label="2 · Bookmark link"
+                    hint="The URL action at the very TOP, above Find Photos. Remembers where it got to, so each run picks up after the last photo instead of re-sending."
+                    value={cursorLink}
+                    onCopy={() => copy(cursorLink, "Bookmark link")}
+                    secret
+                  />
+                  <CopyRow
+                    label="3 · Clean-up link"
+                    hint="The URL action at the very BOTTOM, below End Repeat. Delete a photo on your phone and this is what removes it from Jarvis too."
+                    value={presentLink}
+                    onCopy={() => copy(presentLink, "Clean-up link")}
+                    secret
+                  />
                   <p className="text-[11px] text-[var(--hud-amber)]">
-                    Copy it now — for safety it&apos;s only shown once. Lost it? Come back and make a new one; the old link stops working.
+                    Copy them now — for safety they&apos;re only shown once. Lost them? Come back and make a new link; the old ones stop
+                    working.
+                  </p>
+                  <p className="text-[11px] text-ink-faint">
+                    They differ only in the last word before the <Code>?key=</Code> — <Code>push</Code>, <Code>cursor</Code>,{" "}
+                    <Code>present</Code>. If a step isn&apos;t behaving, check that word first; pasting the wrong one is the usual cause.
                   </p>
                 </>
               ) : (
@@ -401,19 +427,29 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                     <>
                       <b className="text-ink">Find Photos</b> → <b className="text-ink">Add Filter</b> → <b className="text-ink">Date Created</b> →{" "}
                       <b className="text-ink">is in the last</b> <b className="text-ink">30 days</b>. Turn <b className="text-ink">Limit</b> off.
+                      <br />
+                      It has to read <b className="text-ink">&ldquo;Find All Photos where&rdquo;</b>. If it says{" "}
+                      <b className="text-ink">&ldquo;Filter Repeat Results where&rdquo;</b>, Shortcuts wired the loop above into it — tap that
+                      blue chip and clear it, or the list will only cover the photos just sent.
                     </>,
                     <>
                       <b className="text-ink">Get Details of Images</b> → tap Detail → <b className="text-ink">Name</b>.
                     </>,
                     <>
-                      <b className="text-ink">Combine Text</b> → tap the separator → <b className="text-ink">Comma</b>.
+                      <b className="text-ink">Combine Text</b> → separator <b className="text-ink">New Lines</b>. (Commas work too — Jarvis
+                      splits on either, so whichever your iOS offers is fine.)
                     </>,
                     <>
-                      A <b className="text-ink">URL</b> action with this link
-                      {token ? <InlineCopy onClick={() => copy(presentLink, "Clean-up link")} /> : <> <Code>…/api/dashboard/inbox/present</Code></>}, then{" "}
-                      <b className="text-ink">Get Contents of URL</b>: Method <b className="text-ink">POST</b>, Request Body <b className="text-ink">Form</b>,{" "}
-                      <b className="text-ink">Add new field → Text</b>, key <Code>names</Code>
-                      <InlineCopy onClick={() => copy("names", "Field name")} />, value <b className="text-ink">Combined Text</b>.
+                      A <b className="text-ink">new URL</b> action — not the one from the loop above — holding your{" "}
+                      <b className="text-ink">Clean-up link</b>
+                      {token ? <InlineCopy onClick={() => copy(presentLink, "Clean-up link")} /> : <> (<Code>…/api/dashboard/inbox/present</Code>)</>}.
+                    </>,
+                    <>
+                      <b className="text-ink">Get Contents of URL</b>: Method <b className="text-ink">POST</b>, Request Body{" "}
+                      <b className="text-ink">Form</b>, <b className="text-ink">Add new field → Text</b>, key <Code>names</Code>
+                      <InlineCopy onClick={() => copy("names", "Field name")} /> — plural — value{" "}
+                      <b className="text-ink">Combined Text</b>. Tap its URL box and pick the URL action from the step above; if it still
+                      points at the first one, you&apos;ll get <i>&ldquo;No photos sent&rdquo;</i>, because that&apos;s the sending link.
                     </>,
                   ]}
                 />
@@ -508,10 +544,11 @@ function Steps({ items }: { items: React.ReactNode[] }) {
   );
 }
 
-function CopyRow({ label, value, onCopy, secret }: { label: string; value: string; onCopy: () => void; secret?: boolean }) {
+function CopyRow({ label, value, onCopy, secret, hint }: { label: string; value: string; onCopy: () => void; secret?: boolean; hint?: string }) {
   return (
     <div>
       <p className="mb-1 font-mono text-[10.5px] uppercase tracking-wider text-ink-faint">{label}</p>
+      {hint && <p className="mb-1.5 text-[11px] leading-snug text-ink-muted">{hint}</p>}
       <div className="flex gap-1.5">
         <code className={`min-w-0 flex-1 truncate rounded-lg border border-line bg-panel-2 px-3 py-2.5 font-mono text-[12px] text-ink ${secret ? "select-all" : ""}`}>{value}</code>
         <button type="button" className="deck-btn deck-btn--go shrink-0" onClick={onCopy}>
