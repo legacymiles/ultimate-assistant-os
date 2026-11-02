@@ -95,13 +95,23 @@ interface InboxDoc {
   checkIn?: Record<string, string>;
   /** uid -> the last send from that phone that was turned away, and why. */
   problem?: Record<string, { at: string; message: string }>;
+  /**
+   * uid -> the last "these are the photos still on my phone" report: when,
+   * how many names it carried and how many waiting photos that deleted.
+   *
+   * The Shortcut's own result box is the only place this used to show, and on
+   * a phone it is a line of JSON behind a tap. Camera Autopilot says it in
+   * words instead, which is also the only way to notice the report arriving
+   * with one name in it — a miswired Combine Text, not an empty camera roll.
+   */
+  sweep?: Record<string, { at: string; checked: number; removed: number }>;
   /** uid -> hashes of that user's replaced tokens, so an old link can be named as theirs. */
   retired?: Record<string, string[]>;
   /** Sends with a key nobody has — newest last. `uid` when it was someone's old key. */
   refused?: { at: string; uid?: string; where?: string; h6?: string; h?: string }[];
 }
 
-const EMPTY: InboxDoc = { tokens: {}, entries: [], seen: {}, cursor: {}, lastPush: {}, checkIn: {}, problem: {}, retired: {}, refused: [] };
+const EMPTY: InboxDoc = { tokens: {}, entries: [], seen: {}, cursor: {}, lastPush: {}, checkIn: {}, problem: {}, sweep: {}, retired: {}, refused: [] };
 
 async function load(): Promise<InboxDoc> {
   // Strict: a failed read throws. It used to come back as an EMPTY document,
@@ -117,6 +127,7 @@ async function load(): Promise<InboxDoc> {
     lastPush: doc.lastPush ?? {},
     checkIn: doc.checkIn ?? {},
     problem: doc.problem ?? {},
+    sweep: doc.sweep ?? {},
     retired: doc.retired ?? {},
     refused: doc.refused ?? [],
   };
@@ -220,6 +231,13 @@ export async function noteCheckIn(uid: string): Promise<void> {
   await save(doc);
 }
 
+/** The phone reported which photos it still has: what the report covered. */
+export async function noteSweep(uid: string, checked: number, removed: number): Promise<void> {
+  const doc = await load();
+  doc.sweep![uid] = { at: new Date().toISOString(), checked, removed };
+  await save(doc);
+}
+
 /** This user's phone sent something that was turned away; the message says why. */
 export async function noteProblem(uid: string, message: string): Promise<void> {
   const doc = await load();
@@ -271,6 +289,8 @@ export interface PhoneStatus {
   lastPush: string | null;
   lastCheckIn: string | null;
   problem: { at: string; message: string } | null;
+  /** The last report of what is still on the phone. */
+  sweep: { at: string; checked: number; removed: number } | null;
   /** The newest refused send that is this user's — their old key, or (for the owner) a key nobody has. */
   refusedAt: string | null;
   /** Which of the Shortcut's links was refused: "bookmark", "photo" or "still-on-phone". */
@@ -314,6 +334,7 @@ export async function phoneStatus(uid: string, opts: { owner?: boolean } = {}): 
     lastPush: doc.lastPush[uid] ?? null,
     lastCheckIn: doc.checkIn?.[uid] ?? null,
     problem: doc.problem?.[uid] ?? null,
+    sweep: doc.sweep?.[uid] ?? null,
     refusedAt: refused?.at ?? null,
     refusedWhere: refused?.where ?? null,
     cursor: doc.cursor[uid]?.raw ?? null,

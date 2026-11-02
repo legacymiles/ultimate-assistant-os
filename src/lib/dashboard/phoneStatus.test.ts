@@ -74,3 +74,45 @@ describe("readSignals", () => {
     expect(readSignals({ problem: { at: "2026-10-25T21:05:00.000Z" } }).problem).toBeNull();
   });
 });
+
+describe("phoneLine — what the phone still has", () => {
+  const run = (sweep: { at: number; checked: number; removed: number }) =>
+    phoneLine({ ...NO_SIGNALS, lastPush: 100 * MIN, lastCheckIn: 100 * MIN, sweep }, since);
+
+  it("says what the report covered when nothing needed deleting", () => {
+    const l = run({ at: 100 * MIN, checked: 38, removed: 0 });
+    expect(l.text).toBe(`last photo from iPhone @${100 * MIN} · 38 still on the phone, nothing to delete`);
+    expect(l.warn).toBe(false);
+  });
+
+  it("says how many were deleted here", () => {
+    expect(run({ at: 100 * MIN, checked: 38, removed: 3 }).text).toContain("38 still on the phone, 3 deleted here");
+  });
+
+  it("warns when the report is too thin to be a camera roll", () => {
+    // The shape that emptied the queue: Combine Text reading one photo.
+    const l = run({ at: 100 * MIN, checked: 1, removed: 0 });
+    expect(l.text).toContain("only 1 photo still on it");
+    expect(l.text).toContain("Combine Text");
+    expect(l.warn).toBe(true);
+  });
+
+  it("ignores a report from an older run", () => {
+    const l = run({ at: 80 * MIN, checked: 38, removed: 0 });
+    expect(l.text).toBe(`last photo from iPhone @${100 * MIN}`);
+  });
+
+  it("keeps a refused link ahead of the report", () => {
+    const l = phoneLine(
+      { ...NO_SIGNALS, lastPush: 100 * MIN, refusedAt: 101 * MIN, refusedWhere: "still-on-phone", sweep: { at: 100 * MIN, checked: 1, removed: 0 } },
+      since,
+    );
+    expect(l.text).toContain("old link");
+  });
+
+  it("reads the report off the server's payload", () => {
+    const s = readSignals({ sweep: { at: "2026-10-25T21:00:00.000Z", checked: 38, removed: 2 } });
+    expect(s.sweep).toEqual({ at: Date.parse("2026-10-25T21:00:00.000Z"), checked: 38, removed: 2 });
+    expect(readSignals({ sweep: { at: "nope", checked: 3, removed: 0 } }).sweep).toBeNull();
+  });
+});

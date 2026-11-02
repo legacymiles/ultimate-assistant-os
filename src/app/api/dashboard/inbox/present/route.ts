@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { noteCheckIn, noteRefused, prune, uidForToken } from "@/lib/dashboard/inbox";
+import { noteCheckIn, noteRefused, noteSweep, prune, uidForToken } from "@/lib/dashboard/inbox";
 
 // POST /api/dashboard/inbox/present
 //
@@ -63,6 +63,9 @@ export async function POST(req: Request) {
   const window = Math.min(90, Math.max(1, Number(days) || 30));
   await noteCheckIn(uid).catch(() => undefined);
   const { removed, refused } = await prune(uid, names, window);
+  // Camera Autopilot says this in words, so the run can be checked without
+  // reading the Shortcut's result box on a phone.
+  await noteSweep(uid, names.length, removed).catch(() => undefined);
   // `refused` is the interesting case and it is read on a phone, in the
   // Shortcut's own result box, so it goes at the top as plain prose.
   if (refused) return NextResponse.json({ error: refused, removed: 0, checked: names.length });

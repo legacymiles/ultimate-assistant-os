@@ -170,6 +170,7 @@ export function useCameraWatch(): CameraWatch {
         lastPush?: string | null;
         lastCheckIn?: string | null;
         problem?: { at?: string; message?: string } | null;
+        sweep?: { at?: string; checked?: number; removed?: number } | null;
         refusedAt?: string | null;
         refusedWhere?: string | null;
         adoptable?: string | null;
