@@ -56,15 +56,38 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
   const [note, setNote] = useState("");
   const [qr, setQr] = useState("");
   const [testFrom, setTestFrom] = useState<number | null>(null);
+  /** A link the user already has, pasted back in to unlock the other two. */
+  const [pasted, setPasted] = useState("");
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const pushUrl = `${origin}/api/dashboard/inbox/push`;
-  // The whole Shortcut needs this one thing: the push address with the key in it.
-  const myLink = token ? `${pushUrl}?key=${encodeURIComponent(token)}` : pushUrl;
+
+  /*
+   * The key, from whichever of the two places has it.
+   *
+   * `token` only exists for the moments after minting — it is hashed on the
+   * way into storage and genuinely cannot be read back. That left anyone who
+   * set up their phone weeks ago with no way to SEE their links: the step
+   * showed "it can't be shown again" and a button, and the only route to the
+   * cursor and clean-up links was to mint a new one, which silently breaks
+   * the Shortcut already on their phone.
+   *
+   * So the key is also accepted from the user. They already have it — it is
+   * sitting in the URL action of their working Shortcut. Pasting that back
+   * fills in the other two, costs nothing, and breaks nothing.
+   */
+  const pastedKey = useMemo(() => {
+    const m = /[?&]key=([^&\s]+)/.exec(pasted.trim());
+    return m ? decodeURIComponent(m[1]) : "";
+  }, [pasted]);
+  const key = token ?? (pastedKey || null);
+  const q = key ? `?key=${encodeURIComponent(key)}` : "";
+
+  const myLink = `${pushUrl}${q}`;
   // "Where did I get up to?" — read first, so each run starts after the last photo sent.
-  const cursorLink = `${origin}/api/dashboard/inbox/cursor${token ? `?key=${encodeURIComponent(token)}` : ""}`;
+  const cursorLink = `${origin}/api/dashboard/inbox/cursor${q}`;
   // "These are still on my phone" — anything waiting that isn't was deleted there.
-  const presentLink = `${origin}/api/dashboard/inbox/present${token ? `?key=${encodeURIComponent(token)}` : ""}`;
+  const presentLink = `${origin}/api/dashboard/inbox/present${q}`;
   const guideUrl = `${origin}/apps/jarvis#iphone`;
   const local = /localhost|127\.0\.0\.1/.test(origin);
   const idx = STEPS.findIndex((s) => s.id === step);
@@ -171,7 +194,40 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                 for the right one mid-build — they all live here now. The Shortcut uses one in each of its three{" "}
                 <b className="text-ink">URL</b> actions, and the note under each says which.
               </p>
-              {token ? (
+              {/*
+                Already set up? The key is in the Shortcut on their phone, so
+                they can hand it back rather than mint a new one and break it.
+                Shown ABOVE the links, because someone who arrives here with
+                no key needs this before anything below is any use.
+              */}
+              {!token && (
+                <div className="rounded-lg border border-line bg-panel-2 p-3">
+                  <p className="mb-2 text-[11.5px]">
+                    {camera.linked
+                      ? "Already set up? Your key can't be read back out of Jarvis, but it's sitting in the URL action in your Shortcut. Paste that link here and all three fill in — nothing changes on your phone."
+                      : "Have a link already? Paste it here to see all three."}
+                  </p>
+                  <input
+                    type="text"
+                    value={pasted}
+                    onChange={(e) => setPasted(e.target.value)}
+                    placeholder={`${pushUrl}?key=…`}
+                    spellCheck={false}
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    aria-label="Paste a link you already have"
+                    className="w-full rounded-lg border border-line bg-canvas px-3 py-2.5 font-mono text-[12px] text-ink placeholder:text-ink-faint"
+                  />
+                  {pasted.trim() && !pastedKey && (
+                    <p className="mt-1.5 text-[11px] text-[var(--hud-amber)]">
+                      No <Code>?key=</Code> in that one. Copy the whole link out of the Shortcut&apos;s URL action, including everything
+                      after the <Code>?</Code>.
+                    </p>
+                  )}
+                  {pastedKey && <p className="mt-1.5 text-[11px] text-ink-muted">Key found — your three links are below.</p>}
+                </div>
+              )}
+              {key ? (
                 <>
                   <CopyRow
                     label="1 · Your link"
@@ -194,26 +250,31 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                     onCopy={() => copy(presentLink, "Clean-up link")}
                     secret
                   />
-                  <p className="text-[11px] text-[var(--hud-amber)]">
-                    Copy them now — for safety they&apos;re only shown once. Lost them? Come back and make a new link; the old ones stop
-                    working.
-                  </p>
+                  {token && (
+                    <p className="text-[11px] text-[var(--hud-amber)]">
+                      Copy all three now — for safety they&apos;re only shown once.
+                    </p>
+                  )}
                   <p className="text-[11px] text-ink-faint">
                     They differ only in the last word before the <Code>?key=</Code> — <Code>push</Code>, <Code>cursor</Code>,{" "}
                     <Code>present</Code>. If a step isn&apos;t behaving, check that word first; pasting the wrong one is the usual cause.
                   </p>
                 </>
-              ) : (
-                <div className="rounded-lg border border-line bg-panel-2 p-3">
-                  <p className="mb-2">
-                    {camera.linked ? "You made a link before, but it can't be shown again. Make a new one for this setup." : "Tap to make your link:"}
+              ) : null}
+              <div className="rounded-lg border border-line bg-panel-2 p-3">
+                <p className="mb-2 text-[11.5px]">
+                  {camera.linked ? "Lost the link entirely? Make a new one — but only if you have to:" : "No link yet? Make one:"}
+                </p>
+                <button type="button" className="deck-btn deck-btn--go" onClick={() => void mint()} disabled={minting}>
+                  <Icon.Key width={12} height={12} aria-hidden /> {minting ? "Making it…" : camera.linked ? "Make a new link" : "Make my link"}
+                </button>
+                {camera.linked && (
+                  <p className="mt-1.5 text-[10.5px] text-ink-faint">
+                    This replaces the old one — the Shortcut on your phone stops sending until you paste the new link into all three of its
+                    URL actions.
                   </p>
-                  <button type="button" className="deck-btn deck-btn--go" onClick={() => void mint()} disabled={minting}>
-                    <Icon.Key width={12} height={12} aria-hidden /> {minting ? "Making it…" : camera.linked ? "Make a new link" : "Make my link"}
-                  </button>
-                  {camera.linked && <p className="mt-1.5 text-[10.5px] text-ink-faint">A Shortcut using the old link stops sending until you paste the new one in.</p>}
-                </div>
-              )}
+                )}
+              </div>
               <p className="text-[11px] text-ink-faint">
                 It&apos;s a different address from the Jarvis page you&apos;re looking at — that&apos;s right. You never open it in a browser; it only goes in the
                 Shortcut.
