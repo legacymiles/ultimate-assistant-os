@@ -176,9 +176,15 @@ describe("gallery labels", () => {
 
 describe("app plugins", () => {
   it("resolves every allowed slug against the hub catalog", async () => {
-    const { PLUGIN_SLUGS, studioPlugins } = await import("./plugins");
+    const { PLUGIN_SLUGS, studioPlugins, isMerged } = await import("./plugins");
+    const { onTheWall } = await import("@/lib/studio-home/panels");
     const list = studioPlugins();
-    expect(list.map((p) => p.slug)).toEqual([...PLUGIN_SLUGS]);
+    // Every allowed slug gets a card except the two kinds that are reached
+    // another way: one merged into another app, and one that is a studio with
+    // its own panel on the Studio tab.
+    expect(list.map((p) => p.slug)).toEqual(
+      PLUGIN_SLUGS.filter((s) => !isMerged(s) && !onTheWall(s)),
+    );
     for (const p of list) {
       expect(p.title).toBeTruthy();
       expect(p.href).toMatch(/^\//);
@@ -214,6 +220,7 @@ describe("app plugins", () => {
   it("keeps merged apps in the catalog but off the hub and the plugin page", async () => {
     const { PROJECTS } = await import("@/lib/catalog");
     const { MERGED_INTO, PLUGIN_SLUGS, hubProjects, studioPlugins, homeOf } = await import("./plugins");
+    const { onTheWall } = await import("@/lib/studio-home/panels");
     const hub = hubProjects().map((p) => p.slug);
     const plugins = studioPlugins().map((p) => p.slug);
     // Every app that HAD a catalog entry before its merge still has one. (EA
@@ -229,12 +236,20 @@ describe("app plugins", () => {
       expect(PLUGIN_SLUGS as readonly string[]).not.toContain(slug);
       const home = homeOf(slug)!;
       expect(home).toBeTruthy();
-      expect(hub.includes(home) || plugins.includes(home)).toBe(true);
+      // Offered somewhere: a hub tile, a plugin card, or a panel on the wall.
+      expect(
+        hub.includes(home) || plugins.includes(home) || onTheWall(home),
+        `${slug} merged into ${home}, which is offered nowhere`,
+      ).toBe(true);
     }
     expect(homeOf("fire-reveal")).toBe("app-builder");
     expect(homeOf("ea-world")).toBe("trading-studio");
     expect(homeOf("trading-studio")).toBeNull();
-    expect(plugins).toEqual(expect.arrayContaining(["trading-studio", "game-studio", "app-builder"]));
+    // App Builder is reached by its card; the two studios by their panels.
+    expect(plugins).toContain("app-builder");
+    expect(plugins).not.toContain("trading-studio");
+    expect(plugins).not.toContain("game-studio");
+    expect(onTheWall("trading-studio") && onTheWall("game-studio")).toBe(true);
   });
 });
 

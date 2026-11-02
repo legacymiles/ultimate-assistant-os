@@ -18,8 +18,14 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+// fileURLToPath, not `new URL(...).pathname`: on Windows the pathname is
+// "/C:/dev/repo/scripts", which path.resolve reads as a rooted path and turns
+// into "C:\C:\dev\repo" — a cwd that does not exist, so every git call failed
+// with ENOENT as if git itself were missing. `prebuild` passes --quiet-fail,
+// which is why the log simply stopped filling instead of breaking a build.
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = path.join(ROOT, "src/lib/timeline/feature-log.json");
 
 /** Code folders whose name differs from the app's slug (see CLAUDE.md). */

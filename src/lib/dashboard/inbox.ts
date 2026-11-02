@@ -95,13 +95,23 @@ interface InboxDoc {
   checkIn?: Record<string, string>;
   /** uid -> the last send from that phone that was turned away, and why. */
   problem?: Record<string, { at: string; message: string }>;
+  /**
+   * uid -> the last "these are the photos still on my phone" report: when,
+   * how many names it carried and how many waiting photos that deleted.
+   *
+   * The Shortcut's own result box is the only place this used to show, and on
+   * a phone it is a line of JSON behind a tap. Camera Autopilot says it in
+   * words instead, which is also the only way to notice the report arriving
+   * with one name in it — a miswired Combine Text, not an empty camera roll.
+   */
+  sweep?: Record<string, { at: string; checked: number; removed: number }>;
   /** uid -> hashes of that user's replaced tokens, so an old link can be named as theirs. */
   retired?: Record<string, string[]>;
   /** Sends with a key nobody has — newest last. `uid` when it was someone's old key. */
   refused?: { at: string; uid?: string; where?: string; h6?: string; h?: string }[];
 }
 
-const EMPTY: InboxDoc = { tokens: {}, entries: [], seen: {}, cursor: {}, lastPush: {}, checkIn: {}, problem: {}, retired: {}, refused: [] };
+const EMPTY: InboxDoc = { tokens: {}, entries: [], seen: {}, cursor: {}, lastPush: {}, checkIn: {}, problem: {}, sweep: {}, retired: {}, refused: [] };
 
 async function load(): Promise<InboxDoc> {
   // Strict: a failed read throws. It used to come back as an EMPTY document,
@@ -117,6 +127,7 @@ async function load(): Promise<InboxDoc> {
     lastPush: doc.lastPush ?? {},
     checkIn: doc.checkIn ?? {},
     problem: doc.problem ?? {},
+    sweep: doc.sweep ?? {},
     retired: doc.retired ?? {},
     refused: doc.refused ?? [],
   };
@@ -220,6 +231,13 @@ export async function noteCheckIn(uid: string): Promise<void> {
   await save(doc);
 }
 
+/** The phone reported which photos it still has: what the report covered. */
+export async function noteSweep(uid: string, checked: number, removed: number): Promise<void> {
+  const doc = await load();
+  doc.sweep![uid] = { at: new Date().toISOString(), checked, removed };
+  await save(doc);
+}
+
 /** This user's phone sent something that was turned away; the message says why. */
 export async function noteProblem(uid: string, message: string): Promise<void> {
   const doc = await load();
@@ -271,6 +289,8 @@ export interface PhoneStatus {
   lastPush: string | null;
   lastCheckIn: string | null;
   problem: { at: string; message: string } | null;
+  /** The last report of what is still on the phone. */
+  sweep: { at: string; checked: number; removed: number } | null;
   /** The newest refused send that is this user's — their old key, or (for the owner) a key nobody has. */
   refusedAt: string | null;
   /** Which of the Shortcut's links was refused: "bookmark", "photo" or "still-on-phone". */
@@ -314,6 +334,7 @@ export async function phoneStatus(uid: string, opts: { owner?: boolean } = {}): 
     lastPush: doc.lastPush[uid] ?? null,
     lastCheckIn: doc.checkIn?.[uid] ?? null,
     problem: doc.problem?.[uid] ?? null,
+    sweep: doc.sweep?.[uid] ?? null,
     refusedAt: refused?.at ?? null,
     refusedWhere: refused?.where ?? null,
     cursor: doc.cursor[uid]?.raw ?? null,
@@ -595,9 +616,30 @@ const GENERIC = /^(image|photo|file|picture|img|untitled)(\s*\d{0,2})?$/i;
  * were deleted on the phone, so they go here too — and every device drops
  * them on its next check. Returns how many went.
  */
-export async function prune(uid: string, names: string[], days = 30): Promise<number> {
+export interface PruneResult {
+  removed: number;
+  /** Set instead of deleting, when the list looks too small to be believed. */
+  refused?: string;
+}
+
+/**
+ * How short a list stops being evidence.
+ *
+ * A Shortcut whose Get Details block is wired to the wrong variable sends the
+ * name of ONE photo. Read literally that means "everything else was deleted",
+ * and the queue is emptied — which is exactly what happened to the first
+ * person who built this: one name arrived, forty-five waiting photos went.
+ *
+ * A phone that genuinely holds one photo from the last 30 days does exist, but
+ * it is far rarer than a miswired block, and the cost is not symmetric: a
+ * refusal is a line of text, a wrong delete is someone's pictures. So a list
+ * this short has to clear the queue by a wide margin before it is acted on.
+ */
+const TRUST_FLOOR = 5;
+
+export async function prune(uid: string, names: string[], days = 30): Promise<PruneResult> {
   const present = new Set(names.map(nameStem).filter(Boolean));
-  if (!present.size) return 0;
+  if (!present.size) return { removed: 0 };
   const doc = await load();
   const since = Date.now() - days * 86_400_000;
   const gone = doc.entries.filter((e) => {
@@ -608,12 +650,35 @@ export async function prune(uid: string, names: string[], days = 30): Promise<nu
     const when = Number.isFinite(taken) ? taken : Date.parse(e.receivedAt);
     return when >= since && !present.has(stem);
   });
-  if (!gone.length) return 0;
+  if (!gone.length) return { removed: 0 };
+
+  if (present.size < TRUST_FLOOR && gone.length > present.size) {
+    return {
+      removed: 0,
+      refused:
+        `Only ${present.size} photo ${present.size === 1 ? "name" : "names"} arrived, which would have deleted ` +
+        `${gone.length} — so nothing was deleted. The Shortcut's "Get Details of Images" is probably reading one ` +
+        `photo instead of the whole Find Photos list: open it and check the variable it points at.`,
+    };
+  }
+
   const ids = new Set(gone.map((e) => e.id));
   doc.entries = doc.entries.filter((e) => !ids.has(e.id));
+
+  // Forget them, so this is reversible. `receive` skips anything already in
+  // `seen`, so without this a photo deleted here could never be sent again —
+  // including one deleted in error, still sitting in the camera roll. Dropping
+  // the keys means the next run simply brings it back.
+  const drop = new Set<string>();
+  for (const e of gone) {
+    if (e.deviceId) drop.add(e.deviceId);
+    if (e.sha) drop.add(e.sha);
+  }
+  if (drop.size) doc.seen[uid] = (doc.seen[uid] ?? []).filter((k) => !drop.has(k));
+
   await save(doc);
   for (const e of gone) await deleteBlob(BUCKET, `${uid}/${e.id}`, dataDir());
-  return gone.length;
+  return { removed: gone.length };
 }
 
 /** Drop anything older than SWEEP_DAYS. Lazy — runs when the inbox is read. */
