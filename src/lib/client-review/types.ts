@@ -162,6 +162,19 @@ export interface ClientProject {
   clientUserId?: string;
   clientUserEmail?: string;
   claimedAt?: string;
+  /**
+   * When the owner sent this to the client.
+   *
+   * Until it is set the project is OWNER-ONLY: it is not in the client's list,
+   * and its link does not open even for someone holding the token. This
+   * matters now that App Builder opens a review project for every build — most
+   * of those are the owner's own apps and were never meant for a client to
+   * see, so visibility is something the owner grants rather than something a
+   * project has merely by existing. `isSentToClient` is the one place that
+   * decides, and it grandfathers projects a client had already claimed before
+   * this field existed.
+   */
+  sentAt?: string;
   lane: ContentLane;
   versions: ReviewVersion[];
   requests: EditRequest[];

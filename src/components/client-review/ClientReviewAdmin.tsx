@@ -21,7 +21,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildClientEdit } from "@/lib/app-builder/fromClientReview";
 import { admin, type AdminState, type BriefOut } from "@/lib/client-review/client";
-import { buildText, currentVersion, plainBrief, sortVersions } from "@/lib/client-review/logic";
+import { buildText, currentVersion, plainBrief, sortVersions, isSentToClient } from "@/lib/client-review/logic";
+import { DEFAULT_SORT, isSortMode, listProjects, projectState, SORTS, STATE_LABEL, type SortMode } from "@/lib/client-review/list";
 import type { ClientProject, ContentLane, EditRequest, RequestBatch, ReviewVersion } from "@/lib/client-review/types";
 import { getRepo } from "@/lib/repo";
 import { useStore } from "@/lib/store";
@@ -111,10 +112,18 @@ export function ClientReviewAdmin({ chromeless = false, fill = false }: { chrome
     window.setTimeout(() => setFlash((f) => (f === msg ? "" : f)), 3500);
   };
 
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortMode>(DEFAULT_SORT);
+
   const projects = state?.projects ?? [];
   const project = projects.find((p) => p.id === selected) ?? null;
-  const visible = projects.filter((p) => !p.archived);
-  const archived = projects.filter((p) => p.archived);
+  // App Builder opens a review project for every build, so this list is no
+  // longer a handful of client sites — it is every app. Newest first, and
+  // searchable, or it stops being usable at about twenty.
+  const live = projects.filter((p) => !p.archived);
+  const visible = listProjects(live, { query, sort });
+  const archived = listProjects(projects.filter((p) => p.archived), { query, sort });
+  const hiddenBySearch = live.length - visible.length;
 
   return (
     <div
@@ -138,7 +147,37 @@ export function ClientReviewAdmin({ chromeless = false, fill = false }: { chrome
             + New
           </button>
         </div>
+        <div className="border-b border-line px-2.5 py-2">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search apps and clients"
+            aria-label="Search apps and clients"
+            className="w-full rounded-md border border-line bg-canvas px-2 py-1.5 text-[12px] text-ink placeholder:text-ink-faint focus:border-brand/60 focus:outline-none"
+          />
+          <div className="mt-1.5 flex items-center justify-between gap-2">
+            <select
+              value={sort}
+              onChange={(e) => setSort(isSortMode(e.target.value) ? e.target.value : DEFAULT_SORT)}
+              aria-label="Order"
+              className="min-w-0 flex-1 rounded-md border border-line bg-canvas px-1.5 py-1 text-[11.5px] text-ink-muted focus:border-brand/60 focus:outline-none"
+            >
+              {SORTS.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <span className="shrink-0 text-[11px] text-ink-faint">{visible.length}</span>
+          </div>
+        </div>
         <ProjectList projects={visible} selected={selected} onSelect={setSelected} />
+        {query && !visible.length && (
+          <p className="px-3 py-3 text-xs text-ink-faint">Nothing matches &ldquo;{query}&rdquo;.</p>
+        )}
+        {query && visible.length > 0 && hiddenBySearch > 0 && (
+          <p className="px-3 pb-2 text-[11px] text-ink-faint">{hiddenBySearch} hidden by the search.</p>
+        )}
         {archived.length > 0 && (
           <details className="border-t border-line px-3 py-2 text-xs text-ink-faint">
             <summary className="cursor-pointer">Archived ({archived.length})</summary>
@@ -253,26 +292,33 @@ function ProjectList({
     <ul className="min-h-0 flex-1 overflow-y-auto py-1">
       {projects.map((p) => {
         const waiting = pendingCount(p);
-        const building = p.versions.find((v) => v.status === "building");
         const cur = currentVersion(p);
+        const st = projectState(p);
         return (
           <li key={p.id}>
             <button
               onClick={() => onSelect(p.id)}
               className={`grid w-full grid-cols-[1fr_auto] gap-x-2 px-3 py-2 text-left hover:bg-panel-2 ${
                 p.id === selected ? "bg-panel-2 shadow-[inset_2px_0_0_var(--color-brand)]" : ""
-              }`}
+              } ${st === "being-created" ? "shadow-[inset_2px_0_0_var(--color-support)]" : ""}`}
             >
               <span className="truncate text-[13px] font-medium">{p.name}</span>
-              <span className="text-[11px] text-ink-faint">{ago(p.updatedAt)}</span>
+              {/* Created, not changed: "newest first" has to agree with what the row shows. */}
+              <span className="text-[11px] text-ink-faint" title={`Created ${new Date(p.createdAt).toLocaleString()}`}>
+                {ago(p.createdAt)}
+              </span>
               <span className="truncate text-[11.5px] text-ink-muted">
                 {p.clientName || "No client name"} · {cur?.number ?? "v—"}
               </span>
               <span className="text-[11px]">
                 {waiting > 0 ? (
                   <span className="rounded bg-amber-400/15 px-1.5 py-0.5 text-amber-300">{waiting} waiting</span>
-                ) : building ? (
-                  <span className="rounded bg-sky-400/15 px-1.5 py-0.5 text-sky-300">building {building.number}</span>
+                ) : st === "being-created" ? (
+                  <span className="rounded bg-sky-400/15 px-1.5 py-0.5 text-sky-300">Being created</span>
+                ) : st === "building" ? (
+                  <span className="rounded bg-sky-400/15 px-1.5 py-0.5 text-sky-300">{STATE_LABEL.building}</span>
+                ) : st === "unsent" ? (
+                  <span className="rounded bg-line px-1.5 py-0.5 text-ink-faint">{STATE_LABEL.unsent}</span>
                 ) : null}
               </span>
             </button>
@@ -515,6 +561,41 @@ function ProjectDetail({
       <section>
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-ink-faint">All requests</h2>
         <RequestTable project={p} />
+      </section>
+
+      {/* Whether the client can see this at all. Until it is sent it is yours
+          alone — App Builder opens one of these for every build. */}
+      <section className="border-t border-line pt-3">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-ink-faint">The client&rsquo;s side</h2>
+        {isSentToClient(p) ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded bg-core/15 px-1.5 py-0.5 text-[11px] text-core">
+              {p.claimedAt ? `Open on ${p.clientUserEmail || "their account"}` : "Sent — the link opens"}
+            </span>
+            {!p.claimedAt && (
+              <button
+                className="rounded-md border border-line px-2.5 py-1.5 text-xs text-ink-muted"
+                disabled={busy === "send"}
+                onClick={() => run("send", { action: "unsend", id: p.id })}
+              >
+                {busy === "send" ? "Taking it back…" : "Take it back"}
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="rounded-md border border-brand/50 bg-brand/20 px-2.5 py-1.5 text-xs font-medium hover:bg-brand/30"
+              disabled={busy === "send"}
+              onClick={() => run("send", { action: "send", id: p.id })}
+            >
+              {busy === "send" ? "Sending…" : "Send to the client"}
+            </button>
+            <span className="text-[11.5px] text-ink-faint">
+              Not sent yet, so the link does not open and it is not in their list — even for someone holding it.
+            </span>
+          </div>
+        )}
       </section>
 
       <section className="flex flex-wrap gap-2 border-t border-line pt-3">
