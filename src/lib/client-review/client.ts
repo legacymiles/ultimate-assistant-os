@@ -39,7 +39,10 @@ export interface MySite {
   name: string;
   version: string | null;
   building: string | null;
+  /** Nothing has shipped yet: this one is still being made, not reviewed. */
+  beingCreated: boolean;
   pending: number;
+  createdAt: string;
   updatedAt: string;
 }
 

@@ -1145,6 +1145,48 @@
   margin-top: 2px;
 }
 
+/* Still being made: nothing to look at yet, so it reads as in-progress rather
+   than as another finished site waiting to be reviewed. */
+.cr-sites li.is-building a {
+  border-color: rgba(59, 130, 246, 0.45);
+  background:
+    linear-gradient(90deg, rgba(59, 130, 246, 0.1), transparent 55%),
+    var(--cr-glass-2);
+}
+.cr-sites li.is-building small {
+  color: #93c5fd;
+}
+/* Which rows a client can actually open. Quiet by design: most of the owner's
+   apps are not shared, so the marked few are the exception worth seeing. */
+.crp-shared {
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 5px;
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  color: #6ee7b7;
+  white-space: nowrap;
+}
+
+.cr-sites li.is-building small::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: #60a5fa;
+  vertical-align: middle;
+  animation: cr-build-pulse 1.6s ease-in-out infinite;
+}
+@keyframes cr-build-pulse {
+  50% { opacity: 0.25; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cr-sites li.is-building small::before { animation: none; }
+}
+
 /* Inside the Client Review page, under its tab bar. */
 .cr-root.is-embedded {
   position: absolute;

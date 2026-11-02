@@ -3,28 +3,30 @@
 // ---------------------------------------------------------------------------
 // What the owner sees after "Build it".
 //
-// This panel exists because the old answer was a spinner. Pressing Build it
-// files a request in In Queue; the thing that builds the app is Claude Code on
-// the owner's own PC, which only looks at the queue when it is asked to. So a
-// spinner was not just unhelpful, it was wrong — nothing was loading, something
-// was waiting, and the owner was the one who had to start it.
+// This panel used to describe a QUEUE: the request had been filed, and nothing
+// would happen until the owner remembered to go and tell Claude Code to work
+// it. That was honest about the old mechanism and useless as a product — the
+// button said Build and nothing was built.
 //
-// It answers the four questions, in the order they are asked: what happens next
-// (five steps, the owner's own marked as theirs), how long (an honest range,
-// labelled a guess), where will it be (the folder and repo), and is this saved
-// if I leave (yes, and it says why). Then it follows the build on its own:
-// picked up by whom, every note the agent writes, the result line at the end
-// (R5, A1, R3, D6).
+// Now the build is real and running on their own PC, so this panel is the
+// build: what it is doing this second, what it has read and changed, the one
+// question it is blocked on, and at the end the repository and the live
+// address. The owner watches an app get made instead of watching a spinner.
+//
+// The four questions it still has to answer, because they did not stop being
+// good questions: what is happening, how far along, where will it be, and is
+// this saved if I close the page (R5, A1, R3).
 // ---------------------------------------------------------------------------
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DEPTH_LABEL, depthOf } from "@/lib/app-builder/depth";
-import { tally } from "@/lib/app-builder/engine";
-import { buildSteps, landsIn, relTime, yourMove, type BuildState, type BuildStep } from "@/lib/app-builder/plan";
-import { QUEUE_HREF } from "@/lib/app-builder/queue";
+import { latestWord, PHASE_LABEL, projectSlug, stalled, stalledWhy, tally as toolTally, type BuildPhase } from "@/lib/app-builder/build";
+import { landsIn, relTime } from "@/lib/app-builder/plan";
 import { reviewHref } from "@/lib/app-builder/review";
 import type { BuilderProject } from "@/lib/app-builder/types";
+import type { UseBuild } from "@/lib/app-builder/useBuild";
 import type { Busy } from "@/lib/app-builder/useAppBuilder";
+import type { BridgeHealth } from "@/lib/new-jarvis/bridge";
 
 function Check() {
   return (
@@ -42,92 +44,75 @@ function Arrow() {
   );
 }
 
-/** The headline: one sentence that is true right now. */
-function headline(live: BuildState, p: BuilderProject): { tone: "wait" | "work" | "done" | "gone"; title: string; sub: string } {
-  if (live.phase === "done") {
-    return {
-      tone: "done",
-      title: p.edit ? "Edits built" : "Built",
-      sub: `${live.doneBy || "Claude Code"} finished it ${relTime(live.doneAt)}.`,
-    };
-  }
-  if (live.phase === "working") {
-    return {
-      tone: "work",
-      title: "Building now",
-      sub: `${live.startedBy || "Claude Code"} picked it up ${relTime(live.startedAt)} and is working through the pipeline.`,
-    };
-  }
-  if (live.phase === "gone") {
-    return { tone: "gone", title: "No longer in the queue", sub: "It was taken out, or it finished long enough ago that the log has forgotten it." };
-  }
-  if (live.phase === "filing") return { tone: "wait", title: "Filing the build", sub: "Saving the brief and the accepted features to the server." };
-  return {
-    tone: "wait",
-    title: "Queued — waiting on you",
-    sub: `Filed ${relTime(live.at)}. Nothing is running until you start Claude Code.`,
-  };
-}
+const TONE: Record<BuildPhase, "wait" | "work" | "ask" | "done" | "gone"> = {
+  starting: "work",
+  working: "work",
+  asking: "ask",
+  done: "done",
+  failed: "gone",
+  stopped: "gone",
+};
 
-function StepRow({ step, n, notes }: { step: BuildStep; n: number; notes?: { at: string; text: string; by: string }[] }) {
-  return (
-    <li className={`ab-bstep is-${step.state}${step.yours && step.state === "now" ? " is-yours" : ""}`}>
-      <span className="ab-bstep-mark" aria-hidden>
-        {step.state === "done" ? <Check /> : <i />}
-      </span>
-      <div className="ab-bstep-body">
-        <p className="ab-bstep-title">
-          <span className="ab-bstep-n">{n}</span>
-          {step.title}
-          {step.yours && step.state === "now" && <em className="ab-bstep-yours">your move</em>}
-          {step.at && <time className="ab-bstep-at">{relTime(step.at)}</time>}
-        </p>
-        <p className="ab-bstep-detail">{step.detail}</p>
-        {notes && notes.length > 0 && (
-          <ol className="ab-notes">
-            {notes.map((note, i) => (
-              <li key={`${note.at}-${i}`}>
-                <span className="ab-note-at">{relTime(note.at)}</span>
-                <span className="ab-note-text">{note.text}</span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </div>
-    </li>
-  );
+/** One sentence that is true right now. */
+function sub(phase: BuildPhase, project: BuilderProject, build: UseBuild): string {
+  const started = project.handoff?.thread?.at;
+  switch (phase) {
+    case "starting":
+      return build.starting || "Making the project folder and handing over the brief.";
+    case "asking":
+      return "Claude is stopped, waiting for you to answer below. Nothing happens until you do.";
+    case "done":
+      return build.links.url || build.links.repo
+        ? "Finished, pushed and live."
+        : "Claude has stopped working. Read its last words below to see how far it got.";
+    case "failed":
+      // The commonest failure by far, and the one that otherwise looks like success.
+      if (stalled(build.view)) return stalledWhy();
+      return "It hit something it could not get past. Its last words are below.";
+    case "stopped":
+      return "You stopped it. The project folder keeps everything it had written.";
+    default:
+      return `Running since ${relTime(started) || "just now"}.${build.summary?.detail ? ` ${build.summary.detail}` : ""}`;
+  }
 }
 
 export function BuildStatus({
   project,
   busy,
-  live,
-  onRefresh,
-  onQueueAgain,
-  onCancel,
+  build,
+  bridge,
+  onBuildAgain,
+  onStop,
 }: {
   project: BuilderProject;
   busy: Busy;
-  /** Hoisted to the shell so the top bar and this panel can never disagree. */
-  live: BuildState;
-  onRefresh: () => void;
-  onQueueAgain: () => void;
-  onCancel: () => void;
+  build: UseBuild;
+  bridge: BridgeHealth;
+  onBuildAgain: () => void;
+  onStop: () => void;
 }) {
-  const queueId = project.handoff?.queueId;
-  const [copied, setCopied] = useState<"say" | "link" | null>(null);
-  const [confirming, setConfirming] = useState(false);
+  const [copied, setCopied] = useState<"link" | "path" | null>(null);
+  const [confirmStop, setConfirmStop] = useState(false);
+  const logEnd = useRef<HTMLDivElement>(null);
 
-  const head = headline(live, project);
-  const steps = buildSteps(project, live);
-  const mine = yourMove(live);
+  const { phase, view, gate, links } = build;
+  const tone = TONE[phase];
+  const counts = toolTally(view);
+  const now = latestWord(view);
   const lands = landsIn(project);
-  const t = tally(project.features);
   const { depth, why: depthWhy } = depthOf(project);
   const review = project.handoff?.review;
+  const built = project.handoff?.built;
+  const folder = build.summary?.worktree?.path ?? built?.path ?? `${lands.where}`;
   const reviewUrl = review ? `${typeof window === "undefined" ? "" : window.location.origin}${reviewHref(review.token)}` : "";
 
-  const copy = async (what: "say" | "link", text: string) => {
+  // Follow the narration while it is running, but never yank the view while
+  // the owner is reading a gate they have to answer.
+  useEffect(() => {
+    if (phase === "working") logEnd.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+  }, [view.turns.length, now, phase]);
+
+  const copy = async (what: "link" | "path", text: string) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(what);
@@ -138,36 +123,88 @@ export function BuildStatus({
   };
 
   return (
-    <section className={`ab-build-status is-${head.tone}`} aria-label="Where this build is">
-      {/* The phase changes on its own while the owner reads, so it is
-          announced rather than only drawn. */}
+    <section className={`ab-build-status is-${tone}`} aria-label="The build">
       <header className="ab-bhead" role="status" aria-live="polite">
         <span className="ab-bdot" aria-hidden />
         <div className="ab-bhead-words">
-          <h3>{head.title}</h3>
-          <p>{head.sub}</p>
+          <h3>{PHASE_LABEL[phase]}</h3>
+          <p>{sub(phase, project, build)}</p>
         </div>
-        {queueId && <code className="ab-bid">{queueId}</code>}
+        {(phase === "working" || phase === "asking") && (
+          <span className="ab-bcounts" title="What it has done so far">
+            <b>{counts.changes}</b> written · <b>{counts.runs}</b> run
+          </span>
+        )}
       </header>
 
-      {/* The one thing the owner has to do, where they cannot miss it. */}
-      {mine && (
-        <div className="ab-bsay">
-          <p className="ab-bsay-note">{mine.note}</p>
-          <div className="ab-bsay-row">
-            <code>{mine.say}</code>
-            <button className="ab-ghost" onClick={() => copy("say", mine.say)}>
-              {copied === "say" ? "Copied" : "Copy"}
+      {/* The one question that stops everything. */}
+      {gate && (
+        <div className="ab-bgate">
+          <p className="ab-bgate-head">
+            <span className={`ab-bgate-risk is-${gate.risk}`}>{gate.risk === "grave" ? "Careful" : gate.risk === "act" ? "Asking" : "Reading"}</span>
+            {gate.title || gate.name}
+          </p>
+          {gate.why && <p className="ab-bgate-why">{gate.why}</p>}
+          {(gate.command || gate.path) && <pre className="ab-bgate-what">{gate.command || gate.path}</pre>}
+          <div className="ab-brow">
+            <button className="ab-primary-sm" onClick={() => void build.decide(gate.gateId, true)}>
+              Allow it
+            </button>
+            <button className="ab-ghost is-no" onClick={() => void build.decide(gate.gateId, false)}>
+              Not this time
             </button>
           </div>
         </div>
       )}
 
-      <ol className="ab-bsteps">
-        {steps.map((s, i) => (
-          <StepRow key={s.id} step={s} n={i + 1} notes={s.id === "build" ? live.notes : undefined} />
-        ))}
-      </ol>
+      {/* What it is doing, in its own words. */}
+      {phase !== "done" && now && (
+        <p className="ab-bnow">
+          <span className="ab-pulse" aria-hidden />
+          {now}
+        </p>
+      )}
+
+      {view.turns.length > 0 && (
+        <details className="ab-blog" open={phase === "working" || phase === "asking"}>
+          <summary>Everything it has done ({counts.reads + counts.changes + counts.runs} steps)</summary>
+          <ol className="ab-blog-rows">
+            {view.turns.flatMap((t) =>
+              t.tools.map((tool) => (
+                // Keyed by turn AND call: a retried call reuses its id, and
+                // the reducer replaces rather than appends, so the id alone is
+                // not unique across the thread.
+                <li key={`${t.id}-${tool.callId}`} className={`is-${tool.status} is-${tool.kindOf}`}>
+                  <span className="ab-blog-kind">{tool.kindOf}</span>
+                  <span className="ab-blog-what">{tool.title || tool.path || tool.command || tool.name}</span>
+                </li>
+              )),
+            )}
+          </ol>
+          <div ref={logEnd} />
+        </details>
+      )}
+
+      {/* Finished: the two links that matter. */}
+      {(links.repo || links.url || built?.repo || built?.url) && (
+        <div className="ab-bbuilt">
+          <p className="ab-bbuilt-head">
+            <Check /> {project.understanding?.name ?? "The app"} is built
+          </p>
+          <div className="ab-brow">
+            {(links.url || built?.url) && (
+              <a className="ab-primary-sm" href={links.url || built?.url} target="_blank" rel="noreferrer">
+                Open it <Arrow />
+              </a>
+            )}
+            {(links.repo || built?.repo) && (
+              <a className="ab-ghost" href={links.repo || built?.repo} target="_blank" rel="noreferrer">
+                The repository <Arrow />
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       <dl className="ab-bfacts">
         <div>
@@ -177,34 +214,27 @@ export function BuildStatus({
           </dd>
         </div>
         <div>
-          <dt>Lands in</dt>
+          <dt>Folder</dt>
           <dd>
-            <code>{lands.where}</code>
+            <code>{folder}</code>{" "}
+            <button className="ab-blink-btn" onClick={() => copy("path", folder)}>
+              {copied === "path" ? "Copied" : "Copy"}
+            </button>
           </dd>
         </div>
         <div>
           <dt>Saved?</dt>
           <dd>
-            Yes. The request is on the server in In Queue and this project is saved to your account, so you can close the page, switch to your phone, and come
-            back to this exact screen.
+            Yes. The build runs on your PC, not in this tab — close the page, switch to your phone, and this screen comes back to the same build. Everything
+            it writes is committed in <code>{projectSlug(project)}</code>&rsquo;s own repository.
           </dd>
         </div>
-        {live.error ? (
+        {build.error && (
           <div>
-            <dt>Reading</dt>
-            <dd className="is-warn">{live.error}</dd>
+            <dt>Note</dt>
+            <dd className="is-warn">{build.error}</dd>
           </div>
-        ) : live.readAt ? (
-          <div>
-            <dt>Checked</dt>
-            <dd>
-              {relTime(live.readAt)} — this updates itself.{" "}
-              <button className="ab-blink-btn" onClick={onRefresh}>
-                Check now
-              </button>
-            </dd>
-          </div>
-        ) : null}
+        )}
       </dl>
 
       {review && (
@@ -231,36 +261,31 @@ export function BuildStatus({
       )}
 
       <div className="ab-brow">
-        <a className="ab-ghost" href={QUEUE_HREF}>
-          Open In Queue
-          <Arrow />
-        </a>
         {review && (
           <a className="ab-ghost" href={reviewHref(review.token)} target="_blank" rel="noreferrer">
             Open the review link
             <Arrow />
           </a>
         )}
-        {(live.phase === "done" || live.phase === "gone") && (
-          <button className="ab-ghost" disabled={!t.accepted || busy !== null} onClick={onQueueAgain}>
-            {busy === "queue" ? "Queuing…" : "Build it again"}
+        {(phase === "done" || phase === "failed" || phase === "stopped") && (
+          <button className="ab-ghost" disabled={busy !== null || !bridge.paired} onClick={onBuildAgain}>
+            {busy === "build" ? "Starting…" : "Build it again"}
           </button>
         )}
-        {live.phase === "queued" &&
-          queueId &&
-          (confirming ? (
+        {(phase === "working" || phase === "asking" || phase === "starting") &&
+          (confirmStop ? (
             <span className="ab-bconfirm">
-              Take it out of the queue?
-              <button className="ab-ghost is-no" disabled={busy !== null} onClick={onCancel}>
-                {busy === "cancel" ? "Removing…" : "Yes, remove it"}
+              Stop the build?
+              <button className="ab-ghost is-no" onClick={onStop}>
+                Yes, stop it
               </button>
-              <button className="ab-ghost" onClick={() => setConfirming(false)}>
-                Keep it
+              <button className="ab-ghost" onClick={() => setConfirmStop(false)}>
+                Keep going
               </button>
             </span>
           ) : (
-            <button className="ab-ghost" onClick={() => setConfirming(true)}>
-              Take it out of the queue
+            <button className="ab-ghost" onClick={() => setConfirmStop(true)}>
+              Stop the build
             </button>
           ))}
       </div>

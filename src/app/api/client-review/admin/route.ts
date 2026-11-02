@@ -14,7 +14,9 @@ import {
   reviewRequest,
   ReviewError,
   rotateToken,
+  sendToClient,
   setBrief,
+  unsendFromClient,
   updateProjectMeta,
   upsertIndex,
 } from "@/lib/client-review/logic";
@@ -175,6 +177,21 @@ export async function POST(req: Request) {
         await writeProject(p);
         await updateIndex((i) => upsertIndex(i, p));
         return NextResponse.json({ project: p });
+      }
+
+      /**
+       * Send it to the client, or take it back before they have opened it.
+       * Until a project is sent it is owner-only — App Builder opens one for
+       * every build, and most of those were never meant for a client.
+       */
+      case "send":
+      case "unsend": {
+        const { project } = await updateProject(id, (p) => ({
+          project: body.action === "send" ? sendToClient(p) : unsendFromClient(p),
+          result: null,
+        }));
+        await updateIndex((i) => upsertIndex(i, project));
+        return NextResponse.json({ project });
       }
 
       case "meta":

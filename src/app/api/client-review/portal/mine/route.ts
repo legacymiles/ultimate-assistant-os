@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { currentVersion } from "@/lib/client-review/logic";
+import { currentVersion, isSentToClient } from "@/lib/client-review/logic";
+import { isBeingCreated } from "@/lib/client-review/list";
 import { readIndex, readProject } from "@/lib/client-review/store";
 import { currentViewer } from "@/lib/client-review/viewer";
 
@@ -16,13 +17,19 @@ export async function GET() {
   const index = await readIndex();
   const mine = index.projects.filter((p) => !p.archived && (viewer.owner ? false : p.clientUserId === viewer.id));
   const sites = (await Promise.all(mine.map((m) => readProject(m.id))))
-    .filter((p): p is NonNullable<typeof p> => !!p && p.clientUserId === viewer.id && !p.archived)
+    // `isSentToClient` as well as the claim: a project the owner has not sent
+    // is theirs alone, however it came to exist.
+    .filter((p): p is NonNullable<typeof p> => !!p && p.clientUserId === viewer.id && !p.archived && isSentToClient(p))
     .map((p) => ({
       token: p.token,
       name: p.name,
       version: currentVersion(p)?.number ?? null,
       building: p.versions.find((v) => v.status === "building")?.number ?? null,
+      // Nothing has ever shipped here, so the client is waiting on a first
+      // look rather than reviewing a change.
+      beingCreated: isBeingCreated(p),
       pending: p.batches.filter((b) => b.status === "pending").length,
+      createdAt: p.createdAt,
       updatedAt: p.updatedAt,
     }));
   return NextResponse.json({ sites, email: viewer.email }, { headers: { "Cache-Control": "no-store" } });

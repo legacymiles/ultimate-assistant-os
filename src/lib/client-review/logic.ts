@@ -226,6 +226,11 @@ export function createProject(input: NewProjectInput, now = new Date().toISOStri
     notices: [],
     createdAt: now,
     updatedAt: now,
+    // Making a project for a named client by hand is itself the decision to
+    // share it — that is the flow that existed before `sentAt` did, and the
+    // link has always worked straight away. Only App Builder's automatic
+    // projects start unsent, because nobody chose those one at a time.
+    sentAt: now,
   };
 }
 
@@ -243,11 +248,55 @@ export function builderProject(
   now = new Date().toISOString(),
 ): { project: ClientProject; version: ReviewVersion } {
   const project = createProject({ ...input, siteUrl: "" }, now);
+  // Unsent: App Builder opens one of these for every build, and most are the
+  // owner's own apps. The owner sends it when it is worth showing.
+  project.sentAt = undefined;
   const v1 = project.versions[0];
   v1.status = "building";
   v1.readyAt = undefined;
   v1.summary = typeof input.summary === "string" ? input.summary.trim().slice(0, 4000) : "";
   return { project, version: v1 };
+}
+
+/**
+ * May the client see this project at all?
+ *
+ * The one gate, used by both client-facing routes. Holding the token is not
+ * enough any more: App Builder opens a review project for every build, and
+ * most of those are the owner's own apps. The owner sends it, or the client
+ * does not see it.
+ *
+ * A project the client had ALREADY claimed is grandfathered in. Those were
+ * shared deliberately, before there was a field to record it, and quietly
+ * taking a working link away from someone's client would be the worst possible
+ * way to introduce this.
+ */
+export function isSentToClient(p: ClientProject): boolean {
+  return Boolean(p.sentAt || p.clientUserId || p.claimedAt);
+}
+
+/** The owner sends it to the client; now the link opens and it joins their list. */
+export function sendToClient(src: ClientProject, now = new Date().toISOString()): ClientProject {
+  const p = clone(src);
+  p.sentAt = p.sentAt ?? now;
+  return touch(p, now);
+}
+
+/**
+ * Take it back: the link stops opening and it leaves the client's list.
+ *
+ * Refused once a client has claimed it. At that point they have seen it, may
+ * have asked for changes against it, and silently cutting them off would leave
+ * their requests pointing at something they can no longer open. Archive it
+ * instead, which is the honest way to end a project.
+ */
+export function unsendFromClient(src: ClientProject, now = new Date().toISOString()): ClientProject {
+  if (src.clientUserId || src.claimedAt) {
+    throw new ReviewError("This one is already open on the client's side. Archive it instead of un-sending it.", 409);
+  }
+  const p = clone(src);
+  p.sentAt = undefined;
+  return touch(p, now);
 }
 
 // ----- the client's side ---------------------------------------------------------
@@ -448,6 +497,13 @@ export function admit(src: ClientProject, viewer: Viewer, now = new Date().toISO
   }
   if (src.inviteEmail && src.inviteEmail !== email) {
     throw new ReviewError(`This link is for ${maskEmail(src.inviteEmail)}. Sign in with that account.`, 403);
+  }
+  // Never claim a project the owner has not sent. The route refuses these
+  // earlier, but the check belongs HERE too: claiming is what makes a project
+  // permanently visible to someone, so the function that does the claiming is
+  // the one place it cannot be forgotten.
+  if (!isSentToClient(src)) {
+    throw new ReviewError("This review link isn't active. Ask for a new one.", 404);
   }
   const p = clone(src);
   p.clientUserId = viewer.id;

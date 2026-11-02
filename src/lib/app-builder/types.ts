@@ -168,8 +168,38 @@ export interface ReviewLink {
   at: string;
 }
 
+/**
+ * The finished app: where it ended up once the build on the PC was done.
+ * Saved on the project, so App Builder's list shows shipped apps rather than
+ * only briefs, and so the link survives closing the tab.
+ */
+export interface BuiltApp {
+  /** The GitHub repository the build created and pushed to. */
+  repo?: string;
+  /** Where it is live. */
+  url?: string;
+  /** The folder on the PC it was built in. */
+  path?: string;
+  at: string;
+}
+
 export interface Handoff {
   at: string;
+  /**
+   * The harness thread on the owner's PC that is building this — the build
+   * itself, not a request for one. Kept here rather than in the hook so
+   * closing the tab, or picking the phone up mid-build, comes back to it.
+   */
+  thread?: { id: string; at: string };
+  /** Set once the build finished and said where it put things. */
+  built?: BuiltApp;
+  /**
+   * Moving this app INTO the hub: the thread doing it, and the pull request it
+   * opened. The standalone repository is untouched until `retiredAt`, so a
+   * move that goes wrong costs a branch and nothing else.
+   */
+  absorb?: { threadId: string; at: string; prUrl?: string; retiredAt?: string };
+  /** Only when the owner chose to file it for later instead of building now. */
   queueId?: string;
   cards?: { number: number; url?: string; title: string }[];
   /** The review link opened for this build, when there is one. */
