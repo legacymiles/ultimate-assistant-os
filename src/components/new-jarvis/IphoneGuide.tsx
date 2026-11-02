@@ -520,11 +520,16 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                       blue chip and clear it, or the list will only cover the photos just sent.
                     </>,
                     <>
-                      <b className="text-ink">Get Details of Images</b> → tap Detail → <b className="text-ink">Name</b>.
+                      <b className="text-ink">Get Details of Images</b> → tap Detail → <b className="text-ink">Name</b>. Its input chip has
+                      to be the <b className="text-ink">Photos</b> from the Find Photos above it — if it says Repeat Item, it is reading one
+                      photo instead of the whole roll.
                     </>,
                     <>
                       <b className="text-ink">Combine Text</b> → separator <b className="text-ink">New Lines</b>. (Commas work too — Jarvis
                       splits on either, so whichever your iOS offers is fine.)
+                      <br />
+                      Its text box must hold the blue <b className="text-ink">Name</b> chip from the step above. Tap the box and pick Name off
+                      the bar over the keyboard — typing the word combines nothing.
                     </>,
                     <>
                       A <b className="text-ink">new URL</b> action — not the one from the loop above — holding your{" "}
@@ -537,6 +542,10 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                       <InlineCopy onClick={() => copy("names", "Field name")} /> — plural — value{" "}
                       <b className="text-ink">Combined Text</b>. Tap its URL box and pick the URL action from the step above; if it still
                       points at the first one, you&apos;ll get <i>&ldquo;No photos sent&rdquo;</i>, because that&apos;s the sending link.
+                      <br />
+                      The value has to be the blue <b className="text-ink">Combined Text</b> chip off the variable bar. Typed words are sent
+                      as a photo name, so Jarvis hears &ldquo;one photo left, delete the rest&rdquo; — it refuses a list that short, and
+                      nothing comes back deleted.
                     </>,
                   ]}
                 />
