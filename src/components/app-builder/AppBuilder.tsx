@@ -16,7 +16,7 @@
 // accepted, red denied), Syne for the few headlines, JetBrains Mono for ids.
 // ---------------------------------------------------------------------------
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { tally } from "@/lib/app-builder/engine";
 import { useAppBuilder } from "@/lib/app-builder/useAppBuilder";
 import { APP_TYPE_LABEL } from "@/lib/app-builder/types";
@@ -26,6 +26,7 @@ import { FeatureTable } from "./FeatureTable";
 import { Orbit } from "./Orbit";
 import { IdeaStage, Interview } from "./Stages";
 import { Waiting } from "./Waiting";
+import { BuildStarted } from "./BuildStarted";
 import { PHASE_LABEL } from "@/lib/app-builder/build";
 import "./app-builder.css";
 
@@ -68,11 +69,35 @@ export function AppBuilder() {
   // The moment a build is handed off, put the build panel on screen. The
   // status used to live in a side tab the owner wasn't looking at, which is
   // half the reason pressing Build it felt like nothing had happened.
+  //
+  // `seen` is what tells a NEW build from one that was already running when
+  // the page opened: only the former gets the "it's being built" screen, so
+  // reopening a project mid-build doesn't greet you with it again.
+  // `undefined` means "not looked yet"; null means "looked, and there was no
+  // build". The distinction is the whole thing: the common case is a page that
+  // opens with NO thread and gains one when Build it is pressed, so a ref that
+  // starts at null would read that arrival as "it was already running" and
+  // never show the screen. This effect therefore runs on every render of the
+  // project, not only when a thread exists.
+  const seen = useRef<string | null | undefined>(undefined);
+  const [justStarted, setJustStarted] = useState(false);
   useEffect(() => {
-    if (!threadId) return;
-    setSide("blueprint");
-    setPane("blueprint");
+    const had = seen.current;
+    seen.current = threadId ?? null;
+    if (threadId) {
+      setSide("blueprint");
+      setPane("blueprint");
+    }
+    // First look at this project: whatever it has was already there.
+    if (had === undefined) return;
+    if (threadId && threadId !== had) setJustStarted(true);
   }, [threadId]);
+  // Switching project starts the question again, so building the next one
+  // still counts as new.
+  useEffect(() => {
+    seen.current = undefined;
+    setJustStarted(false);
+  }, [current?.id]);
 
   // `?idea=` (Website Redesigner › Showcase › Use this idea) means a new app:
   // put the idea stage on screen, which prefills its box from the address.
@@ -174,6 +199,17 @@ export function AppBuilder() {
           </div>
         )}
       </header>
+
+      {justStarted && current && (
+        <BuildStarted
+          project={current}
+          onWatch={() => setJustStarted(false)}
+          onHome={() => {
+            setJustStarted(false);
+            ab.open(null);
+          }}
+        />
+      )}
 
       {(ab.error || ab.notice) && (
         <div className={`ab-banner${ab.error ? " is-error" : ""}`} role={ab.error ? "alert" : "status"}>

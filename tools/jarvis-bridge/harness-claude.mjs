@@ -175,11 +175,19 @@ export function startClaude({ cwd, emit, gate, strict = false, laneWrites = fals
 
         if (msg.type === "result") {
           busy = false;
+          // `is_error` as well as the subtype. The SDK reports an authentication
+          // failure as subtype "success" with is_error true and the reason in
+          // `result` — so reading the subtype alone turns "401 Invalid bearer
+          // token" into a turn that looks like it simply had nothing to say.
+          // That cost hours once; it does not get to happen twice.
+          const failed = msg.is_error === true || msg.subtype !== "success";
+          const why = String(msg.result ?? "").trim() || String(msg.subtype ?? "failed");
+          if (failed) emit({ kind: "error", message: why });
           emit({
             kind: "turn_end",
             ms: msg.duration_ms ?? 0,
             usd: msg.total_cost_usd ?? 0,
-            error: msg.subtype === "success" ? "" : String(msg.subtype ?? "failed"),
+            error: failed ? why : "",
           });
           emit({ kind: "status", status: "idle" });
         }

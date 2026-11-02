@@ -442,6 +442,58 @@
 
 .ab-offline { border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 11px; padding: 9px 11px; margin: 0 0 12px; }
 
+/* --- the moment after Build it ------------------------------------------- */
+.ab-started {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(5, 6, 10, 0.72);
+  backdrop-filter: blur(8px);
+  animation: ab-fade 0.3s var(--ab-ease) both;
+}
+@keyframes ab-fade { from { opacity: 0; } }
+.ab-started-card {
+  width: min(520px, 100%);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  background: var(--ab-panel);
+  border: 1px solid var(--ab-line);
+  border-radius: 18px;
+  padding: 26px 24px 22px;
+  text-align: center;
+  animation: ab-rise 0.45s var(--ab-ease) both;
+}
+.ab-started-mark {
+  width: 46px; height: 46px; margin: 0 auto 14px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgba(129, 140, 248, 0.5), rgba(79, 70, 229, 0.15));
+  border: 1px solid rgba(129, 140, 248, 0.5);
+}
+.ab-started-mark i {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #a5b4fc;
+  animation: ab-pulse 1.5s ease-in-out infinite;
+}
+.ab-started-card h2 { font-family: var(--ab-display); font-size: 23px; margin: 0 0 8px; }
+.ab-started-lede { margin: 0 auto 16px; font-size: 13px; color: var(--ab-muted); max-width: 44ch; }
+.ab-started-facts { display: grid; gap: 8px; text-align: left; margin: 0 0 18px; padding-top: 14px; border-top: 1px solid var(--ab-line-soft); }
+.ab-started-facts > div { display: grid; grid-template-columns: 84px 1fr; gap: 10px; }
+.ab-started-facts dt { font-family: var(--ab-mono); font-size: 10px; text-transform: uppercase; color: var(--ab-faint); padding-top: 2px; }
+.ab-started-facts dd { margin: 0; font-size: 12px; color: var(--ab-muted); }
+.ab-started-facts dd code { font-family: var(--ab-mono); font-size: 11px; color: #c7c9ff; overflow-wrap: anywhere; }
+.ab-started-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+@media (max-width: 1023px) {
+  .ab-started-card { padding: 22px 16px 18px; }
+  .ab-started-facts > div { grid-template-columns: 1fr; gap: 2px; }
+  .ab-started-row { flex-direction: column-reverse; }
+  .ab-started-row .ab-primary, .ab-started-row .ab-ghost { width: 100%; justify-content: center; padding-top: 12px; padding-bottom: 12px; }
+}
+
 /* --- standalone, or moved into the hub ----------------------------------- */
 .ab-move {
   background: rgba(12, 13, 19, 0.92);
