@@ -5,6 +5,7 @@
 // same app grown up, and renaming the key would strand every saved persona.
 
 import { loadLocal, saveSynced } from "@/lib/sync/appState";
+import { seedDancer } from "./daily-dancer";
 import { aboutMeTemplate, suggestUsername } from "./logic";
 import { seedPersona } from "./seed";
 import { DEFAULT_LEARN, type Board, type Persona } from "./types";
@@ -100,26 +101,48 @@ export function normalizeBoard(raw: unknown): Board {
     : [];
   const present = [...new Set(personas.map((p) => p.nickname))];
   const kept = (b?.nicknameOrder ?? []).filter((n) => present.includes(n));
-  return { version: 1, personas, nicknameOrder: [...kept, ...present.filter((n) => !kept.includes(n))] };
+  const dismissed = Array.isArray(b?.dismissed) ? b!.dismissed.filter((x) => typeof x === "string") : [];
+  return {
+    version: 1,
+    personas,
+    nicknameOrder: [...kept, ...present.filter((n) => !kept.includes(n))],
+    dismissed,
+  };
 }
 
 /**
- * The board as the app sees it, with the shipped agent folded in.
+ * The board as the app sees it, with the shipped personas folded in.
  *
- * The seed lives here rather than in `normalizeBoard` on purpose:
- * normalizeBoard is the pure migration — given an old blob it returns that
- * blob brought up to date and nothing else — and quietly adding a persona to
- * it would make every caller's "what was saved" answer untrue.
+ * The seeds live here rather than in `normalizeBoard` on purpose: normalizeBoard
+ * is the pure migration — given an old blob it returns that blob brought up to
+ * date and nothing else — and quietly adding personas to it would make every
+ * caller's "what was saved" answer untrue.
  *
  * An empty first screen is still the main reason a finished app reads as a
  * demo, and a learning loop with nothing to learn from cannot show the one
- * thing it is for, so the agent is added on the way to the UI.
+ * thing it is for, so the agents are added on the way to the UI.
  */
 export function loadBoard(): Board {
   const b = normalizeBoard(loadLocal<Board>(KEY, EMPTY));
-  if (b.personas.some((p) => p.id === "p_barry" || p.nickname?.toLowerCase() === "trolling agent")) return b;
-  const personas = [seedPersona(), ...b.personas];
+  const dismissed = new Set(b.dismissed ?? []);
+  const adding = SHIPPED.filter((s) => !dismissed.has(s.id) && !alreadyShipped(b, s)).map((s) => s.make());
+  if (!adding.length) return b;
+  const personas = [...adding, ...b.personas];
   return { ...b, personas, nicknameOrder: [...new Set(personas.map((p) => p.nickname))] };
+}
+
+/** A persona the studio opens with, and the id it is recognised by. */
+const SHIPPED: { id: string; make: () => Persona }[] = [
+  { id: "p_barry", make: () => seedPersona() },
+  { id: "p_dancer", make: () => seedDancer() },
+];
+
+function alreadyShipped(b: Board, s: (typeof SHIPPED)[number]): boolean {
+  if (b.personas.some((p) => p.id === s.id)) return true;
+  // Barry predates stable ids in saved blobs: a board saved before them files
+  // him under the shelf name only, and seeding him twice would be worse than
+  // telling a new user his shelf is already taken.
+  return s.id === "p_barry" && b.personas.some((p) => p.nickname?.trim().toLowerCase() === "trolling agent");
 }
 
 export function saveBoard(b: Board): void {
@@ -134,5 +157,12 @@ export function upsertPersona(b: Board, p: Persona): Board {
 }
 
 export function removePersona(b: Board, id: string): Board {
-  return { ...b, personas: b.personas.filter((x) => x.id !== id) };
+  return {
+    ...b,
+    personas: b.personas.filter((x) => x.id !== id),
+    // A deletion has to stick: loadBoard seeds by absence, so without this the
+    // shipped persona is back on the next load and the app looks like it did
+    // not hear the owner.
+    dismissed: [...new Set([...(b.dismissed ?? []), id])],
+  };
 }

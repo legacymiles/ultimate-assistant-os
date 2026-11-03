@@ -458,6 +458,14 @@ export interface Board {
    *  themselves are derived from the personas; this only remembers the
    *  arrangement. */
   nicknameOrder?: string[];
+  /**
+   * Ids of shipped personas the owner has deleted.
+   *
+   * The studio seeds personas by their absence (see store.loadBoard), so a
+   * deletion that leaves no record of itself is undone on the next load — the
+   * persona comes back, which reads as the app ignoring the owner.
+   */
+  dismissed?: string[];
 }
 
 /** The current lesson set, or null before the first review. */
