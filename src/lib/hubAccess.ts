@@ -41,33 +41,18 @@ export const ERROR_SCRIPT = "/jarvis-errors.js";
  */
 export const LEGAL_PAGES = "/legal";
 
-/**
- * The ready-made Camera Autopilot Shortcut, as a file.
- *
- * Public on purpose, and only this one path — not the folder, which also holds
- * the owner's Expert Advisors. Behind the sign-in wall the file is close to
- * useless: a phone that has not signed in gets the login page saved under a
- * .shortcut name, and the import fails with nothing on screen to explain it.
- *
- * It carries no secret. The box its import question fills ships empty, and
- * every URL in it stops at `?key=` with a variable chip, so whoever installs
- * it supplies their own key. `scripts/check-shortcut-link.mjs` is what proves
- * that, and it has to pass before this file is ever replaced.
- */
-export const SHORTCUT_FILE = "/downloads/send-to-jarvis.shortcut";
-
 const PUBLIC_PREFIXES = [PUBLIC_HOME, "/api/fno", ...CLIENT_REVIEW_PUBLIC, LEGAL_PAGES];
 
 /**
  * Public as exact paths, with nothing underneath them.
  *
  * A single file does not belong in the prefix list: a prefix also opens
- * everything that merely starts with it, so `…/send-to-jarvis.shortcut/..`
- * plus a neighbouring filename would read as public. Next normalises `..` out
- * of a path before middleware sees it, which is the only reason that is not a
- * hole today — not a thing to build on.
+ * everything that merely starts with it, so the file's own path plus `..` and
+ * a neighbouring filename would read as public. Next normalises `..` out of a
+ * path before middleware sees it, which is the only reason that was never a
+ * hole — not a thing to build on.
  */
-const PUBLIC_EXACT = [ERROR_SCRIPT, SHORTCUT_FILE];
+const PUBLIC_EXACT = [ERROR_SCRIPT];
 const AUTH_PREFIXES = ["/login", "/auth"];
 
 function underPrefix(path: string, prefix: string): boolean {

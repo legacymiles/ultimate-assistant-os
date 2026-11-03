@@ -16,8 +16,6 @@
 // committed.
 // ---------------------------------------------------------------------------
 
-import { SHORTCUT_FILE } from "@/lib/hubAccess";
-
 /**
  * Paste the shared Shortcut's iCloud link here.
  *
@@ -61,24 +59,17 @@ export function isShortcutLink(url: string): boolean {
 export const READY_MADE = isShortcutLink(SHORTCUT_LINK);
 
 /**
- * The same Shortcut as a file, served straight off this site.
+ * There is no second route onto a phone, and that is Apple's rule.
  *
- * Apple signs a Shortcut when it is shared from a phone, and only a signed one
- * installs by tapping a link. A file cannot be signed from here, so importing
- * this one costs the user a switch — Settings › Shortcuts › Advanced › Allow
- * Untrusted Shortcuts — which is why it is the second choice and not the
- * first. It is still far ahead of building eight blocks by hand, and it is the
- * only route that exists before anyone has shared a link.
+ * This shipped for a day as a file the guide offered for download, on the
+ * strength of an "Allow Untrusted Shortcuts" switch that no longer does
+ * anything. iPhone answers a .shortcut file with "Importing unsigned shortcut
+ * files is not supported. Please use another sharing option" — no setting, no
+ * toggle and no re-export gets past it. Apple signs a Shortcut only when a
+ * phone shares it, and a signed one is the only kind that installs.
  *
- * Its path comes from the sign-in wall rather than being written again here:
- * the file has to be reachable without an account, and a second spelling of it
- * would be the one that is still gated.
+ * So public/downloads/send-to-jarvis.shortcut is kept as a reference, not an
+ * install route: the right wiring in a readable file, which `shortcuts sign`
+ * on a Mac could turn into something installable. Until a phone shares a link,
+ * the guide teaches the build.
  */
-export { SHORTCUT_FILE };
-
-/**
- * Either route means nobody has to build the thing, which is what decides how
- * the guide reads: one key instead of three links, and the hand-build folded
- * away rather than laid out as the way to do it.
- */
-export const SKIP_BUILD = READY_MADE || Boolean(SHORTCUT_FILE);

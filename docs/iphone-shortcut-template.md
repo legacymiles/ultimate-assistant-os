@@ -66,24 +66,29 @@ what it is for.
 
 ## The file at `public/downloads/send-to-jarvis.shortcut`
 
-Until a signed link exists, the guide offers that file instead, and step 3 is
-download-and-import rather than an eight-block build. It is the same Shortcut:
-an empty Text box with the import question on it, and two URL actions —
-`/inbox/push` and `/inbox/present` — each ending in the chip that carries the
-pasted key. No bookmark link, so each run re-sends the newest photos rather
-than picking up where it left off; the hand-build steps for adding one are
-still in the guide's fold.
+It is the same Shortcut, correct: an empty Text box with the import question
+on it, and two URL actions — `/inbox/push` and `/inbox/present` — each ending
+in the chip that carries the pasted key. No bookmark link, so each run
+re-sends the newest photos rather than picking up where it left off. It was
+made by taking the owner’s own shared Shortcut and applying the five fixes the
+check below refused it over, so every action in it is one Shortcuts itself
+produced.
 
-It costs the user one switch: Apple only signs a Shortcut shared from a phone,
-so iPhone refuses a file until **Settings → Shortcuts → Advanced → Allow
-Untrusted Shortcuts** is on. That is why a shared link is still the better
-route, and why this is the fallback rather than the answer.
+**It cannot be installed, and no setting changes that.** The guide offered it
+for download for a day, on the strength of an “Allow Untrusted Shortcuts”
+switch that no longer does anything. iPhone answers the file with:
 
-It was made by taking the owner's own shared Shortcut and applying the five
-fixes the check below refused it over — nothing in it was authored from
-scratch, so every action is one Shortcuts itself produced. To replace it,
-import it on a phone, change what you need, share it, and either paste that
-link into `SHARED_SHORTCUT` or download the file back out of the share.
+> Importing unsigned shortcut files is not supported. Please use another
+> sharing option
+
+Apple signs a Shortcut only when a phone shares it, and a signed one is the
+only kind that installs. So this is a reference, not a route: the right wiring
+in a file you can read and parse. `shortcuts sign --mode anyone` on a Mac
+would turn it into something installable; there is no Windows or server
+equivalent.
+
+Which leaves exactly one way to get a working Shortcut onto a phone that does
+not already have one: fix it by hand on a phone that does, then share it.
 
 ## Before publishing the link
 
