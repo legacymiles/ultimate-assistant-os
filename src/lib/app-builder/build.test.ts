@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBrief, latestWord, phaseOf, projectSlug, resultLinks, stalled, tally, threadTitle } from "./build";
+import { buildBrief, latestWord, phaseOf, PHASE_LABEL, projectSlug, resultLinks, stalled, tally, threadTitle } from "./build";
 import { applyOps, bestGuesses, intakeQuestions, newProject, offlineFeatures, understand } from "./engine";
 import type { BuilderProject } from "./types";
 import type { ThreadSummary, ThreadView, Turn } from "@/lib/new-jarvis/harness/types";
@@ -171,5 +171,27 @@ describe("an agent that answered without working", () => {
 
   it("says nothing about a thread that has not run a turn at all", () => {
     expect(stalled(emptyThread())).toBe(false);
+  });
+});
+
+describe("a build the agent has forgotten", () => {
+  // The bridge restarts and every thread dies with it. The project still
+  // points at one, so the panel must say nothing is running — not sit on
+  // "Starting the build" with the button to fix it greyed out.
+  it("is lost, not starting", () => {
+    expect(phaseOf(null, emptyThread(), true)).toBe("lost");
+  });
+
+  it("is lost whatever the stale view held", () => {
+    expect(phaseOf(summary("thinking"), view([turn("half a build")]), true)).toBe("lost");
+  });
+
+  it("is only starting when the agent simply has not answered yet", () => {
+    expect(phaseOf(null, emptyThread(), false)).toBe("starting");
+    expect(phaseOf(null, emptyThread())).toBe("starting");
+  });
+
+  it("has a label that says nothing is happening", () => {
+    expect(PHASE_LABEL.lost.toLowerCase()).toContain("no longer running");
   });
 });

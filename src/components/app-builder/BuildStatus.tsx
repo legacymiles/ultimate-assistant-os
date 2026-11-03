@@ -51,6 +51,7 @@ const TONE: Record<BuildPhase, "wait" | "work" | "ask" | "done" | "gone"> = {
   done: "done",
   failed: "gone",
   stopped: "gone",
+  lost: "gone",
 };
 
 /** One sentence that is true right now. */
@@ -71,6 +72,9 @@ function sub(phase: BuildPhase, project: BuilderProject, build: UseBuild): strin
       return "It hit something it could not get past. Its last words are below.";
     case "stopped":
       return "You stopped it. The project folder keeps everything it had written.";
+    case "lost":
+      // Said plainly, because the alternative was a spinner that never moved.
+      return "Nothing is running. The agent on your PC restarted, and builds don’t survive that — anything already written is still in the folder. Press Build it again to pick it back up.";
     default:
       return `Running since ${relTime(started) || "just now"}.${build.summary?.detail ? ` ${build.summary.detail}` : ""}`;
   }
@@ -267,7 +271,7 @@ export function BuildStatus({
             <Arrow />
           </a>
         )}
-        {(phase === "done" || phase === "failed" || phase === "stopped") && (
+        {(phase === "done" || phase === "failed" || phase === "stopped" || phase === "lost") && (
           <button className="ab-ghost" disabled={busy !== null || !bridge.paired} onClick={onBuildAgain}>
             {busy === "build" ? "Starting…" : "Build it again"}
           </button>
