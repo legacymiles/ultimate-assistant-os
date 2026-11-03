@@ -72,7 +72,7 @@ export function buildBrief(p: BuilderProject): string {
 
 // ----- reading the thread back -----------------------------------------------------
 
-export type BuildPhase = "starting" | "working" | "asking" | "done" | "failed" | "stopped";
+export type BuildPhase = "starting" | "working" | "asking" | "done" | "failed" | "stopped" | "lost";
 
 export const PHASE_LABEL: Record<BuildPhase, string> = {
   starting: "Starting the build",
@@ -81,6 +81,7 @@ export const PHASE_LABEL: Record<BuildPhase, string> = {
   done: "Built",
   failed: "The build didn’t run",
   stopped: "Stopped",
+  lost: "This build is no longer running",
 };
 
 /**
@@ -108,7 +109,13 @@ export function stalledWhy(): string {
   return "Claude Code answered without doing anything, which almost always means it is not signed in on that PC. Open a terminal there, run `claude`, and sign in with /login — then press Build it again.";
 }
 
-export function phaseOf(summary: ThreadSummary | null, view: ThreadView): BuildPhase {
+export function phaseOf(summary: ThreadSummary | null, view: ThreadView, missing = false): BuildPhase {
+  // The agent has never heard of this thread — it restarted, and threads do
+  // not survive that. Without this the panel sits on "Starting the build"
+  // forever, which is the exact loading-screen-with-nothing-behind-it the
+  // whole build panel exists to abolish; worse, "starting" counts as in
+  // flight, so the button that would fix it is disabled.
+  if (missing) return "lost";
   if (!summary) return "starting";
   if (view.liveGate) return "asking";
   switch (summary.status) {

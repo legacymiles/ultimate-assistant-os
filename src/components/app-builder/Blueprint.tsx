@@ -128,7 +128,13 @@ export function Blueprint({
   const eta = etaFor(t.accepted, depth);
   /** A build has been started for this project, whether or not it is finished. */
   const started = Boolean(project.handoff?.thread?.id);
-  /** Running right now: the brief is already written, so the depth is set. */
+  /**
+   * Running right now: the brief is already written, so the depth is set.
+   *
+   * "lost" is deliberately NOT in flight. A thread the agent has forgotten is
+   * not running, and treating it as if it were is what left the owner looking
+   * at "Starting the build" with the one button that would fix it greyed out.
+   */
   const inFlight = started && (build.phase === "starting" || build.phase === "working" || build.phase === "asking");
   const wantsReview = !project.edit && !project.noReview;
   /** Nothing to build with: the PC isn't reachable from this browser. */
@@ -286,7 +292,9 @@ export function Blueprint({
             : inFlight
               ? "Building…"
               : started
-                ? "Build it again"
+                ? build.phase === "lost"
+                  ? `Build it again · ${t.accepted} feature${t.accepted === 1 ? "" : "s"}`
+                  : "Build it again"
                 : project.edit
                   ? `Build ${t.accepted} edit${t.accepted === 1 ? "" : "s"} · ${project.edit.version}`
                   : `Build it · ${t.accepted} feature${t.accepted === 1 ? "" : "s"}`}

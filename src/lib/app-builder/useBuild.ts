@@ -37,6 +37,8 @@ function pollEvery(status: ThreadSummary["status"] | undefined): number | null {
 
 export interface UseBuild {
   phase: BuildPhase;
+  /** The agent has no such thread — it restarted. Nothing is running. */
+  missing: boolean;
   view: ThreadView;
   summary: ThreadSummary | null;
   gate: GateCard | null;
@@ -57,6 +59,8 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
   const [summary, setSummary] = useState<ThreadSummary | null>(null);
   const [error, setError] = useState("");
   const [starting, setStarting] = useState("");
+  // The agent does not know this thread: it restarted, and threads die with it.
+  const [missing, setMissing] = useState(false);
 
   const cursor = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -75,6 +79,7 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
     setView(emptyThread());
     setSummary(null);
     setError("");
+    setMissing(false);
   }, [threadId]);
 
   const pull = useCallback(async () => {
@@ -99,7 +104,8 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
     } catch (e) {
       if (!alive.current) return;
       if (e instanceof BridgeError && e.status === 404) {
-        setError("This build ended when the agent on your PC restarted. Nothing it had already written is lost — the project folder is still there.");
+        setMissing(true);
+        setError("");
         return;
       }
       if (e instanceof BridgeError && e.status === 0) {
@@ -111,7 +117,7 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
   }, [threadId]);
 
   useEffect(() => {
-    if (!threadId || !paired) return;
+    if (!threadId || !paired || missing) return;
     let stopped = false;
     const tick = async () => {
       if (stopped) return;
@@ -132,7 +138,7 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
       document.removeEventListener("visibilitychange", onShow);
     };
     // `summary?.status` is a dependency on purpose: the rate follows the build.
-  }, [threadId, paired, pull, summary?.status]);
+  }, [threadId, paired, pull, summary?.status, missing]);
 
   const start = useCallback(async (p: BuilderProject): Promise<string> => {
     setError("");
@@ -218,7 +224,8 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
   }, [threadId, pull]);
 
   return {
-    phase: phaseOf(summary, view),
+    phase: phaseOf(summary, view, missing),
+    missing,
     view,
     summary,
     gate: view.liveGate,

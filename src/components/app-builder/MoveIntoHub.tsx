@@ -39,6 +39,7 @@ const MOVE_LABEL: Record<BuildPhase, string> = {
   done: "Finished",
   failed: "Stopped",
   stopped: "Stopped",
+  lost: "No longer running",
 };
 
 export function MoveIntoHub({
