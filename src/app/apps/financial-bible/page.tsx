@@ -1,20 +1,17 @@
-import { Bible } from "@/components/bible/Bible";
+import { redirect } from "next/navigation";
 import { isRoom } from "@/lib/bible/rooms";
 
-export const metadata = {
-  title: "Financial Bible · Ultimate Assistant OS",
-  description:
-    "Every business idea you have had, each one holding the costed, sourced, ordered plan for actually "
-    + "building it — and an agent that will argue with you about it.",
-};
-
+// Financial Bible is the Bible tab of Money Agent Studio now — the money the
+// agents make and the plan it is spent against belong behind one door. The
+// route stays alive because links to it exist (Jarvis chat, the catalog detail
+// page, the Smartcar-era bookmarks), and `?studio=` is carried across so a
+// link that named a room still lands in that room.
 export default async function Page({
   searchParams,
 }: {
   searchParams: Promise<{ studio?: string }>;
 }) {
-  // `?studio=` is how Jarvis, and any link, points at one room. Null — no room,
-  // or one that is not a room — means the shell resumes whichever was last open.
   const { studio } = await searchParams;
-  return <Bible initialRoom={isRoom(studio) ? studio : null} />;
+  const room = isRoom(studio) ? `&studio=${studio}` : "";
+  redirect(`/apps/money-agent-studio?tab=bible${room}`);
 }

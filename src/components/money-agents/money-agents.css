@@ -65,6 +65,9 @@
   white-space: nowrap;
 }
 .mas-back:hover, .mas-link:hover { color: var(--mas-ink); border-color: var(--mas-line-2); }
+/* The Bible link switches a tab rather than leaving, so it is a button. */
+button.mas-link { background: none; font-family: inherit; font-size: 12.5px; line-height: inherit; cursor: pointer; }
+button.mas-link[aria-pressed="true"] { color: var(--mas-ink); border-color: var(--mas-mint); }
 .mas-brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; min-width: 0; }
 .mas-brand h1 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; white-space: nowrap; }
 .mas-brand h1 em { font-style: normal; color: var(--mas-mint); }
@@ -482,3 +485,18 @@ a.mas-btn { text-decoration: none; display: inline-flex; align-items: center; }
   .rad-sweep, .rad-blip-dot, .rad-pulse[data-on="true"], .rad-skel { animation: none; }
   .rad-blip-dot { opacity: 0.85; }
 }
+
+/* ----- the Bible tab ----------------------------------------------------- */
+/* Financial Bible is a whole app with its own rail, so it gets the full width
+   of the studio: these negative margins cancel `.mas-wrap`'s side padding
+   rather than leaving a 232px rail squeezed inside a gutter. */
+.mas-bible { margin: 18px -20px 0; }
+@media (max-width: 640px) { .mas-bible { margin: 14px -16px 0; } }
+
+.mas-bible-skeleton {
+  margin: 18px -20px 0;
+  min-height: min(78dvh, 900px);
+  border-top: 1px solid var(--mas-line);
+  background: var(--mas-panel);
+}
+@media (max-width: 640px) { .mas-bible-skeleton { margin: 14px -16px 0; } }

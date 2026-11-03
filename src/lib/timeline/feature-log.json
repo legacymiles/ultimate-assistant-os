@@ -1,5 +1,68 @@
 [
  {
+  "id": "f0f7bcb:financial-bible",
+  "date": "2026-11-02",
+  "slug": "financial-bible",
+  "title": "Two apps go widget-only, Financial Bible joins Money Agent Studio",
+  "detail": "Find My Life and YouTube Videos were both already drawn on the Jarvis Dashboard, so a card as well was the second door to a thing you glance at rather than go and work in. They move to WIDGET_SLUGS rather than leaving the allowlists, because a slug dropped altogether gets its hub tile back and the o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f0f7bcb:money-agent-studio",
+  "date": "2026-11-02",
+  "slug": "money-agent-studio",
+  "title": "Two apps go widget-only, Financial Bible joins Money Agent Studio",
+  "detail": "Find My Life and YouTube Videos were both already drawn on the Jarvis Dashboard, so a card as well was the second door to a thing you glance at rather than go and work in. They move to WIDGET_SLUGS rather than leaving the allowlists, because a slug dropped altogether gets its hub tile back and the o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f0f7bcb:find-my-life",
+  "date": "2026-11-02",
+  "slug": "find-my-life",
+  "title": "Two apps go widget-only, Financial Bible joins Money Agent Studio",
+  "detail": "Find My Life and YouTube Videos were both already drawn on the Jarvis Dashboard, so a card as well was the second door to a thing you glance at rather than go and work in. They move to WIDGET_SLUGS rather than leaving the allowlists, because a slug dropped altogether gets its hub tile back and the o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f0f7bcb:money-agents",
+  "date": "2026-11-02",
+  "slug": "money-agents",
+  "title": "Two apps go widget-only, Financial Bible joins Money Agent Studio",
+  "detail": "Find My Life and YouTube Videos were both already drawn on the Jarvis Dashboard, so a card as well was the second door to a thing you glance at rather than go and work in. They move to WIDGET_SLUGS rather than leaving the allowlists, because a slug dropped altogether gets its hub tile back and the o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f0f7bcb:youtube-videos",
+  "date": "2026-11-02",
+  "slug": "youtube-videos",
+  "title": "Two apps go widget-only, Financial Bible joins Money Agent Studio",
+  "detail": "Find My Life and YouTube Videos were both already drawn on the Jarvis Dashboard, so a card as well was the second door to a thing you glance at rather than go and work in. They move to WIDGET_SLUGS rather than leaving the allowlists, because a slug dropped altogether gets its hub tile back and the o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f0f7bcb:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "Two apps go widget-only, Financial Bible joins Money Agent Studio",
+  "detail": "Find My Life and YouTube Videos were both already drawn on the Jarvis Dashboard, so a card as well was the second door to a thing you glance at rather than go and work in. They move to WIDGET_SLUGS rather than leaving the allowlists, because a slug dropped altogether gets its hub tile back and the o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "73a8bc1:projects-timeline",
+  "date": "2026-11-02",
+  "slug": "projects-timeline",
+  "title": "Log app edits again on Windows",
+  "detail": "`npm run timeline:log` has been failing on Windows. ROOT came from `new URL(import.meta.url).pathname`, which is \"/C:/dev/repo/scripts\" here; path.resolve reads the leading slash as a rooted path and returns \"C:\\C:\\dev\\repo\". Every execFileSync then failed with ENOENT on a cwd that does not exist — ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "4b175f0:jarvis",
   "date": "2026-11-02",
   "slug": "jarvis",

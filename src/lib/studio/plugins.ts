@@ -33,8 +33,6 @@ import { onTheWall } from "@/lib/studio-home/panels";
  */
 export const PLUGIN_SLUGS = [
   "app-builder",
-  "youtube-videos",
-  "find-my-life",
   "seedance-studio",
   "jarvis-audio-studio",
   "image-studio",
@@ -44,7 +42,6 @@ export const PLUGIN_SLUGS = [
   "ai-rankings",
   "cook-connect",
   "trading-studio",
-  "financial-bible",
   "baby-no-scroll",
   "dump-finder",
   "client-review",
@@ -68,8 +65,16 @@ export const PLUGIN_SLUGS = [
  * no hub tile. iPhone Notes and Text Inbox share the one "iPhone" widget
  * (owner's call, Oct 2026). Their routes stay for the widget's sheets, the
  * Text Inbox Home Screen app and its notifications.
+ *
+ * YouTube Videos and Find My Life came off the App plugins page the same way
+ * (owner's call, Nov 2026): both were already drawn on the Dashboard, so a
+ * card as well was the second door to a thing you glance at rather than go
+ * and work in. They stay HERE rather than leaving the list, because dropping
+ * a slug out of the allowlists altogether would put its tile back on the hub
+ * grid and give the one app two front doors again. Their routes stay live for
+ * the widget's expanded view, the Shortcuts ping and the onboarding sheet.
  */
-export const WIDGET_SLUGS = ["iphone-notes", "text-inbox"] as const;
+export const WIDGET_SLUGS = ["iphone-notes", "text-inbox", "youtube-videos", "find-my-life"] as const;
 
 export const TOOLBOX_SLUGS = ["prompt-architect", "projects-timeline"] as const;
 
@@ -95,6 +100,7 @@ export const MERGED_INTO: Record<string, string> = {
   "website-redesigner": "app-builder",
   "fire-reveal": "website-redesigner",
   "kart-showcase": "website-redesigner",
+  "financial-bible": "money-agent-studio",
 };
 
 /** Whether this app now lives inside another app, and so has no tile of its own. */

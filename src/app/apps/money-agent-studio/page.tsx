@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { MoneyAgentStudioMount } from "@/components/money-agents/Mount";
+import { isRoom } from "@/lib/bible/rooms";
 
 // Money Agent Studio — agents that make videos that make money (clipping,
 // faceless channels, paid clipping campaigns). Owner-only like the rest of the
-// hub (middleware). Its money shows up in Financial Bible › Money Plays.
+// hub (middleware). Financial Bible is the Bible tab here (MERGED_INTO in
+// src/lib/studio/plugins.ts): what the agents make and the plan it is spent
+// against are one app, and Money Plays already read the same board.
 
 export const metadata: Metadata = {
   title: "Money Agent Studio · Ultimate Assistant OS",
@@ -12,11 +15,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const TABS = ["radar", "approve", "pipeline", "agents", "campaigns", "earnings"] as const;
+const TABS = ["radar", "approve", "pipeline", "agents", "campaigns", "earnings", "bible"] as const;
 type Tab = (typeof TABS)[number];
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const { tab } = await searchParams;
+export default async function Page({ searchParams }: { searchParams: Promise<{ tab?: string; studio?: string }> }) {
+  const { tab, studio } = await searchParams;
   const initial = (TABS as readonly string[]).includes(tab ?? "") ? (tab as Tab) : null;
-  return <MoneyAgentStudioMount initialTab={initial} />;
+  // `?studio=` is the Bible's own room, carried over from /apps/financial-bible.
+  return <MoneyAgentStudioMount initialTab={initial} initialRoom={isRoom(studio) ? studio : null} />;
 }

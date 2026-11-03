@@ -6,7 +6,7 @@
 // The Life Radar (or the map) up top, a dense list beside it, and the one you
 // pick up close. Add anything — phone, laptop, Meta glasses, car, keys, wallet
 // — and it gets the best way of being found that really works, set up in place.
-// Lives on its own page (/apps/find-my-life, an App plugins card) and inside
+// Lives on its own page (/apps/find-my-life) and inside
 // the Jarvis Dashboard widget's sheet (`embedded`).
 // ---------------------------------------------------------------------------
 
