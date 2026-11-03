@@ -16,6 +16,8 @@
 // committed.
 // ---------------------------------------------------------------------------
 
+import { SHORTCUT_FILE } from "@/lib/hubAccess";
+
 /**
  * Paste the shared Shortcut's iCloud link here.
  *
@@ -68,9 +70,11 @@ export const READY_MADE = isShortcutLink(SHORTCUT_LINK);
  * first. It is still far ahead of building eight blocks by hand, and it is the
  * only route that exists before anyone has shared a link.
  *
- * It holds no key: the box the import question fills ships empty.
+ * Its path comes from the sign-in wall rather than being written again here:
+ * the file has to be reachable without an account, and a second spelling of it
+ * would be the one that is still gated.
  */
-export const SHORTCUT_FILE = "/downloads/send-to-jarvis.shortcut";
+export { SHORTCUT_FILE };
 
 /**
  * Either route means nobody has to build the thing, which is what decides how

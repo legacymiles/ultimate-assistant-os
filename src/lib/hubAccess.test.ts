@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isOwner, parseOwnerEmails, routeAccess, PUBLIC_HOME } from "./hubAccess";
+import { isOwner, parseOwnerEmails, routeAccess, PUBLIC_HOME, SHORTCUT_FILE } from "./hubAccess";
 
 const TOKEN = new Set(["/api/dashboard/inbox/push"]);
 
@@ -74,5 +74,20 @@ describe("owner list", () => {
   it("rejects missing email", () => {
     expect(isOwner(undefined, ["a@x.com"])).toBe(false);
     expect(isOwner("", ["a@x.com"])).toBe(false);
+  });
+});
+
+describe("the Camera Autopilot Shortcut file", () => {
+  const none = new Set<string>();
+
+  it("is public, because Shortcuts fetches it with none of Safari's cookies", () => {
+    expect(routeAccess(SHORTCUT_FILE, none)).toBe("public");
+  });
+
+  it("opens that one file and not the folder it sits in", () => {
+    // The same folder holds the owner's Expert Advisors.
+    expect(routeAccess("/downloads", none)).toBe("owner");
+    expect(routeAccess("/downloads/HeartbeatFVG.mq4", none)).toBe("owner");
+    expect(routeAccess(`${SHORTCUT_FILE}/../HeartbeatFVG.mq4`, none)).toBe("owner");
   });
 });
