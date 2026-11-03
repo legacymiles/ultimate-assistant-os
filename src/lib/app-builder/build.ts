@@ -142,6 +142,28 @@ export function phaseOf(summary: ThreadSummary | null, view: ThreadView, missing
   }
 }
 
+/** What the shell last saw: which project was open, and its build. */
+export interface Sighting {
+  project: string | null;
+  thread: string | null;
+}
+
+/**
+ * Has a build just STARTED, as opposed to having been running all along?
+ *
+ * Only a genuinely new build earns the "it's being built" screen; reopening a
+ * project mid-build must not greet you with it again. This lives here, out of
+ * the component, because the rule is subtle enough to have been wrong twice:
+ * once by starting the record at "nothing" (so the common case — a page that
+ * opens with no build and gains one — read as "already running"), and once by
+ * having a second effect reset the record after the first wrote it.
+ */
+export function isNewBuild(had: Sighting | null, now: Sighting): boolean {
+  // Never looked at this project before: whatever it holds was already there.
+  if (!had || had.project !== now.project) return false;
+  return Boolean(now.thread) && now.thread !== had.thread;
+}
+
 /** The last thing Claude actually said, for the one-line "what it's doing now". */
 export function latestWord(view: ThreadView): string {
   for (let i = view.turns.length - 1; i >= 0; i--) {

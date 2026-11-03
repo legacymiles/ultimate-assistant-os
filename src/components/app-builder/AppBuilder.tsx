@@ -27,7 +27,7 @@ import { Orbit } from "./Orbit";
 import { IdeaStage, Interview } from "./Stages";
 import { Waiting } from "./Waiting";
 import { BuildStarted } from "./BuildStarted";
-import { PHASE_LABEL } from "@/lib/app-builder/build";
+import { isNewBuild, PHASE_LABEL } from "@/lib/app-builder/build";
 import "./app-builder.css";
 
 type Pane = "features" | "chat" | "blueprint";
@@ -79,25 +79,27 @@ export function AppBuilder() {
   // starts at null would read that arrival as "it was already running" and
   // never show the screen. This effect therefore runs on every render of the
   // project, not only when a thread exists.
-  const seen = useRef<string | null | undefined>(undefined);
+  // ONE effect watching both, because two of them fought and the pop-up lost.
+  //
+  // It was a thread effect that recorded what it had seen, plus a project
+  // effect that reset that record. Both run on mount, in declaration order,
+  // so the reset always landed last: the record went back to "not looked
+  // yet", and when the build then started the thread effect read that as a
+  // first look and returned. The screen could never appear — not a race, a
+  // certainty.
+  const seen = useRef<{ project: string | null; thread: string | null } | null>(null);
   const [justStarted, setJustStarted] = useState(false);
+  const projectId = current?.id ?? null;
   useEffect(() => {
     const had = seen.current;
-    seen.current = threadId ?? null;
+    seen.current = { project: projectId, thread: threadId ?? null };
     if (threadId) {
       setSide("blueprint");
       setPane("blueprint");
     }
-    // First look at this project: whatever it has was already there.
-    if (had === undefined) return;
-    if (threadId && threadId !== had) setJustStarted(true);
-  }, [threadId]);
-  // Switching project starts the question again, so building the next one
-  // still counts as new.
-  useEffect(() => {
-    seen.current = undefined;
-    setJustStarted(false);
-  }, [current?.id]);
+    if (isNewBuild(had, { project: projectId, thread: threadId ?? null })) setJustStarted(true);
+    else if (!had || had.project !== projectId) setJustStarted(false);
+  }, [projectId, threadId]);
 
   // `?idea=` (Website Redesigner › Showcase › Use this idea) means a new app:
   // put the idea stage on screen, which prefills its box from the address.
