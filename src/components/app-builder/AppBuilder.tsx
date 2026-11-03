@@ -27,6 +27,7 @@ import { Orbit } from "./Orbit";
 import { IdeaStage, Interview } from "./Stages";
 import { Waiting } from "./Waiting";
 import { BuildStarted } from "./BuildStarted";
+import { GateBar } from "./GateBar";
 import { isNewBuild, PHASE_LABEL } from "@/lib/app-builder/build";
 import "./app-builder.css";
 
@@ -201,6 +202,10 @@ export function AppBuilder() {
           </div>
         )}
       </header>
+
+      {/* A question that blocks the build belongs at the top of the app, not
+          at the bottom of a scrollable side panel. */}
+      {build.gate && <GateBar gate={build.gate} onDecide={(id, allow) => void build.decide(id, allow)} />}
 
       {justStarted && current && (
         <BuildStarted
