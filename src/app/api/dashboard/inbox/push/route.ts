@@ -38,6 +38,8 @@ export async function POST(req: Request) {
   let ids: string[] = [];
   let taken: string[] = [];
   const sawText: string[] = [];
+  /** Text fields by name, so a clean-up list that lands here can still be run. */
+  const text = new Map<string, string>();
 
   if (type.includes("multipart/form-data") || type.includes("application/x-www-form-urlencoded")) {
     let form: FormData;
@@ -52,7 +54,10 @@ export async function POST(req: Request) {
         if (value.size > 0) files.push(value);
       } else if (key === "deviceIds") ids = String(value).split(",");
       else if (key === "takenAt") taken = [String(value)];
-      else sawText.push(key);
+      else {
+        sawText.push(key);
+        text.set(key, String(value));
+      }
     }
   } else {
     // A raw picture as the body.
@@ -65,32 +70,39 @@ export async function POST(req: Request) {
   }
 
   if (!files.length) {
-    // `names` is the clean-up's field, and its arriving HERE is one specific
-    // mis-wiring: the last Get Contents of URL is reading the sending link
-    // instead of the one ending /present. Shortcuts fills that URL box in by
-    // itself and often picks the first URL action in the whole Shortcut.
+    // No picture, but a list of names: this is the clean-up step, pointed at
+    // the sending link. Shortcuts fills a Get Contents of URL's URL box in by
+    // itself and usually picks the first URL action in the Shortcut, so this
+    // is where that request lands — and it used to be answered with a 400
+    // nobody reads, which is why a phone could run for weeks, keep delivering
+    // photos from the loop above, and never delete a thing.
     //
-    // It has to be named, because the answer below — make the field a File and
-    // point it at the image — is the wrong advice for this request, and
-    // following it breaks the clean-up for good. A phone can run like this for
-    // weeks and look healthy: photos keep arriving from the loop above, the
-    // clean-up POST collects a 400 nobody reads, and nothing is ever deleted.
-    const cleanup = sawText.includes("names");
+    // Running it here instead is what lets the setup ask for ONE link and say
+    // "paste it in both": there is no longer a box to put it in wrongly.
+    //
+    // Only a field that says it holds names counts. /present can afford to
+    // take whatever single text field turned up, because the names are the
+    // only thing it is ever sent; here a photo field that arrived as text
+    // would look identical, and reading "Converted Image" as the list of
+    // photos still on the phone would delete every other one in the queue.
+    const nameField = sawText.find((k) => /name|combined/i.test(k));
+    const cleanup = nameField ? text.get(nameField) : undefined;
+    if (cleanup?.trim()) {
+      const { stillOnPhone } = await import("@/lib/dashboard/stillOnPhone");
+      const { status, body } = await stillOnPhone(uid, cleanup, text.get("days"));
+      return NextResponse.json(body, { status });
+    }
     await noteProblem(
       uid,
-      cleanup
-        ? "the clean-up list went to the sending link — in the last Get Contents of URL, pick the URL action ending /present"
-        : sawText.length
-          ? `the photo field "${sawText[0]}" arrived as text, not a picture — in Get Contents of URL make it a File field`
-          : "no photo came through — check the File field in Get Contents of URL points at the Converted Image",
+      sawText.length
+        ? `the photo field "${sawText[0]}" arrived as text, not a picture — in Get Contents of URL make it a File field`
+        : "no photo came through — check the File field in Get Contents of URL points at the Converted Image",
     ).catch(() => undefined);
     return NextResponse.json(
       {
-        error: cleanup
-          ? "That was the clean-up list, sent to the link that sends photos — so nothing was deleted. In the LAST Get Contents of URL, tap the URL box and pick the URL action directly above it, the one ending /present."
-          : sawText.length
-            ? `No photos sent — the field "${sawText[0]}" arrived as text. In Get Contents of URL › Request Body, delete it and use Add new field › File, then pick the image.`
-            : "No photos sent — the request was empty. Check the photos field points at the image (Converted Image).",
+        error: sawText.length
+          ? `No photos sent — the field "${sawText[0]}" arrived as text. In Get Contents of URL › Request Body, delete it and use Add new field › File, then pick the image.`
+          : "No photos sent — the request was empty. Check the photos field points at the image (Converted Image).",
       },
       { status: 400 },
     );

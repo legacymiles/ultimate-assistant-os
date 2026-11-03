@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { noteCheckIn, noteRefused, noteSweep, prune, uidForToken } from "@/lib/dashboard/inbox";
+import { noteRefused, uidForToken } from "@/lib/dashboard/inbox";
+import { stillOnPhone } from "@/lib/dashboard/stillOnPhone";
 
 // POST /api/dashboard/inbox/present
 //
@@ -54,20 +55,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Couldn't read the list of photos." }, { status: 400 });
   }
 
-  const names = (Array.isArray(raw) ? raw.map(String) : String(raw ?? "").split(/[,\n]/)).map((s) => s.trim()).filter(Boolean);
-  if (!names.length)
-    return NextResponse.json(
-      { error: "No photo names came through. In the last Get Contents of URL, the form field's value must be the blue Combined Text variable — picked off the bar above the keyboard, not typed in." },
-      { status: 400 },
-    );
-  const window = Math.min(90, Math.max(1, Number(days) || 30));
-  await noteCheckIn(uid).catch(() => undefined);
-  const { removed, refused } = await prune(uid, names, window);
-  // Camera Autopilot says this in words, so the run can be checked without
-  // reading the Shortcut's result box on a phone.
-  await noteSweep(uid, names.length, removed).catch(() => undefined);
-  // `refused` is the interesting case and it is read on a phone, in the
-  // Shortcut's own result box, so it goes at the top as plain prose.
-  if (refused) return NextResponse.json({ error: refused, removed: 0, checked: names.length });
-  return NextResponse.json({ removed, checked: names.length });
+  // The same step /inbox/push runs when the clean-up is pointed at the
+  // sending link, so the two cannot drift apart.
+  const { status, body } = await stillOnPhone(uid, raw, days);
+  return NextResponse.json(body, { status });
 }

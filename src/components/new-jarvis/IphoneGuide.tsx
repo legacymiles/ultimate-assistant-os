@@ -101,7 +101,10 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
   // "Where did I get up to?" — read first, so each run starts after the last photo sent.
   const cursorLink = `${origin}/api/dashboard/inbox/cursor${q}`;
   // "These are still on my phone" — anything waiting that isn't was deleted there.
-  const presentLink = `${origin}/api/dashboard/inbox/present${q}`;
+  // The clean-up has its own address, and it still works, but the guide no
+  // longer hands it out: the sending link answers a list of names too, so the
+  // setup asks for one link instead of three and there is no wrong box to put
+  // it in.
   const guideUrl = `${origin}/apps/jarvis#iphone`;
   const local = /localhost|127\.0\.0\.1/.test(origin);
   const idx = STEPS.findIndex((s) => s.id === step);
@@ -303,32 +306,34 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                         : "Copy all three now — for safety they are only ever shown once."}
                     </p>
                   )}
-                  <Manual summary="The three full links, for building the Shortcut by hand">
+                  <Manual summary="The link, for building the Shortcut by hand">
+                  {/*
+                    One link, used twice. It used to be three, one per job, and
+                    picking the wrong one for a box was the single most common
+                    way to end up with a Shortcut that runs, reports success
+                    and does nothing. The sending address now answers the
+                    clean-up as well, so both URL actions take the same thing
+                    and there is no wrong one to choose.
+                  */}
                   <CopyRow
-                    label="1 · Your link"
-                    hint="The URL action INSIDE the loop. This is the one that sends the photos — the only link you need if you just want photos arriving."
+                    label="Your link"
+                    hint="Goes in BOTH URL actions — the one inside the loop that sends the photos, and the one at the bottom that says which are still on your phone. The same link, pasted twice."
                     value={myLink}
                     onCopy={() => copy(myLink, "Your link")}
                     secret
                   />
+                  <p className="rounded-lg border border-[var(--hud-amber)] px-3 py-2 text-[11px] text-[var(--hud-amber)]">
+                    Wherever you paste it: tap the box, press and hold, <b className="text-ink">Select All</b>, delete, <i>then</i> paste.
+                    These boxes keep what was in them, and a link pasted next to an old one is the usual reason a finished Shortcut does
+                    nothing.
+                  </p>
                   <CopyRow
-                    label="2 · Bookmark link"
-                    hint="The URL action at the very TOP, above Find Photos. Remembers where it got to, so each run picks up after the last photo instead of re-sending."
+                    label="Bookmark link · optional"
+                    hint="Only for the extra URL action at the very TOP, above Find Photos. It remembers where the Shortcut got to, so each run picks up after the last photo instead of re-sending. Skip it and everything still works."
                     value={cursorLink}
                     onCopy={() => copy(cursorLink, "Bookmark link")}
                     secret
                   />
-                  <CopyRow
-                    label="3 · Clean-up link"
-                    hint="The URL action at the very BOTTOM, below End Repeat. Delete a photo on your phone and this is what removes it from Jarvis too."
-                    value={presentLink}
-                    onCopy={() => copy(presentLink, "Clean-up link")}
-                    secret
-                  />
-                  <p className="text-[11px] text-ink-faint">
-                    They differ only in the last word before the <Code>?key=</Code> — <Code>push</Code>, <Code>cursor</Code>,{" "}
-                    <Code>present</Code>. If a step isn&apos;t behaving, check that word first; pasting the wrong one is the usual cause.
-                  </p>
                   </Manual>
                 </>
               ) : null}
@@ -430,9 +435,15 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                     <Code>Convert Image</Code>, tap it, set it to <b className="text-ink">JPEG</b> — it should say &ldquo;Convert Resized Image to JPEG&rdquo;.
                   </>,
                   <>
-                    Search <Code>URL</Code>, and tap the action called just <b className="text-ink">URL</b> (the blue link
-                    icon). Tap inside it and paste <b className="text-ink">your link</b>.
+                    Search <Code>URL</Code>, and tap the action called just <b className="text-ink">URL</b> (the blue link icon). Tap
+                    inside it, press and hold, <b className="text-ink">Select All</b>, delete whatever is in there, then paste{" "}
+                    <b className="text-ink">your link</b>.
                     {token && <InlineCopy onClick={() => copy(myLink, "Your link")} />}
+                    <br />
+                    <span className="text-[11px] text-ink-faint">
+                      Clearing it first is not fussiness: the box arrives with text in it, and a link pasted beside that is the usual
+                      reason a Shortcut looks finished and sends nothing.
+                    </span>
                     <br />
                     <span className="text-[11px] text-ink-faint">
                       Putting the link in its own URL action — not typed into the next block — is what avoids the &ldquo;couldn&apos;t convert from Rich Text to
@@ -611,19 +622,18 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                       the bar over the keyboard — typing the word combines nothing.
                     </>,
                     <>
-                      A <b className="text-ink">new URL</b> action — not the one from the loop above — holding your{" "}
-                      <b className="text-ink">Clean-up link</b>
-                      {token ? <InlineCopy onClick={() => copy(presentLink, "Clean-up link")} /> : <> (<Code>…/api/dashboard/inbox/present</Code>)</>}.
+                      Another <b className="text-ink">URL</b> action holding <b className="text-ink">the same link</b> you used in the loop
+                      above {token && <InlineCopy onClick={() => copy(myLink, "Your link")} />} — not a different one. Clear the box first
+                      (press and hold → <b className="text-ink">Select All</b> → delete), then paste.
                     </>,
                     <>
                       <b className="text-ink">Get Contents of URL</b>: Method <b className="text-ink">POST</b>, Request Body{" "}
                       <b className="text-ink">Form</b>, <b className="text-ink">Add new field → Text</b>, key <Code>names</Code>
                       <InlineCopy onClick={() => copy("names", "Field name")} /> — plural — value{" "}
-                      <b className="text-ink">Combined Text</b>. Tap its URL box and pick the URL action from the step above — Shortcuts
-                      fills that box in by itself and usually picks the very first URL in the Shortcut, which is the one that{" "}
-                      <i>sends</i> photos. Jarvis answers that with{" "}
-                      <i>&ldquo;That was the clean-up list, sent to the link that sends photos&rdquo;</i>, and nothing gets deleted. It is
-                      the easiest thing here to get wrong and the hardest to notice: photos keep arriving either way.
+                      <b className="text-ink">Combined Text</b>.
+                      <br />
+                      Its URL box fills itself in, and Shortcuts usually picks the very first URL in the Shortcut. That is fine now: both
+                      URL actions hold the same link, and Jarvis works out which job it is from what you sent.
                       <br />
                       The value has to be the blue <b className="text-ink">Combined Text</b> chip off the variable bar. Typed words are sent
                       as a photo name, so Jarvis hears &ldquo;one photo left, delete the rest&rdquo; — it refuses a list that short, and
