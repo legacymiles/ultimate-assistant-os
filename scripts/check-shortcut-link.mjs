@@ -163,9 +163,7 @@ if (!asks.length) problems.push("No import question — iOS never asks the insta
 else {
   const q = asks[0];
   keyHolder = params(actions[q.ActionIndex]).UUID ?? null;
-  const typed = literal(params(actions[q.ActionIndex]).WFTextActionText);
   console.log(`\nImport question: "${q.Text}" → action ${q.ActionIndex} (${names[q.ActionIndex]})`);
-  if (typed) problems.push(`The box that question fills already holds "${typed}" — that value ships to everyone who installs this.`);
 }
 
 // 2. Every "?key=" has to be answered by the chip, and only by the chip. A
@@ -191,10 +189,23 @@ actions.forEach((a, i) => {
   }
 });
 
-// 3. A credential typed into a header, a form field or a URL.
+// 3. A credential typed into a Text box, a header, a form field or a URL.
+//
+// The Text box is the one that nearly got away. It used to be checked only
+// when an import question pointed at it, which is exactly backwards: a
+// Shortcut with no import question is the one where the author has typed
+// their own key in to make it work, and sharing it is how that key gets out.
+// The fields are named rather than scanned, because a UUID is sixteen
+// characters of the same alphabet and every action has one.
 const CREDENTIAL = /^[A-Za-z0-9_-]{16,}$/;
+const TYPED_TEXT = ["WFTextActionText", "text"];
 actions.forEach((a, i) => {
   const p = params(a);
+  for (const field of TYPED_TEXT) {
+    const value = literal(p[field]);
+    if (value && CREDENTIAL.test(value))
+      problems.push(`Action ${i} (${names[i]}) has "${value}" typed into it — a credential, shipped to everyone who installs this.`);
+  }
   for (const [what, dict] of [
     ["header", p.WFHTTPHeaders],
     ["form field", p.WFFormValues],
