@@ -20,14 +20,17 @@
 // Exit 0 = safe and wired correctly. Exit 1 = do not publish this link.
 // ---------------------------------------------------------------------------
 
-const link = process.argv[2];
-if (!link) {
-  console.error("Usage: node scripts/check-shortcut-link.mjs <icloud shortcut link>");
+const target = process.argv[2];
+if (!target) {
+  console.error("Usage: node scripts/check-shortcut-link.mjs <icloud shortcut link | path to a .shortcut file>");
   process.exit(2);
 }
-const id = /\/shortcuts\/([0-9a-f]{8,})/i.exec(link)?.[1];
-if (!id) {
-  console.error(`Not an iCloud Shortcut link: ${link}\nExpected https://www.icloud.com/shortcuts/<id>`);
+// A local file as well as a link, so a Shortcut can be checked before it is
+// ever shared — including one this repo generated.
+const isFile = !/^https?:/i.test(target);
+const id = isFile ? null : /\/shortcuts\/([0-9a-f]{8,})/i.exec(target)?.[1];
+if (!isFile && !id) {
+  console.error(`Not an iCloud Shortcut link: ${target}\nExpected https://www.icloud.com/shortcuts/<id>`);
   process.exit(2);
 }
 
@@ -111,13 +114,21 @@ const get = async (url, as) => {
   return as === "json" ? r.json() : Buffer.from(await r.arrayBuffer());
 };
 
-const record = await get(`https://www.icloud.com/shortcuts/api/records/${id}`, "json");
-const download = record?.fields?.shortcut?.value?.downloadURL;
-if (!download) {
-  console.error("Apple served no downloadURL for that id — the link is probably no longer shared.");
-  process.exit(1);
+let name = target;
+let bytes;
+if (isFile) {
+  bytes = await (await import("node:fs/promises")).readFile(target);
+} else {
+  const record = await get(`https://www.icloud.com/shortcuts/api/records/${id}`, "json");
+  const download = record?.fields?.shortcut?.value?.downloadURL;
+  if (!download) {
+    console.error("Apple served no downloadURL for that id — the link is probably no longer shared.");
+    process.exit(1);
+  }
+  name = record.fields?.name?.value ?? "(unnamed)";
+  bytes = await get(download);
 }
-const plist = parseBplist(await get(download));
+const plist = parseBplist(bytes);
 const actions = plist.WFWorkflowActions ?? [];
 const problems = [];
 const warnings = [];
@@ -136,7 +147,7 @@ const params = (a) => a?.WFWorkflowActionParameters ?? {};
 const byUuid = new Map(actions.map((a, i) => [params(a).UUID, i]));
 const names = actions.map((a) => short(a.WFWorkflowActionIdentifier));
 
-console.log(`Shortcut: ${record.fields?.name?.value ?? "(unnamed)"}\n`);
+console.log(`Shortcut: ${name}\n`);
 console.log("Actions, in order:");
 actions.forEach((a, i) => {
   const p = params(a);
@@ -157,15 +168,27 @@ else {
   if (typed) problems.push(`The box that question fills already holds "${typed}" — that value ships to everyone who installs this.`);
 }
 
-// 2. Every URL that ends at "?key=" has to carry the answer. This is the one
-//    that looks right on the phone and silently sends an empty key.
+// 2. Every "?key=" has to be answered by the chip, and only by the chip. A
+//    URL that merely looks right on the phone can be any of three things: the
+//    key typed in (which ships to everyone), nothing at all (every install
+//    sends an empty key), or the chip (correct).
+const CHIP = "￼";
 actions.forEach((a, i) => {
   const url = params(a).WFURLActionURL;
-  if (url === undefined || !/[?&]key=$/.test(literal(url))) return;
-  const to = wiredTo(url);
-  if (!to) problems.push(`Action ${i}'s URL stops at "?key=" with nothing after it — the pasted key is never used.`);
-  else if (keyHolder && to !== keyHolder)
-    problems.push(`Action ${i}'s URL reads from action ${byUuid.get(to) ?? "?"}, not the box the import question fills.`);
+  if (url === undefined) return;
+  const text = literal(url);
+  const at = text.search(/[?&]key=/);
+  if (at < 0) return;
+  const answer = text.slice(text.indexOf("=", at) + 1);
+  if (!answer) {
+    problems.push(`Action ${i}'s URL stops at "?key=" with nothing after it — the pasted key is never used.`);
+  } else if (answer !== CHIP) {
+    problems.push(`Action ${i}'s URL has key=${answer.replace(CHIP, "<chip>")} typed into it.`);
+  } else {
+    const to = wiredTo(url);
+    if (keyHolder && to !== keyHolder)
+      problems.push(`Action ${i}'s URL reads from action ${byUuid.get(to) ?? "?"}, not the box the import question fills.`);
+  }
 });
 
 // 3. A credential typed into a header, a form field or a URL.
@@ -181,7 +204,8 @@ actions.forEach((a, i) => {
       if (value && CREDENTIAL.test(value))
         problems.push(`Action ${i} has a ${what} "${literal(f.WFKey)}" holding "${value}" — a credential, shipped to everyone.`);
     }
-  for (const m of literal(p.WFURLActionURL).matchAll(/[?&](key|token|secret|password)=([^&]+)/gi))
+  // `key=` is covered above, chip and all; this is for the others.
+  for (const m of literal(p.WFURLActionURL).matchAll(/[?&](token|secret|password)=([^&￼]+)/gi))
     problems.push(`Action ${i}'s URL has ${m[1]}=${m[2]} typed into it.`);
 });
 
@@ -219,4 +243,4 @@ if (problems.length) {
   process.exit(1);
 }
 console.log(`\nClean. No credential inside it, the import question asks for the key, and every`);
-console.log(`link is wired to the answer. Safe to publish.`);
+console.log(isFile ? `link is wired to the answer. Safe to import and share.` : `link is wired to the answer. Safe to publish.`);

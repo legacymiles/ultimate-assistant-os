@@ -64,10 +64,38 @@ made this way came back with Combine Text emptied and the clean-up POST
 pointing at the sending link. Run the check below before trusting it — that is
 what it is for.
 
+## The file at `public/downloads/send-to-jarvis.shortcut`
+
+Until a signed link exists, the guide offers that file instead, and step 3 is
+download-and-import rather than an eight-block build. It is the same Shortcut:
+an empty Text box with the import question on it, and two URL actions —
+`/inbox/push` and `/inbox/present` — each ending in the chip that carries the
+pasted key. No bookmark link, so each run re-sends the newest photos rather
+than picking up where it left off; the hand-build steps for adding one are
+still in the guide's fold.
+
+It costs the user one switch: Apple only signs a Shortcut shared from a phone,
+so iPhone refuses a file until **Settings → Shortcuts → Advanced → Allow
+Untrusted Shortcuts** is on. That is why a shared link is still the better
+route, and why this is the fallback rather than the answer.
+
+It was made by taking the owner's own shared Shortcut and applying the five
+fixes the check below refused it over — nothing in it was authored from
+scratch, so every action is one Shortcuts itself produced. To replace it,
+import it on a phone, change what you need, share it, and either paste that
+link into `SHARED_SHORTCUT` or download the file back out of the share.
+
 ## Before publishing the link
 
 ```
 node scripts/check-shortcut-link.mjs https://www.icloud.com/shortcuts/<id>
+```
+
+It takes a path as well as a link, so a Shortcut can be checked before anyone
+has shared it:
+
+```
+node scripts/check-shortcut-link.mjs public/downloads/send-to-jarvis.shortcut
 ```
 
 It downloads the Shortcut Apple is actually serving, parses the property list,

@@ -55,5 +55,26 @@ export function isShortcutLink(url: string): boolean {
   return /^\/shortcuts\/[0-9a-f]{8,}\/?$/i.test(u.pathname);
 }
 
-/** Is there a Shortcut to hand out, or does the guide teach the build? */
+/** Is there a signed Shortcut to hand out? Installing one is two taps. */
 export const READY_MADE = isShortcutLink(SHORTCUT_LINK);
+
+/**
+ * The same Shortcut as a file, served straight off this site.
+ *
+ * Apple signs a Shortcut when it is shared from a phone, and only a signed one
+ * installs by tapping a link. A file cannot be signed from here, so importing
+ * this one costs the user a switch — Settings › Shortcuts › Advanced › Allow
+ * Untrusted Shortcuts — which is why it is the second choice and not the
+ * first. It is still far ahead of building eight blocks by hand, and it is the
+ * only route that exists before anyone has shared a link.
+ *
+ * It holds no key: the box the import question fills ships empty.
+ */
+export const SHORTCUT_FILE = "/downloads/send-to-jarvis.shortcut";
+
+/**
+ * Either route means nobody has to build the thing, which is what decides how
+ * the guide reads: one key instead of three links, and the hand-build folded
+ * away rather than laid out as the way to do it.
+ */
+export const SKIP_BUILD = READY_MADE || Boolean(SHORTCUT_FILE);

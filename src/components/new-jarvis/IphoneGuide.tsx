@@ -21,7 +21,7 @@ import { Icon } from "../icons";
 import "./deck.css";
 import { WidgetSheet } from "./Widgets";
 import type { CameraWatch } from "@/lib/new-jarvis/useCameraWatch";
-import { READY_MADE, SHORTCUT_LINK } from "@/lib/dashboard/iphoneShortcut";
+import { READY_MADE, SHORTCUT_FILE, SHORTCUT_LINK, SKIP_BUILD } from "@/lib/dashboard/iphoneShortcut";
 
 const SHORTCUT_NAME = "Send to Jarvis";
 /**
@@ -45,8 +45,8 @@ type StepId = "phone" | "token" | "build" | "auto" | "test";
  */
 const STEPS: { id: StepId; label: string }[] = [
   { id: "phone", label: "Open on iPhone" },
-  { id: "token", label: READY_MADE ? "Your key" : "Your links" },
-  { id: "build", label: READY_MADE ? "Add the Shortcut" : "Make the Shortcut" },
+  { id: "token", label: SKIP_BUILD ? "Your key" : "Your links" },
+  { id: "build", label: SKIP_BUILD ? "Add the Shortcut" : "Make the Shortcut" },
   { id: "auto", label: "Run it automatically" },
   { id: "test", label: "Test" },
 ];
@@ -157,6 +157,24 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
   }, [tested, camera.lastChecked]);
   const arrived = tested && (camera.inbox.length > 0 || queueNow > queueBefore);
 
+  const keyButton = key ? (
+    <button
+      type="button"
+      className={`deck-btn ${keyCopied ? "" : "deck-btn--go"}`}
+      onClick={() => {
+        copy(key, "Your key");
+        setKeyCopied(true);
+      }}
+    >
+      {keyCopied ? <Icon.Check width={12} height={12} aria-hidden /> : <Icon.Copy width={12} height={12} aria-hidden />}
+      {keyCopied ? "Key copied" : "Copy your key"}
+    </button>
+  ) : (
+    <button type="button" className="deck-btn deck-btn--go" onClick={() => setStep("token")}>
+      <Icon.Key width={12} height={12} aria-hidden /> Get my key
+    </button>
+  );
+
   return (
     <WidgetSheet title="Set up your iPhone" kicker="Camera Autopilot · about 5 minutes · no app to download" onClose={onClose}>
       <div className="flex min-h-full flex-col">
@@ -186,7 +204,7 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
             <div className="space-y-4">
               <h3 className="text-[18px] font-semibold text-ink">Open this on your iPhone</h3>
               <p>
-                {READY_MADE
+                {SKIP_BUILD
                   ? "You'll copy one key out of Jarvis and paste it into Apple's "
                   : "You'll copy two things from Jarvis and paste them into Apple's "}
                 <b className="text-ink">Shortcuts</b> app. That&apos;s much easier on the phone itself. Point your iPhone camera at this code
@@ -212,8 +230,8 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
 
           {step === "token" && (
             <div className="space-y-4">
-              <h3 className="text-[18px] font-semibold text-ink">{READY_MADE ? "Get your key" : "Get your links"}</h3>
-              {READY_MADE ? (
+              <h3 className="text-[18px] font-semibold text-ink">{SKIP_BUILD ? "Get your key" : "Get your links"}</h3>
+              {SKIP_BUILD ? (
                 <p>
                   One line of letters and numbers that tells Jarvis these photos are yours. The ready-made Shortcut asks for it the moment
                   you add it, and it is the only thing you ever type into your phone.
@@ -236,9 +254,9 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                   <p className="mb-2 text-[11.5px]">
                     {camera.linked
                       ? `Already set up? Your key can't be read back out of Jarvis, but it's sitting in the URL action in your Shortcut. Paste that link here and ${
-                          READY_MADE ? "the key comes back out of it" : "all three fill in"
+                          SKIP_BUILD ? "the key comes back out of it" : "all three fill in"
                         } — nothing changes on your phone.`
-                      : `Have a link already? Paste it here to see ${READY_MADE ? "your key" : "all three"}.`}
+                      : `Have a link already? Paste it here to see ${SKIP_BUILD ? "your key" : "all three"}.`}
                   </p>
                   <input
                     type="text"
@@ -259,14 +277,14 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                   )}
                   {pastedKey && (
                     <p className="mt-1.5 text-[11px] text-ink-muted">
-                      {READY_MADE ? "Key found — it is below." : "Key found — your three links are below."}
+                      {SKIP_BUILD ? "Key found — it is below." : "Key found — your three links are below."}
                     </p>
                   )}
                 </div>
               )}
               {key ? (
                 <>
-                  {READY_MADE && (
+                  {SKIP_BUILD && (
                     <CopyRow
                       label="Your key"
                       hint="The ready-made Shortcut asks for exactly this while it installs. Paste it there and the phone is set up — its three links are built out of it for you."
@@ -280,7 +298,7 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                   )}
                   {token && (
                     <p className="text-[11px] text-[var(--hud-amber)]">
-                      {READY_MADE
+                      {SKIP_BUILD
                         ? "Copy it now — for safety it is only ever shown once."
                         : "Copy all three now — for safety they are only ever shown once."}
                     </p>
@@ -317,20 +335,20 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
               <div className="rounded-lg border border-line bg-panel-2 p-3">
                 <p className="mb-2 text-[11.5px]">
                   {camera.linked
-                    ? `Lost ${READY_MADE ? "the key" : "the link"} entirely? Make a new one — but only if you have to:`
-                    : `No ${READY_MADE ? "key" : "link"} yet? Make one:`}
+                    ? `Lost ${SKIP_BUILD ? "the key" : "the link"} entirely? Make a new one — but only if you have to:`
+                    : `No ${SKIP_BUILD ? "key" : "link"} yet? Make one:`}
                 </p>
                 <button type="button" className="deck-btn deck-btn--go" onClick={() => void mint()} disabled={minting}>
-                  <Icon.Key width={12} height={12} aria-hidden /> {minting ? "Making it…" : camera.linked ? `Make a new ${READY_MADE ? "key" : "link"}` : `Make my ${READY_MADE ? "key" : "link"}`}
+                  <Icon.Key width={12} height={12} aria-hidden /> {minting ? "Making it…" : camera.linked ? `Make a new ${SKIP_BUILD ? "key" : "link"}` : `Make my ${SKIP_BUILD ? "key" : "link"}`}
                 </button>
                 {camera.linked && (
                   <p className="mt-1.5 text-[10.5px] text-ink-faint">
                     This replaces the old one — the Shortcut on your phone stops sending until you paste the new one into it:{" "}
-                    {READY_MADE ? "the Text block at its very top" : "all three of its URL actions"}.
+                    {SKIP_BUILD ? "the Text block at its very top" : "all three of its URL actions"}.
                   </p>
                 )}
               </div>
-              {!READY_MADE && (
+              {!SKIP_BUILD && (
                 <p className="text-[11px] text-ink-faint">
                   It&apos;s a different address from the Jarvis page you&apos;re looking at — that&apos;s right. You never open it in a browser; it only
                   goes in the Shortcut.
@@ -341,34 +359,18 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
 
           {step === "build" && (
             <div className="space-y-3">
-              <h3 className="text-[18px] font-semibold text-ink">{READY_MADE ? "Add the Shortcut" : "Make the Shortcut"}</h3>
+              <h3 className="text-[18px] font-semibold text-ink">{SKIP_BUILD ? "Add the Shortcut" : "Make the Shortcut"}</h3>
               {SETUP_VIDEO && (
                 <video src={SETUP_VIDEO} controls playsInline className="w-full max-w-sm rounded-xl border border-line" aria-label="Video: making the Send to Jarvis Shortcut" />
               )}
-              {READY_MADE && (
+              {READY_MADE ? (
                 <div className="rounded-lg border border-[var(--hud)] bg-[color-mix(in_oklab,var(--hud)_8%,transparent)] p-3">
                   <p className="mb-2 text-ink">
                     This one is already built. Copy your key, tap <b>Add the Shortcut</b>, then <b>Add Shortcut</b> on the page that opens
                     — iOS asks for the key once while it installs, and pasting it is the last thing you do.
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {key ? (
-                      <button
-                        type="button"
-                        className={`deck-btn ${keyCopied ? "" : "deck-btn--go"}`}
-                        onClick={() => {
-                          copy(key, "Your key");
-                          setKeyCopied(true);
-                        }}
-                      >
-                        {keyCopied ? <Icon.Check width={12} height={12} aria-hidden /> : <Icon.Copy width={12} height={12} aria-hidden />}
-                        {keyCopied ? "Key copied" : "Copy your key"}
-                      </button>
-                    ) : (
-                      <button type="button" className="deck-btn deck-btn--go" onClick={() => setStep("token")}>
-                        <Icon.Key width={12} height={12} aria-hidden /> Get my key
-                      </button>
-                    )}
+                    {keyButton}
                     <a href={SHORTCUT_LINK} className={`deck-btn ${keyCopied ? "deck-btn--go" : ""}`}>
                       Add the Shortcut
                     </a>
@@ -395,7 +397,35 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                   )}
                   <p className="mt-2 text-[11px] text-ink-faint">
                     If it never asks for the key, open the Shortcut, tap the <b className="text-ink">Text</b> block at the very top and
-                    paste it in there — that one box is where all three of its links read it from.
+                    paste it in there — that one box is where its links read the key from.
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-[var(--hud)] bg-[color-mix(in_oklab,var(--hud)_8%,transparent)] p-3">
+                  <p className="mb-2 text-ink">
+                    Don&apos;t build it — import it. Copy your key, then tap <b>Download the Shortcut</b>{" "}
+                    <b className="text-ink">on your iPhone</b>: Shortcuts offers to add it, and asks for your key while it does.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {keyButton}
+                    <a href={SHORTCUT_FILE} download className={`deck-btn ${keyCopied ? "deck-btn--go" : ""}`}>
+                      <Icon.Download width={12} height={12} aria-hidden /> Download the Shortcut
+                    </a>
+                  </div>
+                  {!phone && (
+                    <p className="mt-2 text-[11px] text-ink-muted">
+                      The file is no use on a laptop — Shortcuts only exists on the phone. Open this guide there (step 1) and tap it from
+                      the phone.
+                    </p>
+                  )}
+                  <p className="mt-2 text-[11px] text-[var(--hud-amber)]">
+                    Apple only signs a Shortcut that was shared from a phone, so iPhone refuses this file until you turn on{" "}
+                    <b className="text-ink">Settings → Shortcuts → Advanced → Allow Untrusted Shortcuts</b>. That switch appears once
+                    you&apos;ve run any Shortcut.
+                  </p>
+                  <p className="mt-2 text-[11px] text-ink-faint">
+                    If it never asks for the key, open the Shortcut, tap the <b className="text-ink">Text</b> block at the very top and
+                    paste it in there — that one box is where its links read the key from.
                   </p>
                 </div>
               )}
@@ -576,7 +606,7 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                 <p className="mb-2 text-[11.5px]">
                   A website can&apos;t see your camera roll, so the Shortcut tells Jarvis which recent photos are still there. Anything waiting in Camera
                   Autopilot that you deleted on your phone is then removed — on the phone and the laptop.
-                  {READY_MADE ? (
+                  {SKIP_BUILD ? (
                     " The ready-made Shortcut already does all of this, so there is nothing here to add."
                   ) : (
                     <>
@@ -734,7 +764,7 @@ function Steps({ items }: { items: React.ReactNode[] }) {
  * of its own and every step reads exactly as it always did.
  */
 function Manual({ summary, children }: { summary: string; children: React.ReactNode }) {
-  if (!READY_MADE) return <>{children}</>;
+  if (!SKIP_BUILD) return <>{children}</>;
   return (
     <details className="rounded-lg border border-line bg-panel-2 px-3 py-2.5">
       <summary className="cursor-pointer text-[11.5px] text-ink-muted hover:text-ink">{summary}</summary>
