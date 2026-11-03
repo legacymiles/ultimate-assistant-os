@@ -619,8 +619,11 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                       <b className="text-ink">Get Contents of URL</b>: Method <b className="text-ink">POST</b>, Request Body{" "}
                       <b className="text-ink">Form</b>, <b className="text-ink">Add new field → Text</b>, key <Code>names</Code>
                       <InlineCopy onClick={() => copy("names", "Field name")} /> — plural — value{" "}
-                      <b className="text-ink">Combined Text</b>. Tap its URL box and pick the URL action from the step above; if it still
-                      points at the first one, you&apos;ll get <i>&ldquo;No photos sent&rdquo;</i>, because that&apos;s the sending link.
+                      <b className="text-ink">Combined Text</b>. Tap its URL box and pick the URL action from the step above — Shortcuts
+                      fills that box in by itself and usually picks the very first URL in the Shortcut, which is the one that{" "}
+                      <i>sends</i> photos. Jarvis answers that with{" "}
+                      <i>&ldquo;That was the clean-up list, sent to the link that sends photos&rdquo;</i>, and nothing gets deleted. It is
+                      the easiest thing here to get wrong and the hardest to notice: photos keep arriving either way.
                       <br />
                       The value has to be the blue <b className="text-ink">Combined Text</b> chip off the variable bar. Typed words are sent
                       as a photo name, so Jarvis hears &ldquo;one photo left, delete the rest&rdquo; — it refuses a list that short, and

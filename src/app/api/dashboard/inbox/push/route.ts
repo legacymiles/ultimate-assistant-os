@@ -65,17 +65,32 @@ export async function POST(req: Request) {
   }
 
   if (!files.length) {
+    // `names` is the clean-up's field, and its arriving HERE is one specific
+    // mis-wiring: the last Get Contents of URL is reading the sending link
+    // instead of the one ending /present. Shortcuts fills that URL box in by
+    // itself and often picks the first URL action in the whole Shortcut.
+    //
+    // It has to be named, because the answer below — make the field a File and
+    // point it at the image — is the wrong advice for this request, and
+    // following it breaks the clean-up for good. A phone can run like this for
+    // weeks and look healthy: photos keep arriving from the loop above, the
+    // clean-up POST collects a 400 nobody reads, and nothing is ever deleted.
+    const cleanup = sawText.includes("names");
     await noteProblem(
       uid,
-      sawText.length
-        ? `the photo field "${sawText[0]}" arrived as text, not a picture — in Get Contents of URL make it a File field`
-        : "no photo came through — check the File field in Get Contents of URL points at the Converted Image",
+      cleanup
+        ? "the clean-up list went to the sending link — in the last Get Contents of URL, pick the URL action ending /present"
+        : sawText.length
+          ? `the photo field "${sawText[0]}" arrived as text, not a picture — in Get Contents of URL make it a File field`
+          : "no photo came through — check the File field in Get Contents of URL points at the Converted Image",
     ).catch(() => undefined);
     return NextResponse.json(
       {
-        error: sawText.length
-          ? `No photos sent — the field "${sawText[0]}" arrived as text. In Get Contents of URL › Request Body, delete it and use Add new field › File, then pick the image.`
-          : "No photos sent — the request was empty. Check the photos field points at the image (Converted Image).",
+        error: cleanup
+          ? "That was the clean-up list, sent to the link that sends photos — so nothing was deleted. In the LAST Get Contents of URL, tap the URL box and pick the URL action directly above it, the one ending /present."
+          : sawText.length
+            ? `No photos sent — the field "${sawText[0]}" arrived as text. In Get Contents of URL › Request Body, delete it and use Add new field › File, then pick the image.`
+            : "No photos sent — the request was empty. Check the photos field points at the image (Converted Image).",
       },
       { status: 400 },
     );
