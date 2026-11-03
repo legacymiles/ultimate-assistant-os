@@ -71,7 +71,13 @@ export function BuildStarted({
           )}
           <div>
             <dt>While it runs</dt>
-            <dd>It stops and asks you before anything leaves this machine — making the repo, pushing, deploying.</dd>
+            {/* Truthful about the actual policy: inside its own folder it works
+                freely, including pushing and deploying. What still stops is
+                anything destructive, and any write outside that folder. */}
+            <dd>
+              It works on its own inside that folder. It stops to ask only before something destructive, or a change outside the folder — and it may ask
+              once to use your Jarvis tools.
+            </dd>
           </div>
         </dl>
         <div className="ab-started-row">

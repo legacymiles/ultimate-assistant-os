@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBrief, latestWord, phaseOf, PHASE_LABEL, projectSlug, resultLinks, stalled, tally, threadTitle } from "./build";
+import { buildBrief, isNewBuild, latestWord, phaseOf, PHASE_LABEL, projectSlug, resultLinks, stalled, tally, threadTitle } from "./build";
 import { applyOps, bestGuesses, intakeQuestions, newProject, offlineFeatures, understand } from "./engine";
 import type { BuilderProject } from "./types";
 import type { ThreadSummary, ThreadView, Turn } from "@/lib/new-jarvis/harness/types";
@@ -193,5 +193,51 @@ describe("a build the agent has forgotten", () => {
 
   it("has a label that says nothing is happening", () => {
     expect(PHASE_LABEL.lost.toLowerCase()).toContain("no longer running");
+  });
+});
+
+describe("deciding a build has just started", () => {
+  const P = "ab_1";
+
+  it("is the whole point: a page open with no build, that gains one", () => {
+    const had = { project: P, thread: null };
+    expect(isNewBuild(had, { project: P, thread: "t1" })).toBe(true);
+  });
+
+  it("is NOT a build that was already running when the page opened", () => {
+    expect(isNewBuild(null, { project: P, thread: "t1" })).toBe(false);
+  });
+
+  it("is NOT just opening a different project that happens to be building", () => {
+    const had = { project: "ab_other", thread: null };
+    expect(isNewBuild(had, { project: P, thread: "t1" })).toBe(false);
+  });
+
+  it("is a rebuild, when the same project swaps one thread for another", () => {
+    expect(isNewBuild({ project: P, thread: "t1" }, { project: P, thread: "t2" })).toBe(true);
+  });
+
+  it("is not the same thread seen again on a re-render", () => {
+    expect(isNewBuild({ project: P, thread: "t1" }, { project: P, thread: "t1" })).toBe(false);
+  });
+
+  it("is not a build ending", () => {
+    expect(isNewBuild({ project: P, thread: "t1" }, { project: P, thread: null })).toBe(false);
+  });
+
+  it("survives the mount sequence that broke it before", () => {
+    // Mount with no build, then the owner presses Build it. Previously a
+    // second effect reset the record between these two, and the screen never
+    // appeared. One call per render, fed by the previous one:
+    let seen: { project: string | null; thread: string | null } | null = null;
+    const step = (now: { project: string | null; thread: string | null }) => {
+      const out = isNewBuild(seen, now);
+      seen = now;
+      return out;
+    };
+    expect(step({ project: P, thread: null })).toBe(false); // first render
+    expect(step({ project: P, thread: null })).toBe(false); // a re-render
+    expect(step({ project: P, thread: "t1" })).toBe(true); // Build it pressed
+    expect(step({ project: P, thread: "t1" })).toBe(false); // and not again
   });
 });
