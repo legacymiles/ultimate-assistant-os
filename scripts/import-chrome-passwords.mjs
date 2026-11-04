@@ -599,10 +599,12 @@ async function backup(st, ...keys) {
  * anything until the operator confirms they have the key somewhere else.
  */
 async function run(csvPaths) {
+  // No CSVs is a legitimate run: it sets up the vault and seals whatever is
+  // already sitting in the clear. That is the first step for anyone who has
+  // logins saved but has not exported Chrome yet, so refusing here would block
+  // the one job that matters most.
   if (!csvPaths.length) {
-    console.log("usage: node scripts/import-chrome-passwords.mjs run <csv…> --apply");
-    console.log("       (or drop chrome-passwords*.csv beside package.json and run with no arguments)");
-    process.exit(1);
+    console.log("No Chrome CSV given — vault + existing plaintext only.\n");
   }
   const st = await storage();
   let blob = coerceVault(await st.read(VAULT_KEY, emptyVault()));
@@ -678,7 +680,7 @@ async function run(csvPaths) {
     console.log(`  ${path.basename(file).padEnd(34)} ${withPassword.length} login(s)`);
     entries.push(...withPassword);
   }
-  if (!entries.length) {
+  if (csvPaths.length && !entries.length) {
     console.log("\nNo rows with a password anywhere. Are those Chrome password exports?");
     process.exit(1);
   }
@@ -691,7 +693,9 @@ async function run(csvPaths) {
     existing.set(`${normalUrl(it.url || it.fields?.url || "")}|${(it.fields?.username || "").toLowerCase()}`, it);
   }
 
-  const { folder, created } = ensureFolder(data);
+  // Only make the folder when something is actually going into it — a vault
+  // setup with no CSVs should not leave an empty "Passwords" folder behind.
+  const { folder, created } = entries.length ? ensureFolder(data) : { folder: null, created: false };
   const added = [];
   let skipped = 0;
   let nextBlob = blob;
@@ -738,7 +742,7 @@ async function run(csvPaths) {
   console.log(`new logins           ${added.length}`);
   console.log(`already known        ${skipped}`);
   console.log(`cleared from plain   ${clearable.length}`);
-  console.log(`folder               ${created ? `created "${FOLDER}"` : `reusing "${FOLDER}"`}`);
+  if (added.length) console.log(`folder               ${created ? `created "${FOLDER}"` : `reusing "${FOLDER}"`}`);
   console.log(`round-trip verified  ${verified}`);
   if (stranded.length) {
     console.log(`stranded (old vault) ${stranded.length} — only the retired master password can open these:`);
@@ -756,7 +760,10 @@ async function run(csvPaths) {
   await st.write(RECALL_KEY, data);
 
   console.log(`\nDone. ${count(nextBlob)} secrets sealed, ${clearable.length} removed from the clear.`);
-  console.log("Now delete: the CSV, and the backup file above once the app looks right.");
+  const leftovers = [];
+  if (csvPaths.length) leftovers.push("the CSV files");
+  leftovers.push("the backup file above");
+  console.log(`Now delete ${leftovers.join(" and ")} once the app looks right.`);
 }
 
 // --- go --------------------------------------------------------------------

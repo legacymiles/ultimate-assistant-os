@@ -1,12 +1,12 @@
 @echo off
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
-title Jarvis - password import
+title Jarvis - password vault setup
 color 0B
 
 echo.
 echo   ============================================
-echo    Jarvis  -  Chrome password import
+echo    Jarvis  -  password vault
 echo   ============================================
 echo.
 
@@ -30,22 +30,18 @@ set count=0
 for %%F in (chrome-passwords*.csv) do set /a count+=1
 
 if !count!==0 (
-  echo   No chrome-passwords*.csv found in this folder.
+  echo   No chrome-passwords*.csv here, so this will:
+  echo     - create the vault
+  echo     - seal every password still stored in the clear
   echo.
-  echo   How to make one:
-  echo     1. In Chrome, open  chrome://password-manager/settings
-  echo     2. Click  Export passwords  and save the file HERE
-  echo     3. Name it  chrome-passwords-profile2.csv  ^(any name starting
-  echo        with "chrome-passwords" works^)
+  echo   To ALSO import Chrome exports, save them in this folder named
+  echo   chrome-passwords-*.csv and run this again.
   echo.
-  echo   You can drop several files here at once - they import together.
+) else (
+  echo   Found !count! CSV file^(s^). Importing them as well.
   echo.
-  pause
-  exit /b 1
 )
 
-echo   Found !count! CSV file^(s^). Importing...
-echo.
 echo   You will be asked for a master password.
 echo   Pick one you will remember, and WRITE DOWN the recovery key it prints.
 echo.
@@ -58,6 +54,9 @@ echo   When Jarvis shows your logins correctly:
 echo     - delete the CSV files in this folder
 echo     - delete the "backups" folder
 echo   Both contain readable passwords.
+echo.
+echo   To run the browser extension afterwards:
+echo     npm run passwords:agent
 echo   --------------------------------------------
 echo.
 pause
