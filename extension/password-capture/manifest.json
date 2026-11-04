@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Jarvis Password Capture",
+  "version": "1.0.0",
+  "description": "Saves the logins you enter into your own Jarvis vault, and fills them back. Talks only to a local agent on 127.0.0.1.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "action": { "default_popup": "popup.html", "default_title": "Jarvis passwords" }
+}

@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0f1115;
+        --panel: #171a21;
+        --line: #262b36;
+        --text: #e6e8ec;
+        --dim: #9aa3b2;
+        --accent: #7c9cff;
+        --ok: #4ade80;
+        --warn: #fbbf24;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        width: 340px;
+        font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 12px 14px; border-bottom: 1px solid var(--line);
+      }
+      header h1 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .2px; }
+      .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); display: inline-block; margin-right: 6px; }
+      .dot.on { background: var(--ok); }
+      .dot.warn { background: var(--warn); }
+      .dot.off { background: #ef4444; }
+      section { padding: 12px 14px; }
+      .meta { color: var(--dim); font-size: 12px; }
+      .row { display: flex; gap: 8px; align-items: center; }
+      input[type="password"], input[type="text"] {
+        flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px;
+        border: 1px solid var(--line); background: var(--panel); color: var(--text);
+        font: inherit;
+      }
+      button {
+        padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line);
+        background: var(--panel); color: var(--text); font: inherit; cursor: pointer;
+      }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #0b1020; font-weight: 600; }
+      button:disabled { opacity: .5; cursor: default; }
+      .item { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 8px; background: var(--panel); }
+      .item .t { font-weight: 600; }
+      .item .u { color: var(--dim); font-size: 12px; word-break: break-all; }
+      .item button { margin-top: 8px; width: 100%; }
+      .empty { color: var(--dim); padding: 4px 0 8px; }
+      .err { color: #fca5a5; font-size: 12px; margin-top: 8px; min-height: 16px; }
+      .tip { color: var(--dim); font-size: 11.5px; margin-top: 10px; }
+      code { background: #0b0d12; padding: 1px 5px; border-radius: 4px; font-size: 11.5px; }
+      footer { padding: 10px 14px; border-top: 1px solid var(--line); color: var(--dim); font-size: 11.5px; }
+      a { color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1><span id="dot" class="dot"></span>Jarvis passwords</h1>
+      <button id="lockBtn" title="Forget the key until next unlock">Lock</button>
+    </header>
+
+    <section>
+      <div class="meta" id="statusLine">Checking the agent…</div>
+    </section>
+
+    <section id="unlockPane" hidden>
+      <div class="row">
+        <input id="pw" type="password" placeholder="Master password" autocomplete="current-password" />
+        <button id="unlockBtn" class="primary">Unlock</button>
+      </div>
+      <div class="err" id="unlockErr"></div>
+      <div class="tip">The key is held in memory by the local agent, never written to disk.</div>
+    </section>
+
+    <section id="matchPane" hidden>
+      <div class="meta" id="hostLine" style="margin-bottom: 8px"></div>
+      <div id="items"></div>
+      <div class="tip">Only the username is shown. The password is fetched at the moment you click Fill.</div>
+    </section>
+
+    <section id="offlinePane" hidden>
+      <div class="empty">The local agent is not running, so nothing can be saved or filled.</div>
+      <div class="tip">Start it on the PC, then reopen this popup:</div>
+      <div class="tip"><code>npm run passwords:agent</code></div>
+      <div class="tip">Leave that window open. Closing it drops the key from memory.</div>
+    </section>
+
+    <footer id="foot">Capture is automatic once unlocked. Localhost is never captured.</footer>
+    <script src="popup.js"></script>
+  </body>
+</html>

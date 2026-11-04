@@ -102,3 +102,8 @@ graphify-out/
 [graphify extract] 219 file(s) not classified (no supported extension or shebang), skipped: .env.example, .gitattributes, .gitignore, .gitkeep, .mcp.json.example, 97d7f64a.log (+213 more)
 [graphify extract] AST extraction on 1888 code files...
   AST extraction: 100/1594 uncached files (6
+# password import artefacts — plaintext secrets, never commit
+backups/
+jarvis-vault-recovery.txt
+chrome-passwords*.csv
+*.kdbx

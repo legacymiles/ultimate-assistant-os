@@ -14,7 +14,10 @@
     "skills:setup": "node scripts/skill-sync.mjs install",
     "skills:push": "node scripts/skill-sync.mjs push",
     "skills:pull": "node scripts/skill-sync.mjs pull",
-    "skills:sync": "node scripts/skill-sync.mjs sync"
+    "skills:sync": "node scripts/skill-sync.mjs sync",
+    "passwords:status": "node scripts/import-chrome-passwords.mjs status",
+    "passwords:import": "node scripts/import-chrome-passwords.mjs run",
+    "passwords:agent": "node scripts/password-agent.mjs"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.80",
