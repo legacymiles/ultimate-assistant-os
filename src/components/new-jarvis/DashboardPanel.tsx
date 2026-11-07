@@ -11,7 +11,7 @@
 // ---------------------------------------------------------------------------
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Icon } from "../icons";
 import { VaultStatus } from "./VaultStatus";
 import { MemoryMap } from "./MemoryMap";
@@ -21,6 +21,7 @@ import { ScreenScan } from "./ScreenScan";
 
 import { MemoryTab } from "../jarvis/MemoryTab";
 import { NewDashboard } from "../new-dashboard/NewDashboard";
+import { DashboardTab } from "../jarvis/DashboardTab";
 import { RecordTab } from "../jarvis/RecordTab";
 import { ReminderBanner } from "../jarvis/ReminderBanner";
 
@@ -28,6 +29,7 @@ import type { UseVault } from "@/lib/new-jarvis/useVault";
 import type { UseImprove } from "@/lib/new-jarvis/useImprove";
 import type { UpdatesApi } from "@/lib/jarvis/useUpdates";
 import type { JarvisStore } from "@/lib/jarvis/types";
+import type { Profile } from "@/lib/new-dashboard/types";
 import type { DueReminder } from "@/lib/recall/calendar/reminders";
 import type { UseQueue } from "@/lib/new-jarvis/useQueue";
 import { QueueBoard } from "./QueueBoard";
@@ -41,7 +43,7 @@ import type { UseJarvisProfile } from "@/lib/jarvis-profile/useJarvisProfile";
 import { BackendChecklist } from "./BackendChecklist";
 import type { CalendarEvent } from "@/lib/recall/calendar/types";
 
-type Pane = "deck" | "memory" | "profile" | "personas" | "improve" | "queue";
+type Pane = "dashboard" | "deck" | "memory" | "profile" | "personas" | "improve" | "queue";
 
 // Personas Studio, mounted whole as the Personas pane. Loaded only when the
 // pane is opened, so the Dashboard doesn't carry the Studio's weight.
@@ -51,8 +53,11 @@ const PersonasStudio = dynamic(() => import("../social-personas/SocialPersonas")
 });
 
 const PANES: { id: Pane; label: string; icon: keyof typeof Icon }[] = [
-  // The Deck is where the owner lands: favorites, last used, and Camera
-  // Autopilot with its chat.
+  // The owner's full Jarvis dashboard: the memory core and the dense grid of
+  // what is actually known. It was deleted with the old shell; it is the
+  // dashboard the owner meant, so it leads again.
+  { id: "dashboard", label: "Dashboard", icon: "Grid" },
+  // The Deck is the quick launcher: favorites, last used, and the widgets.
   { id: "deck", label: "Deck", icon: "Home" },
   // Memory holds the web of everything Jarvis knows (the Map, which replaced
   // the old vault-only Brain tab) and the list of memories behind it.
@@ -73,6 +78,8 @@ interface Props {
   improve: UseImprove;
   updates: UpdatesApi;
   store: JarvisStore;
+  /** The owner's profile, which the full dashboard reads for Today. */
+  profile: Profile | null;
   commit: (next: JarvisStore) => void;
   reminders: DueReminder[];
   onDismissReminder: (id: string, minutes: number) => void;
@@ -110,6 +117,7 @@ export function DashboardPanel({
   improve,
   updates,
   store,
+  profile,
   commit,
   reminders,
   onDismissReminder,
@@ -125,7 +133,7 @@ export function DashboardPanel({
   keysBridge,
   ask,
 }: Props) {
-  const [pane, setPane] = useState<Pane>("deck");
+  const [pane, setPane] = useState<Pane>("dashboard");
   /** Memory: the web, or the list. */
   const [memoryFace, setMemoryFace] = useState<"map" | "list">("map");
   /** Bumped when a screen scan writes, to remount the profile beneath it. */
@@ -149,6 +157,29 @@ export function DashboardPanel({
 
   const notes = useMemo(() => vault.graph.nodes.filter((n) => n.kind === "note").length, [vault.graph.nodes]);
 
+  /**
+   * The full dashboard still asks for surfaces this shell keeps as PANES
+   * rather than rail tabs — "Open memory", "Add them in Profile". Translate
+   * those ids to the pane they live in now; everything else is a real rail
+   * tab and still goes through `go`.
+   */
+  const open = useCallback(
+    (id: string) => {
+      if (id === "memory") return setPane("memory");
+      if (id === "profile") return setPane("profile");
+      // The life record is the Profile's "Who you are" face here.
+      if (id === "record") return setPane("profile");
+      if (id === "routines") return setPane("dashboard");
+      if (id === "personas") return setPane("personas");
+      if (id === "improve") return setPane("improve");
+      if (id === "queue") return setPane("queue");
+      if (id === "deck") return setPane("deck");
+      if (id === "dashboard" || id === "home") return setPane("dashboard");
+      go(id);
+    },
+    [go],
+  );
+
   return (
     // h-full, not flex-1: the parent is a block scroll container, where
     // flex-1 means nothing and the panel would collapse to its content height,
@@ -167,7 +198,11 @@ export function DashboardPanel({
       />
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        {pane === "deck" ? (
+        {pane === "dashboard" ? (
+          <div className="h-full overflow-y-auto">
+            <DashboardTab profile={profile} store={store} updates={updates} go={open} />
+          </div>
+        ) : pane === "deck" ? (
           <Deck
             go={go}
             ownerName={ownerName}
@@ -335,14 +370,14 @@ function PaneSwitcher({
   const Cur = Icon[current.icon];
   return (
     <div className="relative flex shrink-0 items-center gap-1 border-b border-line-soft px-3 py-1.5">
-      {pane !== "deck" && (
+      {pane !== "dashboard" && (
         <button
           type="button"
-          onClick={() => onPane("deck")}
+          onClick={() => onPane("dashboard")}
           className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-ink-muted transition hover:text-ink"
         >
           <Icon.ArrowLeft width={11} height={11} aria-hidden />
-          Deck
+          Dashboard
         </button>
       )}
       <span className="inline-flex items-center gap-1.5 px-1.5 py-1 text-[11px] font-medium text-ink">

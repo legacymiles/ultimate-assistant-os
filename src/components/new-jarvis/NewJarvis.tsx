@@ -1390,6 +1390,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 improve={improve}
                 updates={updates}
                 store={store}
+                profile={profile}
                 commit={commit}
                 reminders={dash.reminders.queue}
                 onDismissReminder={dash.reminders.dismiss}
