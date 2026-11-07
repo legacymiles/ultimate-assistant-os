@@ -1,5 +1,302 @@
 [
  {
+  "id": "2303e16:projects-timeline",
+  "date": "2026-11-07",
+  "slug": "projects-timeline",
+  "title": "Every app's features, look and code, readable by any AI tool",
+  "detail": "Another AI tool handed this repo could not tell where things live, what each app looks like, or which features already exist, so it dropped ones the owner had asked for. The routing lived in CLAUDE.md, which only Claude Code reads.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4d22f4a:personas-studio",
+  "date": "2026-11-03",
+  "slug": "personas-studio",
+  "title": "A Daily Dancer, and a deletion that sticks",
+  "detail": "The studio opens with Barry and nothing else, which is one persona doing one job. Daily Dancer is the second: a dance a day, taught like a mirror, with the character document and content plan written out and no invented history behind it.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4d2c575:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "One link, pasted twice",
+  "detail": "Setup asked for three links and the whole difficulty was which went where. Photos go to /push, the clean-up list to /present, the bookmark to /cursor — and Shortcuts fills a Get Contents of URL's URL box in by itself, usually with the first URL action in the Shortcut. Pick wrong and it still runs, s",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4d2c575:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "One link, pasted twice",
+  "detail": "Setup asked for three links and the whole difficulty was which went where. Photos go to /push, the clean-up list to /present, the bookmark to /cursor — and Shortcuts fills a Get Contents of URL's URL box in by itself, usually with the first URL action in the Shortcut. Pick wrong and it still runs, s",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "98f7d67:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "Tell the phone when the clean-up went to the wrong link",
+  "detail": "The clean-up POST reaching /push instead of /present is the mis-wiring that cost weeks. Shortcuts fills a Get Contents of URL's URL box in by itself and usually picks the first URL action in the Shortcut, which is the one that sends photos, and nothing about the phone shows it: photos keep arriving ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "98f7d67:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "Tell the phone when the clean-up went to the wrong link",
+  "detail": "The clean-up POST reaching /push instead of /present is the mis-wiring that cost weeks. Shortcuts fills a Get Contents of URL's URL box in by itself and usually picks the first URL action in the Shortcut, which is the one that sends photos, and nothing about the phone shows it: photos keep arriving ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3554b8c:app-builder",
+  "date": "2026-11-02",
+  "slug": "app-builder",
+  "title": "The \"it's being built\" screen could never appear",
+  "detail": "Reported as \"I pressed build it and no pop up screen appeared\".",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "db29c3e:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "Drop the download route, iPhone will not take it",
+  "detail": "Yesterday's guide offered the ready-made Shortcut as a file, on the strength of an \"Allow Untrusted Shortcuts\" switch that no longer does anything. The phone's answer is \"Importing unsigned shortcut files is not supported. Please use another sharing option\", and there is no setting behind it: Apple ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "db29c3e:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "Drop the download route, iPhone will not take it",
+  "detail": "Yesterday's guide offered the ready-made Shortcut as a file, on the strength of an \"Allow Untrusted Shortcuts\" switch that no longer does anything. The phone's answer is \"Importing unsigned shortcut files is not supported. Please use another sharing option\", and there is no setting behind it: Apple ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7a849ec:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "Let a phone fetch the Shortcut without an account",
+  "detail": "Shortcuts downloads the file itself, with none of Safari's cookies, so behind the sign-in wall the import gets the login page saved under a .shortcut name and fails with nothing on screen to explain it. The file is public now — that one path, not the folder, which also holds the owner's Expert Advis",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "910dcc7:app-builder",
+  "date": "2026-11-02",
+  "slug": "app-builder",
+  "title": "A build the agent has forgotten says so, instead of loading forever",
+  "detail": "Reported as \"it still says starting to build so I don't know if it's working\", which was exactly right.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3301aa8:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "Ship the Shortcut as a file, not a build",
+  "detail": "Four rounds of editing the Shortcut by hand produced four broken Shortcuts, the last one with a live token in a header, both URLs stopping at \"?key=\" with no chip, Combine Text emptied and the clean-up posting to the sending link. None of it was visible on the phone.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3301aa8:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "Ship the Shortcut as a file, not a build",
+  "detail": "Four rounds of editing the Shortcut by hand produced four broken Shortcuts, the last one with a live token in a header, both URLs stopping at \"?key=\" with no chip, Combine Text emptied and the clean-up posting to the sending link. None of it was visible on the phone.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "578e026:app-builder",
+  "date": "2026-11-02",
+  "slug": "app-builder",
+  "title": "Say so on screen, and stop a borrowed token failing every build silently",
+  "detail": "Three things, all found by the owner pressing the button and getting nothing.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a1d49be:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "One key and one tap instead of an eight-block build",
+  "detail": "Setting a phone up meant building the Shortcut by hand, and every block was somewhere to get it wrong — a typed word where a blue variable chip belonged, the sending link pasted into the clean-up action, a File field left as Text. All three have actually happened, and each one failed silently.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a1d49be:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "One key and one tap instead of an eight-block build",
+  "detail": "Setting a phone up meant building the Shortcut by hand, and every block was somewhere to get it wrong — a typed word where a blue variable chip belonged, the sending link pasted into the clean-up action, a File field left as Text. All three have actually happened, and each one failed silently.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "009853b:client-review",
+  "date": "2026-11-02",
+  "slug": "client-review",
+  "title": "The owner's picker stops calling itself the client's view",
+  "detail": "The owner opened the tab labelled \"Client view\", saw all 36 apps, and reasonably concluded a client could see them too. A client cannot — the owner gets SitePicker, which lists everything on purpose so any app can be opened and edited the way a client would see it; a client gets MyWebsites, which ho",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "60bc898:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "The phone's report gets its own row",
+  "detail": "It was the widget's subtitle, which \"N new from your iPhone\" replaces whenever anything is waiting — so on the account with photos always waiting, the one that needed it, it never rendered at all. What did show was 9px of grey at the bottom edge with the answer tacked onto the end of four clauses.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "60bc898:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "The phone's report gets its own row",
+  "detail": "It was the widget's subtitle, which \"N new from your iPhone\" replaces whenever anything is waiting — so on the account with photos always waiting, the one that needed it, it never rendered at all. What did show was 9px of grey at the bottom edge with the answer tacked onto the end of four clauses.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1ce5dd5:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "Say what the phone reported, in words",
+  "detail": "The clean-up's only answer was a line of JSON in the Shortcut's result box, which on a phone is behind a tap and easy to miss entirely — so a run that silently did nothing looked the same as one that worked.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1ce5dd5:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "Say what the phone reported, in words",
+  "detail": "The clean-up's only answer was a line of JSON in the Shortcut's result box, which on a phone is behind a tap and easy to miss entirely — so a run that silently did nothing looked the same as one that worked.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "357d36e:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "Read the photo names whatever the field got called",
+  "detail": "The 400 said \"Set the field to the combined names\", which reads like an instruction to rename the key — so the owner did, and the clean-up then posted a field the route never looked for.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1c58842:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "Say to insert the variable chips, not type them",
+  "detail": "A shortcut that types \"Combined Text\" into the names field sends one photo name, which the server reads as \"the rest were deleted\". Same for Combine Text with an empty input. Both steps now say to pick the chip off the variable bar, and Get Details of Images says its input must be the Find Photos li",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4f2a368:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "Stop a miswired Shortcut emptying the queue",
+  "detail": "A clean-up run reported one photo name and deleted forty-five. The list is read as \"everything still on the phone\", so a Shortcut whose Get Details block is wired to a single image rather than the Find Photos list says, in effect, that the whole camera roll is gone — and prune believed it.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4f2a368:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "Stop a miswired Shortcut emptying the queue",
+  "detail": "A clean-up run reported one photo name and deleted forty-five. The list is read as \"everything still on the phone\", so a Shortcut whose Get Details block is wired to a single image rather than the Find Photos list says, in effect, that the whole camera roll is gone — and prune believed it.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b4bb32e:app-builder",
+  "date": "2026-11-02",
+  "slug": "app-builder",
+  "title": "A client folder per app, and a way to move one into the hub",
+  "detail": "The lifecycle the owner asked for. Every app is born standalone — its own folder, its own repository — because that is the shape you can hand over. Some of them later belong beside the other forty, at /apps/<slug>.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "377464f:client-review",
+  "date": "2026-11-02",
+  "slug": "client-review",
+  "title": "The owner sends an app to the client; it is hidden until they do",
+  "detail": "App Builder opens a review project for every build, so the list stopped being a handful of client sites and became every app the owner has made. Two things broke at once: a client could reach anything whose token they held, and the owner could not find anything.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6d3ec45:personas-studio",
+  "date": "2026-11-02",
+  "slug": "personas-studio",
+  "title": "A link on every step, so nobody hunts through a console",
+  "detail": "Each platform's guide opened with one link and then left you to find the rest by sidebar name inside TikTok's, Meta's and Google's portals — consoles most people see once. YouTube already linked all three of its steps; TikTok, Instagram and Facebook linked only the first. Now every step carries its ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6b867bd:app-builder",
+  "date": "2026-11-02",
+  "slug": "app-builder",
+  "title": "A build thread is pinned to trusted, not the owner's chat setting",
+  "detail": "Found by running one. On \"ask\" the thread stops at every single command — the first gate was `ls -la && git log && node --version`, and a build is hours of exactly that. It is not a build, it is a hostage situation.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f2395e2:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "Show the three links to people already set up",
+  "detail": "Putting all three links on one step did nothing for the person who needed it most. They render only while `token` is set, and that is true for a few seconds after minting and never again — the key is hashed on the way into storage and cannot be read back. So anyone who set their phone up weeks ago o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "967afc7:app-builder",
+  "date": "2026-11-02",
+  "slug": "app-builder",
+  "title": "An empty, zero-cost turn is a failure, not a finished build",
+  "detail": "Found by trying to run a real build. Every thread came back in ~600ms having said nothing, used no tools and cost nothing — on a project thread AND on a plain worktree thread, so it was not the new project mode. The cause was off the hub entirely: `claude -p` on that machine answers \"Not logged in ·",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5904adc:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "All three iPhone links on one screen",
+  "detail": "The setup handed out three links — push, cursor, present — one per step, each revealed where it was needed. Mid-build that means leaving the step you are on to go and find the right one, and the three differ only in the last word before ?key=, so the wrong one pastes in silently and fails later with",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "99d1fe5:app-builder",
+  "date": "2026-11-02",
+  "slug": "app-builder",
+  "title": "Build it builds the app, instead of queueing a request for one",
+  "detail": "The button said Build and nothing was built. It filed a request in In Queue and stopped, and the app would not exist until the owner remembered to go and tell Claude Code to work the queue. That was honest about the old mechanism and useless as a product — one real brief sat unbuilt for a day becaus",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "f0f7bcb:financial-bible",
   "date": "2026-11-02",
   "slug": "financial-bible",
