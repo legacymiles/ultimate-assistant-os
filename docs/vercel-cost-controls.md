@@ -106,9 +106,41 @@ PC Game Creator builder, and the public crash-report ingest.
 Those routes are reachable by anyone on the internet. They verify a token and
 reject bad callers, **but rejecting a request still costs an invocation.**
 
-In **Project → Firewall**, add a rate-limit rule on those paths (a few requests
-per minute per IP is generous for a Shortcut), and keep **Attack Challenge
-Mode** in mind as the switch to flip if traffic ever spikes.
+**Before reaching for rate limiting, know that it is a priced feature.** WAF
+*custom rules* are free on every plan, but the **rate limit action** is
+usage-based and billed regionally on Pro. Turning it on pre-emptively spends
+money to save money. Check the Firewall traffic graph first — if nothing is
+hammering these routes, you do not need it yet.
+
+Good news either way: Vercel's docs state that "WAF deny, challenge, or
+rate-limit mitigated traffic does not incur CDN Requests or Fast Data
+Transfer". Blocking is cheaper than letting the request reach your app.
+
+### Adding a rate limit rule (verified against the docs, 2026-11-07)
+
+**Project → Firewall** (sidebar) → **Configure** (top right) → **+ New Rule**.
+
+1. Name it, add the **If** conditions — all must be true — matching the paths.
+2. **Then** → **Rate Limit**. A "Rate Limiting Pricing" dialog appears the
+   first time; read it, then **Continue**.
+3. Strategy: **Fixed Window** (Token Bucket is Enterprise only).
+4. **Time Window** — default 60s; Pro allows 10s to 10 minutes.
+5. **Request Limit** — default 100.
+6. **Keyed by** — on Pro the options are **IP** and **JA4 Digest**. Use IP.
+7. Action: **Default (429)**, or **Log** / **Deny** / **Challenge**. Start on
+   **Log** for a day to see what it *would* have caught before blocking real
+   traffic — an iPhone Shortcut firing a burst is easy to misjudge.
+8. **Save Rule** → **Review Changes** → **Publish**.
+
+Takes effect immediately, no redeploy. Pro allows 40 rate limit rules per
+project. Note counters are tracked **per region**, so a global limit is really
+a per-region limit.
+
+A free alternative: a plain **Deny**/**Challenge** custom rule, which can also
+live in `vercel.json` as a `routes` entry with a `has` array and a `mitigate`
+object (only `deny` and `challenge` are supported there — not `log`,
+`bypass` or `redirect`). Keep **Attack Challenge Mode** in mind as the switch
+to flip if traffic ever genuinely spikes.
 
 ## 5. Worth checking once
 
