@@ -13,6 +13,7 @@ import { EditProjectModal } from "./modals/EditProjectModal";
 import { SuperPromptModal } from "./modals/SuperPromptModal";
 import { Markdown } from "./Markdown";
 import { AppEditsSection } from "./AppEditsSection";
+import { RepoDocDetails, RepoFeatures, useAppDoc } from "./RepoDocSection";
 
 type Tab = "overview" | "features" | "versions" | "knowledge";
 
@@ -21,6 +22,8 @@ export function ProjectView({ project }: { project: Project }) {
   const [tab, setTab] = useState<Tab>("features");
   const [editing, setEditing] = useState(false);
   const [superPrompt, setSuperPrompt] = useState(false);
+  // The repo's own doc for this app (docs/apps/<slug>.md), when it has one.
+  const doc = useAppDoc(project.catalog_slug);
 
   // Reset to the default (Features) tab whenever a different project is opened.
   useEffect(() => {
@@ -29,7 +32,7 @@ export function ProjectView({ project }: { project: Project }) {
 
   const tabs: { id: Tab; label: string; icon: keyof typeof Icon; count?: number }[] = [
     { id: "overview", label: "Overview", icon: "Sparkles" },
-    { id: "features", label: "Features", icon: "Layers", count: project.features.length + (project.edits?.length ?? 0) },
+    { id: "features", label: "Features", icon: "Layers", count: project.features.length + (doc?.features.length ?? 0) + (project.edits?.length ?? 0) },
     { id: "versions", label: "Versions", icon: "Clock", count: project.versions.length },
     { id: "knowledge", label: "Knowledge", icon: "Inbox", count: project.knowledge.length },
   ];
@@ -144,6 +147,8 @@ export function ProjectView({ project }: { project: Project }) {
               </p>
             )}
 
+            {doc && <RepoDocDetails doc={doc} />}
+
             {project.detailed ? (
               <section className="rounded-2xl border border-line bg-panel p-5">
                 <div className="mb-2 flex items-center gap-2">
@@ -166,8 +171,9 @@ export function ProjectView({ project }: { project: Project }) {
         )}
         {tab === "features" && (
           <div className="space-y-4">
-            <AppEditsSection project={project} />
+            {doc && <RepoFeatures doc={doc} />}
             <FeaturesSection project={project} />
+            <AppEditsSection project={project} />
           </div>
         )}
         {tab === "versions" && <VersionTimeline project={project} />}
@@ -177,6 +183,7 @@ export function ProjectView({ project }: { project: Project }) {
       <EditProjectModal project={project} open={editing} onClose={() => setEditing(false)} />
       <SuperPromptModal
         project={project}
+        doc={doc}
         open={superPrompt}
         onClose={() => setSuperPrompt(false)}
       />
