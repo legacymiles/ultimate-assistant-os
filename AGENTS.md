@@ -34,8 +34,9 @@ spacing and component tokens. Its body explains why. Then match the app's screen
 
 ## What this repo is
 
-One **Next.js 15** website (App Router, TypeScript, Tailwind v4, Supabase, deployed on Vercel)
-that holds **every app the owner builds**, about 40 of them, under `/apps/<slug>`. It is both
+One **Next.js 15** website (App Router, TypeScript, Tailwind v4, Supabase) that is **hosted on
+Cloudflare** — it was on Vercel until 2026-11-07, so older notes and comments still say Vercel;
+believe this line. It holds **every app the owner builds**, about 40 of them, under `/apps/<slug>`. It is both
 their **portfolio** and their **personal operating system**. The centre of it is **Jarvis**,
 an assistant that the other apps plug into.
 
@@ -135,7 +136,9 @@ no second app list, no second design doc. The tables above already have a place 
   sign-in off.
 - A self-contained Next app nested inside this repo must be added to `tsconfig.json` `exclude`,
   or `next build` breaks.
-- Keep OpenRouter as the default AI route: the Vercel AI Gateway free tier serves no Anthropic model.
+- Keep OpenRouter as the default AI route: its fallback, the Vercel AI Gateway, serves no
+  Anthropic model on the free tier. That gateway is an API the code calls, not the host, so
+  moving off Vercel hosting does not change it.
 - Private apps that hold the owner's data go in `UNPREVIEWABLE` in `catalog.ts`, so the hub
   carousel never frames them.
 - **Moving an app off the hub grid is one edit in `src/lib/studio/plugins.ts`.** Add it to
