@@ -60,11 +60,11 @@ describe("keyRows", () => {
 });
 
 describe("agentTaskForKeys", () => {
-  it("names the page, the env var, Vercel and the never-type-a-password rule", () => {
+  it("names the page, the env var, the host and the never-type-a-password rule", () => {
     const t = agentTaskForKeys(["OPENROUTER_API_KEY"]);
     expect(t).toContain("https://openrouter.ai/settings/keys");
     expect(t).toContain("OPENROUTER_API_KEY");
-    expect(t).toMatch(/Vercel/);
+    expect(t).toMatch(/Cloudflare/);
     expect(t).toMatch(/never type a password/);
   });
 });
@@ -88,13 +88,13 @@ describe("onboarding helpers", () => {
 });
 
 describe("connections guides", () => {
-  it("YouTube is asked in onboarding with a clickable walk-through ending on Vercel", async () => {
+  it("YouTube is asked in onboarding with a clickable walk-through ending on the host", async () => {
     const { keyRows, stepsFor, checkKey } = await import("./keySetup");
     expect(keyRows({}).some((r) => r.capability.id === "youtube" && r.ask.includes("YOUTUBE_API_KEY"))).toBe(true);
     const steps = stepsFor("YOUTUBE_API_KEY");
     expect(steps[0].url).toContain("console.cloud.google.com");
     expect(steps.some((s) => s.url?.includes("youtube.googleapis.com"))).toBe(true);
-    expect(steps[steps.length - 1].url).toBe("https://vercel.com/dashboard");
+    expect(steps[steps.length - 1].url).toContain("dash.cloudflare.com");
     expect(checkKey("YOUTUBE_API_KEY", "sk-wrong-key-123")).toMatch(/AIza/);
     expect(checkKey("YOUTUBE_API_KEY", "AIzaSyExampleExample123")).toBe("");
   });

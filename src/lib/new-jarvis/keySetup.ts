@@ -5,7 +5,7 @@
 //   Get key    → opens the provider's own key page in a new tab.
 //   Paste      → the value goes straight to .env.local on the PC through the
 //                local agent (never to a model, never to Supabase), and a
-//                ready `NAME=value` line is copied for Vercel.
+//                ready `NAME=value` line is copied for the host.
 //   Jarvis     → hands the super-agent chat the whole job: open the page in
 //                the automation browser, make the key, put it where it goes.
 //
@@ -41,11 +41,20 @@ export interface KeySource {
   steps?: KeyStep[];
 }
 
-/** The last step for every key on the live site: where it goes on Vercel. */
-export const VERCEL_STEP: KeyStep = {
-  text: "On the live site, add it in Vercel: your project → Settings → Environment Variables, then Redeploy.",
-  url: "https://vercel.com/dashboard",
-  cta: "Open Vercel",
+/**
+ * The last step for every key on the live site: where it goes on the host.
+ *
+ * Cloudflare since 2026-11-07. A key pasted into the box below reaches this
+ * machine only, so without this step the live site keeps saying the key is
+ * missing and the person has no idea why. Anything secret goes in as a Secret
+ * rather than a plain variable, which is why the wording says so.
+ */
+export const HOST_STEP: KeyStep = {
+  text:
+    "On the live site, add it in Cloudflare: Workers & Pages → your Worker → Settings → " +
+    "Variables and Secrets → add it as a Secret, then redeploy.",
+  url: "https://dash.cloudflare.com/?to=/:account/workers-and-pages",
+  cta: "Open Cloudflare",
 };
 
 /** Where each key is got. Names only; values never live in this file. */
@@ -200,12 +209,12 @@ export function connectionRows(keys: Record<string, boolean>): KeyRow[] {
     .filter((r) => r.ask.length > 0);
 }
 
-/** The walk-through for one key: its own steps, or one step from url + how. Always ends on Vercel. */
+/** The walk-through for one key: its own steps, or one step from url + how. Always ends on the host. */
 export function stepsFor(name: string): KeyStep[] {
   const s = KEY_SOURCES[name];
   if (!s) return [];
   const own = s.steps ?? [{ text: s.how, url: s.url, cta: `Open ${s.site}` }];
-  return [...own, { text: "Paste it into the box below and press Save." }, VERCEL_STEP];
+  return [...own, { text: "Paste it into the box below and press Save." }, HOST_STEP];
 }
 
 export interface KeyRow {
@@ -284,7 +293,7 @@ export function agentTaskForKeys(names: string[]): string {
     `Set up my API key${names.length === 1 ? "" : "s"} for Jarvis. Use the browser.`,
     ...lines,
     "For each one: open the page, and if I'm not signed in, stop and tell me to sign in in the browser window — never type a password. Create the key and name it \"Jarvis\".",
-    "Then add it to my Vercel project ultimate-assistant-os under Settings → Environment Variables (Production, Preview and Development), and to .env.local in the repo root on this PC (keep every other line as it is).",
-    "Ask me before anything that costs money or can't be undone. When you're done, tell me which keys you added and remind me to redeploy on Vercel.",
+    "Then add it to my Cloudflare Worker ultimate-assistant-os under Settings → Variables and Secrets, as a Secret rather than a plain variable, and to .env.local in the repo root on this PC (keep every other line as it is).",
+    "Ask me before anything that costs money or can't be undone. When you're done, tell me which keys you added and remind me to redeploy on Cloudflare.",
   ].join("\n");
 }

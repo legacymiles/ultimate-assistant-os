@@ -98,3 +98,10 @@ public/__dump/
 # committed; the series are re-pullable, so they are not.
 /tools/adaptive-recovery/*.npy
 /tools/ea-lab-runner/out/
+
+# Cloudflare: the adapter's build output, wrangler's local state, and the
+# local-only vars for `npm run cf:preview` (see docs/hosting-cloudflare.md).
+.open-next/
+.wrangler/
+.dev.vars
+cloudflare-env.d.ts

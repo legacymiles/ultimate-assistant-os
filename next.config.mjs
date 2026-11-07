@@ -50,3 +50,9 @@ const nextConfig = {
 };
 
 export default nextConfig;
+
+// Gives `next dev` the same Cloudflare bindings the deployed Worker has, so a
+// binding that is missing shows up here instead of after a deploy. Only runs
+// in development; it is a no-op in the build. See docs/hosting-cloudflare.md.
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+initOpenNextCloudflareForDev();

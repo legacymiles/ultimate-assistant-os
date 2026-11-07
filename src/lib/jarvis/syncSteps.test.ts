@@ -41,11 +41,11 @@ describe("overall state", () => {
     expect(p.steps.find((s) => s.id === "computers")!.detail).toMatch(/honeysuites \(Windows, 3 min ago\)/);
   });
 
-  it("is NOT set up when Vercel is missing keys — and says which, on every device", () => {
+  it("is NOT set up when the host is missing keys — and says which, on every device", () => {
     const r = base({ server: { ready: false, missing: [{ env: "JARVIS_MCP_TOKEN", how: "" }, { env: "JARVIS_MCP_USER_ID", how: "" }] } });
     const desk = syncPlan(r, "windows", ORIGIN, NOW);
     expect(desk.state).toBe("not-set-up");
-    expect(desk.here.title).toMatch(/Vercel/);
+    expect(desk.here.title).toMatch(/Cloudflare/);
     expect(desk.here.detail).toMatch(/JARVIS_MCP_TOKEN, JARVIS_MCP_USER_ID/);
     const phone = syncPlan(r, "phone", ORIGIN, NOW);
     expect(phone.here.title).toBe("Finish this on a computer");

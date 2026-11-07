@@ -1,0 +1,56 @@
+{
+  // How Cloudflare builds and runs this site. See docs/hosting-cloudflare.md.
+  //
+  // `main` and `assets` point at what `opennextjs-cloudflare build` writes.
+  // Do not change them: they are the adapter's output paths, not choices.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ultimate-assistant-os",
+  "main": ".open-next/worker.js",
+
+  // Dated 2026-09-15, which is what turns three things on by date alone:
+  // `nodejs_compat` (2026-08-04+), `node:fs` (2025-09-01+) and the
+  // FinalizationRegistry the Next.js runtime needs (2025-05-05+). Moving this
+  // date BACKWARDS silently removes them, so raise it, never lower it.
+  "compatibility_date": "2026-09-15",
+  "compatibility_flags": [
+    // Named as well as dated, so the flag survives a date edit.
+    "nodejs_compat",
+    // Lets server code fetch this site's own public URL instead of looping
+    // back inside the Worker. Several routes call the hub's own API.
+    "global_fetch_strictly_public"
+  ],
+
+  // Everything in public/ plus Next's static chunks, served from the edge.
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  // The Worker calling itself, which the adapter needs for cached routes.
+  // The service name must equal "name" above.
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "ultimate-assistant-os"
+    }
+  ],
+
+  // Logs in the Cloudflare dashboard. Site errors are also reported in-app
+  // (Jarvis › More › Work › Site errors), which keeps working here.
+  "observability": {
+    "enabled": true
+  }
+
+  // NOT set, on purpose:
+  //
+  // "r2_buckets" with NEXT_INC_CACHE_R2_BUCKET — Next.js's incremental cache.
+  //   This site renders per-viewer and signed-in, so there is almost nothing to
+  //   cache between people. Add it only if a public page is ever made static.
+  //
+  // "images" with the IMAGES binding — nothing here imports next/image
+  //   (checked: zero files), so the optimizer has no work to do.
+  //
+  // "limits": { "cpu_ms": ... } — only valid on Workers Paid. The free plan
+  //   allows 10ms of CPU per request, which server-rendering this site exceeds.
+  //   See docs/hosting-cloudflare.md › What this costs.
+}

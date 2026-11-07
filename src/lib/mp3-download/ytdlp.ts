@@ -26,12 +26,20 @@ import type { Candidate, Licence, Track } from "./types";
  * True on a deployed serverless host, where no binary of ours can ever exist.
  *
  * Worth knowing apart from "not installed": telling somebody to run
- * `pip install` to fix a page served from Vercel is advice they cannot act on,
- * and it reads as the app being broken rather than as this source being local
- * by design.
+ * `pip install` to fix a page served from the cloud is advice they cannot act
+ * on, and it reads as the app being broken rather than as this source being
+ * local by design.
+ *
+ * Cloudflare is checked by runtime rather than by environment variable: it
+ * sets no VERCEL-style marker, and `node:child_process` there is a stub that
+ * fails rather than refusing, so without this the page would blame a missing
+ * yt-dlp on a host that can never have one. `navigator.userAgent` is
+ * Cloudflare's own documented way to recognise the Workers runtime.
  */
 function isServerless(): boolean {
-  return Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  const onWorkers =
+    typeof navigator !== "undefined" && navigator.userAgent === "Cloudflare-Workers";
+  return Boolean(onWorkers || process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
 }
 
 /** Each entry is an argv: some installs only have the Python module. */
