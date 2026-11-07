@@ -49,11 +49,12 @@ so the assistant gains capabilities over time rather than the app list growing.
 
 ## Operating Context
 
-- **Deployment:** Vercel, live at a single URL, behind an app-level password gate
+- **Deployment:** Cloudflare since 2026-11-07 (Vercel before that), live at a single
+  URL, behind an app-level password gate
   (`src/lib/appGate.ts` + `src/middleware.ts`). Supabase (ref `kiiwaiwrfslqankcsnkf`)
   holds cross-device state in an `app_state` table, read and written through
   `src/lib/sync/appState.ts` (`loadLocal` / `saveSynced` / `useRemotePull`).
-- **The local machine is a participant, not a client.** Vercel cannot reach the
+- **The local machine is a participant, not a client.** The host cannot reach the
   owner's PC; the owner's browser can. Local bridges listen on 127.0.0.1 and accept
   jobs only from the live hub origin or a localhost dev server. Anything needing a
   GPU, a shell, a filesystem or a real browser goes through one.

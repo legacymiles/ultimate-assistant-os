@@ -1,3 +1,7 @@
+> **AI tools and new readers: start with [`AGENTS.md`](AGENTS.md).** This repo is one website holding
+> about 40 apps; every app has a doc in [`docs/apps/`](docs/apps/README.md) with its features, its look and
+> where its code is. The README below describes only Projects Timeline, the first app built here.
+
 # Projects Timeline
 
 A **project intelligence system** — the first module of the *Ultimate Assistant OS*. It helps you organize, store, understand, and continuously refine projects over time, becoming the single source of truth for each one (websites, mobile apps, MT4 Expert Advisors, trading systems, AI agents, businesses, automations, software tools, and future ideas).
