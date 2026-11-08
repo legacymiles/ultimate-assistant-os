@@ -63,6 +63,12 @@ export const BRIEF_MODELS: BriefModelOption[] = [
     why: "Uncensored, so the brief is written rather than declined. Needs ORCAROUTER_API_KEY and Security Research access on that account.",
     group: "cloud",
   },
+  {
+    value: "orca/orcacyber-k3.1-pro",
+    label: "Kimi K3.1 Pro Abliterated · OrcaRouter",
+    why: "The heavier uncensored one — better writing, and it watches clips. $4/$20 per M.",
+    group: "cloud",
+  },
   { value: "deepseek/deepseek-v4.1-flash-1017", label: "DeepSeek 4.1 Flash 1017", why: "Pennies per brief, fast, sees pictures.", group: "cloud" },
   { value: "deepseek/deepseek-v4.1-flash", label: "DeepSeek 4.1 Flash", why: "The same model, without the October build.", group: "cloud" },
   { value: "anthropic/claude-sonnet-5.5", label: "Claude Sonnet 5.5", why: "Claude's writing, on the hub's key.", group: "cloud" },

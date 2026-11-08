@@ -482,7 +482,10 @@ async function planCall(raw: BodyInit | null | undefined): Promise<PlannedCall |
   // pick. Models that cannot read what the request carries are still dropped:
   // naming a text-only model does not let it watch a video.
   if (hint?.models?.length) {
-    const declared = [...new Set(hint.models)].slice(0, 6);
+    // Seven, which is the Studio chain's full length (src/lib/studio/models.ts
+    // MAX_CHAIN). Capping below that silently dropped the last model the owner
+    // had put in their own chain.
+    const declared = [...new Set(hint.models)].slice(0, 7);
     const need = mediaIn(body);
     const readable: string[] = [];
     for (const m of declared) if (await canRead(m, need).catch(() => true)) readable.push(m);

@@ -107,6 +107,19 @@ export const STUDIO_MODELS: StudioModel[] = [
     context: 1_050_000,
     note: "Reads all four and costs less. The cheaper of the two that can hear a track.",
   },
+  {
+    // Last, because it is the expensive one: reached when everything above has
+    // refused the film. It is the only model here that watches a reference clip
+    // AND is uncensored, so a film built on a clip that other models won't
+    // discuss still has somewhere to go.
+    id: "orca/orcacyber-k3.1-pro",
+    label: "Kimi K3.1 Pro Abliterated",
+    reads: ["image", "video"],
+    price: [4, 20],
+    json: true,
+    context: 1_048_576,
+    note: "Uncensored and watches clips. OrcaRouter, $4 / $20 per M — the last resort, not the workhorse.",
+  },
 ];
 
 export const STUDIO_MODEL_IDS = STUDIO_MODELS.map((m) => m.id);
@@ -141,8 +154,8 @@ export function upgradeStudioChain(chain: string[]): string[] {
   return untouched ? DEFAULT_STUDIO_CHAIN : chain;
 }
 
-/** How many the provider will walk before giving up. All six of them. */
-export const MAX_CHAIN = 6;
+/** How many the provider will walk before giving up. All seven of them. */
+export const MAX_CHAIN = 7;
 
 /**
  * A chain this code will act on: known ids, no duplicates, at most MAX_CHAIN.

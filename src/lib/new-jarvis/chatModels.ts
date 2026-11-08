@@ -53,6 +53,12 @@ export const CHAT_MODELS: ChatModel[] = [
     why: "Uncensored, never declines. On OrcaRouter.",
     reads: ["text", "image"],
   },
+  {
+    id: "orca/orcacyber-k3.1-pro",
+    label: "Kimi K3.1 Pro Abliterated",
+    why: "Uncensored, strongest, watches clips.",
+    reads: ["text", "image", "video"],
+  },
   { id: "deepseek/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", why: "Very cheap, fast, sees pictures.", reads: ["text", "image"] },
   { id: "xiaomi/mimo-v2.6-flash", label: "MiMo V2.6 Flash", why: "Hears audio and watches video.", reads: ["text", "image", "audio", "video"] },
   { id: "google/gemini-3.8-flash", label: "Gemini 3.8 Flash", why: "Long files, video, quick.", reads: ["text", "image", "audio", "video"] },

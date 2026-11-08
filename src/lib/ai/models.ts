@@ -47,6 +47,18 @@ export const ORCA_MODELS: ModelInfo[] = [
     json: true,
     created: 0,
   },
+  {
+    // The heavier OrcaCyber tier: dearer per token, and the only uncensored model
+    // here that watches a reference clip as well as reading stills.
+    id: "orca/orcacyber-k3.1-pro",
+    name: "OrcaCyber: Kimi K3.1 Pro Abliterated / Uncensored",
+    input: ["text", "image", "video"],
+    promptPrice: 4,
+    completionPrice: 20,
+    context: 1_048_576,
+    json: true,
+    created: 0,
+  },
 ];
 
 const TTL = 3600_000;

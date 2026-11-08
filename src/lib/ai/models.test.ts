@@ -82,6 +82,6 @@ describe("the model catalogue", () => {
       }),
     );
     const { listModels } = await import("./models");
-    expect((await listModels()).map((m) => m.id)).toEqual(["orca/orcacyber-flash-1.0"]);
+    expect((await listModels()).map((m) => m.id)).toEqual(["orca/orcacyber-flash-1.0", "orca/orcacyber-k3.1-pro"]);
   });
 });

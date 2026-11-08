@@ -20,8 +20,8 @@ const LEGACY_DEFAULT = [
 ];
 
 describe("the Studio's brains", () => {
-  it("lead with the uncensored DeepSeek, then the five the owner named", () => {
-    expect(DEFAULT_STUDIO_CHAIN).toEqual(["orca/orcacyber-flash-1.0", ...LEGACY_DEFAULT]);
+  it("lead with the uncensored DeepSeek, then the five the owner named, then the heavy one", () => {
+    expect(DEFAULT_STUDIO_CHAIN).toEqual(["orca/orcacyber-flash-1.0", ...LEGACY_DEFAULT, "orca/orcacyber-k3.1-pro"]);
   });
 
   // The owner's cost rule does not disappear because a new model arrived: the
