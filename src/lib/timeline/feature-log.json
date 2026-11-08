@@ -1,5 +1,113 @@
 [
  {
+  "id": "18abb41:app-builder",
+  "date": "2026-11-07",
+  "slug": "app-builder",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:contradicting",
+  "date": "2026-11-07",
+  "slug": "contradicting",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:find-my-life",
+  "date": "2026-11-07",
+  "slug": "find-my-life",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:iphone-notes",
+  "date": "2026-11-07",
+  "slug": "iphone-notes",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:item-storm-arena",
+  "date": "2026-11-07",
+  "slug": "item-storm-arena",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:jarvis",
+  "date": "2026-11-07",
+  "slug": "jarvis",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:text-inbox",
+  "date": "2026-11-07",
+  "slug": "text-inbox",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:youtube-videos",
+  "date": "2026-11-07",
+  "slug": "youtube-videos",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:gods-eye-view",
+  "date": "2026-11-07",
+  "slug": "gods-eye-view",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:kart-showcase",
+  "date": "2026-11-07",
+  "slug": "kart-showcase",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:website-redesigner",
+  "date": "2026-11-07",
+  "slug": "website-redesigner",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:fonts",
+  "date": "2026-11-07",
+  "slug": "fonts",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "12143fe:jarvis-audio-studio",
   "date": "2026-11-07",
   "slug": "jarvis-audio-studio",
