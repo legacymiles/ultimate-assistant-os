@@ -103,8 +103,14 @@ export interface RequestBatch {
 export interface BatchBuild {
   /** The App Builder project made from it. */
   builderId: string;
-  /** The In Queue request Claude Code picks up. */
+  /** The In Queue request, when the build was filed rather than started. */
   queueId?: string;
+  /**
+   * The bridge's harness thread, when the build is running on the owner's PC.
+   * That is the difference between "being built" and "filed and waiting", and
+   * the console reads it to show which one this is.
+   */
+  threadId?: string;
   at: string;
 }
 
@@ -176,6 +182,13 @@ export interface ClientProject {
    */
   sentAt?: string;
   lane: ContentLane;
+  /**
+   * The one model that writes this project's build briefs, when the owner
+   * picked one from the menu (src/lib/client-review/models.ts). "" or missing
+   * means "use the lane" — Claude first, the uncensored chain if it refuses —
+   * which is what every project made before the menu existed has.
+   */
+  briefModel?: string;
   versions: ReviewVersion[];
   requests: EditRequest[];
   batches: RequestBatch[];

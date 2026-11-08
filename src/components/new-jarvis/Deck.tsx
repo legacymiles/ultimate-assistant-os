@@ -77,6 +77,8 @@ import {
 } from "./Widgets";
 import { ImprovementsExpanded, ImprovementsWidget } from "./Improvements";
 import { QueueExpanded, QueueWidget } from "./QueueWidget";
+import { ShipExpanded, ShipWidget } from "./ShipWidget";
+import { useShip } from "@/lib/client-review/useShip";
 import { YouTubeVideosExpanded, YouTubeVideosWidget } from "../youtube-videos/YouTubeVideosWidget";
 import { FindMyLifeExpanded, FindMyLifeWidget } from "../find-my-life/FindMyLifeWidget";
 import { IphoneExpanded, IphoneWidget, type IphoneTab } from "../iphone-hub/IphoneWidget";
@@ -308,6 +310,8 @@ function recentFiled(n: number): Shot[] {
 export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camera, store, audit, queue: inQueue }: Props) {
   const widgets = useWidgetPrefs();
   const ideas = useIdeas({ store, audit });
+  // What built and is one tap from being live (Client Review → push to main).
+  const ship = useShip();
   const [expanded, setExpanded] = useState<WidgetId | null>(null);
   /** Which side of the iPhone widget to open on (the half that was tapped). */
   const [iphoneTab, setIphoneTab] = useState<IphoneTab | undefined>(undefined);
@@ -725,7 +729,8 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
             {!widgets.hidden.has("todo") && <TodoWidget onExpand={() => setExpanded("todo")} />}
             {!widgets.hidden.has("calendar") && <CalendarWidget events={events} onExpand={() => setExpanded("calendar")} />}
             {!widgets.hidden.has("improvements") && <ImprovementsWidget ideas={ideas} onExpand={() => setExpanded("improvements")} />}
-            {!widgets.hidden.has("queue") && <QueueWidget queue={inQueue} onExpand={() => setExpanded("queue")} />}
+            {!widgets.hidden.has("queue") && <QueueWidget queue={inQueue} ship={ship} onExpand={() => setExpanded("queue")} />}
+            {!widgets.hidden.has("ship") && <ShipWidget ship={ship} onExpand={() => setExpanded("ship")} />}
             {!widgets.hidden.has("youtube") && <YouTubeVideosWidget onExpand={() => setExpanded("youtube")} />}
             {!widgets.hidden.has("findmy") && <FindMyLifeWidget onExpand={() => setExpanded("findmy")} />}
           </div>
@@ -937,6 +942,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
       {expanded === "calendar" && <CalendarExpanded events={events} go={go} onClose={() => setExpanded(null)} />}
       {expanded === "improvements" && <ImprovementsExpanded ideas={ideas} go={go} onClose={() => setExpanded(null)} />}
       {expanded === "queue" && <QueueExpanded queue={inQueue} go={go} onClose={() => setExpanded(null)} />}
+      {expanded === "ship" && <ShipExpanded ship={ship} onClose={() => setExpanded(null)} />}
       {expanded === "youtube" && <YouTubeVideosExpanded onClose={() => setExpanded(null)} />}
       {expanded === "findmy" && <FindMyLifeExpanded onClose={() => setExpanded(null)} />}
       {expanded === "iphone" && <IphoneExpanded tab={iphoneTab} onClose={() => setExpanded(null)} />}

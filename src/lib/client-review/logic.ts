@@ -9,6 +9,12 @@
 // ReviewError whose message is fit to show a person.
 // ---------------------------------------------------------------------------
 
+import {
+  isBriefModelId,
+  isPlanModelId,
+  isSubscriptionValue,
+  SUBSCRIPTION_PREFIX,
+} from "./models";
 import type {
   AdminEvent,
   ClientNotice,
@@ -147,6 +153,24 @@ export function branchFor(p: Pick<ClientProject, "name">, versionNumber: string)
 
 export function cleanLane(raw: unknown): ContentLane {
   return raw === "standard" || raw === "uncensored" ? raw : "auto";
+}
+
+/**
+ * The brief's model pick: "" (the lane), a Claude-plan id, or an OpenRouter id.
+ *
+ * Anything else is refused rather than stored, because a typo would otherwise
+ * become a brief that fails every time with a provider's 404 and no clue which
+ * field caused it.
+ */
+export function cleanBriefModel(raw: unknown): string | undefined {
+  const value = typeof raw === "string" ? raw.trim() : "";
+  if (!value) return undefined;
+  if (isSubscriptionValue(value)) {
+    if (isPlanModelId(value.slice(SUBSCRIPTION_PREFIX.length))) return value;
+    throw new ReviewError("That isn't a Claude model name the PC helper can ask for.");
+  }
+  if (isBriefModelId(value)) return value;
+  throw new ReviewError(`“${value.slice(0, 60)}” isn't a model id this hub can use.`);
 }
 
 // ----- versions --------------------------------------------------------------
@@ -440,6 +464,7 @@ export function updateProjectMeta(
     name?: unknown;
     clientName?: unknown;
     lane?: unknown;
+    briefModel?: unknown;
     timelineProjectId?: unknown;
     archived?: unknown;
     inviteEmail?: unknown;
@@ -452,6 +477,8 @@ export function updateProjectMeta(
   if (patch.name !== undefined) p.name = clean(patch.name, 120, "project name");
   if (patch.clientName !== undefined) p.clientName = String(patch.clientName ?? "").trim().slice(0, 120);
   if (patch.lane !== undefined) p.lane = cleanLane(patch.lane);
+  // "" clears the pick and hands the brief back to the lane.
+  if (patch.briefModel !== undefined) p.briefModel = cleanBriefModel(patch.briefModel);
   if (patch.timelineProjectId !== undefined) {
     p.timelineProjectId =
       typeof patch.timelineProjectId === "string" && patch.timelineProjectId ? patch.timelineProjectId : undefined;
@@ -713,10 +740,10 @@ export function markVersionReady(
 
 // ----- App Builder: approved edits built without the owner ------------------------
 
-/** Record that an approved batch was handed to App Builder and queued. */
+/** Record that an approved batch was handed to App Builder: starting on the PC, or filed in In Queue. */
 export function noteBuild(
   src: ClientProject,
-  input: { batchId: unknown; builderId: unknown; queueId?: unknown },
+  input: { batchId: unknown; builderId: unknown; queueId?: unknown; threadId?: unknown },
   now = new Date().toISOString(),
 ): ClientProject {
   const p = clone(src);
@@ -727,6 +754,7 @@ export function noteBuild(
   b.build = {
     builderId: input.builderId.slice(0, 80),
     queueId: typeof input.queueId === "string" && input.queueId ? input.queueId.slice(0, 80) : b.build?.queueId,
+    threadId: typeof input.threadId === "string" && input.threadId ? input.threadId.slice(0, 80) : b.build?.threadId,
     at: now,
   };
   return touch(p, now);

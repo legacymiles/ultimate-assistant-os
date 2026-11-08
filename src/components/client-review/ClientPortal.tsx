@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildClientEdit } from "@/lib/app-builder/fromClientReview";
+import { CannotBuildHere, startClientEditBuild } from "@/lib/client-review/autoBuild";
 import { admin, ApiError, portal, urlBase64ToUint8Array } from "@/lib/client-review/client";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SignInGate } from "./SignInGate";
@@ -93,8 +94,8 @@ interface OwnerBuild {
 
 /**
  * The owner is their own client and their own admin: what they send is
- * approved on the spot and handed to Claude Code (App Builder → In Queue),
- * the same path Admin's "Approve & build" takes.
+ * approved on the spot and built on their PC — the same path Admin's
+ * "Approve & build" takes, with In Queue as the fallback when the PC is off.
  */
 async function approveAndBuild(token: string, versionId: string): Promise<OwnerBuild> {
   const { project } = await admin.byToken(token);
@@ -112,8 +113,22 @@ async function approveAndBuild(token: string, versionId: string): Promise<OwnerB
       message: "Approved. Add the site's GitHub repo in Admin › Where the site lives so Claude Code can build it.",
     };
   }
-  const handoff = await buildClientEdit(out.project, batch.id);
-  return { state: "queued", version: out.version.number, message: handoff.queueId ? undefined : "That exact build was already queued." };
+  try {
+    const started = await startClientEditBuild(out.project, batch.id);
+    await admin.act({
+      action: "buildQueued",
+      id: out.project.id,
+      batchId: batch.id,
+      builderId: started.builderId,
+      threadId: started.threadId,
+    });
+    return { state: "working", version: out.version.number };
+  } catch (e) {
+    if (!(e instanceof CannotBuildHere)) throw e;
+    // The PC isn't reachable from this tab: file it rather than lose it.
+    const handoff = await buildClientEdit(out.project, batch.id);
+    return { state: "queued", version: out.version.number, message: handoff.queueId ? undefined : "That exact build was already queued." };
+  }
 }
 
 function isIos(): boolean {

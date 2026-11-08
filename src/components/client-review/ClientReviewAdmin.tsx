@@ -20,12 +20,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildClientEdit } from "@/lib/app-builder/fromClientReview";
+import { PHASE_LABEL, latestWord } from "@/lib/app-builder/build";
+import { buildLinks, CannotBuildHere, startClientEditBuild } from "@/lib/client-review/autoBuild";
+import { pushThreadToMain } from "@/lib/client-review/pushMain";
+import { useBuild } from "@/lib/app-builder/useBuild";
 import { admin, type AdminState, type BriefOut } from "@/lib/client-review/client";
 import { buildText, currentVersion, plainBrief, sortVersions, isSentToClient } from "@/lib/client-review/logic";
 import { DEFAULT_SORT, isSortMode, listProjects, projectState, SORTS, STATE_LABEL, type SortMode } from "@/lib/client-review/list";
+import { isLaneValue, isSubscriptionValue, laneOfValue, pickValue } from "@/lib/client-review/models";
+import { writeBriefOnPlan } from "@/lib/client-review/subscriptionBrief";
 import type { ClientProject, ContentLane, EditRequest, RequestBatch, ReviewVersion } from "@/lib/client-review/types";
 import { getRepo } from "@/lib/repo";
 import { useStore } from "@/lib/store";
+import { ModelMenu } from "./ModelMenu";
 
 const LANES: { id: ContentLane; label: string; hint: string }[] = [
   { id: "auto", label: "Auto", hint: "Claude first; if it refuses, the uncensored model takes it" },
@@ -382,6 +389,23 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 
 type Run = <T extends { project?: ClientProject }>(label: string, action: Record<string, unknown>) => Promise<T | null>;
 
+/**
+ * One line under the model menu: what the current pick actually does.
+ *
+ * A lane is described by the models it will try; an explicit pick by where it
+ * runs and who pays for it — the two things the owner is choosing between.
+ */
+function briefModelNote(p: ClientProject, lanes: AdminState["lanes"]): string {
+  const picked = (p.briefModel ?? "").trim();
+  if (isSubscriptionValue(picked)) return "Your own Claude plan, through the PC helper — no extra cost.";
+  if (picked) return `${picked} · OpenRouter, billed per brief.`;
+  return p.lane === "standard"
+    ? `Claude (${lanes.standard.join(", ")})`
+    : p.lane === "uncensored"
+      ? `Uncensored: ${lanes.uncensored.join(" → ")}`
+      : `Claude, then ${lanes.uncensored.join(" → ")} if it refuses`;
+}
+
 function ProjectDetail({
   project: p,
   timeline,
@@ -480,30 +504,22 @@ function ProjectDetail({
         </div>
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <label className="block text-[11px] text-ink-faint">
-            Model lane for edit briefs
-            <div className="mt-1 flex rounded-md border border-line bg-panel-2 p-0.5">
-              {LANES.map((l) => (
-                <button
-                  key={l.id}
-                  title={l.hint}
-                  onClick={() => run("meta", { action: "meta", id: p.id, lane: l.id })}
-                  className={`flex-1 rounded px-2 py-1 text-xs ${
-                    p.lane === l.id ? (l.id === "uncensored" ? "bg-pink-500/25 text-pink-100" : "bg-brand/30 text-ink") : "text-ink-muted"
-                  }`}
-                >
-                  {l.label}
-                </button>
-              ))}
+          <div className="block text-[11px] text-ink-faint">
+            <span>Model for edit briefs</span>
+            <div className="mt-1">
+              <ModelMenu
+                value={pickValue(p)}
+                onChange={(next) => {
+                  // A lane pick clears the explicit model; a model pick leaves
+                  // the lane alone, so switching back to Auto restores it.
+                  void (isLaneValue(next)
+                    ? run("meta", { action: "meta", id: p.id, lane: laneOfValue(next), briefModel: "" })
+                    : run("meta", { action: "meta", id: p.id, briefModel: next }));
+                }}
+              />
             </div>
-            <span className="mt-1 block leading-snug">
-              {p.lane === "standard"
-                ? `Claude (${lanes.standard.join(", ")})`
-                : p.lane === "uncensored"
-                  ? `Uncensored: ${lanes.uncensored.join(" → ")}`
-                  : `Claude, then ${lanes.uncensored.join(" → ")} if it refuses`}
-            </span>
-          </label>
+            <span className="mt-1 block leading-snug">{briefModelNote(p, lanes)}</span>
+          </div>
           <label className="block text-[11px] text-ink-faint">
             Projects Timeline project
             <select
@@ -684,6 +700,10 @@ function BatchCard({
   const [brief, setBrief] = useState(b.brief ?? "");
   const [briefInfo, setBriefInfo] = useState<BriefOut | null>(null);
   const [rejectNote, setRejectNote] = useState("");
+  /** Writing through the PC bridge, which `busy` (the server actions) doesn't cover. */
+  const [writing, setWriting] = useState(false);
+  /** Approving and starting the build, likewise outside `busy`. */
+  const [starting, setStarting] = useState(false);
   useEffect(() => setBrief(b.brief ?? ""), [b.brief]);
   const live = reqs.filter((r) => r.status !== "rejected").length;
 
@@ -711,6 +731,15 @@ function BatchCard({
       <div className="border-t border-line p-3">
         <div className="mb-1.5 flex flex-wrap items-center gap-2">
           <span className="text-[11px] uppercase tracking-[0.12em] text-ink-faint">Build brief</span>
+          <ModelMenu
+            compact
+            value={pickValue(p)}
+            onChange={(next) => {
+              void (isLaneValue(next)
+                ? run("meta", { action: "meta", id: p.id, lane: laneOfValue(next), briefModel: "" })
+                : run("meta", { action: "meta", id: p.id, briefModel: next }));
+            }}
+          />
           {(briefInfo || b.briefModel) && (
             <span
               className={`rounded px-1.5 py-0.5 text-[10.5px] ${
@@ -723,8 +752,32 @@ function BatchCard({
           )}
           <button
             className="ml-auto rounded-md border border-brand/50 bg-brand/20 px-2 py-1 text-[11.5px]"
-            disabled={busy === `brief-${b.id}`}
+            disabled={busy === `brief-${b.id}` || writing}
             onClick={async () => {
+              const pick = pickValue(p);
+              // The owner's own Claude plan lives on their PC, not on this
+              // server: this tab asks the bridge and saves the same brief.
+              if (isSubscriptionValue(pick)) {
+                setWriting(true);
+                try {
+                  const out = await writeBriefOnPlan(p, b, pick);
+                  setBrief(out.brief);
+                  setBriefInfo({ brief: out.brief, model: out.model, lane: "standard", rerouted: false, note: out.note });
+                  await run("saveBrief", {
+                    action: "saveBrief",
+                    id: p.id,
+                    batchId: b.id,
+                    brief: out.brief,
+                    model: out.model,
+                  });
+                  if (out.note) say(out.note);
+                } catch (e) {
+                  say(e instanceof Error ? e.message : "Claude couldn't write that brief.");
+                } finally {
+                  setWriting(false);
+                }
+                return;
+              }
               const out = await run<{ project: ClientProject; brief: BriefOut }>(`brief-${b.id}`, {
                 action: "brief",
                 id: p.id,
@@ -737,7 +790,13 @@ function BatchCard({
               }
             }}
           >
-            {busy === `brief-${b.id}` ? "Writing…" : brief ? "✦ Improve again" : "✦ Improve with AI"}
+            {writing
+              ? "Claude is writing…"
+              : busy === `brief-${b.id}`
+                ? "Writing…"
+                : brief
+                  ? "✦ Improve again"
+                  : "✦ Improve with AI"}
           </button>
         </div>
         <textarea
@@ -760,32 +819,33 @@ function BatchCard({
                     ? "rounded-md bg-emerald-500/80 px-3 py-1.5 text-xs font-semibold text-black hover:bg-emerald-400 disabled:opacity-40"
                     : "rounded-md border border-emerald-500/40 px-2.5 py-1.5 text-xs text-emerald-200 disabled:opacity-40"
                 }
-                disabled={!live || busy === "approve" || busy === "buildQueued"}
-                title={mode === "build" ? `Approve, then Claude Code builds it in ${p.repo} and sends the preview to the client` : "Approve only — you build it and post the URL yourself"}
+                disabled={!live || starting || busy === "approve" || busy === "buildQueued"}
+                title={mode === "build" ? `Approve, then Claude Code builds it on your PC (${p.repo}) — the preview lands here for you to post` : "Approve only — you build it and post the URL yourself"}
                 onClick={async () => {
-                  const out = await run<{ project: ClientProject; version: ReviewVersion; approved: EditRequest[] }>("approve", {
-                    action: "approve",
-                    id: p.id,
-                    batchId: b.id,
-                    brief,
-                  });
-                  if (!out) return;
-                  const done = out.project.batches.find((x) => x.id === b.id);
-                  const extra = await syncTimeline(out.project, out.version, done?.brief ?? brief, out.approved);
-                  if (mode === "approve") {
-                    say(`Approved — ${out.version.number} is now building and ${p.clientName || "the client"} was told.${extra}`);
-                    return;
+                  setStarting(true);
+                  try {
+                    const out = await run<{ project: ClientProject; version: ReviewVersion; approved: EditRequest[] }>("approve", {
+                      action: "approve",
+                      id: p.id,
+                      batchId: b.id,
+                      brief,
+                    });
+                    if (!out) return;
+                    const done = out.project.batches.find((x) => x.id === b.id);
+                    const extra = await syncTimeline(out.project, out.version, done?.brief ?? brief, out.approved);
+                    if (mode === "approve") {
+                      say(`Approved — ${out.version.number} is waiting to be built; post its address below when it is.${extra}`);
+                      return;
+                    }
+                    const started = await startBuild(out.project, b.id, run);
+                    say(`Approved — ${out.version.number}: ${started.message}${extra}`);
+                  } finally {
+                    setStarting(false);
                   }
-                  const queued = await queueBuild(out.project, b.id, run);
-                  say(
-                    queued
-                      ? `Approved and queued — Claude Code builds ${out.version.number}, then ${p.clientName || "the client"} gets the preview on their link.${extra}`
-                      : `Approved — ${out.version.number} is building, but it couldn't be queued. Use “Build in App Builder” on ${out.version.number} below.${extra}`,
-                  );
                 }}
               >
-                {busy === "approve" || busy === "buildQueued"
-                  ? "Approving…"
+                {starting || busy === "approve" || busy === "buildQueued"
+                  ? "Starting…"
                   : mode === "build"
                     ? `Approve & build ${live} →`
                     : p.repo
@@ -904,7 +964,7 @@ function VersionRow({
       </div>
       <div className="min-w-0 space-y-1.5">
         {v.summary && <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-ink-muted">{v.summary}</p>}
-        {v.status === "building" && <BuildStatus project={p} version={v} busy={busy} run={run} say={say} />}
+        {v.status === "building" && <BuildStatus project={p} version={v} busy={busy} run={run} say={say} onUseUrl={setUrl} />}
         {v.status === "building" ? (
           <div className="flex flex-wrap gap-2">
             <input
@@ -949,20 +1009,61 @@ function VersionRow({
   );
 }
 
-/** Queue an approved batch through App Builder and record it here. */
-async function queueBuild(project: ClientProject, batchId: string, run: Run): Promise<boolean> {
+/** What pressing build did: started on the PC, filed in In Queue, or refused outright. */
+interface BuildStart {
+  mode: "thread" | "queue" | "failed";
+  message: string;
+}
+
+/**
+ * Build an approved batch: on the PC when it can, in In Queue when it can't.
+ *
+ * The PC is the only thing that can write code, so "started" has to mean a real
+ * harness thread. Filing a request and letting the version say "building" is
+ * what made an approved batch look busy for twenty minutes with nothing behind
+ * it — the queue is the fallback for a phone or a shut laptop, not the path.
+ */
+async function startBuild(project: ClientProject, batchId: string, run: Run): Promise<BuildStart> {
   try {
-    const out = await buildClientEdit(project, batchId, { note: false });
+    const started = await startClientEditBuild(project, batchId);
     const noted = await run("buildQueued", {
       action: "buildQueued",
       id: project.id,
       batchId,
-      builderId: out.project.id,
-      queueId: out.queueId,
+      builderId: started.builderId,
+      threadId: started.threadId,
     });
-    return Boolean(noted);
-  } catch {
-    return false;
+    return {
+      mode: "thread",
+      message: noted
+        ? "Claude Code is building it on your PC now. The preview link arrives here when it's done — you post it to the client."
+        : "Claude Code is building it on your PC, but Client Review couldn't record it — the build still runs.",
+    };
+  } catch (e) {
+    const refusal = e instanceof CannotBuildHere ? e.reason : null;
+    if (!refusal) {
+      return { mode: "failed", message: e instanceof Error ? e.message : "The build didn't start." };
+    }
+    // No PC, no local clone, not paired: file it, so approving on a phone still
+    // leaves the work somewhere it can be picked up.
+    try {
+      const out = await buildClientEdit(project, batchId, { note: false });
+      const noted = await run("buildQueued", {
+        action: "buildQueued",
+        id: project.id,
+        batchId,
+        builderId: out.project.id,
+        queueId: out.queueId,
+      });
+      return {
+        mode: "queue",
+        message: noted
+          ? "Your PC isn't reachable, so this is in In Queue — nothing runs until Claude Code works your queue."
+          : "Filed in In Queue, but Client Review couldn't record where.",
+      };
+    } catch (again) {
+      return { mode: "failed", message: again instanceof Error ? again.message : "It couldn't be filed either." };
+    }
   }
 }
 
@@ -1000,9 +1101,11 @@ function SiteHome({ project: p, run, say }: { project: ClientProject; run: Run; 
         </label>
       </div>
       <p className="mt-1.5 text-[11px] leading-snug text-ink-faint">
-        Approve &amp; build sends the edits to Claude Code, which makes them on a branch, opens a pull request for you to merge, and
-        posts the Vercel preview here as the next version — {p.clientName || "the client"} is notified. Previews must open without a
-        login: in Vercel › Settings › Deployment Protection, turn Vercel Authentication off.
+        Approve &amp; build starts Claude Code on your PC, in a worktree of the repo: the edits go on a branch and a pull
+        request opens for you. The preview link appears on the version here — you post it to {p.clientName || "the client"},
+        so nothing reaches them without you. If the PC is off it is filed in In Queue instead, and nothing runs until you work
+        the queue. Previews must open without a login: in Vercel › Settings › Deployment Protection, turn Vercel Authentication
+        off.
       </p>
     </div>
   );
@@ -1015,48 +1118,156 @@ function BuildStatus({
   busy,
   run,
   say,
+  onUseUrl,
 }: {
   project: ClientProject;
   version: ReviewVersion;
   busy: string;
   run: Run;
   say: (m: string) => void;
+  /** Puts a finished preview in the address box, so the owner still presses ship. */
+  onUseUrl: (url: string) => void;
 }) {
+  /** Starting on the PC, which happens outside `busy`. */
+  const [starting, setStarting] = useState(false);
   const batch = p.batches.find((b) => b.nextVersionId === v.id && b.build) ?? p.batches.find((b) => b.nextVersionId === v.id);
   if (!batch) return null;
   const build = batch.build;
   const appLink = build ? `/apps/app-builder?p=${encodeURIComponent(build.builderId)}` : "";
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-md bg-sky-500/10 px-2 py-1.5 text-[11.5px]">
-      {build ? (
+      {build?.threadId ? (
+        <>
+          <BuildThread threadId={build.threadId} liveUrl={p.appPath} onUseUrl={onUseUrl} />
+          <a className="ml-auto text-accent underline" href={appLink}>
+            Open in App Builder ↗
+          </a>
+        </>
+      ) : build ? (
         <>
           <span className="text-sky-200">
-            ● Queued for Claude Code {ago(build.at)}
+            ● In In Queue {ago(build.at)}
             {build.queueId ? <span className="text-ink-faint"> · {build.queueId}</span> : null}
           </span>
-          <span className="text-ink-faint">— the preview comes back here and {p.clientName || "the client"} is told.</span>
+          <span className="text-ink-faint">— filed, not running. Nothing happens until Claude Code works your queue.</span>
+          {p.repo && (
+            <button
+              className="rounded-md border border-sky-400/50 bg-sky-400/20 px-2.5 py-1 text-[11.5px] text-sky-100 disabled:opacity-40"
+              disabled={busy === "buildQueued" || starting}
+              onClick={async () => {
+                setStarting(true);
+                try {
+                  const started = await startBuild(p, batch.id, run);
+                  say(started.message);
+                } finally {
+                  setStarting(false);
+                }
+              }}
+            >
+              {starting || busy === "buildQueued" ? "Starting…" : "Build it on my PC →"}
+            </button>
+          )}
           <a className="ml-auto text-accent underline" href={appLink}>
             Open in App Builder ↗
           </a>
         </>
       ) : p.repo ? (
         <>
-          <span className="text-ink-muted">Not sent to Claude Code yet.</span>
+          <span className="text-ink-muted">Not started yet.</span>
           <button
             className="ml-auto rounded-md border border-sky-400/50 bg-sky-400/20 px-2.5 py-1 text-[11.5px] text-sky-100 disabled:opacity-40"
-            disabled={busy === "buildQueued"}
+            disabled={busy === "buildQueued" || starting}
             onClick={async () => {
-              const ok = await queueBuild(p, batch.id, run);
-              say(ok ? `${v.number} queued — Claude Code builds it and sends the preview to ${p.clientName || "the client"}.` : "Couldn't queue it — check you're signed in to Jarvis and try again.");
+              setStarting(true);
+              try {
+                const started = await startBuild(p, batch.id, run);
+                say(started.message);
+              } finally {
+                setStarting(false);
+              }
             }}
           >
-            {busy === "buildQueued" ? "Queuing…" : "Build in App Builder →"}
+            {starting || busy === "buildQueued" ? "Starting…" : "Build it on my PC →"}
           </button>
         </>
       ) : (
         <span className="text-ink-faint">Add the client&apos;s GitHub repo above to have Claude Code build this — or paste the address below when it&apos;s deployed.</span>
       )}
     </div>
+  );
+}
+
+/**
+ * The build running on the owner's PC, followed live.
+ *
+ * The thread lives in the bridge, so this shows what it is doing rather than
+ * owning it: closing the console does not stop the build, and opening it again
+ * reattaches to the thread id stored on the batch. The preview is only offered
+ * as a link and a "use this address" — the owner still presses ship, so nothing
+ * reaches the client without a human deciding it is right.
+ */
+function BuildThread({
+  threadId,
+  liveUrl,
+  onUseUrl,
+}: {
+  threadId: string;
+  /** Where this version goes live once main deploys ("/apps/…" for the owner's apps). */
+  liveUrl?: string;
+  onUseUrl: (url: string) => void;
+}) {
+  const build = useBuild(threadId, true);
+  const [pushing, setPushing] = useState(false);
+  const [said, setSaid] = useState("");
+  const links = buildLinks(build.view.turns.map((t) => t.text).join("\n"));
+  const what = build.phase === "working" ? latestWord(build.view) : "";
+  const done = build.phase === "done";
+  const bad = build.phase === "failed" || build.phase === "lost";
+  return (
+    <>
+      <span className={done ? "text-emerald-200" : bad ? "text-rose-200" : "text-sky-200"}>
+        ● {done ? "Built on your PC" : PHASE_LABEL[build.phase]}
+      </span>
+      {what && <span className="min-w-0 truncate text-ink-faint">{what}</span>}
+      {build.phase === "asking" && (
+        <span className="text-amber-200">Claude is waiting for permission — answer it in App Builder.</span>
+      )}
+      {links.preview && (
+        <>
+          <a className="text-accent underline" href={links.preview} target="_blank" rel="noreferrer">
+            Preview ↗
+          </a>
+          <button className="rounded border border-sky-400/40 px-1.5 py-0.5 text-[11px]" onClick={() => onUseUrl(links.preview!)}>
+            Use this address
+          </button>
+        </>
+      )}
+      {links.pr && (
+        <a className="text-accent underline" href={links.pr} target="_blank" rel="noreferrer">
+          Pull request ↗
+        </a>
+      )}
+      {done && (
+        <button
+          disabled={pushing}
+          className="rounded-md border border-emerald-400/50 bg-emerald-400/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-100 disabled:opacity-50"
+          onClick={async () => {
+            setPushing(true);
+            try {
+              const out = await pushThreadToMain(threadId);
+              setSaid(out.message);
+              if (out.ok && liveUrl) onUseUrl(liveUrl);
+            } finally {
+              setPushing(false);
+            }
+          }}
+        >
+          {pushing ? "Pushing…" : "Push to main"}
+        </button>
+      )}
+      {said && <span className="text-emerald-200">{said}</span>}
+      {build.error && <span className="text-amber-200">{build.error}</span>}
+    </>
   );
 }
 

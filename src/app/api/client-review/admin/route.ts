@@ -21,6 +21,7 @@ import {
   upsertIndex,
 } from "@/lib/client-review/logic";
 import { appEntry, appProject } from "@/lib/client-review/apps";
+import { isSubscriptionValue } from "@/lib/client-review/models";
 import { vapidPublicKey } from "@/lib/client-review/push";
 import { tell } from "@/lib/client-review/ship";
 import { lanePlan } from "@/lib/client-review/routing";
@@ -232,6 +233,13 @@ export async function POST(req: Request) {
         if (!p) throw new ReviewError("That project no longer exists.", 404);
         const batch = p.batches.find((b) => b.id === body.batchId);
         if (!batch) throw new ReviewError("That batch no longer exists.", 404);
+        // The owner's Claude plan runs on their PC, not here: refuse rather
+        // than quietly writing a cloud brief under the plan's name.
+        if (isSubscriptionValue((p.briefModel ?? "").trim())) {
+          throw new ReviewError(
+            "That model runs on your PC — write the brief from the console in a browser paired with the PC helper, or pick an OpenRouter model.",
+          );
+        }
         const out = await writeBrief(p, batch);
         const { project } = await updateProject(id, (cur) => ({
           project: setBrief(cur, { batchId: batch.id, brief: out.brief, model: out.model, lane: out.lane }),
@@ -242,7 +250,13 @@ export async function POST(req: Request) {
 
       case "saveBrief": {
         const { project } = await updateProject(id, (p) => ({
-          project: setBrief(p, { batchId: body.batchId, brief: body.brief }),
+          project: setBrief(p, {
+            batchId: body.batchId,
+            brief: body.brief,
+            // A brief written on the PC's Claude plan reports which model
+            // actually answered, so the badge survives a reload.
+            model: typeof body.model === "string" ? body.model : undefined,
+          }),
           result: null,
         }));
         return NextResponse.json({ project });
@@ -282,10 +296,16 @@ export async function POST(req: Request) {
         return NextResponse.json({ project: told, version: result });
       }
 
-      // App Builder made a project from an approved batch and queued it.
+      // App Builder made a project from an approved batch and started it on the
+      // PC (threadId) or filed it in In Queue (queueId).
       case "buildQueued": {
         const { project } = await updateProject(id, (p) => ({
-          project: noteBuild(p, { batchId: body.batchId, builderId: body.builderId, queueId: body.queueId }),
+          project: noteBuild(p, {
+            batchId: body.batchId,
+            builderId: body.builderId,
+            queueId: body.queueId,
+            threadId: body.threadId,
+          }),
           result: null,
         }));
         return NextResponse.json({ project });

@@ -29,7 +29,7 @@ import { eventStart, type CalendarEvent } from "@/lib/recall/calendar/types";
 import { notificationPermission, notificationsAvailable, requestNotifications } from "@/lib/recall/calendar/reminders";
 import { BirthdaysEditor } from "../birthdays/BirthdaysEditor";
 
-export type WidgetId = "notifications" | "todo" | "camera" | "iphone" | "calendar" | "improvements" | "queue" | "youtube" | "findmy";
+export type WidgetId = "notifications" | "todo" | "camera" | "iphone" | "calendar" | "improvements" | "queue" | "ship" | "youtube" | "findmy";
 
 export const WIDGETS: { id: WidgetId; label: string }[] = [
   { id: "notifications", label: "Notifications" },
@@ -39,6 +39,7 @@ export const WIDGETS: { id: WidgetId; label: string }[] = [
   { id: "calendar", label: "Calendar" },
   { id: "improvements", label: "Improvements" },
   { id: "queue", label: "In Queue" },
+  { id: "ship", label: "Push to main" },
   { id: "youtube", label: "YouTube videos" },
   { id: "findmy", label: "Find My Life" },
 ];
