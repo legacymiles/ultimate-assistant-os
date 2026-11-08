@@ -1,5 +1,68 @@
 [
  {
+  "id": "13a7e69:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "Build the edits here, on main, with the model you picked",
+  "detail": "Approve & build started a thread and then changed nothing. The bridge cuts each worktree from its own checkout's HEAD, and that checkout sits on a long-running branch 270 commits behind origin/main with work of its own on top — so the brief's \"rebase onto main, and stop if that is not trivial\" rule ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "13a7e69:app-builder",
+  "date": "2026-11-08",
+  "slug": "app-builder",
+  "title": "Build the edits here, on main, with the model you picked",
+  "detail": "Approve & build started a thread and then changed nothing. The bridge cuts each worktree from its own checkout's HEAD, and that checkout sits on a long-running branch 270 commits behind origin/main with work of its own on top — so the brief's \"rebase onto main, and stop if that is not trivial\" rule ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "60c9512:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "Open on solid ground, above everything else",
+  "detail": "The chat's model picker opened as a ghost — you could read the suggestion chips, the hint row and the Connect banner straight through it, and they painted over the top of it. Two causes, both of them the kind that hit every dropdown on the site, not just that one.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "60c9512:jarvis",
+  "date": "2026-11-08",
+  "slug": "jarvis",
+  "title": "Open on solid ground, above everything else",
+  "detail": "The chat's model picker opened as a ghost — you could read the suggestion chips, the hint row and the Connect banner straight through it, and they painted over the top of it. Two causes, both of them the kind that hit every dropdown on the site, not just that one.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "60c9512:projects-timeline",
+  "date": "2026-11-08",
+  "slug": "projects-timeline",
+  "title": "Open on solid ground, above everything else",
+  "detail": "The chat's model picker opened as a ghost — you could read the suggestion chips, the hint row and the Connect banner straight through it, and they painted over the top of it. Two causes, both of them the kind that hit every dropdown on the site, not just that one.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e4c96db:jarvis",
+  "date": "2026-11-08",
+  "slug": "jarvis",
+  "title": "The abliterated DeepSeek, in every router",
+  "detail": "The owner's OrcaRouter account serves DeepSeek V4.1 Flash Abliterated as orca/orcacyber-flash-1.0 — a model no other provider carries — and asked for it to be the brain behind Chat, Studio, Client Review and the rest.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e4c96db:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "The abliterated DeepSeek, in every router",
+  "detail": "The owner's OrcaRouter account serves DeepSeek V4.1 Flash Abliterated as orca/orcacyber-flash-1.0 — a model no other provider carries — and asked for it to be the brain behind Chat, Studio, Client Review and the rest.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "079c1ed:client-review",
   "date": "2026-11-08",
   "slug": "client-review",
