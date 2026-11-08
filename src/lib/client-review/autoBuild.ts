@@ -46,7 +46,7 @@ import type { ClientProject } from "./types";
  * fallback behind any of them: the batch stays approved and build is pressed
  * again once the PC is there.
  */
-export type CannotBuildReason = "pc-off" | "not-paired" | "repo-not-here";
+export type CannotBuildReason = "pc-off" | "not-paired" | "repo-not-here" | "blocked-by-browser";
 
 export class CannotBuildHere extends Error {
   constructor(
@@ -222,6 +222,14 @@ export async function startClientEditBuild(review: ClientProject, batchId: strin
   // checkout is, so a browser that has never met the bridge can still build.
   const health = await probe();
   if (!health.up) {
+    // Two different failures that used to read as one. Telling someone to
+    // start a helper that is already running is worse than saying nothing.
+    if (health.needsLocalNetwork) {
+      throw new CannotBuildHere(
+        "blocked-by-browser",
+        `${health.problem ?? "This browser is blocking this site from reaching your PC."} Your PC helper may well be running — this is the browser, not the helper.`,
+      );
+    }
     throw new CannotBuildHere("pc-off", "Jarvis's PC helper isn't running, so nothing can be built here. Start it on that PC and press build again.");
   }
   if (!health.paired) {

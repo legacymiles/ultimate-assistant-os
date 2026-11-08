@@ -1290,7 +1290,7 @@ function BuildStatus({
  * too late and too easy to miss.
  */
 function PcHelper() {
-  const [state, setState] = useState<"asking" | "up" | "unpaired" | "off">("asking");
+  const [state, setState] = useState<"asking" | "up" | "unpaired" | "off" | "blocked">("asking");
   const [why, setWhy] = useState("");
 
   const check = useCallback(() => {
@@ -1298,7 +1298,7 @@ function PcHelper() {
     bridgeProbe()
       .then((h) => {
         setWhy(h.problem ?? "");
-        setState(!h.up ? "off" : h.paired ? "up" : "unpaired");
+        setState(h.up ? (h.paired ? "up" : "unpaired") : h.needsLocalNetwork ? "blocked" : "off");
       })
       .catch(() => setState("off"));
   }, []);
@@ -1311,7 +1311,9 @@ function PcHelper() {
         ? "● PC helper running"
         : state === "unpaired"
           ? "○ PC helper running, this browser isn't paired"
-          : "○ PC helper not running — builds can't start";
+          : state === "blocked"
+            ? "○ This browser is blocking this site from reaching your PC"
+            : "○ PC helper not running — builds can't start";
   return (
     <span
       className={`inline-flex items-center gap-1.5 ${
@@ -1320,7 +1322,18 @@ function PcHelper() {
       title={why || undefined}
     >
       {label}
-      {state !== "asking" && state !== "up" && (
+      {/*
+        This button is the fix, not a retry. Chrome only asks for local network
+        access on a CLICK, so the probe on page load can never raise the
+        prompt — it just fails. Pressing this runs the same probe inside a real
+        gesture, which is what makes Chrome ask.
+      */}
+      {state === "blocked" && (
+        <button className="rounded border border-amber-400/60 bg-amber-400/20 px-2 py-0.5 font-semibold text-amber-100" onClick={check}>
+          Connect to this PC
+        </button>
+      )}
+      {(state === "off" || state === "unpaired") && (
         <button className="underline hover:text-ink" onClick={check}>
           check again
         </button>
