@@ -1,5 +1,32 @@
 [
  {
+  "id": "92a426c:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "Tell \"the browser blocked it\" apart from \"the helper is off\"",
+  "detail": "Measured in the owner's own Chrome, same machine, same helper, same second:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "92a426c:ai-rankings",
+  "date": "2026-11-08",
+  "slug": "ai-rankings",
+  "title": "Tell \"the browser blocked it\" apart from \"the helper is off\"",
+  "detail": "Measured in the owner's own Chrome, same machine, same helper, same second:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "92a426c:jarvis",
+  "date": "2026-11-08",
+  "slug": "jarvis",
+  "title": "Tell \"the browser blocked it\" apart from \"the helper is off\"",
+  "detail": "Measured in the owner's own Chrome, same machine, same helper, same second:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "feffb6d:client-review",
   "date": "2026-11-08",
   "slug": "client-review",
