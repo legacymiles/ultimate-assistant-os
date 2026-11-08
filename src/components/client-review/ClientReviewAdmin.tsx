@@ -25,6 +25,7 @@ import { call as bridgeCall, probe as bridgeProbe } from "@/lib/new-jarvis/bridg
 import { pushThreadToMain } from "@/lib/client-review/pushMain";
 import { useBuild } from "@/lib/app-builder/useBuild";
 import { admin, type AdminState, type BriefOut } from "@/lib/client-review/client";
+import { HUB_ORIGIN } from "@/lib/client-review/apps";
 import { buildText, currentVersion, plainBrief, sortVersions, isSentToClient } from "@/lib/client-review/logic";
 import { DEFAULT_SORT, isSortMode, listProjects, projectState, SORTS, STATE_LABEL, type SortMode } from "@/lib/client-review/list";
 import { buildModelNote, isLaneValue, isSubscriptionValue, laneOfValue, pickValue } from "@/lib/client-review/models";
@@ -1329,9 +1330,19 @@ function PcHelper() {
         gesture, which is what makes Chrome ask.
       */}
       {state === "blocked" && (
-        <button className="rounded border border-amber-400/60 bg-amber-400/20 px-2 py-0.5 font-semibold text-amber-100" onClick={check}>
-          Connect to this PC
-        </button>
+        <>
+          <button className="rounded border border-amber-400/60 bg-amber-400/20 px-2 py-0.5 font-semibold text-amber-100" onClick={check}>
+            Connect to this PC
+          </button>
+          {/*
+            Chrome does not always ASK. When the permission is in "prompt" but
+            the browser has stopped offering it, pressing the button does
+            nothing at all and there is no way forward from this page — so the
+            way forward is the other address, where the owner has already
+            allowed it. One click beats an explanation of Chrome's settings.
+          */}
+          <AlsoTry />
+        </>
       )}
       {(state === "off" || state === "unpaired") && (
         <button className="underline hover:text-ink" onClick={check}>
@@ -1339,6 +1350,29 @@ function PcHelper() {
         </button>
       )}
     </span>
+  );
+}
+
+/**
+ * The same page on the address builds already work from.
+ *
+ * Local network access is granted per ORIGIN, so a hub served from two
+ * addresses can be allowed on one and silently blocked on the other. Nothing
+ * on the page can grant it — only the browser's own prompt can, and Chrome
+ * stops offering that prompt once it has been dismissed. The honest escape is
+ * to open the address that already works.
+ */
+function AlsoTry() {
+  const here = typeof window === "undefined" ? "" : window.location.origin;
+  if (!here || here === HUB_ORIGIN) return null;
+  const to = `${HUB_ORIGIN}${typeof window === "undefined" ? "" : window.location.pathname + window.location.search}`;
+  return (
+    <>
+      <span className="text-ink-faint">or</span>
+      <a className="text-accent underline" href={to}>
+        open it on {HUB_ORIGIN.replace(/^https:\/\//, "")}, where builds already work
+      </a>
+    </>
   );
 }
 
