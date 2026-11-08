@@ -308,6 +308,99 @@ describe("aiFetch model choice", () => {
   });
 });
 
+describe("a model that lives at one provider", () => {
+  const ORCA = "https://api.orcarouter.ai/v1/chat/completions";
+  const calls: { url: string; model: string; auth: string }[] = [];
+  let answer: (url: string, model: string) => Response;
+
+  beforeEach(() => {
+    doc = null;
+    calls.length = 0;
+    vi.stubEnv("OPENROUTER_API_KEY", "or-key");
+    vi.stubEnv("ORCAROUTER_API_KEY", "orca-key");
+    vi.stubEnv("AI_GATEWAY_API_KEY", "");
+    vi.stubEnv("VERCEL_OIDC_TOKEN", "");
+    vi.stubEnv("AI_MODEL", "");
+    answer = (_url, model) => Response.json({ model });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        const model = String(JSON.parse(String(init.body)).model);
+        calls.push({ url, model, auth: new Headers(init.headers).get("Authorization") ?? "" });
+        return answer(url, model);
+      }),
+    );
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  const ask = (model: string) => JSON.stringify({ model, messages: [{ role: "user", content: "hi" }] });
+  /** A surface that names its own chain, as the Studio and Client Review do. */
+  const chain = (model: string, models: string[]) => JSON.stringify({ model, messages: [{ role: "user", content: "hi" }], task: { models } });
+
+  // Routing assumed every model string worked at every provider. An `orca/` id
+  // does not: it is a 400 at OpenRouter, so the id itself has to decide where the
+  // call goes, not the provider the owner happened to leave selected.
+  it("sends an OrcaRouter id to OrcaRouter, and its own key with it", async () => {
+    doc = { model: "orca/orcacyber-flash-1.0" };
+    const { aiFetch, DEFAULT_MODEL } = await fresh();
+    await aiFetch({ body: ask(DEFAULT_MODEL) });
+    expect(calls).toEqual([{ url: ORCA, model: "orca/orcacyber-flash-1.0", auth: "Bearer orca-key" }]);
+  });
+
+  // The other half of the same rule: when OrcaRouter refuses, the retry must be
+  // the NEXT MODEL, never the same id at OpenRouter.
+  it("does not retry that id at OpenRouter when OrcaRouter refuses", async () => {
+    doc = { model: "orca/orcacyber-flash-1.0", fallbackModels: ["google/gemini-3.8-flash"] };
+    answer = (url, model) =>
+      url === ORCA
+        ? Response.json({ error: { code: "tier_not_granted", message: "This model requires Security Research tier access." } }, { status: 403 })
+        : Response.json({ model });
+    const { aiFetch, DEFAULT_MODEL } = await fresh();
+    const res = await aiFetch({ body: ask(DEFAULT_MODEL) });
+    expect(await res.json()).toEqual({ model: "google/gemini-3.8-flash" });
+    expect(calls.map((c) => c.url)).toEqual([ORCA, "https://openrouter.ai/api/v1/chat/completions"]);
+    expect(calls[1].model).toBe("google/gemini-3.8-flash");
+  });
+
+  it("skips a model whose provider has no key rather than sending its id elsewhere", async () => {
+    vi.stubEnv("ORCAROUTER_API_KEY", "");
+    doc = null;
+    const { aiFetch, DEFAULT_MODEL } = await fresh();
+    const res = await aiFetch({ body: chain(DEFAULT_MODEL, ["orca/orcacyber-flash-1.0", "google/gemini-3.8-flash"]) });
+    expect(await res.json()).toEqual({ model: "google/gemini-3.8-flash" });
+    expect(calls.map((c) => c.model)).toEqual(["google/gemini-3.8-flash"]);
+  });
+
+  // Without this the owner is told "the provider refused" for a key that is
+  // simply not in .env.local — advice that sends them to the wrong page.
+  it("names the missing key when that is all that stopped the call", async () => {
+    vi.stubEnv("ORCAROUTER_API_KEY", "");
+    doc = null;
+    const { aiFetch, DEFAULT_MODEL } = await fresh();
+    const res = await aiFetch({ body: chain(DEFAULT_MODEL, ["orca/orcacyber-flash-1.0"]) });
+    expect(res.ok).toBe(false);
+    const body = (await res.json()) as { error: { kind: string; message: string } };
+    expect(body.error.kind).toBe("no-key");
+    expect(body.error.message).toContain("ORCAROUTER_API_KEY");
+    expect(calls).toHaveLength(0);
+  });
+
+  // A pick that cannot be served must not quietly become "the next model in the
+  // chain" for every call in the hub. Until the key exists the hub keeps routing
+  // exactly as it did, and the pick takes over the moment the key is added.
+  it("keeps routing normally while the picked model's provider has no key", async () => {
+    vi.stubEnv("ORCAROUTER_API_KEY", "");
+    doc = { model: "orca/orcacyber-flash-1.0", fallbackModels: ["google/gemini-3.8-flash"] };
+    const { aiFetch, DEFAULT_MODEL } = await fresh();
+    const res = await aiFetch({ body: ask(DEFAULT_MODEL) });
+    expect(await res.json()).toEqual({ model: "qwen/qwen3.8-27b:free" });
+    expect(calls.map((c) => c.model)).toEqual(["qwen/qwen3.8-27b:free"]);
+  });
+});
+
 describe("saving the model pick", () => {
   beforeEach(() => {
     doc = null;

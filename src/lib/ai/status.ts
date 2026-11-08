@@ -1,5 +1,5 @@
 import "server-only";
-import { UNPICKED_MODEL, aiEndpoint, endpointFor } from "./provider";
+import { UNPICKED_MODEL, aiEndpoint, endpointFor, providerForModel } from "./provider";
 import { loadSettings, type AiSettings, type ProviderEvent, type ProviderId } from "./settings";
 import { builderInfo, listGames } from "@/lib/game-creator/store";
 
@@ -46,6 +46,7 @@ const LOW_CREDIT = 2;
 
 const KEYS: KeyStatus[] = [
   { name: "OPENROUTER_API_KEY", set: false, usedBy: "AI in most apps; other LLMs in Game Creator" },
+  { name: "ORCAROUTER_API_KEY", set: false, usedBy: "OrcaRouter: the uncensored DeepSeek V4.1 Flash, wherever a surface picks it" },
   { name: "AI_GATEWAY_API_KEY", set: false, usedBy: "AI fallback; video in Seedance, Dance Studio, Video Studio Arena" },
   { name: "SUPABASE_SERVICE_ROLE_KEY", set: false, usedBy: "Server storage: Game Creator, Tap Safe, Recall lists, this panel" },
   { name: "FISH_API_KEY", set: false, usedBy: "Jarvis's speaking voice (fish.audio)" },
@@ -61,6 +62,13 @@ const creditCache: Partial<Record<ProviderId, { at: number; value: number | null
 async function remaining(id: ProviderId, key: string): Promise<number | null> {
   const hit = creditCache[id];
   if (hit && Date.now() - hit.at < 60_000) return hit.value;
+  // OrcaRouter publishes no balance endpoint on the inference host (its /v1/*
+  // paths answer 404 to everything but chat), so there is no number to show.
+  // Better an honest blank than a zero that reads as "out of credit".
+  if (id === "orcarouter") {
+    creditCache[id] = { at: Date.now(), value: null };
+    return null;
+  }
   let value: number | null = null;
   try {
     const url = id === "openrouter" ? "https://openrouter.ai/api/v1/credits" : "https://ai-gateway.vercel.sh/v1/credits";
@@ -76,7 +84,18 @@ async function remaining(id: ProviderId, key: string): Promise<number | null> {
   return value;
 }
 
-const LABEL: Record<ProviderId, string> = { openrouter: "OpenRouter", "vercel-gateway": "Vercel AI Gateway" };
+const LABEL: Record<ProviderId, string> = {
+  openrouter: "OpenRouter",
+  "vercel-gateway": "Vercel AI Gateway",
+  orcarouter: "OrcaRouter",
+};
+
+/** The key each provider needs, for the "no key" sentence. */
+const KEY_NAME: Record<ProviderId, string> = {
+  openrouter: "OPENROUTER_API_KEY",
+  "vercel-gateway": "AI_GATEWAY_API_KEY",
+  orcarouter: "ORCAROUTER_API_KEY",
+};
 
 // What a failing Claude Code CLI says when the plan (not the build) is the problem.
 const PLAN_PROBLEM =
@@ -84,15 +103,19 @@ const PLAN_PROBLEM =
 
 export async function aiStatus(uid: string): Promise<AiStatus> {
   const settings = await loadSettings(true);
-  const activeId = aiEndpoint()?.provider ?? null;
+  // A picked model that lives at one provider is where the calls actually go,
+  // whatever the "auto" choice says — otherwise the panel reports OpenRouter
+  // "in use" while every call is being sent to OrcaRouter.
+  const pickedHome = settings.model ? providerForModel(settings.model) : null;
+  const activeId = (pickedHome && endpointFor(pickedHome) ? pickedHome : null) ?? aiEndpoint()?.provider ?? null;
 
   const providers = await Promise.all(
-    (["openrouter", "vercel-gateway"] as ProviderId[]).map(async (id): Promise<ProviderStatus> => {
+    (["openrouter", "vercel-gateway", "orcarouter"] as ProviderId[]).map(async (id): Promise<ProviderStatus> => {
       const ep = endpointFor(id);
       const left = ep ? await remaining(id, ep.key) : null;
       const lastError = settings.lastError[id];
       const base = { id, label: LABEL[id], configured: Boolean(ep), active: id === activeId, remaining: left, lastError, lastOk: settings.lastOk[id] };
-      if (!ep) return { ...base, level: "warn", message: `No key set (${id === "openrouter" ? "OPENROUTER_API_KEY" : "AI_GATEWAY_API_KEY"}).` };
+      if (!ep) return { ...base, level: "warn", message: `No key set (${KEY_NAME[id]}).` };
       if (lastError) return { ...base, level: "error", message: `Last call failed: ${lastError.message}` };
       if (left !== null && left <= 0) return { ...base, level: "error", message: "Out of credit." };
       if (left !== null && left < LOW_CREDIT) return { ...base, level: "warn", message: `Low credit: $${left.toFixed(2)} left.` };

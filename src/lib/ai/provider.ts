@@ -13,6 +13,11 @@
 // (the AI panel, src/lib/ai/settings.ts); `aiFetch` also retries on the other
 // provider when the chosen one is out of credit, rate-limited or down.
 //
+// OrcaRouter (ORCAROUTER_API_KEY) is the third, and the exception to "one shape,
+// any model": it serves the uncensored DeepSeek builds nobody else carries, and
+// `orca/…` ids mean nothing to the other two. So a model can name its own
+// provider (providerForModel) and is then never retried somewhere else.
+//
 // The MODEL is the owner's pick too: every call that asks for the hub's general
 // model (DEFAULT_MODEL) is sent to the model chosen on the front page, then to
 // their fallback models if it fails — so no app depends on any one vendor.
@@ -61,11 +66,32 @@ export const UNPICKED_MODEL = DEFAULT_FALLBACKS[0];
 /** The gateway's URL, also the honest default when nothing is configured. */
 const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
 
+/**
+ * OrcaRouter's OpenAI-compatible surface.
+ *
+ * The third provider, and the only one that is not interchangeable with the
+ * other two: its catalogue carries models nobody else serves (`orca/…`), which
+ * is why `providerForModel` exists. Its ids are only valid HERE, so sending one
+ * to OpenRouter is a 400 rather than a retry.
+ */
+const ORCA_URL = "https://api.orcarouter.ai/v1/chat/completions";
+
+/** What to say when a model's own provider has no key, instead of "no provider". */
+export function missingKey(provider: ProviderId): string {
+  const name =
+    provider === "orcarouter" ? "ORCAROUTER_API_KEY" : provider === "openrouter" ? "OPENROUTER_API_KEY" : "AI_GATEWAY_API_KEY";
+  return `No key set (${name}).`;
+}
+
 /** One provider's endpoint, or null when its key is not set. */
 export function endpointFor(provider: ProviderId): AiEndpoint | null {
   if (provider === "openrouter") {
     const key = process.env.OPENROUTER_API_KEY;
     return key ? { url: "https://openrouter.ai/api/v1/chat/completions", key, provider } : null;
+  }
+  if (provider === "orcarouter") {
+    const key = process.env.ORCAROUTER_API_KEY;
+    return key ? { url: ORCA_URL, key, provider } : null;
   }
   // VERCEL_OIDC_TOKEN authenticates to the gateway only — it is meaningless to
   // OpenRouter, which is why it is read here and not above.
@@ -74,9 +100,24 @@ export function endpointFor(provider: ProviderId): AiEndpoint | null {
 }
 
 /**
+ * The one provider a model can be asked of, when it is not OpenRouter's.
+ *
+ * Routing assumed every id worked at every provider ("anthropic/claude-opus-5"
+ * is the same string at OpenRouter and the gateway). An OrcaRouter model breaks
+ * that: `orca/orcacyber-flash-1.0` does not exist upstream of OpenRouter, so the
+ * retry that is right for every other model is a guaranteed 400 for this one.
+ * The id is therefore the routing decision — `null` means "whatever provider is
+ * in use", which is still true of every OpenRouter and gateway model.
+ */
+export function providerForModel(model: string): ProviderId | null {
+  return model.startsWith("orca/") ? "orcarouter" : null;
+}
+
+/**
  * The endpoint to use: the one the owner picked on the hub's front page when it
- * has a key, else OpenRouter, else the gateway. A pick without a key falls back
- * rather than failing, so a half-configured deploy still answers.
+ * has a key, else OpenRouter, else the gateway, else OrcaRouter. A pick without
+ * a key falls back rather than failing, so a half-configured deploy still
+ * answers.
  */
 export function aiEndpoint(): AiEndpoint | null {
   const { choice } = cachedSettings();
@@ -84,13 +125,21 @@ export function aiEndpoint(): AiEndpoint | null {
     const picked = endpointFor(choice);
     if (picked) return picked;
   }
-  return endpointFor("openrouter") ?? endpointFor("vercel-gateway");
+  return endpointFor("openrouter") ?? endpointFor("vercel-gateway") ?? endpointFor("orcarouter");
 }
+
+/** The order "auto" and the cross-provider retry prefer, cheapest-to-run first. */
+const PROVIDER_ORDER: ProviderId[] = ["openrouter", "vercel-gateway", "orcarouter"];
 
 /** The other provider, when fallback is on and it has a key. */
 function fallbackFor(primary: AiEndpoint): AiEndpoint | null {
   if (!cachedSettings().fallback) return null;
-  return endpointFor(primary.provider === "openrouter" ? "vercel-gateway" : "openrouter");
+  for (const id of PROVIDER_ORDER) {
+    if (id === primary.provider) continue;
+    const ep = endpointFor(id);
+    if (ep) return ep;
+  }
+  return null;
 }
 
 /** Worth retrying elsewhere: bad key, no credit, rate limit, outage. Not a bad request. */
@@ -130,7 +179,7 @@ export async function aiFetch(init: RequestInit = {}): Promise<Response> {
   const primary = aiEndpoint();
   if (!primary) {
     return Response.json(
-      { error: { message: "No AI provider is configured. Set OPENROUTER_API_KEY or AI_GATEWAY_API_KEY." } },
+      { error: { message: "No AI provider is configured. Set OPENROUTER_API_KEY, AI_GATEWAY_API_KEY or ORCAROUTER_API_KEY." } },
       { status: 503 },
     );
   }
@@ -208,15 +257,34 @@ export async function aiFetch(init: RequestInit = {}): Promise<Response> {
   // The chosen model, then the retries behind it: a model that is down, out of
   // capacity or cannot take this request hands it to the next one.
   let last: Response | Error = new Error("No model answered.");
+  const finished = (res: Response, model: string) => {
+    const skipped = attempts.map((a) => ({ model: a.model, status: a.status, why: a.message }));
+    return meter(res, (usage) =>
+      recordCall({ model, provider: usedProvider, usage, plan: call.plan, app: call.app, skipped, skill: call.skill, route: call.route }),
+    );
+  };
   for (const model of call.models) {
     usedModel = model;
-    const res = await viaProviders((ep) => sendable(call.body, model, ep.provider));
-    if (res instanceof Response && (res.ok || res.status === 413)) {
-      const skipped = attempts.map((a) => ({ model: a.model, status: a.status, why: a.message }));
-      return meter(res, (usage) =>
-        recordCall({ model, provider: usedProvider, usage, plan: call.plan, app: call.app, skipped, skill: call.skill, route: call.route }),
-      );
+    // A model that lives at ONE provider cannot be retried at another. OrcaRouter
+    // ids are not OpenRouter ids, so the "try the other provider" rule that saves
+    // every other model here would turn a working retry into a 400. The model
+    // decides where it goes; the rest of the chain still runs if it refuses.
+    const home = providerForModel(model);
+    if (home) {
+      const ep = endpointFor(home);
+      if (!ep) {
+        // Not a failure of the model — a missing key. Recorded so the sentence the
+        // owner gets names ORCAROUTER_API_KEY rather than "the provider refused".
+        attempts.push({ model, provider: home, message: missingKey(home) });
+        continue;
+      }
+      const res = await attempt(ep, (e) => sendable(call.body, model, e.provider));
+      if (res instanceof Response && (res.ok || res.status === 413)) return finished(res, model);
+      last = res;
+      continue;
     }
+    const res = await viaProviders((ep) => sendable(call.body, model, ep.provider));
+    if (res instanceof Response && (res.ok || res.status === 413)) return finished(res, model);
     last = res;
   }
   recordCall({
@@ -428,7 +496,16 @@ async function planCall(raw: BodyInit | null | undefined): Promise<PlannedCall |
   // The owner's pick, or the old single-default behaviour when they have turned
   // the router off. `asked` is never the destination in either case: it is the
   // sentinel, or a Claude id an app hard-coded years ago.
-  if (model || !router) {
+  //
+  // A pick that CANNOT be served is not a pick. When the chosen model lives at a
+  // provider with no key, honouring it would spend the next model in the chain on
+  // every call — and on a hub where most calls are background tagging, that is a
+  // bill for a brain that was never going to answer. Routing carries on as though
+  // nothing were picked; the status panel already says the key is missing, and
+  // the moment it is added the pick takes over with no other change.
+  const pickHome = model ? providerForModel(model) : null;
+  const pickServable = !pickHome || endpointFor(pickHome) !== null;
+  if ((model || !router) && pickServable) {
     const wanted = [...new Set([model ?? UNPICKED_MODEL, ...fallbackModels])];
     const need = mediaIn(body);
     const readable: string[] = [];

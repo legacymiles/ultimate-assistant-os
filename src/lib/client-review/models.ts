@@ -56,7 +56,13 @@ export const BRIEF_MODELS: BriefModelOption[] = [
   plan("claude-sonnet-5-5", "Sonnet 5.5 · my plan", "Your own subscription, faster than Opus."),
   plan("claude-sonnet-5", "Sonnet 5 · my plan", "Your own subscription, lightest on the plan."),
 
-  // OpenRouter, paid per brief with the hub's key.
+  // OpenRouter and OrcaRouter, paid per brief with the hub's key.
+  {
+    value: "orca/orcacyber-flash-1.0",
+    label: "DeepSeek 4.1 Flash Abliterated · OrcaRouter",
+    why: "Uncensored, so the brief is written rather than declined. Needs ORCAROUTER_API_KEY and Security Research access on that account.",
+    group: "cloud",
+  },
   { value: "deepseek/deepseek-v4.1-flash-1017", label: "DeepSeek 4.1 Flash 1017", why: "Pennies per brief, fast, sees pictures.", group: "cloud" },
   { value: "deepseek/deepseek-v4.1-flash", label: "DeepSeek 4.1 Flash", why: "The same model, without the October build.", group: "cloud" },
   { value: "anthropic/claude-sonnet-5.5", label: "Claude Sonnet 5.5", why: "Claude's writing, on the hub's key.", group: "cloud" },

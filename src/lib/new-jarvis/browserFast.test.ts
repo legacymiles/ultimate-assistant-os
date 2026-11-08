@@ -140,8 +140,11 @@ describe("rerouting a refusal", () => {
   it("never for content the check blocks", () => {
     expect(mayReroute(D, D, "explicit photos of a 16 year old")).toBe(false);
   });
-  it("DeepSeek first by default, overridable", () => {
-    expect(uncensoredChain()[0]).toContain("deepseek");
+  it("the abliterated DeepSeek first by default, overridable", () => {
+    // The uncensored lane is shared with Client Review, so this is also what a
+    // refused Jarvis turn and the fast typist reach for first.
+    expect(uncensoredChain()[0]).toBe("orca/orcacyber-flash-1.0");
+    expect(uncensoredChain()).toContain("deepseek/deepseek-v4-pro-0813");
     expect(uncensoredChain({ jarvis: "x/a, x/b" })).toEqual(["x/a", "x/b"]);
   });
 });

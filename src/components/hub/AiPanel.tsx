@@ -178,6 +178,7 @@ export function AiPanel({ inline = false }: { inline?: boolean } = {}) {
   const s = status?.settings;
   const or = status?.providers.find((p) => p.id === "openrouter");
   const gw = status?.providers.find((p) => p.id === "vercel-gateway");
+  const orca = status?.providers.find((p) => p.id === "orcarouter");
 
   return (
     <>
@@ -226,9 +227,15 @@ export function AiPanel({ inline = false }: { inline?: boolean } = {}) {
                     value={s!.choice}
                     onChange={(choice) => void save({ choice })}
                     options={[
-                      { id: "auto", label: "Auto", title: "OpenRouter when it has a key, else the gateway" },
+                      { id: "auto", label: "Auto", title: "OpenRouter when it has a key, else the gateway, else OrcaRouter" },
                       { id: "openrouter", label: "OpenRouter", disabled: !or?.configured },
                       { id: "vercel-gateway", label: "Vercel", disabled: !gw?.configured, title: "Vercel AI Gateway" },
+                      {
+                        id: "orcarouter",
+                        label: "Orca",
+                        disabled: !orca?.configured,
+                        title: "OrcaRouter — the uncensored DeepSeek V4.1 Flash and the rest of its catalogue",
+                      },
                     ]}
                   />
                   <Toggle label="If it fails, retry on the other provider" checked={s!.fallback} onChange={(fallback) => void save({ fallback })} />
