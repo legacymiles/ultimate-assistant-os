@@ -227,7 +227,13 @@ export function ClientReviewApp() {
 
       <div className="cra-body">
         {tab === "admin" && me.owner ? (
-          <ClientReviewAdmin fill />
+          /*
+            Pressing a build button in the console moves to the Client tab on
+            that project, which is the Building screen while it is being made.
+            The console is for deciding what to build; watching it get built is
+            the same screen the client gets, so there is only ever one.
+          */
+          <ClientReviewAdmin fill onBuildStarted={(token) => go({ target: { kind: "site", token }, tab: "client" })} />
         ) : token ? (
           <ClientPortal key={token} token={token} embedded picker={picker} onBack={toList} />
         ) : target?.kind === "app" ? (

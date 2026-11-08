@@ -689,6 +689,63 @@ export function approveBatch(
   return { project: touch(p, now), version, approved };
 }
 
+/**
+ * Stop a build and put everything back the way it was before Approve & build.
+ *
+ * The exact inverse of `approveBatch`, and it exists because a build that dies
+ * on the owner's PC leaves a version saying "building" forever: the client's
+ * screen is stuck on "Jarvis is building v2", Approve & build is spent, and
+ * there is no way back to the button. So this removes the version the approval
+ * opened, hands every request in it back to the owner as unapproved, and
+ * restores the version the client was looking at.
+ *
+ * Refuses a version the client has ever seen. `siteUrl` is the test: once a
+ * version has an address it is somebody's reviewed work, and no button should
+ * be able to delete it.
+ */
+export function cancelBuild(
+  src: ClientProject,
+  input: { versionId: unknown },
+  now = new Date().toISOString(),
+): { project: ClientProject; version: ReviewVersion; batches: number } {
+  const p = clone(src);
+  const version = p.versions.find((v) => v.id === input.versionId);
+  if (!version) throw new ReviewError("That version no longer exists.", 404);
+  if (version.status !== "building") throw new ReviewError("That version is not being built.", 409);
+  if (version.siteUrl) throw new ReviewError("That version already has an address, so it is not stuck — mark it ready instead.", 409);
+
+  // Every batch this version was opened for goes back to pending, so the owner
+  // sees the same Approve & build they pressed, with the same edits under it.
+  const undone = p.batches.filter((b) => b.nextVersionId === version.id);
+  const ids = new Set(undone.flatMap((b) => b.requestIds));
+  for (const b of undone) {
+    b.status = "pending";
+    delete b.decidedAt;
+    delete b.nextVersionId;
+    delete b.build;
+  }
+  for (const r of p.requests) {
+    if (ids.has(r.id) && r.status === "approved") r.status = "sent";
+  }
+
+  p.versions = p.versions.filter((v) => v.id !== version.id);
+
+  // Whatever the client should be looking at now: the newest version with an
+  // address. Computed rather than remembered, because a batch can name a
+  // version that was itself superseded by a later build.
+  const live = sortVersions(p.versions).filter((v) => v.siteUrl);
+  const back = live[live.length - 1];
+  if (back && back.status === "superseded") back.status = "review";
+
+  pushNotice(
+    p,
+    `${version.number} was stopped`,
+    `Jarvis stopped building ${version.number}. Your edit requests are safe and will be built again.`,
+    now,
+  );
+  return { project: touch(p, now), version, batches: undone.length };
+}
+
 export function rejectBatch(
   src: ClientProject,
   input: { batchId: unknown; note?: unknown },

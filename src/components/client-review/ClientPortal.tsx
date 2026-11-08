@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CannotBuildHere, startClientEditBuild } from "@/lib/client-review/autoBuild";
 import { admin, ApiError, portal, urlBase64ToUint8Array } from "@/lib/client-review/client";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { BuildingNow } from "./BuildingNow";
 import { SignInGate } from "./SignInGate";
 import type { ClientProject, PortalRequest, PortalView, RequestPin, ReviewVersion } from "@/lib/client-review/types";
 import "./client-review.css";
@@ -194,6 +195,8 @@ export function ClientPortal({
   const frameRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const seenNotices = useRef<Set<string> | null>(null);
+  /** Set when the person chose to look at the live version while a build runs. */
+  const [waited, setWaited] = useState(false);
 
   // ----- data -----------------------------------------------------------------
   const apply = useCallback((v: PortalView) => {
@@ -340,6 +343,11 @@ export function ClientPortal({
   const pinned = requests.filter((r) => r.pin);
 
   useEffect(() => setFrameStuck(false), [viewing?.siteUrl]);
+  // One build, one dismissal: when the next build starts, the Building screen
+  // is the right answer again.
+  useEffect(() => {
+    if (!view?.buildingVersionId) setWaited(false);
+  }, [view?.buildingVersionId]);
   useEffect(() => {
     if (!viewing?.siteUrl) return;
     // A site that refuses to be framed shows a blank box with no error the page
@@ -483,6 +491,29 @@ export function ClientPortal({
       <div className={`cr-root cr-center ${embedded ? "is-embedded" : ""}`}>
         <Orb pulse />
       </div>
+    );
+  }
+
+  // A version is being made: the Building screen, not the app. Framing the app
+  // during its own build shows the OLD app to someone who came to see the new
+  // one — the one moment where the site itself is the misleading thing on
+  // screen. `waited` is the way out for anyone who would rather look at what
+  // is live while they wait.
+  if (building && !waited) {
+    return (
+      <BuildingNow
+        token={token}
+        onOpen={() => {
+          // Its 5-second poll saw the build finish long before this screen's
+          // own would have. Pull the new version in now, so the app appears
+          // the moment it exists rather than on the next 30-second tick.
+          setWaited(true);
+          refresh();
+        }}
+        onBack={onBack ?? (() => setWaited(true))}
+        onLookAnyway={current ? () => setWaited(true) : undefined}
+        current={current?.number}
+      />
     );
   }
 

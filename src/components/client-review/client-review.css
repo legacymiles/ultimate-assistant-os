@@ -1587,3 +1587,296 @@ a.cr-btn {
   outline: none;
   box-shadow: none;
 }
+
+/* ---------------------------------------------------------------------------
+   The Building screen (BuildingNow.tsx).
+
+   Deliberately the same furniture as the "Sent" overlay — reactor, kicker,
+   rising rows — because they are two moments in one story: you send edits,
+   you watch them get made. A different-looking screen between them would read
+   as a different app.
+--------------------------------------------------------------------------- */
+.crb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 28px 16px 48px;
+  overflow-y: auto;
+  text-align: center;
+}
+.crb-top {
+  position: relative;
+  width: min(640px, 100%);
+}
+.crb-top .cr-kicker {
+  margin: 10px 0 2px;
+}
+.crb-top h1 {
+  margin: 0;
+  font-size: clamp(22px, 4vw, 30px);
+  letter-spacing: -0.025em;
+  animation: cr-rise 0.7s 0.1s var(--cr-out) both;
+}
+/* Top-left on a wide screen, above the title on a phone, never over it.
+   `cr-btn` rather than `cr-icon-btn`: that one is a fixed 34px square built
+   for a single arrow glyph, and it clips a word. */
+.crb-back {
+  gap: 4px;
+  padding: 6px 13px 6px 9px;
+  border-radius: 999px;
+  font-size: 12.5px;
+}
+@media (min-width: 620px) {
+  .crb-back {
+    position: absolute;
+    left: 0;
+    top: 4px;
+  }
+}
+
+.crb-reactor {
+  position: relative;
+  width: 128px;
+  height: 128px;
+  flex: none;
+  margin: 2px 0 6px;
+}
+.crb-reactor span {
+  position: absolute;
+  border-radius: 50%;
+}
+.crb-reactor .core {
+  inset: 34%;
+  background:
+    radial-gradient(circle at 35% 30%, #fff 0 8%, transparent 32%),
+    radial-gradient(circle, var(--cr-cyan), var(--cr-violet) 60%, #241a6e);
+  box-shadow: 0 0 44px rgba(139, 123, 255, 0.75), 0 0 90px rgba(63, 224, 255, 0.3);
+  animation: cr-breathe 3.2s ease-in-out infinite;
+}
+.crb-reactor .r1 {
+  inset: 0;
+  border: 1px solid rgba(139, 123, 255, 0.4);
+  border-top-color: var(--cr-cyan);
+  animation: cr-spin-plain 4s linear infinite;
+}
+.crb-reactor .r2 {
+  inset: 12%;
+  border: 1px dashed rgba(63, 224, 255, 0.35);
+  animation: cr-spin-plain 9s linear infinite reverse;
+}
+.crb-reactor .r3 {
+  inset: -18%;
+  border: 1px solid rgba(139, 123, 255, 0.14);
+  animation: cr-ripple 3s 0.6s var(--cr-out) infinite;
+}
+
+.crb-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: min(640px, 100%);
+  display: grid;
+  gap: 10px;
+}
+.crb-row {
+  border: 1px solid var(--cr-line);
+  border-radius: 16px;
+  background: var(--cr-glass);
+  padding: 13px 15px;
+  text-align: left;
+  animation: cr-rise 0.6s var(--cr-out) both;
+}
+.crb-row.is-lead {
+  border-color: rgba(139, 123, 255, 0.45);
+  box-shadow: 0 0 0 1px rgba(139, 123, 255, 0.14), 0 18px 48px -28px rgba(139, 123, 255, 0.7);
+}
+.crb-row.is-ready {
+  border-color: rgba(74, 222, 128, 0.5);
+}
+.crb-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.crb-row-head b {
+  font-size: 15px;
+  letter-spacing: -0.015em;
+}
+.crb-ver {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--cr-line);
+  color: var(--cr-muted);
+}
+.crb-state {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--cr-muted);
+}
+.is-building .crb-state::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--cr-cyan);
+  animation: cr-breathe 1.6s ease-in-out infinite;
+}
+.is-ready .crb-state {
+  color: var(--cr-ok);
+}
+.crb-what {
+  list-style: none;
+  margin: 9px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.crb-what li {
+  position: relative;
+  padding-left: 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--cr-muted);
+}
+.crb-what li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 8px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--cr-violet);
+}
+.crb-row .cr-btn {
+  margin-top: 11px;
+}
+
+/* The owner's PC, narrated. Never rendered for a client — they get no thread. */
+.crb-live {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--cr-line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: var(--cr-muted);
+}
+.crb-live-phase {
+  color: var(--cr-cyan);
+}
+.crb-live-model {
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--cr-line);
+  font-size: 10.5px;
+}
+.crb-live-what {
+  min-width: 0;
+  flex: 1 1 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.crb-gate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.1);
+  color: #fde68a;
+}
+.crb-gate-what {
+  min-width: 0;
+  flex: 1 1 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.crb-gate button {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(251, 191, 36, 0.6);
+  background: rgba(251, 191, 36, 0.22);
+  color: #fff7e0;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.crb-gate button.ghost {
+  background: transparent;
+  border-color: rgba(251, 191, 36, 0.3);
+  font-weight: 500;
+}
+
+.crb-quiet {
+  max-width: 460px;
+  color: var(--cr-muted);
+  line-height: 1.6;
+}
+.crb-stopped {
+  width: min(640px, 100%);
+  margin: 0;
+  padding: 11px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.08);
+  color: #fde68a;
+  font-size: 12.5px;
+  line-height: 1.55;
+  text-align: left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crb-reactor span,
+  .crb-row,
+  .crb-top h1,
+  .is-building .crb-state::before {
+    animation: none !important;
+  }
+}
+.crb-anyway {
+  margin-top: 4px;
+}
+.crb-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.crb-row-actions:empty {
+  display: none;
+}
+.crb-row-actions > * {
+  margin-top: 11px;
+}
+.crb-stop {
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(251, 113, 133, 0.45);
+  background: rgba(251, 113, 133, 0.12);
+  color: #fecdd3;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.crb-stop:hover:not(:disabled) {
+  background: rgba(251, 113, 133, 0.22);
+  border-color: rgba(251, 113, 133, 0.7);
+}
+.crb-stop:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

@@ -34,6 +34,8 @@ export class ApiError extends Error {
   }
 }
 
+import type { BuildRow } from "./building";
+
 export interface MySite {
   token: string;
   name: string;
@@ -51,6 +53,8 @@ export interface MySite {
 export const portal = {
   load: (token: string) => call<PortalView>(`/api/client-review/portal/${token}`),
   mine: () => call<{ sites: MySite[]; email: string | null }>("/api/client-review/portal/mine"),
+  /** Every build in flight the viewer can see — the Building screen's one source. */
+  building: () => call<{ builds: BuildRow[]; owner: boolean }>("/api/client-review/portal/building"),
   act: (token: string, action: Record<string, unknown>) =>
     call<PortalView>(`/api/client-review/portal/${token}`, { method: "POST", body: JSON.stringify(action) }),
 };

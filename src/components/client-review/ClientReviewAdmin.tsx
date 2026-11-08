@@ -18,9 +18,10 @@
 // next version through the connector — the client is told with no URL pasted.
 // ---------------------------------------------------------------------------
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { PHASE_LABEL, latestWord } from "@/lib/app-builder/build";
 import { buildLinks, CannotBuildHere, startClientEditBuild } from "@/lib/client-review/autoBuild";
+import { call as bridgeCall } from "@/lib/new-jarvis/bridge";
 import { pushThreadToMain } from "@/lib/client-review/pushMain";
 import { useBuild } from "@/lib/app-builder/useBuild";
 import { admin, type AdminState, type BriefOut } from "@/lib/client-review/client";
@@ -60,7 +61,26 @@ function linkFor(p: ClientProject): string {
   return typeof window === "undefined" ? path : `${window.location.origin}${path}`;
 }
 
-export function ClientReviewAdmin({ chromeless = false, fill = false }: { chromeless?: boolean; fill?: boolean } = {}) {
+/**
+ * Where to send the owner once a build starts: the Building screen, in the
+ * Client tab, on that project.
+ *
+ * A context rather than a prop threaded through four components, because the
+ * three places that start a build are three levels apart and none of the
+ * components in between has any business knowing about navigation.
+ */
+const GoBuilding = createContext<((token: string) => void) | null>(null);
+
+export function ClientReviewAdmin({
+  chromeless = false,
+  fill = false,
+  onBuildStarted,
+}: {
+  chromeless?: boolean;
+  fill?: boolean;
+  /** Pressing a build button lands on the Building screen for that project. */
+  onBuildStarted?: (token: string) => void;
+} = {}) {
   const [state, setState] = useState<AdminState | null>(null);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -132,6 +152,7 @@ export function ClientReviewAdmin({ chromeless = false, fill = false }: { chrome
   const hiddenBySearch = live.length - visible.length;
 
   return (
+    <GoBuilding.Provider value={onBuildStarted ?? null}>
     <div
       className={`flex overflow-hidden bg-canvas text-ink ${fill ? "h-full" : chromeless ? "h-[calc(100dvh-90px)] md:h-[calc(100dvh-49px)]" : "h-dvh"}`}
     >
@@ -278,6 +299,7 @@ export function ClientReviewAdmin({ chromeless = false, fill = false }: { chrome
         />
       )}
     </div>
+    </GoBuilding.Provider>
   );
 }
 
@@ -703,6 +725,7 @@ function BatchCard({
   const [writing, setWriting] = useState(false);
   /** Approving and starting the build, likewise outside `busy`. */
   const [starting, setStarting] = useState(false);
+  const goBuilding = useContext(GoBuilding);
   useEffect(() => setBrief(b.brief ?? ""), [b.brief]);
   const live = reqs.filter((r) => r.status !== "rejected").length;
 
@@ -842,6 +865,7 @@ function BatchCard({
                     }
                     const started = await startBuild(out.project, b.id, run);
                     say(`Approved — ${out.version.number}: ${started.message}${extra}`);
+                    if (started.mode === "thread") goBuilding?.(p.token);
                   } finally {
                     setStarting(false);
                   }
@@ -1127,15 +1151,38 @@ function BuildStatus({
 }) {
   /** Starting on the PC, which happens outside `busy`. */
   const [starting, setStarting] = useState(false);
+  const goBuilding = useContext(GoBuilding);
   const batch = p.batches.find((b) => b.nextVersionId === v.id && b.build) ?? p.batches.find((b) => b.nextVersionId === v.id);
   if (!batch) return null;
   const build = batch.build;
   const appLink = build ? `/apps/app-builder?p=${encodeURIComponent(build.builderId)}` : "";
+
+  /**
+   * Stop this build and hand the edits back, so it can be built again.
+   *
+   * The thread dies first, the record second: the other order leaves Claude
+   * Code writing into a worktree nothing is waiting on, which is how a
+   * "stopped" build opens a pull request an hour later. A thread that is
+   * already gone makes `harness/stop` fail, and that must not stop the half
+   * that actually unsticks the screen.
+   */
+  const stopBuild = async () => {
+    setStarting(true);
+    try {
+      if (build?.threadId) await bridgeCall("harness/stop", { id: build.threadId }).catch(() => {});
+      const out = await run("cancelBuild", { action: "cancelBuild", id: p.id, versionId: v.id });
+      if (out) say(`${v.number} stopped and removed — the edits are back as a batch waiting for Approve & build.`);
+    } finally {
+      setStarting(false);
+    }
+  };
+
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-md bg-sky-500/10 px-2 py-1.5 text-[11.5px]">
       {build?.threadId ? (
         <>
           <BuildThread threadId={build.threadId} liveUrl={p.appPath} onUseUrl={onUseUrl} />
+          <StopBuild busy={starting || busy === "cancelBuild"} onStop={stopBuild} />
           <a className="ml-auto text-accent underline" href={appLink}>
             Open in App Builder ↗
           </a>
@@ -1161,6 +1208,7 @@ function BuildStatus({
                 try {
                   const started = await startBuild(p, batch.id, run);
                   say(started.message);
+                  if (started.mode === "thread") goBuilding?.(p.token);
                 } finally {
                   setStarting(false);
                 }
@@ -1169,6 +1217,7 @@ function BuildStatus({
               {starting || busy === "buildQueued" ? "Starting…" : "Build it on my PC →"}
             </button>
           )}
+          <StopBuild busy={starting || busy === "cancelBuild"} onStop={stopBuild} />
           <a className="ml-auto text-accent underline" href={appLink}>
             Open in App Builder ↗
           </a>
@@ -1184,6 +1233,7 @@ function BuildStatus({
               try {
                 const started = await startBuild(p, batch.id, run);
                 say(started.message);
+                if (started.mode === "thread") goBuilding?.(p.token);
               } finally {
                 setStarting(false);
               }
@@ -1196,6 +1246,40 @@ function BuildStatus({
         <span className="text-ink-faint">Add the client&apos;s GitHub repo above to have Claude Code build this — or paste the address below when it&apos;s deployed.</span>
       )}
     </div>
+  );
+}
+
+/**
+ * "Stop & remove" — the way out of a build that is never going to finish.
+ *
+ * It exists because the failure it undoes is invisible: a thread that died
+ * with the bridge, or one that read its base and quit, leaves the version
+ * saying "building" for ever. There was no button for that, so the only way
+ * back was to stop using the project.
+ */
+function StopBuild({ busy, onStop }: { busy: boolean; onStop: () => void }) {
+  const [sure, setSure] = useState(false);
+  if (!sure) {
+    return (
+      <button className="rounded-md border border-rose-500/40 px-2 py-0.5 text-[11px] text-rose-300" onClick={() => setSure(true)}>
+        Stop &amp; remove
+      </button>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1.5 text-[11px] text-rose-200">
+      Remove this version and build it again?
+      <button
+        className="rounded-md border border-rose-400/60 bg-rose-400/20 px-2 py-0.5 font-semibold text-rose-100 disabled:opacity-50"
+        disabled={busy}
+        onClick={onStop}
+      >
+        {busy ? "Stopping…" : "Yes, stop it"}
+      </button>
+      <button className="rounded-md border border-line px-2 py-0.5 text-ink-muted" onClick={() => setSure(false)}>
+        Keep waiting
+      </button>
+    </span>
   );
 }
 

@@ -5,6 +5,7 @@ import {
   addVersion,
   approveBatch,
   builderProject,
+  cancelBuild,
   createProject,
   markVersionReady,
   noteBuild,
@@ -309,6 +310,19 @@ export async function POST(req: Request) {
           result: null,
         }));
         return NextResponse.json({ project });
+      }
+
+      // A build that died on the PC (or was never going to run) leaves the
+      // version saying "building" forever. This puts the batch back to pending
+      // and removes the version, so Approve & build is there to press again.
+      case "cancelBuild": {
+        const { project, result } = await updateProject(id, (p) => {
+          const out = cancelBuild(p, { versionId: body.versionId });
+          return { project: out.project, result: { version: out.version, batches: out.batches } };
+        });
+        const told = await tell(project, project.notices.at(-1), origin);
+        await updateIndex((i) => upsertIndex(i, told));
+        return NextResponse.json({ project: told, version: result.version, batches: result.batches });
       }
 
       case "dismissEvents": {
