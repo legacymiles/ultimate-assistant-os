@@ -48,7 +48,11 @@ export interface UseBuild {
   starting: string;
   /** Returns the thread id, or throws a sentence worth showing. */
   start: (p: BuilderProject) => Promise<string>;
-  decide: (gateId: string, allow: boolean) => Promise<void>;
+  /**
+   * Answer a permission card. `always` widens a yes to every later call of
+   * that same tool in this thread — never a no, and never a grave tool.
+   */
+  decide: (gateId: string, allow: boolean, always?: boolean) => Promise<void>;
   say: (text: string) => Promise<void>;
   stop: () => Promise<void>;
   refresh: () => void;
@@ -188,10 +192,10 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
   }, []);
 
   const decide = useCallback(
-    async (gateId: string, allow: boolean) => {
+    async (gateId: string, allow: boolean, always = false) => {
       if (!threadId) return;
       try {
-        await call("harness/decide", { id: threadId, gateId, allow });
+        await call("harness/decide", { id: threadId, gateId, allow, always });
         await pull();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));

@@ -283,6 +283,16 @@ function OwnerLive({ threadId }: { threadId: string }) {
             Needs you: {gate.title || gate.name}
           </span>
           <button onClick={() => void build.decide(gate.gateId, true)}>Allow</button>
+          {/*
+            One answer per TOOL, not per call. A build that checks its own work
+            in a browser asks before every MCP call, and clicking Allow forty
+            times is how someone stops reading the cards at all.
+          */}
+          {gate.risk !== "grave" && (
+            <button onClick={() => void build.decide(gate.gateId, true, true)} title={`Stop asking about ${gate.name} for the rest of this build`}>
+              Always
+            </button>
+          )}
           <button className="ghost" onClick={() => void build.decide(gate.gateId, false)}>
             Not now
           </button>

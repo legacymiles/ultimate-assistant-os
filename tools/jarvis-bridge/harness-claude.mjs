@@ -37,7 +37,7 @@ export const CLAUDE_LABEL = "Claude Code";
  * answers and resolves true or false. Neither is allowed to throw: a gate that
  * rejects would surface to the model as a tool failure rather than a refusal.
  */
-export function startClaude({ cwd, emit, gate, strict = false, laneWrites = false, trust = "ask", model = "", signal }) {
+export function startClaude({ cwd, emit, gate, strict = false, laneWrites = false, trust = "ask", model = "", signal, alwaysAllowed = () => false }) {
   /** Turns waiting to be handed to the model. */
   const queue = [];
   let wake = null;
@@ -87,7 +87,13 @@ export function startClaude({ cwd, emit, gate, strict = false, laneWrites = fals
         const d = describeTool(name, args, cwd);
         // What passes without asking is one policy, stated in harness-gate.mjs
         // so this adapter and the dsh one cannot drift apart on it.
-        if (autoAllow(d, { strict, laneWrites, trust })) {
+        //
+        // The owner's own "Always" for this tool, in this thread, is checked
+        // beside it: a build that drives a browser asks before every MCP call
+        // (their reach is not readable here), and answering the same question
+        // forty times is attrition, not consent. A grave tool is never
+        // remembered, so it still lands here every time.
+        if (autoAllow(d, { strict, laneWrites, trust }) || (d.risk !== "grave" && alwaysAllowed(name))) {
           emit({ kind: "allowed", name, title: d.title });
           return { behavior: "allow", updatedInput: args };
         }

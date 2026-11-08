@@ -1413,6 +1413,15 @@ function BuildThread({
           >
             Allow
           </button>
+          {gate.risk !== "grave" && (
+            <button
+              className="rounded border border-amber-300/50 px-1.5 py-0.5 text-[11px]"
+              title={`Stop asking about ${gate.name} for the rest of this build`}
+              onClick={() => void build.decide(gate.gateId, true, true)}
+            >
+              Always
+            </button>
+          )}
           <button
             className="rounded border border-amber-300/30 px-1.5 py-0.5 text-[11px]"
             onClick={() => void build.decide(gate.gateId, false)}

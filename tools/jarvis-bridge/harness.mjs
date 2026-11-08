@@ -156,6 +156,19 @@ export async function startThread({ harness = "claude", title = "", repo, projec
     events: [],
     seq: 0,
     gates: new Map(),
+    /**
+     * Tool names the owner answered with "Always" IN THIS THREAD.
+     *
+     * A build that checks its own work in a browser asks before every single
+     * MCP call, because what an MCP tool touches is not readable from here
+     * (see `autoAllow`). Answering the same question forty times is not
+     * consent, it is attrition — so the answer is remembered per tool.
+     *
+     * Deliberately per thread and in memory only: it dies with the build, it
+     * never reaches another build, and nothing writes it to disk. A grave
+     * tool is never remembered, whatever the owner clicks.
+     */
+    alwaysAllow: new Set(),
     pendingGate: null,
     landed: null,
     adapter: null,
@@ -221,7 +234,7 @@ export async function startThread({ harness = "claude", title = "", repo, projec
         }
         resolve(allow);
       };
-      s.gates.set(gateId, finish);
+      s.gates.set(gateId, { finish, card });
       s.pendingGate = card;
       emit({ kind: "gate", ...card });
       emit({ kind: "status", status: "waiting" });
@@ -230,6 +243,9 @@ export async function startThread({ harness = "claude", title = "", repo, projec
   const common = {
     cwd: worktree.path,
     emit,
+    // Asked before every gate: has the owner already said "always" to this
+    // tool in this thread?
+    alwaysAllowed: (name) => s.alwaysAllow.has(String(name ?? "")),
     gate,
     strict: Boolean(strict),
     laneWrites: Boolean(laneWrites),
@@ -277,15 +293,19 @@ export function threadEvents({ id, since = 0 }) {
   };
 }
 
-export function decideGate({ id, gateId, allow }) {
+export function decideGate({ id, gateId, allow, always = false }) {
   const s = mustGet(id);
-  const finish = s.gates.get(String(gateId ?? ""));
-  if (!finish) {
+  const parked = s.gates.get(String(gateId ?? ""));
+  if (!parked) {
     // Answering a gate twice is normal: two tabs, or a tap on a stale card.
     return { ok: true, stale: true };
   }
-  finish(Boolean(allow));
-  return { ok: true, stale: false };
+  // "Always" is only ever a widening of a YES, and never for a grave tool:
+  // the whole point of grave is that it is asked every time.
+  const remember = Boolean(allow) && Boolean(always) && parked.card.risk !== "grave" && Boolean(parked.card.name);
+  if (remember) s.alwaysAllow.add(String(parked.card.name));
+  parked.finish(Boolean(allow));
+  return { ok: true, stale: false, remembered: remember ? parked.card.name : null };
 }
 
 export async function interruptThread({ id }) {
@@ -298,7 +318,7 @@ export async function stopThread({ id }) {
   const s = mustGet(id);
   // Refuse every parked gate first. Killing the child under a blocked
   // permission hook leaves the model's last tool call unanswered forever.
-  for (const finish of [...s.gates.values()]) finish(false, "stopped");
+  for (const parked of [...s.gates.values()]) parked.finish(false, "stopped");
   await s.adapter.stop();
   // The dev server is a separate child and does not die with the harness. Left
   // running it holds a port that the next thread on it cannot have.
@@ -341,7 +361,7 @@ export async function landThread({ id, message = "", merge = true, attribution =
 
 export async function discardThread({ id, keepBranch = false }) {
   const s = mustGet(id);
-  for (const finish of [...s.gates.values()]) finish(false, "discarded");
+  for (const parked of [...s.gates.values()]) parked.finish(false, "discarded");
   await s.adapter.stop().catch(() => {});
   // Before the folder goes: a server with its cwd deleted under it is a
   // process that cannot be explained afterwards.
