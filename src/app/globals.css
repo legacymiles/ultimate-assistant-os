@@ -47,6 +47,10 @@ body {
   padding: 0;
   margin: 0;
   height: 100%;
+  /* The site is dark everywhere. Telling the browser so is what makes the
+     chrome it draws itself — native <select> popups above all — come back
+     dark instead of a white sheet dropped on a black page. */
+  color-scheme: dark;
 }
 
 body {
@@ -55,6 +59,97 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Dropdowns                                                          */
+/*                                                                     */
+/*  Everything that opens over the page reads on solid ground. Two     */
+/*  kinds of dropdown exist here and both used to get this wrong:      */
+/*                                                                     */
+/*  1. Native <select>. Chrome paints its own popup, and unless the    */
+/*     options carry a colour it uses the OS one — a white list in a   */
+/*     black app. color-scheme above fixes the frame; these fix the    */
+/*     rows, including on Windows where the inherited value wins.      */
+/*                                                                     */
+/*  2. Our own panels, through <Popover>. They portal onto <body>, so  */
+/*     they sit outside any skin that re-declares the surface tokens   */
+/*     as translucent glass (the Jarvis HUD does). Re-stating the      */
+/*     opaque tokens here means every bg-panel / border-line inside a  */
+/*     panel resolves solid, whatever opened it.                       */
+/* ------------------------------------------------------------------ */
+
+/* An always-opaque surface for anything the browser paints for us. A skin may
+   turn --color-panel into glass; a popup list may not follow it there. */
+:root {
+  --popup-surface: #12141c;
+  --popup-ink: #e9ecf3;
+}
+
+select {
+  color-scheme: dark;
+}
+select option,
+select optgroup {
+  background-color: var(--popup-surface);
+  color: var(--popup-ink);
+}
+
+.popover-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  pointer-events: none;
+}
+.popover-layer > * {
+  pointer-events: auto;
+}
+
+.popover-panel {
+  --color-canvas: #070b13;
+  --color-panel: #0c1220;
+  --color-panel-2: #111929;
+  --color-elevated: #172134;
+  --color-line: #262a38;
+  --color-line-soft: #1e222e;
+
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden auto;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  box-shadow:
+    0 24px 60px -18px rgb(0 0 0 / 0.85),
+    0 2px 10px -4px rgb(0 0 0 / 0.6),
+    inset 0 0 0 1px rgb(255 255 255 / 0.04);
+  animation: popoverIn 130ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Opened from the Jarvis HUD: same solid surface, the skin's cyan edge. */
+.popover-layer[data-skin="hud"] .popover-panel {
+  --color-line: rgb(71 232 255 / 0.28);
+  --color-line-soft: rgb(71 232 255 / 0.12);
+  box-shadow:
+    0 24px 60px -18px rgb(0 0 0 / 0.9),
+    0 0 50px -22px #47e8ff,
+    inset 0 0 0 1px rgb(71 232 255 / 0.08);
+}
+
+@keyframes popoverIn {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .popover-panel {
+    animation: none;
+  }
 }
 
 /* subtle scrollbars */

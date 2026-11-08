@@ -6,7 +6,8 @@
 // can see images — apps that send photos skip a model that can't.
 // ---------------------------------------------------------------------------
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Popover } from "../Popover";
 
 export interface ModelOption {
   id: string;
@@ -47,18 +48,15 @@ export function ModelPicker({
   const [models, setModels] = useState<ModelOption[]>([]);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const box = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
   const input = useRef<HTMLInputElement>(null);
+  const close = useCallback(() => setOpen(false), []);
 
   useEffect(() => {
     void loadModels().then(setModels);
   }, []);
   useEffect(() => {
-    if (!open) return;
-    input.current?.focus();
-    const close = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    if (open) input.current?.focus();
   }, [open]);
 
   const shown = useMemo(() => {
@@ -68,10 +66,11 @@ export function ModelPicker({
   const current = models.find((m) => m.id === value);
 
   return (
-    <div ref={box}>
+    <div>
       <div className="flex items-center justify-between gap-3">
       <span className="shrink-0 text-[11px] text-ink-muted">{label}</span>
       <button
+        ref={trigger}
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
@@ -81,11 +80,17 @@ export function ModelPicker({
         {value ? (current?.name.replace(/^[^:]+:\s*/, "") ?? value) : emptyLabel} <span className="text-ink-faint">▾</span>
       </button>
       </div>
-      {open && (
-        <div
-          className="mt-1 w-full rounded-lg border border-line bg-canvas p-1.5"
-          onKeyDown={(e) => e.key === "Escape" && (e.stopPropagation(), setOpen(false))}
-        >
+      <Popover
+        open={open}
+        anchor={trigger}
+        onClose={close}
+        align="end"
+        width={340}
+        role="listbox"
+        label={label}
+        className="p-1.5"
+      >
+        <div>
           <input
             ref={input}
             value={q}
@@ -126,7 +131,7 @@ export function ModelPicker({
           </ul>
           <p className="px-2 pt-1 text-[10px] text-ink-faint">Price is $ per million tokens, in/out.</p>
         </div>
-      )}
+      </Popover>
     </div>
   );
 }

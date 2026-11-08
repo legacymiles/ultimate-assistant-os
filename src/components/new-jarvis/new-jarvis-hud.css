@@ -41,6 +41,9 @@
   --color-elevated: rgb(21 30 48 / 0.9);
   --color-line: rgb(71 232 255 / 0.15);
   --color-line-soft: rgb(71 232 255 / 0.08);
+  /* The skin is glass, but a <select>'s popup list is painted by the browser
+     and must not be — it would read straight through to the page. */
+  --popup-surface: #0c1220;
 
   isolation: isolate;
   background:

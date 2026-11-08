@@ -1179,7 +1179,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
   // reads it now.
 
   return (
-    <div className="nj nj-hud">
+    <div className="nj nj-hud" data-skin="hud">
       {iphoneGuide && <IphoneGuide camera={camera} onClose={() => setIphoneGuide(false)} />}
       {birthdaysOpen && <BirthdaysSheet onClose={() => setBirthdaysOpen(false)} />}
       {setupStep && (

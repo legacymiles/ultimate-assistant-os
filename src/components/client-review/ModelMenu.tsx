@@ -14,8 +14,9 @@
 // A pick is saved on the project, so it follows the client, not the browser.
 // ---------------------------------------------------------------------------
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
+import { Popover } from "../Popover";
 import { probe } from "@/lib/new-jarvis/bridge";
 import { groupedModels, isBriefModelId, isLaneValue, isSubscriptionValue, labelFor, whyFor } from "@/lib/client-review/models";
 
@@ -46,21 +47,8 @@ export function ModelMenu({
   const [q, setQ] = useState("");
   const [all, setAll] = useState<Listed[] | null>(null);
   const [bridge, setBridge] = useState<"unknown" | "up" | "off">("unknown");
-  const box = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => {
-      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
-    };
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    window.addEventListener("mousedown", away);
-    window.addEventListener("keydown", esc);
-    return () => {
-      window.removeEventListener("mousedown", away);
-      window.removeEventListener("keydown", esc);
-    };
-  }, [open]);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  const close = useCallback(() => setOpen(false), []);
 
   // Only ask the PC helper when the menu is opened — it is usually off.
   useEffect(() => {
@@ -98,8 +86,9 @@ export function ModelMenu({
   const groups = groupedModels();
 
   return (
-    <div ref={box} className="relative min-w-0">
+    <div className="min-w-0">
       <button
+        ref={trigger}
         type="button"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
@@ -116,12 +105,17 @@ export function ModelMenu({
         <Icon.Chevron width={10} height={10} className="ml-auto shrink-0 rotate-90 opacity-60" aria-hidden />
       </button>
 
-      {open && (
-        <div
-          className={`absolute right-0 z-40 mt-1 max-h-[70vh] w-[330px] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-lg border border-line bg-panel p-1.5 shadow-2xl ${
-            compact ? "top-7" : "top-full"
-          }`}
-        >
+      <Popover
+        open={open}
+        anchor={trigger}
+        onClose={close}
+        align="end"
+        width={330}
+        role="listbox"
+        label="Which model writes the build brief"
+        className="p-1.5"
+      >
+        <div>
           {groups.map((g) => (
             <div key={g.group} className="mb-1 border-b border-line-soft pb-1 last:mb-0 last:border-0 last:pb-0">
               <p className="px-2 pb-0.5 pt-1 text-[10px] uppercase tracking-wider text-ink-faint">{g.title}</p>
@@ -209,7 +203,7 @@ export function ModelMenu({
             )}
           </div>
         </div>
-      )}
+      </Popover>
     </div>
   );
 }

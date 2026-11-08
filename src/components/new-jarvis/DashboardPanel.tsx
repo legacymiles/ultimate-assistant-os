@@ -11,8 +11,9 @@
 // ---------------------------------------------------------------------------
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
+import { Popover } from "../Popover";
 import { VaultStatus } from "./VaultStatus";
 import { MemoryMap } from "./MemoryMap";
 import { ImprovePanel } from "./ImprovePanel";
@@ -365,6 +366,8 @@ function PaneSwitcher({
   unread: number;
 }) {
   const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
   const current = PANES.find((p) => p.id === pane) ?? PANES[0];
   const others = PANES.filter((p) => p.id !== pane);
   const Cur = Icon[current.icon];
@@ -385,6 +388,7 @@ function PaneSwitcher({
         {current.label}
       </span>
       <button
+        ref={trigger}
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
@@ -398,10 +402,8 @@ function PaneSwitcher({
         )}
         <Icon.Menu width={13} height={13} aria-hidden />
       </button>
-      {open && (
-        <>
-          <button type="button" aria-hidden tabIndex={-1} className="fixed inset-0 z-30 cursor-default" onClick={() => setOpen(false)} />
-          <ul className="absolute right-2 top-full z-40 mt-1 w-44 overflow-hidden rounded-lg border border-line bg-panel py-1 shadow-2xl">
+      <Popover open={open} anchor={trigger} onClose={close} align="end" width={176} role="menu" label="More dashboard views" className="py-1">
+          <ul>
             {others.map((p) => {
               const I = Icon[p.icon];
               const badge = p.id === "improve" ? improveBadge : 0;
@@ -427,8 +429,7 @@ function PaneSwitcher({
               );
             })}
           </ul>
-        </>
-      )}
+      </Popover>
     </div>
   );
 }

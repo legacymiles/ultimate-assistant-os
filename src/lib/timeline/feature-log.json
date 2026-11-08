@@ -1,5 +1,23 @@
 [
  {
+  "id": "079c1ed:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "Build on the PC, then push to main from the dashboard",
+  "detail": "Approve & build used to file an In Queue request and stop, so an approved batch sat on 'building' with nothing behind it. It now starts a real harness thread on the owner's PC (a worktree of the repo, the edit brief said into it) and records threadId on the batch; In Queue stays the fallback when th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "079c1ed:jarvis",
+  "date": "2026-11-08",
+  "slug": "jarvis",
+  "title": "Build on the PC, then push to main from the dashboard",
+  "detail": "Approve & build used to file an In Queue request and stop, so an approved batch sat on 'building' with nothing behind it. It now starts a real harness thread on the owner's PC (a worktree of the repo, the edit brief said into it) and records threadId on the batch; In Queue stays the fallback when th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "18abb41:app-builder",
   "date": "2026-11-07",
   "slug": "app-builder",
