@@ -1,7 +1,11 @@
 {
-  "name": "projects-timeline",
+  "name": "ultimate-assistant-os",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.11.0"
+  },
+  "packageManager": "npm@11.11.0",
   "scripts": {
     "dev": "next dev",
     "prebuild": "node scripts/timeline-log.mjs --quiet-fail",
@@ -12,6 +16,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:router": "node scripts/check-router.mjs",
+    "apps:index": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/apps-index.mjs",
+    "check:apps": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/apps-index.mjs --check",
+    "fonts:fetch": "node scripts/fetch-fonts.mjs",
+    "check:fonts": "node scripts/fetch-fonts.mjs --check",
     "skills:setup": "node scripts/skill-sync.mjs install",
     "skills:push": "node scripts/skill-sync.mjs push",
     "skills:pull": "node scripts/skill-sync.mjs pull",

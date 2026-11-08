@@ -1,0 +1,68 @@
+# Does a fresh clone of this repo still build, with nothing configured?
+#
+# This is the one check that protects the promise AGENTS.md makes: clone, npm ci,
+# npm run dev, and the whole 40-app hub runs with no keys, no database and no
+# accounts. It is easy to break that quietly — one import that reads an env var
+# at module scope, one dependency that stopped resolving from the lockfile — and
+# the first person to find out is whoever (or whatever) clones the repo next.
+#
+# So: no secrets are provided to this job, deliberately. If it needs one, the
+# repo has regressed.
+name: clean-clone
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+concurrency:
+  group: clean-clone-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # ci, not install: the committed lockfile decides the tree.
+      - name: Install
+        run: npm ci
+
+      - name: docs/apps/README.md matches the catalog
+        run: npm run check:apps
+
+      - name: every webfont is committed
+        run: npm run check:fonts
+
+      - name: Tests
+        run: npm test
+
+      # One attempt, deliberately. The build fetches nothing — every webfont is
+      # committed under src/fonts/ (AGENTS.md §6) — so a failure here is a real
+      # failure and must not be retried into looking green.
+      - name: Build
+        run: npm run build
+
+      - name: The hub answers on /
+        run: |
+          npm start &
+          server=$!
+          trap 'kill $server 2>/dev/null || true' EXIT
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 5 -o /tmp/home.html http://localhost:3000/; then
+              break
+            fi
+            sleep 2
+          done
+          test -s /tmp/home.html || { echo "::error::/ never answered"; exit 1; }
+          # A default Next.js page or a 404 would also be a 200, so look for the hub.
+          grep -qi "ultimate assistant" /tmp/home.html \
+            || { echo "::error::/ answered, but it does not look like the hub"; head -c 2000 /tmp/home.html; exit 1; }
+          echo "/ served the hub."
