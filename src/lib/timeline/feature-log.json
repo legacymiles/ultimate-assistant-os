@@ -1,5 +1,14 @@
 [
  {
+  "id": "16a1446:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "A Building screen, and a way out of a build that never finishes",
+  "detail": "Two things were missing, and they are the same thing from both ends.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "13a7e69:client-review",
   "date": "2026-11-08",
   "slug": "client-review",
