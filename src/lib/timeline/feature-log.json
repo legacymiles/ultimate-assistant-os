@@ -1,5 +1,14 @@
 [
  {
+  "id": "809b7e9:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "Say why a build didn't start, and never strand a version",
+  "detail": "A version marked \"building\" with \"Not started yet\" under it is the shape of this bug: the approval opened v2, the start threw, and the reason went into a toast that was gone on the next render. Nothing on the screen, in the project or in the database remembered it, so the only honest answer to \"why ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "16a1446:client-review",
   "date": "2026-11-08",
   "slug": "client-review",
