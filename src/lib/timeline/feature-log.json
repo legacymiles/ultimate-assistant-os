@@ -1,5 +1,32 @@
 [
  {
+  "id": "feffb6d:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "Answer a permission once per tool, not once per call",
+  "detail": "autoAllow has one line for MCP tools:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "feffb6d:app-builder",
+  "date": "2026-11-08",
+  "slug": "app-builder",
+  "title": "Answer a permission once per tool, not once per call",
+  "detail": "autoAllow has one line for MCP tools:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "663a134:jarvis",
+  "date": "2026-11-08",
+  "slug": "jarvis",
+  "title": "Try twice before deciding the PC isn't there",
+  "detail": "Reproduced in the owner's own Chrome, against the live site, with the bridge running: one press of Approve & build said \"Jarvis's PC helper isn't running\". The next press, same tab, same minute, started the thread and ran both git steps — /health in 7ms, /harness/start 200, /shell 200, /shell 200. T",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "4c57493:jarvis",
   "date": "2026-11-08",
   "slug": "jarvis",
