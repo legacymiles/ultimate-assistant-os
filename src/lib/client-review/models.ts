@@ -146,3 +146,56 @@ export function laneForModel(id: string): "standard" | "uncensored" {
     ? "uncensored"
     : "standard";
 }
+
+// ---------------------------------------------------------------------------
+// Which model does the BUILD.
+//
+// Everything above picks the model that WRITES the brief. The build itself is
+// Claude Code running on the owner's PC, and Claude Code can only be a Claude
+// model — so the pick is translated here rather than passed through, and the
+// translation is shown on the button instead of happening quietly.
+//
+//   "claude-subscription:claude-opus-5-5" → claude-opus-5-5   (their plan)
+//   "anthropic/claude-opus-5.5"           → claude-opus-5-5   (same model)
+//   a lane, or DeepSeek / Grok / GPT      → the default, said out loud
+//
+// The last case is the honest one. A build cannot run on Grok here, so telling
+// the owner "builds with Opus 5.5, Grok wrote the brief" is better than either
+// ignoring the pick or refusing to build at all.
+// ---------------------------------------------------------------------------
+
+/** What a build runs on when the pick does not name a Claude Code model. */
+export const DEFAULT_BUILD_MODEL = "claude-opus-5-5";
+
+/** The OpenRouter ids that ARE a Claude Code model, by the name it answers to. */
+const BUILD_BY_CLOUD_ID: Record<string, string> = {
+  "anthropic/claude-opus-5.5": "claude-opus-5-5",
+  "anthropic/claude-opus-5": "claude-opus-5",
+  "anthropic/claude-sonnet-5.5": "claude-sonnet-5-5",
+  "anthropic/claude-sonnet-5": "claude-sonnet-5",
+};
+
+/** Does this pick name a model the build can actually run on? */
+export function buildsWithPick(pick: string): boolean {
+  const v = (pick ?? "").trim();
+  if (isSubscriptionValue(v)) return isPlanModelId(v.slice(SUBSCRIPTION_PREFIX.length));
+  return Boolean(BUILD_BY_CLOUD_ID[v.toLowerCase()]);
+}
+
+/** The model id handed to Claude Code for this project's builds. Never empty. */
+export function buildModelFor(pick: string): string {
+  const v = (pick ?? "").trim();
+  if (isSubscriptionValue(v)) {
+    const named = v.slice(SUBSCRIPTION_PREFIX.length);
+    return isPlanModelId(named) ? named : DEFAULT_BUILD_MODEL;
+  }
+  return BUILD_BY_CLOUD_ID[v.toLowerCase()] ?? DEFAULT_BUILD_MODEL;
+}
+
+/** One line for the build button: what it will run on, and why. */
+export function buildModelNote(pick: string): string {
+  const model = buildModelFor(pick);
+  if (buildsWithPick(pick)) return `Builds on your plan with ${model}.`;
+  if (isLaneValue(pick)) return `Builds on your plan with ${model} — pick a Claude model above to build with another.`;
+  return `Builds on your plan with ${model}: a build runs Claude Code, which only runs Claude. ${labelFor(pick)} still writes the brief.`;
+}

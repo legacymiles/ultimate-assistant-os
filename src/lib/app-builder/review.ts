@@ -4,7 +4,7 @@
 // App Builder → Client Review.
 //
 // Client Review already fed App Builder (a client's approved edits become an
-// App Builder project — ./fromClientReview.ts). This is the other half, and it
+// App Builder project — ../client-review/autoBuild.ts). This is the other half, and it
 // is what makes the loop a loop: the moment a build is handed off, a review
 // link is opened for it, and the queue brief tells Claude Code to post the
 // deployed app to that link as its last step.

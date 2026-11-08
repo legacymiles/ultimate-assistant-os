@@ -15,7 +15,6 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { buildClientEdit } from "@/lib/app-builder/fromClientReview";
 import { CannotBuildHere, startClientEditBuild } from "@/lib/client-review/autoBuild";
 import { admin, ApiError, portal, urlBase64ToUint8Array } from "@/lib/client-review/client";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -87,7 +86,7 @@ function useNarrow(): boolean {
 
 /** What happened after the owner's Send & build. */
 interface OwnerBuild {
-  state: "working" | "queued" | "approved" | "failed";
+  state: "working" | "approved" | "failed";
   version?: string;
   message?: string;
 }
@@ -95,7 +94,9 @@ interface OwnerBuild {
 /**
  * The owner is their own client and their own admin: what they send is
  * approved on the spot and built on their PC — the same path Admin's
- * "Approve & build" takes, with In Queue as the fallback when the PC is off.
+ * "Approve & build" takes, and the same rule. Nothing is filed anywhere: if
+ * the PC helper is not there the build does not start and says so, and the
+ * batch stays approved so pressing build again is the retry.
  */
 async function approveAndBuild(token: string, versionId: string): Promise<OwnerBuild> {
   const { project } = await admin.byToken(token);
@@ -124,10 +125,19 @@ async function approveAndBuild(token: string, versionId: string): Promise<OwnerB
     });
     return { state: "working", version: out.version.number };
   } catch (e) {
-    if (!(e instanceof CannotBuildHere)) throw e;
-    // The PC isn't reachable from this tab: file it rather than lose it.
-    const handoff = await buildClientEdit(out.project, batch.id);
-    return { state: "queued", version: out.version.number, message: handoff.queueId ? undefined : "That exact build was already queued." };
+    // No queue behind this. The edits are approved on `out.version` either way,
+    // so the honest answer is which thing is missing and that build is still
+    // there to press — not a request filed in a list nothing reads.
+    return {
+      state: "approved",
+      version: out.version.number,
+      message:
+        e instanceof CannotBuildHere
+          ? `${e.message} Your edits are approved and waiting — press build again from Admin once that's sorted.`
+          : e instanceof Error
+            ? `${e.message} Your edits are approved and waiting.`
+            : "Your edits are approved, but the build didn't start.",
+    };
   }
 }
 
@@ -985,8 +995,11 @@ function SentScreen({
 /** After the owner's Send & build: where the build is. */
 function OwnerSent({ count, build, fallback, onClose }: { count: number; build: OwnerBuild; fallback: string; onClose: () => void }) {
   const v = build.version ?? fallback;
-  const at = build.state === "working" ? 1 : build.state === "queued" ? 3 : build.state === "approved" ? 2 : 1;
-  const steps = ["Sent", "Approved", "Queued for Claude Code", `${v} preview shows up here`];
+  // "working" is the only state with a build behind it, so it is the only one
+  // that reaches the third step. "approved" means the edits landed but the PC
+  // did not take them: the line stops at Approved rather than implying more.
+  const at = build.state === "working" ? 2 : build.state === "approved" ? 1 : 0;
+  const steps = ["Sent", "Approved", "Building on your PC", `${v} preview shows up here`];
   return (
     <div className="cr-sent" role="dialog" aria-modal="true" aria-label="Send & build">
       <div className="cr-reactor" aria-hidden>
@@ -996,22 +1009,19 @@ function OwnerSent({ count, build, fallback, onClose }: { count: number; build: 
         <span className="core" />
       </div>
       <div className="cr-sent-copy">
-        <p className="cr-kicker">{build.state === "failed" ? "Sent" : build.state === "working" ? "Starting the build" : "Building"}</p>
+        <p className="cr-kicker">{build.state === "working" ? "Building" : "Sent"}</p>
         <h2>
-          {build.state === "queued"
-            ? `${count} edit${count === 1 ? "" : "s"} on the way to ${v}.`
-            : build.state === "working"
-              ? `Handing ${count} edit${count === 1 ? "" : "s"} to Claude Code…`
-              : build.state === "approved"
-                ? `${v} is approved.`
-                : "Your edits are sent."}
+          {build.state === "working"
+            ? `Claude Code is making ${count} edit${count === 1 ? "" : "s"} for ${v}…`
+            : build.state === "approved"
+              ? `${v} is approved.`
+              : "Your edits are sent."}
         </h2>
         <p>
-          {build.state === "queued"
-            ? `Claude Code makes them on a branch, opens a pull request, and posts the preview back here as ${v}. Merge the pull request when you like it to put it live.`
+          {build.state === "working"
+            ? `It works on a branch cut from the live site, opens a pull request, and the preview lands on ${v} in Admin. Nothing goes live until you push it.`
             : (build.message ?? "One moment.")}
         </p>
-        {build.state === "queued" && build.message && <p className="cr-note">{build.message}</p>}
         <ol className="cr-steps">
           {steps.map((s, i) => (
             <li key={s} className={i < at ? "done" : i === at ? "now" : ""} style={{ animationDelay: `${0.25 + i * 0.12}s` }}>

@@ -19,7 +19,6 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { buildClientEdit } from "@/lib/app-builder/fromClientReview";
 import { PHASE_LABEL, latestWord } from "@/lib/app-builder/build";
 import { buildLinks, CannotBuildHere, startClientEditBuild } from "@/lib/client-review/autoBuild";
 import { pushThreadToMain } from "@/lib/client-review/pushMain";
@@ -27,7 +26,7 @@ import { useBuild } from "@/lib/app-builder/useBuild";
 import { admin, type AdminState, type BriefOut } from "@/lib/client-review/client";
 import { buildText, currentVersion, plainBrief, sortVersions, isSentToClient } from "@/lib/client-review/logic";
 import { DEFAULT_SORT, isSortMode, listProjects, projectState, SORTS, STATE_LABEL, type SortMode } from "@/lib/client-review/list";
-import { isLaneValue, isSubscriptionValue, laneOfValue, pickValue } from "@/lib/client-review/models";
+import { buildModelNote, isLaneValue, isSubscriptionValue, laneOfValue, pickValue } from "@/lib/client-review/models";
 import { writeBriefOnPlan } from "@/lib/client-review/subscriptionBrief";
 import type { ClientProject, ContentLane, EditRequest, RequestBatch, ReviewVersion } from "@/lib/client-review/types";
 import { getRepo } from "@/lib/repo";
@@ -820,7 +819,11 @@ function BatchCard({
                     : "rounded-md border border-emerald-500/40 px-2.5 py-1.5 text-xs text-emerald-200 disabled:opacity-40"
                 }
                 disabled={!live || starting || busy === "approve" || busy === "buildQueued"}
-                title={mode === "build" ? `Approve, then Claude Code builds it on your PC (${p.repo}) — the preview lands here for you to post` : "Approve only — you build it and post the URL yourself"}
+                title={
+                  mode === "build"
+                    ? `Approve, then build it here on your PC (${p.repo}), from shipped main. ${buildModelNote(pickValue(p))}`
+                    : "Approve only — you build it and post the URL yourself"
+                }
                 onClick={async () => {
                   setStarting(true);
                   try {
@@ -869,6 +872,13 @@ function BatchCard({
             Reject all
           </button>
         </div>
+        {/*
+          Said out loud, not buried in a tooltip: the menu above chooses the
+          brief's model, and this is the one the build itself will run on. They
+          are the same whenever the pick names a Claude model, and when it does
+          not this is where the owner finds out, before pressing build.
+        */}
+        {p.repo && <p className="mt-1.5 text-[11px] text-ink-faint">{buildModelNote(pickValue(p))}</p>}
       </div>
     </article>
   );
@@ -1009,19 +1019,20 @@ function VersionRow({
   );
 }
 
-/** What pressing build did: started on the PC, filed in In Queue, or refused outright. */
+/** What pressing build did: started on the PC, or didn't — there is no third answer. */
 interface BuildStart {
-  mode: "thread" | "queue" | "failed";
+  mode: "thread" | "failed";
   message: string;
 }
 
 /**
- * Build an approved batch: on the PC when it can, in In Queue when it can't.
+ * Build an approved batch, on this PC, now.
  *
- * The PC is the only thing that can write code, so "started" has to mean a real
- * harness thread. Filing a request and letting the version say "building" is
- * what made an approved batch look busy for twenty minutes with nothing behind
- * it — the queue is the fallback for a phone or a shut laptop, not the path.
+ * Nothing is filed. The queue used to be the fallback here and it was the
+ * reason the button lied: a request parked in a list nobody works left the
+ * version saying "building" with nothing behind it. So a failure is a sentence
+ * saying which of the three things is missing, the batch stays approved, and
+ * pressing build again is the retry.
  */
 async function startBuild(project: ClientProject, batchId: string, run: Run): Promise<BuildStart> {
   try {
@@ -1033,37 +1044,23 @@ async function startBuild(project: ClientProject, batchId: string, run: Run): Pr
       builderId: started.builderId,
       threadId: started.threadId,
     });
+    const on = `${started.model}${started.base ? `, from main at ${started.base}` : ""}`;
     return {
       mode: "thread",
       message: noted
-        ? "Claude Code is building it on your PC now. The preview link arrives here when it's done — you post it to the client."
-        : "Claude Code is building it on your PC, but Client Review couldn't record it — the build still runs.",
+        ? `Claude Code is building it on your PC with ${on}. Watch it right here — the preview link lands on this version when it's done.`
+        : `Claude Code is building it with ${on}, but Client Review couldn't record it — the build still runs.`,
     };
   } catch (e) {
-    const refusal = e instanceof CannotBuildHere ? e.reason : null;
-    if (!refusal) {
-      return { mode: "failed", message: e instanceof Error ? e.message : "The build didn't start." };
-    }
-    // No PC, no local clone, not paired: file it, so approving on a phone still
-    // leaves the work somewhere it can be picked up.
-    try {
-      const out = await buildClientEdit(project, batchId, { note: false });
-      const noted = await run("buildQueued", {
-        action: "buildQueued",
-        id: project.id,
-        batchId,
-        builderId: out.project.id,
-        queueId: out.queueId,
-      });
-      return {
-        mode: "queue",
-        message: noted
-          ? "Your PC isn't reachable, so this is in In Queue — nothing runs until Claude Code works your queue."
-          : "Filed in In Queue, but Client Review couldn't record where.",
-      };
-    } catch (again) {
-      return { mode: "failed", message: again instanceof Error ? again.message : "It couldn't be filed either." };
-    }
+    return {
+      mode: "failed",
+      message:
+        e instanceof CannotBuildHere
+          ? `${e.message} Nothing was filed — the batch is still approved, so press build again once that's sorted.`
+          : e instanceof Error
+            ? e.message
+            : "The build didn't start.",
+    };
   }
 }
 
@@ -1101,11 +1098,11 @@ function SiteHome({ project: p, run, say }: { project: ClientProject; run: Run; 
         </label>
       </div>
       <p className="mt-1.5 text-[11px] leading-snug text-ink-faint">
-        Approve &amp; build starts Claude Code on your PC, in a worktree of the repo: the edits go on a branch and a pull
-        request opens for you. The preview link appears on the version here — you post it to {p.clientName || "the client"},
-        so nothing reaches them without you. If the PC is off it is filed in In Queue instead, and nothing runs until you work
-        the queue. Previews must open without a login: in Vercel › Settings › Deployment Protection, turn Vercel Authentication
-        off.
+        Approve &amp; build starts Claude Code on your PC, in a worktree of the repo reset to shipped <code>main</code>: the
+        edits go on a branch and a pull request opens for you. You watch it, answer it and push it from this screen — nothing
+        goes to a queue, and nothing reaches {p.clientName || "the client"} without you posting it. If the PC helper is off,
+        the build simply does not start and says so. Previews must open without a login: in Vercel › Settings › Deployment
+        Protection, turn Vercel Authentication off.
       </p>
     </div>
   );
@@ -1145,11 +1142,16 @@ function BuildStatus({
         </>
       ) : build ? (
         <>
-          <span className="text-sky-200">
-            ● In In Queue {ago(build.at)}
+          {/*
+            Only old records reach here: nothing files a build in In Queue any
+            more. Kept so a batch recorded before that change still offers the
+            one button that does something, rather than disappearing.
+          */}
+          <span className="text-amber-200">
+            ● Filed in In Queue {ago(build.at)}
             {build.queueId ? <span className="text-ink-faint"> · {build.queueId}</span> : null}
           </span>
-          <span className="text-ink-faint">— filed, not running. Nothing happens until Claude Code works your queue.</span>
+          <span className="text-ink-faint">— from before builds ran here. Nothing is running behind it.</span>
           {p.repo && (
             <button
               className="rounded-md border border-sky-400/50 bg-sky-400/20 px-2.5 py-1 text-[11.5px] text-sky-100 disabled:opacity-40"
@@ -1223,14 +1225,37 @@ function BuildThread({
   const what = build.phase === "working" ? latestWord(build.view) : "";
   const done = build.phase === "done";
   const bad = build.phase === "failed" || build.phase === "lost";
+  const gate = build.gate;
   return (
     <>
       <span className={done ? "text-emerald-200" : bad ? "text-rose-200" : "text-sky-200"}>
         ● {done ? "Built on your PC" : PHASE_LABEL[build.phase]}
       </span>
+      {build.summary?.model && <span className="rounded bg-brand/20 px-1.5 py-0.5 text-[10.5px] text-indigo-200">{build.summary.model}</span>}
       {what && <span className="min-w-0 truncate text-ink-faint">{what}</span>}
-      {build.phase === "asking" && (
-        <span className="text-amber-200">Claude is waiting for permission — answer it in App Builder.</span>
+      {/*
+        Answered here, not in App Builder. A permission card that can only be
+        answered in another app is a build that stalls until the owner happens
+        to look somewhere else, which is the same as a build that failed.
+      */}
+      {gate && (
+        <span className="flex min-w-0 flex-wrap items-center gap-1.5 rounded border border-amber-400/40 bg-amber-400/10 px-1.5 py-0.5 text-amber-100">
+          <span className="min-w-0 truncate" title={gate.why || gate.command || gate.path}>
+            Needs you: {gate.title || gate.name}
+          </span>
+          <button
+            className="rounded border border-amber-300/60 bg-amber-300/20 px-1.5 py-0.5 text-[11px] font-semibold"
+            onClick={() => void build.decide(gate.gateId, true)}
+          >
+            Allow
+          </button>
+          <button
+            className="rounded border border-amber-300/30 px-1.5 py-0.5 text-[11px]"
+            onClick={() => void build.decide(gate.gateId, false)}
+          >
+            Not now
+          </button>
+        </span>
       )}
       {links.preview && (
         <>

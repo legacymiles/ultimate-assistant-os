@@ -16,8 +16,20 @@
 // themselves, which is why the prompt ends with a `Preview:` line instead of
 // calling the review connector.
 //
-// The queue stays as the fallback, not the default: a phone can approve while
-// the PC is shut, and a request that waits is better than a button that lies.
+// Nothing is filed anywhere. There is no queue behind this button: it either
+// starts a real build on this PC or it says, in one sentence, which of the
+// three things is missing. A request parked in a list nobody works is not a
+// build, and pretending otherwise is what left an approved batch sitting at
+// "building" with nothing behind it.
+//
+// The base is the other half of the fix. A worktree is cut from whatever branch
+// the bridge's own checkout happens to be standing on, and that checkout is
+// routinely months behind `main` with work of its own on top. A build cut from
+// there cannot be pushed to main (it would carry that branch with it), so the
+// brief used to tell the agent to rebase and stop if it could not — which is
+// exactly what it did every time, changing nothing. So the worktree is reset
+// onto `origin/main` before the agent is told anything: HEAD is the shipped
+// site and nothing else, whatever the owner's checkout is doing.
 // ---------------------------------------------------------------------------
 
 import { clientEditProject, editMasterPrompt } from "@/lib/app-builder/clientEdit";
@@ -25,11 +37,14 @@ import type { BuilderProject } from "@/lib/app-builder/types";
 import { readStore, writeStore } from "@/lib/app-builder/useAppBuilder";
 import { BridgeError, call, knownFolder, probe } from "@/lib/new-jarvis/bridge";
 import { HUB_REPO } from "./apps";
+import { buildModelFor, pickValue } from "./models";
 import type { ClientProject } from "./types";
 
 /**
- * Why this PC can't build it. Every one of these has a queue fallback, so they
- * are values rather than exceptions the caller has to parse out of a message.
+ * Why this PC can't build it. Values rather than a message the caller has to
+ * parse, so each one can be shown with the right thing to do next. There is no
+ * fallback behind any of them: the batch stays approved and build is pressed
+ * again once the PC is there.
  */
 export type CannotBuildReason = "pc-off" | "not-paired" | "repo-not-here";
 
@@ -48,6 +63,10 @@ export interface StartedBuild {
   threadId: string;
   /** The App Builder project the edits live in, so the panel can open it. */
   builderId: string;
+  /** The Claude Code model it is actually running on, from the project's pick. */
+  model: string;
+  /** The commit the worktree was stood on, short. Always shipped main. */
+  base: string;
 }
 
 /** The App Builder project for this batch: the one that exists, or a fresh one. */
@@ -90,18 +109,29 @@ function checkoutFor(review: ClientProject): string {
  *
  * `editMasterPrompt` already carries the edits in the owner's words, the pins,
  * the skills, the checklist and the "never merge" rule. Two things are added:
- * where it is standing (a worktree, not a new folder), and how to finish here —
- * step 4 of its own <finish> assumes the Jarvis connector, which a harness
- * thread does not have, so it is replaced with printing the two links.
+ * where it is standing (a worktree, not a new folder), and how to finish here.
+ *
+ * Both additions override the shared prompt rather than editing it, because
+ * App Builder's own engine uses the same function. Its <finish> step 4 and its
+ * <constraints> both assume the Jarvis connector and the owner's queue — a
+ * harness thread has neither, and a build that "queue_notes the owner" when a
+ * check fails is a build whose failure nobody ever reads. So everything it has
+ * to say, it says in its own final message.
  */
 export function harnessBrief(p: BuilderProject): string {
   const app = p.edit?.appPath ?? "";
   return [
     editMasterPrompt(p),
-    "<where_you_are>\nYou are in a git worktree of the repository, on its own branch, cut for this job. The owner's own checkout is untouched. Work only inside this folder. The <context> line names a branch to create — you are already on the branch cut for this job, so ignore that name and push the one you are on.\n\nBEFORE you change anything: run `git fetch origin main`. If `git merge-base --is-ancestor origin/main HEAD` fails, the worktree was cut from another branch — rebase onto main then (`git rebase origin/main`). If that rebase is not trivial, stop, change nothing, and say so in one sentence: a build that carries someone else's branch cannot be pushed to main.\n</where_you_are>",
+    [
+      "<where_you_are>",
+      "You are in a git worktree of the repository, on its own branch, cut for this job and ALREADY reset to `origin/main`: HEAD is the shipped site plus nothing. The owner's own checkout is untouched. Work only inside this folder. The <context> line names a branch to create; you are already on the branch cut for this job, so ignore that name and push the one you are on.",
+      "Do not rebase, reset, merge or fetch anything before you start. The base is already correct, and moving it is how a build ends up carrying someone else's branch onto main.",
+      "`node_modules` here is a link to another checkout of this same repo, so it may be older than this branch. Use it for `npx tsc` and `npx vitest`. If a package is genuinely missing, say so in your final message, and never run `npm install` in this folder: it writes into that other checkout's packages.",
+      "</where_you_are>",
+    ].join("\n\n"),
     [
       "<how_to_finish_here>",
-      "Ignore step 4 of <finish>: this session has no Jarvis connector, so nobody else will post anything for you. Finish like this:",
+      "Ignore step 4 of <finish>, and ignore the `queue_note` in <constraints>: this session has no Jarvis connector and no queue, so nobody else will post or read anything for you. If a check fails, say so in your final message — that is the only place it will be seen. Finish like this:",
       "1. Commit and push your branch.",
       "2. Open a pull request into main. Never merge it — the owner merges to go live.",
       `3. Wait for the Vercel preview of the branch. Check it opens without a login.${app ? ` The app is at ${app} on that preview.` : ""}`,
@@ -133,27 +163,76 @@ export function buildLinks(text: string): { pr?: string; preview?: string } {
   return { pr: pick("PR"), preview: pick("Preview") };
 }
 
+/** One git command in the thread's own worktree, through the PC helper. */
+async function git(where: string, args: string): Promise<{ ok: boolean; said: string }> {
+  const out = await call<{ ok?: boolean; exitCode?: number | null; stdout?: string; stderr?: string }>("shell", {
+    command: `git -C "${where}" ${args}`,
+    timeoutMs: 180_000,
+  });
+  const said = `${out.stdout ?? ""}\n${out.stderr ?? ""}`.trim();
+  return { ok: out.ok === true && (out.exitCode ?? 0) === 0, said };
+}
+
+function firstLine(text: string): string {
+  return text.split(/\r?\n/).map((l) => l.trim()).find(Boolean) ?? "";
+}
+
 /**
- * Start the build. Throws `CannotBuildHere` when this PC can't do it (the
- * caller falls back to In Queue) and a plain Error when something else broke.
+ * Stand the fresh worktree exactly on shipped main, and say which commit.
+ *
+ * This is the whole reason client edits now land. The bridge cuts a worktree
+ * from its own checkout's HEAD, and that checkout lives on a long-running
+ * branch hundreds of commits behind `origin/main` with work of its own on top,
+ * so every build either refused to start (the brief told it to) or produced
+ * a branch that could never be pushed to main. A worktree seconds old has
+ * nothing of its own to lose, so resetting it is free and exact.
+ *
+ * Three separate calls, not one chained line: this bridge runs Windows
+ * PowerShell 5, which refuses `&&`, and the owner should be told which step
+ * failed rather than "the command failed".
+ */
+async function standOnMain(where: string): Promise<string> {
+  const fetched = await git(where, "fetch origin main");
+  if (!fetched.ok) {
+    throw new Error(`The build couldn't fetch main, so it wasn't started: ${firstLine(fetched.said) || "git gave no answer"}`);
+  }
+  const reset = await git(where, "reset --hard FETCH_HEAD");
+  if (!reset.ok) {
+    throw new Error(`The build couldn't stand on main, so it wasn't started: ${firstLine(reset.said) || "git gave no answer"}`);
+  }
+  const at = await git(where, "rev-parse --short HEAD");
+  return at.ok ? firstLine(at.said) : "";
+}
+
+/**
+ * Start the build, here, now, on this PC.
+ *
+ * Throws `CannotBuildHere` when this PC cannot do it and a plain Error when
+ * something else broke. Either way nothing is filed and nothing is queued: the
+ * batch stays approved, the caller shows the sentence, and pressing build again
+ * is the retry.
  */
 export async function startClientEditBuild(review: ClientProject, batchId: string): Promise<StartedBuild> {
   const bucket = builderFor(review, batchId);
+  // The model the owner picked for this client, translated to something Claude
+  // Code can actually run. See `buildModelFor`.
+  const model = buildModelFor(pickValue(review));
 
   // The probe comes first: it is what tells this browser where the PC's
   // checkout is, so a browser that has never met the bridge can still build.
   const health = await probe();
   if (!health.up) {
-    throw new CannotBuildHere("pc-off", "Jarvis's PC helper isn't running, so nothing can be built here.");
+    throw new CannotBuildHere("pc-off", "Jarvis's PC helper isn't running, so nothing can be built here. Start it on that PC and press build again.");
   }
   if (!health.paired) {
-    throw new CannotBuildHere("not-paired", "This browser isn't paired with the PC helper, so it can't start a build.");
+    throw new CannotBuildHere("not-paired", "This browser isn't paired with the PC helper, so it can't start a build. Pair it in Jarvis on that PC and press build again.");
   }
   const repo = checkoutFor(review);
 
-  let threadId: string;
+  let threadId = "";
+  let base = "";
   try {
-    const { session } = await call<{ session: { id: string } }>("harness/start", {
+    const { session } = await call<{ session: { id: string; worktree?: { path?: string } } }>("harness/start", {
       harness: "claude",
       title: `${review.name} ${bucket.edit?.version ?? ""}`.trim() + " client edits",
       // A worktree, not a project folder: these edits belong to a repo that
@@ -164,10 +243,22 @@ export async function startClientEditBuild(review: ClientProject, batchId: strin
       // worktree, so writes there are the job. Anything outside it, and
       // anything grave, still stops and asks.
       trust: "trusted",
+      // The owner's pick, honoured. Empty would silently use whatever Claude
+      // Code defaults to, which is not what the menu promised.
+      model,
     });
     threadId = session.id;
+    const where = session.worktree?.path ?? "";
+    if (!where) {
+      throw new Error("The PC helper started a thread without a worktree, so there is nowhere to build.");
+    }
+    // Before the agent is told anything, so it never sees the wrong base.
+    base = await standOnMain(where);
     await call("harness/say", { id: threadId, text: harnessBrief(bucket) });
   } catch (e) {
+    // A thread that was started but cannot be based correctly is stopped rather
+    // than left running on the wrong tree with no brief.
+    if (threadId) await call("harness/stop", { id: threadId }).catch(() => {});
     if (e instanceof BridgeError && e.status === 0) {
       throw new CannotBuildHere("pc-off", "The PC helper stopped answering while the build was starting.");
     }
@@ -181,5 +272,5 @@ export async function startClientEditBuild(review: ClientProject, batchId: strin
     currentId: store.currentId,
   });
 
-  return { threadId, builderId: bucket.id };
+  return { threadId, builderId: bucket.id, model, base };
 }

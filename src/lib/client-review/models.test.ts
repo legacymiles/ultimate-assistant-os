@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createProject, cleanBriefModel, ReviewError, updateProjectMeta } from "./logic";
 import {
+  buildModelFor,
+  buildModelNote,
+  buildsWithPick,
+  DEFAULT_BUILD_MODEL,
   isLaneValue,
   laneForModel,
   laneOfValue,
@@ -51,5 +55,35 @@ describe("the brief's model pick", () => {
     expect(laneForModel("anthropic/claude-sonnet-5.5")).toBe("standard");
     expect(laneForModel("deepseek/deepseek-v4-pro-0813")).toBe("uncensored");
     expect(laneForModel("x-ai/grok-4.6")).toBe("uncensored");
+  });
+});
+
+describe("which model actually runs the build", () => {
+  it("runs the owner's plan pick, as Claude Code names it", () => {
+    expect(buildModelFor(SUBSCRIPTION_PREFIX + "claude-opus-5-5")).toBe("claude-opus-5-5");
+    expect(buildModelFor(SUBSCRIPTION_PREFIX + "claude-sonnet-5")).toBe("claude-sonnet-5");
+    expect(buildsWithPick(SUBSCRIPTION_PREFIX + "claude-opus-5-5")).toBe(true);
+  });
+
+  it("maps an OpenRouter Claude id to the same model, not to the default", () => {
+    expect(buildModelFor("anthropic/claude-opus-5.5")).toBe("claude-opus-5-5");
+    expect(buildModelFor("anthropic/claude-sonnet-5.5")).toBe("claude-sonnet-5-5");
+    expect(buildsWithPick("anthropic/claude-opus-5")).toBe(true);
+  });
+
+  it("falls back for a lane or a model a build cannot run, and never returns empty", () => {
+    for (const pick of ["", "lane:standard", "lane:uncensored", "x-ai/grok-4.6", "orca/orcacyber-flash-1.0", "openai/gpt-6-luna-pro"]) {
+      expect(buildModelFor(pick)).toBe(DEFAULT_BUILD_MODEL);
+      expect(buildsWithPick(pick)).toBe(false);
+    }
+  });
+
+  it("says which model the build will use, in every case", () => {
+    expect(buildModelNote(SUBSCRIPTION_PREFIX + "claude-opus-5-5")).toContain("claude-opus-5-5");
+    // A pick a build cannot run must not be silently dropped: the note has to
+    // name both the build's model and the one that wrote the brief.
+    const note = buildModelNote("x-ai/grok-4.6");
+    expect(note).toContain(DEFAULT_BUILD_MODEL);
+    expect(note).toContain("Grok 4.6");
   });
 });
