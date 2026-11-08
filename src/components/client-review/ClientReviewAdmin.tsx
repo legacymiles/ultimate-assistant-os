@@ -21,7 +21,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { PHASE_LABEL, latestWord } from "@/lib/app-builder/build";
 import { buildLinks, CannotBuildHere, startClientEditBuild } from "@/lib/client-review/autoBuild";
-import { call as bridgeCall } from "@/lib/new-jarvis/bridge";
+import { call as bridgeCall, probe as bridgeProbe } from "@/lib/new-jarvis/bridge";
 import { pushThreadToMain } from "@/lib/client-review/pushMain";
 import { useBuild } from "@/lib/app-builder/useBuild";
 import { admin, type AdminState, type BriefOut } from "@/lib/client-review/client";
@@ -863,7 +863,7 @@ function BatchCard({
                       say(`Approved — ${out.version.number} is waiting to be built; post its address below when it is.${extra}`);
                       return;
                     }
-                    const started = await startBuild(out.project, b.id, run);
+                    const started = await startBuild(out.project, b.id, run, out.version.id);
                     say(`Approved — ${out.version.number}: ${started.message}${extra}`);
                     if (started.mode === "thread") goBuilding?.(p.token);
                   } finally {
@@ -1058,7 +1058,18 @@ interface BuildStart {
  * saying which of the three things is missing, the batch stays approved, and
  * pressing build again is the retry.
  */
-async function startBuild(project: ClientProject, batchId: string, run: Run): Promise<BuildStart> {
+async function startBuild(
+  project: ClientProject,
+  batchId: string,
+  run: Run,
+  /**
+   * The version this same press just opened by approving. Given only by
+   * Approve & build: if the build then fails to start, approving was half an
+   * action, and half an action is what leaves a version saying "building"
+   * with nothing behind it. So it is undone.
+   */
+  rollbackVersionId?: string,
+): Promise<BuildStart> {
   try {
     const started = await startClientEditBuild(project, batchId);
     const noted = await run("buildQueued", {
@@ -1076,15 +1087,24 @@ async function startBuild(project: ClientProject, batchId: string, run: Run): Pr
         : `Claude Code is building it with ${on}, but Client Review couldn't record it — the build still runs.`,
     };
   } catch (e) {
-    return {
-      mode: "failed",
-      message:
-        e instanceof CannotBuildHere
-          ? `${e.message} Nothing was filed — the batch is still approved, so press build again once that's sorted.`
-          : e instanceof Error
-            ? e.message
-            : "The build didn't start.",
-    };
+    const why = e instanceof Error ? e.message : "The build didn't start.";
+    // Written to the batch before anything else: this is the only record that
+    // survives the toast, and it is what the next person debugging this reads.
+    await run("buildFailed", { action: "buildFailed", id: project.id, batchId, message: why }).catch(() => null);
+    if (rollbackVersionId) {
+      const undone = await run("cancelBuild", {
+        action: "cancelBuild",
+        id: project.id,
+        versionId: rollbackVersionId,
+      }).catch(() => null);
+      return {
+        mode: "failed",
+        message: undone
+          ? `${why} Nothing was approved — your edits are still waiting, so fix that and press Approve & build again.`
+          : `${why} The approval could not be undone either — use Stop & remove on the version below.`,
+      };
+    }
+    return { mode: "failed", message: `${why} Nothing was filed — press build again once that's sorted.` };
   }
 }
 
@@ -1098,6 +1118,7 @@ function SiteHome({ project: p, run, say }: { project: ClientProject; run: Run; 
         <span className={ready ? "text-emerald-300" : "text-ink-faint"}>
           {ready ? "● Approved edits build themselves" : "○ Add the repo to build approved edits automatically"}
         </span>
+        <PcHelper />
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="block text-[11px] text-ink-faint">
@@ -1225,6 +1246,17 @@ function BuildStatus({
       ) : p.repo ? (
         <>
           <span className="text-ink-muted">Not started yet.</span>
+          {/*
+            A version that says "building" with nothing started is the stuck
+            state. Both halves of getting out of it belong here: why it did
+            not start, and the button that undoes the approval.
+          */}
+          {batch.buildError && (
+            <span className="text-amber-200" title={`Last tried ${ago(batch.buildError.at)}`}>
+              Last try: {batch.buildError.message}
+            </span>
+          )}
+          {v.status === "building" && <StopBuild busy={starting || busy === "cancelBuild"} onStop={stopBuild} />}
           <button
             className="ml-auto rounded-md border border-sky-400/50 bg-sky-400/20 px-2.5 py-1 text-[11.5px] text-sky-100 disabled:opacity-40"
             disabled={busy === "buildQueued" || starting}
@@ -1246,6 +1278,54 @@ function BuildStatus({
         <span className="text-ink-faint">Add the client&apos;s GitHub repo above to have Claude Code build this — or paste the address below when it&apos;s deployed.</span>
       )}
     </div>
+  );
+}
+
+/**
+ * Is the PC helper there, right now?
+ *
+ * Answered before anyone presses build rather than after. Every reason a build
+ * refuses to start begins here — the helper not running, or this browser not
+ * paired with it — and finding that out from a toast after approving is both
+ * too late and too easy to miss.
+ */
+function PcHelper() {
+  const [state, setState] = useState<"asking" | "up" | "unpaired" | "off">("asking");
+  const [why, setWhy] = useState("");
+
+  const check = useCallback(() => {
+    setState("asking");
+    bridgeProbe()
+      .then((h) => {
+        setWhy(h.problem ?? "");
+        setState(!h.up ? "off" : h.paired ? "up" : "unpaired");
+      })
+      .catch(() => setState("off"));
+  }, []);
+  useEffect(check, [check]);
+
+  const label =
+    state === "asking"
+      ? "· checking your PC…"
+      : state === "up"
+        ? "● PC helper running"
+        : state === "unpaired"
+          ? "○ PC helper running, this browser isn't paired"
+          : "○ PC helper not running — builds can't start";
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 ${
+        state === "up" ? "text-emerald-300" : state === "asking" ? "text-ink-faint" : "text-amber-200"
+      }`}
+      title={why || undefined}
+    >
+      {label}
+      {state !== "asking" && state !== "up" && (
+        <button className="underline hover:text-ink" onClick={check}>
+          check again
+        </button>
+      )}
+    </span>
   );
 }
 

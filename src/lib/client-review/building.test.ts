@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildingRows, READY_WINDOW_MS, waitedFor } from "./building";
-import { addRequest, approveBatch, createProject, markVersionReady, sendToJarvis } from "./logic";
+import { addRequest, approveBatch, createProject, markVersionReady, noteBuild, noteBuildFailure, sendToJarvis } from "./logic";
 import type { ClientProject } from "./types";
 
 const T = "2026-10-20T04:00:00.000Z";
@@ -80,5 +80,24 @@ describe("how long it has been", () => {
   it("does not say a negative number when the clocks disagree", () => {
     expect(waitedFor(T, Date.parse(T) - 5_000)).toBe("just now");
     expect(waitedFor("not a date")).toBe("just now");
+  });
+});
+
+describe("a build that is stuck rather than slow", () => {
+  it("carries the reason, so the screen can say nothing is running", () => {
+    const { p, batchId } = building();
+    const failed = noteBuildFailure(p, { batchId, message: "Jarvis's PC helper isn't running." }, T);
+    const row = buildingRows([failed], NOW)[0];
+    expect(row.threadId).toBeUndefined();
+    expect(row.error?.message).toContain("PC helper isn't running");
+  });
+
+  it("drops the reason once a thread is really running", () => {
+    const { p, batchId } = building();
+    const failed = noteBuildFailure(p, { batchId, message: "no PC" }, T);
+    const started = noteBuild(failed, { batchId, builderId: "ab_1", threadId: "th_7" }, T);
+    const row = buildingRows([started], NOW)[0];
+    expect(row.threadId).toBe("th_7");
+    expect(row.error).toBeUndefined();
   });
 });

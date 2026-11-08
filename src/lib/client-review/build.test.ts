@@ -12,6 +12,7 @@ import {
   currentVersion,
   markVersionReady,
   noteBuild,
+  noteBuildFailure,
   portalView,
   reviewRequest,
   sendToJarvis,
@@ -207,5 +208,52 @@ describe("stopping a build that went nowhere", () => {
     const { p, v2 } = building();
     const odd = { ...p, versions: p.versions.map((v) => (v.id === v2 ? { ...v, siteUrl: "https://v2.example" } : v)) };
     expect(() => cancelBuild(odd, { versionId: v2 }, T)).toThrow(/already has an address/);
+  });
+});
+
+describe("remembering why a build did not start", () => {
+  function approved() {
+    let p = createProject({ name: "Glow Spa", siteUrl: "glowspa.vercel.app", repo: "o/r" }, T);
+    p = addRequest(p, { versionId: p.versions[0].id, text: "bigger logo" }, T).project;
+    const sent = sendToJarvis(p, p.versions[0].id, T);
+    const out = approveBatch(sent.project, { batchId: sent.batch.id }, T);
+    return { p: out.project, batchId: sent.batch.id };
+  }
+
+  it("keeps the reason on the batch, where a toast could not", () => {
+    const { p, batchId } = approved();
+    const out = noteBuildFailure(p, { batchId, message: "Jarvis's PC helper isn't running." }, T);
+    expect(out.batches.find((b) => b.id === batchId)!.buildError).toEqual({
+      at: T,
+      message: "Jarvis's PC helper isn't running.",
+    });
+  });
+
+  it("never leaves an empty reason, because that is the one thing nobody can act on", () => {
+    const { p, batchId } = approved();
+    expect(noteBuildFailure(p, { batchId, message: "   " }, T).batches[0].buildError!.message).toMatch(/said nothing/);
+    expect(noteBuildFailure(p, { batchId, message: 42 }, T).batches[0].buildError!.message).toMatch(/said nothing/);
+  });
+
+  it("does not throw on a batch that is gone — the caller is already failing", () => {
+    const { p } = approved();
+    expect(() => noteBuildFailure(p, { batchId: "bat_nope", message: "x" }, T)).not.toThrow();
+  });
+
+  it("clears itself the moment a build really starts", () => {
+    const { p, batchId } = approved();
+    const failed = noteBuildFailure(p, { batchId, message: "no PC" }, T);
+    const started = noteBuild(failed, { batchId, builderId: "ab_1", threadId: "th_1" }, T);
+    const b = started.batches.find((x) => x.id === batchId)!;
+    expect(b.buildError).toBeUndefined();
+    expect(b.build?.threadId).toBe("th_1");
+  });
+
+  it("is dropped with the version when the build is cancelled", () => {
+    const { p, batchId } = approved();
+    const failed = noteBuildFailure(p, { batchId, message: "no PC" }, T);
+    const v2 = failed.versions.find((v) => v.status === "building")!.id;
+    const back = cancelBuild(failed, { versionId: v2 }, T).project;
+    expect(back.batches.find((x) => x.id === batchId)!.status).toBe("pending");
   });
 });

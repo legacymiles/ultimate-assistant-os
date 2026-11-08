@@ -97,6 +97,16 @@ export interface RequestBatch {
   nextVersionId?: string;
   /** Handed to App Builder and queued for Claude Code. */
   build?: BatchBuild;
+  /**
+   * The last time pressing build did not start one, and what it said.
+   *
+   * Kept on the batch rather than shown once and forgotten. A build that
+   * fails to start leaves no thread, no queue entry and no trace — the reason
+   * lived in a toast that was gone on the next render, which is how a version
+   * sat on "building" with nobody able to say why. Cleared the moment a build
+   * does start.
+   */
+  buildError?: { at: string; message: string };
 }
 
 /** Where an approved batch went to be built. */

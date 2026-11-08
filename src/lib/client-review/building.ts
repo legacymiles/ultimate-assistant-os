@@ -50,6 +50,11 @@ export interface BuildRow {
   /** The address to open. Only on a `ready` row. */
   siteUrl?: string;
   /**
+   * Why the last press of build did not start one. Present exactly when the
+   * row is stuck: a version marked building with nothing behind it.
+   */
+  error?: { at: string; message: string };
+  /**
    * The harness thread building it, so the owner can watch and answer it from
    * this screen. Owner-only: the endpoint strips it for a client, who has no
    * PC to talk to and no business knowing one exists.
@@ -61,9 +66,11 @@ function rowFor(p: ClientProject, now: number): BuildRow | null {
   const app = p.appSlug ? { appSlug: p.appSlug, ...(p.appPath ? { appPath: p.appPath } : {}) } : {};
   const making = buildingVersion(p);
   if (making) {
-    const thread = p.batches.find((b) => b.nextVersionId === making.id)?.build?.threadId;
+    const opener = p.batches.find((b) => b.nextVersionId === making.id);
+    const thread = opener?.build?.threadId;
     return {
       ...(thread ? { threadId: thread } : {}),
+      ...(!thread && opener?.buildError ? { error: opener.buildError } : {}),
       projectId: p.id,
       token: p.token,
       name: p.name,

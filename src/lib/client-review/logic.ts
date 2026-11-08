@@ -808,12 +808,33 @@ export function noteBuild(
   if (!b) throw new ReviewError("That batch no longer exists.", 404);
   if (b.status !== "approved" || !b.nextVersionId) throw new ReviewError("Approve the batch before building it.", 409);
   if (typeof input.builderId !== "string" || !input.builderId) throw new ReviewError("No App Builder project was given.");
+  delete b.buildError;
   b.build = {
     builderId: input.builderId.slice(0, 80),
     queueId: typeof input.queueId === "string" && input.queueId ? input.queueId.slice(0, 80) : b.build?.queueId,
     threadId: typeof input.threadId === "string" && input.threadId ? input.threadId.slice(0, 80) : b.build?.threadId,
     at: now,
   };
+  return touch(p, now);
+}
+
+/**
+ * Pressing build did not start one. Remember why, on the batch.
+ *
+ * Deliberately not a throw: the caller is already handling a failure, and the
+ * one thing that must not happen is losing the reason because recording it
+ * also went wrong. An unknown batch is simply not written to.
+ */
+export function noteBuildFailure(
+  src: ClientProject,
+  input: { batchId: unknown; message: unknown },
+  now = new Date().toISOString(),
+): ClientProject {
+  const p = clone(src);
+  const b = p.batches.find((x) => x.id === input.batchId);
+  if (!b) return p;
+  const message = typeof input.message === "string" ? input.message.trim().slice(0, 600) : "";
+  b.buildError = { at: now, message: message || "The build didn't start, and said nothing about why." };
   return touch(p, now);
 }
 

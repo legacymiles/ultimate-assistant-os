@@ -231,6 +231,14 @@ function Row({
         </ul>
       )}
       {row.threadId && !ready && <OwnerLive threadId={row.threadId} />}
+      {/*
+        No thread and an error: the press failed and this version is stuck.
+        Saying so here is the difference between "it is taking a while" and
+        "nothing is happening and nothing will".
+      */}
+      {row.error && !ready && (
+        <p className="crb-row-error">Nothing is running. The last try said: {row.error.message}</p>
+      )}
       <div className="crb-row-actions">
         {ready && (
           <button className="cr-btn" onClick={() => onOpen(row.token)}>

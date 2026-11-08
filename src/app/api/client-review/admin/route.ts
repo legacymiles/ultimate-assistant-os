@@ -9,6 +9,7 @@ import {
   createProject,
   markVersionReady,
   noteBuild,
+  noteBuildFailure,
   rejectBatch,
   releaseClaim,
   removeFromIndex,
@@ -323,6 +324,16 @@ export async function POST(req: Request) {
         const told = await tell(project, project.notices.at(-1), origin);
         await updateIndex((i) => upsertIndex(i, told));
         return NextResponse.json({ project: told, version: result.version, batches: result.batches });
+      }
+
+      // Pressing build did not start one. Written down so the reason survives
+      // the toast that used to be the only place it appeared.
+      case "buildFailed": {
+        const { project } = await updateProject(id, (p) => ({
+          project: noteBuildFailure(p, { batchId: body.batchId, message: body.message }),
+          result: null,
+        }));
+        return NextResponse.json({ project });
       }
 
       case "dismissEvents": {
