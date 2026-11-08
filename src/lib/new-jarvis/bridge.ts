@@ -116,8 +116,32 @@ export async function autoPair(signal?: AbortSignal): Promise<boolean> {
   }
 }
 
-/** Is it there? Never throws: "not there" is the normal answer. Pairs itself when it can. */
+/**
+ * Is it there? Never throws: "not there" is the normal answer.
+ *
+ * Tried TWICE before believing the answer is no. A page served over https
+ * reaching 127.0.0.1 is a cross-origin request into the local network, and
+ * the browser does a dance before the first one of those lands — a preflight,
+ * and on current Chrome a local-network permission check. The first call from
+ * a page can fail where the second succeeds milliseconds later.
+ *
+ * That blip used to cost a whole Approve & build: one failed fetch meant
+ * "Jarvis's PC helper isn't running" on a machine where it was running, was
+ * answering, and was already paired. Everything else here is written on the
+ * assumption that the bridge is off, so the one thing that must be right is
+ * deciding that it IS off.
+ *
+ * An aborted probe is not retried: the caller walked away.
+ */
 export async function probe(signal?: AbortSignal): Promise<BridgeHealth> {
+  const first = await probeOnce(signal);
+  if (first.up || signal?.aborted) return first;
+  await new Promise((r) => setTimeout(r, 250));
+  if (signal?.aborted) return first;
+  return probeOnce(signal);
+}
+
+async function probeOnce(signal?: AbortSignal): Promise<BridgeHealth> {
   try {
     const res = await fetch(`${BRIDGE_URL}/health`, { signal, cache: "no-store" });
     if (!res.ok) return { ...BRIDGE_OFFLINE, up: true, problem: `The agent answered ${res.status}.` };
