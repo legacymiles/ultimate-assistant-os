@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { kartDisplay as display, kartMono as mono } from "@/lib/fonts";
 import Lenis from "lenis";
 import { useKart } from "@/lib/kart/store";
 import { PARTS, REGIONS } from "@/lib/kart/parts";
@@ -13,8 +13,6 @@ import {
 import { useEngineSound } from "./useEngineSound";
 import styles from "./kart.module.css";
 
-const display = Space_Grotesk({ subsets: ["latin"], weight: ["500", "700"] });
-const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"] });
 
 function hasWebGL() {
   try {

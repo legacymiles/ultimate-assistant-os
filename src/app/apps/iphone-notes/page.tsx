@@ -1,14 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { JetBrains_Mono, Oxanium } from "next/font/google";
+import { njDisplay as display, njMono as mono } from "@/lib/fonts";
 import { IphoneNotesApp } from "@/components/iphone-notes/IphoneNotesApp";
 
 // iPhone Notes — a Jarvis App plugin and a Dashboard widget. Notes from the
 // iPhone, read into proposals with a self-improving confidence score; every
 // one waits for the owner's Approve. Session-gated by middleware like the rest
 // of the hub; never indexed (it's people's notes).
-
-const display = Oxanium({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-nj-display", display: "swap" });
-const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-nj-mono", display: "swap" });
 
 export const metadata: Metadata = {
   title: "iPhone Notes · Jarvis",

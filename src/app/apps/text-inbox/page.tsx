@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { JetBrains_Mono, Oxanium } from "next/font/google";
+import { njDisplay as display, njMono as mono } from "@/lib/fonts";
 import { TextInboxApp } from "@/components/text-inbox/TextInboxApp";
 
 // Text Inbox — a Jarvis App plugin and a Dashboard widget. Texts from the
@@ -7,9 +7,6 @@ import { TextInboxApp } from "@/components/text-inbox/TextInboxApp";
 // user's Approve, and only the iPhone sends it. Session-gated by middleware
 // like the rest of the hub; never indexed (it's people's messages). Its own
 // manifest so it can be added to the Home Screen, where iOS delivers push.
-
-const display = Oxanium({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-nj-display", display: "swap" });
-const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-nj-mono", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Text Inbox · Jarvis",

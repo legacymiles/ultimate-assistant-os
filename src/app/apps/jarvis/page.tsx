@@ -1,31 +1,18 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import localFont from "next/font/local";
+import { njDisplay, njMono } from "@/lib/fonts";
 import { NewJarvis } from "@/components/new-jarvis/NewJarvis";
 import { sessionToken, status, tokenMatches } from "@/lib/recall/gateStore";
 import { callerIsMember } from "@/lib/recall/lists/session";
 
-// The surface's design names JetBrains Mono as the voice of every command,
-// path, ref, count and elapsed time. It used to be asked for from Google at
-// build time, which made a build fail wherever fonts.googleapis.com was
-// unreachable; the same faces are self-hosted in public/fonts so the build
-// never needs that network.
-const mono = localFont({
-  src: [{ path: "../../../../public/fonts/jetbrains-mono-latin.woff2", weight: "400 700", style: "normal" }],
-  variable: "--font-nj-mono",
-  display: "swap",
-  fallback: ["Consolas", "monospace"],
-});
-
-// The Deck's display face: angular and technical, used only for the greeting
-// and section names so the HUD reads as one instrument.
-const display = localFont({
-  src: [{ path: "../../../../public/fonts/oxanium-latin.woff2", weight: "500 700", style: "normal" }],
-  variable: "--font-nj-display",
-  display: "swap",
-  fallback: ["Arial Narrow", "Arial", "sans-serif"],
-});
+// JetBrains Mono is the voice of every command, path, ref, count and elapsed
+// time; Oxanium, angular and technical, carries the greeting and section names
+// so the HUD reads as one instrument. Both are self-hosted — see
+// `src/lib/fonts`, which declares every face in the hub from public/fonts so no
+// build ever asks Google for one.
+const mono = njMono;
+const display = njDisplay;
 
 export const metadata: Metadata = {
   title: "Jarvis",
