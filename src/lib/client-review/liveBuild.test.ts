@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { emptyThread } from "@/lib/new-jarvis/harness/model";
 import type { ThreadView, ToolRow, Turn } from "@/lib/new-jarvis/harness/types";
-import { feedItems, finishOf, shortPath, standingOf, START_GRACE_MS, toolLine } from "./liveBuild";
+import { blockerAdvice, feedItems, finishOf, shortPath, standingOf, START_GRACE_MS, toolLine } from "./liveBuild";
 
 function tool(over: Partial<ToolRow>): ToolRow {
   return { callId: "c1", name: "Read", title: "", kindOf: "read", path: "", command: "", status: "ok", output: "", at: 1, ...over };
@@ -132,5 +132,29 @@ describe("standingOf — is anything actually building it?", () => {
 
   it("treats an unreadable date as too fresh to call stuck", () => {
     expect(standingOf({ since: "not a date" }, at)).toEqual({ kind: "starting" });
+  });
+});
+
+describe("blockerAdvice — the words, and whether a press can fix it", () => {
+  it("offers the press for everything a press can fix", () => {
+    for (const r of ["blocked-by-browser", "pc-off", "not-paired"] as const) {
+      const a = blockerAdvice(r);
+      expect(a.canConnect).toBe(true);
+      // The press is on this page, so the words must point at it and not at a
+      // button on another screen.
+      expect(a.text).toContain("Connect to my PC");
+    }
+  });
+
+  it("does not offer a press for what a press cannot fix", () => {
+    expect(blockerAdvice("repo-not-here").canConnect).toBe(false);
+    expect(blockerAdvice("no-repo").canConnect).toBe(false);
+    expect(blockerAdvice("no-repo").text).toContain("Ship");
+  });
+
+  it("never tells the owner to press Build again", () => {
+    for (const r of ["blocked-by-browser", "pc-off", "not-paired", "repo-not-here", "no-repo"] as const) {
+      expect(blockerAdvice(r).text).not.toMatch(/press build/i);
+    }
   });
 });

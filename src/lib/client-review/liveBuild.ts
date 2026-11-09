@@ -109,6 +109,43 @@ export function standingOf(
   };
 }
 
+/** Why this browser cannot build right now. */
+export type Blocker = "blocked-by-browser" | "pc-off" | "not-paired" | "repo-not-here" | "no-repo";
+
+/**
+ * What to say, and whether a button can do anything about it.
+ *
+ * The old words sent the owner to a button on a different app ("Press Connect
+ * to this PC") and left them to find it. Everything a press can fix says so
+ * here, and the press is on the same line as the sentence.
+ */
+export function blockerAdvice(reason: Blocker): { text: string; canConnect: boolean } {
+  switch (reason) {
+    case "blocked-by-browser":
+      return {
+        text: "Your browser hasn't let this page talk to your PC yet. Press Connect to my PC below, then choose Allow when it asks — it only asks once.",
+        canConnect: true,
+      };
+    case "pc-off":
+      return {
+        text: "Jarvis's helper isn't running on this PC. Press Connect to my PC below and it will be started for you.",
+        canConnect: true,
+      };
+    case "not-paired":
+      return {
+        text: "This browser and your PC haven't been introduced yet. Press Connect to my PC below — it takes a second and there is nothing to copy.",
+        canConnect: true,
+      };
+    case "repo-not-here":
+      return { text: "That site's code isn't on this PC, so it can't be built here.", canConnect: false };
+    case "no-repo":
+      return {
+        text: "This site has no GitHub repo yet, so there's nothing to build in. Add it under Ship › Where the site lives.",
+        canConnect: false,
+      };
+  }
+}
+
 /** What a build's end means for the page. */
 export type Finish =
   | { kind: "running" }

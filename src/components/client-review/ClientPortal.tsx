@@ -21,7 +21,8 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { approveAndStart } from "@/lib/client-review/buildHere";
+import { approveAndStart, connectToPc } from "@/lib/client-review/buildHere";
+import { blockerAdvice, type Blocker } from "@/lib/client-review/liveBuild";
 import { ApiError, portal, urlBase64ToUint8Array } from "@/lib/client-review/client";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { BuildFeed, BuildSteer, useLiveBuild } from "./LiveBuild";
@@ -99,6 +100,11 @@ interface ChatNotice {
   text: string;
   /** Offer the notification switch under it. */
   notify?: boolean;
+  /**
+   * Why the build couldn't start, when a press can fix it. The chat then
+   * carries that press, instead of naming a button on another screen.
+   */
+  blocker?: Blocker;
 }
 
 function isIos(): boolean {
@@ -145,6 +151,7 @@ export function ClientPortal({
 
   // What Jarvis says in the chat after a send, and the build being started.
   const [notice, setNotice] = useState<ChatNotice | null>(null);
+  const [connecting, setConnecting] = useState(false);
   const [starting, setStarting] = useState(false);
   /** The version a build just put on the page, for a moment of "it's here". */
   const [landed, setLanded] = useState<string | null>(null);
@@ -401,13 +408,40 @@ export function ClientPortal({
     setNotice(null);
     try {
       const out = await approveAndStart(token, versionId);
-      if (out.state === "failed") setNotice({ tone: "bad", text: out.message });
+      if (out.state === "failed") {
+        setNotice({ tone: "bad", text: out.message, ...(out.blocker ? { blocker: out.blocker } : {}) });
+      }
     } catch (e) {
       setNotice({ tone: "bad", text: `The build didn't start: ${(e as Error).message}` });
     } finally {
       setStarting(false);
       refresh();
     }
+  };
+
+  /**
+   * Connect to the PC and then build, on one press.
+   *
+   * The press is the point: a browser only asks to reach the local network off
+   * a real click. Succeeding goes straight on to the build rather than leaving
+   * a "now press Build" step, because that step is what kept not working.
+   */
+  const connectAndBuild = async (versionId?: string) => {
+    setConnecting(true);
+    setNotice(null);
+    try {
+      const still = await connectToPc();
+      if (still) {
+        setNotice({ tone: "bad", text: blockerAdvice(still).text, blocker: still });
+        return;
+      }
+    } catch (e) {
+      setNotice({ tone: "bad", text: `Connecting didn't work: ${(e as Error).message}` });
+      return;
+    } finally {
+      setConnecting(false);
+    }
+    await build(versionId);
   };
 
   const enableNotify = async () => {
@@ -757,6 +791,11 @@ export function ClientPortal({
               <li className={`cr-notice tone-${notice.tone}`} role={notice.tone === "bad" ? "alert" : "status"}>
                 <p>{notice.text}</p>
                 <div className="cr-row">
+                  {notice.blocker && blockerAdvice(notice.blocker).canConnect && (
+                    <button className="cr-btn small" onClick={() => void connectAndBuild()} disabled={connecting || starting}>
+                      {connecting ? "Connecting…" : "Connect to my PC"}
+                    </button>
+                  )}
                   {notice.notify && !view.settings.notify && (
                     <button className="cr-btn small" onClick={enableNotify} disabled={busy === "notify"}>
                       {busy === "notify" ? "Turning on…" : "Notify me too"}

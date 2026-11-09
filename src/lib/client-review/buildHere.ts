@@ -15,8 +15,10 @@
 // nothing behind it.
 // ---------------------------------------------------------------------------
 
+import { probe, START_LINK } from "@/lib/new-jarvis/bridge";
 import { admin } from "./client";
 import { CannotBuildHere, startClientEditBuild } from "./autoBuild";
+import { blockerAdvice, type Blocker } from "./liveBuild";
 import type { ClientProject, ReviewVersion } from "./types";
 
 export interface BuildStarted {
@@ -24,6 +26,66 @@ export interface BuildStarted {
   /** "v3" once a version was opened. */
   version?: string;
   message: string;
+  /** Set when a press could fix it, so the chat can offer that press. */
+  blocker?: Blocker;
+}
+
+/**
+ * Can this browser build, right now?
+ *
+ * Asked BEFORE approving. Approving and then discovering the PC is unreachable
+ * meant opening a version, failing, and unpicking it again — three writes to
+ * say "your browser hasn't been allowed to talk to your PC". Null means go.
+ */
+export async function pcReadiness(): Promise<Blocker | null> {
+  const health = await probe();
+  if (!health.up) return health.needsLocalNetwork ? "blocked-by-browser" : "pc-off";
+  if (!health.paired) return "not-paired";
+  return null;
+}
+
+/**
+ * Connect this browser to the PC, from a press.
+ *
+ * The press matters: Chrome will only ask "let this site reach your local
+ * network?" off the back of a real click, which is why this cannot be done
+ * quietly on the page's behalf. A helper that is not running is started
+ * through the link it registers, and then waited for.
+ */
+export async function connectToPc(): Promise<Blocker | null> {
+  const first = await pcReadiness();
+  if (first !== "pc-off") return first;
+  // Not running: ask Windows to start it, then give it a few seconds.
+  startHelper();
+  for (let i = 0; i < 10; i++) {
+    await new Promise((r) => setTimeout(r, 1500));
+    const again = await pcReadiness();
+    if (!again) return null;
+  }
+  return "pc-off";
+}
+
+/**
+ * Open the `jarvis-agent://` link the helper registers, without betting the
+ * page on it.
+ *
+ * Through `location.href` this is a navigation: where the handler is missing,
+ * or the browser is strict about custom protocols, the page it was pressed on
+ * goes away — taking the chat, the build about to start and the edits on
+ * screen with it. In a frame nothing can leave, and a protocol that does not
+ * exist is simply a frame that does nothing.
+ */
+function startHelper(): void {
+  try {
+    const frame = document.createElement("iframe");
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.display = "none";
+    frame.src = START_LINK;
+    document.body.appendChild(frame);
+    window.setTimeout(() => frame.remove(), 10_000);
+  } catch {
+    // Nothing to do: the wait below simply finds the helper still absent.
+  }
 }
 
 /** Edits waiting on the owner, on any version: what Build would build. */
@@ -39,17 +101,20 @@ export function waitingBatch(project: ClientProject) {
  * requests, or edits a failed start handed back.
  */
 export async function approveAndStart(token: string, versionId?: string): Promise<BuildStarted> {
+  // FIRST, before any other round trip: a browser only offers "let this site
+  // reach your PC?" while the press that started this is still warm, and it
+  // expires in seconds. Asking the server about the project first is what
+  // spent that press and left the owner reading about a button on another
+  // screen. Nothing is approved until this answers yes, either.
+  const blocked = await pcReadiness();
+  if (blocked) return { state: "failed", blocker: blocked, message: blockerAdvice(blocked).text };
+
   const { project } = await admin.byToken(token);
   const batch = versionId
     ? project.batches.filter((b) => b.versionId === versionId && b.status === "pending").at(-1)
     : waitingBatch(project);
   if (!batch) return { state: "failed", message: "There are no edits waiting to be built." };
-  if (!project.repo) {
-    return {
-      state: "failed",
-      message: "This site has no GitHub repo yet, so there's nothing to build in. Add it under Ship › Where the site lives.",
-    };
-  }
+  if (!project.repo) return { state: "failed", blocker: "no-repo", message: blockerAdvice("no-repo").text };
 
   const out = await admin.act<{ project: ClientProject; version: ReviewVersion }>({
     action: "approve",
@@ -67,8 +132,15 @@ export async function approveAndStart(token: string, versionId?: string): Promis
     });
     return { state: "working", version: out.version.number, message: `Claude Code is building ${out.version.number} with ${started.model}.` };
   } catch (e) {
-    const why =
-      e instanceof CannotBuildHere || e instanceof Error ? e.message : "The build didn't start.";
+    const blocker = e instanceof CannotBuildHere && e.reason !== "repo-not-here" ? e.reason : undefined;
+    // When a press can fix it, say the words that match the press. The
+    // library's own sentences send people to Jarvis on that PC to pair it,
+    // and that is a screen away from the one they are standing on.
+    const why = blocker
+      ? blockerAdvice(blocker).text
+      : e instanceof CannotBuildHere || e instanceof Error
+        ? e.message
+        : "The build didn't start.";
     await admin.act({ action: "buildFailed", id: out.project.id, batchId: batch.id, message: why }).catch(() => null);
     const undone = await admin
       .act({ action: "cancelBuild", id: out.project.id, versionId: out.version.id })
@@ -76,8 +148,9 @@ export async function approveAndStart(token: string, versionId?: string): Promis
       .catch(() => false);
     return {
       state: "failed",
+      ...(blocker ? { blocker } : {}),
       message: undone
-        ? `${why} Your edits are still waiting — press Build when that's sorted.`
+        ? `${why}${blocker ? "" : " Your edits are still waiting — press Build when that's sorted."}`
         : `${why} ${out.version.number} is stuck on building; stop it from the chat and try again.`,
     };
   }
