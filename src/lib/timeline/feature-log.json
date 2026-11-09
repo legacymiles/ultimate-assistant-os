@@ -1,10 +1,19 @@
 [
  {
-  "id": "b48dfea:baby-no-scroll",
+  "id": "8c0428b:image-studio",
   "date": "2026-11-09",
-  "slug": "baby-no-scroll",
-  "title": "Make the console background yellow (client edit, v2)",
-  "detail": "",
+  "slug": "image-studio",
+  "title": "Draw pictures free on the owner's own card instead of paying a model",
+  "detail": "Every image the hub made went to a paid model. WanGP is already installed under Pinokio with Flux 2 Klein 4B on disk, so the picture is now drawn on the RTX 3050 first — no key, no account, no spend, no watermark — and the paid model is only reached when the PC is off.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8c0428b:images",
+  "date": "2026-11-09",
+  "slug": "images",
+  "title": "Draw pictures free on the owner's own card instead of paying a model",
+  "detail": "Every image the hub made went to a paid model. WanGP is already installed under Pinokio with Flux 2 Klein 4B on disk, so the picture is now drawn on the RTX 3050 first — no key, no account, no spend, no watermark — and the paid model is only reached when the PC is off.",
   "group": "supporting",
   "source": "git"
  },
@@ -6718,6 +6727,15 @@
   "date": "2026-06-25",
   "slug": "jarvis",
   "title": "Ultimate Assistant OS hub + Projects Timeline app",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b48dfea:baby-no-scroll",
+  "date": "2026-11-09",
+  "slug": "baby-no-scroll",
+  "title": "Make the console background yellow (client edit, v2)",
   "detail": "",
   "group": "supporting",
   "source": "git"

@@ -4,7 +4,8 @@
     "deploymentEnabled": {
       "**": false,
       "main": true,
-      "jarvis/*": true
+      "jarvis/*": true,
+      "jarvis-*": true
     }
   }
 }
