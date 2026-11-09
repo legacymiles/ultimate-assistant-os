@@ -1,5 +1,50 @@
 [
  {
+  "id": "c659575:jarvis",
+  "date": "2026-11-09",
+  "slug": "jarvis",
+  "title": "A workbench in the chat — coding agents, GitHub, Vercel, Supabase, MCP, CLIs",
+  "detail": "The chat could browse, read and run, but it could not hand a multi-file job to an agent that writes, tests and commits, and it had no way to reach the services an app actually ships through. Both are tools now.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c659575:app-builder",
+  "date": "2026-11-09",
+  "slug": "app-builder",
+  "title": "A workbench in the chat — coding agents, GitHub, Vercel, Supabase, MCP, CLIs",
+  "detail": "The chat could browse, read and run, but it could not hand a multi-file job to an agent that writes, tests and commits, and it had no way to reach the services an app actually ships through. Both are tools now.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c659575:client-review",
+  "date": "2026-11-09",
+  "slug": "client-review",
+  "title": "A workbench in the chat — coding agents, GitHub, Vercel, Supabase, MCP, CLIs",
+  "detail": "The chat could browse, read and run, but it could not hand a multi-file job to an agent that writes, tests and commits, and it had no way to reach the services an app actually ships through. Both are tools now.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1ae99a9:client-review",
+  "date": "2026-11-09",
+  "slug": "client-review",
+  "title": "Stop gating the push, stop refusing in silence, remember the act",
+  "detail": "Three failures from one real build, in order of what they cost.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1ae99a9:jarvis",
+  "date": "2026-11-09",
+  "slug": "jarvis",
+  "title": "Stop gating the push, stop refusing in silence, remember the act",
+  "detail": "Three failures from one real build, in order of what they cost.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "60ceac5:ai-rankings",
   "date": "2026-11-09",
   "slug": "ai-rankings",
@@ -725,6 +770,33 @@
   "slug": "jarvis",
   "title": "No card for a studio the Studio tab already panels",
   "detail": "The seven studios had two doors. Each one has a tall panel on the Studio tab playing a clip of what it makes, and a line of text on the App plugins page going to the same route — so the plugins page was 21 cards, 7 of them the worse of two ways to the same place.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "50c0531:profile",
+  "date": "2026-11-01",
+  "slug": "profile",
+  "title": "Take the other branch's wording of the pdf-parse fix",
+  "detail": "feat/studio-hub-studios found the same bug independently (764f278) and fixed it a few hours before this branch did. Two different edits to the same lines would have conflicted the moment both merged, for no reason - the fixes were functionally identical.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ae89de2:profile",
+  "date": "2026-11-01",
+  "slug": "profile",
+  "title": "Bring the folder system onto the current shell",
+  "detail": "The Profile app was built against src/components/jarvis/Jarvis.tsx, which main deleted while the branch sat local. /apps/jarvis renders NewJarvis now, and Profile is a Dashboard panel rather than a rail tab, so the original two-line tab swap had nothing left to attach to. This rebuilds the wiring ag",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ae89de2:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "Bring the folder system onto the current shell",
+  "detail": "The Profile app was built against src/components/jarvis/Jarvis.tsx, which main deleted while the branch sat local. /apps/jarvis renders NewJarvis now, and Profile is a Dashboard panel rather than a rail tab, so the original two-line tab swap had nothing left to attach to. This rebuilds the wiring ag",
   "group": "supporting",
   "source": "git"
  },
