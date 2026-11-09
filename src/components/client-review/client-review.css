@@ -1890,3 +1890,10 @@ a.cr-btn {
   font-size: 12px;
   line-height: 1.5;
 }
+/* On a repeat card, Always leads — Allow is the button that guarantees being
+   asked the same thing again. */
+.crb-gate button.lead {
+  background: rgba(251, 191, 36, 0.38);
+  border-color: rgba(251, 191, 36, 0.85);
+  color: #fff;
+}

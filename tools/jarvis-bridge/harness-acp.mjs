@@ -173,8 +173,8 @@ export function startAcp({ cwd, emit, gate, strict = false, laneWrites = false, 
         // Under `read-only` dsh never asks about a read, so in practice this
         // only ever passes a lane's own write — but the policy is asked rather
         // than assumed, so this adapter and the Claude one cannot drift.
-        const ok = autoAllow(d, { strict, laneWrites, trust })
-          ? (emit({ kind: "allowed", name, title: d.title }), true)
+        const decided = autoAllow(d, { strict, laneWrites, trust })
+          ? (emit({ kind: "allowed", name, title: d.title }), { allow: true, how: "auto" })
           : await gate({
               name,
               title: d.title,
@@ -184,7 +184,11 @@ export function startAcp({ cwd, emit, gate, strict = false, laneWrites = false, 
               command: d.command,
               path: d.path,
               input: remembered.input ?? {},
-            }).catch(() => false);
+            }).catch(() => ({ allow: false, how: "error" }));
+        // `{allow, how}`, never a bare boolean: an object is always
+        // truthy, so reading the old shape here would auto-allow every
+        // card this adapter ever shows.
+        const ok = decided.allow;
         const chosen = ok ? allow : reject;
         if (!chosen) {
           // No usable option means we cannot answer honestly, and ACP's

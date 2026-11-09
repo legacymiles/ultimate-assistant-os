@@ -20,6 +20,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { PHASE_LABEL, latestWord } from "@/lib/app-builder/build";
+import { askedBefore } from "@/lib/new-jarvis/harness/families";
 import { buildLinks, CannotBuildHere, startClientEditBuild } from "@/lib/client-review/autoBuild";
 import { call as bridgeCall, probe as bridgeProbe } from "@/lib/new-jarvis/bridge";
 import { pushThreadToMain } from "@/lib/client-review/pushMain";
@@ -1437,6 +1438,7 @@ function BuildThread({
   const done = build.phase === "done";
   const bad = build.phase === "failed" || build.phase === "lost";
   const gate = build.gate;
+  const repeat = gate ? askedBefore(build.view, gate) : false;
   return (
     <>
       <span className={done ? "text-emerald-200" : bad ? "text-rose-200" : "text-sky-200"}>
@@ -1454,13 +1456,28 @@ function BuildThread({
           <span className="min-w-0 truncate" title={gate.why || gate.command || gate.path}>
             Needs you: {gate.title || gate.name}
           </span>
+          {/* On a repeat, Always leads: Allow is the button that guarantees
+              being asked the same thing again. */}
+          {gate.risk !== "grave" && repeat && (
+            <button
+              className="rounded border border-amber-300/60 bg-amber-300/20 px-1.5 py-0.5 text-[11px] font-semibold"
+              title={`Stop asking about ${gate.name} for the rest of this build`}
+              onClick={() => void build.decide(gate.gateId, true, true)}
+            >
+              Always
+            </button>
+          )}
           <button
-            className="rounded border border-amber-300/60 bg-amber-300/20 px-1.5 py-0.5 text-[11px] font-semibold"
+            className={
+              repeat
+                ? "rounded border border-amber-300/40 px-1.5 py-0.5 text-[11px]"
+                : "rounded border border-amber-300/60 bg-amber-300/20 px-1.5 py-0.5 text-[11px] font-semibold"
+            }
             onClick={() => void build.decide(gate.gateId, true)}
           >
-            Allow
+            Allow{repeat ? " once" : ""}
           </button>
-          {gate.risk !== "grave" && (
+          {gate.risk !== "grave" && !repeat && (
             <button
               className="rounded border border-amber-300/50 px-1.5 py-0.5 text-[11px]"
               title={`Stop asking about ${gate.name} for the rest of this build`}

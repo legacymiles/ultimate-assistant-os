@@ -25,6 +25,7 @@ import { call } from "@/lib/new-jarvis/bridge";
 import { waitedFor, type BuildRow } from "@/lib/client-review/building";
 import { useBuild } from "@/lib/app-builder/useBuild";
 import { PHASE_LABEL, latestWord } from "@/lib/app-builder/build";
+import { askedBefore } from "@/lib/new-jarvis/harness/families";
 import "./client-review.css";
 
 /** Fast while something is building — this is a screen someone is watching. */
@@ -272,6 +273,10 @@ function OwnerLive({ threadId }: { threadId: string }) {
   const build = useBuild(threadId, true);
   const gate = build.gate;
   const what = build.phase === "working" ? latestWord(build.view) : "";
+  // The second time an act asks, somebody has already read the card and said
+  // yes. Always stops being the cautious button there and becomes the obvious
+  // one, so it is drawn first.
+  const repeat = gate ? askedBefore(build.view, gate) : false;
   return (
     <div className="crb-live">
       <span className="crb-live-phase">{PHASE_LABEL[build.phase]}</span>
@@ -282,13 +287,20 @@ function OwnerLive({ threadId }: { threadId: string }) {
           <span className="crb-gate-what" title={gate.why || gate.command || gate.path}>
             Needs you: {gate.title || gate.name}
           </span>
-          <button onClick={() => void build.decide(gate.gateId, true)}>Allow</button>
           {/*
-            One answer per TOOL, not per call. A build that checks its own work
+            One answer per ACT, not per call. A build that checks its own work
             in a browser asks before every MCP call, and clicking Allow forty
-            times is how someone stops reading the cards at all.
+            times is how someone stops reading the cards at all. On a repeat
+            the order flips: Always leads, because Allow is the button that
+            guarantees being asked again.
           */}
-          {gate.risk !== "grave" && (
+          {gate.risk !== "grave" && repeat && (
+            <button className="lead" onClick={() => void build.decide(gate.gateId, true, true)} title={`Stop asking about ${gate.name} for the rest of this build`}>
+              Always
+            </button>
+          )}
+          <button onClick={() => void build.decide(gate.gateId, true)}>Allow{repeat ? " once" : ""}</button>
+          {gate.risk !== "grave" && !repeat && (
             <button onClick={() => void build.decide(gate.gateId, true, true)} title={`Stop asking about ${gate.name} for the rest of this build`}>
               Always
             </button>

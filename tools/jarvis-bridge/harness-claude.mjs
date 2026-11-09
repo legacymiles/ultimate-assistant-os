@@ -97,7 +97,7 @@ export function startClaude({ cwd, emit, gate, strict = false, laneWrites = fals
           emit({ kind: "allowed", name, title: d.title });
           return { behavior: "allow", updatedInput: args };
         }
-        const ok = await gate({
+        const decided = await gate({
           name,
           title: d.title,
           why: d.why,
@@ -106,10 +106,10 @@ export function startClaude({ cwd, emit, gate, strict = false, laneWrites = fals
           command: d.command,
           path: d.path,
           input: args,
-        }).catch(() => false);
-        return ok
+        }).catch(() => ({ allow: false, how: "error" }));
+        return decided.allow
           ? { behavior: "allow", updatedInput: args }
-          : { behavior: "deny", message: denialMessage(d.title) };
+          : { behavior: "deny", message: denialMessage(d.title, decided.how) };
       },
     },
   });
