@@ -1,5 +1,23 @@
 [
  {
+  "id": "b98d13b:ai-rankings",
+  "date": "2026-11-09",
+  "slug": "ai-rankings",
+  "title": "Refresh arena scores daily, and show what a filter hides",
+  "detail": "A leaderboard whose scores are only ever typed in by hand goes quietly wrong, so the daily check now has two halves: Hugging Face for new releases, which still land in the inbox for approval, and Artificial Analysis for the scores already on the board, which are updated in place.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b98d13b:jarvis",
+  "date": "2026-11-09",
+  "slug": "jarvis",
+  "title": "Refresh arena scores daily, and show what a filter hides",
+  "detail": "A leaderboard whose scores are only ever typed in by hand goes quietly wrong, so the daily check now has two halves: Hugging Face for new releases, which still land in the inbox for approval, and Artificial Analysis for the scores already on the board, which are updated in place.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "a0ca776:ai-rankings",
   "date": "2026-11-09",
   "slug": "ai-rankings",
