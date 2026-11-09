@@ -30,7 +30,9 @@ import { useMoneyAgents } from "@/lib/money-agents/useMoneyAgents";
 import { useRadar } from "@/lib/money-agents/useRadar";
 import { STAGES, type ItemStage } from "@/lib/money-agents/types";
 import { compact, money } from "@/lib/money-agents/logic";
+import { STUDIO_APPS, type StudioAppId, type StudioCounts } from "@/lib/money-agents/apps";
 import { AgentsTab } from "./AgentsTab";
+import { AppShelf } from "./AppShelf";
 import { ApproveTab } from "./ApproveTab";
 import { CampaignsTab } from "./CampaignsTab";
 import { EarningsTab } from "./EarningsTab";
@@ -45,19 +47,14 @@ const Bible = dynamic(() => import("../bible/Bible").then((m) => m.Bible), {
   loading: () => <div className="mas-bible-skeleton" aria-busy="true" aria-label="Loading Financial Bible" />,
 });
 
-export type TabId = "radar" | "approve" | "pipeline" | "agents" | "campaigns" | "earnings" | "bible";
+/**
+ * The seven apps inside the studio. The ids are the same ones `?tab=` has
+ * always used; the list itself — names, one-liners, accents — lives in
+ * `src/lib/money-agents/apps.ts`, which the app shelf renders.
+ */
+export type TabId = StudioAppId;
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: "radar", label: "Radar" },
-  { id: "approve", label: "Approve" },
-  { id: "pipeline", label: "Pipeline" },
-  { id: "agents", label: "Agents" },
-  { id: "campaigns", label: "Campaigns" },
-  { id: "earnings", label: "Earnings" },
-  { id: "bible", label: "Bible" },
-];
-
-/** The tabs that are a ledger of the pipeline, and so want the hero above them. */
+/** The apps that are a ledger of the pipeline, and so want the hero above them. */
 function wantsHero(tab: TabId): boolean {
   return tab !== "radar" && tab !== "bible";
 }
@@ -88,7 +85,7 @@ export function MoneyAgentStudio({
       /* storage refused — the default stands */
     }
     if (m.sums.waiting > 0) setTab("approve");
-    else if (saved && TABS.some((t) => t.id === saved)) setTab(saved as TabId);
+    else if (saved && STUDIO_APPS.some((a) => a.id === saved)) setTab(saved as TabId);
     // Only on arrival: after that the owner drives.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -115,6 +112,20 @@ export function MoneyAgentStudio({
     setStage(s);
     go("pipeline");
   };
+
+  // What every app tile shows about itself, counted once.
+  const counts: StudioCounts = useMemo(() => {
+    const sc = m.sums.stageCounts;
+    return {
+      plays: radar.feed?.plays?.length ?? 0,
+      catches: radar.catchesToday,
+      waiting: m.sums.waiting,
+      inFlight: sc.idea + sc.script + sc.rendering,
+      agents: m.board.agents.filter((a) => a.status === "active").length,
+      campaigns: m.board.agents.filter((a) => a.kind === "campaign" && a.campaign !== null).length,
+      paidThisMonth: m.sums.paidThisMonth,
+    };
+  }, [m.sums, m.board.agents, radar.feed, radar.catchesToday]);
 
   return (
     <div className="mas">
@@ -170,15 +181,7 @@ export function MoneyAgentStudio({
         </section>
         )}
 
-        <nav className="mas-tabs" role="tablist" aria-label="Money Agent Studio">
-          {TABS.map((t) => (
-            <button key={t.id} type="button" role="tab" className="mas-tab" aria-selected={tab === t.id} onClick={() => go(t.id)}>
-              {t.label}
-              {t.id === "approve" && m.sums.waiting > 0 && <span className="mas-badge">{m.sums.waiting}</span>}
-              {t.id === "radar" && radar.catchesToday > 0 && <span className="mas-badge">{radar.catchesToday}</span>}
-            </button>
-          ))}
-        </nav>
+        <AppShelf current={tab} counts={counts} onOpen={go} />
 
         <main>
           {tab === "radar" && <RadarTab r={radar} say={(text, tone) => m.say(text, undefined, tone)} />}
