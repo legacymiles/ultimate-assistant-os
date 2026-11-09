@@ -32,7 +32,7 @@ export interface AgentTool {
    * Which capability must be up for this to be offered. Undefined means it
    * always is — which is what makes the hub tools survive a stopped agent.
    */
-  needs?: "browser" | "shell" | "files" | "system";
+  needs?: "browser" | "shell" | "files" | "system" | "harness" | "mcp" | "cli";
 }
 
 import { FIELD_BY_KEY } from "@/lib/jarvis/record/types";
@@ -547,6 +547,255 @@ export const AGENT_TOOLS: AgentTool[] = [
         request: str("The full change, in plain words, with everything the owner said about it."),
       },
       required: ["app", "request"],
+    },
+  },
+
+  // --- a coding agent, for the jobs one edit cannot finish -----------------
+  // These are the difference between an assistant that can read and one that
+  // can build. The bridge cuts a real git worktree, starts a real coding
+  // harness in it, and keeps it running after this turn. See workbench.ts.
+  {
+    name: "work_start",
+    kind: "hub",
+    route: "hub/work_start",
+    needs: "harness",
+    description:
+      "Start a REAL coding agent (DeepSeek Harness or Claude Code) on this PC, in its own git worktree of the repo, and keep it running after you answer. Use it for work that is more than one edit: several files, a build or test loop, a feature that has to be wired end to end, or an app to change so much that doing it step by step would take thirty steps. Do NOT use it for a one-line change you can make with files_write, or for reading something. Give it the whole job in `task` — what to change, where, how it should behave on phone and computer, and how to know it is done. It can push, open a pull request and check the live site itself. After it starts, read progress with work_check.",
+    parameters: {
+      type: "object",
+      properties: {
+        task: str(
+          "The complete brief, in the owner's words plus the specifics you learned: the files, the app path, the behaviour, the checks. This is the only thing the agent is told.",
+        ),
+        harness: {
+          type: "string",
+          enum: ["deepseek", "claude"],
+          description: "Which harness. DeepSeek Harness (dsh) by default; Claude Code if dsh is not installed.",
+        },
+        repo: str("The repository's folder on this PC. Leave out to use the hub's own checkout, which is what app edits want."),
+        project: str("A NEW project's slug, instead of a repo — makes a fresh folder with its own git repo. Only for a brand-new app."),
+        title: str("A short name for the thread, shown in the owner's harness list."),
+        trust: {
+          type: "string",
+          enum: ["trusted", "ask", "auto"],
+          description: "How much it may do without asking. `trusted` (default) writes freely in its own worktree and still parks on grave things.",
+        },
+      },
+      required: ["task"],
+    },
+  },
+  {
+    name: "work_check",
+    kind: "hub",
+    route: "hub/work_check",
+    needs: "harness",
+    description:
+      "Read what a running agent has done: the last thing it said, its recent steps, and whether it is blocked on a permission question. Waits a few seconds for something to happen, so call it once rather than in a tight loop. Pass the `since` cursor from the previous result to read only the new stretch; pass nothing on the first call.",
+    parameters: {
+      type: "object",
+      properties: {
+        threadId: str("The threadId work_start returned."),
+        since: { type: "number", description: "The cursor from the previous work_check. Omit on the first call." },
+        waitMs: { type: "number", description: "How long to wait for news, in ms. Default 15000, max 30000." },
+      },
+      required: ["threadId"],
+    },
+  },
+  {
+    name: "work_say",
+    kind: "hub",
+    route: "hub/work_say",
+    needs: "harness",
+    description:
+      "Send the running agent another instruction — a correction, a missing detail, an answer to something it asked in prose. Use work_decide for a permission gate, not this.",
+    parameters: {
+      type: "object",
+      properties: {
+        threadId: str("The thread."),
+        text: str("What to tell it. It becomes part of its conversation."),
+      },
+      required: ["threadId", "text"],
+    },
+  },
+  {
+    name: "work_decide",
+    kind: "hub",
+    route: "hub/work_decide",
+    needs: "harness",
+    description:
+      "Answer the permission gate a running agent is blocked on. NEVER call this on your own judgement: read the gate, tell the owner exactly what it wants to do and why, and call it only after they say yes or no. `always: true` stops it asking again for that same tool in that thread.",
+    parameters: {
+      type: "object",
+      properties: {
+        threadId: str("The thread."),
+        gateId: str("The gateId from work_check."),
+        allow: { type: "boolean", description: "True to allow, false to refuse." },
+        always: { type: "boolean", description: "Also allow this tool for the rest of the thread. Only with allow=true." },
+        what: str("The gate's title from work_check, copied exactly — the owner sees this on the confirmation."),
+      },
+      required: ["threadId", "gateId", "allow"],
+    },
+  },
+  {
+    name: "work_finish",
+    kind: "hub",
+    route: "hub/work_finish",
+    needs: "harness",
+    description:
+      "Inspect or close out a thread. `diff` shows the actual change in its worktree; `land` commits it to the thread's branch and merges into the base checkout when that checkout is clean (it refuses rather than guessing, and never pushes); `stop` stops the agent and keeps the worktree; `discard` stops it and deletes the worktree and branch. LANDING IS A REAL CHANGE to the owner's local repo — it is gated, and you should only ask for it once the work is reviewed.",
+    parameters: {
+      type: "object",
+      properties: {
+        threadId: str("The thread."),
+        action: { type: "string", enum: ["diff", "land", "stop", "discard"] },
+        message: str("The commit message, for land. One line that says what changed."),
+        merge: { type: "boolean", description: "For land: merge into the base branch. Default true; false leaves it on its own branch." },
+      },
+      required: ["threadId", "action"],
+    },
+  },
+  {
+    name: "work_list",
+    kind: "hub",
+    route: "hub/work_list",
+    needs: "harness",
+    description: "Every coding-agent thread the PC helper is holding, with its status and branch. Use it before starting a second thread on the same job.",
+    parameters: { type: "object", properties: {} },
+  },
+
+  // --- the services an app ships through ----------------------------------
+  // Run by the website, so they work with the PC off. See devops.ts.
+  {
+    name: "github",
+    kind: "hub",
+    route: "hub/github",
+    description:
+      "Read and write the owner's GitHub. Actions: whoami, repos, repo, branches, commits, pulls, pull, pull_files, create_pull, merge_pull, issues, create_issue, read_file, write_file, delete_file, commit_files, runs, rerun, branches_delete. Write a file with write_file (one file, one commit) or commit_files (several files in ONE commit — preferred for an app change). Repo is owner/name and defaults to the hub's own repo. It works with the PC off. Never merge a pull request or delete a branch unless the owner explicitly asked for that.",
+    parameters: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          enum: [
+            "whoami", "repos", "repo", "branches", "commits", "pulls", "pull", "pull_files",
+            "create_pull", "merge_pull", "issues", "create_issue", "read_file", "write_file",
+            "delete_file", "commit_files", "runs", "rerun", "branches_delete",
+          ],
+        },
+        repo: str("owner/name. Defaults to the hub's repository."),
+        path: str("File path inside the repo, for read_file / write_file / delete_file."),
+        content: str("The file's FULL new contents, for write_file."),
+        files: {
+          type: "array",
+          description: "For commit_files: the files to write, all in one commit.",
+          items: {
+            type: "object",
+            properties: { path: { type: "string" }, content: { type: "string" } },
+            required: ["path", "content"],
+          },
+        },
+        message: str("Commit message."),
+        branch: str("Branch to read from or write to. Defaults to the repo's default branch."),
+        ref: str("A branch, tag or commit to read a file at."),
+        title: str("Pull request or issue title."),
+        body: str("Pull request or issue body."),
+        head: str("For create_pull: the branch that has the change."),
+        base: str("For create_pull: the branch to merge into. Default main."),
+        number: { type: "number", description: "Pull request number, for pull / pull_files / merge_pull." },
+        state: { type: "string", enum: ["open", "closed", "all"] },
+        runId: { type: "number", description: "Actions run id, for rerun." },
+        sha: str("Only when you already know it. Omit and Jarvis looks it up."),
+        limit: { type: "number" },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "vercel",
+    kind: "hub",
+    route: "hub/vercel",
+    description:
+      "Read and control the owner's Vercel. Actions: whoami, teams, projects, project, deployments, deployment, logs, redeploy, env, env_set, domains. Use deployments + logs after a change ships to see whether it built and what it said; use redeploy to rebuild without a new commit. env_set is gated and immediately affects the live site — set the variable and tell the owner a redeploy is needed. Works with the PC off.",
+    parameters: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          enum: ["whoami", "teams", "projects", "project", "deployments", "deployment", "logs", "redeploy", "env", "env_set", "domains"],
+        },
+        project: str("Vercel project name or id."),
+        deploymentId: str("Deployment id or url, for deployment / logs / redeploy."),
+        key: str("Environment variable name, for env_set."),
+        value: str("Environment variable value, for env_set."),
+        target: { type: "array", items: { type: "string" }, description: "production, preview, development." },
+        limit: { type: "number" },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "supabase",
+    kind: "hub",
+    route: "hub/supabase",
+    description:
+      "Read and change the owner's Supabase. Actions: projects, project, api_keys, functions, secrets, set_secret, sql, tables, migrations. `sql` runs arbitrary SQL against the real database and is gated as a grave action — read first (tables, migrations) and prefer additive migrations over rewriting data. `api_keys` returns only the public anon key; never ask for the service-role key. Works with the PC off.",
+    parameters: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          enum: ["projects", "project", "api_keys", "functions", "secrets", "set_secret", "sql", "tables", "migrations"],
+        },
+        project: str("The project's ref — the id in its dashboard URL."),
+        sql: str("The SQL to run, for action=sql."),
+        name: str("Secret name, for set_secret."),
+        value: str("Secret value, for set_secret."),
+      },
+      required: ["action"],
+    },
+  },
+
+  // --- the PC's own tool supply -------------------------------------------
+  {
+    name: "mcp",
+    kind: "hub",
+    route: "hub/mcp",
+    needs: "mcp",
+    description:
+      "Manage MCP servers on the owner's PC and call their tools. Actions: list, tools (what one offers), call, add, remove, enable, disable, restart. A server is a command that speaks MCP over stdio — e.g. npx -y @modelcontextprotocol/server-filesystem <folder>. Adding one runs an arbitrary program on their PC, so it is gated as grave; call `tools` before `call` so you use a real tool name and its real arguments.",
+    parameters: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["list", "tools", "call", "add", "remove", "enable", "disable", "restart"] },
+        server: str("The server's short name, e.g. filesystem."),
+        tool: str("The MCP tool's name, for call."),
+        args: { type: "object", description: "The tool's arguments, matching its input schema from action=tools." },
+        command: str("For add: the command that starts it, e.g. npx, uvx or node."),
+        serverArgs: { type: "array", items: { type: "string" }, description: "For add: the command's arguments." },
+        env: { type: "object", description: "For add: extra environment variables (API keys the server needs)." },
+        cwd: str("For add: the folder to start it in."),
+        note: str("For add: what this server is for."),
+        enabled: { type: "boolean" },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "cli",
+    kind: "hub",
+    route: "hub/cli",
+    needs: "cli",
+    description:
+      "The command-line tools installed on the owner's PC, and installing one that is missing. Actions: list (name, path, version, installed) and install (npm, winget, pip or uv). Check `list` before telling the owner a tool is missing, and before running a command that assumes one exists. Installing software is gated; for running a tool that IS installed, use shell_run.",
+    parameters: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["list", "install"] },
+        name: str("The tool's command name, e.g. gh, vercel, supabase, ffmpeg."),
+        manager: { type: "string", enum: ["npm", "winget", "pip", "uv"] },
+        pkg: str("The package id, when it differs from the name (e.g. GitHub.cli)."),
+      },
+      required: ["action"],
     },
   },
 ];

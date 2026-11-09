@@ -36,6 +36,7 @@ import { clientEditProject, editMasterPrompt } from "@/lib/app-builder/clientEdi
 import type { BuilderProject } from "@/lib/app-builder/types";
 import { readStore, writeStore } from "@/lib/app-builder/useAppBuilder";
 import { BridgeError, call, knownFolder, probe } from "@/lib/new-jarvis/bridge";
+import { buildHarness } from "@/lib/new-jarvis/harness/choice";
 import { HUB_REPO } from "./apps";
 import { buildModelFor, pickValue } from "./models";
 import type { ClientProject } from "./types";
@@ -241,7 +242,7 @@ export async function startClientEditBuild(review: ClientProject, batchId: strin
   let base = "";
   try {
     const { session } = await call<{ session: { id: string; worktree?: { path?: string } } }>("harness/start", {
-      harness: "claude",
+      harness: buildHarness(),
       title: `${review.name} ${bucket.edit?.version ?? ""}`.trim() + " client edits",
       // A worktree, not a project folder: these edits belong to a repo that
       // already exists.

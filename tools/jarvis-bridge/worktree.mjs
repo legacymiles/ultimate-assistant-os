@@ -32,15 +32,27 @@
 import { execFile } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, copyFileSync, readdirSync, rmdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve, sep } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 /** Where threads live. Outside the repo, and outside OneDrive. */
 export const WORKTREE_ROOT =
   process.env.JARVIS_WORKTREE_ROOT || join(homedir(), ".jarvis-harness", "worktrees");
 
-/** The repo a thread works on when the page does not name one. */
-export const DEFAULT_REPO =
-  process.env.JARVIS_REPO || resolve(homedir(), "OneDrive", "Desktop", "claude code files");
+/**
+ * The repo a thread works on when the page does not name one.
+ *
+ * `tools/jarvis-bridge/` sits inside the repo it serves, so the repo is two
+ * folders up. This used to be a hard-coded OneDrive path that stopped being
+ * true the day the checkout moved — and every chat-started thread then tried
+ * to cut a worktree of a folder that no longer existed.
+ *
+ * `JARVIS_REPO` still wins, for a machine that keeps the bridge outside the
+ * repository (a VPS, or a second checkout).
+ */
+export const DEFAULT_REPO = process.env.JARVIS_REPO || resolve(HERE, "..", "..");
 
 /**
  * Where a brand-new app is built.

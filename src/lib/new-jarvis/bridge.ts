@@ -26,6 +26,14 @@ export interface BridgeCapabilities {
   browserWhy?: string;
   /** Claude (the owner's own subscription) can be Jarvis's brain on this PC. */
   brain?: boolean;
+  /** At least one coding harness (Claude Code or DeepSeek Harness) can run here. */
+  harness?: boolean;
+  /** Which ones, and why not when one cannot. */
+  harnesses?: { id: string; label: string; available: boolean; why: string }[];
+  /** MCP servers can be run from this PC. */
+  mcp?: boolean;
+  /** The CLI inventory can be read from this PC. */
+  cli?: boolean;
 }
 
 export interface BridgeHealth {

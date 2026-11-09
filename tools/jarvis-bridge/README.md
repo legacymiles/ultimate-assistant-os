@@ -42,6 +42,8 @@ still thinks, remembers and answers.
 | `POST /files/*` | `list`, `read`, `write`. |
 | `POST /system/*` | `windows`, `focus`, `launch`, `screenshot`, `info`, `clipboard/read`, `clipboard/write`. |
 | `POST /harness/*` | `list`, `start`, `say`, `events`, `decide`, `interrupt`, `stop`, `threads`, `status`, `diff`, `land`, `discard`. A coding agent in its own worktree. |
+| `POST /mcp/*` | `list`, `tools`, `call`, `save`, `remove`, `enable`, `restart`. MCP servers as child processes, and their tools. |
+| `POST /cli/*` | `list` (what is installed, with versions), `install` (npm, winget, pip or uv). |
 | `GET /health` | No auth. What is installed and whether the browser is up. |
 | `GET /status` | Everything the page's panels draw. |
 
@@ -78,6 +80,11 @@ Two harnesses, one shape:
 |---|---|
 | `claude` | Claude Code through the Agent SDK, imported here rather than spawned as a CLI. The SDK's `canUseTool` is a function call in this process, which is the only reason a permission prompt can be carried to a page and answered there. |
 | `deepseek` | dsh's `acp` profile over Agent Client Protocol on stdio. |
+
+Where dsh lives is **discovered**, not hard-coded: `DSH_DIR`, then `~/deepseek-harness`, then
+`~/Projects/deepseek-harness`, then the desktop app's bundled copy. A root can be a checkout
+(with `node_modules/@deepseek-ai/dsh`) or the package folder itself. The package is started as
+`node <bin.js> --profile acp`, so it needs no `npx`, no PATH entry and no network.
 
 **Events are polled, not streamed.** `EventSource` cannot set an
 `Authorization` header, so an SSE route would need its own door, and a long
@@ -138,6 +145,20 @@ when the base checkout is clean and on that branch. Several Claude sessions run
 on this folder at once and it is almost never clean; merging on a button press
 is how one thread eats somebody else's afternoon. When it stops, it names the
 files that stopped it.
+
+### MCP servers and the PC's CLIs
+
+An MCP server is a command that speaks JSON-RPC over stdio. `POST /mcp/save` stores one in
+`out/mcp.json` — beside the bridge, never in the repository, because that file is where a
+server's own tokens live. `POST /mcp/tools` initialises it and lists what it offers;
+`POST /mcp/call` runs one tool and returns its text. The child is kept between calls and
+killed when the bridge exits. Adding a server is an arbitrary program, so the page gates it
+as a grave action.
+
+`POST /cli/list` checks a fixed list of the tools this hub actually reaches for (git, gh,
+vercel, supabase, node, python, uv, docker, claude, dsh, ffmpeg…) and reports each one's real
+path and version — the answer to "is `gh` installed here?" without guessing. `POST
+/cli/install` installs one through npm, winget, pip or uv.
 
 ## What is holding the door
 

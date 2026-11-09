@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BridgeError, call, knownFolder } from "@/lib/new-jarvis/bridge";
 import { emptyThread, reduceEvents } from "@/lib/new-jarvis/harness/model";
+import { buildHarness } from "@/lib/new-jarvis/harness/choice";
 import type { GateCard, HarnessEvent, ThreadSummary, ThreadView } from "@/lib/new-jarvis/harness/types";
 import { absorbBrief, absorbTitle } from "./absorb";
 import { buildBrief, isForClient, phaseOf, projectSlug, resultLinks, threadTitle, type BuildPhase } from "./build";
@@ -149,7 +150,7 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
     setStarting("Making the project folder…");
     try {
       const { session } = await call<{ session: ThreadSummary }>("harness/start", {
-        harness: "claude",
+        harness: buildHarness(),
         title: threadTitle(p),
         // The bridge makes a real folder with a repository of its own, because
         // a brand-new app has nothing to cut a worktree from.
@@ -258,7 +259,7 @@ export async function startAbsorb(p: BuilderProject, from: string): Promise<stri
   if (!repo) throw new Error("This browser hasn't heard from your PC yet, so I don't know where the hub is. Open Jarvis on that computer and try again.");
   try {
     const { session } = await call<{ session: ThreadSummary }>("harness/start", {
-      harness: "claude",
+      harness: buildHarness(),
       title: absorbTitle(p),
       repo,
       laneWrites: true,

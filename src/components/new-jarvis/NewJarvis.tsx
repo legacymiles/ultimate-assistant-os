@@ -814,8 +814,77 @@ export function NewJarvis() {
         };
       }
 
+      // --- the workbench ---------------------------------------------------
+      // A coding agent, for the jobs one edit cannot finish. The thread lives
+      // in the bridge, not in this tab, so closing the page does not end it.
+      if (
+        tool === "work_start" ||
+        tool === "work_check" ||
+        tool === "work_say" ||
+        tool === "work_decide" ||
+        tool === "work_finish" ||
+        tool === "work_list"
+      ) {
+        const [{ runWorkTool }, { call, knownFolder }] = await Promise.all([
+          import("@/lib/new-jarvis/workbench"),
+          import("@/lib/new-jarvis/bridge"),
+        ]);
+        return runWorkTool(tool, args, { call, folder: knownFolder() });
+      }
+
+      // The services an app ships through. Run by the website, so the job never
+      // stops at "that needs your PC".
+      if (tool === "github" || tool === "vercel" || tool === "supabase") {
+        const { runDevopsTool } = await import("@/lib/new-jarvis/devops");
+        return runDevopsTool(tool, args);
+      }
+
+      if (tool === "mcp") {
+        const action = String(args.action ?? "");
+        const name = String(args.server ?? "").trim();
+        if (action === "list") return bridge.run("mcp/list");
+        if (action === "tools") return bridge.run("mcp/tools", name ? { server: name } : {});
+        if (action === "call") {
+          return bridge.run("mcp/call", {
+            server: name,
+            tool: String(args.tool ?? ""),
+            args: args.args && typeof args.args === "object" ? args.args : {},
+          });
+        }
+        if (action === "add") {
+          return bridge.run("mcp/save", {
+            server: {
+              name,
+              command: String(args.command ?? ""),
+              args: Array.isArray(args.serverArgs) ? args.serverArgs : [],
+              env: args.env && typeof args.env === "object" ? args.env : {},
+              cwd: String(args.cwd ?? ""),
+              note: String(args.note ?? ""),
+            },
+          });
+        }
+        if (action === "remove") return bridge.run("mcp/remove", { name });
+        if (action === "enable" || action === "disable") {
+          return bridge.run("mcp/enable", { name, enabled: action === "enable" });
+        }
+        if (action === "restart") return bridge.run("mcp/restart", { name });
+        throw new Error(`mcp action must be list, tools, call, add, remove, enable, disable or restart — not "${action}".`);
+      }
+
+      if (tool === "cli") {
+        const action = String(args.action ?? "");
+        if (action === "list") return bridge.run("cli/list");
+        if (action === "install") {
+          return bridge.run("cli/install", {
+            name: String(args.name ?? ""),
+            manager: String(args.manager ?? ""),
+            pkg: String(args.pkg ?? ""),
+          });
+        }
+        throw new Error(`cli action must be list or install — not "${action}".`);
+      }
+
       if (tool === "birthday_add") {
-        // One list feeds the calendar (every year) and notifications (2 days out).
         const out = addBirthday({
           name: String(args.name ?? ""),
           date: String(args.date ?? ""),

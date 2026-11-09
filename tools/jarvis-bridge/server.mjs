@@ -55,6 +55,8 @@ import * as browser from "./browser.mjs";
 import * as computer from "./computer.mjs";
 import * as vault from "./vault.mjs";
 import * as harness from "./harness.mjs";
+import * as mcp from "./mcp.mjs";
+import * as cli from "./cli.mjs";
 
 /**
  * Forget the Claude Code session this agent may have been started from.
@@ -152,6 +154,21 @@ const ROUTES = {
   "POST /harness/preview": (b) => harness.previewThread(b),
   "POST /harness/preview/stop": (b) => harness.previewStopThread(b),
 
+  // MCP servers this PC can drive. A server is a child process speaking
+  // JSON-RPC over stdio; `list` reads them, `tools` says what one offers, and
+  // `call` runs one tool. See mcp.mjs.
+  "POST /mcp/list": () => mcp.listServers(),
+  "POST /mcp/tools": (b) => mcp.listTools(b),
+  "POST /mcp/call": (b) => mcp.callTool(b),
+  "POST /mcp/save": (b) => mcp.saveServer(b),
+  "POST /mcp/remove": (b) => mcp.removeServer(b),
+  "POST /mcp/enable": (b) => mcp.setEnabled(b),
+  "POST /mcp/restart": (b) => mcp.restartServer(b),
+
+  // The CLIs this PC has, and installing one it does not. See cli.mjs.
+  "POST /cli/list": () => cli.listTools(),
+  "POST /cli/install": (b) => cli.installTool(b),
+
   "POST /files/list": (b) => computer.listDir(b),
   "POST /files/read": (b) => computer.readTextFile(b),
   "POST /files/write": (b) => computer.writeTextFile(b),
@@ -212,6 +229,11 @@ async function capabilities() {
     system: true,
     browser,
     browserWhy: why,
+    // Both are always available on a running bridge: MCP needs only a child
+    // process, and the CLI list is read from this PC. What varies is what they
+    // FIND, which is the tool's answer rather than a capability.
+    mcp: true,
+    cli: true,
     vault: where.exists,
     vaultRoot: where.root,
     vaultWhy: where.exists ? "" : `No vault at ${where.root}. Create it, or set JARVIS_VAULT.`,
@@ -333,6 +355,7 @@ const server = http.createServer(async (req, res) => {
 // behind on Ctrl-C means an orphan editing files nobody is watching.
 for (const sig of ["SIGINT", "SIGTERM"]) {
   process.on(sig, () => {
+    mcp.shutdown();
     void harness.stopAllThreads().finally(() => process.exit(0));
   });
 }

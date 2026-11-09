@@ -288,6 +288,106 @@ function ResultView({ step }: { step: Step }) {
     );
   }
 
+  // A coding agent is a different shape from every other step: it is not
+  // "done", it is somewhere. So it draws as a state — where it is, what it just
+  // said, what it has touched, and the one question it is waiting on.
+  if (step.tool.startsWith("work_")) {
+    const rows = Array.isArray(r.steps) ? (r.steps as Record<string, unknown>[]) : [];
+    const gate = r.gate && typeof r.gate === "object" ? (r.gate as Record<string, unknown>) : null;
+    const mark: Record<string, string> = { ok: "✓", failed: "✗", running: "…", refused: "⊘", escalating: "↑" };
+    const tone = (status: string) =>
+      status === "failed" ? "text-[#f87171]" : status === "ok" ? "text-core" : "text-ink-faint";
+    return (
+      <div className="space-y-2 px-1 py-1">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-ink-muted">
+          <span className="text-ink">{s("status") || (s("threadId") ? "started" : "working")}</span>
+          {s("harness") && <span className="font-mono">{s("harness")}</span>}
+          {s("branch") && <span className="truncate font-mono text-ink-faint">{s("branch")}</span>}
+          {typeof r.usd === "number" && r.usd > 0 && <span data-num>${r.usd.toFixed(3)}</span>}
+          {r.cursor ? <span data-num>cursor {String(r.cursor)}</span> : null}
+        </p>
+        {s("worktree") && <p className="truncate font-mono text-[10.5px] text-ink-faint">{s("worktree")}</p>}
+        {s("said") && (
+          <div className="whitespace-pre-wrap rounded-md border border-line-soft px-3 py-2 text-[12px] leading-relaxed text-ink">
+            {s("said")}
+          </div>
+        )}
+        {rows.length > 0 && (
+          <ul className="space-y-0.5">
+            {rows.slice(-16).map((row, i) => {
+              const status = String(row.status ?? "");
+              return (
+                <li key={i} className="flex items-baseline gap-2 font-mono text-[11px]">
+                  <span className={`w-2 shrink-0 ${tone(status)}`} aria-label={status}>
+                    {mark[status] ?? "·"}
+                  </span>
+                  <span className="shrink-0 text-ink-muted">{String(row.tool ?? "")}</span>
+                  <span className="min-w-0 truncate text-ink">{String(row.title ?? "")}</span>
+                  {row.said ? <span className="min-w-0 truncate text-[#f87171]">{String(row.said)}</span> : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {gate && (
+          <div className="rounded-md border border-line px-3 py-2">
+            <p className="text-[12px] text-ink">It needs your OK: {String(gate.title || gate.name || "a permission")}</p>
+            {gate.why ? <p className="mt-0.5 text-[11px] leading-relaxed text-ink-muted">{String(gate.why)}</p> : null}
+            <p className="mt-1 text-[10.5px] text-ink-faint">Say yes or no — Jarvis will answer the agent for you.</p>
+          </div>
+        )}
+        {s("error") && <Mono text={s("error")} tone="bad" />}
+        {s("note") && <p className="text-[11px] leading-relaxed text-ink-muted">{s("note")}</p>}
+        {s("next") && <p className="text-[11px] leading-relaxed text-ink-faint">{s("next")}</p>}
+      </div>
+    );
+  }
+
+  // GitHub, Vercel, Supabase, MCP and the CLI inventory all answer with one
+  // list of records. A table of the first few columns is what a person reads;
+  // the raw JSON is not.
+  if (["github", "vercel", "supabase", "mcp", "cli"].includes(step.tool)) {
+    const list = Object.entries(r).find(
+      ([, v]) => Array.isArray(v) && v.length > 0 && typeof v[0] === "object" && v[0] !== null,
+    );
+    if (list) {
+      const [name, raw] = list;
+      const entries = (raw as Record<string, unknown>[]).slice(0, 30);
+      const columns = [...new Set(entries.flatMap((e) => Object.keys(e)))].slice(0, 4);
+      return (
+        <div className="space-y-1">
+          <p className="px-1 text-[10px] uppercase tracking-wide text-ink-faint">
+            {name} · {entries.length}
+          </p>
+          <div className="max-h-72 overflow-auto rounded-md border border-line-soft">
+            <table className="w-full border-collapse text-left font-mono text-[11px]">
+              <thead className="sticky top-0 bg-panel-2">
+                <tr className="text-[10px] uppercase tracking-wide text-ink-muted">
+                  {columns.map((c) => (
+                    <th key={c} className="whitespace-nowrap px-2 py-1 font-medium">
+                      {c}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {entries.map((e, i) => (
+                  <tr key={i} className="border-t border-line-soft">
+                    {columns.map((c) => (
+                      <td key={c} className="max-w-[22rem] truncate px-2 py-1 text-ink-muted">
+                        {e[c] === undefined || e[c] === null ? "—" : String(e[c])}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+  }
+
   // Everything else: the fields that matter, as a table rather than JSON.
   const rows = Object.entries(r).filter(
     ([k, v]) => k !== "ok" && (typeof v === "string" || typeof v === "number" || typeof v === "boolean"),
