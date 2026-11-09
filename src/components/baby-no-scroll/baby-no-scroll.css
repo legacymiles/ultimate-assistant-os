@@ -545,6 +545,48 @@
 /*  The console (parent's side) — small additions over the hub's own tokens.  */
 /* ------------------------------------------------------------------------- */
 
+/* The console's page is yellow (client edit, v2) — the same warm yellow as the
+   Hand it over button and the lock's rail, so it reads as the app's own colour.
+   The panels stay hub-dark; only what sits straight on the yellow turns dark. */
+.bns-console {
+  background: hsl(48 96% 62%);
+}
+.bns-console .bns-on-yellow {
+  color: #1a1206;
+  border-color: rgba(26, 18, 6, 0.22);
+}
+.bns-console .bns-on-yellow .text-ink-muted,
+.bns-console .bns-on-yellow .text-ink-faint,
+.bns-console .bns-on-yellow.text-ink-faint {
+  color: rgba(26, 18, 6, 0.74);
+}
+.bns-console .bns-on-yellow strong,
+.bns-console .bns-on-yellow span {
+  color: #1a1206;
+}
+.bns-console .bns-on-yellow a {
+  border-color: rgba(26, 18, 6, 0.3);
+  color: rgba(26, 18, 6, 0.8);
+}
+.bns-console .bns-on-yellow a:hover {
+  border-color: rgba(26, 18, 6, 0.6);
+  color: #1a1206;
+}
+.bns-console .bns-on-yellow a:focus-visible {
+  outline: 2px solid #1a1206;
+  outline-offset: 2px;
+}
+/* On a yellow page the yellow button needs an edge to stay a button. */
+.bns-console .bns-handover:not(:disabled) {
+  box-shadow:
+    inset 0 0 0 1px rgba(26, 18, 6, 0.28),
+    0 10px 30px hsl(35 90% 35% / 0.35);
+}
+.bns-console .bns-handover:focus-visible {
+  outline: 2px solid #1a1206;
+  outline-offset: 3px;
+}
+
 .bns-tab {
   position: relative;
   isolation: isolate;

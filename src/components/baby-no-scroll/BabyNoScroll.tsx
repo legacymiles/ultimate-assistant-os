@@ -136,9 +136,9 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
 
   // --- the console --------------------------------------------------------
   return (
-    <main className="min-h-screen bg-canvas px-4 py-6 text-ink sm:px-6 lg:px-8">
+    <main className="bns-console min-h-screen px-4 py-6 text-ink sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
-        <header className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b border-line pb-4">
+        <header className="bns-on-yellow mb-6 flex flex-wrap items-end justify-between gap-3 border-b border-line pb-4">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Baby No Scroll</h1>
             <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-ink-muted">
@@ -431,7 +431,7 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
               {settings.mode === "youtube" && !target ? "Paste a link first" : "Hand it over"}
             </button>
 
-            <p className="text-[11px] leading-relaxed text-ink-faint">
+            <p className="bns-on-yellow text-[11px] leading-relaxed text-ink-faint">
               <strong className="text-ink-muted">What this cannot do.</strong> A web page cannot
               disable the home button, the power button or the gesture that switches apps, and it
               cannot stop Escape leaving fullscreen. For a device you walk away from, turn on{" "}

@@ -6730,5 +6730,14 @@
   "detail": "",
   "group": "supporting",
   "source": "git"
+ },
+ {
+  "id": "b48dfea:baby-no-scroll",
+  "date": "2026-11-09",
+  "slug": "baby-no-scroll",
+  "title": "Make the console background yellow (client edit, v2)",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
  }
 ]
