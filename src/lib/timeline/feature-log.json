@@ -1,5 +1,23 @@
 [
  {
+  "id": "45e52f1:money-agents",
+  "date": "2026-11-09",
+  "slug": "money-agents",
+  "title": "The seven parts are apps on a shelf, not a strip of tabs",
+  "detail": "The client asked for this page to be way cooler and to show them as apps, not just tabs. The text tab strip is now a dock of app tiles: each has its own glyph — a small diagram of what it does, which comes alive on the open tile and under the cursor — its name, and the live line that says where the ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e2d674f:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "Offer the address builds already work from",
+  "detail": "Local network access is granted per ORIGIN. The hub is served from two, and Chrome allows one and silently blocks the other — so \"Connect to this PC\" can do nothing at all when pressed, because only the browser's own prompt can grant it and Chrome stops offering that prompt once it has been dismisse",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "92a426c:client-review",
   "date": "2026-11-08",
   "slug": "client-review",
