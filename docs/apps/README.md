@@ -9,7 +9,7 @@
 | App | Route | What it is |
 |---|---|---|
 | **Jarvis** | `/apps/jarvis` | Your memory, folders, photos, lists, calendar and Record in one place. |
-| **AI Rankings** | `/apps/ai-rankings` | A private database of every tool worth remembering — AI models first, but also the editors, platforms, design apps, media tools, security and trading software around them. |
+| **AI Rankings** | `/apps/ai-rankings` | A public leaderboard of AI models, one category at a time: LLMs, coding agents, text-to-speech, realtime voice, speech-to-text, image, image editing, text-to-video, image-to-vid… |
 | **Prompt Architect** | `/apps/prompt-architect` | Turn a vague, half-formed idea into an amazing, build-ready prompt. |
 | **Client Review** | `/apps/client-review` | Send each website client a private link: their site fills the screen with a draggable Chat Intake on top, where they type as many edit requests as they like, point at the exact … |
 | **Projects Timeline** | `/apps/projects-timeline` | A project intelligence system that becomes the single source of truth for every one of your projects. |

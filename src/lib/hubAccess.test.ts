@@ -30,6 +30,15 @@ describe("routeAccess", () => {
     expect(routeAccess("/api/social-personas/setup", TOKEN)).toBe("owner");
   });
 
+  it("opens the AI Rankings leaderboard and its read route, but not the AI-spending routes", () => {
+    expect(routeAccess("/apps/ai-rankings", TOKEN)).toBe("public");
+    expect(routeAccess("/api/ai-rankings/board", TOKEN)).toBe("public");
+    expect(routeAccess("/api/ai-rankings/analyze-url", TOKEN)).toBe("owner");
+    expect(routeAccess("/api/ai-rankings/classify", TOKEN)).toBe("owner");
+    expect(routeAccess("/api/ai-rankings/site-url", TOKEN)).toBe("owner");
+    expect(routeAccess("/apps/ai-rankings-private", TOKEN)).toBe("owner");
+  });
+
   it("does not match look-alike prefixes", () => {
     expect(routeAccess("/apps/friends-night-outage", TOKEN)).toBe("owner");
     expect(routeAccess("/api/fnox/secret", TOKEN)).toBe("owner");

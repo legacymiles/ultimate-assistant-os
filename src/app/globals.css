@@ -19,6 +19,10 @@
 
   --color-brand: #6366f1;
   --color-brand-2: #4f46e5;
+  /* The pressed/hover step for a primary button. DESIGN.md has always
+     declared it; it was missing here, so primary buttons were getting
+     LIGHTER on hover, which drops white text under 4.5:1. */
+  --color-brand-press: #3f36cd;
 
   --color-core: #22c55e;
   --color-core-2: #16a34a;
@@ -181,6 +185,12 @@ select optgroup {
 }
 .animate-fade-in {
   animation: fadeIn 0.18s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in {
+    animation: none;
+  }
 }
 
 /* ------------------------------------------------------------------ */

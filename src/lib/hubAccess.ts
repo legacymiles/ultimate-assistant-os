@@ -41,7 +41,21 @@ export const ERROR_SCRIPT = "/jarvis-errors.js";
  */
 export const LEGAL_PAGES = "/legal";
 
-const PUBLIC_PREFIXES = [PUBLIC_HOME, "/api/fno", ...CLIENT_REVIEW_PUBLIC, LEGAL_PAGES];
+/**
+ * AI Rankings is a public leaderboard the owner curates. Only the page and the
+ * board route open up: the board route checks the owner itself before any
+ * write, and the analyzer and classify routes stay owner-only because each
+ * call spends the owner's AI credits.
+ */
+export const AI_RANKINGS_PUBLIC = ["/apps/ai-rankings", "/api/ai-rankings/board"];
+
+const PUBLIC_PREFIXES = [
+  PUBLIC_HOME,
+  "/api/fno",
+  ...CLIENT_REVIEW_PUBLIC,
+  LEGAL_PAGES,
+  ...AI_RANKINGS_PUBLIC,
+];
 
 /**
  * Public as exact paths, with nothing underneath them.

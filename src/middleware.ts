@@ -56,6 +56,10 @@ const TOKEN_AUTH_PATHS = new Set([
   // Personas Studio's scheduler tick (GitHub Actions). Only sends posts their
   // owners already scheduled, behind a per-job lock; optional bearer token.
   "/api/social-personas/publish/tick",
+  // AI Rankings' daily new-release sweep (GitHub Actions). The route accepts
+  // AI_RANKINGS_SWEEP_TOKEN or the owner's session, and only files
+  // suggestions into the owner's inbox — nothing is published unapproved.
+  "/api/ai-rankings/sweep",
   "/api/dashboard/inbox/push",
   "/api/dashboard/inbox/cursor",
   "/api/dashboard/inbox/present",
