@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { aiConfigured } from "@/lib/ai/provider";
 import { aspectRatio, extractResult, generationText, placeholderImage, userContent } from "@/lib/image-studio/prompt";
 import { chat, parseBody } from "@/lib/image-studio/server";
+import { drawFreeFirst, sizeForAspect } from "@/lib/images/server/draw";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -24,6 +25,32 @@ export async function POST(req: Request) {
   if (typeof parsed === "string") return NextResponse.json({ error: parsed }, { status: 400 });
   const { agent, prompt, refs } = parsed;
   const variant = Number((body as { variant?: unknown }).variant) || 0;
+
+  // The free lanes come first. When the owner's PC is on, WanGP draws this on
+  // their own card with Flux 2 Klein — no key, no spend, no watermark — and
+  // the paid model below is never reached. `purpose: "branded"` is deliberate:
+  // these are pictures the owner keeps, so the watermarked public lane is not
+  // offered for them, only the local one.
+  //
+  // This sits ABOVE the `aiConfigured()` check on purpose. With no keys at all
+  // the hub used to fall back to a drawn placeholder; now it can return a real
+  // picture instead, which is what R4 asks for.
+  const free = await drawFreeFirst({
+    prompt: generationText(agent, prompt, refs),
+    purpose: "branded",
+    ...sizeForAspect(aspectRatio(agent.aspect)),
+    seed: variant,
+    refs,
+  });
+  if (free) {
+    return NextResponse.json({
+      image: free.image,
+      model: free.lane === "local" ? "wangp/flux2_klein_4b" : "free",
+      lane: free.lane,
+      note: free.note,
+      free: true,
+    });
+  }
 
   if (!aiConfigured()) {
     return NextResponse.json({ image: placeholderImage(agent, prompt, variant), offline: true, model: "placeholder" });
