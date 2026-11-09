@@ -1,31 +1,18 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { JetBrains_Mono, Oxanium } from "next/font/google";
+import { njDisplay, njMono } from "@/lib/fonts";
 import { NewJarvis } from "@/components/new-jarvis/NewJarvis";
 import { sessionToken, status, tokenMatches } from "@/lib/recall/gateStore";
 import { callerIsMember } from "@/lib/recall/lists/session";
 
-// The surface's design names JetBrains Mono as the voice of every command,
-// path, ref, count and elapsed time. The hub's --font-mono token asks for it
-// first, but asking is not loading: nothing on this machine or on the deployed
-// site has that face, so every one of those strings was falling through to
-// Consolas. Loading it here is what makes the token true.
-const mono = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-nj-mono",
-  display: "swap",
-});
-
-// The Deck's display face: angular and technical, used only for the greeting
-// and section names so the HUD reads as one instrument.
-const display = Oxanium({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  variable: "--font-nj-display",
-  display: "swap",
-});
+// JetBrains Mono is the voice of every command, path, ref, count and elapsed
+// time; Oxanium, angular and technical, carries the greeting and section names
+// so the HUD reads as one instrument. Both are self-hosted — see
+// `src/lib/fonts`, which declares every face in the hub from public/fonts so no
+// build ever asks Google for one.
+const mono = njMono;
+const display = njDisplay;
 
 export const metadata: Metadata = {
   title: "Jarvis",

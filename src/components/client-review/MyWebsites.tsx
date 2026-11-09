@@ -15,7 +15,9 @@ export function MyWebsites({ onOpen, embedded = false }: { onOpen?: (token: stri
   useEffect(() => {
     portal
       .mine()
-      .then((r) => setSites(r.sites))
+      // Newest first. The server returns index order, which is nobody's idea
+      // of an order once a client has more than two.
+      .then((r) => setSites([...r.sites].sort((a, b) => Date.parse(b.createdAt || "") - Date.parse(a.createdAt || ""))))
       .catch((e: Error) => (e instanceof ApiError && e.flags.signIn ? setSignIn(true) : setError(e.message)));
   }, []);
 
@@ -37,7 +39,7 @@ export function MyWebsites({ onOpen, embedded = false }: { onOpen?: (token: stri
         {sites && sites.length > 0 && (
           <ul className="cr-sites">
             {sites.map((s) => (
-              <li key={s.token}>
+              <li key={s.token} className={s.beingCreated ? "is-building" : undefined}>
                 <a
                   href={`/apps/client-review?site=${s.token}`}
                   onClick={(e) => {
@@ -49,13 +51,17 @@ export function MyWebsites({ onOpen, embedded = false }: { onOpen?: (token: stri
                   <span>
                     <b>{s.name}</b>
                     <small>
-                      {s.building
-                        ? `Jarvis is building ${s.building}`
-                        : s.pending
-                          ? "Your requests are with Jarvis"
-                          : s.version
-                            ? `${s.version} ready to review`
-                            : "On its way"}
+                      {/* Being made and reviewing a change are different things
+                          to be told: one has nothing to look at yet. */}
+                      {s.beingCreated
+                        ? "Jarvis is building it now"
+                        : s.building
+                          ? `Jarvis is building ${s.building}`
+                          : s.pending
+                            ? "Your requests are with Jarvis"
+                            : s.version
+                              ? `${s.version} ready to review`
+                              : "On its way"}
                     </small>
                   </span>
                   <span aria-hidden>→</span>

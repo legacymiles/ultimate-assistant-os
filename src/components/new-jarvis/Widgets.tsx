@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "../icons";
+import { Popover } from "../Popover";
 import "./deck.css";
 import { UpdatesPanel } from "../jarvis/UpdatesPanel";
 import { ListsBoard } from "../recall/lists/ListsBoard";
@@ -29,7 +30,7 @@ import { eventStart, type CalendarEvent } from "@/lib/recall/calendar/types";
 import { notificationPermission, notificationsAvailable, requestNotifications } from "@/lib/recall/calendar/reminders";
 import { BirthdaysEditor } from "../birthdays/BirthdaysEditor";
 
-export type WidgetId = "notifications" | "todo" | "camera" | "iphone" | "calendar" | "improvements" | "queue" | "youtube" | "findmy";
+export type WidgetId = "notifications" | "todo" | "camera" | "iphone" | "calendar" | "improvements" | "queue" | "ship" | "youtube" | "findmy";
 
 export const WIDGETS: { id: WidgetId; label: string }[] = [
   { id: "notifications", label: "Notifications" },
@@ -39,6 +40,7 @@ export const WIDGETS: { id: WidgetId; label: string }[] = [
   { id: "calendar", label: "Calendar" },
   { id: "improvements", label: "Improvements" },
   { id: "queue", label: "In Queue" },
+  { id: "ship", label: "Push to main" },
   { id: "youtube", label: "YouTube videos" },
   { id: "findmy", label: "Find My Life" },
 ];
@@ -643,13 +645,15 @@ export function CalendarExpanded({ events, go, onClose }: { events: CalendarEven
 
 export function WidgetPicker({ hidden, toggle }: { hidden: Set<WidgetId>; toggle: (id: WidgetId) => void }) {
   const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
   return (
-    <div className="relative">
-      <button type="button" className="inline-flex items-center gap-1 text-[11px] text-ink-muted hover:text-ink" aria-expanded={open} onClick={() => setOpen(!open)}>
+    <div>
+      <button ref={trigger} type="button" className="inline-flex items-center gap-1 text-[11px] text-ink-muted hover:text-ink" aria-expanded={open} onClick={() => setOpen(!open)}>
         <Icon.Grid width={11} height={11} aria-hidden /> Widgets
       </button>
-      {open && (
-        <div className="deck-glass absolute right-0 top-6 z-20 w-52 p-2" onMouseLeave={() => setOpen(false)}>
+      <Popover open={open} anchor={trigger} onClose={close} align="end" width={208} role="menu" label="Which widgets to show" className="p-2">
+        <div onMouseLeave={close}>
           {WIDGETS.map((w) => (
             <label key={w.id} className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1.5 text-[12px] text-ink hover:bg-panel-2">
               {w.label}
@@ -657,7 +661,7 @@ export function WidgetPicker({ hidden, toggle }: { hidden: Set<WidgetId>; toggle
             </label>
           ))}
         </div>
-      )}
+      </Popover>
     </div>
   );
 }

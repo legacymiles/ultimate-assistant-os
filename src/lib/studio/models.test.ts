@@ -7,22 +7,28 @@ import {
   reorderChain,
   studioModel,
   toggleInChain,
+  upgradeStudioChain,
 } from "./models";
 
-describe("the Studio's five", () => {
-  it("are the five the owner named, in the order they named them", () => {
-    expect(DEFAULT_STUDIO_CHAIN).toEqual([
-      "qwen/qwen3.8-27b:free",
-      "deepseek/deepseek-v4.1-flash",
-      "openai/gpt-6-luna-pro",
-      "qwen/qwen3.8-omni-flash",
-      "xiaomi/mimo-v2.6-flash",
-    ]);
+/** The order this page shipped before the uncensored model joined the list. */
+const LEGACY_DEFAULT = [
+  "qwen/qwen3.8-27b:free",
+  "deepseek/deepseek-v4.1-flash",
+  "openai/gpt-6-luna-pro",
+  "qwen/qwen3.8-omni-flash",
+  "xiaomi/mimo-v2.6-flash",
+];
+
+describe("the Studio's brains", () => {
+  it("lead with the uncensored DeepSeek, then the five the owner named, then the heavy one", () => {
+    expect(DEFAULT_STUDIO_CHAIN).toEqual(["orca/orcacyber-flash-1.0", ...LEGACY_DEFAULT, "orca/orcacyber-k3.1-pro"]);
   });
 
-  it("start free", () => {
-    const first = studioModel(DEFAULT_STUDIO_CHAIN[0])!;
-    expect(priceLabel(first)).toBe("free");
+  // The owner's cost rule does not disappear because a new model arrived: the
+  // free one is still one refusal away.
+  it("start paid only because a refusal is what this chain exists for", () => {
+    expect(priceLabel(studioModel(DEFAULT_STUDIO_CHAIN[0])!)).toBe("$0.8 / $1.6 per M");
+    expect(priceLabel(studioModel(DEFAULT_STUDIO_CHAIN[1])!)).toBe("free");
   });
 
   // A film built on a reference clip or a track needs a model that can take one,
@@ -35,6 +41,20 @@ describe("the Studio's five", () => {
   it("have no duplicate ids", () => {
     const ids = STUDIO_MODELS.map((m) => m.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe("upgrading a saved chain", () => {
+  // A browser that stored the old default never chose it; leaving it would keep
+  // the Studio on the old brains forever.
+  it("replaces the untouched old default with today's", () => {
+    expect(upgradeStudioChain([...LEGACY_DEFAULT])).toEqual(DEFAULT_STUDIO_CHAIN);
+  });
+
+  it("leaves a chain the owner actually arranged alone", () => {
+    const custom = ["deepseek/deepseek-v4.1-flash", "orca/orcacyber-flash-1.0"];
+    expect(upgradeStudioChain(custom)).toBe(custom);
+    expect(upgradeStudioChain([])).toEqual([]);
   });
 });
 

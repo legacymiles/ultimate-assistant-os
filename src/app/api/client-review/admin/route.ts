@@ -4,20 +4,26 @@ import { writeBrief } from "@/lib/client-review/brief";
 import {
   addVersion,
   approveBatch,
+  builderProject,
+  cancelBuild,
   createProject,
   markVersionReady,
   noteBuild,
+  noteBuildFailure,
   rejectBatch,
   releaseClaim,
   removeFromIndex,
   reviewRequest,
   ReviewError,
   rotateToken,
+  sendToClient,
   setBrief,
+  unsendFromClient,
   updateProjectMeta,
   upsertIndex,
 } from "@/lib/client-review/logic";
 import { appEntry, appProject } from "@/lib/client-review/apps";
+import { isSubscriptionValue } from "@/lib/client-review/models";
 import { vapidPublicKey } from "@/lib/client-review/push";
 import { tell } from "@/lib/client-review/ship";
 import { lanePlan } from "@/lib/client-review/routing";
@@ -127,6 +133,37 @@ export async function POST(req: Request) {
         return NextResponse.json({ project: p });
       }
 
+      /**
+       * App Builder is about to build an app and wants somewhere for it to
+       * land. Opens a review project (or the next version of an existing one)
+       * whose version is `building`, which is the one status `shipPreview`
+       * accepts — so the finished build posts itself here through
+       * `client_review_preview` and edit requests come back to App Builder.
+       */
+      case "fromBuilder": {
+        if (id) {
+          if (!(await readProject(id))) throw new ReviewError("That review link no longer exists.", 404);
+          const { project, result } = await updateProject(id, (p) => {
+            const out = addVersion(p, { summary: body.summary, ready: false });
+            return { project: out.project, result: out.version };
+          });
+          await updateIndex((i) => upsertIndex(i, project));
+          return NextResponse.json({ project, version: result });
+        }
+        const { project, version } = builderProject({
+          name: body.name,
+          clientName: body.clientName,
+          summary: body.summary,
+          lane: body.lane,
+          inviteEmail: body.inviteEmail,
+          repo: body.repo,
+          vercelProject: body.vercelProject,
+        });
+        await writeProject(project);
+        await updateIndex((i) => upsertIndex(i, project));
+        return NextResponse.json({ project, version });
+      }
+
       // One of the owner's own apps, opened from the Client view's picker:
       // its project, made the first time it is opened.
       case "ensureApp": {
@@ -143,6 +180,21 @@ export async function POST(req: Request) {
         await writeProject(p);
         await updateIndex((i) => upsertIndex(i, p));
         return NextResponse.json({ project: p });
+      }
+
+      /**
+       * Send it to the client, or take it back before they have opened it.
+       * Until a project is sent it is owner-only — App Builder opens one for
+       * every build, and most of those were never meant for a client.
+       */
+      case "send":
+      case "unsend": {
+        const { project } = await updateProject(id, (p) => ({
+          project: body.action === "send" ? sendToClient(p) : unsendFromClient(p),
+          result: null,
+        }));
+        await updateIndex((i) => upsertIndex(i, project));
+        return NextResponse.json({ project });
       }
 
       case "meta":
@@ -183,6 +235,13 @@ export async function POST(req: Request) {
         if (!p) throw new ReviewError("That project no longer exists.", 404);
         const batch = p.batches.find((b) => b.id === body.batchId);
         if (!batch) throw new ReviewError("That batch no longer exists.", 404);
+        // The owner's Claude plan runs on their PC, not here: refuse rather
+        // than quietly writing a cloud brief under the plan's name.
+        if (isSubscriptionValue((p.briefModel ?? "").trim())) {
+          throw new ReviewError(
+            "That model runs on your PC — write the brief from the console in a browser paired with the PC helper, or pick an OpenRouter model.",
+          );
+        }
         const out = await writeBrief(p, batch);
         const { project } = await updateProject(id, (cur) => ({
           project: setBrief(cur, { batchId: batch.id, brief: out.brief, model: out.model, lane: out.lane }),
@@ -193,7 +252,13 @@ export async function POST(req: Request) {
 
       case "saveBrief": {
         const { project } = await updateProject(id, (p) => ({
-          project: setBrief(p, { batchId: body.batchId, brief: body.brief }),
+          project: setBrief(p, {
+            batchId: body.batchId,
+            brief: body.brief,
+            // A brief written on the PC's Claude plan reports which model
+            // actually answered, so the badge survives a reload.
+            model: typeof body.model === "string" ? body.model : undefined,
+          }),
           result: null,
         }));
         return NextResponse.json({ project });
@@ -233,10 +298,39 @@ export async function POST(req: Request) {
         return NextResponse.json({ project: told, version: result });
       }
 
-      // App Builder made a project from an approved batch and queued it.
+      // App Builder made a project from an approved batch and started it on the
+      // PC (threadId) or filed it in In Queue (queueId).
       case "buildQueued": {
         const { project } = await updateProject(id, (p) => ({
-          project: noteBuild(p, { batchId: body.batchId, builderId: body.builderId, queueId: body.queueId }),
+          project: noteBuild(p, {
+            batchId: body.batchId,
+            builderId: body.builderId,
+            queueId: body.queueId,
+            threadId: body.threadId,
+          }),
+          result: null,
+        }));
+        return NextResponse.json({ project });
+      }
+
+      // A build that died on the PC (or was never going to run) leaves the
+      // version saying "building" forever. This puts the batch back to pending
+      // and removes the version, so Approve & build is there to press again.
+      case "cancelBuild": {
+        const { project, result } = await updateProject(id, (p) => {
+          const out = cancelBuild(p, { versionId: body.versionId });
+          return { project: out.project, result: { version: out.version, batches: out.batches } };
+        });
+        const told = await tell(project, project.notices.at(-1), origin);
+        await updateIndex((i) => upsertIndex(i, told));
+        return NextResponse.json({ project: told, version: result.version, batches: result.batches });
+      }
+
+      // Pressing build did not start one. Written down so the reason survives
+      // the toast that used to be the only place it appeared.
+      case "buildFailed": {
+        const { project } = await updateProject(id, (p) => ({
+          project: noteBuildFailure(p, { batchId: body.batchId, message: body.message }),
           result: null,
         }));
         return NextResponse.json({ project });

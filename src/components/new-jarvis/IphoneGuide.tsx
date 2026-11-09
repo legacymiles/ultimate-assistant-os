@@ -21,25 +21,32 @@ import { Icon } from "../icons";
 import "./deck.css";
 import { WidgetSheet } from "./Widgets";
 import type { CameraWatch } from "@/lib/new-jarvis/useCameraWatch";
+import { READY_MADE, SHORTCUT_LINK } from "@/lib/dashboard/iphoneShortcut";
 
 const SHORTCUT_NAME = "Send to Jarvis";
 /**
- * Two optional shortcuts past the manual build, both set as Vercel env vars:
- *   NEXT_PUBLIC_IPHONE_SETUP_VIDEO — a screen recording of the build (an mp4
- *     URL, e.g. one uploaded to /public/videos). Shown at the top of step 3.
- *   NEXT_PUBLIC_IPHONE_SHORTCUT_URL — an iCloud link to a ready-made "Send to
- *     Jarvis" Shortcut whose import question asks for the link. With it, step 3
- *     becomes one tap and one paste.
+ * A screen recording of the build, set as the Vercel env var
+ * NEXT_PUBLIC_IPHONE_SETUP_VIDEO (an mp4 URL — e.g. one uploaded to
+ * /public/videos). Shown at the top of step 3.
+ *
+ * The ready-made Shortcut that makes that build unnecessary is not an env var:
+ * it is one link pasted into `@/lib/dashboard/iphoneShortcut`.
  */
 const SETUP_VIDEO = process.env.NEXT_PUBLIC_IPHONE_SETUP_VIDEO ?? "";
-const SHORTCUT_LINK = process.env.NEXT_PUBLIC_IPHONE_SHORTCUT_URL ?? "";
 const LIMIT = 20;
 
 type StepId = "phone" | "token" | "build" | "auto" | "test";
+/*
+ * Two journeys wear the same five steps. With a Shortcut to hand out, step 2
+ * is one key and step 3 is one tap; without one, step 2 is three links and
+ * step 3 is the eight-block build. The labels say which you are on before you
+ * open it, because "Make the Shortcut" promising half an hour of fiddling is
+ * what makes someone close the sheet.
+ */
 const STEPS: { id: StepId; label: string }[] = [
   { id: "phone", label: "Open on iPhone" },
-  { id: "token", label: "Your link" },
-  { id: "build", label: "Make the Shortcut" },
+  { id: "token", label: READY_MADE ? "Your key" : "Your links" },
+  { id: "build", label: READY_MADE ? "Add the Shortcut" : "Make the Shortcut" },
   { id: "auto", label: "Run it automatically" },
   { id: "test", label: "Test" },
 ];
@@ -55,16 +62,49 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
   const [minting, setMinting] = useState(false);
   const [note, setNote] = useState("");
   const [qr, setQr] = useState("");
+  const [shortcutQr, setShortcutQr] = useState("");
+  /*
+   * The key has to be in the clipboard BEFORE the Shortcut is tapped, because
+   * iOS asks for it half way through installing. So the two buttons hand the
+   * primary styling to each other in that order instead of competing for it.
+   */
+  const [keyCopied, setKeyCopied] = useState(false);
   const [testFrom, setTestFrom] = useState<number | null>(null);
+  /** A link the user already has, pasted back in to unlock the other two. */
+  const [pasted, setPasted] = useState("");
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const pushUrl = `${origin}/api/dashboard/inbox/push`;
-  // The whole Shortcut needs this one thing: the push address with the key in it.
-  const myLink = token ? `${pushUrl}?key=${encodeURIComponent(token)}` : pushUrl;
+
+  /*
+   * The key, from whichever of the two places has it.
+   *
+   * `token` only exists for the moments after minting — it is hashed on the
+   * way into storage and genuinely cannot be read back. That left anyone who
+   * set up their phone weeks ago with no way to SEE their links: the step
+   * showed "it can't be shown again" and a button, and the only route to the
+   * cursor and clean-up links was to mint a new one, which silently breaks
+   * the Shortcut already on their phone.
+   *
+   * So the key is also accepted from the user. They already have it — it is
+   * sitting in the URL action of their working Shortcut. Pasting that back
+   * fills in the other two, costs nothing, and breaks nothing.
+   */
+  const pastedKey = useMemo(() => {
+    const m = /[?&]key=([^&\s]+)/.exec(pasted.trim());
+    return m ? decodeURIComponent(m[1]) : "";
+  }, [pasted]);
+  const key = token ?? (pastedKey || null);
+  const q = key ? `?key=${encodeURIComponent(key)}` : "";
+
+  const myLink = `${pushUrl}${q}`;
   // "Where did I get up to?" — read first, so each run starts after the last photo sent.
-  const cursorLink = `${origin}/api/dashboard/inbox/cursor${token ? `?key=${encodeURIComponent(token)}` : ""}`;
+  const cursorLink = `${origin}/api/dashboard/inbox/cursor${q}`;
   // "These are still on my phone" — anything waiting that isn't was deleted there.
-  const presentLink = `${origin}/api/dashboard/inbox/present${token ? `?key=${encodeURIComponent(token)}` : ""}`;
+  // The clean-up has its own address, and it still works, but the guide no
+  // longer hands it out: the sending link answers a list of names too, so the
+  // setup asks for one link instead of three and there is no wrong box to put
+  // it in.
   const guideUrl = `${origin}/apps/jarvis#iphone`;
   const local = /localhost|127\.0\.0\.1/.test(origin);
   const idx = STEPS.findIndex((s) => s.id === step);
@@ -74,6 +114,13 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
       .then(setQr)
       .catch(() => setQr(""));
   }, [guideUrl]);
+
+  useEffect(() => {
+    if (!READY_MADE) return;
+    void QRCode.toDataURL(SHORTCUT_LINK, { margin: 1, width: 220, color: { dark: "#e8f6ff", light: "#00000000" } })
+      .then(setShortcutQr)
+      .catch(() => setShortcutQr(""));
+  }, []);
 
   useEffect(() => {
     if (!note) return;
@@ -113,6 +160,24 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
   }, [tested, camera.lastChecked]);
   const arrived = tested && (camera.inbox.length > 0 || queueNow > queueBefore);
 
+  const keyButton = key ? (
+    <button
+      type="button"
+      className={`deck-btn ${keyCopied ? "" : "deck-btn--go"}`}
+      onClick={() => {
+        copy(key, "Your key");
+        setKeyCopied(true);
+      }}
+    >
+      {keyCopied ? <Icon.Check width={12} height={12} aria-hidden /> : <Icon.Copy width={12} height={12} aria-hidden />}
+      {keyCopied ? "Key copied" : "Copy your key"}
+    </button>
+  ) : (
+    <button type="button" className="deck-btn deck-btn--go" onClick={() => setStep("token")}>
+      <Icon.Key width={12} height={12} aria-hidden /> Get my key
+    </button>
+  );
+
   return (
     <WidgetSheet title="Set up your iPhone" kicker="Camera Autopilot · about 5 minutes · no app to download" onClose={onClose}>
       <div className="flex min-h-full flex-col">
@@ -142,8 +207,11 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
             <div className="space-y-4">
               <h3 className="text-[18px] font-semibold text-ink">Open this on your iPhone</h3>
               <p>
-                You&apos;ll copy two things from Jarvis and paste them into Apple&apos;s <b className="text-ink">Shortcuts</b> app. That&apos;s
-                much easier on the phone itself. Point your iPhone camera at this code — it opens this exact guide.
+                {READY_MADE
+                  ? "You'll copy one key out of Jarvis and paste it into Apple's "
+                  : "You'll copy two things from Jarvis and paste them into Apple's "}
+                <b className="text-ink">Shortcuts</b> app. That&apos;s much easier on the phone itself. Point your iPhone camera at this code
+                — it opens this exact guide.
               </p>
               <div className="flex flex-wrap items-center gap-5">
                 <div className="grid h-[220px] w-[220px] place-items-center rounded-xl border border-line bg-black/40">
@@ -165,60 +233,180 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
 
           {step === "token" && (
             <div className="space-y-4">
-              <h3 className="text-[18px] font-semibold text-ink">Get your link</h3>
-              <p>
-                This is the one thing you paste into the Shortcut. It&apos;s your own private link — it already has your key inside, so there&apos;s
-                nothing else to copy.
-              </p>
-              {token ? (
-                <>
-                  <CopyRow label="Your link" value={myLink} onCopy={() => copy(myLink, "Your link")} secret />
-                  <p className="text-[11px] text-[var(--hud-amber)]">
-                    Copy it now — for safety it&apos;s only shown once. Lost it? Come back and make a new one; the old link stops working.
-                  </p>
-                </>
+              <h3 className="text-[18px] font-semibold text-ink">{READY_MADE ? "Get your key" : "Get your links"}</h3>
+              {READY_MADE ? (
+                <p>
+                  One line of letters and numbers that tells Jarvis these photos are yours. The ready-made Shortcut asks for it the moment
+                  you add it, and it is the only thing you ever type into your phone.
+                </p>
               ) : (
+                <p>
+                  Three links, all yours, each with your key already inside. They were previously shown one per step, which meant hunting
+                  for the right one mid-build — they all live here now. The Shortcut uses one in each of its three{" "}
+                  <b className="text-ink">URL</b> actions, and the note under each says which.
+                </p>
+              )}
+              {/*
+                Already set up? The key is in the Shortcut on their phone, so
+                they can hand it back rather than mint a new one and break it.
+                Shown ABOVE the links, because someone who arrives here with
+                no key needs this before anything below is any use.
+              */}
+              {!token && (
                 <div className="rounded-lg border border-line bg-panel-2 p-3">
-                  <p className="mb-2">
-                    {camera.linked ? "You made a link before, but it can't be shown again. Make a new one for this setup." : "Tap to make your link:"}
+                  <p className="mb-2 text-[11.5px]">
+                    {camera.linked
+                      ? `Already set up? Your key can't be read back out of Jarvis, but it's sitting in the URL action in your Shortcut. Paste that link here and ${
+                          READY_MADE ? "the key comes back out of it" : "all three fill in"
+                        } — nothing changes on your phone.`
+                      : `Have a link already? Paste it here to see ${READY_MADE ? "your key" : "all three"}.`}
                   </p>
-                  <button type="button" className="deck-btn deck-btn--go" onClick={() => void mint()} disabled={minting}>
-                    <Icon.Key width={12} height={12} aria-hidden /> {minting ? "Making it…" : camera.linked ? "Make a new link" : "Make my link"}
-                  </button>
-                  {camera.linked && <p className="mt-1.5 text-[10.5px] text-ink-faint">A Shortcut using the old link stops sending until you paste the new one in.</p>}
+                  <input
+                    type="text"
+                    value={pasted}
+                    onChange={(e) => setPasted(e.target.value)}
+                    placeholder={`${pushUrl}?key=…`}
+                    spellCheck={false}
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    aria-label="Paste a link you already have"
+                    className="w-full rounded-lg border border-line bg-canvas px-3 py-2.5 font-mono text-[12px] text-ink placeholder:text-ink-faint"
+                  />
+                  {pasted.trim() && !pastedKey && (
+                    <p className="mt-1.5 text-[11px] text-[var(--hud-amber)]">
+                      No <Code>?key=</Code> in that one. Copy the whole link out of the Shortcut&apos;s URL action, including everything
+                      after the <Code>?</Code>.
+                    </p>
+                  )}
+                  {pastedKey && (
+                    <p className="mt-1.5 text-[11px] text-ink-muted">
+                      {READY_MADE ? "Key found — it is below." : "Key found — your three links are below."}
+                    </p>
+                  )}
                 </div>
               )}
-              <p className="text-[11px] text-ink-faint">
-                It&apos;s a different address from the Jarvis page you&apos;re looking at — that&apos;s right. You never open it in a browser; it only goes in the
-                Shortcut.
-              </p>
+              {key ? (
+                <>
+                  {READY_MADE && (
+                    <CopyRow
+                      label="Your key"
+                      hint="The ready-made Shortcut asks for exactly this while it installs. Paste it there and the phone is set up — its three links are built out of it for you."
+                      value={key}
+                      onCopy={() => {
+                        copy(key, "Your key");
+                        setKeyCopied(true);
+                      }}
+                      secret
+                    />
+                  )}
+                  {token && (
+                    <p className="text-[11px] text-[var(--hud-amber)]">
+                      {READY_MADE
+                        ? "Copy it now — for safety it is only ever shown once."
+                        : "Copy all three now — for safety they are only ever shown once."}
+                    </p>
+                  )}
+                  <Manual summary="The link, for building the Shortcut by hand">
+                  {/*
+                    One link, used twice. It used to be three, one per job, and
+                    picking the wrong one for a box was the single most common
+                    way to end up with a Shortcut that runs, reports success
+                    and does nothing. The sending address now answers the
+                    clean-up as well, so both URL actions take the same thing
+                    and there is no wrong one to choose.
+                  */}
+                  <CopyRow
+                    label="Your link"
+                    hint="Goes in BOTH URL actions — the one inside the loop that sends the photos, and the one at the bottom that says which are still on your phone. The same link, pasted twice."
+                    value={myLink}
+                    onCopy={() => copy(myLink, "Your link")}
+                    secret
+                  />
+                  <p className="rounded-lg border border-[var(--hud-amber)] px-3 py-2 text-[11px] text-[var(--hud-amber)]">
+                    Wherever you paste it: tap the box, press and hold, <b className="text-ink">Select All</b>, delete, <i>then</i> paste.
+                    These boxes keep what was in them, and a link pasted next to an old one is the usual reason a finished Shortcut does
+                    nothing.
+                  </p>
+                  <CopyRow
+                    label="Bookmark link · optional"
+                    hint="Only for the extra URL action at the very TOP, above Find Photos. It remembers where the Shortcut got to, so each run picks up after the last photo instead of re-sending. Skip it and everything still works."
+                    value={cursorLink}
+                    onCopy={() => copy(cursorLink, "Bookmark link")}
+                    secret
+                  />
+                  </Manual>
+                </>
+              ) : null}
+              <div className="rounded-lg border border-line bg-panel-2 p-3">
+                <p className="mb-2 text-[11.5px]">
+                  {camera.linked
+                    ? `Lost ${READY_MADE ? "the key" : "the link"} entirely? Make a new one — but only if you have to:`
+                    : `No ${READY_MADE ? "key" : "link"} yet? Make one:`}
+                </p>
+                <button type="button" className="deck-btn deck-btn--go" onClick={() => void mint()} disabled={minting}>
+                  <Icon.Key width={12} height={12} aria-hidden /> {minting ? "Making it…" : camera.linked ? `Make a new ${READY_MADE ? "key" : "link"}` : `Make my ${READY_MADE ? "key" : "link"}`}
+                </button>
+                {camera.linked && (
+                  <p className="mt-1.5 text-[10.5px] text-ink-faint">
+                    This replaces the old one — the Shortcut on your phone stops sending until you paste the new one into it:{" "}
+                    {READY_MADE ? "the Text block at its very top" : "all three of its URL actions"}.
+                  </p>
+                )}
+              </div>
+              {!READY_MADE && (
+                <p className="text-[11px] text-ink-faint">
+                  It&apos;s a different address from the Jarvis page you&apos;re looking at — that&apos;s right. You never open it in a browser; it only
+                  goes in the Shortcut.
+                </p>
+              )}
             </div>
           )}
 
           {step === "build" && (
             <div className="space-y-3">
-              <h3 className="text-[18px] font-semibold text-ink">Make the Shortcut</h3>
+              <h3 className="text-[18px] font-semibold text-ink">{READY_MADE ? "Add the Shortcut" : "Make the Shortcut"}</h3>
               {SETUP_VIDEO && (
                 <video src={SETUP_VIDEO} controls playsInline className="w-full max-w-sm rounded-xl border border-line" aria-label="Video: making the Send to Jarvis Shortcut" />
               )}
-              {SHORTCUT_LINK && (
+              {READY_MADE && (
                 <div className="rounded-lg border border-[var(--hud)] bg-[color-mix(in_oklab,var(--hud)_8%,transparent)] p-3">
                   <p className="mb-2 text-ink">
-                    Fastest way: tap below, then <b>Add Shortcut</b>. When it asks for your link, paste it.
+                    This one is already built. Copy your key, tap <b>Add the Shortcut</b>, then <b>Add Shortcut</b> on the page that opens
+                    — iOS asks for the key once while it installs, and pasting it is the last thing you do.
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    <a href={SHORTCUT_LINK} className="deck-btn deck-btn--go">
+                    {keyButton}
+                    <a href={SHORTCUT_LINK} className={`deck-btn ${keyCopied ? "deck-btn--go" : ""}`}>
                       Add the Shortcut
                     </a>
-                    {token && (
-                      <button type="button" className="deck-btn" onClick={() => copy(myLink, "Your link")}>
-                        <Icon.Copy width={12} height={12} aria-hidden /> Copy your link first
-                      </button>
-                    )}
                   </div>
-                  <p className="mt-2 text-[11px] text-ink-faint">Prefer to build it yourself? The steps are below.</p>
+                  {!key && (
+                    <p className="mt-2 text-[11px] text-[var(--hud-amber)]">
+                      Get your key first. iOS asks for it while the Shortcut installs, and an empty answer means the photos go nowhere.
+                    </p>
+                  )}
+                  {/*
+                    Reading this on a laptop is the common case — the link is
+                    useless there, since Shortcuts only exists on the phone. The
+                    QR hands it over without typing anything.
+                  */}
+                  {shortcutQr && !phone && (
+                    <div className="mt-3 flex items-center gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={shortcutQr} alt="QR code to add the Shortcut on your iPhone" className="h-[104px] w-[104px] rounded-md" />
+                      <p className="text-[11px] leading-snug text-ink-muted">
+                        On a laptop? Point your iPhone camera at this — it opens the Shortcut ready to add. The key has to be on the phone
+                        too, so open this guide there as well (step 1) and copy it from the step before.
+                      </p>
+                    </div>
+                  )}
+                  <p className="mt-2 text-[11px] text-ink-faint">
+                    If it never asks for the key, open the Shortcut, tap the <b className="text-ink">Text</b> block at the very top and
+                    paste it in there — that one box is where its links read the key from.
+                  </p>
                 </div>
               )}
+              <Manual summary="Build it by hand instead — eight blocks, about half an hour">
               <p>
                 Open Apple&apos;s <b className="text-ink">Shortcuts</b> app (it&apos;s already on your iPhone — swipe down on the home screen and search
                 &ldquo;Shortcuts&rdquo;). Then:
@@ -247,9 +435,15 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                     <Code>Convert Image</Code>, tap it, set it to <b className="text-ink">JPEG</b> — it should say &ldquo;Convert Resized Image to JPEG&rdquo;.
                   </>,
                   <>
-                    Search <Code>URL</Code>, and tap the action called just <b className="text-ink">URL</b> (the blue link
-                    icon). Tap inside it and paste <b className="text-ink">your link</b>.
+                    Search <Code>URL</Code>, and tap the action called just <b className="text-ink">URL</b> (the blue link icon). Tap
+                    inside it, press and hold, <b className="text-ink">Select All</b>, delete whatever is in there, then paste{" "}
+                    <b className="text-ink">your link</b>.
                     {token && <InlineCopy onClick={() => copy(myLink, "Your link")} />}
+                    <br />
+                    <span className="text-[11px] text-ink-faint">
+                      Clearing it first is not fussiness: the box arrives with text in it, and a link pasted beside that is the usual
+                      reason a Shortcut looks finished and sends nothing.
+                    </span>
                     <br />
                     <span className="text-[11px] text-ink-faint">
                       Putting the link in its own URL action — not typed into the next block — is what avoids the &ldquo;couldn&apos;t convert from Rich Text to
@@ -355,6 +549,7 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                 the URL box. Tap the URL box in Get Contents of URL and clear it, add a separate <b className="text-ink">URL</b> action above it with your
                 link pasted in, then tap the URL box again and pick the blue <b className="text-ink">URL</b>.
               </p>
+              </Manual>
             </div>
           )}
 
@@ -393,31 +588,66 @@ export function IphoneGuide({ camera, onClose }: { camera: CameraWatch; onClose:
                 <p className="mb-1 text-[13px] font-semibold text-ink">Delete on your phone → gone from Jarvis too</p>
                 <p className="mb-2 text-[11.5px]">
                   A website can&apos;t see your camera roll, so the Shortcut tells Jarvis which recent photos are still there. Anything waiting in Camera
-                  Autopilot that you deleted on your phone is then removed — on the phone and the laptop. Add these at the very{" "}
-                  <b className="text-ink">bottom</b> of <Code>{SHORTCUT_NAME}</Code>, below End Repeat:
+                  Autopilot that you deleted on your phone is then removed — on the phone and the laptop.
+                  {READY_MADE ? (
+                    " The ready-made Shortcut already does all of this, so there is nothing here to add."
+                  ) : (
+                    <>
+                      {" "}
+                      Add these at the very <b className="text-ink">bottom</b> of <Code>{SHORTCUT_NAME}</Code>, below End Repeat:
+                    </>
+                  )}
                 </p>
+                <Manual summary="The blocks that do it, for a Shortcut you built by hand">
                 <Steps
                   items={[
                     <>
                       <b className="text-ink">Find Photos</b> → <b className="text-ink">Add Filter</b> → <b className="text-ink">Date Created</b> →{" "}
                       <b className="text-ink">is in the last</b> <b className="text-ink">30 days</b>. Turn <b className="text-ink">Limit</b> off.
+                      <br />
+                      It has to read <b className="text-ink">&ldquo;Find All Photos where&rdquo;</b>. If it says{" "}
+                      <b className="text-ink">&ldquo;Filter Repeat Results where&rdquo;</b>, Shortcuts wired the loop above into it — tap that
+                      blue chip and clear it, or the list will only cover the photos just sent.
                     </>,
                     <>
-                      <b className="text-ink">Get Details of Images</b> → tap Detail → <b className="text-ink">Name</b>.
+                      <b className="text-ink">Get Details of Images</b> → tap Detail → <b className="text-ink">Name</b>. Its input chip has
+                      to be the <b className="text-ink">Photos</b> from the Find Photos above it — if it says Repeat Item, it is reading one
+                      photo instead of the whole roll.
                     </>,
                     <>
-                      <b className="text-ink">Combine Text</b> → tap the separator → <b className="text-ink">Comma</b>.
+                      <b className="text-ink">Combine Text</b> → separator <b className="text-ink">New Lines</b>. (Commas work too — Jarvis
+                      splits on either, so whichever your iOS offers is fine.)
+                      <br />
+                      Its text box must hold the blue <b className="text-ink">Name</b> chip from the step above. Tap the box and pick Name off
+                      the bar over the keyboard — typing the word combines nothing.
                     </>,
                     <>
-                      A <b className="text-ink">URL</b> action with this link
-                      {token ? <InlineCopy onClick={() => copy(presentLink, "Clean-up link")} /> : <> <Code>…/api/dashboard/inbox/present</Code></>}, then{" "}
-                      <b className="text-ink">Get Contents of URL</b>: Method <b className="text-ink">POST</b>, Request Body <b className="text-ink">Form</b>,{" "}
-                      <b className="text-ink">Add new field → Text</b>, key <Code>names</Code>
-                      <InlineCopy onClick={() => copy("names", "Field name")} />, value <b className="text-ink">Combined Text</b>.
+                      Another <b className="text-ink">URL</b> action holding <b className="text-ink">the same link</b> you used in the loop
+                      above {token && <InlineCopy onClick={() => copy(myLink, "Your link")} />} — not a different one. Clear the box first
+                      (press and hold → <b className="text-ink">Select All</b> → delete), then paste.
+                    </>,
+                    <>
+                      <b className="text-ink">Get Contents of URL</b>: Method <b className="text-ink">POST</b>, Request Body{" "}
+                      <b className="text-ink">Form</b>, <b className="text-ink">Add new field → Text</b>, key <Code>names</Code>
+                      <InlineCopy onClick={() => copy("names", "Field name")} /> — plural — value{" "}
+                      <b className="text-ink">Combined Text</b>.
+                      <br />
+                      Its URL box fills itself in, and Shortcuts usually picks the very first URL in the Shortcut. That is fine now: both
+                      URL actions hold the same link, and Jarvis works out which job it is from what you sent.
+                      <br />
+                      The value has to be the blue <b className="text-ink">Combined Text</b> chip off the variable bar. Typed words are sent
+                      as a photo name, so Jarvis hears &ldquo;one photo left, delete the rest&rdquo; — it refuses a list that short, and
+                      nothing comes back deleted.
                     </>,
                   ]}
                 />
+                </Manual>
                 <p className="mt-2 text-[11px] text-ink-faint">Only photos still waiting to be sorted are removed. Anything you already filed stays filed.</p>
+                <p className="mt-2 text-[11.5px]">
+                  <b className="text-ink">To check it worked:</b> run the Shortcut, then look at the top of the Camera Autopilot widget. It says what
+                  your phone reported — <i>“38 photos still on it · 2 deleted here”</i>. The Shortcut’s own result box is a line of code you can
+                  ignore.
+                </p>
               </div>
             </div>
           )}
@@ -508,10 +738,31 @@ function Steps({ items }: { items: React.ReactNode[] }) {
   );
 }
 
-function CopyRow({ label, value, onCopy, secret }: { label: string; value: string; onCopy: () => void; secret?: boolean }) {
+/**
+ * The hand-build, folded away.
+ *
+ * Once there is a Shortcut to install, the eight-block build stops being the
+ * route anyone should take — but it is still the only route for someone whose
+ * import failed, or who wants to see what the thing actually does to their
+ * photos before trusting it. So it stays, one tap away, rather than being
+ * deleted or left in the way. With no Shortcut to hand out it renders nothing
+ * of its own and every step reads exactly as it always did.
+ */
+function Manual({ summary, children }: { summary: string; children: React.ReactNode }) {
+  if (!READY_MADE) return <>{children}</>;
+  return (
+    <details className="rounded-lg border border-line bg-panel-2 px-3 py-2.5">
+      <summary className="cursor-pointer text-[11.5px] text-ink-muted hover:text-ink">{summary}</summary>
+      <div className="mt-3 space-y-3 border-t border-line pt-3">{children}</div>
+    </details>
+  );
+}
+
+function CopyRow({ label, value, onCopy, secret, hint }: { label: string; value: string; onCopy: () => void; secret?: boolean; hint?: string }) {
   return (
     <div>
       <p className="mb-1 font-mono text-[10.5px] uppercase tracking-wider text-ink-faint">{label}</p>
+      {hint && <p className="mb-1.5 text-[11px] leading-snug text-ink-muted">{hint}</p>}
       <div className="flex gap-1.5">
         <code className={`min-w-0 flex-1 truncate rounded-lg border border-line bg-panel-2 px-3 py-2.5 font-mono text-[12px] text-ink ${secret ? "select-all" : ""}`}>{value}</code>
         <button type="button" className="deck-btn deck-btn--go shrink-0" onClick={onCopy}>

@@ -342,6 +342,137 @@ export function classify(op: BridgeOp): Verdict {
       // Only files a request in In Queue, where the owner can see or delete it.
       return free(`Hand "${truncate(String(args.request ?? "a change"), 50)}" to Claude Code for ${truncate(String(args.app ?? "the app"), 30)}.`);
 
+    // --- the workbench -----------------------------------------------------
+    // Starting an agent is the job the owner asked for, and it works in a
+    // worktree that is not their checkout. The harness's OWN gate is what stops
+    // the grave things inside it, and that gate is answered below.
+    case "hub/work_start":
+      return free(
+        `Start ${String(args.harness ?? "deepseek") === "claude" ? "Claude Code" : "DeepSeek Harness"} on it: ${truncate(String(args.task ?? ""), 80)}.`,
+      );
+
+    case "hub/work_check":
+      return free("Read the agent's progress.");
+
+    case "hub/work_say":
+      return free(`Tell the agent: "${truncate(String(args.text ?? ""), 60)}".`);
+
+    case "hub/work_list":
+      return free("List the coding-agent threads on this PC.");
+
+    case "hub/work_finish": {
+      const action = String(args.action ?? "");
+      if (action === "land") {
+        return gate(
+          "grave",
+          `Commit and merge the agent's work${args.message ? ` as "${truncate(String(args.message), 50)}"` : ""}.`,
+          "This moves the change into your own checkout. Nothing is pushed, and nothing is deployed.",
+        );
+      }
+      if (action === "discard") {
+        return gate("act", "Throw the agent's worktree and branch away.", "The change in it is deleted.");
+      }
+      if (action === "stop") return free("Stop the agent. Its worktree is kept.");
+      return free("Show the change the agent made.");
+    }
+
+    case "hub/work_decide": {
+      // Answering a harness gate is the one place the chat could approve on the
+      // owner's behalf, so it is gated HERE too — one card, naming what the
+      // agent wants, and only then does the parked tool call run.
+      const allow = args.allow !== false;
+      const what = truncate(String(args.what ?? args.title ?? "the agent's request"), 70);
+      return allow
+        ? gate("grave", `Allow the agent to: ${what}.`, "It is blocked until you answer this.")
+        : free(`Refuse the agent's request: ${what}.`);
+    }
+
+    // --- the services an app ships through ---------------------------------
+    case "hub/github": {
+      const action = String(args.action ?? "");
+      const repo = String(args.repo ?? "the repo");
+      const reads = new Set(["whoami", "repos", "repo", "branches", "commits", "pulls", "pull", "pull_files", "issues", "read_file", "runs"]);
+      if (reads.has(action)) {
+        return free(action === "read_file" ? `Read ${truncate(String(args.path ?? "a file"), 50)} from ${repo}.` : `Read ${action} from ${repo}.`);
+      }
+      if (action === "merge_pull" || action === "branches_delete" || action === "delete_file") {
+        return gate(
+          "grave",
+          action === "merge_pull"
+            ? `Merge pull request #${String(args.number ?? "?")} into ${truncate(String(args.base ?? args.branch ?? "main"), 30)}.`
+            : `Delete ${action === "branches_delete" ? `branch ${truncate(String(args.branch ?? ""), 40)}` : truncate(String(args.path ?? ""), 50)} in ${repo}.`,
+          "On GitHub this cannot be undone from here.",
+        );
+      }
+      if (action === "commit_files") {
+        const n = Array.isArray(args.files) ? args.files.length : 0;
+        return gate(
+          "act",
+          `Commit ${n || "several"} file${n === 1 ? "" : "s"} to ${repo}${args.branch ? ` on ${String(args.branch)}` : ""}.`,
+          "A new commit on a branch. Vercel will build it; nothing merges itself.",
+        );
+      }
+      if (action === "write_file") {
+        return gate("act", `Write ${truncate(String(args.path ?? "a file"), 50)} in ${repo}.`, "A new commit on a branch.");
+      }
+      return gate("act", `${action} in ${repo}.`, "This changes something on GitHub.");
+    }
+
+    case "hub/vercel": {
+      const action = String(args.action ?? "");
+      const reads = new Set(["whoami", "teams", "projects", "project", "deployments", "deployment", "logs", "env", "domains"]);
+      if (reads.has(action)) return free(`Read ${action} from Vercel.`);
+      if (action === "env_set") {
+        return gate(
+          "act",
+          `Set ${String(args.key ?? "a variable")} on Vercel ${String(args.project ?? "")}.`,
+          "It takes effect for every deployment; the site needs a redeploy to pick it up.",
+        );
+      }
+      return gate("act", "Redeploy on Vercel.", "This replaces the live deployment with a new build.");
+    }
+
+    case "hub/supabase": {
+      const action = String(args.action ?? "");
+      if (action === "sql") {
+        return gate(
+          "grave",
+          `Run SQL against ${String(args.project ?? "the database")}: ${truncate(String(args.sql ?? args.query ?? ""), 60)}.`,
+          "This is the real database. A wrong statement is not undoable from here.",
+        );
+      }
+      if (action === "set_secret") {
+        return gate("act", `Set the Supabase secret ${String(args.name ?? "")}.`, "Edge functions read it on their next run.");
+      }
+      return free(`Read ${action} from Supabase.`);
+    }
+
+    // --- the PC's own tool supply -------------------------------------------
+    case "hub/mcp": {
+      const action = String(args.action ?? "");
+      const server = truncate(String(args.server ?? "an MCP server"), 40);
+      if (action === "list" || action === "tools") return free(`Read ${action === "list" ? "the MCP servers" : `the tools in ${server}`}.`);
+      if (action === "call") return gate("act", `Run ${truncate(String(args.tool ?? "a tool"), 40)} through ${server}.`, "An MCP tool runs on your PC.");
+      if (action === "add") {
+        return gate(
+          "grave",
+          `Add the MCP server ${server}: ${truncate(`${String(args.command ?? "")} ${(Array.isArray(args.serverArgs) ? args.serverArgs.join(" ") : "")}`, 50)}.`,
+          "Adding a server means running a program on your PC every time it is asked for a tool.",
+        );
+      }
+      return gate("act", `${action} the MCP server ${server}.`, "It runs on your PC.");
+    }
+
+    case "hub/cli": {
+      const action = String(args.action ?? "");
+      if (action === "list") return free("List the command-line tools on this PC.");
+      return gate(
+        "grave",
+        `Install ${String(args.name ?? args.pkg ?? "a CLI")} on your PC.`,
+        "This downloads and installs software as you.",
+      );
+    }
+
     case "browser/close":
       return free("Close that tab.");
     case "browser/quit":

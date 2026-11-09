@@ -42,6 +42,8 @@ still thinks, remembers and answers.
 | `POST /files/*` | `list`, `read`, `write`. |
 | `POST /system/*` | `windows`, `focus`, `launch`, `screenshot`, `info`, `clipboard/read`, `clipboard/write`. |
 | `POST /harness/*` | `list`, `start`, `say`, `events`, `decide`, `interrupt`, `stop`, `threads`, `status`, `diff`, `land`, `discard`. A coding agent in its own worktree. |
+| `POST /mcp/*` | `list`, `tools`, `call`, `save`, `remove`, `enable`, `restart`. MCP servers as child processes, and their tools. |
+| `POST /cli/*` | `list` (what is installed, with versions), `install` (npm, winget, pip or uv). |
 | `GET /health` | No auth. What is installed and whether the browser is up. |
 | `GET /status` | Everything the page's panels draw. |
 
@@ -78,6 +80,11 @@ Two harnesses, one shape:
 |---|---|
 | `claude` | Claude Code through the Agent SDK, imported here rather than spawned as a CLI. The SDK's `canUseTool` is a function call in this process, which is the only reason a permission prompt can be carried to a page and answered there. |
 | `deepseek` | dsh's `acp` profile over Agent Client Protocol on stdio. |
+
+Where dsh lives is **discovered**, not hard-coded: `DSH_DIR`, then `~/deepseek-harness`, then
+`~/Projects/deepseek-harness`, then the desktop app's bundled copy. A root can be a checkout
+(with `node_modules/@deepseek-ai/dsh`) or the package folder itself. The package is started as
+`node <bin.js> --profile acp`, so it needs no `npx`, no PATH entry and no network.
 
 **Events are polled, not streamed.** `EventSource` cannot set an
 `Authorization` header, so an SSE route would need its own door, and a long
@@ -139,6 +146,20 @@ on this folder at once and it is almost never clean; merging on a button press
 is how one thread eats somebody else's afternoon. When it stops, it names the
 files that stopped it.
 
+### MCP servers and the PC's CLIs
+
+An MCP server is a command that speaks JSON-RPC over stdio. `POST /mcp/save` stores one in
+`out/mcp.json` — beside the bridge, never in the repository, because that file is where a
+server's own tokens live. `POST /mcp/tools` initialises it and lists what it offers;
+`POST /mcp/call` runs one tool and returns its text. The child is kept between calls and
+killed when the bridge exits. Adding a server is an arbitrary program, so the page gates it
+as a grave action.
+
+`POST /cli/list` checks a fixed list of the tools this hub actually reaches for (git, gh,
+vercel, supabase, node, python, uv, docker, claude, dsh, ffmpeg…) and reports each one's real
+path and version — the answer to "is `gh` installed here?" without guessing. `POST
+/cli/install` installs one through npm, winget, pip or uv.
+
 ## What is holding the door
 
 Any page in any tab can send a request to `127.0.0.1`. The browser will not let
@@ -166,9 +187,14 @@ The token lives in `out\token.txt` and reaches the page through the URL
 Vercel, not to a proxy, not into an access log. The page stores it and strips it
 from the address bar immediately.
 
-Above all this sits the page's own gate: New Jarvis reads freely and stops for
-your yes on anything that cannot be undone. That gate is the one you read; this
-list is the one that holds when something bypasses it.
+Above all this sits the page's own gate, and how much it stops for is the Trust
+setting under the command line. **Trusted** is the default: it reads freely,
+writes and runs the ordinary things without asking, and still parks on money,
+on anything sent or published in your name, on deleting, on `git push`, and on
+any write that leaves the thread's own worktree. **Ask** parks on every effect;
+**Auto** parks on that short core and nothing else. A gate you answer with
+"Always" stops asking for that shape of call. That gate is the one you read;
+the list above is the one that holds when something bypasses it.
 
 ## When something is wrong
 

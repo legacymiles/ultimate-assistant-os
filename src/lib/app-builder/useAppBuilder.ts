@@ -30,10 +30,15 @@ import {
   newId,
   newProject,
 } from "./engine";
-import { noteBuildInReview, postToQueue, QUEUE_FOLDER } from "./queue";
+import { depthOf } from "./depth";
+import { useBridge } from "@/lib/new-jarvis/useBridge";
+import { startAbsorb, useBuild } from "./useBuild";
+import { absorbPr, hubSlug } from "./absorb";
+import { dropFromQueue, noteBuildInReview, postToQueue, QUEUE_FOLDER } from "./queue";
+import { openReview } from "./review";
 import { dropMedia, getMedia } from "./inbox";
 import { forWire, keyframesOf, type PreparedMedia } from "./media";
-import type { Answers, BuilderProject, Feature, FeatureOp, MediaSource, Question, Teardown, Understanding } from "./types";
+import type { Answers, BuilderProject, Depth, Feature, FeatureOp, MediaSource, Question, Teardown, Understanding } from "./types";
 
 export const STORE_KEY = "app-builder:v1";
 export { QUEUE_FOLDER };
@@ -101,7 +106,10 @@ export function sourcesOf(media: PreparedMedia[], now = new Date()): MediaSource
   }));
 }
 
-export type Busy = null | "interview" | "features" | "chat" | "queue" | "board";
+export type Busy = null | "interview" | "features" | "chat" | "build" | "queue" | "board" | "cancel" | "absorb" | "retire";
+
+/** What the hand-off is doing right now, so the button can say it (R5). */
+export type QueueStep = null | "review" | "starting" | "filing" | "noting";
 
 interface StartReply {
   understanding: Understanding;
@@ -115,6 +123,7 @@ export function useAppBuilder() {
   const [store, setStore] = useState<Store>(EMPTY);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState<Busy>(null);
+  const [step, setStep] = useState<QueueStep>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const storeRef = useRef(store);
@@ -148,6 +157,15 @@ export function useAppBuilder() {
     () => store.projects.find((p) => p.id === store.currentId) ?? null,
     [store.projects, store.currentId],
   );
+
+  // The build itself. The thread id lives on the project (synced), not in the
+  // hook, so closing the tab or picking the phone up mid-build comes back to
+  // the same build rather than losing sight of it.
+  const bridge = useBridge();
+  const thread = useBuild(current?.handoff?.thread?.id, bridge.health.paired);
+  // A second thread, working in a worktree of the hub rather than the app's
+  // own folder. Watched the same way; it is just a different piece of work.
+  const moving = useBuild(current?.handoff?.absorb?.threadId, bridge.health.paired);
 
   const find = (id: string) => storeRef.current.projects.find((p) => p.id === id);
 
@@ -333,18 +351,103 @@ export function useAppBuilder() {
     [run, update],
   );
 
-  // ----- hand-off ------------------------------------------------------------------------
-  const sendToQueue = useCallback(
-    () =>
+  // ----- the build -----------------------------------------------------------------------
+  /**
+   * Build it. Not "queue it" — the app is built now, on the owner's own PC.
+   *
+   * The order matters: the Client Review link is opened FIRST, so its review_id
+   * and version_id are already inside the brief Claude Code reads and the
+   * finished app posts itself there without anyone pasting a URL. Then the
+   * harness thread starts, in a project folder of its own.
+   *
+   * A review link that can't be opened never stops the build: the reason is
+   * kept on the hand-off and shown in the panel, in plain English (R3).
+   */
+  const build = useCallback(
+    (clientName?: string) =>
+      run("build", async () => {
+        const p = find(storeRef.current.currentId ?? "");
+        if (!p) return;
+        let review = p.handoff?.review;
+        let reviewError: string | undefined;
+        if (!p.edit && !p.noReview) {
+          setStep("review");
+          try {
+            review = await openReview(p, clientName);
+          } catch (e) {
+            reviewError = e instanceof Error ? e.message : "Client Review couldn't open a link for this build.";
+          }
+        }
+        const withReview: BuilderProject = review ? { ...p, handoff: { ...(p.handoff ?? { at: "" }), review } } : p;
+        setStep("starting");
+        const id = await thread.start(withReview);
+        const at = new Date().toISOString();
+        const { depth } = depthOf(withReview);
+        update(p.id, (x) => ({
+          ...x,
+          handoff: {
+            ...x.handoff,
+            at,
+            thread: { id, at },
+            built: undefined,
+            ...(review ? { review } : {}),
+            ...(reviewError ? { reviewError } : { reviewError: undefined }),
+          },
+          chat: [
+            ...x.chat,
+            chatMsg(
+              "agent",
+              `Building it now on your PC, in a folder and repository of its own${
+                depth === "plain" ? "" : `, at ${depth === "commercial-2x" ? "commercial 2x" : "commercial"} depth`
+              }. You'll see every step here as it happens, and I'll stop and ask before anything that leaves this machine.${
+                review ? ` When it's deployed it posts itself to its review link as ${review.number}, so edits come straight back here.` : ""
+              }${reviewError ? ` ${reviewError}` : ""}`,
+            ),
+          ],
+        }));
+      }).finally(() => setStep(null)),
+    [run, update, thread],
+  );
+
+  /**
+   * The other path: file it in In Queue instead of building now. For when the
+   * PC is off, or the owner wants it built later — never the default.
+   */
+  const fileForLater = useCallback(
+    (clientName?: string) =>
       run("queue", async () => {
         const p = find(storeRef.current.currentId ?? "");
         if (!p) return;
-        const id = await postToQueue(p);
+        let review = p.handoff?.review;
+        let reviewError: string | undefined;
+        // A client edit already has its own review link and version — this is
+        // only for a new app on its way to one.
+        if (!p.edit && !p.noReview) {
+          setStep("review");
+          try {
+            review = await openReview(p, clientName);
+          } catch (e) {
+            reviewError = e instanceof Error ? e.message : "Client Review couldn't open a link for this build.";
+          }
+        }
+        const withReview: BuilderProject = review ? { ...p, handoff: { ...(p.handoff ?? { at: "" }), review } } : p;
+        setStep("filing");
+        const id = await postToQueue(withReview);
+        setStep(p.edit ? "noting" : null);
         const noted = p.edit ? await noteBuildInReview(p, id) : false;
-        const skills = `${p.teardown ? "video-analyzer, rea (reverse-engineer-anything), " : ""}felix, prompt-enhancer, ${p.understanding?.designSkill ?? "the design skill"}, software-factory and claude-security`;
+        const { depth } = depthOf(withReview);
+        const skills = `${p.teardown ? "video-analyzer, rea (reverse-engineer-anything), " : ""}felix, prompt-enhancer, ${
+          depth === "plain" ? "" : `${depth === "commercial-2x" ? "commercial 2x" : "commercial"}, `
+        }${p.understanding?.designSkill ?? "the design skill"}, impeccable, software-factory and claude-security`;
         update(p.id, (x) => ({
           ...x,
-          handoff: { ...x.handoff, at: new Date().toISOString(), queueId: id ?? x.handoff?.queueId },
+          handoff: {
+            ...x.handoff,
+            at: new Date().toISOString(),
+            queueId: id ?? x.handoff?.queueId,
+            ...(review ? { review } : {}),
+            ...(reviewError ? { reviewError } : { reviewError: undefined }),
+          },
           chat: [
             ...x.chat,
             chatMsg(
@@ -352,13 +455,135 @@ export function useAppBuilder() {
               id && x.edit
                 ? `Queued as ${id}. Claude Code builds the ${x.edit.items.length} edit${x.edit.items.length === 1 ? "" : "s"} on ${x.edit.branch} in ${x.edit.repo ?? "the client's repo"}, opens a pull request for you to merge, and posts the preview to ${x.edit.clientName || "the client"}'s review link as ${x.edit.version}${noted ? "" : " (Client Review couldn't be updated — the build still runs)"}.`
                 : id
-                ? `Queued as ${id} in In Queue › App Builder${x.keyframes?.length ? `, with ${Math.min(4, x.keyframes.length)} frames from the recording` : ""}. Claude Code on your PC or VPS builds it the next time it works the queue ("work my Jarvis queue") — running ${skills}.`
-                : "That exact build is already in the queue.",
+                  ? `Queued as ${id} in In Queue › App Builder${x.keyframes?.length ? `, with ${Math.min(4, x.keyframes.length)} frames from the recording` : ""}. Nothing is running yet — Claude Code on your PC or VPS builds it the next time you say "work my Jarvis queue", running ${skills}.${
+                      review ? ` When it's deployed it posts itself to its review link as ${review.number}, so edit requests come straight back here.` : ""
+                    }${reviewError ? ` ${reviewError}` : ""}`
+                  : "That exact build is already in the queue — nothing was filed twice.",
+            ),
+          ],
+        }));
+      }).finally(() => setStep(null)),
+    [run, update],
+  );
+
+  /**
+   * The build finished and said where it put things: save that on the project,
+   * so App Builder's list holds shipped apps rather than only briefs, and the
+   * links survive closing the tab.
+   *
+   * Written once. A later re-read of the same thread must not keep stamping a
+   * new `at` over a record that has not changed.
+   */
+  const builtId = current?.id;
+  const builtRepo = thread.links.repo;
+  const builtUrl = thread.links.url;
+  const builtPath = thread.summary?.worktree?.path;
+  const done = thread.phase === "done";
+  useEffect(() => {
+    if (!done || !builtId || (!builtRepo && !builtUrl)) return;
+    const had = find(builtId)?.handoff?.built;
+    if (had?.repo === builtRepo && had?.url === builtUrl) return;
+    update(builtId, (x) => ({
+      ...x,
+      handoff: { ...(x.handoff ?? { at: "" }), built: { repo: builtRepo, url: builtUrl, path: builtPath, at: new Date().toISOString() } },
+    }));
+  }, [done, builtId, builtRepo, builtUrl, builtPath, update]);
+
+  /**
+   * Move a finished app into the hub: `/apps/<slug>`, a catalog entry, and a
+   * pull request for the owner to merge. The standalone repository is left
+   * exactly as it is — retiring it is a separate, later decision.
+   */
+  const absorb = useCallback(
+    () =>
+      run("absorb", async () => {
+        const p = find(storeRef.current.currentId ?? "");
+        const from = p?.handoff?.built?.path;
+        if (!p) return;
+        if (!from) throw new Error("I don't know where this app was built, so there's nothing to move. Build it first.");
+        const id = await startAbsorb(p, from);
+        const at = new Date().toISOString();
+        update(p.id, (x) => ({
+          ...x,
+          handoff: { ...(x.handoff ?? { at }), absorb: { threadId: id, at } },
+          chat: [
+            ...x.chat,
+            chatMsg(
+              "agent",
+              `Moving ${x.understanding?.name ?? "it"} into the hub, in a worktree of its own. It reads ${from} without touching it, brings the app in as /apps/${hubSlug(x)} with a catalog entry, and opens a pull request for you to merge. The standalone repo stays exactly as it is until you retire it.`,
             ),
           ],
         }));
       }),
     [run, update],
+  );
+
+  /** The move opened a pull request: remember it, so it can be followed. */
+  const movingPr = absorbPr(moving.view.turns.map((t) => t.text).join("\n"));
+  const movingId = current?.id;
+  useEffect(() => {
+    if (!movingPr || !movingId) return;
+    const had = find(movingId)?.handoff?.absorb;
+    if (!had || had.prUrl === movingPr) return;
+    update(movingId, (x) => ({ ...x, handoff: { ...(x.handoff ?? { at: "" }), absorb: { ...had, prUrl: movingPr } } }));
+  }, [movingPr, movingId, update]);
+
+  /**
+   * Retire the standalone: the owner has merged the pull request, so the app
+   * now lives in the hub and the separate repository is a second copy.
+   *
+   * Deliberately NOT automatic and never part of the move. It deletes a GitHub
+   * repository, which cannot be undone, so it waits for the owner to say the
+   * pull request has actually merged and to confirm the repository by name.
+   */
+  const retire = useCallback(
+    () =>
+      run("retire", async () => {
+        const p = find(storeRef.current.currentId ?? "");
+        const had = p?.handoff?.absorb;
+        if (!p || !had) return;
+        update(p.id, (x) => ({
+          ...x,
+          handoff: { ...(x.handoff ?? { at: "" }), absorb: { ...had, retiredAt: new Date().toISOString() } },
+          chat: [...x.chat, chatMsg("agent", `Marked ${x.understanding?.name ?? "it"}'s standalone repository as retired. It now lives in the hub.`)],
+        }));
+      }),
+    [run, update],
+  );
+
+  /** Take a queued build back out, before anything has been built (D6). */
+  const cancelBuild = useCallback(
+    () =>
+      run("cancel", async () => {
+        const p = find(storeRef.current.currentId ?? "");
+        const queueId = p?.handoff?.queueId;
+        if (!p || !queueId) return;
+        await dropFromQueue(queueId);
+        update(p.id, (x) => ({
+          ...x,
+          handoff: { ...x.handoff, at: new Date().toISOString(), queueId: undefined },
+          chat: [...x.chat, chatMsg("agent", `Took ${queueId} back out of the queue. Nothing was built. Press Build it again whenever you want.`)],
+        }));
+      }),
+    [run, update],
+  );
+
+  /** How far the build goes — plain, commercial, or commercial 2x. */
+  const setDepth = useCallback(
+    (depth: Depth) => {
+      if (!current) return;
+      update(current.id, (p) => ({ ...p, depth }));
+    },
+    [current, update],
+  );
+
+  /** Don't open a Client Review link for this build. */
+  const setNoReview = useCallback(
+    (off: boolean) => {
+      if (!current) return;
+      update(current.id, (p) => ({ ...p, noReview: off || undefined }));
+    },
+    [current, update],
   );
 
   const sendCards = useCallback(
@@ -419,6 +644,7 @@ export function useAppBuilder() {
     projects: store.projects,
     current,
     busy,
+    step,
     error,
     notice,
     clearError: () => setError(null),
@@ -429,8 +655,19 @@ export function useAppBuilder() {
     design,
     apply,
     say,
-    sendToQueue,
+    build,
+    absorb,
+    retire,
+    moving,
+    fileForLater,
+    cancelBuild,
     sendCards,
+    /** The live build on the PC, for the panel that draws it. */
+    thread,
+    /** Whether this browser can reach the PC at all. */
+    bridge: bridge.health,
+    setDepth,
+    setNoReview,
     open,
     remove,
     rename,

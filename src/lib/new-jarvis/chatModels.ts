@@ -2,9 +2,10 @@
 // Which model the Chat's super agent thinks with.
 //
 // "Auto" is the hub default (Claude through OpenRouter, with the provider's
-// own fallback chain). Every other pick is an OpenRouter model id sent with the
-// request; the route only accepts the id's SHAPE, so a model added to
-// OpenRouter tomorrow works by typing its id, with no code change.
+// own fallback chain). Every other pick is a model id sent with the request;
+// the route only accepts the id's SHAPE, so a model added tomorrow works by
+// typing its id, with no code change. OrcaRouter's `orca/…` ids are the
+// exception to "OpenRouter id": provider.ts pins them to OrcaRouter.
 //
 // The picks below are the ones worth one tap. Each line says why you would
 // choose it, in terms of what it can take: the agent drives tools, so a model
@@ -46,6 +47,18 @@ export const SUBSCRIPTION_MODEL: ChatModel = {
 export const CHAT_MODELS: ChatModel[] = [
   SUBSCRIPTION_MODEL,
   AUTO_MODEL,
+  {
+    id: "orca/orcacyber-flash-1.0",
+    label: "DeepSeek 4.1 Flash Abliterated",
+    why: "Uncensored, never declines. On OrcaRouter.",
+    reads: ["text", "image"],
+  },
+  {
+    id: "orca/orcacyber-k3.1-pro",
+    label: "Kimi K3.1 Pro Abliterated",
+    why: "Uncensored, strongest, watches clips.",
+    reads: ["text", "image", "video"],
+  },
   { id: "deepseek/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", why: "Very cheap, fast, sees pictures.", reads: ["text", "image"] },
   { id: "xiaomi/mimo-v2.6-flash", label: "MiMo V2.6 Flash", why: "Hears audio and watches video.", reads: ["text", "image", "audio", "video"] },
   { id: "google/gemini-3.8-flash", label: "Gemini 3.8 Flash", why: "Long files, video, quick.", reads: ["text", "image", "audio", "video"] },

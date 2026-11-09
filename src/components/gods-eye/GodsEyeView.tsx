@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Chakra_Petch, JetBrains_Mono } from "next/font/google";
+import { godsEyeDisplay as display, godsEyeMono as mono } from "@/lib/fonts";
 import { loadCesium } from "@/lib/gods-eye/cesium";
 import {
   GlobeEngine,
@@ -29,8 +29,6 @@ import { RadioDeck, type RadioHandle } from "./RadioDeck";
 import { LiveCam, type FeedMode } from "./LiveCam";
 import styles from "./gods-eye.module.css";
 
-const display = Chakra_Petch({ subsets: ["latin"], weight: ["500", "600", "700"] });
-const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500", "600"] });
 
 const KEYS_STORAGE = "gods-eye-view.keys";
 const MAP_SOURCES: { id: MapSource; label: string }[] = [

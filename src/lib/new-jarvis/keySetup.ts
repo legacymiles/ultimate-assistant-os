@@ -109,6 +109,16 @@ export const KEY_SOURCES: Record<string, KeySource> = {
     how: "Create API key → Sending access → copy.",
     prefix: "re_",
   },
+  ARTIFICIAL_ANALYSIS_API_KEY: {
+    site: "Artificial Analysis",
+    url: "https://artificialanalysis.ai/data-api",
+    how: "Sign in → Data API → API keys → create one and copy it.",
+    cost: "Free tier: 100 requests a day (the daily score check spends 6)",
+    steps: [
+      { text: "Open Artificial Analysis's Data API page and sign in (Google works).", url: "https://artificialanalysis.ai/data-api", cta: "Open Data API" },
+      { text: "Go to API key management and create a key, then copy it.", url: "https://artificialanalysis.ai/api-key-management-redirect", cta: "Create key" },
+    ],
+  },
   TICKETMASTER_API_KEY: {
     site: "Ticketmaster",
     url: "https://developer.ticketmaster.com/",

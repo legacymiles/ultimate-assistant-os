@@ -20,11 +20,36 @@
 // refused whatever it claims to be.
 // ---------------------------------------------------------------------------
 
-/** Pages allowed to drive this machine. Same shape as the studio bridge. */
+/**
+ * Pages allowed to drive this machine. Same shape as the studio bridge.
+ *
+ * The custom domain is here because the hub is served from it now: a page on
+ * bighomieai.com is a different origin from the vercel.app URL, and the browser
+ * throws the reply away before the token is even looked at — which the page can
+ * only report as "the PC helper isn't running". That is exactly what a build
+ * press did while this list was missing the domain the owner was looking at.
+ */
 export const ALLOWED_ORIGINS = [
   /^https:\/\/ultimate-assistant-os\.vercel\.app$/,
+  /^https:\/\/(www\.)?bighomieai\.com$/,
   /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/,
+  ...extraOrigins(),
 ];
+
+/**
+ * More origins from JARVIS_ALLOWED_ORIGINS="https://a.example,https://b.example".
+ *
+ * Here so a domain change does not need this file edited on a machine nobody is
+ * sitting at. Exact matches only: a value from the environment must never be
+ * able to widen the door into a pattern.
+ */
+function extraOrigins() {
+  return String(process.env.JARVIS_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => new RegExp(`^${s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
+}
 
 export function originAllowed(origin) {
   if (!origin) return false;

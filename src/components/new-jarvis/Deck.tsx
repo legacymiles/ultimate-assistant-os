@@ -77,6 +77,8 @@ import {
 } from "./Widgets";
 import { ImprovementsExpanded, ImprovementsWidget } from "./Improvements";
 import { QueueExpanded, QueueWidget } from "./QueueWidget";
+import { ShipExpanded, ShipWidget } from "./ShipWidget";
+import { useShip } from "@/lib/client-review/useShip";
 import { YouTubeVideosExpanded, YouTubeVideosWidget } from "../youtube-videos/YouTubeVideosWidget";
 import { FindMyLifeExpanded, FindMyLifeWidget } from "../find-my-life/FindMyLifeWidget";
 import { IphoneExpanded, IphoneWidget, type IphoneTab } from "../iphone-hub/IphoneWidget";
@@ -86,7 +88,7 @@ import type { AuditProposalLike } from "@/lib/new-jarvis/ideas";
 import type { JarvisStore } from "@/lib/jarvis/types";
 import { MicButton } from "../jarvis/MicButton";
 import { useDictation } from "@/lib/new-jarvis/useDictation";
-import { phoneLine, type PhoneSignals } from "@/lib/dashboard/phoneStatus";
+import { phoneLine, sweepReport, type PhoneSignals } from "@/lib/dashboard/phoneStatus";
 import { photoConfidence } from "@/lib/recall/photos/confidence";
 import { passesFilter, sortByConfidence, type Confidence, type ConfidenceFilter, type ConfidenceSort } from "@/lib/confidence/calibrate";
 
@@ -260,6 +262,29 @@ function lastFromPhone(phone: PhoneSignals): string {
   return phoneLine(phone, (t) => since(t)).text;
 }
 
+/**
+ * What the phone last said it still has — its own row, not the subtitle.
+ *
+ * "Did the clean-up work?" had no answer anywhere in Jarvis: the Shortcut's
+ * reply is JSON behind a tap on the phone, and the widget's subtitle is taken
+ * by "N new from your iPhone" whenever anything is waiting. This row is always
+ * there once a report has arrived.
+ */
+function PhoneReport({ phone }: { phone: PhoneSignals }) {
+  const r = sweepReport(phone, (t) => since(t));
+  if (!r) return null;
+  return (
+    <p
+      className={`mb-1.5 flex items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] ${
+        r.warn ? "border-amber-500/40 bg-amber-500/10 text-amber-200" : "border-line-soft bg-panel-2 text-ink-muted"
+      }`}
+    >
+      <Icon.Camera width={12} height={12} className="mt-[1px] shrink-0" aria-hidden />
+      <span>{r.text}</span>
+    </p>
+  );
+}
+
 /** The last photos filed, for the preview strip when nothing is waiting. */
 function recentFiled(n: number): Shot[] {
   try {
@@ -285,6 +310,8 @@ function recentFiled(n: number): Shot[] {
 export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camera, store, audit, queue: inQueue }: Props) {
   const widgets = useWidgetPrefs();
   const ideas = useIdeas({ store, audit });
+  // What built and is one tap from being live (Client Review → push to main).
+  const ship = useShip();
   const [expanded, setExpanded] = useState<WidgetId | null>(null);
   /** Which side of the iPhone widget to open on (the half that was tapped). */
   const [iphoneTab, setIphoneTab] = useState<IphoneTab | undefined>(undefined);
@@ -635,6 +662,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
                   </>
                 }
               >
+                <PhoneReport phone={camera.phone} />
                 {queue.length > 0 ? (
                   <>
                     <p className="mb-1.5 text-[11px] text-ink-muted">
@@ -701,7 +729,8 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
             {!widgets.hidden.has("todo") && <TodoWidget onExpand={() => setExpanded("todo")} />}
             {!widgets.hidden.has("calendar") && <CalendarWidget events={events} onExpand={() => setExpanded("calendar")} />}
             {!widgets.hidden.has("improvements") && <ImprovementsWidget ideas={ideas} onExpand={() => setExpanded("improvements")} />}
-            {!widgets.hidden.has("queue") && <QueueWidget queue={inQueue} onExpand={() => setExpanded("queue")} />}
+            {!widgets.hidden.has("queue") && <QueueWidget queue={inQueue} ship={ship} onExpand={() => setExpanded("queue")} />}
+            {!widgets.hidden.has("ship") && <ShipWidget ship={ship} onExpand={() => setExpanded("ship")} />}
             {!widgets.hidden.has("youtube") && <YouTubeVideosWidget onExpand={() => setExpanded("youtube")} />}
             {!widgets.hidden.has("findmy") && <FindMyLifeWidget onExpand={() => setExpanded("findmy")} />}
           </div>
@@ -785,6 +814,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
           }
         >
           <div className="p-3 sm:p-4">
+          <PhoneReport phone={camera.phone} />
           {(camera.busy || camera.error) && <p className="mb-2 text-[11.5px] text-ink-muted">{camera.busy || camera.error}</p>}
           {queue.length === 0 ? (
             <>
@@ -912,6 +942,7 @@ export function Deck({ go, ownerName, setupLeft, onSetup, updates, events, camer
       {expanded === "calendar" && <CalendarExpanded events={events} go={go} onClose={() => setExpanded(null)} />}
       {expanded === "improvements" && <ImprovementsExpanded ideas={ideas} go={go} onClose={() => setExpanded(null)} />}
       {expanded === "queue" && <QueueExpanded queue={inQueue} go={go} onClose={() => setExpanded(null)} />}
+      {expanded === "ship" && <ShipExpanded ship={ship} onClose={() => setExpanded(null)} />}
       {expanded === "youtube" && <YouTubeVideosExpanded onClose={() => setExpanded(null)} />}
       {expanded === "findmy" && <FindMyLifeExpanded onClose={() => setExpanded(null)} />}
       {expanded === "iphone" && <IphoneExpanded tab={iphoneTab} onClose={() => setExpanded(null)} />}

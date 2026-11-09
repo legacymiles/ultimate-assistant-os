@@ -7,7 +7,7 @@ import { modelId, saveSettings, type BuilderRoute, type ProviderChoice } from "@
 
 export const runtime = "nodejs";
 
-const CHOICES: ProviderChoice[] = ["auto", "openrouter", "vercel-gateway"];
+const CHOICES: ProviderChoice[] = ["auto", "openrouter", "vercel-gateway", "orcarouter"];
 const BUILDERS: BuilderRoute[] = ["plan", "openrouter"];
 
 export async function PUT(req: Request) {

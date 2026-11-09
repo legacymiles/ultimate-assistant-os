@@ -31,14 +31,20 @@ const FundingRoom = dynamic(() => import("./funding/FundingRoom").then((m) => m.
   loading: () => <div className="bible-skeleton" />,
 });
 
-// Money Plays reads Money Agent Studio's board — the two apps stay separate,
-// the earnings flow in here.
+// Money Plays reads Money Agent Studio's board — the studio this whole shell
+// is now a tab of, which is why the earnings need no copy to flow in here.
 const PlaysRoom = dynamic(() => import("./rooms/PlaysRoom").then((m) => m.PlaysRoom), {
   ssr: false,
   loading: () => <div className="bible-skeleton" />,
 });
 
-export function Bible({ initialRoom }: { initialRoom: RoomId | null }) {
+/**
+ * @param embedded Mounted as Money Agent Studio's Bible tab: the studio's bar
+ * already says where you are, so the wordmark goes and the shell stops
+ * claiming the whole viewport. The room rail stays — those are the app's own
+ * four rooms, not chrome.
+ */
+export function Bible({ initialRoom, embedded = false }: { initialRoom: RoomId | null; embedded?: boolean }) {
   const [room, setRoom] = useState<RoomId>(initialRoom ?? DEFAULT_ROOM);
   const [homeBase, setBase] = useState<HomeBase | null>(null);
   /** False until the store has been read, so the strip does not flash. */
@@ -75,12 +81,14 @@ export function Bible({ initialRoom }: { initialRoom: RoomId | null }) {
   const def = roomDef(room);
 
   return (
-    <div className="bible" style={{ ["--bible-accent" as string]: `${def.hue}` }}>
+    <div className="bible" data-embedded={embedded || undefined} style={{ ["--bible-accent" as string]: `${def.hue}` }}>
       <nav className="bible-rail" aria-label="Financial Bible rooms">
-        <span className="bible-mark">
-          Financial
-          <strong>Bible</strong>
-        </span>
+        {!embedded && (
+          <span className="bible-mark">
+            Financial
+            <strong>Bible</strong>
+          </span>
+        )}
         {ROOMS.map((r) => (
           <button
             key={r.id}
@@ -107,7 +115,7 @@ export function Bible({ initialRoom }: { initialRoom: RoomId | null }) {
         ) : room === "funding" ? (
           <FundingRoom />
         ) : room === "plays" ? (
-          <PlaysRoom />
+          <PlaysRoom embedded={embedded} />
         ) : (
           <PlansRoom homeBase={homeBase} />
         )}

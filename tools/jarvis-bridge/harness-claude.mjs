@@ -37,7 +37,7 @@ export const CLAUDE_LABEL = "Claude Code";
  * answers and resolves true or false. Neither is allowed to throw: a gate that
  * rejects would surface to the model as a tool failure rather than a refusal.
  */
-export function startClaude({ cwd, emit, gate, strict = false, laneWrites = false, model = "", signal }) {
+export function startClaude({ cwd, emit, gate, strict = false, laneWrites = false, trust = "ask", model = "", signal, alwaysAllowed = () => false }) {
   /** Turns waiting to be handed to the model. */
   const queue = [];
   let wake = null;
@@ -87,11 +87,17 @@ export function startClaude({ cwd, emit, gate, strict = false, laneWrites = fals
         const d = describeTool(name, args, cwd);
         // What passes without asking is one policy, stated in harness-gate.mjs
         // so this adapter and the dsh one cannot drift apart on it.
-        if (autoAllow(d, { strict, laneWrites })) {
+        //
+        // The owner's own "Always" for this tool, in this thread, is checked
+        // beside it: a build that drives a browser asks before every MCP call
+        // (their reach is not readable here), and answering the same question
+        // forty times is attrition, not consent. A grave tool is never
+        // remembered, so it still lands here every time.
+        if (autoAllow(d, { strict, laneWrites, trust }) || (d.risk !== "grave" && alwaysAllowed(name))) {
           emit({ kind: "allowed", name, title: d.title });
           return { behavior: "allow", updatedInput: args };
         }
-        const ok = await gate({
+        const decided = await gate({
           name,
           title: d.title,
           why: d.why,
@@ -100,10 +106,10 @@ export function startClaude({ cwd, emit, gate, strict = false, laneWrites = fals
           command: d.command,
           path: d.path,
           input: args,
-        }).catch(() => false);
-        return ok
+        }).catch(() => ({ allow: false, how: "error" }));
+        return decided.allow
           ? { behavior: "allow", updatedInput: args }
-          : { behavior: "deny", message: denialMessage(d.title) };
+          : { behavior: "deny", message: denialMessage(d.title, decided.how) };
       },
     },
   });
@@ -175,11 +181,19 @@ export function startClaude({ cwd, emit, gate, strict = false, laneWrites = fals
 
         if (msg.type === "result") {
           busy = false;
+          // `is_error` as well as the subtype. The SDK reports an authentication
+          // failure as subtype "success" with is_error true and the reason in
+          // `result` — so reading the subtype alone turns "401 Invalid bearer
+          // token" into a turn that looks like it simply had nothing to say.
+          // That cost hours once; it does not get to happen twice.
+          const failed = msg.is_error === true || msg.subtype !== "success";
+          const why = String(msg.result ?? "").trim() || String(msg.subtype ?? "failed");
+          if (failed) emit({ kind: "error", message: why });
           emit({
             kind: "turn_end",
             ms: msg.duration_ms ?? 0,
             usd: msg.total_cost_usd ?? 0,
-            error: msg.subtype === "success" ? "" : String(msg.subtype ?? "failed"),
+            error: failed ? why : "",
           });
           emit({ kind: "status", status: "idle" });
         }

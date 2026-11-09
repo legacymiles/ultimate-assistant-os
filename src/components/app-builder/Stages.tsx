@@ -7,6 +7,7 @@ import { useEffect, useRef } from "react";
 import { asList } from "@/lib/app-builder/engine";
 import type { PreparedMedia } from "@/lib/app-builder/media";
 import { Composer } from "./Composer";
+import { Waiting } from "./Waiting";
 import type { Answers, Question } from "@/lib/app-builder/types";
 
 const EXAMPLES = [
@@ -175,6 +176,7 @@ export function Interview({
           {answered}/{questions.length} answered
         </span>
       </div>
+      {busy && <Waiting what="Designing the feature list from what this app is for" />}
     </div>
   );
 }

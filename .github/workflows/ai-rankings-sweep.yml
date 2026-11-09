@@ -1,0 +1,27 @@
+# AI Rankings — the daily check.
+# Once a day GitHub pings the live site's sweep, which reads Hugging Face's
+# trending models and files new releases in the owner's inbox, and re-reads the
+# arena scores from Artificial Analysis. Nothing new is published until the
+# owner approves it in the app; scores already on the board are updated in
+# place.
+# Needs the AI_RANKINGS_SWEEP_TOKEN secret set here AND on Vercel; without it
+# the route refuses the call and the owner can still press "Check now".
+# The score half also needs ARTIFICIAL_ANALYSIS_API_KEY on Vercel (nothing
+# here) — without it the releases half still runs and the inbox says so.
+name: ai-rankings-sweep
+on:
+  schedule:
+    - cron: "17 13 * * *"
+  workflow_dispatch: {}
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check for new releases and refresh scores
+        env:
+          TOKEN: ${{ secrets.AI_RANKINGS_SWEEP_TOKEN }}
+          SITE: ${{ vars.PERSONAS_SITE_URL || 'https://ultimate-assistant-os.vercel.app' }}
+        run: |
+          if [ -z "$TOKEN" ]; then echo "AI_RANKINGS_SWEEP_TOKEN is not set; skipping."; exit 0; fi
+          curl -fsS --max-time 70 -X POST -H "Authorization: Bearer $TOKEN" "$SITE/api/ai-rankings/sweep" || echo "sweep failed; tomorrow's run retries"

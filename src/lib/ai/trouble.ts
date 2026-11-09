@@ -34,6 +34,7 @@ export interface Attempt {
 
 export type TroubleKind =
   | "no-credit"
+  | "no-key"
   | "credit-or-key"
   | "rate-limit"
   | "missing-model"
@@ -74,8 +75,17 @@ export function shortModel(id: string): string {
  */
 const NOT_A_MODEL = /not a valid model|no endpoints found|model not found|unknown model|no such model/i;
 
+/**
+ * The hub's own words for "this provider was never configured" (provider.ts).
+ *
+ * A missing key has no HTTP status, so without this it classified as a network
+ * error — advice to check the connection for a key that simply is not there.
+ */
+const NO_KEY = /^No key set \(/i;
+
 export function kindOf(attempt: Attempt): TroubleKind {
   const { status } = attempt;
+  if (NO_KEY.test(attempt.message)) return "no-key";
   if (status === undefined) return "network";
   if (NOT_A_MODEL.test(attempt.message)) return "missing-model";
   if (status === 402) return "no-credit";
@@ -98,6 +108,7 @@ function isFree(model: string): boolean {
 
 const HEADLINE: Record<TroubleKind, string> = {
   "no-credit": "OpenRouter is out of credit.",
+  "no-key": "The provider that serves this model has no API key on this site.",
   "credit-or-key": "OpenRouter turned the request away — usually an empty balance, sometimes the key.",
   "rate-limit": "The model is rate-limiting this key.",
   "missing-model": "The model no longer exists at that name.",
@@ -110,6 +121,7 @@ const HEADLINE: Record<TroubleKind, string> = {
 
 const FIX: Record<TroubleKind, string> = {
   "no-credit": "Top up at openrouter.ai/credits.",
+  "no-key": "Add the key named above to .env.local (and on Vercel) and restart. The next model in the chain answers until then.",
   "credit-or-key": "Check the OpenRouter credit first, then OPENROUTER_API_KEY in .env.local.",
   "rate-limit": "Wait a moment and try again.",
   "missing-model": "Run npm run check:router to see what moved, then fix src/lib/ai/router.ts.",
@@ -130,6 +142,7 @@ const FIX: Record<TroubleKind, string> = {
  */
 const PRIORITY: TroubleKind[] = [
   "no-credit",
+  "no-key",
   "credit-or-key",
   "missing-model",
   "bad-request",

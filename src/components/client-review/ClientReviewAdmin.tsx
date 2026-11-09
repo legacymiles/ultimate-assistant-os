@@ -18,13 +18,23 @@
 // next version through the connector — the client is told with no URL pasted.
 // ---------------------------------------------------------------------------
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { buildClientEdit } from "@/lib/app-builder/fromClientReview";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { PHASE_LABEL, latestWord } from "@/lib/app-builder/build";
+import { askedBefore } from "@/lib/new-jarvis/harness/families";
+import { buildLinks, CannotBuildHere, startClientEditBuild } from "@/lib/client-review/autoBuild";
+import { call as bridgeCall, probe as bridgeProbe } from "@/lib/new-jarvis/bridge";
+import { pushThreadToMain } from "@/lib/client-review/pushMain";
+import { useBuild } from "@/lib/app-builder/useBuild";
 import { admin, type AdminState, type BriefOut } from "@/lib/client-review/client";
-import { buildText, currentVersion, plainBrief, sortVersions } from "@/lib/client-review/logic";
+import { HUB_ORIGIN } from "@/lib/client-review/apps";
+import { buildText, currentVersion, plainBrief, sortVersions, isSentToClient } from "@/lib/client-review/logic";
+import { DEFAULT_SORT, isSortMode, listProjects, projectState, SORTS, STATE_LABEL, type SortMode } from "@/lib/client-review/list";
+import { buildModelNote, isLaneValue, isSubscriptionValue, laneOfValue, pickValue } from "@/lib/client-review/models";
+import { writeBriefOnPlan } from "@/lib/client-review/subscriptionBrief";
 import type { ClientProject, ContentLane, EditRequest, RequestBatch, ReviewVersion } from "@/lib/client-review/types";
 import { getRepo } from "@/lib/repo";
 import { useStore } from "@/lib/store";
+import { ModelMenu } from "./ModelMenu";
 
 const LANES: { id: ContentLane; label: string; hint: string }[] = [
   { id: "auto", label: "Auto", hint: "Claude first; if it refuses, the uncensored model takes it" },
@@ -53,7 +63,26 @@ function linkFor(p: ClientProject): string {
   return typeof window === "undefined" ? path : `${window.location.origin}${path}`;
 }
 
-export function ClientReviewAdmin({ chromeless = false, fill = false }: { chromeless?: boolean; fill?: boolean } = {}) {
+/**
+ * Where to send the owner once a build starts: the Building screen, in the
+ * Client tab, on that project.
+ *
+ * A context rather than a prop threaded through four components, because the
+ * three places that start a build are three levels apart and none of the
+ * components in between has any business knowing about navigation.
+ */
+const GoBuilding = createContext<((token: string) => void) | null>(null);
+
+export function ClientReviewAdmin({
+  chromeless = false,
+  fill = false,
+  onBuildStarted,
+}: {
+  chromeless?: boolean;
+  fill?: boolean;
+  /** Pressing a build button lands on the Building screen for that project. */
+  onBuildStarted?: (token: string) => void;
+} = {}) {
   const [state, setState] = useState<AdminState | null>(null);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -111,12 +140,21 @@ export function ClientReviewAdmin({ chromeless = false, fill = false }: { chrome
     window.setTimeout(() => setFlash((f) => (f === msg ? "" : f)), 3500);
   };
 
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortMode>(DEFAULT_SORT);
+
   const projects = state?.projects ?? [];
   const project = projects.find((p) => p.id === selected) ?? null;
-  const visible = projects.filter((p) => !p.archived);
-  const archived = projects.filter((p) => p.archived);
+  // App Builder opens a review project for every build, so this list is no
+  // longer a handful of client sites — it is every app. Newest first, and
+  // searchable, or it stops being usable at about twenty.
+  const live = projects.filter((p) => !p.archived);
+  const visible = listProjects(live, { query, sort });
+  const archived = listProjects(projects.filter((p) => p.archived), { query, sort });
+  const hiddenBySearch = live.length - visible.length;
 
   return (
+    <GoBuilding.Provider value={onBuildStarted ?? null}>
     <div
       className={`flex overflow-hidden bg-canvas text-ink ${fill ? "h-full" : chromeless ? "h-[calc(100dvh-90px)] md:h-[calc(100dvh-49px)]" : "h-dvh"}`}
     >
@@ -138,7 +176,37 @@ export function ClientReviewAdmin({ chromeless = false, fill = false }: { chrome
             + New
           </button>
         </div>
+        <div className="border-b border-line px-2.5 py-2">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search apps and clients"
+            aria-label="Search apps and clients"
+            className="w-full rounded-md border border-line bg-canvas px-2 py-1.5 text-[12px] text-ink placeholder:text-ink-faint focus:border-brand/60 focus:outline-none"
+          />
+          <div className="mt-1.5 flex items-center justify-between gap-2">
+            <select
+              value={sort}
+              onChange={(e) => setSort(isSortMode(e.target.value) ? e.target.value : DEFAULT_SORT)}
+              aria-label="Order"
+              className="min-w-0 flex-1 rounded-md border border-line bg-canvas px-1.5 py-1 text-[11.5px] text-ink-muted focus:border-brand/60 focus:outline-none"
+            >
+              {SORTS.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <span className="shrink-0 text-[11px] text-ink-faint">{visible.length}</span>
+          </div>
+        </div>
         <ProjectList projects={visible} selected={selected} onSelect={setSelected} />
+        {query && !visible.length && (
+          <p className="px-3 py-3 text-xs text-ink-faint">Nothing matches &ldquo;{query}&rdquo;.</p>
+        )}
+        {query && visible.length > 0 && hiddenBySearch > 0 && (
+          <p className="px-3 pb-2 text-[11px] text-ink-faint">{hiddenBySearch} hidden by the search.</p>
+        )}
         {archived.length > 0 && (
           <details className="border-t border-line px-3 py-2 text-xs text-ink-faint">
             <summary className="cursor-pointer">Archived ({archived.length})</summary>
@@ -233,6 +301,7 @@ export function ClientReviewAdmin({ chromeless = false, fill = false }: { chrome
         />
       )}
     </div>
+    </GoBuilding.Provider>
   );
 }
 
@@ -253,26 +322,33 @@ function ProjectList({
     <ul className="min-h-0 flex-1 overflow-y-auto py-1">
       {projects.map((p) => {
         const waiting = pendingCount(p);
-        const building = p.versions.find((v) => v.status === "building");
         const cur = currentVersion(p);
+        const st = projectState(p);
         return (
           <li key={p.id}>
             <button
               onClick={() => onSelect(p.id)}
               className={`grid w-full grid-cols-[1fr_auto] gap-x-2 px-3 py-2 text-left hover:bg-panel-2 ${
                 p.id === selected ? "bg-panel-2 shadow-[inset_2px_0_0_var(--color-brand)]" : ""
-              }`}
+              } ${st === "being-created" ? "shadow-[inset_2px_0_0_var(--color-support)]" : ""}`}
             >
               <span className="truncate text-[13px] font-medium">{p.name}</span>
-              <span className="text-[11px] text-ink-faint">{ago(p.updatedAt)}</span>
+              {/* Created, not changed: "newest first" has to agree with what the row shows. */}
+              <span className="text-[11px] text-ink-faint" title={`Created ${new Date(p.createdAt).toLocaleString()}`}>
+                {ago(p.createdAt)}
+              </span>
               <span className="truncate text-[11.5px] text-ink-muted">
                 {p.clientName || "No client name"} · {cur?.number ?? "v—"}
               </span>
               <span className="text-[11px]">
                 {waiting > 0 ? (
                   <span className="rounded bg-amber-400/15 px-1.5 py-0.5 text-amber-300">{waiting} waiting</span>
-                ) : building ? (
-                  <span className="rounded bg-sky-400/15 px-1.5 py-0.5 text-sky-300">building {building.number}</span>
+                ) : st === "being-created" ? (
+                  <span className="rounded bg-sky-400/15 px-1.5 py-0.5 text-sky-300">Being created</span>
+                ) : st === "building" ? (
+                  <span className="rounded bg-sky-400/15 px-1.5 py-0.5 text-sky-300">{STATE_LABEL.building}</span>
+                ) : st === "unsent" ? (
+                  <span className="rounded bg-line px-1.5 py-0.5 text-ink-faint">{STATE_LABEL.unsent}</span>
                 ) : null}
               </span>
             </button>
@@ -335,6 +411,23 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 // ----- detail -------------------------------------------------------------------
 
 type Run = <T extends { project?: ClientProject }>(label: string, action: Record<string, unknown>) => Promise<T | null>;
+
+/**
+ * One line under the model menu: what the current pick actually does.
+ *
+ * A lane is described by the models it will try; an explicit pick by where it
+ * runs and who pays for it — the two things the owner is choosing between.
+ */
+function briefModelNote(p: ClientProject, lanes: AdminState["lanes"]): string {
+  const picked = (p.briefModel ?? "").trim();
+  if (isSubscriptionValue(picked)) return "Your own Claude plan, through the PC helper — no extra cost.";
+  if (picked) return `${picked} · OpenRouter, billed per brief.`;
+  return p.lane === "standard"
+    ? `Claude (${lanes.standard.join(", ")})`
+    : p.lane === "uncensored"
+      ? `Uncensored: ${lanes.uncensored.join(" → ")}`
+      : `Claude, then ${lanes.uncensored.join(" → ")} if it refuses`;
+}
 
 function ProjectDetail({
   project: p,
@@ -434,30 +527,22 @@ function ProjectDetail({
         </div>
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <label className="block text-[11px] text-ink-faint">
-            Model lane for edit briefs
-            <div className="mt-1 flex rounded-md border border-line bg-panel-2 p-0.5">
-              {LANES.map((l) => (
-                <button
-                  key={l.id}
-                  title={l.hint}
-                  onClick={() => run("meta", { action: "meta", id: p.id, lane: l.id })}
-                  className={`flex-1 rounded px-2 py-1 text-xs ${
-                    p.lane === l.id ? (l.id === "uncensored" ? "bg-pink-500/25 text-pink-100" : "bg-brand/30 text-ink") : "text-ink-muted"
-                  }`}
-                >
-                  {l.label}
-                </button>
-              ))}
+          <div className="block text-[11px] text-ink-faint">
+            <span>Model for edit briefs</span>
+            <div className="mt-1">
+              <ModelMenu
+                value={pickValue(p)}
+                onChange={(next) => {
+                  // A lane pick clears the explicit model; a model pick leaves
+                  // the lane alone, so switching back to Auto restores it.
+                  void (isLaneValue(next)
+                    ? run("meta", { action: "meta", id: p.id, lane: laneOfValue(next), briefModel: "" })
+                    : run("meta", { action: "meta", id: p.id, briefModel: next }));
+                }}
+              />
             </div>
-            <span className="mt-1 block leading-snug">
-              {p.lane === "standard"
-                ? `Claude (${lanes.standard.join(", ")})`
-                : p.lane === "uncensored"
-                  ? `Uncensored: ${lanes.uncensored.join(" → ")}`
-                  : `Claude, then ${lanes.uncensored.join(" → ")} if it refuses`}
-            </span>
-          </label>
+            <span className="mt-1 block leading-snug">{briefModelNote(p, lanes)}</span>
+          </div>
           <label className="block text-[11px] text-ink-faint">
             Projects Timeline project
             <select
@@ -515,6 +600,41 @@ function ProjectDetail({
       <section>
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-ink-faint">All requests</h2>
         <RequestTable project={p} />
+      </section>
+
+      {/* Whether the client can see this at all. Until it is sent it is yours
+          alone — App Builder opens one of these for every build. */}
+      <section className="border-t border-line pt-3">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-ink-faint">The client&rsquo;s side</h2>
+        {isSentToClient(p) ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded bg-core/15 px-1.5 py-0.5 text-[11px] text-core">
+              {p.claimedAt ? `Open on ${p.clientUserEmail || "their account"}` : "Sent — the link opens"}
+            </span>
+            {!p.claimedAt && (
+              <button
+                className="rounded-md border border-line px-2.5 py-1.5 text-xs text-ink-muted"
+                disabled={busy === "send"}
+                onClick={() => run("send", { action: "unsend", id: p.id })}
+              >
+                {busy === "send" ? "Taking it back…" : "Take it back"}
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="rounded-md border border-brand/50 bg-brand/20 px-2.5 py-1.5 text-xs font-medium hover:bg-brand/30"
+              disabled={busy === "send"}
+              onClick={() => run("send", { action: "send", id: p.id })}
+            >
+              {busy === "send" ? "Sending…" : "Send to the client"}
+            </button>
+            <span className="text-[11.5px] text-ink-faint">
+              Not sent yet, so the link does not open and it is not in their list — even for someone holding it.
+            </span>
+          </div>
+        )}
       </section>
 
       <section className="flex flex-wrap gap-2 border-t border-line pt-3">
@@ -603,6 +723,11 @@ function BatchCard({
   const [brief, setBrief] = useState(b.brief ?? "");
   const [briefInfo, setBriefInfo] = useState<BriefOut | null>(null);
   const [rejectNote, setRejectNote] = useState("");
+  /** Writing through the PC bridge, which `busy` (the server actions) doesn't cover. */
+  const [writing, setWriting] = useState(false);
+  /** Approving and starting the build, likewise outside `busy`. */
+  const [starting, setStarting] = useState(false);
+  const goBuilding = useContext(GoBuilding);
   useEffect(() => setBrief(b.brief ?? ""), [b.brief]);
   const live = reqs.filter((r) => r.status !== "rejected").length;
 
@@ -630,6 +755,15 @@ function BatchCard({
       <div className="border-t border-line p-3">
         <div className="mb-1.5 flex flex-wrap items-center gap-2">
           <span className="text-[11px] uppercase tracking-[0.12em] text-ink-faint">Build brief</span>
+          <ModelMenu
+            compact
+            value={pickValue(p)}
+            onChange={(next) => {
+              void (isLaneValue(next)
+                ? run("meta", { action: "meta", id: p.id, lane: laneOfValue(next), briefModel: "" })
+                : run("meta", { action: "meta", id: p.id, briefModel: next }));
+            }}
+          />
           {(briefInfo || b.briefModel) && (
             <span
               className={`rounded px-1.5 py-0.5 text-[10.5px] ${
@@ -642,8 +776,32 @@ function BatchCard({
           )}
           <button
             className="ml-auto rounded-md border border-brand/50 bg-brand/20 px-2 py-1 text-[11.5px]"
-            disabled={busy === `brief-${b.id}`}
+            disabled={busy === `brief-${b.id}` || writing}
             onClick={async () => {
+              const pick = pickValue(p);
+              // The owner's own Claude plan lives on their PC, not on this
+              // server: this tab asks the bridge and saves the same brief.
+              if (isSubscriptionValue(pick)) {
+                setWriting(true);
+                try {
+                  const out = await writeBriefOnPlan(p, b, pick);
+                  setBrief(out.brief);
+                  setBriefInfo({ brief: out.brief, model: out.model, lane: "standard", rerouted: false, note: out.note });
+                  await run("saveBrief", {
+                    action: "saveBrief",
+                    id: p.id,
+                    batchId: b.id,
+                    brief: out.brief,
+                    model: out.model,
+                  });
+                  if (out.note) say(out.note);
+                } catch (e) {
+                  say(e instanceof Error ? e.message : "Claude couldn't write that brief.");
+                } finally {
+                  setWriting(false);
+                }
+                return;
+              }
               const out = await run<{ project: ClientProject; brief: BriefOut }>(`brief-${b.id}`, {
                 action: "brief",
                 id: p.id,
@@ -656,7 +814,13 @@ function BatchCard({
               }
             }}
           >
-            {busy === `brief-${b.id}` ? "Writing…" : brief ? "✦ Improve again" : "✦ Improve with AI"}
+            {writing
+              ? "Claude is writing…"
+              : busy === `brief-${b.id}`
+                ? "Writing…"
+                : brief
+                  ? "✦ Improve again"
+                  : "✦ Improve with AI"}
           </button>
         </div>
         <textarea
@@ -679,32 +843,38 @@ function BatchCard({
                     ? "rounded-md bg-emerald-500/80 px-3 py-1.5 text-xs font-semibold text-black hover:bg-emerald-400 disabled:opacity-40"
                     : "rounded-md border border-emerald-500/40 px-2.5 py-1.5 text-xs text-emerald-200 disabled:opacity-40"
                 }
-                disabled={!live || busy === "approve" || busy === "buildQueued"}
-                title={mode === "build" ? `Approve, then Claude Code builds it in ${p.repo} and sends the preview to the client` : "Approve only — you build it and post the URL yourself"}
+                disabled={!live || starting || busy === "approve" || busy === "buildQueued"}
+                title={
+                  mode === "build"
+                    ? `Approve, then build it here on your PC (${p.repo}), from shipped main. ${buildModelNote(pickValue(p))}`
+                    : "Approve only — you build it and post the URL yourself"
+                }
                 onClick={async () => {
-                  const out = await run<{ project: ClientProject; version: ReviewVersion; approved: EditRequest[] }>("approve", {
-                    action: "approve",
-                    id: p.id,
-                    batchId: b.id,
-                    brief,
-                  });
-                  if (!out) return;
-                  const done = out.project.batches.find((x) => x.id === b.id);
-                  const extra = await syncTimeline(out.project, out.version, done?.brief ?? brief, out.approved);
-                  if (mode === "approve") {
-                    say(`Approved — ${out.version.number} is now building and ${p.clientName || "the client"} was told.${extra}`);
-                    return;
+                  setStarting(true);
+                  try {
+                    const out = await run<{ project: ClientProject; version: ReviewVersion; approved: EditRequest[] }>("approve", {
+                      action: "approve",
+                      id: p.id,
+                      batchId: b.id,
+                      brief,
+                    });
+                    if (!out) return;
+                    const done = out.project.batches.find((x) => x.id === b.id);
+                    const extra = await syncTimeline(out.project, out.version, done?.brief ?? brief, out.approved);
+                    if (mode === "approve") {
+                      say(`Approved — ${out.version.number} is waiting to be built; post its address below when it is.${extra}`);
+                      return;
+                    }
+                    const started = await startBuild(out.project, b.id, run, out.version.id);
+                    say(`Approved — ${out.version.number}: ${started.message}${extra}`);
+                    if (started.mode === "thread") goBuilding?.(p.token);
+                  } finally {
+                    setStarting(false);
                   }
-                  const queued = await queueBuild(out.project, b.id, run);
-                  say(
-                    queued
-                      ? `Approved and queued — Claude Code builds ${out.version.number}, then ${p.clientName || "the client"} gets the preview on their link.${extra}`
-                      : `Approved — ${out.version.number} is building, but it couldn't be queued. Use “Build in App Builder” on ${out.version.number} below.${extra}`,
-                  );
                 }}
               >
-                {busy === "approve" || busy === "buildQueued"
-                  ? "Approving…"
+                {starting || busy === "approve" || busy === "buildQueued"
+                  ? "Starting…"
                   : mode === "build"
                     ? `Approve & build ${live} →`
                     : p.repo
@@ -728,6 +898,13 @@ function BatchCard({
             Reject all
           </button>
         </div>
+        {/*
+          Said out loud, not buried in a tooltip: the menu above chooses the
+          brief's model, and this is the one the build itself will run on. They
+          are the same whenever the pick names a Claude model, and when it does
+          not this is where the owner finds out, before pressing build.
+        */}
+        {p.repo && <p className="mt-1.5 text-[11px] text-ink-faint">{buildModelNote(pickValue(p))}</p>}
       </div>
     </article>
   );
@@ -823,7 +1000,7 @@ function VersionRow({
       </div>
       <div className="min-w-0 space-y-1.5">
         {v.summary && <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-ink-muted">{v.summary}</p>}
-        {v.status === "building" && <BuildStatus project={p} version={v} busy={busy} run={run} say={say} />}
+        {v.status === "building" && <BuildStatus project={p} version={v} busy={busy} run={run} say={say} onUseUrl={setUrl} />}
         {v.status === "building" ? (
           <div className="flex flex-wrap gap-2">
             <input
@@ -868,20 +1045,68 @@ function VersionRow({
   );
 }
 
-/** Queue an approved batch through App Builder and record it here. */
-async function queueBuild(project: ClientProject, batchId: string, run: Run): Promise<boolean> {
+/** What pressing build did: started on the PC, or didn't — there is no third answer. */
+interface BuildStart {
+  mode: "thread" | "failed";
+  message: string;
+}
+
+/**
+ * Build an approved batch, on this PC, now.
+ *
+ * Nothing is filed. The queue used to be the fallback here and it was the
+ * reason the button lied: a request parked in a list nobody works left the
+ * version saying "building" with nothing behind it. So a failure is a sentence
+ * saying which of the three things is missing, the batch stays approved, and
+ * pressing build again is the retry.
+ */
+async function startBuild(
+  project: ClientProject,
+  batchId: string,
+  run: Run,
+  /**
+   * The version this same press just opened by approving. Given only by
+   * Approve & build: if the build then fails to start, approving was half an
+   * action, and half an action is what leaves a version saying "building"
+   * with nothing behind it. So it is undone.
+   */
+  rollbackVersionId?: string,
+): Promise<BuildStart> {
   try {
-    const out = await buildClientEdit(project, batchId, { note: false });
+    const started = await startClientEditBuild(project, batchId);
     const noted = await run("buildQueued", {
       action: "buildQueued",
       id: project.id,
       batchId,
-      builderId: out.project.id,
-      queueId: out.queueId,
+      builderId: started.builderId,
+      threadId: started.threadId,
     });
-    return Boolean(noted);
-  } catch {
-    return false;
+    const on = `${started.model}${started.base ? `, from main at ${started.base}` : ""}`;
+    return {
+      mode: "thread",
+      message: noted
+        ? `Claude Code is building it on your PC with ${on}. Watch it right here — the preview link lands on this version when it's done.`
+        : `Claude Code is building it with ${on}, but Client Review couldn't record it — the build still runs.`,
+    };
+  } catch (e) {
+    const why = e instanceof Error ? e.message : "The build didn't start.";
+    // Written to the batch before anything else: this is the only record that
+    // survives the toast, and it is what the next person debugging this reads.
+    await run("buildFailed", { action: "buildFailed", id: project.id, batchId, message: why }).catch(() => null);
+    if (rollbackVersionId) {
+      const undone = await run("cancelBuild", {
+        action: "cancelBuild",
+        id: project.id,
+        versionId: rollbackVersionId,
+      }).catch(() => null);
+      return {
+        mode: "failed",
+        message: undone
+          ? `${why} Nothing was approved — your edits are still waiting, so fix that and press Approve & build again.`
+          : `${why} The approval could not be undone either — use Stop & remove on the version below.`,
+      };
+    }
+    return { mode: "failed", message: `${why} Nothing was filed — press build again once that's sorted.` };
   }
 }
 
@@ -895,6 +1120,7 @@ function SiteHome({ project: p, run, say }: { project: ClientProject; run: Run; 
         <span className={ready ? "text-emerald-300" : "text-ink-faint"}>
           {ready ? "● Approved edits build themselves" : "○ Add the repo to build approved edits automatically"}
         </span>
+        <PcHelper />
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="block text-[11px] text-ink-faint">
@@ -919,9 +1145,11 @@ function SiteHome({ project: p, run, say }: { project: ClientProject; run: Run; 
         </label>
       </div>
       <p className="mt-1.5 text-[11px] leading-snug text-ink-faint">
-        Approve &amp; build sends the edits to Claude Code, which makes them on a branch, opens a pull request for you to merge, and
-        posts the Vercel preview here as the next version — {p.clientName || "the client"} is notified. Previews must open without a
-        login: in Vercel › Settings › Deployment Protection, turn Vercel Authentication off.
+        Approve &amp; build starts Claude Code on your PC, in a worktree of the repo reset to shipped <code>main</code>: the
+        edits go on a branch and a pull request opens for you. You watch it, answer it and push it from this screen — nothing
+        goes to a queue, and nothing reaches {p.clientName || "the client"} without you posting it. If the PC helper is off,
+        the build simply does not start and says so. Previews must open without a login: in Vercel › Settings › Deployment
+        Protection, turn Vercel Authentication off.
       </p>
     </div>
   );
@@ -934,48 +1162,374 @@ function BuildStatus({
   busy,
   run,
   say,
+  onUseUrl,
 }: {
   project: ClientProject;
   version: ReviewVersion;
   busy: string;
   run: Run;
   say: (m: string) => void;
+  /** Puts a finished preview in the address box, so the owner still presses ship. */
+  onUseUrl: (url: string) => void;
 }) {
+  /** Starting on the PC, which happens outside `busy`. */
+  const [starting, setStarting] = useState(false);
+  const goBuilding = useContext(GoBuilding);
   const batch = p.batches.find((b) => b.nextVersionId === v.id && b.build) ?? p.batches.find((b) => b.nextVersionId === v.id);
   if (!batch) return null;
   const build = batch.build;
   const appLink = build ? `/apps/app-builder?p=${encodeURIComponent(build.builderId)}` : "";
+
+  /**
+   * Stop this build and hand the edits back, so it can be built again.
+   *
+   * The thread dies first, the record second: the other order leaves Claude
+   * Code writing into a worktree nothing is waiting on, which is how a
+   * "stopped" build opens a pull request an hour later. A thread that is
+   * already gone makes `harness/stop` fail, and that must not stop the half
+   * that actually unsticks the screen.
+   */
+  const stopBuild = async () => {
+    setStarting(true);
+    try {
+      if (build?.threadId) await bridgeCall("harness/stop", { id: build.threadId }).catch(() => {});
+      const out = await run("cancelBuild", { action: "cancelBuild", id: p.id, versionId: v.id });
+      if (out) say(`${v.number} stopped and removed — the edits are back as a batch waiting for Approve & build.`);
+    } finally {
+      setStarting(false);
+    }
+  };
+
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-md bg-sky-500/10 px-2 py-1.5 text-[11.5px]">
-      {build ? (
+      {build?.threadId ? (
         <>
-          <span className="text-sky-200">
-            ● Queued for Claude Code {ago(build.at)}
+          <BuildThread threadId={build.threadId} liveUrl={p.appPath} onUseUrl={onUseUrl} />
+          <StopBuild busy={starting || busy === "cancelBuild"} onStop={stopBuild} />
+          <a className="ml-auto text-accent underline" href={appLink}>
+            Open in App Builder ↗
+          </a>
+        </>
+      ) : build ? (
+        <>
+          {/*
+            Only old records reach here: nothing files a build in In Queue any
+            more. Kept so a batch recorded before that change still offers the
+            one button that does something, rather than disappearing.
+          */}
+          <span className="text-amber-200">
+            ● Filed in In Queue {ago(build.at)}
             {build.queueId ? <span className="text-ink-faint"> · {build.queueId}</span> : null}
           </span>
-          <span className="text-ink-faint">— the preview comes back here and {p.clientName || "the client"} is told.</span>
+          <span className="text-ink-faint">— from before builds ran here. Nothing is running behind it.</span>
+          {p.repo && (
+            <button
+              className="rounded-md border border-sky-400/50 bg-sky-400/20 px-2.5 py-1 text-[11.5px] text-sky-100 disabled:opacity-40"
+              disabled={busy === "buildQueued" || starting}
+              onClick={async () => {
+                setStarting(true);
+                try {
+                  const started = await startBuild(p, batch.id, run);
+                  say(started.message);
+                  if (started.mode === "thread") goBuilding?.(p.token);
+                } finally {
+                  setStarting(false);
+                }
+              }}
+            >
+              {starting || busy === "buildQueued" ? "Starting…" : "Build it on my PC →"}
+            </button>
+          )}
+          <StopBuild busy={starting || busy === "cancelBuild"} onStop={stopBuild} />
           <a className="ml-auto text-accent underline" href={appLink}>
             Open in App Builder ↗
           </a>
         </>
       ) : p.repo ? (
         <>
-          <span className="text-ink-muted">Not sent to Claude Code yet.</span>
+          <span className="text-ink-muted">Not started yet.</span>
+          {/*
+            A version that says "building" with nothing started is the stuck
+            state. Both halves of getting out of it belong here: why it did
+            not start, and the button that undoes the approval.
+          */}
+          {batch.buildError && (
+            <span className="text-amber-200" title={`Last tried ${ago(batch.buildError.at)}`}>
+              Last try: {batch.buildError.message}
+            </span>
+          )}
+          {v.status === "building" && <StopBuild busy={starting || busy === "cancelBuild"} onStop={stopBuild} />}
           <button
             className="ml-auto rounded-md border border-sky-400/50 bg-sky-400/20 px-2.5 py-1 text-[11.5px] text-sky-100 disabled:opacity-40"
-            disabled={busy === "buildQueued"}
+            disabled={busy === "buildQueued" || starting}
             onClick={async () => {
-              const ok = await queueBuild(p, batch.id, run);
-              say(ok ? `${v.number} queued — Claude Code builds it and sends the preview to ${p.clientName || "the client"}.` : "Couldn't queue it — check you're signed in to Jarvis and try again.");
+              setStarting(true);
+              try {
+                const started = await startBuild(p, batch.id, run);
+                say(started.message);
+                if (started.mode === "thread") goBuilding?.(p.token);
+              } finally {
+                setStarting(false);
+              }
             }}
           >
-            {busy === "buildQueued" ? "Queuing…" : "Build in App Builder →"}
+            {starting || busy === "buildQueued" ? "Starting…" : "Build it on my PC →"}
           </button>
         </>
       ) : (
         <span className="text-ink-faint">Add the client&apos;s GitHub repo above to have Claude Code build this — or paste the address below when it&apos;s deployed.</span>
       )}
     </div>
+  );
+}
+
+/**
+ * Is the PC helper there, right now?
+ *
+ * Answered before anyone presses build rather than after. Every reason a build
+ * refuses to start begins here — the helper not running, or this browser not
+ * paired with it — and finding that out from a toast after approving is both
+ * too late and too easy to miss.
+ */
+function PcHelper() {
+  const [state, setState] = useState<"asking" | "up" | "unpaired" | "off" | "blocked">("asking");
+  const [why, setWhy] = useState("");
+
+  const check = useCallback(() => {
+    setState("asking");
+    bridgeProbe()
+      .then((h) => {
+        setWhy(h.problem ?? "");
+        setState(h.up ? (h.paired ? "up" : "unpaired") : h.needsLocalNetwork ? "blocked" : "off");
+      })
+      .catch(() => setState("off"));
+  }, []);
+  useEffect(check, [check]);
+
+  const label =
+    state === "asking"
+      ? "· checking your PC…"
+      : state === "up"
+        ? "● PC helper running"
+        : state === "unpaired"
+          ? "○ PC helper running, this browser isn't paired"
+          : state === "blocked"
+            ? "○ This browser is blocking this site from reaching your PC"
+            : "○ PC helper not running — builds can't start";
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 ${
+        state === "up" ? "text-emerald-300" : state === "asking" ? "text-ink-faint" : "text-amber-200"
+      }`}
+      title={why || undefined}
+    >
+      {label}
+      {/*
+        This button is the fix, not a retry. Chrome only asks for local network
+        access on a CLICK, so the probe on page load can never raise the
+        prompt — it just fails. Pressing this runs the same probe inside a real
+        gesture, which is what makes Chrome ask.
+      */}
+      {state === "blocked" && (
+        <>
+          <button className="rounded border border-amber-400/60 bg-amber-400/20 px-2 py-0.5 font-semibold text-amber-100" onClick={check}>
+            Connect to this PC
+          </button>
+          {/*
+            Chrome does not always ASK. When the permission is in "prompt" but
+            the browser has stopped offering it, pressing the button does
+            nothing at all and there is no way forward from this page — so the
+            way forward is the other address, where the owner has already
+            allowed it. One click beats an explanation of Chrome's settings.
+          */}
+          <AlsoTry />
+        </>
+      )}
+      {(state === "off" || state === "unpaired") && (
+        <button className="underline hover:text-ink" onClick={check}>
+          check again
+        </button>
+      )}
+    </span>
+  );
+}
+
+/**
+ * The same page on the address builds already work from.
+ *
+ * Local network access is granted per ORIGIN, so a hub served from two
+ * addresses can be allowed on one and silently blocked on the other. Nothing
+ * on the page can grant it — only the browser's own prompt can, and Chrome
+ * stops offering that prompt once it has been dismissed. The honest escape is
+ * to open the address that already works.
+ */
+function AlsoTry() {
+  const here = typeof window === "undefined" ? "" : window.location.origin;
+  if (!here || here === HUB_ORIGIN) return null;
+  const to = `${HUB_ORIGIN}${typeof window === "undefined" ? "" : window.location.pathname + window.location.search}`;
+  return (
+    <>
+      <span className="text-ink-faint">or</span>
+      <a className="text-accent underline" href={to}>
+        open it on {HUB_ORIGIN.replace(/^https:\/\//, "")}, where builds already work
+      </a>
+    </>
+  );
+}
+
+/**
+ * "Stop & remove" — the way out of a build that is never going to finish.
+ *
+ * It exists because the failure it undoes is invisible: a thread that died
+ * with the bridge, or one that read its base and quit, leaves the version
+ * saying "building" for ever. There was no button for that, so the only way
+ * back was to stop using the project.
+ */
+function StopBuild({ busy, onStop }: { busy: boolean; onStop: () => void }) {
+  const [sure, setSure] = useState(false);
+  if (!sure) {
+    return (
+      <button className="rounded-md border border-rose-500/40 px-2 py-0.5 text-[11px] text-rose-300" onClick={() => setSure(true)}>
+        Stop &amp; remove
+      </button>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1.5 text-[11px] text-rose-200">
+      Remove this version and build it again?
+      <button
+        className="rounded-md border border-rose-400/60 bg-rose-400/20 px-2 py-0.5 font-semibold text-rose-100 disabled:opacity-50"
+        disabled={busy}
+        onClick={onStop}
+      >
+        {busy ? "Stopping…" : "Yes, stop it"}
+      </button>
+      <button className="rounded-md border border-line px-2 py-0.5 text-ink-muted" onClick={() => setSure(false)}>
+        Keep waiting
+      </button>
+    </span>
+  );
+}
+
+/**
+ * The build running on the owner's PC, followed live.
+ *
+ * The thread lives in the bridge, so this shows what it is doing rather than
+ * owning it: closing the console does not stop the build, and opening it again
+ * reattaches to the thread id stored on the batch. The preview is only offered
+ * as a link and a "use this address" — the owner still presses ship, so nothing
+ * reaches the client without a human deciding it is right.
+ */
+function BuildThread({
+  threadId,
+  liveUrl,
+  onUseUrl,
+}: {
+  threadId: string;
+  /** Where this version goes live once main deploys ("/apps/…" for the owner's apps). */
+  liveUrl?: string;
+  onUseUrl: (url: string) => void;
+}) {
+  const build = useBuild(threadId, true);
+  const [pushing, setPushing] = useState(false);
+  const [said, setSaid] = useState("");
+  const links = buildLinks(build.view.turns.map((t) => t.text).join("\n"));
+  const what = build.phase === "working" ? latestWord(build.view) : "";
+  const done = build.phase === "done";
+  const bad = build.phase === "failed" || build.phase === "lost";
+  const gate = build.gate;
+  const repeat = gate ? askedBefore(build.view, gate) : false;
+  return (
+    <>
+      <span className={done ? "text-emerald-200" : bad ? "text-rose-200" : "text-sky-200"}>
+        ● {done ? "Built on your PC" : PHASE_LABEL[build.phase]}
+      </span>
+      {build.summary?.model && <span className="rounded bg-brand/20 px-1.5 py-0.5 text-[10.5px] text-indigo-200">{build.summary.model}</span>}
+      {what && <span className="min-w-0 truncate text-ink-faint">{what}</span>}
+      {/*
+        Answered here, not in App Builder. A permission card that can only be
+        answered in another app is a build that stalls until the owner happens
+        to look somewhere else, which is the same as a build that failed.
+      */}
+      {gate && (
+        <span className="flex min-w-0 flex-wrap items-center gap-1.5 rounded border border-amber-400/40 bg-amber-400/10 px-1.5 py-0.5 text-amber-100">
+          <span className="min-w-0 truncate" title={gate.why || gate.command || gate.path}>
+            Needs you: {gate.title || gate.name}
+          </span>
+          {/* On a repeat, Always leads: Allow is the button that guarantees
+              being asked the same thing again. */}
+          {gate.risk !== "grave" && repeat && (
+            <button
+              className="rounded border border-amber-300/60 bg-amber-300/20 px-1.5 py-0.5 text-[11px] font-semibold"
+              title={`Stop asking about ${gate.name} for the rest of this build`}
+              onClick={() => void build.decide(gate.gateId, true, true)}
+            >
+              Always
+            </button>
+          )}
+          <button
+            className={
+              repeat
+                ? "rounded border border-amber-300/40 px-1.5 py-0.5 text-[11px]"
+                : "rounded border border-amber-300/60 bg-amber-300/20 px-1.5 py-0.5 text-[11px] font-semibold"
+            }
+            onClick={() => void build.decide(gate.gateId, true)}
+          >
+            Allow{repeat ? " once" : ""}
+          </button>
+          {gate.risk !== "grave" && !repeat && (
+            <button
+              className="rounded border border-amber-300/50 px-1.5 py-0.5 text-[11px]"
+              title={`Stop asking about ${gate.name} for the rest of this build`}
+              onClick={() => void build.decide(gate.gateId, true, true)}
+            >
+              Always
+            </button>
+          )}
+          <button
+            className="rounded border border-amber-300/30 px-1.5 py-0.5 text-[11px]"
+            onClick={() => void build.decide(gate.gateId, false)}
+          >
+            Not now
+          </button>
+        </span>
+      )}
+      {links.preview && (
+        <>
+          <a className="text-accent underline" href={links.preview} target="_blank" rel="noreferrer">
+            Preview ↗
+          </a>
+          <button className="rounded border border-sky-400/40 px-1.5 py-0.5 text-[11px]" onClick={() => onUseUrl(links.preview!)}>
+            Use this address
+          </button>
+        </>
+      )}
+      {links.pr && (
+        <a className="text-accent underline" href={links.pr} target="_blank" rel="noreferrer">
+          Pull request ↗
+        </a>
+      )}
+      {done && (
+        <button
+          disabled={pushing}
+          className="rounded-md border border-emerald-400/50 bg-emerald-400/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-100 disabled:opacity-50"
+          onClick={async () => {
+            setPushing(true);
+            try {
+              const out = await pushThreadToMain(threadId);
+              setSaid(out.message);
+              if (out.ok && liveUrl) onUseUrl(liveUrl);
+            } finally {
+              setPushing(false);
+            }
+          }}
+        >
+          {pushing ? "Pushing…" : "Push to main"}
+        </button>
+      )}
+      {said && <span className="text-emerald-200">{said}</span>}
+      {build.error && <span className="text-amber-200">{build.error}</span>}
+    </>
   );
 }
 

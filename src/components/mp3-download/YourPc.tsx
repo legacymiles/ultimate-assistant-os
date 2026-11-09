@@ -39,11 +39,23 @@ export function YourPc({
         })
         .catch(() => undefined);
     };
-    read();
-    const timer = setInterval(read, 5_000);
+    // Only poll while the tab is actually in front. This hits a real server
+    // route, so a forgotten background tab was ~17k calls a day at 5s - all
+    // of it billed, none of it watched. Visible polling stays at 5s because
+    // that is the moment the owner is looking; coming back to the tab reads
+    // immediately, so nothing feels stale.
+    const readIfVisible = () => {
+      if (document.visibilityState === "visible") read();
+    };
+    readIfVisible();
+    const timer = setInterval(readIfVisible, 5_000);
+    document.addEventListener("visibilitychange", readIfVisible);
+    window.addEventListener("focus", readIfVisible);
     return () => {
       alive = false;
       clearInterval(timer);
+      document.removeEventListener("visibilitychange", readIfVisible);
+      window.removeEventListener("focus", readIfVisible);
     };
     // onChanged is a stable callback from the shell.
     // eslint-disable-next-line react-hooks/exhaustive-deps

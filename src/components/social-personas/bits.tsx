@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import type { SocialPlatform } from "@/lib/social-personas/types";
 
 const PLATFORM_COLOR: Record<string, string> = {
@@ -14,13 +16,49 @@ export function PlatformDot({ platform }: { platform: SocialPlatform | string })
   return <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: PLATFORM_COLOR[platform] ?? "#888" }} />;
 }
 
-export function Avatar({ name, hue, size = 32 }: { name: string; hue: number; size?: number }) {
+/**
+ * The persona's profile picture.
+ *
+ * A real image when there is one — these read as social profiles, and an
+ * initials circle is the tell that an app is a dashboard pretending to be one.
+ * The gradient monogram stays as the fallback, and `onError` falls back to it
+ * at runtime too, because a picture can be a pasted URL that rots.
+ */
+export function Avatar({
+  name,
+  hue,
+  size = 32,
+  src,
+  alt,
+}: {
+  name: string;
+  hue: number;
+  size?: number;
+  src?: string | null;
+  alt?: string;
+}) {
+  const [broken, setBroken] = useState(false);
   const initials = name
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
     .map((w) => w[0]!.toUpperCase())
     .join("");
+
+  if (src && !broken) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt={alt ?? `${name} profile picture`}
+        width={size}
+        height={size}
+        onError={() => setBroken(true)}
+        className="shrink-0 rounded-xl object-cover"
+        style={{ width: size, height: size, background: `hsl(${hue} 20% 14%)` }}
+      />
+    );
+  }
   return (
     <span
       className="inline-flex shrink-0 items-center justify-center rounded-xl font-bold text-white"

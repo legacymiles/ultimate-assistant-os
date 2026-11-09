@@ -97,14 +97,30 @@ export interface RequestBatch {
   nextVersionId?: string;
   /** Handed to App Builder and queued for Claude Code. */
   build?: BatchBuild;
+  /**
+   * The last time pressing build did not start one, and what it said.
+   *
+   * Kept on the batch rather than shown once and forgotten. A build that
+   * fails to start leaves no thread, no queue entry and no trace — the reason
+   * lived in a toast that was gone on the next render, which is how a version
+   * sat on "building" with nobody able to say why. Cleared the moment a build
+   * does start.
+   */
+  buildError?: { at: string; message: string };
 }
 
 /** Where an approved batch went to be built. */
 export interface BatchBuild {
   /** The App Builder project made from it. */
   builderId: string;
-  /** The In Queue request Claude Code picks up. */
+  /** The In Queue request, when the build was filed rather than started. */
   queueId?: string;
+  /**
+   * The bridge's harness thread, when the build is running on the owner's PC.
+   * That is the difference between "being built" and "filed and waiting", and
+   * the console reads it to show which one this is.
+   */
+  threadId?: string;
   at: string;
 }
 
@@ -162,7 +178,27 @@ export interface ClientProject {
   clientUserId?: string;
   clientUserEmail?: string;
   claimedAt?: string;
+  /**
+   * When the owner sent this to the client.
+   *
+   * Until it is set the project is OWNER-ONLY: it is not in the client's list,
+   * and its link does not open even for someone holding the token. This
+   * matters now that App Builder opens a review project for every build — most
+   * of those are the owner's own apps and were never meant for a client to
+   * see, so visibility is something the owner grants rather than something a
+   * project has merely by existing. `isSentToClient` is the one place that
+   * decides, and it grandfathers projects a client had already claimed before
+   * this field existed.
+   */
+  sentAt?: string;
   lane: ContentLane;
+  /**
+   * The one model that writes this project's build briefs, when the owner
+   * picked one from the menu (src/lib/client-review/models.ts). "" or missing
+   * means "use the lane" — Claude first, the uncensored chain if it refuses —
+   * which is what every project made before the menu existed has.
+   */
+  briefModel?: string;
   versions: ReviewVersion[];
   requests: EditRequest[];
   batches: RequestBatch[];

@@ -1,5 +1,941 @@
 [
  {
+  "id": "60ceac5:ai-rankings",
+  "date": "2026-11-09",
+  "slug": "ai-rankings",
+  "title": "Show the closed models a filter hides, and where the best open one stands",
+  "detail": "The Top ranked list keeps true ranks when a filter is on, so it reads #3, #5, #6 with nothing to say what is in the holes. Each hidden model is now shown in its own place as a muted row — rank, name, maker, score, and why it is out (closed, paid, cloud only, older) — and a run of more than three is ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b98d13b:ai-rankings",
+  "date": "2026-11-09",
+  "slug": "ai-rankings",
+  "title": "Refresh arena scores daily, and show what a filter hides",
+  "detail": "A leaderboard whose scores are only ever typed in by hand goes quietly wrong, so the daily check now has two halves: Hugging Face for new releases, which still land in the inbox for approval, and Artificial Analysis for the scores already on the board, which are updated in place.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b98d13b:jarvis",
+  "date": "2026-11-09",
+  "slug": "jarvis",
+  "title": "Refresh arena scores daily, and show what a filter hides",
+  "detail": "A leaderboard whose scores are only ever typed in by hand goes quietly wrong, so the daily check now has two halves: Hugging Face for new releases, which still land in the inbox for approval, and Artificial Analysis for the scores already on the board, which are updated in place.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a0ca776:ai-rankings",
+  "date": "2026-11-09",
+  "slug": "ai-rankings",
+  "title": "Rebuilt as a public leaderboard with daily new-release checks",
+  "detail": "The app was a private three-pane database of every tool worth remembering. It is now a public, owner-curated leaderboard of AI models, organised by the question people actually arrive with: \"what is the best open-source TTS right now\", \"which video model dropped this week\".",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e2d674f:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "Offer the address builds already work from",
+  "detail": "Local network access is granted per ORIGIN. The hub is served from two, and Chrome allows one and silently blocks the other — so \"Connect to this PC\" can do nothing at all when pressed, because only the browser's own prompt can grant it and Chrome stops offering that prompt once it has been dismisse",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "92a426c:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "Tell \"the browser blocked it\" apart from \"the helper is off\"",
+  "detail": "Measured in the owner's own Chrome, same machine, same helper, same second:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "92a426c:ai-rankings",
+  "date": "2026-11-08",
+  "slug": "ai-rankings",
+  "title": "Tell \"the browser blocked it\" apart from \"the helper is off\"",
+  "detail": "Measured in the owner's own Chrome, same machine, same helper, same second:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "92a426c:jarvis",
+  "date": "2026-11-08",
+  "slug": "jarvis",
+  "title": "Tell \"the browser blocked it\" apart from \"the helper is off\"",
+  "detail": "Measured in the owner's own Chrome, same machine, same helper, same second:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "feffb6d:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "Answer a permission once per tool, not once per call",
+  "detail": "autoAllow has one line for MCP tools:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "feffb6d:app-builder",
+  "date": "2026-11-08",
+  "slug": "app-builder",
+  "title": "Answer a permission once per tool, not once per call",
+  "detail": "autoAllow has one line for MCP tools:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "663a134:jarvis",
+  "date": "2026-11-08",
+  "slug": "jarvis",
+  "title": "Try twice before deciding the PC isn't there",
+  "detail": "Reproduced in the owner's own Chrome, against the live site, with the bridge running: one press of Approve & build said \"Jarvis's PC helper isn't running\". The next press, same tab, same minute, started the thread and ran both git steps — /health in 7ms, /harness/start 200, /shell 200, /shell 200. T",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4c57493:jarvis",
+  "date": "2026-11-08",
+  "slug": "jarvis",
+  "title": "Try twice before deciding the PC isn't there",
+  "detail": "Reproduced in the owner's own Chrome, against the live site, with the bridge running: one press of Approve & build said \"Jarvis's PC helper isn't running\". The next press, same tab, same minute, started the thread and ran both git steps — /health in 7ms, /harness/start 200, /shell 200, /shell 200. T",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "526801e:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "Say why a build didn't start, and never strand a version",
+  "detail": "A version marked \"building\" with \"Not started yet\" under it is the shape of this bug: the approval opened v2, the start threw, and the reason went into a toast that was gone on the next render. Nothing on the screen, in the project or in the database remembered it, so the only honest answer to \"why ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4c2514d:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "Kimi K3.1 Pro Abliterated, in every model list",
+  "detail": "orca/orcacyber-k3.1-pro is the heavier OrcaCyber tier: 1M context, / per M, reasoning with tools and JSON, and the only uncensored model here that watches a reference clip as well as reading stills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4c2514d:jarvis",
+  "date": "2026-11-08",
+  "slug": "jarvis",
+  "title": "Kimi K3.1 Pro Abliterated, in every model list",
+  "detail": "orca/orcacyber-k3.1-pro is the heavier OrcaCyber tier: 1M context, / per M, reasoning with tools and JSON, and the only uncensored model here that watches a reference clip as well as reading stills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "809b7e9:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "Say why a build didn't start, and never strand a version",
+  "detail": "A version marked \"building\" with \"Not started yet\" under it is the shape of this bug: the approval opened v2, the start threw, and the reason went into a toast that was gone on the next render. Nothing on the screen, in the project or in the database remembered it, so the only honest answer to \"why ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "16a1446:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "A Building screen, and a way out of a build that never finishes",
+  "detail": "Two things were missing, and they are the same thing from both ends.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "13a7e69:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "Build the edits here, on main, with the model you picked",
+  "detail": "Approve & build started a thread and then changed nothing. The bridge cuts each worktree from its own checkout's HEAD, and that checkout sits on a long-running branch 270 commits behind origin/main with work of its own on top — so the brief's \"rebase onto main, and stop if that is not trivial\" rule ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "13a7e69:app-builder",
+  "date": "2026-11-08",
+  "slug": "app-builder",
+  "title": "Build the edits here, on main, with the model you picked",
+  "detail": "Approve & build started a thread and then changed nothing. The bridge cuts each worktree from its own checkout's HEAD, and that checkout sits on a long-running branch 270 commits behind origin/main with work of its own on top — so the brief's \"rebase onto main, and stop if that is not trivial\" rule ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "60c9512:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "Open on solid ground, above everything else",
+  "detail": "The chat's model picker opened as a ghost — you could read the suggestion chips, the hint row and the Connect banner straight through it, and they painted over the top of it. Two causes, both of them the kind that hit every dropdown on the site, not just that one.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "60c9512:jarvis",
+  "date": "2026-11-08",
+  "slug": "jarvis",
+  "title": "Open on solid ground, above everything else",
+  "detail": "The chat's model picker opened as a ghost — you could read the suggestion chips, the hint row and the Connect banner straight through it, and they painted over the top of it. Two causes, both of them the kind that hit every dropdown on the site, not just that one.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "60c9512:projects-timeline",
+  "date": "2026-11-08",
+  "slug": "projects-timeline",
+  "title": "Open on solid ground, above everything else",
+  "detail": "The chat's model picker opened as a ghost — you could read the suggestion chips, the hint row and the Connect banner straight through it, and they painted over the top of it. Two causes, both of them the kind that hit every dropdown on the site, not just that one.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e4c96db:jarvis",
+  "date": "2026-11-08",
+  "slug": "jarvis",
+  "title": "The abliterated DeepSeek, in every router",
+  "detail": "The owner's OrcaRouter account serves DeepSeek V4.1 Flash Abliterated as orca/orcacyber-flash-1.0 — a model no other provider carries — and asked for it to be the brain behind Chat, Studio, Client Review and the rest.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e4c96db:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "The abliterated DeepSeek, in every router",
+  "detail": "The owner's OrcaRouter account serves DeepSeek V4.1 Flash Abliterated as orca/orcacyber-flash-1.0 — a model no other provider carries — and asked for it to be the brain behind Chat, Studio, Client Review and the rest.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "079c1ed:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "Build on the PC, then push to main from the dashboard",
+  "detail": "Approve & build used to file an In Queue request and stop, so an approved batch sat on 'building' with nothing behind it. It now starts a real harness thread on the owner's PC (a worktree of the repo, the edit brief said into it) and records threadId on the batch; In Queue stays the fallback when th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "079c1ed:jarvis",
+  "date": "2026-11-08",
+  "slug": "jarvis",
+  "title": "Build on the PC, then push to main from the dashboard",
+  "detail": "Approve & build used to file an In Queue request and stop, so an approved batch sat on 'building' with nothing behind it. It now starts a real harness thread on the owner's PC (a worktree of the repo, the edit brief said into it) and records threadId on the batch; In Queue stays the fallback when th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:app-builder",
+  "date": "2026-11-07",
+  "slug": "app-builder",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:contradicting",
+  "date": "2026-11-07",
+  "slug": "contradicting",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:find-my-life",
+  "date": "2026-11-07",
+  "slug": "find-my-life",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:iphone-notes",
+  "date": "2026-11-07",
+  "slug": "iphone-notes",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:item-storm-arena",
+  "date": "2026-11-07",
+  "slug": "item-storm-arena",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:jarvis",
+  "date": "2026-11-07",
+  "slug": "jarvis",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:text-inbox",
+  "date": "2026-11-07",
+  "slug": "text-inbox",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:youtube-videos",
+  "date": "2026-11-07",
+  "slug": "youtube-videos",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:gods-eye-view",
+  "date": "2026-11-07",
+  "slug": "gods-eye-view",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:kart-showcase",
+  "date": "2026-11-07",
+  "slug": "kart-showcase",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:website-redesigner",
+  "date": "2026-11-07",
+  "slug": "website-redesigner",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "18abb41:fonts",
+  "date": "2026-11-07",
+  "slug": "fonts",
+  "title": "Self-host every webface so the build never fetches Google",
+  "detail": "Eleven files asked Google for a font with `next/font/google`, which fetches font CSS and font files *while compiling*. That made every build depend on a third-party request, and the failure mode was vicious: Next's loader threw",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "12143fe:jarvis-audio-studio",
+  "date": "2026-11-07",
+  "slug": "jarvis-audio-studio",
+  "title": "Stop the PC panel polling in background tabs",
+  "detail": "YourPc polled /api/mp3-download/bridge every 5 seconds with no visibility check, so a forgotten background tab was about 17,000 billed function calls a day that nobody was looking at. It now polls only while the tab is in front and reads immediately on focus, so the panel feels exactly as it did.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2a708fa:jarvis",
+  "date": "2026-11-07",
+  "slug": "jarvis",
+  "title": "Self-host the two build-time fonts",
+  "detail": "The page asked Google for JetBrains Mono and Oxanium at build time, so a build failed whenever fonts.googleapis.com was unreachable. The same faces now ship in public/fonts and load through next/font/local.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0bb6a47:jarvis",
+  "date": "2026-11-07",
+  "slug": "jarvis",
+  "title": "Bring back the full dashboard as the landing pane",
+  "detail": "The Deck replaced the dashboard, and with it went the memory core and the panels that said what is actually known: Today, Next up, Inbox, Recent memories, Sources.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4d22f4a:personas-studio",
+  "date": "2026-11-03",
+  "slug": "personas-studio",
+  "title": "A Daily Dancer, and a deletion that sticks",
+  "detail": "The studio opens with Barry and nothing else, which is one persona doing one job. Daily Dancer is the second: a dance a day, taught like a mirror, with the character document and content plan written out and no invented history behind it.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4d2c575:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "One link, pasted twice",
+  "detail": "Setup asked for three links and the whole difficulty was which went where. Photos go to /push, the clean-up list to /present, the bookmark to /cursor — and Shortcuts fills a Get Contents of URL's URL box in by itself, usually with the first URL action in the Shortcut. Pick wrong and it still runs, s",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4d2c575:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "One link, pasted twice",
+  "detail": "Setup asked for three links and the whole difficulty was which went where. Photos go to /push, the clean-up list to /present, the bookmark to /cursor — and Shortcuts fills a Get Contents of URL's URL box in by itself, usually with the first URL action in the Shortcut. Pick wrong and it still runs, s",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "98f7d67:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "Tell the phone when the clean-up went to the wrong link",
+  "detail": "The clean-up POST reaching /push instead of /present is the mis-wiring that cost weeks. Shortcuts fills a Get Contents of URL's URL box in by itself and usually picks the first URL action in the Shortcut, which is the one that sends photos, and nothing about the phone shows it: photos keep arriving ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "98f7d67:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "Tell the phone when the clean-up went to the wrong link",
+  "detail": "The clean-up POST reaching /push instead of /present is the mis-wiring that cost weeks. Shortcuts fills a Get Contents of URL's URL box in by itself and usually picks the first URL action in the Shortcut, which is the one that sends photos, and nothing about the phone shows it: photos keep arriving ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3554b8c:app-builder",
+  "date": "2026-11-02",
+  "slug": "app-builder",
+  "title": "The \"it's being built\" screen could never appear",
+  "detail": "Reported as \"I pressed build it and no pop up screen appeared\".",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "db29c3e:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "Drop the download route, iPhone will not take it",
+  "detail": "Yesterday's guide offered the ready-made Shortcut as a file, on the strength of an \"Allow Untrusted Shortcuts\" switch that no longer does anything. The phone's answer is \"Importing unsigned shortcut files is not supported. Please use another sharing option\", and there is no setting behind it: Apple ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "db29c3e:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "Drop the download route, iPhone will not take it",
+  "detail": "Yesterday's guide offered the ready-made Shortcut as a file, on the strength of an \"Allow Untrusted Shortcuts\" switch that no longer does anything. The phone's answer is \"Importing unsigned shortcut files is not supported. Please use another sharing option\", and there is no setting behind it: Apple ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7a849ec:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "Let a phone fetch the Shortcut without an account",
+  "detail": "Shortcuts downloads the file itself, with none of Safari's cookies, so behind the sign-in wall the import gets the login page saved under a .shortcut name and fails with nothing on screen to explain it. The file is public now — that one path, not the folder, which also holds the owner's Expert Advis",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "910dcc7:app-builder",
+  "date": "2026-11-02",
+  "slug": "app-builder",
+  "title": "A build the agent has forgotten says so, instead of loading forever",
+  "detail": "Reported as \"it still says starting to build so I don't know if it's working\", which was exactly right.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3301aa8:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "Ship the Shortcut as a file, not a build",
+  "detail": "Four rounds of editing the Shortcut by hand produced four broken Shortcuts, the last one with a live token in a header, both URLs stopping at \"?key=\" with no chip, Combine Text emptied and the clean-up posting to the sending link. None of it was visible on the phone.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3301aa8:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "Ship the Shortcut as a file, not a build",
+  "detail": "Four rounds of editing the Shortcut by hand produced four broken Shortcuts, the last one with a live token in a header, both URLs stopping at \"?key=\" with no chip, Combine Text emptied and the clean-up posting to the sending link. None of it was visible on the phone.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "578e026:app-builder",
+  "date": "2026-11-02",
+  "slug": "app-builder",
+  "title": "Say so on screen, and stop a borrowed token failing every build silently",
+  "detail": "Three things, all found by the owner pressing the button and getting nothing.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a1d49be:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "One key and one tap instead of an eight-block build",
+  "detail": "Setting a phone up meant building the Shortcut by hand, and every block was somewhere to get it wrong — a typed word where a blue variable chip belonged, the sending link pasted into the clean-up action, a File field left as Text. All three have actually happened, and each one failed silently.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a1d49be:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "One key and one tap instead of an eight-block build",
+  "detail": "Setting a phone up meant building the Shortcut by hand, and every block was somewhere to get it wrong — a typed word where a blue variable chip belonged, the sending link pasted into the clean-up action, a File field left as Text. All three have actually happened, and each one failed silently.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "009853b:client-review",
+  "date": "2026-11-02",
+  "slug": "client-review",
+  "title": "The owner's picker stops calling itself the client's view",
+  "detail": "The owner opened the tab labelled \"Client view\", saw all 36 apps, and reasonably concluded a client could see them too. A client cannot — the owner gets SitePicker, which lists everything on purpose so any app can be opened and edited the way a client would see it; a client gets MyWebsites, which ho",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "60bc898:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "The phone's report gets its own row",
+  "detail": "It was the widget's subtitle, which \"N new from your iPhone\" replaces whenever anything is waiting — so on the account with photos always waiting, the one that needed it, it never rendered at all. What did show was 9px of grey at the bottom edge with the answer tacked onto the end of four clauses.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "60bc898:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "The phone's report gets its own row",
+  "detail": "It was the widget's subtitle, which \"N new from your iPhone\" replaces whenever anything is waiting — so on the account with photos always waiting, the one that needed it, it never rendered at all. What did show was 9px of grey at the bottom edge with the answer tacked onto the end of four clauses.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1ce5dd5:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "Say what the phone reported, in words",
+  "detail": "The clean-up's only answer was a line of JSON in the Shortcut's result box, which on a phone is behind a tap and easy to miss entirely — so a run that silently did nothing looked the same as one that worked.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1ce5dd5:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "Say what the phone reported, in words",
+  "detail": "The clean-up's only answer was a line of JSON in the Shortcut's result box, which on a phone is behind a tap and easy to miss entirely — so a run that silently did nothing looked the same as one that worked.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "357d36e:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "Read the photo names whatever the field got called",
+  "detail": "The 400 said \"Set the field to the combined names\", which reads like an instruction to rename the key — so the owner did, and the clean-up then posted a field the route never looked for.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1c58842:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "Say to insert the variable chips, not type them",
+  "detail": "A shortcut that types \"Combined Text\" into the names field sends one photo name, which the server reads as \"the rest were deleted\". Same for Combine Text with an empty input. Both steps now say to pick the chip off the variable bar, and Get Details of Images says its input must be the Find Photos li",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4f2a368:dashboard",
+  "date": "2026-11-02",
+  "slug": "dashboard",
+  "title": "Stop a miswired Shortcut emptying the queue",
+  "detail": "A clean-up run reported one photo name and deleted forty-five. The list is read as \"everything still on the phone\", so a Shortcut whose Get Details block is wired to a single image rather than the Find Photos list says, in effect, that the whole camera roll is gone — and prune believed it.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4f2a368:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "Stop a miswired Shortcut emptying the queue",
+  "detail": "A clean-up run reported one photo name and deleted forty-five. The list is read as \"everything still on the phone\", so a Shortcut whose Get Details block is wired to a single image rather than the Find Photos list says, in effect, that the whole camera roll is gone — and prune believed it.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b4bb32e:app-builder",
+  "date": "2026-11-02",
+  "slug": "app-builder",
+  "title": "A client folder per app, and a way to move one into the hub",
+  "detail": "The lifecycle the owner asked for. Every app is born standalone — its own folder, its own repository — because that is the shape you can hand over. Some of them later belong beside the other forty, at /apps/<slug>.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "377464f:client-review",
+  "date": "2026-11-02",
+  "slug": "client-review",
+  "title": "The owner sends an app to the client; it is hidden until they do",
+  "detail": "App Builder opens a review project for every build, so the list stopped being a handful of client sites and became every app the owner has made. Two things broke at once: a client could reach anything whose token they held, and the owner could not find anything.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6d3ec45:personas-studio",
+  "date": "2026-11-02",
+  "slug": "personas-studio",
+  "title": "A link on every step, so nobody hunts through a console",
+  "detail": "Each platform's guide opened with one link and then left you to find the rest by sidebar name inside TikTok's, Meta's and Google's portals — consoles most people see once. YouTube already linked all three of its steps; TikTok, Instagram and Facebook linked only the first. Now every step carries its ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6b867bd:app-builder",
+  "date": "2026-11-02",
+  "slug": "app-builder",
+  "title": "A build thread is pinned to trusted, not the owner's chat setting",
+  "detail": "Found by running one. On \"ask\" the thread stops at every single command — the first gate was `ls -la && git log && node --version`, and a build is hours of exactly that. It is not a build, it is a hostage situation.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f2395e2:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "Show the three links to people already set up",
+  "detail": "Putting all three links on one step did nothing for the person who needed it most. They render only while `token` is set, and that is true for a few seconds after minting and never again — the key is hashed on the way into storage and cannot be read back. So anyone who set their phone up weeks ago o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "967afc7:app-builder",
+  "date": "2026-11-02",
+  "slug": "app-builder",
+  "title": "An empty, zero-cost turn is a failure, not a finished build",
+  "detail": "Found by trying to run a real build. Every thread came back in ~600ms having said nothing, used no tools and cost nothing — on a project thread AND on a plain worktree thread, so it was not the new project mode. The cause was off the hub entirely: `claude -p` on that machine answers \"Not logged in ·",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5904adc:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "All three iPhone links on one screen",
+  "detail": "The setup handed out three links — push, cursor, present — one per step, each revealed where it was needed. Mid-build that means leaving the step you are on to go and find the right one, and the three differ only in the last word before ?key=, so the wrong one pastes in silently and fails later with",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "99d1fe5:app-builder",
+  "date": "2026-11-02",
+  "slug": "app-builder",
+  "title": "Build it builds the app, instead of queueing a request for one",
+  "detail": "The button said Build and nothing was built. It filed a request in In Queue and stopped, and the app would not exist until the owner remembered to go and tell Claude Code to work the queue. That was honest about the old mechanism and useless as a product — one real brief sat unbuilt for a day becaus",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f0f7bcb:financial-bible",
+  "date": "2026-11-02",
+  "slug": "financial-bible",
+  "title": "Two apps go widget-only, Financial Bible joins Money Agent Studio",
+  "detail": "Find My Life and YouTube Videos were both already drawn on the Jarvis Dashboard, so a card as well was the second door to a thing you glance at rather than go and work in. They move to WIDGET_SLUGS rather than leaving the allowlists, because a slug dropped altogether gets its hub tile back and the o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f0f7bcb:money-agent-studio",
+  "date": "2026-11-02",
+  "slug": "money-agent-studio",
+  "title": "Two apps go widget-only, Financial Bible joins Money Agent Studio",
+  "detail": "Find My Life and YouTube Videos were both already drawn on the Jarvis Dashboard, so a card as well was the second door to a thing you glance at rather than go and work in. They move to WIDGET_SLUGS rather than leaving the allowlists, because a slug dropped altogether gets its hub tile back and the o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f0f7bcb:find-my-life",
+  "date": "2026-11-02",
+  "slug": "find-my-life",
+  "title": "Two apps go widget-only, Financial Bible joins Money Agent Studio",
+  "detail": "Find My Life and YouTube Videos were both already drawn on the Jarvis Dashboard, so a card as well was the second door to a thing you glance at rather than go and work in. They move to WIDGET_SLUGS rather than leaving the allowlists, because a slug dropped altogether gets its hub tile back and the o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f0f7bcb:money-agents",
+  "date": "2026-11-02",
+  "slug": "money-agents",
+  "title": "Two apps go widget-only, Financial Bible joins Money Agent Studio",
+  "detail": "Find My Life and YouTube Videos were both already drawn on the Jarvis Dashboard, so a card as well was the second door to a thing you glance at rather than go and work in. They move to WIDGET_SLUGS rather than leaving the allowlists, because a slug dropped altogether gets its hub tile back and the o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f0f7bcb:youtube-videos",
+  "date": "2026-11-02",
+  "slug": "youtube-videos",
+  "title": "Two apps go widget-only, Financial Bible joins Money Agent Studio",
+  "detail": "Find My Life and YouTube Videos were both already drawn on the Jarvis Dashboard, so a card as well was the second door to a thing you glance at rather than go and work in. They move to WIDGET_SLUGS rather than leaving the allowlists, because a slug dropped altogether gets its hub tile back and the o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f0f7bcb:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "Two apps go widget-only, Financial Bible joins Money Agent Studio",
+  "detail": "Find My Life and YouTube Videos were both already drawn on the Jarvis Dashboard, so a card as well was the second door to a thing you glance at rather than go and work in. They move to WIDGET_SLUGS rather than leaving the allowlists, because a slug dropped altogether gets its hub tile back and the o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "73a8bc1:projects-timeline",
+  "date": "2026-11-02",
+  "slug": "projects-timeline",
+  "title": "Log app edits again on Windows",
+  "detail": "`npm run timeline:log` has been failing on Windows. ROOT came from `new URL(import.meta.url).pathname`, which is \"/C:/dev/repo/scripts\" here; path.resolve reads the leading slash as a rooted path and returns \"C:\\C:\\dev\\repo\". Every execFileSync then failed with ENOENT on a cwd that does not exist — ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4b175f0:jarvis",
+  "date": "2026-11-02",
+  "slug": "jarvis",
+  "title": "No card for a studio the Studio tab already panels",
+  "detail": "The seven studios had two doors. Each one has a tall panel on the Studio tab playing a clip of what it makes, and a line of text on the App plugins page going to the same route — so the plugins page was 21 cards, 7 of them the worse of two ways to the same place.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d6f8982:personas-studio",
+  "date": "2026-11-01",
+  "slug": "personas-studio",
+  "title": "A learning loop, and personas filed under the job they do",
+  "detail": "Adds three things the Studio did not have, without touching the Draft pipeline, the Message Inbox or publishing.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d6f8982:money-agents",
+  "date": "2026-11-01",
+  "slug": "money-agents",
+  "title": "A learning loop, and personas filed under the job they do",
+  "detail": "Adds three things the Studio did not have, without touching the Draft pipeline, the Message Inbox or publishing.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6d596d8:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "Stop interrupting an ordinary browse job",
+  "detail": "Trusted was still gating on `verdict.risk === \"grave\"`, and classify() calls a click grave on any of a long list of words — confirm, accept, agree, approve, authorize, apply, book, register, sign up. A browse job hits those constantly, so \"do this for me in the browser\" was still one tap after anoth",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3507f8f:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "A trust level, so one job is not a hundred taps",
+  "detail": "New Jarvis gated every call with an effect, because `confirm` in actions.ts was answering two questions at once: \"does this have an effect\" and \"should the owner be stopped and asked\". A twelve-step job meant twelve taps on Do it, and a real build meant a hundred — which is a gate nobody reads by th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3507f8f:website-redesigner",
+  "date": "2026-11-01",
+  "slug": "website-redesigner",
+  "title": "A trust level, so one job is not a hundred taps",
+  "detail": "New Jarvis gated every call with an effect, because `confirm` in actions.ts was answering two questions at once: \"does this have an effect\" and \"should the owner be stopped and asked\". A twelve-step job meant twelve taps on Do it, and a real build meant a hundred — which is a gate nobody reads by th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "96ba8be:client-review",
+  "date": "2026-11-01",
+  "slug": "client-review",
+  "title": "Commercial in the pipeline, a real build status, and the Client Review hand-off",
+  "detail": "Pressing \"Build it\" spun with nothing behind it. Nothing was loading — the request had been filed in In Queue and was WAITING for Claude Code on the PC, which only looks at the queue when it is asked to. The owner could not tell a slow call from a stuck one, did not know how long, where the app woul",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "96ba8be:app-builder",
+  "date": "2026-11-01",
+  "slug": "app-builder",
+  "title": "Commercial in the pipeline, a real build status, and the Client Review hand-off",
+  "detail": "Pressing \"Build it\" spun with nothing behind it. Nothing was loading — the request had been filed in In Queue and was WAITING for Claude Code on the PC, which only looks at the queue when it is asked to. The owner could not tell a slow call from a stuck one, did not know how long, where the app woul",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1114f7e:trading-agent",
+  "date": "2026-11-01",
+  "slug": "trading-agent",
+  "title": "A Trading Agent that reads a setup and signs nothing",
+  "detail": "Third section, after EA World and EA Lab — learn, measure, then reason. It is the one section here that measures nothing and runs nothing.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1114f7e:trading-studio",
+  "date": "2026-11-01",
+  "slug": "trading-studio",
+  "title": "A Trading Agent that reads a setup and signs nothing",
+  "detail": "Third section, after EA World and EA Lab — learn, measure, then reason. It is the one section here that measures nothing and runs nothing.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1114f7e:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "A Trading Agent that reads a setup and signs nothing",
+  "detail": "Third section, after EA World and EA Lab — learn, measure, then reason. It is the one section here that measures nothing and runs nothing.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "30052bb:ea-lab",
+  "date": "2026-11-01",
+  "slug": "ea-lab",
+  "title": "EA Lab is in, so its pending panel goes",
+  "detail": "Trading Studio's Lab tab has been a placeholder reading \"EA Lab is on your PC and isn't on the website yet. This tab is where it will open.\" The code it was waiting for existed, committed, on a feature branch nobody had merged. This is that code, and the instructions for wiring it came from the plac",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "30052bb:trading-studio",
+  "date": "2026-11-01",
+  "slug": "trading-studio",
+  "title": "EA Lab is in, so its pending panel goes",
+  "detail": "Trading Studio's Lab tab has been a placeholder reading \"EA Lab is on your PC and isn't on the website yet. This tab is where it will open.\" The code it was waiting for existed, committed, on a feature branch nobody had merged. This is that code, and the instructions for wiring it came from the plac",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "30052bb:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "EA Lab is in, so its pending panel goes",
+  "detail": "Trading Studio's Lab tab has been a placeholder reading \"EA Lab is on your PC and isn't on the website yet. This tab is where it will open.\" The code it was waiting for existed, committed, on a feature branch nobody had merged. This is that code, and the instructions for wiring it came from the plac",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9edb2b9:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "A wall of studios, from the studios that already exist",
+  "detail": "The Studio tab opened straight onto the workflow wall, so every studio behind it — Image, Audio, Music Video, Personas, Money Agent, Game, Trading — sat on the App plugins page and you had to remember which door. This is the other front page: eight tall panels standing side by side, each playing a c",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3ab5fb0:cook-connect",
+  "date": "2026-11-01",
+  "slug": "cook-connect",
+  "title": "Playing out of turn is no longer a renig",
+  "detail": "A renig is now only acting like you are out of a suit when you still hold it (off-suit while holding the led suit, or an early spade lead while holding other suits). Out-of-turn play is still allowed after the \"Are you sure?\" and still skips your turn, but nothing is recorded for it. Old \"turn\" reco",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e6ba09f:website-redesigner",
+  "date": "2026-11-01",
+  "slug": "website-redesigner",
+  "title": "The roster only holds skills that have a skin",
+  "detail": "Takes the guard from ad9986a (feat/studio-hub-studios), written in parallel with 75fc8d0 while both of us were chasing the same red test. Theirs is the better mechanism and this keeps it.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "75fc8d0:website-redesigner",
+  "date": "2026-11-01",
+  "slug": "website-redesigner",
+  "title": "A skill that builds a site is not a style",
+  "detail": "skins.test.ts has been red on main since 99334dc, which added 11 \"design skills\" to the roster without skins. Nine of them are not design skills: jarvis-harness hands coding to a background agent, website-build-checklist is a list of build rules, felix plans, scholar researches, eas-app-stores submi",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "33ee191:website-redesigner",
+  "date": "2026-11-01",
+  "slug": "website-redesigner",
+  "title": "Add design skills app-builder, commercial, eas-app-stores, expo-design-system, felix, hyperframes, impeccable, jarvis-harness, make-this-bet",
+  "detail": "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "30fb8cf:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "Errors that name a chore now do the walking",
+  "detail": "\"Claude isn't signed in on this PC. Open Claude Code (type `claude` in a terminal), sign in with /login, then try again.\" is a correct sentence and a dead end. It names a terminal the owner has to find, a command to remember and a slash command to type - inside an assistant that can open a terminal ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d84c5c5:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "\"quick\" must not disarm a Do turn",
+  "detail": "\"Find the Pokemon channel and open it\" came back as a URL and an apology that the browser could not be opened. The model was not ignoring the instruction - it had been left with no tools at all.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3ee5449:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "Screen does not need the local agent",
+  "detail": "I gated both new chips on `paired`. That is right for Browser, which calls browser/open on the bridge, and wrong for Screen: ScreenScan captures with getDisplayMedia in the tab and posts to the hub's own /api/jarvis/record/extract. It never touches the local agent - screenCapture.ts says so in its o",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "a51a00c:jarvis",
+  "date": "2026-11-01",
+  "slug": "jarvis",
+  "title": "Browser and Screen on the chat bar",
+  "detail": "Two chips beside Pictures, Video and Audio, and the same pair in the composer row. The hero's chips only exist on an empty chat, and \"look at this page with me\" is asked mid-conversation, so both places need them.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "99334dc:website-redesigner",
+  "date": "2026-10-30",
+  "slug": "website-redesigner",
+  "title": "Add design skills app-builder, commercial, eas-app-stores, expo-design-system, felix, jarvis-harness, promo-video, rea-to-workflow, scholar,",
+  "detail": "Auto-added by scripts/sync-design-skills.mjs after the skill was installed in ~/.claude/skills.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "a52e431:cook-connect",
   "date": "2026-10-28",
   "slug": "cook-connect",

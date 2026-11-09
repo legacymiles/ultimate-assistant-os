@@ -335,6 +335,15 @@ export const CAPABILITIES: Capability[] = [
     without: "Still works, but only a few new songs a day.",
   },
   {
+    id: "ai-scores",
+    name: "Fresh AI leaderboard scores",
+    what: "AI Rankings re-reads the arena scores each day, so the board is today's ranking rather than the day it was typed.",
+    category: "world",
+    via: "key",
+    needs: ["ARTIFICIAL_ANALYSIS_API_KEY"],
+    without: "Scores stay exactly as they were entered, and the inbox says they were not refreshed.",
+  },
+  {
     id: "maps",
     name: "Maps & traffic",
     what: "Real routes and travel times.",

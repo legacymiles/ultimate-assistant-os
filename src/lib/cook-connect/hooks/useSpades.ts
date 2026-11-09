@@ -15,7 +15,7 @@ import {
   seatResults, tablesToJoin, withdrawVote, type LobbySeat,
 } from "../lobby";
 import {
-  botNotices, canAccuse, canPlay, completeEvidence, recordOutOfTurn, recordPlay, resolveCall,
+  botNotices, canAccuse, canPlay, completeEvidence, recordPlay, resolveCall,
 } from "../renege";
 import type { Match, MatchPlayer, SpadesGame } from "../types";
 
@@ -500,7 +500,7 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
     opts: { unlocked?: boolean; userId?: string; outOfTurn?: boolean } = {},
   ) => {
     if (!state || !game || !match || state.phase !== "playing") return;
-    // Out of turn only when the player confirmed it (see recordOutOfTurn).
+    // Out of turn only when the player confirmed it. It is not a renig.
     const outOfTurn = state.currentTurn !== seat;
     if (outOfTurn && (!opts.outOfTurn || !canPlayOutOfTurn(state, seat))) return;
     const hand = state.hands[seat];
@@ -511,20 +511,15 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
     }
 
     // An illegal play goes through without a word; it is only written down.
-    // Playing out of turn is written down the same way: it is a renig that
-    // can be called. The card stays on the trick and that player's own turn
-    // in this trick is skipped.
+    // Playing out of turn is not a renig: only the card is judged (did they
+    // hold the suit they acted like they didn't have?). Out of turn, the card
+    // stays on the trick and that player's own turn in this trick is skipped.
     const round = game.current_round;
     const who = opts.userId ?? `bot:${seat}`;
     let reneges = recordPlay(state.reneges, {
       seat, userId: who, round, trickNumber: state.trickNumber,
       card, hand, trick: state.currentTrick, spadeBroken: state.spadeBroken,
     });
-    if (outOfTurn) {
-      reneges = recordOutOfTurn(reneges, {
-        seat, userId: who, round, trickNumber: state.trickNumber, card, trick: state.currentTrick,
-      });
-    }
 
     const hands = { ...state.hands, [seat]: hand.filter((c) => c !== card) };
     const trick = [...state.currentTrick, { seat, card }];
@@ -653,7 +648,7 @@ export function useSpades(sb: Backend, userId: string | null, matchId: string | 
     return playFor(mySeat, card, { unlocked, userId: userId ?? undefined });
   }, [playFor, mySeat, unlocked, userId]);
 
-  /** Confirmed "play out of turn": goes through, and is recorded like a renig. */
+  /** Confirmed "play out of turn": goes through. Not a renig by itself. */
   const playOutOfTurn = useCallback((card: string) => {
     sounds.cardPlay();
     return playFor(mySeat, card, { unlocked, userId: userId ?? undefined, outOfTurn: true });

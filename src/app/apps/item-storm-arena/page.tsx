@@ -1,10 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Space_Grotesk } from "next/font/google";
+import { isaDisplay as display, isaBody as body } from "@/lib/fonts";
 import { ItemStormArena } from "@/components/item-storm-arena/ItemStormArena";
-
-// The two faces the arena was designed in, scoped to this route.
-const display = Space_Grotesk({ variable: "--font-isa-display", subsets: ["latin"], weight: ["500", "700"], display: "swap" });
-const body = Inter({ variable: "--font-isa-body", subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
   title: "Item Storm Arena · Game Studio",

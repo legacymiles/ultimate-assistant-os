@@ -33,6 +33,40 @@ describe("toolsFor", () => {
     expect(isHubTool("record_capture")).toBe(true);
     expect(isHubTool("page_fields")).toBe(false);
   });
+
+  // The workbench is only as good as its honesty about what is installed: a
+  // work_start offered on a PC with no harness spends a whole run explaining
+  // that it could not start one.
+  it("offers the coding agents only when the PC reports a harness", () => {
+    const off = toolsFor({ shell: true, files: true }).map((t) => t.name);
+    expect(off).not.toContain("work_start");
+    const on = toolsFor({ harness: true }).map((t) => t.name);
+    expect(on).toContain("work_start");
+    expect(on).toContain("work_check");
+    expect(on).toContain("work_finish");
+  });
+
+  // MCP and the CLI inventory are bridge features of their own, not shell
+  // conveniences: an old bridge has a shell and no /mcp route, and a tool that
+  // 404s mid-run is worse than one that was never offered.
+  it("waits for the bridge to advertise MCP and the CLI inventory", () => {
+    const old = toolsFor({ shell: true }).map((t) => t.name);
+    expect(old).not.toContain("mcp");
+    expect(old).not.toContain("cli");
+    const fresh = toolsFor({ shell: true, mcp: true, cli: true }).map((t) => t.name);
+    expect(fresh).toContain("mcp");
+    expect(fresh).toContain("cli");
+  });
+
+  // GitHub, Vercel and Supabase run on the website, so they are exactly the
+  // tools that must survive the PC being shut.
+  it("keeps the deploy tools with the PC off", () => {
+    const names = toolsFor({}).map((t) => t.name);
+    for (const n of ["github", "vercel", "supabase"]) {
+      expect(names, n).toContain(n);
+      expect(isHubTool(n), n).toBe(true);
+    }
+  });
 });
 
 describe("routeFor", () => {

@@ -32,16 +32,32 @@ interface SetupInfo {
 
 interface Step {
   title: string;
-  open?: { label: string; href: string };
+  /** Every step has one. A step without a link is a step where somebody has
+   *  to go hunting through a console they have never seen before. */
+  open: { label: string; href: string };
   todo: string[];
   copy: ("site" | "privacy" | "terms" | "dataDeletion" | "redirect" | "scopes")[];
 }
 
-const GUIDE: Partial<Record<ConnectablePlatform, { idLabel: string; secretLabel: string; where: string; steps: Step[] }>> = {
+/**
+ * Why these are portal links and not deep links into YOUR app's page.
+ *
+ * It is tempting to build `developers.facebook.com/apps/<saved id>/...` so the
+ * link lands exactly on the right screen. It does not work: the id saved for
+ * Instagram is the INSTAGRAM app id, not the Meta app id (the guide below says
+ * so, because Meta shows both on one page), TikTok saves a client key and
+ * Google a client id — none of those are the portal's app identifier. A link
+ * built from them opens the wrong app or nothing. A stable portal link plus
+ * the exact sidebar item named in the steps is slower by one click and always
+ * right, so that is what ships.
+ */
+
+const GUIDE: Partial<Record<ConnectablePlatform, { idLabel: string; secretLabel: string; where: string; docs: { label: string; href: string }; steps: Step[] }>> = {
   tiktok: {
     idLabel: "Client key",
     secretLabel: "Client secret",
     where: "Your app › App details — the two keys at the top.",
+    docs: { label: "TikTok: create an app", href: "https://developers.tiktok.com/doc/getting-started-create-an-app" },
     steps: [
       {
         title: "Make the app",
@@ -51,6 +67,7 @@ const GUIDE: Partial<Record<ConnectablePlatform, { idLabel: string; secretLabel:
       },
       {
         title: "Add Login Kit and Content Posting",
+        open: { label: "Open your TikTok apps", href: "https://developers.tiktok.com/apps" },
         todo: ["Products › Add products: Login Kit and Content Posting API (Upload).", "In Login Kit, paste the redirect URL below.", "Under Scopes, tick the ones listed below."],
         copy: ["redirect", "scopes"],
       },
@@ -59,6 +76,7 @@ const GUIDE: Partial<Record<ConnectablePlatform, { idLabel: string; secretLabel:
   instagram: {
     idLabel: "Instagram app ID",
     secretLabel: "Instagram app secret",
+    docs: { label: "Meta: Instagram API with Instagram login", href: "https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login" },
     where: "Instagram › API setup with Instagram login — the Instagram app ID and secret (not the Meta App ID at the top of the page; they're different).",
     steps: [
       {
@@ -69,6 +87,7 @@ const GUIDE: Partial<Record<ConnectablePlatform, { idLabel: string; secretLabel:
       },
       {
         title: "Turn on Instagram login",
+        open: { label: "Open your Meta apps", href: "https://developers.facebook.com/apps/" },
         todo: [
           "Instagram › API setup with Instagram login › Set up Instagram business login.",
           "Paste the redirect URL below as the OAuth redirect URI.",
@@ -83,6 +102,7 @@ const GUIDE: Partial<Record<ConnectablePlatform, { idLabel: string; secretLabel:
     idLabel: "App ID",
     secretLabel: "App secret",
     where: "App settings › Basic — App ID and App secret (press Show).",
+    docs: { label: "Meta: Facebook Login for Business", href: "https://developers.facebook.com/docs/facebook-login/facebook-login-for-business" },
     steps: [
       {
         title: "Make the app",
@@ -92,6 +112,7 @@ const GUIDE: Partial<Record<ConnectablePlatform, { idLabel: string; secretLabel:
       },
       {
         title: "Turn on Facebook Login",
+        open: { label: "Open your Meta apps", href: "https://developers.facebook.com/apps/" },
         todo: [
           "Facebook Login for Business › Settings: paste the redirect URL below into Valid OAuth Redirect URIs.",
           "Permissions: add pages_show_list, pages_read_engagement, pages_read_user_content and pages_manage_posts.",
@@ -107,6 +128,7 @@ GUIDE.youtube = {
   idLabel: "Client ID",
   secretLabel: "Client secret",
   where: "Google Auth Platform › Clients › your Web client — the Client ID (ends in .apps.googleusercontent.com) and Client secret.",
+  docs: { label: "Google: YouTube Data API auth", href: "https://developers.google.com/youtube/v3/guides/auth/installed-apps" },
   steps: [
     {
       title: "Make the Google project",
@@ -286,11 +308,15 @@ export function ConnectSetup({
                   <div className="mb-1.5 flex items-center gap-2">
                     <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-brand/20 text-[11px] font-bold text-brand">{i + 1}</span>
                     <span className="text-sm font-semibold text-ink">{s.title}</span>
-                    {s.open && (
-                      <a href={s.open.href} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 rounded-lg border border-line px-2 py-1 text-[11px] text-ink-muted hover:text-ink">
-                        <Icon.Launch width={11} height={11} /> {s.open.label}
-                      </a>
-                    )}
+                    <a
+                      href={s.open.href}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-lg border border-brand/50 px-2 py-1 text-[11px] font-medium text-ink transition hover:bg-brand/10"
+                      title={s.open.href}
+                    >
+                      <Icon.Launch width={11} height={11} /> {s.open.label}
+                    </a>
                   </div>
                   <ul className="mb-2 space-y-0.5 pl-7 text-xs text-ink-muted [&>li]:list-disc">
                     {s.todo.map((t) => (
@@ -317,7 +343,19 @@ export function ConnectSetup({
                   <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-brand text-[11px] font-bold text-white">{guide.steps.length + 1}</span>
                   <span className="text-sm font-semibold text-ink">Paste the two keys</span>
                 </div>
-                <p className="mb-2 pl-7 text-[11px] text-ink-faint">{guide.where}</p>
+                <p className="mb-1 pl-7 text-[11px] text-ink-faint">{guide.where}</p>
+                <p className="mb-2 pl-7 text-[11px]">
+                  <a
+                    href={guide.docs.href}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="inline-flex items-center gap-1 text-ink-muted underline decoration-line underline-offset-2 transition hover:text-ink"
+                    title={guide.docs.href}
+                  >
+                    <Icon.File width={10} height={10} /> {guide.docs.label}
+                  </a>
+                  <span className="text-ink-faint"> — if the portal has moved something</span>
+                </p>
                 <div className="grid gap-2 pl-7 sm:grid-cols-2">
                   <label className="block">
                     <span className="mb-0.5 block text-[10px] uppercase tracking-wider text-ink-faint">{guide.idLabel}</span>

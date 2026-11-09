@@ -7,6 +7,7 @@ import {
   deleteDraft,
   editDraft,
   isToken,
+  isSentToClient,
   markNoticesRead,
   portalView,
   pushEvent,
@@ -79,6 +80,12 @@ async function gate(token: string): Promise<{ project: ClientProject; email: str
   if (!viewer) return NextResponse.json(SIGN_IN, { status: 401 });
   try {
     if (viewer.owner || found.clientUserId === viewer.id) return { project: found, email: viewer.email, owner: viewer.owner };
+    // The owner has not sent this one. Refused BEFORE admit(), because admit()
+    // CLAIMS the project for whoever opened it, and a claimed project counts as
+    // shared from then on — so letting it through here would hand away the very
+    // access this check exists to withhold. The answer is the same 404 a link
+    // that never existed gets, so holding a token tells you nothing.
+    if (!isSentToClient(found)) return NextResponse.json(NOT_FOUND, { status: 404 });
     const { project, result } = await updateProject(found.id, (p) => {
       const out = admit(p, viewer);
       return { project: out.project, result: out.claimed };

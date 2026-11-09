@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { noteCheckIn, noteRefused, prune, uidForToken } from "@/lib/dashboard/inbox";
+import { noteRefused, uidForToken } from "@/lib/dashboard/inbox";
+import { stillOnPhone } from "@/lib/dashboard/stillOnPhone";
 
 // POST /api/dashboard/inbox/present
 //
@@ -32,8 +33,21 @@ export async function POST(req: Request) {
       days = body?.days ?? 30;
     } else if (type.includes("form")) {
       const form = await req.formData();
-      raw = form.get("names") ?? form.get("Names") ?? "";
       days = form.get("days") ?? 30;
+      raw = form.get("names") ?? form.get("Names") ?? "";
+      // The field name is typed by hand in the Shortcut, so it comes in
+      // spelled every way there is. The names are the only thing we are ever
+      // sent, so take whatever single text field turned up instead of
+      // failing over a label.
+      if (!String(raw).trim()) {
+        for (const [key, value] of form.entries()) {
+          if (key.toLowerCase() === "days") continue;
+          if (typeof value === "string" && value.trim()) {
+            raw = value;
+            break;
+          }
+        }
+      }
     } else {
       raw = await req.text();
     }
@@ -41,10 +55,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Couldn't read the list of photos." }, { status: 400 });
   }
 
-  const names = (Array.isArray(raw) ? raw.map(String) : String(raw ?? "").split(/[,\n]/)).map((s) => s.trim()).filter(Boolean);
-  if (!names.length) return NextResponse.json({ error: "No photo names came through. Set the field to the combined names." }, { status: 400 });
-  const window = Math.min(90, Math.max(1, Number(days) || 30));
-  await noteCheckIn(uid).catch(() => undefined);
-  const removed = await prune(uid, names, window);
-  return NextResponse.json({ removed, checked: names.length });
+  // The same step /inbox/push runs when the clean-up is pointed at the
+  // sending link, so the two cannot drift apart.
+  const { status, body } = await stillOnPhone(uid, raw, days);
+  return NextResponse.json(body, { status });
 }

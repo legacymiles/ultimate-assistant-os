@@ -30,6 +30,15 @@ describe("routeAccess", () => {
     expect(routeAccess("/api/social-personas/setup", TOKEN)).toBe("owner");
   });
 
+  it("opens the AI Rankings leaderboard and its read route, but not the AI-spending routes", () => {
+    expect(routeAccess("/apps/ai-rankings", TOKEN)).toBe("public");
+    expect(routeAccess("/api/ai-rankings/board", TOKEN)).toBe("public");
+    expect(routeAccess("/api/ai-rankings/analyze-url", TOKEN)).toBe("owner");
+    expect(routeAccess("/api/ai-rankings/classify", TOKEN)).toBe("owner");
+    expect(routeAccess("/api/ai-rankings/site-url", TOKEN)).toBe("owner");
+    expect(routeAccess("/apps/ai-rankings-private", TOKEN)).toBe("owner");
+  });
+
   it("does not match look-alike prefixes", () => {
     expect(routeAccess("/apps/friends-night-outage", TOKEN)).toBe("owner");
     expect(routeAccess("/api/fnox/secret", TOKEN)).toBe("owner");
@@ -74,5 +83,22 @@ describe("owner list", () => {
   it("rejects missing email", () => {
     expect(isOwner(undefined, ["a@x.com"])).toBe(false);
     expect(isOwner("", ["a@x.com"])).toBe(false);
+  });
+});
+
+describe("the downloads folder", () => {
+  const none = new Set<string>();
+
+  it("stays owner-only — it holds the owner's Expert Advisors", () => {
+    expect(routeAccess("/downloads", none)).toBe("owner");
+    expect(routeAccess("/downloads/HeartbeatFVG.mq4", none)).toBe("owner");
+    // iPhone refuses an unsigned Shortcut file whatever the path it came from,
+    // so opening this one bought nothing and is closed again.
+    expect(routeAccess("/downloads/send-to-jarvis.shortcut", none)).toBe("owner");
+  });
+
+  it("opens an exact public path and nothing that merely starts with it", () => {
+    expect(routeAccess("/jarvis-errors.js", none)).toBe("public");
+    expect(routeAccess("/jarvis-errors.js/../downloads/HeartbeatFVG.mq4", none)).toBe("owner");
   });
 });

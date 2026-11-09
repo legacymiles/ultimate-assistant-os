@@ -9,6 +9,12 @@
 // ReviewError whose message is fit to show a person.
 // ---------------------------------------------------------------------------
 
+import {
+  isBriefModelId,
+  isPlanModelId,
+  isSubscriptionValue,
+  SUBSCRIPTION_PREFIX,
+} from "./models";
 import type {
   AdminEvent,
   ClientNotice,
@@ -149,6 +155,24 @@ export function cleanLane(raw: unknown): ContentLane {
   return raw === "standard" || raw === "uncensored" ? raw : "auto";
 }
 
+/**
+ * The brief's model pick: "" (the lane), a Claude-plan id, or an OpenRouter id.
+ *
+ * Anything else is refused rather than stored, because a typo would otherwise
+ * become a brief that fails every time with a provider's 404 and no clue which
+ * field caused it.
+ */
+export function cleanBriefModel(raw: unknown): string | undefined {
+  const value = typeof raw === "string" ? raw.trim() : "";
+  if (!value) return undefined;
+  if (isSubscriptionValue(value)) {
+    if (isPlanModelId(value.slice(SUBSCRIPTION_PREFIX.length))) return value;
+    throw new ReviewError("That isn't a Claude model name the PC helper can ask for.");
+  }
+  if (isBriefModelId(value)) return value;
+  throw new ReviewError(`“${value.slice(0, 60)}” isn't a model id this hub can use.`);
+}
+
 // ----- versions --------------------------------------------------------------
 
 /** "v1" → 1. Anything unparseable counts as 0 so it never wins "newest". */
@@ -226,7 +250,77 @@ export function createProject(input: NewProjectInput, now = new Date().toISOStri
     notices: [],
     createdAt: now,
     updatedAt: now,
+    // Making a project for a named client by hand is itself the decision to
+    // share it — that is the flow that existed before `sentAt` did, and the
+    // link has always worked straight away. Only App Builder's automatic
+    // projects start unsent, because nobody chose those one at a time.
+    sentAt: now,
   };
+}
+
+/**
+ * A review project for an app App Builder is about to build — the other
+ * direction of the App Builder hand-off.
+ *
+ * Nothing is deployed yet, so v1 opens as `building` with no address: that is
+ * the one status `shipPreview` accepts, so when Claude Code finishes and calls
+ * `client_review_preview` the app lands here by itself, whoever is reviewing it
+ * is told, and their edit requests come back to App Builder (checklist C6).
+ */
+export function builderProject(
+  input: { name: unknown; clientName?: unknown; summary?: unknown; lane?: unknown; inviteEmail?: unknown; repo?: unknown; vercelProject?: unknown },
+  now = new Date().toISOString(),
+): { project: ClientProject; version: ReviewVersion } {
+  const project = createProject({ ...input, siteUrl: "" }, now);
+  // Unsent: App Builder opens one of these for every build, and most are the
+  // owner's own apps. The owner sends it when it is worth showing.
+  project.sentAt = undefined;
+  const v1 = project.versions[0];
+  v1.status = "building";
+  v1.readyAt = undefined;
+  v1.summary = typeof input.summary === "string" ? input.summary.trim().slice(0, 4000) : "";
+  return { project, version: v1 };
+}
+
+/**
+ * May the client see this project at all?
+ *
+ * The one gate, used by both client-facing routes. Holding the token is not
+ * enough any more: App Builder opens a review project for every build, and
+ * most of those are the owner's own apps. The owner sends it, or the client
+ * does not see it.
+ *
+ * A project the client had ALREADY claimed is grandfathered in. Those were
+ * shared deliberately, before there was a field to record it, and quietly
+ * taking a working link away from someone's client would be the worst possible
+ * way to introduce this.
+ */
+export function isSentToClient(p: ClientProject): boolean {
+  return Boolean(p.sentAt || p.clientUserId || p.claimedAt);
+}
+
+/** The owner sends it to the client; now the link opens and it joins their list. */
+export function sendToClient(src: ClientProject, now = new Date().toISOString()): ClientProject {
+  const p = clone(src);
+  p.sentAt = p.sentAt ?? now;
+  return touch(p, now);
+}
+
+/**
+ * Take it back: the link stops opening and it leaves the client's list.
+ *
+ * Refused once a client has claimed it. At that point they have seen it, may
+ * have asked for changes against it, and silently cutting them off would leave
+ * their requests pointing at something they can no longer open. Archive it
+ * instead, which is the honest way to end a project.
+ */
+export function unsendFromClient(src: ClientProject, now = new Date().toISOString()): ClientProject {
+  if (src.clientUserId || src.claimedAt) {
+    throw new ReviewError("This one is already open on the client's side. Archive it instead of un-sending it.", 409);
+  }
+  const p = clone(src);
+  p.sentAt = undefined;
+  return touch(p, now);
 }
 
 // ----- the client's side ---------------------------------------------------------
@@ -370,6 +464,7 @@ export function updateProjectMeta(
     name?: unknown;
     clientName?: unknown;
     lane?: unknown;
+    briefModel?: unknown;
     timelineProjectId?: unknown;
     archived?: unknown;
     inviteEmail?: unknown;
@@ -382,6 +477,8 @@ export function updateProjectMeta(
   if (patch.name !== undefined) p.name = clean(patch.name, 120, "project name");
   if (patch.clientName !== undefined) p.clientName = String(patch.clientName ?? "").trim().slice(0, 120);
   if (patch.lane !== undefined) p.lane = cleanLane(patch.lane);
+  // "" clears the pick and hands the brief back to the lane.
+  if (patch.briefModel !== undefined) p.briefModel = cleanBriefModel(patch.briefModel);
   if (patch.timelineProjectId !== undefined) {
     p.timelineProjectId =
       typeof patch.timelineProjectId === "string" && patch.timelineProjectId ? patch.timelineProjectId : undefined;
@@ -427,6 +524,13 @@ export function admit(src: ClientProject, viewer: Viewer, now = new Date().toISO
   }
   if (src.inviteEmail && src.inviteEmail !== email) {
     throw new ReviewError(`This link is for ${maskEmail(src.inviteEmail)}. Sign in with that account.`, 403);
+  }
+  // Never claim a project the owner has not sent. The route refuses these
+  // earlier, but the check belongs HERE too: claiming is what makes a project
+  // permanently visible to someone, so the function that does the claiming is
+  // the one place it cannot be forgotten.
+  if (!isSentToClient(src)) {
+    throw new ReviewError("This review link isn't active. Ask for a new one.", 404);
   }
   const p = clone(src);
   p.clientUserId = viewer.id;
@@ -585,6 +689,63 @@ export function approveBatch(
   return { project: touch(p, now), version, approved };
 }
 
+/**
+ * Stop a build and put everything back the way it was before Approve & build.
+ *
+ * The exact inverse of `approveBatch`, and it exists because a build that dies
+ * on the owner's PC leaves a version saying "building" forever: the client's
+ * screen is stuck on "Jarvis is building v2", Approve & build is spent, and
+ * there is no way back to the button. So this removes the version the approval
+ * opened, hands every request in it back to the owner as unapproved, and
+ * restores the version the client was looking at.
+ *
+ * Refuses a version the client has ever seen. `siteUrl` is the test: once a
+ * version has an address it is somebody's reviewed work, and no button should
+ * be able to delete it.
+ */
+export function cancelBuild(
+  src: ClientProject,
+  input: { versionId: unknown },
+  now = new Date().toISOString(),
+): { project: ClientProject; version: ReviewVersion; batches: number } {
+  const p = clone(src);
+  const version = p.versions.find((v) => v.id === input.versionId);
+  if (!version) throw new ReviewError("That version no longer exists.", 404);
+  if (version.status !== "building") throw new ReviewError("That version is not being built.", 409);
+  if (version.siteUrl) throw new ReviewError("That version already has an address, so it is not stuck — mark it ready instead.", 409);
+
+  // Every batch this version was opened for goes back to pending, so the owner
+  // sees the same Approve & build they pressed, with the same edits under it.
+  const undone = p.batches.filter((b) => b.nextVersionId === version.id);
+  const ids = new Set(undone.flatMap((b) => b.requestIds));
+  for (const b of undone) {
+    b.status = "pending";
+    delete b.decidedAt;
+    delete b.nextVersionId;
+    delete b.build;
+  }
+  for (const r of p.requests) {
+    if (ids.has(r.id) && r.status === "approved") r.status = "sent";
+  }
+
+  p.versions = p.versions.filter((v) => v.id !== version.id);
+
+  // Whatever the client should be looking at now: the newest version with an
+  // address. Computed rather than remembered, because a batch can name a
+  // version that was itself superseded by a later build.
+  const live = sortVersions(p.versions).filter((v) => v.siteUrl);
+  const back = live[live.length - 1];
+  if (back && back.status === "superseded") back.status = "review";
+
+  pushNotice(
+    p,
+    `${version.number} was stopped`,
+    `Jarvis stopped building ${version.number}. Your edit requests are safe and will be built again.`,
+    now,
+  );
+  return { project: touch(p, now), version, batches: undone.length };
+}
+
 export function rejectBatch(
   src: ClientProject,
   input: { batchId: unknown; note?: unknown },
@@ -636,10 +797,10 @@ export function markVersionReady(
 
 // ----- App Builder: approved edits built without the owner ------------------------
 
-/** Record that an approved batch was handed to App Builder and queued. */
+/** Record that an approved batch was handed to App Builder: starting on the PC, or filed in In Queue. */
 export function noteBuild(
   src: ClientProject,
-  input: { batchId: unknown; builderId: unknown; queueId?: unknown },
+  input: { batchId: unknown; builderId: unknown; queueId?: unknown; threadId?: unknown },
   now = new Date().toISOString(),
 ): ClientProject {
   const p = clone(src);
@@ -647,11 +808,33 @@ export function noteBuild(
   if (!b) throw new ReviewError("That batch no longer exists.", 404);
   if (b.status !== "approved" || !b.nextVersionId) throw new ReviewError("Approve the batch before building it.", 409);
   if (typeof input.builderId !== "string" || !input.builderId) throw new ReviewError("No App Builder project was given.");
+  delete b.buildError;
   b.build = {
     builderId: input.builderId.slice(0, 80),
     queueId: typeof input.queueId === "string" && input.queueId ? input.queueId.slice(0, 80) : b.build?.queueId,
+    threadId: typeof input.threadId === "string" && input.threadId ? input.threadId.slice(0, 80) : b.build?.threadId,
     at: now,
   };
+  return touch(p, now);
+}
+
+/**
+ * Pressing build did not start one. Remember why, on the batch.
+ *
+ * Deliberately not a throw: the caller is already handling a failure, and the
+ * one thing that must not happen is losing the reason because recording it
+ * also went wrong. An unknown batch is simply not written to.
+ */
+export function noteBuildFailure(
+  src: ClientProject,
+  input: { batchId: unknown; message: unknown },
+  now = new Date().toISOString(),
+): ClientProject {
+  const p = clone(src);
+  const b = p.batches.find((x) => x.id === input.batchId);
+  if (!b) return p;
+  const message = typeof input.message === "string" ? input.message.trim().slice(0, 600) : "";
+  b.buildError = { at: now, message: message || "The build didn't start, and said nothing about why." };
   return touch(p, now);
 }
 

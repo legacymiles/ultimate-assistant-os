@@ -35,3 +35,29 @@ export async function body(req: Request): Promise<Record<string, any> | null> {
     return null;
   }
 }
+
+/**
+ * A small in-process limit on the calls that cost money.
+ *
+ * In-memory, so it resets on a cold start and is per-instance — which is
+ * honest about what it is: a guard against a loop in the UI firing the same
+ * paid call fifty times, not a security boundary.
+ */
+const hits = new Map<string, number[]>();
+
+export function withinRate(key: string, max: number, windowMs: number): boolean {
+  const now = Date.now();
+  const recent = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
+  if (recent.length >= max) {
+    hits.set(key, recent);
+    return false;
+  }
+  recent.push(now);
+  hits.set(key, recent);
+  if (hits.size > 500) for (const [k, v] of hits) if (!v.some((t) => now - t < windowMs)) hits.delete(k);
+  return true;
+}
+
+export function tooMany(what: string) {
+  return fail(429, `That's a lot of ${what} in a short time, so the rest are on hold for a minute. Nothing was lost — try again shortly.`);
+}

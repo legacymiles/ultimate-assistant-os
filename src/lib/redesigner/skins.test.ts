@@ -40,9 +40,28 @@ const ALL = [HOUSE, ...Object.values(SKINS)];
 
 describe("skins", () => {
   it("covers every design skill the dropdown can show", () => {
+    // A roster entry with no skin is a dead menu item: skinFor falls back to
+    // the house skin, so picking it changes nothing on screen and the one
+    // thing the dropdown exists to do — show you the aesthetic — silently
+    // does not happen. scripts/sync-design-skills.mjs auto-commits additions,
+    // so this is the check that stands between a loose keyword match and a
+    // broken dropdown on main.
     const missing = DEFAULT_SKILLS.map((s) => s.name).filter((n) => !(n in SKINS));
-    expect(missing).toEqual([]);
+    expect(
+      missing,
+      `in design-skills.json with no skin in skins.ts — give each an ENTRIES entry, `
+        + `or drop it from the roster: ${missing.join(", ")}`,
+    ).toEqual([]);
     expect(SKIN_ORDER.length).toBe(DEFAULT_SKILLS.length);
+  });
+
+  it("has no skin for a skill the dropdown cannot offer", () => {
+    // The other direction. A skin nobody can select is dead code that still
+    // has to pass every contrast check below, so it costs upkeep for a look
+    // that never ships.
+    const names = new Set(DEFAULT_SKILLS.map((s) => s.name));
+    const orphans = Object.keys(SKINS).filter((id) => !names.has(id));
+    expect(orphans, `skins with no roster entry: ${orphans.join(", ")}`).toEqual([]);
   });
 
   it("falls back to the house skin for anything unknown", () => {

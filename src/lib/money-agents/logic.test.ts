@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Persona } from "@/lib/social-personas/types";
+import { DEFAULT_LEARN, type Persona } from "@/lib/social-personas/types";
 import {
   EMPTY_BOARD,
   MAX_BRIEF,
@@ -42,6 +42,14 @@ function persona(over: Partial<Persona> = {}): Persona {
   return {
     id: "p1",
     name: "Money clips",
+    nickname: "Clipper",
+    username: "moneyclips",
+    avatar: null,
+    aboutMe: "",
+    aboutMeVersion: 1,
+    aboutMeHistory: [],
+    lessonLog: [],
+    learn: { ...DEFAULT_LEARN },
     overview: "",
     niche: "money podcasts",
     contentTypes: [],

@@ -167,23 +167,21 @@ export const PROJECTS: CatalogProject[] = [
   {
     slug: "ai-rankings",
     title: "AI Rankings",
-    tag: "Your tool database",
+    tag: "Public AI model leaderboard",
     category: "AI",
     overview:
-      "A private database of every tool worth remembering — AI models first, but also the editors, " +
-      "platforms, design apps, media tools, security and trading software around them. It reads like a " +
-      "database because it is one: a section tree down the left, a dense sortable table in the middle, " +
-      "and the full record on the right. Each row carries the three facts that decide whether you reach " +
-      "for it — what it costs you, whether the code or weights are open and it runs on your own machine, " +
-      "and whether using it from code needs an API key you may or may not already hold. Those are three " +
-      "independent axes on purpose: an open model with a paid hosted tier is a different thing from a " +
-      "free website. Every record is stamped with the date you added it, so a two-year-old bookmark stops " +
-      "passing for current. The record panel is where it earns its keep: freeform notes plus a list of " +
-      "features you mark love / good / missing / dealbreaker — and that list is the written case for the " +
-      "rank you drag it to, so the tool that lost the benchmark but owns one feature you rely on holds " +
-      "its slot and says why. One button files a record for you: with an AI key it reads the tool and " +
-      "proposes a section, tags and licensing to accept or discard, and without one a keyword pass does " +
-      "the same job offline. Seeded with ~95 real tools, fully editable, local-first, JSON in and out.",
+      "A public leaderboard of AI models, one category at a time: LLMs, coding agents, text-to-speech, " +
+      "realtime voice, speech-to-text, image, image editing, text-to-video, image-to-video, lipsync, " +
+      "music, 3D, world models and the platforms that run them. Pick a category and you get two lists " +
+      "side by side — Top ranked, with a score bar for each model, and Just dropped, newest release " +
+      "first — plus one-tap filters for open source, runs locally, free to use and released in the last " +
+      "7, 30 or 90 days. Every score can be traced: a public arena Elo or benchmark (Artificial " +
+      "Analysis, LMArena, 3D Arena), measured from the category leader, averaged with the curator's own " +
+      "1–10 rating, with the source and date on each model's sheet. Visitors browse; only the owner " +
+      "edits. Staying current is the point, so a daily job reads Hugging Face's trending releases, drops " +
+      "quantised copies and other people's fine-tunes, and files what is new in the owner's inbox to " +
+      "approve in one click. Paste any link and the page fills itself in. Ships with 115 researched " +
+      "models; category and filters live in the URL, so any view is a link you can share.",
     status: "live",
     appUrl: "/apps/ai-rankings",
     iconStyle: "rings",

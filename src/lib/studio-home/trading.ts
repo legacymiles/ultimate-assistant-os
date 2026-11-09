@@ -13,7 +13,8 @@
 
 import type { HomeSection } from "./sections";
 
-export type TradingSection = "world" | "lab" | "replay" | "terminals" | "features" | "calculator";
+export type TradingSection =
+  | "world" | "lab" | "agent" | "replay" | "terminals" | "features" | "calculator";
 
 export const TRADING_FOLDER = "app:trading-studio";
 
@@ -46,22 +47,11 @@ export const TRADING_SECTIONS: readonly HomeSection<TradingSection>[] = [
     hint: "measure a bot",
     icon: "Target",
     hue: 150,
-    pending: {
-      title: "EA Lab is on your PC and isn't on the website yet",
-      body: [
-        "EA Lab — the bench that backtests every bot dropped in its folder and rates it on results it hasn't seen — runs on your PC, and its screen hasn't been brought into the website yet. This tab is where it will open.",
-        "Claude Code on the PC will bring it in. Press the button and the request waits in your In Queue until the PC picks it up.",
-      ],
-      request: {
-        folder: TRADING_FOLDER,
-        label: "Ask Claude Code to bring it in",
-        text:
-          "Bring EA Lab into Trading Studio: commit the EA Lab code that is only on this PC (src/components/ea-lab, src/app/apps/ea-lab), " +
-          "then mount it as Trading Studio's Lab section — in src/components/trading-studio/TradingStudio.tsx add `lab: dynamic(() => import(\"../ea-lab/EaLab\")…)` " +
-          "with embedded, and delete the `pending` field on `lab` in src/lib/studio-home/trading.ts.",
-      },
-    },
   },
+  // Reads a setup you bring and argues with the reasoning. It is the one
+  // section here that measures nothing and runs nothing — and the one that
+  // has no order path, by design.
+  { id: "agent", label: "Trading Agent", hint: "argue with the thesis", icon: "Bot", hue: 320 },
   { id: "replay", label: "Replay", hint: "watch it trade", icon: "Play", hue: 205 },
   { id: "terminals", label: "Terminals", hint: "the market around it", icon: "Server", hue: 175 },
   { id: "features", label: "Feature List", hint: "the specs", icon: "ListChecks", hue: 265 },

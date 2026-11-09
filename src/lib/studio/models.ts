@@ -17,9 +17,10 @@
 // get made it is almost always this step that refused, which is why it is the step
 // that gets a fallback chain.
 //
-// Every fact below was read off OpenRouter's public model list on 30 Sep 2026.
-// All five take tool calls, which is not optional here: the Studio agent is a
-// tool loop and a model without tools cannot run it at all.
+// Every fact below was read off OpenRouter's public model list on 30 Sep 2026,
+// except the OrcaRouter entry, which comes from OrcaRouter's own catalogue on
+// 8 Nov 2026. All six take tool calls, which is not optional here: the Studio
+// agent is a tool loop and a model without tools cannot run it at all.
 // ---------------------------------------------------------------------------
 
 export interface StudioModel {
@@ -38,14 +39,29 @@ export interface StudioModel {
 }
 
 /**
- * The owner's five, in the order they asked for.
+ * The owner's list, in the order they asked for.
  *
- * That order is deliberate and is the default chain: free first, then the cheap
- * workhorse, then the strong reasoner, then the two that can take audio and
- * video — which are last not because they are worse but because they only earn
- * their price when the film actually carries a clip or a track.
+ * The uncensored DeepSeek leads it, because the work that reaches this chain is
+ * the work another model has already refused. Behind it, unchanged: free first,
+ * then the cheap workhorse, then the strong reasoner, then the two that can take
+ * audio and video — which are last not because they are worse but because they
+ * only earn their price when the film actually carries a clip or a track.
  */
 export const STUDIO_MODELS: StudioModel[] = [
+  {
+    // OrcaRouter's uncensored DeepSeek. First because the films that reach this
+    // chain are the ones another model has already declined, and an abliterated
+    // model is the one thing here that will not hand a shot back as a refusal.
+    // It reads stills, not clips or tracks, so a film with audio in it still
+    // falls through to the two that can hear.
+    id: "orca/orcacyber-flash-1.0",
+    label: "DeepSeek 4.1 Flash Abliterated",
+    reads: ["image"],
+    price: [0.8, 1.6],
+    json: true,
+    context: 1_048_576,
+    note: "Uncensored, on OrcaRouter. Needs ORCAROUTER_API_KEY and Security Research access on that account.",
+  },
   {
     id: "qwen/qwen3.8-27b:free",
     label: "Qwen3.8 27B free",
@@ -91,6 +107,19 @@ export const STUDIO_MODELS: StudioModel[] = [
     context: 1_050_000,
     note: "Reads all four and costs less. The cheaper of the two that can hear a track.",
   },
+  {
+    // Last, because it is the expensive one: reached when everything above has
+    // refused the film. It is the only model here that watches a reference clip
+    // AND is uncensored, so a film built on a clip that other models won't
+    // discuss still has somewhere to go.
+    id: "orca/orcacyber-k3.1-pro",
+    label: "Kimi K3.1 Pro Abliterated",
+    reads: ["image", "video"],
+    price: [4, 20],
+    json: true,
+    context: 1_048_576,
+    note: "Uncensored and watches clips. OrcaRouter, $4 / $20 per M — the last resort, not the workhorse.",
+  },
 ];
 
 export const STUDIO_MODEL_IDS = STUDIO_MODELS.map((m) => m.id);
@@ -104,8 +133,29 @@ export function studioModel(id: string): StudioModel | undefined {
 /** The chain when the owner has not reordered anything. */
 export const DEFAULT_STUDIO_CHAIN: string[] = STUDIO_MODEL_IDS.slice();
 
-/** How many the provider will walk before giving up. All five of them. */
-export const MAX_CHAIN = 5;
+/**
+ * The chain this page shipped before the uncensored model joined it.
+ *
+ * Kept only so an untouched save can be recognised and upgraded: a browser that
+ * stored this exact order never chose it, it just got the default, and leaving
+ * it in place would keep the Studio on the old brains forever.
+ */
+const LEGACY_DEFAULT_CHAIN = [
+  "qwen/qwen3.8-27b:free",
+  "deepseek/deepseek-v4.1-flash",
+  "openai/gpt-6-luna-pro",
+  "qwen/qwen3.8-omni-flash",
+  "xiaomi/mimo-v2.6-flash",
+];
+
+/** The saved chain, upgraded from the old default when that is all it is. */
+export function upgradeStudioChain(chain: string[]): string[] {
+  const untouched = chain.length === LEGACY_DEFAULT_CHAIN.length && chain.every((id, i) => id === LEGACY_DEFAULT_CHAIN[i]);
+  return untouched ? DEFAULT_STUDIO_CHAIN : chain;
+}
+
+/** How many the provider will walk before giving up. All seven of them. */
+export const MAX_CHAIN = 7;
 
 /**
  * A chain this code will act on: known ids, no duplicates, at most MAX_CHAIN.

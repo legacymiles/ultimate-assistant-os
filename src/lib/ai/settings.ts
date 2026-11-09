@@ -15,8 +15,8 @@ import { DEFAULT_FALLBACKS } from "./models";
 // failing in its own words.
 // ---------------------------------------------------------------------------
 
-export type ProviderId = "openrouter" | "vercel-gateway";
-/** "auto" = OpenRouter when it has a key, else the Vercel gateway. */
+export type ProviderId = "openrouter" | "vercel-gateway" | "orcarouter";
+/** "auto" = OpenRouter when it has a key, else the gateway, else OrcaRouter. */
 export type ProviderChoice = "auto" | ProviderId;
 /** What drives Game Creator builds on the PC: the Claude plan (CLI login) or OpenRouter. */
 export type BuilderRoute = "plan" | "openrouter";
@@ -91,7 +91,7 @@ export function modelId(v: unknown): string | null {
 function normalise(raw: Partial<AiSettings> | null): AiSettings {
   const r = raw ?? {};
   return {
-    choice: r.choice === "openrouter" || r.choice === "vercel-gateway" ? r.choice : "auto",
+    choice: r.choice === "openrouter" || r.choice === "vercel-gateway" || r.choice === "orcarouter" ? r.choice : "auto",
     fallback: r.fallback !== false,
     model: modelId(r.model),
     fallbackModels: Array.isArray(r.fallbackModels)

@@ -25,11 +25,53 @@ export interface ModelInfo {
 /** Non-Claude defaults for the fallback chain: vision-capable, JSON-mode, cheap enough. */
 export const DEFAULT_FALLBACKS = ["google/gemini-3.8-flash", "openai/gpt-5.6-sol"];
 
+/**
+ * The models only OrcaRouter serves, so the pickers can offer them.
+ *
+ * Written here rather than fetched for two reasons. A live /v1/models call hides
+ * every cyber model until the workspace is entitled — the list would go empty at
+ * exactly the moment the owner needs to see what is wrong. And the catalogue is
+ * also what prices a call the provider did not bill in its reply, so the numbers
+ * have to be right offline.
+ *
+ * These ids are valid at OrcaRouter ONLY; provider.ts pins them to it.
+ */
+export const ORCA_MODELS: ModelInfo[] = [
+  {
+    id: "orca/orcacyber-flash-1.0",
+    name: "OrcaCyber: DeepSeek V4.1 Flash Abliterated / Uncensored",
+    input: ["text", "image"],
+    promptPrice: 0.8,
+    completionPrice: 1.6,
+    context: 1_048_576,
+    json: true,
+    created: 0,
+  },
+  {
+    // The heavier OrcaCyber tier: dearer per token, and the only uncensored model
+    // here that watches a reference clip as well as reading stills.
+    id: "orca/orcacyber-k3.1-pro",
+    name: "OrcaCyber: Kimi K3.1 Pro Abliterated / Uncensored",
+    input: ["text", "image", "video"],
+    promptPrice: 4,
+    completionPrice: 20,
+    context: 1_048_576,
+    json: true,
+    created: 0,
+  },
+];
+
 const TTL = 3600_000;
 let cache: { at: number; list: ModelInfo[] } | null = null;
 let loading: Promise<ModelInfo[]> | null = null;
 
+/** The catalogue the hub offers: OrcaRouter's own first, then OpenRouter's list. */
 export async function listModels(): Promise<ModelInfo[]> {
+  const list = await openRouterModels();
+  return list.length ? [...ORCA_MODELS, ...list.filter((m) => !ORCA_MODELS.some((o) => o.id === m.id))] : ORCA_MODELS;
+}
+
+async function openRouterModels(): Promise<ModelInfo[]> {
   if (cache && Date.now() - cache.at < TTL) return cache.list;
   loading ??= (async () => {
     try {

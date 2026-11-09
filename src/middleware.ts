@@ -56,6 +56,10 @@ const TOKEN_AUTH_PATHS = new Set([
   // Personas Studio's scheduler tick (GitHub Actions). Only sends posts their
   // owners already scheduled, behind a per-job lock; optional bearer token.
   "/api/social-personas/publish/tick",
+  // AI Rankings' daily new-release sweep (GitHub Actions). The route accepts
+  // AI_RANKINGS_SWEEP_TOKEN or the owner's session, and only files
+  // suggestions into the owner's inbox — nothing is published unapproved.
+  "/api/ai-rankings/sweep",
   "/api/dashboard/inbox/push",
   "/api/dashboard/inbox/cursor",
   "/api/dashboard/inbox/present",
@@ -119,6 +123,27 @@ function setUidCookie(response: NextResponse, userId: string | null): NextRespon
   return response;
 }
 
+/**
+ * Absolute URL for a redirect, built from the public host the proxy forwarded.
+ *
+ * `request.nextUrl` is the ORIGIN's idea of itself. Behind the Cloudflare
+ * tunnel (and `next dev` especially) that is localhost:3000, so a signed-out
+ * visit to /apps/jarvis was bounced to https://localhost:3000/login — which
+ * the browser cannot reach. Prefer the forwarding headers, then the Host
+ * header, and only fall back to nextUrl.
+ */
+function publicUrl(request: NextRequest, pathname: string, search = ""): URL {
+  const host =
+    request.headers.get("x-forwarded-host") ??
+    request.headers.get("host") ??
+    request.nextUrl.host;
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+  const proto =
+    forwardedProto ??
+    (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
+  return new URL(`${proto}://${host}${pathname}${search}`);
+}
+
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
@@ -130,10 +155,9 @@ export async function middleware(request: NextRequest) {
     const cookie = request.cookies.get(gate.cookie)?.value ?? "";
     const expected = await gateHash(gate.password);
     if (!cookie || !constantTimeEqual(cookie, expected)) {
-      const url = request.nextUrl.clone();
-      url.pathname = gate.unlockPath;
-      url.searchParams.set("next", path);
-      return NextResponse.redirect(url);
+      return NextResponse.redirect(
+        publicUrl(request, gate.unlockPath, `?next=${encodeURIComponent(path)}`),
+      );
     }
     break;
   }
@@ -182,9 +206,10 @@ export async function middleware(request: NextRequest) {
 
   if (access === "auth") {
     if (user && path.startsWith("/login")) {
-      const url = request.nextUrl.clone();
-      url.pathname = owner ? "/" : PUBLIC_HOME;
-      return setUidCookie(NextResponse.redirect(url), user.id);
+      return setUidCookie(
+        NextResponse.redirect(publicUrl(request, owner ? "/" : PUBLIC_HOME)),
+        user.id,
+      );
     }
     return setUidCookie(response, user?.id ?? null);
   }
@@ -200,8 +225,7 @@ export async function middleware(request: NextRequest) {
         null,
       );
     }
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    const url = publicUrl(request, "/login");
     return setUidCookie(NextResponse.redirect(url), null);
   }
   if (!owner) {
@@ -213,10 +237,7 @@ export async function middleware(request: NextRequest) {
         user.id,
       );
     }
-    const url = request.nextUrl.clone();
-    url.pathname = PUBLIC_HOME;
-    url.search = "";
-    return setUidCookie(NextResponse.redirect(url), user.id);
+    return setUidCookie(NextResponse.redirect(publicUrl(request, PUBLIC_HOME)), user.id);
   }
   return setUidCookie(response, user.id);
 }

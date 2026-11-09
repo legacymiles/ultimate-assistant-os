@@ -6,8 +6,13 @@
 // Clippers cut the best moments out of long videos, Faceless channels write
 // and voice their own videos, Campaign clippers work paid clipping campaigns.
 // The PC makes the files (In Queue), the owner approves every one, Personas
-// Studio posts them, and the money lands in Earnings — and in Financial
-// Bible's Money Plays room, which reads the same board.
+// Studio posts them, and the money lands in Earnings — and in the Bible tab's
+// Money Plays room, which reads the same board.
+//
+// Financial Bible IS that tab now (owner's call, Nov 2026): it was a plugin of
+// its own, which meant the money the agents made and the plan it was spent
+// against were two apps that already shared one board. /apps/financial-bible
+// redirects here with `?tab=bible`, carrying the room it named.
 //
 // Radar (owner's ask, Oct 2026) is the market side: the most lucrative
 // opportunities right now with the reasoning why, the CPI/jobs/Fed calendar,
@@ -17,8 +22,10 @@
 // ledger. On Radar, the radar dish takes the conveyor's place.
 // ---------------------------------------------------------------------------
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import type { RoomId } from "@/lib/bible/rooms";
 import { useMoneyAgents } from "@/lib/money-agents/useMoneyAgents";
 import { useRadar } from "@/lib/money-agents/useRadar";
 import { STAGES, type ItemStage } from "@/lib/money-agents/types";
@@ -31,7 +38,14 @@ import { PipelineTab } from "./PipelineTab";
 import { RadarTab } from "./RadarTab";
 import "./money-agents.css";
 
-export type TabId = "radar" | "approve" | "pipeline" | "agents" | "campaigns" | "earnings";
+// A whole app of its own, and the heaviest thing here, so it arrives only when
+// the tab is opened — the same rule its own rooms follow.
+const Bible = dynamic(() => import("../bible/Bible").then((m) => m.Bible), {
+  ssr: false,
+  loading: () => <div className="mas-bible-skeleton" aria-busy="true" aria-label="Loading Financial Bible" />,
+});
+
+export type TabId = "radar" | "approve" | "pipeline" | "agents" | "campaigns" | "earnings" | "bible";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "radar", label: "Radar" },
@@ -40,11 +54,23 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "agents", label: "Agents" },
   { id: "campaigns", label: "Campaigns" },
   { id: "earnings", label: "Earnings" },
+  { id: "bible", label: "Bible" },
 ];
+
+/** The tabs that are a ledger of the pipeline, and so want the hero above them. */
+function wantsHero(tab: TabId): boolean {
+  return tab !== "radar" && tab !== "bible";
+}
 
 const REMEMBERED = "money-agent-studio:tab";
 
-export function MoneyAgentStudio({ initialTab }: { initialTab: TabId | null }) {
+export function MoneyAgentStudio({
+  initialTab,
+  initialRoom = null,
+}: {
+  initialTab: TabId | null;
+  initialRoom?: RoomId | null;
+}) {
   const m = useMoneyAgents();
   const [tab, setTab] = useState<TabId>(initialTab ?? "radar");
   // The move bot lives here so it keeps watching whichever tab is open.
@@ -101,14 +127,26 @@ export function MoneyAgentStudio({ initialTab }: { initialTab: TabId | null }) {
             <h1>
               Money Agent <em>Studio</em>
             </h1>
-            <span>{tab === "radar" ? "The biggest money moves right now, and why" : "Agents that make videos that make money"}</span>
+            <span>
+              {tab === "radar"
+                ? "The biggest money moves right now, and why"
+                : tab === "bible"
+                  ? "What the money is for: costed, sourced, argued with"
+                  : "Agents that make videos that make money"}
+            </span>
           </div>
-          <Link href="/apps/financial-bible?studio=plays" className="mas-link" title="See every money play in Financial Bible">
-            <span className="mas-link-text">Financial Bible</span> ↗
-          </Link>
+          <button
+            type="button"
+            className="mas-link"
+            onClick={() => go("bible")}
+            aria-pressed={tab === "bible"}
+            title="Financial Bible — every money play, and the plans the money is for"
+          >
+            <span className="mas-link-text">Financial Bible</span> →
+          </button>
         </header>
 
-        {tab !== "radar" && (
+        {wantsHero(tab) && (
         <section className="mas-hero" aria-label="Money and pipeline">
           <div>
             <div className="mas-money-label">Paid this month</div>
@@ -149,6 +187,11 @@ export function MoneyAgentStudio({ initialTab }: { initialTab: TabId | null }) {
           {tab === "agents" && <AgentsTab m={m} focus={focusAgent} onFocus={setFocusAgent} />}
           {tab === "campaigns" && <CampaignsTab m={m} onOpenAgent={openAgent} />}
           {tab === "earnings" && <EarningsTab m={m} onOpenAgent={openAgent} />}
+          {tab === "bible" && (
+            <div className="mas-bible">
+              <Bible initialRoom={initialRoom} embedded />
+            </div>
+          )}
         </main>
       </div>
 

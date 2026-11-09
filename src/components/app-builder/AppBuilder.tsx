@@ -16,7 +16,7 @@
 // accepted, red denied), Syne for the few headlines, JetBrains Mono for ids.
 // ---------------------------------------------------------------------------
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { tally } from "@/lib/app-builder/engine";
 import { useAppBuilder } from "@/lib/app-builder/useAppBuilder";
 import { APP_TYPE_LABEL } from "@/lib/app-builder/types";
@@ -25,6 +25,9 @@ import { Blueprint, Pipeline, Recording } from "./Blueprint";
 import { FeatureTable } from "./FeatureTable";
 import { Orbit } from "./Orbit";
 import { IdeaStage, Interview } from "./Stages";
+import { Waiting } from "./Waiting";
+import { BuildStarted } from "./BuildStarted";
+import { isNewBuild, PHASE_LABEL } from "@/lib/app-builder/build";
 import "./app-builder.css";
 
 type Pane = "features" | "chat" | "blueprint";
@@ -55,6 +58,48 @@ export function AppBuilder() {
     setSelected(null);
     setHover(null);
   }, [current?.id]);
+
+  // One watcher for the whole screen, so the top bar and the build panel can
+  // never say different things about the same request.
+  // One build per project, read straight off the hook that owns it, so the
+  // top bar and the panel can never say different things about it.
+  const threadId = current?.handoff?.thread?.id;
+  const build = ab.thread;
+
+  // The moment a build is handed off, put the build panel on screen. The
+  // status used to live in a side tab the owner wasn't looking at, which is
+  // half the reason pressing Build it felt like nothing had happened.
+  //
+  // `seen` is what tells a NEW build from one that was already running when
+  // the page opened: only the former gets the "it's being built" screen, so
+  // reopening a project mid-build doesn't greet you with it again.
+  // `undefined` means "not looked yet"; null means "looked, and there was no
+  // build". The distinction is the whole thing: the common case is a page that
+  // opens with NO thread and gains one when Build it is pressed, so a ref that
+  // starts at null would read that arrival as "it was already running" and
+  // never show the screen. This effect therefore runs on every render of the
+  // project, not only when a thread exists.
+  // ONE effect watching both, because two of them fought and the pop-up lost.
+  //
+  // It was a thread effect that recorded what it had seen, plus a project
+  // effect that reset that record. Both run on mount, in declaration order,
+  // so the reset always landed last: the record went back to "not looked
+  // yet", and when the build then started the thread effect read that as a
+  // first look and returned. The screen could never appear — not a race, a
+  // certainty.
+  const seen = useRef<{ project: string | null; thread: string | null } | null>(null);
+  const [justStarted, setJustStarted] = useState(false);
+  const projectId = current?.id ?? null;
+  useEffect(() => {
+    const had = seen.current;
+    seen.current = { project: projectId, thread: threadId ?? null };
+    if (threadId) {
+      setSide("blueprint");
+      setPane("blueprint");
+    }
+    if (isNewBuild(had, { project: projectId, thread: threadId ?? null })) setJustStarted(true);
+    else if (!had || had.project !== projectId) setJustStarted(false);
+  }, [projectId, threadId]);
 
   // `?idea=` (Website Redesigner › Showcase › Use this idea) means a new app:
   // put the idea stage on screen, which prefills its box from the address.
@@ -134,12 +179,39 @@ export function AppBuilder() {
             <span className="ab-tally">
               <b className="is-yes">{t.accepted}</b> in · <b className="is-open">{t.proposed}</b> open · <b className="is-no">{t.denied}</b> out
             </span>
-            <button className="ab-primary-sm" disabled={!t.accepted || busy !== null} onClick={ab.sendToQueue}>
-              {busy === "queue" ? "Queuing…" : current.edit ? (current.handoff?.queueId ? "Queue again →" : "Build edits →") : "Build it →"}
-            </button>
+            {/* Once it is handed off this stops being a button that can be
+                pressed twice and becomes the way back to the live status. */}
+            {threadId ? (
+              <button
+                className={`ab-queued is-${build.phase}`}
+                title="Show where this build is"
+                onClick={() => {
+                  setSide("blueprint");
+                  setPane("blueprint");
+                }}
+              >
+                <span className="ab-queued-dot" aria-hidden />
+                {PHASE_LABEL[build.phase]}
+              </button>
+            ) : (
+              <button className="ab-primary-sm" disabled={!t.accepted || busy !== null} onClick={() => ab.build()}>
+                {busy === "build" ? "Starting…" : current.edit ? "Build edits →" : "Build it →"}
+              </button>
+            )}
           </div>
         )}
       </header>
+
+      {justStarted && current && (
+        <BuildStarted
+          project={current}
+          onWatch={() => setJustStarted(false)}
+          onHome={() => {
+            setJustStarted(false);
+            ab.open(null);
+          }}
+        />
+      )}
 
       {(ab.error || ab.notice) && (
         <div className={`ab-banner${ab.error ? " is-error" : ""}`} role={ab.error ? "alert" : "status"}>
@@ -170,6 +242,12 @@ export function AppBuilder() {
             <p className="ab-eyebrow">{current.origin === "autopilot" ? "From Camera Autopilot" : current.origin === "chat" ? "From Jarvis chat" : "Starting"}</p>
             <h2>{busy === "interview" ? (current.sources?.length ? "Watching your recording…" : "Reading your idea…") : name}</h2>
             <p className="ab-lede">{current.idea}</p>
+            {busy === "interview" && (
+              <Waiting
+                what={current.sources?.length ? "Watching every frame, then asking what the app is for" : "Reading it, then asking what the app is for"}
+                note={current.sources?.length ? "A recording takes longer than words — usually 20–60 seconds." : undefined}
+              />
+            )}
             {busy !== "interview" && (
               <button className="ab-primary" onClick={ab.resume}>
                 Start the super agent <span aria-hidden>→</span>
@@ -207,7 +285,7 @@ export function AppBuilder() {
           <nav className="ab-panes" aria-label="Sections">
             {(["features", "chat", "blueprint"] as Pane[]).map((p) => (
               <button key={p} aria-pressed={pane === p} onClick={() => setPane(p)}>
-                {p === "features" ? `Features ${t.accepted}/${current.features.length}` : p === "chat" ? "Agent" : "Blueprint"}
+                {p === "features" ? `Features ${t.accepted}/${current.features.length}` : p === "chat" ? "Agent" : threadId ? "Build ·" : "Build"}
               </button>
             ))}
           </nav>
@@ -235,12 +313,28 @@ export function AppBuilder() {
                   Agent
                 </button>
                 <button role="tab" aria-selected={side === "blueprint"} onClick={() => setSide("blueprint")}>
-                  Blueprint & build
+                  {threadId ? `Build · ${PHASE_LABEL[build.phase].toLowerCase()}` : "Blueprint & build"}
                 </button>
               </div>
               <div className={`ab-side-chat${side === "chat" ? " is-desk" : ""}${pane === "chat" ? " is-mob" : ""}`}>{chat}</div>
               <div className={`ab-side-blueprint${side === "blueprint" ? " is-desk" : ""}${pane === "blueprint" ? " is-mob" : ""}`}>
-                <Blueprint project={current} busy={busy} onQueue={ab.sendToQueue} onCards={ab.sendCards} onRename={ab.rename} />
+                <Blueprint
+                  project={current}
+                  busy={busy}
+                  step={ab.step}
+                  build={build}
+                  bridge={ab.bridge}
+                  moving={ab.moving}
+                  onBuild={ab.build}
+                  onMove={ab.absorb}
+                  onRetire={ab.retire}
+                  onFileForLater={ab.fileForLater}
+                  onStop={ab.thread.stop}
+                  onCards={ab.sendCards}
+                  onRename={ab.rename}
+                  onDepth={ab.setDepth}
+                  onNoReview={ab.setNoReview}
+                />
               </div>
             </aside>
           </div>

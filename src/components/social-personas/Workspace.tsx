@@ -11,7 +11,9 @@ import { compact, personaTotals } from "@/lib/social-personas/studio";
 import { inboxOf, unreadCounts } from "@/lib/social-personas/inbox";
 import type { ConnectablePlatform, Draft, Persona } from "@/lib/social-personas/types";
 import type { PublicJob, Status } from "./api";
+import { AboutMeTab } from "./AboutMe";
 import { AnalyticsTab } from "./AnalyticsTab";
+import { LearningTab } from "./Learning";
 import { Avatar, Btn } from "./bits";
 import { InboxTab } from "./InboxTab";
 import { loadInboxCache } from "./inboxCache";
@@ -26,6 +28,8 @@ const TABS = [
   { id: "ideas", label: "Ideas", icon: Icon.Bulb },
   { id: "plan", label: "Plan & post", icon: Icon.Calendar },
   { id: "analytics", label: "Analytics", icon: Icon.Target },
+  { id: "learning", label: "Learning", icon: Icon.Bulb },
+  { id: "character", label: "Character", icon: Icon.Note },
   { id: "content", label: "Videos", icon: Icon.Film },
   { id: "brainstorm", label: "Brainstorm", icon: Icon.Sparkles },
   { id: "brain", label: "AI memory", icon: Icon.Bot },
@@ -49,8 +53,11 @@ export function Workspace({
   applyJobs,
   onEdit,
   onDelete,
+  onRederive,
   openSetup,
 }: {
+  /** Re-score the posts and write a new lesson set. */
+  onRederive: (personaId: string) => void;
   openSetup: (p: ConnectablePlatform, from?: TabId) => void;
   persona: Persona;
   status: Status | null;
@@ -81,10 +88,11 @@ export function Workspace({
     <div className="flex min-h-0 flex-1 flex-col" style={{ ["--ps-hue" as string]: persona.hue }}>
       <header className="ps-band border-b border-line px-3 pt-3 sm:px-4">
         <div className="flex flex-wrap items-center gap-3">
-          <Avatar name={persona.name} hue={persona.hue} size={44} />
+          <Avatar name={persona.name} hue={persona.hue} size={44} src={persona.avatar} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h1 className="truncate text-lg font-bold text-ink">{persona.name}</h1>
+              {persona.username && <span className="shrink-0 text-xs text-ink-faint">@{persona.username}</span>}
               <button onClick={onEdit} className="rounded-md p-1 text-ink-muted hover:bg-panel-2 hover:text-ink" title="Edit profile" aria-label="Edit profile">
                 <Icon.Edit width={14} height={14} />
               </button>
@@ -133,6 +141,8 @@ export function Workspace({
         )}
         {tab === "plan" && <PlanTab {...props} status={status} applyJobs={applyJobs} focusId={focusDraft} clearFocus={() => setFocusDraft(null)} />}
         {tab === "analytics" && <AnalyticsTab {...props} />}
+        {tab === "learning" && <LearningTab {...props} onRederive={() => onRederive(persona.id)} />}
+        {tab === "character" && <AboutMeTab {...props} />}
         {tab === "content" && <ContentTab {...props} />}
         {tab === "brainstorm" && <BrainstormTab {...props} seed={seed} clearSeed={() => setSeed("")} />}
         {tab === "brain" && <BrainTab {...props} />}

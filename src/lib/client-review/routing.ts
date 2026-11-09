@@ -18,7 +18,13 @@
 import type { ContentLane } from "./types";
 
 export const STANDARD_MODEL_DEFAULT = "anthropic/claude-sonnet-5";
-export const UNCENSORED_MODELS_DEFAULT = ["deepseek/deepseek-v4-pro-0813", "x-ai/grok-4.6"];
+/**
+ * The uncensored lane, in order. The abliterated DeepSeek leads it because it is
+ * the one model here that answers an explicit brief instead of declining it;
+ * DeepSeek V4 Pro and Grok follow on OpenRouter, so the lane still works if
+ * OrcaRouter is not configured or its Security Research access is not granted.
+ */
+export const UNCENSORED_MODELS_DEFAULT = ["orca/orcacyber-flash-1.0", "deepseek/deepseek-v4-pro-0813", "x-ai/grok-4.6"];
 
 /** "a, b , c" → ["a","b","c"], or the fallback when the env is blank. */
 export function modelList(raw: string | undefined, fallback: string[]): string[] {
@@ -73,6 +79,10 @@ export function looksLikeRefusal(reply: string): boolean {
 
 /** A failed response that is the MODEL's content policy, not a key or credit problem. */
 export function isPolicyFailure(status: number, body: string): boolean {
-  if (status === 403 && !/credit|balance|key|auth/i.test(body)) return true;
+  // A 403 from the provider's own gate — a missing key, an ungranted tier, an
+  // unverified workspace — is not the model declining the words. Reading it as a
+  // refusal sent the brief to the next lane as though the content were the
+  // problem, which hid the real fix.
+  if (status === 403 && !/credit|balance|key|auth|tier|verif|passkey|aup|engagement/i.test(body)) return true;
   return (status === 400 || status === 403 || status === 422) && POLICY_ERRORS.test(body);
 }

@@ -9,10 +9,12 @@ interface Props {
   knownFeatures: string[];
   onResult: (result: AnalyzeResult) => void;
   onClose: () => void;
+  /** Skip the analyzer and fill the entry in by hand. */
+  onManual?: () => void;
 }
 
-/** Paste a link → the whole entry is filled in and added to the board. */
-export function AnalyzeLink({ tree, knownFeatures, onResult, onClose }: Props) {
+/** Paste a link → the whole entry is filled in for you to check and add. */
+export function AnalyzeLink({ tree, knownFeatures, onResult, onClose, onManual }: Props) {
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -65,8 +67,9 @@ export function AnalyzeLink({ tree, knownFeatures, onResult, onClose }: Props) {
     >
       <form
         onSubmit={analyze}
-        className="animate-fade-in w-full max-w-md rounded-xl border border-line bg-panel p-4 shadow-2xl"
+        className="animate-fade-in w-full max-w-md rounded-xl border border-line bg-elevated p-4 [&_:focus-visible]:outline-2 [&_:focus-visible]:outline-offset-2 [&_:focus-visible]:outline-brand"
         role="dialog"
+        aria-modal="true"
         aria-labelledby="analyze-link-title"
       >
         <div className="mb-1 flex items-center gap-2">
@@ -77,7 +80,7 @@ export function AnalyzeLink({ tree, knownFeatures, onResult, onClose }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1 text-ink-faint transition hover:bg-panel-2 hover:text-ink"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-muted transition hover:bg-panel-2 hover:text-ink pointer-coarse:h-11 pointer-coarse:w-11"
             aria-label="Close"
           >
             <Icon.Close width={13} height={13} />
@@ -95,25 +98,42 @@ export function AnalyzeLink({ tree, knownFeatures, onResult, onClose }: Props) {
             onChange={(e) => setUrl(e.target.value)}
             disabled={busy}
             placeholder="https://…"
+            type="url"
             inputMode="url"
-            className="min-w-0 flex-1 rounded-lg border border-line bg-canvas px-2.5 py-1.5 font-mono text-[12px] text-ink outline-none focus:border-brand disabled:opacity-60"
+            aria-label="Link to the model or tool"
+            autoComplete="off"
+            spellCheck={false}
+            className="min-w-0 flex-1 rounded-lg border border-line bg-canvas px-2.5 py-1.5 font-mono text-[12px] text-ink focus:border-brand disabled:opacity-60"
           />
           <button
             type="submit"
             disabled={busy || !url.trim()}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-2 disabled:opacity-40"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-2 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-press disabled:opacity-40"
           >
             <Icon.Sparkles width={12} height={12} />
             {busy ? "Analyzing…" : "Analyze"}
           </button>
         </div>
 
-        {busy && (
-          <p className="mt-2.5 animate-pulse font-mono text-[11px] text-ink-faint">
-            Reading the page, its code and model links, then filling in the entry…
-          </p>
+        {/* Progress and failure are both announced: with the button disabled
+            and focus held, nothing else tells a screen reader what happened. */}
+        <div aria-live="polite">
+          {busy && (
+            <p className="mt-2.5 font-mono text-[11px] text-ink-muted motion-safe:animate-pulse">
+              Reading the page, its code and model links, then filling in the entry…
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="mt-2.5 text-[12px] text-rose-300">
+              {error}
+            </p>
+          )}
+        </div>
+        {onManual && !busy && (
+          <button type="button" onClick={onManual} className="mt-3 min-h-9 text-[12px] text-ink-muted underline-offset-2 transition hover:text-ink hover:underline">
+            No link? Add it by hand
+          </button>
         )}
-        {error && <p className="mt-2.5 text-[12px] text-rose-300">{error}</p>}
       </form>
     </div>
   );

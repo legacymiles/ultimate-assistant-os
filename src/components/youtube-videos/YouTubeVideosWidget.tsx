@@ -4,7 +4,8 @@
 // YouTube videos on the Jarvis Dashboard. Compact: a paste box that saves on
 // the spot and the four newest saves. Tap the card (anywhere that isn't the
 // box) for the full app in the widget sheet: hero, Saved, For you.
-// The same app has its own page too: /apps/youtube-videos (App plugins).
+// The same app has its own page too, at /apps/youtube-videos. The widget is
+// the only door offered: neither has an App plugins card (owner, Nov 2026).
 // ---------------------------------------------------------------------------
 
 import { useState } from "react";

@@ -27,12 +27,12 @@
 // ---------------------------------------------------------------------------
 
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
 
+import { familyOf } from "./harness-gate.mjs";
 import { startClaude, CLAUDE_LABEL } from "./harness-claude.mjs";
-import { startAcp, DEEPSEEK_LABEL, DSH_CWD } from "./harness-acp.mjs";
+import { startAcp, DEEPSEEK_LABEL, DSH_CWD, dshWhy } from "./harness-acp.mjs";
 import {
-  createWorktree, landWorktree, removeWorktree, worktreeDiff, worktreeStatus,
+  createProject, createWorktree, landWorktree, removeWorktree, worktreeDiff, worktreeStatus,
   DEFAULT_REPO, WORKTREE_ROOT,
 } from "./worktree.mjs";
 import { startPreview, stopPreview, publicView } from "./harness-preview.mjs";
@@ -74,10 +74,8 @@ export async function listHarnesses() {
   }
   out.push({ ...HARNESSES.claude, available: !claudeWhy, why: claudeWhy });
 
-  const dshWhy = existsSync(DSH_CWD)
-    ? ""
-    : `dsh is not installed at ${DSH_CWD}. Install @deepseek-ai/dsh there, or set DSH_DIR.`;
-  out.push({ ...HARNESSES.deepseek, available: !dshWhy, why: dshWhy });
+  const dshProblem = dshWhy();
+  out.push({ ...HARNESSES.deepseek, available: !dshProblem, why: dshProblem });
 
   return { harnesses: out, worktreeRoot: WORKTREE_ROOT, defaultRepo: DEFAULT_REPO };
 }
@@ -101,6 +99,7 @@ function summary(s) {
     worktree: s.worktree,
     strict: s.strict,
     laneWrites: s.laneWrites,
+    trust: s.trust,
     preview: publicView(s.preview),
     cursor: s.seq,
     gate: s.pendingGate,
@@ -114,7 +113,13 @@ function mustGet(id) {
   return s;
 }
 
-export async function startThread({ harness = "claude", title = "", repo, strict = false, laneWrites = false, model = "" } = {}) {
+/**
+ * `project` is App Builder's case: a brand-new app that exists nowhere yet, so
+ * there is no repository to cut a worktree from. Pass the slug it should be
+ * built under and the thread gets a real project folder with a repository of
+ * its own instead. Everything else about a thread is identical.
+ */
+export async function startThread({ harness = "claude", title = "", repo, project = "", projectClient = false, strict = false, laneWrites = false, trust = "trusted", model = "" } = {}) {
   const which = HARNESSES[harness];
   if (!which) throw Object.assign(new Error(`There is no "${harness}" harness.`), { status: 400 });
 
@@ -123,7 +128,9 @@ export async function startThread({ harness = "claude", title = "", repo, strict
   if (!found?.available) throw Object.assign(new Error(found?.why ?? "That harness is not available."), { status: 400 });
 
   const id = randomUUID();
-  const worktree = await createWorktree({ id, repo, title: title || harness });
+  const worktree = project
+    ? await createProject({ id, slug: project, title, client: projectClient })
+    : await createWorktree({ id, repo, title: title || harness });
 
   const s = {
     id,
@@ -138,11 +145,28 @@ export async function startThread({ harness = "claude", title = "", repo, strict
     usd: 0,
     strict: Boolean(strict),
     laneWrites: Boolean(laneWrites),
+    // "trusted" by default: a thread works inside a worktree of its own, so
+    // writing there and running the build is the job, not a surprise. The
+    // graves and anything outside the worktree still stop and ask.
+    trust: trust === "ask" || trust === "auto" ? trust : "trusted",
     worktree,
     preview: null,
     events: [],
     seq: 0,
     gates: new Map(),
+    /**
+     * Tool names the owner answered with "Always" IN THIS THREAD.
+     *
+     * A build that checks its own work in a browser asks before every single
+     * MCP call, because what an MCP tool touches is not readable from here
+     * (see `autoAllow`). Answering the same question forty times is not
+     * consent, it is attrition — so the answer is remembered per tool.
+     *
+     * Deliberately per thread and in memory only: it dies with the build, it
+     * never reaches another build, and nothing writes it to disk. A grave
+     * tool is never remembered, whatever the owner clicks.
+     */
+    alwaysAllow: new Set(),
     pendingGate: null,
     landed: null,
     adapter: null,
@@ -193,6 +217,18 @@ export async function startThread({ harness = "claude", title = "", repo, strict
         clearTimeout(timer);
         s.gates.delete(gateId);
         if (s.pendingGate?.gateId === gateId) s.pendingGate = null;
+        // A timeout is not a decision, and it must never read like one. It
+        // used to refuse in silence: the card simply stopped existing, the
+        // build carried on as if told no, and a finished edit ended with no
+        // pull request and nothing on screen saying why.
+        if (how === "timeout") {
+          emit({
+            kind: "error",
+            text:
+              `Nobody answered "${card.title}" in 20 minutes, so it was refused automatically. ` +
+              `This was not a decision — the card went unanswered. Whatever that step was, it did not run.`,
+          });
+        }
         emit({ kind: "gate_done", gateId, allow, how: how ?? "owner" });
         // Asking set the status to "waiting"; answering has to take it back.
         // Nothing else does: the adapter is blocked INSIDE the permission hook,
@@ -206,15 +242,27 @@ export async function startThread({ harness = "claude", title = "", repo, strict
         if (!s.gates.size && s.status !== "ended") {
           emit({ kind: "status", status: "thinking" });
         }
-        resolve(allow);
+        // `{allow, how}`, not a bare boolean: the adapter has to be able to
+        // tell the model "nobody saw this" apart from "you were told no".
+        resolve({ allow, how: how ?? "owner" });
       };
-      s.gates.set(gateId, finish);
+      s.gates.set(gateId, { finish, card });
       s.pendingGate = card;
       emit({ kind: "gate", ...card });
       emit({ kind: "status", status: "waiting" });
     });
 
-  const common = { cwd: worktree.path, emit, gate, strict: Boolean(strict), laneWrites: Boolean(laneWrites) };
+  const common = {
+    cwd: worktree.path,
+    emit,
+    // Asked before every gate: has the owner already said "always" to this
+    // tool in this thread?
+    alwaysAllowed: (name) => s.alwaysAllow.has(familyOf(name)),
+    gate,
+    strict: Boolean(strict),
+    laneWrites: Boolean(laneWrites),
+    trust: s.trust,
+  };
   s.adapter = harness === "claude" ? startClaude({ ...common, model }) : startAcp(common);
 
   if (worktree.notes.length) {
@@ -257,15 +305,22 @@ export function threadEvents({ id, since = 0 }) {
   };
 }
 
-export function decideGate({ id, gateId, allow }) {
+export function decideGate({ id, gateId, allow, always = false }) {
   const s = mustGet(id);
-  const finish = s.gates.get(String(gateId ?? ""));
-  if (!finish) {
+  const parked = s.gates.get(String(gateId ?? ""));
+  if (!parked) {
     // Answering a gate twice is normal: two tabs, or a tap on a stale card.
     return { ok: true, stale: true };
   }
-  finish(Boolean(allow));
-  return { ok: true, stale: false };
+  // "Always" is only ever a widening of a YES, and never for a grave tool:
+  // the whole point of grave is that it is asked every time.
+  const remember = Boolean(allow) && Boolean(always) && parked.card.risk !== "grave" && Boolean(parked.card.name);
+  // By FAMILY: "always" on a Write must also cover the Edit of the same file,
+  // or the second name asks the question the owner already answered.
+  const key = remember ? familyOf(parked.card.name) : "";
+  if (remember) s.alwaysAllow.add(key);
+  parked.finish(Boolean(allow), "owner");
+  return { ok: true, stale: false, remembered: remember ? key : null };
 }
 
 export async function interruptThread({ id }) {
@@ -278,7 +333,7 @@ export async function stopThread({ id }) {
   const s = mustGet(id);
   // Refuse every parked gate first. Killing the child under a blocked
   // permission hook leaves the model's last tool call unanswered forever.
-  for (const finish of [...s.gates.values()]) finish(false, "stopped");
+  for (const parked of [...s.gates.values()]) parked.finish(false, "stopped");
   await s.adapter.stop();
   // The dev server is a separate child and does not die with the harness. Left
   // running it holds a port that the next thread on it cannot have.
@@ -321,7 +376,7 @@ export async function landThread({ id, message = "", merge = true, attribution =
 
 export async function discardThread({ id, keepBranch = false }) {
   const s = mustGet(id);
-  for (const finish of [...s.gates.values()]) finish(false, "discarded");
+  for (const parked of [...s.gates.values()]) parked.finish(false, "discarded");
   await s.adapter.stop().catch(() => {});
   // Before the folder goes: a server with its cwd deleted under it is a
   // process that cannot be explained afterwards.

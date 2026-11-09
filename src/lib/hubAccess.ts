@@ -41,7 +41,32 @@ export const ERROR_SCRIPT = "/jarvis-errors.js";
  */
 export const LEGAL_PAGES = "/legal";
 
-const PUBLIC_PREFIXES = [PUBLIC_HOME, "/api/fno", ...CLIENT_REVIEW_PUBLIC, ERROR_SCRIPT, LEGAL_PAGES];
+/**
+ * AI Rankings is a public leaderboard the owner curates. Only the page and the
+ * board route open up: the board route checks the owner itself before any
+ * write, and the analyzer and classify routes stay owner-only because each
+ * call spends the owner's AI credits.
+ */
+export const AI_RANKINGS_PUBLIC = ["/apps/ai-rankings", "/api/ai-rankings/board"];
+
+const PUBLIC_PREFIXES = [
+  PUBLIC_HOME,
+  "/api/fno",
+  ...CLIENT_REVIEW_PUBLIC,
+  LEGAL_PAGES,
+  ...AI_RANKINGS_PUBLIC,
+];
+
+/**
+ * Public as exact paths, with nothing underneath them.
+ *
+ * A single file does not belong in the prefix list: a prefix also opens
+ * everything that merely starts with it, so the file's own path plus `..` and
+ * a neighbouring filename would read as public. Next normalises `..` out of a
+ * path before middleware sees it, which is the only reason that was never a
+ * hole — not a thing to build on.
+ */
+const PUBLIC_EXACT = [ERROR_SCRIPT];
 const AUTH_PREFIXES = ["/login", "/auth"];
 
 function underPrefix(path: string, prefix: string): boolean {
@@ -50,6 +75,7 @@ function underPrefix(path: string, prefix: string): boolean {
 
 export function routeAccess(path: string, tokenPaths: ReadonlySet<string>): RouteAccess {
   if (tokenPaths.has(path)) return "token";
+  if (PUBLIC_EXACT.includes(path)) return "public";
   if (PUBLIC_PREFIXES.some((p) => underPrefix(path, p))) return "public";
   if (AUTH_PREFIXES.some((p) => underPrefix(path, p))) return "auth";
   return "owner";

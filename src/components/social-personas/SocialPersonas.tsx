@@ -21,7 +21,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { useRemotePull } from "@/lib/sync/useSync";
 import { KEY, loadBoard, removePersona, saveBoard, upsertPersona } from "@/lib/social-personas/store";
-import { mergePosts, uid } from "@/lib/social-personas/logic";
+import { localDay, mergePosts, uid } from "@/lib/social-personas/logic";
+import { deriveLessons } from "@/lib/social-personas/learn";
 import { withFollowerPoint, withResult } from "@/lib/social-personas/studio";
 import { PLATFORM_NAME, type Board, type ConnectablePlatform, type Draft, type Persona, type Post, type SocialPlatform } from "@/lib/social-personas/types";
 import { api, type PublicJob, type Status } from "./api";
@@ -70,6 +71,36 @@ export function PersonasStudio({ embedded = false }: { embedded?: boolean }) {
     },
     [commit],
   );
+
+  /**
+   * Re-score the posts and write a new lesson set.
+   *
+   * Pure arithmetic, so it runs instantly and with no AI key — which is why it
+   * can happen on open rather than behind a button the owner has to find.
+   */
+  const rederive = useCallback(
+    (personaId: string) => {
+      const p = boardRef.current.personas.find((x) => x.id === personaId);
+      if (!p) return;
+      const { set } = deriveLessons(p, localDay(), uid);
+      mutate(personaId, (x) => ({ ...x, lessonLog: [set, ...(x.lessonLog ?? [])].slice(0, 40) }));
+    },
+    [mutate],
+  );
+
+  // Every persona re-derives when the day turns or its post count moves — not
+  // just the one being looked at, because the home screen shows each agent's
+  // rule count, and an un-derived persona would sit there reporting zero,
+  // which reads as "this one has learned nothing" rather than "nobody has
+  // opened it today" (checklist A1).
+  useEffect(() => {
+    if (!loaded) return;
+    const today = localDay();
+    for (const p of boardRef.current.personas) {
+      const head = p.lessonLog?.[0];
+      if (!head || head.day !== today || head.postsConsidered !== p.posts.length) rederive(p.id);
+    }
+  }, [loaded, board.personas, rederive]);
 
   const toastTimer = useRef<number | undefined>(undefined);
   const flash = useCallback((text: string, bad = false) => {
@@ -308,6 +339,7 @@ export function PersonasStudio({ embedded = false }: { embedded?: boolean }) {
       <div className={embedded ? "min-h-0 flex-1 overflow-auto" : "flex min-h-0 flex-1 flex-col"}>
         {open ? (
           <Workspace
+            onRederive={rederive}
             key={open.id}
             persona={open}
             status={status}
@@ -328,6 +360,7 @@ export function PersonasStudio({ embedded = false }: { embedded?: boolean }) {
         ) : (
           <StudioHome
             personas={board.personas}
+            nicknameOrder={board.nicknameOrder ?? []}
             loaded={loaded}
             onOpen={openPersona}
             onNew={() => setForm({})}

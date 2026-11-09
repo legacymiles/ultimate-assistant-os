@@ -17,7 +17,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { cleanOutput, cleanSelection, type CinemaOutput, type CinemaSelection } from "./cinema";
-import { cleanStudioChain, DEFAULT_STUDIO_CHAIN } from "./models";
+import { cleanStudioChain, DEFAULT_STUDIO_CHAIN, upgradeStudioChain } from "./models";
 
 const KEY = "jarvis.cinema.v1";
 const EVENT = "jarvis-cinema-change";
@@ -118,7 +118,9 @@ function readChain(): string[] {
     // Never stored yet is not the same as deliberately emptied: an absent key
     // means the owner has not touched this, so they get the default order.
     if (raw === null) return DEFAULT_STUDIO_CHAIN;
-    return cleanStudioChain(JSON.parse(raw));
+    // A save that is only the old default order was never a choice — it gets the
+    // new default, so the model the owner asked for is actually tried.
+    return upgradeStudioChain(cleanStudioChain(JSON.parse(raw)));
   } catch {
     return DEFAULT_STUDIO_CHAIN;
   }

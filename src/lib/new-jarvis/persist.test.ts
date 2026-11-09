@@ -37,7 +37,9 @@ describe("slim", () => {
   });
 
   it("drops a gate rather than reviving a question nobody can answer", () => {
-    const [out] = slim([block({ status: "waiting", gate: { stepId: "s1", summary: "Send it.", why: "", risk: "grave" } })]);
+    const [out] = slim([
+      block({ status: "waiting", gate: { stepId: "s1", summary: "Send it.", why: "", risk: "grave", kind: "" } }),
+    ]);
     expect(out.gate).toBeNull();
     expect(out.status).toBe("stopped");
   });

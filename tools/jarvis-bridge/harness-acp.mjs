@@ -37,12 +37,68 @@
 // ---------------------------------------------------------------------------
 
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+
 import { autoAllow, describeTool } from "./harness-gate.mjs";
 
 export const DEEPSEEK_LABEL = "DeepSeek (dsh)";
 
-/** Where dsh is installed. It is NOT in this repo; it is the owner's own copy. */
-export const DSH_CWD = process.env.DSH_DIR || "C:/Users/honey/deepseek-harness";
+/**
+ * Where dsh is installed.
+ *
+ * This used to be one hard-coded folder, and that folder was not where dsh
+ * actually lived on this machine — so the picker greyed out the harness the
+ * owner was running at that very moment, and the only way to fix it was to know
+ * an undocumented path. A checkout, a global install and the desktop app all
+ * put it in different places, so all of them are looked for, in the order that
+ * costs least to check.
+ *
+ * `DSH_DIR` still wins: it is how a different machine (or a second copy) says
+ * where its own is.
+ */
+const ROOTS = () => {
+  const home = homedir();
+  const local = process.env.LOCALAPPDATA ?? "";
+  const appData = process.env.APPDATA ?? "";
+  return [
+    process.env.DSH_DIR,
+    join(home, "deepseek-harness"),
+    join(home, "Projects", "deepseek-harness"),
+    local ? join(local, "Programs", "DeepSeek Harness", "resources", "app.asar", "dsh") : "",
+    // A global install (`npm i -g @deepseek-ai/dsh`) puts the package under the
+    // npm prefix's node_modules; the loop below checks that path for each root.
+    appData ? join(appData, "npm") : "",
+    "/usr/local/lib",
+    "/usr/lib",
+  ].filter(Boolean);
+};
+
+/**
+ * The dsh package's CLI, wherever it turned out to be.
+ *
+ * A root can be a checkout (which has `node_modules/@deepseek-ai/dsh`) or the
+ * package folder itself. Both shapes are real and neither is written down.
+ */
+export function findDsh() {
+  for (const root of ROOTS()) {
+    const own = join(root, "lib", "bin.js");
+    if (existsSync(own)) return { root, bin: own };
+    const bin = join(root, "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js");
+    if (existsSync(bin)) return { root, bin };
+  }
+  return null;
+}
+
+/** The folder the profile boots from. Exported because the picker names it. */
+export const DSH_CWD = findDsh()?.root ?? process.env.DSH_DIR ?? join(homedir(), "deepseek-harness");
+
+/** Why dsh cannot run here, or "" when it can. */
+export function dshWhy() {
+  if (findDsh()) return "";
+  return `dsh was not found. Set DSH_DIR to a checkout that has @deepseek-ai/dsh installed, or install it globally with \`npm i -g @deepseek-ai/dsh\`. Looked in ${ROOTS().join(", ")}.`;
+}
 
 /**
  * dsh's tool names, mapped onto the vocabulary the gate already speaks.
@@ -62,7 +118,23 @@ const aliasFor = (title) => {
   return TOOL_ALIAS[key] ?? (key ? key[0].toUpperCase() + key.slice(1) : "Tool");
 };
 
-export function startAcp({ cwd, emit, gate, strict = false, laneWrites = false, command = "npx", args = ["dsh", "--profile", "acp"] }) {
+export function startAcp({ cwd, emit, gate, strict = false, laneWrites = false, trust = "ask", command, args }) {
+  // The package is run with the Node that is already running this bridge, not
+  // through `npx`. `npx dsh` resolves to whatever npm happens to have cached,
+  // which on this machine was nothing at all — and a harness that needs the
+  // network to start is a harness that fails on a plane.
+  const found = findDsh();
+  const launch = found
+    ? { command: process.execPath, args: [found.bin, "--profile", "acp"], cwd: found.root }
+    : { command: "npx", args: ["dsh", "--profile", "acp"], cwd: DSH_CWD };
+  const runCommand = command ?? launch.command;
+  const runArgs = args ?? launch.args;
+  // The launch folder, NOT the worktree: the worktree is handed to the session
+  // below (`session/new`), and the package only needs to resolve from its own
+  // root. Pointing the process at the worktree was how `npx dsh` stopped
+  // finding the profile the day the checkout moved.
+  const runCwd = found?.root ?? DSH_CWD;
+
   let sessionId = "";
   let nextId = 0;
   let closed = false;
@@ -74,10 +146,13 @@ export function startAcp({ cwd, emit, gate, strict = false, laneWrites = false, 
   /** toolCallId → what the call was, so a permission request can be described. */
   const calls = new Map();
 
-  const child = spawn(command, args, {
-    cwd: DSH_CWD,
+  const child = spawn(runCommand, runArgs, {
+    cwd: runCwd,
     stdio: ["pipe", "pipe", "pipe"],
-    shell: process.platform === "win32",
+    // Only when going through `npx`, whose `.cmd` shim Windows needs a shell to
+    // find. The discovered package is started as node with a real path, and a
+    // shell there breaks on the space in "Program Files".
+    shell: process.platform === "win32" && !found,
     windowsHide: true,
     env: {
       ...process.env,
@@ -173,8 +248,8 @@ export function startAcp({ cwd, emit, gate, strict = false, laneWrites = false, 
         // Under `read-only` dsh never asks about a read, so in practice this
         // only ever passes a lane's own write — but the policy is asked rather
         // than assumed, so this adapter and the Claude one cannot drift.
-        const ok = autoAllow(d, { strict, laneWrites })
-          ? (emit({ kind: "allowed", name, title: d.title }), true)
+        const decided = autoAllow(d, { strict, laneWrites, trust })
+          ? (emit({ kind: "allowed", name, title: d.title }), { allow: true, how: "auto" })
           : await gate({
               name,
               title: d.title,
@@ -184,7 +259,8 @@ export function startAcp({ cwd, emit, gate, strict = false, laneWrites = false, 
               command: d.command,
               path: d.path,
               input: remembered.input ?? {},
-            }).catch(() => false);
+            }).catch(() => ({ allow: false, how: "error" }));
+        const ok = decided.allow;
         const chosen = ok ? allow : reject;
         if (!chosen) {
           // No usable option means we cannot answer honestly, and ACP's

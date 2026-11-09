@@ -8,7 +8,7 @@ import {
   finalHandThreats, pointsToWin, contractPoints, FINAL_HAND_REACH,
 } from "./spades";
 import { chooseBid, chooseCard } from "./spadesBot";
-import { botNotices, canPlay, checkPlay, evidenceLine, recordOutOfTurn, recordPlay, resolveCall } from "./renege";
+import { type RenegeRecord, botNotices, canPlay, checkPlay, evidenceLine, recordPlay, resolveCall } from "./renege";
 
 const trick = (...plays: [number, string][]): TrickPlay[] =>
   plays.map(([seat, card]) => ({ seat, card }));
@@ -243,13 +243,31 @@ describe("playing out of turn", () => {
     expect(nextToPlay(trick, 2)).toBe(0);
   });
 
-  it("is recorded in secret like a renig, and calling it is right", () => {
-    const log = recordOutOfTurn([], {
-      seat: 3, userId: "p3", round: 1, trickNumber: 2, card: "2H", trick: [],
+  it("is not a renig: following suit out of turn records nothing, and calling it is wrong", () => {
+    const log = recordPlay([], {
+      seat: 3, userId: "p3", round: 1, trickNumber: 2, card: "2H",
+      hand: ["2H", "KS"], trick: [{ seat: 1, card: "9H" }], spadeBroken: false,
     });
-    expect(log[0]).toMatchObject({ seat: 3, kind: "turn", card: "2H" });
+    expect(log).toEqual([]);
+    expect(resolveCall(log, { seat: 0, userId: "p0" }, { seat: 3, userId: "p3" })).toMatchObject({ correct: false, winningTeam: 2 });
+  });
+
+  it("is still a renig when the card itself is off suit while holding the suit", () => {
+    const log = recordPlay([], {
+      seat: 3, userId: "p3", round: 1, trickNumber: 2, card: "KS",
+      hand: ["2H", "KS"], trick: [{ seat: 1, card: "9H" }], spadeBroken: false,
+    });
+    expect(log[0]).toMatchObject({ seat: 3, kind: "suit", card: "KS" });
     expect(resolveCall(log, { seat: 0, userId: "p0" }, { seat: 3, userId: "p3" })).toMatchObject({ correct: true, winningTeam: 1 });
-    expect(evidenceLine(log[0], (s) => `P${s}`, (c) => c)).toBe("P3 played the 2H out of turn (round 1, trick 2).");
+  });
+
+  it("ignores out-of-turn records saved by older games", () => {
+    const old = [{
+      seat: 3, userId: "p3", round: 1, trickNumber: 2, card: "2H", ledSuit: "H",
+      kind: "turn", heldLedSuit: true, trick: [{ seat: 1, card: "9H" }, { seat: 3, card: "2H" }],
+    }] as unknown as RenegeRecord[];
+    expect(resolveCall(old, { seat: 0, userId: "p0" }, { seat: 3, userId: "p3" })).toMatchObject({ correct: false });
+    expect(botNotices(old, [0, 2], "k", 1, () => 0)).toBeNull();
   });
 });
 

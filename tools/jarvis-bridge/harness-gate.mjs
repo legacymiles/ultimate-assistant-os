@@ -105,6 +105,56 @@ function previewPatch(name, input, cwd) {
 }
 
 /**
+ * Is THIS push the dangerous kind?
+ *
+ * Gating every `git push` was wrong, and it was the most expensive wrong thing
+ * here: a build pushing its OWN branch is not a deploy, it is the step that
+ * produces the pull request. Gating it made the one card that had to be
+ * answered the one most likely to be missed — and a missed card times out into
+ * a refusal, so the build threw its finished work away at the last step.
+ *
+ * Still grave, because these reach work that is not this build's:
+ *   - a force push, in any spelling, including a leading `+` on the refspec
+ *   - a push naming main or master as the TARGET
+ *   - deleting a remote branch
+ */
+export function pushIsGrave(command) {
+  const c = String(command ?? "");
+  if (/--force\b|--force-with-lease\b|(^|\s)-f(\s|$)/i.test(c)) return true;
+  if (/--delete\b|--prune\b/i.test(c)) return true;
+  // `+refs/heads/x:refs/heads/y` is a force push wearing a different hat.
+  if (/\s\+[^\s:]+:/.test(c)) return true;
+  // main or master as the DESTINATION, in the shapes git accepts.
+  if (/:\s*(refs\/heads\/)?(main|master)\b/i.test(c)) return true;
+  if (/\bpush\b[^|;&]*\s(origin|upstream)\s+(main|master)\s*$/i.test(c)) return true;
+  // `git push origin :branch` deletes it.
+  if (/\s:[^\s:]+\s*$/.test(c)) return true;
+  return false;
+}
+
+/** Tools that are the same ACT under different names. */
+const FAMILIES = new Map([
+  ["Write", "write-a-file"],
+  ["Edit", "write-a-file"],
+  ["MultiEdit", "write-a-file"],
+  ["NotebookEdit", "write-a-file"],
+]);
+
+/**
+ * The key an "Always" answer is remembered under.
+ *
+ * Write, Edit and MultiEdit are one action wearing three names. Saying
+ * "always" to Write and then being asked again about Edit of the SAME FILE is
+ * not a second question, it is the first one again — which is exactly what
+ * happened, on exactly that file. Everything else is its own key, because for
+ * an MCP tool the name IS the unit of risk.
+ */
+export function familyOf(name) {
+  const n = String(name ?? "");
+  return FAMILIES.get(n) ?? n;
+}
+
+/**
  * Everything the gate card draws, from a tool name and its arguments.
  *
  * `risk: "grave"` is reserved for the two things that are not merely a change
@@ -136,8 +186,11 @@ export function describeTool(name, input = {}, cwd = "") {
       risk = "grave";
       why = "This deletes files. It cannot be undone from here.";
     } else if (/\bgit\s+push\b/i.test(command)) {
-      risk = "grave";
-      why = "This pushes to the remote, which deploys.";
+      const grave = pushIsGrave(command);
+      risk = grave ? "grave" : "act";
+      why = grave
+        ? "This pushes to a protected branch or forces history, which reaches work that is not this build's."
+        : "This pushes the thread's own branch, which is what opens the pull request. It does not deploy.";
     } else if (/\bgit\s+(commit|merge|reset|checkout|rebase)\b/i.test(command)) {
       why = why || "This moves git history in the thread's worktree.";
     } else if (/\bnpm\s+(install|i|uninstall|update)\b|\bpnpm\s+(add|remove)\b/i.test(command)) {
@@ -149,7 +202,19 @@ export function describeTool(name, input = {}, cwd = "") {
     why = "A tool from an MCP server. What it touches is not something this gate can read.";
   }
 
-  return { kind, title, why, risk, path, command, patch: previewPatch(name, input, cwd) };
+  return {
+    kind,
+    title,
+    why,
+    risk,
+    path,
+    command,
+    // An MCP server's tool is the one thing here whose reach cannot be read
+    // off its arguments, so the policy below treats it as its own category
+    // rather than as an ordinary command.
+    mcp: name.startsWith("mcp__"),
+    patch: previewPatch(name, input, cwd),
+  };
 }
 
 /**
@@ -194,16 +259,57 @@ export function insideWorktree(path) {
  * node_modules the main checkout shares), anything an MCP server does, and any
  * write that resolves outside the worktree — which is the exact event the
  * worktree exists to catch.
+ *
+ * `trust` is the fourth rule and the one a thread actually sets, because the
+ * three above left an ordinary job — write a file, run the build, commit —
+ * asking for permission at every single step, and a gate that fires forty
+ * times in a row is not read by the time it matters. It widens what passes;
+ * it never widens it past these two, at any level:
+ *
+ *   a grave act (deleting, pushing, changing installed packages) always asks;
+ *   a write outside the worktree always asks.
+ *
+ * Deliberately defaulted to "ask" HERE, so the policy on its own is the strict
+ * one and a caller that forgets to pass anything gets the careful answer.
+ * startThread() is where a thread's default of "trusted" lives.
  */
-export function autoAllow(described, { strict = false, laneWrites = false } = {}) {
+export function autoAllow(described, { strict = false, laneWrites = false, trust = "ask" } = {}) {
   if (strict) return false;
   if (described.kind === "read") return true;
-  if (laneWrites && described.kind === "write") return insideWorktree(described.path);
-  return false;
+  if (described.risk === "grave") return false;
+
+  if (described.kind === "write") {
+    if (!insideWorktree(described.path)) return false;
+    return laneWrites || trust === "trusted" || trust === "auto";
+  }
+
+  if (described.kind === "run") {
+    // An MCP tool's reach is not readable from here, so it is the one acting
+    // category that stays behind a gate until the owner says Auto.
+    if (described.mcp) return trust === "auto";
+    return trust === "trusted" || trust === "auto";
+  }
+
+  return trust === "auto";
 }
 
-/** The sentence on a refusal, phrased so the model does something useful next. */
-export function denialMessage(title) {
+/**
+ * The sentence on a refusal, phrased so the model does something useful next.
+ *
+ * A timeout is told apart from a no on purpose. They are opposite facts — one
+ * is a decision, the other is nobody being there — and a build that reports
+ * "the owner refused" when nobody ever saw the card is lying about its own
+ * failure. That is how twenty minutes of silence became a finished build with
+ * no pull request and no explanation.
+ */
+export function denialMessage(title, how = "owner") {
+  if (how === "timeout") {
+    return (
+      `Nobody answered the permission card for this within the time limit, so it was refused automatically: ${title}. ` +
+      `This is NOT a decision against it — nobody saw it. Do not carry on as though it had been declined: ` +
+      `say plainly in your final message that this step never ran because the card went unanswered, and name the step.`
+    );
+  }
   return (
     `The owner refused this: ${title}. Do not retry it or work around it. ` +
     `Say what you would have done and ask for a different approach.`

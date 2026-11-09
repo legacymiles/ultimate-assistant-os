@@ -18,12 +18,21 @@
 // ---------------------------------------------------------------------------
 
 import { PROJECTS, type CatalogProject } from "@/lib/catalog";
+import { onTheWall } from "@/lib/studio-home/panels";
 
-/** The slugs allowed in, in the order they should appear. */
+/**
+ * The slugs allowed in, in the order they should appear.
+ *
+ * This is the allowlist for Jarvis as a whole, not for the App plugins page on
+ * its own, which is why the studios are still in it. A studio has a panel on
+ * the Studio tab instead of a card here, but it has still moved into Jarvis and
+ * still has to stay off the hub's front grid — `inJarvis` reads this list, so
+ * taking a studio out of it would put the tile back on the hub and give the one
+ * app two front doors again. `studioPlugins` is where the Studio tab's own
+ * studios are dropped.
+ */
 export const PLUGIN_SLUGS = [
   "app-builder",
-  "youtube-videos",
-  "find-my-life",
   "seedance-studio",
   "jarvis-audio-studio",
   "image-studio",
@@ -33,7 +42,6 @@ export const PLUGIN_SLUGS = [
   "ai-rankings",
   "cook-connect",
   "trading-studio",
-  "financial-bible",
   "baby-no-scroll",
   "dump-finder",
   "client-review",
@@ -57,8 +65,16 @@ export const PLUGIN_SLUGS = [
  * no hub tile. iPhone Notes and Text Inbox share the one "iPhone" widget
  * (owner's call, Oct 2026). Their routes stay for the widget's sheets, the
  * Text Inbox Home Screen app and its notifications.
+ *
+ * YouTube Videos and Find My Life came off the App plugins page the same way
+ * (owner's call, Nov 2026): both were already drawn on the Dashboard, so a
+ * card as well was the second door to a thing you glance at rather than go
+ * and work in. They stay HERE rather than leaving the list, because dropping
+ * a slug out of the allowlists altogether would put its tile back on the hub
+ * grid and give the one app two front doors again. Their routes stay live for
+ * the widget's expanded view, the Shortcuts ping and the onboarding sheet.
  */
-export const WIDGET_SLUGS = ["iphone-notes", "text-inbox"] as const;
+export const WIDGET_SLUGS = ["iphone-notes", "text-inbox", "youtube-videos", "find-my-life"] as const;
 
 export const TOOLBOX_SLUGS = ["prompt-architect", "projects-timeline"] as const;
 
@@ -84,6 +100,7 @@ export const MERGED_INTO: Record<string, string> = {
   "website-redesigner": "app-builder",
   "fire-reveal": "website-redesigner",
   "kart-showcase": "website-redesigner",
+  "financial-bible": "money-agent-studio",
 };
 
 /** Whether this app now lives inside another app, and so has no tile of its own. */
@@ -206,13 +223,20 @@ const WHY: Record<string, string> = {
     + "next morning's ideas start from what actually landed.",
 };
 
+/**
+ * The cards on the App plugins page.
+ *
+ * Three kinds of slug are dropped, all for the same reason — one app, one door.
+ * A slug that has left the catalog would render a card that goes nowhere. One
+ * that has merged into another app is reached through that app's card. And a
+ * studio with a panel on the Studio tab is reached from the wall, which is a
+ * picture of what the studio makes rather than a line of text, so a card here
+ * as well would be the worse of two doors to the same place.
+ */
 export function studioPlugins(): StudioPlugin[] {
   return PLUGIN_SLUGS.flatMap((slug) => {
     const p = PROJECTS.find((x) => x.slug === slug);
-    // An allowlisted slug that has left the catalog simply stops appearing,
-    // rather than rendering a card that goes nowhere — and one that has moved
-    // inside another app is reached through that app's card instead.
-    if (!p || isMerged(slug)) return [];
+    if (!p || isMerged(slug) || onTheWall(slug)) return [];
     return [
       {
         slug: p.slug,

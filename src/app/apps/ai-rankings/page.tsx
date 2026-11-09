@@ -1,11 +1,20 @@
-import { AiRankings } from "@/components/ai-rankings/AiRankings";
+import type { Metadata } from "next";
+import { Leaderboard } from "@/components/ai-rankings/Leaderboard";
 
-export const metadata = {
-  title: "AI Rankings · Ultimate Assistant OS",
-  description:
-    "A personal database of every tool worth remembering — free vs paid vs open source, API-key status, date added, your own notes and features, and a leaderboard per section.",
+const description =
+  "The best AI models ranked by category — text-to-speech, realtime voice, video, image, LLMs and more — with what just dropped, open-source filters and a score you can trace to its source.";
+
+export const metadata: Metadata = {
+  title: "AI Rankings — the best AI models by category",
+  description,
+  openGraph: {
+    title: "AI Rankings",
+    description,
+    type: "website",
+  },
+  twitter: { card: "summary", title: "AI Rankings", description },
 };
 
 export default function Page() {
-  return <AiRankings />;
+  return <Leaderboard />;
 }

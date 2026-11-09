@@ -26,6 +26,14 @@ export interface BridgeCapabilities {
   browserWhy?: string;
   /** Claude (the owner's own subscription) can be Jarvis's brain on this PC. */
   brain?: boolean;
+  /** At least one coding harness (Claude Code or DeepSeek Harness) can run here. */
+  harness?: boolean;
+  /** Which ones, and why not when one cannot. */
+  harnesses?: { id: string; label: string; available: boolean; why: string }[];
+  /** MCP servers can be run from this PC. */
+  mcp?: boolean;
+  /** The CLI inventory can be read from this PC. */
+  cli?: boolean;
 }
 
 export interface BridgeHealth {
@@ -38,6 +46,17 @@ export interface BridgeHealth {
   browserRunning?: boolean;
   /** Set when it is not usable, in the owner's language. */
   problem?: string;
+  /**
+   * The browser is refusing to let this site reach 127.0.0.1 at all.
+   *
+   * Chrome gates a public page talking to the local network behind a
+   * permission, and it only ever asks on a CLICK. A probe on page load is not
+   * a click, so it fails with the same "Failed to fetch" as a bridge that is
+   * genuinely off — and the page then tells the owner to go and start
+   * something that is already running. Distinguishing the two is the whole
+   * reason this flag exists.
+   */
+  needsLocalNetwork?: boolean;
   /** The agent installing its own packages (first run, or after a move). */
   settingUp?: boolean;
 }
@@ -116,8 +135,32 @@ export async function autoPair(signal?: AbortSignal): Promise<boolean> {
   }
 }
 
-/** Is it there? Never throws: "not there" is the normal answer. Pairs itself when it can. */
+/**
+ * Is it there? Never throws: "not there" is the normal answer.
+ *
+ * Tried TWICE before believing the answer is no. A page served over https
+ * reaching 127.0.0.1 is a cross-origin request into the local network, and
+ * the browser does a dance before the first one of those lands — a preflight,
+ * and on current Chrome a local-network permission check. The first call from
+ * a page can fail where the second succeeds milliseconds later.
+ *
+ * That blip used to cost a whole Approve & build: one failed fetch meant
+ * "Jarvis's PC helper isn't running" on a machine where it was running, was
+ * answering, and was already paired. Everything else here is written on the
+ * assumption that the bridge is off, so the one thing that must be right is
+ * deciding that it IS off.
+ *
+ * An aborted probe is not retried: the caller walked away.
+ */
 export async function probe(signal?: AbortSignal): Promise<BridgeHealth> {
+  const first = await probeOnce(signal);
+  if (first.up || signal?.aborted) return first;
+  await new Promise((r) => setTimeout(r, 250));
+  if (signal?.aborted) return first;
+  return probeOnce(signal);
+}
+
+async function probeOnce(signal?: AbortSignal): Promise<BridgeHealth> {
   try {
     const res = await fetch(`${BRIDGE_URL}/health`, { signal, cache: "no-store" });
     if (!res.ok) return { ...BRIDGE_OFFLINE, up: true, problem: `The agent answered ${res.status}.` };
@@ -147,7 +190,43 @@ export async function probe(signal?: AbortSignal): Promise<BridgeHealth> {
           : undefined,
     };
   } catch {
+    // Can't tell "not running" from "the browser threw the answer away" by the
+    // failure alone — both are a thrown fetch — so ask the browser which.
+    const perm = await localNetworkState();
+    if (perm === "prompt" || perm === "denied") {
+      return {
+        up: false,
+        paired: false,
+        needsLocalNetwork: true,
+        problem:
+          perm === "denied"
+            ? "This browser is set to block this site from reaching your PC. Allow local network access for this site in its permissions, then try again."
+            : "This browser hasn't been allowed to reach your PC from this site yet. Press Connect to this PC and say yes to the prompt.",
+      };
+    }
     return BRIDGE_OFFLINE;
+  }
+}
+
+/**
+ * Has this site been allowed to reach the local network?
+ *
+ * "granted" on a site that has been allowed, "prompt" on one that has not yet
+ * been asked, "denied" when the owner said no. Older browsers, and ones with
+ * no such permission, know nothing about it and say so — and that is treated
+ * as "not the problem", because on those the request is not being blocked
+ * here.
+ */
+async function localNetworkState(): Promise<"granted" | "prompt" | "denied" | "unknown"> {
+  try {
+    const perms = (navigator as unknown as { permissions?: { query(d: { name: string }): Promise<{ state: string }> } }).permissions;
+    if (!perms?.query) return "unknown";
+    const { state } = await perms.query({ name: "local-network-access" });
+    return state === "granted" || state === "prompt" || state === "denied" ? state : "unknown";
+  } catch {
+    // An unrecognised permission name throws. That is the common case on any
+    // browser that does not have this gate, and it is not an error.
+    return "unknown";
   }
 }
 

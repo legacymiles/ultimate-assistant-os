@@ -17,6 +17,7 @@ import type { ContentPart } from "./chatMedia";
 
 import { classify } from "./actions";
 import { routeFor, toolByName } from "./agentTools";
+import { DEFAULT_TRUST, escalate, gateKind, needsGate, type Trust } from "./trust";
 import type { Block, Gate, Mode, Step } from "./types";
 
 /** Rounds before the loop gives up. A browse job legitimately takes a dozen. */
@@ -58,8 +59,16 @@ export interface RunnerDeps {
   think: (messages: WireMessage[]) => Promise<StepResponse>;
   /** One call to the bridge. Throws with a readable message on failure. */
   runTool: (route: string, args: Record<string, unknown>) => Promise<Record<string, unknown>>;
-  /** Put the gate in front of the owner. Resolves true on a yes. */
-  askGate: (gate: Gate) => Promise<boolean>;
+  /**
+   * Put the gate in front of the owner.
+   *
+   * True on a yes, false on a no, and "always" on a yes that also covers the
+   * next call of the same shape — which is the answer a run of thirty
+   * identical steps actually wants to give.
+   */
+  askGate: (gate: Gate) => Promise<boolean | "always">;
+  /** File an "always" answer under its kind. Absent = nothing is remembered. */
+  remember?: (kind: string) => void;
   /** Merge a patch into the block on screen. Called many times per round. */
   update: (patch: Partial<Block>) => void;
   /** Cancelled by the owner, or the page going away. */
@@ -126,6 +135,10 @@ export interface RunInput {
   history?: WireMessage[];
   /** The turn with its attachments, when there are any. Defaults to `command`. */
   content?: string | ContentPart[];
+  /** How much may happen without asking. See trust.ts. */
+  trust?: Trust;
+  /** Kinds the owner has already said "always" to on this machine. */
+  allowed?: string[];
 }
 
 export interface RunOutcome {
@@ -145,6 +158,10 @@ export interface RunOutcome {
 export async function runBlock(input: RunInput, deps: RunnerDeps): Promise<RunOutcome> {
   const messages: WireMessage[] = [...(input.history ?? []), { role: "user", content: input.content ?? input.command }];
   const steps: Step[] = [];
+  // Held locally as well as in the page, because an "always" given at step
+  // four has to cover step five of the SAME run — which is the run where the
+  // owner is sitting there being asked the same question over and over.
+  const allowed = new Set(input.allowed ?? []);
   const startedAt = Date.now();
 
   const finish = (status: Block["status"], answer: string, error?: string): RunOutcome => {
@@ -188,7 +205,16 @@ export async function runBlock(input: RunInput, deps: RunnerDeps): Promise<RunOu
       continue;
     }
 
-    const verdict = classify({ route, args: { ...args, name: nameFor(args) } });
+    // Two questions, asked separately: what this call IS — classify, sharpened
+    // by escalate so a destructive command is named as one — and whether the
+    // owner has to look at it first, which is needsGate and the trust level.
+    // Collapsing the two is what made one build cost a hundred taps.
+    const op = { route, args: { ...args, name: nameFor(args) } };
+    const verdict = escalate(op, classify(op));
+    const gated = needsGate(op, verdict, {
+      trust: input.trust ?? DEFAULT_TRUST,
+      allowed: [...allowed],
+    });
     const step: Step = {
       id: stepId(),
       n: steps.length + 1,
@@ -196,24 +222,36 @@ export async function runBlock(input: RunInput, deps: RunnerDeps): Promise<RunOu
       route,
       args,
       summary: verdict.summary,
-      status: verdict.confirm ? "waiting" : "running",
+      status: gated ? "waiting" : "running",
       ...(next.fast ? { by: next.model === "rule" ? ("rule" as const) : ("jev" as const) } : {}),
       ...(next.rerouted && next.model ? { rerouted: next.model } : {}),
     };
     steps.push(step);
     deps.update({ steps: [...steps] });
 
-    if (verdict.confirm) {
-      const gate: Gate = { stepId: step.id, summary: verdict.summary, why: verdict.why, risk: verdict.risk };
+    if (gated) {
+      const gate: Gate = {
+        stepId: step.id,
+        summary: verdict.summary,
+        why: verdict.why,
+        risk: verdict.risk,
+        kind: gateKind(op),
+      };
       deps.update({ status: "waiting", gate, steps: [...steps] });
-      let allowed = false;
+      let answer: boolean | "always" = false;
       try {
-        allowed = await deps.askGate(gate);
+        answer = await deps.askGate(gate);
       } catch {
-        allowed = false;
+        answer = false;
+      }
+      // Filed before the step runs, so a run that dies halfway still keeps the
+      // yes the owner already gave.
+      if (answer === "always" && gate.kind) {
+        allowed.add(gate.kind);
+        deps.remember?.(gate.kind);
       }
       deps.update({ status: "running", gate: null });
-      if (!allowed) {
+      if (answer === false) {
         step.status = "refused";
         step.error = "You said no.";
         deps.update({ steps: [...steps] });

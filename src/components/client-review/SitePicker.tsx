@@ -2,8 +2,14 @@
 
 // ---------------------------------------------------------------------------
 // The owner's site picker — every app in the hub and every client website in
-// one searchable dropdown, so the Client view can open any of them and edit it
-// on the page like a client would.
+// one searchable dropdown, so the owner can open any of them and edit it on
+// the page the way a client would.
+//
+// This list is OWNER-ONLY and shows everything on purpose; a client gets
+// MyWebsites, which holds only what they have been sent. That distinction was
+// invisible here, and a screen showing every app under the words "Client view"
+// reads as "this is what the client sees" — so each row now says whether a
+// client can actually reach it, and the screen no longer claims to be theirs.
 //
 //   menu  the title of the Client view: tap it, type a few letters, pick.
 //   page  the same list, laid out in full, for when nothing is open yet.
@@ -15,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { editableApps } from "@/lib/client-review/apps";
 import { admin } from "@/lib/client-review/client";
+import { isSentToClient } from "@/lib/client-review/logic";
 import type { ClientProject } from "@/lib/client-review/types";
 
 export type Target = { kind: "app"; slug: string } | { kind: "site"; token: string };
@@ -26,6 +33,8 @@ interface Row {
   sub: string;
   status: string;
   tone: "idle" | "wait" | "build";
+  /** Can a client actually open this one? Owner-only rows say so plainly. */
+  shared: boolean;
   group: "Client websites" | "My apps";
 }
 
@@ -72,6 +81,7 @@ function useRows(): { rows: Row[]; error: string; reload: () => void } {
         title: p.name,
         sub: p.clientName || p.clientUserEmail || "Client website",
         group: "Client websites",
+        shared: isSentToClient(p),
         ...statusOf(p),
       }));
     const byApp = new Map(list.filter((p) => p.appSlug).map((p) => [p.appSlug!, p]));
@@ -81,6 +91,12 @@ function useRows(): { rows: Row[]; error: string; reload: () => void } {
       title: a.title,
       sub: a.category,
       group: "My apps",
+      // An app only becomes reachable once it has a review project AND that
+      // project has been sent. Most never do: they are the owner's own.
+      shared: (() => {
+        const proj = byApp.get(a.slug);
+        return proj ? isSentToClient(proj) : false;
+      })(),
       ...statusOf(byApp.get(a.slug)),
     }));
     return [...clients, ...apps];
@@ -143,6 +159,11 @@ function RowList({
                     >
                       <span className="crp-title">{r.title}</span>
                       <span className="crp-sub">{r.sub}</span>
+                      {r.shared && (
+                        <span className="crp-shared" title="Sent — a client can open this one">
+                          shared
+                        </span>
+                      )}
                       {r.status && <span className={`crp-status tone-${r.tone}`}>{r.status}</span>}
                       {on && <span className="crp-check" aria-hidden>✓</span>}
                     </button>
@@ -278,9 +299,12 @@ export function SitePickerPage({ onPick }: { onPick: (t: Target) => void }) {
   return (
     <div className="crp-page">
       <div className="crp-page-head">
-        <p className="cr-kicker">Client view</p>
+        <p className="cr-kicker">Yours only · open as a client</p>
         <h1>What do you want to work on?</h1>
-        <p>Open any of your apps or client websites, point at what you want changed, and Send &amp; build — Claude Code makes it and the preview shows up right here.</p>
+        <p>
+          Open any of your apps or client websites, point at what you want changed, and Send &amp; build — Claude Code makes it and the preview shows up
+          right here. Only you see this list; a client sees just the ones marked <b>shared</b>.
+        </p>
         <div className="crp-search big">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
             <circle cx="11" cy="11" r="7" />

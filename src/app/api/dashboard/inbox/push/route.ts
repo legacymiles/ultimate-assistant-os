@@ -38,6 +38,8 @@ export async function POST(req: Request) {
   let ids: string[] = [];
   let taken: string[] = [];
   const sawText: string[] = [];
+  /** Text fields by name, so a clean-up list that lands here can still be run. */
+  const text = new Map<string, string>();
 
   if (type.includes("multipart/form-data") || type.includes("application/x-www-form-urlencoded")) {
     let form: FormData;
@@ -52,7 +54,10 @@ export async function POST(req: Request) {
         if (value.size > 0) files.push(value);
       } else if (key === "deviceIds") ids = String(value).split(",");
       else if (key === "takenAt") taken = [String(value)];
-      else sawText.push(key);
+      else {
+        sawText.push(key);
+        text.set(key, String(value));
+      }
     }
   } else {
     // A raw picture as the body.
@@ -65,6 +70,28 @@ export async function POST(req: Request) {
   }
 
   if (!files.length) {
+    // No picture, but a list of names: this is the clean-up step, pointed at
+    // the sending link. Shortcuts fills a Get Contents of URL's URL box in by
+    // itself and usually picks the first URL action in the Shortcut, so this
+    // is where that request lands — and it used to be answered with a 400
+    // nobody reads, which is why a phone could run for weeks, keep delivering
+    // photos from the loop above, and never delete a thing.
+    //
+    // Running it here instead is what lets the setup ask for ONE link and say
+    // "paste it in both": there is no longer a box to put it in wrongly.
+    //
+    // Only a field that says it holds names counts. /present can afford to
+    // take whatever single text field turned up, because the names are the
+    // only thing it is ever sent; here a photo field that arrived as text
+    // would look identical, and reading "Converted Image" as the list of
+    // photos still on the phone would delete every other one in the queue.
+    const nameField = sawText.find((k) => /name|combined/i.test(k));
+    const cleanup = nameField ? text.get(nameField) : undefined;
+    if (cleanup?.trim()) {
+      const { stillOnPhone } = await import("@/lib/dashboard/stillOnPhone");
+      const { status, body } = await stillOnPhone(uid, cleanup, text.get("days"));
+      return NextResponse.json(body, { status });
+    }
     await noteProblem(
       uid,
       sawText.length

@@ -15,9 +15,10 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { buildClientEdit } from "@/lib/app-builder/fromClientReview";
+import { CannotBuildHere, startClientEditBuild } from "@/lib/client-review/autoBuild";
 import { admin, ApiError, portal, urlBase64ToUint8Array } from "@/lib/client-review/client";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { BuildingNow } from "./BuildingNow";
 import { SignInGate } from "./SignInGate";
 import type { ClientProject, PortalRequest, PortalView, RequestPin, ReviewVersion } from "@/lib/client-review/types";
 import "./client-review.css";
@@ -86,15 +87,17 @@ function useNarrow(): boolean {
 
 /** What happened after the owner's Send & build. */
 interface OwnerBuild {
-  state: "working" | "queued" | "approved" | "failed";
+  state: "working" | "approved" | "failed";
   version?: string;
   message?: string;
 }
 
 /**
  * The owner is their own client and their own admin: what they send is
- * approved on the spot and handed to Claude Code (App Builder → In Queue),
- * the same path Admin's "Approve & build" takes.
+ * approved on the spot and built on their PC — the same path Admin's
+ * "Approve & build" takes, and the same rule. Nothing is filed anywhere: if
+ * the PC helper is not there the build does not start and says so, and the
+ * batch stays approved so pressing build again is the retry.
  */
 async function approveAndBuild(token: string, versionId: string): Promise<OwnerBuild> {
   const { project } = await admin.byToken(token);
@@ -112,8 +115,31 @@ async function approveAndBuild(token: string, versionId: string): Promise<OwnerB
       message: "Approved. Add the site's GitHub repo in Admin › Where the site lives so Claude Code can build it.",
     };
   }
-  const handoff = await buildClientEdit(out.project, batch.id);
-  return { state: "queued", version: out.version.number, message: handoff.queueId ? undefined : "That exact build was already queued." };
+  try {
+    const started = await startClientEditBuild(out.project, batch.id);
+    await admin.act({
+      action: "buildQueued",
+      id: out.project.id,
+      batchId: batch.id,
+      builderId: started.builderId,
+      threadId: started.threadId,
+    });
+    return { state: "working", version: out.version.number };
+  } catch (e) {
+    // No queue behind this. The edits are approved on `out.version` either way,
+    // so the honest answer is which thing is missing and that build is still
+    // there to press — not a request filed in a list nothing reads.
+    return {
+      state: "approved",
+      version: out.version.number,
+      message:
+        e instanceof CannotBuildHere
+          ? `${e.message} Your edits are approved and waiting — press build again from Admin once that's sorted.`
+          : e instanceof Error
+            ? `${e.message} Your edits are approved and waiting.`
+            : "Your edits are approved, but the build didn't start.",
+    };
+  }
 }
 
 function isIos(): boolean {
@@ -169,6 +195,8 @@ export function ClientPortal({
   const frameRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const seenNotices = useRef<Set<string> | null>(null);
+  /** Set when the person chose to look at the live version while a build runs. */
+  const [waited, setWaited] = useState(false);
 
   // ----- data -----------------------------------------------------------------
   const apply = useCallback((v: PortalView) => {
@@ -315,6 +343,11 @@ export function ClientPortal({
   const pinned = requests.filter((r) => r.pin);
 
   useEffect(() => setFrameStuck(false), [viewing?.siteUrl]);
+  // One build, one dismissal: when the next build starts, the Building screen
+  // is the right answer again.
+  useEffect(() => {
+    if (!view?.buildingVersionId) setWaited(false);
+  }, [view?.buildingVersionId]);
   useEffect(() => {
     if (!viewing?.siteUrl) return;
     // A site that refuses to be framed shows a blank box with no error the page
@@ -458,6 +491,29 @@ export function ClientPortal({
       <div className={`cr-root cr-center ${embedded ? "is-embedded" : ""}`}>
         <Orb pulse />
       </div>
+    );
+  }
+
+  // A version is being made: the Building screen, not the app. Framing the app
+  // during its own build shows the OLD app to someone who came to see the new
+  // one — the one moment where the site itself is the misleading thing on
+  // screen. `waited` is the way out for anyone who would rather look at what
+  // is live while they wait.
+  if (building && !waited) {
+    return (
+      <BuildingNow
+        token={token}
+        onOpen={() => {
+          // Its 5-second poll saw the build finish long before this screen's
+          // own would have. Pull the new version in now, so the app appears
+          // the moment it exists rather than on the next 30-second tick.
+          setWaited(true);
+          refresh();
+        }}
+        onBack={onBack ?? (() => setWaited(true))}
+        onLookAnyway={current ? () => setWaited(true) : undefined}
+        current={current?.number}
+      />
     );
   }
 
@@ -970,8 +1026,11 @@ function SentScreen({
 /** After the owner's Send & build: where the build is. */
 function OwnerSent({ count, build, fallback, onClose }: { count: number; build: OwnerBuild; fallback: string; onClose: () => void }) {
   const v = build.version ?? fallback;
-  const at = build.state === "working" ? 1 : build.state === "queued" ? 3 : build.state === "approved" ? 2 : 1;
-  const steps = ["Sent", "Approved", "Queued for Claude Code", `${v} preview shows up here`];
+  // "working" is the only state with a build behind it, so it is the only one
+  // that reaches the third step. "approved" means the edits landed but the PC
+  // did not take them: the line stops at Approved rather than implying more.
+  const at = build.state === "working" ? 2 : build.state === "approved" ? 1 : 0;
+  const steps = ["Sent", "Approved", "Building on your PC", `${v} preview shows up here`];
   return (
     <div className="cr-sent" role="dialog" aria-modal="true" aria-label="Send & build">
       <div className="cr-reactor" aria-hidden>
@@ -981,22 +1040,19 @@ function OwnerSent({ count, build, fallback, onClose }: { count: number; build: 
         <span className="core" />
       </div>
       <div className="cr-sent-copy">
-        <p className="cr-kicker">{build.state === "failed" ? "Sent" : build.state === "working" ? "Starting the build" : "Building"}</p>
+        <p className="cr-kicker">{build.state === "working" ? "Building" : "Sent"}</p>
         <h2>
-          {build.state === "queued"
-            ? `${count} edit${count === 1 ? "" : "s"} on the way to ${v}.`
-            : build.state === "working"
-              ? `Handing ${count} edit${count === 1 ? "" : "s"} to Claude Code…`
-              : build.state === "approved"
-                ? `${v} is approved.`
-                : "Your edits are sent."}
+          {build.state === "working"
+            ? `Claude Code is making ${count} edit${count === 1 ? "" : "s"} for ${v}…`
+            : build.state === "approved"
+              ? `${v} is approved.`
+              : "Your edits are sent."}
         </h2>
         <p>
-          {build.state === "queued"
-            ? `Claude Code makes them on a branch, opens a pull request, and posts the preview back here as ${v}. Merge the pull request when you like it to put it live.`
+          {build.state === "working"
+            ? `It works on a branch cut from the live site, opens a pull request, and the preview lands on ${v} in Admin. Nothing goes live until you push it.`
             : (build.message ?? "One moment.")}
         </p>
-        {build.state === "queued" && build.message && <p className="cr-note">{build.message}</p>}
         <ol className="cr-steps">
           {steps.map((s, i) => (
             <li key={s} className={i < at ? "done" : i === at ? "now" : ""} style={{ animationDelay: `${0.25 + i * 0.12}s` }}>

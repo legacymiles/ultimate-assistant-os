@@ -9,8 +9,9 @@
 // model id. The pick is synced, so the phone and the laptop think alike.
 // ---------------------------------------------------------------------------
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
+import { Popover } from "../Popover";
 import { AUTO_MODEL, CHAT_MODELS, isModelId, modelLabel } from "@/lib/new-jarvis/chatModels";
 
 interface Listed {
@@ -35,21 +36,8 @@ export function ModelPicker({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [all, setAll] = useState<Listed[] | null>(null);
-  const box = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => {
-      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
-    };
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    window.addEventListener("mousedown", away);
-    window.addEventListener("keydown", esc);
-    return () => {
-      window.removeEventListener("mousedown", away);
-      window.removeEventListener("keydown", esc);
-    };
-  }, [open]);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  const close = useCallback(() => setOpen(false), []);
 
   useEffect(() => {
     if (!open || all) return;
@@ -74,8 +62,9 @@ export function ModelPicker({
   const typedId = q.trim();
 
   return (
-    <div ref={box} className="relative order-1 shrink-0">
+    <div className="order-1 shrink-0">
       <button
+        ref={trigger}
         type="button"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
@@ -89,8 +78,17 @@ export function ModelPicker({
         <Icon.Chevron width={10} height={10} className="rotate-90 opacity-60" aria-hidden />
       </button>
 
-      {open && (
-        <div className={`absolute left-0 ${up ? "bottom-8" : "top-7"} z-30 w-[320px] max-w-[88vw] rounded-lg border border-line bg-panel p-1.5 shadow-2xl`}>
+      <Popover
+        open={open}
+        anchor={trigger}
+        onClose={close}
+        placement={up ? "up" : "auto"}
+        width={320}
+        role="listbox"
+        label="Which model Jarvis thinks with"
+        className="p-1.5"
+      >
+        <div>
           <p className="px-2 pb-1 pt-0.5 text-[10px] uppercase tracking-wider text-ink-faint">Jarvis's brain</p>
           <ul>
             {CHAT_MODELS.map((m, i) => (
@@ -156,7 +154,7 @@ export function ModelPicker({
             )}
           </div>
         </div>
-      )}
+      </Popover>
     </div>
   );
 }

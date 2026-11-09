@@ -1,13 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { JetBrains_Mono, Oxanium } from "next/font/google";
+import { njDisplay as display, njMono as mono } from "@/lib/fonts";
 import { FindMyLifeApp } from "@/components/find-my-life/FindMyLifeApp";
 
 // Find My Life — a Jarvis App plugin and a Dashboard widget. Every device and
 // thing you own on one radar. Owner/session-gated by middleware like the rest
 // of the hub; never indexed (it's people's locations).
-
-const display = Oxanium({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-nj-display", display: "swap" });
-const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-nj-mono", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Find My Life · Jarvis",
