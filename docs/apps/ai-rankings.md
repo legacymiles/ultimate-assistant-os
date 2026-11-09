@@ -22,6 +22,15 @@ unranked. Ranks are always computed over the whole board, so filters don't renum
 open model that is #5 overall still shows #5 with "Open source" on. Use **one score source per
 category** (the seed test enforces this).
 
+Because of that, a filtered **Top ranked** list has holes in it, and the holes are filled in: each
+model the filter removed is shown in its own place as a muted row with its rank, its score and the
+reason it is out ("closed", "paid", "cloud only", "older"). A run of more than three is named three
+deep and then counted ("+ 2 more above"), and nothing is shown past the last matching row — below
+it there is no hole, just the rest of the board. With **Open source** on, the list also opens with
+where the best open model stands: *"Best open source: Fibo 2.0 at #5 of 8 · 31 points behind GPT
+Image 2.6"*. All of it is pure and tested: `topRowsWithGaps`, `hiddenReason` and `openStanding` in
+`leaderboard.ts`.
+
 ## Staying current
 
 `.github/workflows/ai-rankings-sweep.yml` calls `POST /api/ai-rankings/sweep` once a day. The sweep:

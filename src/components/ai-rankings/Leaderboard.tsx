@@ -837,6 +837,59 @@ function Overview({
   );
 }
 
+/**
+ * The models a filter took out of the list, shown in the hole they left.
+ *
+ * Quieter than a real row: these are context for the row below, not results.
+ * They stay clickable, because "what is it behind, then" is the next question
+ * the reader has.
+ */
+function GapRows({
+  rows,
+  more,
+  filters,
+  now,
+  onOpen,
+}: {
+  rows: RankedModel[];
+  more: number;
+  filters: BoardFilters;
+  now: number;
+  onOpen: (id: string) => void;
+}) {
+  return (
+    <div className="border-b border-line-soft bg-canvas/40">
+      {rows.map((r) => (
+        <button
+          key={r.model.id}
+          onClick={() => onOpen(r.model.id)}
+          className="grid w-full grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-1.5 text-left text-ink-muted transition hover:bg-panel-2 hover:text-ink sm:grid-cols-[28px_minmax(0,1fr)_auto]"
+        >
+          <span className="font-mono text-[11px] tabular-nums opacity-60">
+            <span className="sr-only">Rank </span>
+            {r.rank}
+          </span>
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="truncate text-[12px]">{r.model.name}</span>
+            <span className="hidden truncate text-[11px] opacity-60 sm:inline">{r.model.maker}</span>
+          </span>
+          <span className="flex shrink-0 items-center gap-2 font-mono text-[11px] tabular-nums">
+            <span className="rounded border border-line px-1 py-px text-[10px] uppercase tracking-wide opacity-70">
+              {hiddenReason(r.model, filters, now)}
+            </span>
+            <span>{r.score.total === null ? "—" : Math.round(r.score.total)}</span>
+          </span>
+        </button>
+      ))}
+      {more > 0 && (
+        <p className="px-4 pb-1.5 pl-[52px] text-[11px] text-ink-muted opacity-70">
+          + {more} more above, hidden by these filters
+        </p>
+      )}
+    </div>
+  );
+}
+
 function CategoryView(p: {
   label: string;
   blurb: string;
@@ -932,31 +985,54 @@ function CategoryView(p: {
                   <h2 id="top-h" className="text-[12.5px] font-medium text-ink">Top ranked</h2>
                   <span className="text-[11px] text-ink-muted">score out of 100</span>
                 </div>
+                {standing && (
+                  // The question the Open source filter is really asking,
+                  // answered in one line before the list starts.
+                  <p className="border-b border-line-soft bg-panel-2/40 px-4 py-2 text-[11.5px] text-ink-muted">
+                    {standing.behind === 0 ? (
+                      <>
+                        Open source leads this category: <span className="font-medium text-ink">{standing.name}</span> is #1 of {standing.of}.
+                      </>
+                    ) : (
+                      <>
+                        Best open source: <span className="font-medium text-ink">{standing.name}</span> at{" "}
+                        <span className="font-mono tabular-nums">#{standing.rank}</span> of {standing.of} ·{" "}
+                        <span className="font-mono tabular-nums">{standing.behind}</span> points behind {standing.leaderName}
+                      </>
+                    )}
+                  </p>
+                )}
                 <ol>
-                  {top.map((r, i) => (
-                    <li key={r.model.id} className="animate-fade-in" style={{ animationDelay: `${Math.min(i, 12) * 25}ms` }}>
-                      <button
-                        onClick={() => p.onOpen(r.model.id)}
-                        className="grid w-full grid-cols-[24px_minmax(0,1fr)_92px] items-center gap-3 border-b border-line-soft px-4 py-3 text-left transition last:border-0 hover:bg-panel-2 sm:grid-cols-[28px_minmax(0,1fr)_150px] md:grid-cols-[28px_minmax(0,1fr)_170px_92px]"
-                      >
-                        <RankMark rank={r.rank} />
-                        <span className="min-w-0">
-                          <span className="flex min-w-0 items-center gap-2">
-                            <span className="truncate text-[13.5px] font-medium text-ink">{r.model.name}</span>
-                            <span className="hidden sm:inline-flex"><ModelFlags m={r.model} now={p.now} compact /></span>
+                  {rows.map((row, i) =>
+                    row.kind === "gap" ? (
+                      <li key={`gap-${row.rows[0].model.id}`}>
+                        <GapRows rows={row.rows} more={row.more} filters={p.filters} now={p.now} onOpen={p.onOpen} />
+                      </li>
+                    ) : (
+                      <li key={row.r.model.id} className="animate-fade-in" style={{ animationDelay: `${Math.min(i, 12) * 25}ms` }}>
+                        <button
+                          onClick={() => p.onOpen(row.r.model.id)}
+                          className="grid w-full grid-cols-[24px_minmax(0,1fr)_92px] items-center gap-3 border-b border-line-soft px-4 py-3 text-left transition last:border-0 hover:bg-panel-2 sm:grid-cols-[28px_minmax(0,1fr)_150px] md:grid-cols-[28px_minmax(0,1fr)_170px_92px]"
+                        >
+                          <RankMark rank={row.r.rank} />
+                          <span className="min-w-0">
+                            <span className="flex min-w-0 items-center gap-2">
+                              <span className="truncate text-[13.5px] font-medium text-ink">{row.r.model.name}</span>
+                              <span className="hidden sm:inline-flex"><ModelFlags m={row.r.model} now={p.now} compact /></span>
+                            </span>
+                            <span className="mt-0.5 block truncate text-[11.5px] text-ink-muted">
+                              {row.r.model.maker}{row.r.model.maker && row.r.model.summary ? " · " : ""}{row.r.model.summary}
+                              {p.canEdit && !row.r.model.summary && <span className="text-amber-300/80"> needs a summary</span>}
+                            </span>
                           </span>
-                          <span className="mt-0.5 block truncate text-[11.5px] text-ink-muted">
-                            {r.model.maker}{r.model.maker && r.model.summary ? " · " : ""}{r.model.summary}
-                            {p.canEdit && !r.model.summary && <span className="text-amber-300/80"> needs a summary</span>}
+                          <ScoreBar score={row.r.score} />
+                          <span className={`hidden text-right font-mono text-[11px] md:block ${isFresh(row.r.model, p.now) ? "text-accent" : "text-ink-muted"}`}>
+                            {releasedLabel(row.r.model.releasedAt, p.now)}
                           </span>
-                        </span>
-                        <ScoreBar score={r.score} />
-                        <span className={`hidden text-right font-mono text-[11px] md:block ${isFresh(r.model, p.now) ? "text-accent" : "text-ink-muted"}`}>
-                          {releasedLabel(r.model.releasedAt, p.now)}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
+                        </button>
+                      </li>
+                    ),
+                  )}
                 </ol>
               </div>
             </section>
