@@ -1,0 +1,4 @@
+# Next.js fingerprints these filenames, so a given URL never changes content.
+# Without this Cloudflare revalidates them and the site feels slower than it is.
+/_next/static/*
+  Cache-Control: public,max-age=31536000,immutable

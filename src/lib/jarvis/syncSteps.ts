@@ -93,10 +93,10 @@ export function syncPlan(r: SyncStatusReport, device: DeviceKind, origin: string
   const steps: SyncStep[] = [
     {
       id: "server",
-      title: "Turn on sync in Vercel",
+      title: "Turn on sync in Cloudflare",
       detail: r.server.ready
         ? "Done — the memory and skill keys are set on this site."
-        : `Set ${r.server.missing.map((m) => m.env).join(", ")} in Vercel › Settings › Environment Variables, then redeploy.`,
+        : `Set ${r.server.missing.map((m) => m.env).join(", ")} in Cloudflare › your Worker › Settings › Variables and Secrets, then redeploy.`,
       done: r.server.ready,
     },
     {
@@ -104,7 +104,7 @@ export function syncPlan(r: SyncStatusReport, device: DeviceKind, origin: string
       title: "Point sync at your account",
       detail:
         r.account.matchesConnector === false
-          ? `JARVIS_MCP_USER_ID in Vercel is a different account from the one you're signed in as, so skills and memories saved from Claude land somewhere you can't see. Set it to ${r.account.userId ?? "your user id"} and redeploy.`
+          ? `JARVIS_MCP_USER_ID in Cloudflare is a different account from the one you're signed in as, so skills and memories saved from Claude land somewhere you can't see. Set it to ${r.account.userId ?? "your user id"} and redeploy.`
           : r.account.matchesConnector === true
             ? "Done — Claude saves into the account you're signed in as."
             : "Sign in to check this.",
@@ -154,16 +154,16 @@ function nextHere(
 ): NextStep {
   if (!r.server.ready) {
     return {
-      title: device === "phone" ? "Finish this on a computer" : "First: turn sync on in Vercel",
+      title: device === "phone" ? "Finish this on a computer" : "First: turn sync on in Cloudflare",
       detail:
         `This site is missing ${r.server.missing.map((m) => m.env).join(", ")}. ` +
-        "Add them in Vercel › your project › Settings › Environment Variables, then redeploy. Nothing on any device can sync until then.",
+        "Add them in Cloudflare › Workers & Pages › your Worker › Settings › Variables and Secrets, then redeploy. Nothing on any device can sync until then.",
       done: false,
     };
   }
   if (r.account.matchesConnector === false) {
     return {
-      title: "Fix the account in Vercel",
+      title: "Fix the account in Cloudflare",
       detail: `Set JARVIS_MCP_USER_ID to your user id and redeploy, so what Claude saves shows up here.`,
       copy: r.account.userId ?? undefined,
       copyLabel: "your user id",
