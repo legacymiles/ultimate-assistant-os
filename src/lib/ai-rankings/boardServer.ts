@@ -38,6 +38,8 @@ export async function readBoard(): Promise<PublicBoard> {
     dismissed: Array.isArray(doc.dismissed) ? doc.dismissed : [],
     lastSweepAt: doc.lastSweepAt,
     lastSweepNote: doc.lastSweepNote,
+    scoreRefreshedAt:
+      doc.scoreRefreshedAt && typeof doc.scoreRefreshedAt === "object" ? doc.scoreRefreshedAt : undefined,
   };
 }
 

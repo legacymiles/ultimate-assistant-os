@@ -17,11 +17,14 @@ import {
   categoryOf,
   filterModels,
   filtersActive,
+  hiddenReason,
   isFresh,
   justDropped,
+  openStanding,
   rankAll,
   releasedLabel,
   topRanked,
+  topRowsWithGaps,
 } from "@/lib/ai-rankings/leaderboard";
 import type { BoardFilters, InboxItem, Model, RankedModel, ReleasedWithin } from "@/lib/ai-rankings/leaderboard";
 import type { BoardAction } from "@/lib/ai-rankings/boardActions";
@@ -284,6 +287,9 @@ export function Leaderboard() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "The check failed. Try again.");
       setInbox(json.inbox);
+      // Refreshed scores change the ranks, so the board is replaced too
+      // rather than waiting for the next load.
+      if (Array.isArray(json.models)) setModels(json.models);
       setLastSweep({ at: json.lastSweepAt, note: json.note });
       setFlash({ text: json.note, tone: "ok" });
     } catch (err) {
@@ -559,6 +565,7 @@ export function Leaderboard() {
             ranks={ranks}
             now={now}
             active={active}
+            filters={filters}
             canEdit={canEdit}
             mobileList={mobileList}
             setMobileList={setMobileList}
@@ -839,6 +846,7 @@ function CategoryView(p: {
   ranks: Map<string, RankedModel>;
   now: number;
   active: boolean;
+  filters: BoardFilters;
   canEdit: boolean;
   mobileList: "top" | "new";
   setMobileList: (v: "top" | "new") => void;
@@ -853,6 +861,11 @@ function CategoryView(p: {
   const fresh = justDropped(p.shown, p.ranks);
   const open = p.all.filter((m) => m.openSource).length;
   const recent = p.all.filter((m) => isFresh(m, p.now)).length;
+  // With a filter on, the Top ranked list keeps its true ranks and so has
+  // holes in it. Fill them with the rows the filter removed, muted, so the
+  // reader can see what an open model is actually behind.
+  const rows = p.active ? topRowsWithGaps(top, topRanked(p.all, p.ranks)) : top.map((r) => ({ kind: "model" as const, r }));
+  const standing = p.filters.openSource ? openStanding(p.all, p.ranks) : null;
 
   return (
     <>

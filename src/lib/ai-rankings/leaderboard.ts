@@ -152,6 +152,11 @@ export interface PublicBoard {
   dismissed: string[];
   lastSweepAt?: string;
   lastSweepNote?: string;
+  /**
+   * category id -> when that Artificial Analysis board was last read, so a
+   * refresh spends its free-tier calls on the boards that have gone stale.
+   */
+  scoreRefreshedAt?: Record<string, string>;
 }
 
 export const EMPTY_BOARD: PublicBoard = { version: 1, models: [], inbox: [], dismissed: [] };
@@ -322,6 +327,104 @@ export function topRanked(models: Model[], ranks: Map<string, RankedModel>): Ran
     if (b.rank !== undefined) return 1;
     return b.model.releasedAt.localeCompare(a.model.releasedAt);
   });
+}
+
+// ----- what a filter is hiding -------------------------------------------------------
+//
+// A filtered Top ranked list shows true ranks — an open model that is #5
+// overall still reads #5 — which is the honest thing to do but leaves holes
+// the reader has to explain to themselves. "Why does this list start at #3?"
+// has one answer worth seeing: the two models above it are closed and paid.
+// So the holes are filled in with the rows the filter removed, muted, named,
+// and carrying the reason they are not in the list.
+
+/** A row of the Top ranked list: a model, or the ranked models a filter hid. */
+export type TopRow =
+  | { kind: "model"; r: RankedModel }
+  | { kind: "gap"; rows: RankedModel[]; more: number };
+
+/** Named rows per hole. Beyond this a run is summarised, or the list becomes the hidden models. */
+export const GAP_NAMED = 3;
+
+/**
+ * The shown rows with the hidden ranked models put back in their places.
+ *
+ * Only between and above the shown rows: a hole exists because something the
+ * reader can see sits below it. Past the last shown row there is no hole, just
+ * the rest of the board, which the filter was turned on to leave out.
+ */
+export function topRowsWithGaps(
+  shown: RankedModel[],
+  all: RankedModel[],
+  namedPerGap = GAP_NAMED,
+): TopRow[] {
+  const here = new Set(shown.map((r) => r.model.id));
+  const hidden = all
+    .filter((r) => r.rank !== undefined && !here.has(r.model.id))
+    .sort((a, b) => a.rank! - b.rank!);
+
+  const out: TopRow[] = [];
+  let i = 0;
+  for (const r of shown) {
+    if (r.rank !== undefined) {
+      const run: RankedModel[] = [];
+      while (i < hidden.length && hidden[i].rank! < r.rank) run.push(hidden[i++]);
+      if (run.length) out.push({ kind: "gap", rows: run.slice(0, namedPerGap), more: Math.max(0, run.length - namedPerGap) });
+    }
+    out.push({ kind: "model", r });
+  }
+  return out;
+}
+
+/** Why this model is not in the filtered list — the first reason that applies. */
+export function hiddenReason(m: Model, f: BoardFilters, now = Date.now()): string {
+  if (f.openSource && !m.openSource) return "closed";
+  if (f.runsLocally && !m.runsLocally) return "cloud only";
+  if (f.free && m.access === "paid") return "paid";
+  if (f.released !== "any" && daysSince(m.releasedAt, now) > Number(f.released)) return "older";
+  return "filtered out";
+}
+
+export interface OpenStanding {
+  /** The best open model's place in its category, counting everything. */
+  rank: number;
+  name: string;
+  total: number;
+  /** How many models are ranked in that category. */
+  of: number;
+  /** The category leader, which may be this same model. */
+  leaderName: string;
+  leaderTotal: number;
+  /** Points between the two — 0 when the open model leads. */
+  behind: number;
+}
+
+/**
+ * Where the best open model stands against the whole category.
+ *
+ * The question the open-source filter is really asking. Answered from the
+ * UNFILTERED list, because "best open" only means something next to the
+ * closed models it is being measured against.
+ */
+export function openStanding(all: Model[], ranks: Map<string, RankedModel>): OpenStanding | null {
+  const ranked = all
+    .map((m) => ranks.get(m.id))
+    .filter((r): r is RankedModel => Boolean(r) && r!.rank !== undefined)
+    .sort((a, b) => a.rank! - b.rank!);
+  const leader = ranked[0];
+  const best = ranked.find((r) => r.model.openSource);
+  if (!leader || !best) return null;
+  const total = best.score.total ?? 0;
+  const leaderTotal = leader.score.total ?? 0;
+  return {
+    rank: best.rank!,
+    name: best.model.name,
+    total,
+    of: ranked.length,
+    leaderName: leader.model.name,
+    leaderTotal,
+    behind: Math.round((leaderTotal - total) * 10) / 10,
+  };
 }
 
 /** Newest release first. */

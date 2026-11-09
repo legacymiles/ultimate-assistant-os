@@ -35,7 +35,7 @@ export function InboxPanel(p: Props) {
         </div>
         <p className="mt-1 max-w-[52ch] text-[12px] leading-relaxed text-ink-muted">
           Trending Hugging Face releases from the last 45 days, minus quantised copies, other people&apos;s fine-tunes and anything already on the board.
-          Approving puts it on the public board.
+          Approving puts it on the public board. The same daily check re-reads the arena scores from Artificial Analysis and updates the ones that moved.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
@@ -44,10 +44,14 @@ export function InboxPanel(p: Props) {
             className="inline-flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1 text-[12px] text-ink-muted transition hover:border-ink-faint hover:text-ink disabled:opacity-60"
           >
             <Icon.Refresh width={12} height={12} className={p.sweeping ? "motion-safe:animate-spin" : ""} aria-hidden="true" />
-            {p.sweeping ? "Checking Hugging Face…" : "Check now"}
+            {p.sweeping ? "Checking releases and scores…" : "Check now"}
           </button>
+          {/* The note is what the run found: new releases, how many scores
+              were refreshed, or why the score half was skipped. */}
           <span className="text-[11px] text-ink-muted">
-            {p.lastSweepAt ? `Last checked ${releasedLabel(p.lastSweepAt.slice(0, 10), p.now)} · ${p.lastSweepNote ?? ""}` : "Not checked yet"}
+            {p.lastSweepAt
+              ? [`Last checked ${releasedLabel(p.lastSweepAt.slice(0, 10), p.now)}`, p.lastSweepNote].filter(Boolean).join(" · ")
+              : "Not checked yet"}
           </span>
           {p.items.length > 1 &&
             (confirmAll ? (

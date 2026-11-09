@@ -1,18 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
+  GAP_NAMED,
   NO_FILTERS,
   categoryFromLabel,
   filterModels,
   findExisting,
+  hiddenReason,
   justDropped,
+  openStanding,
   rankAll,
   releasedLabel,
   scoreOf,
   topRanked,
+  topRowsWithGaps,
 } from "./leaderboard";
 import type { Model } from "./leaderboard";
 
 const NOW = new Date("2026-11-08T12:00:00").getTime();
+
+/** A percent score, which is used as-is, so a test's numbers are its scores. */
+const pct = (value: number) => ({ value, kind: "percent" as const, label: "Bench", source: "Somewhere" });
 
 function model(p: Partial<Model> & Pick<Model, "id">): Model {
   return {
@@ -138,5 +145,99 @@ describe("categoryFromLabel", () => {
     expect(categoryFromLabel("image to video")).toBe("image-to-video");
     expect(categoryFromLabel("Realtime voice")).toBe("realtime-voice");
     expect(categoryFromLabel("Spreadsheets")).toBeNull();
+  });
+});
+
+// ----- what a filter is hiding -----------------------------------------------
+
+describe("the holes a filter leaves", () => {
+  // One category: five closed models and two open ones, interleaved by score.
+  const board = [
+    model({ id: "c1", name: "Closed One", publicScore: pct(95) }),
+    model({ id: "c2", name: "Closed Two", publicScore: pct(90) }),
+    model({ id: "o1", name: "Open One", openSource: true, publicScore: pct(84) }),
+    model({ id: "c3", name: "Closed Three", publicScore: pct(80) }),
+    model({ id: "o2", name: "Open Two", openSource: true, publicScore: pct(70) }),
+    model({ id: "u1", name: "Unranked Open", openSource: true }),
+  ];
+  const ranks = rankAll(board);
+  const shownModels = filterModels(board, { ...NO_FILTERS, openSource: true }, NOW);
+  const shown = topRanked(shownModels, ranks);
+  const all = topRanked(board, ranks);
+
+  it("puts the hidden models back in their own places", () => {
+    const rows = topRowsWithGaps(shown, all);
+    expect(
+      rows.map((r) => (r.kind === "model" ? `#${r.r.rank ?? "-"} ${r.r.model.name}` : `gap:${r.rows.map((x) => x.model.name).join("+")}`)),
+    ).toEqual([
+      "gap:Closed One+Closed Two",
+      "#3 Open One",
+      "gap:Closed Three",
+      "#5 Open Two",
+      "#- Unranked Open",
+    ]);
+  });
+
+  it("stops at the last shown model — past it there is no hole", () => {
+    const onlyTop = topRanked(filterModels(board, { ...NO_FILTERS, query: "Open One" }, NOW), ranks);
+    const rows = topRowsWithGaps(onlyTop, all);
+    expect(rows.at(-1)).toMatchObject({ kind: "model" });
+    expect(rows.filter((r) => r.kind === "gap")).toHaveLength(1);
+  });
+
+  it("names a few and counts the rest", () => {
+    const many = [
+      ...Array.from({ length: 6 }, (_, i) => model({ id: `x${i}`, name: `Closed ${i}`, publicScore: pct(99 - i) })),
+      model({ id: "open", name: "The Open One", openSource: true, publicScore: pct(50) }),
+    ];
+    const r = rankAll(many);
+    const rows = topRowsWithGaps(topRanked(filterModels(many, { ...NO_FILTERS, openSource: true }, NOW), r), topRanked(many, r));
+    const gap = rows.find((x) => x.kind === "gap")!;
+    expect(gap.rows).toHaveLength(GAP_NAMED);
+    expect(gap.more).toBe(3);
+  });
+
+  it("has nothing to put back when no filter is on", () => {
+    expect(topRowsWithGaps(all, all).every((r) => r.kind === "model")).toBe(true);
+  });
+
+  it("says why each one is missing, in the reader's words", () => {
+    const f = { ...NO_FILTERS, openSource: true };
+    expect(hiddenReason(model({ id: "a" }), f, NOW)).toBe("closed");
+    expect(hiddenReason(model({ id: "b" }), { ...NO_FILTERS, runsLocally: true }, NOW)).toBe("cloud only");
+    expect(hiddenReason(model({ id: "c", access: "paid" }), { ...NO_FILTERS, free: true }, NOW)).toBe("paid");
+    expect(hiddenReason(model({ id: "d", releasedAt: "2020-01-01" }), { ...NO_FILTERS, released: "30" }, NOW)).toBe("older");
+    expect(hiddenReason(model({ id: "e" }), { ...NO_FILTERS, query: "zzz" }, NOW)).toBe("filtered out");
+  });
+});
+
+describe("openStanding", () => {
+  const board = [
+    model({ id: "c1", name: "Closed One", publicScore: pct(95) }),
+    model({ id: "o1", name: "Open One", openSource: true, publicScore: pct(84) }),
+    model({ id: "o2", name: "Open Two", openSource: true, publicScore: pct(70) }),
+  ];
+
+  it("measures the best open model against the category leader", () => {
+    expect(openStanding(board, rankAll(board))).toEqual({
+      rank: 2,
+      name: "Open One",
+      total: 84,
+      of: 3,
+      leaderName: "Closed One",
+      leaderTotal: 95,
+      behind: 11,
+    });
+  });
+
+  it("reports a lead of nothing when the open model is the leader", () => {
+    const led = [model({ id: "o", name: "Open", openSource: true, publicScore: pct(90) }), model({ id: "c", publicScore: pct(80) })];
+    expect(openStanding(led, rankAll(led))).toMatchObject({ rank: 1, behind: 0, leaderName: "Open" });
+  });
+
+  it("is nothing to say when no open model is ranked", () => {
+    const closed = [model({ id: "c", publicScore: pct(90) }), model({ id: "o", openSource: true })];
+    expect(openStanding(closed, rankAll(closed))).toBeNull();
+    expect(openStanding([], new Map())).toBeNull();
   });
 });
