@@ -1,5 +1,14 @@
 [
  {
+  "id": "5c8a0ee:client-review",
+  "date": "2026-11-09",
+  "slug": "client-review",
+  "title": "One press connects this browser to your PC and builds",
+  "detail": "The build refused with \"press Connect to this PC\" — a button that lives in Jarvis, on another screen, so there was nothing on the page to press and the same message came back every time.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "3e61ab0:client-review",
   "date": "2026-11-09",
   "slug": "client-review",
