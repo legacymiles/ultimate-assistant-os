@@ -1,5 +1,32 @@
 [
  {
+  "id": "8720736:client-review",
+  "date": "2026-11-09",
+  "slug": "client-review",
+  "title": "Show three mockups of the build before it exists, and let the pick steer it",
+  "detail": "Three design directions are drawn from the accepted feature list as real HTML and shown side by side in App Builder, and on the Client Review waiting screen where the client used to see only an orb while a build ran.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8720736:app-builder",
+  "date": "2026-11-09",
+  "slug": "app-builder",
+  "title": "Show three mockups of the build before it exists, and let the pick steer it",
+  "detail": "Three design directions are drawn from the accepted feature list as real HTML and shown side by side in App Builder, and on the Client Review waiting screen where the client used to see only an orb while a build ran.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8720736:mockup",
+  "date": "2026-11-09",
+  "slug": "mockup",
+  "title": "Show three mockups of the build before it exists, and let the pick steer it",
+  "detail": "Three design directions are drawn from the accepted feature list as real HTML and shown side by side in App Builder, and on the Client Review waiting screen where the client used to see only an orb while a build ran.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "5c8a0ee:client-review",
   "date": "2026-11-09",
   "slug": "client-review",
