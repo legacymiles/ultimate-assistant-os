@@ -1,5 +1,23 @@
 [
  {
+  "id": "a0ca776:ai-rankings",
+  "date": "2026-11-09",
+  "slug": "ai-rankings",
+  "title": "Rebuilt as a public leaderboard with daily new-release checks",
+  "detail": "The app was a private three-pane database of every tool worth remembering. It is now a public, owner-curated leaderboard of AI models, organised by the question people actually arrive with: \"what is the best open-source TTS right now\", \"which video model dropped this week\".",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e2d674f:client-review",
+  "date": "2026-11-08",
+  "slug": "client-review",
+  "title": "Offer the address builds already work from",
+  "detail": "Local network access is granted per ORIGIN. The hub is served from two, and Chrome allows one and silently blocks the other — so \"Connect to this PC\" can do nothing at all when pressed, because only the browser's own prompt can grant it and Chrome stops offering that prompt once it has been dismisse",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "92a426c:client-review",
   "date": "2026-11-08",
   "slug": "client-review",
