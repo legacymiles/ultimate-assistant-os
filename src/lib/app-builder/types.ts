@@ -7,6 +7,10 @@
 // and edits. The UI, the API route and the pure engine all speak these.
 // ---------------------------------------------------------------------------
 
+import type { LookChoice } from "@/lib/mockup/types";
+
+export type { LookChoice };
+
 export type AppType = "webapp" | "website" | "mobile" | "saas" | "marketplace" | "tool" | "game";
 
 export const APP_TYPE_LABEL: Record<AppType, string> = {
@@ -281,6 +285,16 @@ export interface BuilderProject {
   origin?: "app" | "chat" | "autopilot" | "client-review";
   /** Set when this is a client edit from Client Review rather than a new app. */
   edit?: ClientEdit;
+  /**
+   * The look the owner (or the client) picked from the mockup bake-off.
+   *
+   * Kept on the project because it has to outlive the tab and reach the build
+   * brief: a direction chosen and then forgotten is a mockup panel that was
+   * decoration. When it is set it OVERRIDES `understanding.designSkill` in the
+   * brief and the skills pipeline — the owner looked at three drawings and
+   * chose, which beats what the agent guessed from the idea.
+   */
+  look?: LookChoice;
   /** Handed over from Jarvis chat and not started yet: App Builder starts it on open. */
   pending?: boolean;
 }

@@ -9,6 +9,8 @@
 // ReviewError whose message is fit to show a person.
 // ---------------------------------------------------------------------------
 
+import { directionsFor } from "@/lib/mockup/directions";
+
 import {
   isBriefModelId,
   isPlanModelId,
@@ -268,10 +270,26 @@ export function createProject(input: NewProjectInput, now = new Date().toISOStri
  * is told, and their edit requests come back to App Builder (checklist C6).
  */
 export function builderProject(
-  input: { name: unknown; clientName?: unknown; summary?: unknown; lane?: unknown; inviteEmail?: unknown; repo?: unknown; vercelProject?: unknown },
+  input: {
+    name: unknown;
+    clientName?: unknown;
+    summary?: unknown;
+    lane?: unknown;
+    inviteEmail?: unknown;
+    repo?: unknown;
+    vercelProject?: unknown;
+    designSkill?: unknown;
+    look?: unknown;
+  },
   now = new Date().toISOString(),
 ): { project: ClientProject; version: ReviewVersion } {
   const project = createProject({ ...input, siteUrl: "" }, now);
+  // Carry the look across from App Builder, so the client's mockups open on
+  // the same three directions the owner was shown rather than a fresh set.
+  const recommended = typeof input.designSkill === "string" ? input.designSkill.trim() : "";
+  if (recommended) project.designSkill = recommended.slice(0, 60);
+  const picked = cleanLookSkill(input.look);
+  if (picked) project.look = { skill: picked, at: now, by: "owner" };
   // Unsent: App Builder opens one of these for every build, and most are the
   // owner's own apps. The owner sends it when it is worth showing.
   project.sentAt = undefined;
@@ -904,6 +922,48 @@ export function addVersion(
 // ----- projection ---------------------------------------------------------------------
 
 /** Everything the client's browser gets. No token, no briefs, no models, no push keys. */
+// ----- the look ----------------------------------------------------------------------
+
+/**
+ * The three directions on offer for this project.
+ *
+ * Read off `designSkill`, which never moves, so the set is the same before
+ * and after a pick — the client can change their mind back.
+ */
+export function looksFor(p: Pick<ClientProject, "designSkill">): string[] {
+  return directionsFor(p.designSkill ?? null).map((d) => d.skill);
+}
+
+/** A skill name, only if it is one of the three actually offered. */
+function cleanLookSkill(raw: unknown, p?: Pick<ClientProject, "designSkill">): string {
+  if (typeof raw !== "string") return "";
+  const skill = raw.trim().slice(0, 60);
+  if (!skill) return "";
+  if (!p) return skill;
+  return looksFor(p).includes(skill) ? skill : "";
+}
+
+/**
+ * Settle on a direction.
+ *
+ * Validated against the offered three on the SERVER (checklist S4): the
+ * client's browser is not trusted to name a design skill, and a skill the
+ * bake-off never showed is not a choice the client could have made. Picking
+ * the one already picked writes nothing (D5), so a double-tap on a phone does
+ * not produce a second event in the owner's feed.
+ */
+export function pickLook(
+  src: ClientProject,
+  raw: unknown,
+  by: "owner" | "client",
+  now = new Date().toISOString(),
+): ClientProject {
+  const skill = cleanLookSkill(raw, src);
+  if (!skill) throw new ReviewError("That isn't one of the looks on offer.");
+  if (src.look?.skill === skill) return src;
+  return { ...src, look: { skill, at: now, by }, updatedAt: now };
+}
+
 export function portalView(p: ClientProject, vapidPublicKey: string | null): PortalView {
   const current = currentVersion(p);
   const building = buildingVersion(p);
@@ -938,6 +998,8 @@ export function portalView(p: ClientProject, vapidPublicKey: string | null): Por
     notices: p.notices.slice(-20),
     vapidPublicKey,
     ...(p.appSlug ? { isApp: true } : {}),
+    designSkill: p.designSkill ?? null,
+    look: p.look ?? null,
   };
 }
 

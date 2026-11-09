@@ -19,7 +19,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { tally } from "@/lib/app-builder/engine";
 import { useAppBuilder } from "@/lib/app-builder/useAppBuilder";
-import { APP_TYPE_LABEL } from "@/lib/app-builder/types";
+import { APP_TYPE_LABEL, type BuilderProject } from "@/lib/app-builder/types";
+import { specFromProject } from "@/lib/mockup/spec";
+import { MockupBakeOff } from "@/components/mockup/MockupBakeOff";
 import { AgentChat } from "./AgentChat";
 import { Blueprint, Pipeline, Recording } from "./Blueprint";
 import { FeatureTable } from "./FeatureTable";
@@ -306,6 +308,14 @@ export function AppBuilder() {
                 onHover={setHover}
                 onOps={ab.apply}
               />
+              {/*
+                The look, under the features it is drawn from. This is the
+                stage the pipeline always had on paper and never on screen:
+                the owner approved a feature list and then waited for a built
+                app to find out what it looked like. Three drawings and a
+                choice close that hole, and the choice reaches the brief.
+              */}
+              <LookSection project={current} onChoose={ab.chooseLook} />
             </section>
             <aside className={`ab-col ab-col-side${pane !== "features" ? " is-pane" : ""}`}>
               <div className="ab-sidetabs" role="tablist" aria-label="Side panel">
@@ -341,5 +351,47 @@ export function AppBuilder() {
         </main>
       )}
     </div>
+  );
+}
+
+/**
+ * The look pass, drawn from whatever is on the feature list right now.
+ *
+ * The spec is memoised on the pieces that actually change the drawing — the
+ * features, the understanding and a picked direction — rather than on the
+ * project object, which gets a new `updatedAt` on every keystroke elsewhere
+ * and would otherwise redraw three iframes while the owner types in the chat.
+ */
+function LookSection({
+  project,
+  onChoose,
+}: {
+  project: BuilderProject;
+  onChoose: (skill: string, by?: "owner" | "client") => void;
+}) {
+  const spec = useMemo(
+    () => specFromProject(project),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [project.features, project.understanding, project.teardown, project.idea],
+  );
+
+  // A client edit is a change to a site that already exists and already has a
+  // look, so there is nothing to choose here — the mockup for that lives in
+  // Client Review, where the client can see it against their own site.
+  if (project.edit) return null;
+
+  return (
+    <MockupBakeOff
+      spec={spec}
+      recommended={project.understanding?.designSkill}
+      chosen={project.look ?? null}
+      onChoose={onChoose}
+      chooseLabel="Build this look"
+      caption={
+        project.look
+          ? `The build is held to ${project.look.skill}. Pick another to change it.`
+          : "Drawn from the features you accepted. Pick one and the build brief is held to it."
+      }
+    />
   );
 }

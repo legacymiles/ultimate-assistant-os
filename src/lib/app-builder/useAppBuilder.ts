@@ -577,6 +577,24 @@ export function useAppBuilder() {
     [current, update],
   );
 
+  /**
+   * The direction picked from the mockup bake-off.
+   *
+   * It goes through `update`, so it lands in the same synced store as
+   * everything else and survives the tab closing (checklist R6) — the whole
+   * point of the pick is that the build brief reads it later. Picking the
+   * direction that is already picked writes nothing (D5).
+   */
+  const chooseLook = useCallback(
+    (skill: string, by: "owner" | "client" = "owner") => {
+      if (!current || !skill.trim()) return;
+      update(current.id, (p) =>
+        p.look?.skill === skill ? p : { ...p, look: { skill, at: new Date().toISOString(), by } },
+      );
+    },
+    [current, update],
+  );
+
   /** Don't open a Client Review link for this build. */
   const setNoReview = useCallback(
     (off: boolean) => {
@@ -650,6 +668,7 @@ export function useAppBuilder() {
     clearError: () => setError(null),
     clearNotice: () => setNotice(null),
     start,
+    chooseLook,
     resume,
     setAnswer,
     design,

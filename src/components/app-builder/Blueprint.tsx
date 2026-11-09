@@ -11,7 +11,7 @@
 
 import { useMemo, useState } from "react";
 import { DEPTH_BLURB, DEPTH_LABEL, DEPTHS, depthOf, depthSteps } from "@/lib/app-builder/depth";
-import { checklistLines, masterPrompt, pipeline, tally } from "@/lib/app-builder/engine";
+import { checklistLines, lookOf, masterPrompt, pipeline, tally } from "@/lib/app-builder/engine";
 import { etaFor } from "@/lib/app-builder/plan";
 import { APP_TYPE_LABEL, type BuilderProject, type Depth } from "@/lib/app-builder/types";
 import type { UseBuild } from "@/lib/app-builder/useBuild";
@@ -21,7 +21,11 @@ import { BuildStatus } from "./BuildStatus";
 import { MoveIntoHub } from "./MoveIntoHub";
 
 export function Pipeline({ project }: { project: BuilderProject | null }) {
-  const u = project?.understanding;
+  // Read the look through `lookOf`, the same way the brief does. The chip bar
+  // used to show the agent's guessed design skill for ever, so after the owner
+  // picked a different direction from the mockups the brief said one thing and
+  // the pipeline on screen said another.
+  const u = project?.understanding ? lookOf(project, project.understanding) : undefined;
   const t = tally(project?.features ?? []);
   const hasFeatures = project?.stage === "features";
   const watched = Boolean(project?.teardown || project?.sources?.length);

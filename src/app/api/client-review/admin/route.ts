@@ -158,6 +158,8 @@ export async function POST(req: Request) {
           inviteEmail: body.inviteEmail,
           repo: body.repo,
           vercelProject: body.vercelProject,
+          designSkill: body.designSkill,
+          look: body.look,
         });
         await writeProject(project);
         await updateIndex((i) => upsertIndex(i, project));

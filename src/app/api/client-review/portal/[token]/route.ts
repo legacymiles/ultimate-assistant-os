@@ -9,6 +9,7 @@ import {
   isToken,
   isSentToClient,
   markNoticesRead,
+  pickLook,
   portalView,
   pushEvent,
   upsertIndex,
@@ -48,7 +49,8 @@ type Outcome =
   | { kind: "add"; id: string }
   | { kind: "edit" | "delete" | "subscribe" | "seen" }
   | { kind: "send"; detail: string }
-  | { kind: "notify"; on: boolean; was: boolean };
+  | { kind: "notify"; on: boolean; was: boolean }
+  | { kind: "look"; skill: string; changed: boolean };
 
 const NOT_FOUND = { error: "This review link isn't active. Ask for a new one." };
 const MAX_BODY = 16_000;
@@ -158,6 +160,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
           return { project: addPushSub(p, body.subscription), result: { kind: "subscribe" as const } };
         case "seen":
           return { project: markNoticesRead(p), result: { kind: "seen" as const } };
+        case "look": {
+          // The skill is checked against the three this project actually
+          // offers, inside the write lock, so the browser cannot name a look
+          // it was never shown (checklist S4).
+          const next = pickLook(p, body.skill, g.owner ? "owner" : "client");
+          return {
+            project: next,
+            result: { kind: "look" as const, skill: next.look?.skill ?? "", changed: next !== p },
+          };
+        }
         default:
           throw new ReviewError("Unknown action.");
       }
@@ -169,6 +181,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
       await updateIndex((i) => pushEvent(i, project, "batch_sent", result.detail)).catch(() => {});
     } else if (result.kind === "notify" && result.on && !result.was) {
       await updateIndex((i) => pushEvent(i, project, "notify_on", "turned on notifications")).catch(() => {});
+    } else if (result.kind === "look" && result.changed) {
+      // The owner needs to know a client has approved a look, because that is
+      // what the build is now held to.
+      await updateIndex((i) => pushEvent(i, project, "look_picked", `picked the ${result.skill} look`)).catch(() => {});
     }
     return view(project, g.email, g.owner);
   } catch (err) {

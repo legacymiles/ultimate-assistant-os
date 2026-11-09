@@ -1,0 +1,340 @@
+/* ---------------------------------------------------------------------------
+   Mockup bake-off — shared by App Builder and Client Review.
+
+   Design skill: interactive-web-studio (craft floor only — this is dense
+   product UI inside an existing shell, so no scroll cinematography, no custom
+   cursor, no WebGL), closed by impeccable.
+
+   It reads the hub's own tokens with fallbacks, so it inherits whichever app
+   it is dropped into instead of carrying a second theme. The only colour it
+   owns is the chosen state, because "which one did I pick" is the single piece
+   of state this panel has.
+
+   The drawn mockups inside the frames bring their OWN design systems — that is
+   the whole point — so this chrome stays deliberately quiet. Anything louder
+   here would compete with the three things it exists to show.
+   --------------------------------------------------------------------------- */
+
+.mk {
+  --mk-line: var(--color-line, #262a38);
+  --mk-line-soft: var(--color-line-soft, #1e222e);
+  --mk-panel: var(--color-panel, #12141c);
+  --mk-panel-2: var(--color-panel-2, #181b25);
+  --mk-ink: var(--color-ink, #e9ecf3);
+  --mk-muted: var(--color-ink-muted, #9aa3b5);
+  --mk-faint: var(--color-ink-faint, #6b7385);
+  --mk-brand: var(--color-brand, #6366f1);
+  --mk-yes: #22c55e;
+  --mk-display: var(--font-syne), "Syne", ui-sans-serif, system-ui, sans-serif;
+  --mk-mono: var(--font-jbm), "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --mk-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--mk-ink);
+}
+
+.mk button {
+  touch-action: manipulation;
+}
+
+.mk :focus-visible {
+  outline: 2px solid var(--mk-brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ----- header ------------------------------------------------------------ */
+
+.mk-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.mk-h {
+  margin: 0;
+  text-wrap: balance;
+  font-family: var(--mk-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.mk-sub {
+  margin: 3px 0 0;
+  color: var(--mk-muted);
+  font-size: 12px;
+  max-width: 62ch;
+}
+
+.mk-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mk-seg {
+  display: inline-flex;
+  border: 1px solid var(--mk-line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--mk-panel);
+}
+
+.mk-seg-b {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 6px 11px;
+  font-family: var(--mk-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mk-faint);
+  cursor: pointer;
+  transition: color 0.18s var(--mk-ease), background 0.18s var(--mk-ease);
+}
+
+.mk-seg-b + .mk-seg-b { border-left: 1px solid var(--mk-line); }
+.mk-seg-b:hover { color: var(--mk-ink); }
+.mk-seg-b.on { background: var(--mk-panel-2); color: var(--mk-ink); }
+
+.mk-ghost {
+  appearance: none;
+  background: none;
+  border: 1px solid var(--mk-line);
+  border-radius: 8px;
+  padding: 6px 11px;
+  font-family: var(--mk-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mk-muted);
+  cursor: pointer;
+  transition: color 0.18s var(--mk-ease), border-color 0.18s var(--mk-ease);
+}
+
+.mk-ghost:hover { color: var(--mk-ink); border-color: var(--mk-brand); }
+
+/* ----- the lanes --------------------------------------------------------- */
+
+.mk-lanes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mk-lanes.mk-solo { grid-template-columns: 1fr; }
+
+.mk-lane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--mk-line);
+  border-radius: 12px;
+  background: var(--mk-panel);
+  transition: border-color 0.2s var(--mk-ease), box-shadow 0.2s var(--mk-ease);
+}
+
+/* The one piece of state this panel has, so it is the one place it is loud. */
+.mk-lane.picked {
+  border-color: var(--mk-yes);
+  box-shadow: 0 0 0 1px var(--mk-yes) inset, 0 10px 30px -18px rgba(34, 197, 94, 0.6);
+}
+
+/* Wraps rather than truncating: a lane called "MINIMALI…" tells the owner
+   nothing, and the name is the one label they use to talk about a direction. */
+.mk-lane-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.mk-name {
+  font-family: var(--mk-mono);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--mk-ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mk-badge {
+  flex: none;
+  font-family: var(--mk-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--mk-line);
+  color: var(--mk-muted);
+}
+
+.mk-badge.yes {
+  border-color: var(--mk-yes);
+  color: var(--mk-yes);
+}
+
+/* ----- the drawn frame --------------------------------------------------- */
+
+.mk-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--mk-line-soft);
+  background: #000;
+  /* The iframe is scaled from its top-left, so the box is sized by JS to the
+     scaled height and this keeps the overflow clipped meanwhile. */
+}
+
+.mk-iframe {
+  display: block;
+  border: 0;
+  transform-origin: top left;
+  background: #000;
+  pointer-events: none; /* the overlay owns the pointer — see MockupBakeOff */
+}
+
+.mk-open {
+  position: absolute;
+  inset: 0;
+  appearance: none;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  display: grid;
+  place-items: end center;
+  padding-bottom: 10px;
+  opacity: 0;
+  transition: opacity 0.2s var(--mk-ease);
+}
+
+.mk-open span {
+  font-family: var(--mk-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(8, 9, 13, 0.82);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--mk-line);
+  color: var(--mk-ink);
+}
+
+.mk-open:hover,
+.mk-open:focus-visible { opacity: 1; }
+
+/* A touch screen has no hover, so the label is simply always there. */
+@media (hover: none) {
+  .mk-open { opacity: 1; }
+}
+
+.mk-fail {
+  border: 1px dashed var(--mk-line);
+  border-radius: 8px;
+  padding: 18px 14px;
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+
+.mk-fail p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--mk-muted);
+  max-width: 30ch;
+}
+
+.mk-note {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--mk-muted);
+  flex: 1;
+}
+
+.mk-pick {
+  appearance: none;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--mk-line);
+  background: var(--mk-panel-2);
+  color: var(--mk-ink);
+  font-family: var(--mk-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  min-height: 40px; /* tappable (U1) */
+  transition: border-color 0.18s var(--mk-ease), background 0.18s var(--mk-ease);
+}
+
+.mk-pick:hover { border-color: var(--mk-brand); }
+
+.mk-pick.on {
+  border-color: var(--mk-yes);
+  color: var(--mk-yes);
+  background: color-mix(in srgb, var(--mk-yes) 12%, transparent);
+  cursor: default;
+}
+
+.mk-fine {
+  margin: 0;
+  font-size: 11px;
+  color: var(--mk-faint);
+}
+
+/* ----- phone ------------------------------------------------------------- */
+/* Three lanes do not fit a 390px screen, so they stop being a grid and become
+   a sideways swipe — the hub's own pattern for a row of cards (U1). The page's
+   vertical scroll is untouched because the iframes never take the pointer. */
+
+@media (max-width: 760px) {
+  .mk-lanes {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 84%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+    /* Let a lane bleed to the screen edge rather than ending in a hairline. */
+    margin-inline: -2px;
+    padding-inline: 2px;
+  }
+
+  .mk-lanes.mk-solo {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    overflow-x: visible;
+  }
+
+  .mk-lane { scroll-snap-align: start; }
+
+  .mk-top { align-items: flex-start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mk *,
+  .mk *::before,
+  .mk *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+  .mk-open { opacity: 1; }
+}

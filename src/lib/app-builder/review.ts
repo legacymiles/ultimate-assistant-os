@@ -48,6 +48,10 @@ export async function openReview(p: BuilderProject, clientName?: string): Promis
         name: p.understanding?.name ?? p.idea.slice(0, 60),
         clientName: clientName ?? had?.clientName ?? "",
         summary: reviewSummary(p),
+        // Carry the look over, so the client's mockups open on the same three
+        // directions the owner was shown — and on the one already picked.
+        ...(p.understanding?.designSkill ? { designSkill: p.understanding.designSkill } : {}),
+        ...(p.look?.skill ? { look: p.look.skill } : {}),
       }),
     });
   } catch (e) {

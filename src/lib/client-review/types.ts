@@ -12,6 +12,8 @@
 // client can only ever reach their own project, and only through their link.
 // ---------------------------------------------------------------------------
 
+import type { LookChoice } from "@/lib/mockup/types";
+
 /** Which model lane writes the build brief. */
 export type ContentLane = "auto" | "standard" | "uncensored";
 
@@ -191,6 +193,19 @@ export interface ClientProject {
    * this field existed.
    */
   sentAt?: string;
+  /**
+   * The design direction the spec recommended, when App Builder opened this
+   * link. It is lane 1 of the mockup bake-off and it never changes, which is
+   * what keeps the three directions on offer STABLE: compute them from the
+   * pick instead and re-picking one of the original three would be rejected
+   * the moment the first choice moved the set.
+   */
+  designSkill?: string;
+  /**
+   * The direction settled on for this site — by the owner in App Builder, or
+   * by the client approving one of the mockups on their own link.
+   */
+  look?: LookChoice;
   lane: ContentLane;
   /**
    * The one model that writes this project's build briefs, when the owner
@@ -211,7 +226,7 @@ export interface ClientProject {
 }
 
 /** What the owner's dashboard is told about. */
-export type AdminEventKind = "batch_sent" | "request_added" | "notify_on" | "claimed" | "preview_sent";
+export type AdminEventKind = "batch_sent" | "request_added" | "notify_on" | "claimed" | "preview_sent" | "look_picked";
 
 export interface AdminEvent {
   id: string;
@@ -279,4 +294,13 @@ export interface PortalView {
   viewerOwner?: boolean;
   /** One of the owner's own hub apps. */
   isApp?: boolean;
+  /**
+   * The look: what the mockups are drawn in, and which one has been settled
+   * on. A design-skill name is not owner-only data — it is the name of a style
+   * — and the portal needs both to draw the bake-off and to show which lane is
+   * already chosen. The branch and the pull request stay off this view, as
+   * they always have.
+   */
+  designSkill?: string | null;
+  look?: LookChoice | null;
 }

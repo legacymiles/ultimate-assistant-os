@@ -18,6 +18,9 @@
 // held to the one build checklist (website-build-checklist).
 // ---------------------------------------------------------------------------
 
+import { shapeOf } from "@/lib/mockup/spec";
+import type { Shape } from "@/lib/mockup/types";
+
 import { CHECKLIST, type BoardTicket } from "../new-jarvis/felix";
 import { EDIT_CHECKLIST, editMasterPrompt, editPipeline, editQueueText } from "./clientEdit";
 import { depthAxes, depthBrief, depthOf, depthSteps, type Depth } from "./depth";
@@ -1018,9 +1021,44 @@ export function reviewBrief(p: BuilderProject): string {
  * The master build prompt: Felix + prompt-enhancer shape (goal and why first,
  * context, the owner's features their way, the bar, the pipeline, the judge).
  */
+/** The main surface, said in words a build brief can act on. */
+const SHAPE_WORD: Record<Shape, string> = {
+  board: "a board with columns the things move between",
+  grid: "a grid of cards",
+  list: "a list of rows",
+  feed: "a feed, newest first",
+  table: "a dense table with a row per record",
+  canvas: "one stage with a single primary action on it",
+};
+
+/** How the approved mockup's main surface is described to the build. */
+function shapeWord(p: BuilderProject, u: Understanding): string {
+  const accepted = p.features.filter((f) => f.status === "accepted");
+  return SHAPE_WORD[shapeOf(u.appType, accepted.length ? accepted : p.features)];
+}
+
+/**
+ * The look the build is held to.
+ *
+ * `understanding.designSkill` is the agent's guess from the idea. `p.look` is
+ * the owner having looked at three drawn mockups and chosen. The second beats
+ * the first, so everything downstream — the pipeline, the brief, the queue
+ * line — reads this rather than the understanding directly.
+ */
+export function lookOf(p: BuilderProject, u: Understanding): Understanding {
+  const picked = p.look?.skill?.trim();
+  if (!picked || picked === u.designSkill) return u;
+  return {
+    ...u,
+    designSkill: picked,
+    designWhy: `the ${p.look?.by === "client" ? "client" : "owner"} picked this direction from the mockups, over ${u.designSkill}`,
+  };
+}
+
 export function masterPrompt(p: BuilderProject): string {
   if (p.edit) return editMasterPrompt(p);
-  const u = p.understanding ?? understand(p.idea, p.answers);
+  const base = p.understanding ?? understand(p.idea, p.answers);
+  const u = lookOf(p, base);
   const { depth, why: depthWhy } = depthOf(p);
   const accepted = p.features.filter((f) => f.status === "accepted").sort(byImpact);
   const denied = p.features.filter((f) => f.status === "denied");
@@ -1046,6 +1084,11 @@ export function masterPrompt(p: BuilderProject): string {
     `<skills_pipeline>\nRun these skills, in this order, for this build — every time:\n${pipeline(u, p.teardown, Boolean(p.sources?.length), false, depth)
       .map((s, i) => `${i + 1}. ${s.skill} — ${s.role}`)
       .join("\n")}\n</skills_pipeline>`,
+    p.look
+      ? `<look>\nThe owner was shown three directions drawn as working mockups and ${
+          p.look.by === "client" ? "the client approved" : "chose"
+        } this one: ${p.look.skill}.\nThis is a DECISION, not a suggestion — build the app in that direction. Run ${p.look.skill} before any UI code and let it own the surface, the type voices, the corner radius and the density. Do not substitute another design skill because it would suit the content better; if you believe it is wrong, say so in your report and build it as chosen anyway.\nThe mockup they approved was drawn from the accepted features, with ${u.name}'s own nav and rows. Treat it as the structural brief: the main surface is ${shapeWord(p, u)}, and the sections are ${(p.teardown?.screens ?? []).length ? (p.teardown?.screens ?? []).map((s) => s.name).join(", ") : "the accepted features above"}.\n</look>`
+      : "",
     reviewBrief(p),
     `<standard>\nGo beyond the basics: a fully featured, production-quality, commercial-grade product with a distinctive design, purposeful motion and interactivity — the standard a top product team would ship. Better, not bigger: raise the quality around the accepted features rather than adding unrequested ones.\nHold it to these checklist lines:\n${lines.map((c) => `- ${c.id} (${c.level}): ${c.text}`).join("\n")}\n</standard>`,
     `<success_criteria>\n${u.judge.map((j) => `- ${j}`).join("\n")}\n- Typecheck and tests pass; every accepted feature has a test or a recorded click-through.\nReport honestly against these with real numbers, including anything that missed.\n</success_criteria>`,
@@ -1060,7 +1103,7 @@ export const QUEUE_LIMIT = 4000;
 /** The short brief the PC/VPS Claude Code picks up from In Queue. Always under QUEUE_LIMIT. */
 export function queueText(p: BuilderProject): string {
   if (p.edit) return editQueueText(p);
-  const u = p.understanding ?? understand(p.idea, p.answers);
+  const u = lookOf(p, p.understanding ?? understand(p.idea, p.answers));
   const { depth } = depthOf(p);
   const accepted = p.features.filter((f) => f.status === "accepted").sort(byImpact);
   const denied = p.features.filter((f) => f.status === "denied");
@@ -1070,6 +1113,9 @@ export function queueText(p: BuilderProject): string {
     `Run skills in order: ${p.teardown || p.sources?.length ? "video-analyzer → reverse-engineer-anything (rea) → " : ""}felix → prompt-enhancer${
       depth === "plain" ? "" : ` → ${depth === "commercial-2x" ? "commercial 2x" : "commercial"} (Steps ${depthSteps(depth, u.appType).join(", ")})`
     } → ${u.designSkill} → impeccable → software-factory → claude-security, held to website-build-checklist.`,
+    p.look
+      ? `Look: ${p.look.skill} — ${p.look.by === "client" ? "approved by the client" : "picked by the owner"} from three drawn mockups. A decision, not a suggestion: build it in that direction, main surface ${shapeWord(p, u)}.`
+      : "",
     depthBrief(depth, u.appType),
     `End goal: ${u.endGoal || u.purpose}. For: ${u.audience}. Money: ${u.model}.`,
     `Beyond: ${u.beyond}.`,
@@ -1103,7 +1149,7 @@ export function queueText(p: BuilderProject): string {
 
 /** One super-board card per accepted feature, Felix format, so the factory can build them. */
 export function featureTickets(p: BuilderProject): BoardTicket[] {
-  const u = p.understanding ?? understand(p.idea, p.answers);
+  const u = lookOf(p, p.understanding ?? understand(p.idea, p.answers));
   return p.features
     .filter((f) => f.status === "accepted")
     .sort(byImpact)
