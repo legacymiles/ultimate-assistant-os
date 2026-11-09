@@ -1,5 +1,59 @@
 [
  {
+  "id": "5240eae:client-review",
+  "date": "2026-11-09",
+  "slug": "client-review",
+  "title": "Builds play out live in the Chat Intake and the site reloads itself when done",
+  "detail": "Send & build no longer leaves the page. Claude Code's work streams into the Chat Intake beside the site — every file it reads or edits, every command, its own words — with permission asks answered inline and a box to talk to it while it works. When it finishes, its preview is put on the version and ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c659575:jarvis",
+  "date": "2026-11-09",
+  "slug": "jarvis",
+  "title": "A workbench in the chat — coding agents, GitHub, Vercel, Supabase, MCP, CLIs",
+  "detail": "The chat could browse, read and run, but it could not hand a multi-file job to an agent that writes, tests and commits, and it had no way to reach the services an app actually ships through. Both are tools now.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c659575:app-builder",
+  "date": "2026-11-09",
+  "slug": "app-builder",
+  "title": "A workbench in the chat — coding agents, GitHub, Vercel, Supabase, MCP, CLIs",
+  "detail": "The chat could browse, read and run, but it could not hand a multi-file job to an agent that writes, tests and commits, and it had no way to reach the services an app actually ships through. Both are tools now.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c659575:client-review",
+  "date": "2026-11-09",
+  "slug": "client-review",
+  "title": "A workbench in the chat — coding agents, GitHub, Vercel, Supabase, MCP, CLIs",
+  "detail": "The chat could browse, read and run, but it could not hand a multi-file job to an agent that writes, tests and commits, and it had no way to reach the services an app actually ships through. Both are tools now.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1ae99a9:client-review",
+  "date": "2026-11-09",
+  "slug": "client-review",
+  "title": "Stop gating the push, stop refusing in silence, remember the act",
+  "detail": "Three failures from one real build, in order of what they cost.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1ae99a9:jarvis",
+  "date": "2026-11-09",
+  "slug": "jarvis",
+  "title": "Stop gating the push, stop refusing in silence, remember the act",
+  "detail": "Three failures from one real build, in order of what they cost.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "60ceac5:ai-rankings",
   "date": "2026-11-09",
   "slug": "ai-rankings",
