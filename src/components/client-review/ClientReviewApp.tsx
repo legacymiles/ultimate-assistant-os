@@ -10,8 +10,12 @@
 //           too (?app=<slug>). It is named for what it DOES, not "Client
 //           view" — a list of all 36 apps under those words reads as what the
 //           client can see, which is the opposite of true.
-//   Admin   the owner's console. Locked and faded for everyone else — they
-//           can see it exists but can't open it. The page decides what to
+//   Ship    the owner's console, for shipping to clients: each client's own
+//           GitHub repo and Vercel project, sending them their link, pushing
+//           a finished version live. Editing and building never happen here —
+//           that is all on the page being edited, in its Chat Intake. Everyone
+//           else sees it as "Admin", locked and faded — they can see it exists
+//           but can't open it. The page decides what to
 //           SHOW from /api/client-review/portal/me; the admin API itself is
 //           owner-only in middleware, so forcing the tab open gets nothing.
 //
@@ -213,10 +217,10 @@ export function ClientReviewApp() {
             disabled={!me.owner}
             className={`${tab === "admin" ? "on" : ""} ${me.owner ? "" : "locked"}`}
             onClick={() => go({ tab: "admin" })}
-            title={me.owner ? "Admin" : "Admins only"}
+            title={me.owner ? "Ship to clients — their GitHub repo and Vercel" : "Admins only"}
           >
             <LockIcon open={me.owner} />
-            Admin
+            {me.owner ? "Ship" : "Admin"}
           </button>
         </nav>
         <span className="cra-who" title={me.email ?? undefined}>
@@ -229,9 +233,8 @@ export function ClientReviewApp() {
         {tab === "admin" && me.owner ? (
           /*
             Pressing a build button in the console moves to the Client tab on
-            that project, which is the Building screen while it is being made.
-            The console is for deciding what to build; watching it get built is
-            the same screen the client gets, so there is only ever one.
+            that project, where the build plays out live in its Chat Intake
+            beside the site. There is only ever one place to watch a build.
           */
           <ClientReviewAdmin fill onBuildStarted={(token) => go({ target: { kind: "site", token }, tab: "client" })} />
         ) : token ? (

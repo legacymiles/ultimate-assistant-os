@@ -9,18 +9,24 @@
 //   signature — the Chat Intake is a living glass console with a slow aurora
 //               edge. Drag it anywhere, shrink it to an orb, and "Point at it"
 //               to drop a numbered pin on exactly the spot you mean.
-//   surprise  — on Send, the requests fold into the orb and the screen turns
-//               into Jarvis's reactor, with the steps it will take next.
+//   surprise  — on Send, the requests fold into the orb and the build starts
+//               talking in the chat, beside the site it is changing.
 // Reduced motion turns every animation into an instant state change.
+//
+// One page, start to finish. Sending, building and seeing the result all
+// happen here: the build is narrated in the Chat Intake (BuildFeed), the site
+// stays on screen, and when the build lands the site reloads once by itself.
+// Nothing navigates and nothing waits on a button in another tab. Shipping to
+// a client's own repo and Vercel is what the Ship tab is for.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CannotBuildHere, startClientEditBuild } from "@/lib/client-review/autoBuild";
-import { admin, ApiError, portal, urlBase64ToUint8Array } from "@/lib/client-review/client";
+import { approveAndStart } from "@/lib/client-review/buildHere";
+import { ApiError, portal, urlBase64ToUint8Array } from "@/lib/client-review/client";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { BuildingNow } from "./BuildingNow";
+import { BuildFeed, BuildSteer, useLiveBuild } from "./LiveBuild";
 import { SignInGate } from "./SignInGate";
-import type { ClientProject, PortalRequest, PortalView, RequestPin, ReviewVersion } from "@/lib/client-review/types";
+import type { PortalRequest, PortalView, RequestPin, ReviewVersion } from "@/lib/client-review/types";
 import "./client-review.css";
 
 type Device = "desktop" | "phone";
@@ -33,6 +39,8 @@ interface Box {
 }
 
 const POLL_MS = 30_000;
+/** While a build runs the page is being watched; its data keeps up. */
+const POLL_BUILDING_MS = 8_000;
 const LAYOUT_KEY = "cr-intake-layout";
 const MIN_W = 320;
 const MIN_H = 360;
@@ -85,61 +93,12 @@ function useNarrow(): boolean {
   return narrow;
 }
 
-/** What happened after the owner's Send & build. */
-interface OwnerBuild {
-  state: "working" | "approved" | "failed";
-  version?: string;
-  message?: string;
-}
-
-/**
- * The owner is their own client and their own admin: what they send is
- * approved on the spot and built on their PC — the same path Admin's
- * "Approve & build" takes, and the same rule. Nothing is filed anywhere: if
- * the PC helper is not there the build does not start and says so, and the
- * batch stays approved so pressing build again is the retry.
- */
-async function approveAndBuild(token: string, versionId: string): Promise<OwnerBuild> {
-  const { project } = await admin.byToken(token);
-  const batch = project.batches.filter((b) => b.versionId === versionId && b.status === "pending").at(-1);
-  if (!batch) return { state: "failed", message: "Sent — open Admin to approve it." };
-  const out = await admin.act<{ project: ClientProject; version: ReviewVersion }>({
-    action: "approve",
-    id: project.id,
-    batchId: batch.id,
-  });
-  if (!out.project.repo) {
-    return {
-      state: "approved",
-      version: out.version.number,
-      message: "Approved. Add the site's GitHub repo in Admin › Where the site lives so Claude Code can build it.",
-    };
-  }
-  try {
-    const started = await startClientEditBuild(out.project, batch.id);
-    await admin.act({
-      action: "buildQueued",
-      id: out.project.id,
-      batchId: batch.id,
-      builderId: started.builderId,
-      threadId: started.threadId,
-    });
-    return { state: "working", version: out.version.number };
-  } catch (e) {
-    // No queue behind this. The edits are approved on `out.version` either way,
-    // so the honest answer is which thing is missing and that build is still
-    // there to press — not a request filed in a list nothing reads.
-    return {
-      state: "approved",
-      version: out.version.number,
-      message:
-        e instanceof CannotBuildHere
-          ? `${e.message} Your edits are approved and waiting — press build again from Admin once that's sorted.`
-          : e instanceof Error
-            ? `${e.message} Your edits are approved and waiting.`
-            : "Your edits are approved, but the build didn't start.",
-    };
-  }
+/** A line from Jarvis in the chat, after a send or a build that didn't start. */
+interface ChatNotice {
+  tone: "ok" | "bad";
+  text: string;
+  /** Offer the notification switch under it. */
+  notify?: boolean;
 }
 
 function isIos(): boolean {
@@ -184,8 +143,13 @@ export function ClientPortal({
   const [showPins, setShowPins] = useState(true);
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
 
-  // Overlays.
-  const [sent, setSent] = useState<{ count: number; build?: OwnerBuild } | null>(null);
+  // What Jarvis says in the chat after a send, and the build being started.
+  const [notice, setNotice] = useState<ChatNotice | null>(null);
+  const [starting, setStarting] = useState(false);
+  /** The version a build just put on the page, for a moment of "it's here". */
+  const [landed, setLanded] = useState<string | null>(null);
+  /** Bumped when a new version lands, so the frame reloads once even if its address didn't change. */
+  const [frameNonce, setFrameNonce] = useState(0);
   const [folding, setFolding] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toast, setToast] = useState<{ title: string; body: string } | null>(null);
@@ -195,13 +159,25 @@ export function ClientPortal({
   const frameRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const seenNotices = useRef<Set<string> | null>(null);
-  /** Set when the person chose to look at the live version while a build runs. */
-  const [waited, setWaited] = useState(false);
+  const lastCurrent = useRef<string | null | undefined>(undefined);
 
   // ----- data -----------------------------------------------------------------
   const apply = useCallback((v: PortalView) => {
     setView(v);
-    setViewingId((cur) => (cur && v.versions.some((x) => x.id === cur && x.siteUrl) ? cur : v.currentVersionId));
+    const before = lastCurrent.current;
+    lastCurrent.current = v.currentVersionId;
+    // A new version landed while this page was open. Whoever was looking at
+    // the old latest is moved onto it and the frame reloads — once. Someone
+    // deliberately looking at an older version is left where they are.
+    const arrived = before !== undefined && before !== null && v.currentVersionId && v.currentVersionId !== before;
+    setViewingId((cur) => {
+      if (arrived && (!cur || cur === before)) return v.currentVersionId;
+      return cur && v.versions.some((x) => x.id === cur && x.siteUrl) ? cur : v.currentVersionId;
+    });
+    if (arrived) {
+      setFrameNonce((n) => n + 1);
+      setLanded(v.versions.find((x) => x.id === v.currentVersionId)?.number ?? null);
+    }
   }, []);
 
   const refresh = useCallback(() => {
@@ -220,15 +196,27 @@ export function ClientPortal({
   }, [token, apply]);
 
   useEffect(refresh, [refresh]);
+  const isBuilding = Boolean(view?.buildingVersionId);
   useEffect(() => {
     const tick = () => document.visibilityState === "visible" && refresh();
-    const id = window.setInterval(tick, POLL_MS);
+    const id = window.setInterval(tick, isBuilding ? POLL_BUILDING_MS : POLL_MS);
     document.addEventListener("visibilitychange", tick);
     return () => {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", tick);
     };
-  }, [refresh]);
+  }, [refresh, isBuilding]);
+
+  // The build, watched and finished from this page. Called up here, before
+  // any early return, so it keeps running with the intake shrunk to its orb.
+  const live = useLiveBuild({ token, active: isBuilding, onDone: refresh });
+
+  // "It's here" says itself once and then gets out of the way.
+  useEffect(() => {
+    if (!landed) return;
+    const t = window.setTimeout(() => setLanded(null), 9000);
+    return () => window.clearTimeout(t);
+  }, [landed]);
 
   // New notices: an in-page toast, and a pop-up when the client allowed one.
   useEffect(() => {
@@ -342,12 +330,8 @@ export function ClientPortal({
   const drafts = requests.filter((r) => r.status === "draft");
   const pinned = requests.filter((r) => r.pin);
 
+  const waiting = (view?.requests ?? []).filter((r) => r.status === "sent");
   useEffect(() => setFrameStuck(false), [viewing?.siteUrl]);
-  // One build, one dismissal: when the next build starts, the Building screen
-  // is the right answer again.
-  useEffect(() => {
-    if (!view?.buildingVersionId) setWaited(false);
-  }, [view?.buildingVersionId]);
   useEffect(() => {
     if (!viewing?.siteUrl) return;
     // A site that refuses to be framed shows a blank box with no error the page
@@ -360,7 +344,7 @@ export function ClientPortal({
       window.clearTimeout(t);
       el?.removeEventListener("load", loaded);
     };
-  }, [viewing?.siteUrl, device]);
+  }, [viewing?.siteUrl, device, frameNonce]);
 
   // ----- actions -------------------------------------------------------------------
   const pointAt = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -392,19 +376,38 @@ export function ClientPortal({
     const count = drafts.length;
     const versionId = viewing.id;
     setFolding(true);
+    setNotice(null);
     const ok = await act("send", { action: "send", versionId });
     window.setTimeout(() => setFolding(false), 650);
     if (!ok) return;
     if (!owner) {
-      window.setTimeout(() => setSent({ count }), prefersReducedMotion() ? 0 : 520);
+      setNotice({
+        tone: "ok",
+        text: `Jarvis has your ${count} request${count === 1 ? "" : "s"}. Once they're approved, the new version is built and shows up right here — no need to refresh.`,
+        notify: true,
+      });
       return;
     }
-    window.setTimeout(() => setSent((s) => s ?? { count, build: { state: "working" } }), prefersReducedMotion() ? 0 : 520);
-    const build = await approveAndBuild(token, versionId).catch(
-      (e: Error): OwnerBuild => ({ state: "failed", message: `Sent, but the build didn't start: ${e.message} Approve it in Admin.` }),
-    );
-    setSent({ count, build });
-    refresh();
+    await build(versionId);
+  };
+
+  /**
+   * Approve what's waiting and start Claude Code on this PC — from this page.
+   * The chat takes it from there; a start that fails says why, in the chat,
+   * and leaves the edits waiting so Build is the retry.
+   */
+  const build = async (versionId?: string) => {
+    setStarting(true);
+    setNotice(null);
+    try {
+      const out = await approveAndStart(token, versionId);
+      if (out.state === "failed") setNotice({ tone: "bad", text: out.message });
+    } catch (e) {
+      setNotice({ tone: "bad", text: `The build didn't start: ${(e as Error).message}` });
+    } finally {
+      setStarting(false);
+      refresh();
+    }
   };
 
   const enableNotify = async () => {
@@ -494,36 +497,17 @@ export function ClientPortal({
     );
   }
 
-  // A version is being made: the Building screen, not the app. Framing the app
-  // during its own build shows the OLD app to someone who came to see the new
-  // one — the one moment where the site itself is the misleading thing on
-  // screen. `waited` is the way out for anyone who would rather look at what
-  // is live while they wait.
-  if (building && !waited) {
-    return (
-      <BuildingNow
-        token={token}
-        onOpen={() => {
-          // Its 5-second poll saw the build finish long before this screen's
-          // own would have. Pull the new version in now, so the app appears
-          // the moment it exists rather than on the next 30-second tick.
-          setWaited(true);
-          refresh();
-        }}
-        onBack={onBack ?? (() => setWaited(true))}
-        onLookAnyway={current ? () => setWaited(true) : undefined}
-        current={current?.number}
-      />
-    );
-  }
-
   const intakeStyle: React.CSSProperties = narrow
     ? { height: sheetH ?? snapHeight(snap) }
     : { left: box.x, top: box.y, width: box.w, height: box.h };
 
   const statusLine = building
-    ? `Jarvis is building ${building.number}`
-    : view.pending
+    ? `${live.watching ? "Claude Code" : "Jarvis"} is building ${building.number}`
+    : starting
+      ? "Starting the build…"
+      : landed
+        ? `${landed} is here`
+        : view.pending
       ? "Your requests are with Jarvis"
       : writable
         ? `Reviewing ${viewing?.number}`
@@ -590,8 +574,16 @@ export function ClientPortal({
       <main className="cr-stage" ref={stageRef}>
         {viewing?.siteUrl ? (
           <div className={`cr-frame ${device}`} ref={frameRef}>
+            {(building || landed) && (
+              <div className={`cr-stage-pill ${building ? "is-building" : "is-landed"}`} role="status">
+                <span aria-hidden />
+                {building
+                  ? `Building ${building.number} — this reloads by itself when it's done`
+                  : `${landed} is here`}
+              </div>
+            )}
             <iframe
-              key={`${viewing.siteUrl}-${device}`}
+              key={`${viewing.siteUrl}-${device}-${frameNonce}`}
               src={viewing.siteUrl}
               title={`${view.name} ${viewing.number}`}
               referrerPolicy="no-referrer"
@@ -647,7 +639,7 @@ export function ClientPortal({
             </div>
           ) : null}
           <div className="cr-intake-head" onPointerDown={startDrag("move")}>
-            <Orb small pulse={Boolean(view.pending || building)} />
+            <Orb small pulse={Boolean(view.pending || building || starting)} />
             <div className="cr-intake-title">
               <h2>Chat intake</h2>
               <p>{statusLine}</p>
@@ -660,16 +652,14 @@ export function ClientPortal({
           </div>
 
           <ol className="cr-list" aria-label={`Edit requests for ${viewing?.number ?? "this version"}`}>
-            {!requests.length && (
+            {!requests.length && !building && (
               <li className="cr-list-empty">
                 <p>
                   {writable
                     ? owner
-                      ? "Point at a spot, say what to change — one thing per request. Send & build hands them all to Claude Code; the preview comes back here as the next version."
+                      ? "Point at a spot, say what to change — one thing per request. Send & build hands them to Claude Code: you watch it work right here, and the site reloads itself when it's done."
                       : "Tell Jarvis what you'd like changed — one thing per request. Add as many as you want, then send them all at once."
-                    : building
-                      ? `Your approved changes are being built into ${building.number}. You'll be able to request more edits on it.`
-                      : "No requests on this version."}
+                    : "No requests on this version."}
                 </p>
               </li>
             )}
@@ -722,6 +712,54 @@ export function ClientPortal({
                 </div>
               </li>
             ))}
+
+            {/* Edits waiting on the owner: a client's, or ones a failed start handed back. */}
+            {owner && !building && !starting && waiting.length > 0 && (
+              <li className="cr-wait">
+                <p>
+                  <b>
+                    {waiting.length} edit{waiting.length === 1 ? "" : "s"} waiting to be built
+                  </b>
+                  {waiting.some((r) => r.versionId !== viewingId) ? " (some on another version)" : ""}
+                </p>
+                <button className="cr-btn small" onClick={() => void build()}>
+                  Build now
+                </button>
+              </li>
+            )}
+
+            {starting && !building && (
+              <li className="cr-feed">
+                <div className="cr-feed-head tone-run">
+                  <span className="cr-feed-dot" aria-hidden />
+                  <b>Claude Code</b>
+                  <span className="cr-feed-state">Starting on your PC…</span>
+                </div>
+              </li>
+            )}
+
+            {building && <BuildFeed live={live} number={building.number} since={building.createdAt} owner={owner} />}
+
+            {landed && !building && (
+              <li className="cr-landed" role="status">
+                <b>{landed} is on the page.</b> Have a look — add more requests whenever you&apos;re ready.
+              </li>
+            )}
+
+            {notice && (
+              <li className={`cr-notice tone-${notice.tone}`} role={notice.tone === "bad" ? "alert" : "status"}>
+                <p>{notice.text}</p>
+                <div className="cr-row">
+                  {notice.notify && !view.settings.notify && (
+                    <button className="cr-btn small" onClick={enableNotify} disabled={busy === "notify"}>
+                      {busy === "notify" ? "Turning on…" : "Notify me too"}
+                    </button>
+                  )}
+                  <button className="cr-link" onClick={() => setNotice(null)}>Dismiss</button>
+                </div>
+                {notice.notify && notifyNote && <p className="cr-note">{notifyNote}</p>}
+              </li>
+            )}
           </ol>
 
           {error && <p className="cr-error" role="alert">{error}</p>}
@@ -782,12 +820,14 @@ export function ClientPortal({
                       : "Send to Jarvis"}
               </button>
             </div>
+          ) : building && owner && live.watching ? (
+            <BuildSteer live={live} />
           ) : (
             <div className="cr-compose closed">
               {building ? (
                 <p>
-                  <b>{viewing?.number}</b> is closed while Jarvis builds <b>{building.number}</b>.{" "}
-                  {view.settings.notify ? "We'll notify you when it's ready." : (
+                  New requests open on <b>{building.number}</b> as soon as it&apos;s on the page.{" "}
+                  {owner || view.settings.notify ? null : (
                     <button className="cr-link" onClick={enableNotify}>Notify me when it&apos;s ready</button>
                   )}
                 </p>
@@ -817,19 +857,6 @@ export function ClientPortal({
           <Orb pulse={Boolean(view.pending || building)} />
           {drafts.length > 0 && <span className="cr-badge">{drafts.length}</span>}
         </button>
-      )}
-
-      {/* ---------- after "Send to Jarvis" ---------- */}
-      {sent && (
-        <SentScreen
-          count={sent.count}
-          view={view}
-          notifyNote={notifyNote}
-          onEnable={enableNotify}
-          onClose={() => setSent(null)}
-          build={sent.build}
-          busy={busy === "notify"}
-        />
       )}
 
       {/* ---------- Settings ---------- */}
@@ -931,10 +958,6 @@ export function ClientPortal({
   );
 }
 
-function prefersReducedMotion(): boolean {
-  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
 function EscapeToCancel({ active, onEscape }: { active: boolean; onEscape: () => void }) {
   useEffect(() => {
     if (!active) return;
@@ -952,128 +975,5 @@ function Orb({ small = false, pulse = false }: { small?: boolean; pulse?: boolea
       <span className="cr-orb-core" />
       <span className="cr-orb-ring" />
     </span>
-  );
-}
-
-function SentScreen({
-  count,
-  view,
-  notifyNote,
-  onEnable,
-  onClose,
-  busy,
-  build,
-}: {
-  count: number;
-  view: PortalView;
-  notifyNote: string;
-  onEnable: () => void;
-  onClose: () => void;
-  busy: boolean;
-  build?: OwnerBuild;
-}) {
-  const current = view.versions.find((v) => v.id === view.currentVersionId);
-  const next = current ? `v${(Number(/\d+/.exec(current.number)?.[0] ?? 1) || 1) + 1}` : "your next version";
-  if (build) return <OwnerSent count={count} build={build} fallback={next} onClose={onClose} />;
-  const steps = [
-    { label: "Sent to Jarvis", done: true },
-    { label: "Reviewed & approved", done: false },
-    { label: `Building ${next}`, done: false },
-    { label: `${next} ready for you`, done: false },
-  ];
-  return (
-    <div className="cr-sent" role="dialog" aria-modal="true" aria-label="Sent to Jarvis">
-      <div className="cr-reactor" aria-hidden>
-        <span className="r1" />
-        <span className="r2" />
-        <span className="r3" />
-        <span className="core" />
-      </div>
-      <div className="cr-sent-copy">
-        <p className="cr-kicker">Received</p>
-        <h2>
-          Jarvis has your {count} request{count === 1 ? "" : "s"}.
-        </h2>
-        <p>
-          They&apos;re being reviewed now. Once they&apos;re approved, Jarvis builds {next} and{" "}
-          {view.settings.notify ? "will notify you the moment it's ready." : "can notify you the moment it's ready."}
-        </p>
-        <ol className="cr-steps">
-          {steps.map((s, i) => (
-            <li key={s.label} className={s.done ? "done" : i === 1 ? "now" : ""} style={{ animationDelay: `${0.25 + i * 0.12}s` }}>
-              <span />
-              {s.label}
-            </li>
-          ))}
-        </ol>
-        <div className="cr-sent-actions">
-          {view.settings.notify ? (
-            <p className="cr-on">✓ Notifications are on</p>
-          ) : (
-            <button className="cr-send" onClick={onEnable} disabled={busy}>
-              <span className="cr-send-glow" aria-hidden />
-              {busy ? "Turning on…" : "Notify me when it's done"}
-            </button>
-          )}
-          <button className="cr-btn ghost" onClick={onClose}>Back to my site</button>
-        </div>
-        {notifyNote && <p className="cr-note">{notifyNote}</p>}
-      </div>
-    </div>
-  );
-}
-
-/** After the owner's Send & build: where the build is. */
-function OwnerSent({ count, build, fallback, onClose }: { count: number; build: OwnerBuild; fallback: string; onClose: () => void }) {
-  const v = build.version ?? fallback;
-  // "working" is the only state with a build behind it, so it is the only one
-  // that reaches the third step. "approved" means the edits landed but the PC
-  // did not take them: the line stops at Approved rather than implying more.
-  const at = build.state === "working" ? 2 : build.state === "approved" ? 1 : 0;
-  const steps = ["Sent", "Approved", "Building on your PC", `${v} preview shows up here`];
-  return (
-    <div className="cr-sent" role="dialog" aria-modal="true" aria-label="Send & build">
-      <div className="cr-reactor" aria-hidden>
-        <span className="r1" />
-        <span className="r2" />
-        <span className="r3" />
-        <span className="core" />
-      </div>
-      <div className="cr-sent-copy">
-        <p className="cr-kicker">{build.state === "working" ? "Building" : "Sent"}</p>
-        <h2>
-          {build.state === "working"
-            ? `Claude Code is making ${count} edit${count === 1 ? "" : "s"} for ${v}…`
-            : build.state === "approved"
-              ? `${v} is approved.`
-              : "Your edits are sent."}
-        </h2>
-        <p>
-          {build.state === "working"
-            ? `It works on a branch cut from the live site, opens a pull request, and the preview lands on ${v} in Admin. Nothing goes live until you push it.`
-            : (build.message ?? "One moment.")}
-        </p>
-        <ol className="cr-steps">
-          {steps.map((s, i) => (
-            <li key={s} className={i < at ? "done" : i === at ? "now" : ""} style={{ animationDelay: `${0.25 + i * 0.12}s` }}>
-              <span />
-              {s}
-            </li>
-          ))}
-        </ol>
-        <div className="cr-sent-actions">
-          {build.state !== "working" && (
-            <button className="cr-btn ghost" onClick={onClose}>
-              Keep working
-            </button>
-          )}
-          {(build.state === "failed" || build.state === "approved") && (
-            <a className="cr-btn" href="/apps/client-review?tab=admin">
-              Open Admin
-            </a>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }
