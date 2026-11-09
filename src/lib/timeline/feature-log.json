@@ -1,5 +1,14 @@
 [
  {
+  "id": "60ceac5:ai-rankings",
+  "date": "2026-11-09",
+  "slug": "ai-rankings",
+  "title": "Show the closed models a filter hides, and where the best open one stands",
+  "detail": "The Top ranked list keeps true ranks when a filter is on, so it reads #3, #5, #6 with nothing to say what is in the holes. Each hidden model is now shown in its own place as a muted row — rank, name, maker, score, and why it is out (closed, paid, cloud only, older) — and a run of more than three is ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "b98d13b:ai-rankings",
   "date": "2026-11-09",
   "slug": "ai-rankings",
