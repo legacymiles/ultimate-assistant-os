@@ -1,5 +1,14 @@
 [
  {
+  "id": "3e61ab0:client-review",
+  "date": "2026-11-09",
+  "slug": "client-review",
+  "title": "Ship stops starting builds, and a version with nothing behind it says so",
+  "detail": "Two ways the old flow still showed through. Ship had three buttons that started a build and then moved the owner to the page to watch it — the trip they asked never to take — so approving now only approves, and the one way across is a \"Build it on the page\" button they press themselves.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "5240eae:client-review",
   "date": "2026-11-09",
   "slug": "client-review",
