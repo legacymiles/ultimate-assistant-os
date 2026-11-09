@@ -11,6 +11,7 @@
 import dynamic from "next/dynamic";
 import { HomeSkeleton, StudioHome, type SectionComponent } from "../studio-home/StudioHome";
 import { GAME_DEFAULT, GAME_REMEMBER, GAME_SECTIONS, type GameSection } from "@/lib/studio-home/games";
+import "./game-studio.css";
 
 const COMPONENTS: Record<GameSection, SectionComponent> = {
   create: dynamic(() => import("../game-creator/GameCreator").then((m) => m.GameCreator), {
@@ -25,13 +26,15 @@ const COMPONENTS: Record<GameSection, SectionComponent> = {
 
 export function GameStudio({ initialSection }: { initialSection: GameSection | null }) {
   return (
-    <StudioHome
-      brand={{ name: "Game", em: "Studio", tagline: "Make a game, finish the ones in progress", icon: "Flag" }}
-      sections={GAME_SECTIONS}
-      components={COMPONENTS}
-      rememberKey={GAME_REMEMBER}
-      initialSection={initialSection}
-      defaultSection={GAME_DEFAULT}
-    />
+    <div className="gs-home">
+      <StudioHome
+        brand={{ name: "Game", em: "Studio", tagline: "Make a game, finish the ones in progress", icon: "Flag" }}
+        sections={GAME_SECTIONS}
+        components={COMPONENTS}
+        rememberKey={GAME_REMEMBER}
+        initialSection={initialSection}
+        defaultSection={GAME_DEFAULT}
+      />
+    </div>
   );
 }
