@@ -1,5 +1,23 @@
 [
  {
+  "id": "8c0428b:image-studio",
+  "date": "2026-11-09",
+  "slug": "image-studio",
+  "title": "Draw pictures free on the owner's own card instead of paying a model",
+  "detail": "Every image the hub made went to a paid model. WanGP is already installed under Pinokio with Flux 2 Klein 4B on disk, so the picture is now drawn on the RTX 3050 first — no key, no account, no spend, no watermark — and the paid model is only reached when the PC is off.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "8c0428b:images",
+  "date": "2026-11-09",
+  "slug": "images",
+  "title": "Draw pictures free on the owner's own card instead of paying a model",
+  "detail": "Every image the hub made went to a paid model. WanGP is already installed under Pinokio with Flux 2 Klein 4B on disk, so the picture is now drawn on the RTX 3050 first — no key, no account, no spend, no watermark — and the paid model is only reached when the PC is off.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "8720736:client-review",
   "date": "2026-11-09",
   "slug": "client-review",
