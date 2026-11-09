@@ -12,16 +12,17 @@
 // Approving a batch also writes the new version and the brief into the linked
 // Projects Timeline project, so the timeline stays the one source of truth.
 //
-// With the client's GitHub repo set, "Approve & build" hands the batch to App
-// Builder (edit mode) and queues it for Claude Code, which builds it on a
-// branch, opens a pull request, and posts the Vercel preview back here as the
-// next version through the connector — the client is told with no URL pasted.
+// Builds do not start here. Approving opens the next version and leaves the
+// edits waiting; the build itself belongs to the page being edited, where it
+// plays out in the Chat Intake beside the site and puts its own preview on
+// the version. This console is for shipping: the client's GitHub repo and
+// Vercel project, their link, and what every version is doing.
 // ---------------------------------------------------------------------------
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { PHASE_LABEL, latestWord } from "@/lib/app-builder/build";
 import { askedBefore } from "@/lib/new-jarvis/harness/families";
-import { buildLinks, CannotBuildHere, startClientEditBuild } from "@/lib/client-review/autoBuild";
+import { buildLinks } from "@/lib/client-review/autoBuild";
 import { call as bridgeCall, probe as bridgeProbe } from "@/lib/new-jarvis/bridge";
 import { pushThreadToMain } from "@/lib/client-review/pushMain";
 import { useBuild } from "@/lib/app-builder/useBuild";
@@ -64,24 +65,51 @@ function linkFor(p: ClientProject): string {
 }
 
 /**
- * Where to send the owner once a build starts: the Building screen, in the
- * Client tab, on that project.
+ * The way to a project's own page, in the Client tab — the only thing in this
+ * console that moves anyone, and only ever on a press.
  *
  * A context rather than a prop threaded through four components, because the
- * three places that start a build are three levels apart and none of the
- * components in between has any business knowing about navigation.
+ * places that offer it are three levels apart and none of the components in
+ * between has any business knowing about navigation.
  */
-const GoBuilding = createContext<((token: string) => void) | null>(null);
+const OpenPage = createContext<((token: string) => void) | null>(null);
+
+/**
+ * The way from this console to the page a version is built on.
+ *
+ * Builds do not start here any more, so this is the only thing that moves
+ * anyone: a button they pressed, saying where it goes. Nothing in here ever
+ * navigates on its own.
+ */
+function GoToPage({ token, label }: { token: string; label: string }) {
+  const open = useContext(OpenPage);
+  const look = "rounded-md border border-sky-400/50 bg-sky-400/20 px-2.5 py-1 text-[11.5px] text-sky-100";
+  const why = "Opens this site's own page, where the build plays out in the chat beside it";
+  // Mounted without the tab to switch to, it is still a link: the one way to
+  // build must never quietly not be there.
+  if (!open) {
+    return (
+      <a className={look} title={why} href={`/apps/client-review?site=${token}`}>
+        {label}
+      </a>
+    );
+  }
+  return (
+    <button className={look} title={why} onClick={() => open(token)}>
+      {label}
+    </button>
+  );
+}
 
 export function ClientReviewAdmin({
   chromeless = false,
   fill = false,
-  onBuildStarted,
+  onOpenPage,
 }: {
   chromeless?: boolean;
   fill?: boolean;
-  /** Pressing a build button lands on the Building screen for that project. */
-  onBuildStarted?: (token: string) => void;
+  /** Open a project's own page — where edits are built. Only ever on a press. */
+  onOpenPage?: (token: string) => void;
 } = {}) {
   const [state, setState] = useState<AdminState | null>(null);
   const [error, setError] = useState("");
@@ -154,7 +182,7 @@ export function ClientReviewAdmin({
   const hiddenBySearch = live.length - visible.length;
 
   return (
-    <GoBuilding.Provider value={onBuildStarted ?? null}>
+    <OpenPage.Provider value={onOpenPage ?? null}>
     <div
       className={`flex overflow-hidden bg-canvas text-ink ${fill ? "h-full" : chromeless ? "h-[calc(100dvh-90px)] md:h-[calc(100dvh-49px)]" : "h-dvh"}`}
     >
@@ -301,7 +329,7 @@ export function ClientReviewAdmin({
         />
       )}
     </div>
-    </GoBuilding.Provider>
+    </OpenPage.Provider>
   );
 }
 
@@ -725,9 +753,8 @@ function BatchCard({
   const [rejectNote, setRejectNote] = useState("");
   /** Writing through the PC bridge, which `busy` (the server actions) doesn't cover. */
   const [writing, setWriting] = useState(false);
-  /** Approving and starting the build, likewise outside `busy`. */
+  /** Approving, which happens outside `busy`. */
   const [starting, setStarting] = useState(false);
-  const goBuilding = useContext(GoBuilding);
   useEffect(() => setBrief(b.brief ?? ""), [b.brief]);
   const live = reqs.filter((r) => r.status !== "rejected").length;
 
@@ -833,55 +860,41 @@ function BatchCard({
         {briefInfo?.note && <p className="mt-1 text-[11.5px] text-amber-200">{briefInfo.note}</p>}
 
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          {(["build", "approve"] as const)
-            .filter((mode) => mode === "approve" || p.repo)
-            .map((mode) => (
-              <button
-                key={mode}
-                className={
-                  mode === "build" || !p.repo
-                    ? "rounded-md bg-emerald-500/80 px-3 py-1.5 text-xs font-semibold text-black hover:bg-emerald-400 disabled:opacity-40"
-                    : "rounded-md border border-emerald-500/40 px-2.5 py-1.5 text-xs text-emerald-200 disabled:opacity-40"
-                }
-                disabled={!live || starting || busy === "approve" || busy === "buildQueued"}
-                title={
-                  mode === "build"
-                    ? `Approve, then build it here on your PC (${p.repo}), from shipped main. ${buildModelNote(pickValue(p))}`
-                    : "Approve only — you build it and post the URL yourself"
-                }
-                onClick={async () => {
-                  setStarting(true);
-                  try {
-                    const out = await run<{ project: ClientProject; version: ReviewVersion; approved: EditRequest[] }>("approve", {
-                      action: "approve",
-                      id: p.id,
-                      batchId: b.id,
-                      brief,
-                    });
-                    if (!out) return;
-                    const done = out.project.batches.find((x) => x.id === b.id);
-                    const extra = await syncTimeline(out.project, out.version, done?.brief ?? brief, out.approved);
-                    if (mode === "approve") {
-                      say(`Approved — ${out.version.number} is waiting to be built; post its address below when it is.${extra}`);
-                      return;
-                    }
-                    const started = await startBuild(out.project, b.id, run, out.version.id);
-                    say(`Approved — ${out.version.number}: ${started.message}${extra}`);
-                    if (started.mode === "thread") goBuilding?.(p.token);
-                  } finally {
-                    setStarting(false);
-                  }
-                }}
-              >
-                {starting || busy === "approve" || busy === "buildQueued"
-                  ? "Starting…"
-                  : mode === "build"
-                    ? `Approve & build ${live} →`
-                    : p.repo
-                      ? "Approve only"
-                      : `Approve ${live} → next version`}
-              </button>
-            ))}
+          {/*
+            Approve, and nothing else. Building used to start here and then
+            move the owner to the page to watch it, which is the trip they
+            asked never to take: the build belongs to the page they edit on,
+            and this console belongs to shipping.
+          */}
+          <button
+            className="rounded-md bg-emerald-500/80 px-3 py-1.5 text-xs font-semibold text-black hover:bg-emerald-400 disabled:opacity-40"
+            disabled={!live || starting || busy === "approve"}
+            title="Approve these edits into the next version. Build it on the page itself."
+            onClick={async () => {
+              setStarting(true);
+              try {
+                const out = await run<{ project: ClientProject; version: ReviewVersion; approved: EditRequest[] }>("approve", {
+                  action: "approve",
+                  id: p.id,
+                  batchId: b.id,
+                  brief,
+                });
+                if (!out) return;
+                const done = out.project.batches.find((x) => x.id === b.id);
+                const extra = await syncTimeline(out.project, out.version, done?.brief ?? brief, out.approved);
+                say(
+                  p.repo
+                    ? `Approved — ${out.version.number} is waiting. Open the page to build it, or post its address below.${extra}`
+                    : `Approved — ${out.version.number} is waiting to be built; post its address below when it is.${extra}`,
+                );
+              } finally {
+                setStarting(false);
+              }
+            }}
+          >
+            {starting || busy === "approve" ? "Approving…" : `Approve ${live} → next version`}
+          </button>
+          <GoToPage token={p.token} label="Build it on the page →" />
           <input
             className="min-w-0 flex-1 rounded-md border border-line bg-panel-2 px-2 py-1.5 text-xs outline-none"
             placeholder="Note to the client if you reject all of these (optional)"
@@ -1045,71 +1058,6 @@ function VersionRow({
   );
 }
 
-/** What pressing build did: started on the PC, or didn't — there is no third answer. */
-interface BuildStart {
-  mode: "thread" | "failed";
-  message: string;
-}
-
-/**
- * Build an approved batch, on this PC, now.
- *
- * Nothing is filed. The queue used to be the fallback here and it was the
- * reason the button lied: a request parked in a list nobody works left the
- * version saying "building" with nothing behind it. So a failure is a sentence
- * saying which of the three things is missing, the batch stays approved, and
- * pressing build again is the retry.
- */
-async function startBuild(
-  project: ClientProject,
-  batchId: string,
-  run: Run,
-  /**
-   * The version this same press just opened by approving. Given only by
-   * Approve & build: if the build then fails to start, approving was half an
-   * action, and half an action is what leaves a version saying "building"
-   * with nothing behind it. So it is undone.
-   */
-  rollbackVersionId?: string,
-): Promise<BuildStart> {
-  try {
-    const started = await startClientEditBuild(project, batchId);
-    const noted = await run("buildQueued", {
-      action: "buildQueued",
-      id: project.id,
-      batchId,
-      builderId: started.builderId,
-      threadId: started.threadId,
-    });
-    const on = `${started.model}${started.base ? `, from main at ${started.base}` : ""}`;
-    return {
-      mode: "thread",
-      message: noted
-        ? `Claude Code is building it on your PC with ${on}. Watch it right here — the preview link lands on this version when it's done.`
-        : `Claude Code is building it with ${on}, but Client Review couldn't record it — the build still runs.`,
-    };
-  } catch (e) {
-    const why = e instanceof Error ? e.message : "The build didn't start.";
-    // Written to the batch before anything else: this is the only record that
-    // survives the toast, and it is what the next person debugging this reads.
-    await run("buildFailed", { action: "buildFailed", id: project.id, batchId, message: why }).catch(() => null);
-    if (rollbackVersionId) {
-      const undone = await run("cancelBuild", {
-        action: "cancelBuild",
-        id: project.id,
-        versionId: rollbackVersionId,
-      }).catch(() => null);
-      return {
-        mode: "failed",
-        message: undone
-          ? `${why} Nothing was approved — your edits are still waiting, so fix that and press Approve & build again.`
-          : `${why} The approval could not be undone either — use Stop & remove on the version below.`,
-      };
-    }
-    return { mode: "failed", message: `${why} Nothing was filed — press build again once that's sorted.` };
-  }
-}
-
 /** Where the client's site lives — the two fields that let approved edits build themselves. */
 function SiteHome({ project: p, run, say }: { project: ClientProject; run: Run; say: (m: string) => void }) {
   const ready = Boolean(p.repo);
@@ -1145,17 +1093,17 @@ function SiteHome({ project: p, run, say }: { project: ClientProject; run: Run; 
         </label>
       </div>
       <p className="mt-1.5 text-[11px] leading-snug text-ink-faint">
-        Approve &amp; build starts Claude Code on your PC, in a worktree of the repo reset to shipped <code>main</code>: the
-        edits go on a branch and a pull request opens for you. You watch it, answer it and push it from this screen — nothing
-        goes to a queue, and nothing reaches {p.clientName || "the client"} without you posting it. If the PC helper is off,
-        the build simply does not start and says so. Previews must open without a login: in Vercel › Settings › Deployment
-        Protection, turn Vercel Authentication off.
+        These two fields are what lets approved edits build themselves. Building happens on the site&apos;s own page, not
+        here: Claude Code works in a worktree of this repo reset to shipped <code>main</code>, the edits go on a branch, a
+        pull request opens, and the preview it ends on goes straight onto the version the page is showing. Nothing goes to a
+        queue, and if the PC helper is off the build simply does not start and says so. Previews must open without a login:
+        in Vercel › Settings › Deployment Protection, turn Vercel Authentication off.
       </p>
     </div>
   );
 }
 
-/** On a version being built: where the build is, and the button that starts it. */
+/** On a version being built: where the build is, and the way out if it is stuck. */
 function BuildStatus({
   project: p,
   version: v,
@@ -1172,13 +1120,12 @@ function BuildStatus({
   /** Puts a finished preview in the address box, so the owner still presses ship. */
   onUseUrl: (url: string) => void;
 }) {
-  /** Starting on the PC, which happens outside `busy`. */
-  const [starting, setStarting] = useState(false);
-  const goBuilding = useContext(GoBuilding);
   const batch = p.batches.find((b) => b.nextVersionId === v.id && b.build) ?? p.batches.find((b) => b.nextVersionId === v.id);
   if (!batch) return null;
   const build = batch.build;
   const appLink = build ? `/apps/app-builder?p=${encodeURIComponent(build.builderId)}` : "";
+  /** Stopping, which happens through the PC bridge and outside `busy`. */
+  const [stopping, setStopping] = useState(false);
 
   /**
    * Stop this build and hand the edits back, so it can be built again.
@@ -1190,13 +1137,13 @@ function BuildStatus({
    * that actually unsticks the screen.
    */
   const stopBuild = async () => {
-    setStarting(true);
+    setStopping(true);
     try {
       if (build?.threadId) await bridgeCall("harness/stop", { id: build.threadId }).catch(() => {});
       const out = await run("cancelBuild", { action: "cancelBuild", id: p.id, versionId: v.id });
-      if (out) say(`${v.number} stopped and removed — the edits are back as a batch waiting for Approve & build.`);
+      if (out) say(`${v.number} stopped and removed — the edits are back as a batch waiting to be built on the page.`);
     } finally {
-      setStarting(false);
+      setStopping(false);
     }
   };
 
@@ -1205,7 +1152,7 @@ function BuildStatus({
       {build?.threadId ? (
         <>
           <BuildThread threadId={build.threadId} liveUrl={p.appPath} onUseUrl={onUseUrl} />
-          <StopBuild busy={starting || busy === "cancelBuild"} onStop={stopBuild} />
+          <StopBuild busy={stopping || busy === "cancelBuild"} onStop={stopBuild} />
           <a className="ml-auto text-accent underline" href={appLink}>
             Open in App Builder ↗
           </a>
@@ -1222,25 +1169,8 @@ function BuildStatus({
             {build.queueId ? <span className="text-ink-faint"> · {build.queueId}</span> : null}
           </span>
           <span className="text-ink-faint">— from before builds ran here. Nothing is running behind it.</span>
-          {p.repo && (
-            <button
-              className="rounded-md border border-sky-400/50 bg-sky-400/20 px-2.5 py-1 text-[11.5px] text-sky-100 disabled:opacity-40"
-              disabled={busy === "buildQueued" || starting}
-              onClick={async () => {
-                setStarting(true);
-                try {
-                  const started = await startBuild(p, batch.id, run);
-                  say(started.message);
-                  if (started.mode === "thread") goBuilding?.(p.token);
-                } finally {
-                  setStarting(false);
-                }
-              }}
-            >
-              {starting || busy === "buildQueued" ? "Starting…" : "Build it on my PC →"}
-            </button>
-          )}
-          <StopBuild busy={starting || busy === "cancelBuild"} onStop={stopBuild} />
+          {p.repo && <GoToPage token={p.token} label="Build it on the page →" />}
+          <StopBuild busy={stopping || busy === "cancelBuild"} onStop={stopBuild} />
           <a className="ml-auto text-accent underline" href={appLink}>
             Open in App Builder ↗
           </a>
@@ -1258,23 +1188,8 @@ function BuildStatus({
               Last try: {batch.buildError.message}
             </span>
           )}
-          {v.status === "building" && <StopBuild busy={starting || busy === "cancelBuild"} onStop={stopBuild} />}
-          <button
-            className="ml-auto rounded-md border border-sky-400/50 bg-sky-400/20 px-2.5 py-1 text-[11.5px] text-sky-100 disabled:opacity-40"
-            disabled={busy === "buildQueued" || starting}
-            onClick={async () => {
-              setStarting(true);
-              try {
-                const started = await startBuild(p, batch.id, run);
-                say(started.message);
-                if (started.mode === "thread") goBuilding?.(p.token);
-              } finally {
-                setStarting(false);
-              }
-            }}
-          >
-            {starting || busy === "buildQueued" ? "Starting…" : "Build it on my PC →"}
-          </button>
+          {v.status === "building" && <StopBuild busy={stopping || busy === "cancelBuild"} onStop={stopBuild} />}
+          <span className="ml-auto"><GoToPage token={p.token} label="Build it on the page →" /></span>
         </>
       ) : (
         <span className="text-ink-faint">Add the client&apos;s GitHub repo above to have Claude Code build this — or paste the address below when it&apos;s deployed.</span>

@@ -501,8 +501,13 @@ export function ClientPortal({
     ? { height: sheetH ?? snapHeight(snap) }
     : { left: box.x, top: box.y, width: box.w, height: box.h };
 
+  // "Building" is only said when something is. A version left marked building
+  // with nothing behind it gets the truth, here and on the site's own badge.
+  const stuck = live.standing.kind === "stalled";
   const statusLine = building
-    ? `${live.watching ? "Claude Code" : "Jarvis"} is building ${building.number}`
+    ? stuck
+      ? `${building.number} stopped`
+      : `${live.watching ? "Claude Code" : "Jarvis"} is building ${building.number}`
     : starting
       ? "Starting the build…"
       : landed
@@ -575,10 +580,12 @@ export function ClientPortal({
         {viewing?.siteUrl ? (
           <div className={`cr-frame ${device}`} ref={frameRef}>
             {(building || landed) && (
-              <div className={`cr-stage-pill ${building ? "is-building" : "is-landed"}`} role="status">
+              <div className={`cr-stage-pill ${building ? (stuck ? "is-stuck" : "is-building") : "is-landed"}`} role="status">
                 <span aria-hidden />
                 {building
-                  ? `Building ${building.number} — this reloads by itself when it's done`
+                  ? stuck
+                    ? `${building.number} stopped — see the chat`
+                    : `Building ${building.number} — this reloads by itself when it's done`
                   : `${landed} is here`}
               </div>
             )}

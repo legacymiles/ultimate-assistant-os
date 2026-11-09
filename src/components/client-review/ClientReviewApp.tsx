@@ -232,11 +232,12 @@ export function ClientReviewApp() {
       <div className="cra-body">
         {tab === "admin" && me.owner ? (
           /*
-            Pressing a build button in the console moves to the Client tab on
-            that project, where the build plays out live in its Chat Intake
-            beside the site. There is only ever one place to watch a build.
+            Ship never starts a build and never moves anyone on its own. Its
+            "Build it on the page" button is the one way across, and it lands
+            on the Client tab for that project, where the build plays out in
+            the Chat Intake beside the site.
           */
-          <ClientReviewAdmin fill onBuildStarted={(token) => go({ target: { kind: "site", token }, tab: "client" })} />
+          <ClientReviewAdmin fill onOpenPage={(token) => go({ target: { kind: "site", token }, tab: "client" })} />
         ) : token ? (
           <ClientPortal key={token} token={token} embedded picker={picker} onBack={toList} />
         ) : target?.kind === "app" ? (

@@ -20,7 +20,7 @@ import { useBuild, type UseBuild } from "@/lib/app-builder/useBuild";
 import { waitedFor, type BuildRow } from "@/lib/client-review/building";
 import { publishBuilt, removeBuild } from "@/lib/client-review/buildHere";
 import { portal } from "@/lib/client-review/client";
-import { feedItems, finishOf, type Finish } from "@/lib/client-review/liveBuild";
+import { feedItems, finishOf, standingOf, type Finish, type Standing } from "@/lib/client-review/liveBuild";
 import { call } from "@/lib/new-jarvis/bridge";
 import { askedBefore } from "@/lib/new-jarvis/harness/families";
 
@@ -33,6 +33,8 @@ export interface LiveBuild {
   /** Only the owner has a thread to watch; a client sees the progress line. */
   build: UseBuild;
   watching: boolean;
+  /** Is anything actually building it? The page's status line reads this too. */
+  standing: Standing;
   finish: Finish;
   /** Putting the preview on the version: "", "working", or what went wrong. */
   publish: "" | "working" | { error: string };
@@ -88,6 +90,7 @@ export function useLiveBuild({
   const build = useBuild(threadId, true);
   const watching = Boolean(threadId);
   const finish: Finish = watching ? finishOf(build.phase, build.view) : { kind: "running" };
+  const standing = standingOf(active ? row : null);
 
   const doPublish = useCallback(
     async (url: string) => {
@@ -133,6 +136,7 @@ export function useLiveBuild({
     row,
     build,
     watching,
+    standing,
     finish,
     publish,
     retryPublish: () => finish.kind === "publish" && void doPublish(finish.url),
@@ -187,6 +191,11 @@ export function BuildFeed({
     if (list && stick.current) list.scrollTop = list.scrollHeight;
   }, [items.length, last?.kind === "say" ? last.text.length : 0, gate?.gateId, finish.kind, publish]);
 
+  // A row marked building is not proof of a build. Nothing behind it is said
+  // plainly rather than narrated as progress. Recomputed on the minute tick so
+  // a build that never reports in crosses into "stuck" while being watched.
+  const standing = standingOf(row, now);
+  const dead = finish.kind === "failed" || standing.kind === "stalled";
   const state =
     publish === "working"
       ? `Putting ${number} on the page…`
@@ -198,10 +207,10 @@ export function BuildFeed({
             ? "The build stopped"
             : watching
               ? PHASE_LABEL[build.phase]
-              : row?.error
+              : standing.kind === "stalled"
                 ? "Nothing is running"
                 : "Building";
-  const tone = finish.kind === "failed" || row?.error ? "bad" : gate ? "ask" : finish.kind === "running" ? "run" : "ok";
+  const tone = dead ? "bad" : gate ? "ask" : finish.kind === "running" ? "run" : "ok";
 
   return (
     <li className="cr-feed" aria-live="polite">
@@ -213,15 +222,19 @@ export function BuildFeed({
         {watching && build.summary?.model && <span className="cr-feed-model">{build.summary.model}</span>}
       </div>
 
-      {!watching && !row?.error && (
+      {standing.kind === "starting" && (
         <p className="cr-feed-quiet">
           {owner
             ? "Waiting for your PC to report in…"
             : `Your approved changes are being built into ${number}. The site on the left reloads by itself when it's ready — no need to refresh.`}
         </p>
       )}
-      {row?.error && (
-        <p className="cr-feed-error">Nothing is running. The last try said: {row.error.message}</p>
+      {standing.kind === "stalled" && (
+        <p className="cr-feed-error">
+          {owner
+            ? standing.why
+            : `${number} has stopped being built. Whoever is building your site will pick it up again — nothing for you to do.`}
+        </p>
       )}
 
       {items.length > 0 && (
@@ -316,7 +329,16 @@ export function BuildFeed({
 
       {owner && row?.projectId && finish.kind !== "publish" && (
         <div className="cr-feed-stop">
-          {sure ? (
+          {/*
+            Asking "are you sure?" only protects work in progress. With nothing
+            running there is nothing to lose, and a second press between the
+            owner and a cleared-up page is just the stuck state lasting longer.
+          */}
+          {dead ? (
+            <button className="cr-btn small" disabled={live.stopping} onClick={() => void live.stop()}>
+              {live.stopping ? "Clearing…" : "Clear it and put the edits back"}
+            </button>
+          ) : sure ? (
             <>
               <span>Stop it and put the edits back?</span>
               <button className="cr-btn small danger" disabled={live.stopping} onClick={() => void live.stop()}>
@@ -326,7 +348,7 @@ export function BuildFeed({
             </>
           ) : (
             <button className="cr-link" onClick={() => setSure(true)}>
-              {finish.kind === "failed" || row.error ? "Remove it and put the edits back" : "Stop this build"}
+              Stop this build
             </button>
           )}
         </div>

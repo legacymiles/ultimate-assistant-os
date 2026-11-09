@@ -968,10 +968,12 @@
 }
 
 /* On the site while it is being rebuilt: say so, and that it reloads itself. */
+/* Top RIGHT: the Chat Intake opens over the top left, and a badge nobody can
+   see is the same as no badge. */
 .cr-stage-pill {
   position: absolute;
   top: 12px;
-  left: 12px;
+  right: 12px;
   z-index: 2;
   display: flex;
   align-items: center;
@@ -1002,6 +1004,10 @@
 }
 .cr-stage-pill.is-landed span {
   background: var(--cr-ok);
+  animation: none;
+}
+.cr-stage-pill.is-stuck span {
+  background: var(--cr-no);
   animation: none;
 }
 

@@ -1,20 +1,14 @@
 // ---------------------------------------------------------------------------
 // What is being built right now, across everything this person can see.
 //
-// The Building screen is what you get when you open an app whose next version
-// is still being made: not the app, and not a spinner on top of the app, but a
-// list of every build in flight. Usually that list is one row. It is a list
-// anyway, because the one thing a person wants to know while waiting is
-// whether anything ELSE is in the queue ahead of them, and a single-row screen
-// cannot answer that.
+// There is no Building screen any more: a build plays out in the Chat Intake
+// on the page being edited, and these rows are what that chat reads. One row
+// per project with a version in flight, so a page can find its own.
 //
-// The other half is leaving. A build that finishes has to take the person to
-// the thing it built without them pressing anything, so this keeps returning a
-// row for a short while AFTER the version ships, marked `ready` and carrying
-// the address. The screen sees the row flip and opens it. Without that window
-// the row would simply vanish on the next poll, and a screen whose rows vanish
-// cannot tell "it is done" from "it was stopped" — which are opposite things
-// to say to someone who has been watching a progress bar.
+// A finished build keeps its row for a short while AFTER the version ships,
+// marked `ready` and carrying the address. That window is what lets a page
+// tell "it is done" from "it was stopped" — opposite things to say to someone
+// who has been watching — instead of the row simply vanishing on a poll.
 // ---------------------------------------------------------------------------
 
 import { currentVersion, buildingVersion } from "./logic";

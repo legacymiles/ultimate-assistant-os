@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { emptyThread } from "@/lib/new-jarvis/harness/model";
 import type { ThreadView, ToolRow, Turn } from "@/lib/new-jarvis/harness/types";
-import { feedItems, finishOf, shortPath, toolLine } from "./liveBuild";
+import { feedItems, finishOf, shortPath, standingOf, START_GRACE_MS, toolLine } from "./liveBuild";
 
 function tool(over: Partial<ToolRow>): ToolRow {
   return { callId: "c1", name: "Read", title: "", kindOf: "read", path: "", command: "", status: "ok", output: "", at: 1, ...over };
@@ -103,5 +103,34 @@ describe("what a finished build means", () => {
   it("explains a build that died", () => {
     expect(finishOf("lost", view([]))).toMatchObject({ kind: "failed", why: expect.stringContaining("restarted") });
     expect(finishOf("failed", view([turn({ error: "Not signed in" })]))).toEqual({ kind: "failed", why: "Not signed in" });
+  });
+});
+
+describe("standingOf — is anything actually building it?", () => {
+  const since = "2026-11-09T12:00:00.000Z";
+  const at = Date.parse(since);
+
+  it("watches a version that has a thread on this PC", () => {
+    expect(standingOf({ threadId: "th_1", since }, at + 60_000)).toEqual({ kind: "watching" });
+  });
+
+  it("gives a fresh build a moment to report its thread", () => {
+    expect(standingOf({ since }, at + 5_000)).toEqual({ kind: "starting" });
+    expect(standingOf(null, at)).toEqual({ kind: "starting" });
+  });
+
+  it("calls a version with nothing behind it stuck, not building", () => {
+    const out = standingOf({ since }, at + START_GRACE_MS + 1_000);
+    expect(out.kind).toBe("stalled");
+    expect(out.kind === "stalled" && out.why).toContain("Nothing is running");
+  });
+
+  it("repeats why the last try failed, however long ago it was", () => {
+    const out = standingOf({ since, error: { message: "No GitHub repo is set." } }, at + 1_000);
+    expect(out).toEqual({ kind: "stalled", why: "It never started. The last try said: No GitHub repo is set." });
+  });
+
+  it("treats an unreadable date as too fresh to call stuck", () => {
+    expect(standingOf({ since: "not a date" }, at)).toEqual({ kind: "starting" });
   });
 });

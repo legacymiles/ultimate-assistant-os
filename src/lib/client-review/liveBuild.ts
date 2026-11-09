@@ -71,6 +71,44 @@ export function feedItems(view: ThreadView, limit = 80): FeedItem[] {
   return out.slice(-limit);
 }
 
+/**
+ * How long a version just opened may have no thread recorded before it counts
+ * as stuck. Recording the thread is a second round trip after the build
+ * starts, so a fresh build has a moment where the row looks like a dead one.
+ */
+export const START_GRACE_MS = 2 * 60_000;
+
+/** Is anything actually building this version? */
+export type Standing =
+  /** There is a thread on this PC: the feed tells the story. */
+  | { kind: "watching" }
+  /** Opened a moment ago; the PC has not reported in yet. */
+  | { kind: "starting" }
+  /** Marked building with nothing behind it. Say so, and offer the way out. */
+  | { kind: "stalled"; why: string };
+
+/**
+ * A version marked "building" is not proof that a build is running. It can be
+ * one that never started, or one filed in the old In Queue and left there —
+ * and the page used to tell those two "waiting for your PC to report in",
+ * which is the loading-screen-with-nothing-behind-it all over again. Three
+ * states, from the row alone, so a client's page can say it too.
+ */
+export function standingOf(
+  row: { threadId?: string; since: string; error?: { message: string } } | null,
+  now = Date.now(),
+): Standing {
+  if (!row) return { kind: "starting" };
+  if (row.threadId) return { kind: "watching" };
+  if (row.error) return { kind: "stalled", why: `It never started. The last try said: ${row.error.message}` };
+  const age = now - Date.parse(row.since);
+  if (!Number.isFinite(age) || age < START_GRACE_MS) return { kind: "starting" };
+  return {
+    kind: "stalled",
+    why: "Nothing is running behind this one. It was never started on this PC, or it was filed in the old queue and left there.",
+  };
+}
+
 /** What a build's end means for the page. */
 export type Finish =
   | { kind: "running" }
