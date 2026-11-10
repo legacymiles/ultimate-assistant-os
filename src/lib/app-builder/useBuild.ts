@@ -20,6 +20,9 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { buildModelFor, buildsWithPick } from "@/lib/client-review/models";
+import { readChatModel } from "@/lib/new-jarvis/useChatModel";
+import { readTrust } from "@/lib/new-jarvis/trust";
 import { BridgeError, call, knownFolder } from "@/lib/new-jarvis/bridge";
 import { emptyThread, reduceEvents } from "@/lib/new-jarvis/harness/model";
 import { buildHarness } from "@/lib/new-jarvis/harness/choice";
@@ -149,6 +152,11 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
     setError("");
     setStarting("Making the project folder…");
     try {
+      // The pick in the header is the harness pick. Claude Code only runs a
+      // Claude model, so a Claude pick is honoured; anything else keeps the
+      // default Claude Code model rather than silently pretending.
+      const chosen = readChatModel();
+      const buildModel = chosen && (buildsWithPick(chosen) || chosen === "claude-subscription") ? buildModelFor(chosen) : "";
       const { session } = await call<{ session: ThreadSummary }>("harness/start", {
         harness: buildHarness(),
         title: threadTitle(p),
@@ -159,6 +167,7 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
         // the owner's own work, so the folder handed over is only theirs.
         projectClient: isForClient(p),
         laneWrites: true,
+        ...(buildModel ? { model: buildModel } : {}),
         // Pinned to "trusted", not inherited from the owner's setting.
         //
         // A build is hours of writing files and running npm, and on "ask" it
@@ -168,7 +177,7 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
         // ago that contains nothing to lose: `autoAllow` still gates every
         // write outside that folder, and still gates anything grave whatever
         // the trust setting says.
-        trust: "trusted",
+        trust: readTrust(),
       });
       setSummary(session);
       setStarting("Handing over the brief…");

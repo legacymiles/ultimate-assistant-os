@@ -53,12 +53,12 @@ const HARNESSES = {
   claude: {
     id: "claude",
     label: CLAUDE_LABEL,
-    blurb: "Anthropic's own harness, through the Agent SDK. Every edit and command is asked about here.",
+    blurb: "Anthropic's own harness, through the Agent SDK. Follows the Permissions setting below.",
   },
   deepseek: {
     id: "deepseek",
     label: DEEPSEEK_LABEL,
-    blurb: "DeepSeek's harness over Agent Client Protocol, pinned to a read-only sandbox so every write escalates to you.",
+    blurb: "DeepSeek's harness over Agent Client Protocol. Reads files, runs commands, uses MCP. Follows the Permissions setting below.",
   },
 };
 
@@ -148,7 +148,7 @@ export async function startThread({ harness = "claude", title = "", repo, projec
     // "trusted" by default: a thread works inside a worktree of its own, so
     // writing there and running the build is the job, not a surprise. The
     // graves and anything outside the worktree still stop and ask.
-    trust: trust === "ask" || trust === "auto" ? trust : "trusted",
+    trust: trust === "ask" || trust === "auto" || trust === "full" ? trust : "trusted",
     worktree,
     preview: null,
     events: [],

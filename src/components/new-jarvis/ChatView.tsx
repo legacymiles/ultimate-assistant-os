@@ -29,6 +29,7 @@ import { fixFor, type ErrorFix } from "@/lib/new-jarvis/errorFix";
 import { elapsed, type Block, type Mode } from "@/lib/new-jarvis/types";
 import type { VoiceState } from "@/lib/new-jarvis/useWakeVoice";
 import { TRUSTS, type Trust } from "@/lib/new-jarvis/trust";
+import { SlashSkills, withSkill } from "./SlashSkills";
 
 export interface ComposerProps {
   value: string;
@@ -669,7 +670,9 @@ function Composer({
           </div>
         )}
 
-        <textarea
+        <div className="relative">
+          <SlashSkills text={value} onPick={(skill) => onChange(withSkill(value, skill))} />
+          <textarea
           ref={fieldRef}
           rows={docked ? 1 : 2}
           value={shownText}
@@ -688,6 +691,7 @@ function Composer({
           aria-label="Message Jarvis"
           className="njc-composer__field"
         />
+        </div>
 
         <div className="njc-composer__row">
           <button type="button" className="njc-attach" onClick={onAttach} title="Pictures, clips or recordings (or drop / paste them)">

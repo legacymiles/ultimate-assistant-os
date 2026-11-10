@@ -18,6 +18,7 @@ import { Markdown } from "../jarvis/Markdown";
 import type { Block, Gate, Step } from "@/lib/new-jarvis/types";
 import { elapsed } from "@/lib/new-jarvis/types";
 import { describeKind } from "@/lib/new-jarvis/trust";
+import { harnessHref } from "@/lib/new-jarvis/harness/link";
 
 export const ms = (n: number | undefined) => (n === undefined ? "" : n < 1000 ? `${n} ms` : `${(n / 1000).toFixed(1)} s`);
 
@@ -305,6 +306,11 @@ function ResultView({ step }: { step: Step }) {
           {s("branch") && <span className="truncate font-mono text-ink-faint">{s("branch")}</span>}
           {typeof r.usd === "number" && r.usd > 0 && <span data-num>${r.usd.toFixed(3)}</span>}
           {r.cursor ? <span data-num>cursor {String(r.cursor)}</span> : null}
+          {s("threadId") && (
+            <a href={harnessHref(s("threadId"))} className="text-brand hover:underline">
+              Open in harness â†’
+            </a>
+          )}
         </p>
         {s("worktree") && <p className="truncate font-mono text-[10.5px] text-ink-faint">{s("worktree")}</p>}
         {s("said") && (

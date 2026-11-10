@@ -48,13 +48,14 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { bearer, originAllowed, refuseReason, tokenMatches } from "./guard.mjs";
+import { ALLOWED_ORIGINS, bearer, originAllowed, refuseReason, tokenMatches } from "./guard.mjs";
 import { selfHeal, setup } from "./selfheal.mjs";
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import * as browser from "./browser.mjs";
 import * as computer from "./computer.mjs";
 import * as vault from "./vault.mjs";
 import * as harness from "./harness.mjs";
+import * as github from "./github.mjs";
 import * as mcp from "./mcp.mjs";
 import * as cli from "./cli.mjs";
 
@@ -96,11 +97,41 @@ function loadToken() {
 }
 const TOKEN = loadToken();
 
+/**
+ * Give the coding agents a GitHub token without asking the owner to paste one.
+ *
+ * `gh` does not read git's credential helper, so a harness could push a branch
+ * (git had the credential) and then be unable to open or merge the pull
+ * request. The same credential git already uses is enough for `gh` when it is
+ * handed over as GH_TOKEN. Read once, at startup; never written to disk.
+ */
+function inheritGitHubToken() {
+  if (process.env.GH_TOKEN || process.env.GITHUB_TOKEN) return;
+  try {
+    const out = execFileSync("git", ["credential", "fill"], {
+      input: "protocol=https\nhost=github.com\n\n",
+      encoding: "utf8",
+      timeout: 8_000,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+    });
+    const match = /^password=(.+)$/m.exec(out);
+    if (match) process.env.GH_TOKEN = match[1].trim();
+  } catch {
+    // No credential on this PC: git and gh will say so in their own words.
+  }
+}
+inheritGitHubToken();
+
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
 
 const ROUTES = {
+  // One click: bring main in, push the branch, merge the PR. The agent gets
+  // the conflict sentence if git needs a human-sized fix.
+  "POST /github/ship": (b) => github.ship(b),
+  "POST /github/status": (b) => github.status(b),
+
   // Jarvis thinking with the owner's own Claude subscription, through the
   // unmodified Claude Code on this PC. See brain.mjs.
   "POST /brain/claude": (b) => brain.think(b),
@@ -263,6 +294,82 @@ function send(res, status, payload) {
   res.end(body);
 }
 
+/**
+ * The one local page a public site is allowed to open in a window.
+ *
+ * Chrome 156 will not let a page on https://bighomieai.com fetch
+ * http://127.0.0.1 unless the owner grants a per-site "loopback network"
+ * permission — and if that prompt was dismissed before, Chrome can stop
+ * showing it entirely. A TOP-LEVEL navigation to localhost is not gated the
+ * same way, so this page is opened once from a click and becomes the channel:
+ * the app posts a request to it, it fetches its own origin (the bridge), and
+ * posts the answer back. No permission, and it works for every app on the
+ * owner's domains because the relay checks the sender's origin.
+ */
+function relayPage() {
+  const allow = JSON.stringify(ALLOWED_ORIGINS.map((re) => ({ source: re.source, flags: re.flags })));
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Jarvis is connected</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; padding:20px; background:#0a0b0f; color:#e5e7eb; font:14px/1.5 system-ui,Segoe UI,sans-serif; }
+  h1 { margin:0 0 6px; font-size:16px; }
+  p { margin:0 0 14px; color:#9ca3af; font-size:12.5px; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#34d399; margin-right:7px; box-shadow:0 0 10px #34d399; }
+  button { border:1px solid #2a2f3a; background:#12151c; color:#cbd5e1; border-radius:7px; padding:6px 10px; font:inherit; cursor:pointer; }
+  button:hover { background:#191d26; color:#fff; }
+</style></head>
+<body>
+  <h1><span class="dot"></span>Jarvis is connected</h1>
+  <p>Keep this window open while you use Jarvis on this PC. You can minimize it.</p>
+  <button type="button" onclick="window.close()">Close</button>
+<script>
+  const ALLOWED = (${allow}).map((r) => new RegExp(r.source, r.flags));
+  const allowed = (origin) => ALLOWED.some((re) => re.test(origin));
+  const reply = (data, origin) => { try { window.opener && window.opener.postMessage(data, origin); } catch (e) {} };
+
+  window.addEventListener("message", async (event) => {
+    if (!allowed(event.origin)) return;
+    const msg = event.data || {};
+    if (msg.type === "jarvis:ping") {
+      try { event.source.postMessage({ type: "jarvis:ready" }, event.origin); } catch (e) {}
+      return;
+    }
+    if (msg.type !== "jarvis:call") return;
+    const headers = { "Content-Type": "application/json" };
+    if (msg.token) headers.Authorization = "Bearer " + msg.token;
+    if (msg.route === "pair") headers["X-Jarvis-Pair"] = "1";
+    try {
+      const res = await fetch("/" + String(msg.route || "").replace(/^\\/+/, ""), {
+        method: msg.method === "GET" ? "GET" : "POST",
+        headers,
+        body: msg.method === "GET" ? undefined : JSON.stringify(msg.args || {}),
+        cache: "no-store",
+      });
+      const body = await res.text();
+      try { event.source.postMessage({ type: "jarvis:result", id: msg.id, status: res.status, body }, event.origin); } catch (e) {}
+    } catch (err) {
+      try { event.source.postMessage({ type: "jarvis:result", id: msg.id, error: String(err) }, event.origin); } catch (e) {}
+    }
+  });
+
+  // The opener may have attached its listener after this page loaded; the ping
+  // above covers that, and this covers the common case immediately.
+  try { window.opener && window.opener.postMessage({ type: "jarvis:ready" }, "*"); } catch (e) {}
+</script>
+</body></html>`;
+}
+
+function sendHtml(res, html) {
+  res.writeHead(200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+  });
+  res.end(html);
+}
+
 function readBody(req) {
   return new Promise((done, fail) => {
     let raw = "";
@@ -301,6 +408,10 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
   const path = url.pathname.replace(/\/+$/, "") || "/";
 
+  if (path === "/relay" && req.method === "GET") {
+    return sendHtml(res, relayPage());
+  }
+
   if (path === "/health") {
     return send(res, 200, {
       ok: true,
@@ -322,7 +433,10 @@ const server = http.createServer(async (req, res) => {
   // already on this PC could read out/token.txt anyway, so this gives nothing
   // away that wasn't already on disk — it just stops the owner copying it.
   if (path === "/pair" && req.method === "GET") {
-    if (!originAllowed(origin) || req.headers["x-jarvis-pair"] !== "1") {
+    // A same-origin request (the relay page) carries no Origin header; a
+    // cross-origin page always does, and still has to be on the allow-list.
+    const sameOrigin = !origin;
+    if ((!sameOrigin && !originAllowed(origin)) || req.headers["x-jarvis-pair"] !== "1") {
       return send(res, 403, { error: "Only New Jarvis can pair with this PC." });
     }
     return send(res, 200, { ok: true, token: TOKEN });

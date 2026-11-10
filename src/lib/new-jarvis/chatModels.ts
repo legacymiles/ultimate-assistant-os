@@ -39,8 +39,8 @@ export const AUTO_MODEL: ChatModel = {
 
 export const SUBSCRIPTION_MODEL: ChatModel = {
   id: CLAUDE_SUBSCRIPTION,
-  label: "Claude · my subscription",
-  why: "Your own Claude plan through Claude Code on your PC. No extra cost.",
+  label: "Claude - my plan",
+  why: "Your own Claude plan, through the local agent. No extra cost.",
   reads: ["text", "image"],
 };
 

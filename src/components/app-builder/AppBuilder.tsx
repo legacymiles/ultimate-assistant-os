@@ -30,6 +30,8 @@ import { IdeaStage, Interview } from "./Stages";
 import { Waiting } from "./Waiting";
 import { BuildStarted } from "./BuildStarted";
 import { isNewBuild, PHASE_LABEL } from "@/lib/app-builder/build";
+import { ModelPicker } from "../new-jarvis/ModelPicker";
+import { useChatModel } from "@/lib/new-jarvis/useChatModel";
 import "./app-builder.css";
 
 type Pane = "features" | "chat" | "blueprint";
@@ -40,6 +42,7 @@ const EDIT_CHIPS = ["Which of these edits are vague?", "What could these edits b
 export function AppBuilder() {
   const ab = useAppBuilder();
   const { current, busy } = ab;
+  const { model: harnessModel, setModel: setHarnessModel } = useChatModel();
   const [charge, setCharge] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
@@ -174,6 +177,9 @@ export function AppBuilder() {
               🗑
             </button>
           )}
+        </div>
+        <div style={{ marginLeft: "auto" }}>
+          <ModelPicker value={harnessModel} onChange={setHarnessModel} />
         </div>
         <Pipeline project={current} />
         {stage === "features" && current && (
@@ -334,6 +340,7 @@ export function AppBuilder() {
                   step={ab.step}
                   build={build}
                   bridge={ab.bridge}
+                  onBridgeRefresh={ab.refreshBridge}
                   moving={ab.moving}
                   onBuild={ab.build}
                   onMove={ab.absorb}

@@ -16,7 +16,7 @@ import { etaFor } from "@/lib/app-builder/plan";
 import { APP_TYPE_LABEL, type BuilderProject, type Depth } from "@/lib/app-builder/types";
 import type { UseBuild } from "@/lib/app-builder/useBuild";
 import type { Busy, QueueStep } from "@/lib/app-builder/useAppBuilder";
-import type { BridgeHealth } from "@/lib/new-jarvis/bridge";
+import { connectPc, type BridgeHealth } from "@/lib/new-jarvis/bridge";
 import { BuildStatus } from "./BuildStatus";
 import { MoveIntoHub } from "./MoveIntoHub";
 
@@ -91,6 +91,7 @@ export function Blueprint({
   step,
   build,
   bridge,
+  onBridgeRefresh,
   moving,
   onBuild,
   onMove,
@@ -107,6 +108,8 @@ export function Blueprint({
   step: QueueStep;
   build: UseBuild;
   bridge: BridgeHealth;
+  /** Re-probe after the relay window is opened from the offline card. */
+  onBridgeRefresh: () => void;
   /** The second thread: the one moving this app into the hub. */
   moving: UseBuild;
   onBuild: (clientName?: string) => void;
@@ -276,10 +279,21 @@ export function Blueprint({
         )}
 
         {offline && (
-          <p className="ab-bwarn ab-offline" role="status">
-            Your PC isn&rsquo;t reachable from this browser, so there&rsquo;s nothing to build with. Open Jarvis on that computer to start its helper — or file
-            this for later and it will be waiting.
-          </p>
+          <div className="ab-bwarn ab-offline" role="status">
+            <p>
+              Your PC isn&rsquo;t reachable from this browser, so there&rsquo;s nothing to build with.
+              Press Connect and a small Jarvis window will carry the connection.
+            </p>
+            <button
+              type="button"
+              className="ab-ghost"
+              onClick={async () => {
+                if (await connectPc()) onBridgeRefresh();
+              }}
+            >
+              Connect this PC
+            </button>
+          </div>
         )}
 
         <button

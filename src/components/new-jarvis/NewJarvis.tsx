@@ -67,6 +67,7 @@ import { ToolsTab } from "../jarvis/ToolsTab";
 import { PasswordVault } from "./PasswordVault";
 import { Telephony } from "./Telephony";
 import { HarnessConsole } from "./HarnessConsole";
+import { harnessFromHash } from "@/lib/new-jarvis/harness/link";
 import { ArmoryTab } from "./ArmoryTab";
 import { gapsForAudit, readAll } from "@/lib/armory/catalog";
 import { ReflexStrip } from "./ReflexStrip";
@@ -158,10 +159,9 @@ const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[]
     label: "Work",
     icon: "Layers",
     items: [
-      // In Queue answers "what should I work on"; Code is the coding agent
-      // (Claude Code or the DeepSeek harness) on the repo in its own branch.
+      // In Queue answers "what should I work on". A local agent still runs as
+      // a capability of Chat; the thread opens over it, not as another tab.
       { id: "queue", label: "Queue", icon: "ListChecks" },
-      { id: "harness", label: "Code", icon: "Layers" },
       // The crash log. It sat on the Dashboard until 2026-10-19; it is a
       // fix-it list for whoever builds, so it lives with the build tools.
       { id: "site-errors", label: "Site errors", icon: "Flag" },
@@ -218,6 +218,8 @@ function isTab(v: string): v is TabId {
 
 export function NewJarvis() {
   const [tab, setTab] = useState<TabId>("dashboard");
+  /** A thread another surface linked to (`#harness/<id>`). */
+  const [harnessThread, setHarnessThread] = useState("");
   // Studio and App plugins have their own look; everywhere else, the galaxy.
   const galaxyOff = tab === "studio" || tab === "plugins";
   /** The More sheet — every section that is not on the rail. */
@@ -294,9 +296,12 @@ export function NewJarvis() {
     allowedRef.current = allowed;
   }, [allowed]);
   useEffect(() => {
+    // Re-read when the Chat changes face: the harness start panel writes the
+    // same setting, and the composer has to show the value the next thread
+    // would actually use.
     setTrust(readTrust());
     setAllowed(readAllowed());
-  }, []);
+  }, [chatModel]);
 
   const chooseTrust = useCallback((t: Trust) => {
     setTrust(t);
@@ -829,7 +834,7 @@ export function NewJarvis() {
           import("@/lib/new-jarvis/workbench"),
           import("@/lib/new-jarvis/bridge"),
         ]);
-        return runWorkTool(tool, args, { call, folder: knownFolder() });
+        return runWorkTool(tool, args, { call, folder: knownFolder() }, { trust: trustRef.current });
       }
 
       // The services an app ships through. Run by the website, so the job never
@@ -1145,10 +1150,12 @@ ${reflex.best.excerpt ?? ""}`.trim()
   );
   /** "Jarvis, do it": straight to the super-agent, in Do mode, past the reflex — a job, not a question. */
   const askAgent = useCallback((task: string) => {
+    // A cloud job needs the cloud brain; a local harness would hide the block.
+    setChatModel("");
     setTab("console");
     window.location.hash = "console";
     submitRef.current(task, "typed", { mode: "do", skipReflex: true });
-  }, []);
+  }, [setChatModel]);
 
   // The tab lives in the hash, so reload and back land where the owner was.
   useEffect(() => {
@@ -1186,12 +1193,26 @@ ${reflex.best.excerpt ?? ""}`.trim()
       // with #studio/workflows — so the tab is the part before the first one.
       // The connections case above handles its own prefix and has returned by
       // here; this is the general rule for the rest.
+      // A thread link from Chat, Client Review or a notification:
+      // #harness/<id> opens that thread in the viewer.
+      const linked = harnessFromHash(h);
+      if (linked.harness) {
+        setTab("console");
+        setHarnessThread(linked.threadId);
+        return;
+      }
       const head = h.split("/")[0];
       if (isTab(head)) setTab(head);
     };
     read();
     window.addEventListener("hashchange", read);
     return () => window.removeEventListener("hashchange", read);
+  }, []);
+
+  /** Close the thread sheet without leaving the Chat tab. */
+  const closeHarnessThread = useCallback(() => {
+    setHarnessThread("");
+    window.history.replaceState(null, "", "#console");
   }, []);
 
   const go = useCallback((id: TabId) => {
@@ -1221,10 +1242,12 @@ ${reflex.best.excerpt ?? ""}`.trim()
         window.open("/apps/client-review", "_blank", "noopener");
         return;
       }
+      // "chat" is the cloud conversation; do not leave it behind a harness.
+      if (name === "chat") setChatModel("");
       const mapped = name === "memory" ? "dashboard" : name === "chat" ? "console" : name;
       if (isTab(mapped)) go(mapped);
     },
-    [go],
+    [go, setChatModel],
   );
 
   const running = blocks.some((b) => b.status === "running" || b.status === "waiting");
@@ -1423,6 +1446,9 @@ ${reflex.best.excerpt ?? ""}`.trim()
             if (!files.length) return;
             e.preventDefault();
             addFiles(files);
+            // An attachment is for the cloud conversation; a harness thread
+            // has no composer that could take it.
+            setChatModel("");
             if (tab !== "console") go("console");
           }}
         >
@@ -1449,7 +1475,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
 
           <div
             key={tab === "photos" ? "folders" : tab}
-            className={`nj-resolve min-h-0 flex-1 ${tab === "console" ? "overflow-hidden" : "nj-read overflow-y-auto"}`}
+            className={`nj-resolve min-h-0 flex-1 ${tab === "console" ? "flex flex-col overflow-hidden bg-canvas" : "nj-read overflow-y-auto"}`}
           >
             {/* The Dashboard is its own column layout and owns its scrolling,
                 so it sits outside the shared scroll container. */}
@@ -1549,12 +1575,6 @@ ${reflex.best.excerpt ?? ""}`.trim()
                 onRerun={(b) => void submit(b.command, b.source)}
                 onStop={stop}
               />
-            ) : tab === "harness" ? (
-              // Branched here, ahead of the store gate: a harness thread reads
-              // the repo and nothing from the dashboard, so making it wait on
-              // "Loading your things…" would delay the one tab that has no
-              // reason to.
-              <HarnessConsole paired={bridge.health.up && bridge.health.paired} />
             ) : tab === "queue" ? (
               // Also ahead of the gate. The board reads the repo and, for the
               // one signal that needs it, a store it treats as optional — so
@@ -1648,6 +1668,30 @@ ${reflex.best.excerpt ?? ""}`.trim()
         speakReplies={speakReplies}
         onSpeakReplies={setSpeakReplies}
       />
+
+      {/* A local agent's thread is a capability of Chat, not a second tab.
+          The link from Chat or another app opens it over the one surface. */}
+      {harnessThread && (
+        <div className="fixed inset-0 z-40 flex flex-col bg-canvas" role="dialog" aria-label="Harness thread">
+          <div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-2">
+            <span className="text-sm font-medium text-ink">Harness thread</span>
+            <button
+              type="button"
+              onClick={closeHarnessThread}
+              className="rounded-md border border-line px-2.5 py-1 text-[11px] text-ink-muted transition hover:bg-elevated hover:text-ink"
+            >
+              Close
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <HarnessConsole
+              paired={bridge.health.up && bridge.health.paired}
+              initialThread={harnessThread}
+              viewerOnly
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -22,6 +22,7 @@
 
 import { emptyThread, reduceEvents } from "./harness/model";
 import type { HarnessEvent, HarnessId, ThreadSummary, ToolRow } from "./harness/types";
+import type { Trust } from "./trust";
 
 /** The two things the bridge can actually run. See harness.mjs. */
 export const WORK_HARNESSES: { id: HarnessId; label: string }[] = [
@@ -41,6 +42,8 @@ export interface WorkDeps {
   wait?: (ms: number) => Promise<void>;
   /** Never wait longer than this for the first sign of life. */
   waitMs?: number;
+  /** The Chat's Permissions setting, applied to a thread the Chat starts. */
+  trust?: Trust;
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -216,7 +219,10 @@ export async function startWork(
     throw new Error("This browser doesn't know where the repo is yet — open Jarvis once with the PC helper running, or pass the repo's folder.");
   }
 
-  const trust = args.trust === "ask" || args.trust === "auto" ? args.trust : "trusted";
+  const trust: Trust =
+    args.trust === "ask" || args.trust === "auto" || args.trust === "full"
+      ? args.trust
+      : deps.trust ?? "trusted";
   const { session } = await bridge.call<StartReply>("harness/start", {
     harness,
     title: str(args.title) || threadTitle(task),

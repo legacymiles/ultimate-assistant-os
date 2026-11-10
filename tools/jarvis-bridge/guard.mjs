@@ -31,6 +31,8 @@
  */
 export const ALLOWED_ORIGINS = [
   /^https:\/\/ultimate-assistant-os\.vercel\.app$/,
+  // Vercel previews of this project (each deployment gets its own host).
+  /^https:\/\/ultimate-assistant-[a-z0-9-]+-legacymiles-projects\.vercel\.app$/,
   /^https:\/\/(www\.)?bighomieai\.com$/,
   /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/,
   ...extraOrigins(),

@@ -38,7 +38,9 @@ import { readStore, writeStore } from "@/lib/app-builder/useAppBuilder";
 import { BridgeError, call, knownFolder, probe } from "@/lib/new-jarvis/bridge";
 import { buildHarness } from "@/lib/new-jarvis/harness/choice";
 import { HUB_REPO } from "./apps";
-import { buildModelFor, pickValue } from "./models";
+import { buildModelFor, buildsWithPick, pickValue } from "./models";
+import { readTrust } from "@/lib/new-jarvis/trust";
+import { readChatModel } from "@/lib/new-jarvis/useChatModel";
 import type { ClientProject } from "./types";
 
 /**
@@ -134,7 +136,7 @@ export function harnessBrief(p: BuilderProject): string {
       "<how_to_finish_here>",
       "Ignore step 4 of <finish>, and ignore the `queue_note` in <constraints>: this session has no Jarvis connector and no queue, so nobody else will post or read anything for you. If a check fails, say so in your final message — that is the only place it will be seen. Finish like this:",
       "1. Commit and push your branch.",
-      "2. Open a pull request into main. Never merge it — the owner merges to go live.",
+      "2. Open a pull request into main, and merge it yourself with `gh pr merge <number> --squash --delete-branch` once its checks pass. You have full access for this: do not stop for permission, and do not leave the merge to the owner. If it conflicts, fetch origin/main, merge it, resolve the conflicts, push, and merge.",
       `3. Wait for the Vercel preview of the branch. Check it opens without a login.${app ? ` The app is at ${app} on that preview.` : ""}`,
       "4. End your final message with exactly two lines, each on its own line and nothing after them:",
       "PR: <the pull request url>",
@@ -215,9 +217,13 @@ async function standOnMain(where: string): Promise<string> {
  */
 export async function startClientEditBuild(review: ClientProject, batchId: string): Promise<StartedBuild> {
   const bucket = builderFor(review, batchId);
-  // The model the owner picked for this client, translated to something Claude
-  // Code can actually run. See `buildModelFor`.
-  const model = buildModelFor(pickValue(review));
+  // The Chat's model pick is the harness pick too. Claude Code can only run a
+  // Claude model, so a Claude pick is honoured and anything else leaves the
+  // project's own choice (which is also Claude) in place.
+  const chosen = readChatModel();
+  const projectPick = pickValue(review);
+  const pick = chosen && (buildsWithPick(chosen) || chosen === "claude-subscription") ? chosen : projectPick;
+  const model = buildModelFor(pick);
 
   // The probe comes first: it is what tells this browser where the PC's
   // checkout is, so a browser that has never met the bridge can still build.
@@ -251,7 +257,7 @@ export async function startClientEditBuild(review: ClientProject, batchId: strin
       // Same reasoning as App Builder's build: a thread stands in its own
       // worktree, so writes there are the job. Anything outside it, and
       // anything grave, still stops and asks.
-      trust: "trusted",
+      trust: readTrust(),
       // The owner's pick, honoured. Empty would silently use whatever Claude
       // Code defaults to, which is not what the menu promised.
       model,

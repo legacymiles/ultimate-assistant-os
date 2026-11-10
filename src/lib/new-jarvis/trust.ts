@@ -29,7 +29,7 @@
 
 import type { BridgeOp, Verdict } from "./actions";
 
-export type Trust = "ask" | "trusted" | "auto";
+export type Trust = "ask" | "trusted" | "auto" | "full";
 
 export const TRUSTS: { id: Trust; label: string; hint: string }[] = [
   { id: "ask", label: "Ask", hint: "Ask before anything with an effect. Slowest, most watchable." },
@@ -39,6 +39,11 @@ export const TRUSTS: { id: Trust; label: string; hint: string }[] = [
     hint: "Get on with it. Stops for money, sending, deleting, and signing you up for things.",
   },
   { id: "auto", label: "Auto", hint: "Nothing stops except money, sending, and deleting." },
+  {
+    id: "full",
+    label: "Full access",
+    hint: "No gates at all: files, shell, browser and MCP run without asking. Use only on a job you are watching.",
+  },
 ];
 
 export const DEFAULT_TRUST: Trust = "trusted";
@@ -207,16 +212,21 @@ export function gateKind(op: BridgeOp): string {
 /**
  * Does this call stop the run?
  *
- * Order matters: the core wins over every level and over every remembered yes,
- * so no amount of clicking "always" in a hurry can ever add `git push` to the
- * list of things that happen quietly.
+ * Order matters: Full access is the explicit exception, and otherwise the core
+ * wins over every level and over every remembered yes, so no amount of
+ * clicking "always" in a hurry can ever add `git push` to the list of things
+ * that happen quietly.
  */
 export function needsGate(
   op: BridgeOp,
   verdict: Verdict,
   { trust = DEFAULT_TRUST, allowed = [] }: { trust?: Trust; allowed?: string[] } = {},
 ): boolean {
-  // The core first, so no level and no remembered yes can get past it.
+  // Full access is the owner's explicit "do the work, do not ask" switch.
+  // It skips the gates, not the bridge's own catastrophic-command refusal;
+  // that refusal is the floor no setting can move.
+  if (trust === "full") return false;
+  // The core next, so no other level and no remembered yes can get past it.
   if (alwaysAsk(op)) return true;
   if (!verdict.confirm) return false;
 
@@ -270,7 +280,7 @@ export function describeKind(kind: string): string {
 export function readTrust(): Trust {
   try {
     const raw = localStorage.getItem(TRUST_KEY);
-    return raw === "ask" || raw === "trusted" || raw === "auto" ? raw : DEFAULT_TRUST;
+    return raw === "ask" || raw === "trusted" || raw === "auto" || raw === "full" ? raw : DEFAULT_TRUST;
   } catch {
     return DEFAULT_TRUST;
   }

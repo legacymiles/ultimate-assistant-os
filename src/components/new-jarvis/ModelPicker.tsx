@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { Popover } from "../Popover";
-import { AUTO_MODEL, CHAT_MODELS, isModelId, modelLabel } from "@/lib/new-jarvis/chatModels";
+import { AUTO_MODEL, CHAT_MODELS, isModelId, modelLabel, type ChatModel } from "@/lib/new-jarvis/chatModels";
 
 interface Listed {
   id: string;
@@ -61,6 +61,26 @@ export function ModelPicker({
 
   const typedId = q.trim();
 
+  /** One row, shared by both groups: a cloud brain or a local agent. */
+  const option = (m: ChatModel) => (
+    <li key={m.id || "auto"}>
+      <button
+        type="button"
+        onClick={() => pick(m.id)}
+        className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left transition hover:bg-elevated ${value === m.id ? "bg-elevated" : ""}`}
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block text-[12px] text-ink">{m.label}</span>
+          <span className="block text-[10.5px] text-ink-muted">{m.why}</span>
+        </span>
+        <span className="shrink-0 text-[11px]" aria-label={`Reads ${m.reads.join(", ")}`}>
+          {m.reads.filter((r) => r !== "text").map((r) => READ_ICON[r]).join(" ")}
+        </span>
+        {value === m.id && <Icon.Check width={12} height={12} className="shrink-0 text-brand" aria-hidden />}
+      </button>
+    </li>
+  );
+
   return (
     <div className="order-1 shrink-0">
       <button
@@ -89,28 +109,10 @@ export function ModelPicker({
         className="p-1.5"
       >
         <div>
-          <p className="px-2 pb-1 pt-0.5 text-[10px] uppercase tracking-wider text-ink-faint">Jarvis's brain</p>
-          <ul>
-            {CHAT_MODELS.map((m, i) => (
-              <li key={m.id || "auto"} className={i === 2 ? "mt-1 border-t border-line-soft pt-1" : ""}>
-                {i === 2 && <p className="px-2 pb-0.5 text-[10px] uppercase tracking-wider text-ink-faint">Cloud models · your OpenRouter key</p>}
-                <button
-                  type="button"
-                  onClick={() => pick(m.id)}
-                  className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left transition hover:bg-elevated ${value === m.id ? "bg-elevated" : ""}`}
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[12px] text-ink">{m.label}</span>
-                    <span className="block text-[10.5px] text-ink-muted">{m.why}</span>
-                  </span>
-                  <span className="shrink-0 text-[11px]" aria-label={`Reads ${m.reads.join(", ")}`}>
-                    {m.reads.filter((r) => r !== "text").map((r) => READ_ICON[r]).join(" ")}
-                  </span>
-                  {value === m.id && <Icon.Check width={12} height={12} className="shrink-0 text-brand" aria-hidden />}
-                </button>
-              </li>
-            ))}
-          </ul>
+          <p className="px-2 pb-1 pt-0.5 text-[10px] uppercase tracking-wider text-ink-faint">
+            Jarvis's brain
+          </p>
+          <ul>{CHAT_MODELS.map(option)}</ul>
           <div className="mt-1 border-t border-line-soft px-1 pt-1.5">
             <input
               value={q}

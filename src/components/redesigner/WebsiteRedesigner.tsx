@@ -16,6 +16,8 @@ import { BakeOff } from "./v2/BakeOff";
 import { Showcase } from "./Showcase";
 import { VersionToggle, type RedesignerView } from "./v2/VersionToggle";
 import { REDESIGNER_FONTS } from "./fonts";
+import { ModelPicker } from "../new-jarvis/ModelPicker";
+import { useChatModel } from "@/lib/new-jarvis/useChatModel";
 
 function viewFromUrl(): RedesignerView {
   if (typeof window === "undefined") return 1;
@@ -29,8 +31,12 @@ function viewFromUrl(): RedesignerView {
 export function WebsiteRedesigner(props: { embedded?: boolean }) {
   void props;
   const [view] = useState<RedesignerView>(viewFromUrl);
+  const { model, setModel } = useChatModel();
   return (
     <div className={`rdx-home ${REDESIGNER_FONTS}`} data-view={String(view)}>
+      <div style={{ position: "fixed", right: 16, top: 14, zIndex: 40 }}>
+        <ModelPicker value={model} onChange={setModel} />
+      </div>
       {view === 2 ? <BakeOff /> : view === "showcase" ? <Showcase /> : <Redesigner />}
       <VersionToggle current={view} />
     </div>

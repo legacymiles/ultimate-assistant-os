@@ -123,7 +123,7 @@ export function blockerAdvice(reason: Blocker): { text: string; canConnect: bool
   switch (reason) {
     case "blocked-by-browser":
       return {
-        text: "Your browser hasn't let this page talk to your PC yet. Press Connect to my PC below, then choose Allow when it asks — it only asks once.",
+        text: "Chrome blocked the direct route to your PC. Press Connect to my PC: a small Jarvis window will open and carry the connection — keep it open.",
         canConnect: true,
       };
     case "pc-off":

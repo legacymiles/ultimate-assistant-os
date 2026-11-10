@@ -45,6 +45,10 @@ export interface ReviewVersion {
   prUrl?: string;
   /** Who posted the URL: the owner by hand, or Claude Code through the connector. */
   shippedBy?: "owner" | "claude-code";
+  /** A small screenshot of this version's page, as it looked when it landed. */
+  image?: string;
+  /** The screenshot taken just before this version's edit was built. */
+  beforeImage?: string;
 }
 
 /**
@@ -271,7 +275,10 @@ export interface PortalRequest {
 }
 
 /** A version as the client sees it: no branch, no pull request. */
-export type PortalVersion = Pick<ReviewVersion, "id" | "number" | "siteUrl" | "summary" | "status" | "createdAt" | "readyAt">;
+export type PortalVersion = Pick<
+  ReviewVersion,
+  "id" | "number" | "siteUrl" | "summary" | "status" | "createdAt" | "readyAt" | "image" | "beforeImage"
+>;
 
 export interface PortalView {
   name: string;

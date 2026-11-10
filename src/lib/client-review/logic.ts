@@ -198,7 +198,8 @@ export function sortVersions(versions: ReviewVersion[]): ReviewVersion[] {
 /** The version the client looks at: the newest one that has a site to show. */
 export function currentVersion(p: ClientProject): ReviewVersion | null {
   const live = sortVersions(p.versions).filter((v) => v.siteUrl && v.status !== "building");
-  return live[live.length - 1] ?? null;
+  const review = live.filter((v) => v.status === "review");
+  return (review[review.length - 1] ?? live[live.length - 1]) ?? null;
 }
 
 export function buildingVersion(p: ClientProject): ReviewVersion | null {
@@ -813,6 +814,65 @@ export function markVersionReady(
   return { project: touch(p, now), version: v };
 }
 
+/**
+ * Keep the screenshot taken just before a version's edit was built.
+ *
+ * The new version owns it as `beforeImage` (that is the picture shown beside
+ * "v2"), and the previous version owns the same picture as `image` (that is
+ * what v1 looked like when v2 began). That gives the history a real v1..vN
+ * strip without a second store.
+ */
+export function saveVersionShot(
+  src: ClientProject,
+  input: { versionId: unknown; image: unknown },
+  now = new Date().toISOString(),
+): { project: ClientProject; version: ReviewVersion } {
+  const p = clone(src);
+  const v = p.versions.find((x) => x.id === input.versionId);
+  if (!v) throw new ReviewError("That version no longer exists.", 404);
+  const image = typeof input.image === "string" ? input.image.trim() : "";
+  if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(image) || image.length > 1_200_000) {
+    throw new ReviewError("That screenshot could not be saved.", 400);
+  }
+  v.beforeImage = image;
+  const sorted = sortVersions(p.versions);
+  const at = sorted.findIndex((x) => x.id === v.id);
+  const previous = at > 0 ? sorted[at - 1] : null;
+  if (previous) previous.image = image;
+  return { project: touch(p, now), version: v };
+}
+
+/**
+ * Put an older version back on the client's screen.
+ *
+ * It marks that version review and everything newer superseded, so the portal
+ * frames its address again and the version chip moves back with it. The
+ * snapshot image is the same version the client is being shown.
+ */
+export function undoToVersion(
+  src: ClientProject,
+  input: { versionId: unknown },
+  now = new Date().toISOString(),
+): { project: ClientProject; version: ReviewVersion } {
+  const p = clone(src);
+  const v = p.versions.find((x) => x.id === input.versionId);
+  if (!v) throw new ReviewError("That version no longer exists.", 404);
+  if (!v.siteUrl) throw new ReviewError("That version has no address to go back to.", 409);
+  if (v.status === "building") throw new ReviewError("That version is still being built.", 409);
+  const n = Number(v.number.replace(/\D/g, "")) || 0;
+  for (const other of p.versions) {
+    const on = Number(other.number.replace(/\D/g, "")) || 0;
+    if (other.id === v.id) {
+      other.status = "review";
+      other.readyAt = other.readyAt ?? now;
+    } else if (on > n || other.status === "review") {
+      other.status = "superseded";
+    }
+  }
+  pushNotice(p, `Back to ${v.number}`, `Your website is showing ${v.number} again.`, now);
+  return { project: touch(p, now), version: v };
+}
+
 // ----- App Builder: approved edits built without the owner ------------------------
 
 /** Record that an approved batch was handed to App Builder: starting on the PC, or filed in In Queue. */
@@ -980,6 +1040,8 @@ export function portalView(p: ClientProject, vapidPublicKey: string | null): Por
         status: v.status,
         createdAt: v.createdAt,
         readyAt: v.readyAt,
+        image: v.image,
+        beforeImage: v.beforeImage,
       })),
     currentVersionId: current?.id ?? null,
     buildingVersionId: building?.id ?? null,

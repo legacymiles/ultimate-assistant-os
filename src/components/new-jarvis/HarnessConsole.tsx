@@ -26,6 +26,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { useHarness } from "@/lib/new-jarvis/harness/useHarness";
 import { countActions } from "@/lib/new-jarvis/harness/model";
+import { readTrust, TRUSTS, writeTrust, type Trust } from "@/lib/new-jarvis/trust";
 import type {
   GateCard, HarnessChoice, HarnessId, ThreadSummary, ToolRow, Turn, WorkSummary,
 } from "@/lib/new-jarvis/harness/types";
@@ -60,6 +61,14 @@ function StartPanel({
   );
   const [title, setTitle] = useState("");
   const [strict, setStrict] = useState(false);
+  // The thread reads this at the moment it is cut, so the choice made here is
+  // the one the agent runs under. Full access is deliberate and global.
+  const [trust, setTrust] = useState<Trust>("trusted");
+  useEffect(() => setTrust(readTrust()), []);
+  const chooseTrust = (next: Trust) => {
+    setTrust(next);
+    writeTrust(next);
+  };
 
   useEffect(() => {
     if (usable.length && !usable.some((c) => c.id === harness)) setHarness(usable[0].id);
@@ -138,6 +147,28 @@ function StartPanel({
           </span>
         </label>
       )}
+
+      <div className="mt-3">
+        <span className="text-[11px] uppercase tracking-wide text-ink-muted">Permissions</span>
+        <div className="mt-1 flex flex-wrap gap-1">
+          {TRUSTS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              aria-pressed={trust === t.id}
+              onClick={() => chooseTrust(t.id)}
+              className={`rounded-md border px-2 py-1 text-[11px] transition ${
+                trust === t.id
+                  ? "border-brand/60 bg-brand/10 text-ink"
+                  : "border-line text-ink-muted hover:bg-elevated hover:text-ink"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1 text-[10.5px] leading-relaxed text-ink-muted">{TRUSTS.find((t) => t.id === trust)?.hint}</p>
+      </div>
 
       <button
         type="button"
@@ -569,11 +600,39 @@ function Workbench({
 // The tab
 // ---------------------------------------------------------------------------
 
-export function HarnessConsole({ paired, initialHarness }: { paired: boolean; initialHarness?: HarnessId }) {
+export function HarnessConsole({
+  paired,
+  initialHarness,
+  initialThread,
+  onModel,
+  viewerOnly,
+}: {
+  paired: boolean;
+  initialHarness?: HarnessId;
+  /** A thread another surface linked to (`#harness/<id>`). */
+  initialThread?: string;
+  /** Return to the cloud models in the same Chat surface. */
+  onModel?: (id: string) => void;
+  /**
+   * The thread viewer, not a start page. Chat's model picker is the one place
+   * a harness starts; this tab only watches what is already running.
+   */
+  viewerOnly?: boolean;
+}) {
   const h = useHarness({ paired });
   const [input, setInput] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const bottom = useRef<HTMLDivElement | null>(null);
+
+  // A link from Chat, Client Review or a notification opens that thread here.
+  // Deliberately before the list has loaded: the bridge is the authority on
+  // whether the thread still exists, and a stale id clears itself in useHarness.
+  const openedFromLink = useRef("");
+  useEffect(() => {
+    if (!paired || !initialThread || openedFromLink.current === initialThread) return;
+    openedFromLink.current = initialThread;
+    h.open(initialThread);
+  }, [paired, initialThread, h.open]);
 
   // One ticking clock for the whole tab. A timer per live turn is how a long
   // transcript becomes a page that re-renders forty times a second.
@@ -599,6 +658,46 @@ export function HarnessConsole({ paired, initialHarness }: { paired: boolean; in
           Pair Jarvis with the local agent in Settings, and this tab can start one, hold its
           gates and land its work.
         </p>
+        {onModel && (
+          <button type="button" onClick={() => onModel("")} className="mt-3 rounded-md border border-line px-3 py-1.5 text-[11.5px] text-ink-muted hover:bg-elevated hover:text-ink">
+            Pick a cloud model instead
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (viewerOnly && !h.thread) {
+    return (
+      <div className="mx-auto max-w-2xl p-3">
+        <h2 className="text-sm font-medium text-ink">Harness threads</h2>
+        <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+          Started when Chat hands a coding job to a local agent, or by another app. Open one to
+          watch or steer it.
+        </p>
+        {h.threads.length === 0 ? (
+          <p className="mt-3 rounded-md border border-line bg-panel px-3 py-2 text-xs text-ink-muted">
+            Nothing is running. Ask Chat to hand the job to Claude Code or DeepSeek, and the thread
+            will appear here.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-1">
+            {h.threads.map((t) => (
+              <li key={t.id}>
+                <button
+                  type="button"
+                  onClick={() => h.open(t.id)}
+                  className="flex w-full items-center gap-2 rounded-md border border-line bg-panel px-2.5 py-1.5 text-left transition hover:bg-elevated"
+                >
+                  <span className={`nj-dot ${t.status === "ended" ? "bg-line" : "bg-brand"}`} data-live={t.status === "thinking"} aria-hidden />
+                  <span className="min-w-0 flex-1 truncate text-[12px] text-ink">{t.title}</span>
+                  <span className="shrink-0 font-mono text-[10.5px] text-ink-muted">{t.label}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {h.error && <p className="mt-2 text-xs text-[#f87171]">{h.error}</p>}
       </div>
     );
   }
@@ -606,6 +705,13 @@ export function HarnessConsole({ paired, initialHarness }: { paired: boolean; in
   if (!h.thread) {
     return (
       <div>
+        {onModel && (
+          <div className="mx-auto flex max-w-2xl justify-end px-3 pt-2">
+            <button type="button" onClick={() => onModel("")} className="text-[11px] text-ink-muted hover:text-ink hover:underline">
+              Use a cloud model instead
+            </button>
+          </div>
+        )}
         <StartPanel key={initialHarness} choices={h.choices} working={h.working} onStart={(o) => void h.start(o)} initial={initialHarness} />
         {h.threads.length > 0 && (
           <div className="mx-auto max-w-2xl px-3 pb-4">
@@ -668,10 +774,15 @@ export function HarnessConsole({ paired, initialHarness }: { paired: boolean; in
             {!t.strict && t.trust && t.trust !== "trusted" && (
               <span className="flex items-center gap-1 text-[10.5px] text-ink-muted">
                 <Icon.Lock width={10} height={10} aria-hidden />
-                {t.trust === "ask" ? "asks every step" : "asks almost nothing"}
+                {t.trust === "full" ? "full access" : t.trust === "ask" ? "asks every step" : "asks almost nothing"}
               </span>
             )}
             <span className="ml-auto flex items-center gap-2">
+              {onModel && (
+                <button type="button" onClick={() => onModel("")} className="text-[10.5px] text-ink-muted hover:text-ink hover:underline">
+                  Change model
+                </button>
+              )}
               {h.view.usd > 0 && (
                 <span className="font-mono text-[10.5px] text-ink-muted" data-num>
                   {money(h.view.usd)}

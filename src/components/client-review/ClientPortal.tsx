@@ -27,6 +27,7 @@ import { ApiError, portal, urlBase64ToUint8Array } from "@/lib/client-review/cli
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { BuildFeed, BuildSteer, useLiveBuild } from "./LiveBuild";
 import { LookPass } from "./LookPass";
+import { SlashSkills, withSkill } from "../new-jarvis/SlashSkills";
 import { SignInGate } from "./SignInGate";
 import type { PortalRequest, PortalView, RequestPin, ReviewVersion } from "@/lib/client-review/types";
 import "./client-review.css";
@@ -160,6 +161,7 @@ export function ClientPortal({
   const [frameNonce, setFrameNonce] = useState(0);
   const [folding, setFolding] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
   const [toast, setToast] = useState<{ title: string; body: string } | null>(null);
   const [notifyNote, setNotifyNote] = useState("");
 
@@ -404,11 +406,40 @@ export function ClientPortal({
    * The chat takes it from there; a start that fails says why, in the chat,
    * and leaves the edits waiting so Build is the retry.
    */
+  /**
+   * The page as it looks right now, before the edit is built.
+   *
+   * The site is framed same-origin for the owner's apps, so the frame's own
+   * document can be drawn to a canvas. A client's external preview is
+   * cross-origin and cannot be read — that simply means no picture, never a
+   * failed build.
+   */
+  const captureBefore = useCallback(async (): Promise<string> => {
+    const iframe = frameRef.current?.querySelector("iframe");
+    const doc = iframe?.contentDocument;
+    if (!doc) return "";
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const canvas = await html2canvas(doc.documentElement, {
+        backgroundColor: "#0a0b0f",
+        scale: 0.5,
+        useCORS: true,
+        logging: false,
+        windowWidth: doc.documentElement.clientWidth,
+        windowHeight: doc.documentElement.clientHeight,
+      });
+      return canvas.toDataURL("image/jpeg", 0.72);
+    } catch {
+      return "";
+    }
+  }, []);
+
   const build = async (versionId?: string) => {
     setStarting(true);
     setNotice(null);
     try {
-      const out = await approveAndStart(token, versionId);
+      const beforeImage = await captureBefore();
+      const out = await approveAndStart(token, versionId, beforeImage || undefined);
       if (out.state === "failed") {
         setNotice({ tone: "bad", text: out.message, ...(out.blocker ? { blocker: out.blocker } : {}) });
       }
@@ -417,6 +448,18 @@ export function ClientPortal({
     } finally {
       setStarting(false);
       refresh();
+    }
+  };
+
+  /**
+   * Put an older version back on the client's screen. The server marks it
+   * review and supersedes everything newer, so a refresh keeps the choice.
+   */
+  const undoVersion = async (versionId: string) => {
+    const v = await act("undo", { action: "undo", versionId });
+    if (v) {
+      setViewingId(versionId);
+      setVersionsOpen(false);
     }
   };
 
@@ -595,6 +638,17 @@ export function ClientPortal({
               </select>
             </label>
           )}
+          {viewing && (viewing.beforeImage || viewing.image) && (
+            <button
+              type="button"
+              className="cr-ver-thumb"
+              onClick={() => setVersionsOpen(true)}
+              title={`Versions — ${viewing.number}`}
+              aria-label="Open version history"
+            >
+              <img src={viewing.beforeImage ?? viewing.image} alt={`Before ${viewing.number}`} />
+            </button>
+          )}
           <div className="cr-seg" role="group" aria-label="Preview size">
             <button aria-pressed={device === "desktop"} onClick={() => setDevice("desktop")}>Desktop</button>
             <button aria-pressed={device === "phone"} onClick={() => setDevice("phone")}>Phone</button>
@@ -709,6 +763,11 @@ export function ClientPortal({
               <h2>Chat intake</h2>
               <p>{statusLine}</p>
             </div>
+            {versions.length > 1 && (
+              <button type="button" className="cr-link cr-intake-versions" onClick={() => setVersionsOpen(true)}>
+                Versions
+              </button>
+            )}
             {!narrow && (
               <button className="cr-icon-btn ghost" onClick={() => setMin(true)} aria-label="Shrink to orb" title="Shrink">
                 –
@@ -842,7 +901,9 @@ export function ClientPortal({
                   <button className="cr-link" onClick={() => setPin(null)}>Remove pin</button>
                 </div>
               )}
-              <textarea
+              <div className="relative">
+                <SlashSkills text={text} onPick={(skill) => setText(withSkill(text, skill))} />
+                <textarea
                 ref={inputRef}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
@@ -857,6 +918,7 @@ export function ClientPortal({
                 maxLength={2000}
                 aria-label="New edit request"
               />
+              </div>
               <div className="cr-row">
                 <button
                   className={`cr-btn ghost small ${pointing ? "is-on" : ""}`}
@@ -930,6 +992,16 @@ export function ClientPortal({
       )}
 
       {/* ---------- Settings ---------- */}
+      {versionsOpen && (
+        <VersionsPanel
+          versions={versions}
+          currentId={current?.id ?? null}
+          onClose={() => setVersionsOpen(false)}
+          onUndo={(id) => void undoVersion(id)}
+          busy={busy === "undo"}
+        />
+      )}
+
       {settingsOpen && (
         <div className="cr-modal" role="dialog" aria-modal="true" aria-label="Settings" onClick={() => setSettingsOpen(false)}>
           <div className="cr-sheet" onClick={(e) => e.stopPropagation()}>
@@ -1039,6 +1111,65 @@ function EscapeToCancel({ active, onEscape }: { active: boolean; onEscape: () =>
 }
 
 /** Jarvis, as a small living orb. */
+function VersionsPanel({
+  versions,
+  currentId,
+  onClose,
+  onUndo,
+  busy,
+}: {
+  versions: PortalView["versions"];
+  currentId: string | null;
+  onClose: () => void;
+  onUndo: (versionId: string) => void;
+  busy: boolean;
+}) {
+  const sorted = [...versions].sort(
+    (a, b) => (Number(a.number.replace(/\D/g, "")) || 0) - (Number(b.number.replace(/\D/g, "")) || 0),
+  );
+  return (
+    <div className="cr-modal cr-versions-modal" role="dialog" aria-modal="true" aria-label="Versions" onClick={onClose}>
+      <div className="cr-versions" onClick={(e) => e.stopPropagation()}>
+        <div className="cr-versions-head">
+          <div>
+            <h2>Versions</h2>
+            <p>The page as it looked before each edit. Undo puts that one back on the screen.</p>
+          </div>
+          <button type="button" className="cr-icon-btn ghost" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+        <div className="cr-versions-grid">
+          {sorted.map((v) => {
+            const shot = v.image || v.beforeImage;
+            const on = v.id === currentId;
+            return (
+              <article key={v.id} className={`cr-ver-card${on ? " is-current" : ""}`}>
+                <div className="cr-ver-shot">
+                  {shot ? <img src={shot} alt={`${v.number} preview`} /> : <span>No snapshot yet</span>}
+                  <b>{v.number}</b>
+                </div>
+                <div className="cr-ver-info">
+                  <p>{v.beforeImage ? `Before ${v.number}` : v.summary || "Original version"}</p>
+                  <span>{on ? "Showing now" : v.status === "review" ? "Earlier version" : v.status}</span>
+                </div>
+                <button
+                  type="button"
+                  className="cr-btn small"
+                  disabled={on || !v.siteUrl || v.status === "building" || busy}
+                  onClick={() => onUndo(v.id)}
+                >
+                  {on ? "Showing now" : `Undo to ${v.number}`}
+                </button>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Orb({ small = false, pulse = false }: { small?: boolean; pulse?: boolean }) {
   return (
     <span className={`cr-orb ${small ? "small" : ""} ${pulse ? "pulse" : ""}`} aria-hidden>

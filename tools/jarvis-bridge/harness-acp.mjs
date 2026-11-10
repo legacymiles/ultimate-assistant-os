@@ -162,7 +162,10 @@ export function startAcp({ cwd, emit, gate, strict = false, laneWrites = false, 
       // a strictness dial but the only mode in which a write is asked about at
       // all. Loosening it does not make the thread gate less, it makes it not
       // gate.
-      DSH_PERMISSION_MODE: "read-only",
+      // Full access is the one exception: the owner asked for an agent that
+      // works instead of asking. Everything else stays read-only, because for
+      // dsh that is the only mode in which a write is gated at all.
+      DSH_PERMISSION_MODE: trust === "full" ? "danger-full-access" : "read-only",
     },
   });
 
@@ -343,7 +346,7 @@ export function startAcp({ cwd, emit, gate, strict = false, laneWrites = false, 
     emit({
       kind: "status",
       status: "ready",
-      detail: model ? `${model} · read-only sandbox, every write asks` : "read-only sandbox, every write asks",
+      detail: model ? `${model} · ${trust === "full" ? "full access" : "read-only sandbox, every write asks"}` : trust === "full" ? "full access" : "read-only sandbox, every write asks",
       model,
       sessionId,
     });

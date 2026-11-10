@@ -668,7 +668,6 @@ export function useAppBuilder() {
     clearError: () => setError(null),
     clearNotice: () => setNotice(null),
     start,
-    chooseLook,
     resume,
     setAnswer,
     design,
@@ -685,8 +684,11 @@ export function useAppBuilder() {
     thread,
     /** Whether this browser can reach the PC at all. */
     bridge: bridge.health,
+    /** Re-probe after the owner opens the local relay window. */
+    refreshBridge: bridge.refresh,
     setDepth,
     setNoReview,
+    chooseLook,
     open,
     remove,
     rename,

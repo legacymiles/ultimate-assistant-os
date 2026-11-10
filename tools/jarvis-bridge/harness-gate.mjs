@@ -274,6 +274,9 @@ export function insideWorktree(path) {
  * startThread() is where a thread's default of "trusted" lives.
  */
 export function autoAllow(described, { strict = false, laneWrites = false, trust = "ask" } = {}) {
+  // The owner's explicit "do the work, do not ask" switch. The bridge's
+  // catastrophic-command refusal is still enforced at the shell boundary.
+  if (trust === "full") return true;
   if (strict) return false;
   if (described.kind === "read") return true;
   if (described.risk === "grave") return false;

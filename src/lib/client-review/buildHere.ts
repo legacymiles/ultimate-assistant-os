@@ -15,7 +15,7 @@
 // nothing behind it.
 // ---------------------------------------------------------------------------
 
-import { probe, START_LINK } from "@/lib/new-jarvis/bridge";
+import { connectPc, probe, START_LINK } from "@/lib/new-jarvis/bridge";
 import { admin } from "./client";
 import { CannotBuildHere, startClientEditBuild } from "./autoBuild";
 import { blockerAdvice, type Blocker } from "./liveBuild";
@@ -53,6 +53,10 @@ export async function pcReadiness(): Promise<Blocker | null> {
  * through the link it registers, and then waited for.
  */
 export async function connectToPc(): Promise<Blocker | null> {
+  // This runs on a click, which is the one moment a browser allows a popup.
+  // The relay window is the route that still works when Chrome has refused
+  // (or stopped asking about) the direct localhost permission.
+  if (await connectPc()) return null;
   const first = await pcReadiness();
   if (first !== "pc-off") return first;
   // Not running: ask Windows to start it, then give it a few seconds.
@@ -100,7 +104,7 @@ export function waitingBatch(project: ClientProject) {
  * it just sent); without it, the first waiting batch is built — a client's
  * requests, or edits a failed start handed back.
  */
-export async function approveAndStart(token: string, versionId?: string): Promise<BuildStarted> {
+export async function approveAndStart(token: string, versionId?: string, beforeImage?: string): Promise<BuildStarted> {
   // FIRST, before any other round trip: a browser only offers "let this site
   // reach your PC?" while the press that started this is still warm, and it
   // expires in seconds. Asking the server about the project first is what
@@ -121,6 +125,14 @@ export async function approveAndStart(token: string, versionId?: string): Promis
     id: project.id,
     batchId: batch.id,
   });
+
+  // Keep the picture of the page as it was before this edit. It is what the
+  // version chip and the history strip show for this version.
+  if (beforeImage) {
+    await admin
+      .act({ action: "screenshot", id: out.project.id, versionId: out.version.id, image: beforeImage })
+      .catch(() => null);
+  }
   try {
     const started = await startClientEditBuild(out.project, batch.id);
     await admin.act({

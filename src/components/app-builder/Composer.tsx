@@ -6,6 +6,7 @@
 
 import { useRef, useState } from "react";
 import { ACCEPT, MAX_ITEMS, prepare, type PreparedMedia } from "@/lib/app-builder/media";
+import { SlashSkills, withSkill } from "../new-jarvis/SlashSkills";
 
 interface Props {
   busy: boolean;
@@ -131,7 +132,9 @@ export function Composer({ busy, onSend, placeholder, hero, sendLabel, autoFocus
             e.target.value = "";
           }}
         />
-        <textarea
+        <div className="relative min-w-0 flex-1">
+          <SlashSkills text={text} onPick={(skill) => setText(withSkill(text, skill))} />
+          <textarea
           aria-label={placeholder}
           placeholder={placeholder}
           value={text}
@@ -156,6 +159,7 @@ export function Composer({ busy, onSend, placeholder, hero, sendLabel, autoFocus
             }
           }}
         />
+        </div>
         {hero ? (
           <button className="ab-primary" disabled={!canSend}>
             {busy ? (media.length ? "Watching…" : "Waking the agent…") : sendLabel ?? "Start building"}

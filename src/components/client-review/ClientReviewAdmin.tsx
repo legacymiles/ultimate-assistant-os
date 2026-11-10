@@ -22,9 +22,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { PHASE_LABEL, latestWord } from "@/lib/app-builder/build";
 import { askedBefore } from "@/lib/new-jarvis/harness/families";
+import { harnessHref } from "@/lib/new-jarvis/harness/link";
 import { buildLinks } from "@/lib/client-review/autoBuild";
 import { call as bridgeCall, probe as bridgeProbe } from "@/lib/new-jarvis/bridge";
-import { pushThreadToMain } from "@/lib/client-review/pushMain";
+import { pushThreadToMain, shipThread } from "@/lib/client-review/pushMain";
 import { useBuild } from "@/lib/app-builder/useBuild";
 import { admin, type AdminState, type BriefOut } from "@/lib/client-review/client";
 import { HUB_ORIGIN } from "@/lib/client-review/apps";
@@ -1360,6 +1361,9 @@ function BuildThread({
         ● {done ? "Built on your PC" : PHASE_LABEL[build.phase]}
       </span>
       {build.summary?.model && <span className="rounded bg-brand/20 px-1.5 py-0.5 text-[10.5px] text-indigo-200">{build.summary.model}</span>}
+      <a className="text-[11px] text-brand hover:underline" href={harnessHref(threadId)} target="_blank" rel="noreferrer">
+        Open in Jarvis â†’
+      </a>
       {what && <span className="min-w-0 truncate text-ink-faint">{what}</span>}
       {/*
         Answered here, not in App Builder. A permission card that can only be
@@ -1431,7 +1435,7 @@ function BuildThread({
           onClick={async () => {
             setPushing(true);
             try {
-              const out = await pushThreadToMain(threadId);
+              const out = links.pr ? await shipThread(threadId, links.pr) : await pushThreadToMain(threadId);
               setSaid(out.message);
               if (out.ok && liveUrl) onUseUrl(liveUrl);
             } finally {
@@ -1439,7 +1443,7 @@ function BuildThread({
             }
           }}
         >
-          {pushing ? "Pushing…" : "Push to main"}
+          {pushing ? "Merging…" : links.pr ? "Merge to live" : "Push to main"}
         </button>
       )}
       {said && <span className="text-emerald-200">{said}</span>}

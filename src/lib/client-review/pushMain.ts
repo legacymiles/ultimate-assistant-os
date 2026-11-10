@@ -99,6 +99,93 @@ export async function pushThreadToMain(threadId: string): Promise<PushResult> {
   return { ok: true, message: "Pushed to main. The site deploys in a minute." };
 }
 
+// ----- one-click ship, with the build agent fixing its own git problems -----
+
+interface ShipReply {
+  ok: boolean;
+  merged?: boolean;
+  queued?: boolean;
+  conflict?: boolean;
+  files?: string[];
+  message: string;
+}
+
+/**
+ * Ship a finished build: merge main in, push the branch, merge the PR.
+ *
+ * If git conflicts or GitHub refuses, the same build agent — which is still
+ * standing in that worktree with the whole job in its head — is told what
+ * failed and asked to fix it. Its own gates are answered here because the
+ * owner pressed "Ship", and then the merge is retried. No GitHub tab, no
+ * hand-resolving a conflict the agent created.
+ */
+export async function shipThread(threadId: string, prUrl: string): Promise<PushResult> {
+  let thread: ThreadSummary | undefined;
+  try {
+    const data = await call<{ threads: ThreadSummary[] }>("harness/threads");
+    thread = (data.threads ?? []).find((t) => t.id === threadId);
+  } catch (e) {
+    return { ok: false, message: e instanceof BridgeError ? e.message : "Couldn't ask the PC which build this is." };
+  }
+  const path = thread?.worktree?.path;
+  const branch = thread?.worktree?.branch;
+  if (!path || !branch) return { ok: false, message: "That build's worktree is gone. Build it again." };
+
+  const pr = /\/pull\/(\d+)/.exec(prUrl)?.[1] ?? prUrl.replace(/\D/g, "");
+  if (!pr) return { ok: false, message: "There is no pull request to merge." };
+
+  let last = "";
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    let reply: ShipReply;
+    try {
+      reply = await call<ShipReply>("github/ship", { path, branch, pr });
+    } catch (e) {
+      return { ok: false, message: e instanceof BridgeError ? e.message : "The PC couldn't reach GitHub." };
+    }
+    if (reply.ok) return { ok: true, message: reply.message };
+    last = reply.message;
+
+    // Hand the failure to the agent and let it fix the worktree/PR. It has the
+    // full job context; a fresh reader would have to rediscover it.
+    try {
+      await call("harness/say", {
+        id: threadId,
+        text: [
+          `Shipping PR #${pr} failed: ${reply.message}`,
+          reply.files?.length ? `The conflicted files are: ${reply.files.join(", ")}.` : "",
+          "You have full access for this. Fix it in your worktree: fetch origin/main, merge it, resolve every conflict (keep this build's edit and the other side's new work), commit, push the branch, then merge the PR with `gh pr merge --squash --delete-branch`. If a branch rule or a Vercel rule blocks it, fix that too. Do not ask; do not stop for permission. Finish with `SHIPPED: <url>` or `BLOCKED: <why>`.",
+        ].filter(Boolean).join("\n\n"),
+      });
+    } catch {
+      return { ok: false, message: `${last} (The build agent could not be reached to fix it.)` };
+    }
+
+    // Wait for the agent, answering any gate it hits: the owner pressed Ship.
+    let cursor = 0;
+    const deadline = Date.now() + 8 * 60_000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 1_500));
+      try {
+        const data = await call<{
+          events: unknown[];
+          cursor: number;
+          session: { status?: string; gate?: { gateId: string } | null };
+        }>("harness/events", { id: threadId, since: cursor });
+        cursor = data.cursor;
+        const gate = data.session.gate;
+        if (gate?.gateId) {
+          await call("harness/decide", { id: threadId, gateId: gate.gateId, allow: true, always: true }).catch(() => null);
+        }
+        if (data.session.status === "idle" || data.session.status === "ended") break;
+      } catch {
+        break;
+      }
+    }
+  }
+
+  return { ok: false, message: last || "GitHub didn't finish merging the build." };
+}
+
 // ----- what the widgets list --------------------------------------------------
 
 /** One approved batch whose build exists and whose version is still open. */

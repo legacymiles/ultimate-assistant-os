@@ -31,6 +31,8 @@ import { ClientReviewAdmin } from "./ClientReviewAdmin";
 import { MyWebsites } from "./MyWebsites";
 import { SignInGate } from "./SignInGate";
 import { SitePickerMenu, SitePickerPage, type Target } from "./SitePicker";
+import { ModelPicker } from "../new-jarvis/ModelPicker";
+import { useChatModel } from "@/lib/new-jarvis/useChatModel";
 import "./client-review.css";
 
 type Tab = "client" | "admin";
@@ -82,6 +84,7 @@ function writeLast(t: Target | null) {
 
 export function ClientReviewApp() {
   const [me, setMe] = useState<Me | null>(null);
+  const { model: harnessModel, setModel: setHarnessModel } = useChatModel();
   const [meError, setMeError] = useState("");
   const [tab, setTab] = useState<Tab>("client");
   const [target, setTarget] = useState<Target | null>(null);
@@ -223,6 +226,9 @@ export function ClientReviewApp() {
             {me.owner ? "Ship" : "Admin"}
           </button>
         </nav>
+        <div style={{ marginLeft: "auto" }}>
+          <ModelPicker value={harnessModel} onChange={setHarnessModel} />
+        </div>
         <span className="cra-who" title={me.email ?? undefined}>
           {me.email ?? ""}
         </span>

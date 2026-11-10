@@ -19,7 +19,7 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect, useRef, useState } from "react";
-import { START_LINK, knownFolder, type BridgeHealth } from "@/lib/new-jarvis/bridge";
+import { connectPc, START_LINK, knownFolder, type BridgeHealth } from "@/lib/new-jarvis/bridge";
 
 const DISMISS_KEY = "new-jarvis:pc-connect-dismissed";
 
@@ -102,21 +102,19 @@ export function PcConnect({
   const start = () => {
     setTrying(true);
     setFirstTime(false);
-    // Opens the agent through the link it registered. The browser asks once
-    // ("Open wscript?") — ticking "Always allow" makes it one tap from then on.
-    window.location.href = START_LINK;
-    let n = 0;
-    if (poll.current) clearInterval(poll.current);
-    poll.current = setInterval(() => {
-      refresh();
-      if (++n >= 10) {
-        if (poll.current) clearInterval(poll.current);
-        poll.current = null;
+    // The click opens the local relay window. It carries the bridge calls
+    // without Chrome's localhost permission; if the helper itself is off, the
+    // card below offers the one-tap Start instead.
+    void (async () => {
+      if (await connectPc()) {
         setTrying(false);
-        setFirstTime(true);
+        refresh();
+        return;
       }
-    }, 1500);
-  };
+      setTrying(false);
+      setFirstTime(true);
+    })();
+  };;
 
   const folder = knownFolder();
   const installPath = folder ? `${folder}\\install.cmd` : "";
@@ -128,20 +126,19 @@ export function PcConnect({
         <p className="pcc__text">
           {blocked ? (
             <>
-              <b>Your browser is blocking Jarvis from your PC.</b> Click the icon left of the address bar → Site settings →{" "}
-              <b>Local network access</b> → Allow, then reload.
+              <b>Chrome blocked the direct route.</b> Press Connect - a small Jarvis window will open and carry the connection. Keep it open.
             </>
           ) : trying ? (
-            <>Starting Jarvis on this PC… if your browser asks, choose <b>Open</b> (tick “Always allow”).</>
+            <>Opening Jarvis on this PC...<b>Open</b> (tick “Always allow”).</>
           ) : (
             <>
               <b>Connect this PC</b> so Jarvis can use its browser, files and apps.
             </>
           )}
         </p>
-        {!blocked && (
+        {(
           <button type="button" className="pcc__go" onClick={start} disabled={trying}>
-            {trying ? "Starting…" : "Connect"}
+            {trying ? "Opening…" : "Connect"}
           </button>
         )}
         {variant === "strip" && (
@@ -168,6 +165,15 @@ export function PcConnect({
             <b>First time on this PC?</b> Double-click <b>install.cmd</b> in your Jarvis folder → tools → jarvis-bridge.
             It sets everything up and starts with Windows from then on — you won&apos;t need to do it again.
           </p>
+          <button
+            type="button"
+            className="pcc__copy"
+            onClick={() => {
+              window.location.href = START_LINK;
+            }}
+          >
+            Start Jarvis
+          </button>
           {installPath && (
             <button
               type="button"

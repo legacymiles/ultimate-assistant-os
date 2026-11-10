@@ -560,7 +560,7 @@ export const AGENT_TOOLS: AgentTool[] = [
     route: "hub/work_start",
     needs: "harness",
     description:
-      "Start a REAL coding agent (DeepSeek Harness or Claude Code) on this PC, in its own git worktree of the repo, and keep it running after you answer. Use it for work that is more than one edit: several files, a build or test loop, a feature that has to be wired end to end, or an app to change so much that doing it step by step would take thirty steps. Do NOT use it for a one-line change you can make with files_write, or for reading something. Give it the whole job in `task` — what to change, where, how it should behave on phone and computer, and how to know it is done. It can push, open a pull request and check the live site itself. After it starts, read progress with work_check.",
+      "Start a REAL coding agent (DeepSeek Harness or Claude Code) on this PC, in its own git worktree of the repo, and keep it running after you answer. Use it for work that is more than one edit: several files, a build or test loop, a feature that has to be wired end to end, or an app to change so much that doing it step by step would take thirty steps. Do NOT use it for a one-line change you can make with files_write, or for reading something. Give it the whole job in `task` — what to change, where, how it should behave on phone and computer, and how to know it is done. It can push, open a pull request and check the live site itself. After it starts, read progress with work_check. It runs under the Chat's Permissions setting.",
     parameters: {
       type: "object",
       properties: {
@@ -575,11 +575,6 @@ export const AGENT_TOOLS: AgentTool[] = [
         repo: str("The repository's folder on this PC. Leave out to use the hub's own checkout, which is what app edits want."),
         project: str("A NEW project's slug, instead of a repo — makes a fresh folder with its own git repo. Only for a brand-new app."),
         title: str("A short name for the thread, shown in the owner's harness list."),
-        trust: {
-          type: "string",
-          enum: ["trusted", "ask", "auto"],
-          description: "How much it may do without asking. `trusted` (default) writes freely in its own worktree and still parks on grave things.",
-        },
       },
       required: ["task"],
     },

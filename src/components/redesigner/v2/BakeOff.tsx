@@ -32,6 +32,7 @@ import {
   type Lane,
 } from "@/lib/redesigner/v2/useBakeOff";
 import { claimPairedToken, probe, BRIDGE_OFFLINE, type BridgeHealth } from "@/lib/new-jarvis/bridge";
+import { SlashSkills, withSkill } from "../../new-jarvis/SlashSkills";
 import { loadLocal, saveSynced } from "@/lib/sync/appState";
 
 import "./bakeoff.css";
@@ -273,13 +274,16 @@ export function BakeOff() {
 
           <section className="bo-field">
             {kind === "new" && (
-              <textarea
+              <div className="relative">
+                <SlashSkills text={idea} onPick={(skill) => setIdea(withSkill(idea, skill))} />
+                <textarea
                 className="bo-input bo-area"
                 placeholder="A tool that files my receipts by vendor and shows what I spend where…"
                 value={idea}
                 onChange={(e) => setIdea(e.target.value)}
                 rows={3}
               />
+              </div>
             )}
             {kind === "my-app" && (
               <select

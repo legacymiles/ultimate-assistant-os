@@ -18,6 +18,8 @@ import {
   rotateToken,
   sendToClient,
   setBrief,
+  saveVersionShot,
+  undoToVersion,
   unsendFromClient,
   updateProjectMeta,
   upsertIndex,
@@ -283,6 +285,29 @@ export async function POST(req: Request) {
         }));
         const told = await tell(project, project.notices.at(-1), origin);
         return NextResponse.json({ project: told });
+      }
+
+      /**
+       * The screenshot taken just before a build. It is the picture beside the
+       * new version, and the previous version's picture in the history strip.
+       */
+      case "screenshot": {
+        const { project, result } = await updateProject(id, (p) => {
+          const out = saveVersionShot(p, { versionId: body.versionId, image: body.image });
+          return { project: out.project, result: out.version };
+        });
+        return NextResponse.json({ project, version: result });
+      }
+
+      /** Put an older version back on the client's screen. */
+      case "undo": {
+        const { project, result } = await updateProject(id, (p) => {
+          const out = undoToVersion(p, { versionId: body.versionId });
+          return { project: out.project, result: out.version };
+        });
+        const told = await tell(project, project.notices.at(-1), origin);
+        await updateIndex((i) => upsertIndex(i, told));
+        return NextResponse.json({ project: told, version: result });
       }
 
       case "ready":

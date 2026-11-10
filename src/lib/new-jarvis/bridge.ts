@@ -57,6 +57,8 @@ export interface BridgeHealth {
    * reason this flag exists.
    */
   needsLocalNetwork?: boolean;
+  /** The relay window can carry the same calls when the direct route is blocked. */
+  needsRelay?: boolean;
   /** The agent installing its own packages (first run, or after a move). */
   settingUp?: boolean;
 }
@@ -125,14 +127,152 @@ export function claimPairedToken(): boolean {
 export async function autoPair(signal?: AbortSignal): Promise<boolean> {
   try {
     const res = await fetch(`${BRIDGE_URL}/pair`, { signal, cache: "no-store", headers: { "X-Jarvis-Pair": "1" } });
-    if (!res.ok) return false;
-    const data = (await res.json()) as { token?: string };
-    if (!data.token || data.token.length < 20) return false;
-    saveToken(data.token);
-    return true;
+    if (res.ok) {
+      const data = (await res.json()) as { token?: string };
+      if (data.token && data.token.length >= 20) {
+        saveToken(data.token);
+        return true;
+      }
+    }
   } catch {
-    return false;
+    /* direct fetch is blocked; the relay below is the other door. */
   }
+
+  if (relayAlive()) {
+    try {
+      const res = await relayCall("pair", {}, { method: "GET", timeoutMs: 8_000 });
+      if (res.status === 200) {
+        const data = JSON.parse(res.body) as { token?: string };
+        if (data.token && data.token.length >= 20) {
+          saveToken(data.token);
+          return true;
+        }
+      }
+    } catch {
+      /* both doors are shut; the caller reports the bridge as off. */
+    }
+  }
+  return false;
+}
+
+// --- the relay window -----------------------------------------------------
+//
+// Chrome 156 can refuse a public page's fetch to 127.0.0.1 and, once the owner
+// has dismissed that prompt, stop asking at all. A TOP-LEVEL navigation to
+// localhost is not gated the same way, so a click can open a small page served
+// by the bridge; that page fetches its own origin and posts the answer back.
+// This is the same door for every app on the owner's domains.
+
+const RELAY_WINDOW = "jarvis-pc-relay";
+
+let relayWin: Window | null = null;
+let relayReady = false;
+let relaySeq = 0;
+let relayListening = false;
+const relayWaiting = new Map<
+  number,
+  { resolve: (v: { status: number; body: string }) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }
+>();
+
+function relayAlive(): boolean {
+  return typeof window !== "undefined" && Boolean(relayWin && !relayWin.closed);
+}
+
+function relayListen(): void {
+  if (relayListening || typeof window === "undefined") return;
+  relayListening = true;
+  window.addEventListener("message", (event) => {
+    if (event.origin !== BRIDGE_URL || !relayWin || event.source !== relayWin) return;
+    const data = event.data as { type?: string; id?: number; status?: number; body?: string; error?: string } | null;
+    if (data?.type === "jarvis:ready") {
+      relayReady = true;
+      return;
+    }
+    if (data?.type !== "jarvis:result" || typeof data.id !== "number") return;
+    const waiting = relayWaiting.get(data.id);
+    if (!waiting) return;
+    relayWaiting.delete(data.id);
+    clearTimeout(waiting.timer);
+    if (data.error) waiting.reject(new BridgeError(String(data.error), 0));
+    else waiting.resolve({ status: Number(data.status ?? 0), body: String(data.body ?? "") });
+  });
+}
+
+/**
+ * Open (or focus) the local relay window. Call it from a click: browsers only
+ * allow a popup in response to a real gesture.
+ */
+export function openRelay(): boolean {
+  if (typeof window === "undefined") return false;
+  relayListen();
+  if (relayAlive()) {
+    try {
+      relayWin!.focus();
+    } catch {
+      /* a background tab may be unfocusable; it is still usable. */
+    }
+    return true;
+  }
+  relayReady = false;
+  relayWin = window.open(`${BRIDGE_URL}/relay`, RELAY_WINDOW, "popup=yes,width=460,height=320");
+  return Boolean(relayWin);
+}
+
+async function waitForRelay(ms = 5_000): Promise<boolean> {
+  if (!relayAlive()) return false;
+  if (relayReady) return true;
+  const started = Date.now();
+  while (Date.now() - started < ms) {
+    if (!relayAlive()) return false;
+    if (relayReady) return true;
+    try {
+      relayWin!.postMessage({ type: "jarvis:ping" }, BRIDGE_URL);
+    } catch {
+      return false;
+    }
+    await new Promise((r) => setTimeout(r, 120));
+  }
+  return relayReady;
+}
+
+async function relayCall(
+  route: string,
+  args: Record<string, unknown> = {},
+  opts: { method?: "GET" | "POST"; timeoutMs?: number } = {},
+): Promise<{ status: number; body: string }> {
+  if (!(await waitForRelay())) throw new BridgeError("The PC relay window did not answer.", 0);
+  const id = ++relaySeq;
+  const timeoutMs = opts.timeoutMs ?? 30_000;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      relayWaiting.delete(id);
+      reject(new BridgeError("The PC relay did not answer in time.", 0));
+    }, timeoutMs);
+    relayWaiting.set(id, { resolve, reject, timer });
+    try {
+      relayWin!.postMessage(
+        { type: "jarvis:call", id, route, method: opts.method ?? "POST", args, token: readToken() },
+        BRIDGE_URL,
+      );
+    } catch {
+      clearTimeout(timer);
+      relayWaiting.delete(id);
+      reject(new BridgeError("The PC relay window is gone.", 0));
+    }
+  });
+}
+
+/**
+ * The one press: open the relay, pair if needed, and say whether the PC is up.
+ *
+ * This is what every "Connect to my PC" button calls, so the same one window
+ * serves Client Review, App Builder and the Chat.
+ */
+export async function connectPc(): Promise<boolean> {
+  if (!openRelay()) return false;
+  if (!(await waitForRelay())) return false;
+  const health = await probe();
+  return Boolean(health.up && health.paired);
 }
 
 /**
@@ -164,32 +304,19 @@ async function probeOnce(signal?: AbortSignal): Promise<BridgeHealth> {
   try {
     const res = await fetch(`${BRIDGE_URL}/health`, { signal, cache: "no-store" });
     if (!res.ok) return { ...BRIDGE_OFFLINE, up: true, problem: `The agent answered ${res.status}.` };
-    const data = (await res.json()) as {
-      version?: string;
-      capabilities?: BridgeCapabilities;
-      browserRunning?: boolean;
-      pairable?: boolean;
-      setup?: { state?: string; why?: string };
-      folder?: string;
-    };
-    if (data.folder) rememberFolder(data.folder);
-    let paired = readToken().length > 0;
-    if (!paired && data.pairable) paired = await autoPair(signal);
-    const settingUp = data.setup?.state === "installing";
-    return {
-      up: true,
-      paired,
-      version: data.version,
-      capabilities: data.capabilities,
-      browserRunning: data.browserRunning,
-      settingUp,
-      problem: !paired
-        ? "Running, but New Jarvis is not paired with it yet."
-        : data.setup?.state === "failed" || settingUp
-          ? data.setup?.why
-          : undefined,
-    };
+    return await healthFrom(await res.json());
   } catch {
+    // Direct fetch is blocked or the bridge is off. If the relay window is
+    // open it can answer the same question from its own origin.
+    if (relayAlive()) {
+      try {
+        const res = await relayCall("health", {}, { method: "GET", timeoutMs: 8_000 });
+        if (res.status !== 200) return { ...BRIDGE_OFFLINE, up: true, problem: `The agent answered ${res.status}.` };
+        return await healthFrom(JSON.parse(res.body));
+      } catch {
+        /* fall through to the permission explanation below */
+      }
+    }
     // Can't tell "not running" from "the browser threw the answer away" by the
     // failure alone — both are a thrown fetch — so ask the browser which.
     const perm = await localNetworkState();
@@ -198,14 +325,42 @@ async function probeOnce(signal?: AbortSignal): Promise<BridgeHealth> {
         up: false,
         paired: false,
         needsLocalNetwork: true,
+        needsRelay: true,
         problem:
           perm === "denied"
-            ? "This browser is set to block this site from reaching your PC. Allow local network access for this site in its permissions, then try again."
-            : "This browser hasn't been allowed to reach your PC from this site yet. Press Connect to this PC and say yes to the prompt.",
+            ? "Chrome is blocking this site from reaching your PC. Press Connect to my PC: a small Jarvis window will open and carry the connection instead."
+            : "Press Connect to my PC once. A small Jarvis window will open and keep the connection — no browser permission needed.",
       };
     }
     return BRIDGE_OFFLINE;
   }
+}
+
+async function healthFrom(data: {
+  version?: string;
+  capabilities?: BridgeCapabilities;
+  browserRunning?: boolean;
+  pairable?: boolean;
+  setup?: { state?: string; why?: string };
+  folder?: string;
+}): Promise<BridgeHealth> {
+  if (data.folder) rememberFolder(data.folder);
+  let paired = readToken().length > 0;
+  if (!paired && data.pairable) paired = await autoPair();
+  const settingUp = data.setup?.state === "installing";
+  return {
+    up: true,
+    paired,
+    version: data.version,
+    capabilities: data.capabilities,
+    browserRunning: data.browserRunning,
+    settingUp,
+    problem: !paired
+      ? "Running, but New Jarvis is not paired with it yet."
+      : data.setup?.state === "failed" || settingUp
+        ? data.setup?.why
+        : undefined,
+  };
 }
 
 /**
@@ -284,7 +439,10 @@ export async function call<T = Record<string, unknown>>(
       cache: "no-store",
     });
   } catch {
-    throw new BridgeError("The local agent is not running on this PC.", 0);
+    // The direct route was blocked. If the owner has the relay open, the same
+    // call can go through it without any browser permission.
+    if (relayAlive()) return callViaRelay<T>(route, args, opts);
+    throw new BridgeError("The local agent is not running on this PC. Press Connect to my PC.", 0);
   }
 
   // A stale token (the agent was reinstalled or moved) re-pairs itself once.
@@ -294,6 +452,32 @@ export async function call<T = Record<string, unknown>>(
 
   const data = (await res.json().catch(() => ({}))) as { error?: string } & Record<string, unknown>;
   if (!res.ok) {
+    throw new BridgeError(
+      data.error ?? (res.status === 401 ? "This bridge does not know that token — re-pair it." : `The agent answered ${res.status}.`),
+      res.status,
+    );
+  }
+  return data as T;
+}
+
+/** The same call, carried by the local relay window instead of a direct fetch. */
+async function callViaRelay<T = Record<string, unknown>>(
+  route: string,
+  args: Record<string, unknown>,
+  opts: { signal?: AbortSignal; method?: "GET" | "POST"; retried?: boolean },
+): Promise<T> {
+  let token = readToken();
+  if (!token && (await autoPair(opts.signal))) token = readToken();
+  if (!token) throw new BridgeError("Not paired with the local agent yet.", 401);
+
+  const timeoutMs = route.startsWith("harness/") ? 120_000 : 45_000;
+  let res = await relayCall(route, args, { method: opts.method, timeoutMs });
+  if (res.status === 401 && !opts.retried && (await autoPair(opts.signal)) && readToken() !== token) {
+    res = await relayCall(route, args, { method: opts.method, timeoutMs });
+  }
+
+  const data = JSON.parse(res.body || "{}") as { error?: string } & Record<string, unknown>;
+  if (res.status >= 400) {
     throw new BridgeError(
       data.error ?? (res.status === 401 ? "This bridge does not know that token — re-pair it." : `The agent answered ${res.status}.`),
       res.status,

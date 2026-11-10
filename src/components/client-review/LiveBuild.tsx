@@ -23,6 +23,8 @@ import { portal } from "@/lib/client-review/client";
 import { feedItems, finishOf, standingOf, type Finish, type Standing } from "@/lib/client-review/liveBuild";
 import { call } from "@/lib/new-jarvis/bridge";
 import { askedBefore } from "@/lib/new-jarvis/harness/families";
+import { harnessHref } from "@/lib/new-jarvis/harness/link";
+import { shipThread } from "@/lib/client-review/pushMain";
 
 /** A watched build: quick enough to feel live, slow enough to leave the server alone. */
 const ROW_POLL_MS = 4_000;
@@ -163,6 +165,8 @@ export function BuildFeed({
   const [now, setNow] = useState(() => Date.now());
   const [sure, setSure] = useState(false);
   const [address, setAddress] = useState("");
+  const [shipping, setShipping] = useState(false);
+  const [shipNote, setShipNote] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   const items = watching ? feedItems(build.view) : [];
   const gate = build.gate;
@@ -219,6 +223,11 @@ export function BuildFeed({
         <b>{watching ? "Claude Code" : "Jarvis"}</b>
         <span className="cr-feed-state">{state}</span>
         <span className="cr-feed-time">{waitedFor(since, now)}</span>
+        {row?.threadId && (
+          <a className="cr-link" href={harnessHref(row.threadId)} target="_blank" rel="noreferrer">
+            Watch in Jarvis
+          </a>
+        )}
         {watching && build.summary?.model && <span className="cr-feed-model">{build.summary.model}</span>}
       </div>
 
@@ -302,6 +311,25 @@ export function BuildFeed({
               Open the pull request
             </a>
           )}
+          {owner && finish.pr && row?.threadId && (
+            <button
+              type="button"
+              className="cr-btn small"
+              disabled={shipping}
+              onClick={async () => {
+                if (!row?.threadId || !finish.pr) return;
+                setShipping(true);
+                setShipNote("");
+                const out = await shipThread(row.threadId, finish.pr);
+                setShipNote(out.message);
+                setShipping(false);
+                if (out.ok) window.location.reload();
+              }}
+            >
+              {shipping ? "Merging…" : "Merge to live"}
+            </button>
+          )}
+          {shipNote && <p className="cr-note">{shipNote}</p>}
           {owner && (
             <form
               className="cr-feed-address"
