@@ -1,5 +1,59 @@
 [
  {
+  "id": "657fd0d:app-builder",
+  "date": "2026-11-10",
+  "slug": "app-builder",
+  "title": "Website Redesigner builds through the full App Builder flow, with Flux 2 mockups",
+  "detail": "Redesign used to stop at three text directions and a Copy prompt button. Now the site is read and handed to App Builder as a redesign project: Felix questions, must-keep features accepted first, three mockups, plain / commercial / commercial 2x, software-factory cards, Build it on the PC harness, th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "657fd0d:mockup",
+  "date": "2026-11-10",
+  "slug": "mockup",
+  "title": "Website Redesigner builds through the full App Builder flow, with Flux 2 mockups",
+  "detail": "Redesign used to stop at three text directions and a Copy prompt button. Now the site is read and handed to App Builder as a redesign project: Felix questions, must-keep features accepted first, three mockups, plain / commercial / commercial 2x, software-factory cards, Build it on the PC harness, th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "657fd0d:website-redesigner",
+  "date": "2026-11-10",
+  "slug": "website-redesigner",
+  "title": "Website Redesigner builds through the full App Builder flow, with Flux 2 mockups",
+  "detail": "Redesign used to stop at three text directions and a Copy prompt button. Now the site is read and handed to App Builder as a redesign project: Felix questions, must-keep features accepted first, three mockups, plain / commercial / commercial 2x, software-factory cards, Build it on the PC harness, th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "657fd0d:images",
+  "date": "2026-11-10",
+  "slug": "images",
+  "title": "Website Redesigner builds through the full App Builder flow, with Flux 2 mockups",
+  "detail": "Redesign used to stop at three text directions and a Copy prompt button. Now the site is read and handed to App Builder as a redesign project: Felix questions, must-keep features accepted first, three mockups, plain / commercial / commercial 2x, software-factory cards, Build it on the PC harness, th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "77fcc4c:jarvis",
+  "date": "2026-11-10",
+  "slug": "jarvis",
+  "title": "Show the file a write is touching",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3d656c5:jarvis",
+  "date": "2026-11-10",
+  "slug": "jarvis",
+  "title": "Keep a build brief to one line while it runs",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "9bee8cc:client-review",
   "date": "2026-11-10",
   "slug": "client-review",
