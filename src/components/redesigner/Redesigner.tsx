@@ -20,6 +20,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_SKILLS, type RedesignResult } from "@/lib/redesigner/engine";
+import { handRedesignToAppBuilder } from "@/lib/app-builder/fromRedesigner";
 import { fingerprint, hexToRgb } from "@/lib/redesigner/fingerprint";
 import {
   fieldParams,
@@ -99,26 +100,33 @@ export function Redesigner() {
     setLoading(true);
     setError(null);
     setResult(null);
+    // A redesign is an App Builder project: the site is read here, then App
+    // Builder takes it through Felix, features, mockups, depth, the coding
+    // harness on the PC and Client Review — the same road as every build. It
+    // used to stop at three text directions and a Copy prompt button.
     try {
-      const res = await fetch("/api/redesign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: url.trim(),
-          description: description.trim() || undefined,
-          ownSite,
-          sourcePath: ownSite ? sourcePath.trim() || undefined : undefined,
-          selectedSkills,
-        }),
+      const handed = await handRedesignToAppBuilder({
+        url: url.trim(),
+        note: description.trim() || undefined,
+        ownSite,
+        sourcePath: ownSite ? sourcePath.trim() || undefined : undefined,
+        skills: selectedSkills,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
-      if (!data?.directions?.length)
-        throw new Error("No redesign directions came back. Try another URL.");
-      setResult(data as RedesignResult);
+      try {
+        if (handed.warning) sessionStorage.setItem("ab:notice", handed.warning);
+      } catch {
+        /* the notice is a nicety */
+      }
+      // Top-level, so a Redesigner framed inside Jarvis opens App Builder
+      // itself rather than a page inside the frame.
+      try {
+        if (window.top && window.top !== window) window.top.location.assign(handed.url);
+        else window.location.assign(handed.url);
+      } catch {
+        window.location.assign(handed.url);
+      }
     } catch (err) {
-      setError((err as Error).message || "Something went wrong generating the redesign.");
-    } finally {
+      setError((err as Error).message || "Something went wrong starting the redesign.");
       setLoading(false);
     }
   }

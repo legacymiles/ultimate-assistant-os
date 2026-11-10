@@ -338,3 +338,121 @@
   }
   .mk-open { opacity: 1; }
 }
+
+/* ----- Flux 2 pictures ----------------------------------------------------
+   The painted lane. Same box as the drawing, so switching Flux render / Live
+   layout never moves the page. Status speaks in the panel's one accent, and
+   "painting" pulses — the only motion here, and it stops for reduced motion. */
+
+.mk-pc {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--mk-muted);
+}
+
+.mk-pc-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--mk-faint);
+}
+
+.mk-pc.is-direct .mk-pc-dot,
+.mk-pc.is-server .mk-pc-dot { background: var(--mk-yes); }
+.mk-pc.is-busy .mk-pc-dot { background: #f59e0b; animation: mk-pulse 1.2s ease-in-out infinite; }
+
+.mk-frame-wrap { position: relative; }
+
+.mk-paint {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--mk-line);
+  background: rgba(8, 9, 13, 0.82);
+  backdrop-filter: blur(8px);
+  font-family: var(--mk-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mk-ink);
+  pointer-events: none;
+}
+
+.mk-paint.is-failed { color: var(--mk-muted); }
+
+.mk-paint-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f59e0b;
+  animation: mk-pulse 1.2s ease-in-out infinite;
+}
+
+.mk-pic {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--mk-line-soft);
+  background: #000;
+  aspect-ratio: 1024 / 656;
+}
+
+.mk-pic.is-phone { aspect-ratio: 1 / 2; max-height: 640px; margin: 0 auto; width: 100%; }
+
+.mk-pic img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  animation: mk-in 0.5s var(--mk-ease);
+}
+
+.mk-redraw {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  z-index: 2;
+  appearance: none;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--mk-line);
+  background: rgba(8, 9, 13, 0.82);
+  backdrop-filter: blur(8px);
+  font-family: var(--mk-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mk-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s var(--mk-ease), color 0.2s var(--mk-ease);
+}
+
+.mk-pic:hover .mk-redraw,
+.mk-redraw:focus-visible { opacity: 1; }
+.mk-redraw:hover { color: var(--mk-ink); }
+
+@media (hover: none) {
+  .mk-redraw { opacity: 1; }
+}
+
+@keyframes mk-pulse { 50% { opacity: 0.35; } }
+@keyframes mk-in { from { opacity: 0; transform: scale(1.015); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .mk-pc.is-busy .mk-pc-dot,
+  .mk-paint-dot,
+  .mk-pic img { animation: none; }
+}

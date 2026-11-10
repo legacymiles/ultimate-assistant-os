@@ -351,6 +351,141 @@ function panelBlock(spec: MockupSpec): string {
   </aside>`;
 }
 
+// ----- a website ------------------------------------------------------------
+
+/**
+ * A website, drawn as a page: nav, hero, sections, proof, a closing call to
+ * action, footer. The chrome still decides the ARRANGEMENT — a split hero, a
+ * printed masthead, an editorial measure, a centred stage — so the three lanes
+ * stay three different sites rather than one site in three colourways.
+ */
+function siteBody(spec: MockupSpec, chrome: Chrome, phone: boolean): string {
+  const site = spec.site!;
+  const nav = spec.nav
+    .slice(0, phone ? 0 : 5)
+    .map((n, i) => `<span class="s-nav-i${i === 0 ? " on" : ""}">${esc(n)}</span>`)
+    .join("");
+  const [primary, ...rest] = site.ctas.length ? site.ctas : [spec.action];
+  const secondary = rest[0];
+  const split = chrome === "console" || chrome === "workbench" || chrome === "lab";
+  const sections = site.sections.slice(0, phone ? 3 : 6);
+  const band = sections.slice(0, 3);
+  const more = sections.slice(3);
+
+  const visual = `<div class="s-visual" aria-hidden="true">
+      <div class="s-vis-card a"><span class="label">${esc(band[0]?.title ?? spec.name)}</span><i></i><i class="short"></i></div>
+      <div class="s-vis-card b"><span class="label">${esc(band[1]?.title ?? primary)}</span><i></i></div>
+      <div class="s-vis-orb"></div>
+    </div>`;
+
+  return `<div class="site ${chrome}">
+    <header class="s-bar">
+      <span class="brand"><span class="dot"></span><span class="brand-name">${esc(spec.name)}</span></span>
+      <nav class="s-nav">${nav}</nav>
+      <span class="cta">${esc(primary)}</span>
+    </header>
+    <section class="s-hero${split && !phone ? " split" : ""}">
+      <div class="s-hero-t">
+        <span class="label s-kicker">${esc(spec.audience)}</span>
+        <h1 class="title s-h">${esc(site.headline)}</h1>
+        <p class="lede">${esc(site.sub)}</p>
+        <div class="s-ctas"><span class="cta big">${esc(primary)}</span>${secondary ? `<span class="s-ghost">${esc(secondary)}</span>` : ""}</div>
+        ${site.proof ? `<p class="s-proof"><span class="dot"></span>${esc(site.proof)}</p>` : ""}
+      </div>
+      ${visual}
+    </section>
+    ${
+      band.length
+        ? `<section class="s-band">${band
+            .map(
+              (b, i) => `<article class="s-card">
+                <span class="s-num">${String(i + 1).padStart(2, "0")}</span>
+                <h2>${esc(b.title)}</h2>
+                <p class="muted">${esc(b.body)}</p>
+                ${b.tag ? `<span class="tag">${esc(b.tag)}</span>` : ""}
+              </article>`,
+            )
+            .join("")}</section>`
+        : ""
+    }
+    ${
+      more.length
+        ? `<section class="s-rows">${more
+            .map(
+              (b) =>
+                `<div class="s-row"><h3>${esc(b.title)}</h3><p class="muted">${esc(b.body)}</p>${b.tag ? `<span class="tag">${esc(b.tag)}</span>` : "<span></span>"}</div>`,
+            )
+            .join("")}</section>`
+        : ""
+    }
+    <section class="s-close">
+      <h2 class="title">${esc(spec.oneLiner)}</h2>
+      <span class="cta big">${esc(primary)}</span>
+    </section>
+    <footer class="s-foot"><span class="brand-name">${esc(spec.name)}</span><span class="muted">${esc(site.footer ?? "")}</span></footer>
+  </div>`;
+}
+
+const SITE_CSS = `
+/* A page sits on a solid ground: the skins' striped and dotted backdrops are
+   built for an app's empty margins and ran straight through a hero headline. */
+.site{min-height:100%;display:flex;flex-direction:column;background:var(--void);}
+.s-hero{background:radial-gradient(60% 90% at 85% 0%, color-mix(in srgb, var(--sig) 16%, transparent), transparent 70%);}
+.s-bar{display:flex;align-items:center;justify-content:space-between;gap:var(--step);padding:calc(var(--step) * .9) calc(var(--step) * 1.6);border-bottom:var(--bw) solid var(--line);}
+.s-nav{display:flex;gap:22px;flex-wrap:wrap;flex:1;justify-content:center;}
+.s-nav-i{font-family:var(--mono);font-size:11px;letter-spacing:var(--track);text-transform:var(--case);color:color-mix(in srgb, var(--ink) var(--a3), transparent);}
+.s-nav-i.on{color:var(--ink);}
+.s-hero{display:grid;grid-template-columns:1fr;gap:calc(var(--step) * 2);padding:calc(var(--step) * 3) calc(var(--step) * 1.6) calc(var(--step) * 2.4);align-items:center;}
+.s-hero.split{grid-template-columns:1.1fr .9fr;}
+.s-hero-t{display:flex;flex-direction:column;gap:14px;min-width:0;}
+.s-kicker{color:var(--sig);}
+.s-h{font-size:64px;max-width:16ch;}
+.s-ctas{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:6px;}
+.s-ghost{font-family:var(--mono);font-size:11px;letter-spacing:var(--track);text-transform:var(--case);padding:11px 18px;border:var(--bw) solid var(--line);border-radius:var(--radius-sm);}
+.s-proof{display:flex;align-items:center;gap:8px;margin:4px 0 0;font-size:12px;color:color-mix(in srgb, var(--ink) var(--a3), transparent);}
+.s-visual{position:relative;min-height:300px;border:var(--bw) solid var(--line);border-radius:var(--radius);overflow:hidden;
+  background:radial-gradient(70% 70% at 70% 30%, color-mix(in srgb, var(--sig) 32%, transparent), transparent 70%), var(--surface);}
+.s-hero:not(.split) .s-visual{min-height:220px;}
+.s-vis-card{position:absolute;display:flex;flex-direction:column;gap:8px;padding:14px;width:46%;border:var(--bw) solid var(--line);border-radius:var(--radius);background:var(--void);box-shadow:var(--shadow);}
+.s-vis-card i{display:block;height:6px;border-radius:999px;background:color-mix(in srgb, var(--ink) var(--l2), transparent);}
+.s-vis-card i.short{width:60%;}
+.s-vis-card.a{left:8%;top:14%;}
+.s-vis-card.b{right:8%;bottom:14%;}
+.s-vis-orb{position:absolute;right:16%;top:12%;width:90px;height:90px;border-radius:50%;background:var(--sig);opacity:.85;}
+.s-band{display:grid;grid-template-columns:repeat(3, minmax(0,1fr));gap:var(--gap);padding:0 calc(var(--step) * 1.6) calc(var(--step) * 2);}
+.s-card{border:var(--bw) solid var(--line);border-radius:var(--radius);padding:calc(18px * var(--pad));display:flex;flex-direction:column;gap:8px;background:var(--surface);min-width:0;}
+.s-card h2{font-family:var(--display);font-weight:400;font-size:20px;margin:0;text-transform:var(--title-case);letter-spacing:var(--title-track);}
+.s-num{font-family:var(--mono);font-size:10px;color:var(--sig);}
+.s-rows{display:flex;flex-direction:column;padding:0 calc(var(--step) * 1.6) calc(var(--step) * 2);}
+.s-row{display:grid;grid-template-columns:1fr 2fr auto;gap:var(--step);align-items:baseline;padding:14px 0;border-top:var(--bw) solid var(--line);}
+.s-row h3{margin:0;font-size:14px;font-weight:600;}
+.s-close{display:flex;align-items:center;justify-content:space-between;gap:var(--step);margin:0 calc(var(--step) * 1.6) calc(var(--step) * 1.6);padding:calc(var(--step) * 1.6);border-radius:var(--radius);
+  background:color-mix(in srgb, var(--sig) 14%, var(--void));border:var(--bw) solid var(--line);}
+.s-close .title{font-size:28px;max-width:30ch;}
+.s-foot{margin-top:auto;display:flex;justify-content:space-between;gap:var(--step);padding:var(--step) calc(var(--step) * 1.6);border-top:var(--bw) solid var(--line);}
+`;
+
+/** Per-chrome arrangement of the same page. */
+const SITE_CHROME_CSS: Partial<Record<Chrome, string>> = {
+  sheet: `.s-bar{border-bottom:calc(var(--bw) * 3) solid var(--ink);}.s-h{font-size:80px;max-width:none;}.s-visual{display:none;}.s-band{gap:0;}.s-card{border-radius:0;margin-left:-1px;}`,
+  editorial: `.s-hero{max-width:760px;margin:0 auto;}.s-visual{display:none;}.s-h{font-size:58px;}.s-band{max-width:760px;margin:0 auto;grid-template-columns:1fr;}.s-rows{max-width:760px;margin:0 auto;width:100%;}`,
+  atelier: `.s-bar{margin:14px auto 0;width:calc(100% - 64px);border:var(--bw) solid var(--line);border-radius:999px;}.s-hero{text-align:center;justify-items:center;}.s-hero-t{align-items:center;}.s-h{max-width:18ch;}.s-visual{width:80%;}.s-card{box-shadow:var(--shadow);}`,
+  reel: `.site{padding:26px 0;background:#000;}.s-hero{background:var(--void);}.s-h{font-size:70px;}.s-visual{min-height:340px;}`,
+  lab: `.s-h{font-size:72px;}.s-card,.s-visual{backdrop-filter:blur(16px);background:color-mix(in srgb, var(--void) 80%, transparent);}.s-band{transform:rotate(-.4deg);}`,
+  workbench: `.s-bar{background:color-mix(in srgb, var(--ink) 4%, var(--void));}.s-h{font-size:52px;}`,
+};
+
+const SITE_PHONE_CSS = `
+.s-bar{padding:14px 16px;}.s-nav{display:none;}
+.s-hero,.s-hero.split{grid-template-columns:1fr !important;padding:28px 16px;}
+.s-h{font-size:36px !important;}
+.s-visual{min-height:180px;width:100% !important;}
+.s-band{grid-template-columns:1fr !important;padding:0 16px 20px;}
+.s-rows{padding:0 16px 20px;}.s-row{grid-template-columns:1fr;gap:4px;}
+.s-close{flex-direction:column;align-items:flex-start;margin:0 16px 16px;}
+.s-close .title{font-size:22px !important;}
+`;
+
 // ----- the document --------------------------------------------------------
 
 /**
@@ -369,7 +504,9 @@ export function renderMockup(
   const chrome = direction.chrome;
   const phone = device === "phone";
 
-  const body = `<div class="shell ${chrome} shape-${spec.shape}">
+  const body = spec.site
+    ? siteBody(spec, chrome, phone)
+    : `<div class="shell ${chrome} shape-${spec.shape}">
     ${navBlock(spec, chrome)}
     <div class="col-main">
       ${barBlock(spec, chrome)}
@@ -531,8 +668,9 @@ ${phone ? ".tr > *:nth-child(n+3){display:none;}" : ""}
   padding:calc(28px * var(--pad));text-align:center;
 }
 .empty-t{font-family:var(--display);font-size:18px;margin:0 0 4px;text-transform:var(--title-case);}
-${CHROME_CSS[chrome]}
-${phone ? ".shell{grid-template-columns:1fr !important;}.rail{display:none !important;}.board{grid-template-columns:1fr !important;}.bar{flex-wrap:wrap;}.bar .nav{display:none;}.title{font-size:30px !important;}" : ""}
+${spec.site ? SITE_CSS + (SITE_CHROME_CSS[chrome] ?? "") : CHROME_CSS[chrome]}
+${spec.site ? "" : phone ? ".shell{grid-template-columns:1fr !important;}.rail{display:none !important;}.board{grid-template-columns:1fr !important;}.bar{flex-wrap:wrap;}.bar .nav{display:none;}.title{font-size:30px !important;}" : ""}
+${spec.site && phone ? SITE_PHONE_CSS : ""}
 @media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important;}}
 </style></head>
 <body>${body}</body></html>`;

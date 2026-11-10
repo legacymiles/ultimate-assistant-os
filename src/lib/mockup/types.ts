@@ -82,6 +82,41 @@ export interface MockupSpec {
   detail: { label: string; value: string }[];
   /** The signed-in person's initials, for the avatar. */
   who: string;
+  /**
+   * Set when the thing being drawn is a WEBSITE, not an app. A website is a
+   * page people scroll — nav, hero, sections, a call to action — and drawing it
+   * as an app console (rail, stat tiles, rows of features) is what made every
+   * site mockup look like a dashboard. When this is present the renderer draws
+   * a page instead, and the app fields above are ignored.
+   */
+  site?: MockupSite;
+}
+
+/** A website, in its own words: what the page says, top to bottom. */
+export interface MockupSite {
+  /** The hero's headline. */
+  headline: string;
+  /** The line under it. */
+  sub: string;
+  /** The page's real calls to action, primary first. */
+  ctas: string[];
+  /** The sections down the page, in order. */
+  sections: { title: string; body: string; tag?: string }[];
+  /** One line of proof (a review, a stat, a guarantee), when there is one. */
+  proof?: string;
+  /** Where it is, for the footer: a domain or a short address. */
+  footer?: string;
+  /** Colours the existing site uses, when this is a redesign. Never drawn as the new look. */
+  oldColors?: string[];
+}
+
+/** A Flux 2 picture of one lane, drawn on the owner's PC. */
+export interface MockupPicture {
+  /** data: URL of the picture. */
+  image: string;
+  /** The prompt that drew it — the cache key, and what the owner can read. */
+  prompt: string;
+  ms: number;
 }
 
 /** One lane of the bake-off: a design skill, drawn. */

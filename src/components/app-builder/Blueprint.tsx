@@ -20,6 +20,14 @@ import { connectPc, type BridgeHealth } from "@/lib/new-jarvis/bridge";
 import { BuildStatus } from "./BuildStatus";
 import { MoveIntoHub } from "./MoveIntoHub";
 
+function hostLabel(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "live site";
+  }
+}
+
 export function Pipeline({ project }: { project: BuilderProject | null }) {
   // Read the look through `lookOf`, the same way the brief does. The chip bar
   // used to show the agent's guessed design skill for ever, so after the owner
@@ -28,7 +36,7 @@ export function Pipeline({ project }: { project: BuilderProject | null }) {
   const u = project?.understanding ? lookOf(project, project.understanding) : undefined;
   const t = tally(project?.features ?? []);
   const hasFeatures = project?.stage === "features";
-  const watched = Boolean(project?.teardown || project?.sources?.length);
+  const watched = !project?.redesign && Boolean(project?.teardown || project?.sources?.length);
   if (project?.edit) {
     const queued = Boolean(project.handoff?.queueId);
     const edit = [
@@ -51,12 +59,24 @@ export function Pipeline({ project }: { project: BuilderProject | null }) {
     );
   }
   const depth = project ? depthOf(project).depth : "commercial";
+  const looked = Boolean(project?.look);
   const steps = [
+    ...(project?.redesign
+      ? [{ skill: "website-redesigner", label: "Read the site", state: "done", note: hostLabel(project.redesign.url) }]
+      : []),
     ...(watched
       ? [{ skill: "reverse-engineer-anything", label: "Reverse engineer", state: project?.teardown ? "done" : "now", note: "rea + video-analyzer" }]
       : []),
     { skill: "felix", label: "Felix", state: hasFeatures ? "done" : project?.stage === "interview" ? "now" : "wait", note: "end goal first" },
     { skill: "prompt-enhancer", label: "Prompt enhancer", state: t.accepted ? "done" : hasFeatures ? "now" : "wait", note: "sharp brief" },
+    // The look is chosen BEFORE depth and build: three mockups (Flux 2 on the
+    // PC when it's up), one picked, and the build is held to it.
+    {
+      skill: "mockups",
+      label: "Mockups",
+      state: looked ? "done" : hasFeatures && t.accepted ? "now" : "wait",
+      note: looked ? (project?.look?.skill ?? "picked") : "pick a look",
+    },
     ...(depth === "plain"
       ? []
       : [
@@ -296,6 +316,22 @@ export function Blueprint({
           </div>
         )}
 
+        {!project.edit && !project.look && !started && t.accepted > 0 && (
+          <p className="ab-look-nudge">
+            No look picked yet — the build will use <code>{u.designSkill}</code>.{" "}
+            <a
+              href="#ab-look"
+              onClick={(e) => {
+                const el = document.getElementById("ab-look");
+                if (!el) return;
+                e.preventDefault();
+                el.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+            >
+              Pick one of the three mockups first
+            </a>
+          </p>
+        )}
         <button
           className="ab-primary ab-build"
           disabled={!t.accepted || busy !== null || offline || inFlight}
@@ -371,7 +407,7 @@ export function Blueprint({
         <details className="ab-skills">
           <summary>The pipeline this build runs</summary>
           <ol>
-            {pipeline(u, project.teardown, Boolean(project.sources?.length), Boolean(project.edit), depth).map((s) => (
+            {pipeline(u, project.teardown, Boolean(project.sources?.length), Boolean(project.edit), depth, project.redesign).map((s) => (
               <li key={s.skill}>
                 <code>{s.skill}</code> — {s.role}
               </li>
@@ -389,8 +425,16 @@ export function Recording({ project }: { project: BuilderProject }) {
   return (
     <div className="ab-recording">
       <div className="ab-rec-head">
-        <span className="ab-rec-title">{t ? (t.mode === "recreate" ? "Recreating the recording" : "Changing the recording") : "Recording"}</span>
-        <span className="ab-rec-sub">reverse-engineered · rea + video-analyzer</span>
+        <span className="ab-rec-title">
+          {project.redesign ? "Redesigning the live site" : t ? (t.mode === "recreate" ? "Recreating the recording" : "Changing the recording") : "Recording"}
+        </span>
+        {project.redesign ? (
+          <a className="ab-rec-sub" href={project.redesign.url} target="_blank" rel="noreferrer">
+            {project.redesign.url.replace(/^https?:\/\//, "").replace(/\/$/, "")} ↗
+          </a>
+        ) : (
+          <span className="ab-rec-sub">reverse-engineered · rea + video-analyzer</span>
+        )}
       </div>
       {project.sources?.length ? (
         <ul className="ab-sources">

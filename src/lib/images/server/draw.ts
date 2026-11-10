@@ -190,6 +190,18 @@ async function drawFree(req: DrawRequest): Promise<DrawResult | null> {
 }
 
 /**
+ * Draw on the owner's PC and nowhere else.
+ *
+ * For pictures that should be free or not at all — mockups. A mockup the PC
+ * can't paint still has its coded drawing, so falling through to a paid or
+ * watermarked lane would spend money (or stamp a logo) for nothing.
+ */
+export async function drawOnPc(req: DrawRequest): Promise<DrawResult | null> {
+  if (!req.prompt.trim() || !(await localUp())) return null;
+  return drawLocal(req);
+}
+
+/**
  * Try the free lanes, in order, and give up quietly.
  *
  * Returns null when nothing free could draw it — the caller then does whatever

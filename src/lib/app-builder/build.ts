@@ -55,6 +55,24 @@ export function threadTitle(p: BuilderProject): string {
  */
 export function buildBrief(p: BuilderProject): string {
   const name = p.understanding?.name ?? "this app";
+  const r = p.redesign;
+  // A redesign of the owner's own site lands in its own repository, as a
+  // pull request — not as a second copy of the site in a new one.
+  if (r?.ownSite && r.sourcePath) {
+    return [
+      "<where_you_are>",
+      `You are in an empty folder that is already a git repository on its own \`main\` branch. This build is a REDESIGN of the owner's existing site, whose source is ${r.sourcePath}. Bring that source in here first (for a repository: add it as a remote, fetch it and check out its default branch, then make a branch called \`redesign\`; for a local folder: copy it in), install, and get it running unchanged before you restyle anything.`,
+      "Do not reach into any other repository on this machine.",
+      "</where_you_are>",
+      "",
+      masterPrompt(p),
+      "",
+      "<finish>",
+      `When the new look is done and every function on the live site (${r.url}) still works: commit, push the \`redesign\` branch to the site's own repository, open a pull request there, deploy a preview and test it live.`,
+      "Report against the judge with real numbers, including anything that missed. Say the pull request and the preview address in your last message, each on its own line, as `Repo: <pull request url>` and `Live: <preview url>`, so App Builder can save them without guessing.",
+      "</finish>",
+    ].join("\n");
+  }
   return [
     "<where_you_are>",
     `You are in an empty folder that is already a git repository on its own \`main\` branch — this is ${name}'s own project, not part of any other codebase. Build it here. It has no node_modules and no keys: install what you need, and keep it working with no keys set (a visible demo mode, never a crash).`,

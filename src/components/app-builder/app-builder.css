@@ -667,3 +667,39 @@
 @media (prefers-reduced-motion: reduce) {
   .ab *, .ab *::before, .ab *::after { animation: none !important; transition: none !important; }
 }
+
+/* ----- the look comes before the build ------------------------------------ */
+.ab-look-nudge {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.07);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--color-ink-muted, #9aa3b5);
+}
+.ab-look-nudge code { font-size: 11px; color: var(--color-ink, #e9ecf3); }
+.ab-look-nudge a { color: #f59e0b; text-underline-offset: 2px; }
+
+.ab-look {
+  scroll-margin-top: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-line, #262a38);
+}
+.ab-look-step {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: var(--font-jbm), "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint, #6b7385);
+}
+.ab-look-step b { color: #f59e0b; font-weight: 600; }
+.ab-look-step.is-done b { color: #22c55e; }
+.ab-look-wait { margin: 0; font-size: 12px; color: var(--color-ink-faint, #6b7385); }

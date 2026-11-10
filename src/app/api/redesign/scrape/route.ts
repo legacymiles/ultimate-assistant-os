@@ -40,6 +40,11 @@ export async function POST(req: Request) {
         description: f.detail,
         group: "core" as const,
       })),
+      // What App Builder keeps for a redesign project (lib/app-builder/redesign.ts).
+      headings: scrape.headings,
+      colors: scrape.colors,
+      functionality: scrape.functionality,
+      confidence: scrape.confidence,
     });
   } catch (err) {
     // A site that refuses a bot is not a server error here — the lane can still

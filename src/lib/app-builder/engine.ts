@@ -18,6 +18,7 @@
 // held to the one build checklist (website-build-checklist).
 // ---------------------------------------------------------------------------
 
+import { redesignBrief } from "./redesignBrief";
 import { shapeOf } from "@/lib/mockup/spec";
 import type { Shape } from "@/lib/mockup/types";
 
@@ -39,6 +40,7 @@ import {
   type Question,
   type Teardown,
   type TeardownMode,
+  type RedesignSource,
   type Understanding,
 } from "./types";
 
@@ -942,10 +944,22 @@ export function pipeline(
   recorded = false,
   isEdit = false,
   depth: Depth = "commercial",
+  redesign?: RedesignSource,
 ): { skill: string; role: string }[] {
   if (isEdit) return editPipeline();
   const mode = t?.mode ?? "recreate";
-  const re = t || recorded
+  const re = redesign
+    ? [
+        {
+          skill: "website-redesigner",
+          role: `Open ${redesign.url} and list every page, form, link, flow and piece of content it has — that list is what the redesign must keep, and the acceptance test.`,
+        },
+        {
+          skill: "redesign-skill",
+          role: "Audit the current design first (what reads as generic, what the brand truly owns), then give it a completely new premium look without breaking any function.",
+        },
+      ]
+    : t || recorded
     ? [
         { skill: "video-analyzer", role: "Watch the attached recording properly — every frame and the narration — and list each screen, step and state change." },
         {
@@ -1071,7 +1085,9 @@ export function masterPrompt(p: BuilderProject): string {
     `<goal>\n${u.endGoal || u.purpose}\nFor: ${u.audience}.\nThe goal beyond the goal: ${u.beyond}.\n</goal>`,
     `<context>\n- App: ${u.name} — ${u.oneLiner}\n- Kind: ${APP_TYPE_LABEL[u.appType]}\n- Purpose: ${u.purpose}\n- How it makes money: ${u.model}\n${answers.map(([k, v]) => `- ${k}: ${v}`).join("\n")}\n</context>`,
     `<request>\n${clean(p.idea)}\n</request>`,
-    p.teardown
+    p.redesign
+      ? redesignBrief(p.redesign)
+      : p.teardown
       ? `<reverse_engineered>\nThe owner attached ${p.sources?.length ?? 1} recording${(p.sources?.length ?? 1) === 1 ? "" : "s"}/picture${(p.sources?.length ?? 1) === 1 ? "" : "s"} of an app or workflow (frames are attached to the In Queue request). This is what was taken apart from it:\n${teardownText(p.teardown)}\n${p.teardown.mode === "recreate" ? "Recreate the workflow and behaviour it shows" : "Rebuild it with the owner's changes"}, in original code and original design — never copy another product's name, logo, branding or proprietary assets.\n</reverse_engineered>`
       : p.sources?.length
         ? `<reverse_engineered>\nThe owner attached ${p.sources.length} recording${p.sources.length === 1 ? "" : "s"}/picture${p.sources.length === 1 ? "" : "s"} of an app or workflow that hasn't been watched yet (frames are attached to the In Queue request; ask the owner for the full file if they aren't enough). Watch it with video-analyzer, take it apart with rea — every screen, step, state and the data behind it — then ${modeOf(p.idea, asText(p.answers.mode)) === "recreate" ? "recreate the workflow and behaviour it shows" : "rebuild it with the owner's changes"}, in original code and original design — never copy another product's name, logo, branding or proprietary assets.\n</reverse_engineered>`
@@ -1081,7 +1097,7 @@ export function masterPrompt(p: BuilderProject): string {
       .join("\n")}\n</features>`,
     denied.length ? `<declined>\nThe owner declined these; leave them out:\n${denied.map((f) => `- ${f.title}`).join("\n")}\n</declined>` : "",
     `<depth>\n${depthBrief(depth, u.appType)}\nWhy this depth: ${depthWhy}.\n</depth>`,
-    `<skills_pipeline>\nRun these skills, in this order, for this build — every time:\n${pipeline(u, p.teardown, Boolean(p.sources?.length), false, depth)
+    `<skills_pipeline>\nRun these skills, in this order, for this build — every time:\n${pipeline(u, p.teardown, Boolean(p.sources?.length), false, depth, p.redesign)
       .map((s, i) => `${i + 1}. ${s.skill} — ${s.role}`)
       .join("\n")}\n</skills_pipeline>`,
     p.look
@@ -1110,7 +1126,7 @@ export function queueText(p: BuilderProject): string {
   const r = p.handoff?.review;
   const head = [
     `App Builder: build ${u.name} (${APP_TYPE_LABEL[u.appType]}).`,
-    `Run skills in order: ${p.teardown || p.sources?.length ? "video-analyzer → reverse-engineer-anything (rea) → " : ""}felix → prompt-enhancer${
+    `Run skills in order: ${p.redesign ? "website-redesigner → redesign-skill → " : p.teardown || p.sources?.length ? "video-analyzer → reverse-engineer-anything (rea) → " : ""}felix → prompt-enhancer${
       depth === "plain" ? "" : ` → ${depth === "commercial-2x" ? "commercial 2x" : "commercial"} (Steps ${depthSteps(depth, u.appType).join(", ")})`
     } → ${u.designSkill} → impeccable → software-factory → claude-security, held to website-build-checklist.`,
     p.look
@@ -1126,7 +1142,9 @@ export function queueText(p: BuilderProject): string {
         } so edit requests come back to App Builder. Never paste the URL by hand.`
       : "",
   ].filter(Boolean);
-  const re = p.teardown
+  const re = p.redesign
+    ? [redesignBrief(p.redesign).replace(/<\/?redesign>\n?/g, "").slice(0, 1_300)]
+    : p.teardown
     ? [`Recording (${p.teardown.mode === "recreate" ? "recreate it" : "change it"}; frames attached — ask the owner for the full video if needed; original code and design, no copied branding):`, teardownText(p.teardown, 1_100)]
     : p.sources?.length
       ? [`Recording attached but not watched yet (frames attached): watch it with video-analyzer, take it apart with rea, then ${modeOf(p.idea, asText(p.answers.mode)) === "recreate" ? "recreate it" : "change it as asked"} — original code and design, no copied branding.`]

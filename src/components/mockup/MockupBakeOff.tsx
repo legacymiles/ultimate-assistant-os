@@ -26,8 +26,10 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { directionsFor } from "@/lib/mockup/directions";
+import { fluxPrompt } from "@/lib/mockup/flux";
 import { FRAME_HEIGHT, FRAME_WIDTH, renderMockup } from "@/lib/mockup/render";
-import type { Device, LookChoice, MockupSpec } from "@/lib/mockup/types";
+import type { Chrome, Device, LookChoice, MockupSpec } from "@/lib/mockup/types";
+import { useMockupPictures, type PcState, type PictureState } from "@/lib/mockup/useMockupPictures";
 
 import "./mockup.css";
 
@@ -45,6 +47,12 @@ interface Props {
   as?: "owner" | "client";
   /** A short line above the lanes, in the host app's voice. */
   caption?: string;
+  /**
+   * Paint each lane with Flux 2 on the owner's PC when its drawer is up.
+   * On by default. The drawer only answers on the owner's own machine, so a
+   * client's screen simply shows the layouts.
+   */
+  pictures?: boolean;
 }
 
 /** A lane that could not be drawn still holds its place, carrying why. */
@@ -52,8 +60,10 @@ interface Lane {
   skill: string;
   note: string;
   role: "recommended" | "contrast";
+  chrome: Chrome;
   html: string;
   error: string;
+  prompt: string;
 }
 
 export function MockupBakeOff({
@@ -64,8 +74,11 @@ export function MockupBakeOff({
   chooseLabel = "Build this look",
   as = "owner",
   caption,
+  pictures: wantPictures = true,
 }: Props) {
   const [device, setDevice] = useState<Device>("desktop");
+  /** Show the Flux picture, or the coded layout, in each lane. */
+  const [view, setView] = useState<"picture" | "layout">("picture");
   /** Which lane is open full-width. null = all three side by side. */
   const [solo, setSolo] = useState<string | null>(null);
   const headingId = useId();
@@ -79,7 +92,7 @@ export function MockupBakeOff({
     () =>
       directions.map((d) => {
         try {
-          return { ...d, html: renderMockup(spec, d, { device }), error: "" };
+          return { ...d, html: renderMockup(spec, d, { device }), error: "", prompt: fluxPrompt(spec, d, device) };
         } catch {
           // A lane that fails keeps its place. "Why did this direction not
           // draw" is itself a result; a lane that vanishes destroys the
@@ -87,12 +100,19 @@ export function MockupBakeOff({
           return {
             ...d,
             html: "",
+            prompt: "",
             error: "This direction didn't draw. The other two still work, and picking one of them is safe.",
           };
         }
       }),
     [directions, spec, device],
   );
+
+  // Lane order IS draw order: the recommendation is painted first, so the
+  // lane the owner reads first is never the one still waiting.
+  const jobs = useMemo(() => lanes.filter((l) => l.prompt).map((l) => ({ id: l.skill, prompt: l.prompt })), [lanes]);
+  const { pc, pictures, redraw } = useMockupPictures(jobs, device, wantPictures);
+  const anyPicture = Object.values(pictures).some((p) => p.status === "done");
 
   const shown = solo ? lanes.filter((l) => l.skill === solo) : lanes;
 
@@ -122,6 +142,21 @@ export function MockupBakeOff({
           </p>
         </div>
         <div className="mk-controls">
+          {wantPictures && (
+            <div className="mk-seg" role="group" aria-label="What each lane shows">
+              {(["picture", "layout"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  className={`mk-seg-b${view === v ? " on" : ""}`}
+                  aria-pressed={view === v}
+                  onClick={() => setView(v)}
+                >
+                  {v === "picture" ? "Flux render" : "Live layout"}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="mk-seg" role="group" aria-label="Mockup width">
             {(["desktop", "phone"] as const).map((d) => (
               <button
@@ -143,6 +178,8 @@ export function MockupBakeOff({
         </div>
       </header>
 
+      {wantPictures && <PcLine pc={pc} any={anyPicture} pictures={pictures} />}
+
       <div className={`mk-lanes${solo ? " mk-solo" : ""}`} data-count={shown.length}>
         {shown.map((lane) => {
           const picked = chosen?.skill === lane.skill;
@@ -160,14 +197,26 @@ export function MockupBakeOff({
                 <div className="mk-fail" role="status">
                   <p>{lane.error}</p>
                 </div>
-              ) : (
-                <Frame
-                  html={lane.html}
+              ) : wantPictures && view === "picture" && pictures[lane.skill]?.status === "done" ? (
+                <Picture
+                  pic={pictures[lane.skill]}
                   device={device}
-                  title={`${spec.name} in the ${directionLabel(lane)} direction`}
+                  title={`${spec.name} in the ${directionLabel(lane)} direction, drawn with Flux 2`}
                   onOpen={() => setSolo(solo ? null : lane.skill)}
+                  onRedraw={pc === "off" ? undefined : () => redraw(lane.skill)}
                   expanded={Boolean(solo)}
                 />
+              ) : (
+                <div className="mk-frame-wrap">
+                  <Frame
+                    html={lane.html}
+                    device={device}
+                    title={`${spec.name} in the ${directionLabel(lane)} direction`}
+                    onOpen={() => setSolo(solo ? null : lane.skill)}
+                    expanded={Boolean(solo)}
+                  />
+                  {wantPictures && view === "picture" && <PaintingBadge pic={pictures[lane.skill]} />}
+                </div>
               )}
 
               <p className="mk-note">{lane.note}</p>
@@ -192,6 +241,76 @@ export function MockupBakeOff({
         your own spec.
       </p>
     </section>
+  );
+}
+
+/** One line saying whether Flux is painting, and how to switch it on when it isn't. */
+function PcLine({ pc, any, pictures }: { pc: PcState; any: boolean; pictures: Record<string, PictureState> }) {
+  const left = Object.values(pictures).filter((p) => p.status === "drawing" || p.status === "waiting").length;
+  let text: string;
+  if (pc === "checking") text = "Looking for Flux 2 on your PC…";
+  else if (pc === "off")
+    text = any
+      ? "Showing Flux 2 renders saved earlier. Your PC's drawer is off, so changes show as layouts until it's back."
+      : "Flux 2 renders appear here when your PC's picture drawer is running (Pinokio + node tools/wangp-image/server.mjs). Until then each lane is the live layout.";
+  else if (left)
+    text = `Painting with Flux 2 on your PC, lane by lane — about 20 seconds each (the first after a restart takes ~2 minutes). ${left} to go.`;
+  else text = "Painted with Flux 2 on your PC — free. Switch to Live layout to see the exact page structure.";
+  return (
+    <p className={`mk-pc is-${pc}${left ? " is-busy" : ""}`} role="status">
+      <span className="mk-pc-dot" aria-hidden />
+      {text}
+    </p>
+  );
+}
+
+function PaintingBadge({ pic }: { pic?: PictureState }) {
+  if (!pic || pic.status === "done") return null;
+  if (pic.status === "failed") {
+    if (pic.error === "off") return null;
+    return (
+      <span className="mk-paint is-failed" title={pic.error}>
+        Flux didn&apos;t draw this one — showing the layout
+      </span>
+    );
+  }
+  return (
+    <span className="mk-paint" aria-live="polite">
+      <span className="mk-paint-dot" aria-hidden />
+      {pic.status === "drawing" ? "Painting with Flux 2…" : "Waiting its turn for Flux 2"}
+    </span>
+  );
+}
+
+/** A lane's Flux picture, at the lane's width. */
+function Picture({
+  pic,
+  device,
+  title,
+  onOpen,
+  onRedraw,
+  expanded,
+}: {
+  pic: PictureState;
+  device: Device;
+  title: string;
+  onOpen: () => void;
+  onRedraw?: () => void;
+  expanded: boolean;
+}) {
+  return (
+    <div className={`mk-pic is-${device}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL from the owner's PC; next/image adds nothing */}
+      <img src={pic.image} alt={title} />
+      <button type="button" className="mk-open" onClick={onOpen}>
+        <span>{expanded ? "Close" : "Open full width"}</span>
+      </button>
+      {onRedraw && (
+        <button type="button" className="mk-redraw" onClick={onRedraw} title="Paint this lane again with Flux 2">
+          Redraw
+        </button>
+      )}
+    </div>
   );
 }
 

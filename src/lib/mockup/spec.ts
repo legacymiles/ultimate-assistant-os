@@ -18,7 +18,7 @@
 // ---------------------------------------------------------------------------
 
 import { KIND_LABEL, type AppType, type BuilderProject, type Feature } from "@/lib/app-builder/types";
-import type { MockupRow, MockupSpec, MockupStat, Shape } from "./types";
+import type { MockupRow, MockupSite, MockupSpec, MockupStat, Shape } from "./types";
 
 /**
  * A small deterministic hash. Same name in, same numbers out, forever.
@@ -233,6 +233,63 @@ export function specFromProject(p: BuilderProject): MockupSpec {
       { label: "Status", value: "Live" },
     ].filter((d) => d.value),
     who: initials(u?.name || "Jarvis Studio"),
+    ...(isWebsite(p) ? { site: siteFromProject(p, feats), nav: siteNav(p, feats) } : {}),
+  };
+}
+
+/** Is this project a website (drawn as a page), rather than an app? */
+export function isWebsite(p: BuilderProject): boolean {
+  return Boolean(p.redesign) || p.understanding?.appType === "website";
+}
+
+/** A short, human domain for a footer: "joesplumbing.com". */
+export function domainOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+/** A website's nav: the live site's own, when it is a redesign. */
+function siteNav(p: BuilderProject, feats: Feature[]): string[] {
+  const own = (p.redesign?.nav ?? []).map((n) => title(n)).filter((n) => n.length <= NAV_MAX);
+  if (own.length >= 2) return unique(own).slice(0, 5);
+  const fromFeatures = feats
+    .map((f) => f.title.split(/[,:–-]/)[0].trim())
+    .filter((t) => t.length > 0 && t.length <= 14)
+    .map(title);
+  return unique(["Home", ...fromFeatures.slice(0, 3), "Contact"]).slice(0, 5);
+}
+
+/**
+ * What the page says, top to bottom.
+ *
+ * For a redesign this is the live site's OWN words — its headings, its calls
+ * to action, what it does — because the owner is judging "is this my site,
+ * better", and a mockup full of feature-list jargon answers a different
+ * question. New sites use the accepted features as the sections.
+ */
+export function siteFromProject(p: BuilderProject, feats: Feature[]): MockupSite {
+  const u = p.understanding;
+  const r = p.redesign;
+  const keep = (r?.functionality ?? []).filter((f) => f.label);
+  const headings = (r?.headings ?? []).map((h) => clip(h, 60)).filter(Boolean);
+  const fromSite = headings.slice(1, 7).map((h, i) => ({
+    title: clip(h, 40),
+    body: clip(keep[i]?.detail || keep[i]?.label || r?.summary || "", 90),
+  }));
+  const fromFeatures = feats.slice(0, 6).map((f) => ({ title: clip(f.title, 40), body: clip(f.detail || f.why, 90) }));
+  const sections = (fromSite.length >= 3 ? fromSite : [...fromSite, ...fromFeatures]).slice(0, 6);
+  const ctas = unique([...(r?.ctas ?? []).map((c) => clip(c, 22)), "Get in touch"]).filter(Boolean).slice(0, 2);
+  return {
+    headline: clip(headings[0] || u?.oneLiner || r?.title || u?.name || p.idea, 70),
+    sub: clip(r?.summary || u?.purpose || u?.oneLiner || p.idea, 150),
+    ctas: ctas.length ? ctas : ["Get started"],
+    sections,
+    proof: u?.judge?.[0] ? clip(u.judge[0], 70) : undefined,
+    footer: r ? domainOf(r.url) : clip(u?.audience || "", 40),
+    oldColors: r?.colors?.slice(0, 6),
   };
 }
 
@@ -290,6 +347,14 @@ export function specFromSummary(args: {
       { label: "Version", value: args.version },
     ],
     who: initials(args.clientName || args.siteName),
+    // A client's site is a website: draw the page, its sections the bullets.
+    site: {
+      headline: clip(oneLiner || args.siteName, 70),
+      sub: clip(bullets.slice(0, 2).join(" · ") || `Built for ${args.clientName || "you"}`, 150),
+      ctas: ["Get started", "Learn more"],
+      sections: bullets.slice(0, 6).map((b) => ({ title: clip(b.split(/[,:–-]/)[0], 40), body: clip(b, 90) })),
+      footer: args.version,
+    },
   };
 }
 
@@ -338,5 +403,20 @@ export function specFromEdits(args: {
       { label: "Version", value: args.version },
     ],
     who: initials(args.clientName || args.siteName),
+    // The client's site with each change they asked for marked where it lands,
+    // so "did you understand what I asked" is answered on the page itself.
+    site: {
+      headline: args.siteName,
+      sub: `${args.version} — ${n} change${n === 1 ? "" : "s"} ${args.clientName || "you"} asked for, drawn in place.`,
+      ctas: ["Approve the look", "See before"],
+      sections: args.edits.slice(0, 6).map((e, i) => ({
+        title: clip(e.text, 40),
+        body: e.pin
+          ? `Where you pointed: ${Math.round(e.pin.x * 100)}% across, ${Math.round(e.pin.y * 100)}% down the page.`
+          : "Asked for in writing.",
+        tag: `Change ${i + 1}`,
+      })),
+      footer: args.version,
+    },
   };
 }

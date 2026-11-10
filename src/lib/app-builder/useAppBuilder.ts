@@ -16,6 +16,7 @@
 // the IndexedDB inbox, and this hook starts it the moment App Builder opens.
 // ---------------------------------------------------------------------------
 
+import { keepFeatures, redesignText, redesignUpgrades, settleRedesign } from "./redesign";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { loadLocal, saveSynced } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
@@ -126,6 +127,16 @@ export function sourcesOf(media: PreparedMedia[], now = new Date()): MediaSource
   }));
 }
 
+/** The redesign's must-keeps first, then the agent's list without repeats, ids renumbered. */
+function withKeeps(r: NonNullable<BuilderProject["redesign"]>, agent: Feature[]): Feature[] {
+  const keeps = keepFeatures(r, 1);
+  const seen = new Set(keeps.map((f) => f.title.toLowerCase()));
+  // No agent list (offline, or it came back empty): the agency upgrades stand in.
+  const proposed = agent.length ? agent : redesignUpgrades(r, keeps.length + 1);
+  const rest = proposed.filter((f) => !seen.has(f.title.toLowerCase()));
+  return [...keeps, ...rest].map((f, i) => ({ ...f, id: `f${i + 1}` }));
+}
+
 export type Busy = null | "interview" | "features" | "chat" | "build" | "queue" | "board" | "cancel" | "absorb" | "retire";
 
 /** What the hand-off is doing right now, so the button can say it (R5). */
@@ -158,6 +169,17 @@ export function useAppBuilder() {
     storeRef.current = next;
     setStore(next);
     setReady(true);
+    // A note left by the page that handed this project over (the Redesigner
+    // couldn't read the site well) — shown once, here, where the work is.
+    try {
+      const left = sessionStorage.getItem("ab:notice");
+      if (left) {
+        sessionStorage.removeItem("ab:notice");
+        setNotice(left);
+      }
+    } catch {
+      /* nothing to show */
+    }
   }, []);
   useRemotePull(STORE_KEY, () => {
     const raw = readStore();
@@ -228,14 +250,16 @@ export function useAppBuilder() {
       const wire = media.length ? forWire(media) : null;
       if (wire?.note) setNotice(wire.note);
       const data = await call<StartReply>(
-        wire ? { action: "watch", idea: p.idea, media: wire.media } : { action: "interview", idea: p.idea },
+        wire
+          ? { action: "watch", idea: p.idea, media: wire.media }
+          : { action: "interview", idea: p.idea, ...(p.redesign ? { site: redesignText(p.redesign) } : {}) },
       );
       if (data.notice) setNotice(data.notice);
       update(id, (x) => ({
         ...x,
         stage: "interview",
         pending: false,
-        understanding: data.understanding,
+        understanding: x.redesign ? settleRedesign(data.understanding, x.understanding, x.redesign) : data.understanding,
         questions: data.questions,
         ...(data.teardown ? { teardown: data.teardown } : {}),
         chat: [...(x.chat.length ? x.chat : [chatMsg("you", x.idea)]), chatMsg("agent", data.intro)],
@@ -299,15 +323,20 @@ export function useAppBuilder() {
           action: "features",
           idea: p.idea,
           answers,
-          ...(p.teardown ? { teardown: p.teardown } : {}),
+          // A redesign sends the site itself; its teardown is only the site in
+          // App Builder's own shape, and sending both would list it twice.
+          ...(p.redesign ? { site: redesignText(p.redesign) } : p.teardown ? { teardown: p.teardown } : {}),
         });
         setNotice(data.notice ?? null);
+        // A redesign's deal is "keep everything it does": those features lead
+        // the list, already accepted, and the agent's upgrades follow them.
+        const features = p.redesign ? withKeeps(p.redesign, data.features) : data.features;
         update(p.id, (x) => ({
           ...x,
           stage: "features",
           answers,
-          understanding: data.understanding,
-          features: data.features,
+          understanding: x.redesign ? settleRedesign(data.understanding, x.understanding, x.redesign) : data.understanding,
+          features,
           engine: data.engine,
           ...(data.teardown ? { teardown: data.teardown } : {}),
           chat: [...x.chat, chatMsg("agent", data.message)],
@@ -349,6 +378,7 @@ export function useAppBuilder() {
           history: p.chat.slice(-10),
           message: message.trim(),
           ...(p.teardown ? { teardown: p.teardown } : {}),
+          ...(p.redesign ? { site: redesignText(p.redesign) } : {}),
           ...(wire ? { media: wire.media } : {}),
         });
         if (data.notice) setNotice(data.notice);

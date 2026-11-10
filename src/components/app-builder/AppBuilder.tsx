@@ -162,7 +162,7 @@ export function AppBuilder() {
             {ab.projects.map((p) => (
               <option key={p.id} value={p.id}>
                 {(p.understanding?.name ?? p.idea).slice(0, 40)}
-                {p.edit ? ` · ${p.edit.version} client edit` : p.origin === "chat" ? " · from chat" : p.origin === "autopilot" ? " · from camera" : ""}
+                {p.edit ? ` · ${p.edit.version} client edit` : p.origin === "redesign" ? " · redesign" : p.origin === "chat" ? " · from chat" : p.origin === "autopilot" ? " · from camera" : ""}
               </option>
             ))}
           </select>
@@ -266,12 +266,34 @@ export function AppBuilder() {
             <Orbit features={[]} name={name} charge={0.6} ambient />
           </div>
           <div className="ab-waking">
-            <p className="ab-eyebrow">{current.origin === "autopilot" ? "From Camera Autopilot" : current.origin === "chat" ? "From Jarvis chat" : "Starting"}</p>
-            <h2>{busy === "interview" ? (current.sources?.length ? "Watching your recording…" : "Reading your idea…") : name}</h2>
+            <p className="ab-eyebrow">
+              {current.origin === "redesign"
+                ? "From Website Redesigner"
+                : current.origin === "autopilot"
+                  ? "From Camera Autopilot"
+                  : current.origin === "chat"
+                    ? "From Jarvis chat"
+                    : "Starting"}
+            </p>
+            <h2>
+              {busy === "interview"
+                ? current.redesign
+                  ? `Reading ${current.redesign.title}…`
+                  : current.sources?.length
+                    ? "Watching your recording…"
+                    : "Reading your idea…"
+                : name}
+            </h2>
             <p className="ab-lede">{current.idea}</p>
             {busy === "interview" && (
               <Waiting
-                what={current.sources?.length ? "Watching every frame, then asking what the app is for" : "Reading it, then asking what the app is for"}
+                what={
+                  current.redesign
+                    ? "Taking the site apart, then asking what the redesign is for"
+                    : current.sources?.length
+                      ? "Watching every frame, then asking what the app is for"
+                      : "Reading it, then asking what the app is for"
+                }
                 note={current.sources?.length ? "A recording takes longer than words — usually 20–60 seconds." : undefined}
               />
             )}
@@ -406,18 +428,33 @@ function LookSection({
   // Client Review, where the client can see it against their own site.
   if (project.edit) return null;
 
+  const accepted = project.features.some((f) => f.status === "accepted");
   return (
-    <MockupBakeOff
-      spec={spec}
-      recommended={project.understanding?.designSkill}
-      chosen={project.look ?? null}
-      onChoose={onChoose}
-      chooseLabel="Build this look"
-      caption={
-        project.look
-          ? `The build is held to ${project.look.skill}. Pick another to change it.`
-          : "Drawn from the features you accepted. Pick one and the build brief is held to it."
+    <section id="ab-look" className="ab-look" aria-label="Pick the look">
+      <p className={`ab-look-step${project.look ? " is-done" : ""}`}>
+        <b>{project.look ? "✓ Look picked" : "Next · pick the look"}</b>
+        <span>features → mockups → depth → build on your PC → Client Review</span>
+      </p>
+      {!accepted && <p className="ab-look-wait">These draw from the whole list for now. Accept features and they redraw from yours — Flux 2 paints them once you have.</p>}
+      {
+        <MockupBakeOff
+          spec={spec}
+          // Painting costs a GPU minute per lane; wait until the list means something.
+          pictures={accepted}
+          // A skill the owner pinned in the Redesigner leads lane 1.
+          recommended={project.redesign?.skills?.[0] ?? project.understanding?.designSkill}
+          chosen={project.look ?? null}
+          onChoose={onChoose}
+          chooseLabel={project.redesign ? "Redesign it like this" : "Build this look"}
+          caption={
+            project.look
+              ? `The build is held to ${project.look.skill}. Pick another to change it.`
+              : project.redesign
+                ? `${project.redesign.title}, redrawn three ways with its own words and links. Pick one and the build is held to it.`
+                : "Drawn from the features you accepted. Pick one and the build brief is held to it."
+          }
+        />
       }
-    />
+    </section>
   );
 }

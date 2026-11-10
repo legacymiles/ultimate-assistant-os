@@ -245,6 +245,10 @@ const server = createServer(async (req, res) => {
       "Access-Control-Allow-Origin": req.headers.origin || "*",
       "Access-Control-Allow-Headers": "Content-Type",
       "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+      // Chrome asks this before a public page (the hosted hub) may call a
+      // drawer on this machine. The 127.0.0.1 bind and the remote-address
+      // check above still keep every other computer out.
+      "Access-Control-Allow-Private-Network": "true",
     });
     res.end();
     return;

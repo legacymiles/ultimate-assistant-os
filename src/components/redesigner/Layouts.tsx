@@ -518,9 +518,9 @@ function ConsoleLayout({ parts }: { parts: Parts }) {
             </span>
           </h1>
           <p className="rdx-lede">
-            Paste a URL. Get three redesign directions — each driven by a <b>design skill</b>{" "}
-            and named a <b>real site to beat</b> — plus a paste-ready build prompt that rebuilds
-            it with the same functionality.
+            Paste a URL. The super agent reads the site, asks what the redesign is for, shows you{" "}
+            <b>three mockups</b> to pick from, then <b>builds it on your PC</b> — and you watch it
+            land in Client Review, with every function it has today kept.
           </p>
         </div>
         <Readout parts={parts} />
@@ -589,9 +589,9 @@ function SheetLayout({ parts }: { parts: Parts }) {
             Keep what it does.
           </h2>
           <p className="rdx-sheet-abstract">
-            Paste a URL. Three redesign directions come back, each driven by a design skill and
-            named a real site to beat, each with a paste-ready build prompt that rebuilds the page
-            with its functionality intact.
+            Paste a URL. The site is read, Felix asks what the redesign is for, three mockups are
+            drawn, and the build runs on your PC — straight into Client Review, with its
+            functionality intact.
           </p>
         </div>
 
@@ -651,9 +651,9 @@ function EditorialLayout({ parts }: { parts: Parts }) {
       <main className="rdx-measure">
         <h1 className="rdx-ed-title">Redesign any site, keep what it does.</h1>
         <p className="rdx-ed-lede">
-          Paste a URL. Three redesign directions come back — each driven by a design skill, each
-          named a real site to beat — with a build prompt that rebuilds the page and leaves every
-          working part of it alone.
+          Paste a URL. It goes through App Builder — questions, features, three mockups, then a
+          build on your PC that you watch in Client Review — and leaves every working part of the
+          site alone.
         </p>
 
         <form onSubmit={parts.run} className="rdx-ed-form">
@@ -723,8 +723,8 @@ function AtelierLayout({ parts }: { parts: Parts }) {
           <em>keep what it does</em>
         </h1>
         <p className="rdx-at-lede">
-          Three directions, each driven by a design skill and named a real site to beat, with a
-          build prompt that keeps every working part of the page.
+          Three mockups to pick from, then a real build on your PC that keeps every working part
+          of the page — watched live in Client Review.
         </p>
 
         <form onSubmit={parts.run} className="rdx-capsule-wrap">
@@ -908,8 +908,8 @@ function LabLayout({ parts }: { parts: Parts }) {
           <span className="rdx-lab-title-2">any site</span>
         </h1>
         <p className="rdx-lab-lede">
-          Three directions. Each one driven by a design skill, named a real site to beat, and
-          handed back as a build prompt that keeps the thing working.
+          Read the site. Pick one of three mockups. Build it on your PC and watch it in Client
+          Review — the thing keeps working.
         </p>
 
         <form onSubmit={parts.run} className="rdx-glass rdx-glass-a">

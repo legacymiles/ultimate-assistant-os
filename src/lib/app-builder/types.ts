@@ -282,7 +282,7 @@ export interface BuilderProject {
   /** The owner turned off opening a Client Review link at hand-off. */
   noReview?: boolean;
   /** Where the request came from. */
-  origin?: "app" | "chat" | "autopilot" | "client-review";
+  origin?: "app" | "chat" | "autopilot" | "client-review" | "redesign";
   /** Set when this is a client edit from Client Review rather than a new app. */
   edit?: ClientEdit;
   /**
@@ -297,6 +297,38 @@ export interface BuilderProject {
   look?: LookChoice;
   /** Handed over from Jarvis chat and not started yet: App Builder starts it on open. */
   pending?: boolean;
+  /**
+   * Set when this project is a REDESIGN of a live site (Website Redesigner).
+   * The site's own content and behaviour, read from its URL: everything it
+   * does is kept, only the look changes. Drives the interview, the features
+   * (keep-alls first), the mockups (drawn with the site's real words) and the
+   * build brief (edit the source, or recreate the front end).
+   */
+  redesign?: RedesignSource;
+}
+
+/** A live site to redesign, as the Redesigner read it. */
+export interface RedesignSource {
+  url: string;
+  title: string;
+  summary: string;
+  nav: string[];
+  ctas: string[];
+  headings: string[];
+  /** Colours the current site uses — the look being replaced. */
+  colors: string[];
+  /** What the site does, which the redesign must keep. */
+  functionality: { kind: string; label: string; detail: string }[];
+  /** The owner's own site: edit its source rather than recreate its front end. */
+  ownSite: boolean;
+  /** Repo or folder of the owner's own site. */
+  sourcePath?: string;
+  /** What the owner said they want from the redesign. */
+  note?: string;
+  /** Design skills the owner pinned in the Redesigner, first one leads. */
+  skills?: string[];
+  /** "low" when the page was JS-rendered and the read was thin. */
+  confidence: "high" | "low";
 }
 
 /** One thing the agent changes on the feature list. */
