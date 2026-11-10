@@ -12,7 +12,7 @@
 // bridge: what the feed shows, and what a finished thread means.
 // ---------------------------------------------------------------------------
 
-import type { BuildPhase } from "@/lib/app-builder/build";
+import { resultLinks, type BuildPhase } from "@/lib/app-builder/build";
 import type { ThreadView, ToolRow } from "@/lib/new-jarvis/harness/types";
 import { buildLinks } from "./autoBuild";
 
@@ -150,7 +150,7 @@ export function blockerAdvice(reason: Blocker): { text: string; canConnect: bool
 export type Finish =
   | { kind: "running" }
   /** Built, with a preview: put it on the version and reload the site. */
-  | { kind: "publish"; url: string; pr?: string }
+  | { kind: "publish"; url: string; pr?: string; repo?: string }
   /** Built, but it printed no usable preview — say why, in its own words. */
   | { kind: "no-preview"; why: string; pr?: string }
   | { kind: "failed"; why: string };
@@ -172,6 +172,10 @@ export function finishOf(phase: BuildPhase, view: ThreadView): Finish {
   const text = view.turns.map((t) => t.text).join("\n");
   const { pr, preview } = buildLinks(text);
   if (preview) return { kind: "publish", url: preview, ...(pr ? { pr } : {}) };
+  // A NEW app's brief asks for `Repo:`/`Live:` instead of `PR:`/`Preview:`.
+  // Same finish, read through the other pair of names.
+  const app = resultLinks(view);
+  if (app.url) return { kind: "publish", url: app.url, ...(app.repo ? { repo: app.repo } : {}) };
   // `Preview: none` is followed by one sentence saying why; that sentence is the answer.
   const after = /^\s*Preview:\s*none\b[^\n]*\n?([\s\S]*)$/im.exec(text);
   const why = (after?.[1] ?? "").trim().split("\n")[0] || "It finished without printing a preview address.";

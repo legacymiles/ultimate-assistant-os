@@ -30,6 +30,7 @@ import { IdeaStage, Interview } from "./Stages";
 import { Waiting } from "./Waiting";
 import { BuildStarted } from "./BuildStarted";
 import { isNewBuild, PHASE_LABEL } from "@/lib/app-builder/build";
+import { reviewHref } from "@/lib/app-builder/review";
 import { ModelPicker } from "../new-jarvis/ModelPicker";
 import { useChatModel } from "@/lib/new-jarvis/useChatModel";
 import "./app-builder.css";
@@ -213,7 +214,25 @@ export function AppBuilder() {
       {justStarted && current && (
         <BuildStarted
           project={current}
-          onWatch={() => setJustStarted(false)}
+          onWatch={() => {
+            const review = current.handoff?.review;
+            if (!review) {
+              // No review link (the owner unchecked it): the build panel is
+              // the only place this one can be watched.
+              setJustStarted(false);
+              return;
+            }
+            const href = `${reviewHref(review.token)}&watch=1`;
+            // App Builder can be running inside Jarvis's sheet. "Watch it
+            // build" means the app's own page, not the sheet inside the app
+            // that started it — top-level when we are framed.
+            try {
+              if (window.top && window.top !== window) window.top.location.assign(href);
+              else window.location.assign(href);
+            } catch {
+              window.location.assign(href);
+            }
+          }}
           onHome={() => {
             setJustStarted(false);
             ab.open(null);

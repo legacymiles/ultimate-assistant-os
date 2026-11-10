@@ -85,6 +85,15 @@ describe("what a finished build means", () => {
     });
   });
 
+  it("publishes a NEW App Builder build from its Repo/Live lines", () => {
+    const v = view([turn({ text: "Built.\nRepo: https://github.com/o/buildflip\nLive: https://buildflip.example" })]);
+    expect(finishOf("done", v)).toEqual({
+      kind: "publish",
+      url: "https://buildflip.example",
+      repo: "https://github.com/o/buildflip",
+    });
+  });
+
   it("says why when there is no preview, in the build's own words", () => {
     const v = view([turn({ text: "PR: https://github.com/o/r/pull/7\nPreview: none\nThe Vercel deploy failed on a type error." })]);
     expect(finishOf("done", v)).toEqual({

@@ -80,3 +80,36 @@ export async function openReview(p: BuilderProject, clientName?: string): Promis
     at: new Date().toISOString(),
   };
 }
+
+/**
+ * Put the build's thread on the review project.
+ *
+ * The review link was opened before the thread started, so the project already
+ * has a `building` version but knows nothing to watch. This is the missing
+ * half: once it lands, `/apps/client-review?site=…` can narrate the build
+ * beside the page, exactly as it does for a client edit. Best-effort — a
+ * project that cannot record the thread must never stop the build that is
+ * already running.
+ */
+export async function watchReviewBuild(link: ReviewLink, threadId: string, builderId: string): Promise<void> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10_000);
+  try {
+    await fetch("/api/client-review/admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: ctrl.signal,
+      body: JSON.stringify({
+        action: "watchBuild",
+        id: link.id,
+        versionId: link.versionId,
+        threadId,
+        builderId,
+      }),
+    });
+  } catch {
+    // The build runs either way; the page just falls back to its status line.
+  } finally {
+    clearTimeout(timer);
+  }
+}

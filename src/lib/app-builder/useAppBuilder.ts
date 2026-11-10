@@ -35,7 +35,7 @@ import { useBridge } from "@/lib/new-jarvis/useBridge";
 import { startAbsorb, useBuild } from "./useBuild";
 import { absorbPr, hubSlug } from "./absorb";
 import { dropFromQueue, noteBuildInReview, postToQueue, QUEUE_FOLDER } from "./queue";
-import { openReview } from "./review";
+import { openReview, watchReviewBuild } from "./review";
 import { dropMedia, getMedia } from "./inbox";
 import { forWire, keyframesOf, type PreparedMedia } from "./media";
 import type { Answers, BuilderProject, Depth, Feature, FeatureOp, MediaSource, Question, Teardown, Understanding } from "./types";
@@ -382,6 +382,11 @@ export function useAppBuilder() {
         setStep("starting");
         const id = await thread.start(withReview);
         const at = new Date().toISOString();
+        // Let the review link watch this build. Without it the page opened by
+        // Watch it build knows a version is in flight but has no thread to
+        // narrate — the one thing the owner went there to see.
+        const link = withReview.handoff?.review;
+        if (link) await watchReviewBuild(link, id, p.id);
         const { depth } = depthOf(withReview);
         update(p.id, (x) => ({
           ...x,

@@ -61,7 +61,12 @@ function rowFor(p: ClientProject, now: number): BuildRow | null {
   const making = buildingVersion(p);
   if (making) {
     const opener = p.batches.find((b) => b.nextVersionId === making.id);
-    const thread = opener?.build?.threadId;
+    // A client edit carries its thread on the batch. A NEW app, opened by App
+    // Builder, has no batch — its thread is on the project, recorded by the
+    // `watchBuild` action the moment the thread started.
+    const thread =
+      opener?.build?.threadId ??
+      (p.buildWatch?.versionId === making.id ? p.buildWatch.threadId : undefined);
     return {
       ...(thread ? { threadId: thread } : {}),
       ...(!thread && opener?.buildError ? { error: opener.buildError } : {}),

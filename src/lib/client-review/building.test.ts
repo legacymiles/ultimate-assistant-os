@@ -25,6 +25,20 @@ describe("what is being built", () => {
     expect(rows[0].siteUrl).toBeUndefined();
   });
 
+  it("watches a first build through the thread App Builder put on the project", () => {
+    const { p, v2 } = building();
+    // A NEW app has no batch behind it: App Builder records the thread on the
+    // project itself, and the page must find it there.
+    const watched: ClientProject = { ...p, buildWatch: { threadId: "th_new", versionId: v2, at: T } };
+    expect(buildingRows([watched], NOW)[0].threadId).toBe("th_new");
+  });
+
+  it("ignores a thread recorded for an older version", () => {
+    const { p, v2 } = building();
+    const stale: ClientProject = { ...p, buildWatch: { threadId: "th_old", versionId: "ver_older", at: T } };
+    expect(buildingRows([stale], NOW)[0].threadId).toBeUndefined();
+  });
+
   it("says nothing about a project that is just sitting there", () => {
     const quiet = createProject({ name: "Quiet", siteUrl: "quiet.example" }, T);
     expect(buildingRows([quiet], NOW)).toEqual([]);

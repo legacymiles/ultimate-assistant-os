@@ -26,6 +26,7 @@ import { blockerAdvice, type Blocker } from "@/lib/client-review/liveBuild";
 import { ApiError, admin, portal, urlBase64ToUint8Array } from "@/lib/client-review/client";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { BuildFeed, BuildSteer, useLiveBuild } from "./LiveBuild";
+import { BuildingStage } from "./BuildingStage";
 import { LookPass } from "./LookPass";
 import { SlashSkills, withSkill } from "../new-jarvis/SlashSkills";
 import { SignInGate } from "./SignInGate";
@@ -744,29 +745,35 @@ export function ClientPortal({
           // it is actually on screen: not on a phone (where it is a bottom
           // sheet) and not when the owner has shrunk it to the orb.
           <div className={`cr-waiting${!narrow && !min ? " has-intake" : ""}`}>
-            <div className="cr-empty">
-              <Orb pulse />
-              <h2>{building ? `Jarvis is building ${building.number}` : "Your website is on its way"}</h2>
-              <p>
-                You&apos;ll see it right here as soon as it&apos;s ready
-                {view.settings.notify ? " — and we'll notify you." : "."}
-              </p>
-              {!view.settings.notify && (
-                <button className="cr-btn" onClick={enableNotify}>
-                  Notify me when it&apos;s ready
-                </button>
-              )}
-            </div>
-            {/*
-              This used to be the whole screen: an orb, a sentence, and nothing
-              to look at until a build finished. Waiting in the dark is where
-              clients lose confidence, and it is also the last cheap moment to
-              find out the look is wrong — so the mockups go here. They are
-              drawn from the edits the client already approved (or, for a first
-              build, from the site's own name), and picking one is recorded
-              against this project and told to the owner.
-            */}
-            <LookPass view={view} busy={busy} onPick={(skill) => act("look", { action: "look", skill })} />
+            {building ? (
+              <BuildingStage name={view.name} number={building.number} since={building.createdAt} live={live} />
+            ) : (
+              <>
+                <div className="cr-empty">
+                  <Orb pulse />
+                  <h2>Your website is on its way</h2>
+                  <p>
+                    You&apos;ll see it right here as soon as it&apos;s ready
+                    {view.settings.notify ? " — and we'll notify you." : "."}
+                  </p>
+                  {!view.settings.notify && (
+                    <button className="cr-btn" onClick={enableNotify}>
+                      Notify me when it&apos;s ready
+                    </button>
+                  )}
+                </div>
+                {/*
+                  This used to be the whole screen: an orb, a sentence, and nothing
+                  to look at until a build finished. Waiting in the dark is where
+                  clients lose confidence, and it is also the last cheap moment to
+                  find out the look is wrong — so the mockups go here. They are
+                  drawn from the edits the client already approved (or, for a first
+                  build, from the site's own name), and picking one is recorded
+                  against this project and told to the owner.
+                */}
+                <LookPass view={view} busy={busy} onPick={(skill) => act("look", { action: "look", skill })} />
+              </>
+            )}
           </div>
         )}
       </main>

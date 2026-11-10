@@ -221,6 +221,16 @@ export interface ClientProject {
   versions: ReviewVersion[];
   requests: EditRequest[];
   batches: RequestBatch[];
+  /**
+   * The harness thread building a version App Builder opened (a NEW app, not a
+   * client edit — those already carry `batch.build.threadId`). It is how the
+   * client's own page can narrate a first build: without it the page knows a
+   * version is "building" but has no thread to watch.
+   *
+   * Owner-only. `buildingRows` hands it to the owner and the portal endpoint
+   * strips it for a client.
+   */
+  buildWatch?: { threadId: string; builderId?: string; versionId?: string; at: string };
   settings: ClientSettings;
   pushSubs: PushSub[];
   notices: ClientNotice[];

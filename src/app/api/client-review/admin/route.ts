@@ -350,6 +350,36 @@ export async function POST(req: Request) {
         return NextResponse.json({ project });
       }
 
+      // A NEW app built by App Builder: the thread lives on the review project
+      // so its own page can narrate the first build. Client edits already put
+      // their thread on the batch (`buildQueued`); this is the other door.
+      case "watchBuild": {
+        const threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
+        const versionId = typeof body.versionId === "string" ? body.versionId.trim() : "";
+        if (!/^[\w-]{6,80}$/.test(threadId)) throw new ReviewError("That isn't a harness thread.", 400);
+        const now = new Date().toISOString();
+        const { project } = await updateProject(id, (p) => {
+          if (versionId && !p.versions.some((v) => v.id === versionId)) {
+            throw new ReviewError("That version no longer exists.", 404);
+          }
+          return {
+            project: {
+              ...p,
+              buildWatch: {
+                threadId,
+                ...(typeof body.builderId === "string" && body.builderId ? { builderId: body.builderId.slice(0, 80) } : {}),
+                ...(versionId ? { versionId } : {}),
+                at: now,
+              },
+              updatedAt: now,
+            },
+            result: null,
+          };
+        });
+        await updateIndex((i) => upsertIndex(i, project));
+        return NextResponse.json({ project });
+      }
+
       // A build that died on the PC (or was never going to run) leaves the
       // version saying "building" forever. This puts the batch back to pending
       // and removes the version, so Approve & build is there to press again.
