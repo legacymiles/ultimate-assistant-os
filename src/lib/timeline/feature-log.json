@@ -1,5 +1,14 @@
 [
  {
+  "id": "5763429:app-builder",
+  "date": "2026-11-09",
+  "slug": "app-builder",
+  "title": "Finish in an existing folder, and stop gating its own tools",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "fe122d1:jarvis",
   "date": "2026-11-09",
   "slug": "jarvis",
