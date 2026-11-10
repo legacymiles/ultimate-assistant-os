@@ -36,11 +36,20 @@ unauthenticated request, so it must never be reachable from another machine.
 
 ```
 GET  /health    -> { ok, model, busy, loaded, hasWanGP, root }
-POST /generate  -> { ok, image: "data:image/png;base64,…", ms, bytes, model }
+POST /generate  -> { ok, image: "data:image/jpeg;base64,…", ms, bytes, model }
 ```
 
 `loaded` tells you whether the next picture is a cold one or a warm one, so a
 UI can say "about two minutes" the first time and "about twenty seconds" after.
+
+The data URL's type is read from the bytes, not assumed: WanGP picks its own
+format and currently returns **JPEG** even though the output path asks for
+`.png`. Callers that store the picture should trust the declared type.
+
+**Prompts may contain blank lines.** WanGP's default reads a blank line as
+"draw another picture" and then refuses a job that parses into more than one
+request, so the worker sets `multi_prompts_gen_type: "FG"` -- line breaks
+belong to one prompt. Without it, every multi-paragraph prompt fails.
 
 One job at a time: a 6 GB card cannot hold two renders, and two at once means
 both die of out-of-memory instead of one finishing. A second request while busy

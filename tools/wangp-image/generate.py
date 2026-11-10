@@ -112,6 +112,14 @@ def run_one(session, job: dict, root: Path) -> dict:
             "prompt": prompt,
             "resolution": f"{int(job.get('width') or 1024)}x{int(job.get('height') or 1024)}",
             "num_inference_steps": int(job.get("steps") or DEFAULT_STEPS),
+            # A blank line in a prompt means "another picture" to WanGP by
+            # default (multi_prompts_gen_type "PG"), and it REFUSES a job that
+            # parses into more than one request. Callers write paragraphs --
+            # Image Studio appends its aspect-ratio line after a blank one --
+            # so every multi-paragraph prompt failed with "parses this prompt
+            # into 2 separate generation requests" until this was set. "FG"
+            # is WanGP's own flag for "the line breaks belong to one prompt".
+            "multi_prompts_gen_type": "FG",
         }
         seed = int(job.get("seed", -1))
         if seed >= 0:

@@ -173,6 +173,25 @@ function askWorker(w, job) {
   });
 }
 
+/**
+ * What these bytes actually are.
+ *
+ * The out path is asked for as .png, but WanGP decides its own format and
+ * hands back its own path -- measured: a JPEG. Declaring `image/png` on JPEG
+ * bytes works in a browser, which sniffs, and breaks everything that trusts
+ * the label: a Storage upload stores the wrong content type, and an image
+ * library picks the wrong decoder. So read the magic bytes instead of assuming.
+ */
+function mimeOf(bytes) {
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) return "image/jpeg";
+  if (bytes[0] === 0x89 && bytes[1] === 0x50) return "image/png";
+  if (bytes.slice(0, 4).toString("ascii") === "RIFF" && bytes.slice(8, 12).toString("ascii") === "WEBP") {
+    return "image/webp";
+  }
+  // Unknown: say so rather than lying about it.
+  return "application/octet-stream";
+}
+
 function send(res, code, body) {
   const text = JSON.stringify(body);
   res.writeHead(code, {
@@ -294,7 +313,7 @@ const server = createServer(async (req, res) => {
       const bytes = await readFile(result.path || outPath);
       send(res, 200, {
         ok: true,
-        image: `data:image/png;base64,${bytes.toString("base64")}`,
+        image: `data:${mimeOf(bytes)};base64,${bytes.toString("base64")}`,
         bytes: bytes.length,
         model: settings.model,
         steps: settings.steps,

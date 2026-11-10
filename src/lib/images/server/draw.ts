@@ -103,6 +103,19 @@ export async function localUp(force = false): Promise<boolean> {
   return up;
 }
 
+/**
+ * Say out loud when a free lane couldn't draw.
+ *
+ * This module existed for a week with bare `catch { return null }`, and a
+ * genuine bug — every multi-paragraph prompt was refused by WanGP — looked
+ * exactly like "the PC is off": the picture just quietly went to the paid
+ * model. A lane that fails silently defeats the only thing this file is for,
+ * so every failure now names itself in the server log.
+ */
+function laneFailed(lane: LaneId, why: string): void {
+  console.warn(`[images] the ${lane} lane couldn't draw this: ${why}`);
+}
+
 async function drawLocal(req: DrawRequest): Promise<DrawResult | null> {
   try {
     const res = await fetch(`${LOCAL_URL}/generate`, {
@@ -123,10 +136,14 @@ async function drawLocal(req: DrawRequest): Promise<DrawResult | null> {
       ms?: number;
       error?: string;
     };
-    if (!res.ok || !data.ok || !data.image) return null;
+    if (!res.ok || !data.ok || !data.image) {
+      laneFailed("local", data.error || `the drawer answered ${res.status}`);
+      return null;
+    }
     const ms = data.ms ?? 0;
     return { image: data.image, lane: "local", ms, note: laneNote("local", ms), watermarked: false };
-  } catch {
+  } catch (err) {
+    laneFailed("local", err instanceof Error ? err.message : String(err));
     return null;
   }
 }
@@ -140,12 +157,21 @@ async function drawFree(req: DrawRequest): Promise<DrawResult | null> {
     if (typeof req.seed === "number" && req.seed >= 0) url.searchParams.set("seed", String(req.seed));
 
     const res = await fetch(url, { signal: AbortSignal.timeout(FREE_MS), cache: "no-store" });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      laneFailed("free", `the public drawer answered ${res.status}`);
+      return null;
+    }
     const type = res.headers.get("content-type") || "";
-    if (!type.startsWith("image/")) return null;
+    if (!type.startsWith("image/")) {
+      laneFailed("free", `the public drawer sent ${type || "no content type"}, not an image`);
+      return null;
+    }
 
     const buf = Buffer.from(await res.arrayBuffer());
-    if (!buf.length) return null;
+    if (!buf.length) {
+      laneFailed("free", "the public drawer sent an empty picture");
+      return null;
+    }
 
     const ms = Date.now() - started;
     return {
@@ -157,7 +183,8 @@ async function drawFree(req: DrawRequest): Promise<DrawResult | null> {
       // refuses to offer it for anything carrying a name.
       watermarked: true,
     };
-  } catch {
+  } catch (err) {
+    laneFailed("free", err instanceof Error ? err.message : String(err));
     return null;
   }
 }
