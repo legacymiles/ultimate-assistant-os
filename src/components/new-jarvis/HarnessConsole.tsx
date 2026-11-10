@@ -313,14 +313,18 @@ function ToolLine({ row }: { row: ToolRow }) {
 function TurnView({ turn, now }: { turn: Turn; now: number }) {
   const [showThinking, setShowThinking] = useState(false);
   const live = turn.status === "running" || turn.status === "waiting";
+  // While it works, the prompt is one line — a build brief is pages long and
+  // putting it above the live strip is the wall this view exists to avoid.
+  const promptLine = turn.prompt.trim().split("\n").find(Boolean) ?? "";
+  const shownPrompt = live ? (turn.prompt.length > 240 ? "Working on the request…" : promptLine) : turn.prompt;
 
   return (
     <article className="nj-block px-3 py-2.5" data-status={turn.status === "waiting" ? "waiting" : turn.status === "failed" ? "failed" : live ? "running" : "done"}>
       {turn.prompt && (
-        <p className="mb-2 flex items-start gap-2">
+        <p className="mb-2 flex items-start gap-2" title={live ? turn.prompt : undefined}>
           <Icon.ArrowRight width={13} height={13} className="mt-[3px] shrink-0 text-brand" aria-hidden />
           <span className="min-w-0 whitespace-pre-wrap break-words font-mono text-[12.5px] leading-relaxed text-ink">
-            {turn.prompt}
+            {shownPrompt}
           </span>
         </p>
       )}
