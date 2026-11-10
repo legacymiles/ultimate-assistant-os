@@ -1,5 +1,14 @@
 [
  {
+  "id": "8fde453:baby-no-scroll",
+  "date": "2026-11-09",
+  "slug": "baby-no-scroll",
+  "title": "Make the lock escape-proof — install as a fullscreen app, guide pinning, survive reloads",
+  "detail": "In a Chrome tab, fullscreen belongs to the browser: it says \"swipe down to exit\" and one swipe does. No page can block that or the phone's own home and app-switcher gestures, so the fix is what can:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "24e05ad:images",
   "date": "2026-11-09",
   "slug": "images",
