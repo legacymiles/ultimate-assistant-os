@@ -33,13 +33,21 @@ export function BuildingStage({ name, number, since, live }: { name: string; num
   const lines = useMemo(() => feedItems(live.build.view, 8).slice(-6), [live.build.view]);
   const latest = lines.at(-1);
   const gate = live.build.gate;
+  const running = live.finish.kind === "running";
   const state = gate
     ? "Needs you in the chat"
     : live.standing.kind === "stalled"
       ? "Nothing is running"
-      : latest
-        ? describe(latest)
-        : "Reading the brief…";
+      : live.finish.kind === "failed"
+        ? "The build stopped — see the chat"
+        : live.finish.kind === "no-preview"
+          ? "Built, but it printed no preview — see the chat"
+          : live.finish.kind === "publish"
+            ? "Built — putting it on the page…"
+            : latest
+              ? describe(latest)
+              : "Reading the brief…";
+  const title = running ? ["BUILDING", "NOW"] : live.finish.kind === "publish" ? ["BUILT", "NOW"] : ["BUILD", "PAUSED"];
 
   const spot = (x: number, y: number) => setPoint({ x, y });
 
@@ -82,12 +90,12 @@ export function BuildingStage({ name, number, since, live }: { name: string; num
         <p className="cr-build-kicker">
           {name} <span>·</span> {number}
         </p>
-        <h1 className="cr-build-title">
-          <span>BUILDING</span>
-          <em>NOW</em>
+        <h1 className={`cr-build-title${running ? "" : " is-paused"}`}>
+          <span>{title[0]}</span>
+          <em>{title[1]}</em>
         </h1>
         <p className="cr-build-live">
-          <span className="cr-build-dot" aria-hidden />
+          <span className={`cr-build-dot${running ? "" : " is-paused"}`} aria-hidden />
           {state}
           <span className="cr-build-clock">{waitedFor(since, now)}</span>
         </p>
@@ -95,20 +103,22 @@ export function BuildingStage({ name, number, since, live }: { name: string; num
           The build is running on the PC. The chat beside this is the agent&apos;s own log — open it to steer, or leave it alone; it reloads the app here by itself when it&apos;s ready.
         </p>
 
-        <ol className="cr-build-lines" aria-hidden>
-          {lines.map((l) => (
-            <li key={l.id} className={`is-${l.kind}`}>
-              <span>{lineVerb(l)}</span>
-              <code>{lineTarget(l)}</code>
-            </li>
-          ))}
-          {!lines.length && (
-            <>
-              <li className="is-ghost"><span>Read</span><code>package.json</code></li>
-              <li className="is-ghost"><span>Edit</span><code>src/app/page.tsx</code></li>
-            </>
-          )}
-        </ol>
+        {(lines.length > 0 || running) && (
+          <ol className="cr-build-lines" aria-hidden>
+            {lines.map((l) => (
+              <li key={l.id} className={`is-${l.kind}`}>
+                <span>{lineVerb(l)}</span>
+                <code>{lineTarget(l)}</code>
+              </li>
+            ))}
+            {!lines.length && (
+              <>
+                <li className="is-ghost"><span>Read</span><code>package.json</code></li>
+                <li className="is-ghost"><span>Edit</span><code>src/app/page.tsx</code></li>
+              </>
+            )}
+          </ol>
+        )}
       </div>
 
       <span className="cr-build-foot" aria-hidden>
