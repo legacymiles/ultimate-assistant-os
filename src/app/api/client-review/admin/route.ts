@@ -19,6 +19,7 @@ import {
   sendToClient,
   setBrief,
   saveVersionShot,
+  saveVersionImage,
   undoToVersion,
   unsendFromClient,
   updateProjectMeta,
@@ -294,6 +295,15 @@ export async function POST(req: Request) {
       case "screenshot": {
         const { project, result } = await updateProject(id, (p) => {
           const out = saveVersionShot(p, { versionId: body.versionId, image: body.image });
+          return { project: out.project, result: out.version };
+        });
+        return NextResponse.json({ project, version: result });
+      }
+
+      /** The version's own result, once it is live: v2 yellow, v3 blue, etc. */
+      case "image": {
+        const { project, result } = await updateProject(id, (p) => {
+          const out = saveVersionImage(p, { versionId: body.versionId, image: body.image });
           return { project: out.project, result: out.version };
         });
         return NextResponse.json({ project, version: result });

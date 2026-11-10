@@ -414,7 +414,7 @@ export function ClientPortal({
    * cross-origin and cannot be read — that simply means no picture, never a
    * failed build.
    */
-  const captureBefore = useCallback(async (): Promise<string> => {
+  const captureFrame = useCallback(async (): Promise<string> => {
     const iframe = frameRef.current?.querySelector("iframe");
     const doc = iframe?.contentDocument;
     if (!doc) return "";
@@ -438,7 +438,7 @@ export function ClientPortal({
     setStarting(true);
     setNotice(null);
     try {
-      const beforeImage = await captureBefore();
+      const beforeImage = await captureFrame();
       const out = await approveAndStart(token, versionId, beforeImage || undefined);
       if (out.state === "failed") {
         setNotice({ tone: "bad", text: out.message, ...(out.blocker ? { blocker: out.blocker } : {}) });
@@ -455,6 +455,27 @@ export function ClientPortal({
    * Put an older version back on the client's screen. The server marks it
    * review and supersedes everything newer, so a refresh keeps the choice.
    */
+  const capturedFor = useRef<string | null>(null);
+
+  // Once a new version has landed and the frame has reloaded, keep what it
+  // actually looks like. This is the picture the history shows for v2 (yellow),
+  // v3 (blue) — the version's own result, never the one it replaced.
+  useEffect(() => {
+    if (!owner || !landed || !current?.siteUrl || current.image || capturedFor.current === current.id) return;
+    capturedFor.current = current.id;
+    const t = window.setTimeout(async () => {
+      const image = await captureFrame();
+      if (!image || !view?.projectId) return;
+      try {
+        await admin.act({ action: "image", id: view.projectId, versionId: current.id, image });
+        refresh();
+      } catch {
+        /* the before image still exists; the result can be captured next time */
+      }
+    }, 4000);
+    return () => window.clearTimeout(t);
+  }, [owner, landed, current?.id, current?.image, current?.siteUrl, view?.projectId, refresh, captureFrame]);
+
   const undoVersion = async (versionId: string) => {
     if (!owner || !view?.projectId) return;
     setBusy("undo");
@@ -654,7 +675,7 @@ export function ClientPortal({
               title={`Versions — ${viewing.number}`}
               aria-label="Open version history"
             >
-              <img src={viewing.beforeImage ?? viewing.image} alt={`Before ${viewing.number}`} />
+              <img src={viewing.image ?? viewing.beforeImage} alt={`${viewing.number} preview`} />
             </button>
           )}
           <div className="cr-seg" role="group" aria-label="Preview size">
@@ -1161,7 +1182,7 @@ function VersionsPanel({
                   <b>{v.number}</b>
                 </div>
                 <div className="cr-ver-info">
-                  <p>{v.beforeImage ? `Before ${v.number}` : v.summary || "Original version"}</p>
+                  <p>{v.image ? v.summary || v.number : v.beforeImage ? `Before ${v.number}` : v.summary || "Original version"}</p>
                   <span>{on ? "Showing now" : v.status === "review" ? "Earlier version" : v.status}</span>
                 </div>
                 <button

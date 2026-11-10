@@ -843,6 +843,27 @@ export function saveVersionShot(
 }
 
 /**
+ * Keep the picture of what this version actually looks like once it is live.
+ * This is the image the history strip shows for v2 (yellow), v3 (blue), and so
+ * on — the version's own result, not the page it replaced.
+ */
+export function saveVersionImage(
+  src: ClientProject,
+  input: { versionId: unknown; image: unknown },
+  now = new Date().toISOString(),
+): { project: ClientProject; version: ReviewVersion } {
+  const p = clone(src);
+  const v = p.versions.find((x) => x.id === input.versionId);
+  if (!v) throw new ReviewError("That version no longer exists.", 404);
+  const image = typeof input.image === "string" ? input.image.trim() : "";
+  if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(image) || image.length > 1_200_000) {
+    throw new ReviewError("That screenshot could not be saved.", 400);
+  }
+  v.image = image;
+  return { project: touch(p, now), version: v };
+}
+
+/**
  * Put an older version back on the client's screen.
  *
  * It marks that version review and everything newer superseded, so the portal
