@@ -1,5 +1,23 @@
 [
  {
+  "id": "9bee8cc:client-review",
+  "date": "2026-11-10",
+  "slug": "client-review",
+  "title": "The live line shows the newest thing, once",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9bee8cc:jarvis",
+  "date": "2026-11-10",
+  "slug": "jarvis",
+  "title": "The live line shows the newest thing, once",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "6e149db:client-review",
   "date": "2026-11-10",
   "slug": "client-review",
