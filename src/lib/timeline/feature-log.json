@@ -1,5 +1,23 @@
 [
  {
+  "id": "c52d61a:client-review",
+  "date": "2026-11-09",
+  "slug": "client-review",
+  "title": "Watch it build opens the app's own building stage",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c52d61a:app-builder",
+  "date": "2026-11-09",
+  "slug": "app-builder",
+  "title": "Watch it build opens the app's own building stage",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "5763429:app-builder",
   "date": "2026-11-09",
   "slug": "app-builder",
