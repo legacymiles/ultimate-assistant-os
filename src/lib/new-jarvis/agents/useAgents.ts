@@ -21,7 +21,10 @@ import {
   sortAgents,
   type Agent,
   type AgentNeed,
+  type AgentRepeat,
+  type AgentSettings,
   type AgentsDoc,
+  type ShipMode,
 } from "./agents";
 
 const POLL_MS = 15_000;
@@ -32,6 +35,11 @@ export interface NewAgentDraft {
   needs: AgentNeed[];
   steps: string[];
   folder?: string;
+  pick?: string;
+  edits?: string[];
+  sendsTo?: string[];
+  ship?: ShipMode;
+  repeat?: AgentRepeat;
 }
 
 export interface UseAgents {
@@ -49,6 +57,9 @@ export interface UseAgents {
   pause: (id: string) => Promise<void>;
   resume: (id: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
+  /** Skip a repeating agent's rest and run its next round now. */
+  runNow: (id: string) => Promise<void>;
+  configure: (id: string, change: AgentSettings) => Promise<boolean>;
   busy: boolean;
 }
 
@@ -159,6 +170,11 @@ export function useAgents(enabled = true): UseAgents {
         needs: draft.needs,
         steps: draft.steps,
         folder: draft.folder,
+        pick: draft.pick,
+        edits: draft.edits,
+        sendsTo: draft.sendsTo,
+        ship: draft.ship,
+        repeat: draft.repeat,
       }),
     [send],
   );
@@ -166,6 +182,11 @@ export function useAgents(enabled = true): UseAgents {
   const pause = useCallback(async (id: string) => void (await send({ action: "pause", id })), [send]);
   const resume = useCallback(async (id: string) => void (await send({ action: "resume", id })), [send]);
   const remove = useCallback(async (id: string) => void (await send({ action: "remove", id })), [send]);
+  const runNow = useCallback(async (id: string) => void (await send({ action: "run-now", id })), [send]);
+  const configure = useCallback(
+    (id: string, change: AgentSettings) => send({ action: "configure", id, ...change }),
+    [send],
+  );
 
   const list = useMemo(() => sortAgents(doc.agents), [doc]);
 
@@ -181,6 +202,8 @@ export function useAgents(enabled = true): UseAgents {
     pause,
     resume,
     remove,
+    runNow,
+    configure,
     busy,
   };
 }

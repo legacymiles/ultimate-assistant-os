@@ -36,6 +36,8 @@ describe("mcp protocol", () => {
       "agent_list",
       "agent_next",
       "agent_note",
+      "agent_ran",
+      "agent_send",
       "client_review_preview",
       "delete_memory",
       "get_findings",

@@ -11,7 +11,7 @@ import { ALL_NEEDS } from "./agents";
 // declared, take what the handler reads, and say what they are for.
 // ---------------------------------------------------------------------------
 
-const AGENT_TOOLS = ["agent_list", "agent_next", "agent_note", "agent_handoff", "agent_done", "agent_add"];
+const AGENT_TOOLS = ["agent_list", "agent_next", "agent_note", "agent_handoff", "agent_done", "agent_add", "agent_send", "agent_ran"];
 
 function tool(name: string) {
   return TOOLS.find((t) => t.name === name);

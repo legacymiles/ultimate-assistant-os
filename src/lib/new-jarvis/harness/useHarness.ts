@@ -58,7 +58,7 @@ export interface UseHarness {
   /** True while a start/land/discard is in flight, so buttons can say so. */
   working: string;
   refreshChoices: () => void;
-  start: (opts: { harness: HarnessId; title: string; strict?: boolean; laneWrites?: boolean }) => Promise<void>;
+  start: (opts: { harness: HarnessId; title: string; strict?: boolean; laneWrites?: boolean; pick?: string }) => Promise<void>;
   open: (id: string) => void;
   close: () => void;
   say: (text: string) => Promise<void>;
@@ -220,12 +220,14 @@ export function useHarness({ paired }: { paired: boolean }): UseHarness {
   }, []);
 
   const start = useCallback(
-    async (opts: { harness: HarnessId; title: string; strict?: boolean; laneWrites?: boolean }) => {
+    async (opts: { harness: HarnessId; title: string; strict?: boolean; laneWrites?: boolean; pick?: string }) => {
       setWorking("Cutting a worktree…");
       setError("");
       try {
         const data = await call<{ session: ThreadSummary }>("harness/start", {
           harness: opts.harness,
+          // Which Claude and who pays; the bridge derives the harness from it.
+          ...(opts.pick ? { pick: opts.pick } : {}),
           title: opts.title,
           strict: Boolean(opts.strict),
           laneWrites: Boolean(opts.laneWrites),

@@ -214,6 +214,23 @@ while the agent keeps running.
 
 ---
 
+## Keys — entered once, used by every harness run
+
+The `.env.local` at the root of the repo this helper runs from is the one key
+file on this PC. Jarvis › Profile › Connections saves there, and `keys.mjs`
+makes it the only place a key ever has to go:
+
+- **On start** it fills any blank key from the `.env.local` of every other
+  checkout of this repo on the PC (found by GitHub origin under `~/Projects`,
+  `C:\dev` and this repo's parent). It never overwrites a key you set here.
+- **It loads the file into the helper's own environment**, so every harness
+  thread, the brain and the 24/7 runner inherit the keys — and it re-reads the
+  file before each new thread and each 24/7 run, so a key saved in Connections
+  reaches the next run without a restart.
+- Claude Code's login variables (`ANTHROPIC_*`, `CLAUDE_CODE_*`) are never
+  loaded from it — that would override your subscription.
+- `GET /health` lists which key NAMES the harness has. Values are never logged.
+
 ## 24/7 agents — carrying on when this PC wakes
 
 `agents-wake.mjs` is the other half of the hub's **24/7 agents** tab. The hub
@@ -268,11 +285,56 @@ Two things that a real unattended run found, and which the tests now pin:
 - **Redirection** (`node x.mjs > C:/dev/app/src/page.tsx`) runs an allowed
   program and still overwrites a file. Checking only the program misses it.
 
+### Powered by
+
+Each agent runs on the model picked in its **Powered by** dropdown. The brief
+carries it as `POWERED BY: <pick>`, and `harness-models.mjs` is the one place
+that turns it into a model and a login:
+
+| Pick | Runs on |
+|---|---|
+| `default` | your Claude plan, Claude Code's default model |
+| `claude-subscription:claude-opus-5-5` (etc.) | your Claude plan, that model |
+| `openrouter:anthropic/claude-opus-5.5` (etc.) | the Claude API through OpenRouter, paid per token on your key |
+| `deepseek` | the DeepSeek harness (dsh) — always through the bridge, below |
+
+The OpenRouter picks need **`OPENROUTER_API_KEY`**, either in the environment
+of whatever starts the runner and the bridge, or in the repo's `.env.local`
+(read from there, never copied). Without it the run doesn't start, and the
+agent is handed back with that sentence on it.
+
+### Agents that edit your apps — need the bridge running
+
+An agent with `EDITS APPS: …` in its brief (or one powered by DeepSeek) does
+**not** run in the runner's own process. It runs as a **harness thread in the
+bridge**, in a git worktree of this repo, so you can read it in the Harness
+console like any other thread and nothing touches the checkout you have open.
+
+- The runner starts it with `POST /harness/start-unattended`, which needs the
+  pairing token **and** `out/agents-secret.txt` — a fresh secret the bridge
+  writes each time it starts and hands to nobody. A web page can't reach that
+  route (it is refused outright when a request carries an `Origin`), because
+  an unattended thread writes inside its worktree without asking.
+- The thread follows `agents-unattended.mjs` with the worktree as its only
+  write root. DeepSeek's adapter parks gates instead, so the runner answers
+  each one by the same rules within seconds rather than letting it time out.
+- When the turn ends (or runs past the time limit and is interrupted), the
+  runner commits it: **`SHIP: review`** commits on the thread's branch and
+  marks the agent blocked with "Changes are ready…" for you to land;
+  **`SHIP: auto`** lands it and, if the merge went in, `git push`es the base.
+  Auto falls back to review when the run timed out, when the agent marked
+  itself blocked, or when your checkout has uncommitted work (landing never
+  merges into a dirty base). The outcome is recorded with `agent_ran`, and the
+  thread is kept, never discarded, so the work is always reviewable.
+- **If the bridge isn't running**, the agent is handed back with "the PC helper
+  (Jarvis bridge) isn't running…" and resumes on a later wake once it is.
+
 ### Limits worth knowing
 
 - A lease is 20 minutes. `agent_note` renews it, so a long render must report
   progress or another machine may decide this one died.
-- It will not change the owner's repo. An agent whose last step is "put it in
-  the app" will block there, on purpose, and wait for a human.
+- An agent without `EDITS APPS` will not change the owner's repo. One whose
+  last step is "put it in the app" will block there, on purpose, and wait for
+  a human — or for you to give it the app in Jarvis.
 - `AGENTS_MAX_RUNS_PER_HOUR` (default 8) stops a confused agent spinning all
   night. Drop a file named `agents-off` beside this one to pause it entirely.

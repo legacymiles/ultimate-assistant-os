@@ -18,6 +18,11 @@ export interface HarnessChoice {
   blurb: string;
   available: boolean;
   why: string;
+  /** Claude only: whether your plan and the OpenRouter API can each run. */
+  routes?: {
+    subscription: { available: boolean; why: string };
+    openrouter: { available: boolean; why: string };
+  };
 }
 
 /** Every event kind the bridge emits. Unknown kinds are ignored, never thrown. */
@@ -120,6 +125,9 @@ export interface ThreadSummary {
   status: "starting" | "ready" | "thinking" | "waiting" | "idle" | "ended";
   detail: string;
   model: string;
+  /** The "Powered by" value it was started with, and how that reads. */
+  pick?: string;
+  pickLabel?: string;
   usd: number;
   busy: boolean;
   strict: boolean;

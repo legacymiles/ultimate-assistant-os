@@ -20,13 +20,30 @@ import { Icon } from "@/components/icons";
 import {
   ALL_NEEDS,
   NEED_LABEL,
+  REPEAT_LABEL,
   progressOf,
+  resting,
   statusLine,
   type Agent,
   type AgentNeed,
   type AgentStatus,
 } from "@/lib/new-jarvis/agents/agents";
 import type { UseAgents } from "@/lib/new-jarvis/agents/useAgents";
+import { AGENT_TEMPLATES, fillTemplate } from "@/lib/new-jarvis/agents/templates";
+import { DEFAULT_PICK, pickShort, routeOf, type PickRoute, type RouteState } from "@/lib/new-jarvis/harness/models";
+import { readPick, usePickRoutes, writePick } from "@/lib/new-jarvis/harness/usePick";
+import { harnessHref } from "@/lib/new-jarvis/harness/link";
+import { AgentWiring, appName, targetName, type AppRef, type Wiring } from "./AgentWiring";
+
+type Routes = Record<PickRoute, RouteState | null>;
+
+const THREAD_WORD: Record<NonNullable<Agent["thread"]>["outcome"], string> = {
+  ready: "Ready for you to review",
+  landed: "Landed",
+  pushed: "Live: landed and pushed",
+  nothing: "No files changed",
+  failed: "Harness run failed",
+};
 
 /** The pip colour per state. Amber means "a human is in the way", never "busy". */
 const PIP: Record<AgentStatus, string> = {
@@ -56,8 +73,10 @@ function ago(iso: string, now: number): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-export function Agents({ agents }: { agents: UseAgents }) {
+export function Agents({ agents, apps = [] }: { agents: UseAgents; apps?: AppRef[] }) {
   const { list, live, loaded, error, busy } = agents;
+  // Asked once for the whole tab: which Claude routes the PC can run now.
+  const routes = usePickRoutes(true);
   const [open, setOpen] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
 
@@ -79,6 +98,7 @@ export function Agents({ agents }: { agents: UseAgents }) {
           {live}
         </span>
         <span className="text-[11px] text-ink-faint">still going</span>
+        <span className="hidden text-[11px] text-ink-faint sm:inline">· run by your Jarvis harness</span>
         <button
           type="button"
           onClick={() => setAdding((v) => !v)}
@@ -97,7 +117,7 @@ export function Agents({ agents }: { agents: UseAgents }) {
       ) : null}
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        {adding ? <NewAgent agents={agents} onDone={() => setAdding(false)} /> : null}
+        {adding ? <NewAgent agents={agents} apps={apps} routes={routes} onDone={() => setAdding(false)} /> : null}
 
         {!loaded ? (
           <p className="px-3 py-6 text-[12px] text-ink-faint">Looking for your agents…</p>
@@ -114,6 +134,8 @@ export function Agents({ agents }: { agents: UseAgents }) {
                 busy={busy}
                 onToggle={() => setOpen((o) => (o === a.id ? null : a.id))}
                 agents={agents}
+                apps={apps}
+                routes={routes}
               />
             ))}
           </ul>
@@ -130,6 +152,8 @@ function Row({
   busy,
   onToggle,
   agents,
+  apps,
+  routes,
 }: {
   agent: Agent;
   now: number;
@@ -137,6 +161,8 @@ function Row({
   busy: boolean;
   onToggle: () => void;
   agents: UseAgents;
+  apps: AppRef[];
+  routes: Routes;
 }) {
   const p = progressOf(agent);
   const panelId = `agent-${agent.id}`;
@@ -172,7 +198,10 @@ function Row({
           >
             {/* Two lines, not an ellipsis: on a phone the goal IS the row, and
                 a truncated one says nothing about what the agent is (U9). */}
-            <span className="block line-clamp-2 text-[13px] font-medium text-ink">{agent.goal}</span>
+            {/* No `block` here: it overrides the -webkit-box line-clamp needs,
+                and the whole goal printed instead of two lines. Opening the row
+                shows the rest. */}
+            <span className={`text-[13px] font-medium text-ink ${open ? "block" : "line-clamp-2"}`}>{agent.goal}</span>
             <span className="mt-0.5 block max-w-[72ch] text-[11px] text-ink-faint">{statusLine(agent, now)}</span>
           </button>
 
@@ -200,6 +229,34 @@ function Row({
                 </span>
               </span>
             ) : null}
+            <span
+              className={`rounded border px-1 py-px font-mono text-[10px] ${
+                routeOf(agent.pick || DEFAULT_PICK) === "openrouter" ? "border-brand-2/40 text-ink" : "border-line text-ink-faint"
+              }`}
+              title="Powered by"
+            >
+              {pickShort(agent.pick || DEFAULT_PICK)}
+            </span>
+            {agent.edits.length ? (
+              <span className="rounded border border-line px-1 py-px text-[10px] text-ink-faint" title="Edits these apps through the harness">
+                edits {agent.edits.map((e) => appName(e, apps)).join(", ")}
+              </span>
+            ) : null}
+            {agent.sendsTo.length ? (
+              <span
+                className="inline-flex items-center gap-0.5 rounded border border-line px-1 py-px text-[10px] text-ink-faint"
+                title="Sends results to"
+              >
+                <Icon.ArrowRight width={9} height={9} aria-hidden />
+                {agent.sendsTo.map((t) => targetName(t, apps, agents.list)).join(", ")}
+              </span>
+            ) : null}
+            {agent.repeat !== "once" ? (
+              <span className="rounded border border-line px-1 py-px text-[10px] text-ink-faint">
+                {REPEAT_LABEL[agent.repeat].toLowerCase()}
+                {agent.rounds ? ` · ${agent.rounds} done` : ""}
+              </span>
+            ) : null}
             {agent.needs.map((n) => (
               <span key={n} className="rounded border border-line px-1 py-px text-[10px] text-ink-faint">
                 {NEED_LABEL[n]}
@@ -210,6 +267,19 @@ function Row({
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
+          {(resting(agent, now || Date.now()) || agent.status === "blocked") ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => agents.runNow(agent.id)}
+              title="Run the next round now instead of waiting"
+              aria-label={`Run ${agent.goal} now`}
+              className="inline-flex min-h-[32px] items-center gap-1 rounded px-1.5 text-[11px] text-ink-faint transition-colors hover:bg-line/40 hover:text-ink disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-2"
+            >
+              <Icon.Refresh width={11} height={11} aria-hidden />
+              <span className="hidden sm:inline">Run now</span>
+            </button>
+          ) : null}
           {agent.status !== "done" ? (
             <button
               type="button"
@@ -237,14 +307,54 @@ function Row({
         </div>
       </div>
 
-      {open ? <Detail agent={agent} id={panelId} now={now} /> : null}
+      {open ? <Detail agent={agent} id={panelId} now={now} agents={agents} apps={apps} routes={routes} /> : null}
     </li>
   );
 }
 
-function Detail({ agent, id, now }: { agent: Agent; id: string; now: number }) {
+function Detail({
+  agent,
+  id,
+  now,
+  agents,
+  apps,
+  routes,
+}: {
+  agent: Agent;
+  id: string;
+  now: number;
+  agents: UseAgents;
+  apps: AppRef[];
+  routes: Routes;
+}) {
+  const [editing, setEditing] = useState(false);
   return (
     <div id={id} className="border-t border-line bg-panel/60 px-3 py-2.5">
+      {agent.thread ? (
+        <div
+          className={`mb-3 flex max-w-[76ch] flex-wrap items-center gap-x-2 gap-y-1 rounded border p-2 ${
+            agent.thread.outcome === "ready"
+              ? "border-amber-400/40 bg-amber-400/5"
+              : agent.thread.outcome === "failed"
+                ? "border-red-400/40 bg-red-400/5"
+                : "border-line"
+          }`}
+        >
+          <Icon.Server width={12} height={12} className="shrink-0 text-ink-faint" aria-hidden />
+          <span className="text-[12px] font-medium text-ink">{THREAD_WORD[agent.thread.outcome]}</span>
+          {agent.thread.branch ? <span className="font-mono text-[10.5px] text-ink-faint">{agent.thread.branch}</span> : null}
+          <span className="font-mono text-[10px] text-ink-faint">{ago(agent.thread.at, now || Date.now())}</span>
+          <a
+            href={harnessHref(agent.thread.id)}
+            className="ml-auto inline-flex min-h-[28px] items-center gap-1 rounded border border-line px-2 text-[11px] text-ink transition-colors hover:bg-line/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-2"
+          >
+            {agent.thread.outcome === "ready" ? "Review and land" : "Open in harness"}
+            <Icon.ArrowRight width={10} height={10} aria-hidden />
+          </a>
+          {agent.thread.why ? <p className="w-full text-[11px] text-ink-faint">{agent.thread.why}</p> : null}
+        </div>
+      ) : null}
+
       {/* The handoff note is the point of the whole feature, so it leads. */}
       {agent.handoff ? (
         <div className="mb-3 max-w-[76ch] rounded border border-brand-2/30 bg-brand-2/5 p-2">
@@ -298,6 +408,75 @@ function Detail({ agent, id, now }: { agent: Agent; id: string; now: number }) {
           </ul>
         </>
       ) : null}
+
+      <div className="mt-3 border-t border-line pt-2">
+        {editing ? (
+          <EditWiring agent={agent} agents={agents} apps={apps} routes={routes} onDone={() => setEditing(false)} />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="inline-flex min-h-[32px] items-center gap-1.5 rounded border border-line px-2 text-[11px] text-ink transition-colors hover:bg-line/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-2"
+          >
+            <Icon.Settings width={11} height={11} aria-hidden />
+            Change model and wiring
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const SHIP_LIVE_WARNING =
+  "Ship it live?\n\nThis agent will land and push its own changes with nobody reviewing them first. " +
+  "You can switch it back to Wait for me at any time.";
+
+function EditWiring({
+  agent,
+  agents,
+  apps,
+  routes,
+  onDone,
+}: {
+  agent: Agent;
+  agents: UseAgents;
+  apps: AppRef[];
+  routes: Routes;
+  onDone: () => void;
+}) {
+  const [w, setW] = useState<Wiring>({
+    pick: agent.pick || DEFAULT_PICK,
+    edits: agent.edits,
+    sendsTo: agent.sendsTo,
+    ship: agent.ship,
+    repeat: agent.repeat,
+  });
+  const save = async () => {
+    // Turning on unreviewed pushes is the one choice here that cannot be
+    // taken back once it has run, so it is confirmed (S7).
+    if (w.ship === "auto" && w.edits.length && agent.ship !== "auto" && !window.confirm(SHIP_LIVE_WARNING)) return;
+    if (await agents.configure(agent.id, w)) onDone();
+  };
+  return (
+    <div>
+      <AgentWiring value={w} onChange={setW} apps={apps} agents={agents.list} self={agent.id} routes={routes} />
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          type="button"
+          disabled={agents.busy}
+          onClick={save}
+          className="inline-flex min-h-[32px] items-center rounded bg-brand-2 px-3 text-[12px] font-semibold text-black transition-opacity disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-2"
+        >
+          {agents.busy ? "Saving…" : "Save"}
+        </button>
+        <button
+          type="button"
+          onClick={onDone}
+          className="inline-flex min-h-[32px] items-center rounded px-2 text-[12px] text-ink-faint transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-2"
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }
@@ -332,10 +511,36 @@ function Empty({ onStart }: { onStart: () => void }) {
   );
 }
 
-function NewAgent({ agents, onDone }: { agents: UseAgents; onDone: () => void }) {
+function NewAgent({
+  agents,
+  apps,
+  routes,
+  onDone,
+}: {
+  agents: UseAgents;
+  apps: AppRef[];
+  routes: Routes;
+  onDone: () => void;
+}) {
   const [goal, setGoal] = useState("");
   const [steps, setSteps] = useState("");
   const [needs, setNeeds] = useState<AgentNeed[]>([]);
+  const [wiring, setWiring] = useState<Wiring>({ pick: DEFAULT_PICK, edits: [], sendsTo: [], ship: "review", repeat: "once" });
+  const [template, setTemplate] = useState("");
+  const [forApp, setForApp] = useState("");
+  // The last pick is the default for the next agent.
+  useEffect(() => setWiring((w) => ({ ...w, pick: readPick() })), []);
+
+  const applyTemplate = (id: string, appSlug: string) => {
+    const t = AGENT_TEMPLATES.find((x) => x.id === id);
+    if (!t) return;
+    const f = fillTemplate(t, apps.find((a) => a.slug === appSlug) ?? null);
+    setTemplate(id);
+    setGoal(f.goal);
+    setSteps(f.steps.join("\n"));
+    setWiring((w) => ({ ...w, edits: f.edits, sendsTo: f.sendsTo, ship: f.ship, repeat: f.repeat }));
+  };
+  const chosen = AGENT_TEMPLATES.find((x) => x.id === template);
   const stepList = useMemo(
     () => steps.split("\n").map((s) => s.replace(/^\s*[-*\d.]+\s*/, "").trim()).filter(Boolean),
     [steps],
@@ -345,20 +550,67 @@ function NewAgent({ agents, onDone }: { agents: UseAgents; onDone: () => void })
     async (e: React.FormEvent) => {
       e.preventDefault();
       if (!goal.trim()) return;
-      const ok = await agents.create({ goal: goal.trim(), needs, steps: stepList });
+      if (wiring.ship === "auto" && wiring.edits.length && !window.confirm(SHIP_LIVE_WARNING)) return;
+      writePick(wiring.pick);
+      const ok = await agents.create({ goal: goal.trim(), needs, steps: stepList, ...wiring });
       if (ok) {
         setGoal("");
         setSteps("");
         setNeeds([]);
+        setTemplate("");
         onDone();
       }
     },
-    [agents, goal, needs, onDone, stepList],
+    [agents, goal, needs, onDone, stepList, wiring],
   );
 
   return (
     <form onSubmit={submit} className="border-b border-line bg-panel/60 px-3 py-3">
-      <label htmlFor="agent-goal" className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Start from</p>
+      <div className="mt-1 grid gap-1 sm:grid-cols-2 xl:grid-cols-4">
+        {AGENT_TEMPLATES.map((t) => {
+          const on = template === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              aria-pressed={on}
+              onClick={() => applyTemplate(t.id, forApp)}
+              className={`rounded border px-2 py-1.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-2 ${
+                on ? "border-brand-2 bg-brand-2/10" : "border-line hover:bg-line/30"
+              }`}
+            >
+              <span className="block text-[12px] font-medium text-ink">{t.name}</span>
+              <span className="mt-0.5 block text-[10.5px] leading-snug text-ink-faint">{t.blurb}</span>
+            </button>
+          );
+        })}
+      </div>
+      {chosen?.needsApp ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <label htmlFor="agent-for-app" className="text-[11px] text-ink-faint">
+            For which app?
+          </label>
+          <select
+            id="agent-for-app"
+            value={forApp}
+            onChange={(e) => {
+              setForApp(e.target.value);
+              applyTemplate(chosen.id, e.target.value);
+            }}
+            className="min-h-[32px] rounded border border-line bg-bg px-2 text-[16px] text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-2 sm:text-[12px]"
+          >
+            <option value="">Pick an app…</option>
+            {apps.map((a) => (
+              <option key={a.slug} value={a.slug}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
+      <label htmlFor="agent-goal" className="mt-3 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
         What should it get done?
       </label>
       <textarea
@@ -372,7 +624,11 @@ function NewAgent({ agents, onDone }: { agents: UseAgents; onDone: () => void })
         className="mt-1 w-full resize-y rounded border border-line bg-bg px-2 py-1.5 text-[16px] text-ink placeholder:text-ink-faint/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-2 sm:text-[13px]"
       />
 
-      <fieldset className="mt-2">
+      <div className="mt-3">
+        <AgentWiring value={wiring} onChange={setWiring} apps={apps} agents={agents.list} routes={routes} />
+      </div>
+
+      <fieldset className="mt-3">
         <legend className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
           What does it need? (leave blank for any machine)
         </legend>

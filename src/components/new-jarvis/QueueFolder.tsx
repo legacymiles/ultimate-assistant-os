@@ -16,6 +16,12 @@
 
 import { useRef, useState } from "react";
 import { Icon } from "../icons";
+import { PoweredBy } from "./PoweredBy";
+import { call } from "@/lib/new-jarvis/bridge";
+import { harnessHref } from "@/lib/new-jarvis/harness/link";
+import { pickShort } from "@/lib/new-jarvis/harness/models";
+import { usePick } from "@/lib/new-jarvis/harness/usePick";
+import type { ThreadSummary } from "@/lib/new-jarvis/harness/types";
 import { MAX_IMAGES, inFolder, type FinishedRequest, type QueueRequest } from "@/lib/new-jarvis/requests";
 import { shrinkImage, type UseRequests } from "@/lib/new-jarvis/useRequests";
 
@@ -146,7 +152,16 @@ export function RequestComposer({
   );
 }
 
-export function RequestList({ requests, folder }: { requests: UseRequests; folder: string }) {
+export function RequestList({
+  requests,
+  folder,
+  folderName,
+}: {
+  requests: UseRequests;
+  folder: string;
+  /** "EA World" — told to the harness so it knows which app the task is about. */
+  folderName?: string;
+}) {
   const list = inFolder(requests.doc, folder);
   if (!list.length) {
     return <p className="px-1 py-2 text-[11px] text-ink-faint">Nothing queued here yet. Type an idea above.</p>;
@@ -154,7 +169,7 @@ export function RequestList({ requests, folder }: { requests: UseRequests; folde
   return (
     <ul className="space-y-1.5">
       {list.map((r) => (
-        <RequestBubble key={r.id} r={r} requests={requests} />
+        <RequestBubble key={r.id} r={r} requests={requests} folderName={folderName} />
       ))}
     </ul>
   );
@@ -169,7 +184,74 @@ function when(iso: string): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function RequestBubble({ r, requests }: { r: QueueRequest; requests: UseRequests }) {
+/** What the harness is told when a request is run from the queue. */
+export function runPrompt(r: QueueRequest, folderName?: string): string {
+  const where =
+    r.folder === "inbox"
+      ? "It is in the Inbox, not filed under an app, so work out from the text which part of the hub it is about."
+      : `It is filed under ${folderName ?? r.folder} (${r.folder}). For an app, its code is under src/app/apps/<slug>, src/components and src/lib, and its record is docs/apps/<slug>.md.`;
+  return [
+    `Do this request from the owner's In Queue (request ${r.id}):`,
+    "",
+    r.text,
+    "",
+    where,
+    r.images.length ? `${r.images.length} picture(s) came with it; they are on the request in Jarvis › In Queue.` : "",
+    "Read AGENTS.md first. Follow the app's existing patterns. Run the typecheck and the tests that cover what you changed.",
+    "When it is done and checked, say in two lines what changed. The owner reviews and lands it from here.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/**
+ * Run now: start this request on the Jarvis harness with the picked model.
+ *
+ * The thread is the record — the request is marked as being worked on with
+ * the thread id in its notes, and the owner lands to finish. Errors stay on
+ * the bubble in the bridge's own words (it says how to fix them).
+ */
+function RunNow({ r, requests, folderName }: { r: QueueRequest; requests: UseRequests; folderName?: string }) {
+  const [pick, setPick] = usePick();
+  const [state, setState] = useState<{ busy: boolean; error: string }>({ busy: false, error: "" });
+
+  const run = async () => {
+    setState({ busy: true, error: "" });
+    try {
+      const data = await call<{ session: ThreadSummary }>("harness/start", {
+        pick,
+        title: r.text.slice(0, 60),
+        prompt: runPrompt(r, folderName),
+      });
+      const id = data.session.id;
+      await requests.start(r.id, `harness · ${pickShort(pick)}`, `Running in the harness, thread ${id}.`);
+      window.location.hash = harnessHref(id).split("#")[1];
+      setState({ busy: false, error: "" });
+    } catch (e) {
+      setState({ busy: false, error: e instanceof Error ? e.message : "The harness didn't start." });
+    }
+  };
+
+  return (
+    <div className="mt-1.5">
+      <div className="flex flex-wrap items-center gap-1">
+        <PoweredBy value={pick} onChange={setPick} compact label="Run it with" />
+        <button
+          type="button"
+          onClick={() => void run()}
+          disabled={state.busy}
+          className="inline-flex min-h-[28px] items-center gap-1 rounded border border-brand-2/50 bg-brand-2/10 px-2 text-[10.5px] font-medium text-ink transition hover:bg-brand-2/20 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-2"
+        >
+          <Icon.Play width={10} height={10} aria-hidden />
+          {state.busy ? "Starting…" : "Run now"}
+        </button>
+      </div>
+      {state.error && <p className="mt-1 text-[10.5px] text-[#f8b471]">{state.error}</p>}
+    </div>
+  );
+}
+
+function RequestBubble({ r, requests, folderName }: { r: QueueRequest; requests: UseRequests; folderName?: string }) {
   const working = r.status === "working";
   return (
     <li className={`nj-rq ${working ? "is-working" : ""}`}>
@@ -214,6 +296,16 @@ function RequestBubble({ r, requests }: { r: QueueRequest; requests: UseRequests
             )}
             <span className="select-all">{r.id}</span>
           </p>
+          {!working && <RunNow r={r} requests={requests} folderName={folderName} />}
+          {working && threadOf(r) && (
+            <a
+              href={harnessHref(threadOf(r))}
+              className="mt-1 inline-flex min-h-[28px] items-center gap-1 text-[10.5px] text-brand-2 underline-offset-2 hover:underline"
+            >
+              Open its harness thread
+              <Icon.ArrowRight width={9} height={9} aria-hidden />
+            </a>
+          )}
         </div>
         <div className="flex shrink-0 items-center">
           {working && (
@@ -240,6 +332,15 @@ function RequestBubble({ r, requests }: { r: QueueRequest; requests: UseRequests
       </div>
     </li>
   );
+}
+
+/** The harness thread a Run now left in the notes, or "". */
+function threadOf(r: QueueRequest): string {
+  for (const n of [...r.notes].reverse()) {
+    const m = /harness, thread ([\w-]+)/.exec(n.text);
+    if (m) return m[1];
+  }
+  return "";
 }
 
 /** What left the queue lately — the answer to "did that get done?". */

@@ -24,6 +24,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Icon } from "../icons";
+import { PoweredBy } from "./PoweredBy";
+import { routeOf, routeStates } from "@/lib/new-jarvis/harness/models";
+import { usePick } from "@/lib/new-jarvis/harness/usePick";
 import { useHarness } from "@/lib/new-jarvis/harness/useHarness";
 import { countActions } from "@/lib/new-jarvis/harness/model";
 import { readTrust, TRUSTS, writeTrust, type Trust } from "@/lib/new-jarvis/trust";
@@ -51,14 +54,18 @@ function StartPanel({
 }: {
   choices: HarnessChoice[];
   working: string;
-  onStart: (opts: { harness: HarnessId; title: string; strict: boolean }) => void;
+  onStart: (opts: { harness: HarnessId; title: string; strict: boolean; pick: string }) => void;
   /** The one picked in Chat's switch, used when it is available. */
   initial?: HarnessId;
 }) {
-  const usable = choices.filter((c) => c.available);
-  const [harness, setHarness] = useState<HarnessId>(
-    usable.some((c) => c.id === initial) ? initial! : usable[0]?.id ?? initial ?? "claude",
-  );
+  // One "Powered by" pick decides the harness AND which Claude, and who pays.
+  const [pick, setPick] = usePick();
+  useEffect(() => {
+    if (initial === "deepseek") setPick("deepseek");
+  }, [initial, setPick]);
+  const harness: HarnessId = routeOf(pick) === "deepseek" ? "deepseek" : "claude";
+  const routes = useMemo(() => routeStates(choices), [choices]);
+  const routeOk = routes[routeOf(pick)]?.available ?? false;
   const [title, setTitle] = useState("");
   const [strict, setStrict] = useState(false);
   // The thread reads this at the moment it is cut, so the choice made here is
@@ -70,10 +77,6 @@ function StartPanel({
     writeTrust(next);
   };
 
-  useEffect(() => {
-    if (usable.length && !usable.some((c) => c.id === harness)) setHarness(usable[0].id);
-  }, [usable, harness]);
-
   const picked = choices.find((c) => c.id === harness);
 
   return (
@@ -84,36 +87,13 @@ function StartPanel({
         command asks you first. Your own checkout is never touched.
       </p>
 
-      <div className="mt-3 space-y-1.5">
-        {choices.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            disabled={!c.available}
-            onClick={() => setHarness(c.id)}
-            aria-pressed={harness === c.id}
-            className={`flex w-full items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition disabled:cursor-not-allowed ${
-              harness === c.id && c.available
-                ? "border-brand/50 bg-brand/[0.07]"
-                : "border-line bg-panel hover:bg-elevated disabled:hover:bg-panel"
-            } ${c.available ? "" : "opacity-55"}`}
-          >
-            <Icon.Bot
-              width={15}
-              height={15}
-              className={`mt-0.5 shrink-0 ${harness === c.id && c.available ? "text-brand" : "text-ink-muted"}`}
-              aria-hidden
-            />
-            <span className="min-w-0">
-              <span className="block text-[13px] font-medium text-ink">{c.label}</span>
-              <span className="mt-0.5 block text-[11.5px] leading-relaxed text-ink-muted">
-                {c.available ? c.blurb : c.why}
-              </span>
-            </span>
-          </button>
-        ))}
+      <div className="mt-3">
+        <span className="text-[11px] uppercase tracking-wide text-ink-muted">Powered by</span>
+        <div className="mt-1">
+          <PoweredBy value={pick} onChange={setPick} routes={routes} />
+        </div>
         {choices.length === 0 && (
-          <p className="rounded-lg border border-line bg-panel px-3 py-2.5 text-xs text-ink-muted">
+          <p className="mt-1.5 rounded-lg border border-line bg-panel px-3 py-2.5 text-xs text-ink-muted">
             The local agent is not reporting any harness. Start it on this PC, then refresh.
           </p>
         )}
@@ -172,8 +152,8 @@ function StartPanel({
 
       <button
         type="button"
-        disabled={!picked?.available || Boolean(working)}
-        onClick={() => onStart({ harness, title: title.trim(), strict })}
+        disabled={!picked?.available || !routeOk || Boolean(working)}
+        onClick={() => onStart({ harness, title: title.trim(), strict, pick })}
         className="mt-3 w-full rounded-md bg-brand-2 px-3 py-2 text-[13px] font-medium text-white transition hover:bg-[var(--nj-brand-press)] disabled:cursor-not-allowed disabled:opacity-40"
       >
         {working || `Start a ${picked?.label ?? "harness"} thread`}

@@ -96,6 +96,51 @@ export interface Handoff {
   text: string;
 }
 
+/**
+ * How a standing agent keeps going.
+ *
+ * `once` finishes for good. The others make it a 24/7 agent in the full sense:
+ * when a round is done it rests, then goes again with the last round's result
+ * as its starting note — a research agent that checks for new EAs every day
+ * instead of once.
+ */
+export type AgentRepeat = "once" | "hourly" | "daily" | "weekly";
+
+export const ALL_REPEATS: AgentRepeat[] = ["once", "hourly", "daily", "weekly"];
+
+export const REPEAT_LABEL: Record<AgentRepeat, string> = {
+  once: "Once",
+  hourly: "Every hour",
+  daily: "Every day",
+  weekly: "Every week",
+};
+
+export const REPEAT_MS: Record<Exclude<AgentRepeat, "once">, number> = {
+  hourly: 60 * 60 * 1000,
+  daily: 24 * 60 * 60 * 1000,
+  weekly: 7 * 24 * 60 * 60 * 1000,
+};
+
+/**
+ * What happens to code an agent changed.
+ *
+ * `review` — the run leaves its work on a branch in the harness and stops at
+ *            "ready for you"; nothing reaches an app until you land it.
+ * `auto`   — the run lands its own branch and pushes it, so the change goes
+ *            live by itself. Opt-in per agent, never the default.
+ */
+export type ShipMode = "review" | "auto";
+
+/** The harness thread an agent's last code-changing run left behind. */
+export interface AgentThread {
+  id: string;
+  branch: string;
+  at: string;
+  /** What came of it. "ready" means waiting for the owner to review and land. */
+  outcome: "ready" | "landed" | "pushed" | "nothing" | "failed";
+  why?: string;
+}
+
 export interface AgentLease {
   by: string;
   /** ISO. After this the agent is free again even if the runner never came back. */
@@ -123,6 +168,28 @@ export interface Agent {
   blockedWhy?: string;
   /** Downscaled JPEG data URLs the agent should work from. */
   images: string[];
+  /**
+   * "Powered by": which Claude runs it and who pays (harness/models.ts).
+   * "" means the default — Opus 5.5 on the owner's plan.
+   */
+  pick: string;
+  /**
+   * Apps (catalog slugs) this agent may change. Non-empty means every run
+   * goes through the Jarvis harness, in a worktree of its own.
+   */
+  edits: string[];
+  /**
+   * Where its results go: "app:<slug>" files them in that app's In Queue
+   * folder, "a-xxxxxx" hands them to another 24/7 agent, "inbox" the Inbox.
+   */
+  sendsTo: string[];
+  ship: ShipMode;
+  repeat: AgentRepeat;
+  /** A repeating agent rests until this ISO time before its next round. */
+  nextRunAt?: string;
+  /** Rounds finished so far. */
+  rounds: number;
+  thread?: AgentThread;
 }
 
 export interface AgentsDoc {
@@ -169,6 +236,55 @@ export interface NewAgentInput {
   images?: string[];
   at?: string;
   id?: string;
+  pick?: string;
+  edits?: string[];
+  sendsTo?: string[];
+  ship?: ShipMode;
+  repeat?: AgentRepeat;
+}
+
+const SLUG = /^[a-z0-9][a-z0-9-]{0,60}$/;
+const AGENT_ID = /^a-[a-z0-9]{1,12}$/;
+
+/** App slugs only, de-duplicated. "app:ea-world" and "ea-world" are the same. */
+export function cleanEdits(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const out: string[] = [];
+  for (const x of v) {
+    const slug = String(x).trim().toLowerCase().replace(/^app:/, "");
+    if (SLUG.test(slug) && !out.includes(slug)) out.push(slug);
+  }
+  return out.slice(0, 12);
+}
+
+/** "app:<slug>", "a-xxxxxx" or "inbox"; anything else is dropped. */
+export function cleanSendsTo(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const out: string[] = [];
+  for (const x of v) {
+    const t = String(x).trim().toLowerCase();
+    const ok = t === "inbox" || AGENT_ID.test(t) || (t.startsWith("app:") && SLUG.test(t.slice(4)));
+    if (ok && !out.includes(t)) out.push(t);
+  }
+  return out.slice(0, 12);
+}
+
+export function cleanShip(v: unknown): ShipMode {
+  return v === "auto" ? "auto" : "review";
+}
+
+export function cleanRepeat(v: unknown): AgentRepeat {
+  return ALL_REPEATS.includes(v as AgentRepeat) ? (v as AgentRepeat) : "once";
+}
+
+/** The pick's shape only; harness/models.ts owns which ones are offered. */
+export function cleanAgentPick(v: unknown): string {
+  if (typeof v !== "string") return "";
+  const s = v.trim();
+  if (s === "deepseek") return s;
+  if (/^claude-subscription:[a-z0-9][\w.-]{1,80}$/i.test(s)) return s;
+  if (/^openrouter:[a-z0-9][\w.-]*\/[\w.:-]{1,80}$/i.test(s)) return s;
+  return "";
 }
 
 export function newAgent(input: NewAgentInput): Agent {
@@ -180,7 +296,9 @@ export function newAgent(input: NewAgentInput): Agent {
     needs: cleanNeeds(input.needs),
     folder: input.folder || undefined,
     status: "waiting",
-    steps: (input.steps || []).slice(0, MAX_STEPS).map((text, i) => ({
+    // An agent with no steps used to be untakeable forever (takeable() wants
+    // an unfinished step), so the goal itself is the first step.
+    steps: (input.steps?.length ? input.steps : [goal]).slice(0, MAX_STEPS).map((text, i) => ({
       id: `s${i + 1}`,
       text: clip(text, 400),
       done: false,
@@ -190,6 +308,12 @@ export function newAgent(input: NewAgentInput): Agent {
     updatedAt: at,
     from: input.from || "you",
     images: (input.images || []).slice(0, MAX_IMAGES),
+    pick: cleanAgentPick(input.pick),
+    edits: cleanEdits(input.edits),
+    sendsTo: cleanSendsTo(input.sendsTo),
+    ship: cleanShip(input.ship),
+    repeat: cleanRepeat(input.repeat),
+    rounds: 0,
   };
 }
 
@@ -232,6 +356,11 @@ export function missingFor(agent: Agent, have: AgentNeed[]): AgentNeed[] {
 
 // --- the lease ------------------------------------------------------------
 
+/** A repeating agent between rounds. */
+export function resting(agent: Agent, now: number): boolean {
+  return Boolean(agent.nextRunAt) && Date.parse(agent.nextRunAt as string) > now;
+}
+
 export function leaseHeld(agent: Agent, now: number): boolean {
   if (!agent.lease) return false;
   return Date.parse(agent.lease.until) > now;
@@ -246,6 +375,7 @@ export function leaseHeld(agent: Agent, now: number): boolean {
 export function takeable(agent: Agent, have: AgentNeed[], now: number): boolean {
   if (agent.status === "paused" || agent.status === "done") return false;
   if (leaseHeld(agent, now)) return false;
+  if (resting(agent, now)) return false;
   if (!agent.steps.some((s) => !s.done)) return false;
   return canRun(agent, have);
 }
@@ -329,6 +459,8 @@ function whyNothing(doc: AgentsDoc, have: AgentNeed[], now: number): string {
     return `${cantRun.length} waiting, but this machine hasn't got ${[...missing].join(" or ")}.`;
   }
   if (busy.length) return `${busy.length} already being worked on by another machine.`;
+  const rest = live.filter((a) => resting(a, now) && a.status !== "paused");
+  if (rest.length) return `${rest.length} resting until their next round.`;
   if (finishedSteps.length) return `${finishedSteps.length} have run out of steps — they need a next step or finishing.`;
   if (paused.length) return `${paused.length} paused.`;
   return "No 24/7 agents are waiting.";
@@ -400,7 +532,7 @@ export function block(doc: AgentsDoc, id: string, by: string, why: string, at: s
 
 export function finish(doc: AgentsDoc, id: string, by: string, result: string, at: string): AgentsDoc {
   return mapAgent(doc, id, (a) =>
-    touch(
+    a.repeat !== "once" ? nextRound(a, by, result, at) : touch(
       withLog(
         {
           ...a,
@@ -413,6 +545,119 @@ export function finish(doc: AgentsDoc, id: string, by: string, result: string, a
       ),
       at,
     ),
+  );
+}
+
+/**
+ * A repeating agent finished a round: rest, then go again.
+ *
+ * The steps reset so the next round has work to take, and the result becomes
+ * the handoff, so round two builds on round one ("these 10 were already sent
+ * to EA World") instead of repeating it.
+ */
+function nextRound(a: Agent, by: string, result: string, at: string): Agent {
+  const rounds = a.rounds + 1;
+  const wait = REPEAT_MS[a.repeat as Exclude<AgentRepeat, "once">];
+  const nextRunAt = new Date(Date.parse(at) + wait).toISOString();
+  const said = clip(result, 600) || "Round finished.";
+  return touch(
+    withLog(
+      {
+        ...a,
+        status: "waiting",
+        lease: undefined,
+        blockedWhy: undefined,
+        rounds,
+        nextRunAt,
+        steps: a.steps.map((s) => ({ ...s, done: false, at: undefined, by: undefined, note: undefined })),
+        handoff: {
+          at,
+          by,
+          text: clip(
+            `Round ${rounds} finished: ${said} Start round ${rounds + 1} fresh, building on that. Do not redo what it already did or sent.`,
+            1200,
+          ),
+        },
+      },
+      { at, by, text: `Round ${rounds} done: ${said}`, kind: "done" },
+    ),
+    at,
+  );
+}
+
+/** Skip the rest and run the next round now. */
+export function runNow(doc: AgentsDoc, id: string, at: string): AgentsDoc {
+  return mapAgent(doc, id, (a) =>
+    a.status === "done" || a.status === "paused"
+      ? a
+      : touch(
+          withLog({ ...a, status: "waiting", nextRunAt: undefined, blockedWhy: undefined }, { at, by: "you", text: "Run now.", kind: "started" }),
+          at,
+        ),
+  );
+}
+
+export interface AgentSettings {
+  pick?: string;
+  edits?: string[];
+  sendsTo?: string[];
+  ship?: ShipMode;
+  repeat?: AgentRepeat;
+}
+
+/** Change how an agent runs without refiling it. */
+export function configure(doc: AgentsDoc, id: string, change: AgentSettings, at: string): AgentsDoc {
+  return mapAgent(doc, id, (a) => {
+    const next: Agent = {
+      ...a,
+      ...(change.pick !== undefined ? { pick: cleanAgentPick(change.pick) } : {}),
+      ...(change.edits !== undefined ? { edits: cleanEdits(change.edits) } : {}),
+      ...(change.sendsTo !== undefined ? { sendsTo: cleanSendsTo(change.sendsTo) } : {}),
+      ...(change.ship !== undefined ? { ship: cleanShip(change.ship) } : {}),
+      ...(change.repeat !== undefined ? { repeat: cleanRepeat(change.repeat) } : {}),
+    };
+    // Switching to "once" drops a pending rest, or it would never run again.
+    if (next.repeat === "once") next.nextRunAt = undefined;
+    return touch(withLog(next, { at, by: "you", text: "Settings changed.", kind: "progress" }), at);
+  });
+}
+
+/**
+ * Another agent sent this one something to act on.
+ *
+ * A message wakes it: a resting or finished agent goes back to waiting with a
+ * new step, so "the EA scout sent ten names" makes the tester start now rather
+ * than at its next scheduled round. A paused one only logs it.
+ */
+export function receive(doc: AgentsDoc, id: string, from: string, text: string, at: string): AgentsDoc {
+  const target = doc.agents.find((a) => a.id === id);
+  if (!target) return doc;
+  if (target.status === "paused") {
+    return mapAgent(doc, id, (a) => withLog(a, { at, by: from, text: clip(`Sent while paused: ${text}`, 600), kind: "progress" }));
+  }
+  const withStep = addSteps(doc, id, [`Act on what ${from} sent: ${clip(text, 300)}`], at);
+  return mapAgent(withStep, id, (a) =>
+    touch(
+      withLog(
+        { ...a, status: a.status === "running" ? "running" : "waiting", nextRunAt: undefined, blockedWhy: undefined },
+        { at, by: from, text: clip(`Sent: ${text}`, 600), kind: "progress" },
+      ),
+      at,
+    ),
+  );
+}
+
+/** Record the harness run a code-changing round left behind. */
+export function recordThread(doc: AgentsDoc, id: string, thread: AgentThread, by: string): AgentsDoc {
+  const said: Record<AgentThread["outcome"], string> = {
+    ready: `Changes are on ${thread.branch}, waiting for you to review and land.`,
+    landed: `Landed ${thread.branch}.`,
+    pushed: `Landed and pushed ${thread.branch}. It's live.`,
+    nothing: "The run changed no files.",
+    failed: `The harness run didn't finish${thread.why ? `: ${thread.why}` : "."}`,
+  };
+  return mapAgent(doc, id, (a) =>
+    touch(withLog({ ...a, thread }, { at: thread.at, by, text: clip(said[thread.outcome], 600), kind: "progress" }), thread.at),
   );
 }
 
@@ -465,6 +710,12 @@ export function statusLine(agent: Agent, now: number): string {
   if (agent.status === "done") return "Finished.";
   if (agent.status === "paused") return "Paused — it won't be picked up.";
   if (agent.status === "blocked") return agent.blockedWhy || "Waiting on you.";
+  if (resting(agent, now)) {
+    const ms = Date.parse(agent.nextRunAt as string) - now;
+    const h = Math.round(ms / 3_600_000);
+    const when = ms < 3_600_000 ? `${Math.max(1, Math.round(ms / 60_000))}m` : h < 48 ? `${h}h` : `${Math.round(h / 24)}d`;
+    return `Round ${agent.rounds} done. Next round in ${when}.`;
+  }
   if (leaseHeld(agent, now)) {
     const who = agent.lease?.by || "a machine";
     return `${who} is working on it now.`;
@@ -552,6 +803,28 @@ function cleanAgent(raw: unknown): Agent | null {
     from: typeof a.from === "string" && a.from ? a.from : "you",
     blockedWhy: typeof a.blockedWhy === "string" ? clip(a.blockedWhy, 400) : undefined,
     images: Array.isArray(a.images) ? a.images.filter((i) => typeof i === "string").slice(0, MAX_IMAGES) : [],
+    pick: cleanAgentPick(a.pick),
+    edits: cleanEdits(a.edits),
+    sendsTo: cleanSendsTo(a.sendsTo),
+    ship: cleanShip(a.ship),
+    repeat: cleanRepeat(a.repeat),
+    nextRunAt: typeof a.nextRunAt === "string" && Number.isFinite(Date.parse(a.nextRunAt)) ? a.nextRunAt : undefined,
+    rounds: typeof a.rounds === "number" && a.rounds >= 0 ? Math.floor(a.rounds) : 0,
+    thread: cleanThread(a.thread),
+  };
+}
+
+function cleanThread(raw: unknown): AgentThread | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const t = raw as Record<string, unknown>;
+  const outcomes: AgentThread["outcome"][] = ["ready", "landed", "pushed", "nothing", "failed"];
+  if (typeof t.id !== "string" || !t.id) return undefined;
+  return {
+    id: t.id.slice(0, 80),
+    branch: clip(t.branch, 120),
+    at: typeof t.at === "string" ? t.at : new Date(0).toISOString(),
+    outcome: outcomes.includes(t.outcome as AgentThread["outcome"]) ? (t.outcome as AgentThread["outcome"]) : "ready",
+    why: typeof t.why === "string" ? clip(t.why, 300) : undefined,
   };
 }
 

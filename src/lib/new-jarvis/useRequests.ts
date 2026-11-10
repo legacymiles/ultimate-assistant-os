@@ -22,6 +22,8 @@ import {
   normalizeDoc,
   openCounts,
   releaseRequest,
+  startRequest,
+  noteRequest,
   removeRequest,
   reopenRequest,
   RequestError,
@@ -47,13 +49,16 @@ export interface UseRequests {
   remove: (id: string) => Promise<void>;
   reopen: (id: string) => Promise<void>;
   release: (id: string) => Promise<void>;
+  /** Mark it as being worked on — Run now started it on the harness. */
+  start: (id: string, by: string, note?: string) => Promise<void>;
   /** Read the queue again now (after a route outside this hook changed it). */
   refresh: () => Promise<void>;
 }
 
 type Action =
   | { action: "add"; folder: string; text: string; images: string[] }
-  | { action: "complete" | "remove" | "reopen" | "release"; id: string };
+  | { action: "complete" | "remove" | "reopen" | "release"; id: string }
+  | { action: "start"; id: string; by: string; note?: string };
 
 function applyLocal(doc: RequestsDoc, a: Action): { doc: RequestsDoc; added: QueueRequest[] } {
   switch (a.action) {
@@ -67,6 +72,10 @@ function applyLocal(doc: RequestsDoc, a: Action): { doc: RequestsDoc; added: Que
       return { doc: reopenRequest(doc, a.id), added: [] };
     case "release":
       return { doc: releaseRequest(doc, a.id), added: [] };
+    case "start": {
+      const started = startRequest(doc, a.id, a.by);
+      return { doc: a.note ? noteRequest(started, a.id, a.note, a.by) : started, added: [] };
+    }
   }
 }
 
@@ -157,6 +166,7 @@ export function useRequests(): UseRequests {
     remove: async (id) => void (await send({ action: "remove", id })),
     reopen: async (id) => void (await send({ action: "reopen", id })),
     release: async (id) => void (await send({ action: "release", id })),
+    start: async (id, by, note) => void (await send({ action: "start", id, by, note })),
     refresh: pull,
   };
 }

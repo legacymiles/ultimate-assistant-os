@@ -50,7 +50,10 @@ import {
   note as noteAgent,
   renew,
   add as addAgent,
+  receive,
+  recordThread,
   type AgentNeed,
+  type AgentThread,
 } from "@/lib/new-jarvis/agents/agents";
 import { briefFor, describeAgents, nothingFor } from "@/lib/new-jarvis/agents/describe";
 import { readAgents, updateAgents } from "@/lib/new-jarvis/server/agentsStore";
@@ -354,6 +357,63 @@ async function runAgentTool(
         });
         await updateAgents(ctx.userId, (d) => addAgent(d, agent));
         return `Filed 24/7 agent ${agent.id}. It will be picked up by the next machine that can run it.`;
+      }
+
+      case "agent_send": {
+        const to = str(args.to).toLowerCase();
+        const text = str(args.text);
+        if (!text) return "Not sent: say what the results are.";
+        const doc = await readAgents(ctx.userId);
+        const sender = doc.agents.find((a) => a.id === id);
+        if (!sender) return `Not sent: there is no 24/7 agent ${id}.`;
+        // Only where the owner wired it. An agent that can file work into any
+        // app it likes is an agent that can spam every queue the owner has.
+        if (!sender.sendsTo.includes(to)) {
+          return `Not sent: ${id} isn't wired to ${to || "(nothing)"}. It may send to: ${sender.sendsTo.join(", ") || "nowhere yet"}.`;
+        }
+        const head = `From 24/7 agent ${id} (${sender.goal.slice(0, 80)}):\n`;
+        if (to.startsWith("a-")) {
+          if (!doc.agents.some((a) => a.id === to)) return `Not sent: there is no 24/7 agent ${to} any more.`;
+          await updateAgents(ctx.userId, (d) => noteAgent(receive(d, to, id, text, at), id, client, `Sent results to ${to}.`, at));
+          return `Sent to ${to}. It's been woken up with your results as its next step.`;
+        }
+        const folder = to === "inbox" ? undefined : to;
+        let added = 0;
+        await updateRequests(ctx.userId, (d) => {
+          const r = addRequests(d, { folder, text: head + text, from: id });
+          added = r.added.length;
+          return r.doc;
+        });
+        await updateAgents(ctx.userId, (d) => noteAgent(d, id, client, `Sent results to ${to}.`, at));
+        return added ? `Filed in ${to}'s In Queue folder.` : `${to} already has exactly that request.`;
+      }
+
+      case "agent_ran": {
+        const outcome = str(args.outcome) as AgentThread["outcome"];
+        if (!["ready", "landed", "pushed", "nothing", "failed"].includes(outcome)) {
+          return "Not changed: outcome is one of ready, landed, pushed, nothing, failed.";
+        }
+        const thread: AgentThread = {
+          id: str(args.thread).slice(0, 80),
+          branch: str(args.branch).slice(0, 120),
+          at,
+          outcome,
+          why: str(args.why) || undefined,
+        };
+        if (!thread.id) return "Not changed: which harness thread?";
+        let missing = false;
+        await updateAgents(ctx.userId, (d) => {
+          if (!d.agents.some((a) => a.id === id)) {
+            missing = true;
+            return d;
+          }
+          const recorded = recordThread(d, id, thread, client);
+          // Work waiting for review is the owner's move, so the row says so.
+          return outcome === "ready"
+            ? block(recorded, id, client, `Changes are ready on ${thread.branch}. Review and land them in the harness.`, at)
+            : recorded;
+        });
+        return missing ? `Not changed: there is no 24/7 agent ${id}.` : `Recorded ${outcome} on ${id}.`;
       }
 
       default:

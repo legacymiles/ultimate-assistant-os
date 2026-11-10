@@ -3,6 +3,8 @@ import {
   RequestError,
   addRequests,
   completeRequest,
+  noteRequest,
+  startRequest,
   releaseRequest,
   removeRequest,
   reopenRequest,
@@ -18,6 +20,7 @@ import { browserUid } from "@/lib/new-jarvis/server/requestsAuth";
 //   POST { action: "add", folder?, text, images?, from? }   -> { doc, added }
 //   POST { action: "complete", id, result? }  — the owner's tick: it leaves the queue
 //   POST { action: "remove" | "reopen" | "release", id }
+//   POST { action: "start", id, by?, note? }  — Run now started it on the harness
 //
 // Claude Code reaches the same document through the jarvis-memory connector
 // (queue_list / queue_start / queue_note / queue_complete), not through here.
@@ -77,6 +80,14 @@ export async function POST(req: Request) {
           return reopenRequest(d, id);
         case "release":
           return releaseRequest(d, id);
+        case "start": {
+          // `by` is shown on the request ("harness · Opus 5.5 · API"), so it is
+          // clipped and stripped to words; the note carries the thread id.
+          const by = typeof body.by === "string" ? body.by.replace(/[^\w .·:/()-]/g, "").slice(0, 60) : "harness";
+          const started = startRequest(d, id, by || "harness");
+          const note = typeof body.note === "string" ? body.note.slice(0, 300) : "";
+          return note ? noteRequest(started, id, note, by || "harness") : started;
+        }
         default:
           throw new RequestError("Unknown action.");
       }

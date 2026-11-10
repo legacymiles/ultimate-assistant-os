@@ -25,6 +25,15 @@
 /** Tools that only look. Reading is never the thing that ruins a morning. */
 const READ_TOOLS = new Set(["Read", "Glob", "Grep", "LS", "NotebookRead", "TodoWrite"]);
 
+/**
+ * Looking things up on the web.
+ *
+ * A research agent ("find the newest MT4/MT5 EAs") is useless without these,
+ * and neither one can change anything on this machine. Curl stays local-only
+ * below: these are the search tools, not a general way to send files out.
+ */
+const WEB_TOOLS = new Set(["WebSearch", "WebFetch"]);
+
 /** The agent's own bookkeeping on the hub. Refusing these would strand it. */
 const BOOKKEEPING = /^mcp__[a-z0-9_-]*(jarvis[-_]?memory)[a-z0-9_-]*__(agent_|queue_|log_activity|add_finding|get_findings|get_router|search_memory|get_skill|list_skills)/i;
 
@@ -210,6 +219,7 @@ export function insideWorkspace(filePath, roots) {
  */
 export function decide(name, args, { roots = [] } = {}) {
   if (READ_TOOLS.has(name)) return { allow: true, why: "" };
+  if (WEB_TOOLS.has(name)) return { allow: true, why: "" };
   if (BOOKKEEPING.test(name)) return { allow: true, why: "" };
 
   // PowerShell is the SAME decision as Bash: on Windows it is the shell the

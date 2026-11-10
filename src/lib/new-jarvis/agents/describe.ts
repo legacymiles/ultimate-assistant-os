@@ -16,6 +16,7 @@
 
 import {
   NEED_LABEL,
+  REPEAT_LABEL,
   leaseHeld,
   progressOf,
   sortAgents,
@@ -60,6 +61,23 @@ export function briefFor(agent: Agent, now: number): string {
     out.push(`This agent needs: ${agent.needs.map((n) => NEED_LABEL[n]).join(", ")}.`);
   }
 
+  // Machine-readable, one per line, read by the wake runner (agents-wake.mjs
+  // `runSettingsFrom`). Change the words here and there together.
+  out.push(`POWERED BY: ${agent.pick || "default"}`);
+  if (agent.edits.length) {
+    out.push(
+      `EDITS APPS: ${agent.edits.join(", ")}`,
+      `SHIP: ${agent.ship}`,
+      agent.ship === "auto"
+        ? "Your changes will be landed and pushed when you finish, so they go live. Only finish with work that builds and passes its tests."
+        : "Your changes stay on a branch for the owner to review and land. Commit nothing yourself.",
+    );
+  }
+  if (agent.sendsTo.length) out.push(`SENDS RESULTS TO: ${agent.sendsTo.join(", ")}`);
+  if (agent.repeat !== "once") {
+    out.push(`This is a standing agent that runs ${REPEAT_LABEL[agent.repeat].toLowerCase()}. This is round ${agent.rounds + 1}.`);
+  }
+
   // Above the steps, deliberately. See the note at the top of this file.
   if (agent.handoff) {
     out.push(
@@ -94,7 +112,14 @@ export function briefFor(agent: Agent, now: number): string {
     "- agent_note with id and note (and step: the step id) each time a step is finished.",
     "- agent_handoff with id and note BEFORE you stop for any reason — a closed laptop, a long render left running, running out of time. Say exactly where you got to and what the next machine should do first. This is what lets the work resume instead of starting over.",
     "- agent_note with id and blocked: true when it needs the owner (a key, a decision).",
-    "- agent_done with id and result when the goal is actually met.",
+    ...(agent.sendsTo.length
+      ? [
+          `- agent_send with id, to (one of: ${agent.sendsTo.join(", ")}) and text to hand your results on. An app gets them as a request in its In Queue folder; another agent is woken up with them. Send the actual results (names, links, numbers), not a summary of having sent them.`,
+        ]
+      : []),
+    agent.repeat !== "once"
+      ? "- agent_done with id and result when THIS ROUND is done. It rests and runs again on schedule, starting from your result."
+      : "- agent_done with id and result when the goal is actually met.",
     "If you simply stop without calling agent_handoff, the agent sits idle until the lease expires.",
   );
   return out.join("\n");

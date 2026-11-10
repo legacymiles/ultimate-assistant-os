@@ -130,6 +130,36 @@ export const TOOLS: ToolDef[] = [
       required: ["goal"],
     },
   },
+  {
+    name: "agent_send",
+    description:
+      "Hand a 24/7 agent's results on to where the owner wired it: an app (to: \"app:ea-world\") gets them as a request in its In Queue folder, another agent (to: \"a-xxxxxx\") is woken up with them as a new step. Only the targets listed under SENDS RESULTS TO in the brief are allowed. Send the real results — names, links, numbers.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "The agent sending." },
+        to: { type: "string", description: "app:<slug>, a-xxxxxx, or inbox." },
+        text: { type: "string", description: "The results, in full." },
+      },
+      required: ["id", "to", "text"],
+    },
+  },
+  {
+    name: "agent_ran",
+    description:
+      "Wake runner only: record the harness thread a code-changing run left behind and what came of it (ready for review, landed, pushed, nothing, failed).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        thread: { type: "string", description: "The harness thread id." },
+        branch: { type: "string" },
+        outcome: { type: "string", description: "ready, landed, pushed, nothing or failed." },
+        why: { type: "string" },
+      },
+      required: ["id", "thread", "outcome"],
+    },
+  },
 
   {
     name: "search_memory",

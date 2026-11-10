@@ -90,7 +90,7 @@ import { IphoneGuide } from "./IphoneGuide";
 import { BirthdaysSheet } from "../birthdays/BirthdaysSheet";
 import { addBirthday, deleteBirthday, getBirthdays, useBirthdays } from "@/lib/birthdays/store";
 import { birthdayDigest, birthdayEvents, formatBirthday, possessive } from "@/lib/birthdays/engine";
-import { CHAT_MODEL_KEY, isSubscription } from "@/lib/new-jarvis/chatModels";
+import { CHAT_MODEL_KEY, isSubscription, subscriptionModel } from "@/lib/new-jarvis/chatModels";
 import { plainBridgeError, plainSiteError } from "@/lib/new-jarvis/plainErrors";
 import { BridgeError } from "@/lib/new-jarvis/bridge";
 import { MAX_CHAT_MEDIA, buildUserContent, prepareMedia, type ChatMedia } from "@/lib/new-jarvis/chatMedia";
@@ -1048,7 +1048,12 @@ ${reflex.best.excerpt ?? ""}`.trim()
               const prepared = await post({ ...ask, messages, prepare: true });
               if (prepared.toolCall) return prepared as never;
               try {
-                return (await bridge.run("brain/claude", { system: prepared.system, tools: prepared.tools, messages })) as never;
+                return (await bridge.run("brain/claude", {
+                  system: prepared.system,
+                  tools: prepared.tools,
+                  messages,
+                  ...(subscriptionModel(chatModel) ? { model: subscriptionModel(chatModel) } : {}),
+                })) as never;
               } catch (e) {
                 if (e instanceof BridgeError) throw new Error(plainBridgeError(e.status, e.message));
                 throw e;

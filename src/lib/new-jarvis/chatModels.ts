@@ -39,14 +39,40 @@ export const AUTO_MODEL: ChatModel = {
 
 export const SUBSCRIPTION_MODEL: ChatModel = {
   id: CLAUDE_SUBSCRIPTION,
-  label: "Claude - my plan",
+  label: "Claude · my subscription",
   why: "Your own Claude plan, through the local agent. No extra cost.",
   reads: ["text", "image"],
 };
 
 export const CHAT_MODELS: ChatModel[] = [
   SUBSCRIPTION_MODEL,
+  // The same two Opus models on both payment routes, side by side, so the
+  // choice "my plan or the API" is one tap rather than a setting.
+  {
+    id: `${CLAUDE_SUBSCRIPTION}:claude-opus-5-5`,
+    label: "Opus 5.5 · my subscription",
+    why: "Strongest Claude, on your subscription.",
+    reads: ["text", "image"],
+  },
+  {
+    id: `${CLAUDE_SUBSCRIPTION}:claude-opus-5`,
+    label: "Opus 5 · my subscription",
+    why: "The previous Opus, on your subscription.",
+    reads: ["text", "image"],
+  },
   AUTO_MODEL,
+  {
+    id: "anthropic/claude-opus-5.5",
+    label: "Opus 5.5 · API",
+    why: "Strongest Claude via OpenRouter, per token.",
+    reads: ["text", "image"],
+  },
+  {
+    id: "anthropic/claude-opus-5",
+    label: "Opus 5 · API",
+    why: "Opus 5 via OpenRouter, per token.",
+    reads: ["text", "image"],
+  },
   {
     id: "orca/orcacyber-flash-1.0",
     label: "DeepSeek 4.1 Flash Abliterated",
@@ -70,7 +96,12 @@ export function isModelId(v: unknown): v is string {
   return typeof v === "string" && v.length <= 120 && /^[a-z0-9][\w.-]*\/[\w.:-]+$/i.test(v);
 }
 
-export const isSubscription = (id: string) => id === CLAUDE_SUBSCRIPTION;
+export const isSubscription = (id: string) => id === CLAUDE_SUBSCRIPTION || id.startsWith(`${CLAUDE_SUBSCRIPTION}:`);
+
+/** The model the plan is asked for ("claude-opus-5-5"), or "" for Claude Code's default. */
+export function subscriptionModel(id: string): string {
+  return id.startsWith(`${CLAUDE_SUBSCRIPTION}:`) ? id.slice(CLAUDE_SUBSCRIPTION.length + 1) : "";
+}
 
 export function modelLabel(id: string): string {
   return CHAT_MODELS.find((m) => m.id === id)?.label ?? (id ? id.split("/").pop()! : AUTO_MODEL.label);

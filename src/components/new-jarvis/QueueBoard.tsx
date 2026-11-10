@@ -65,6 +65,15 @@ export function QueueBoard({ queue }: { queue: UseQueue }) {
   const [showFinished, setShowFinished] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(true);
   const inbox = inFolder(requests.doc, INBOX);
+  // Every app the scan found, for wiring agents to ("sends results to EA World").
+  const apps = useMemo(
+    () =>
+      queue.all
+        .filter((r) => r.kind === "app" && r.id.startsWith("app:"))
+        .map((r) => ({ slug: r.id.slice(4), name: r.name }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [queue.all],
+  );
 
   // Folder ids → the names the rows carry, for the finished log.
   const names = useMemo(() => new Map(queue.all.map((r) => [r.id, r.name])), [queue.all]);
@@ -133,7 +142,7 @@ export function QueueBoard({ queue }: { queue: UseQueue }) {
 
       {tab === "agents" ? (
         <div className="min-h-0 flex-1">
-          <Agents agents={agents} />
+          <Agents agents={agents} apps={apps} />
         </div>
       ) : (
       <>
@@ -457,7 +466,7 @@ function Row({
               autoFocus
             />
             <div className="mt-1.5 max-h-72 overflow-y-auto">
-              <RequestList requests={requests} folder={row.folder ?? row.id} />
+              <RequestList requests={requests} folder={row.folder ?? row.id} folderName={row.name} />
             </div>
           </div>
 

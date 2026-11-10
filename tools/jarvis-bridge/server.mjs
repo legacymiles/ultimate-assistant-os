@@ -32,6 +32,7 @@
 //   POST /browser/quit                close the whole browser
 //   POST /harness/list|start|say|events|decide|interrupt|stop|threads
 //   POST /harness/status|diff|land|discard|preview|preview/stop
+//   POST /harness/start-unattended    token AND out/agents-secret.txt; the 24/7 runner only
 //   POST /files/list|read|write
 //   POST /system/windows|focus|launch|screenshot|info
 //   POST /system/clipboard/read|write
@@ -43,7 +44,7 @@
 
 import * as brain from "./brain.mjs";
 import http from "node:http";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -55,6 +56,8 @@ import * as browser from "./browser.mjs";
 import * as computer from "./computer.mjs";
 import * as vault from "./vault.mjs";
 import * as harness from "./harness.mjs";
+import { keyNames, shareKeys } from "./keys.mjs";
+import { DEFAULT_REPO } from "./worktree.mjs";
 import * as github from "./github.mjs";
 import * as mcp from "./mcp.mjs";
 import * as cli from "./cli.mjs";
@@ -76,6 +79,11 @@ for (const key of Object.keys(process.env)) {
   if (/^(ANTHROPIC_|CLAUDE_CODE_|CLAUDECODE$|CLAUDE_AGENT_SDK_|CLAUDE_PID$)/.test(key)) delete process.env[key];
 }
 
+// The owner's keys, entered once anywhere on this PC, for every harness run.
+// After the scrub above on purpose: keys.mjs never loads Claude's login
+// variables, so this cannot undo it. See keys.mjs.
+shareKeys(DEFAULT_REPO, { log: (line) => console.log(`  ${line}`) });
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "out");
 const PROFILE = join(OUT, "browser-profile");
@@ -96,6 +104,32 @@ function loadToken() {
   return fresh;
 }
 const TOKEN = loadToken();
+
+/**
+ * The second key, for the one route a web page must never reach.
+ *
+ * `/harness/start-unattended` starts a thread that writes without asking. The
+ * pairing token cannot guard that on its own, because the token is exactly
+ * what /pair hands to the hub's web page. So this secret is never handed to
+ * anyone: it is made fresh on every start, kept in memory, and written to
+ * out/agents-secret.txt only once this copy owns the port — a second copy
+ * that loses the race for the port must not overwrite the file with a secret
+ * the running bridge has never heard of. The only reader is agents-wake.mjs,
+ * a process on this PC that can read this folder anyway.
+ */
+const AGENTS_SECRET_FILE = join(OUT, "agents-secret.txt");
+const AGENTS_SECRET = randomBytes(32).toString("base64url");
+
+/**
+ * Constant-time, and length-blind: both sides are hashed first, so
+ * timingSafeEqual always compares 32 bytes and a wrong guess learns nothing,
+ * not even how long the secret is.
+ */
+function agentsSecretMatches(given) {
+  if (typeof given !== "string" || !given) return false;
+  const digest = (v) => createHash("sha256").update(v, "utf8").digest();
+  return timingSafeEqual(digest(given), digest(AGENTS_SECRET));
+}
 
 /**
  * Give the coding agents a GitHub token without asking the owner to paste one.
@@ -171,7 +205,18 @@ const ROUTES = {
   // and answer — they start something that keeps running, and the rest of the
   // group is how the page reads and steers it. See harness.mjs.
   "POST /harness/list": () => harness.listHarnesses(),
-  "POST /harness/start": (b) => harness.startThread(b),
+  // `unattended` and `mcpServers` are for the wake runner on this PC only:
+  // an unattended thread writes without asking, so no HTTP caller may set it.
+  "POST /harness/start": ({ unattended: _u, mcpServers: _m, ...b } = {}) => harness.startThread(b),
+  // The same start, unattended, for the 24/7 wake runner. It needs the normal
+  // token (checked below like every route) AND the local agents secret, which
+  // is stripped here so it can never reach a thread, a log or an event.
+  "POST /harness/start-unattended": ({ secret, unattended: _u, ...b } = {}) => {
+    if (!agentsSecretMatches(secret)) {
+      throw Object.assign(new Error("Refused: unattended threads can only be started by the 24/7 runner on this PC."), { status: 403 });
+    }
+    return harness.startThread({ ...b, unattended: true });
+  },
   "POST /harness/say": (b) => harness.sayToThread(b),
   "POST /harness/events": (b) => harness.threadEvents(b),
   "POST /harness/decide": (b) => harness.decideGate(b),
@@ -255,6 +300,9 @@ async function capabilities() {
     // Claude Code is signed in is only known by trying — /brain/claude/check.
     brain: harnesses.some((h) => h.id === "claude" && h.available),
     harnesses: harnesses.map(({ id, label, available, why }) => ({ id, label, available, why })),
+    // Names only, never values: which keys every harness run on this PC gets,
+    // so a page can say "your harness already has it" instead of asking again.
+    keys: keyNames(),
     shell: true,
     files: true,
     system: true,
@@ -443,6 +491,12 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (origin && !originAllowed(origin)) return send(res, 403, { error: "Origin not allowed." });
+  // A web page always sends an Origin; the wake runner (Node's fetch) never
+  // does. Belt and braces on top of the secret: even an allowed page that
+  // somehow had it could not start a thread that writes without asking.
+  if (origin && path === "/harness/start-unattended") {
+    return send(res, 403, { error: "Unattended threads can't be started from a web page." });
+  }
   if (!tokenMatches(TOKEN, bearer(req.headers))) {
     return send(res, 401, {
       error: "Not paired with this bridge. Open tools/jarvis-bridge/out/token.txt, or run pair.cmd.",
@@ -491,6 +545,12 @@ server.on("error", (e) => {
 });
 
 server.listen(PORT, "127.0.0.1", async () => {
+  // Only now, with the port ours: see AGENTS_SECRET above.
+  try {
+    writeFileSync(AGENTS_SECRET_FILE, AGENTS_SECRET, { encoding: "utf8", mode: 0o600 });
+  } catch (e) {
+    console.error(`  could not write ${AGENTS_SECRET_FILE} (${e?.message ?? e}) — 24/7 agents can't edit apps until it can.`);
+  }
   // Keep itself working: Startup shortcut, the Start button's jarvis-agent://,
   // and its own packages (see selfheal.mjs). Runs in the background.
   void selfHeal(HERE, () => {

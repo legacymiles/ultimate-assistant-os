@@ -4,11 +4,15 @@ import {
   MAX_GOAL,
   add,
   cleanNeeds,
+  configure,
   newAgent,
   pause,
   remove,
   resume,
+  runNow,
+  type AgentRepeat,
   type AgentsDoc,
+  type ShipMode,
 } from "@/lib/new-jarvis/agents/agents";
 import { readAgents, updateAgents } from "@/lib/new-jarvis/server/agentsStore";
 import { browserUid } from "@/lib/new-jarvis/server/requestsAuth";
@@ -18,7 +22,9 @@ import { browserUid } from "@/lib/new-jarvis/server/requestsAuth";
 //
 //   GET                                           -> { doc }
 //   POST { action: "add", goal, needs?, steps?, folder?, images? }  -> { doc, added }
-//   POST { action: "pause" | "resume" | "remove", id }              -> { doc }
+//        (also pick?, edits?, sendsTo?, ship?, repeat? — see agents.ts)
+//   POST { action: "configure", id, pick?, edits?, sendsTo?, ship?, repeat? } -> { doc }
+//   POST { action: "pause" | "resume" | "remove" | "run-now", id }  -> { doc }
 //
 // The runners do NOT come through here. A machine picking up work uses the
 // jarvis-memory connector (agent_next / agent_note / agent_handoff /
@@ -92,6 +98,12 @@ export async function POST(req: Request) {
       images: images as string[],
       from: "you",
       at,
+      // Each one is cleaned in newAgent; a bad value becomes the safe default.
+      pick: typeof body.pick === "string" ? body.pick : undefined,
+      edits: Array.isArray(body.edits) ? (body.edits as string[]) : undefined,
+      sendsTo: Array.isArray(body.sendsTo) ? (body.sendsTo as string[]) : undefined,
+      ship: body.ship as ShipMode | undefined,
+      repeat: body.repeat as AgentRepeat | undefined,
     });
     try {
       const doc = await updateAgents(uid, (d): AgentsDoc => add(d, agent));
@@ -101,7 +113,30 @@ export async function POST(req: Request) {
     }
   }
 
-  if (action !== "pause" && action !== "resume" && action !== "remove") {
+  if (action === "configure") {
+    if (!id) return NextResponse.json({ error: "Which agent?" }, { status: 400 });
+    try {
+      const doc = await updateAgents(uid, (d): AgentsDoc =>
+        configure(
+          d,
+          id,
+          {
+            ...(typeof body.pick === "string" ? { pick: body.pick } : {}),
+            ...(Array.isArray(body.edits) ? { edits: body.edits as string[] } : {}),
+            ...(Array.isArray(body.sendsTo) ? { sendsTo: body.sendsTo as string[] } : {}),
+            ...(body.ship !== undefined ? { ship: body.ship as ShipMode } : {}),
+            ...(body.repeat !== undefined ? { repeat: body.repeat as AgentRepeat } : {}),
+          },
+          at,
+        ),
+      );
+      return NextResponse.json({ doc });
+    } catch (e) {
+      return failed(e, "Couldn't change that agent.");
+    }
+  }
+
+  if (action !== "pause" && action !== "resume" && action !== "remove" && action !== "run-now") {
     return NextResponse.json({ error: "That isn't something an agent can do." }, { status: 400 });
   }
   if (!id) return NextResponse.json({ error: "Which agent?" }, { status: 400 });
@@ -110,6 +145,7 @@ export async function POST(req: Request) {
     const doc = await updateAgents(uid, (d): AgentsDoc => {
       if (action === "pause") return pause(d, id, at);
       if (action === "resume") return resume(d, id, at);
+      if (action === "run-now") return runNow(d, id, at);
       return remove(d, id);
     });
     return NextResponse.json({ doc });

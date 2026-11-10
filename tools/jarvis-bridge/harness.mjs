@@ -29,6 +29,8 @@
 import { randomUUID } from "node:crypto";
 
 import { familyOf } from "./harness-gate.mjs";
+import { describePick, resolvePick, routes as claudeRoutes } from "./harness-models.mjs";
+import { loadIntoEnv } from "./keys.mjs";
 import { startClaude, CLAUDE_LABEL } from "./harness-claude.mjs";
 import { startAcp, DEEPSEEK_LABEL, DSH_CWD, dshWhy } from "./harness-acp.mjs";
 import {
@@ -72,7 +74,7 @@ export async function listHarnesses() {
   } catch {
     claudeWhy = "The Claude Agent SDK is not installed — run `npm install` in tools/jarvis-bridge.";
   }
-  out.push({ ...HARNESSES.claude, available: !claudeWhy, why: claudeWhy });
+  out.push({ ...HARNESSES.claude, available: !claudeWhy, why: claudeWhy, routes: claudeRoutes({ sdk: !claudeWhy }) });
 
   const dshProblem = dshWhy();
   out.push({ ...HARNESSES.deepseek, available: !dshProblem, why: dshProblem });
@@ -94,6 +96,8 @@ function summary(s) {
     status: s.status,
     detail: s.detail,
     model: s.model,
+    pick: s.pick,
+    pickLabel: s.pickLabel,
     usd: s.usd,
     busy: Boolean(s.adapter?.busy),
     worktree: s.worktree,
@@ -119,7 +123,38 @@ function mustGet(id) {
  * built under and the thread gets a real project folder with a repository of
  * its own instead. Everything else about a thread is identical.
  */
-export async function startThread({ harness = "claude", title = "", repo, project = "", projectClient = false, strict = false, laneWrites = false, trust = "trusted", model = "" } = {}) {
+export async function startThread({
+  harness: asked = "claude",
+  title = "",
+  repo,
+  project = "",
+  projectClient = false,
+  strict = false,
+  laneWrites = false,
+  trust = "trusted",
+  model: askedModel = "",
+  // One string from a "Powered by" dropdown: which Claude, and who pays.
+  // When present it decides the harness and the model; see harness-models.mjs.
+  pick = "",
+  // The first thing to say, so a caller that starts a thread to DO a task
+  // (In Queue's Run now, a 24/7 agent) does not need a second round trip.
+  prompt = "",
+  // Set only by the 24/7 wake runner. Never accepted from a page: an
+  // unattended thread allows writes without asking, which a browser must not
+  // be able to switch on. server.mjs strips it from HTTP bodies.
+  unattended = false,
+  mcpServers = null,
+} = {}) {
+  // Re-read the key file first, so a key saved in Connections a minute ago
+  // reaches this run without restarting the helper.
+  try {
+    loadIntoEnv(DEFAULT_REPO);
+  } catch {
+    /* an unreadable key file is not a reason to refuse the thread */
+  }
+  const resolved = pick ? resolvePick(pick) : null;
+  const harness = resolved ? resolved.harness : asked;
+  const model = resolved ? resolved.model : askedModel;
   const which = HARNESSES[harness];
   if (!which) throw Object.assign(new Error(`There is no "${harness}" harness.`), { status: 400 });
 
@@ -141,6 +176,8 @@ export async function startThread({ harness = "claude", title = "", repo, projec
     status: "starting",
     detail: "",
     model: "",
+    pick: pick || "",
+    pickLabel: pick ? describePick(pick) : "",
     sessionId: "",
     usd: 0,
     strict: Boolean(strict),
@@ -263,7 +300,16 @@ export async function startThread({ harness = "claude", title = "", repo, projec
     laneWrites: Boolean(laneWrites),
     trust: s.trust,
   };
-  s.adapter = harness === "claude" ? startClaude({ ...common, model }) : startAcp(common);
+  s.adapter =
+    harness === "claude"
+      ? startClaude({
+          ...common,
+          model,
+          env: resolved?.env ?? {},
+          mcpServers,
+          unattended: unattended ? { roots: [worktree.path] } : null,
+        })
+      : startAcp(common);
 
   if (worktree.notes.length) {
     for (const note of worktree.notes) emit({ kind: "note", text: note });
@@ -272,6 +318,10 @@ export async function startThread({ harness = "claude", title = "", repo, projec
     kind: "note",
     text: `Working in ${worktree.path} on ${worktree.branch}, cut from ${worktree.base}. Your ${worktree.base} checkout is untouched.`,
   });
+  if (s.pickLabel) emit({ kind: "note", text: `Powered by ${s.pickLabel}.` });
+  if (unattended) emit({ kind: "note", text: "Unattended: nobody is asked anything. Writes inside this worktree are allowed; installs, pushes and deletes are blocked." });
+
+  if (String(prompt).trim()) s.adapter.say(String(prompt).trim());
 
   return { session: summary(s) };
 }

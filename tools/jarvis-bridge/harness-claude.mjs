@@ -27,6 +27,7 @@ try {
   /* not installed yet — listHarnesses() reports it, selfheal.mjs installs it */
 }
 import { autoAllow, describeTool, denialMessage } from "./harness-gate.mjs";
+import { decide as unattendedDecide, denial as unattendedDenial } from "./agents-unattended.mjs";
 
 export const CLAUDE_LABEL = "Claude Code";
 
@@ -37,7 +38,26 @@ export const CLAUDE_LABEL = "Claude Code";
  * answers and resolves true or false. Neither is allowed to throw: a gate that
  * rejects would surface to the model as a tool failure rather than a refusal.
  */
-export function startClaude({ cwd, emit, gate, strict = false, laneWrites = false, trust = "ask", model = "", signal, alwaysAllowed = () => false }) {
+export function startClaude({
+  cwd,
+  emit,
+  gate,
+  strict = false,
+  laneWrites = false,
+  trust = "ask",
+  model = "",
+  signal,
+  alwaysAllowed = () => false,
+  // Extra environment for the Claude Code child — the OpenRouter redirect
+  // when the pick is the API (harness-models.mjs). Empty means your own plan.
+  env = {},
+  // MCP servers handed over explicitly. A 24/7 agent needs jarvis-memory to
+  // note progress and hand off; the SDK loads none on its own.
+  mcpServers = null,
+  // Nobody is watching (a 24/7 agent). Allow or block, never ask — see
+  // agents-unattended.mjs. `roots` are where it may write.
+  unattended = null,
+}) {
   /** Turns waiting to be handed to the model. */
   const queue = [];
   let wake = null;
@@ -82,9 +102,22 @@ export function startClaude({ cwd, emit, gate, strict = false, laneWrites = fals
       permissionMode: "default",
       includePartialMessages: true,
       ...(model ? { model } : {}),
+      // Spread over process.env, because `env` REPLACES the child's
+      // environment rather than adding to it: without PATH it cannot find node.
+      ...(Object.keys(env).length ? { env: { ...process.env, ...env } } : {}),
+      ...(mcpServers ? { mcpServers } : {}),
       ...(signal ? { abortController: signalToController(signal) } : {}),
       canUseTool: async (name, args) => {
         const d = describeTool(name, args, cwd);
+        if (unattended) {
+          const verdict = unattendedDecide(name, args, { roots: unattended.roots ?? [cwd] });
+          if (verdict.allow) {
+            emit({ kind: "allowed", name, title: d.title });
+            return { behavior: "allow", updatedInput: args };
+          }
+          emit({ kind: "note", text: `Blocked ${d.title}: ${verdict.why}.` });
+          return { behavior: "deny", message: unattendedDenial(verdict.why) };
+        }
         // What passes without asking is one policy, stated in harness-gate.mjs
         // so this adapter and the dsh one cannot drift apart on it.
         //
