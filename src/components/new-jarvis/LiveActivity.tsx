@@ -43,7 +43,7 @@ function targetOf(t: ToolRow): string {
 }
 
 function codeOf(t: ToolRow): string {
-  if (t.kindOf === "write") return "";
+  if (t.kindOf === "write") return `+ ${t.path || t.title}`;
   const out = firstLine(t.output);
   if (out) return out.length > 150 ? `${out.slice(0, 147)}…` : out;
   const cmd = firstLine(t.command);
