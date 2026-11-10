@@ -24,6 +24,7 @@ import { feedItems, finishOf, standingOf, type Finish, type Standing } from "@/l
 import { call } from "@/lib/new-jarvis/bridge";
 import { askedBefore } from "@/lib/new-jarvis/harness/families";
 import { harnessHref } from "@/lib/new-jarvis/harness/link";
+import { LiveActivity } from "../new-jarvis/LiveActivity";
 import { shipThread } from "@/lib/client-review/pushMain";
 
 /** A watched build: quick enough to feel live, slow enough to leave the server alone. */
@@ -172,6 +173,11 @@ export function BuildFeed({
   const items = watching ? feedItems(build.view) : [];
   const gate = build.gate;
   const repeat = gate ? askedBefore(build.view, gate) : false;
+  const turn = build.view.turns.at(-1);
+  const latestTool = turn?.tools.at(-1) ?? null;
+  // While it works, one line. The wall of tools only appears when the turn is
+  // over, or when the harness is actually asking a question.
+  const active = Boolean(watching && !gate && (build.phase === "working" || build.phase === "starting" || build.phase === "resuming"));
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 15_000);
@@ -283,7 +289,14 @@ export function BuildFeed({
         </p>
       )}
 
-      {items.length > 0 && (
+      {active ? (
+        <LiveActivity
+          tool={latestTool}
+          note={turn?.text}
+          startedAt={turn?.at}
+          idle={build.phase === "starting" ? "Reading the brief…" : "Waiting for the first move…"}
+        />
+      ) : items.length > 0 ? (
         <ol className="cr-feed-log">
           {items.map((it) =>
             it.kind === "tool" ? (
@@ -303,8 +316,8 @@ export function BuildFeed({
             ),
           )}
         </ol>
-      )}
-      {watching && build.phase === "working" && !items.length && <p className="cr-feed-quiet">Reading the brief…</p>}
+      ) : null}
+      {!active && watching && build.phase === "working" && !items.length && <p className="cr-feed-quiet">Reading the brief…</p>}
 
       {gate && (
         <div className="cr-feed-gate" role="group" aria-label="Claude Code is asking">

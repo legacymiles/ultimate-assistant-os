@@ -13,9 +13,9 @@
 // Purely visual. The Chat Intake still owns the feed, the gates and the input.
 // ---------------------------------------------------------------------------
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { feedItems, type FeedItem } from "@/lib/client-review/liveBuild";
+import { useEffect, useState, type CSSProperties } from "react";
 import { waitedFor } from "@/lib/client-review/building";
+import { LiveActivity } from "../new-jarvis/LiveActivity";
 import type { LiveBuild } from "./LiveBuild";
 
 export function BuildingStage({ name, number, since, live }: { name: string; number: string; since: string; live: LiveBuild }) {
@@ -28,10 +28,8 @@ export function BuildingStage({ name, number, since, live }: { name: string; num
     return () => window.clearInterval(id);
   }, []);
 
-  // The newest few things the agent touched. Enough to feel the code moving,
-  // few enough to read at a glance from across the room.
-  const lines = useMemo(() => feedItems(live.build.view, 8).slice(-6), [live.build.view]);
-  const latest = lines.at(-1);
+  const turn = live.build.view.turns.at(-1);
+  const tool = turn?.tools.at(-1) ?? null;
   const gate = live.build.gate;
   const running = live.finish.kind === "running";
   const state = gate
@@ -50,9 +48,7 @@ export function BuildingStage({ name, number, since, live }: { name: string; num
               ? "Built, but it printed no preview — see the chat"
               : live.finish.kind === "publish"
                 ? "Built — putting it on the page…"
-                : latest
-                  ? describe(latest)
-                  : "Reading the brief…";
+                : "Reading the brief…";
   const title = running ? ["BUILDING", "NOW"] : live.finish.kind === "publish" ? ["BUILT", "NOW"] : ["BUILD", "PAUSED"];
 
   const spot = (x: number, y: number) => setPoint({ x, y });
@@ -100,30 +96,25 @@ export function BuildingStage({ name, number, since, live }: { name: string; num
           <span>{title[0]}</span>
           <em>{title[1]}</em>
         </h1>
-        <p className="cr-build-live">
-          <span className={`cr-build-dot${running ? "" : " is-paused"}`} aria-hidden />
-          {state}
-          <span className="cr-build-clock">{waitedFor(since, now)}</span>
-        </p>
+        {!running && (
+          <p className="cr-build-live">
+            <span className={`cr-build-dot${running ? "" : " is-paused"}`} aria-hidden />
+            {state}
+            <span className="cr-build-clock">{waitedFor(since, now)}</span>
+          </p>
+        )}
         <p className="cr-build-hint">
           The build is running on the PC. The chat beside this is the agent&apos;s own log — open it to steer, or leave it alone; it reloads the app here by itself when it&apos;s ready.
         </p>
 
-        {(lines.length > 0 || running) && (
-          <ol className="cr-build-lines" aria-hidden>
-            {lines.map((l) => (
-              <li key={l.id} className={`is-${l.kind}`}>
-                <span>{lineVerb(l)}</span>
-                <code>{lineTarget(l)}</code>
-              </li>
-            ))}
-            {!lines.length && (
-              <>
-                <li className="is-ghost"><span>Read</span><code>package.json</code></li>
-                <li className="is-ghost"><span>Edit</span><code>src/app/page.tsx</code></li>
-              </>
-            )}
-          </ol>
+        {(running || gate) && (
+          <LiveActivity
+            tool={tool}
+            note={turn?.text}
+            startedAt={turn?.at}
+            waiting={Boolean(gate)}
+            idle="Reading the brief…"
+          />
         )}
       </div>
 
@@ -132,21 +123,4 @@ export function BuildingStage({ name, number, since, live }: { name: string; num
       </span>
     </div>
   );
-}
-
-function lineVerb(l: FeedItem): string {
-  if (l.kind === "tool") return l.verb || "Tool";
-  if (l.kind === "you") return "You";
-  return "Says";
-}
-
-function lineTarget(l: FeedItem): string {
-  if (l.kind === "tool") return l.target || l.id;
-  return l.text.replace(/\s+/g, " ").slice(0, 120);
-}
-
-function describe(l: FeedItem): string {
-  if (l.kind === "tool") return `${l.verb || "Working"} ${l.target || ""}`.trim();
-  if (l.kind === "you") return "Your note landed";
-  return l.text.replace(/\s+/g, " ").slice(0, 140);
 }

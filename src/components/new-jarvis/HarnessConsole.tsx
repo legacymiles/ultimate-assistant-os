@@ -25,6 +25,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Icon } from "../icons";
 import { PoweredBy } from "./PoweredBy";
+import { LiveActivity } from "./LiveActivity";
 import { routeOf, routeStates } from "@/lib/new-jarvis/harness/models";
 import { usePick } from "@/lib/new-jarvis/harness/usePick";
 import { useHarness } from "@/lib/new-jarvis/harness/useHarness";
@@ -328,70 +329,79 @@ function TurnView({ turn, now }: { turn: Turn; now: number }) {
         <p key={i} className="mb-1.5 text-[11px] leading-relaxed text-ink-muted">{note}</p>
       ))}
 
-      {turn.plan.length > 0 && (
-        <ol className="mb-2 space-y-0.5 rounded-md border border-line-soft bg-canvas px-2.5 py-1.5">
-          {turn.plan.map((p, i) => (
-            <li key={i} className="flex items-start gap-1.5 text-[11.5px] text-ink-muted">
-              <span className="mt-[2px] shrink-0 text-[10px]" aria-hidden>
-                {p.status === "completed" ? "✓" : p.status === "in_progress" ? "▸" : "·"}
-              </span>
-              <span className={p.status === "completed" ? "line-through opacity-60" : ""}>{p.text}</span>
-            </li>
-          ))}
-        </ol>
-      )}
-
-      {turn.thinking && (
-        <div className="mb-2">
-          <button
-            type="button"
-            onClick={() => setShowThinking((v) => !v)}
-            aria-expanded={showThinking}
-            className="text-[10.5px] uppercase tracking-wide text-ink-muted transition hover:text-ink"
-          >
-            {showThinking ? "Hide" : "Show"} its reasoning
-          </button>
-          {showThinking && (
-            <p className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md border border-line-soft bg-canvas px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-ink-muted">
-              {turn.thinking}
-            </p>
+      {live ? (
+        <LiveActivity
+          tool={turn.tools.at(-1) ?? null}
+          note={turn.text}
+          startedAt={turn.at}
+          waiting={turn.status === "waiting"}
+          idle={turn.plan.find((p) => p.status === "in_progress")?.text ?? "Reading the brief…"}
+        />
+      ) : (
+        <>
+          {turn.plan.length > 0 && (
+            <ol className="mb-2 space-y-0.5 rounded-md border border-line-soft bg-canvas px-2.5 py-1.5">
+              {turn.plan.map((p, i) => (
+                <li key={i} className="flex items-start gap-1.5 text-[11.5px] text-ink-muted">
+                  <span className="mt-[2px] shrink-0 text-[10px]" aria-hidden>
+                    {p.status === "completed" ? "✓" : p.status === "in_progress" ? "▸" : "·"}
+                  </span>
+                  <span className={p.status === "completed" ? "line-through opacity-60" : ""}>{p.text}</span>
+                </li>
+              ))}
+            </ol>
           )}
-        </div>
-      )}
 
-      {turn.tools.length > 0 && (
-        <ul className="nj-ledger mb-2 space-y-0">
-          {turn.tools.map((row) => (
-            <ToolLine key={row.callId || row.title} row={row} />
-          ))}
-        </ul>
-      )}
+          {turn.thinking && (
+            <div className="mb-2">
+              <button
+                type="button"
+                onClick={() => setShowThinking((v) => !v)}
+                aria-expanded={showThinking}
+                className="text-[10.5px] uppercase tracking-wide text-ink-muted transition hover:text-ink"
+              >
+                {showThinking ? "Hide" : "Show"} its reasoning
+              </button>
+              {showThinking && (
+                <p className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md border border-line-soft bg-canvas px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-ink-muted">
+                  {turn.thinking}
+                </p>
+              )}
+            </div>
+          )}
 
-      {/* Gates that have been answered stay as a record. The live one is drawn
-          above the composer instead, so it is always within reach of a thumb
-          on a long transcript. */}
-      {turn.gates
-        .filter((g) => g.answered)
-        .map((g) => (
-          <p key={g.gateId} className="mb-1.5 flex items-start gap-2 text-[11px]">
-            <Icon.Shield
-              width={12}
-              height={12}
-              className={`mt-[2px] shrink-0 ${g.allowed ? "text-core" : "text-[#f59e0b]"}`}
-              aria-hidden
-            />
-            <span className="min-w-0 break-words text-ink-muted">
-              {g.allowed ? "You approved" : g.how === "timeout" ? "Timed out waiting on" : "You refused"}{" "}
-              <span className="font-mono text-ink">{g.title}</span>
-            </span>
-          </p>
-        ))}
+          {turn.tools.length > 0 && (
+            <ul className="nj-ledger mb-2 space-y-0">
+              {turn.tools.map((row) => (
+                <ToolLine key={row.callId || row.title} row={row} />
+              ))}
+            </ul>
+          )}
 
-      {turn.text && (
-        <div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-ink">
-          {turn.text}
-          {live && <span className="nj-caret" aria-hidden />}
-        </div>
+          {/* Gates that have been answered stay as a record. The live one is drawn
+              above the composer instead, so it is always within reach of a thumb
+              on a long transcript. */}
+          {turn.gates
+            .filter((g) => g.answered)
+            .map((g) => (
+              <p key={g.gateId} className="mb-1.5 flex items-start gap-2 text-[11px]">
+                <Icon.Shield
+                  width={12}
+                  height={12}
+                  className={`mt-[2px] shrink-0 ${g.allowed ? "text-core" : "text-[#f59e0b]"}`}
+                  aria-hidden
+                />
+                <span className="min-w-0 break-words text-ink-muted">
+                  {g.allowed ? "You approved" : g.how === "timeout" ? "Timed out waiting on" : "You refused"}{" "}
+                  <span className="font-mono text-ink">{g.title}</span>
+                </span>
+              </p>
+            ))}
+
+          {turn.text && (
+            <div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-ink">{turn.text}</div>
+          )}
+        </>
       )}
 
       {turn.error && (

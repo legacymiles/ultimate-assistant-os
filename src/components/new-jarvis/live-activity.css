@@ -1,0 +1,150 @@
+/* One live harness line, used by every chat that watches a coding agent. */
+
+.la {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.028);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  color: var(--cr-ink, #eef1f8);
+}
+.la-spark {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  fill: #4ade80;
+  filter: drop-shadow(0 0 7px rgba(74, 222, 128, 0.45));
+  animation: la-breathe 2s ease-in-out infinite;
+}
+.la.is-waiting .la-spark {
+  fill: #fbbf24;
+  filter: drop-shadow(0 0 7px rgba(251, 191, 36, 0.4));
+  animation: none;
+}
+.la-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.la-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+  margin: 0;
+  animation: la-in 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.la-head b {
+  flex: none;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--cr-ink, #eef1f8);
+}
+.la-head > span {
+  flex: none;
+  color: var(--cr-faint, #6e768a);
+  font-size: 11px;
+}
+.la-target {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--cr-muted, #a3abbf);
+}
+.la-code {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: #7dd3fc;
+  opacity: 0.88;
+}
+.la-code::before {
+  content: "› ";
+  color: #64748b;
+}
+.la-said {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--cr-muted, #a3abbf);
+}
+.la-foot {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 1px 0 0;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #7ea6ff;
+}
+.la.is-waiting .la-foot {
+  color: #fbbf24;
+}
+.la-wave {
+  width: 11px;
+  height: 9px;
+  flex: none;
+  background:
+    linear-gradient(90deg, transparent 0 10%, currentColor 10% 18%, transparent 18% 30%, currentColor 30% 42%, transparent 42% 54%, currentColor 54% 70%, transparent 70% 82%, currentColor 82% 90%, transparent 90%);
+  border-radius: 1px;
+  opacity: 0.9;
+  animation: la-wave 1.1s steps(4) infinite;
+}
+@keyframes la-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes la-breathe {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(0.88) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04) rotate(90deg);
+  }
+}
+@keyframes la-wave {
+  0% {
+    clip-path: inset(0 0 0 0);
+  }
+  50% {
+    clip-path: inset(0 0 0 32%);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .la-spark,
+  .la-head,
+  .la-wave {
+    animation: none;
+  }
+}
