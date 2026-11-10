@@ -1,5 +1,32 @@
 [
  {
+  "id": "24e05ad:images",
+  "date": "2026-11-09",
+  "slug": "images",
+  "title": "Fix the free lane refusing every multi-paragraph prompt",
+  "detail": "Verifying the Image Studio hop end to end found the local lane was never drawing anything: the picture silently went to the paid model instead.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d544d48:baby-no-scroll",
+  "date": "2026-11-09",
+  "slug": "baby-no-scroll",
+  "title": "V2 client edits (#27)",
+  "detail": "* Baby No Scroll: make the console background yellow (client edit, v2)",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d544d48:projects-timeline",
+  "date": "2026-11-09",
+  "slug": "projects-timeline",
+  "title": "V2 client edits (#27)",
+  "detail": "* Baby No Scroll: make the console background yellow (client edit, v2)",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "8c0428b:image-studio",
   "date": "2026-11-09",
   "slug": "image-studio",
@@ -149,6 +176,15 @@
   "slug": "ai-rankings",
   "title": "Rebuilt as a public leaderboard with daily new-release checks",
   "detail": "The app was a private three-pane database of every tool worth remembering. It is now a public, owner-curated leaderboard of AI models, organised by the question people actually arrive with: \"what is the best open-source TTS right now\", \"which video model dropped this week\".",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b48dfea:baby-no-scroll",
+  "date": "2026-11-09",
+  "slug": "baby-no-scroll",
+  "title": "Make the console background yellow (client edit, v2)",
+  "detail": "",
   "group": "supporting",
   "source": "git"
  },
@@ -6727,15 +6763,6 @@
   "date": "2026-06-25",
   "slug": "jarvis",
   "title": "Ultimate Assistant OS hub + Projects Timeline app",
-  "detail": "",
-  "group": "supporting",
-  "source": "git"
- },
- {
-  "id": "b48dfea:baby-no-scroll",
-  "date": "2026-11-09",
-  "slug": "baby-no-scroll",
-  "title": "Make the console background yellow (client edit, v2)",
   "detail": "",
   "group": "supporting",
   "source": "git"
