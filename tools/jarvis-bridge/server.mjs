@@ -205,9 +205,10 @@ const ROUTES = {
   // and answer — they start something that keeps running, and the rest of the
   // group is how the page reads and steers it. See harness.mjs.
   "POST /harness/list": () => harness.listHarnesses(),
-  // `unattended` and `mcpServers` are for the wake runner on this PC only:
-  // an unattended thread writes without asking, so no HTTP caller may set it.
-  "POST /harness/start": ({ unattended: _u, mcpServers: _m, ...b } = {}) => harness.startThread(b),
+  // `unattended`, `mcpServers` and `resumeJob` are for this PC only: an
+  // unattended thread writes without asking, and a resume chooses its own id
+  // and folder, so no HTTP caller may set either.
+  "POST /harness/start": ({ unattended: _u, mcpServers: _m, resumeJob: _r, ...b } = {}) => harness.startThread(b),
   // The same start, unattended, for the 24/7 wake runner. It needs the normal
   // token (checked below like every route) AND the local agents secret, which
   // is stripped here so it can never reach a thread, a log or an event.
@@ -222,6 +223,7 @@ const ROUTES = {
   "POST /harness/decide": (b) => harness.decideGate(b),
   "POST /harness/interrupt": (b) => harness.interruptThread(b),
   "POST /harness/stop": (b) => harness.stopThread(b),
+  "POST /harness/job/done": (b) => harness.markJobDone(b),
   "POST /harness/threads": () => harness.listThreads(),
   "POST /harness/status": (b) => harness.threadStatus(b),
   "POST /harness/diff": (b) => harness.threadDiff(b),
@@ -524,7 +526,12 @@ const server = http.createServer(async (req, res) => {
 for (const sig of ["SIGINT", "SIGTERM"]) {
   process.on(sig, () => {
     mcp.shutdown();
-    void harness.stopAllThreads().finally(() => process.exit(0));
+    void harness.stopAllThreads().finally(() => {
+      // The jobs stay "running": a closed helper is not an owner pressing
+      // stop, and the next process resumes them from this file.
+      harness.flushBuildJobs();
+      process.exit(0);
+    });
   });
 }
 
@@ -571,4 +578,23 @@ server.listen(PORT, "127.0.0.1", async () => {
   console.log(`  ${TOKEN}`);
   console.log("");
   console.log(`  Saved to ${TOKEN_FILE}`);
+
+  // A build is not supposed to die because the helper was updated or the PC
+  // woke up. Every unfinished one is picked back up here, in the worktree it
+  // already has, under the id the page and the server row already know. The
+  // short wait lets selfheal put the SDK in place first.
+  const resume = async (attempt = 0) => {
+    let pending = 0;
+    try {
+      const out = await harness.resumeBuildJobs({ log: (line) => console.log(`  ${line}`) });
+      pending = out.pending;
+      if (out.resumed) console.log(`  picked ${out.resumed} build${out.resumed === 1 ? "" : "s"} back up`);
+    } catch (e) {
+      console.error(`  could not resume builds: ${e?.message ?? e}`);
+    }
+    // "Not installed yet" is selfheal still working, not a failed build. Try
+    // once more after it has had time to restart this process.
+    if (pending && attempt < 2) setTimeout(() => void resume(attempt + 1), 20_000);
+  };
+  setTimeout(() => void resume(), 3_000);
 });

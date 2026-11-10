@@ -15,7 +15,7 @@
 // nothing behind it.
 // ---------------------------------------------------------------------------
 
-import { connectPc, probe, START_LINK } from "@/lib/new-jarvis/bridge";
+import { call, connectPc, probe, START_LINK } from "@/lib/new-jarvis/bridge";
 import { admin } from "./client";
 import { CannotBuildHere, startClientEditBuild } from "./autoBuild";
 import { blockerAdvice, type Blocker } from "./liveBuild";
@@ -169,8 +169,13 @@ export async function approveAndStart(token: string, versionId?: string, beforeI
 }
 
 /** The finished build's preview becomes what this page shows. */
-export function publishBuilt(projectId: string, versionId: string, url: string) {
-  return admin.act({ action: "ready", id: projectId, versionId, siteUrl: url });
+export async function publishBuilt(projectId: string, versionId: string, url: string, threadId?: string) {
+  const out = await admin.act({ action: "ready", id: projectId, versionId, siteUrl: url });
+  // The strongest "this job is finished" signal the bridge can get. Without
+  // it a job whose last words did not include `Preview:` would be resumed on
+  // the next boot, doing work that is already on the page.
+  if (threadId) await call("harness/job/done", { id: threadId }).catch(() => {});
+  return out;
 }
 
 /** Stop a build and hand its edits back. The thread is killed by the caller first. */

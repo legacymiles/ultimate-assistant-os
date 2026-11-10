@@ -36,17 +36,23 @@ export function BuildingStage({ name, number, since, live }: { name: string; num
   const running = live.finish.kind === "running";
   const state = gate
     ? "Needs you in the chat"
-    : live.standing.kind === "stalled"
-      ? "Nothing is running"
-      : live.finish.kind === "failed"
-        ? "The build stopped — see the chat"
-        : live.finish.kind === "no-preview"
-          ? "Built, but it printed no preview — see the chat"
-          : live.finish.kind === "publish"
-            ? "Built — putting it on the page…"
-            : latest
-              ? describe(latest)
-              : "Reading the brief…";
+    : live.build.offline
+      ? "Can't see your PC — still building there"
+      : live.build.phase === "resuming"
+        ? "Picking the build back up…"
+        : live.build.phase === "paused"
+          ? "Waiting for a limit to reset — it resumes itself"
+          : live.standing.kind === "stalled"
+          ? "Nothing is running"
+          : live.finish.kind === "failed"
+            ? "The build stopped — see the chat"
+            : live.finish.kind === "no-preview"
+              ? "Built, but it printed no preview — see the chat"
+              : live.finish.kind === "publish"
+                ? "Built — putting it on the page…"
+                : latest
+                  ? describe(latest)
+                  : "Reading the brief…";
   const title = running ? ["BUILDING", "NOW"] : live.finish.kind === "publish" ? ["BUILT", "NOW"] : ["BUILD", "PAUSED"];
 
   const spot = (x: number, y: number) => setPoint({ x, y });

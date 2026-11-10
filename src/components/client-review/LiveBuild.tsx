@@ -18,7 +18,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { PHASE_LABEL } from "@/lib/app-builder/build";
 import { useBuild, type UseBuild } from "@/lib/app-builder/useBuild";
 import { waitedFor, type BuildRow } from "@/lib/client-review/building";
-import { publishBuilt, removeBuild } from "@/lib/client-review/buildHere";
+import { publishBuilt, removeBuild, connectToPc } from "@/lib/client-review/buildHere";
 import { portal } from "@/lib/client-review/client";
 import { feedItems, finishOf, standingOf, type Finish, type Standing } from "@/lib/client-review/liveBuild";
 import { call } from "@/lib/new-jarvis/bridge";
@@ -99,7 +99,7 @@ export function useLiveBuild({
       if (!row?.projectId) return;
       setPublish("working");
       try {
-        await publishBuilt(row.projectId, row.versionId, url);
+        await publishBuilt(row.projectId, row.versionId, url, row.threadId);
         setPublish("");
         doneRef.current();
       } catch (e) {
@@ -107,7 +107,7 @@ export function useLiveBuild({
         setPublish({ error: e instanceof Error ? e.message : "It couldn't be put on the page." });
       }
     },
-    [row?.projectId, row?.versionId],
+    [row?.projectId, row?.versionId, row?.threadId],
   );
 
   // The whole point: built → on the page, with nobody pressing anything. Once
@@ -164,6 +164,7 @@ export function BuildFeed({
   const { build, watching, finish, publish, row } = live;
   const [now, setNow] = useState(() => Date.now());
   const [sure, setSure] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const [address, setAddress] = useState("");
   const [shipping, setShipping] = useState(false);
   const [shipNote, setShipNote] = useState("");
@@ -200,6 +201,8 @@ export function BuildFeed({
   // a build that never reports in crosses into "stuck" while being watched.
   const standing = standingOf(row, now);
   const dead = finish.kind === "failed" || standing.kind === "stalled";
+  const offline = build.offline;
+  const resuming = build.phase === "resuming";
   const state =
     publish === "working"
       ? `Putting ${number} on the page…`
@@ -214,7 +217,15 @@ export function BuildFeed({
               : standing.kind === "stalled"
                 ? "Nothing is running"
                 : "Building";
-  const tone = dead ? "bad" : gate ? "ask" : finish.kind === "running" ? "run" : "ok";
+  const tone = dead ? "bad" : offline ? "ask" : gate ? "ask" : finish.kind === "running" ? "run" : "ok";
+
+  /** The reconnect press has to be a click: Chrome only opens the relay then. */
+  const reconnect = async () => {
+    setConnecting(true);
+    await connectToPc().catch(() => null);
+    setConnecting(false);
+    build.refresh();
+  };
 
   return (
     <li className="cr-feed" aria-live="polite">
@@ -243,6 +254,32 @@ export function BuildFeed({
           {owner
             ? standing.why
             : `${number} has stopped being built. Whoever is building your site will pick it up again — nothing for you to do.`}
+        </p>
+      )}
+
+      {offline && (
+        <div className="cr-feed-end is-warn">
+          <p>
+            {owner
+              ? "This tab can't reach your PC. The build is still running there — the chat is only the window onto it."
+              : `${number} is still being built. This page has lost its line to the PC for a moment; it reattaches by itself.`}
+          </p>
+          {owner && (
+            <button className="cr-btn small" onClick={() => void reconnect()} disabled={connecting}>
+              {connecting ? "Connecting…" : "Reconnect to my PC"}
+            </button>
+          )}
+        </div>
+      )}
+      {resuming && (
+        <p className="cr-feed-quiet">
+          Your PC restarted and Jarvis is picking this build back up in the same folder. Nothing was stopped.
+        </p>
+      )}
+      {build.phase === "paused" && (
+        <p className="cr-feed-quiet">
+          Claude reached its limit. This build is asleep, not stopped — it wakes itself when the limit resets and carries on in
+          the same folder.
         </p>
       )}
 
@@ -352,7 +389,7 @@ export function BuildFeed({
         </div>
       )}
       {finish.kind === "failed" && <p className="cr-feed-error">{finish.why}</p>}
-      {build.error && <p className="cr-feed-error">{build.error}</p>}
+      {build.error && !offline && <p className="cr-feed-error">{build.error}</p>}
       {typeof publish === "object" && finish.kind !== "publish" && <p className="cr-feed-error">{publish.error}</p>}
 
       {owner && row?.projectId && finish.kind !== "publish" && (

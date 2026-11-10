@@ -34,6 +34,9 @@ import type { Busy } from "@/lib/app-builder/useAppBuilder";
  */
 const MOVE_LABEL: Record<BuildPhase, string> = {
   starting: "Starting",
+  reconnecting: "Reconnecting to your PC",
+  resuming: "Picking it back up",
+  paused: "Waiting for a limit to reset",
   working: "Working",
   asking: "Waiting on your answer",
   done: "Finished",

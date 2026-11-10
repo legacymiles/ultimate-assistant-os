@@ -72,10 +72,16 @@ export function buildBrief(p: BuilderProject): string {
 
 // ----- reading the thread back -----------------------------------------------------
 
-export type BuildPhase = "starting" | "working" | "asking" | "done" | "failed" | "stopped" | "lost";
+export type BuildPhase = "starting" | "reconnecting" | "resuming" | "paused" | "working" | "asking" | "done" | "failed" | "stopped" | "lost";
 
 export const PHASE_LABEL: Record<BuildPhase, string> = {
   starting: "Starting the build",
+  // The page cannot reach the PC, or the bridge is starting the build back up.
+  // Neither is "stopped": the build lives on the PC, not in this tab.
+  reconnecting: "Reconnecting to your PC",
+  resuming: "Picking the build back up",
+  // A limit with a reset time: asleep, not dead. It wakes itself.
+  paused: "Waiting for Claude's limit to reset",
   working: "Building now",
   asking: "Waiting on your answer",
   done: "Built",
@@ -90,6 +96,11 @@ export const PHASE_LABEL: Record<BuildPhase, string> = {
  * A gate outranks everything: when Claude is blocked asking permission, the
  * panel must say that and nothing else, because it is the one state where the
  * build is waiting on the owner rather than on itself.
+ *
+ * Two states that are NOT a stopped build get their own names. The bridge is
+ * unreachable from this tab (`offline`), or it restarted and is putting the
+ * thread back together (`missing`). Calling either "lost" told the owner their
+ * build had died while it was still running on the PC.
  */
 /**
  * A turn that ended having said nothing, used no tools and cost nothing.
@@ -109,15 +120,28 @@ export function stalledWhy(): string {
   return "Claude Code answered without doing anything, which almost always means it is not signed in on that PC. Open a terminal there, run `claude`, and sign in with /login — then press Build it again.";
 }
 
-export function phaseOf(summary: ThreadSummary | null, view: ThreadView, missing = false): BuildPhase {
-  // The agent has never heard of this thread — it restarted, and threads do
-  // not survive that. Without this the panel sits on "Starting the build"
-  // forever, which is the exact loading-screen-with-nothing-behind-it the
-  // whole build panel exists to abolish; worse, "starting" counts as in
-  // flight, so the button that would fix it is disabled.
-  if (missing) return "lost";
+export function phaseOf(
+  summary: ThreadSummary | null,
+  view: ThreadView,
+  missing = false,
+  signals: { lost?: boolean; offline?: boolean } = {},
+): BuildPhase {
+  // The tab cannot reach the PC. The build is not in the tab, so say what is
+  // true: reconnecting, not stopped.
+  if (
+    signals.offline &&
+    (!summary || summary.status === "starting" || summary.status === "thinking" || summary.status === "waiting")
+  ) {
+    return "reconnecting";
+  }
+  // The agent has never heard of this thread — usually a restart that is in
+  // the middle of resuming it, which is why this is not "lost" on its own.
+  if (missing) return signals.lost ? "lost" : "resuming";
   if (!summary) return "starting";
   if (view.liveGate) return "asking";
+  // A reset time is the bridge saying "this build is asleep and will wake
+  // itself". It must outrank the idle status that the limit left behind.
+  if (summary.retryAt) return "paused";
   // `ready` is the harness handshake, not the job. It arrives after a restart
   // while the brief is already being worked on, and busy is the fact that says
   // so — without it the panel announces "Built" seconds into every build.

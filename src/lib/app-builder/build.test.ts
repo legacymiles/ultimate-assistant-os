@@ -178,12 +178,25 @@ describe("a build the agent has forgotten", () => {
   // The bridge restarts and every thread dies with it. The project still
   // points at one, so the panel must say nothing is running — not sit on
   // "Starting the build" with the button to fix it greyed out.
-  it("is lost, not starting", () => {
-    expect(phaseOf(null, emptyThread(), true)).toBe("lost");
+  it("is resuming, not lost, while a restarted bridge puts the job back", () => {
+    expect(phaseOf(null, emptyThread(), true)).toBe("resuming");
   });
 
-  it("is lost whatever the stale view held", () => {
-    expect(phaseOf(summary("thinking"), view([turn("half a build")]), true)).toBe("lost");
+  it("is resuming whatever the stale view held", () => {
+    expect(phaseOf(summary("thinking"), view([turn("half a build")]), true)).toBe("resuming");
+  });
+
+  it("is lost only after the resume grace has run out", () => {
+    expect(phaseOf(null, emptyThread(), true, { lost: true })).toBe("lost");
+  });
+
+  it("is reconnecting, not stopped, when this tab has lost the PC", () => {
+    expect(phaseOf(null, emptyThread(), false, { offline: true })).toBe("reconnecting");
+    expect(phaseOf(summary("thinking"), view([turn("half a build")]), false, { offline: true })).toBe("reconnecting");
+  });
+
+  it("does not call an offline PC a stopped build once the turn is over", () => {
+    expect(phaseOf(summary("idle"), view([turn("Done.")]), false, { offline: true })).toBe("done");
   });
 
   it("is only starting when the agent simply has not answered yet", () => {

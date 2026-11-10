@@ -147,6 +147,14 @@ export interface ThreadSummary {
   preview: { port: number; url: string; pid: number } | null;
   cursor: number;
   gate: GateCard | null;
+  /**
+   * A durable build paused on a limit, and when it will pick itself back up.
+   *
+   * Not a failure: the bridge re-sends the job after this time. The page says
+   * "waiting" instead of "stopped" so nobody clears a build that is only
+   * asleep.
+   */
+  retryAt?: string;
   worktree: { path: string; branch: string; base: string; repo: string; notes: string[] };
   landed: { committed: boolean; merged: boolean; sha: string; why: string; at: number } | null;
 }

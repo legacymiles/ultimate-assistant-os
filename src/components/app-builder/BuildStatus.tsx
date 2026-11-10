@@ -46,6 +46,9 @@ function Arrow() {
 
 const TONE: Record<BuildPhase, "wait" | "work" | "ask" | "done" | "gone"> = {
   starting: "work",
+  reconnecting: "wait",
+  resuming: "wait",
+  paused: "wait",
   working: "work",
   asking: "ask",
   done: "done",

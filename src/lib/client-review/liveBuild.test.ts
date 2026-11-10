@@ -55,6 +55,22 @@ describe("the feed", () => {
     expect(items.at(-1)).toMatchObject({ kind: "say", live: true });
   });
 
+  it("never shows the bridge's resume envelope as something the owner typed", () => {
+    const items = feedItems(
+      view([
+        turn({ id: "t1", prompt: "<the whole brief>", text: "Half done." }),
+        turn({
+          id: "t2",
+          prompt: "<resuming>\nThe PC's Jarvis helper restarted…\n</resuming>\n\n<the_job>\n<the whole brief>\n</the_job>",
+          text: "Picking it back up.",
+          status: "running",
+        }),
+      ]),
+    );
+    expect(items.map((i) => i.kind)).toEqual(["say", "say"]);
+    expect(items.some((i) => i.kind === "you")).toBe(false);
+  });
+
   it("keeps the PR and Preview lines out of the prose", () => {
     const items = feedItems(
       view([turn({ text: "Done — headline is bigger.\n\nPR: https://github.com/o/r/pull/1\nPreview: https://x.vercel.app" })]),

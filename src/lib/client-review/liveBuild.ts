@@ -54,13 +54,16 @@ function stripLinkLines(text: string): string {
  * doesn't put two thousand rows in a floating panel.
  *
  * The first turn's prompt is the brief itself (pages of instructions the owner
- * never typed), so it is never shown. Later prompts are the owner's own
- * messages to the build, and are.
+ * never typed), so it is never shown. A resume prompt is the same brief again,
+ * wrapped in the bridge's own <resuming> envelope, and is just as much not
+ * something the owner typed. Later prompts are theirs, and are.
  */
 export function feedItems(view: ThreadView, limit = 80): FeedItem[] {
   const out: FeedItem[] = [];
   view.turns.forEach((turn, i) => {
-    if (i > 0 && turn.prompt.trim()) out.push({ kind: "you", id: `${turn.id}-you`, text: turn.prompt.trim() });
+    const prompt = turn.prompt.trim();
+    const resume = prompt.includes("<resuming>");
+    if (i > 0 && prompt && !resume) out.push({ kind: "you", id: `${turn.id}-you`, text: prompt });
     for (const t of turn.tools) {
       const { verb, target } = toolLine(t);
       out.push({ kind: "tool", id: `${turn.id}-${t.callId}`, verb, target, status: t.status });

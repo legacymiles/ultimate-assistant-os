@@ -41,8 +41,10 @@ function pollEvery(status: ThreadSummary["status"] | undefined): number | null {
 
 export interface UseBuild {
   phase: BuildPhase;
-  /** The agent has no such thread — it restarted. Nothing is running. */
+  /** The agent has no such thread (yet) — usually a restart resuming it. */
   missing: boolean;
+  /** This tab cannot reach the PC. The build is on the PC, not here. */
+  offline: boolean;
   view: ThreadView;
   summary: ThreadSummary | null;
   gate: GateCard | null;
@@ -62,13 +64,27 @@ export interface UseBuild {
   refresh: () => void;
 }
 
+/**
+ * How long a 404 is treated as "the bridge is putting it back together".
+ *
+ * A restart resumes a durable build in seconds, but it has to wait for the PC
+ * to come back and, sometimes, for the SDK to finish installing. Three
+ * minutes is long enough not to call a live build dead; after that the chat
+ * offers the honest way out.
+ */
+const RESUME_GRACE_MS = 3 * 60_000;
+
 export function useBuild(threadId: string | undefined, paired: boolean): UseBuild {
   const [view, setView] = useState<ThreadView>(emptyThread);
   const [summary, setSummary] = useState<ThreadSummary | null>(null);
   const [error, setError] = useState("");
   const [starting, setStarting] = useState("");
-  // The agent does not know this thread: it restarted, and threads die with it.
+  // The agent does not know this thread (yet): a restart is resuming it.
   const [missing, setMissing] = useState(false);
+  const [missingSince, setMissingSince] = useState<number | null>(null);
+  // The tab cannot reach the PC. Very different from the build stopping.
+  const [offline, setOffline] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
 
   const cursor = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -80,6 +96,14 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
     };
   }, []);
 
+  // A missing thread is only "lost" after the grace; this keeps that clock
+  // moving while the page otherwise has nothing new to draw.
+  useEffect(() => {
+    if (!missing) return;
+    const id = window.setInterval(() => setNow(Date.now()), 2_000);
+    return () => window.clearInterval(id);
+  }, [missing]);
+
   // A different build (or a different project) starts from a clean ledger
   // rather than showing the last one's narration for a beat.
   useEffect(() => {
@@ -88,6 +112,8 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
     setSummary(null);
     setError("");
     setMissing(false);
+    setMissingSince(null);
+    setOffline(false);
   }, [threadId]);
 
   const pull = useCallback(async () => {
@@ -98,6 +124,9 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
         { id: threadId, since: cursor.current },
       );
       if (!alive.current) return;
+      setOffline(false);
+      setMissing(false);
+      setMissingSince(null);
       if (data.dropped) {
         // We fell behind the bridge's ring: re-read the thread whole rather
         // than drawing a transcript with a hole in it.
@@ -112,12 +141,20 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
     } catch (e) {
       if (!alive.current) return;
       if (e instanceof BridgeError && e.status === 404) {
+        // A bridge restart drops threads and then picks durable builds back
+        // up under the same id. This is a wait, not a death, until the grace
+        // runs out.
         setMissing(true);
+        setMissingSince((at) => at ?? Date.now());
+        setOffline(false);
         setError("");
         return;
       }
       if (e instanceof BridgeError && e.status === 0) {
-        setError("The agent on your PC isn't running, so I can't see how the build is going. Start Jarvis on that PC and this picks up again.");
+        // The relay window is closed, or Chrome is holding the request. The
+        // build keeps running on the PC; this tab just can't see it.
+        setOffline(true);
+        setError("Can't reach your PC from this tab right now. The build is still running on it — reconnect and this picks it back up.");
         return;
       }
       setError(e instanceof Error ? e.message : String(e));
@@ -125,13 +162,16 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
   }, [threadId]);
 
   useEffect(() => {
-    if (!threadId || !paired || missing) return;
+    if (!threadId || !paired) return;
     let stopped = false;
     const tick = async () => {
       if (stopped) return;
       if (typeof document === "undefined" || document.visibilityState === "visible") await pull();
       if (stopped || !alive.current) return;
-      const every = pollEvery(summary?.status);
+      // A missing or unreachable thread is polled too: the bridge resuming a
+      // build is exactly what the page is waiting for, and stopping the loop
+      // is how it used to sit on "Starting the build" forever.
+      const every = offline ? 4_000 : missing ? 2_000 : pollEvery(summary?.status);
       if (every == null) return;
       timer.current = setTimeout(tick, every);
     };
@@ -146,7 +186,7 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
       document.removeEventListener("visibilitychange", onShow);
     };
     // `summary?.status` is a dependency on purpose: the rate follows the build.
-  }, [threadId, paired, pull, summary?.status, missing]);
+  }, [threadId, paired, pull, summary?.status, offline, missing]);
 
   const start = useCallback(async (p: BuilderProject): Promise<string> => {
     setError("");
@@ -157,6 +197,7 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
       // default Claude Code model rather than silently pretending.
       const chosen = readChatModel();
       const buildModel = chosen && (buildsWithPick(chosen) || chosen === "claude-subscription") ? buildModelFor(chosen) : "";
+      const brief = buildBrief(p);
       const { session } = await call<{ session: ThreadSummary }>("harness/start", {
         harness: buildHarness(),
         title: threadTitle(p),
@@ -168,6 +209,11 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
         projectClient: isForClient(p),
         laneWrites: true,
         ...(buildModel ? { model: buildModel } : {}),
+        // A build is not the tab's to lose. The bridge writes it down before
+        // the agent starts, and resumes it in the same folder after a restart
+        // — the brief is part of the record for exactly that case.
+        durable: true,
+        brief,
         // Pinned to "trusted", not inherited from the owner's setting.
         //
         // A build is hours of writing files and running npm, and on "ask" it
@@ -181,7 +227,7 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
       });
       setSummary(session);
       setStarting("Handing over the brief…");
-      await call("harness/say", { id: session.id, text: buildBrief(p) });
+      await call("harness/say", { id: session.id, text: brief });
       return session.id;
     } catch (e) {
       // Thrown, not stored. Starting is the caller's operation and it already
@@ -237,9 +283,12 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
     }
   }, [threadId, pull]);
 
+  // A 404 is only "lost" after the bridge has had time to resume the job.
+  const lost = Boolean(missing && missingSince != null && now - missingSince > RESUME_GRACE_MS);
   return {
-    phase: phaseOf(summary, view, missing),
+    phase: phaseOf(summary, view, missing, { lost, offline }),
     missing,
+    offline,
     view,
     summary,
     gate: view.liveGate,

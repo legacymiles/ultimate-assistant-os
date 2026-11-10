@@ -27,7 +27,9 @@
 // ---------------------------------------------------------------------------
 
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 
+import { buildJobs, resumePrompt, retryDelay } from "./build-jobs.mjs";
 import { familyOf } from "./harness-gate.mjs";
 import { describePick, resolvePick, routes as claudeRoutes } from "./harness-models.mjs";
 import { loadIntoEnv } from "./keys.mjs";
@@ -108,6 +110,9 @@ function summary(s) {
     cursor: s.seq,
     gate: s.pendingGate,
     landed: s.landed,
+    // A paused build keeps its row and its thread; the page needs the time to
+    // say "waiting" rather than "stopped".
+    retryAt: s.jobId ? buildJobs.get(s.jobId)?.retryAt || "" : "",
   };
 }
 
@@ -139,6 +144,16 @@ export async function startThread({
   // The first thing to say, so a caller that starts a thread to DO a task
   // (In Queue's Run now, a 24/7 agent) does not need a second round trip.
   prompt = "",
+  // A build that must outlive the tab that asked for it. It is written to
+  // out/build-jobs.json before the adapter starts, and resumed after a bridge
+  // restart. `brief` is the message to send once the caller is ready — a
+  // client edit has to stand on main first — and `prompt` still sends at once.
+  durable = false,
+  brief = "",
+  // Internal only: the job this start is picking back up. Never accepted from
+  // an HTTP body (server.mjs strips it), because it decides the thread id and
+  // the folder it works in.
+  resumeJob = null,
   // Set only by the 24/7 wake runner. Never accepted from a page: an
   // unattended thread allows writes without asking, which a browser must not
   // be able to switch on. server.mjs strips it from HTTP bodies.
@@ -162,17 +177,54 @@ export async function startThread({
   const found = harnesses.find((h) => h.id === harness);
   if (!found?.available) throw Object.assign(new Error(found?.why ?? "That harness is not available."), { status: 400 });
 
-  const id = randomUUID();
-  const worktree = project
-    ? await createProject({ id, slug: project, title, client: projectClient })
-    : await createWorktree({ id, repo, title: title || harness });
+  const resume = resumeJob && resumeJob.id ? resumeJob : null;
+  // The same id across a restart is the point: the page, the server row and
+  // every /harness link already name this thread, and none of them should
+  // have to learn a new one because the helper was updated.
+  const id = resume ? String(resume.id) : randomUUID();
+  let worktree;
+  if (resume?.worktree?.path && existsSync(resume.worktree.path)) {
+    worktree = { ...resume.worktree };
+  } else {
+    worktree = project
+      ? await createProject({ id, slug: project, title, client: projectClient })
+      : await createWorktree({ id, repo, title: title || harness });
+  }
+
+  // Write the job down BEFORE the adapter starts. A crash between the two
+  // leaves a record with no work done, which is resumed; the reverse leaves a
+  // build nobody knows about.
+  const durableJob = durable || Boolean(resume);
+  if (durableJob) {
+    buildJobs.begin({
+      id,
+      kind: resume?.kind ?? "build",
+      title: title || "Build",
+      brief: brief || resume?.brief || "",
+      worktree,
+      createdAt: resume?.createdAt ?? Date.now(),
+      args: {
+        harness: asked,
+        repo,
+        project,
+        projectClient,
+        strict: Boolean(strict),
+        laneWrites: Boolean(laneWrites),
+        trust,
+        model: askedModel,
+        pick,
+      },
+    });
+    if (resume) buildJobs.update(id, { status: "running", why: "", resumes: (resume.resumes || 0) + 1 });
+  }
+  const stored = durableJob ? buildJobs.get(id) : null;
 
   const s = {
     id,
     harness,
     label: which.label,
     title: title || "Untitled thread",
-    createdAt: Date.now(),
+    createdAt: resume?.createdAt ?? Date.now(),
     status: "starting",
     detail: "",
     model: "",
@@ -180,6 +232,7 @@ export async function startThread({
     pickLabel: pick ? describePick(pick) : "",
     sessionId: "",
     usd: 0,
+    jobId: durableJob ? id : "",
     strict: Boolean(strict),
     laneWrites: Boolean(laneWrites),
     // "trusted" by default: a thread works inside a worktree of its own, so
@@ -188,8 +241,11 @@ export async function startThread({
     trust: trust === "ask" || trust === "auto" || trust === "full" ? trust : "trusted",
     worktree,
     preview: null,
-    events: [],
-    seq: 0,
+    // A resumed thread keeps its transcript. The page may still be holding a
+    // cursor from before the restart, and an empty ledger would look like a
+    // build that never ran.
+    events: Array.isArray(stored?.events) ? [...stored.events] : [],
+    seq: Number(stored?.seq) || 0,
     gates: new Map(),
     /**
      * Tool names the owner answered with "Always" IN THIS THREAD.
@@ -207,6 +263,8 @@ export async function startThread({
     pendingGate: null,
     landed: null,
     adapter: null,
+    // Set when a limit says "resets at …": the build is paused, not done.
+    retryTimer: null,
   };
   sessions.set(id, s);
 
@@ -215,6 +273,30 @@ export async function startThread({
     const row = { seq: s.seq, at: Date.now(), ...event };
     s.events.push(row);
     if (s.events.length > RING) s.events.splice(0, s.events.length - RING);
+    // The durable record follows every event: it is what a restarted page
+    // draws, and what tells a restart whether the build had finished.
+    if (s.jobId) buildJobs.appendEvent(s.jobId, row);
+
+    // A limit is not the end of the build. Park it until the door opens, then
+    // send the same "continue where you left off" the restart path sends.
+    if (s.jobId && event.kind === "turn_end") {
+      const job = buildJobs.get(s.jobId);
+      if (job?.retry && job.status === "running") {
+        const delay = retryDelay(job.why);
+        const mins = Math.max(1, Math.round(delay / 60_000));
+        buildJobs.update(s.jobId, { retry: false, retryAt: new Date(Date.now() + delay).toISOString() });
+        emit({ kind: "note", text: `Claude is paused on a limit. This build will pick itself back up in about ${mins} minute${mins === 1 ? "" : "s"} — nothing is lost.` });
+        if (s.retryTimer) clearTimeout(s.retryTimer);
+        s.retryTimer = setTimeout(() => {
+          const waiting = s.jobId ? buildJobs.get(s.jobId) : null;
+          if (!waiting || waiting.status !== "running" || s.status === "ended") return;
+          buildJobs.update(s.jobId, { retryAt: "" });
+          emit({ kind: "note", text: "The wait is over. Picking the build back up where it stopped." });
+          s.adapter.say(resumePrompt(waiting));
+        }, delay);
+        s.retryTimer.unref?.();
+      }
+    }
 
     if (event.kind === "status") {
       s.status = event.status ?? s.status;
@@ -312,7 +394,7 @@ export async function startThread({
         })
       : startAcp(common);
 
-  if (worktree.notes.length) {
+  if (worktree.notes?.length) {
     for (const note of worktree.notes) emit({ kind: "note", text: note });
   }
   emit({
@@ -324,7 +406,26 @@ export async function startThread({
   if (s.pickLabel) emit({ kind: "note", text: `Powered by ${s.pickLabel}.` });
   if (unattended) emit({ kind: "note", text: "Unattended: nobody is asked anything. Writes inside this worktree are allowed; installs, pushes and deletes are blocked." });
 
-  if (String(prompt).trim()) s.adapter.say(String(prompt).trim());
+  if (resume) {
+    // A gate is a parked promise in the OLD process. Its card is still in the
+    // restored transcript, and answering it would do nothing, so it is closed
+    // here as "restart" rather than shown as a question nobody can answer.
+    const answered = new Set(
+      s.events.filter((e) => e.kind === "gate_done").map((e) => String(e.gateId ?? "")),
+    );
+    for (const old of s.events.filter((e) => e.kind === "gate")) {
+      if (!answered.has(String(old.gateId ?? ""))) {
+        emit({ kind: "gate_done", gateId: old.gateId, allow: false, how: "restart" });
+      }
+    }
+    emit({
+      kind: "note",
+      text: "Jarvis restarted and picked this build back up. The work already in this folder was kept; the agent is checking it before it continues.",
+    });
+    s.adapter.say(resumePrompt(resume));
+  } else if (String(prompt).trim()) {
+    s.adapter.say(String(prompt).trim());
+  }
 
   return { session: summary(s) };
 }
@@ -335,6 +436,18 @@ export function sayToThread({ id, text }) {
   if (!t) throw Object.assign(new Error("Nothing to send."), { status: 400 });
   if (s.status === "ended") throw Object.assign(new Error("That thread has ended. Start a new one."), { status: 409 });
   s.adapter.say(t);
+  // The brief is in the agent's hands now, so this build is worth resuming if
+  // the helper dies later. Before this it was only a folder.
+  if (s.jobId) {
+    buildJobs.arm(s.jobId);
+    // A person typing is a better wake-up than the timer; the build is not
+    // waiting for a reset any more.
+    if (s.retryTimer) {
+      clearTimeout(s.retryTimer);
+      s.retryTimer = null;
+    }
+    buildJobs.update(s.jobId, { retryAt: "" });
+  }
   return { ok: true, cursor: s.seq };
 }
 
@@ -349,7 +462,10 @@ export function threadEvents({ id, since = 0 }) {
   const s = mustGet(id);
   const from = Number(since) || 0;
   const oldest = s.events.length ? s.events[0].seq : s.seq + 1;
-  const dropped = from > 0 && from + 1 < oldest;
+  // `from > s.seq` is the restart case: a page that was reading the old
+  // process holds a cursor beyond anything the restored transcript has. It
+  // must be told to start again rather than be served an empty list forever.
+  const dropped = from > 0 && (from + 1 < oldest || from > s.seq);
   return {
     events: s.events.filter((e) => e.seq > from),
     cursor: s.seq,
@@ -384,6 +500,11 @@ export async function interruptThread({ id }) {
 
 export async function stopThread({ id }) {
   const s = mustGet(id);
+  if (s.retryTimer) clearTimeout(s.retryTimer);
+  // Explicit stop is the ONE thing that makes a durable build not come back.
+  // Written before the child is killed, so a crash during the kill cannot
+  // leave a job that the next boot would resurrect.
+  if (s.jobId) buildJobs.mark(s.jobId, "stopped", "Stopped by the owner.");
   // Refuse every parked gate first. Killing the child under a blocked
   // permission hook leaves the model's last tool call unanswered forever.
   for (const parked of [...s.gates.values()]) parked.finish(false, "stopped");
@@ -429,6 +550,7 @@ export async function landThread({ id, message = "", merge = true, attribution =
 
 export async function discardThread({ id, keepBranch = false }) {
   const s = mustGet(id);
+  if (s.retryTimer) clearTimeout(s.retryTimer);
   for (const parked of [...s.gates.values()]) parked.finish(false, "discarded");
   await s.adapter.stop().catch(() => {});
   // Before the folder goes: a server with its cwd deleted under it is a
@@ -444,6 +566,8 @@ export async function discardThread({ id, keepBranch = false }) {
     deleteBranch: !keepBranch,
   });
   sessions.delete(s.id);
+  // The folder is gone; a job pointing at it would fail on every boot.
+  if (s.jobId) buildJobs.remove(s.jobId);
   return { ok: true };
 }
 
@@ -478,9 +602,86 @@ export async function previewStopThread({ id }) {
 /** A note after the fact, which `startThread`'s own `emit` closure cannot do. */
 function emit_note(s, text) {
   s.seq += 1;
-  s.events.push({ seq: s.seq, at: Date.now(), kind: "note", text });
+  const row = { seq: s.seq, at: Date.now(), kind: "note", text };
+  s.events.push(row);
   if (s.events.length > RING) s.events.splice(0, s.events.length - RING);
+  if (s.jobId) buildJobs.appendEvent(s.jobId, row);
 }
+
+/**
+ * The page put the finished build on the version.
+ *
+ * The strongest "this job is over" signal there is, and it arrives even when
+ * the build's last words did not include the machine-readable finish lines
+ * (a steered build, or one whose final answer was only the SDK's result).
+ */
+export function markJobDone({ id }) {
+  const job = buildJobs.get(id);
+  if (!job) return { ok: true, none: true };
+  buildJobs.mark(job.id, "done", "The page put the result on the version.");
+  return { ok: true };
+}
+
+/**
+ * Pick every unfinished build back up, once, at boot.
+ *
+ * Called after the port is ours. Jobs are resumed sequentially: each one cuts
+ * or re-enters a worktree and starts a model, and five of those at once on a
+ * laptop that just woke up is how the first one times out.
+ */
+export async function resumeBuildJobs({ log = () => {} } = {}) {
+  const jobs = buildJobs.resumable();
+  const done = [];
+  let earliest = 0;
+  for (const job of jobs) {
+    if (sessions.has(job.id)) continue;
+    // A limit with a reset time is a scheduled start, not a boot-time one.
+    const at = Date.parse(job.retryAt || "");
+    if (Number.isFinite(at) && at > Date.now() + 5_000) {
+      earliest = earliest ? Math.min(earliest, at) : at;
+      continue;
+    }
+    try {
+      await startThread({
+        ...(job.args || {}),
+        durable: true,
+        resumeJob: job,
+        title: job.title,
+      });
+      buildJobs.update(job.id, { retryAt: "" });
+      done.push(job.id);
+      log(`resumed "${job.title}"`);
+    } catch (e) {
+      const why = String(e?.message ?? e);
+      // "The SDK is still being installed" is not a failed build; selfheal
+      // will restart this process when it is ready, and the job must not burn
+      // one of its five tries on that.
+      const notReady = /not installed|not available|still being installed|cannot find module/i.test(why);
+      const tries = notReady ? job.resumes || 0 : (job.resumes || 0) + 1;
+      buildJobs.update(job.id, {
+        resumes: tries,
+        why,
+        // Five failed attempts is not a build anymore; it is a card the owner
+        // should see, and the page can clear it from the chat.
+        ...(!notReady && tries >= 5 ? { status: "failed" } : {}),
+      });
+      log(`could not resume "${job.title}": ${why}`);
+    }
+  }
+  // One boot-time timer for the next reset, rather than one per job.
+  if (earliest) {
+    if (bootRetryTimer) clearTimeout(bootRetryTimer);
+    bootRetryTimer = setTimeout(() => {
+      bootRetryTimer = null;
+      void resumeBuildJobs({ log });
+    }, Math.max(5_000, earliest - Date.now()));
+    bootRetryTimer.unref?.();
+  }
+  buildJobs.flush();
+  return { resumed: done.length, jobs: done, pending: buildJobs.resumable().length };
+}
+
+let bootRetryTimer = null;
 
 /** Called when the bridge is going down, so no child outlives it silently. */
 export async function stopAllThreads() {
@@ -490,4 +691,9 @@ export async function stopAllThreads() {
       s.preview ? stopPreview(s.preview).catch(() => {}) : null,
     ]),
   );
+}
+
+/** Last write before the process leaves: the next one resumes from this. */
+export function flushBuildJobs() {
+  buildJobs.flush();
 }

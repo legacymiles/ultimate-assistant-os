@@ -261,6 +261,12 @@ export async function startClientEditBuild(review: ClientProject, batchId: strin
       // The owner's pick, honoured. Empty would silently use whatever Claude
       // Code defaults to, which is not what the menu promised.
       model,
+      // A build belongs to the PC, not to the tab that pressed the button.
+      // The bridge writes this down and resumes it after a restart; the brief
+      // is recorded now, before `standOnMain` and before the agent is told
+      // anything, so a closed tab cannot lose the instructions either.
+      durable: true,
+      brief: harnessBrief(bucket),
     });
     threadId = session.id;
     const where = session.worktree?.path ?? "";

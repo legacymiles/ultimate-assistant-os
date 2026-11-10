@@ -867,6 +867,9 @@
 .cr-feed-end.is-bad p {
   color: #fecdd3;
 }
+.cr-feed-end.is-warn p {
+  color: #fde68a;
+}
 .cr-feed-address {
   display: flex;
   gap: 6px;
