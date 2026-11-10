@@ -67,13 +67,18 @@ const PUBLIC_PREFIXES = [
  * hole — not a thing to build on.
  */
 /**
- * Home-screen manifests. Chrome fetches a manifest without the session cookie,
- * so a gated one redirects to /login and the app will not install. They hold a
- * name, colours and an icon path, nothing else.
+ * What a phone fetches to install an app: its manifest and its service worker.
+ * Chrome fetches a manifest without the session cookie, and a worker script
+ * that redirects to /login fails to register — either way the app will not
+ * install. They hold a name, colours, an icon path and a pass-through worker,
+ * nothing else.
  */
-export const MANIFESTS_PUBLIC = ["/apps/baby-no-scroll/manifest.webmanifest"];
+export const INSTALL_PUBLIC = [
+  "/apps/baby-no-scroll/manifest.webmanifest",
+  "/baby-no-scroll-sw.js",
+];
 
-const PUBLIC_EXACT = [ERROR_SCRIPT, ...MANIFESTS_PUBLIC];
+const PUBLIC_EXACT = [ERROR_SCRIPT, ...INSTALL_PUBLIC];
 const AUTH_PREFIXES = ["/login", "/auth"];
 
 function underPrefix(path: string, prefix: string): boolean {

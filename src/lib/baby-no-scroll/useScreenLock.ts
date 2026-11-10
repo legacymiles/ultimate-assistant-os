@@ -44,7 +44,7 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isInstalledDisplay } from "./device";
+import { isAppFullscreen, isInstalledDisplay } from "./device";
 
 interface WakeLockSentinel {
   released: boolean;
@@ -73,6 +73,13 @@ export function runningInstalled(): boolean {
   return isInstalledDisplay((q) => window.matchMedia?.(q).matches ?? false, ios);
 }
 
+/** Running as an installed app that already fills the screen by itself. */
+export function runningAppFullscreen(): boolean {
+  if (typeof window === "undefined") return false;
+  const ios = (navigator as Navigator & { standalone?: boolean }).standalone;
+  return isAppFullscreen((q) => window.matchMedia?.(q).matches ?? false, ios);
+}
+
 export interface ScreenLockOptions {
   active: boolean;
   fullscreen: boolean;
@@ -84,8 +91,10 @@ export interface ScreenLockState {
   isFullscreen: boolean;
   /** True once a fullscreen request has been refused, so the UI can say so. */
   fullscreenRefused: boolean;
-  /** Running as an installed app, where there is no browser fullscreen to lose. */
+  /** Running as an installed app. */
   installed: boolean;
+  /** Installed AND already full screen, so browser fullscreen is never asked for. */
+  appFullscreen: boolean;
   /** Locked, meant to be fullscreen, and not — the next touch repairs it. */
   needsRepair: boolean;
   /** Ask for fullscreen again. Must be called inside a user gesture. */
@@ -100,15 +109,22 @@ export function useScreenLock({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenRefused, setRefused] = useState(false);
   const [installed, setInstalled] = useState(false);
+  const [appFullscreen, setAppFullscreen] = useState(false);
   const wake = useRef<WakeLockSentinel | null>(null);
 
   useEffect(() => {
     setInstalled(runningInstalled());
+    setAppFullscreen(runningAppFullscreen());
   }, []);
 
   const requestFullscreen = useCallback(() => {
     if (typeof document === "undefined") return;
     if (document.fullscreenElement) return;
+    // The installed app is already the whole screen. Asking Chrome for
+    // fullscreen on top of that is what brought "swipe down to exit" back
+    // (until 2026-11-09), so it is never asked for there. Checked live, not
+    // from state, because a reload restores the lock before state settles.
+    if (runningAppFullscreen()) return;
     const el = document.documentElement;
     const req = el.requestFullscreen?.bind(el);
     if (!req) {
@@ -144,7 +160,7 @@ export function useScreenLock({
   // Both APIs only work in fullscreen, so they are taken each time fullscreen
   // arrives and given back when the screen unlocks.
   useEffect(() => {
-    if (!active || !isFullscreen || typeof navigator === "undefined") return;
+    if (!active || !(isFullscreen || appFullscreen) || typeof navigator === "undefined") return;
     const kb = (navigator as Navigator & KeyboardLockNavigator).keyboard;
     kb?.lock().catch(() => {});
 
@@ -163,7 +179,7 @@ export function useScreenLock({
         orientation?.unlock?.();
       } catch {}
     };
-  }, [active, isFullscreen]);
+  }, [active, isFullscreen, appFullscreen]);
 
   // --- wake lock ------------------------------------------------------------
   useEffect(() => {
@@ -322,12 +338,13 @@ export function useScreenLock({
     };
   }, [active]);
 
-  const needsRepair = active && fullscreen && !installed && !isFullscreen;
+  const needsRepair = active && fullscreen && !appFullscreen && !isFullscreen;
 
   return {
     isFullscreen,
     fullscreenRefused,
     installed,
+    appFullscreen,
     needsRepair,
     restoreFullscreen: requestFullscreen,
   };

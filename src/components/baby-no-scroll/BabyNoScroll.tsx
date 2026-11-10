@@ -41,6 +41,8 @@ import { Padlock } from "./Padlock";
 import { GameStage, gameHue } from "./GameStage";
 import { YouTubeStage } from "./YouTubeStage";
 import { EscapeProof } from "./EscapeProof";
+import { InstallFirst } from "./InstallFirst";
+import { detectPlatform, type Platform } from "@/lib/baby-no-scroll/device";
 import "./baby-no-scroll.css";
 
 export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
@@ -53,6 +55,9 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
   // What went on at hand-over. Held apart from the console's live inputs so a
   // reload can put the same thing back without the link that was typed.
   const [lockedTarget, setLockedTarget] = useState<Target | null>(null);
+  // On a phone in a browser tab, Hand it over first offers the installed app.
+  const [platform, setPlatform] = useState<Platform>("desktop");
+  const [askInstall, setAskInstall] = useState(false);
 
   // localStorage is only there after mount, so the first paint is the defaults
   // and this is the correction. Same shape as every other app in the hub.
@@ -60,6 +65,7 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
     const s = loadSettings();
     setSettings(initialMode ? { ...s, mode: initialMode } : s);
     setReady(true);
+    setPlatform(detectPlatform(navigator.userAgent, navigator.maxTouchPoints ?? 0));
     // A reload of a locked screen comes back locked. Only the padlock opens it.
     const held = recallLock();
     if (held) {
@@ -95,8 +101,21 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
     keepAwake: settings.keepAwake,
   });
 
+  // A phone in a tab cannot be locked properly (see InstallFirst.tsx), so the
+  // hand-over stops there and offers the app. The installed app, a computer,
+  // or a parent who has switched fullscreen off goes straight through.
   const handOver = () => {
     if (!canLock) return;
+    if (settings.fullscreen && platform !== "desktop" && !lockState.installed) {
+      setAskInstall(true);
+      return;
+    }
+    lockNow();
+  };
+
+  const lockNow = () => {
+    if (!canLock) return;
+    setAskInstall(false);
     if (settings.mode === "youtube" && target) {
       // Putting something on is also how it gets remembered, so a parent never
       // has to think about saving.
@@ -112,6 +131,8 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
     rememberLock({ target: onScreen });
     setLocked(true);
   };
+
+  const closeInstall = useCallback(() => setAskInstall(false), []);
 
   const unlock = () => {
     forgetLock();
@@ -465,6 +486,13 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
             </button>
 
             <EscapeProof />
+            {askInstall && (
+              <InstallFirst
+                platform={platform}
+                onLockAnyway={lockNow}
+                onClose={closeInstall}
+              />
+            )}
           </aside>
         </div>
       </div>

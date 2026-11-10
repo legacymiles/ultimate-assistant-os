@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PIN_GUIDES, detectPlatform, installRoute, isInstalledDisplay } from "./device";
+import { PIN_GUIDES, detectPlatform, installRoute, isAppFullscreen, isInstalledDisplay } from "./device";
 
 const ANDROID_CHROME =
   "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36";
@@ -64,5 +64,19 @@ describe("PIN_GUIDES", () => {
   it("names each phone's own lock", () => {
     expect(PIN_GUIDES.android.name).toBe("Screen Pinning");
     expect(PIN_GUIDES.ios.name).toBe("Guided Access");
+  });
+});
+
+describe("isAppFullscreen", () => {
+  const only = (q: string) => (query: string) => query === q;
+
+  it("is true only when the installed app already fills the screen", () => {
+    expect(isAppFullscreen(only("(display-mode: fullscreen)"), undefined)).toBe(true);
+    expect(isAppFullscreen(() => false, true)).toBe(true);
+  });
+
+  it("is false in a tab and in a standalone window, which still need browser fullscreen", () => {
+    expect(isAppFullscreen(only("(display-mode: browser)"), false)).toBe(false);
+    expect(isAppFullscreen(only("(display-mode: standalone)"), false)).toBe(false);
   });
 });

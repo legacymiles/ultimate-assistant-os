@@ -26,12 +26,7 @@ import {
   type Platform,
 } from "@/lib/baby-no-scroll/device";
 import { runningInstalled } from "@/lib/baby-no-scroll/useScreenLock";
-
-/** Chrome's install prompt, which is not in the DOM typings. */
-interface InstallPromptEvent extends Event {
-  prompt(): Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-}
+import { useInstall } from "@/lib/baby-no-scroll/useInstall";
 
 const PLATFORM_LABEL: Record<Platform, string> = {
   ios: "iPhone / iPad",
@@ -43,45 +38,19 @@ export function EscapeProof() {
   const [platform, setPlatform] = useState<Platform>("android");
   const [detected, setDetected] = useState<Platform | null>(null);
   const [installed, setInstalled] = useState(false);
-  const [promptEvent, setPromptEvent] = useState<InstallPromptEvent | null>(null);
-  const [justInstalled, setJustInstalled] = useState(false);
+  const { canPrompt, justInstalled, install } = useInstall();
 
   useEffect(() => {
     const p = detectPlatform(navigator.userAgent, navigator.maxTouchPoints ?? 0);
     setPlatform(p);
     setDetected(p);
     setInstalled(runningInstalled());
-
-    const onPrompt = (e: Event) => {
-      // Held, not shown: the browser's own banner would appear at a random
-      // moment, and this panel is where the parent is already looking.
-      e.preventDefault();
-      setPromptEvent(e as InstallPromptEvent);
-    };
-    const onInstalled = () => {
-      setJustInstalled(true);
-      setPromptEvent(null);
-    };
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    window.addEventListener("appinstalled", onInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onPrompt);
-      window.removeEventListener("appinstalled", onInstalled);
-    };
   }, []);
-
-  const install = async () => {
-    if (!promptEvent) return;
-    await promptEvent.prompt();
-    const choice = await promptEvent.userChoice.catch(() => null);
-    if (choice?.outcome === "accepted") setJustInstalled(true);
-    setPromptEvent(null);
-  };
 
   // The install state is about THIS device, so another platform's tab shows
   // its manual steps rather than this device's status.
   const here = platform === detected;
-  const route = installRoute(platform, here && installed, here && !!promptEvent);
+  const route = installRoute(platform, here && installed, here && canPrompt);
   const guide = PIN_GUIDES[platform];
   const pinTitle = platform === "desktop" ? "Use Chrome or Edge" : `Turn on ${guide.name}`;
 
@@ -144,6 +113,12 @@ export function EscapeProof() {
             </button>
           ) : (
             <p className="text-ink-muted">{route.steps}</p>
+          )}
+          {route.kind !== "installed" && platform === "android" && (
+            <p>
+              An icon you added earlier may be a plain shortcut that opens Chrome with its bar.
+              Remove it and install again from here.
+            </p>
           )}
         </Step>
 

@@ -106,5 +106,6 @@ describe("the downloads folder", () => {
     expect(routeAccess("/apps/baby-no-scroll/manifest.webmanifest", none)).toBe("public");
     expect(routeAccess("/apps/baby-no-scroll", none)).toBe("owner");
     expect(routeAccess("/apps/baby-no-scroll/manifest.webmanifest/x", none)).toBe("owner");
+    expect(routeAccess("/baby-no-scroll-sw.js", none)).toBe("public");
   });
 });

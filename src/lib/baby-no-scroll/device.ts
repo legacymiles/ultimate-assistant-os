@@ -47,6 +47,20 @@ export function isInstalledDisplay(
   );
 }
 
+/**
+ * Whether the installed app already owns the whole screen. In that mode the
+ * page must NOT ask for browser fullscreen as well: Chrome treats that as a
+ * tab going fullscreen and puts "swipe down to exit" right back on screen —
+ * the very message installing it was meant to remove. An iPhone home-screen
+ * app counts too: it has no fullscreen to ask for.
+ */
+export function isAppFullscreen(
+  matches: (query: string) => boolean,
+  iosStandalone: boolean | undefined,
+): boolean {
+  return !!iosStandalone || matches("(display-mode: fullscreen)");
+}
+
 export interface PinGuide {
   /** The phone's own name for its lock. */
   name: string;
