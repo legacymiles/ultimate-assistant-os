@@ -281,6 +281,8 @@ export type PortalVersion = Pick<
 >;
 
 export interface PortalView {
+  /** The project id, so the owner's version history can call the admin API. */
+  projectId: string;
   name: string;
   clientName: string;
   versions: PortalVersion[];

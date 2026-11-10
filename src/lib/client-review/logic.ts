@@ -1028,6 +1028,7 @@ export function portalView(p: ClientProject, vapidPublicKey: string | null): Por
   const current = currentVersion(p);
   const building = buildingVersion(p);
   return {
+    projectId: p.id,
     name: p.name,
     clientName: p.clientName,
     versions: sortVersions(p.versions)

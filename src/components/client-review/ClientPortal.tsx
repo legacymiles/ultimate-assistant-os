@@ -23,7 +23,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { approveAndStart, connectToPc } from "@/lib/client-review/buildHere";
 import { blockerAdvice, type Blocker } from "@/lib/client-review/liveBuild";
-import { ApiError, portal, urlBase64ToUint8Array } from "@/lib/client-review/client";
+import { ApiError, admin, portal, urlBase64ToUint8Array } from "@/lib/client-review/client";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { BuildFeed, BuildSteer, useLiveBuild } from "./LiveBuild";
 import { LookPass } from "./LookPass";
@@ -419,7 +419,7 @@ export function ClientPortal({
     const doc = iframe?.contentDocument;
     if (!doc) return "";
     try {
-      const html2canvas = (await import("html2canvas")).default;
+      const html2canvas = (await import("html2canvas-pro")).default;
       const canvas = await html2canvas(doc.documentElement, {
         backgroundColor: "#0a0b0f",
         scale: 0.5,
@@ -456,10 +456,18 @@ export function ClientPortal({
    * review and supersedes everything newer, so a refresh keeps the choice.
    */
   const undoVersion = async (versionId: string) => {
-    const v = await act("undo", { action: "undo", versionId });
-    if (v) {
+    if (!owner || !view?.projectId) return;
+    setBusy("undo");
+    setError("");
+    try {
+      await admin.act({ action: "undo", id: view.projectId, versionId });
+      refresh();
       setViewingId(versionId);
       setVersionsOpen(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "It couldn't go back to that version.");
+    } finally {
+      setBusy("");
     }
   };
 
@@ -638,7 +646,7 @@ export function ClientPortal({
               </select>
             </label>
           )}
-          {viewing && (viewing.beforeImage || viewing.image) && (
+          {owner && viewing && (viewing.beforeImage || viewing.image) && (
             <button
               type="button"
               className="cr-ver-thumb"
@@ -763,7 +771,7 @@ export function ClientPortal({
               <h2>Chat intake</h2>
               <p>{statusLine}</p>
             </div>
-            {versions.length > 1 && (
+            {owner && versions.length > 1 && (
               <button type="button" className="cr-link cr-intake-versions" onClick={() => setVersionsOpen(true)}>
                 Versions
               </button>
@@ -999,6 +1007,7 @@ export function ClientPortal({
           onClose={() => setVersionsOpen(false)}
           onUndo={(id) => void undoVersion(id)}
           busy={busy === "undo"}
+          canUndo={owner}
         />
       )}
 
@@ -1117,12 +1126,14 @@ function VersionsPanel({
   onClose,
   onUndo,
   busy,
+  canUndo,
 }: {
   versions: PortalView["versions"];
   currentId: string | null;
   onClose: () => void;
   onUndo: (versionId: string) => void;
   busy: boolean;
+  canUndo: boolean;
 }) {
   const sorted = [...versions].sort(
     (a, b) => (Number(a.number.replace(/\D/g, "")) || 0) - (Number(b.number.replace(/\D/g, "")) || 0),
@@ -1156,10 +1167,10 @@ function VersionsPanel({
                 <button
                   type="button"
                   className="cr-btn small"
-                  disabled={on || !v.siteUrl || v.status === "building" || busy}
+                  disabled={!canUndo || on || !v.siteUrl || v.status === "building" || busy}
                   onClick={() => onUndo(v.id)}
                 >
-                  {on ? "Showing now" : `Undo to ${v.number}`}
+                  {on ? "Showing now" : canUndo ? `Undo to ${v.number}` : "Earlier version"}
                 </button>
               </article>
             );
