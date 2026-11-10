@@ -118,7 +118,7 @@ const aliasFor = (title) => {
   return TOOL_ALIAS[key] ?? (key ? key[0].toUpperCase() + key.slice(1) : "Tool");
 };
 
-export function startAcp({ cwd, emit, gate, strict = false, laneWrites = false, trust = "ask", command, args }) {
+export function startAcp({ cwd, emit, gate, strict = false, laneWrites = false, trust = "ask", project = false, command, args }) {
   // The package is run with the Node that is already running this bridge, not
   // through `npx`. `npx dsh` resolves to whatever npm happens to have cached,
   // which on this machine was nothing at all — and a harness that needs the
@@ -251,7 +251,7 @@ export function startAcp({ cwd, emit, gate, strict = false, laneWrites = false, 
         // Under `read-only` dsh never asks about a read, so in practice this
         // only ever passes a lane's own write — but the policy is asked rather
         // than assumed, so this adapter and the Claude one cannot drift.
-        const decided = autoAllow(d, { strict, laneWrites, trust })
+        const decided = autoAllow(d, { strict, laneWrites, trust, project })
           ? (emit({ kind: "allowed", name, title: d.title }), { allow: true, how: "auto" })
           : await gate({
               name,

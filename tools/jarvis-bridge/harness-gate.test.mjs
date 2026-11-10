@@ -34,6 +34,14 @@ describe("a trusted build's own tools", () => {
     expect(allowed("mcp__plugin_playwright_playwright__browser_click", {})).toBe(false);
   });
 
+  it("installs a brand-new project's own packages without asking", () => {
+    expect(allowed("PowerShell", { command: "npm install" }, { trust: "trusted", project: true })).toBe(true);
+  });
+
+  it("still asks before installing into a shared worktree", () => {
+    expect(allowed("PowerShell", { command: "npm install" }, { trust: "trusted", project: false })).toBe(false);
+  });
+
   it("keeps asking under Ask", () => {
     expect(allowed("PowerShell", { command: "node -v" }, { trust: "ask" })).toBe(false);
   });

@@ -299,6 +299,7 @@ export async function startThread({
     strict: Boolean(strict),
     laneWrites: Boolean(laneWrites),
     trust: s.trust,
+    project: Boolean(worktree.project),
   };
   s.adapter =
     harness === "claude"

@@ -309,13 +309,19 @@ export function insideWorktree(path) {
  * one and a caller that forgets to pass anything gets the careful answer.
  * startThread() is where a thread's default of "trusted" lives.
  */
-export function autoAllow(described, { strict = false, laneWrites = false, trust = "ask" } = {}) {
+export function autoAllow(described, { strict = false, laneWrites = false, trust = "ask", project = false } = {}) {
   // The owner's explicit "do the work, do not ask" switch. The bridge's
   // catastrophic-command refusal is still enforced at the shell boundary.
   if (trust === "full") return true;
   if (strict) return false;
   if (described.kind === "read") return true;
-  if (described.risk === "grave") return false;
+  if (described.risk === "grave") {
+    // Installing a brand-new project's own dependencies is the build, not a
+    // change to the owner's checkout. A worktree's install reaches the shared
+    // node_modules through the junction, so that one keeps asking.
+    if (project && described.kind === "run" && /\bnpm\s+(install|i|ci)\b/i.test(described.command)) return true;
+    return false;
+  }
 
   if (described.kind === "write") {
     if (!insideWorktree(described.path)) return false;

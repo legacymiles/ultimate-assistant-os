@@ -48,6 +48,8 @@ export function startClaude({
   model = "",
   signal,
   alwaysAllowed = () => false,
+  // A brand-new project's own folder, where `npm install` is part of the job.
+  project = false,
   // Extra environment for the Claude Code child — the OpenRouter redirect
   // when the pick is the API (harness-models.mjs). Empty means your own plan.
   env = {},
@@ -126,7 +128,7 @@ export function startClaude({
         // (their reach is not readable here), and answering the same question
         // forty times is attrition, not consent. A grave tool is never
         // remembered, so it still lands here every time.
-        if (autoAllow(d, { strict, laneWrites, trust }) || (d.risk !== "grave" && alwaysAllowed(name))) {
+        if (autoAllow(d, { strict, laneWrites, trust, project }) || (d.risk !== "grave" && alwaysAllowed(name))) {
           emit({ kind: "allowed", name, title: d.title });
           return { behavior: "allow", updatedInput: args };
         }
