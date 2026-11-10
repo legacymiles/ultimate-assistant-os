@@ -66,6 +66,15 @@ export function startClaude({
   let closed = false;
   let sessionId = "";
   let busy = false;
+  /**
+   * Did this turn send any assistant text as a stream?
+   *
+   * Usually yes. But a short final answer can arrive only as the SDK's
+   * `result.result`, with no content deltas — and then the thread showed the
+   * tool calls and nothing the model actually said. That silently broke the
+   * `Repo:`/`Live:` lines App Builder reads back to publish the app.
+   */
+  let streamed = false;
 
   const nudge = () => {
     const w = wake;
@@ -83,6 +92,7 @@ export function startClaude({
       if (text == null) continue;
       emit({ kind: "user", text });
       busy = true;
+      streamed = false;
       emit({ kind: "status", status: "thinking" });
       yield {
         type: "user",
@@ -174,6 +184,7 @@ export function startClaude({
           const ev = msg.event;
           if (ev?.type === "content_block_delta") {
             if (ev.delta?.type === "text_delta" && ev.delta.text) {
+              streamed = true;
               emit({ kind: "text", text: ev.delta.text });
             } else if (ev.delta?.type === "thinking_delta" && ev.delta.thinking) {
               emit({ kind: "thinking", text: ev.delta.thinking });
@@ -224,6 +235,10 @@ export function startClaude({
           const failed = msg.is_error === true || msg.subtype !== "success";
           const why = String(msg.result ?? "").trim() || String(msg.subtype ?? "failed");
           if (failed) emit({ kind: "error", message: why });
+          // A turn that streamed its text already showed it. A turn that did
+          // not must still say what it said, or its last line (the Live:
+          // address) never reaches the page that publishes the app.
+          if (!failed && !streamed && why) emit({ kind: "text", text: why });
           emit({
             kind: "turn_end",
             ms: msg.duration_ms ?? 0,
