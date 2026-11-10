@@ -461,7 +461,7 @@ export function ClientPortal({
   // actually looks like. This is the picture the history shows for v2 (yellow),
   // v3 (blue) — the version's own result, never the one it replaced.
   useEffect(() => {
-    if (!owner || !landed || !current?.siteUrl || current.image || capturedFor.current === current.id) return;
+    if (!owner || !landed || !current?.siteUrl || current.image || viewing?.id !== current.id || capturedFor.current === current.id) return;
     capturedFor.current = current.id;
     const t = window.setTimeout(async () => {
       const image = await captureFrame();
@@ -474,7 +474,7 @@ export function ClientPortal({
       }
     }, 4000);
     return () => window.clearTimeout(t);
-  }, [owner, landed, current?.id, current?.image, current?.siteUrl, view?.projectId, refresh, captureFrame]);
+  }, [owner, landed, current?.id, current?.image, current?.siteUrl, viewing?.id, view?.projectId, refresh, captureFrame]);
 
   const undoVersion = async (versionId: string) => {
     if (!owner || !view?.projectId) return;
