@@ -1,5 +1,41 @@
 [
  {
+  "id": "a6f4a5d:app-builder",
+  "date": "2026-11-10",
+  "slug": "app-builder",
+  "title": "Drop the dead BuildFlip/Build ROI copies from old browsers",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e73e223:app-builder",
+  "date": "2026-11-10",
+  "slug": "app-builder",
+  "title": "Keep going when the tab closes, the bridge restarts, or a limit hits",
+  "detail": "A build was a harness thread in the bridge and a row on the server, but nothing on the PC remembered it. Closing the tab left the thread running invisibly; a bridge restart (an update, a wake, a reinstall) deleted it, and the page sat on 'Starting the build' against a thread that no longer existed. ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e73e223:client-review",
+  "date": "2026-11-10",
+  "slug": "client-review",
+  "title": "Keep going when the tab closes, the bridge restarts, or a limit hits",
+  "detail": "A build was a harness thread in the bridge and a row on the server, but nothing on the PC remembered it. Closing the tab left the thread running invisibly; a bridge restart (an update, a wake, a reinstall) deleted it, and the page sat on 'Starting the build' against a thread that no longer existed. ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e73e223:jarvis",
+  "date": "2026-11-10",
+  "slug": "jarvis",
+  "title": "Keep going when the tab closes, the bridge restarts, or a limit hits",
+  "detail": "A build was a harness thread in the bridge and a row on the server, but nothing on the PC remembered it. Closing the tab left the thread running invisibly; a bridge restart (an update, a wake, a reinstall) deleted it, and the page sat on 'Starting the build' against a thread that no longer existed. ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "e721b8a:client-review",
   "date": "2026-11-09",
   "slug": "client-review",
