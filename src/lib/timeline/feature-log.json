@@ -1,5 +1,14 @@
 [
  {
+  "id": "fe122d1:jarvis",
+  "date": "2026-11-09",
+  "slug": "jarvis",
+  "title": "Pick which Claude powers In Queue and 24/7 agents, and give the harness your keys once",
+  "detail": "One \"Powered by\" menu on every harness surface (24/7 agents, In Queue's Run now, the harness start panel; Chat lists the same picks): Claude Opus 5.5 / Opus 5 / Sonnet on your subscription, the same models through the Claude API via OpenRouter, or DeepSeek. The bridge turns a pick into a model and a",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "9897fd1:jarvis",
   "date": "2026-11-09",
   "slug": "jarvis",
