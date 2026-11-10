@@ -1,5 +1,86 @@
 [
  {
+  "id": "9897fd1:jarvis",
+  "date": "2026-11-09",
+  "slug": "jarvis",
+  "title": "Carry on the moment this PC has power",
+  "detail": "The hub stores a goal and never pushes. This is the other half -- the thing on the PC that notices it has power and asks \"is there anything I can do?\".",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4401aa1:client-review",
+  "date": "2026-11-09",
+  "slug": "client-review",
+  "title": "Capture only the version on screen",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "b7db748:client-review",
+  "date": "2026-11-09",
+  "slug": "client-review",
+  "title": "Copy matches result images",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ef3384c:client-review",
+  "date": "2026-11-09",
+  "slug": "client-review",
+  "title": "Each version keeps its own result image",
+  "detail": "v2 stores yellow, v3 stores blue; the history strip and the version thumbnail show the version result instead of the page it replaced. A result is captured automatically when a build lands.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4e2169d:client-review",
+  "date": "2026-11-09",
+  "slug": "client-review",
+  "title": "Owner undo and modern-CSS screenshots",
+  "detail": "The Versions panel calls the admin undo action (the portal action had no undo), and capture uses html2canvas-pro so oklab/oklch colours in the hub render.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5c35795:client-review",
+  "date": "2026-11-09",
+  "slug": "client-review",
+  "title": "Version screenshots, undo, one-click ship; shared model/skills pickers",
+  "detail": "Snapshots the page before each build and stores it on the version; adds a Versions panel with Undo to vN. Also adds the one-click GitHub ship route, full-access build trust, the shared LLM picker on Client Review/App Builder/Redesigner, and the / skills menu.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5c35795:app-builder",
+  "date": "2026-11-09",
+  "slug": "app-builder",
+  "title": "Version screenshots, undo, one-click ship; shared model/skills pickers",
+  "detail": "Snapshots the page before each build and stores it on the version; adds a Versions panel with Undo to vN. Also adds the one-click GitHub ship route, full-access build trust, the shared LLM picker on Client Review/App Builder/Redesigner, and the / skills menu.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5c35795:jarvis",
+  "date": "2026-11-09",
+  "slug": "jarvis",
+  "title": "Version screenshots, undo, one-click ship; shared model/skills pickers",
+  "detail": "Snapshots the page before each build and stores it on the version; adds a Versions panel with Undo to vN. Also adds the one-click GitHub ship route, full-access build trust, the shared LLM picker on Client Review/App Builder/Redesigner, and the / skills menu.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5c35795:website-redesigner",
+  "date": "2026-11-09",
+  "slug": "website-redesigner",
+  "title": "Version screenshots, undo, one-click ship; shared model/skills pickers",
+  "detail": "Snapshots the page before each build and stores it on the version; adds a Versions panel with Undo to vN. Also adds the one-click GitHub ship route, full-access build trust, the shared LLM picker on Client Review/App Builder/Redesigner, and the / skills menu.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "a726987:baby-no-scroll",
   "date": "2026-11-09",
   "slug": "baby-no-scroll",
