@@ -17,11 +17,14 @@
 // the screen crosses back.
 // ---------------------------------------------------------------------------
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useRemotePull } from "@/lib/sync/useSync";
 import {
   KEY,
+  forgetLock,
   loadSettings,
+  recallLock,
+  rememberLock,
   removeShow,
   saveSettings,
   sortedShows,
@@ -37,6 +40,7 @@ import type { Corner } from "@/lib/baby-no-scroll/types";
 import { Padlock } from "./Padlock";
 import { GameStage, gameHue } from "./GameStage";
 import { YouTubeStage } from "./YouTubeStage";
+import { EscapeProof } from "./EscapeProof";
 import "./baby-no-scroll.css";
 
 export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
@@ -46,6 +50,9 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
   const [link, setLink] = useState("");
   const [name, setName] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
+  // What went on at hand-over. Held apart from the console's live inputs so a
+  // reload can put the same thing back without the link that was typed.
+  const [lockedTarget, setLockedTarget] = useState<Target | null>(null);
 
   // localStorage is only there after mount, so the first paint is the defaults
   // and this is the correction. Same shape as every other app in the hub.
@@ -53,6 +60,12 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
     const s = loadSettings();
     setSettings(initialMode ? { ...s, mode: initialMode } : s);
     setReady(true);
+    // A reload of a locked screen comes back locked. Only the padlock opens it.
+    const held = recallLock();
+    if (held) {
+      setLockedTarget(held.target);
+      setLocked(true);
+    }
   }, [initialMode]);
 
   useRemotePull(KEY, () => {
@@ -94,30 +107,50 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
       patch({ shows: nextShows });
       setName("");
     }
+    const onScreen = settings.mode === "youtube" ? target : null;
+    setLockedTarget(onScreen);
+    rememberLock({ target: onScreen });
     setLocked(true);
+  };
+
+  const unlock = () => {
+    forgetLock();
+    setLocked(false);
+  };
+
+  // Fullscreen can only be re-entered from a gesture the browser counts as
+  // deliberate: a mouse button going DOWN, or a finger coming UP. A finger
+  // going down does not count, which is why repairing on pointerdown alone
+  // never worked on a phone.
+  const repairFullscreen = (e: ReactPointerEvent) => {
+    if (!lockState.needsRepair) return;
+    const mouse = e.pointerType === "mouse";
+    if ((e.type === "pointerdown") === mouse) lockState.restoreFullscreen();
   };
 
   // --- the nursery ---------------------------------------------------------
   if (locked) {
-    const hue = settings.mode === "games" ? gameHue(settings.game) : 330;
+    // What is on comes from the hand-over, not from the console's tab, which a
+    // synced edit on another device could have flipped since.
+    const showVideo = lockedTarget;
+    const hue = showVideo ? 330 : gameHue(settings.game);
     return (
       <div
-        className={`bns-nursery ${settings.mode === "youtube" ? "is-video" : ""}`}
+        className={`bns-nursery ${showVideo ? "is-video" : ""}`}
         style={{ ["--bns-hue" as string]: hue }}
         // Fullscreen can only be re-entered inside a user gesture, and on a
         // locked screen every gesture is the baby's. So the baby repairs it,
         // without knowing, with the next thing they touch.
-        onPointerDownCapture={() => {
-          if (settings.fullscreen && !lockState.isFullscreen) lockState.restoreFullscreen();
-        }}
+        onPointerDownCapture={repairFullscreen}
+        onPointerUpCapture={repairFullscreen}
       >
-        {settings.mode === "youtube" && target ? (
+        {showVideo ? (
           <YouTubeStage
-            target={target}
+            target={lockedTarget}
             loop={settings.loop}
-            onShieldTap={() => {
-              if (settings.fullscreen && !lockState.isFullscreen) lockState.restoreFullscreen();
-            }}
+            // The nursery's own capture handlers already repair fullscreen on
+            // the right half of the tap; the shield only has to keep playing.
+            onShieldTap={() => {}}
           />
         ) : (
           <GameStage game={settings.game} />
@@ -128,7 +161,7 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
           size={settings.lockSize}
           holdToConfirm={settings.holdToConfirm}
           onMoveCorner={(c) => patch({ corner: c })}
-          onUnlock={() => setLocked(false)}
+          onUnlock={unlock}
         />
       </div>
     );
@@ -431,15 +464,7 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
               {settings.mode === "youtube" && !target ? "Paste a link first" : "Hand it over"}
             </button>
 
-            <p className="bns-on-yellow text-[11px] leading-relaxed text-ink-faint">
-              <strong className="text-ink-muted">What this cannot do.</strong> A web page cannot
-              disable the home button, the power button or the gesture that switches apps, and it
-              cannot stop Escape leaving fullscreen. For a device you walk away from, turn on{" "}
-              <span className="text-ink-muted">Guided Access</span> on an iPhone or iPad, or{" "}
-              <span className="text-ink-muted">Screen Pinning</span> on Android, and this on top of
-              it. Everything else — scrolling, pinching, the back gesture, the keyboard, long-press
-              menus, YouTube&rsquo;s own controls and its wall of next videos — is already gone.
-            </p>
+            <EscapeProof />
           </aside>
         </div>
       </div>

@@ -66,7 +66,14 @@ const PUBLIC_PREFIXES = [
  * path before middleware sees it, which is the only reason that was never a
  * hole — not a thing to build on.
  */
-const PUBLIC_EXACT = [ERROR_SCRIPT];
+/**
+ * Home-screen manifests. Chrome fetches a manifest without the session cookie,
+ * so a gated one redirects to /login and the app will not install. They hold a
+ * name, colours and an icon path, nothing else.
+ */
+export const MANIFESTS_PUBLIC = ["/apps/baby-no-scroll/manifest.webmanifest"];
+
+const PUBLIC_EXACT = [ERROR_SCRIPT, ...MANIFESTS_PUBLIC];
 const AUTH_PREFIXES = ["/login", "/auth"];
 
 function underPrefix(path: string, prefix: string): boolean {

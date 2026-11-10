@@ -68,3 +68,51 @@ export function touchShow(shows: Show[], id: string): Show[] {
 export function removeShow(shows: Show[], id: string): Show[] {
   return shows.filter((s) => s.id !== id);
 }
+
+// ---------------------------------------------------------------------------
+// The lock itself, for the life of the tab.
+//
+// Only the padlock unlocks the screen. A reload is not the padlock — but a
+// reload used to drop straight back onto the console, with every saved link a
+// tap away. So the locked screen and what was on it are kept in
+// sessionStorage (this tab only, gone when it closes) and put back on load.
+// ---------------------------------------------------------------------------
+
+const LOCK_KEY = "baby-no-scroll:locked";
+
+export interface LockSession {
+  /** The video or playlist that was on, or null for a game. */
+  target: Target | null;
+}
+
+export function rememberLock(session: LockSession): void {
+  try {
+    sessionStorage.setItem(LOCK_KEY, JSON.stringify(session));
+  } catch {
+    // Private mode or storage off: the lock still holds, it just will not
+    // survive a reload.
+  }
+}
+
+export function forgetLock(): void {
+  try {
+    sessionStorage.removeItem(LOCK_KEY);
+  } catch {}
+}
+
+export function recallLock(): LockSession | null {
+  try {
+    const raw = sessionStorage.getItem(LOCK_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<LockSession>;
+    const t = parsed?.target;
+    if (t === null || t === undefined) return { target: null };
+    const ok = typeof t === "object"
+      && ((t as Target).kind === "video" || (t as Target).kind === "playlist")
+      && typeof (t as Target).id === "string";
+    if (ok) return { target: t as Target };
+    return null;
+  } catch {
+    return null;
+  }
+}

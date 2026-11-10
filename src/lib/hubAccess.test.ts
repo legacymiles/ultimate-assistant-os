@@ -101,4 +101,10 @@ describe("the downloads folder", () => {
     expect(routeAccess("/jarvis-errors.js", none)).toBe("public");
     expect(routeAccess("/jarvis-errors.js/../downloads/HeartbeatFVG.mq4", none)).toBe("owner");
   });
+
+  it("serves Baby No Scroll's manifest without a session, and nothing beside it", () => {
+    expect(routeAccess("/apps/baby-no-scroll/manifest.webmanifest", none)).toBe("public");
+    expect(routeAccess("/apps/baby-no-scroll", none)).toBe("owner");
+    expect(routeAccess("/apps/baby-no-scroll/manifest.webmanifest/x", none)).toBe("owner");
+  });
 });

@@ -23,9 +23,28 @@
 // the browser's — so when fullscreen is lost, the next touch anywhere puts it
 // back. That touch is usually the baby's, which is the nicest part of it: the
 // repair is invisible.
+//
+// It has to be the END of the touch. A phone only lets a page go fullscreen
+// from an event that counts as a real gesture, and for a finger that is
+// pointerup or touchend — never pointerdown. Repairing on the way down (as this
+// did until 2026-11-09) failed silently on every phone and only worked with a
+// mouse.
+//
+// Two more things are taken while fullscreen is held:
+//
+//   · the keyboard, through the Keyboard Lock API (Chrome and Edge on a
+//     computer). With it, Escape no longer leaves on a tap — it has to be held
+//     for two seconds — and Alt+Tab and the Windows key reach the page instead
+//     of the system.
+//   · the rotation, locked to whichever way the screen was held at hand-over,
+//     so a baby turning the phone over does not throw the picture around.
+//
+// And when the page is already running as an installed app (display-mode
+// fullscreen or standalone), there is no browser fullscreen to lose at all.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isInstalledDisplay } from "./device";
 
 interface WakeLockSentinel {
   released: boolean;
@@ -35,6 +54,23 @@ interface WakeLockSentinel {
 
 interface WakeLockNavigator {
   wakeLock?: { request(type: "screen"): Promise<WakeLockSentinel> };
+}
+
+interface KeyboardLockNavigator {
+  keyboard?: { lock(keys?: string[]): Promise<void>; unlock(): void };
+}
+
+interface LockableOrientation {
+  type?: string;
+  lock?: (o: string) => Promise<void>;
+  unlock?: () => void;
+}
+
+/** Whether the page is running as an installed app rather than in a tab. */
+export function runningInstalled(): boolean {
+  if (typeof window === "undefined") return false;
+  const ios = (navigator as Navigator & { standalone?: boolean }).standalone;
+  return isInstalledDisplay((q) => window.matchMedia?.(q).matches ?? false, ios);
 }
 
 export interface ScreenLockOptions {
@@ -48,6 +84,10 @@ export interface ScreenLockState {
   isFullscreen: boolean;
   /** True once a fullscreen request has been refused, so the UI can say so. */
   fullscreenRefused: boolean;
+  /** Running as an installed app, where there is no browser fullscreen to lose. */
+  installed: boolean;
+  /** Locked, meant to be fullscreen, and not — the next touch repairs it. */
+  needsRepair: boolean;
   /** Ask for fullscreen again. Must be called inside a user gesture. */
   restoreFullscreen: () => void;
 }
@@ -59,7 +99,12 @@ export function useScreenLock({
 }: ScreenLockOptions): ScreenLockState {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenRefused, setRefused] = useState(false);
+  const [installed, setInstalled] = useState(false);
   const wake = useRef<WakeLockSentinel | null>(null);
+
+  useEffect(() => {
+    setInstalled(runningInstalled());
+  }, []);
 
   const requestFullscreen = useCallback(() => {
     if (typeof document === "undefined") return;
@@ -94,6 +139,31 @@ export function useScreenLock({
     }
     if (fullscreen) requestFullscreen();
   }, [active, fullscreen, requestFullscreen]);
+
+  // --- keyboard and rotation, while fullscreen is held -----------------------
+  // Both APIs only work in fullscreen, so they are taken each time fullscreen
+  // arrives and given back when the screen unlocks.
+  useEffect(() => {
+    if (!active || !isFullscreen || typeof navigator === "undefined") return;
+    const kb = (navigator as Navigator & KeyboardLockNavigator).keyboard;
+    kb?.lock().catch(() => {});
+
+    const orientation = (screen as Screen & { orientation?: LockableOrientation }).orientation;
+    const type = orientation?.type;
+    if (type && orientation?.lock) {
+      // "portrait-primary" → "portrait": either way up is fine, the side is not.
+      orientation.lock(type.split("-")[0]).catch(() => {});
+    }
+
+    return () => {
+      try {
+        kb?.unlock();
+      } catch {}
+      try {
+        orientation?.unlock?.();
+      } catch {}
+    };
+  }, [active, isFullscreen]);
 
   // --- wake lock ------------------------------------------------------------
   useEffect(() => {
@@ -188,8 +258,12 @@ export function useScreenLock({
     // not a lock, it is a trap for anyone who cannot drag. Tab is harmless —
     // the padlock is the only focusable thing on a locked screen — and Enter or
     // Space reach the padlock itself, where they have to be HELD to open it.
+    //
+    // F11 is swallowed too: it is a one-key exit from fullscreen, and once the
+    // keyboard is locked the page gets to say no to it. Escape stays the
+    // browser's, and with the keyboard locked it now has to be held.
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" || e.key === "F11" || e.key === "F12") return;
+      if (e.key === "Escape" || e.key === "F12") return;
       if (e.key === "Tab") return;
       const target = e.target as HTMLElement | null;
       const onLock = !!target?.closest?.('[data-baby-lock="1"]');
@@ -248,5 +322,13 @@ export function useScreenLock({
     };
   }, [active]);
 
-  return { isFullscreen, fullscreenRefused, restoreFullscreen: requestFullscreen };
+  const needsRepair = active && fullscreen && !installed && !isFullscreen;
+
+  return {
+    isFullscreen,
+    fullscreenRefused,
+    installed,
+    needsRepair,
+    restoreFullscreen: requestFullscreen,
+  };
 }
