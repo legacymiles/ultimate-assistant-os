@@ -316,7 +316,9 @@ export async function startThread({
   }
   emit({
     kind: "note",
-    text: `Working in ${worktree.path} on ${worktree.branch}, cut from ${worktree.base}. Your ${worktree.base} checkout is untouched.`,
+    text: worktree.project
+      ? `Working in ${worktree.path}, its own repository on ${worktree.branch}. Nothing else on this machine is touched.`
+      : `Working in ${worktree.path} on ${worktree.branch}, cut from ${worktree.base}. Your ${worktree.base} checkout is untouched.`,
   });
   if (s.pickLabel) emit({ kind: "note", text: `Powered by ${s.pickLabel}.` });
   if (unattended) emit({ kind: "note", text: "Unattended: nobody is asked anything. Writes inside this worktree are allowed; installs, pushes and deletes are blocked." });

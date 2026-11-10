@@ -23,12 +23,34 @@ const READERS = new Set([
 /** Tools that change files. */
 const WRITERS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit", "ApplyPatch"]);
 
-/** Tools that execute. */
-const RUNNERS = new Set(["Bash", "KillShell", "KillBash"]);
+/**
+ * Tools that execute.
+ *
+ * `PowerShell` is not a synonym we invented: on Windows the Claude Code SDK
+ * reports its shell tool under that name, and the old list only knew `Bash`.
+ * An unknown name made every command look like an opaque "other" act, so even
+ * a trusted build stopped on `node -v` — the first command it runs — and the
+ * only way past it was a tap per command. `Pwsh` and `Shell` are the same tool
+ * under the names other adapters use.
+ */
+const RUNNERS = new Set(["Bash", "PowerShell", "Pwsh", "Shell", "KillShell", "KillBash"]);
 
 /** Commands that look, even though they arrive through a runner. */
 const SAFE_COMMAND =
   /^\s*(git\s+(status|diff|log|show|branch|rev-parse|ls-files|blame)|ls|dir|cat|type|head|tail|wc|find|grep|rg|echo|pwd|node\s+--version|npm\s+(ls|view|run\s+(lint|typecheck|test))|npx\s+(tsc|vitest|eslint)|tsc|vitest|pnpm\s+(ls|view))\b/i;
+
+/**
+ * The Jarvis connector's own tools, which are bookkeeping rather than a reach
+ * into the owner's machine.
+ *
+ * A build is told to read the workflow's findings and record what it did; those
+ * calls wrote only to Jarvis's own memory rows. Treating them as opaque MCP
+ * actions (the old default) stopped every trusted build at its first
+ * `get_findings`, with a permission card nobody was watching. The names are
+ * the same allow-list the unattended runner already uses, so both paths agree.
+ */
+const SAFE_MCP =
+  /^mcp__[a-z0-9_-]*(jarvis[-_]?memory)[a-z0-9_-]*__(agent_|queue_|log_activity|add_finding|get_findings|get_router|search_memory|get_skill|list_skills)/i;
 
 export function toolKind(name, input = {}) {
   if (WRITERS.has(name)) return "write";
@@ -179,7 +201,7 @@ export function describeTool(name, input = {}, cwd = "") {
     why = n > 1 ? `${n} replacements in one file.` : "One replacement.";
   } else if (name === "NotebookEdit") {
     title = `Edit notebook ${path}`;
-  } else if (name === "Bash") {
+  } else if (RUNNERS.has(name)) {
     title = clip(command.split("\n")[0], 160) || "Run a command";
     why = String(input.description ?? "");
     if (/\b(rm|del|rmdir|Remove-Item)\b/i.test(command)) {
@@ -211,8 +233,10 @@ export function describeTool(name, input = {}, cwd = "") {
     command,
     // An MCP server's tool is the one thing here whose reach cannot be read
     // off its arguments, so the policy below treats it as its own category
-    // rather than as an ordinary command.
+    // rather than as an ordinary command. Jarvis's own connector has a named,
+    // bookkeeping-only allow-list (SAFE_MCP) instead.
     mcp: name.startsWith("mcp__"),
+    mcpSafe: SAFE_MCP.test(name),
     patch: previewPatch(name, input, cwd),
   };
 }
@@ -288,8 +312,10 @@ export function autoAllow(described, { strict = false, laneWrites = false, trust
 
   if (described.kind === "run") {
     // An MCP tool's reach is not readable from here, so it is the one acting
-    // category that stays behind a gate until the owner says Auto.
-    if (described.mcp) return trust === "auto";
+    // category that stays behind a gate until the owner says Auto — except
+    // Jarvis's own bookkeeping connector, which writes only memory/queue rows
+    // and is what every build is told to use.
+    if (described.mcp) return described.mcpSafe || trust === "auto";
     return trust === "trusted" || trust === "auto";
   }
 

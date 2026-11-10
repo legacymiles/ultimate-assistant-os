@@ -118,6 +118,14 @@ export function phaseOf(summary: ThreadSummary | null, view: ThreadView, missing
   if (missing) return "lost";
   if (!summary) return "starting";
   if (view.liveGate) return "asking";
+  // `ready` is the harness handshake, not the job. It arrives after a restart
+  // while the brief is already being worked on, and busy is the fact that says
+  // so — without it the panel announces "Built" seconds into every build.
+  if (summary.status === "ended") {
+    if (view.turns.some((t) => t.status === "failed") || stalled(view)) return "failed";
+    return "done";
+  }
+  if (summary.busy) return "working";
   switch (summary.status) {
     case "starting":
       return "starting";
@@ -125,9 +133,6 @@ export function phaseOf(summary: ThreadSummary | null, view: ThreadView, missing
       return "working";
     case "waiting":
       return "asking";
-    case "ended":
-      if (view.turns.some((t) => t.status === "failed") || stalled(view)) return "failed";
-      return "done";
     case "ready":
     case "idle":
       // Idle with nothing behind it means it has only just opened.

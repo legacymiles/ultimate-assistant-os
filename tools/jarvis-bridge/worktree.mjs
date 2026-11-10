@@ -217,43 +217,91 @@ export async function createProject({ id, slug = "", title = "", client = false 
   // Work built FOR someone else is kept apart from the owner's own, so the
   // folder you hand over is obviously theirs and nothing of yours is beside it.
   const root = resolve(client ? join(PROJECTS_ROOT, "clients") : PROJECTS_ROOT);
-  const path = resolve(root, name);
+  let path = resolve(root, name);
   // `slugify` cannot emit a separator or a dot segment, but the check is cheap
   // and this value decides where a harness is allowed to write.
   if (path !== root && !path.startsWith(root + sep)) {
     throw Object.assign(new Error("A project folder has to sit inside the projects folder."), { status: 400 });
   }
+
+  const notes = [];
+  let reused = false;
+
+  /**
+   * An existing folder is not an error any more.
+   *
+   * App Builder is routinely asked for the same app twice: the first build
+   * stopped halfway, the browser lost the thread, or the owner pressed Build
+   * again after changing a feature. Refusing because the folder exists left
+   * them with no way forward except renaming the app or deleting their own
+   * work by hand — and the folder it refused over was usually one THIS code
+   * had made minutes earlier.
+   *
+   * So: a git repository is reused as-is (its files and history are exactly
+   * what the build is meant to continue); an empty folder is initialised; a
+   * non-repository with files in it is never overwritten — a fresh sibling
+   * folder is made instead, and the note says which one is being used.
+   */
   if (existsSync(path) && readdirSync(path).length > 0) {
-    throw Object.assign(
-      new Error(`There is already something at ${path}. Rename the app, or move that folder, and build again.`),
-      { status: 409 },
-    );
+    let insideRepo = false;
+    try {
+      insideRepo = (await git(["rev-parse", "--is-inside-work-tree"], path)).trim() === "true";
+    } catch {
+      insideRepo = false;
+    }
+    if (insideRepo) {
+      reused = true;
+      notes.push(`Continuing in the existing project folder at ${path}, in its own repository.`);
+    } else {
+      let n = 2;
+      while (existsSync(resolve(root, `${name}-${n}`))) n += 1;
+      path = resolve(root, `${name}-${n}`);
+      notes.push(`${resolve(root, name)} already had files in it and is not a git repository, so this build uses ${path} instead.`);
+    }
   }
 
   mkdirSync(path, { recursive: true });
-  const notes = [];
-  await git(["init", "-b", "main"], path, 60_000);
-  writeFileSync(
-    join(path, ".gitignore"),
-    ["node_modules/", ".next/", ".env", ".env.local", ".env*.local", "dist/", "build/", ".DS_Store", "*.log", ""].join("\n"),
-    "utf8",
-  );
-  writeFileSync(join(path, "README.md"), `# ${title || name}\n\nBuilt from Jarvis App Builder.\n`, "utf8");
-  try {
-    await git(["add", "-A"], path, 60_000);
-    await git(["commit", "-m", `${title || name}: first commit`], path, 60_000);
-  } catch (e) {
-    // Almost always a missing user.name/user.email. The folder and the repo
-    // are real either way, so the thread opens and says what is missing.
-    notes.push(`The first commit did not run (${String(e?.message ?? e).trim().split("\n")[0]}).`);
+  if (!reused) {
+    await git(["init", "-b", "main"], path, 60_000);
+    // Only fill in the two files this function owns. A reused folder keeps
+    // every file it already had, byte for byte.
+    const ignore = join(path, ".gitignore");
+    if (!existsSync(ignore)) {
+      writeFileSync(
+        ignore,
+        ["node_modules/", ".next/", ".env", ".env.local", ".env*.local", "dist/", "build/", ".DS_Store", "*.log", ""].join("\n"),
+        "utf8",
+      );
+    }
+    const readme = join(path, "README.md");
+    if (!existsSync(readme)) writeFileSync(readme, `# ${title || name}\n\nBuilt from Jarvis App Builder.\n`, "utf8");
+    try {
+      await git(["add", "-A"], path, 60_000);
+      await git(["commit", "-m", `${title || name}: first commit`], path, 60_000);
+    } catch (e) {
+      // Almost always a missing user.name/user.email. The folder and the repo
+      // are real either way, so the thread opens and says what is missing.
+      notes.push(`The first commit did not run (${String(e?.message ?? e).trim().split("\n")[0]}).`);
+    }
   }
+
+  let branch = "main";
+  try {
+    const found = (await git(["rev-parse", "--abbrev-ref", "HEAD"], path)).trim();
+    if (found && found !== "HEAD") branch = found;
+  } catch {
+    /* a repository with no commits yet — main is the branch it will get. */
+  }
+
   notes.push(
-    client
-      ? "A client project: its own folder under Projects/clients and its own repository, no node_modules and no keys carried over."
-      : "A new project: its own folder and repository, no node_modules and no keys carried over.",
+    reused
+      ? `${client ? "A client project" : "This project"} was already on disk; the build continues in that folder and repository. Nothing was deleted or overwritten.`
+      : client
+        ? "A client project: its own folder under Projects/clients and its own repository, no node_modules and no keys carried over."
+        : "A new project: its own folder and repository, no node_modules and no keys carried over.",
   );
 
-  return { path, branch: "main", base: "", repo: path, project: true, notes };
+  return { path, branch, base: "", repo: path, project: true, reused, notes };
 }
 
 /** `git status --porcelain`, parsed into the rows a panel can draw. */
