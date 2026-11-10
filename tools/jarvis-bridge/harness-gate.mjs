@@ -52,6 +52,18 @@ const SAFE_COMMAND =
 const SAFE_MCP =
   /^mcp__[a-z0-9_-]*(jarvis[-_]?memory)[a-z0-9_-]*__(agent_|queue_|log_activity|add_finding|get_findings|get_router|search_memory|get_skill|list_skills)/i;
 
+/**
+ * The Playwright plugin's looking-only browser tools.
+ *
+ * A build reads reference sites with the browser the same way it reads them
+ * with WebFetch: navigate, snapshot, screenshot, read the console. Those are
+ * reads, and gating them made a trusted build stop on its second page. Clicking
+ * and typing stay gated — a click can submit something, and that is the line
+ * this allow-list must not cross.
+ */
+const SAFE_BROWSER_MCP =
+  /^mcp__[a-z0-9_-]*playwright[a-z0-9_-]*__browser_(navigate|snapshot|take_screenshot|console_messages|network_requests|wait_for|tabs|resize|close|find)$/i;
+
 export function toolKind(name, input = {}) {
   if (WRITERS.has(name)) return "write";
   if (RUNNERS.has(name)) {
@@ -236,7 +248,7 @@ export function describeTool(name, input = {}, cwd = "") {
     // rather than as an ordinary command. Jarvis's own connector has a named,
     // bookkeeping-only allow-list (SAFE_MCP) instead.
     mcp: name.startsWith("mcp__"),
-    mcpSafe: SAFE_MCP.test(name),
+    mcpSafe: SAFE_MCP.test(name) || SAFE_BROWSER_MCP.test(name),
     patch: previewPatch(name, input, cwd),
   };
 }

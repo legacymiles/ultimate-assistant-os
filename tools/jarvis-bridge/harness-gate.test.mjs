@@ -25,6 +25,15 @@ describe("a trusted build's own tools", () => {
     expect(allowed("mcp__jarvis-memory__client_review_preview", {})).toBe(false);
   });
 
+  it("lets a build look at a reference page without asking", () => {
+    expect(allowed("mcp__plugin_playwright_playwright__browser_navigate", {})).toBe(true);
+    expect(allowed("mcp__plugin_playwright_playwright__browser_take_screenshot", {})).toBe(true);
+  });
+
+  it("keeps a browser click gated", () => {
+    expect(allowed("mcp__plugin_playwright_playwright__browser_click", {})).toBe(false);
+  });
+
   it("keeps asking under Ask", () => {
     expect(allowed("PowerShell", { command: "node -v" }, { trust: "ask" })).toBe(false);
   });
