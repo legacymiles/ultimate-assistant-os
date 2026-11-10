@@ -1,5 +1,32 @@
 [
  {
+  "id": "bb14af9:image-studio",
+  "date": "2026-11-09",
+  "slug": "image-studio",
+  "title": "24/7 agents that carry on where the last machine left off",
+  "detail": "Work that needs a MACHINE -- Flux on Pinokio, a Blender render, an Unreal build -- could only be asked for while the PC was awake. From a phone, or with Pinokio unreachable, it was a dead end.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "bb14af9:jarvis",
+  "date": "2026-11-09",
+  "slug": "jarvis",
+  "title": "24/7 agents that carry on where the last machine left off",
+  "detail": "Work that needs a MACHINE -- Flux on Pinokio, a Blender render, an Unreal build -- could only be asked for while the PC was awake. From a phone, or with Pinokio unreachable, it was a dead end.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "bb14af9:images",
+  "date": "2026-11-09",
+  "slug": "images",
+  "title": "24/7 agents that carry on where the last machine left off",
+  "detail": "Work that needs a MACHINE -- Flux on Pinokio, a Blender render, an Unreal build -- could only be asked for while the PC was awake. From a phone, or with Pinokio unreachable, it was a dead end.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "8fde453:baby-no-scroll",
   "date": "2026-11-09",
   "slug": "baby-no-scroll",
