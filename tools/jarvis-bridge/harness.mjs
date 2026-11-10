@@ -112,7 +112,7 @@ function summary(s) {
     landed: s.landed,
     // A paused build keeps its row and its thread; the page needs the time to
     // say "waiting" rather than "stopped".
-    retryAt: s.jobId ? buildJobs.get(s.jobId)?.retryAt || "" : "",
+    retryAt: s.jobId ? buildJobs.retryAt(s.jobId) : "",
   };
 }
 

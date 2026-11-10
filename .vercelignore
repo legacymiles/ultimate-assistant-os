@@ -1,0 +1,27 @@
+# What Vercel does not need to build the site.
+#
+# Without this the CLI uploads every local build artifact: .next is 1.5 GB and
+# the preview builds add another 1.2 GB. The deploy is the same either way; it
+# just spends ten minutes uploading files the builder will throw away.
+#
+# Leading slashes matter. An unanchored `tools` also matched
+# src/components/music-creator/tools, and the build failed on five imports.
+/.next
+/.next-*
+/node_modules
+/tools
+/claude-home
+/.data
+/logs
+/.playwright-mcp
+/.claude
+/runpod
+/docs
+/BighomieAI-Email-Setup
+/item-storm-arena
+/jarvis-uncensored
+/dsh-browser-test
+/shots-live
+*.zip
+tsconfig.tsbuildinfo
+tsconfig.check.tsbuildinfo

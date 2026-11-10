@@ -201,6 +201,11 @@ export function createJobStore({ file = DEFAULT_JOBS_FILE, now = Date.now } = {}
       return j ? { ...j } : null;
     },
 
+    /** Just the wake-up time, without copying the transcript on every poll. */
+    retryAt(id) {
+      return find(id)?.retryAt || "";
+    },
+
     /** Write a job down before anything is started from it. */
     begin(job) {
       const existing = find(job.id);
