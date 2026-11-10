@@ -1,5 +1,14 @@
 [
  {
+  "id": "a726987:baby-no-scroll",
+  "date": "2026-11-09",
+  "slug": "baby-no-scroll",
+  "title": "True full screen from the installed app, with no \"swipe down to exit\"",
+  "detail": "The owner tried the lock and still got Chrome's bar and \"swipe down to exit full screen\". Three causes, three fixes:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "bb14af9:image-studio",
   "date": "2026-11-09",
   "slug": "image-studio",
