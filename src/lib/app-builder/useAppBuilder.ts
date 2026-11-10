@@ -61,6 +61,26 @@ export function writeStore(next: Store): Store {
   return clean;
 }
 
+/**
+ * The two names that were used by the builds before durable jobs existed.
+ *
+ * They are removed on sight, once, because a browser that was open during the
+ * old attempts still holds a local copy and sync used to keep whichever side
+ * was written last. "BuildFlip 2" is a different name on purpose: a new app
+ * must never collide with the folder a dead attempt left behind.
+ */
+const RETIRED_PROJECT = /^(build\s*flip|build\s*roi)$/i;
+
+function dropRetiredProjects(s: Store): Store {
+  const projects = s.projects.filter((p) => !RETIRED_PROJECT.test((p.understanding?.name ?? "").trim()));
+  if (projects.length === s.projects.length) return s;
+  return {
+    ...s,
+    projects,
+    currentId: projects.some((p) => p.id === s.currentId) ? s.currentId : projects[0]?.id ?? null,
+  };
+}
+
 async function call<T>(body: Record<string, unknown>, timeoutMs = 95_000): Promise<T> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -131,7 +151,7 @@ export function useAppBuilder() {
   const starting = useRef(new Set<string>());
 
   useEffect(() => {
-    const s = readStore();
+    const s = dropRetiredProjects(readStore());
     // ?p=<id> — a project handed over from Jarvis chat opens straight away.
     const wanted = new URLSearchParams(window.location.search).get("p");
     const next = wanted && s.projects.some((p) => p.id === wanted) ? { ...s, currentId: wanted } : s;
@@ -140,11 +160,15 @@ export function useAppBuilder() {
     setReady(true);
   }, []);
   useRemotePull(STORE_KEY, () => {
-    const s = readStore();
+    const raw = readStore();
+    const s = dropRetiredProjects(raw);
     const keep = storeRef.current.currentId;
     const next = { ...s, currentId: keep && s.projects.some((p) => p.id === keep) ? keep : s.currentId };
     storeRef.current = next;
     setStore(next);
+    // The retired project came from an old local copy. Save the cleaned store,
+    // so it cannot win the next sync and appear again.
+    if (s !== raw) writeStore(next);
   });
 
   const commit = useCallback((next: Store) => {
