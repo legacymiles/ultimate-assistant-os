@@ -1165,7 +1165,7 @@ function VersionsPanel({
         <div className="cr-versions-head">
           <div>
             <h2>Versions</h2>
-            <p>The page as it looked before each edit. Undo puts that one back on the screen.</p>
+            <p>Each version as it looked when it landed. Undo puts that one back on the screen.</p>
           </div>
           <button type="button" className="cr-icon-btn ghost" onClick={onClose} aria-label="Close">
             ×
