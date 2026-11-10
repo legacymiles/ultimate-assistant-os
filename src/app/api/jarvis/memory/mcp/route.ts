@@ -48,6 +48,7 @@ import {
   handOff,
   newAgent,
   note as noteAgent,
+  renew,
   add as addAgent,
   type AgentNeed,
 } from "@/lib/new-jarvis/agents/agents";
@@ -299,7 +300,12 @@ async function runAgentTool(
           }
           if (args.blocked === true) return block(d, id, client, text, at);
           const noted = noteAgent(d, id, client, text, at);
-          return step ? finishStep(noted, id, step, client, text, at) : noted;
+          const ticked = step ? finishStep(noted, id, step, client, text, at) : noted;
+          // A runner that is reporting progress is plainly alive, so noting
+          // renews its claim. Without this a 40-minute Blender render loses
+          // its 20-minute lease half way and a second machine starts the same
+          // render -- the exact duplication the lease exists to prevent.
+          return renew(ticked, id, client, now);
         });
         if (missing) return `Not changed: there is no 24/7 agent ${id}.`;
         if (args.blocked === true) return `${id} is waiting on the owner, and their screen says why.`;

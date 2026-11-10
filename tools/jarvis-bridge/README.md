@@ -211,3 +211,68 @@ its command line. Started from the Startup shortcut the command line carries the
 full script path and matching it works; started from `start.cmd` it is only
 `node server.mjs`, matches nothing, and a kill written that way reports success
 while the agent keeps running.
+
+---
+
+## 24/7 agents — carrying on when this PC wakes
+
+`agents-wake.mjs` is the other half of the hub's **24/7 agents** tab. The hub
+stores a goal and never pushes; this is the thing on the PC that notices it has
+power and asks *"is there anything I can do?"*.
+
+```bash
+node agents-wake.mjs            # run forever (what the Startup shortcut runs)
+node agents-wake.mjs --once     # one cycle, then exit
+node agents-wake.mjs --dry-run  # say what it would do, start nothing
+node agents-wake.mjs --install  # put it in Startup
+node agents-wake.mjs --off      # stop it starting at sign-in
+```
+
+It is **its own process**, with its own Startup shortcut and its own log
+(`out/agents.log`), for the reason the picture drawer is its own service: a
+render that wedges must not be able to take the harness down with it. It edits
+none of the bridge's files.
+
+**It works with the browser shut.** Nothing here needs Jarvis to be open.
+
+### How it knows the laptop woke
+
+Windows gives a plain Node process no wake event, so it uses the one signal it
+has: a heartbeat every 20 seconds. A beat that should have fired 20 seconds ago
+firing three hours late *is* the lid having been shut, and that is the moment
+the owner means by "as soon as the laptop opens". Otherwise it asks every three
+minutes — one small request, no model runs.
+
+### What it is allowed to do
+
+Nobody is awake to approve anything, so a run does **not** use the harness gate
+(which asks). It uses `agents-unattended.mjs`, a different policy:
+
+> **Allow or block. Never ask.**
+
+- **Allowed**: reading anywhere; the render tools (`node`, `python`, `ffmpeg`,
+  Blender, Unreal, read-only `git`, `curl` **to this machine only**); writing
+  inside the folder that agent was given; its own bookkeeping on the hub.
+- **Blocked**: committing, pushing, installing software, deleting, admin
+  rights, reaching another machine, piping the internet into a shell, editing
+  the owner's checkout, and **any tool the policy has not heard of** — blocked
+  by default, not by omission.
+
+A blocked agent is told to call `agent_note` with `blocked: true`, so the
+refusal reaches the owner's screen instead of becoming a silent failure.
+
+Two things that a real unattended run found, and which the tests now pin:
+
+- On Windows the agent reaches for the **PowerShell** tool, not Bash. A policy
+  that only knew about Bash refused everything — safe, but useless.
+- **Redirection** (`node x.mjs > C:/dev/app/src/page.tsx`) runs an allowed
+  program and still overwrites a file. Checking only the program misses it.
+
+### Limits worth knowing
+
+- A lease is 20 minutes. `agent_note` renews it, so a long render must report
+  progress or another machine may decide this one died.
+- It will not change the owner's repo. An agent whose last step is "put it in
+  the app" will block there, on purpose, and wait for a human.
+- `AGENTS_MAX_RUNS_PER_HOUR` (default 8) stops a confused agent spinning all
+  night. Drop a file named `agents-off` beside this one to pause it entirely.

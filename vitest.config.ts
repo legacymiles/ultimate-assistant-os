@@ -10,7 +10,13 @@ import path from "node:path";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    // tools/jarvis-bridge holds logic that runs UNATTENDED on the owner's
+    // machine -- the 24/7 agent runner's permission policy above all -- so it
+    // is tested like everything else rather than trusted for living outside
+    // src. Scoped to that one folder on purpose: other tools (unreal-builder,
+    // video-studio-runner) ship tests written against `node:test`, which
+    // vitest collects and then reports as empty suites.
+    include: ["src/**/*.test.ts", "tools/jarvis-bridge/*.test.mjs"],
     exclude: ["**/node_modules/**", "src/lib/auteur/director/director.test.ts"],
   },
   resolve: {
