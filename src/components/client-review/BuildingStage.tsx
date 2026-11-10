@@ -15,7 +15,6 @@
 
 import { useEffect, useState, type CSSProperties } from "react";
 import { waitedFor } from "@/lib/client-review/building";
-import { LiveActivity } from "../new-jarvis/LiveActivity";
 import type { LiveBuild } from "./LiveBuild";
 
 export function BuildingStage({ name, number, since, live }: { name: string; number: string; since: string; live: LiveBuild }) {
@@ -28,8 +27,6 @@ export function BuildingStage({ name, number, since, live }: { name: string; num
     return () => window.clearInterval(id);
   }, []);
 
-  const turn = live.build.view.turns.at(-1);
-  const tool = turn?.tools.at(-1) ?? null;
   const gate = live.build.gate;
   const running = live.finish.kind === "running";
   const state = gate
@@ -106,16 +103,6 @@ export function BuildingStage({ name, number, since, live }: { name: string; num
         <p className="cr-build-hint">
           The build is running on the PC. The chat beside this is the agent&apos;s own log — open it to steer, or leave it alone; it reloads the app here by itself when it&apos;s ready.
         </p>
-
-        {(running || gate) && (
-          <LiveActivity
-            tool={tool}
-            note={turn?.text}
-            startedAt={turn?.at}
-            waiting={Boolean(gate)}
-            idle="Reading the brief…"
-          />
-        )}
       </div>
 
       <span className="cr-build-foot" aria-hidden>

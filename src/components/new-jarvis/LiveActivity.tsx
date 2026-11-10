@@ -30,6 +30,11 @@ function firstLine(s: string): string {
   return s.split("\n").map((l) => l.trim()).find(Boolean) ?? "";
 }
 
+/** The newest line it said, not the first one from five minutes ago. */
+function lastLine(s: string): string {
+  return s.split("\n").map((l) => l.trim()).filter(Boolean).at(-1) ?? "";
+}
+
 function targetOf(t: ToolRow): string {
   if (t.path) return t.path;
   const cmd = firstLine(t.command);
@@ -80,7 +85,7 @@ export function LiveActivity({
   const target = tool ? targetOf(tool) : idle;
   const code = tool ? codeOf(tool) : "";
   const secs = startedAt && startedAt > 0 ? Math.max(0, Math.round((now - startedAt) / 1000)) : 0;
-  const said = note ? firstLine(note) : "";
+  const said = note ? lastLine(note) : "";
 
   return (
     <div className={`la${waiting ? " is-waiting" : ""}`} role="status" aria-live="polite">
