@@ -30,6 +30,12 @@ describe("mcp protocol", () => {
     const tools = (res?.result as { tools: typeof TOOLS }).tools;
     expect(tools.map((t) => t.name).sort()).toEqual([
       "add_finding",
+      "agent_add",
+      "agent_done",
+      "agent_handoff",
+      "agent_list",
+      "agent_next",
+      "agent_note",
       "client_review_preview",
       "delete_memory",
       "get_findings",

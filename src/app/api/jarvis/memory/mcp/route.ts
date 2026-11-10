@@ -38,6 +38,21 @@ import {
   startRequest,
 } from "@/lib/new-jarvis/requests";
 import { readRequests, updateRequests } from "@/lib/new-jarvis/server/requestsStore";
+import {
+  addSteps,
+  block,
+  claimNext,
+  cleanNeeds,
+  finish,
+  finishStep,
+  handOff,
+  newAgent,
+  note as noteAgent,
+  add as addAgent,
+  type AgentNeed,
+} from "@/lib/new-jarvis/agents/agents";
+import { briefFor, describeAgents, nothingFor } from "@/lib/new-jarvis/agents/describe";
+import { readAgents, updateAgents } from "@/lib/new-jarvis/server/agentsStore";
 import { folderName } from "@/lib/new-jarvis/server/requestsAuth";
 import { videoUploadLink } from "@/lib/new-jarvis/server/requestVideo";
 import { ReviewError } from "@/lib/client-review/logic";
@@ -71,6 +86,7 @@ async function runTool(
   client = "claude-code",
 ): Promise<string> {
   if (name.startsWith("queue_")) return runQueueTool(ctx, name, args, origin, client);
+  if (name.startsWith("agent_")) return runAgentTool(ctx, name, args, client);
   switch (name) {
     case "search_memory": {
       const query = str(args.query);
@@ -235,6 +251,113 @@ async function runTool(
  * comes back as text it can read; anything else is thrown and reported as a
  * failed tool by handleRpc.
  */
+/**
+ * The 24/7 agent verbs.
+ *
+ * Every one of these resolves to the same per-account document the owner's
+ * Agents tab reads, so a step finished on the VPS at 3am is on their phone at
+ * breakfast. Nothing here throws at the model: a refusal comes back as a
+ * sentence it can act on, because a stack trace in a tool result just makes it
+ * try the same call again.
+ */
+async function runAgentTool(
+  ctx: MemoryContext,
+  name: string,
+  args: Record<string, unknown>,
+  client: string,
+): Promise<string> {
+  const id = str(args.id);
+  const now = Date.now();
+  const at = new Date(now).toISOString();
+
+  try {
+    switch (name) {
+      case "agent_list":
+        return describeAgents(await readAgents(ctx.userId), now);
+
+      case "agent_next": {
+        const have = cleanNeeds(Array.isArray(args.have) ? args.have : []) as AgentNeed[];
+        let brief = "";
+        let why: string | undefined;
+        await updateAgents(ctx.userId, (d) => {
+          const result = claimNext(d, client, have, now);
+          if (result.agent) brief = briefFor(result.agent, now);
+          else why = result.why;
+          return result.doc;
+        });
+        return brief || nothingFor(why, have);
+      }
+
+      case "agent_note": {
+        const text = str(args.note);
+        const step = str(args.step);
+        let missing = false;
+        await updateAgents(ctx.userId, (d) => {
+          if (!d.agents.some((a) => a.id === id)) {
+            missing = true;
+            return d;
+          }
+          if (args.blocked === true) return block(d, id, client, text, at);
+          const noted = noteAgent(d, id, client, text, at);
+          return step ? finishStep(noted, id, step, client, text, at) : noted;
+        });
+        if (missing) return `Not changed: there is no 24/7 agent ${id}.`;
+        if (args.blocked === true) return `${id} is waiting on the owner, and their screen says why.`;
+        return step ? `Noted, and ${step} is ticked off on ${id}.` : `Noted on ${id}.`;
+      }
+
+      case "agent_handoff": {
+        const text = str(args.note);
+        if (!text) return "Not changed: say where you got to, or the next machine starts from the beginning.";
+        let missing = false;
+        await updateAgents(ctx.userId, (d) => {
+          if (!d.agents.some((a) => a.id === id)) {
+            missing = true;
+            return d;
+          }
+          const extra = Array.isArray(args.steps) ? args.steps.map((x) => str(x)).filter(Boolean) : [];
+          return handOff(extra.length ? addSteps(d, id, extra, at) : d, id, client, text, at);
+        });
+        return missing
+          ? `Not changed: there is no 24/7 agent ${id}.`
+          : `Handed ${id} back. The next machine that can run it gets your note first.`;
+      }
+
+      case "agent_done": {
+        let missing = false;
+        await updateAgents(ctx.userId, (d) => {
+          if (!d.agents.some((a) => a.id === id)) {
+            missing = true;
+            return d;
+          }
+          return finish(d, id, client, str(args.result), at);
+        });
+        return missing ? `Not changed: there is no 24/7 agent ${id}.` : `${id} is finished and off the owner's board.`;
+      }
+
+      case "agent_add": {
+        const goal = str(args.goal);
+        if (!goal) return "Not added: say what the agent should get done.";
+        const agent = newAgent({
+          goal,
+          needs: cleanNeeds(Array.isArray(args.needs) ? args.needs : []),
+          steps: Array.isArray(args.steps) ? args.steps.map((x) => str(x)).filter(Boolean) : [],
+          folder: str(args.folder) || undefined,
+          from: client,
+          at,
+        });
+        await updateAgents(ctx.userId, (d) => addAgent(d, agent));
+        return `Filed 24/7 agent ${agent.id}. It will be picked up by the next machine that can run it.`;
+      }
+
+      default:
+        throw new Error(`No tool named ${name}.`);
+    }
+  } catch (e) {
+    return `Not changed: ${e instanceof Error ? e.message : "that didn't work."}`;
+  }
+}
+
 async function runQueueTool(
   ctx: MemoryContext,
   name: string,

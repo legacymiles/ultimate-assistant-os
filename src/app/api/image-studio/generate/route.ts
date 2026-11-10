@@ -3,6 +3,8 @@ import { aiConfigured } from "@/lib/ai/provider";
 import { aspectRatio, extractResult, generationText, placeholderImage, userContent } from "@/lib/image-studio/prompt";
 import { chat, parseBody } from "@/lib/image-studio/server";
 import { drawFreeFirst, sizeForAspect } from "@/lib/images/server/draw";
+import { handOffPicture } from "@/lib/images/server/handoff";
+import { browserUid } from "@/lib/new-jarvis/server/requestsAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -53,7 +55,28 @@ export async function POST(req: Request) {
   }
 
   if (!aiConfigured()) {
-    return NextResponse.json({ image: placeholderImage(agent, prompt, variant), offline: true, model: "placeholder" });
+    // Nothing could draw it: the PC is asleep and there is no key. Rather
+    // than handing back a drawn placeholder and calling it a day, the
+    // picture becomes a 24/7 agent and gets drawn free on the owner's own
+    // card the next time the laptop is open. The placeholder still comes
+    // back so the screen has something to show in the meantime.
+    const size = sizeForAspect(aspectRatio(agent.aspect));
+    const uid = await browserUid();
+    const handed = uid
+      ? await handOffPicture({
+          uid,
+          prompt: generationText(agent, prompt, refs),
+          width: size.width,
+          height: size.height,
+          app: "Image Studio",
+        })
+      : null;
+    return NextResponse.json({
+      image: placeholderImage(agent, prompt, variant),
+      offline: true,
+      model: "placeholder",
+      ...(handed ? { agentId: handed.id, note: handed.note } : {}),
+    });
   }
 
   try {

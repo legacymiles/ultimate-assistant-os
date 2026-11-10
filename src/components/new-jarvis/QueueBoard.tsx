@@ -34,6 +34,8 @@ import { sendToBoard, ticketForQueueRow } from "@/lib/new-jarvis/board";
 import { INBOX, inFolder } from "@/lib/new-jarvis/requests";
 import type { UseRequests } from "@/lib/new-jarvis/useRequests";
 import { FinishedLog, RequestComposer, RequestList } from "./QueueFolder";
+import { Agents } from "./Agents";
+import { useAgents } from "@/lib/new-jarvis/agents/useAgents";
 
 const KINDS: QueueKind[] = ["task", "app", "skill", "workflow"];
 
@@ -44,8 +46,21 @@ const KIND_ICON: Record<QueueKind, keyof typeof Icon> = {
   workflow: "Film",
 };
 
+/**
+ * The two halves of In Queue.
+ *
+ * "Queue" is work a PERSON will read and act on. "24/7 agents" is work a
+ * MACHINE will: goals that need Pinokio, Blender or Unreal and are picked up
+ * by whichever machine wakes up able to run them. They share a tab strip
+ * because they are the same question asked of two different workers.
+ */
+type QueueTab = "queue" | "agents";
+
 export function QueueBoard({ queue }: { queue: UseQueue }) {
   const { rows, counts, filter, setFilter, loading, error, requests } = queue;
+  const [tab, setTab] = useState<QueueTab>("queue");
+  // Polls only while it is the tab being looked at; see useAgents.
+  const agents = useAgents(tab === "agents");
   const [open, setOpen] = useState<string | null>(null);
   const [showFinished, setShowFinished] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(true);
@@ -87,6 +102,41 @@ export function QueueBoard({ queue }: { queue: UseQueue }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {/* --- which worker: a person, or a machine ------------------------- */}
+      <div role="tablist" aria-label="In Queue" className="flex shrink-0 border-b border-line bg-panel">
+        {([
+          ["queue", "Queue", counts.wip],
+          ["agents", "24/7 agents", agents.live],
+        ] as const).map(([id, label, n]) => {
+          const on = tab === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => setTab(id)}
+              className={`inline-flex min-h-[36px] items-center gap-1.5 border-b-2 px-3 text-[11px] font-semibold uppercase tracking-wide transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-2 ${
+                on ? "border-brand-2 text-ink" : "border-transparent text-ink-faint hover:text-ink"
+              }`}
+            >
+              {label}
+              {n > 0 ? (
+                <span className="font-mono text-[10px] font-semibold text-brand-2" data-num>
+                  {n}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+
+      {tab === "agents" ? (
+        <div className="min-h-0 flex-1">
+          <Agents agents={agents} />
+        </div>
+      ) : (
+      <>
       {/* --- the readout: three numbers that are the whole point ----------- */}
       <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line bg-panel px-3 py-2">
         <h2 className="text-[11px] font-semibold uppercase tracking-wide text-ink">In Queue</h2>
@@ -287,6 +337,8 @@ export function QueueBoard({ queue }: { queue: UseQueue }) {
           </ul>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

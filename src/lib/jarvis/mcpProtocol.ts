@@ -33,7 +33,10 @@ export const INSTRUCTIONS =
   "Memory rules: call get_router first to see the areas of the owner's world, then get_router with one area for what lives there — open only what the task needs. " +
   "Memories the owner wrote by hand (notes, profile, vault) are read-only for you. " +
   "Before running a workflow or skill, call get_findings for it; after a run, add_finding with what worked or what to avoid. " +
-  "When you finish a piece of work, log_activity one line saying what you did, so it lands in the owner's daily log.";
+  "When you finish a piece of work, log_activity one line saying what you did, so it lands in the owner's daily log. " +
+  "24/7 agents are standing goals that need a MACHINE — Pinokio/Flux, Blender, Unreal — and outlive any one session. " +
+  "Whenever you are on the owner's PC or VPS and have a moment, call agent_next with what this machine has; it hands you the next step this machine can actually run, " +
+  "together with the note the last machine left. ALWAYS call agent_handoff before you stop for any reason, saying where you got to — that is what lets the work resume on the next machine instead of starting over.";
 
 export interface ToolDef {
   name: string;
@@ -42,6 +45,92 @@ export interface ToolDef {
 }
 
 export const TOOLS: ToolDef[] = [
+  {
+    name: "agent_list",
+    description:
+      "List the owner's 24/7 agents — standing goals that need one of their machines (Pinokio/Flux, Blender, Unreal) and carry on across sessions. Shows each one's state, progress and what it is waiting for.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "agent_next",
+    description:
+      "Pick up the next 24/7 agent THIS machine can run, and hold it for 20 minutes. Returns the goal, the steps, and — above all — the note the last machine left saying where it got to, so you carry on instead of starting again. Call this whenever you are on the owner's PC or VPS with time to spare. If nothing matches, it says why in one line and nothing is held.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        have: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "What this machine can actually do right now: any of pinokio, blender, unreal, ffmpeg, gpu, shell. Only report what you have CHECKED — claiming pinokio on a machine without it parks the owner's work.",
+        },
+      },
+      required: ["have"],
+    },
+  },
+  {
+    name: "agent_note",
+    description:
+      "Say what just happened on a 24/7 agent you hold. Pass step (a step id like s2) to tick that step off. Pass blocked: true when it needs the owner — a key, a decision — and say what in the note; that frees the agent and shows the reason on their screen.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "The agent id, e.g. a-7k2m9x." },
+        note: { type: "string", description: "One or two plain sentences." },
+        step: { type: "string", description: "Optional: the step id this finishes." },
+        blocked: { type: "boolean", description: "Optional: it needs the owner before it can go further." },
+      },
+      required: ["id", "note"],
+    },
+  },
+  {
+    name: "agent_handoff",
+    description:
+      "Put a 24/7 agent down, leaving the next machine a note. CALL THIS BEFORE YOU STOP, every time — ending a session, a laptop about to close, a render left running, running out of context. Say exactly where you got to, what is already saved and where, and what the next machine should do first. Without it the next machine starts the goal from the beginning.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        note: { type: "string", description: "Where you got to, and what to do next. Be specific: paths, seeds, ids." },
+        steps: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional: further steps you discovered are needed.",
+        },
+      },
+      required: ["id", "note"],
+    },
+  },
+  {
+    name: "agent_done",
+    description:
+      "The 24/7 agent's goal is actually met. Only call this when it is true and you have checked — the owner stops watching a finished agent. If it is not done, use agent_handoff instead.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string" }, result: { type: "string", description: "One line on what came of it." } },
+      required: ["id"],
+    },
+  },
+  {
+    name: "agent_add",
+    description:
+      "File a new 24/7 agent: a goal that needs one of the owner's machines and should be picked up whenever one is free. Use it when they ask for something that needs Pinokio/Flux, Blender or Unreal and the machine you are on cannot do it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        goal: { type: "string", description: "What done looks like, in the owner's words." },
+        needs: {
+          type: "array",
+          items: { type: "string" },
+          description: "What a machine must have: pinokio, blender, unreal, ffmpeg, gpu, shell.",
+        },
+        steps: { type: "array", items: { type: "string" }, description: "Optional: the steps, in order." },
+        folder: { type: "string", description: "Optional: the In Queue row it belongs to, e.g. app:cook-connect." },
+      },
+      required: ["goal"],
+    },
+  },
+
   {
     name: "search_memory",
     description:
