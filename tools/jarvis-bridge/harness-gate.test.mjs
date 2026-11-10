@@ -35,6 +35,11 @@ describe("a trusted build's own tools", () => {
     expect(allowed("mcp__plugin_playwright_playwright__browser_click", {})).toBe(false);
   });
 
+  it("lets a build drive its own preview", () => {
+    expect(allowed("mcp__plugin_playwright_playwright__browser_click", {}, { trust: "trusted", laneWrites: true })).toBe(true);
+    expect(allowed("mcp__plugin_playwright_playwright__browser_press_key", {}, { trust: "trusted", project: true })).toBe(true);
+  });
+
   it("installs a brand-new project's own packages without asking", () => {
     expect(allowed("PowerShell", { command: "npm install" }, { trust: "trusted", project: true })).toBe(true);
   });

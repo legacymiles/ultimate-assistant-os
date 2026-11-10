@@ -64,6 +64,14 @@ const SAFE_MCP =
 const SAFE_BROWSER_MCP =
   /^mcp__[a-z0-9_-]*playwright[a-z0-9_-]*__browser_(navigate|snapshot|take_screenshot|console_messages|network_requests|wait_for|tabs|resize|close|find|evaluate)$/i;
 
+/**
+ * Driving a page the build itself is making — clicking the toy, typing in the
+ * form, pressing a key — is how a build verifies its own app. It is allowed
+ * only inside a build lane (`laneWrites`), never in an ordinary chat thread.
+ */
+const BUILD_BROWSER_MCP =
+  /^mcp__[a-z0-9_-]*playwright[a-z0-9_-]*__browser_(click|type|press_key|hover|select_option|drag|mouse_[a-z_]+|keyboard_[a-z_]+)$/i;
+
 export function toolKind(name, input = {}) {
   if (WRITERS.has(name)) return "write";
   if (RUNNERS.has(name)) {
@@ -249,6 +257,7 @@ export function describeTool(name, input = {}, cwd = "") {
     // bookkeeping-only allow-list (SAFE_MCP) instead.
     mcp: name.startsWith("mcp__"),
     mcpSafe: SAFE_MCP.test(name) || SAFE_BROWSER_MCP.test(name),
+    mcpBuildSafe: BUILD_BROWSER_MCP.test(name),
     patch: previewPatch(name, input, cwd),
   };
 }
@@ -332,8 +341,13 @@ export function autoAllow(described, { strict = false, laneWrites = false, trust
     // An MCP tool's reach is not readable from here, so it is the one acting
     // category that stays behind a gate until the owner says Auto — except
     // Jarvis's own bookkeeping connector, which writes only memory/queue rows
-    // and is what every build is told to use.
-    if (described.mcp) return described.mcpSafe || trust === "auto";
+    // and is what every build is told to use, and the page interactions a
+    // build uses to verify its own preview.
+    if (described.mcp) {
+      if (described.mcpSafe) return true;
+      if (described.mcpBuildSafe && (project || laneWrites)) return true;
+      return trust === "auto";
+    }
     return trust === "trusted" || trust === "auto";
   }
 
