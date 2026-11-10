@@ -1,5 +1,14 @@
 [
  {
+  "id": "e721b8a:client-review",
+  "date": "2026-11-09",
+  "slug": "client-review",
+  "title": "The building stage tells the truth when a build stops",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "c52d61a:client-review",
   "date": "2026-11-09",
   "slug": "client-review",
