@@ -62,7 +62,7 @@ const SAFE_MCP =
  * this allow-list must not cross.
  */
 const SAFE_BROWSER_MCP =
-  /^mcp__[a-z0-9_-]*playwright[a-z0-9_-]*__browser_(navigate|snapshot|take_screenshot|console_messages|network_requests|wait_for|tabs|resize|close|find)$/i;
+  /^mcp__[a-z0-9_-]*playwright[a-z0-9_-]*__browser_(navigate|snapshot|take_screenshot|console_messages|network_requests|wait_for|tabs|resize|close|find|evaluate)$/i;
 
 export function toolKind(name, input = {}) {
   if (WRITERS.has(name)) return "write";

@@ -28,6 +28,7 @@ describe("a trusted build's own tools", () => {
   it("lets a build look at a reference page without asking", () => {
     expect(allowed("mcp__plugin_playwright_playwright__browser_navigate", {})).toBe(true);
     expect(allowed("mcp__plugin_playwright_playwright__browser_take_screenshot", {})).toBe(true);
+    expect(allowed("mcp__plugin_playwright_playwright__browser_evaluate", {})).toBe(true);
   });
 
   it("keeps a browser click gated", () => {
