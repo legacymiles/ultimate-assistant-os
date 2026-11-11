@@ -45,7 +45,7 @@ const MAX_TEXT = 8_000;
  * app. Seeing either pair means the agent reached its own finish, so there is
  * nothing left for a restart to resume.
  */
-const FINISH_LINE = /^\s*(?:Preview|Live|Repo|PR):\s*(?:https?:\/\/\S+|none)\s*$/im;
+export const FINISH_LINE = /^\s*(?:Preview|Live|Repo|PR):\s*(?:https?:\/\/\S+|none)\s*$/im;
 
 /** A stopped build is never resumed, however it stopped. */
 const LIVE = new Set(["running"]);
@@ -230,6 +230,11 @@ export function createJobStore({ file = DEFAULT_JOBS_FILE, now = Date.now } = {}
         lastTurnEnded: false,
         turnText: "",
         lastError: "",
+        // The bridge checks this build itself before it is called built. Null
+        // means the old rule: finished when it prints its finish lines.
+        verify: job.verify ? { state: "idle", run: 0, rounds: 0, failures: [], lastIds: [], report: "", why: "" } : null,
+        claimed: false,
+        claimedText: "",
         ...(existing || {}),
       };
       if (existing) Object.assign(existing, next);
@@ -269,6 +274,7 @@ export function createJobStore({ file = DEFAULT_JOBS_FILE, now = Date.now } = {}
         j.turnText = "";
         j.lastError = "";
         j.lastTurnEnded = false;
+        j.claimed = false;
       } else if (row.kind === "text") {
         j.turnText = `${j.turnText || ""}${row.text || ""}`.slice(-40_000);
       } else if (row.kind === "error") {
@@ -283,8 +289,15 @@ export function createJobStore({ file = DEFAULT_JOBS_FILE, now = Date.now } = {}
           j.status = j.retry ? "running" : "failed";
           j.why = why;
         } else if (FINISH_LINE.test(j.turnText || "")) {
-          j.status = "done";
-          j.why = "It printed what it finished with.";
+          if (j.verify) {
+            // It SAYS it is finished. harness.mjs sees this and runs the gate;
+            // only a pass (or the owner) makes it done.
+            j.claimed = true;
+            j.claimedText = String(j.turnText || "").slice(-4_000);
+          } else {
+            j.status = "done";
+            j.why = "It printed what it finished with.";
+          }
         }
         j.turnText = "";
       } else if (row.kind === "status" && row.sessionId) {

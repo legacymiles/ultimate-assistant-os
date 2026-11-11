@@ -191,3 +191,55 @@ describe("what a resumed build is told", () => {
   });
 });
 
+
+describe("a build that is checked before it is called built", () => {
+  const FINISH = "All done.\nRepo: https://github.com/a/b\nLive: https://a.vercel.app";
+
+  it("is only CLAIMED when it prints its finish lines", () => {
+    const { s } = store();
+    s.begin({ ...job(), verify: true });
+    s.arm("t_1");
+    turn(s, "t_1", FINISH);
+    const one = s.get("t_1");
+    expect(one.status).toBe("running");
+    expect(one.claimed).toBe(true);
+    expect(one.claimedText).toContain("Live: https://a.vercel.app");
+    expect(one.verify.state).toBe("idle");
+  });
+
+  it("is still done on its own word when verify is off", () => {
+    const { s } = store();
+    s.begin(job());
+    s.arm("t_1");
+    turn(s, "t_1", FINISH);
+    expect(s.get("t_1").status).toBe("done");
+  });
+
+  it("forgets the claim when the next turn starts", () => {
+    const { s } = store();
+    s.begin({ ...job(), verify: true });
+    s.arm("t_1");
+    turn(s, "t_1", FINISH);
+    s.appendEvent("t_1", { seq: 9, kind: "user", text: "fix it" });
+    expect(s.get("t_1").claimed).toBe(false);
+  });
+
+  it("does not claim a turn that ended on an error", () => {
+    const { s } = store();
+    s.begin({ ...job(), verify: true });
+    s.arm("t_1");
+    turn(s, "t_1", FINISH, { error: "boom" });
+    expect(s.get("t_1").claimed).toBe(false);
+    expect(s.get("t_1").status).toBe("failed");
+  });
+
+  it("is never resumed once it is unverified, and keeps a check that was running", () => {
+    const { file, s } = store();
+    s.begin({ ...job(), verify: true });
+    s.arm("t_1");
+    s.update("t_1", { verify: { ...s.get("t_1").verify, state: "checking", run: 2 } });
+    expect(createJobStore({ file }).resumable()[0].verify).toMatchObject({ state: "checking", run: 2 });
+    s.mark("t_1", "unverified", "Still failing after 3 repair rounds.");
+    expect(createJobStore({ file }).resumable()).toEqual([]);
+  });
+});
