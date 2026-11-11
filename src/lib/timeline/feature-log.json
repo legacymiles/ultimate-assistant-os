@@ -1,5 +1,23 @@
 [
  {
+  "id": "09be887:client-review",
+  "date": "2026-11-10",
+  "slug": "client-review",
+  "title": "Ship hands a site over in two presses, and the picker is one A-Z list",
+  "detail": "Ship was a screen of controls that shipped nothing. Everything that only configures a project - the repo and Vercel fields, the brief model, the timeline link, New link, Release, Archive, Delete - is now behind two disclosures, \"+ Add a version by hand\" is gone, and what is left in the eyeline is a ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "09be887:app-builder",
+  "date": "2026-11-10",
+  "slug": "app-builder",
+  "title": "Ship hands a site over in two presses, and the picker is one A-Z list",
+  "detail": "Ship was a screen of controls that shipped nothing. Everything that only configures a project - the repo and Vercel fields, the brief model, the timeline link, New link, Release, Archive, Delete - is now behind two disclosures, \"+ Add a version by hand\" is gone, and what is left in the eyeline is a ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "657fd0d:app-builder",
   "date": "2026-11-10",
   "slug": "app-builder",
