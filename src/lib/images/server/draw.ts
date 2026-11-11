@@ -38,7 +38,7 @@ const HEALTH_MS = 4000;
 
 /** How long a health answer is trusted, so one picture costs one probe. */
 const HEALTH_TTL_MS = 15_000;
-let healthCache: { at: number; up: boolean } | null = null;
+let healthCache: { at: number; up: boolean; refs: boolean } | null = null;
 /** A local render: model load plus steps. */
 const LOCAL_MS = 10 * 60 * 1000;
 /** The public drawer is usually seconds; give it room but not forever. */
@@ -53,6 +53,20 @@ export interface DrawRequest {
   seed?: number;
   /** Reference images, if the caller has any. Their presence sends this to the paid lane. */
   refs?: unknown[];
+}
+
+/**
+ * A mockup's starting picture, for the PC drawer only (see drawOnPc). Kept
+ * apart from `refs` above on purpose: `refs` routes a request to the PAID
+ * lane, and a mockup reference must never do that.
+ */
+export interface PcRef {
+  image?: string;
+  url?: string;
+  html?: string;
+  base?: string;
+  width?: number;
+  height?: number;
 }
 
 export interface DrawResult {
@@ -86,21 +100,29 @@ export async function localUp(force = false): Promise<boolean> {
   const now = Date.now();
   if (!force && healthCache && now - healthCache.at < HEALTH_TTL_MS) return healthCache.up;
   let up = false;
+  let refs = false;
   try {
     const res = await fetch(`${LOCAL_URL}/health`, {
       signal: AbortSignal.timeout(HEALTH_MS),
       cache: "no-store",
     });
     if (res.ok) {
-      const data = (await res.json()) as { ok?: boolean; hasWanGP?: boolean };
+      const data = (await res.json()) as { ok?: boolean; hasWanGP?: boolean; refs?: boolean };
       up = Boolean(data.ok && data.hasWanGP);
+      refs = Boolean(data.refs);
     }
   } catch {
     // Not running, not installed, not this machine. All the same answer.
     up = false;
   }
-  healthCache = { at: now, up };
+  healthCache = { at: now, up, refs };
   return up;
+}
+
+/** Can the PC's drawer start from a picture? Asked after `localUp`. */
+export async function localTakesRefs(): Promise<boolean> {
+  await localUp();
+  return Boolean(healthCache?.refs);
 }
 
 /**
@@ -116,17 +138,21 @@ function laneFailed(lane: LaneId, why: string): void {
   console.warn(`[images] the ${lane} lane couldn't draw this: ${why}`);
 }
 
-async function drawLocal(req: DrawRequest): Promise<DrawResult | null> {
+async function drawLocal(req: DrawRequest, pc?: { refs?: PcRef[]; origin?: string }): Promise<DrawResult | null> {
   try {
     const res = await fetch(`${LOCAL_URL}/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // The caller's origin goes along so the drawer applies the same rule it
+      // applies to a browser: a page may have public sites and its own origin
+      // photographed, never someone else's private address.
+      headers: { "Content-Type": "application/json", ...(pc?.origin ? { Origin: pc.origin } : {}) },
       body: JSON.stringify({
         prompt: req.prompt,
         width: req.width ?? 1024,
         height: req.height ?? 1024,
         steps: req.steps ?? 4,
         seed: req.seed ?? -1,
+        ...(pc?.refs?.length ? { refs: pc.refs } : {}),
       }),
       signal: AbortSignal.timeout(LOCAL_MS),
     });
@@ -196,9 +222,34 @@ async function drawFree(req: DrawRequest): Promise<DrawResult | null> {
  * can't paint still has its coded drawing, so falling through to a paid or
  * watermarked lane would spend money (or stamp a logo) for nothing.
  */
-export async function drawOnPc(req: DrawRequest): Promise<DrawResult | null> {
+export async function drawOnPc(req: DrawRequest, pc?: { refs?: PcRef[]; origin?: string }): Promise<DrawResult | null> {
   if (!req.prompt.trim() || !(await localUp())) return null;
-  return drawLocal(req);
+  return drawLocal(req, pc);
+}
+
+/** Photograph a page with the PC's headless browser. Null when the drawer can't. */
+export async function photographOnPc(
+  shot: { url: string; width?: number; height?: number },
+  origin?: string,
+): Promise<{ image: string; ms: number } | null> {
+  if (!(await localUp())) return null;
+  try {
+    const res = await fetch(`${LOCAL_URL}/shot`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(origin ? { Origin: origin } : {}) },
+      body: JSON.stringify(shot),
+      signal: AbortSignal.timeout(60_000),
+    });
+    const data = (await res.json().catch(() => ({}))) as { ok?: boolean; image?: string; ms?: number; error?: string };
+    if (!res.ok || !data.image) {
+      laneFailed("local", data.error || `the drawer answered ${res.status} to a photograph`);
+      return null;
+    }
+    return { image: data.image, ms: data.ms ?? 0 };
+  } catch (err) {
+    laneFailed("local", err instanceof Error ? err.message : String(err));
+    return null;
+  }
 }
 
 /**

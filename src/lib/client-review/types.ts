@@ -210,6 +210,12 @@ export interface ClientProject {
    * by the client approving one of the mockups on their own link.
    */
   look?: LookChoice;
+  /**
+   * The owner's Flux 2 paintings of the edits being built, saved so the
+   * client sees the same three pictures on their own screen (Flux only runs
+   * on the owner's PC). Replaced whenever the edits change.
+   */
+  mockups?: SharedMockups;
   lane: ContentLane;
   /**
    * The one model that writes this project's build briefs, when the owner
@@ -322,4 +328,15 @@ export interface PortalView {
    */
   designSkill?: string | null;
   look?: LookChoice | null;
+  /** The owner's Flux 2 paintings of the edits, when there are some. */
+  mockups?: SharedMockups | null;
+}
+
+/** Three painted versions of one change, as the owner drew them. */
+export interface SharedMockups {
+  /** The request they answer (joinEdits of the edits), to tell stale ones apart. */
+  edit: string;
+  at: string;
+  /** Each lane's picture, and the reading it painted — so the client reads the same words. */
+  lanes: { lane: "faithful" | "polished" | "bold"; image: string; label?: string; instruction?: string }[];
 }

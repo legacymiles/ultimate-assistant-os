@@ -87,10 +87,27 @@ noise goes to stderr, so stdout stays parseable.
 free could help, at which point the caller does whatever it did before. Adding
 this can remove cost; it can never remove capability.
 
-**Reference images go straight to the paid lane.** Flux Klein can edit, but
-carrying references through WanGP is a different settings shape, and a
-half-wired reference path would quietly produce pictures that ignore the
-reference.
+**Reference pictures (mockups).** `/generate` takes `refs`: up to three of
+`{ image: dataURL }`, `{ url }` or `{ html }`. A `url` or `html` is photographed with
+headless Chrome at the size being drawn; the first reference is the scene Flux edits
+(WanGP mode `KI`). This is what the mockup edits use — a screenshot of the live page
+with the change painted on. The hub's general image lanes (`draw.ts` `refs`) still
+send reference jobs to the paid model; only the PC mockup path (`drawOnPc`) uses these.
+
+```
+POST /shot      { url | html, width, height } -> { ok, image, ms }   # photograph a page
+POST /generate  { prompt, width, height, seed, refs?, fresh? }       # refs as above
+```
+
+- **Who may photograph what** (`guard.mjs`, tested): a program on this PC (no Origin)
+  may photograph anything, a dev server included; a web page may photograph public
+  sites and its own origin, never someone else's private address.
+- **Cache:** seeded requests are kept in `~/.cache/wangp-image` by prompt, size, seed
+  and reference, and answered even while the GPU is busy — so the chat command and the
+  hub share pictures. A picture painted from a page address expires after 6 hours
+  (the page may have changed); `fresh: true` skips the cache.
+- **Speed with a reference** (RTX 3050, 1024x656): ~40 s to ~3 min a picture depending
+  on free RAM; ~4 min for the first after a start. 768 px halves it but blurs small text.
 
 ## Notes
 

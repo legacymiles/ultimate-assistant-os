@@ -1,37 +1,46 @@
 [
  {
-  "id": "d72627a:client-review",
+  "id": "448eb02:client-review",
   "date": "2026-11-11",
   "slug": "client-review",
-  "title": "Connect to this PC connects, and Move it into the hub starts",
-  "detail": "",
+  "title": "Every edit starts with three Flux 2 mockups on the live page",
+  "detail": "The owner's rule: no website edit is built before they have seen it. The page is photographed on the PC and Flux 2 Klein (WanGP, free) paints the change onto that screenshot three ways, so the mockup is the real site with only the asked- for part changed. Pick one (tweak it first if needed) and the ",
   "group": "supporting",
   "source": "git"
  },
  {
-  "id": "c7da6fe:app-builder",
+  "id": "448eb02:mockup",
+  "date": "2026-11-11",
+  "slug": "mockup",
+  "title": "Every edit starts with three Flux 2 mockups on the live page",
+  "detail": "The owner's rule: no website edit is built before they have seen it. The page is photographed on the PC and Flux 2 Klein (WanGP, free) paints the change onto that screenshot three ways, so the mockup is the real site with only the asked- for part changed. Pick one (tweak it first if needed) and the ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "448eb02:website-redesigner",
+  "date": "2026-11-11",
+  "slug": "website-redesigner",
+  "title": "Every edit starts with three Flux 2 mockups on the live page",
+  "detail": "The owner's rule: no website edit is built before they have seen it. The page is photographed on the PC and Flux 2 Klein (WanGP, free) paints the change onto that screenshot three ways, so the mockup is the real site with only the asked- for part changed. Pick one (tweak it first if needed) and the ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "448eb02:app-builder",
   "date": "2026-11-11",
   "slug": "app-builder",
-  "title": "Built only after your PC has checked it, with the failing checks on screen",
-  "detail": "",
+  "title": "Every edit starts with three Flux 2 mockups on the live page",
+  "detail": "The owner's rule: no website edit is built before they have seen it. The page is photographed on the PC and Flux 2 Klein (WanGP, free) paints the change onto that screenshot three ways, so the mockup is the real site with only the asked- for part changed. Pick one (tweak it first if needed) and the ",
   "group": "supporting",
   "source": "git"
  },
  {
-  "id": "c7da6fe:client-review",
+  "id": "448eb02:images",
   "date": "2026-11-11",
-  "slug": "client-review",
-  "title": "Built only after your PC has checked it, with the failing checks on screen",
-  "detail": "",
-  "group": "supporting",
-  "source": "git"
- },
- {
-  "id": "c7da6fe:jarvis",
-  "date": "2026-11-11",
-  "slug": "jarvis",
-  "title": "Built only after your PC has checked it, with the failing checks on screen",
-  "detail": "",
+  "slug": "images",
+  "title": "Every edit starts with three Flux 2 mockups on the live page",
+  "detail": "The owner's rule: no website edit is built before they have seen it. The page is photographed on the PC and Flux 2 Klein (WanGP, free) paints the change onto that screenshot three ways, so the mockup is the real site with only the asked- for part changed. Pick one (tweak it first if needed) and the ",
   "group": "supporting",
   "source": "git"
  },

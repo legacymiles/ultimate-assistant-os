@@ -1,0 +1,304 @@
+/* ---------------------------------------------------------------------------
+   Website Redesigner — Edit.
+
+   The Redesigner's house skin (void, ink, one signal colour; Archivo Black
+   over JetBrains Mono), kept quiet so the three mockups are the loudest thing
+   on the page. The shared bake-off reads its colours from the --color-* names
+   below, so it sits in this skin without a second theme.
+   --------------------------------------------------------------------------- */
+
+.rdx-edit {
+  --e-void: #050505;
+  --e-ink: #f5f5f5;
+  --e-sig: #ff4d2e;
+  --e-ink-2: color-mix(in srgb, var(--e-ink) 72%, transparent);
+  --e-ink-3: color-mix(in srgb, var(--e-ink) 52%, transparent);
+  --e-line: color-mix(in srgb, var(--e-ink) 14%, transparent);
+  --e-line-2: color-mix(in srgb, var(--e-ink) 24%, transparent);
+  --e-panel: color-mix(in srgb, var(--e-ink) 3.5%, var(--e-void));
+  --e-panel-2: color-mix(in srgb, var(--e-ink) 7%, var(--e-void));
+  --e-display: var(--font-rdx-display), "Archivo Black", system-ui, sans-serif;
+  --e-body: var(--font-rdx-body), ui-sans-serif, system-ui, sans-serif;
+  --e-mono: var(--font-rdx-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --e-ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* What the shared bake-off reads. */
+  --color-line: var(--e-line);
+  --color-line-soft: color-mix(in srgb, var(--e-ink) 9%, transparent);
+  --color-panel: var(--e-panel);
+  --color-panel-2: var(--e-panel-2);
+  --color-ink: var(--e-ink);
+  --color-ink-muted: var(--e-ink-2);
+  --color-ink-faint: var(--e-ink-3);
+  --color-brand: var(--e-sig);
+  --font-syne: var(--font-rdx-display);
+  --font-jbm: var(--font-rdx-mono);
+
+  min-height: 100dvh;
+  background: var(--e-void);
+  color: var(--e-ink);
+  font-family: var(--e-body);
+  padding: clamp(72px, 9vw, 112px) clamp(16px, 4vw, 48px) 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-width: 1480px;
+  margin: 0 auto;
+}
+
+.rdx-edit :focus-visible {
+  outline: 2px solid var(--e-sig);
+  outline-offset: 2px;
+}
+
+/* ----- head ------------------------------------------------------------- */
+
+.rdx-edit-kick {
+  margin: 0;
+  font-family: var(--e-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--e-sig);
+}
+
+.rdx-edit-h {
+  margin: 10px 0 0;
+  font-family: var(--e-display);
+  font-weight: 400;
+  font-size: clamp(34px, 6.2vw, 76px);
+  line-height: 0.94;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+  max-width: 14ch;
+}
+
+.rdx-edit-sub {
+  margin: 16px 0 0;
+  max-width: 62ch;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--e-ink-2);
+  text-wrap: pretty;
+}
+
+/* ----- form -------------------------------------------------------------
+   One row on a wide screen: page, change (widest), name, go. The change is
+   the field that matters, so it gets the room. */
+
+.rdx-edit-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 2fr) minmax(0, 0.8fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.rdx-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rdx-edit-field > span {
+  font-family: var(--e-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--e-ink-3);
+}
+
+.rdx-edit-field em {
+  font-style: normal;
+  color: var(--e-ink-3);
+  opacity: 0.8;
+  margin-left: 4px;
+}
+
+.rdx-edit-field input,
+.rdx-edit-field textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 12px 14px;
+  border: 1px solid var(--e-line);
+  border-radius: 2px;
+  background: var(--e-panel);
+  color: var(--e-ink);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.4;
+  transition: border-color 0.18s var(--e-ease), background 0.18s var(--e-ease);
+}
+
+.rdx-edit-field textarea {
+  resize: vertical;
+  min-height: 46px;
+  max-height: 220px;
+}
+
+.rdx-edit-field input::placeholder,
+.rdx-edit-field textarea::placeholder { color: color-mix(in srgb, var(--e-ink) 30%, transparent); }
+
+.rdx-edit-field input:hover,
+.rdx-edit-field textarea:hover { border-color: var(--e-line-2); }
+
+.rdx-edit-field input:focus-visible,
+.rdx-edit-field textarea:focus-visible {
+  outline: none;
+  border-color: var(--e-sig);
+  background: var(--e-panel-2);
+}
+
+.rdx-edit-go {
+  appearance: none;
+  min-height: 46px;
+  padding: 0 22px;
+  border: 1px solid var(--e-sig);
+  border-radius: 2px;
+  background: var(--e-sig);
+  color: #0b0b0b;
+  font-family: var(--e-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.18s var(--e-ease), filter 0.18s var(--e-ease), opacity 0.18s var(--e-ease);
+}
+
+.rdx-edit-go:hover:not(:disabled) { filter: brightness(1.08); }
+.rdx-edit-go:active:not(:disabled) { transform: translateY(1px); }
+.rdx-edit-go:disabled { opacity: 0.38; cursor: default; }
+
+.rdx-edit-ghost {
+  appearance: none;
+  min-height: 46px;
+  padding: 0 18px;
+  border: 1px solid var(--e-line-2);
+  border-radius: 2px;
+  background: none;
+  color: var(--e-ink-2);
+  font-family: var(--e-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.18s var(--e-ease), border-color 0.18s var(--e-ease);
+}
+
+.rdx-edit-ghost:hover { color: var(--e-ink); border-color: var(--e-ink-3); }
+
+/* ----- recent ----------------------------------------------------------- */
+
+.rdx-edit-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 760px;
+}
+
+.rdx-edit-recent button {
+  appearance: none;
+  display: grid;
+  grid-template-columns: minmax(0, 160px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: baseline;
+  padding: 12px 14px;
+  border: 1px solid var(--e-line);
+  border-radius: 2px;
+  background: var(--e-panel);
+  color: var(--e-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s var(--e-ease);
+}
+
+.rdx-edit-recent button:hover { border-color: var(--e-sig); }
+.rdx-edit-recent b { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rdx-edit-recent span { color: var(--e-ink-2); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ----- the board and the send panel ------------------------------------- */
+
+.rdx-edit-board {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.rdx-edit-send {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--e-sig-line, color-mix(in srgb, var(--e-sig) 45%, transparent));
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--e-sig) 5%, var(--e-void));
+  animation: rdx-edit-in 0.4s var(--e-ease);
+}
+
+.rdx-edit-send-t {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--e-ink-2);
+}
+
+.rdx-edit-brief {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--e-line);
+  background: var(--e-void);
+  font-family: var(--e-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--e-ink-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.rdx-edit-send-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rdx-edit-link {
+  font-family: var(--e-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--e-sig);
+  text-decoration: none;
+}
+
+.rdx-edit-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.rdx-edit-err {
+  margin: 0;
+  font-size: 13.5px;
+  color: #ff8a73;
+}
+
+@keyframes rdx-edit-in { from { opacity: 0; transform: translateY(6px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .rdx-edit-send { animation: none; }
+}
+
+@media (max-width: 980px) {
+  .rdx-edit-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .rdx-edit-field.wide { grid-column: 1 / -1; grid-row: 2; }
+  .rdx-edit-go { grid-column: 1 / -1; }
+}
+
+@media (max-width: 560px) {
+  .rdx-edit-form { grid-template-columns: minmax(0, 1fr); }
+  .rdx-edit-field.wide { grid-row: auto; }
+  .rdx-edit-recent button { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}

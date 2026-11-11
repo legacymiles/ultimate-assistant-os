@@ -266,6 +266,22 @@ export function ClientPortal({
     [token, apply],
   );
 
+  /**
+   * Keep the owner's Flux paintings on the link, quietly: it happens on its
+   * own once all three are painted, so it neither blocks the screen nor
+   * shouts when it fails — the owner still has the pictures in front of them.
+   */
+  const saveMockups = useCallback(
+    async (edit: string, lanes: { lane: string; image: string; label: string; instruction: string }[]) => {
+      try {
+        apply(await portal.act(token, { action: "mockups", edit, lanes }));
+      } catch (e) {
+        console.warn("[client-review] the mockups weren't saved to the link:", (e as Error).message);
+      }
+    },
+    [token, apply],
+  );
+
   // ----- layout ------------------------------------------------------------------
   useEffect(() => {
     const saved = readLayout();
@@ -771,7 +787,12 @@ export function ClientPortal({
                   build, from the site's own name), and picking one is recorded
                   against this project and told to the owner.
                 */}
-                <LookPass view={view} busy={busy} onPick={(skill) => act("look", { action: "look", skill })} />
+                <LookPass
+                  view={view}
+                  busy={busy}
+                  onPick={(skill, pick) => act("look", { action: "look", skill, ...(pick ? { edit: pick } : {}) })}
+                  onSaveMockups={saveMockups}
+                />
               </>
             )}
           </div>

@@ -24,6 +24,36 @@ import { absoluteSiteUrl } from "../client-review/apps";
 import { baseBranchFor, branchFor, buildText, plainBrief } from "../client-review/logic";
 import type { ClientProject, EditRequest } from "../client-review/types";
 import type { BuilderProject, ClientEdit, ClientEditItem, Feature, Understanding } from "./types";
+import { joinEdits, pickMatches } from "../mockup/edit";
+
+/**
+ * The mockup the owner picked for this edit, as one line for the queue brief.
+ *
+ * A mockup panel is decoration unless the pick reaches the build (the App
+ * Builder finding that shaped the bake-off), so the picked reading and every
+ * tweak travel with the job, and the builder is told to check against it.
+ */
+export function pickedMockupLine(p: BuilderProject, max = 420): string {
+  const e = p.look?.edit;
+  if (!e) return "";
+  const tweaks = e.tweaks.length ? `; then: ${e.tweaks.map(oneLine).join("; ")}` : "";
+  const text = `Mockup picked (Flux 2, "${e.label}") — build this version: ${oneLine(e.instruction)}${tweaks}. Match the picked mockup and compare against it before posting the preview.`;
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+/** The same pick, as a block of the master prompt. Empty when nothing was picked. */
+export function pickedMockupBlock(p: BuilderProject): string {
+  const e = p.look?.edit;
+  if (!e) return "";
+  return [
+    "<picked_mockup>",
+    `The owner was shown three Flux 2 mockups of these edits, painted onto the live page, and picked "${e.label}".`,
+    `Build this version: ${oneLine(e.instruction)}`,
+    ...(e.tweaks.length ? ["Refined after the first drawing, in order:", ...e.tweaks.map((t) => `- ${oneLine(t)}`)] : []),
+    "Match it, then screenshot the result at desktop and 390 px and compare it with the mockup before posting the preview.",
+    "</picked_mockup>",
+  ].join("\n");
+}
 
 /** In Queue holds at most this many characters per request (same as engine.QUEUE_LIMIT). */
 const LIMIT = 4000;
@@ -158,6 +188,9 @@ export function clientEditProject(
     ],
     origin: "client-review",
     edit,
+    // A version the client (or owner) already picked from the edit mockups in
+    // Client Review comes along — but only if it was drawn for THESE edits.
+    ...(p.look?.edit && pickMatches(p.look.edit, joinEdits(items.map((it) => it.text))) ? { look: p.look } : {}),
   };
 }
 
@@ -220,7 +253,9 @@ export function editQueueText(p: BuilderProject): string {
   ].filter(Boolean);
   const declined = p.features.filter((f) => f.status === "denied").map((f) => f.title);
   const added = p.features.filter((f) => f.status === "accepted" && !edit.items.some((it) => it.featureId === f.id));
+  const mock = pickedMockupLine(p);
   const extra = [
+    ...(mock ? [mock] : []),
     ...(added.length ? [`Also (added in App Builder): ${added.map((f) => oneLine(f.detail || f.title)).join("; ")}`] : []),
     ...(declined.length ? [`Left out by the owner in App Builder: ${declined.join("; ")}.`] : []),
   ];
@@ -260,6 +295,7 @@ export function editMasterPrompt(p: BuilderProject): string {
       })
       .join("\n")}\n</edits>`,
     edit.brief ? `<brief>\n${edit.brief.trim()}\n</brief>` : "",
+    pickedMockupBlock(p),
     `<skills_pipeline>\n${editPipeline()
       .map((s, i) => `${i + 1}. ${s.skill} — ${s.role}`)
       .join("\n")}\n</skills_pipeline>`,

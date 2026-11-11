@@ -9,6 +9,7 @@
 // ReviewError whose message is fit to show a person.
 // ---------------------------------------------------------------------------
 
+import { cleanPick } from "../mockup/edit";
 import { directionsFor } from "@/lib/mockup/directions";
 
 import {
@@ -27,8 +28,7 @@ import type {
   RequestBatch,
   RequestPin,
   ReviewIndex,
-  ReviewVersion,
-} from "./types";
+  ReviewVersion, SharedMockups } from "./types";
 
 export class ReviewError extends Error {
   constructor(
@@ -1038,11 +1038,73 @@ export function pickLook(
   raw: unknown,
   by: "owner" | "client",
   now = new Date().toISOString(),
+  rawEdit?: unknown,
 ): ClientProject {
   const skill = cleanLookSkill(raw, src);
   if (!skill) throw new ReviewError("That isn't one of the looks on offer.");
-  if (src.look?.skill === skill) return src;
-  return { ...src, look: { skill, at: now, by }, updatedAt: now };
+  // An edit pick (which of the three versions of a change) is checked here
+  // too: a known lane, plain strings, bounded lengths — never trusted as sent.
+  const edit = rawEdit === undefined || rawEdit === null ? null : cleanPick(rawEdit);
+  if (rawEdit && !edit) throw new ReviewError("That isn't one of the versions on offer.");
+  const same =
+    src.look?.skill === skill &&
+    (src.look.edit?.lane ?? "") === (edit?.lane ?? "") &&
+    (src.look.edit?.tweaks ?? []).join("|") === (edit?.tweaks ?? []).join("|");
+  if (same) return src;
+  return { ...src, look: { skill, at: now, by, ...(edit ? { edit } : {}) }, updatedAt: now };
+}
+
+/** One painted lane can be at most this big as a data URL (~300 KB of JPEG). */
+export const MOCKUP_IMAGE_MAX = 420_000;
+
+/**
+ * Keep the owner's three Flux paintings of the edits, so the client sees them.
+ *
+ * Owner only (the route checks), validated like a screenshot: a real image
+ * data URL of bounded size, a known lane, at most one of each. Saving the same
+ * set again writes nothing (D5).
+ */
+export function saveMockups(
+  src: ClientProject,
+  input: { edit: unknown; lanes: unknown },
+  now = new Date().toISOString(),
+): ClientProject {
+  const edit = typeof input.edit === "string" ? input.edit.replace(/\s+/g, " ").trim().slice(0, 1200) : "";
+  if (!edit) throw new ReviewError("Say which edits these mockups are for.");
+  const raw = Array.isArray(input.lanes) ? input.lanes.slice(0, 9) : [];
+  const lanes: SharedMockups["lanes"] = [];
+  for (const r of raw) {
+    const o = (r ?? {}) as Record<string, unknown>;
+    const lane = o.lane;
+    if (lane !== "faithful" && lane !== "polished" && lane !== "bold") continue;
+    if (lanes.some((l) => l.lane === lane)) continue;
+    if (lanes.length >= 3) break;
+    const image = typeof o.image === "string" ? o.image.trim() : "";
+    if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(image) || image.length > MOCKUP_IMAGE_MAX) {
+      throw new ReviewError("A mockup picture couldn't be saved.", 400);
+    }
+    const text = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
+    const label = text(o.label, 40);
+    const instruction = text(o.instruction, 600);
+    lanes.push({ lane, image, ...(label ? { label } : {}), ...(instruction ? { instruction } : {}) });
+  }
+  if (!lanes.length) throw new ReviewError("There were no mockup pictures to save.", 400);
+  const had = src.mockups;
+  if (
+    had &&
+    had.edit === edit &&
+    had.lanes.length === lanes.length &&
+    had.lanes.every(
+      (l, i) =>
+        l.lane === lanes[i].lane &&
+        l.image === lanes[i].image &&
+        (l.label ?? "") === (lanes[i].label ?? "") &&
+        (l.instruction ?? "") === (lanes[i].instruction ?? ""),
+    )
+  ) {
+    return src;
+  }
+  return { ...src, mockups: { edit, at: now, lanes }, updatedAt: now };
 }
 
 export function portalView(p: ClientProject, vapidPublicKey: string | null): PortalView {
@@ -1084,6 +1146,7 @@ export function portalView(p: ClientProject, vapidPublicKey: string | null): Por
     ...(p.appSlug ? { isApp: true } : {}),
     designSkill: p.designSkill ?? null,
     look: p.look ?? null,
+    mockups: p.mockups ?? null,
   };
 }
 

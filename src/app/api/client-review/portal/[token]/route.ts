@@ -10,6 +10,7 @@ import {
   isSentToClient,
   markNoticesRead,
   pickLook,
+  saveMockups,
   portalView,
   pushEvent,
   upsertIndex,
@@ -43,17 +44,21 @@ export const dynamic = "force-dynamic";
 //        { action: "notify", on }                   — the Settings toggle
 //        { action: "subscribe", subscription }      — a browser push subscription
 //        { action: "seen" }                         — notices read
+//        { action: "look", skill, edit? }           — pick a direction, or a version of an edit
+//        { action: "mockups", edit, lanes }         — owner only: the Flux paintings, for the client
 // ---------------------------------------------------------------------------
 
 type Outcome =
   | { kind: "add"; id: string }
-  | { kind: "edit" | "delete" | "subscribe" | "seen" }
+  | { kind: "edit" | "delete" | "subscribe" | "seen" | "mockups" }
   | { kind: "send"; detail: string }
   | { kind: "notify"; on: boolean; was: boolean }
   | { kind: "look"; skill: string; changed: boolean };
 
 const NOT_FOUND = { error: "This review link isn't active. Ask for a new one." };
 const MAX_BODY = 16_000;
+/** Three mockup pictures (see saveMockups) plus room for the JSON around them. */
+const MOCKUP_BODY_MAX = 3 * 420_000 + 4_000;
 
 async function load(token: string): Promise<ClientProject | null> {
   if (!isToken(token)) return null;
@@ -116,7 +121,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
   const found = g.project;
 
   const raw = await req.text();
-  if (raw.length > MAX_BODY) return NextResponse.json({ error: "That's too much in one go." }, { status: 413 });
+  // Three painted mockups are the one big thing this route takes, and only
+  // from the owner; everything a client sends stays under the small limit.
+  const limit = g.owner && raw.startsWith('{"action":"mockups"') ? MOCKUP_BODY_MAX : MAX_BODY;
+  if (raw.length > limit) return NextResponse.json({ error: "That's too much in one go." }, { status: 413 });
   let body: Record<string, unknown>;
   try {
     body = JSON.parse(raw) as Record<string, unknown>;
@@ -164,11 +172,21 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
           // The skill is checked against the three this project actually
           // offers, inside the write lock, so the browser cannot name a look
           // it was never shown (checklist S4).
-          const next = pickLook(p, body.skill, g.owner ? "owner" : "client");
+          const next = pickLook(p, body.skill, g.owner ? "owner" : "client", undefined, body.edit);
           return {
             project: next,
-            result: { kind: "look" as const, skill: next.look?.skill ?? "", changed: next !== p },
+            result: {
+              kind: "look" as const,
+              skill: next.look?.edit ? `"${next.look.edit.label}" version of the change` : (next.look?.skill ?? ""),
+              changed: next !== p,
+            },
           };
+        }
+        case "mockups": {
+          // Only the owner paints (Flux runs on their PC); a client can't
+          // put pictures on their own link.
+          if (!g.owner) throw new ReviewError("Only the owner can add mockups.", 403);
+          return { project: saveMockups(p, { edit: body.edit, lanes: body.lanes }), result: { kind: "mockups" as const } };
         }
         default:
           throw new ReviewError("Unknown action.");
@@ -184,7 +202,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
     } else if (result.kind === "look" && result.changed) {
       // The owner needs to know a client has approved a look, because that is
       // what the build is now held to.
-      await updateIndex((i) => pushEvent(i, project, "look_picked", `picked the ${result.skill} look`)).catch(() => {});
+      await updateIndex((i) => pushEvent(i, project, "look_picked", result.skill.startsWith('"') ? `picked the ${result.skill}` : `picked the ${result.skill} look`)).catch(() => {});
     }
     return view(project, g.email, g.owner);
   } catch (err) {
