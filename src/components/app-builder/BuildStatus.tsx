@@ -19,6 +19,9 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect, useRef, useState } from "react";
+
+/** The log shows this many of the most recent steps. See the comment below. */
+const LOG_ROWS = 30;
 import { DEPTH_LABEL, depthOf } from "@/lib/app-builder/depth";
 import { latestWord, PHASE_LABEL, projectSlug, stalled, stalledWhy, tally as toolTally, type BuildPhase } from "@/lib/app-builder/build";
 import { landsIn, relTime } from "@/lib/app-builder/plan";
@@ -109,6 +112,16 @@ export function BuildStatus({
   const lands = landsIn(project);
   const { depth, why: depthWhy } = depthOf(project);
   const review = project.handoff?.review;
+  // Flattened once, so the render does not walk every turn's tools again on
+  // each of the two-second polls.
+  const steps = view.turns.flatMap((t) =>
+    t.tools.map((tool) => (
+      <li key={`${t.id}-${tool.callId}`} className={`is-${tool.status} is-${tool.kindOf}`}>
+        <span className="ab-blog-kind">{tool.kindOf}</span>
+        <span className="ab-blog-what">{tool.title || tool.path || tool.command || tool.name}</span>
+      </li>
+    )),
+  );
   const built = project.handoff?.built;
   const folder = build.summary?.worktree?.path ?? built?.path ?? `${lands.where}`;
   const reviewUrl = review ? `${typeof window === "undefined" ? "" : window.location.origin}${reviewHref(review.token)}` : "";
@@ -172,21 +185,18 @@ export function BuildStatus({
         </p>
       )}
 
-      {view.turns.length > 0 && (
-        <details className="ab-blog" open={phase === "working" || phase === "asking"}>
-          <summary>Everything it has done ({counts.reads + counts.changes + counts.runs} steps)</summary>
+      {/* Closed by default and capped. A real build runs well over a thousand
+          tools, and rendering every one of them on a list that redraws every
+          couple of seconds is what turned this panel into a page that never
+          finished loading. The last few are what anyone reads anyway. */}
+      {steps.length > 0 && (
+        <details className="ab-blog">
+          <summary>
+            What it has done · {counts.reads + counts.changes + counts.runs} steps
+            {steps.length > LOG_ROWS ? ` (last ${LOG_ROWS})` : ""}
+          </summary>
           <ol className="ab-blog-rows">
-            {view.turns.flatMap((t) =>
-              t.tools.map((tool) => (
-                // Keyed by turn AND call: a retried call reuses its id, and
-                // the reducer replaces rather than appends, so the id alone is
-                // not unique across the thread.
-                <li key={`${t.id}-${tool.callId}`} className={`is-${tool.status} is-${tool.kindOf}`}>
-                  <span className="ab-blog-kind">{tool.kindOf}</span>
-                  <span className="ab-blog-what">{tool.title || tool.path || tool.command || tool.name}</span>
-                </li>
-              )),
-            )}
+            {steps.slice(-LOG_ROWS).map((row) => row)}
           </ol>
           <div ref={logEnd} />
         </details>

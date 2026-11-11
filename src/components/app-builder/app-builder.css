@@ -442,6 +442,45 @@
 
 .ab-offline { border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 11px; padding: 9px 11px; margin: 0 0 12px; }
 
+/* --- the question, at the top of the app --------------------------------- */
+.ab-gatebar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 10px 16px 0;
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  backdrop-filter: blur(10px);
+}
+.ab-gatebar-what { min-width: 0; flex: 1; }
+.ab-gatebar-title { margin: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 13px; font-weight: 600; }
+.ab-gatebar-risk {
+  font-family: var(--ab-mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+  border: 1px solid currentColor; border-radius: 5px; padding: 1px 5px; color: #fcd34d;
+}
+.ab-gatebar-risk.is-grave { color: #fca5a5; }
+.ab-gatebar-cmd {
+  display: block; margin-top: 5px; padding: 6px 9px; max-height: 76px; overflow: auto;
+  background: #05060a; border: 1px solid var(--ab-line-soft); border-radius: 8px;
+  font-family: var(--ab-mono); font-size: 10.5px; line-height: 1.5; color: var(--ab-muted);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.ab-gatebar-why { margin: 5px 0 0; font-size: 11.5px; color: var(--ab-faint); }
+.ab-gatebar-row { display: flex; gap: 7px; flex: none; }
+
+@media (max-width: 1023px) {
+  .ab-gatebar { margin: 8px 12px 0; padding: 10px 12px; }
+  .ab-gatebar-row { width: 100%; }
+  .ab-gatebar-row button { flex: 1; padding-top: 11px; padding-bottom: 11px; }
+}
+
 /* --- the moment after Build it ------------------------------------------- */
 .ab-started {
   position: fixed;

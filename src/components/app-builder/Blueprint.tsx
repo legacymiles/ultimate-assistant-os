@@ -181,6 +181,11 @@ export function Blueprint({
     <section className="ab-blueprint" aria-label="Blueprint and hand-off">
       {(project.teardown || project.sources?.length) && <Recording project={project} />}
       {project.edit && <ClientEditPanel project={project} />}
+      {/* Once a build exists it is the thing the owner came to look at, so it
+          goes ABOVE the end goal and the judge rather than below them. */}
+      {started && (
+        <BuildStatus project={project} busy={busy} build={build} bridge={bridge} onBuildAgain={() => onBuild(who || undefined)} onStop={onStop} />
+      )}
       <div className="ab-purpose">
         <div className="ab-purpose-top">
           {naming ? (
@@ -243,10 +248,6 @@ export function Blueprint({
         </dl>
       </div>
 
-      {/* A build has been started: the build itself, not a launcher. */}
-      {started && (
-        <BuildStatus project={project} busy={busy} build={build} bridge={bridge} onBuildAgain={() => onBuild(who || undefined)} onStop={onStop} />
-      )}
       <MoveIntoHub project={project} busy={busy} moving={moving} onMove={onMove} onRetire={onRetire} />
 
       <div className="ab-launch">
