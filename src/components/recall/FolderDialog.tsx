@@ -22,6 +22,9 @@ export const FOLDER_ICONS: Record<string, typeof Icon.Folder> = {
   bot: Icon.Bot,
   tag: Icon.Tag,
   check: Icon.Check2,
+  users: Icon.Users,
+  building: Icon.Building,
+  network: Icon.Network,
 };
 
 export function FolderIcon({ name, ...props }: { name?: string } & Record<string, unknown>) {

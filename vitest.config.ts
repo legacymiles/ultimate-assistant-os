@@ -8,6 +8,10 @@ import path from "node:path";
 // imports in production source, which is a large edit to app code in service of
 // a test runner. Left exactly as found.
 export default defineConfig({
+  // The app uses the automatic JSX runtime (Next's default). Vitest's esbuild
+  // defaults to the classic runtime, which fails on components that do not
+  // import React — the profile render smoke tests are exactly those components.
+  esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
     // tools/jarvis-bridge holds logic that runs UNATTENDED on the owner's

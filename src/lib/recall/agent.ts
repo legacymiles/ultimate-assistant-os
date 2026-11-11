@@ -22,6 +22,7 @@ import { formatDayKey, formatTime, todayKey } from "./calendar/types";
 import type { CalendarEvent } from "./calendar/types";
 import { getPhotos, getQueue } from "./photos/store";
 import { ROLE_LABELS } from "./photos/types";
+import { isSensitiveField, profileCompleteness } from "./profiles";
 import type { AgentAction, AgentReply, Item, RecallData } from "./types";
 
 /** Parse a few safe commands from plain text so "act" works even offline. */
@@ -36,6 +37,26 @@ function heuristicActions(question: string): AgentAction[] {
       .map((s) => s.trim())
       .filter(Boolean);
     if (path.length) actions.push({ type: "create_folder", path });
+  }
+  const profileMatch = question.match(
+    /(?:create|add|make|start)\s+(?:a\s+)?profile\s+(?:for|of|about)\s+(?:my\s+)?(.{2,60})/i,
+  );
+  if (profileMatch) {
+    const subject = profileMatch[1].replace(/\b(?:please|thanks)\b/gi, "").trim();
+    if (subject) {
+      const kind = /\b(llc|inc|corp|business|company|brand|agency|store|shop)\b/i.test(subject)
+        ? "business"
+        : "person";
+      actions.push({
+        type: "create_profile",
+        kind,
+        displayName: subject.replace(/^["']|["']$/g, ""),
+        role: kind === "person" ? "other" : undefined,
+        fields: [],
+        accounts: [],
+        tags: [],
+      });
+    }
   }
   return actions;
 }
@@ -107,6 +128,40 @@ export async function askAgent(question: string, data: RecallData): Promise<Agen
   const photos = getPhotos();
   const pendingCount = getQueue().filter((p) => p.status === "ready").length;
 
+  // Only non-sensitive values leave the browser. SSNs, EINs and passwords stay
+  // on the device; the assistant sees the label and knows it is missing/known,
+  // which is enough to ask the right question without shipping the secret.
+  const profilePayload = (data.profiles ?? []).map((profile) => {
+
+    const completeness = profileCompleteness(profile);
+    const details = profile.fields
+      .filter((f) => f.value.trim() && !isSensitiveField(f))
+      .map((f) => `${f.label}: ${f.value.trim()}`)
+      .slice(0, 14)
+      .join("; ");
+    const accounts = profile.accounts.map((a) => {
+      const bits = [
+        a.label,
+        a.provider ? `(${a.provider})` : "",
+        a.openedDate ? `opened ${a.openedDate}` : "",
+        a.renewalDate ? `renews ${a.renewalDate}` : "",
+        a.value ? `value ${a.currency ?? "USD"} ${a.value}` : "",
+      ].filter(Boolean);
+      return bits.join(" ");
+    });
+    return {
+      id: profile.id,
+      displayName: profile.displayName,
+      kind: profile.kind,
+      role: profile.role,
+      headline: profile.headline,
+      folder: folderPathString(data.folders, profile.folderId),
+      details,
+      missing: completeness.missing.map((f) => f.label),
+      accounts,
+    };
+  });
+
   try {
     const res = await fetch("/api/recall", {
       method: "POST",
@@ -146,6 +201,7 @@ export async function askAgent(question: string, data: RecallData): Promise<Agen
         people: photos.people.map((p) => ({ id: p.id, name: p.name, role: ROLE_LABELS[p.role] })),
         photoCategories: photos.categories.map((c) => c.name),
         pendingPhotos: pendingCount,
+        profiles: profilePayload,
       }),
     });
     if (res.ok) {
@@ -205,10 +261,42 @@ function cleanReminders(v: unknown): number[] | undefined {
  * user cannot understand and then do something else — so an action that does
  * not name a real item, folder or event is dropped rather than repaired.
  */
+const PROFILE_FIELD_TYPES = [
+  "text",
+  "email",
+  "phone",
+  "date",
+  "ssn",
+  "number",
+  "money",
+  "url",
+  "login",
+  "secret",
+  "note",
+] as const;
+
+const PROFILE_ACCOUNT_KINDS = [
+  "account",
+  "brokerage",
+  "retirement",
+  "crypto",
+  "domain",
+  "hosting",
+  "saas",
+  "subscription",
+  "other",
+] as const;
+
+function optionalText(value: unknown): string | undefined {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text || undefined;
+}
+
 export function sanitizeActions(input: unknown, data: RecallData, events: CalendarEvent[]): AgentAction[] {
   if (!Array.isArray(input)) return [];
   const itemIds = new Set(data.items.map((i) => i.id));
   const folderIds = new Set(data.folders.map((f) => f.id));
+  const profileIds = new Set((data.profiles ?? []).map((p) => p.id));
   const eventIds = new Set(events.map((e) => e.id));
   const out: AgentAction[] = [];
 
@@ -218,8 +306,10 @@ export function sanitizeActions(input: unknown, data: RecallData, events: Calend
     const tags = Array.isArray(raw?.tags) ? (raw.tags as unknown[]).map(String).filter(Boolean) : [];
     const itemId = typeof raw?.itemId === "string" ? raw.itemId : "";
     const folderId = typeof raw?.folderId === "string" ? raw.folderId : "";
+    const profileId = typeof raw?.profileId === "string" ? raw.profileId : "";
     const eventId = typeof raw?.eventId === "string" ? raw.eventId : "";
     const title = typeof raw?.title === "string" ? raw.title.trim() : "";
+    const displayName = typeof raw?.displayName === "string" ? raw.displayName.trim() : "";
     const date = typeof raw?.date === "string" ? raw.date.trim() : "";
 
     switch (type) {
@@ -271,6 +361,87 @@ export function sanitizeActions(input: unknown, data: RecallData, events: Calend
         break;
       case "delete_folder":
         if (folderIds.has(folderId)) out.push({ type, folderId });
+        break;
+
+      case "create_profile": {
+        const kind = String(raw?.kind ?? "");
+        if (kind !== "person" && kind !== "business") break;
+        if (!displayName) break;
+        const fields = Array.isArray(raw?.fields)
+          ? (raw.fields as Record<string, unknown>[])
+              .map((f) => {
+                const type = String(f?.type ?? "text") as (typeof PROFILE_FIELD_TYPES)[number];
+                return {
+                  label: String(f?.label ?? "").trim(),
+                  value: String(f?.value ?? "").trim(),
+                  type: PROFILE_FIELD_TYPES.includes(type) ? type : ("text" as const),
+                };
+              })
+              .filter((f) => f.label)
+              .slice(0, 24)
+          : [];
+        const accounts = Array.isArray(raw?.accounts)
+          ? (raw.accounts as Record<string, unknown>[])
+              .map((a) => {
+                const accountKind = String(a?.kind ?? "other") as (typeof PROFILE_ACCOUNT_KINDS)[number];
+                return {
+                  label: String(a?.label ?? "").trim(),
+                  provider: optionalText(a?.provider),
+                  kind: PROFILE_ACCOUNT_KINDS.includes(accountKind) ? accountKind : "other",
+                  openedDate: optionalText(a?.openedDate),
+                  renewalDate: optionalText(a?.renewalDate),
+                  login: optionalText(a?.login),
+                  value: optionalText(a?.value),
+                  currency: optionalText(a?.currency),
+                  url: optionalText(a?.url),
+                };
+              })
+              .filter((a) => a.label)
+              .slice(0, 12)
+          : [];
+        out.push({
+          type,
+          kind,
+          displayName,
+          role: optionalText(raw?.role),
+          fields,
+          accounts,
+          tags: Array.isArray(raw?.tags)
+            ? Array.from(new Set(raw.tags.map(String).filter(Boolean))).slice(0, 8)
+            : [],
+        });
+        break;
+      }
+
+      case "update_profile_field": {
+        const label = typeof raw?.label === "string" ? raw.label.trim() : "";
+        const value = typeof raw?.value === "string" ? raw.value.trim() : "";
+        if (profileIds.has(profileId) && label && value) out.push({ type, profileId, label, value });
+        break;
+      }
+
+      case "add_profile_account": {
+        const label = typeof raw?.label === "string" ? raw.label.trim() : title;
+        if (!profileIds.has(profileId) || !label) break;
+        const accountKind = String(raw?.kind ?? "other") as (typeof PROFILE_ACCOUNT_KINDS)[number];
+        out.push({
+          type,
+          profileId,
+          label,
+          provider: optionalText(raw?.provider),
+          kind: PROFILE_ACCOUNT_KINDS.includes(accountKind) ? accountKind : "other",
+          openedDate: optionalText(raw?.openedDate),
+          renewalDate: optionalText(raw?.renewalDate),
+          login: optionalText(raw?.login),
+          value: optionalText(raw?.value),
+          currency: optionalText(raw?.currency),
+          url: optionalText(raw?.url),
+        });
+        break;
+      }
+
+      case "delete_profile":
+        if (profileIds.has(profileId)) out.push({ type, profileId });
         break;
 
       case "create_event":

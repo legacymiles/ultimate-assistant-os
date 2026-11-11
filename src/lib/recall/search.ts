@@ -6,7 +6,8 @@
 // scores merge in here behind the same SearchResult shape.
 // ---------------------------------------------------------------------------
 
-import type { Folder, Item, ScoredItem, SearchResult } from "./types";
+import type { Folder, Item, Profile, ScoredItem, SearchResult } from "./types";
+import { profileSearchText } from "./profiles";
 
 const FIELD_WEIGHTS = { title: 6, tag: 5, field: 4, summary: 2, body: 1, extract: 1 } as const;
 
@@ -58,7 +59,25 @@ function scoreItem(item: Item, tokens: string[], phrase: string): number {
   return score;
 }
 
-export function search(query: string, data: { items: Item[]; folders: Folder[] }): SearchResult {
+/** Profiles match by name, headline, tags and the non-sensitive field values. */
+function matchingProfiles(profiles: Profile[], tokens: string[], phrase: string): Profile[] {
+  const scored = profiles
+    .map((profile) => {
+      const hay = profileSearchText(profile);
+      let score = 0;
+      for (const tok of tokens) if (hay.includes(tok)) score += 3;
+      if (phrase.length > 2 && hay.includes(phrase)) score += 4;
+      return { profile, score };
+    })
+    .filter((p) => p.score > 0)
+    .sort((a, b) => b.score - a.score || a.profile.displayName.localeCompare(b.profile.displayName));
+  return scored.map((s) => s.profile);
+}
+
+export function search(
+  query: string,
+  data: { items: Item[]; folders: Folder[]; profiles?: Profile[] },
+): SearchResult {
   const phrase = query.trim().toLowerCase();
   const tokens = tokenize(query);
 
@@ -67,7 +86,7 @@ export function search(query: string, data: { items: Item[]; folders: Folder[] }
     const items: ScoredItem[] = [...data.items]
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((item) => ({ item, score: 0 }));
-    return { items, folders: [], tags: [] };
+    return { items, folders: [], tags: [], profiles: [] };
   }
 
   const scored: ScoredItem[] = data.items
@@ -84,7 +103,12 @@ export function search(query: string, data: { items: Item[]; folders: Folder[] }
     for (const t of item.tags)
       if (tokens.some((tok) => t.toLowerCase().includes(tok))) tagSet.add(t);
 
-  return { items: scored, folders, tags: [...tagSet] };
+  return {
+    items: scored,
+    folders,
+    tags: [...tagSet],
+    profiles: matchingProfiles(data.profiles ?? [], tokens, phrase),
+  };
 }
 
 /** Items sharing the most tags with the given one (for "related" and RAG). */

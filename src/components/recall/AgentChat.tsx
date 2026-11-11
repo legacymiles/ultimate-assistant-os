@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icons";
@@ -9,7 +9,7 @@ import { formatDayKey, formatTime } from "@/lib/recall/calendar/types";
 import type { CalendarEvent } from "@/lib/recall/calendar/types";
 import { uid } from "@/lib/utils";
 import { DESTRUCTIVE_ACTIONS } from "@/lib/recall/types";
-import type { AgentAction, ChatMessage, Folder, Item, RecallData } from "@/lib/recall/types";
+import type { AgentAction, ChatMessage, Folder, Item, Profile, RecallData } from "@/lib/recall/types";
 
 interface Props {
   open: boolean;
@@ -43,9 +43,11 @@ function actionLabel(
   items: Item[],
   folders: Folder[],
   events: CalendarEvent[],
+  profiles: Profile[],
 ): string {
   const titleOf = (id: string) => items.find((i) => i.id === id)?.title ?? "item";
   const folderOf = (id: string) => folders.find((f) => f.id === id)?.name ?? "folder";
+  const profileOf = (id: string) => profiles.find((p) => p.id === id)?.displayName ?? "profile";
   const eventOf = (id: string) => events.find((e) => e.id === id);
   const pathOf = (p: string[]) => p.join(" › ") || "Inbox";
 
@@ -87,6 +89,14 @@ function actionLabel(
       return `Remove “${eventOf(action.eventId)?.title ?? "event"}” from the calendar`;
     case "add_person":
       return `Add ${action.name} to the people Dashboard can recognise`;
+    case "create_profile":
+      return `Create ${action.displayName}'s ${action.kind} profile — folder, record and ${action.accounts?.length ?? 0} account${action.accounts?.length === 1 ? "" : "s"}`;
+    case "update_profile_field":
+      return `Set ${profileOf(action.profileId)} → ${action.label}: ${action.value}`;
+    case "add_profile_account":
+      return `Add “${action.label}” to ${profileOf(action.profileId)}`;
+    case "delete_profile":
+      return `Delete ${profileOf(action.profileId)}'s profile`;
     default:
       return "Unknown action";
   }
@@ -107,6 +117,8 @@ function actionCaveat(action: AgentAction): string | null {
       return "Permanent.";
     case "add_person":
       return "They can't be recognised until you add reference photos.";
+    case "delete_profile":
+      return "Permanent. The folder is removed only if nothing else is in it.";
     default:
       return null;
   }
@@ -257,14 +269,15 @@ export function AgentChat({
             <p className="text-sm font-medium text-ink">What do you need?</p>
             <p className="mx-auto mt-1 max-w-[260px] text-xs leading-relaxed text-ink-muted">
               I can see everything you&apos;ve saved — including the text inside your PDFs, docs and
-              photos — plus your calendar and the people in your photo library. I answer with
-              sources, and I can file things, put things on your calendar and tidy up. Every change
-              is shown for your confirmation first.
+              photos — plus your calendar, your profiles and the people in your photo library. I
+              answer with sources, and I can file things, create a profile, put things on your
+              calendar and tidy up. Every change is shown for your confirmation first.
             </p>
             <div className="mt-4 flex flex-col gap-1.5">
               {[
+                "Create a profile for my son",
                 "What's on this week?",
-                "Put parents' evening on Thursday at 6, remind me the day before",
+                "I just bought a domain on Cloudflare — log it with the renewal date",
                 "Show me what I've saved about this",
                 "Tidy the loose files into the right folders",
               ].map((s) => (
@@ -353,7 +366,7 @@ export function AgentChat({
                                 "block " + (state ? "text-ink-faint line-through" : "text-ink-muted")
                               }
                             >
-                              {actionLabel(a, data.items, data.folders, events)}
+                              {actionLabel(a, data.items, data.folders, events, data.profiles ?? [])}
                             </span>
                             {caveat && !state && (
                               <span className="block text-[10px] text-red-400/70">{caveat}</span>

@@ -91,7 +91,7 @@ export function useUpdates(
   const [ready, setReady] = useState(false);
   // Starts empty rather than reading storage during render: this hook renders
   // on the server too, where there is no localStorage.
-  const [recall, setRecall] = useState<RecallData>({ folders: [], items: [] });
+  const [recall, setRecall] = useState<RecallData>({ folders: [], items: [], profiles: [] });
   const [tick, setTick] = useState(0);
   // Camera Autopilot's queue lives in this browser. Re-read on every tick and
   // the moment the camera watch imports, so a new photo is news within seconds.
