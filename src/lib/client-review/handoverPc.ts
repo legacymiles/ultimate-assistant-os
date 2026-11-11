@@ -15,6 +15,7 @@
 // ---------------------------------------------------------------------------
 
 import { BridgeError, call, knownFolder, probe } from "@/lib/new-jarvis/bridge";
+import { connectToPc } from "./buildHere";
 import { buildHarness } from "@/lib/new-jarvis/harness/choice";
 import { readTrust } from "@/lib/new-jarvis/trust";
 import { readChatModel } from "@/lib/new-jarvis/useChatModel";
@@ -74,16 +75,32 @@ export async function siteFolder(p: ClientProject): Promise<string> {
   return "";
 }
 
-/** The PC, or the one sentence saying why it can't be used right now. */
+/**
+ * The PC, or the one sentence saying why it can't be used right now.
+ *
+ * Both presses that land here are presses — the owner's own click is still
+ * live — so when the direct route to 127.0.0.1 is shut this does the thing
+ * that opens it instead of describing it. `connectToPc` opens the local relay
+ * window (the route Chrome does not gate), starts a helper that isn't running,
+ * and pairs. Telling the owner to "press Connect to my PC on a build" was
+ * sending them to another screen to press a button this one could press
+ * itself, which is why the move never started from here.
+ */
 async function pcOrWhy(): Promise<string> {
   const health = await probe().catch(() => null);
-  if (!health?.up) {
-    return health?.needsLocalNetwork
-      ? "This browser is blocking this site from reaching your PC. Open Ship on the address where builds already work, or press Connect to my PC on a build."
-      : "Jarvis's PC helper isn't running, so the code can't be moved from here. Start it on that PC and press this again.";
+  if (health?.up && health.paired) return "";
+
+  // Still inside the click. This is the one moment the relay window can open.
+  const blocker = await connectToPc().catch(() => "pc-off" as const);
+  if (!blocker) return "";
+
+  if (blocker === "blocked-by-browser") {
+    return "Your browser is blocking this site from reaching your PC, and the small Jarvis window didn't open. Allow pop-ups for this site and press this again.";
   }
-  if (!health.paired) return "This browser isn't paired with the PC helper yet. Pair it in Jarvis on that PC and press this again.";
-  return "";
+  if (blocker === "not-paired") {
+    return "This browser isn't paired with the PC helper yet. Open Jarvis on that PC once and press this again.";
+  }
+  return "Jarvis's PC helper isn't running, so the code can't be moved from here. Start it on that PC and press this again.";
 }
 
 /**
@@ -148,19 +165,26 @@ export interface PluginsBuild {
  * row in the catalog, dependencies merged), not a file copy, so it is Claude
  * Code that does it and a pull request the owner reviews that lands it.
  */
-export async function startPluginsBuild(p: ClientProject, opts: { repo: string; folder: string; liveUrl: string }): Promise<PluginsBuild> {
+export async function startPluginsBuild(p: ClientProject, opts: { repo: string; liveUrl: string }): Promise<PluginsBuild> {
   const why = await pcOrWhy();
   if (why) throw new Error(why);
 
   const hub = knownFolder();
   if (!hub) throw new Error("This browser hasn't heard from your PC yet, so it doesn't know where the hub is checked out.");
-  if (!opts.repo && !opts.folder) {
+
+  // Asked AFTER the connection exists, not before it. Looking the folder up
+  // first meant the one call that finds it was made down a route the browser
+  // had shut — it came back empty every time, and a site with no repository
+  // yet was then refused for having "nothing to move in" on a PC that had the
+  // folder sitting right there.
+  const folder = opts.repo ? "" : await siteFolder(p).catch(() => "");
+  if (!opts.repo && !folder) {
     throw new Error("This site has no repository and the folder it was built in is gone, so there is nothing to move in. Send it to the client first — that gives it a repository.");
   }
 
   const chosen = readChatModel();
   const pick = chosen && (buildsWithPick(chosen) || chosen === "claude-subscription") ? chosen : pickValue(p);
-  const brief = pluginsBrief(p, { repo: opts.repo, folder: opts.folder, liveUrl: opts.liveUrl });
+  const brief = pluginsBrief(p, { repo: opts.repo, folder, liveUrl: opts.liveUrl });
 
   let threadId = "";
   try {

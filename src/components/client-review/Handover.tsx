@@ -29,7 +29,7 @@ import {
   repoUrl,
   type TreeNode,
 } from "@/lib/client-review/handover";
-import { pushSiteToRepo, siteFolder, startPluginsBuild } from "@/lib/client-review/handoverPc";
+import { pushSiteToRepo, startPluginsBuild } from "@/lib/client-review/handoverPc";
 import type { ClientProject } from "@/lib/client-review/types";
 
 interface RepoTree {
@@ -334,8 +334,7 @@ export function Handover({
     setNote(null);
     setWorking("Starting the move…");
     try {
-      const folder = state.repo ? "" : await siteFolder(p).catch(() => "");
-      const out = await startPluginsBuild(p, { repo: state.repo, folder, liveUrl });
+      const out = await startPluginsBuild(p, { repo: state.repo, liveUrl });
       setMoved({ threadId: out.threadId });
       setNote({ tone: "ok", text: `Claude Code is moving it in as /apps/${slug}. It opens a pull request when it's done — you merge it.` });
     } catch (e) {

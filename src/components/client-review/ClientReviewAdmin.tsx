@@ -25,6 +25,8 @@ import { askedBefore } from "@/lib/new-jarvis/harness/families";
 import { harnessHref } from "@/lib/new-jarvis/harness/link";
 import { buildLinks } from "@/lib/client-review/autoBuild";
 import { call as bridgeCall, probe as bridgeProbe } from "@/lib/new-jarvis/bridge";
+import { connectToPc } from "@/lib/client-review/buildHere";
+import { blockerAdvice } from "@/lib/client-review/liveBuild";
 import { pushThreadToMain, shipThread } from "@/lib/client-review/pushMain";
 import { useBuild } from "@/lib/app-builder/useBuild";
 import { admin, type AdminState, type BriefOut } from "@/lib/client-review/client";
@@ -1181,7 +1183,7 @@ function BuildStatus({
  * too late and too easy to miss.
  */
 function PcHelper() {
-  const [state, setState] = useState<"asking" | "up" | "unpaired" | "off" | "blocked">("asking");
+  const [state, setState] = useState<"asking" | "up" | "unpaired" | "off" | "blocked" | "connecting">("asking");
   const [why, setWhy] = useState("");
 
   const check = useCallback(() => {
@@ -1195,49 +1197,74 @@ function PcHelper() {
   }, []);
   useEffect(check, [check]);
 
+  /**
+   * The press that actually opens the route, not another look at a shut door.
+   *
+   * Probing again from a click was written when Chrome still raised its
+   * local-network prompt on a gesture; it stopped doing that once the prompt
+   * had been dismissed, so the button became a no-op on exactly the machine
+   * that needed it. `connectToPc` opens the local relay window — a top-level
+   * navigation to 127.0.0.1, which is not gated — starts the helper if it is
+   * off, and pairs.
+   */
+  const connect = useCallback(() => {
+    setState("connecting");
+    void connectToPc()
+      .then((blocker) => {
+        if (!blocker) {
+          setWhy("");
+          setState("up");
+          return;
+        }
+        setWhy(blockerAdvice(blocker).text);
+        setState(blocker === "blocked-by-browser" ? "blocked" : blocker === "not-paired" ? "unpaired" : "off");
+      })
+      .catch(() => setState("off"));
+  }, []);
+
   const label =
     state === "asking"
       ? "· checking your PC…"
-      : state === "up"
-        ? "● PC helper running"
-        : state === "unpaired"
-          ? "○ PC helper running, this browser isn't paired"
-          : state === "blocked"
-            ? "○ This browser is blocking this site from reaching your PC"
-            : "○ PC helper not running — builds can't start";
+      : state === "connecting"
+        ? "· connecting to your PC…"
+        : state === "up"
+          ? "● PC helper running"
+          : state === "unpaired"
+            ? "○ PC helper running, this browser isn't paired"
+            : state === "blocked"
+              ? "○ This browser is blocking this site from reaching your PC"
+              : "○ PC helper not running — builds can't start";
   return (
     <span
       className={`inline-flex items-center gap-1.5 ${
-        state === "up" ? "text-emerald-300" : state === "asking" ? "text-ink-faint" : "text-amber-200"
+        state === "up" ? "text-emerald-300" : state === "asking" || state === "connecting" ? "text-ink-faint" : "text-amber-200"
       }`}
       title={why || undefined}
     >
       {label}
       {/*
-        This button is the fix, not a retry. Chrome only asks for local network
-        access on a CLICK, so the probe on page load can never raise the
-        prompt — it just fails. Pressing this runs the same probe inside a real
-        gesture, which is what makes Chrome ask.
+        One press, and it opens the relay window rather than asking Chrome the
+        same question again. The other address stays on offer beside it: local
+        network access is granted per ORIGIN, so a hub served from two
+        addresses can be allowed on one and shut on the other.
       */}
-      {state === "blocked" && (
+      {(state === "blocked" || state === "off" || state === "unpaired") && (
         <>
-          <button className="rounded border border-amber-400/60 bg-amber-400/20 px-2 py-0.5 font-semibold text-amber-100" onClick={check}>
+          <button
+            type="button"
+            className="rounded border border-amber-400/60 bg-amber-400/20 px-2 py-0.5 font-semibold text-amber-100 disabled:opacity-50"
+            onClick={connect}
+          >
             Connect to this PC
           </button>
-          {/*
-            Chrome does not always ASK. When the permission is in "prompt" but
-            the browser has stopped offering it, pressing the button does
-            nothing at all and there is no way forward from this page — so the
-            way forward is the other address, where the owner has already
-            allowed it. One click beats an explanation of Chrome's settings.
-          */}
-          <AlsoTry />
+          {state === "blocked" && <AlsoTry />}
+          <button type="button" className="underline hover:text-ink" onClick={check}>
+            check again
+          </button>
         </>
       )}
-      {(state === "off" || state === "unpaired") && (
-        <button className="underline hover:text-ink" onClick={check}>
-          check again
-        </button>
+      {state === "connecting" && (
+        <span className="rounded border border-line px-2 py-0.5 text-ink-faint">Opening Jarvis on this PC…</span>
       )}
     </span>
   );
