@@ -5,6 +5,7 @@ import { Icon } from "../icons";
 import { folderPathString } from "@/lib/recall/store";
 import { search } from "@/lib/recall/search";
 import { primaryFields } from "@/lib/recall/schemas";
+import { profileCompleteness, profileInitials, profileKindLabel } from "@/lib/recall/profiles";
 import type { Item, RecallData, SectionId } from "@/lib/recall/types";
 import { SECTION_OF } from "@/lib/recall/types";
 import { Row } from "./Section";
@@ -37,6 +38,7 @@ interface Props {
   onToggleTag: (tag: string) => void;
   onNavigate: (folderId: string | null) => void;
   onOpenItem: (item: Item) => void;
+  onOpenProfile: (profileId: string) => void;
 }
 
 export function SearchResults({
@@ -46,6 +48,7 @@ export function SearchResults({
   onToggleTag,
   onNavigate,
   onOpenItem,
+  onOpenProfile,
 }: Props) {
   const result = useMemo(() => search(query, data), [query, data]);
 
@@ -67,7 +70,8 @@ export function SearchResults({
     return g;
   }, [items]);
 
-  const total = items.length;
+  const profileHits = result.profiles;
+  const total = items.length + profileHits.length;
 
   return (
     <div>
@@ -77,6 +81,48 @@ export function SearchResults({
         </h1>
         <span className="truncate text-[11px] text-ink-faint">for “{query}”</span>
       </div>
+
+      {profileHits.length > 0 && (
+        <div className="mb-3 rounded-2xl border border-amber-400/25 bg-amber-400/[0.04] px-3 py-2">
+          <div className="mb-1 flex items-center gap-2 px-1 py-1">
+            <Icon.User width={13} height={13} className="text-amber-300" />
+            <span className="text-[13px] font-medium text-ink-muted">Profiles</span>
+            <span className="rounded-md bg-panel-2 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-ink-faint">
+              {profileHits.length}
+            </span>
+          </div>
+          <div className="grid gap-1 sm:grid-cols-2">
+            {profileHits.map((profile) => {
+              const c = profileCompleteness(profile);
+              return (
+                <button
+                  key={profile.id}
+                  onClick={() => onOpenProfile(profile.id)}
+                  className="flex items-center gap-2 rounded-lg border border-line bg-canvas px-2 py-1.5 text-left transition hover:border-amber-400/40"
+                >
+                  <span
+                    className={
+                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold " +
+                      (profile.kind === "business"
+                        ? "bg-amber-400/15 text-amber-200"
+                        : "bg-brand/15 text-brand")
+                    }
+                  >
+                    {profileInitials(profile.displayName)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[12px] font-medium text-ink">{profile.displayName}</span>
+                    <span className="block truncate text-[10px] text-ink-faint">
+                      {profileKindLabel(profile.kind)} · {c.known}/{c.total} details ·{" "}
+                      {folderPathString(data.folders, profile.folderId)}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Matching folders and tags — jump straight there */}
       {(result.folders.length > 0 || result.tags.length > 0) && (
@@ -113,7 +159,8 @@ export function SearchResults({
         <div className="rounded-2xl border border-dashed border-line bg-panel/40 py-14 text-center">
           <p className="text-sm font-medium text-ink">Nothing matches “{query}”</p>
           <p className="mt-1 text-xs text-ink-muted">
-            Search covers titles, notes, tags, every field on a website or login, and the text read out of your files.
+            Search covers profiles, titles, notes, tags, every field on a website or login, and the text
+            read out of your files.
           </p>
         </div>
       ) : (

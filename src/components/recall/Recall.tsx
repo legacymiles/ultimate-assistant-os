@@ -13,7 +13,7 @@ import {
   moveFolder,
   updateFolder,
 } from "@/lib/recall/store";
-import type { Folder, Item, RecallData } from "@/lib/recall/types";
+import type { Folder, Item, ProfileKind, ProfileRole, RecallData } from "@/lib/recall/types";
 import { ALL, FolderTree, UNFILED } from "./FolderTree";
 import { CaptureModal } from "./CaptureModal";
 import { ItemDetailModal } from "./ItemDetailModal";
@@ -28,6 +28,10 @@ import { SecurityDialog } from "./SecurityDialog";
 import { ListsBoard } from "./lists/ListsBoard";
 import { PhotosBoard } from "./photos/PhotosBoard";
 import { CalendarBoard } from "./calendar/CalendarBoard";
+import { ProfilesBoard } from "./ProfilesBoard";
+import { ProfileView } from "./ProfileView";
+import { ProfileWizard } from "./ProfileWizard";
+import { MemoryBoard } from "./MemoryBoard";
 import { ensurePhotosRoot } from "@/lib/recall/store";
 import { pruneOrphans } from "@/lib/recall/files";
 import { getQueue } from "@/lib/recall/photos/store";
@@ -45,6 +49,8 @@ import { useRemotePull } from "@/lib/sync/useSync";
 
 const HOME_TABS = [
   { id: "folders" as const, label: "Folders", icon: Icon.Folder },
+  { id: "profiles" as const, label: "Profiles", icon: Icon.Users },
+  { id: "memory" as const, label: "Memory", icon: Icon.Network },
   { id: "photos" as const, label: "Photos", icon: Icon.Image },
   { id: "calendar" as const, label: "Calendar", icon: Icon.Calendar },
   { id: "lists" as const, label: "Lists", icon: Icon.ListChecks },
@@ -55,7 +61,7 @@ export type HomeTab = (typeof HOME_TABS)[number]["id"];
 interface RecallProps {
   /**
    * Set when Dashboard is mounted inside Jarvis. Jarvis's rail owns the choice
-   * of Folders / Photos / Calendar / Lists, so the home tab switch and the Hub
+   * of Folders / Profiles / Memory / Photos / Calendar / Lists, so the home tab switch and the Hub
    * link disappear and this prop decides which half is showing.
    */
   section?: HomeTab;
@@ -70,7 +76,7 @@ type FolderDialogState =
 
 export function Recall({ section, onSection }: RecallProps = {}) {
   const embedded = section !== undefined;
-  const [data, setData] = useState<RecallData>({ folders: [], items: [] });
+  const [data, setData] = useState<RecallData>({ folders: [], items: [], profiles: [] });
   const [ready, setReady] = useState(false);
   /** null = the home grid; UNFILED = loose items; otherwise a folder id. */
   const [folderId, setFolderId] = useState<string | null>(null);
@@ -96,6 +102,12 @@ export function Recall({ section, onSection }: RecallProps = {}) {
   const [ownTab, setOwnTab] = useState<HomeTab>("folders");
   const homeTab = section ?? ownTab;
   const setHomeTab = (t: HomeTab) => (embedded ? onSection?.(t) : setOwnTab(t));
+  /** A profile is a third kind of page: the card, not a folder workspace. */
+  const [profileId, setProfileId] = useState<string | null>(null);
+  const [profileWizard, setProfileWizard] = useState<{
+    kind?: ProfileKind;
+    role?: ProfileRole;
+  } | null>(null);
   /**
    * The calendar, the people list and the folder tree are three separate
    * stores. When the assistant writes to one of the other two, bumping its
@@ -172,10 +184,21 @@ export function Recall({ section, onSection }: RecallProps = {}) {
 
   const navigate = useCallback((id: string | null) => {
     setFolderId(id);
+    setProfileId(null);
     setQuery("");
     setTreeOpen(false);
+    if (embedded) onSection?.("folders");
     window.scrollTo({ top: 0 });
-  }, []);
+  }, [embedded, onSection]);
+
+  const openProfile = useCallback((id: string) => {
+    setProfileId(id);
+    setFolderId(null);
+    setQuery("");
+    setTreeOpen(false);
+    setHomeTab("profiles");
+    window.scrollTo({ top: 0 });
+  }, [embedded, onSection]);
 
   const existingTags = useMemo(() => {
     const set = new Set<string>();
@@ -231,6 +254,10 @@ export function Recall({ section, onSection }: RecallProps = {}) {
   }
 
   const searching = query.trim().length > 0;
+  const activeProfile =
+    profileId && homeTab === "profiles"
+      ? data.profiles.find((p) => p.id === profileId) ?? null
+      : null;
 
   return (
     <div className={embedded ? "flex flex-col" : "flex min-h-dvh flex-col"}>
@@ -284,7 +311,7 @@ export function Recall({ section, onSection }: RecallProps = {}) {
               ref={searchRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search everything — notes, files, logins, websites…  (⌘K)"
+              placeholder="Search everything — profiles, notes, files, logins, websites…  (⌘K)"
               className="w-full rounded-xl border border-line bg-canvas py-2 pl-9 pr-8 text-[13px] text-ink outline-none placeholder:text-ink-faint focus:border-brand focus:ring-2 focus:ring-brand/25"
             />
             {searching && (
@@ -389,6 +416,25 @@ export function Recall({ section, onSection }: RecallProps = {}) {
             onToggleTag={toggleTag}
             onNavigate={navigate}
             onOpenItem={setDetailItem}
+            onOpenProfile={openProfile}
+          />
+        ) : activeProfile ? (
+          <ProfileView
+            profile={activeProfile}
+            data={data}
+            onBack={() => setProfileId(null)}
+            onData={setData}
+            onOpenFolder={(id) => navigate(id)}
+            onOpenItem={setDetailItem}
+            onOpenMemory={() => {
+              setProfileId(null);
+              setHomeTab("memory");
+            }}
+            onAsk={(question) => {
+              setProfileId(null);
+              setAskQuestion(question);
+            }}
+            onToast={setToast}
           />
         ) : folderId === null ? (
           <>
@@ -396,7 +442,7 @@ export function Recall({ section, onSection }: RecallProps = {}) {
             <div
               role="tablist"
               aria-label="Dashboard home"
-              className="mb-4 inline-flex gap-1 rounded-xl border border-line bg-panel p-1"
+              className="mb-4 inline-flex max-w-full gap-1 overflow-x-auto rounded-xl border border-line bg-panel p-1"
             >
               {HOME_TABS.map((tab) => (
                 <button
@@ -432,6 +478,24 @@ export function Recall({ section, onSection }: RecallProps = {}) {
                 onOpenPhotos={() => setHomeTab("photos")}
               />
               </>
+            )}
+            {homeTab === "profiles" && (
+              <ProfilesBoard
+                data={data}
+                onOpenProfile={openProfile}
+                onAddProfile={(kind, role) => setProfileWizard({ kind, role })}
+                onOpenMemory={() => setHomeTab("memory")}
+                onOpenFolder={navigate}
+              />
+            )}
+            {homeTab === "memory" && (
+              <MemoryBoard
+                data={data}
+                onOpenFolder={navigate}
+                onOpenItem={setDetailItem}
+                onOpenProfile={openProfile}
+                onAsk={(question) => setAskQuestion(question)}
+              />
             )}
             {homeTab === "photos" && (
               <PhotosBoard
@@ -500,6 +564,21 @@ export function Recall({ section, onSection }: RecallProps = {}) {
           onToast={setToast}
         />
       )}
+
+      <ProfileWizard
+        open={Boolean(profileWizard)}
+        initialKind={profileWizard?.kind}
+        initialRole={profileWizard?.role}
+        data={data}
+        onClose={() => setProfileWizard(null)}
+        onCreated={(next, profile) => {
+          setData(next);
+          setProfileWizard(null);
+          setHomeTab("profiles");
+          openProfile(profile.id);
+          setToast("Profile created — folder and memory node included");
+        }}
+      />
 
       {folderDialog && (
         <FolderDialog

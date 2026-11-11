@@ -18,6 +18,24 @@
   "source": "git"
  },
  {
+  "id": "119265a:dashboard",
+  "date": "2026-11-10",
+  "slug": "dashboard",
+  "title": "Profiles, accounts and the memory map",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "119265a:jarvis",
+  "date": "2026-11-10",
+  "slug": "jarvis",
+  "title": "Profiles, accounts and the memory map",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "657fd0d:app-builder",
   "date": "2026-11-10",
   "slug": "app-builder",
@@ -140,6 +158,15 @@
   "slug": "jarvis",
   "title": "Keep going when the tab closes, the bridge restarts, or a limit hits",
   "detail": "A build was a harness thread in the bridge and a row on the server, but nothing on the PC remembered it. Closing the tab left the thread running invisibly; a bridge restart (an update, a wake, a reinstall) deleted it, and the page sat on 'Starting the build' against a thread that no longer existed. ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e9dd96d:dashboard",
+  "date": "2026-11-09",
+  "slug": "dashboard",
+  "title": "Profiles and Memory, the modules",
+  "detail": "Twelve new files, about 4,200 lines: the blueprint model and completeness rules, the profile store, the Jarvis draft wizard, the profile card, the Memory board and account dialog. These had no home in git anywhere - not on main, not on any of the 46 remote branches - until this commit. 15 tests gree",
   "group": "supporting",
   "source": "git"
  },

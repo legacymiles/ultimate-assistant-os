@@ -111,6 +111,8 @@ export interface Item {
   extractStatus?: "ok" | "pending" | "unsupported" | "failed";
   /** Person ids the vision pass recognised in a photo. */
   people?: string[];
+  /** Set on the note that mirrors a profile into the folder tree. */
+  profileId?: string | null;
   /** The photo category rule that filed it, when one did. */
   photoCategoryId?: string | null;
   /** Look-alike fingerprint of an image item; syncs, so duplicates are caught on every device. */
@@ -157,9 +159,136 @@ export interface Folder {
 /** Canonical order for the section stack and the add-section menu. */
 export const SECTION_ORDER: SectionId[] = ["subfolders", "notes", "todos", "links", "logins", "websites"];
 
+// ----- Profiles ------------------------------------------------------------
+// A profile is a first-class subject — a person or a business — that owns a
+// folder, a memory node, its own structured fields, and any number of accounts.
+// The folder is where the durable record lives; the profile is how you read it
+// at a glance. Both are written together so they can never disagree.
+
+export type ProfileKind = "person" | "business";
+
+export type ProfileRole =
+  | "self"
+  | "child"
+  | "partner"
+  | "relative"
+  | "friend"
+  | "client"
+  | "vendor"
+  | "other";
+
+/** Kept deliberately small: each type gets a different input + display. */
+export type ProfileFieldType =
+  | "text"
+  | "email"
+  | "phone"
+  | "date"
+  | "ssn"
+  | "number"
+  | "money"
+  | "url"
+  | "login"
+  | "secret"
+  | "note";
+
+export interface ProfileField {
+  id: string;
+  label: string;
+  /** Empty string is meaningful — it is a placeholder waiting to be filled. */
+  value: string;
+  type: ProfileFieldType;
+  /** Masked in the UI and never copied into the searchable folder note. */
+  sensitive?: boolean;
+  /** One line explaining why it matters or where to find it. */
+  hint?: string;
+}
+
+export type ProfileAccountKind =
+  | "account"
+  | "brokerage"
+  | "retirement"
+  | "crypto"
+  | "domain"
+  | "hosting"
+  | "saas"
+  | "subscription"
+  | "other";
+
+/**
+ * How a balance/renewal number gets refreshed.
+ *
+ * "manual" is the honest default: you type the number. "json" points at a
+ * read-only endpoint that returns JSON, and the server proxies it (no CORS,
+ * no key in the browser). Plaid-style connectors are a later addition behind
+ * this same field rather than a different data model.
+ */
+export type ProfileLiveProvider = "manual" | "json";
+
+export interface ProfileAccountLive {
+  provider: ProfileLiveProvider;
+  /** Read-only JSON URL, fetched through /api/recall stage "live". */
+  endpoint?: string;
+  /** Dot path into the JSON, e.g. "data.balance". Empty = first number found. */
+  jsonPath?: string;
+  /** Display currency for the number. */
+  currency?: string;
+  status?: "connected" | "manual" | "error";
+  syncedAt?: string;
+  note?: string;
+}
+
+export interface ProfileAccount {
+  id: string;
+  label: string;
+  /** Bank, broker, registrar, host, SaaS vendor… */
+  provider?: string;
+  kind: ProfileAccountKind;
+  openedDate?: string;
+  renewalDate?: string;
+  login?: string;
+  /** Stored in the browser, like a Dashboard login. Never indexed or synced to AI. */
+  password?: string;
+  url?: string;
+  accountNumber?: string;
+  /** Most recent balance / amount, as typed or pulled. */
+  value?: string;
+  currency?: string;
+  live?: ProfileAccountLive;
+  notes?: string;
+  /** Optional Dashboard credential item created alongside this account. */
+  itemId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Profile {
+  id: string;
+  kind: ProfileKind;
+  /** People only (owner, son, partner…). Businesses leave this undefined. */
+  role?: ProfileRole;
+  displayName: string;
+  legalName?: string;
+  /** A person's one-liner or a business's tagline. */
+  headline?: string;
+  /** Square, compressed data URL. Kept small enough for localStorage. */
+  avatar?: string;
+  accent?: string;
+  /** The folder that owns this record. Always set on creation. */
+  folderId: string | null;
+  /** The searchable note that mirrors the profile into the folder tree. */
+  itemId?: string | null;
+  fields: ProfileField[];
+  accounts: ProfileAccount[];
+  tags: string[];
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface RecallData {
   folders: Folder[];
   items: Item[];
+  profiles: Profile[];
 }
 
 /** What the classifier proposes for a freshly captured item. */
@@ -181,6 +310,7 @@ export interface SearchResult {
   items: ScoredItem[];
   folders: Folder[];
   tags: string[];
+  profiles: Profile[];
 }
 
 // ----- Agent -------------------------------------------------------------
@@ -233,7 +363,47 @@ export type AgentAction =
   | { type: "delete_event"; eventId: string }
   // ----- photos -----------------------------------------------------------
   /** Register someone so their photos can be recognised and filed. */
-  | { type: "add_person"; name: string; role: string };
+  | { type: "add_person"; name: string; role: string }
+  // ----- profiles ---------------------------------------------------------
+  /**
+   * A profile is created with its folder and folder-note in one step. Fields
+   * the model does not know are written as empty placeholders rather than
+   * invented, and the UI shows exactly which ones are still missing.
+   */
+  | {
+      type: "create_profile";
+      kind: ProfileKind;
+      displayName: string;
+      role?: string;
+      fields?: { label: string; value: string; type?: ProfileFieldType }[];
+      accounts?: {
+        label: string;
+        provider?: string;
+        kind?: string;
+        openedDate?: string;
+        renewalDate?: string;
+        login?: string;
+        value?: string;
+        currency?: string;
+        url?: string;
+      }[];
+      tags?: string[];
+    }
+  | { type: "update_profile_field"; profileId: string; label: string; value: string }
+  | {
+      type: "add_profile_account";
+      profileId: string;
+      label: string;
+      provider?: string;
+      kind?: string;
+      openedDate?: string;
+      renewalDate?: string;
+      login?: string;
+      value?: string;
+      currency?: string;
+      url?: string;
+    }
+  | { type: "delete_profile"; profileId: string };
 
 /** Actions that remove or overwrite something get a louder confirmation. */
 export const DESTRUCTIVE_ACTIONS: ReadonlySet<AgentAction["type"]> = new Set([
@@ -242,6 +412,7 @@ export const DESTRUCTIVE_ACTIONS: ReadonlySet<AgentAction["type"]> = new Set([
   "merge_folders",
   "edit_note",
   "delete_event",
+  "delete_profile",
 ]);
 
 export interface AgentReply {

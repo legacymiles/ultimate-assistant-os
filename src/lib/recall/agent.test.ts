@@ -49,6 +49,71 @@ describe("move_folder survives sanitizeActions", () => {
   });
 });
 
+describe("profile actions survive sanitizeActions", () => {
+  const withProfile = {
+    ...DATA,
+    profiles: [{ id: "p_mason", displayName: "Mason", kind: "person", fields: [], accounts: [] }],
+  } as unknown as RecallData;
+
+  it("keeps add_profile_account and reads its label", () => {
+    const out = sanitizeActions(
+      [
+        {
+          type: "add_profile_account",
+          profileId: "p_mason",
+          label: "Trump account",
+          kind: "brokerage",
+          openedDate: "2024-06-01",
+        },
+      ],
+      withProfile,
+      [],
+    );
+    expect(out).toEqual([
+      {
+        type: "add_profile_account",
+        profileId: "p_mason",
+        label: "Trump account",
+        kind: "brokerage",
+        provider: undefined,
+        openedDate: "2024-06-01",
+        renewalDate: undefined,
+        login: undefined,
+        value: undefined,
+        currency: undefined,
+        url: undefined,
+      },
+    ]);
+  });
+
+  it("drops a profile action naming a profile that does not exist", () => {
+    expect(
+      sanitizeActions(
+        [{ type: "update_profile_field", profileId: "p_nope", label: "Phone", value: "555" }],
+        withProfile,
+        [],
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps create_profile only when it has a kind and a name", () => {
+    expect(
+      sanitizeActions([{ type: "create_profile", kind: "person", displayName: "Mason" }], withProfile, []),
+    ).toEqual([
+      {
+        type: "create_profile",
+        kind: "person",
+        displayName: "Mason",
+        role: undefined,
+        fields: [],
+        accounts: [],
+        tags: [],
+      },
+    ]);
+    expect(sanitizeActions([{ type: "create_profile", kind: "person" }], withProfile, [])).toEqual([]);
+  });
+});
+
 describe("degraded mode announces itself", () => {
   // The reported failure was not a weak model — no model ran at all, and the
   // keyword search answered in a voice indistinguishable from a real reply.

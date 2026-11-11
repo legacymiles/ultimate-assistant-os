@@ -8,7 +8,27 @@
 import { saveSynced } from "@/lib/sync/appState";
 import { nowIso, uid } from "../utils";
 import { buildSeed } from "./seed";
-import type { AgentAction, Cipher, Folder, Item, RecallData, SectionId } from "./types";
+import {
+  accountKindFrom,
+  buildProfileFields,
+  buildProfileNoteBody,
+  isSensitiveField,
+  profileFolderPath,
+  PROFILE_ROLES,
+} from "./profiles";
+import type {
+  AgentAction,
+  Cipher,
+  Folder,
+  Item,
+  Profile,
+  ProfileAccount,
+  ProfileAccountKind,
+  ProfileKind,
+  ProfileRole,
+  RecallData,
+  SectionId,
+} from "./types";
 import { PHOTOS_ROOT } from "./photos/types";
 import * as calendar from "./calendar/store";
 import { createPerson } from "./photos/store";
@@ -20,16 +40,19 @@ export const KEY = "recall:v1";
 // ----- persistence ---------------------------------------------------------
 
 function load(): RecallData {
-  if (typeof window === "undefined") return { folders: [], items: [] };
+  if (typeof window === "undefined") return { folders: [], items: [], profiles: [] };
   try {
     const raw = window.localStorage.getItem(scopedKey(KEY));
     // Not saved: writing the empty seed on a fresh device stamped it as the
     // newest copy, and sync then pushed it over the account's real folders.
     if (!raw) return buildSeed();
-    const data = JSON.parse(raw) as RecallData;
+    const data = JSON.parse(raw) as Partial<RecallData>;
     return {
       folders: Array.isArray(data.folders) ? data.folders : [],
       items: Array.isArray(data.items) ? data.items : [],
+      // Older blobs predate profiles. Default rather than migrate so the first
+      // read after an update never writes a half-shaped object back.
+      profiles: Array.isArray(data.profiles) ? data.profiles : [],
     };
   } catch {
     return buildSeed();
@@ -40,6 +63,12 @@ function save(data: RecallData): void {
   // Local write plus, when signed in, a push to app_state so folders and items
   // are the same on every device the user opens Recall on.
   saveSynced(KEY, data);
+}
+
+/** Persist a whole snapshot. Used by callers that already built it in memory. */
+export function saveData(data: RecallData): RecallData {
+  save(data);
+  return data;
 }
 
 /** Flag for the one-time repair of devices that drifted apart (see mergeRecallData). */
@@ -59,6 +88,7 @@ export function mergeRecallData(localRaw: unknown, remoteRaw: unknown): RecallDa
     return {
       folders: Array.isArray(r.folders) ? r.folders : [],
       items: Array.isArray(r.items) ? r.items : [],
+      profiles: Array.isArray(r.profiles) ? r.profiles : [],
     };
   };
   const local = norm(localRaw);
@@ -71,6 +101,15 @@ export function mergeRecallData(localRaw: unknown, remoteRaw: unknown): RecallDa
   for (const it of [...remote.items, ...local.items]) {
     const prev = items.get(it.id);
     if (!prev || Date.parse(it.updatedAt) > Date.parse(prev.updatedAt)) items.set(it.id, it);
+  }
+
+  // Profiles are edited as a whole object (fields, accounts, avatar), so the
+  // later updatedAt wins outright. Merging field-by-field would resurrect a
+  // value the user deliberately cleared on the other device.
+  const profiles = new Map<string, Profile>();
+  for (const p of [...remote.profiles, ...local.profiles]) {
+    const prev = profiles.get(p.id);
+    if (!prev || Date.parse(p.updatedAt) > Date.parse(prev.updatedAt)) profiles.set(p.id, p);
   }
 
   // Collapse same-named siblings, repeatedly, so a duplicate root's children
@@ -100,8 +139,9 @@ export function mergeRecallData(localRaw: unknown, remoteRaw: unknown): RecallDa
     return cur;
   };
   for (const it of items.values()) it.folderId = resolve(it.folderId);
+  for (const p of profiles.values()) p.folderId = resolve(p.folderId);
 
-  return { folders: [...folders.values()], items: [...items.values()] };
+  return { folders: [...folders.values()], items: [...items.values()], profiles: [...profiles.values()] };
 }
 
 export function getData(): RecallData {
@@ -324,6 +364,21 @@ export function deleteFolder(id: string): RecallData {
   const ids = folderSubtreeIds(data.folders, id);
   data.folders = data.folders.filter((f) => !ids.has(f.id));
   data.items = data.items.filter((it) => !(it.folderId && ids.has(it.folderId)));
+  // A profile survives its folder. The card stays in Profiles, and its record
+  // note is gone, so it shows a "repair folder" affordance instead of silently
+  // pointing at something that no longer exists.
+  for (const p of data.profiles) {
+    let touched = false;
+    if (p.folderId && ids.has(p.folderId)) {
+      p.folderId = null;
+      touched = true;
+    }
+    if (p.itemId && !data.items.some((it) => it.id === p.itemId)) {
+      p.itemId = null;
+      touched = true;
+    }
+    if (touched) p.updatedAt = nowIso();
+  }
   save(data);
   return data;
 }
@@ -349,6 +404,8 @@ export interface NewItemInput {
   extractStatus?: Item["extractStatus"];
   /** Person ids recognised in a photo. */
   people?: string[];
+  /** Set on the note that mirrors a profile into the folder tree. */
+  profileId?: string | null;
   photoCategoryId?: string | null;
   /** Look-alike fingerprint of an image, so it is recognised as a duplicate later. */
   fingerprint?: string;
@@ -379,6 +436,7 @@ export function createItem(input: NewItemInput): { data: RecallData; item: Item 
     extract: input.extract,
     extractStatus: input.extractStatus,
     people: input.people,
+    profileId: input.profileId ?? null,
     photoCategoryId: input.photoCategoryId ?? null,
     // Copied explicitly: this function lists every field, so a field that is
     // only typed and not copied here is silently dropped.
@@ -408,6 +466,12 @@ export function updateItem(id: string, patch: Partial<Omit<Item, "id" | "created
 export function deleteItem(id: string): RecallData {
   const data = load();
   data.items = data.items.filter((x) => x.id !== id);
+  for (const profile of data.profiles) {
+    if (profile.itemId === id) {
+      profile.itemId = null;
+      profile.updatedAt = nowIso();
+    }
+  }
   save(data);
   return data;
 }
@@ -581,6 +645,320 @@ export function mergeFolders(sourceId: string, targetId: string | null): RecallD
   for (const it of data.items) if (it.folderId === sourceId) it.folderId = targetId;
   for (const f of data.folders) if (f.parentId === sourceId) f.parentId = targetId;
   data.folders = data.folders.filter((f) => f.id !== sourceId);
+  save(data);
+  return data;
+}
+
+// ----- profiles ------------------------------------------------------------
+
+export interface ProfileAccountInput {
+  label: string;
+  provider?: string;
+  kind?: ProfileAccountKind | string;
+  openedDate?: string;
+  renewalDate?: string;
+  login?: string;
+  password?: string;
+  url?: string;
+  accountNumber?: string;
+  value?: string;
+  currency?: string;
+  live?: ProfileAccount["live"];
+  notes?: string;
+}
+
+export interface CreateProfileInput {
+  kind: ProfileKind;
+  displayName: string;
+  role?: ProfileRole | string;
+  headline?: string;
+  avatar?: string;
+  fields?: { label?: unknown; value?: unknown; type?: unknown }[];
+  accounts?: ProfileAccountInput[];
+  tags?: string[];
+  notes?: string;
+}
+
+function cleanRole(raw?: string): ProfileRole | undefined {
+  return PROFILE_ROLES.some((r) => r.value === raw) ? (raw as ProfileRole) : undefined;
+}
+
+function makeAccount(input: ProfileAccountInput, ts = nowIso()): ProfileAccount {
+  return {
+    id: uid("acct"),
+    label: input.label.trim() || "Account",
+    provider: input.provider?.trim() || undefined,
+    kind: accountKindFrom(input.kind),
+    openedDate: input.openedDate?.trim() || undefined,
+    renewalDate: input.renewalDate?.trim() || undefined,
+    login: input.login?.trim() || undefined,
+    password: input.password || undefined,
+    url: input.url?.trim() || undefined,
+    accountNumber: input.accountNumber?.trim() || undefined,
+    value: input.value?.trim() || undefined,
+    currency: input.currency?.trim() || "USD",
+    live: input.live ?? { provider: "manual", currency: input.currency?.trim() || "USD", status: "manual" },
+    notes: input.notes?.trim() || undefined,
+    createdAt: ts,
+    updatedAt: ts,
+  };
+}
+
+function profileNoteItem(profile: Profile, existing?: Item): Item {
+  const ts = nowIso();
+  const title = `${profile.displayName} — ${profile.kind === "business" ? "Business" : "Person"} profile`;
+  const body = buildProfileNoteBody(profile);
+  const tags = dedupeTags(["profile", profile.kind, ...(profile.role ? [profile.role] : []), ...profile.tags]);
+  if (existing) {
+    existing.title = title;
+    existing.body = body;
+    existing.summary = profile.headline?.trim() || `${profileKindLabel(profile.kind)} profile`;
+    existing.kind = "note";
+    existing.folderId = profile.folderId;
+    existing.tags = tags;
+    existing.profileId = profile.id;
+    existing.updatedAt = ts;
+    return existing;
+  }
+  return {
+    id: uid("itm"),
+    title,
+    body,
+    summary: profile.headline?.trim() || `${profileKindLabel(profile.kind)} profile`,
+    kind: "note",
+    source: "manual",
+    folderId: profile.folderId,
+    tags,
+    profileId: profile.id,
+    fields: {},
+    createdAt: ts,
+    updatedAt: ts,
+  };
+}
+
+function profileKindLabel(kind: ProfileKind): string {
+  return kind === "business" ? "Business" : "Person";
+}
+
+/** Keep the folder-note in lockstep with the profile card. */
+function syncProfileNote(data: RecallData, profile: Profile): void {
+  const existing = profile.itemId ? data.items.find((it) => it.id === profile.itemId) : undefined;
+  if (existing) {
+    profileNoteItem(profile, existing);
+  } else {
+    const item = profileNoteItem(profile);
+    profile.itemId = item.id;
+    data.items.push(item);
+  }
+}
+
+/**
+ * Create a profile with everything it needs to be findable: a folder under
+ * Profiles, a searchable note in that folder, and the structured card itself.
+ * Missing blueprint fields become explicit empty placeholders.
+ */
+export function createProfile(input: CreateProfileInput): { data: RecallData; profile: Profile } {
+  const data = load();
+  const displayName = input.displayName.trim().slice(0, 120) || "New profile";
+  const kind: ProfileKind = input.kind === "business" ? "business" : "person";
+  const folderId = ensurePath(data, profileFolderPath(kind, displayName), false);
+  const profileIcon = kind === "business" ? "building" : "users";
+  const folder = data.folders.find((f) => f.id === folderId);
+  if (folder) {
+    folder.icon = profileIcon;
+    if (!folder.description) {
+      folder.description =
+        kind === "business" ? "Business profile, domains and accounts" : "Person profile and accounts";
+    }
+  }
+  const branch = folder?.parentId ? data.folders.find((f) => f.id === folder.parentId) : undefined;
+  if (branch) branch.icon = profileIcon;
+  const root = data.folders.find((f) => f.parentId === null && f.name === "Profiles");
+  if (root) {
+    root.icon = "users";
+    if (!root.description) root.description = "People, businesses and the accounts that belong to them";
+  }
+  const now = nowIso();
+  const profile: Profile = {
+    id: uid("prf"),
+    kind,
+    role: kind === "person" ? cleanRole(typeof input.role === "string" ? input.role : undefined) : undefined,
+    displayName,
+    headline: input.headline?.trim() || undefined,
+    avatar: input.avatar,
+    folderId,
+    fields: buildProfileFields(kind, input.fields ?? [], displayName),
+    accounts: (input.accounts ?? []).slice(0, 24).map((a) => makeAccount(a, now)),
+    tags: dedupeTags(input.tags ?? []),
+    notes: input.notes?.trim() || undefined,
+    createdAt: now,
+    updatedAt: now,
+  };
+  data.profiles.push(profile);
+  syncProfileNote(data, profile);
+  save(data);
+  return { data, profile };
+}
+
+export interface ProfilePatch {
+  displayName?: string;
+  legalName?: string;
+  headline?: string;
+  avatar?: string;
+  role?: ProfileRole;
+  tags?: string[];
+  notes?: string;
+}
+
+export function updateProfile(id: string, patch: ProfilePatch): RecallData {
+  const data = load();
+  const profile = data.profiles.find((p) => p.id === id);
+  if (!profile) return data;
+
+  const nextName = patch.displayName?.trim().slice(0, 120);
+  if (nextName && nextName !== profile.displayName) {
+    // The folder is the profile's home. Renaming the card without renaming the
+    // folder would leave two names for one subject, which is exactly the drift
+    // this feature exists to prevent.
+    const folder = data.folders.find((f) => f.id === profile.folderId);
+    if (folder) folder.name = nextName;
+    profile.displayName = nextName;
+  }
+  if (patch.legalName !== undefined) profile.legalName = patch.legalName.trim() || undefined;
+  if (patch.headline !== undefined) profile.headline = patch.headline.trim() || undefined;
+  if (patch.avatar !== undefined) profile.avatar = patch.avatar || undefined;
+  if (patch.role !== undefined) profile.role = cleanRole(patch.role);
+  if (patch.tags !== undefined) profile.tags = dedupeTags(patch.tags);
+  if (patch.notes !== undefined) profile.notes = patch.notes.trim() || undefined;
+  profile.updatedAt = nowIso();
+  syncProfileNote(data, profile);
+  save(data);
+  return data;
+}
+
+/** Set a field by label; a new label becomes a new field. */
+export function setProfileField(profileId: string, label: string, value: string): RecallData {
+  const data = load();
+  const profile = data.profiles.find((p) => p.id === profileId);
+  if (!profile) return data;
+  const cleanLabel = label.trim();
+  if (!cleanLabel) return data;
+  const existing = profile.fields.find((f) => f.label.toLowerCase() === cleanLabel.toLowerCase());
+  if (existing) {
+    existing.value = value.trim();
+  } else {
+    profile.fields.push({
+      id: uid("pf"),
+      label: cleanLabel,
+      value: value.trim(),
+      type: "text",
+      sensitive: isSensitiveField({ label: cleanLabel, type: "text" }) || undefined,
+    });
+  }
+  profile.updatedAt = nowIso();
+  syncProfileNote(data, profile);
+  save(data);
+  return data;
+}
+
+export function removeProfileField(profileId: string, fieldId: string): RecallData {
+  const data = load();
+  const profile = data.profiles.find((p) => p.id === profileId);
+  if (!profile) return data;
+  profile.fields = profile.fields.filter((f) => f.id !== fieldId);
+  profile.updatedAt = nowIso();
+  syncProfileNote(data, profile);
+  save(data);
+  return data;
+}
+
+export function setProfileAvatar(profileId: string, avatar: string): RecallData {
+  return updateProfile(profileId, { avatar });
+}
+
+export function addProfileAccount(
+  profileId: string,
+  input: ProfileAccountInput,
+): { data: RecallData; account: ProfileAccount } | null {
+  const data = load();
+  const profile = data.profiles.find((p) => p.id === profileId);
+  if (!profile) return null;
+  const account = makeAccount(input);
+  profile.accounts.push(account);
+  profile.updatedAt = nowIso();
+  syncProfileNote(data, profile);
+  save(data);
+  return { data, account };
+}
+
+export function updateProfileAccount(
+  profileId: string,
+  accountId: string,
+  patch: Partial<ProfileAccountInput>,
+): RecallData {
+  const data = load();
+  const profile = data.profiles.find((p) => p.id === profileId);
+  const account = profile?.accounts.find((a) => a.id === accountId);
+  if (!profile || !account) return data;
+  if (patch.label !== undefined) account.label = patch.label.trim() || account.label;
+  if (patch.provider !== undefined) account.provider = patch.provider.trim() || undefined;
+  if (patch.kind !== undefined) account.kind = accountKindFrom(patch.kind);
+  if (patch.openedDate !== undefined) account.openedDate = patch.openedDate.trim() || undefined;
+  if (patch.renewalDate !== undefined) account.renewalDate = patch.renewalDate.trim() || undefined;
+  if (patch.login !== undefined) account.login = patch.login.trim() || undefined;
+  if (patch.password !== undefined) account.password = patch.password || undefined;
+  if (patch.url !== undefined) account.url = patch.url.trim() || undefined;
+  if (patch.accountNumber !== undefined) account.accountNumber = patch.accountNumber.trim() || undefined;
+  if (patch.value !== undefined) account.value = patch.value.trim() || undefined;
+  if (patch.currency !== undefined) account.currency = patch.currency.trim() || "USD";
+  if (patch.notes !== undefined) account.notes = patch.notes.trim() || undefined;
+  if (patch.live !== undefined) account.live = patch.live;
+  account.updatedAt = nowIso();
+  profile.updatedAt = account.updatedAt;
+  syncProfileNote(data, profile);
+  save(data);
+  return data;
+}
+
+export function deleteProfileAccount(profileId: string, accountId: string): RecallData {
+  const data = load();
+  const profile = data.profiles.find((p) => p.id === profileId);
+  if (!profile) return data;
+  profile.accounts = profile.accounts.filter((a) => a.id !== accountId);
+  profile.updatedAt = nowIso();
+  syncProfileNote(data, profile);
+  save(data);
+  return data;
+}
+
+/**
+ * Remove the card, its folder-note, and its folder only when nothing else was
+ * ever put in it. A folder the user has used for other records is left alone.
+ */
+export function deleteProfile(id: string): RecallData {
+  const data = load();
+  const profile = data.profiles.find((p) => p.id === id);
+  if (!profile) return data;
+  data.profiles = data.profiles.filter((p) => p.id !== id);
+  if (profile.itemId) data.items = data.items.filter((it) => it.id !== profile.itemId);
+  const folderId = profile.folderId;
+  if (folderId) {
+    const hasChildren = data.folders.some((f) => f.parentId === folderId);
+    const hasItems = data.items.some((it) => it.folderId === folderId);
+    if (!hasChildren && !hasItems) data.folders = data.folders.filter((f) => f.id !== folderId);
+  }
+  save(data);
+  return data;
+}
+
+/** Re-create the folder + note for a profile whose folder was deleted. */
+export function repairProfileFolder(profileId: string): RecallData {
+  const data = load();
+  const profile = data.profiles.find((p) => p.id === profileId);
+  if (!profile) return data;
+  profile.folderId = ensurePath(data, profileFolderPath(profile.kind, profile.displayName), false);
+  syncProfileNote(data, profile);
+  profile.updatedAt = nowIso();
   save(data);
   return data;
 }
@@ -763,6 +1141,58 @@ export function executeAction(action: AgentAction): ActionResult {
         note: `Added ${action.name} — add a few reference photos so I can recognise them`,
         photosChanged: true,
       };
+    }
+
+    case "create_profile": {
+      const { data, profile } = createProfile({
+        kind: action.kind,
+        displayName: action.displayName,
+        role: action.role,
+        fields: action.fields,
+        accounts: action.accounts,
+        tags: action.tags,
+      });
+      return {
+        data,
+        note: `Created ${profile.displayName}'s ${profile.kind} profile — ${profile.fields.length} fields, ${profile.accounts.length} account${profile.accounts.length === 1 ? "" : "s"}`,
+      };
+    }
+
+    case "update_profile_field": {
+      const before = load().profiles.find((p) => p.id === action.profileId);
+      const data = setProfileField(action.profileId, action.label, action.value);
+      return {
+        data,
+        note: before
+          ? `Updated ${before.displayName} — ${action.label}`
+          : "Profile not found",
+      };
+    }
+
+    case "add_profile_account": {
+      const before = load().profiles.find((p) => p.id === action.profileId);
+      const result = addProfileAccount(action.profileId, {
+        label: action.label,
+        provider: action.provider,
+        kind: action.kind,
+        openedDate: action.openedDate,
+        renewalDate: action.renewalDate,
+        login: action.login,
+        value: action.value,
+        currency: action.currency,
+        url: action.url,
+      });
+      if (!result) return { data: load(), note: "Profile not found" };
+      return {
+        data: result.data,
+        note: `Added ${result.account.label} to ${before?.displayName ?? "the profile"}`,
+      };
+    }
+
+    case "delete_profile": {
+      const before = load().profiles.find((p) => p.id === action.profileId);
+      const data = deleteProfile(action.profileId);
+      return { data, note: `Deleted ${before?.displayName ?? "the"} profile` };
     }
 
     default:

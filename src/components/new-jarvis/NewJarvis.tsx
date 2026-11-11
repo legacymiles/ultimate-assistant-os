@@ -117,7 +117,7 @@ import { useDashboardCalendar } from "@/lib/jarvis/useDashboardCalendar";
 
 type TabId =
   | "dashboard" | "console" | "studio" | "harness" | "queue" | "site-errors"
-  | "folders" | "photos" | "lists" | "calendar" | "inbox"
+  | "folders" | "profiles" | "memory" | "photos" | "lists" | "calendar" | "inbox"
   | "skills" | "tools" | "passwords" | "calls" | "router" | "architect" | "timeline" | "plugins" | "settings";
 
 type Tab = { id: TabId; label: string; icon: keyof typeof Icon };
@@ -150,8 +150,9 @@ const SETUP_COMMAND = /^\/?(?:(?:open|start|resume|run|redo|restart|finish)\s+)?
  *   Routines is gone, along with the old /apps/jarvis shell that carried it.
  *   The store field stays (old saved data still loads); nothing shows it.
  *
- * Folders, Photos, Lists, Calendar and Inbox fold into one "Yours" group, and
- * the Toolbox is the group from the old shell, moved over whole.
+ * Folders, Profiles, the Memory map, Photos, Lists, Calendar and Inbox fold
+ * into one "Yours" group, and the Toolbox is the group from the old shell,
+ * moved over whole.
  */
 const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[] }[] = [
   {
@@ -173,6 +174,8 @@ const GROUPS: { id: string; label: string; icon: keyof typeof Icon; items: Tab[]
     icon: "Folder",
     items: [
       { id: "folders", label: "Folders", icon: "Folder" },
+      { id: "profiles", label: "Profiles", icon: "Users" },
+      { id: "memory", label: "Memory map", icon: "Network" },
       { id: "photos", label: "Photos", icon: "Image" },
       { id: "lists", label: "Lists", icon: "ListChecks" },
       { id: "calendar", label: "Calendar", icon: "Calendar" },
@@ -1591,7 +1594,10 @@ ${reflex.best.excerpt ?? ""}`.trim()
               <div className="p-6 text-xs text-ink-muted">Loading your things…</div>
             ) : (
               <>
-                {(tab === "folders" || tab === "photos") && (
+                {(tab === "folders" ||
+                  tab === "profiles" ||
+                  tab === "memory" ||
+                  tab === "photos") && (
                   <Recall section={tab} onSection={(s) => go(s as TabId)} />
                 )}
                 {tab === "lists" && (

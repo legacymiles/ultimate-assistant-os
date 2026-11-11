@@ -7,5 +7,5 @@
 import type { RecallData } from "./types";
 
 export function buildSeed(): RecallData {
-  return { folders: [], items: [] };
+  return { folders: [], items: [], profiles: [] };
 }
