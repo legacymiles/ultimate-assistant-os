@@ -32,11 +32,26 @@ import { buildBrief, isForClient, phaseOf, projectSlug, resultLinks, threadTitle
 import type { BuilderProject } from "./types";
 
 /** How often to re-read, by what the thread is doing. null = stop polling. */
-function pollEvery(status: ThreadSummary["status"] | undefined): number | null {
+function pollEvery(status: ThreadSummary["status"] | undefined, checking = false): number | null {
+  // The PC's own check outlives the agent's turn, and can be asked for on a
+  // thread that has ended. Its result arrives by poll, so the poll stays on.
+  if (checking) return 2_000;
   if (status === "ended") return null;
   if (status === "waiting") return 2_000; // a gate is on screen; stay responsive
   if (status === "thinking") return 1_200;
   return 3_000;
+}
+
+/** What `harness/verify/report` returns: the last check, and what it saw. */
+export interface VerifyReport {
+  report: {
+    ms: number;
+    passed: boolean;
+    steps: { id: string; label: string; ok: boolean; skipped: boolean; advisory: boolean; ms: number; ran: string; tail: string }[];
+    advice: string[];
+    failures: { step: string; page: string; title: string; ran: string; evidence: string }[];
+  } | null;
+  shots: { desktop?: string; phone?: string };
 }
 
 export interface UseBuild {
@@ -61,6 +76,12 @@ export interface UseBuild {
   decide: (gateId: string, allow: boolean, always?: boolean) => Promise<void>;
   say: (text: string) => Promise<void>;
   stop: () => Promise<void>;
+  /** Run the PC's checks again, once, without sending anything to the agent. */
+  checkAgain: () => Promise<void>;
+  /** The owner's call: call it built although the checks are failing. */
+  useAnyway: () => Promise<void>;
+  /** The latest report and its two pictures; null until one exists. */
+  loadReport: () => Promise<VerifyReport | null>;
   refresh: () => void;
 }
 
@@ -78,6 +99,11 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
   const [view, setView] = useState<ThreadView>(emptyThread);
   const [summary, setSummary] = useState<ThreadSummary | null>(null);
   const [error, setError] = useState("");
+  // What the PC said back to a press on the checks ("The agent is still
+  // working…"). Kept apart from `error`, because every poll that succeeds
+  // clears that one, and a sentence gone a second after the press is a
+  // sentence nobody read. It leaves through the same `error` the panel shows.
+  const [refused, setRefused] = useState("");
   const [starting, setStarting] = useState("");
   // The agent does not know this thread (yet): a restart is resuming it.
   const [missing, setMissing] = useState(false);
@@ -111,10 +137,18 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
     setView(emptyThread());
     setSummary(null);
     setError("");
+    setRefused("");
     setMissing(false);
     setMissingSince(null);
     setOffline(false);
   }, [threadId]);
+
+  // The refusal is about one moment in the check. Once the check has moved on
+  // (the agent finished and the PC checked it, or the owner accepted it) it is
+  // no longer true, so it goes.
+  useEffect(() => {
+    setRefused("");
+  }, [summary?.verify?.state, summary?.verify?.run]);
 
   const pull = useCallback(async () => {
     if (!threadId) return;
@@ -161,6 +195,7 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
     }
   }, [threadId]);
 
+  const checking = summary?.verify?.state === "checking";
   useEffect(() => {
     if (!threadId || !paired) return;
     let stopped = false;
@@ -171,7 +206,7 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
       // A missing or unreachable thread is polled too: the bridge resuming a
       // build is exactly what the page is waiting for, and stopping the loop
       // is how it used to sit on "Starting the build" forever.
-      const every = offline ? 4_000 : missing ? 2_000 : pollEvery(summary?.status);
+      const every = offline ? 4_000 : missing ? 2_000 : pollEvery(summary?.status, checking);
       if (every == null) return;
       timer.current = setTimeout(tick, every);
     };
@@ -186,7 +221,7 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
       document.removeEventListener("visibilitychange", onShow);
     };
     // `summary?.status` is a dependency on purpose: the rate follows the build.
-  }, [threadId, paired, pull, summary?.status, offline, missing]);
+  }, [threadId, paired, pull, summary?.status, checking, offline, missing]);
 
   const start = useCallback(async (p: BuilderProject): Promise<string> => {
     setError("");
@@ -283,6 +318,40 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
     }
   }, [threadId, pull]);
 
+  const checkAgain = useCallback(async () => {
+    if (!threadId) return;
+    setRefused("");
+    try {
+      await call("harness/verify", { id: threadId });
+      await pull();
+    } catch (e) {
+      // Mid-turn the PC answers 409 with a sentence of its own; that sentence
+      // is the answer, so it is shown as it came.
+      setRefused(e instanceof Error ? e.message : String(e));
+    }
+  }, [threadId, pull]);
+
+  const useAnyway = useCallback(async () => {
+    if (!threadId) return;
+    setRefused("");
+    try {
+      await call("harness/verify/accept", { id: threadId });
+      await pull();
+    } catch (e) {
+      setRefused(e instanceof Error ? e.message : String(e));
+    }
+  }, [threadId, pull]);
+
+  const loadReport = useCallback(async () => {
+    if (!threadId) return null;
+    try {
+      return await call<VerifyReport>("harness/verify/report", { id: threadId });
+    } catch {
+      // The PC is off or the thread is gone: the panel shows the summary it already has.
+      return null;
+    }
+  }, [threadId]);
+
   // A 404 is only "lost" after the bridge has had time to resume the job.
   const lost = Boolean(missing && missingSince != null && now - missingSince > RESUME_GRACE_MS);
   return {
@@ -293,12 +362,15 @@ export function useBuild(threadId: string | undefined, paired: boolean): UseBuil
     summary,
     gate: view.liveGate,
     links: resultLinks(view),
-    error,
+    error: refused || error,
     starting,
     start,
     decide,
     say,
     stop,
+    checkAgain,
+    useAnyway,
+    loadReport,
     refresh: () => void pull(),
   };
 }

@@ -142,6 +142,7 @@ export function harnessBrief(p: BuilderProject): string {
       "PR: <the pull request url>",
       `Preview: <the preview url${app ? ` + ${app}` : ""}>`,
       "If a link does not exist, write `Preview: none` and one sentence saying why. Never invent a URL.",
+      "After your last message the PC checks the work itself — typecheck, the related tests, and the app opened in a browser — and sends back anything that fails. A message that starts <checks_failed> is that, not a new request.",
       "</how_to_finish_here>",
     ].join("\n"),
   ].join("\n\n");
@@ -267,6 +268,8 @@ export async function startClientEditBuild(review: ClientProject, batchId: strin
       // anything, so a closed tab cannot lose the instructions either.
       durable: true,
       brief: harnessBrief(bucket),
+      // The PC's check opens the edited app's own page, not only the hub's home.
+      verifyPaths: bucket.edit?.appPath ? [bucket.edit.appPath] : [],
     });
     threadId = session.id;
     const where = session.worktree?.path ?? "";

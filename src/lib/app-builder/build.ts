@@ -71,6 +71,7 @@ export function buildBrief(p: BuilderProject): string {
       "<finish>",
       `When the new look is done and every function on the live site (${r.url}) still works: commit, push the \`redesign\` branch to the site's own repository, open a pull request there, deploy a preview and test it live.`,
       "Report against the judge with real numbers, including anything that missed. Say the pull request and the preview address in your last message, each on its own line, as `Repo: <pull request url>` and `Live: <preview url>`, so App Builder can save them without guessing.",
+      "After your last message the PC checks the build itself — its packages, typecheck, tests, the build, and every page opened in a browser — and sends back anything that fails. A message that starts <checks_failed> is that, not a new request.",
       "</finish>",
     ].join("\n");
   }
@@ -95,13 +96,17 @@ export function buildBrief(p: BuilderProject): string {
     forClient
       ? "Report against the judge with real numbers, including anything that missed. Say the live address in your last message on its own line as `Live: <url>`, so App Builder can save it without guessing."
       : "Report against the judge with real numbers, including anything that missed. Say the repository and the live address in your last message, each on its own line, as `Repo: <url>` and `Live: <url>`, so App Builder can save them without guessing.",
+    "After your last message the PC checks the build itself — its packages, typecheck, tests, the build, and every page opened in a browser — and sends back anything that fails. A message that starts <checks_failed> is that, not a new request.",
     "</finish>",
   ].join("\n");
 }
 
 // ----- reading the thread back -----------------------------------------------------
 
-export type BuildPhase = "starting" | "reconnecting" | "resuming" | "paused" | "working" | "asking" | "done" | "failed" | "stopped" | "lost";
+export type BuildPhase =
+  | "starting" | "reconnecting" | "resuming" | "paused" | "working" | "asking"
+  | "checking" | "unverified" | "unfinished"
+  | "done" | "failed" | "stopped" | "lost";
 
 export const PHASE_LABEL: Record<BuildPhase, string> = {
   starting: "Starting the build",
@@ -113,11 +118,40 @@ export const PHASE_LABEL: Record<BuildPhase, string> = {
   paused: "Waiting for Claude's limit to reset",
   working: "Building now",
   asking: "Waiting on your answer",
+  // The PC is checking the build itself: typecheck, tests, build, every page.
+  checking: "Checking it works",
+  // It was built and the checks say it does not work. Never "Built".
+  unverified: "Built, but the checks are failing",
+  // It stopped without saying it had finished: a question, or it gave up.
+  unfinished: "Stopped before it finished",
   done: "Built",
   failed: "The build didn’t run",
   stopped: "Stopped",
   lost: "This build is no longer running",
 };
+
+/** The label for a phase, naming the repair round when there is one. */
+export function phaseLabel(phase: BuildPhase, summary: ThreadSummary | null): string {
+  const v = summary?.verify;
+  if (phase === "working" && v && v.rounds > 0 && v.state === "repairing") {
+    return `Fixing what the checks found (round ${v.rounds} of ${v.max})`;
+  }
+  return PHASE_LABEL[phase];
+}
+
+/**
+ * What a thread that has stopped working amounts to.
+ *
+ * With no `verify` the old rule stands: stopped means built. With it, only a
+ * pass (or the owner's say-so) is built.
+ */
+function settled(summary: ThreadSummary): BuildPhase {
+  const v = summary.verify;
+  if (!v) return "done";
+  if (v.state === "passed" || v.state === "accepted") return "done";
+  if (v.state === "failed") return "unverified";
+  return "unfinished";
+}
 
 /**
  * Where the build is, from the thread the bridge reports.
@@ -171,12 +205,18 @@ export function phaseOf(
   // A reset time is the bridge saying "this build is asleep and will wake
   // itself". It must outrank the idle status that the limit left behind.
   if (summary.retryAt) return "paused";
+  // The bridge is checking the work, or has just sent a failure back. Neither
+  // is a finished build, whatever the thread's own status says. A check can
+  // run on a thread that has ended (Check again is the PC looking, not the
+  // agent working); a repair cannot, because nobody is left to make it.
+  if (summary.verify?.state === "checking") return "checking";
+  if (summary.status !== "ended" && summary.verify?.state === "repairing") return "working";
   // `ready` is the harness handshake, not the job. It arrives after a restart
   // while the brief is already being worked on, and busy is the fact that says
   // so — without it the panel announces "Built" seconds into every build.
   if (summary.status === "ended") {
     if (view.turns.some((t) => t.status === "failed") || stalled(view)) return "failed";
-    return "done";
+    return settled(summary);
   }
   if (summary.busy) return "working";
   switch (summary.status) {
@@ -194,7 +234,7 @@ export function phaseOf(
       // the agent answering without working — which on this machine means
       // Claude Code is not signed in. Calling that "Built" would be exactly
       // the lie the old spinner told.
-      return stalled(view) ? "failed" : "done";
+      return stalled(view) ? "failed" : settled(summary);
     default:
       return "working";
   }

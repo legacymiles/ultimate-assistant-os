@@ -15,7 +15,7 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { PHASE_LABEL } from "@/lib/app-builder/build";
+import { phaseLabel } from "@/lib/app-builder/build";
 import { useBuild, type UseBuild } from "@/lib/app-builder/useBuild";
 import { waitedFor, type BuildRow } from "@/lib/client-review/building";
 import { publishBuilt, removeBuild, connectToPc } from "@/lib/client-review/buildHere";
@@ -177,7 +177,11 @@ export function BuildFeed({
   const latestTool = turn?.tools.at(-1) ?? null;
   // While it works, one line. The wall of tools only appears when the turn is
   // over, or when the harness is actually asking a question.
-  const active = Boolean(watching && !gate && (build.phase === "working" || build.phase === "starting" || build.phase === "resuming"));
+  // `checking` is the PC checking the edit itself after the agent's last word:
+  // still in progress, and nothing for the owner to read through yet.
+  const active = Boolean(
+    watching && !gate && (build.phase === "working" || build.phase === "starting" || build.phase === "resuming" || build.phase === "checking"),
+  );
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 15_000);
@@ -219,7 +223,7 @@ export function BuildFeed({
           : finish.kind === "failed"
             ? "The build stopped"
             : watching
-              ? PHASE_LABEL[build.phase]
+              ? phaseLabel(build.phase, build.summary)
               : standing.kind === "stalled"
                 ? "Nothing is running"
                 : "Building";

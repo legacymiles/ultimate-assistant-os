@@ -20,13 +20,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { DEPTH_LABEL, depthOf } from "@/lib/app-builder/depth";
-import { latestWord, PHASE_LABEL, projectSlug, stalled, stalledWhy, tally as toolTally, type BuildPhase } from "@/lib/app-builder/build";
+import { latestWord, phaseLabel, projectSlug, stalled, stalledWhy, tally as toolTally, type BuildPhase } from "@/lib/app-builder/build";
 import { landsIn, relTime } from "@/lib/app-builder/plan";
 import { reviewHref } from "@/lib/app-builder/review";
 import type { BuilderProject } from "@/lib/app-builder/types";
-import type { UseBuild } from "@/lib/app-builder/useBuild";
+import type { UseBuild, VerifyReport } from "@/lib/app-builder/useBuild";
 import type { Busy } from "@/lib/app-builder/useAppBuilder";
 import type { BridgeHealth } from "@/lib/new-jarvis/bridge";
+import type { VerifySummary } from "@/lib/new-jarvis/harness/types";
 
 function Check() {
   return (
@@ -51,6 +52,9 @@ const TONE: Record<BuildPhase, "wait" | "work" | "ask" | "done" | "gone"> = {
   paused: "wait",
   working: "work",
   asking: "ask",
+  checking: "work",
+  unverified: "ask",
+  unfinished: "ask",
   done: "done",
   failed: "gone",
   stopped: "gone",
@@ -65,6 +69,12 @@ function sub(phase: BuildPhase, project: BuilderProject, build: UseBuild): strin
       return build.starting || "Making the project folder and handing over the brief.";
     case "asking":
       return "Claude is stopped, waiting for you to answer below. Nothing happens until you do.";
+    case "checking":
+      return "Your PC is checking it itself: typecheck, its tests, the build, then every page in a hidden browser.";
+    case "unverified":
+      return build.summary?.verify?.why || "The checks below are failing.";
+    case "unfinished":
+      return "Claude stopped without saying it had finished. Its last words are below.";
     case "done":
       return build.links.url || build.links.repo
         ? "Finished, pushed and live."
@@ -81,6 +91,19 @@ function sub(phase: BuildPhase, project: BuilderProject, build: UseBuild): strin
     default:
       return `Running since ${relTime(started) || "just now"}.${build.summary?.detail ? ` ${build.summary.detail}` : ""}`;
   }
+}
+
+/** The checks block's one line: what the PC's own check came to. */
+function checksHead(verify: VerifySummary, failing: number, report: VerifyReport | null): string {
+  if (verify.state === "passed") {
+    const ran = report?.report?.steps.filter((s) => !s.skipped && s.ok).length;
+    return `Checked on your PC — ${ran ? `${ran} check${ran === 1 ? "" : "s"}` : "all checks"} passed`;
+  }
+  if (verify.state === "accepted") {
+    return failing ? "You chose to use it with these checks failing" : "You chose to use it without a passing check";
+  }
+  // Failed with nothing on the list: the checks themselves could not run.
+  return failing ? `${failing} check${failing === 1 ? "" : "s"} failing` : "The checks did not run";
 }
 
 export function BuildStatus({
@@ -101,6 +124,36 @@ export function BuildStatus({
   const [copied, setCopied] = useState<"link" | "path" | null>(null);
   const [confirmStop, setConfirmStop] = useState(false);
   const logEnd = useRef<HTMLDivElement>(null);
+  // The report is kept with the check it belongs to, so one run's pictures
+  // are never drawn under another run's failures.
+  const [report, setReport] = useState<{ key: string; data: VerifyReport } | null>(null);
+  const [pressed, setPressed] = useState<"check" | "accept" | null>(null);
+  const verify = build.summary?.verify ?? null;
+  const loadReport = build.loadReport;
+  const reportKey =
+    verify && verify.state !== "checking" && verify.report ? `${build.summary?.id ?? ""}:${verify.run}:${verify.report}` : "";
+  // One fetch per finished check: the pictures are too big to ride every poll.
+  useEffect(() => {
+    if (!reportKey) return;
+    let live = true;
+    void loadReport().then((r) => {
+      if (live && r) setReport({ key: reportKey, data: r });
+    });
+    return () => {
+      live = false;
+    };
+  }, [reportKey, loadReport]);
+  const seen = report && report.key === reportKey ? report.data : null;
+  // The report has every failure with its evidence; the summary has the first
+  // few titles, and is what there is until the report arrives (or if it can't).
+  const failing: { step: string; title: string; evidence?: string }[] = verify
+    ? seen?.report?.failures.length
+      ? seen.report.failures
+      : verify.failures
+    : [];
+  // While the two check buttons are on screen, what the PC says is shown with
+  // them. Otherwise it stays where it always was, in the Note row.
+  const errorByChecks = verify?.state === "failed" && Boolean(build.error);
 
   const { phase, view, gate, links } = build;
   const tone = TONE[phase];
@@ -119,6 +172,15 @@ export function BuildStatus({
     if (phase === "working") logEnd.current?.scrollIntoView({ block: "end", behavior: "smooth" });
   }, [view.turns.length, now, phase]);
 
+  const press = async (what: "check" | "accept") => {
+    setPressed(what);
+    try {
+      await (what === "check" ? build.checkAgain() : build.useAnyway());
+    } finally {
+      setPressed(null);
+    }
+  };
+
   const copy = async (what: "link" | "path", text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -134,7 +196,7 @@ export function BuildStatus({
       <header className="ab-bhead" role="status" aria-live="polite">
         <span className="ab-bdot" aria-hidden />
         <div className="ab-bhead-words">
-          <h3>{PHASE_LABEL[phase]}</h3>
+          <h3>{phaseLabel(phase, build.summary)}</h3>
           <p>{sub(phase, project, build)}</p>
         </div>
         {(phase === "working" || phase === "asking") && (
@@ -161,6 +223,57 @@ export function BuildStatus({
               Not this time
             </button>
           </div>
+        </div>
+      )}
+
+      {/* What the PC's own check found. */}
+      {verify && (verify.state === "failed" || verify.state === "passed" || verify.state === "accepted") && (
+        <div className={`ab-bchecks is-${verify.state}`}>
+          <p className="ab-bchecks-head">
+            {verify.state === "passed" && <Check />}
+            {checksHead(verify, failing.length, seen)}
+          </p>
+          {failing.length > 0 && (
+            <ol className="ab-bchecks-rows">
+              {failing.map((f, i) => (
+                <li key={`${f.step}-${i}`}>
+                  <span className="ab-blog-kind">{f.step}</span>
+                  <div className="ab-bchecks-what">
+                    {f.title}
+                    {f.evidence ? <pre className="ab-bgate-what">{f.evidence.slice(-600)}</pre> : null}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+          {(seen?.shots.desktop || seen?.shots.phone) && (
+            <div className="ab-bchecks-shots">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {seen?.shots.desktop && <img src={seen.shots.desktop} alt="The home page as the check saw it on a laptop" />}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {seen?.shots.phone && <img src={seen.shots.phone} alt="The home page as the check saw it on a phone" />}
+            </div>
+          )}
+          {/* Only while the build is at rest. Once the agent is working on it
+              again a check would be refused, and "use it anyway" would accept
+              a folder that is changing. */}
+          {verify.state === "failed" && phase === "unverified" && (
+            <div className="ab-brow">
+              <button className="ab-primary-sm" disabled={!bridge.paired || pressed !== null} onClick={() => void press("check")}>
+                {pressed === "check" ? "Asking your PC…" : "Check again"}
+              </button>
+              <button className="ab-ghost" disabled={!bridge.paired || pressed !== null} onClick={() => void press("accept")}>
+                Use it anyway
+              </button>
+            </div>
+          )}
+          {/* What the PC said back to a press ("The agent is still working…"),
+              beside the button that was pressed rather than a screen below it. */}
+          {errorByChecks && (
+            <p className="ab-bwarn" role="status">
+              {build.error}
+            </p>
+          )}
         </div>
       )}
 
@@ -193,7 +306,7 @@ export function BuildStatus({
       )}
 
       {/* Finished: the two links that matter. */}
-      {(links.repo || links.url || built?.repo || built?.url) && (
+      {phase !== "unverified" && phase !== "checking" && (links.repo || links.url || built?.repo || built?.url) && (
         <div className="ab-bbuilt">
           <p className="ab-bbuilt-head">
             <Check /> {project.understanding?.name ?? "The app"} is built
@@ -236,7 +349,7 @@ export function BuildStatus({
             it writes is committed in <code>{projectSlug(project)}</code>&rsquo;s own repository.
           </dd>
         </div>
-        {build.error && (
+        {build.error && !errorByChecks && (
           <div>
             <dt>Note</dt>
             <dd className="is-warn">{build.error}</dd>
@@ -274,12 +387,12 @@ export function BuildStatus({
             <Arrow />
           </a>
         )}
-        {(phase === "done" || phase === "failed" || phase === "stopped" || phase === "lost") && (
+        {(phase === "done" || phase === "failed" || phase === "stopped" || phase === "lost" || phase === "unverified" || phase === "unfinished") && (
           <button className="ab-ghost" disabled={busy !== null || !bridge.paired} onClick={onBuildAgain}>
             {busy === "build" ? "Starting…" : "Build it again"}
           </button>
         )}
-        {(phase === "working" || phase === "asking" || phase === "starting") &&
+        {(phase === "working" || phase === "asking" || phase === "starting" || phase === "checking") &&
           (confirmStop ? (
             <span className="ab-bconfirm">
               Stop the build?

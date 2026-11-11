@@ -171,7 +171,12 @@ export function finishOf(phase: BuildPhase, view: ThreadView): Finish {
             : err || "Claude Code stopped without finishing.",
     };
   }
-  if (phase !== "done") return { kind: "running" };
+  if (phase === "unverified") {
+    return { kind: "failed", why: "It was built, but the checks are failing. Open the build to see which." };
+  }
+  // `unfinished` falls through: its last words are read below, exactly as a
+  // build that stopped without a preview always was.
+  if (phase !== "done" && phase !== "unfinished") return { kind: "running" };
   const text = view.turns.map((t) => t.text).join("\n");
   const { pr, preview } = buildLinks(text);
   if (preview) return { kind: "publish", url: preview, ...(pr ? { pr } : {}) };

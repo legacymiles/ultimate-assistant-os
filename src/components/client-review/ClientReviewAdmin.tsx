@@ -20,7 +20,7 @@
 // ---------------------------------------------------------------------------
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { PHASE_LABEL, latestWord } from "@/lib/app-builder/build";
+import { phaseLabel, latestWord } from "@/lib/app-builder/build";
 import { askedBefore } from "@/lib/new-jarvis/harness/families";
 import { harnessHref } from "@/lib/new-jarvis/harness/link";
 import { buildLinks } from "@/lib/client-review/autoBuild";
@@ -1325,13 +1325,14 @@ function BuildThread({
   const links = buildLinks(build.view.turns.map((t) => t.text).join("\n"));
   const what = build.phase === "working" ? latestWord(build.view) : "";
   const done = build.phase === "done";
-  const bad = build.phase === "failed" || build.phase === "lost";
+  // Built, but the PC's own checks say it does not work: as bad as a build that stopped.
+  const bad = build.phase === "failed" || build.phase === "lost" || build.phase === "unverified";
   const gate = build.gate;
   const repeat = gate ? askedBefore(build.view, gate) : false;
   return (
     <>
       <span className={done ? "text-emerald-200" : bad ? "text-rose-200" : "text-sky-200"}>
-        ● {done ? "Built on your PC" : PHASE_LABEL[build.phase]}
+        ● {done ? "Built on your PC" : phaseLabel(build.phase, build.summary)}
       </span>
       {build.summary?.model && <span className="rounded bg-brand/20 px-1.5 py-0.5 text-[10.5px] text-indigo-200">{build.summary.model}</span>}
       <a className="text-[11px] text-brand hover:underline" href={harnessHref(threadId)} target="_blank" rel="noreferrer">

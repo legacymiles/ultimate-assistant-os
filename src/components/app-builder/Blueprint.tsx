@@ -162,7 +162,7 @@ export function Blueprint({
    * not running, and treating it as if it were is what left the owner looking
    * at "Starting the build" with the one button that would fix it greyed out.
    */
-  const inFlight = started && (build.phase === "starting" || build.phase === "working" || build.phase === "asking");
+  const inFlight = started && (build.phase === "starting" || build.phase === "working" || build.phase === "asking" || build.phase === "checking");
   const wantsReview = !project.edit && !project.noReview;
   /** Nothing to build with: the PC isn't reachable from this browser. */
   const offline = !bridge.paired;

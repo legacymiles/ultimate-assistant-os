@@ -417,6 +417,32 @@
   font-family: var(--ab-mono); font-size: 10.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ab-muted);
 }
 
+/* What the PC's own check found. The gate's box and the log's row, reused:
+   amber while it is failing, green once it has passed, plain when the owner
+   chose to use it anyway. Nothing here scrolls sideways; long evidence wraps. */
+.ab-bchecks { border: 1px solid var(--ab-line-soft); border-radius: 11px; padding: 11px 12px; display: grid; gap: 9px; min-width: 0; }
+.ab-bchecks.is-failed { border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.07); }
+.ab-bchecks.is-passed { border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.06); }
+.ab-bchecks-head { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.ab-bchecks-head svg { width: 14px; height: 14px; color: var(--ab-yes); flex: none; }
+.ab-bchecks-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.ab-bchecks-rows li { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; align-items: baseline; font-size: 12px; }
+/* The rule between rows is the ink at a tenth, so it sits on the amber wash
+   and the plain one alike. The step's name is the fact being reported, so it
+   is a step brighter than the log's faint tags, and stays neutral: amber here
+   belongs to the box, not to its contents. */
+.ab-bchecks-rows li + li { border-top: 1px solid color-mix(in srgb, var(--ab-ink) 10%, transparent); padding-top: 7px; }
+.ab-bchecks-rows .ab-blog-kind { color: var(--ab-muted); overflow-wrap: anywhere; }
+.ab-bchecks .ab-bwarn { overflow-wrap: anywhere; }
+.ab-bchecks-what { display: grid; gap: 5px; min-width: 0; overflow-wrap: anywhere; line-height: 1.45; }
+.ab-bchecks .ab-bgate-what { max-height: 96px; }
+.ab-bchecks-shots { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+.ab-bchecks-shots img { display: block; width: auto; height: auto; max-width: 100%; max-height: 150px; border-radius: 8px; border: 1px solid var(--ab-line-soft); background: #05060a; }
+@media (max-width: 480px) {
+  .ab-bchecks-rows li { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+  .ab-bchecks-shots img { max-height: 110px; }
+}
+
 /* What it is doing this second, in its own words. */
 .ab-bnow { margin: 0; display: flex; align-items: baseline; gap: 9px; font-size: 12.5px; color: var(--ab-ink); }
 .ab-bnow .ab-pulse { flex: none; align-self: center; }
@@ -599,8 +625,8 @@
 .ab-queued:hover { background: rgba(245, 158, 11, 0.14); }
 .ab-queued code { font-family: var(--ab-mono); font-size: 10.5px; }
 .ab-queued-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ab-open); box-shadow: 0 0 7px var(--ab-open); animation: ab-blink 1.6s ease-in-out infinite; }
-.ab-queued.is-working { background: rgba(99, 102, 241, 0.1); border-color: rgba(99, 102, 241, 0.45); color: #c7c9ff; }
-.ab-queued.is-working .ab-queued-dot { background: var(--ab-brand); box-shadow: 0 0 7px var(--ab-brand); }
+.ab-queued.is-working, .ab-queued.is-checking { background: rgba(99, 102, 241, 0.1); border-color: rgba(99, 102, 241, 0.45); color: #c7c9ff; }
+.ab-queued.is-working .ab-queued-dot, .ab-queued.is-checking .ab-queued-dot { background: var(--ab-brand); box-shadow: 0 0 7px var(--ab-brand); }
 .ab-queued.is-done { background: rgba(34, 197, 94, 0.08); border-color: rgba(34, 197, 94, 0.4); color: #86efac; }
 .ab-queued.is-done .ab-queued-dot { background: var(--ab-yes); box-shadow: 0 0 7px var(--ab-yes); animation: none; }
 .ab-queued.is-gone { background: transparent; border-color: var(--ab-line); color: var(--ab-faint); }
@@ -652,6 +678,8 @@
   .ab-bfacts > div, .ab-notes li { grid-template-columns: 1fr; gap: 2px; }
   .ab-brow { gap: 8px; }
   .ab-brow .ab-ghost, .ab-bconfirm .ab-ghost { padding: 10px 13px; }
+  /* One pixel more than the ghost beside it, which has a border to count. */
+  .ab-bchecks .ab-primary-sm { padding: 11px 13px; }
   .ab-bconfirm { width: 100%; }
   /* "Commercial 2x" has to fit a third of a 375 px panel without an ellipsis. */
   .ab-depth-opt { padding: 11px 4px; font-size: 11px; }

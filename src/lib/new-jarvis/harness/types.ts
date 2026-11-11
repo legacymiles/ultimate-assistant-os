@@ -115,6 +115,25 @@ export const EMPTY_THREAD: ThreadView = {
   detail: "",
 };
 
+/**
+ * The bridge's own check of a build: `checking` while it runs, `repairing`
+ * while a failure is on its way back to the agent, `failed` when the rounds
+ * ran out, `accepted` when the owner chose to use it anyway.
+ */
+export type VerifyState = "idle" | "checking" | "repairing" | "passed" | "failed" | "accepted";
+
+export interface VerifySummary {
+  state: VerifyState;
+  /** How many checks have run. */
+  run: number;
+  /** How many repair messages have been sent, out of `max`. */
+  rounds: number;
+  max: number;
+  why: string;
+  failures: { step: string; title: string; page: string }[];
+  report: string;
+}
+
 /** The thread summary the bridge returns beside every poll. */
 export interface ThreadSummary {
   id: string;
@@ -155,6 +174,8 @@ export interface ThreadSummary {
    * asleep.
    */
   retryAt?: string;
+  /** Null or missing: this thread is not checked (an ordinary chat thread). */
+  verify?: VerifySummary | null;
   worktree: { path: string; branch: string; base: string; repo: string; notes: string[] };
   landed: { committed: boolean; merged: boolean; sha: string; why: string; at: number } | null;
 }

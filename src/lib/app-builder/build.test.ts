@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBrief, isNewBuild, latestWord, phaseOf, PHASE_LABEL, projectSlug, resultLinks, stalled, tally, threadTitle } from "./build";
+import { buildBrief, isNewBuild, latestWord, phaseLabel, phaseOf, PHASE_LABEL, projectSlug, resultLinks, stalled, tally, threadTitle } from "./build";
 import { applyOps, bestGuesses, intakeQuestions, newProject, offlineFeatures, understand } from "./engine";
 import type { BuilderProject } from "./types";
 import type { ThreadSummary, ThreadView, Turn } from "@/lib/new-jarvis/harness/types";
@@ -266,5 +266,45 @@ describe("deciding a build has just started", () => {
     expect(step({ project: P, thread: null })).toBe(false); // a re-render
     expect(step({ project: P, thread: "t1" })).toBe(true); // Build it pressed
     expect(step({ project: P, thread: "t1" })).toBe(false); // and not again
+  });
+});
+
+describe("a build the PC has checked", () => {
+  const verify = (state: string, extra: Record<string, unknown> = {}) =>
+    ({ status: "idle", verify: { state, run: 1, rounds: 0, max: 3, why: "", failures: [], report: "", ...extra } }) as unknown as ThreadSummary;
+  const built = view([turn("Repo: https://github.com/a/b\nLive: https://a.vercel.app")]);
+
+  it("says it is checking while the check runs", () => {
+    expect(phaseOf(verify("checking"), built)).toBe("checking");
+  });
+  it("says it is checking on a thread that has ended, and never 'working' there", () => {
+    const ended = (state: string) =>
+      ({ status: "ended", verify: { state, run: 2, rounds: 1, max: 3, why: "", failures: [], report: "" } }) as unknown as ThreadSummary;
+    expect(phaseOf(ended("checking"), built)).toBe("checking");
+    expect(phaseOf(ended("repairing"), built)).toBe("unfinished");
+  });
+  it("is Built only after a pass, or when the owner says use it anyway", () => {
+    expect(phaseOf(verify("passed"), built)).toBe("done");
+    expect(phaseOf(verify("accepted"), built)).toBe("done");
+  });
+  it("is unverified when the checks failed", () => {
+    expect(phaseOf(verify("failed"), built)).toBe("unverified");
+  });
+  it("is working while a repair is on its way to the agent", () => {
+    expect(phaseOf(verify("repairing", { rounds: 1 }), built)).toBe("working");
+  });
+  it("is unfinished when it stopped without claiming anything", () => {
+    expect(phaseOf(verify("idle"), view([turn("Should the booking page need a login?")]))).toBe("unfinished");
+  });
+  it("keeps the old rule for a thread that was never checked", () => {
+    expect(phaseOf(summary("idle"), built)).toBe("done");
+  });
+  it("names the repair round", () => {
+    expect(phaseLabel("working", verify("repairing", { rounds: 2 }))).toBe("Fixing what the checks found (round 2 of 3)");
+    expect(phaseLabel("working", summary("thinking"))).toBe(PHASE_LABEL.working);
+    expect(phaseLabel("unverified", null)).toBe("Built, but the checks are failing");
+  });
+  it("tells the agent the check is coming", () => {
+    expect(buildBrief(project())).toMatch(/the PC checks the build itself/);
   });
 });

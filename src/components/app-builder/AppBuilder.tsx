@@ -29,7 +29,7 @@ import { Orbit } from "./Orbit";
 import { IdeaStage, Interview } from "./Stages";
 import { Waiting } from "./Waiting";
 import { BuildStarted } from "./BuildStarted";
-import { isNewBuild, PHASE_LABEL } from "@/lib/app-builder/build";
+import { isNewBuild, phaseLabel } from "@/lib/app-builder/build";
 import { reviewHref } from "@/lib/app-builder/review";
 import { ModelPicker } from "../new-jarvis/ModelPicker";
 import { useChatModel } from "@/lib/new-jarvis/useChatModel";
@@ -200,7 +200,7 @@ export function AppBuilder() {
                 }}
               >
                 <span className="ab-queued-dot" aria-hidden />
-                {PHASE_LABEL[build.phase]}
+                {phaseLabel(build.phase, build.summary)}
               </button>
             ) : (
               <button className="ab-primary-sm" disabled={!t.accepted || busy !== null} onClick={() => ab.build()}>
@@ -370,7 +370,7 @@ export function AppBuilder() {
                   Agent
                 </button>
                 <button role="tab" aria-selected={side === "blueprint"} onClick={() => setSide("blueprint")}>
-                  {threadId ? `Build · ${PHASE_LABEL[build.phase].toLowerCase()}` : "Blueprint & build"}
+                  {threadId ? `Build · ${phaseLabel(build.phase, build.summary).toLowerCase()}` : "Blueprint & build"}
                 </button>
               </div>
               <div className={`ab-side-chat${side === "chat" ? " is-desk" : ""}${pane === "chat" ? " is-mob" : ""}`}>{chat}</div>
