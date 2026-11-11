@@ -14,6 +14,8 @@ import {
   outcomeFor,
   runInHarness,
   runSettingsFrom,
+  verifyBeforeShip,
+  verifyGateOff,
 } from "./agents-wake.mjs";
 
 describe("telling a brief from an empty answer", () => {
@@ -276,6 +278,59 @@ describe("the worktree prompt", () => {
   });
 });
 
+describe("an unattended run is checked before it may ship itself", () => {
+  const steps = (states) => {
+    const calls = [];
+    const call = async (route) => {
+      calls.push(route);
+      if (route === "/harness/verify") return { ok: true };
+      return { session: { verify: states.shift() ?? { state: "passed", failures: [] } } };
+    };
+    return { call, calls };
+  };
+  const quick = { sleep: async () => {}, pollMs: 1 };
+
+  it("waits for the check and reports a pass", async () => {
+    const { call, calls } = steps([{ state: "checking" }, { state: "checking" }, { state: "passed", failures: [] }]);
+    expect(await verifyBeforeShip({ call, thread: "t", ...quick })).toEqual({ passed: true, why: "" });
+    expect(calls[0]).toBe("/harness/verify");
+  });
+
+  it("reports what failed", async () => {
+    const { call } = steps([{ state: "failed", failures: [{ title: "Typecheck failed" }, { title: "A page threw an error: /x" }] }]);
+    const r = await verifyBeforeShip({ call, thread: "t", ...quick });
+    expect(r.passed).toBe(false);
+    expect(r.why).toBe("Typecheck failed; A page threw an error: /x");
+  });
+
+  it("does not ship when the helper will not answer", async () => {
+    const r = await verifyBeforeShip({ call: async () => { throw new Error("offline"); }, thread: "t", ...quick });
+    expect(r.passed).toBe(false);
+  });
+
+  it("gives up waiting rather than waiting forever", async () => {
+    const call = async (route) => (route === "/harness/verify" ? { ok: true } : { session: { verify: { state: "checking" } } });
+    let t = 0;
+    const r = await verifyBeforeShip({ call, thread: "t", ...quick, now: () => (t += 10 * 60_000), maxMs: 30 * 60_000 });
+    expect(r).toEqual({ passed: false, why: "the checks did not finish in time" });
+  });
+
+  it("says why work that would have shipped is waiting for review instead", () => {
+    const land = { committed: true, merged: false, why: "Committed 2 files on its branch." };
+    const out = outcomeFor({ files: [{ file: "a" }, { file: "b" }], ship: "review", land, checks: "Typecheck failed" });
+    expect(out.outcome).toBe("ready");
+    expect(out.why).toBe("The checks failed (Typecheck failed), so it was not shipped. Committed 2 files on its branch.");
+  });
+
+  it("reads the off switch from a path, and only whether it exists", () => {
+    const seen = [];
+    const exists = (p) => (seen.push(p), p === "/x/out/verify-off");
+    expect(verifyGateOff("/x/out/verify-off", exists)).toBe(true);
+    expect(verifyGateOff("/x/out/other", exists)).toBe(false);
+    expect(seen).toEqual(["/x/out/verify-off", "/x/out/other"]);
+  });
+});
+
 describe("running an agent through the bridge", () => {
   const brief = briefWith(["POWERED BY: default", "EDITS APPS: ea-world", "SHIP: auto"]);
   const settings = runSettingsFrom(brief);
@@ -303,7 +358,8 @@ describe("running an agent through the bridge", () => {
       200,
       { ok: true, cursor: 3, events: [{ kind: "user" }, { kind: "turn_end" }, { kind: "status", status: "idle" }], session: { busy: false } },
     ],
-    "/harness/status": async () => [200, { ok: true, work: { files: [{ state: "M", file: "x.ts" }] } }],
+    "/harness/status": async () => [200, { ok: true, work: { files: [{ state: "M", file: "x.ts" }] }, session: { verify: { state: "passed", failures: [] } } }],
+    "/harness/verify": async () => [200, { ok: true }],
     "/harness/land": async (b) => [200, { ok: true, committed: true, merged: b.merge, why: b.merge ? "Merged into main." : "Committed on its branch." }],
     ...over,
   });
@@ -319,6 +375,8 @@ describe("running an agent through the bridge", () => {
         secret: "s3cret",
         sleep: async () => {},
         say: () => {},
+        // The real switch is a file beside the bridge; a test must not depend on it.
+        gateOff: () => false,
         hub: async (name, args) => {
           hubCalls.push({ name, args });
           return name === "agent_list" ? "- a-abc123 · running · 0/0 steps — x" : "ok";
@@ -446,5 +504,64 @@ describe("running an agent through the bridge", () => {
     const { deps: d, hubCalls } = deps(fetchImpl);
     expect(await runInHarness("a-abc123", brief, settings, d)).toEqual({ ok: false, why: "No OpenRouter key on this PC." });
     expect(hubCalls).toEqual([]);
+  });
+
+  it("asks for the check before landing, and ships when it passes", async () => {
+    const { calls, fetchImpl } = fakeBridge(baseRoutes());
+    const { deps: d } = deps(fetchImpl, { push: async () => ({ ok: true, why: "" }) });
+    const r = await runInHarness("a-abc123", brief, settings, d);
+    expect(r.outcome).toBe("pushed");
+    const order = calls.map((c) => c.route);
+    expect(order.indexOf("/harness/verify")).toBeGreaterThan(-1);
+    expect(order.indexOf("/harness/verify")).toBeLessThan(order.indexOf("/harness/land"));
+    expect(calls.find((c) => c.route === "/harness/verify").body).toEqual({ id: "t-1" });
+  });
+
+  it("turns auto into review, and says which checks failed, when the check fails", async () => {
+    const { calls, fetchImpl } = fakeBridge(
+      baseRoutes({
+        "/harness/status": async () => [
+          200,
+          { ok: true, work: { files: [{ file: "x.ts" }] }, session: { verify: { state: "failed", failures: [{ title: "Typecheck failed" }] } } },
+        ],
+      }),
+    );
+    const { deps: d, hubCalls } = deps(fetchImpl, {
+      push: async () => {
+        throw new Error("must not push");
+      },
+    });
+    const r = await runInHarness("a-abc123", brief, settings, d);
+    expect(r.outcome).toBe("ready");
+    expect(calls.find((c) => c.route === "/harness/land").body.merge).toBe(false);
+    expect(hubCalls.at(-1).args.why).toMatch(/^The checks failed \(Typecheck failed\), so it was not shipped\./);
+  });
+
+  it("does not ship when the bridge is an old build with no check route", async () => {
+    const { calls, fetchImpl } = fakeBridge(baseRoutes({ "/harness/verify": undefined }));
+    const { deps: d } = deps(fetchImpl, {
+      push: async () => {
+        throw new Error("must not push");
+      },
+    });
+    const r = await runInHarness("a-abc123", brief, settings, d);
+    expect(r.outcome).toBe("ready");
+    expect(calls.find((c) => c.route === "/harness/land").body.merge).toBe(false);
+  });
+
+  it("skips the check entirely while the off switch is on", async () => {
+    const { calls, fetchImpl } = fakeBridge(baseRoutes({ "/harness/verify": undefined }));
+    const { deps: d } = deps(fetchImpl, { gateOff: () => true, push: async () => ({ ok: true, why: "" }) });
+    const r = await runInHarness("a-abc123", brief, settings, d);
+    expect(r.outcome).toBe("pushed");
+    expect(calls.some((c) => c.route === "/harness/verify")).toBe(false);
+  });
+
+  it("never asks for the check on a review run", async () => {
+    const review = runSettingsFrom(briefWith(["POWERED BY: default", "EDITS APPS: ea-world", "SHIP: review"]));
+    const { calls, fetchImpl } = fakeBridge(baseRoutes());
+    const { deps: d } = deps(fetchImpl);
+    await runInHarness("a-abc123", brief, review, d);
+    expect(calls.some((c) => c.route === "/harness/verify")).toBe(false);
   });
 });

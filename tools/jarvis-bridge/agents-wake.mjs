@@ -53,6 +53,8 @@ const REPO = path.resolve(HERE, "..", "..");
 const WORK = path.join(HERE, "out", "agents");
 /** Where the bridge keeps its pairing token and the 24/7 agents secret. */
 const BRIDGE_OUT = path.join(HERE, "out");
+/** The verify gate's off switch, shared with the bridge (harness.mjs `gateOff`). */
+const VERIFY_OFF = path.join(BRIDGE_OUT, "verify-off");
 const BRIDGE = `http://127.0.0.1:${process.env.JARVIS_BRIDGE_PORT || 42020}`;
 
 const args = process.argv.slice(2);
@@ -506,6 +508,60 @@ export async function waitForThread({
 }
 
 /**
+ * Is the verify gate switched off? Only whether the file exists, nothing more.
+ * The path and the existence check are parameters so a test never has to touch
+ * the real out/ folder.
+ */
+export function verifyGateOff(file = VERIFY_OFF, exists = existsSync) {
+  try {
+    return Boolean(exists(file));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ask the bridge to check a thread's work, and wait for the verdict.
+ *
+ * Only before `SHIP: auto`: that is the one path where work lands and is
+ * pushed with nobody looking. It asks once and reads the answer from the
+ * thread's summary, the way everything else here polls rather than holds a
+ * request open across a sleeping laptop. Anything but a clear pass is "no".
+ */
+export async function verifyBeforeShip({
+  call,
+  thread,
+  pollMs = POLL_MS,
+  // Under the hub's twenty-minute lease, with room to spare: past this the
+  // run goes to review, which is the safe answer to a check nobody saw end.
+  maxMs = 15 * 60_000,
+  sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
+  now = Date.now,
+}) {
+  try {
+    await call("/harness/verify", { id: thread });
+  } catch (e) {
+    return { passed: false, why: `they could not be started: ${String(e?.message || e)}` };
+  }
+  const started = now();
+  while (now() - started <= maxMs) {
+    let v = null;
+    try {
+      v = (await call("/harness/status", { id: thread })).session?.verify ?? null;
+    } catch {
+      /* one missed poll is not a verdict */
+    }
+    if (v && v.state !== "checking") {
+      if (v.state === "passed") return { passed: true, why: "" };
+      const titles = (v.failures || []).map((f) => f.title).filter(Boolean);
+      return { passed: false, why: titles.join("; ") || v.why || "the checks failed" };
+    }
+    await sleep(pollMs);
+  }
+  return { passed: false, why: "the checks did not finish in time" };
+}
+
+/**
  * What a finished harness run amounts to, for `agent_ran`.
  *
  *   nothing  no files changed
@@ -518,7 +574,7 @@ export async function waitForThread({
  * auto into review for a run that timed out or that the agent itself flagged.
  * `land` is /harness/land's answer; `pushed` is whether `git push` worked.
  */
-export function outcomeFor({ files = [], ship = "review", land = null, pushed = false, pushWhy = "", landError = "", timedOut = false, runError = "" } = {}) {
+export function outcomeFor({ files = [], ship = "review", land = null, pushed = false, pushWhy = "", landError = "", timedOut = false, runError = "", checks = "" } = {}) {
   const n = Array.isArray(files) ? files.length : 0;
   if (!n) {
     if (runError) return { outcome: "failed", why: runError };
@@ -536,7 +592,9 @@ export function outcomeFor({ files = [], ship = "review", land = null, pushed = 
     ? "It ran out of time, so this is partial work. "
     : runError
       ? `It stopped on an error (${runError}), so this may be partial. `
-      : "";
+      : checks
+        ? `The checks failed (${checks}), so it was not shipped. `
+        : "";
   if (ship !== "auto" || !land.merged) {
     return { outcome: "ready", why: `${partial}${land.why || `Committed ${changed} on its branch.`}`.trim() };
   }
@@ -589,6 +647,7 @@ export async function runInHarness(id, brief, settings, deps = {}) {
     token = readLocal("token.txt"),
     secret = readLocal("agents-secret.txt"),
     say = log,
+    gateOff = () => verifyGateOff(),
   } = deps;
 
   if (!token || !secret || !(await bridgeAnswers(base, fetchImpl))) return { ok: false, why: BRIDGE_DOWN };
@@ -641,6 +700,7 @@ export async function runInHarness(id, brief, settings, deps = {}) {
   let pushed = false;
   let pushWhy = "";
   let ship = settings.ship;
+  let checks = "";
 
   if (!waited.lost) {
     try {
@@ -656,6 +716,17 @@ export async function runInHarness(id, brief, settings, deps = {}) {
     // human, and pushing over that would make the flag decoration.
     if (ship === "auto" && waited.timedOut) ship = "review";
     if (ship === "auto" && agentStatusIn(await hub("agent_list", {}), id) === "blocked") ship = "review";
+    // The last reason auto becomes review: the bridge's own check of the work.
+    // Only asked when everything else would have let it ship, and not at all
+    // while the gate is switched off (out/verify-off, beside this file).
+    if (ship === "auto" && !gateOff()) {
+      const verdict = await verifyBeforeShip({ call, thread, pollMs, sleep, now });
+      if (!verdict.passed) {
+        ship = "review";
+        checks = verdict.why;
+        say(`${id} will wait for review: ${checks}`);
+      }
+    }
     try {
       land = await call(
         "/harness/land",
@@ -672,7 +743,7 @@ export async function runInHarness(id, brief, settings, deps = {}) {
     }
   }
 
-  const result = outcomeFor({ files, ship, land, pushed, pushWhy, landError, timedOut: waited.timedOut, runError });
+  const result = outcomeFor({ files, ship, land, pushed, pushWhy, landError, timedOut: waited.timedOut, runError, checks });
   // The thread is NOT discarded: it is the record the owner reviews, and for
   // "ready" it is the only place the work exists outside a branch name.
   await hub("agent_ran", { id, thread, branch: wt.branch || "", outcome: result.outcome, why: result.why });
