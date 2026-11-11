@@ -22,6 +22,8 @@ import { useAppBuilder } from "@/lib/app-builder/useAppBuilder";
 import { APP_TYPE_LABEL, type BuilderProject } from "@/lib/app-builder/types";
 import { specFromProject } from "@/lib/mockup/spec";
 import { MockupBakeOff } from "@/components/mockup/MockupBakeOff";
+import { joinEdits, type EditPick } from "@/lib/mockup/edit";
+import type { MockupSpec } from "@/lib/mockup/types";
 import { AgentChat } from "./AgentChat";
 import { Blueprint, Pipeline, Recording } from "./Blueprint";
 import { FeatureTable } from "./FeatureTable";
@@ -415,7 +417,7 @@ function LookSection({
   onChoose,
 }: {
   project: BuilderProject;
-  onChoose: (skill: string, by?: "owner" | "client") => void;
+  onChoose: (skill: string, pick?: EditPick) => void;
 }) {
   const spec = useMemo(
     () => specFromProject(project),
@@ -423,10 +425,11 @@ function LookSection({
     [project.features, project.understanding, project.teardown, project.idea],
   );
 
-  // A client edit is a change to a site that already exists and already has a
-  // look, so there is nothing to choose here — the mockup for that lives in
-  // Client Review, where the client can see it against their own site.
-  if (project.edit) return null;
+  // A client edit changes a site that already has a look, so there is no look
+  // to choose — but there IS a question to answer before the build: "is this
+  // what the client meant?". So an edit gets the edit bake-off: the approved
+  // edits, painted three ways onto a screenshot of the page the client is on.
+  if (project.edit) return <EditLookSection project={project} spec={spec} onChoose={onChoose} />;
 
   const accepted = project.features.some((f) => f.status === "accepted");
   return (
@@ -455,6 +458,57 @@ function LookSection({
           }
         />
       }
+    </section>
+  );
+}
+
+/** The edit bake-off for a client edit: the approved edits, painted onto the live page. */
+export function EditLookSection({
+  project,
+  spec,
+  onChoose,
+}: {
+  project: BuilderProject;
+  spec: MockupSpec;
+  onChoose: (skill: string, pick?: EditPick) => void;
+}) {
+  const edit = project.edit!;
+  // The edits as they will be built: the owner's accepted wording, else the
+  // client's own words. Joined into one request, because three readings of
+  // the WHOLE batch is the question; a lane per edit would be a different one.
+  const text = useMemo(() => {
+    const accepted = project.features.filter((f) => f.status === "accepted");
+    const lines = accepted.length
+      ? accepted.map((f) => edit.items.find((it) => it.featureId === f.id)?.text || f.detail || f.title)
+      : edit.items.map((it) => it.text);
+    return joinEdits(lines);
+  }, [project.features, edit.items]);
+
+  const siteSpec = useMemo(() => ({ ...spec, name: edit.siteName || spec.name }), [spec, edit.siteName]);
+
+  if (!text) return null;
+  return (
+    <section id="ab-look" className="ab-look" aria-label="Check the change">
+      <p className={`ab-look-step${project.look?.edit ? " is-done" : ""}`}>
+        <b>{project.look?.edit ? "✓ Version picked" : "Next · check the change"}</b>
+        <span>edits → mockups on the live page → build on your PC → Client Review</span>
+      </p>
+      <MockupBakeOff
+        // The site's own name, as Client Review and the Redesigner use it: it
+        // is part of the Flux prompt, so the same name means the same pictures.
+        spec={siteSpec}
+        recommended={project.understanding?.designSkill}
+        chosen={project.look ?? null}
+        onChoose={onChoose}
+        chooseLabel="Build this version"
+        edit={text}
+        reference={{ url: edit.fromUrl || undefined }}
+        caption={
+          project.look?.edit
+            ? `The build is held to "${project.look.edit.label}". Pick another, or tweak one, to change it.`
+            : `${edit.siteName}'s live page with the approved edits painted on, three ways. Pick the one that matches what ${edit.clientName || "the client"} meant.`
+        }
+      />
     </section>
   );
 }

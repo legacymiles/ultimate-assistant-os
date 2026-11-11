@@ -16,6 +16,7 @@
 // the IndexedDB inbox, and this hook starts it the moment App Builder opens.
 // ---------------------------------------------------------------------------
 
+import type { EditPick } from "@/lib/mockup/edit";
 import { keepFeatures, redesignText, redesignUpgrades, settleRedesign } from "./redesign";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { loadLocal, saveSynced } from "@/lib/sync/appState";
@@ -645,11 +646,19 @@ export function useAppBuilder() {
    * direction that is already picked writes nothing (D5).
    */
   const chooseLook = useCallback(
-    (skill: string, by: "owner" | "client" = "owner") => {
+    // `pick` is set for an edit: which of the three readings of the change,
+    // with its tweaks. The picture itself is not stored on the project — it is
+    // a few hundred KB, and the drawer's cache already holds it.
+    (skill: string, pick?: EditPick) => {
       if (!current || !skill.trim()) return;
-      update(current.id, (p) =>
-        p.look?.skill === skill ? p : { ...p, look: { skill, at: new Date().toISOString(), by } },
-      );
+      update(current.id, (p) => {
+        const same =
+          p.look?.skill === skill &&
+          (p.look.edit?.lane ?? "") === (pick?.lane ?? "") &&
+          (p.look.edit?.tweaks ?? []).join("|") === (pick?.tweaks ?? []).join("|");
+        if (same) return p;
+        return { ...p, look: { skill, at: new Date().toISOString(), by: "owner", ...(pick ? { edit: pick } : {}) } };
+      });
     },
     [current, update],
   );

@@ -58,7 +58,12 @@ function q(text: string, max = 48): string {
  * Ordered most-important first, because Flux weighs the start of a prompt
  * hardest: what it is, the layout, the words on it, then the look.
  */
-export function fluxPrompt(spec: MockupSpec, direction: MockupDirection, device: Device = "desktop"): string {
+export function fluxPrompt(
+  spec: MockupSpec,
+  direction: MockupDirection,
+  device: Device = "desktop",
+  opts: { layoutRef?: boolean } = {},
+): string {
   const skin = skinFor(direction.skill);
   const site = spec.site;
   const what = site
@@ -96,7 +101,15 @@ export function fluxPrompt(spec: MockupSpec, direction: MockupDirection, device:
     q(skin.note, 120),
   ];
 
+  // With the coded drawing as image 1, Flux keeps its structure and every
+  // word, and only does what a picture model is good at: finish. Measured on
+  // the owner's 3050 with edits: painting from a real picture kept every word
+  // of the page legible, where a text-only prompt invents its own page.
+  const lead = opts.layoutRef
+    ? "Repaint image 1, a coded layout of this page, as a finished high-fidelity design: keep its layout, sections and every word of text exactly, and make it look polished and real. "
+    : "";
   const text =
+    lead +
     `High-fidelity UI design of a ${what} for ${q(spec.name, 28)}, ${q(spec.oneLiner, 110)}. ` +
     `Layout: ${layout}. ` +
     `On screen: ${words.filter(Boolean).join("; ")}. ` +
@@ -106,10 +119,24 @@ export function fluxPrompt(spec: MockupSpec, direction: MockupDirection, device:
   return text.replace(/\s+/g, " ").slice(0, FLUX_PROMPT_MAX);
 }
 
+/**
+ * What a reference contributes to a cache key. A data URL is summarised by
+ * its length and ends rather than hashed whole — a screenshot is ~200 KB and
+ * this runs on every render — which is enough to tell two pictures apart.
+ */
+export function refKey(refs: { image?: string; url?: string; html?: string }[] | undefined): string {
+  if (!refs?.length) return "";
+  return refs
+    .map((r) =>
+      r.url ? `u:${r.url}` : r.html ? `h:${r.html.length}:${r.html.slice(-200)}` : r.image ? `i:${r.image.length}:${r.image.slice(40, 120)}:${r.image.slice(-80)}` : "",
+    )
+    .join("|");
+}
+
 /** A short stable key for a prompt, for the picture cache. FNV-1a. */
-export function pictureKey(prompt: string, device: Device): string {
+export function pictureKey(prompt: string, device: Device, refs = ""): string {
   let h = 0x811c9dc5;
-  const text = `${device}|${prompt}`;
+  const text = `${device}|${prompt}${refs ? `|${refs}` : ""}`;
   for (let i = 0; i < text.length; i += 1) {
     h ^= text.charCodeAt(i);
     h = Math.imul(h, 0x01000193) >>> 0;

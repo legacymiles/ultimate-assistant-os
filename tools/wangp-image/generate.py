@@ -125,6 +125,18 @@ def run_one(session, job: dict, root: Path) -> dict:
         if seed >= 0:
             settings["seed"] = seed
 
+        # Reference pictures (paths on this machine). Flux 2 Klein edits with
+        # them: "KI" means the FIRST picture is the scene being changed (a
+        # screenshot of the page, or a coded layout) and any after it are
+        # style references. This is what lets a mockup look like THIS site
+        # with the edit applied, instead of a stranger's site.
+        refs = [str(p) for p in (job.get("refs") or []) if p and Path(str(p)).is_file()]
+        if job.get("refs") and not refs:
+            return {"ok": False, "error": "The reference picture couldn't be found on this PC.", "ms": 0, "id": job_id}
+        if refs:
+            settings["image_refs"] = refs[:3]
+            settings["video_prompt_type"] = "KI"
+
         task = session.submit_task(settings)
         result = task.result()
 
@@ -208,6 +220,7 @@ def main() -> int:
     ap.add_argument("--height", type=int, default=1024)
     ap.add_argument("--steps", type=int, default=DEFAULT_STEPS)
     ap.add_argument("--seed", type=int, default=-1)
+    ap.add_argument("--ref", action="append", default=[], help="A reference picture; the first is the scene to edit.")
     ap.add_argument("--root", default=str(DEFAULT_ROOT))
     ap.add_argument(
         "--profile",
@@ -243,6 +256,7 @@ def main() -> int:
         "height": args.height,
         "steps": args.steps,
         "seed": args.seed,
+        "refs": args.ref,
     }, root)
     emit(out)
     return 0 if out.get("ok") else 1

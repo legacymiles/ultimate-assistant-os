@@ -456,3 +456,176 @@
   .mk-paint-dot,
   .mk-pic img { animation: none; }
 }
+
+/* ----- edit mode: the page as it is, and the change ----------------------
+   One strip above the lanes: a small "now" picture and the request in the
+   asker's own words. It is what the three lanes are an answer to, so it reads
+   like a question — quiet, with the request as the loudest text. */
+
+.mk-before {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--mk-line);
+  border-radius: 12px;
+  background: var(--mk-panel);
+}
+
+.mk-before.no-pic { grid-template-columns: minmax(0, 1fr); }
+
+.mk-before-pic {
+  position: relative;
+  overflow: hidden;
+  border-radius: 7px;
+  border: 1px solid var(--mk-line-soft);
+  background: var(--mk-panel-2);
+  aspect-ratio: 1280 / 820;
+  display: grid;
+  place-items: center;
+}
+
+.mk-before-pic.is-phone { aspect-ratio: 1 / 2; max-height: 220px; width: auto; height: 220px; justify-self: start; }
+
+.mk-before-pic img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+
+.mk-before-empty {
+  padding: 10px;
+  font-size: 11px;
+  color: var(--mk-faint);
+  text-align: center;
+}
+
+.mk-before-text {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 0;
+  min-width: 0;
+}
+
+.mk-before-text dt {
+  font-family: var(--mk-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mk-faint);
+  padding-top: 3px;
+}
+
+.mk-before-text dd {
+  margin: 0;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--mk-muted);
+  overflow-wrap: anywhere;
+}
+
+.mk-before-text a { color: var(--mk-muted); text-decoration: underline; text-underline-offset: 2px; }
+.mk-before-text a:hover { color: var(--mk-ink); }
+
+.mk-before-q {
+  font-family: var(--mk-display);
+  font-size: 15px !important;
+  line-height: 1.35;
+  color: var(--mk-ink) !important;
+  text-wrap: pretty;
+}
+
+/* An edit lane before it is painted: the page as it is, dimmed, with this
+   lane's reading of the change laid over it. Same box as the painting, so the
+   lane doesn't jump when the picture lands. */
+
+.mk-pic-wait img {
+  filter: grayscale(0.6) brightness(0.32);
+  animation: none;
+}
+
+.mk-pic-wait-t {
+  position: absolute;
+  inset: auto 0 0 0;
+  margin: 0;
+  padding: 26px 12px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--mk-ink);
+  background: linear-gradient(transparent, rgba(8, 9, 13, 0.9) 45%);
+  text-wrap: pretty;
+}
+
+/* ----- tweaks ------------------------------------------------------------ */
+
+.mk-steps {
+  margin: 0;
+  padding: 0 0 0 18px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--mk-muted);
+}
+
+.mk-steps li[data-done="no"] { color: var(--mk-faint); font-style: italic; }
+
+.mk-tweak {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mk-tweak-in {
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--mk-line);
+  background: var(--mk-panel-2);
+  color: var(--mk-ink);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.mk-tweak-in::placeholder { color: var(--mk-faint); }
+.mk-tweak-in:focus-visible { outline: 2px solid var(--mk-brand); outline-offset: 1px; border-color: transparent; }
+.mk-tweak-in:disabled { opacity: 0.6; }
+
+.mk-tweak-b {
+  appearance: none;
+  flex: none;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--mk-brand);
+  background: color-mix(in srgb, var(--mk-brand) 18%, transparent);
+  color: var(--mk-ink);
+  font-family: var(--mk-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.18s var(--mk-ease), opacity 0.18s var(--mk-ease);
+}
+
+.mk-tweak-b:hover:not(:disabled) { background: color-mix(in srgb, var(--mk-brand) 30%, transparent); }
+.mk-tweak-b:disabled { opacity: 0.4; cursor: default; }
+.mk-tweak-b.ghost { border-color: var(--mk-line); background: none; color: var(--mk-muted); }
+
+.mk-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .mk-before { grid-template-columns: 1fr; }
+  .mk-before-pic.is-phone { justify-self: center; }
+}

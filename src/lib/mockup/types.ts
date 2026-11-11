@@ -144,4 +144,31 @@ export interface LookChoice {
   skill: string;
   at: string;
   by: "owner" | "client";
+  /**
+   * Set when the bake-off was for an EDIT to a live page: which of the three
+   * readings of the change was picked, and the tweaks made to it. The skill
+   * above stays the site's own look, so nothing that reads `skill` changes.
+   */
+  edit?: EditPick;
 }
+
+/**
+ * A picture Flux starts FROM. The first one is the scene being changed.
+ *
+ * `url` and `html` are photographed by the drawer on the owner's PC at the
+ * size being drawn, so the reference and the result line up; `image` is a
+ * data URL already in hand (a screenshot the app took, or a lane's own
+ * picture when it is being tweaked).
+ */
+export interface MockupRef {
+  image?: string;
+  url?: string;
+  html?: string;
+  /** Lets coded mockup HTML load the hub's own fonts. */
+  base?: string;
+  width?: number;
+  height?: number;
+}
+
+export type { EditLaneId, EditPick, SiteFacts } from "./edit";
+import type { EditPick } from "./edit";

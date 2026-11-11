@@ -14,7 +14,7 @@
 // down rather than left running behind V1.
 // ---------------------------------------------------------------------------
 
-export type RedesignerView = 1 | 2 | "showcase";
+export type RedesignerView = 1 | 2 | "showcase" | "edit";
 
 /** Website Redesigner lives inside App Builder now; this is its address there. */
 export const REDESIGNER_BASE = "/apps/app-builder?section=redesign";
@@ -26,6 +26,9 @@ export function redesignerHref(v: RedesignerView, base = REDESIGNER_BASE): strin
 
 export function VersionToggle({ current, base = REDESIGNER_BASE }: { current: RedesignerView; base?: string }) {
   const items: { v: RedesignerView; label: string }[] = [
+    // First, because every website edit starts here: three mockups of the
+    // change on the live page before anything is built.
+    { v: "edit", label: "Edit" },
     { v: 1, label: "V1" },
     { v: 2, label: "V2" },
     { v: "showcase", label: "Showcase" },
