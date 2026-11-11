@@ -29,7 +29,7 @@ import { pushThreadToMain, shipThread } from "@/lib/client-review/pushMain";
 import { useBuild } from "@/lib/app-builder/useBuild";
 import { admin, type AdminState, type BriefOut } from "@/lib/client-review/client";
 import { HUB_ORIGIN } from "@/lib/client-review/apps";
-import { buildText, currentVersion, plainBrief, sortVersions, isSentToClient } from "@/lib/client-review/logic";
+import { buildText, currentVersion, plainBrief, sortVersions } from "@/lib/client-review/logic";
 import { DEFAULT_SORT, isSortMode, listProjects, projectState, SORTS, STATE_LABEL, type SortMode } from "@/lib/client-review/list";
 import { buildModelNote, isLaneValue, isSubscriptionValue, laneOfValue, pickValue } from "@/lib/client-review/models";
 import { writeBriefOnPlan } from "@/lib/client-review/subscriptionBrief";
@@ -37,6 +37,7 @@ import type { ClientProject, ContentLane, EditRequest, RequestBatch, ReviewVersi
 import { getRepo } from "@/lib/repo";
 import { useStore } from "@/lib/store";
 import { ModelMenu } from "./ModelMenu";
+import { Handover } from "./Handover";
 
 const LANES: { id: ContentLane; label: string; hint: string }[] = [
   { id: "auto", label: "Auto", hint: "Claude first; if it refuses, the uncensored model takes it" },
@@ -513,16 +514,6 @@ function ProjectDetail({
             <a className="rounded-md border border-line px-2.5 py-1.5 text-xs" href={link} target="_blank" rel="noreferrer">
               Open as client ↗
             </a>
-            <button
-              className="rounded-md border border-line px-2.5 py-1.5 text-xs text-ink-muted"
-              disabled={busy === "rotate"}
-              onClick={async () => {
-                if (!confirm("Make a new link? The old one stops working immediately.")) return;
-                if (await run("rotate", { action: "rotate", id: p.id })) say("New link made — copy it and send it again.");
-              }}
-            >
-              New link
-            </button>
           </div>
         </div>
 
@@ -531,15 +522,6 @@ function ProjectDetail({
             <>
               <span className="text-emerald-300">● Signed in as {p.clientUserEmail}</span>
               <span className="text-ink-faint">— only this Jarvis account can open the link</span>
-              <button
-                className="ml-auto text-ink-muted underline"
-                onClick={async () => {
-                  if (!confirm("Let a different account claim this link? The current client loses access until they open it again first.")) return;
-                  if (await run("release", { action: "release", id: p.id })) say("Released — the next account to open the link gets it.");
-                }}
-              >
-                Release
-              </button>
             </>
           ) : (
             <>
@@ -555,43 +537,82 @@ function ProjectDetail({
           )}
         </div>
 
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <div className="block text-[11px] text-ink-faint">
-            <span>Model for edit briefs</span>
-            <div className="mt-1">
-              <ModelMenu
-                value={pickValue(p)}
-                onChange={(next) => {
-                  // A lane pick clears the explicit model; a model pick leaves
-                  // the lane alone, so switching back to Auto restores it.
-                  void (isLaneValue(next)
-                    ? run("meta", { action: "meta", id: p.id, lane: laneOfValue(next), briefModel: "" })
-                    : run("meta", { action: "meta", id: p.id, briefModel: next }));
+        {/*
+          Settings, shut.
+
+          Every one of these works, and none of them ships anything — which is
+          exactly why they were the wrong thing to meet first. Ship is for
+          handing a site over; the model that writes a brief and the repository
+          approved edits build in are set once and then never touched again.
+        */}
+        <details className="group mt-3 rounded-md border border-line-soft bg-panel-2/40">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-2.5 py-1.5 text-[11px] text-ink-faint hover:text-ink-muted">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden className="transition-transform duration-150 group-open:rotate-90">
+              <path d="m9 6 6 6-6 6" />
+            </svg>
+            Settings — where it builds, which model writes its briefs
+            <PcHelper />
+          </summary>
+          <div className="grid gap-3 border-t border-line-soft p-2.5 sm:grid-cols-2">
+            <label className="block text-[11px] text-ink-faint">
+              GitHub repo
+              <InlineText
+                value={p.repo ?? ""}
+                placeholder="owner/name — made for you when you send it"
+                className="mt-0.5 rounded-md border border-line font-mono text-[12px] text-ink"
+                onSave={async (repo) => {
+                  if (await run("meta", { action: "meta", id: p.id, repo })) say(repo ? "Repo saved — approved edits now build themselves." : "Repo removed.");
                 }}
               />
+              <span className="mt-1 block leading-snug">Approved edits are built in a worktree of this, on a branch, as a pull request.</span>
+            </label>
+            <label className="block text-[11px] text-ink-faint">
+              Vercel project
+              <InlineText
+                value={p.vercelProject ?? ""}
+                placeholder="project name (optional)"
+                className="mt-0.5 rounded-md border border-line font-mono text-[12px] text-ink"
+                onSave={(vercelProject) => run("meta", { action: "meta", id: p.id, vercelProject })}
+              />
+              <span className="mt-1 block leading-snug">Previews must open without a login: Settings › Deployment Protection, Vercel Authentication off.</span>
+            </label>
+            <div className="block text-[11px] text-ink-faint">
+              <span>Model for edit briefs</span>
+              <div className="mt-1">
+                <ModelMenu
+                  value={pickValue(p)}
+                  onChange={(next) => {
+                    // A lane pick clears the explicit model; a model pick leaves
+                    // the lane alone, so switching back to Auto restores it.
+                    void (isLaneValue(next)
+                      ? run("meta", { action: "meta", id: p.id, lane: laneOfValue(next), briefModel: "" })
+                      : run("meta", { action: "meta", id: p.id, briefModel: next }));
+                  }}
+                />
+              </div>
+              <span className="mt-1 block leading-snug">{briefModelNote(p, lanes)}</span>
             </div>
-            <span className="mt-1 block leading-snug">{briefModelNote(p, lanes)}</span>
+            <label className="block text-[11px] text-ink-faint">
+              Projects Timeline project
+              <select
+                className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-xs text-ink"
+                value={p.timelineProjectId ?? ""}
+                onChange={(e) => run("meta", { action: "meta", id: p.id, timelineProjectId: e.target.value })}
+              >
+                <option value="">Not linked</option>
+                {timeline.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block leading-snug">Approved versions and briefs are added there.</span>
+            </label>
           </div>
-          <label className="block text-[11px] text-ink-faint">
-            Projects Timeline project
-            <select
-              className="mt-1 w-full rounded-md border border-line bg-panel-2 px-2 py-1.5 text-xs text-ink"
-              value={p.timelineProjectId ?? ""}
-              onChange={(e) => run("meta", { action: "meta", id: p.id, timelineProjectId: e.target.value })}
-            >
-              <option value="">Not linked</option>
-              {timeline.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-            <span className="mt-1 block">Approved versions and briefs are added there.</span>
-          </label>
-        </div>
-
-        <SiteHome project={p} run={run} say={say} />
+        </details>
       </section>
+
+      <Handover project={p} busy={busy} run={run} say={say} />
 
       {/* waiting on you */}
       <section>
@@ -614,10 +635,7 @@ function ProjectDetail({
 
       {/* versions */}
       <section>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-ink-faint">Versions</h2>
-          <AddVersion project={p} busy={busy} run={run} say={say} />
-        </div>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-ink-faint">Versions</h2>
         <div className="overflow-hidden rounded-lg border border-line">
           {versions.map((v) => (
             <VersionRow key={v.id} project={p} version={v} busy={busy} run={run} say={say} />
@@ -631,59 +649,59 @@ function ProjectDetail({
         <RequestTable project={p} />
       </section>
 
-      {/* Whether the client can see this at all. Until it is sent it is yours
-          alone — App Builder opens one of these for every build. */}
-      <section className="border-t border-line pt-3">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-ink-faint">The client&rsquo;s side</h2>
-        {isSentToClient(p) ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded bg-core/15 px-1.5 py-0.5 text-[11px] text-core">
-              {p.claimedAt ? `Open on ${p.clientUserEmail || "their account"}` : "Sent — the link opens"}
-            </span>
-            {!p.claimedAt && (
-              <button
-                className="rounded-md border border-line px-2.5 py-1.5 text-xs text-ink-muted"
-                disabled={busy === "send"}
-                onClick={() => run("send", { action: "unsend", id: p.id })}
-              >
-                {busy === "send" ? "Taking it back…" : "Take it back"}
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-2">
+      {/*
+        The four that end or reset a project, together, shut, at the bottom.
+        Each one does something real and each one is pressed about twice a
+        year — which is why they do not belong in the same eyeline as the
+        buttons that hand a site over.
+      */}
+      <details className="group border-t border-line pt-3">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-xs text-ink-faint hover:text-ink-muted">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden className="transition-transform duration-150 group-open:rotate-90">
+            <path d="m9 6 6 6-6 6" />
+          </svg>
+          End it, or start the link again
+        </summary>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            className="rounded-md border border-line px-2.5 py-1.5 text-xs text-ink-muted"
+            disabled={busy === "rotate"}
+            onClick={async () => {
+              if (!confirm("Make a new link? The old one stops working immediately.")) return;
+              if (await run("rotate", { action: "rotate", id: p.id })) say("New link made — copy it and send it again.");
+            }}
+          >
+            New link
+          </button>
+          {p.clientUserEmail && (
             <button
-              className="rounded-md border border-brand/50 bg-brand/20 px-2.5 py-1.5 text-xs font-medium hover:bg-brand/30"
-              disabled={busy === "send"}
-              onClick={() => run("send", { action: "send", id: p.id })}
+              className="rounded-md border border-line px-2.5 py-1.5 text-xs text-ink-muted"
+              onClick={async () => {
+                if (!confirm("Let a different account claim this link? The current client loses access until they open it again first.")) return;
+                if (await run("release", { action: "release", id: p.id })) say("Released — the next account to open the link gets it.");
+              }}
             >
-              {busy === "send" ? "Sending…" : "Send to the client"}
+              Release {p.clientUserEmail}
             </button>
-            <span className="text-[11.5px] text-ink-faint">
-              Not sent yet, so the link does not open and it is not in their list — even for someone holding it.
-            </span>
-          </div>
-        )}
-      </section>
-
-      <section className="flex flex-wrap gap-2 border-t border-line pt-3">
-        <button
-          className="rounded-md border border-line px-2.5 py-1.5 text-xs text-ink-muted"
-          onClick={() => run("meta", { action: "meta", id: p.id, archived: !p.archived })}
-        >
-          {p.archived ? "Unarchive (re-opens the link)" : "Archive (closes the client link)"}
-        </button>
-        <button
-          className="rounded-md border border-rose-500/40 px-2.5 py-1.5 text-xs text-rose-300"
-          onClick={async () => {
-            if (!confirm(`Delete ${p.name} and every request in it? This can't be undone.`)) return;
-            const out = await run<{ ok?: boolean; project?: ClientProject }>("delete", { action: "delete", id: p.id });
-            if (out) onDeleted();
-          }}
-        >
-          Delete project
-        </button>
-      </section>
+          )}
+          <button
+            className="rounded-md border border-line px-2.5 py-1.5 text-xs text-ink-muted"
+            onClick={() => run("meta", { action: "meta", id: p.id, archived: !p.archived })}
+          >
+            {p.archived ? "Unarchive (re-opens the link)" : "Archive (closes the client link)"}
+          </button>
+          <button
+            className="rounded-md border border-rose-500/40 px-2.5 py-1.5 text-xs text-rose-300"
+            onClick={async () => {
+              if (!confirm(`Delete ${p.name} and every request in it? This can't be undone.`)) return;
+              const out = await run<{ ok?: boolean; project?: ClientProject }>("delete", { action: "delete", id: p.id });
+              if (out) onDeleted();
+            }}
+          >
+            Delete project
+          </button>
+        </div>
+      </details>
     </div>
   );
 }
@@ -1059,51 +1077,6 @@ function VersionRow({
   );
 }
 
-/** Where the client's site lives — the two fields that let approved edits build themselves. */
-function SiteHome({ project: p, run, say }: { project: ClientProject; run: Run; say: (m: string) => void }) {
-  const ready = Boolean(p.repo);
-  return (
-    <div className="mt-3 rounded-md border border-line-soft bg-panel-2/60 p-2.5">
-      <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[11px]">
-        <span className="uppercase tracking-[0.12em] text-ink-faint">Where the site lives</span>
-        <span className={ready ? "text-emerald-300" : "text-ink-faint"}>
-          {ready ? "● Approved edits build themselves" : "○ Add the repo to build approved edits automatically"}
-        </span>
-        <PcHelper />
-      </div>
-      <div className="grid gap-2 sm:grid-cols-2">
-        <label className="block text-[11px] text-ink-faint">
-          GitHub repo
-          <InlineText
-            value={p.repo ?? ""}
-            placeholder="owner/name or the GitHub link"
-            className="mt-0.5 rounded-md border border-line font-mono text-[12px] text-ink"
-            onSave={async (repo) => {
-              if (await run("meta", { action: "meta", id: p.id, repo })) say(repo ? "Repo saved — approved edits now build themselves." : "Repo removed.");
-            }}
-          />
-        </label>
-        <label className="block text-[11px] text-ink-faint">
-          Vercel project
-          <InlineText
-            value={p.vercelProject ?? ""}
-            placeholder="project name (optional)"
-            className="mt-0.5 rounded-md border border-line font-mono text-[12px] text-ink"
-            onSave={(vercelProject) => run("meta", { action: "meta", id: p.id, vercelProject })}
-          />
-        </label>
-      </div>
-      <p className="mt-1.5 text-[11px] leading-snug text-ink-faint">
-        These two fields are what lets approved edits build themselves. Building happens on the site&apos;s own page, not
-        here: Claude Code works in a worktree of this repo reset to shipped <code>main</code>, the edits go on a branch, a
-        pull request opens, and the preview it ends on goes straight onto the version the page is showing. Nothing goes to a
-        queue, and if the PC helper is off the build simply does not start and says so. Previews must open without a login:
-        in Vercel › Settings › Deployment Protection, turn Vercel Authentication off.
-      </p>
-    </div>
-  );
-}
-
 /** On a version being built: where the build is, and the way out if it is stuck. */
 function BuildStatus({
   project: p,
@@ -1449,58 +1422,6 @@ function BuildThread({
       {said && <span className="text-emerald-200">{said}</span>}
       {build.error && <span className="text-amber-200">{build.error}</span>}
     </>
-  );
-}
-
-function AddVersion({ project: p, busy, run, say }: { project: ClientProject; busy: string; run: Run; say: (m: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [url, setUrl] = useState("");
-  const [summary, setSummary] = useState("");
-  if (!open) {
-    return (
-      <button className="text-xs text-ink-muted hover:text-ink" onClick={() => setOpen(true)}>
-        + Add a version by hand
-      </button>
-    );
-  }
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <input
-        className="w-56 rounded border border-line bg-panel-2 px-2 py-1 text-xs"
-        placeholder="https://… (blank = still building)"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-      />
-      <input
-        className="w-48 rounded border border-line bg-panel-2 px-2 py-1 text-xs"
-        placeholder="What changed"
-        value={summary}
-        onChange={(e) => setSummary(e.target.value)}
-      />
-      <button
-        className="rounded border border-brand/50 bg-brand/20 px-2 py-1 text-xs"
-        disabled={busy === "addVersion"}
-        onClick={async () => {
-          const out = await run<{ project: ClientProject; version: ReviewVersion }>("addVersion", {
-            action: "addVersion",
-            id: p.id,
-            siteUrl: url,
-            summary,
-          });
-          if (out) {
-            setOpen(false);
-            setUrl("");
-            setSummary("");
-            say(out.version.status === "review" ? `${out.version.number} is live and the client was notified.` : `${out.version.number} added as building.`);
-          }
-        }}
-      >
-        Add
-      </button>
-      <button className="text-xs text-ink-faint" onClick={() => setOpen(false)}>
-        Cancel
-      </button>
-    </div>
   );
 }
 

@@ -25,7 +25,9 @@ import {
   updateProjectMeta,
   upsertIndex,
 } from "@/lib/client-review/logic";
-import { appEntry, appProject } from "@/lib/client-review/apps";
+import { appEntry, appProject, HUB_REPO } from "@/lib/client-review/apps";
+import { handover, repoNameFor, repoOf } from "@/lib/client-review/handover";
+import { createRepo, existingRepoNames, githubReady, readmeFor, readTree } from "@/lib/client-review/github";
 import { isSubscriptionValue } from "@/lib/client-review/models";
 import { vapidPublicKey } from "@/lib/client-review/push";
 import { tell } from "@/lib/client-review/ship";
@@ -192,14 +194,62 @@ export async function POST(req: Request) {
        * Until a project is sent it is owner-only — App Builder opens one for
        * every build, and most of those were never meant for a client.
        */
-      case "send":
+      /**
+       * Send it to the client — and, the first time, give the site its own
+       * GitHub repository.
+       *
+       * The repository is made HERE rather than at build time on purpose: a
+       * site nobody has been given does not need a repository, and forty of
+       * them on the account is forty things to tidy up. The owner pressing
+       * send is the moment it becomes someone's, so that is the moment it
+       * gets a home.
+       *
+       * Made inside `updateProject`'s per-project lock, so a double tap
+       * cannot make two repositories (D5): the second press reads a project
+       * that already has one and skips straight to sending.
+       */
+      case "send": {
+        const { project, result } = await updateProject(id, async (p) => {
+          const state = handover(p, HUB_REPO);
+          if (!state.makesRepo) return { project: sendToClient(p), result: null };
+          const live = [...p.versions].reverse().find((v) => v.siteUrl)?.siteUrl ?? "";
+          const taken = await existingRepoNames().catch(() => [] as string[]);
+          const made = await createRepo({
+            name: repoNameFor(p.name, taken),
+            description: `${p.name}${p.clientName ? ` — ${p.clientName}'s website` : ""}, built with Jarvis.`,
+            readme: readmeFor({ name: p.name, clientName: p.clientName, liveUrl: live }),
+          });
+          return {
+            project: sendToClient({ ...p, repo: made.full_name }),
+            result: { repo: made.full_name, url: made.html_url, fresh: true },
+          };
+        });
+        // No push here: sending writes no notice, so `tell` would re-send
+        // whatever the last one happened to be. The client hears about a
+        // version when it is marked ready, which is the thing they care about.
+        await updateIndex((i) => upsertIndex(i, project));
+        return NextResponse.json({ project, madeRepo: result });
+      }
+
       case "unsend": {
-        const { project } = await updateProject(id, (p) => ({
-          project: body.action === "send" ? sendToClient(p) : unsendFromClient(p),
-          result: null,
-        }));
+        const { project } = await updateProject(id, (p) => ({ project: unsendFromClient(p), result: null }));
         await updateIndex((i) => upsertIndex(i, project));
         return NextResponse.json({ project });
+      }
+
+      /**
+       * The site's repository as the folders it actually is.
+       *
+       * Read here rather than in the browser so the token never leaves the
+       * server (S1), and so the folder view works with the owner's PC off.
+       */
+      case "repoTree": {
+        const p = await readProject(id);
+        if (!p) throw new ReviewError("That project no longer exists.", 404);
+        const repo = repoOf(p.repo);
+        if (!repo) return NextResponse.json({ tree: null, ready: githubReady() });
+        const tree = await readTree(repo);
+        return NextResponse.json({ tree, ready: true });
       }
 
       case "meta":

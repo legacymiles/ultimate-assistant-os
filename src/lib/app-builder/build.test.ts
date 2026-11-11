@@ -50,6 +50,20 @@ describe("the brief the PC receives", () => {
     expect(brief).toMatch(/not reach into any other repository/i);
   });
 
+  it("makes the repository itself when the app is the owner's own", () => {
+    expect(brief).toContain("create a GitHub repository for it and push");
+    expect(brief).toContain("`Repo: <url>`");
+  });
+
+  it("leaves the repository to Ship when the app is being built for a client", () => {
+    const forClient = project();
+    forClient.handoff = { ...(forClient.handoff ?? {}), review: { ...(forClient.handoff?.review ?? {}), clientName: "Dana Reyes" } } as typeof forClient.handoff;
+    const theirs = buildBrief(forClient);
+    expect(theirs).toContain("Do NOT create a GitHub repository");
+    expect(theirs).not.toContain("`Repo: <url>`");
+    expect(theirs).toContain("`Live: <url>`");
+  });
+
   it("still carries the whole master prompt", () => {
     expect(brief).toContain("<goal>");
     expect(brief).toContain("<features>");

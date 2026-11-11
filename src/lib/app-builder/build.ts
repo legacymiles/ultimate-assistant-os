@@ -56,6 +56,7 @@ export function threadTitle(p: BuilderProject): string {
 export function buildBrief(p: BuilderProject): string {
   const name = p.understanding?.name ?? "this app";
   const r = p.redesign;
+  const forClient = isForClient(p);
   // A redesign of the owner's own site lands in its own repository, as a
   // pull request — not as a second copy of the site in a new one.
   if (r?.ownSite && r.sourcePath) {
@@ -82,8 +83,18 @@ export function buildBrief(p: BuilderProject): string {
     masterPrompt(p),
     "",
     "<finish>",
-    "When every accepted feature is real and wired end to end: commit, create a GitHub repository for it and push, then deploy it and test it live.",
-    "Report against the judge with real numbers, including anything that missed. Say the repository and the live address in your last message, each on its own line, as `Repo: <url>` and `Live: <url>`, so App Builder can save them without guessing.",
+    // A site being built FOR SOMEONE does not get a GitHub repository here.
+    // It gets one the moment the owner presses Send to the client in Ship,
+    // made under their account and named for the site — so a build that is
+    // never handed over leaves nothing behind to tidy up, and the repository
+    // the client ends up with was created on purpose rather than by a build
+    // that happened to run. Everything else finishes the same way.
+    forClient
+      ? "When every accepted feature is real and wired end to end: commit everything here, then deploy it and test it live. Do NOT create a GitHub repository — this one is being built for someone, and Jarvis makes its repository when the owner presses Send to the client."
+      : "When every accepted feature is real and wired end to end: commit, create a GitHub repository for it and push, then deploy it and test it live.",
+    forClient
+      ? "Report against the judge with real numbers, including anything that missed. Say the live address in your last message on its own line as `Live: <url>`, so App Builder can save it without guessing."
+      : "Report against the judge with real numbers, including anything that missed. Say the repository and the live address in your last message, each on its own line, as `Repo: <url>` and `Live: <url>`, so App Builder can save them without guessing.",
     "</finish>",
   ].join("\n");
 }

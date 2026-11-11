@@ -1713,6 +1713,26 @@
 }
 /* Which rows a client can actually open. Quiet by design: most of the owner's
    apps are not shared, so the marked few are the exception worth seeing. */
+/* Every badge on a row sits in one cell, so they line up instead of stacking. */
+.crp-tags {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* "site" — a website of its own, beside the hub's own apps in one A→Z list. */
+.crp-kind {
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 5px;
+  border: 1px solid rgba(125, 211, 252, 0.4);
+  color: #bae6fd;
+  white-space: nowrap;
+}
+
 .crp-shared {
   font-size: 9.5px;
   letter-spacing: 0.06em;
@@ -2030,7 +2050,6 @@ a.cr-btn {
   color: var(--cr-faint);
 }
 .crp-status {
-  grid-area: status;
   padding: 2px 7px;
   border-radius: 999px;
   font-size: 11px;
@@ -2089,6 +2108,14 @@ a.cr-btn {
 .crp-page-list .crp-group-name {
   background: var(--cr-bg);
 }
+/*
+  The grid draws its own lines, the container does not.
+
+  It used to be a line-coloured box with the rows laid on top, so every cell
+  the last row did not fill came out as a wide grey slab — which is what made
+  one client website on its own look broken rather than lonely. Rows carry
+  their own hairline now, so a half-empty last row is simply empty.
+*/
 .crp-page-list ul {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -2096,11 +2123,12 @@ a.cr-btn {
   border: 1px solid var(--cr-line);
   border-radius: 12px;
   overflow: hidden;
-  background: var(--cr-line);
+  background: rgba(12, 14, 21, 0.96);
 }
 .crp-page-list .crp-row {
   border-radius: 0;
   background: rgba(12, 14, 21, 0.96);
+  box-shadow: 0 0 0 1px var(--cr-line);
   padding: 10px 12px;
 }
 .crp-page-list .crp-row:hover {

@@ -2,8 +2,14 @@
 
 // ---------------------------------------------------------------------------
 // The owner's site picker — every app in the hub and every client website in
-// one searchable dropdown, so the owner can open any of them and edit it on
-// the page the way a client would.
+// ONE searchable, alphabetical list, so the owner can open any of them and
+// edit it on the page the way a client would.
+//
+// One list, not two. A website the owner has just finished is one of their
+// things exactly like the rest, and filing it in a section of its own put it
+// above the alphabet with empty cells beside it — which read as a bug. The
+// difference that still matters is said on the row itself: "site" for a
+// website of its own, "shared" for one a client can reach.
 //
 // This list is OWNER-ONLY and shows everything on purpose; a client gets
 // MyWebsites, which holds only what they have been sent. That distinction was
@@ -35,7 +41,8 @@ interface Row {
   tone: "idle" | "wait" | "build";
   /** Can a client actually open this one? Owner-only rows say so plainly. */
   shared: boolean;
-  group: "Client websites" | "My apps";
+  /** A site of its own rather than one of the hub's apps — worth a word, not a wall. */
+  site: boolean;
 }
 
 export function sameTarget(a: Target | null, b: Target | null): boolean {
@@ -80,7 +87,7 @@ function useRows(): { rows: Row[]; error: string; reload: () => void } {
         target: { kind: "site", token: p.token },
         title: p.name,
         sub: p.clientName || p.clientUserEmail || "Client website",
-        group: "Client websites",
+        site: true,
         shared: isSentToClient(p),
         ...statusOf(p),
       }));
@@ -90,7 +97,7 @@ function useRows(): { rows: Row[]; error: string; reload: () => void } {
       target: { kind: "app", slug: a.slug },
       title: a.title,
       sub: a.category,
-      group: "My apps",
+      site: false,
       // An app only becomes reachable once it has a review project AND that
       // project has been sent. Most never do: they are the owner's own.
       shared: (() => {
@@ -99,7 +106,11 @@ function useRows(): { rows: Row[]; error: string; reload: () => void } {
       })(),
       ...statusOf(byApp.get(a.slug)),
     }));
-    return [...clients, ...apps];
+    // ONE list, A→Z. A website the owner just finished is one of their things
+    // like every other; filing it in a section of its own put it above the
+    // alphabet, in a row with two empty cells beside it, looking like a
+    // mistake — and made "where is BuildFlip?" a question with two answers.
+    return [...clients, ...apps].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
   }, [projects]);
 
   return { rows, error, reload: () => void load() };
@@ -107,7 +118,7 @@ function useRows(): { rows: Row[]; error: string; reload: () => void } {
 
 function matches(r: Row, q: string): boolean {
   if (!q) return true;
-  const hay = `${r.title} ${r.sub} ${r.group}`.toLowerCase();
+  const hay = `${r.title} ${r.sub}${r.site ? " client website" : " app"}`.toLowerCase();
   return q
     .toLowerCase()
     .split(/\s+/)
@@ -122,6 +133,7 @@ function RowList({
   onPick,
   onHover,
   dense,
+  label,
 }: {
   rows: Row[];
   current: Target | null;
@@ -129,52 +141,48 @@ function RowList({
   onPick: (t: Target) => void;
   onHover?: (i: number) => void;
   dense?: boolean;
+  label: string;
 }) {
-  const groups: Row["group"][] = ["Client websites", "My apps"];
-  let i = -1;
   return (
-    <>
-      {groups.map((g) => {
-        const inGroup = rows.filter((r) => r.group === g);
-        if (!inGroup.length) return null;
-        return (
-          <div key={g} className="crp-group" role="group" aria-label={g}>
-            <p className="crp-group-name">
-              {g} <span>{inGroup.length}</span>
-            </p>
-            <ul>
-              {inGroup.map((r) => {
-                i += 1;
-                const idx = i;
-                const on = sameTarget(r.target, current);
-                return (
-                  <li key={r.key}>
-                    <button
-                      role="option"
-                      aria-selected={on}
-                      data-idx={idx}
-                      className={`crp-row ${idx === active ? "is-active" : ""} ${on ? "is-on" : ""} ${dense ? "dense" : ""}`}
-                      onMouseEnter={() => onHover?.(idx)}
-                      onClick={() => onPick(r.target)}
-                    >
-                      <span className="crp-title">{r.title}</span>
-                      <span className="crp-sub">{r.sub}</span>
-                      {r.shared && (
-                        <span className="crp-shared" title="Sent — a client can open this one">
-                          shared
-                        </span>
-                      )}
-                      {r.status && <span className={`crp-status tone-${r.tone}`}>{r.status}</span>}
-                      {on && <span className="crp-check" aria-hidden>✓</span>}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        );
-      })}
-    </>
+    <div className="crp-group" role="group" aria-label={label}>
+      <p className="crp-group-name">
+        {label} <span>{rows.length}</span>
+      </p>
+      <ul>
+        {rows.map((r, idx) => {
+          const on = sameTarget(r.target, current);
+          return (
+            <li key={r.key}>
+              <button
+                role="option"
+                aria-selected={on}
+                data-idx={idx}
+                className={`crp-row ${idx === active ? "is-active" : ""} ${on ? "is-on" : ""} ${dense ? "dense" : ""}`}
+                onMouseEnter={() => onHover?.(idx)}
+                onClick={() => onPick(r.target)}
+              >
+                <span className="crp-title">{r.title}</span>
+                <span className="crp-sub">{r.sub}</span>
+                <span className="crp-tags">
+                  {r.site && (
+                    <span className="crp-kind" title="A website of its own, not one of the hub's apps">
+                      site
+                    </span>
+                  )}
+                  {r.shared && (
+                    <span className="crp-shared" title="Sent — a client can open this one">
+                      shared
+                    </span>
+                  )}
+                  {r.status && <span className={`crp-status tone-${r.tone}`}>{r.status}</span>}
+                </span>
+                {on && <span className="crp-check" aria-hidden>✓</span>}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 
@@ -189,11 +197,8 @@ export function SitePickerMenu({ current, label, onPick }: { current: Target | n
   const [phone, setPhone] = useState(false);
   const search = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
-  const shown = useMemo(() => {
-    const m = rows.filter((r) => matches(r, q));
-    // Same order as the groups render in, so ↑ ↓ walk the list top to bottom.
-    return [...m.filter((r) => r.group === "Client websites"), ...m.filter((r) => r.group === "My apps")];
-  }, [rows, q]);
+  // Already A→Z from useRows, so what ↑ ↓ walk is what the eye reads.
+  const shown = useMemo(() => rows.filter((r) => matches(r, q)), [rows, q]);
 
   useEffect(() => {
     if (!open) return;
@@ -270,7 +275,7 @@ export function SitePickerMenu({ current, label, onPick }: { current: Target | n
           <div className="crp-list" role="listbox" ref={list}>
             {error && <p className="crp-note">{error}</p>}
             {!error && !shown.length && <p className="crp-note">Nothing called “{q}”.</p>}
-            <RowList rows={shown} current={current} active={active} onPick={pick} onHover={setActive} />
+            <RowList rows={shown} current={current} active={active} onPick={pick} onHover={setActive} label="Everything you can open" />
           </div>
         </div>
   );
@@ -315,7 +320,7 @@ export function SitePickerPage({ onPick }: { onPick: (t: Target) => void }) {
       </div>
       {error && <p className="crp-note">{error}</p>}
       <div className="crp-page-list">
-        <RowList rows={shown} current={null} active={-1} onPick={onPick} dense />
+        <RowList rows={shown} current={null} active={-1} onPick={onPick} dense label="Everything you can open" />
       </div>
     </div>
   );
