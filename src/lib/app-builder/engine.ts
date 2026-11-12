@@ -25,6 +25,7 @@ import type { Shape } from "@/lib/mockup/types";
 import { CHECKLIST, type BoardTicket } from "../new-jarvis/felix";
 import { EDIT_CHECKLIST, editMasterPrompt, editPipeline, editQueueText } from "./clientEdit";
 import { depthAxes, depthBrief, depthOf, depthSteps, type Depth } from "./depth";
+import { planNotesBlock } from "./planCheck";
 import {
   APP_TYPE_LABEL,
   KIND_LABEL,
@@ -38,6 +39,8 @@ import {
   type FeatureKind,
   type FeatureOp,
   type Question,
+  type Proof,
+  type Scenario,
   type Teardown,
   type TeardownMode,
   type RedesignSource,
@@ -385,6 +388,12 @@ interface Template {
   effort: Effort;
   checklist?: string[];
   when?: (c: Ctx) => boolean;
+  /**
+   * How you tell this one works, with {name}/{purpose} filled like the rest.
+   * Every template has at least one: the offline list is what the owner gets
+   * with no AI key, and it must pass `planCheck` just like the AI's does.
+   */
+  scenarios: { name: string; when: string; then: string; proof?: Proof }[];
 }
 
 interface Ctx {
@@ -408,6 +417,10 @@ const TEMPLATES: Template[] = [
     impact: 3,
     effort: "M",
     checklist: ["U1"],
+    scenarios: [
+      { name: "Straight to the main job", when: "someone opens {name} for the first time and taps the main action", then: "the thing they came for is on screen within three taps, with no setup screen in between" },
+      { name: "The result shows at once", when: "they finish that action", then: "the result is on screen in under a second, not a spinner that outlasts it" },
+    ],
   },
   {
     title: "First win in 60 seconds",
@@ -417,6 +430,10 @@ const TEMPLATES: Template[] = [
     impact: 3,
     effort: "M",
     checklist: ["O6", "U4"],
+    scenarios: [
+      { name: "A real result before signing up", when: "a brand-new visitor starts the guided first run", then: "they reach a real result using sample data without being asked to sign up" },
+      { name: "Sample data is theirs to clear", when: "they press to clear the sample data", then: "their own empty state shows, with nothing of the sample left" },
+    ],
   },
   {
     title: "AI co-pilot",
@@ -427,6 +444,11 @@ const TEMPLATES: Template[] = [
     effort: "L",
     checklist: ["R4", "S5"],
     when: (c) => c.type !== "website",
+    scenarios: [
+      { name: "One sentence does the job", when: "someone describes what they want in one sentence", then: "the main task is done and each step it took is listed under the result" },
+      { name: "Every step can be undone", when: "they press undo on a step the co-pilot took", then: "that step is reversed and the data reads as it did before it ran" },
+      { name: "A refusal says why", when: "the co-pilot cannot do what was asked", then: "it says in plain words what it could not do and what to try, and changes nothing" },
+    ],
   },
   {
     title: "Sign-in that keeps each person's data their own",
@@ -437,6 +459,11 @@ const TEMPLATES: Template[] = [
     effort: "M",
     checklist: ["L1", "S2", "S3"],
     when: multiUser,
+    scenarios: [
+      { name: "Each person sees only their own", when: "a signed-in person opens a list another account created", then: "nothing of the other account's data is returned, including when the API is called directly" },
+      { name: "Signed out means locked out", when: "a signed-out visitor opens an app page by URL", then: "they are sent to sign-in and no data is in the response" },
+      { name: "The owner side is owner-only", when: "a signed-in person who is not the owner opens the admin page", then: "the server refuses it, not just the UI hiding the link" },
+    ],
   },
   {
     title: "Plans, trial and checkout",
@@ -447,6 +474,11 @@ const TEMPLATES: Template[] = [
     effort: "M",
     checklist: ["S7", "S5"],
     when: (c) => paid(c) && c.type !== "marketplace",
+    scenarios: [
+      { name: "Checkout starts the trial", when: "someone picks a plan and finishes Stripe Checkout in test mode", then: "their account reads as on that plan with the trial end date shown" },
+      { name: "The limit offers the upgrade", when: "a free account hits the plan's limit", then: "an upgrade prompt names the limit they hit and what the next plan gives" },
+      { name: "Billing is self-serve", when: "a paying person opens the billing page", then: "they can change or cancel the plan themselves without contacting anyone" },
+    ],
   },
   {
     title: "Payouts between buyers and sellers",
@@ -457,6 +489,10 @@ const TEMPLATES: Template[] = [
     effort: "L",
     checklist: ["S7", "S3"],
     when: (c) => c.type === "marketplace",
+    scenarios: [
+      { name: "The fee is split on payment", when: "a buyer pays for a listing in test mode", then: "the seller's balance rises by the amount minus the platform fee, and the fee is recorded" },
+      { name: "Sellers see their own money", when: "a seller opens their dashboard", then: "their payouts and pending balance show, and no other seller's figures do" },
+    ],
   },
   {
     title: "Reviews & trust badges",
@@ -466,6 +502,10 @@ const TEMPLATES: Template[] = [
     impact: 2,
     effort: "M",
     when: (c) => c.type === "marketplace",
+    scenarios: [
+      { name: "Only finished jobs get reviewed", when: "someone tries to review a job that never completed", then: "the review is refused with a plain reason" },
+      { name: "A report reaches the queue", when: "a visitor reports a listing", then: "it appears in the moderation queue with the reason and who reported it" },
+    ],
   },
   {
     title: "Live updates, no refresh",
@@ -476,6 +516,10 @@ const TEMPLATES: Template[] = [
     effort: "S",
     checklist: ["A1", "D3"],
     when: (c) => c.type !== "website",
+    scenarios: [
+      { name: "Two devices stay in step", when: "a change is made on one open device", then: "every other open device shows it without anyone refreshing" },
+      { name: "A dropped connection catches up", when: "a device loses its connection and regains it", then: "it shows the changes it missed, with no duplicates in the list" },
+    ],
   },
   {
     title: "Command bar & instant search",
@@ -486,6 +530,10 @@ const TEMPLATES: Template[] = [
     effort: "S",
     checklist: ["U7"],
     when: (c) => c.type === "saas" || c.type === "tool" || c.type === "webapp",
+    scenarios: [
+      { name: "Typing finds it", when: "someone presses the search shortcut and types part of an item's name", then: "matching results are on screen in under 100 ms" },
+      { name: "Actions run from the keyboard", when: "they choose an action from the results with the keyboard", then: "that action runs without the mouse being touched" },
+    ],
   },
   {
     title: "Smart reminders that bring people back",
@@ -496,6 +544,10 @@ const TEMPLATES: Template[] = [
     effort: "M",
     checklist: ["A2"],
     when: (c) => c.type !== "website",
+    scenarios: [
+      { name: "A nudge arrives once", when: "a reminder is due for someone who opted in", then: "they get exactly one notification for it, and the next run sends no repeat" },
+      { name: "Off means off", when: "they switch that kind of reminder off in settings", then: "no further notification of that kind is sent to them" },
+    ],
   },
   {
     title: "Share links with rich previews",
@@ -505,6 +557,10 @@ const TEMPLATES: Template[] = [
     impact: 2,
     effort: "S",
     checklist: ["U3"],
+    scenarios: [
+      { name: "A share link previews properly", when: "a share link is pasted into a chat app", then: "the title, description and preview image of that item show" },
+      { name: "Private things do not leak", when: "a share link is opened for an item that was made private", then: "the page says it is no longer shared and shows none of its content" },
+    ],
   },
   {
     title: "Invite your team / friends",
@@ -515,6 +571,10 @@ const TEMPLATES: Template[] = [
     effort: "M",
     checklist: ["L2"],
     when: (c) => multiUser(c) && c.type !== "website",
+    scenarios: [
+      { name: "An invite joins the right place", when: "someone opens an invite link and signs in", then: "they are in the inviting person's team or board, with the invited role" },
+      { name: "A turned-off invite is dead", when: "the inviter turns that invite link off and it is opened again", then: "it is refused and nobody is added" },
+    ],
   },
   {
     title: "Search-ready landing pages",
@@ -525,6 +585,10 @@ const TEMPLATES: Template[] = [
     effort: "M",
     checklist: ["P1", "U3", "P4"],
     when: (c) => c.type === "website" || c.type === "marketplace" || c.type === "saas",
+    scenarios: [
+      { name: "A landing page is indexable", when: "a landing page is fetched with JavaScript off", then: "its heading, copy and links are in the HTML, with a title and meta description" },
+      { name: "It stays fast", when: "the page is measured on a throttled phone connection", then: "its largest content paints in under 2.5 s" },
+    ],
   },
   {
     title: "Book or contact in one step",
@@ -535,6 +599,11 @@ const TEMPLATES: Template[] = [
     effort: "S",
     checklist: ["C3"],
     when: (c) => c.type === "website",
+    scenarios: [
+      { name: "An enquiry reaches the inbox", when: "a visitor submits the contact form with a name, email and message", then: "they see a confirmation and the message arrives in the owner's inbox" },
+      { name: "A wrong email is caught", when: "they submit it with an email that has no @ in it", then: "the field says what is wrong and nothing is sent" },
+      { name: "The button is on every screen", when: "any page is opened at 390 px wide", then: "the call or enquiry button is reachable without scrolling to the footer" },
+    ],
   },
   {
     title: "Daily challenge & leaderboard",
@@ -544,6 +613,10 @@ const TEMPLATES: Template[] = [
     impact: 3,
     effort: "M",
     when: (c) => c.type === "game",
+    scenarios: [
+      { name: "Today's challenge is the same for everyone", when: "two players open the game on the same day", then: "they are given the same challenge, and it changes at the day boundary" },
+      { name: "A streak forgives one miss", when: "a player misses one day in a week", then: "their streak survives, and a second miss in that week ends it" },
+    ],
   },
   {
     title: "Works offline",
@@ -554,6 +627,10 @@ const TEMPLATES: Template[] = [
     effort: "M",
     checklist: ["D3", "R6"],
     when: (c) => c.type === "mobile" || /offline/.test(c.touches),
+    scenarios: [
+      { name: "The main screens work with no signal", when: "the connection is cut and a main screen is opened", then: "it shows the last data with a plain note that the app is offline" },
+      { name: "Queued changes sync", when: "changes are made offline and the connection comes back", then: "all of them are saved once each, with nothing lost or duplicated" },
+    ],
   },
   {
     title: "Owner analytics that answer questions",
@@ -563,6 +640,10 @@ const TEMPLATES: Template[] = [
     impact: 2,
     effort: "M",
     when: (c) => c.type !== "game",
+    scenarios: [
+      { name: "The numbers are real", when: "the owner opens the dashboard after a known set of sign-ups and completed tasks", then: "the counts match that set exactly" },
+      { name: "The weekly insight is in plain English", when: "a week of data exists", then: "the insight names what moved and by how much, with no jargon or raw metric names" },
+    ],
   },
   {
     title: "Self-healing: crashes become fixes",
@@ -572,6 +653,10 @@ const TEMPLATES: Template[] = [
     impact: 2,
     effort: "S",
     checklist: ["R1", "R2", "O5"],
+    scenarios: [
+      { name: "A crash is logged, not lost", when: "a page throws an error", then: "the visitor sees a plain-English screen with a way back, and the crash is in the log with its context" },
+      { name: "A crash becomes a card", when: "a new crash is logged", then: "a Backlog card exists for it, and a second instance of the same crash does not open a duplicate" },
+    ],
   },
   {
     title: "Export & delete my data",
@@ -582,6 +667,10 @@ const TEMPLATES: Template[] = [
     effort: "S",
     checklist: ["D4"],
     when: (c) => multiUser(c) && /personal|account/.test(c.touches),
+    scenarios: [
+      { name: "Export is everything", when: "someone asks to download their data", then: "they get a file holding every record they created, readable without the app" },
+      { name: "Delete really deletes", when: "someone deletes their account and it is looked for afterwards", then: "none of their rows remain and signing in with it fails" },
+    ],
   },
   {
     title: "Undo everything",
@@ -592,6 +681,10 @@ const TEMPLATES: Template[] = [
     effort: "S",
     checklist: ["D6", "S7"],
     when: (c) => c.type !== "website",
+    scenarios: [
+      { name: "Undo brings it back", when: "something is deleted and undo is pressed within ten seconds", then: "it is back in the list exactly as it was" },
+      { name: "The un-undoable asks first", when: "an action that cannot be undone is started", then: "it asks once, naming what will happen, and does nothing until confirmed" },
+    ],
   },
 ];
 
@@ -625,7 +718,106 @@ export function offlineFeatures(idea: string, answers: Answers, u: Understanding
       status: "proposed" as const,
       source: "agent" as const,
       checklist: t.checklist,
+      scenarios: coerceScenarios(
+        t.scenarios.map((sc) => ({ ...sc, name: fill(sc.name, c), when: fill(sc.when, c), then: fill(sc.then, c) })),
+        `f${i + 1}`,
+      ),
     }));
+}
+
+// ----- scenarios -------------------------------------------------------------------------
+
+/**
+ * Guess how a scenario gets proven from the way its THEN is written.
+ *
+ * A THEN about something a person LOOKS at is a browser test; a THEN about
+ * data, mail or money is a unit test. It is only a default — the model and the
+ * owner can both say otherwise — but it means a scenario typed by hand in the
+ * feature card still arrives with a sensible proof instead of none.
+ */
+export function proofOf(then: string, when = ""): Proof {
+  const t = `${then} ${when}`.toLowerCase();
+  // Stems (animat-, redirect-, navigat-) take no closing \b, or "redirected"
+  // and "animation" would never match. Whole words keep theirs.
+  const stems = /(animat|redirect|navigat|scroll|hover|screenshot|highlight)/;
+  const words = /\b(sees?|seen|shown|shows|appears?|displays?|reads?|opens?|closes?|looks?|colour|color|layout|tap|taps|click|clicks|press|presses|visible|screen|page|button|form|list|row|modal|toast|banner|phone|mobile|desktop|px)\b/;
+  return stems.test(t) || words.test(t) ? "browser" : "unit";
+}
+
+const PROOFS = new Set<Proof>(["unit", "browser", "manual"]);
+
+/**
+ * Turn whatever the model (or a saved project) sent into valid scenarios,
+ * numbered against their feature.
+ *
+ * Both halves have to be real: a WHEN with no THEN is a wish, and a THEN with
+ * no WHEN is a hope. Eight characters is the floor that keeps "ok" and "yes"
+ * out without rejecting "email sent".
+ */
+export function coerceScenarios(raw: unknown, featureId: string, max = 3): Scenario[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Scenario[] = [];
+  for (const r of raw) {
+    if (out.length >= max) break;
+    if (!r || typeof r !== "object") continue;
+    const o = r as Record<string, unknown>;
+    const when = typeof o.when === "string" ? clean(o.when).slice(0, 220) : "";
+    const then = typeof o.then === "string" ? clean(o.then).slice(0, 260) : "";
+    if (when.length < 8 || then.length < 8) continue;
+    const given = typeof o.given === "string" ? clean(o.given).slice(0, 160) : "";
+    const name = typeof o.name === "string" ? clean(o.name).slice(0, 70) : "";
+    out.push({
+      id: `${featureId}.s${out.length + 1}`,
+      name: name || when.slice(0, 70),
+      ...(given ? { given } : {}),
+      when,
+      then,
+      proof: PROOFS.has(o.proof as Proof) ? (o.proof as Proof) : proofOf(then, when),
+      ...(o.source === "you" ? { source: "you" as const } : {}),
+    });
+  }
+  return out;
+}
+
+/**
+ * What the build must prove, and how it reports it.
+ *
+ * The old line was "every accepted feature has a test or a recorded
+ * click-through", which never said what the test must SHOW — so the agent
+ * chose, which is marking your own homework. Naming the scenario id in the
+ * test name is what lets `coverage()` count it afterwards without trusting
+ * the report's prose.
+ */
+export function scenarioCriteria(p: BuilderProject): string {
+  const all = scenariosOf(p.features);
+  if (!all.length) return "- Typecheck and tests pass, with a test covering every feature built.";
+  const kinds = {
+    unit: all.filter((s) => s.proof === "unit").length,
+    browser: all.filter((s) => s.proof === "browser").length,
+    manual: all.filter((s) => s.proof === "manual").length,
+  };
+  return [
+    `- Every one of the ${all.length} scenarios above has a test that NAMES ITS ID, e.g. it("${all[0].id} ${all[0].name.toLowerCase()}", …).`,
+    kinds.unit ? `  · ${kinds.unit} marked "unit": Vitest, next to the code (npx vitest run <path>).` : "",
+    kinds.browser ? `  · ${kinds.browser} marked "browser": a Playwright test that drives the real page.` : "",
+    kinds.manual ? `  · ${kinds.manual} marked "manual": a before/after screenshot pair, at desktop and 390 px.` : "",
+    "- Typecheck and tests pass (npm run verify).",
+    "- End your report with a table of every scenario id → the test that covers it → pass/fail. A scenario with no test is a MISS: say so rather than widening another test to cover it.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** Every scenario on the accepted features, in list order. */
+export function scenariosOf(features: Feature[], onlyAccepted = true): Scenario[] {
+  return features
+    .filter((f) => (onlyAccepted ? f.status === "accepted" : true))
+    .flatMap((f) => f.scenarios ?? []);
+}
+
+/** "WHEN … THEN …" on one line, which is how the briefs and cards print it. */
+export function scenarioLine(s: Scenario): string {
+  return `${s.given ? `GIVEN ${s.given}, ` : ""}WHEN ${s.when} THEN ${s.then}`;
 }
 
 // ----- coercing model output ----------------------------------------------------------------
@@ -649,8 +841,12 @@ export function coerceFeatures(raw: unknown, startAt = 1): Feature[] {
     const codes = Array.isArray(o.checklist)
       ? o.checklist.filter((x): x is string => typeof x === "string" && CHECKLIST.some((c) => c.id === x)).slice(0, 5)
       : undefined;
+    // Renumbering the features renumbers their scenarios with them, so an id
+    // in a build report always points at the feature it belongs to.
+    const id = `f${startAt + out.length}`;
+    const scenarios = coerceScenarios(o.scenarios, id);
     out.push({
-      id: `f${startAt + out.length}`,
+      id,
       title,
       detail: typeof o.detail === "string" ? clean(o.detail).slice(0, 400) : "",
       why: typeof o.why === "string" ? clean(o.why).slice(0, 240) : "",
@@ -660,6 +856,7 @@ export function coerceFeatures(raw: unknown, startAt = 1): Feature[] {
       status: "proposed",
       source: "agent",
       checklist: codes?.length ? codes : undefined,
+      ...(scenarios.length ? { scenarios } : {}),
     });
   }
   return out;
@@ -678,12 +875,17 @@ export function coerceSavedFeatures(raw: unknown): Feature[] {
     const [f] = coerceFeatures([o]);
     if (!f || out.some((x) => x.title.toLowerCase() === f.title.toLowerCase())) continue;
     const id = typeof o.id === "string" && /^f\d{1,3}$/.test(o.id) && !out.some((x) => x.id === o.id) ? o.id : nextFeatureId(out);
+    // `coerceFeatures` numbered the scenarios against its own id, which is not
+    // the id this feature keeps. Renumber, or a saved project comes back with
+    // scenario ids pointing at a different feature.
+    const scenarios = coerceScenarios(o.scenarios, id);
     out.push({
       ...f,
       id,
       status: o.status === "accepted" || o.status === "denied" ? o.status : "proposed",
       source: o.source === "you" ? "you" : "agent",
       ...(o.edited === true ? { edited: true } : {}),
+      ...(scenarios.length ? { scenarios } : { scenarios: undefined }),
     });
   }
   return out;
@@ -747,6 +949,27 @@ export function nextFeatureId(features: Feature[]): string {
   return `f${n + 1}`;
 }
 
+/**
+ * Add scenarios to a feature, keeping the owner's own.
+ *
+ * `source: "you"` means the owner typed or reworded that check, and a plan is
+ * only as good as the owner trusting it survives the next regenerate — so
+ * theirs stay, duplicates by WHEN are dropped, and the rest are renumbered.
+ */
+export function mergeScenarios(had: Scenario[] | undefined, next: Scenario[], featureId: string, max = 4): Scenario[] {
+  const mine = (had ?? []).filter((s) => s.source === "you");
+  const seen = new Set(mine.map((s) => s.when.toLowerCase()));
+  const kept = [...mine];
+  for (const s of [...next, ...(had ?? []).filter((s) => s.source !== "you")]) {
+    if (kept.length >= max) break;
+    const key = s.when.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    kept.push(s);
+  }
+  return kept.map((s, i) => ({ ...s, id: `${featureId}.s${i + 1}` }));
+}
+
 /** Apply ops in order. Returns the new list and one plain line per change made. */
 export function applyOps(features: Feature[], ops: FeatureOp[]): { features: Feature[]; changes: string[] } {
   let list = features.map((f) => ({ ...f }));
@@ -769,12 +992,15 @@ export function applyOps(features: Feature[], ops: FeatureOp[]): { features: Fea
       const title = clean(op.feature.title).slice(0, 80);
       if (!title || list.some((f) => f.title.toLowerCase() === title.toLowerCase())) continue;
       const [made] = coerceFeatures([{ ...op.feature, title }]);
+      const id = nextFeatureId(list);
       const f: Feature = {
         ...made,
-        id: nextFeatureId(list),
+        id,
         status: op.feature.status === "proposed" ? "proposed" : "accepted",
         source: op.feature.source === "agent" ? "agent" : "you",
         detail: made.detail || title,
+        // `coerceFeatures` numbered against its own id, not the one it keeps.
+        ...(made.scenarios?.length ? { scenarios: coerceScenarios(made.scenarios, id) } : {}),
       };
       list = [...list, f];
       changes.push(`Added “${f.title}”`);
@@ -795,14 +1021,24 @@ export function applyOps(features: Feature[], ops: FeatureOp[]): { features: Fea
       const title = op.title ? clean(op.title).slice(0, 80) : "";
       const detail = op.detail ? clean(op.detail).slice(0, 400) : "";
       const why = op.why ? clean(op.why).slice(0, 240) : "";
-      if (!title && !detail && !why) continue;
+      const scenarios = op.scenarios?.length ? coerceScenarios(op.scenarios, f.id) : [];
+      if (!title && !detail && !why && !scenarios.length) continue;
       if (title) f.title = title;
       if (detail) f.detail = detail;
       if (why) f.why = why;
+      // The owner's own scenarios are kept: they wrote the check, so the agent
+      // may add to it but never quietly replace it.
+      if (scenarios.length) f.scenarios = mergeScenarios(f.scenarios, scenarios, f.id);
       f.edited = true;
       // Editing a feature is saying yes to it, the way you described it.
       if (f.status === "proposed") f.status = "accepted";
       changes.push(`Edited “${f.title}”`);
+    } else if (op.op === "scenario") {
+      const [s] = coerceScenarios([op.scenario], f.id);
+      if (!s) continue;
+      f.scenarios = mergeScenarios(f.scenarios, [s], f.id);
+      if (f.status === "proposed") f.status = "accepted";
+      changes.push(`Added a check to “${f.title}”: ${scenarioLine(s)}`);
     }
   }
   return { features: list, changes };
@@ -825,15 +1061,23 @@ export function coerceOps(raw: unknown, features: Feature[]): FeatureOp[] {
         break;
       case "edit":
         if (ids.has(id)) {
+          const scenarios = coerceScenarios(o.scenarios, id);
           out.push({
             op: "edit",
             id,
             title: typeof o.title === "string" ? o.title : undefined,
             detail: typeof o.detail === "string" ? o.detail : undefined,
             why: typeof o.why === "string" ? o.why : undefined,
+            ...(scenarios.length ? { scenarios } : {}),
           });
         }
         break;
+      case "scenario": {
+        const s = (o.scenario && typeof o.scenario === "object" ? o.scenario : o) as Record<string, unknown>;
+        const [made] = ids.has(id) ? coerceScenarios([s], id) : [];
+        if (made) out.push({ op: "scenario", id, scenario: made });
+        break;
+      }
       case "add": {
         const f = (o.feature && typeof o.feature === "object" ? o.feature : o) as Record<string, unknown>;
         if (typeof f.title === "string" && f.title.trim()) {
@@ -848,6 +1092,7 @@ export function coerceOps(raw: unknown, features: Feature[]): FeatureOp[] {
               effort: ["S", "M", "L"].includes(String(f.effort)) ? (String(f.effort) as Effort) : "M",
               status: f.status === "proposed" ? "proposed" : "accepted",
               source: f.source === "agent" ? "agent" : "you",
+              ...(Array.isArray(f.scenarios) ? { scenarios: coerceScenarios(f.scenarios, "f0") } : {}),
             },
           });
         }
@@ -1093,7 +1338,12 @@ export function masterPrompt(p: BuilderProject): string {
         ? `<reverse_engineered>\nThe owner attached ${p.sources.length} recording${p.sources.length === 1 ? "" : "s"}/picture${p.sources.length === 1 ? "" : "s"} of an app or workflow that hasn't been watched yet (frames are attached to the In Queue request; ask the owner for the full file if they aren't enough). Watch it with video-analyzer, take it apart with rea — every screen, step, state and the data behind it — then ${modeOf(p.idea, asText(p.answers.mode)) === "recreate" ? "recreate the workflow and behaviour it shows" : "rebuild it with the owner's changes"}, in original code and original design — never copy another product's name, logo, branding or proprietary assets.\n</reverse_engineered>`
         : "",
     `<features>\nBuild these, the way they are described — they were reviewed and accepted (or written) by the owner:\n${accepted
-      .map((f, i) => `${i + 1}. ${f.title} [${KIND_LABEL[f.kind]}, impact ${f.impact}/3, effort ${f.effort}]${f.source === "you" || f.edited ? " (owner's own words)" : ""}\n   ${f.detail}${f.why ? `\n   Why: ${f.why}` : ""}`)
+      .map(
+        (f, i) =>
+          `${i + 1}. ${f.title} [${KIND_LABEL[f.kind]}, impact ${f.impact}/3, effort ${f.effort}]${f.source === "you" || f.edited ? " (owner's own words)" : ""}\n   ${f.detail}${f.why ? `\n   Why: ${f.why}` : ""}${(f.scenarios ?? [])
+            .map((s) => `\n   ${s.id} [${s.proof}${s.source === "you" ? ", owner's own" : ""}] ${scenarioLine(s)}`)
+            .join("")}`,
+      )
       .join("\n")}\n</features>`,
     denied.length ? `<declined>\nThe owner declined these; leave them out:\n${denied.map((f) => `- ${f.title}`).join("\n")}\n</declined>` : "",
     `<depth>\n${depthBrief(depth, u.appType)}\nWhy this depth: ${depthWhy}.\n</depth>`,
@@ -1107,7 +1357,8 @@ export function masterPrompt(p: BuilderProject): string {
       : "",
     reviewBrief(p),
     `<standard>\nGo beyond the basics: a fully featured, production-quality, commercial-grade product with a distinctive design, purposeful motion and interactivity — the standard a top product team would ship. Better, not bigger: raise the quality around the accepted features rather than adding unrequested ones.\nHold it to these checklist lines:\n${lines.map((c) => `- ${c.id} (${c.level}): ${c.text}`).join("\n")}\n</standard>`,
-    `<success_criteria>\n${u.judge.map((j) => `- ${j}`).join("\n")}\n- Typecheck and tests pass; every accepted feature has a test or a recorded click-through.\nReport honestly against these with real numbers, including anything that missed.\n</success_criteria>`,
+    `<success_criteria>\n${u.judge.map((j) => `- ${j}`).join("\n")}\n${scenarioCriteria(p)}\nReport honestly against these with real numbers, including anything that missed.\n</success_criteria>`,
+    planNotesBlock(p),
     `<constraints>\nAct freely on local, reversible steps. Ask before anything that spends money, deletes data or can't be undone. If something needed is missing (a key, access, data), say exactly what and what it would unlock — never fake it. Commit and push finished work.\n</constraints>`,
   ].filter(Boolean);
   return parts.join("\n\n");
@@ -1153,16 +1404,31 @@ export function queueText(p: BuilderProject): string {
     denied.length ? `Declined (leave out): ${denied.map((f) => f.title).join("; ")}.` : "",
     `Judge: ${u.judge.join("; ")}.`,
     `Checklist: ${checklistLines(p).map((c) => c.id).join(" ")}.`,
+    scenariosOf(p.features).length
+      ? `Every check above needs a test whose NAME starts with its id (unit → Vitest, browser → Playwright, manual → before/after screenshots). End with a table: scenario id → test → pass/fail. A check with no test is a miss — say so, never widen another test to cover it.`
+      : "",
     `New project unless it clearly belongs in the hub. Commit + push; report against the judge with real numbers.`,
   ].filter(Boolean);
-  let detail = 220;
-  for (;;) {
-    const feats = accepted.map((f, i) => `${i + 1}. ${f.title}: ${f.detail.length > detail ? `${f.detail.slice(0, detail - 1)}…` : f.detail}`);
+  // Scenarios shrink LAST, after feature detail: the names and the checks are
+  // the skeleton of the plan, and the detail is the flesh. A brief that keeps
+  // every "f3.s1 valid enquiry" and loses a sentence of prose is still
+  // buildable; the other way round is not.
+  for (const detail of [220, 180, 140, 100, 60, 0]) {
+    const feats = accepted.map((f, i) => {
+      const said = detail === 0 ? "" : `: ${f.detail.length > detail ? `${f.detail.slice(0, detail - 1)}…` : f.detail}`;
+      const sc = (f.scenarios ?? []).length
+        ? `\n   checks: ${(f.scenarios ?? []).map((s) => `${s.id} ${s.name.toLowerCase()}`).join(" · ")}`
+        : "";
+      return `${i + 1}. ${f.title}${said}${sc}`;
+    });
     const text = [...head, ...re, "Features (accepted, owner's words kept):", ...feats, ...tail].join("\n");
     if (text.length <= QUEUE_LIMIT) return text;
-    if (detail <= 0) return text.slice(0, QUEUE_LIMIT - 1) + "…";
-    detail = detail > 60 ? detail - 40 : 0;
   }
+  // Even with no prose it is too long: keep the head and as many features as
+  // fit rather than cutting mid-word in the middle of a check.
+  const bare = accepted.map((f, i) => `${i + 1}. ${f.title}${(f.scenarios ?? []).length ? ` (${(f.scenarios ?? []).map((s) => s.id).join(" ")})` : ""}`);
+  const text = [...head, ...re, "Features (accepted, owner's words kept):", ...bare, ...tail].join("\n");
+  return text.length <= QUEUE_LIMIT ? text : `${text.slice(0, QUEUE_LIMIT - 1)}…`;
 }
 
 /** One super-board card per accepted feature, Felix format, so the factory can build them. */
@@ -1188,7 +1454,13 @@ export function featureTickets(p: BuilderProject): BoardTicket[] {
         `## Problem\n${f.why || u.purpose}\n\nGoal beyond the goal: ${u.beyond}.`,
         `## Context\n- **App:** ${u.name} — ${u.oneLiner}\n- **Who:** ${u.audience}\n- **Checklist:** ${codes.join(", ")}\n- **Skills:** felix → prompt-enhancer → ${u.designSkill} → claude-security before launch`,
         `## Fix\n${f.detail}${f.source === "you" || f.edited ? "\n\n_The owner's own words — keep it the way it's described._" : ""}`,
-        `## Acceptance Criteria\n- [ ] ${f.title} works end to end on a 390 px phone and on desktop, shown with screenshots\n${checks.map((c) => `- [ ] ${c}`).join("\n")}\n- [ ] Typecheck and tests pass, with a test covering the new behaviour`,
+        // The feature's OWN scenarios are the criteria. Every card used to
+        // carry the same generic line, so a login form and a pricing table
+        // were "done" by the same standard — the fastest way to get a build
+        // that passes its ticket and still isn't what was asked for.
+        `## Acceptance Criteria\n${(f.scenarios ?? [])
+          .map((s) => `- [ ] ${s.id} ${scenarioLine(s)} — proven by ${s.proof === "unit" ? "a Vitest test" : s.proof === "browser" ? "a Playwright test" : "before/after screenshots"}, named with its id`)
+          .join("\n")}${f.scenarios?.length ? "\n" : ""}${checks.map((c) => `- [ ] ${c}`).join("\n")}\n- [ ] Typecheck and tests pass, with a test covering the new behaviour\n- [ ] Works on a 390 px phone and on desktop, shown with screenshots`,
         `## Risk\n${labels.includes("money") || labels.includes("auth") ? "🟡 **Medium** · touches payments or sign-in — the merge goes to the owner" : "🟢 **Low** · contained feature"}`,
         `## Blocked by\n- None.`,
       ].join("\n\n");

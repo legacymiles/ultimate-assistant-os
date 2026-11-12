@@ -33,6 +33,8 @@ import {
   newProject,
 } from "./engine";
 import { depthOf } from "./depth";
+import { canBuild, planCheck } from "./planCheck";
+import { foldSpec } from "./spec";
 import { useBridge } from "@/lib/new-jarvis/useBridge";
 import { startAbsorb, useBuild } from "./useBuild";
 import { absorbPr, hubSlug } from "./absorb";
@@ -423,6 +425,15 @@ export function useAppBuilder() {
       run("build", async () => {
         const p = find(storeRef.current.currentId ?? "");
         if (!p) return;
+        // The plan check is a gate, not a hint. The button is disabled on a
+        // block, and so is this — a build started from a chat command, a
+        // hand-off or a stale page must not slip past it either.
+        if (!canBuild(p)) {
+          const n = planCheck(p).filter((f) => f.level === "block").length;
+          throw new Error(
+            `${n} feature${n === 1 ? "" : "s"} on this list has no way to tell it works. Fix that under the features (Plan check) and build again.`,
+          );
+        }
         let review = p.handoff?.review;
         let reviewError: string | undefined;
         if (!p.edit && !p.noReview) {
@@ -546,6 +557,11 @@ export function useAppBuilder() {
     update(builtId, (x) => ({
       ...x,
       handoff: { ...(x.handoff ?? { at: "" }), built: { repo: builtRepo, url: builtUrl, path: builtPath, at: new Date().toISOString() } },
+      // Freeze what shipped as the app's spec. This is what makes the NEXT
+      // edit a delta against the live site instead of a fresh plan written
+      // against the original idea — the thing that was missing from every
+      // edit after the first.
+      spec: foldSpec(x),
     }));
   }, [done, builtId, builtRepo, builtUrl, builtPath, update]);
 

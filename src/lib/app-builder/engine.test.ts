@@ -368,3 +368,63 @@ describe("names", () => {
     expect(nameFrom("Recreate this booking app for my barber client, but add SMS reminders")).toBe("Booking App");
   });
 });
+
+describe("the plan's checks reach the hand-off", () => {
+  function decided(): BuilderProject {
+    const p = project();
+    p.features = applyOps(p.features, [{ op: "acceptAll" }, { op: "deny", id: "f2" }]).features;
+    return p;
+  }
+
+  it("writes each feature's scenarios under it in the master prompt", () => {
+    const p = decided();
+    const first = p.features.find((f) => f.status === "accepted" && (f.scenarios ?? []).length)!;
+    const s = first.scenarios![0];
+    const prompt = masterPrompt(p);
+    expect(prompt).toContain(s.id);
+    expect(prompt).toContain(s.when);
+    expect(prompt).toContain(s.then);
+  });
+
+  it("asks for a test named with each id and a pass/fail table, not 'a test per feature'", () => {
+    const prompt = masterPrompt(decided());
+    expect(prompt).toContain("NAMES ITS ID");
+    expect(prompt).toContain("scenario id → the test that covers it → pass/fail");
+    expect(prompt).not.toContain("every accepted feature has a test or a recorded click-through");
+  });
+
+  it("gives each board card its own feature's criteria, not one generic line", () => {
+    const cards = featureTickets(decided());
+    const withChecks = cards.filter((c) => /f\d+\.s\d+/.test(c.body));
+    expect(withChecks.length).toBe(cards.length);
+    // Two different features must not end up with identical criteria.
+    const blocks = cards.map((c) => c.body.split("## Acceptance Criteria")[1]?.split("## Risk")[0] ?? "");
+    expect(new Set(blocks).size).toBe(blocks.length);
+  });
+
+  it("keeps the checks in the queue text and still fits In Queue", () => {
+    const p = decided();
+    const t = queueText(p);
+    expect(t).toContain("checks:");
+    expect(t.length).toBeLessThanOrEqual(QUEUE_LIMIT);
+  });
+
+  it("drops prose before checks when the budget is tight", () => {
+    const p = decided();
+    for (let i = 0; i < 30; i++) {
+      p.features.push({
+        ...p.features[0],
+        id: `x${i}`,
+        title: `Extra feature ${i}`,
+        detail: "word ".repeat(80),
+        status: "accepted",
+        scenarios: [
+          { id: `x${i}.s1`, name: `check ${i}`, when: `someone does thing ${i}`, then: `something shows for thing ${i}`, proof: "browser" },
+        ],
+      });
+    }
+    const t = queueText(p);
+    expect(t.length).toBeLessThanOrEqual(QUEUE_LIMIT);
+    expect(t).toContain("felix → prompt-enhancer");
+  });
+});

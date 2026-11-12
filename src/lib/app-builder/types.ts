@@ -40,6 +40,36 @@ export const KINDS: FeatureKind[] = ["core", "experience", "growth", "money", "a
 export type FeatureStatus = "proposed" | "accepted" | "denied";
 export type Effort = "S" | "M" | "L";
 
+/** How a scenario is proven: a Vitest unit test, a browser test, or a screenshot pair. */
+export type Proof = "unit" | "browser" | "manual";
+
+/**
+ * One checkable moment in a feature — the thing that was missing from every
+ * plan this app has ever written.
+ *
+ * A feature used to be a title, what it does and why, and nothing in it said
+ * how anyone would KNOW it works. So every build ticket got the same generic
+ * acceptance criteria, the brief asked for "a test per feature" without saying
+ * what the test must show, and the build agent ended up grading its own work.
+ *
+ * A scenario is the fix, in the shape OpenSpec uses: WHEN something happens,
+ * THEN something you can SEE happens. Text on screen, a row in a table, an
+ * email sent, a redirect. Never "works well" or "feels premium" — those are
+ * blocked by ./planCheck.ts before the build can start.
+ */
+export interface Scenario {
+  /** "f3.s1" — the feature's id, then the scenario's number within it. */
+  id: string;
+  name: string;
+  /** Optional starting state: "a logged-out visitor on /contact". */
+  given?: string;
+  when: string;
+  then: string;
+  proof: Proof;
+  /** Written or reworded by the owner, so the agent never rewrites it. */
+  source?: "agent" | "you";
+}
+
 export interface Feature {
   id: string;
   title: string;
@@ -58,6 +88,12 @@ export interface Feature {
   edited?: boolean;
   /** Build-checklist codes it closes (R2, L1…). */
   checklist?: string[];
+  /**
+   * How anyone tells this feature works. Every ACCEPTED feature needs at least
+   * one — `planCheck` blocks Build it until it has one, and the brief, the
+   * board cards and the gate all read these rather than inventing their own.
+   */
+  scenarios?: Scenario[];
 }
 
 export interface Question {
@@ -286,6 +322,12 @@ export interface BuilderProject {
   /** Set when this is a client edit from Client Review rather than a new app. */
   edit?: ClientEdit;
   /**
+   * What the app does as of its last shipped build. Set by `foldSpec` when a
+   * build reports done; read by the next edit so it diffs against the live
+   * site instead of the original plan.
+   */
+  spec?: AppSpec;
+  /**
    * The look the owner (or the client) picked from the mockup bake-off.
    *
    * Kept on the project because it has to outlive the tab and reach the build
@@ -331,12 +373,45 @@ export interface RedesignSource {
   confidence: "high" | "low";
 }
 
+/**
+ * What the app DOES, as of the last build that shipped — its spec.
+ *
+ * The planning problem a spec solves is the second one: a website gets edited
+ * for years, and every edit after the first was being written against the
+ * ORIGINAL plan instead of the live site. So the accepted features and their
+ * scenarios are frozen here when a build reports done, and the next edit is
+ * written as a delta against this (./spec.ts): what it ADDS, MODIFIES or
+ * REMOVES, with everything untouched carried along as "must still pass".
+ */
+export interface AppSpec {
+  /** When this spec was taken (the build that shipped it). */
+  at: string;
+  /** The version it shipped as, when there is one ("v2"). */
+  version?: string;
+  /** Accepted features with their scenarios, as built. */
+  features: Feature[];
+}
+
+/** One line of a change against the spec. */
+export interface SpecDelta {
+  kind: "added" | "modified" | "removed";
+  featureId: string;
+  title: string;
+  /** What changed, in plain words. */
+  detail?: string;
+  /** Required for `removed` — OpenSpec's rule, and a good one. */
+  reason?: string;
+  /** Scenario ids this delta touches. */
+  scenarios?: string[];
+}
+
 /** One thing the agent changes on the feature list. */
 export type FeatureOp =
   | { op: "accept"; id: string }
   | { op: "deny"; id: string }
   | { op: "reset"; id: string }
-  | { op: "edit"; id: string; title?: string; detail?: string; why?: string }
+  | { op: "edit"; id: string; title?: string; detail?: string; why?: string; scenarios?: Scenario[] }
+  | { op: "scenario"; id: string; scenario: Partial<Scenario> & { when: string; then: string } }
   | { op: "add"; feature: Partial<Feature> & { title: string } }
   | { op: "acceptAll" }
   | { op: "denyRest" };

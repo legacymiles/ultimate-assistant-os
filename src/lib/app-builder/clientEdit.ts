@@ -25,6 +25,7 @@ import { baseBranchFor, branchFor, buildText, plainBrief } from "../client-revie
 import type { ClientProject, EditRequest } from "../client-review/types";
 import type { BuilderProject, ClientEdit, ClientEditItem, Feature, Understanding } from "./types";
 import { joinEdits, pickMatches } from "../mockup/edit";
+import { deltaBlock, deltaLine } from "./spec";
 
 /**
  * The mockup the owner picked for this edit, as one line for the queue brief.
@@ -254,8 +255,10 @@ export function editQueueText(p: BuilderProject): string {
   const declined = p.features.filter((f) => f.status === "denied").map((f) => f.title);
   const added = p.features.filter((f) => f.status === "accepted" && !edit.items.some((it) => it.featureId === f.id));
   const mock = pickedMockupLine(p);
+  const delta = deltaLine(p);
   const extra = [
     ...(mock ? [mock] : []),
+    ...(delta ? [delta] : []),
     ...(added.length ? [`Also (added in App Builder): ${added.map((f) => oneLine(f.detail || f.title)).join("; ")}`] : []),
     ...(declined.length ? [`Left out by the owner in App Builder: ${declined.join("; ")}.`] : []),
   ];
@@ -295,6 +298,11 @@ export function editMasterPrompt(p: BuilderProject): string {
       })
       .join("\n")}\n</edits>`,
     edit.brief ? `<brief>\n${edit.brief.trim()}\n</brief>` : "",
+    // What this change is AGAINST — the site's spec, plus the checks that
+    // already pass on it and must still pass afterwards. Without that second
+    // half an edit can break a form two pages away and the report still reads
+    // green, because nothing ever said what "unchanged" meant.
+    deltaBlock(p),
     pickedMockupBlock(p),
     `<skills_pipeline>\n${editPipeline()
       .map((s, i) => `${i + 1}. ${s.skill} — ${s.role}`)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBrief, checkedAndPassed, endedUnchecked, isNewBuild, latestWord, PHASE_LABEL, phaseLabel, phaseOf, projectSlug, resultLinks, stalled, tally, threadTitle } from "./build";
+import { buildBrief, checkedAndPassed, coverage, coverageWord, endedUnchecked, isNewBuild, latestWord, PHASE_LABEL, phaseLabel, phaseOf, projectSlug, provedThePlan, resultLinks, stalled, tally, threadTitle } from "./build";
 import { applyOps, bestGuesses, intakeQuestions, newProject, offlineFeatures, understand } from "./engine";
 import type { BuilderProject } from "./types";
 import type { ThreadSummary, ThreadView, Turn } from "@/lib/new-jarvis/harness/types";
@@ -348,5 +348,65 @@ describe("has anything other than the agent checked this work?", () => {
   it("is false for no thread at all", () => {
     expect(checkedAndPassed(null)).toBe(false);
     expect(endedUnchecked(null)).toBe(false);
+  });
+});
+
+describe("how much of the plan the build proved", () => {
+  // The counting is what makes "done" honest: a build can pass its own
+  // typecheck and tests while never touching three accepted features.
+  const ids = (p: BuilderProject) => p.features.filter((f) => f.status === "accepted").flatMap((f) => (f.scenarios ?? []).map((s) => s.id));
+
+  it("counts a scenario only when the build names its id", () => {
+    const p = project();
+    const all = ids(p);
+    expect(all.length).toBeGreaterThan(5);
+    const v = view([turn(`Wrote tests.\n${all[0]} → ok\n${all[1]} → ok`)]);
+    const c = coverage(p, v);
+    expect(c.total).toBe(all.length);
+    expect(c.covered).toEqual([all[0], all[1]]);
+    expect(c.missing).toContain(all[2]);
+  });
+
+  it("does not count a near-miss id", () => {
+    const p = project();
+    const [first] = ids(p);
+    // f1.s1 with the dot as a wildcard would match "f1xs1".
+    expect(coverage(p, view([turn(`covered ${first.replace(".", "x")}`)])).covered).toEqual([]);
+  });
+
+  it("reads a failing verdict off the same line as the id", () => {
+    const p = project();
+    const [a, b] = ids(p);
+    const c = coverage(p, view([turn(`${a} | walks.test.ts | pass\n${b} | — | FAIL`)]));
+    expect(c.covered).toEqual([a, b]);
+    expect(c.failed).toEqual([b]);
+  });
+
+  it("says in plain words where the build stands", () => {
+    const p = project();
+    const all = ids(p);
+    expect(coverageWord(p, view([turn("Nothing to report.")]))).toBe(`${all.length} of ${all.length} checks have no test`);
+    expect(coverageWord(p, view([turn(all.map((id) => `${id} pass`).join("\n"))]))).toBe(`all ${all.length} checks proven`);
+  });
+
+  it("only passes the plan when nothing is missing and nothing failed", () => {
+    const p = project();
+    const all = ids(p);
+    const ended = { status: "ended", verify: { state: "passed" } } as unknown as ThreadSummary;
+    const allPass = view([turn(all.map((id) => `${id} pass`).join("\n"))]);
+    expect(provedThePlan(p, allPass, ended)).toBe(true);
+    // Its own gate passed, but three features were never proven.
+    const some = view([turn(`${all[0]} pass`)]);
+    expect(checkedAndPassed(ended)).toBe(true);
+    expect(provedThePlan(p, some, ended)).toBe(false);
+    // Covered but failing is not passing either.
+    const failing = view([turn(all.map((id, i) => `${id} ${i === 0 ? "FAIL" : "pass"}`).join("\n"))]);
+    expect(provedThePlan(p, failing, ended)).toBe(false);
+  });
+
+  it("says nothing about a plan with no scenarios", () => {
+    const bare = { ...project(), features: [] };
+    expect(coverage(bare, view([turn("done")])).total).toBe(0);
+    expect(coverageWord(bare, view([turn("done")]))).toBe("");
   });
 });

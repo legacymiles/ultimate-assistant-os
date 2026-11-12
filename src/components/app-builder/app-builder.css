@@ -282,6 +282,55 @@
 .ab-tag { font-family: var(--ab-mono); font-size: 9px; font-weight: 500; padding: 1px 5px; border-radius: 5px; background: rgba(99, 102, 241, 0.15); color: #c7c9ff; }
 .ab-detail { color: var(--ab-muted); font-size: 12px; margin-top: 2px; }
 .ab-why { color: var(--ab-faint); font-size: 11.5px; margin-top: 4px; font-style: italic; }
+/* How much of the plan a build proved, read from the scenario ids it printed. */
+.ab-bcover { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-top: 1px solid var(--ab-line); }
+.ab-bcover-bar { flex: none; width: 76px; height: 4px; border-radius: 2px; background: var(--ab-line); overflow: hidden; }
+.ab-bcover-bar i { display: block; height: 100%; border-radius: 2px; transition: width 0.3s ease; }
+.ab-bcover.is-ok .ab-bcover-bar i { background: var(--ab-yes); }
+.ab-bcover.is-partial .ab-bcover-bar i { background: var(--ab-open); }
+.ab-bcover.is-failed .ab-bcover-bar i { background: var(--ab-no); }
+.ab-bcover-word { font-size: 11.5px; color: var(--ab-muted); }
+.ab-bcover.is-ok .ab-bcover-word { color: var(--ab-ink); }
+.ab-bcover-word em { font-family: var(--ab-mono); font-size: 10px; font-style: normal; color: var(--ab-faint); }
+
+/* The plan check: whether this list can be built, and what is missing. */
+.ab-plancheck { margin: 14px 0 0; padding: 12px 14px; border: 1px solid var(--ab-line); border-radius: 8px; background: rgba(255, 255, 255, 0.02); }
+.ab-plancheck h3 { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 12.5px; font-weight: 600; color: var(--ab-ink); }
+.ab-pc-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.ab-plancheck.is-ok { border-color: rgba(34, 197, 94, 0.3); }
+.ab-plancheck.is-ok .ab-pc-dot { background: var(--ab-yes); box-shadow: 0 0 7px var(--ab-yes); }
+.ab-plancheck.is-warn { border-color: rgba(245, 158, 11, 0.35); }
+.ab-plancheck.is-warn .ab-pc-dot { background: var(--ab-open); box-shadow: 0 0 7px var(--ab-open); }
+.ab-plancheck.is-block { border-color: rgba(239, 68, 68, 0.4); }
+.ab-plancheck.is-block .ab-pc-dot { background: var(--ab-no); box-shadow: 0 0 7px var(--ab-no); }
+.ab-plancheck p { margin: 5px 0 0; font-size: 11.5px; color: var(--ab-muted); }
+.ab-pc-sub { max-width: 62ch; }
+.ab-plancheck ul { list-style: none; margin: 9px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.ab-plancheck li { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: baseline; font-size: 12px; color: var(--ab-muted); }
+.ab-plancheck li code { font-family: var(--ab-mono); font-size: 10px; color: var(--ab-faint); }
+.ab-plancheck li.is-block span { color: var(--ab-ink); }
+.ab-plancheck > button { margin-top: 11px; }
+
+/* How you'll know it works: the WHEN/THEN checks under a feature. */
+.ab-checks-count { font-family: var(--ab-mono); font-size: 9.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ab-faint); margin-top: 5px; }
+.ab-checks-count.is-missing { color: var(--ab-open); }
+.ab-checks { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--ab-line); border-left: 2px solid rgba(165, 170, 255, 0.5); border-radius: 0 6px 6px 0; background: rgba(255, 255, 255, 0.02); }
+.ab-checks-head { font-family: var(--ab-mono); font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ab-faint); margin-bottom: 6px; }
+.ab-checks-none { font-size: 11.5px; color: var(--ab-open); margin: 0 0 6px; }
+.ab-checks ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ab-checks li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline; font-size: 12px; color: var(--ab-muted); }
+.ab-checks li code { font-family: var(--ab-mono); font-size: 10px; color: var(--ab-faint); }
+.ab-checks li b { font-family: var(--ab-mono); font-size: 9.5px; letter-spacing: 0.06em; color: #a5aaff; font-weight: 500; }
+.ab-checks li em { font-family: var(--ab-mono); font-size: 9.5px; font-style: normal; color: var(--ab-faint); white-space: nowrap; }
+.ab-checks-add { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.ab-checks-add label { display: grid; grid-template-columns: 44px 1fr; gap: 8px; align-items: center; }
+.ab-checks-add input {
+  width: 100%; padding: 6px 8px; font: inherit; font-size: 12px; color: var(--ab-ink);
+  background: rgba(0, 0, 0, 0.25); border: 1px solid var(--ab-line); border-radius: 5px;
+}
+.ab-checks-add input:focus-visible { outline: 2px solid #a5aaff; outline-offset: 1px; }
+.ab-checks-new { margin-top: 6px; font-size: 11.5px; }
+
 .ab-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 76px; }
 .ab-kind { font-family: var(--ab-mono); font-size: 9.5px; color: var(--ab-faint); text-transform: uppercase; letter-spacing: 0.06em; }
 .ab-impact { display: flex; gap: 2px; }

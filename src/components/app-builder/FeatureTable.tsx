@@ -4,7 +4,7 @@
 // throwing, made here with buttons — and the only place to edit wording.
 
 import { useEffect, useRef, useState } from "react";
-import { KIND_LABEL, type Feature, type FeatureOp, type FeatureStatus } from "@/lib/app-builder/types";
+import { KIND_LABEL, type Feature, type FeatureOp, type FeatureStatus, type Proof } from "@/lib/app-builder/types";
 
 type Filter = "all" | FeatureStatus;
 
@@ -18,6 +18,113 @@ interface Props {
 }
 
 const STATUS_WORD: Record<FeatureStatus, string> = { proposed: "Open", accepted: "Accepted", denied: "Denied" };
+
+const PROOF_WORD: Record<Proof, string> = { unit: "test", browser: "on screen", manual: "by eye" };
+
+/**
+ * How you tell this feature works — WHEN / THEN, under the detail.
+ *
+ * It sits on the card rather than behind a panel because this is the line the
+ * owner is most likely to want in their own words: the build is held to it,
+ * so a check they wrote outranks one the agent guessed (`source: "you"`
+ * survives every regenerate).
+ */
+function Checks({ f, open, onOps }: { f: Feature; open: boolean; onOps: (ops: FeatureOp[]) => void }) {
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState({ when: "", then: "" });
+  const list = f.scenarios ?? [];
+
+  if (!open) {
+    return list.length ? (
+      <div className="ab-checks-count">
+        {list.length} check{list.length === 1 ? "" : "s"}
+      </div>
+    ) : f.status === "accepted" ? (
+      <div className="ab-checks-count is-missing">No check yet</div>
+    ) : null;
+  }
+
+  const save = () => {
+    const when = draft.when.trim();
+    const then = draft.then.trim();
+    if (when.length < 8 || then.length < 8) return;
+    onOps([{ op: "scenario", id: f.id, scenario: { when, then, name: when.slice(0, 70), source: "you" } }]);
+    setDraft({ when: "", then: "" });
+    setAdding(false);
+  };
+
+  return (
+    <div className="ab-checks">
+      <div className="ab-checks-head">How you&apos;ll know it works</div>
+      {list.length === 0 && (
+        <p className="ab-checks-none">
+          Nothing checks this yet{f.status === "accepted" ? " — the build can't start until something does" : ""}.
+        </p>
+      )}
+      <ul>
+        {list.map((s) => (
+          <li key={s.id}>
+            <code>{s.id}</code>
+            <span>
+              {s.given && (
+                <>
+                  <b>GIVEN</b> {s.given}{" "}
+                </>
+              )}
+              <b>WHEN</b> {s.when} <b>THEN</b> {s.then}
+            </span>
+            <em title={s.source === "you" ? "You wrote this one" : `Proven by ${PROOF_WORD[s.proof]}`}>
+              {s.source === "you" ? "yours" : PROOF_WORD[s.proof]}
+            </em>
+          </li>
+        ))}
+      </ul>
+      {adding ? (
+        <form
+          className="ab-checks-add"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save();
+          }}
+        >
+          <label>
+            <b>WHEN</b>
+            <input
+              aria-label="When this happens"
+              autoFocus
+              maxLength={220}
+              placeholder="a visitor submits the contact form"
+              value={draft.when}
+              onChange={(e) => setDraft((d) => ({ ...d, when: e.target.value }))}
+            />
+          </label>
+          <label>
+            <b>THEN</b>
+            <input
+              aria-label="Then you can see this"
+              maxLength={260}
+              placeholder="they see a confirmation and the owner gets an email"
+              value={draft.then}
+              onChange={(e) => setDraft((d) => ({ ...d, then: e.target.value }))}
+            />
+          </label>
+          <div className="ab-rowedit-actions">
+            <button type="submit" className="ab-primary-sm" disabled={draft.when.trim().length < 8 || draft.then.trim().length < 8}>
+              Add check
+            </button>
+            <button type="button" className="ab-ghost" onClick={() => setAdding(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button type="button" className="ab-ghost ab-checks-new" onClick={() => setAdding(true)}>
+          + Add a check
+        </button>
+      )}
+    </div>
+  );
+}
 
 export function FeatureTable({ features, selectedId, hoverId, onSelect, onHover, onOps }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
@@ -140,6 +247,7 @@ export function FeatureTable({ features, selectedId, hoverId, onSelect, onHover,
                       </div>
                       <div className="ab-detail">{f.detail}</div>
                       {on && f.why && <div className="ab-why">Why: {f.why}</div>}
+                      <Checks f={f} open={on} onOps={onOps} />
                     </>
                   )}
                 </div>

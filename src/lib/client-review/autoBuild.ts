@@ -82,7 +82,16 @@ function builderFor(review: ClientProject, batchId: string): BuilderProject {
     null;
   // A stored copy can predate the approval (stage "features" with nothing
   // accepted); rebuilding it from the approved batch is the honest source.
-  return existing?.edit ? existing : clientEditProject(review, batchId);
+  if (existing?.edit) return existing;
+  // What this site already does, from the newest shipped build of it. Without
+  // it every edit is written against nothing, so the brief can't say which
+  // checks must still pass — the gap that let an edit break a form two pages
+  // away and still report green.
+  const spec = store.projects
+    .filter((p) => p.spec && (p.edit?.reviewId === review.id || p.handoff?.review?.id === review.id))
+    .sort((a, b) => (a.spec!.at < b.spec!.at ? 1 : -1))[0]?.spec;
+  const fresh = clientEditProject(review, batchId);
+  return spec ? { ...fresh, spec } : fresh;
 }
 
 /**

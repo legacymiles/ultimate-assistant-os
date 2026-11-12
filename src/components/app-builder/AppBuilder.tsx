@@ -18,6 +18,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { tally } from "@/lib/app-builder/engine";
+import { fixMessage, planCheck, planSummary } from "@/lib/app-builder/planCheck";
 import { useAppBuilder } from "@/lib/app-builder/useAppBuilder";
 import { APP_TYPE_LABEL, type BuilderProject } from "@/lib/app-builder/types";
 import { specFromProject } from "@/lib/mockup/spec";
@@ -122,6 +123,9 @@ export function AppBuilder() {
   }, [ready, open]);
 
   const t = tally(current?.features ?? []);
+  // How many things stop this plan being buildable. Build it reads this, so a
+  // feature nobody can check can never be handed to the PC by accident.
+  const blocked = current ? planCheck(current).filter((f) => f.level === "block").length : 0;
   const stage = current?.stage ?? "idea";
   const name = current?.understanding?.name ?? "New app";
   const ops = ab.apply;
@@ -205,8 +209,19 @@ export function AppBuilder() {
                 {phaseLabel(build.phase, build.summary)}
               </button>
             ) : (
-              <button className="ab-primary-sm" disabled={!t.accepted || busy !== null} onClick={() => ab.build()}>
-                {busy === "build" ? "Starting…" : current.edit ? "Build edits →" : "Build it →"}
+              <button
+                className="ab-primary-sm"
+                disabled={!t.accepted || busy !== null || blocked > 0}
+                title={blocked ? `${blocked} feature${blocked === 1 ? "" : "s"} on the list can't be checked yet — see Plan check under the features` : undefined}
+                onClick={() => ab.build()}
+              >
+                {busy === "build"
+                  ? "Starting…"
+                  : blocked
+                    ? `${blocked} to fix first`
+                    : current.edit
+                      ? "Build edits →"
+                      : "Build it →"}
               </button>
             )}
           </div>
@@ -358,6 +373,15 @@ export function AppBuilder() {
                 onOps={ab.apply}
               />
               {/*
+                The plan check, between the features and the look. Build it
+                used to hand the PC whatever was on the list, so a feature
+                nobody could check went over exactly like a sharp one and the
+                build came back "not what I meant". This is the gate that
+                stops that, and Fix with AI hands the findings to the agent
+                rather than silently rewriting the owner's plan.
+              */}
+              <PlanCheck project={current} onFix={(msg) => { setSide("chat"); setPane("chat"); ab.say(msg); }} />
+              {/*
                 The look, under the features it is drawn from. This is the
                 stage the pipeline always had on paper and never on screen:
                 the owner approved a feature list and then waited for a built
@@ -412,6 +436,62 @@ export function AppBuilder() {
  * project object, which gets a new `updatedAt` on every keystroke elsewhere
  * and would otherwise redraw three iframes while the owner types in the chat.
  */
+/**
+ * Is this plan buildable — and if not, exactly what is missing.
+ *
+ * Shown even when everything passes, as one quiet line with the scenario
+ * count: the owner should be able to see that the plan IS checked, not just
+ * hear about it when it isn't.
+ */
+function PlanCheck({ project, onFix }: { project: BuilderProject; onFix: (message: string) => void }) {
+  const findings = planCheck(project);
+  const blocks = findings.filter((f) => f.level === "block");
+  const warns = findings.filter((f) => f.level === "warn");
+  const { scenarios, features } = planSummary(project);
+
+  if (!features) return null;
+  if (!findings.length) {
+    return (
+      <section className="ab-plancheck is-ok">
+        <h3>
+          <span className="ab-pc-dot" aria-hidden /> Plan checks out
+        </h3>
+        <p>
+          {scenarios} check{scenarios === 1 ? "" : "s"} across {features} accepted feature{features === 1 ? "" : "s"}. The build has to prove every one of
+          them.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className={`ab-plancheck${blocks.length ? " is-block" : " is-warn"}`}>
+      <h3>
+        <span className="ab-pc-dot" aria-hidden />
+        {blocks.length
+          ? `${blocks.length} thing${blocks.length === 1 ? "" : "s"} to fix before building`
+          : `${warns.length} note${warns.length === 1 ? "" : "s"} on the plan`}
+      </h3>
+      <p className="ab-pc-sub">
+        {blocks.length
+          ? "A feature nobody can check is a build that comes back wrong. Fix these and Build it unlocks."
+          : "Nothing is blocking the build. These go to the builder as things to watch."}
+      </p>
+      <ul>
+        {findings.map((f, i) => (
+          <li key={`${f.scenarioId ?? f.featureId ?? "all"}-${i}`} className={`is-${f.level}`}>
+            {f.featureId && <code>{f.featureId}</code>}
+            <span>{f.text}</span>
+          </li>
+        ))}
+      </ul>
+      <button type="button" className="ab-primary-sm" onClick={() => onFix(fixMessage(findings))}>
+        Fix with AI →
+      </button>
+    </section>
+  );
+}
+
 function LookSection({
   project,
   onChoose,

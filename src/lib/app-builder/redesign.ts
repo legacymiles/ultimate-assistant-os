@@ -169,6 +169,12 @@ export function redesignUnderstanding(r: RedesignSource): Understanding {
   };
 }
 
+/** A keep-check's name, from the thing it keeps: "The enquiry form still works". */
+function keepName(label: string): string {
+  const l = label.replace(/^the\s+/i, "").trim();
+  return `${l.charAt(0).toUpperCase()}${l.slice(1)} still works`.slice(0, 70);
+}
+
 /**
  * The features every redesign starts with: each thing the site does today,
  * already accepted, because "keep it working" is the deal, not a suggestion.
@@ -184,6 +190,27 @@ export function keepFeatures(r: RedesignSource, startAt = 1): Feature[] {
       kind: "core",
       impact: 3,
       effort: "M",
+      // Each must-keep carries its own check, so "keeps everything it does" is
+      // a test on the new site rather than a promise in a brief. This is the
+      // regression suite for the whole redesign.
+      scenarios: [
+        ...(r.nav.length
+          ? [
+              {
+                name: "Every page still there",
+                when: `a visitor opens each page in the navigation (${r.nav.slice(0, 6).join(", ")})`,
+                then: "each one loads on the new site with the same content it has today, and none 404s",
+                proof: "browser" as const,
+              },
+            ]
+          : []),
+        {
+          name: "No content dropped",
+          when: "the new site's pages are compared with the live site's",
+          then: `every heading and block of copy on the live site is present${r.headings.length ? `, including “${r.headings[0]}”` : ""}`,
+          proof: "browser" as const,
+        },
+      ],
     },
     ...plainFunctions(r.functionality).slice(0, 7).map((f) => ({
       title: `Keep: ${f.label}`.slice(0, 60),
@@ -192,6 +219,14 @@ export function keepFeatures(r: RedesignSource, startAt = 1): Feature[] {
       kind: "core",
       impact: 3,
       effort: "S",
+      scenarios: [
+        {
+          name: keepName(f.label),
+          when: `a visitor uses ${f.label.toLowerCase()} on the redesigned site`,
+          then: `it does what it does on the live site today${f.detail ? ` — ${f.detail.replace(/\.$/, "")}` : ""}, with the same result`,
+          proof: "browser" as const,
+        },
+      ],
     })),
     ...(r.ctas.length
       ? [
@@ -202,6 +237,20 @@ export function keepFeatures(r: RedesignSource, startAt = 1): Feature[] {
             kind: "growth",
             impact: 3,
             effort: "S",
+            scenarios: [
+              {
+                name: "The buttons still go where they went",
+                when: `a visitor presses ${r.ctas.slice(0, 3).map((c) => `"${c}"`).join(", ")} on the new site`,
+                then: "each one arrives at the same destination it does on the live site",
+                proof: "browser" as const,
+              },
+              {
+                name: "Still the obvious thing to press",
+                when: "any page is opened at 390 px wide",
+                then: `“${r.ctas[0]}” is visible without scrolling and is the highest-contrast control on screen`,
+                proof: "browser" as const,
+              },
+            ],
           },
         ]
       : []),

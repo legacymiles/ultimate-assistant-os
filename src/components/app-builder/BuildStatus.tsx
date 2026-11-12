@@ -20,7 +20,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { DEPTH_LABEL, depthOf } from "@/lib/app-builder/depth";
-import { latestWord, phaseLabel, projectSlug, stalled, stalledWhy, tally as toolTally, type BuildPhase } from "@/lib/app-builder/build";
+import { coverage, coverageWord, latestWord, phaseLabel, projectSlug, stalled, stalledWhy, tally as toolTally, type BuildPhase } from "@/lib/app-builder/build";
 import { landsIn, relTime } from "@/lib/app-builder/plan";
 import { reviewHref } from "@/lib/app-builder/review";
 import type { BuilderProject } from "@/lib/app-builder/types";
@@ -158,6 +158,7 @@ export function BuildStatus({
   const { phase, view, gate, links } = build;
   const tone = TONE[phase];
   const counts = toolTally(view);
+  const cover = coverage(project, view);
   const now = latestWord(view);
   const lands = landsIn(project);
   const { depth, why: depthWhy } = depthOf(project);
@@ -205,6 +206,29 @@ export function BuildStatus({
           </span>
         )}
       </header>
+
+      {/*
+        How much of the PLAN this build proved — counted from the scenario ids
+        it printed, not from what it says about itself. A build can pass its own
+        typecheck and tests while never touching three accepted features, and
+        that used to read as a clean "done".
+      */}
+      {cover.total > 0 && (
+        <div
+          className={`ab-bcover${cover.failed.length ? " is-failed" : cover.missing.length ? " is-partial" : " is-ok"}`}
+          role="status"
+          aria-live="polite"
+        >
+          <span className="ab-bcover-bar" aria-hidden>
+            <i style={{ width: `${Math.round(((cover.total - cover.missing.length) / cover.total) * 100)}%` }} />
+          </span>
+          <span className="ab-bcover-word">
+            {coverageWord(project, view)}
+            {cover.missing.length > 0 && <em> — {cover.missing.join(" ")}</em>}
+            {cover.failed.length > 0 && <em> — failed: {cover.failed.join(" ")}</em>}
+          </span>
+        </div>
+      )}
 
       {/* The one question that stops everything. */}
       {gate && (

@@ -18,6 +18,7 @@ import {
 import { specFromProject } from "@/lib/mockup/spec";
 import { renderMockup } from "@/lib/mockup/render";
 import { directionsFor } from "@/lib/mockup/directions";
+import { canBuild, planCheck } from "./planCheck";
 
 const READ: SiteRead = {
   title: "Joe's Plumbing | 24/7 Emergency Plumbers",
@@ -135,5 +136,47 @@ describe("redesign → App Builder project", () => {
     expect(html).toContain("Book a plumber");
     expect(html).not.toContain('class="rail"');
     expect(html).not.toContain("<script");
+  });
+});
+
+describe("a redesign's must-keeps are checkable", () => {
+  // "Everything it does today keeps working" is the deal the whole job rests
+  // on. Before this it was prose in a brief; now each keep carries a check, so
+  // the new site is measured against the old one instead of promised to match.
+  const keeps = () => keepFeatures(redesignSource(READ, { url: "joesplumbing.com" }));
+
+  it("gives every must-keep at least one check", () => {
+    for (const f of keeps()) expect((f.scenarios ?? []).length).toBeGreaterThan(0);
+  });
+
+  it("names the thing being kept in its own check", () => {
+    const booking = keeps().find((f) => f.title === "Keep: Booking form")!;
+    const s = booking.scenarios![0];
+    expect(s.when.toLowerCase()).toContain("booking form");
+    expect(s.then).toContain("live site");
+    expect(s.proof).toBe("browser");
+  });
+
+  it("checks the calls to action still arrive where they did", () => {
+    const ctas = keeps().find((f) => f.title === "Same calls to action, clearer")!;
+    const text = ctas.scenarios!.map((s) => `${s.when} ${s.then}`).join(" ");
+    expect(text).toContain("Book a plumber");
+    expect(text).toContain("same destination");
+  });
+
+  it("passes the plan check as it arrives, so a redesign is buildable with no extra work", () => {
+    const base = redesignProject(redesignSource(READ, { url: "joesplumbing.com" }));
+    const p = { ...base, stage: "features" as const, features: keeps() };
+    expect(planCheck(p).filter((f) => f.level === "block")).toEqual([]);
+    expect(canBuild(p)).toBe(true);
+  });
+
+  it("blocks the build when a must-keep's check is taken away", () => {
+    const base = redesignProject(redesignSource(READ, { url: "joesplumbing.com" }));
+    const stripped = keeps().map((f) => (f.title === "Keep: Booking form" ? { ...f, scenarios: undefined } : f));
+    const p = { ...base, stage: "features" as const, features: stripped };
+    const blocks = planCheck(p).filter((f) => f.level === "block");
+    expect(blocks.some((b) => b.text.includes("Booking form"))).toBe(true);
+    expect(canBuild(p)).toBe(false);
   });
 });

@@ -323,6 +323,62 @@ export function tally(view: ThreadView): { reads: number; changes: number; runs:
 }
 
 /**
+ * How much of the plan the build actually proved.
+ *
+ * The brief asks for a table of scenario id → test → pass/fail, so coverage is
+ * read from the ids the thread itself mentioned — not from its prose. "I added
+ * tests for everything" is a claim; "f3.s2" appearing in its output next to a
+ * test name is evidence, and a scenario that never appears is a miss whatever
+ * the summary says.
+ *
+ * Counting a scenario as covered does NOT mean it passed: `failed` holds the
+ * ids the report marked fail, and the panel shows both, because a plan that is
+ * fully covered and half failing is a different problem from a plan nobody
+ * tested.
+ */
+export function coverage(p: BuilderProject, view: ThreadView): { total: number; covered: string[]; missing: string[]; failed: string[] } {
+  const ids = p.features.filter((f) => f.status === "accepted").flatMap((f) => (f.scenarios ?? []).map((s) => s.id));
+  const text = view.turns.map((t) => `${t.text}\n${t.tools.map((x) => x.title ?? "").join("\n")}`).join("\n");
+  const covered: string[] = [];
+  const failed: string[] = [];
+  for (const id of ids) {
+    // f3.s1 — the dot is a regex wildcard, so escape it or f3xs1 would match.
+    const at = new RegExp(`\\b${id.replace(".", "\\.")}\\b`, "i");
+    if (!at.test(text)) continue;
+    covered.push(id);
+    // The verdict sits on the same line as the id in the table it was asked for.
+    const line = text.split(/\r?\n/).reverse().find((l) => at.test(l)) ?? "";
+    if (/\b(fail|failed|failing|miss|missing|not covered|no test|todo|skipped?)\b/i.test(line) && !/\bpass(ed|es|ing)?\b/i.test(line)) {
+      failed.push(id);
+    }
+  }
+  return { total: ids.length, covered, missing: ids.filter((id) => !covered.includes(id)), failed };
+}
+
+/**
+ * Checked, passed, AND the plan it was given was actually proven.
+ *
+ * `checkedAndPassed` asks whether the verify gate ran and passed. That gate
+ * knows nothing about this plan: a build can pass its own typecheck and tests
+ * while quietly never touching three of the features the owner accepted. So
+ * anything that LANDS a build by itself asks this instead.
+ */
+export function provedThePlan(p: BuilderProject, view: ThreadView, summary: ThreadSummary | null): boolean {
+  if (!checkedAndPassed(summary)) return false;
+  const c = coverage(p, view);
+  return c.missing.length === 0 && c.failed.length === 0;
+}
+
+/** "3 of 11 checks have no test" — the honest version of "is it done?". */
+export function coverageWord(p: BuilderProject, view: ThreadView): string {
+  const c = coverage(p, view);
+  if (!c.total) return "";
+  if (c.failed.length) return `${c.failed.length} of ${c.total} checks failed`;
+  if (c.missing.length) return `${c.missing.length} of ${c.total} checks have no test`;
+  return `all ${c.total} checks proven`;
+}
+
+/**
  * The repository and live address Claude was asked to print at the end.
  *
  * Read from its own last words rather than guessed, and only accepted as
