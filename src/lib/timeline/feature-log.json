@@ -1,5 +1,14 @@
 [
  {
+  "id": "aac95bd:mockup",
+  "date": "2026-11-11",
+  "slug": "mockup",
+  "title": "Edit mockups read the whole live site and carry a picked look page to page",
+  "detail": "Before painting, tools/mockup-edit/scan.mjs drives the PC's headless Chrome over up to 6 pages and reads the rendered DOM: real colours, fonts, sections, nav, forms, buttons and embeds. site-context.ts turns that into DESIGN.md, SITE.md and a page outline for the three readings; the build brief now ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "d72627a:client-review",
   "date": "2026-11-11",
   "slug": "client-review",
