@@ -1,5 +1,14 @@
 [
  {
+  "id": "da5cdc1:client-review",
+  "date": "2026-11-11",
+  "slug": "client-review",
+  "title": "A move needs a site in the repo, and lands on App plugins",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "aac95bd:mockup",
   "date": "2026-11-11",
   "slug": "mockup",
