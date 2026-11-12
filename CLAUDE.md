@@ -100,6 +100,12 @@ of it is the **New Dashboard** app (`/apps/new-dashboard`).
 
 ## Rules that bite
 
+- **`npm run verify` before you commit.** It IS the `clean-clone` CI workflow, in its order:
+  `check:apps`, `check:fonts`, `tsc --noEmit`, `npm test`, `npm run build`. Typecheck-plus-tests
+  is not the gate and misses two things that have each opened a red PR: `tsc --noEmit` passes on a
+  `route.ts` that exports anything but a route handler while `next build` fails, and adding an
+  entry to `PROJECTS` always staleness `docs/apps/README.md` (fix with `npm run apps:index` and
+  commit it). A red PR is the author's to fix.
 - Never run two dev servers on the same `.next` dir — it corrupts it. Preview servers use their own `NEXT_DIST_DIR` (`.next-preview-<port>`).
 - A self-contained Next app nested inside this repo must be added to the root `tsconfig.json` `exclude`, or `next build` breaks.
 - The Vercel AI Gateway free tier serves no Anthropic model — keep OpenRouter as the default.
