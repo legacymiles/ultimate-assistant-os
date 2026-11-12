@@ -1,5 +1,23 @@
 [
  {
+  "id": "e408355:client-review",
+  "date": "2026-11-12",
+  "slug": "client-review",
+  "title": "Ship takes a move live on one press, if the checks pass",
+  "detail": "One press now means the press and nothing else. The panel records the pull request the moment Claude says `PR:`, and then, if the PC's own gate passed, lands it with `shipThread` — main merged in, branch pushed, pull request merged, and any git or GitHub failure handed back to the same agent to fix ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e408355:app-builder",
+  "date": "2026-11-12",
+  "slug": "app-builder",
+  "title": "Ship takes a move live on one press, if the checks pass",
+  "detail": "One press now means the press and nothing else. The panel records the pull request the moment Claude says `PR:`, and then, if the PC's own gate passed, lands it with `shipThread` — main merged in, branch pushed, pull request merged, and any git or GitHub failure handed back to the same agent to fix ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "e47ee53:client-review",
   "date": "2026-11-12",
   "slug": "client-review",
@@ -14,6 +32,33 @@
   "slug": "app-builder",
   "title": "One press moves an app in, and the press is followed",
   "detail": "Moving BuildFlip 2 into the hub took a press and then an hour by hand. Four separate things made that happen, and each is fixed here rather than worked around:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4bd0372:buildflip-2",
+  "date": "2026-11-11",
+  "slug": "buildflip-2",
+  "title": "Moved into the hub as /apps/buildflip-2",
+  "detail": "Brought over from legacymiles/buildflip-2-2 and the live v1: its route, UI, logic and API land in the hub's own folders, its AI goes through the shared provider, and its fonts come from the faces already committed here rather than being fetched at build time.",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "4bd0372:fonts",
+  "date": "2026-11-11",
+  "slug": "fonts",
+  "title": "Moved into the hub as /apps/buildflip-2",
+  "detail": "Brought over from legacymiles/buildflip-2-2 and the live v1: its route, UI, logic and API land in the hub's own folders, its AI goes through the shared provider, and its fonts come from the faces already committed here rather than being fetched at build time.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "4bd0372:jarvis",
+  "date": "2026-11-11",
+  "slug": "jarvis",
+  "title": "Moved into the hub as /apps/buildflip-2",
+  "detail": "Brought over from legacymiles/buildflip-2-2 and the live v1: its route, UI, logic and API land in the hub's own folders, its AI goes through the shared provider, and its fonts come from the faces already committed here rather than being fetched at build time.",
   "group": "supporting",
   "source": "git"
  },
