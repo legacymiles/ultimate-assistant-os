@@ -2,7 +2,7 @@
 
 **Generated — do not edit.** `node scripts/apps-index.mjs` rewrites this from [`src/lib/catalog.ts`](../../src/lib/catalog.ts), which is the single source of truth for the hub. `node scripts/apps-index.mjs --check` fails when the two disagree.
 
-40 projects — 40 live, 0 coming soon. Every live one is a real route under this one Next.js app; none of them is a separate project, repo or deployment. A rebuild that is missing routes from this table is not this site.
+41 projects — 41 live, 0 coming soon. Every live one is a real route under this one Next.js app; none of them is a separate project, repo or deployment. A rebuild that is missing routes from this table is not this site.
 
 ## AI (12)
 
@@ -56,7 +56,7 @@
 | **Website Redesigner** | `/apps/website-redesigner` | Paste any URL and get a fresh redesign that keeps what the site does. |
 | **APEX/01 Kart Teardown** | `/apps/kart-showcase` | A cinematic, interactive 3D racing-kart teardown. |
 
-## Apps (8)
+## Apps (9)
 
 | App | Route | What it is |
 |---|---|---|
@@ -68,6 +68,7 @@
 | **Game Studio** | `/apps/game-studio` | Every game in one place. |
 | **Item Storm Arena** | `/apps/item-storm-arena` | A storm of living objects circles a floating arena, and your cursor is a gravity well. |
 | **Baby No Scroll** | `/apps/baby-no-scroll` | A child lock for a screen you are about to put in a small pair of hands. |
+| **BuildFlip 2** | `/apps/buildflip-2` | Paste the link to a build you saw — TikTok, Instagram, Pinterest — or just say what you want to make, and about fifty seconds later you have the plan and the money. |
 
 ## Utilities (5)
 
