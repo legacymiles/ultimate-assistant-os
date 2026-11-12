@@ -315,6 +315,7 @@ function MoveThread({
 
   const [shipping, setShipping] = useState(false);
   const [landError, setLandError] = useState("");
+  const [force, setForce] = useState(false);
   const step = moveStep({
     move: record,
     prUrl: links.pr ?? "",
@@ -322,7 +323,21 @@ function MoveThread({
     passed: checkedAndPassed(move.summary),
     unchecked: endedUnchecked(move.summary),
     shipping,
+    force,
   });
+
+  /**
+   * The owner's own call on a move that did not pass.
+   *
+   * Marks the report accepted where there is one, so the thread carries the
+   * decision rather than looking like it passed by itself — and then lands it
+   * regardless, because when the gate never ran there is no report to accept.
+   */
+  const takeItLiveAnyway = async () => {
+    setLandError("");
+    await move.useAnyway().catch(() => {});
+    setForce(true);
+  };
 
   // The whole of "one press" lives here: everything after the press, and it
   // happens once. `moveStep` stops saying "land" the moment `landedAt` is
@@ -460,7 +475,7 @@ function MoveThread({
               type="button"
               className="rounded-md border border-amber-300/50 px-2 py-0.5 text-[11px] text-amber-100"
               title="Count it as checked although the report is failing, and let it go live"
-              onClick={() => void move.useAnyway()}
+              onClick={() => void takeItLiveAnyway()}
             >
               Take it live anyway
             </button>

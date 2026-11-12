@@ -304,12 +304,22 @@ export function moveStep(args: {
   unchecked: boolean;
   /** A landing is in flight in this tab right now. */
   shipping: boolean;
+  /**
+   * The owner pressed "Take it live anyway" on a move that did not pass.
+   *
+   * Needed as well as marking the report accepted, not instead of it: when the
+   * gate never ran there is no report TO accept, so a button that only did
+   * that would do nothing at all in the one state where it is most likely to
+   * be pressed. It still cannot override `landedAt`.
+   */
+  force?: boolean;
 }): MoveStep {
   const { move, phase, passed, unchecked, shipping } = args;
   const prUrl = move.prUrl || args.prUrl || "";
 
   if (move.landedAt) return { act: "none", show: "live", prUrl, why: "" };
   if (shipping) return { act: "none", show: "landing", prUrl, why: "" };
+  if (args.force && prUrl) return { act: "land", show: "landing", prUrl, why: "" };
 
   // Written down first, and on its own: a thread that dies after opening a
   // pull request still has to leave the address somewhere that outlives it.

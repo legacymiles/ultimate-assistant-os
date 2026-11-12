@@ -325,3 +325,29 @@ describe("deciding whether a finished move goes live by itself", () => {
     expect(moveStep({ ...base, phase: "failed", move: { land: true, prUrl: PR } }).show).not.toBe("restart");
   });
 });
+
+describe("the owner's own call on a move that did not pass", () => {
+  const base = { move: {}, prUrl: "", phase: "done", passed: false, unchecked: true, shipping: false };
+  const PR = "https://github.com/legacymiles/ultimate-assistant-os/pull/28";
+
+  it("lands it even though nothing checked it — there is no report to accept", () => {
+    expect(moveStep({ ...base, force: true, move: { land: true, prUrl: PR } })).toMatchObject({
+      act: "land",
+      show: "landing",
+    });
+  });
+
+  it("lands it on a failing report too", () => {
+    expect(moveStep({ ...base, phase: "unverified", force: true, move: { land: true, prUrl: PR } }).act).toBe("land");
+  });
+
+  it("works when the owner had turned automatic landing off", () => {
+    expect(moveStep({ ...base, force: true, move: { land: false, prUrl: PR } }).act).toBe("land");
+  });
+
+  it("still cannot land twice, or land with no pull request at all", () => {
+    const landed = { land: true, prUrl: PR, landedAt: "2026-11-12T12:00:00.000Z" };
+    expect(moveStep({ ...base, force: true, move: landed })).toMatchObject({ act: "none", show: "live" });
+    expect(moveStep({ ...base, force: true, move: { land: true } }).act).toBe("none");
+  });
+});
