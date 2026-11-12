@@ -122,6 +122,12 @@ interface Ctx {
   siteName: string;
   facts?: SiteFacts;
   device?: "desktop" | "phone";
+  /**
+   * Set only when the picture of a LOCKED direction rides along as image 2
+   * (site-context.ts lockedStyleLine). Absent everywhere else, so prompts
+   * without a lock stay byte-identical to the hub's and share its cache.
+   */
+  styleRef?: string;
 }
 
 function subject(ctx: Ctx): string {
@@ -138,6 +144,7 @@ export function editFluxPrompt(instruction: string, lane: EditLaneId, ctx: Ctx):
     `Edit image 1, ${subject(ctx)}.`,
     l.keep,
     `Change only this: ${one(instruction, 520)}.`,
+    ctx.styleRef ? one(ctx.styleRef, 320) : "",
     l.style,
     factsLine(ctx.facts),
     FINISH,
@@ -223,6 +230,11 @@ export function editBrief(args: {
   url?: string;
   pick: EditPick;
   facts?: SiteFacts;
+  /** The site's DESIGN.md / SITE.md (tools/mockup-edit/scan.mjs), when it was read. */
+  designFile?: string;
+  siteFile?: string;
+  /** The direction locked for the whole site, when this page was painted in it. */
+  lock?: { label: string; instruction: string; page: string };
 }): string {
   const { pick } = args;
   const lines = [
@@ -236,10 +248,21 @@ export function editBrief(args: {
     lines.push("Refined after the first drawing, in this order:");
     for (const t of pick.tweaks) lines.push(`- ${cleanEdit(t)}`);
   }
-  const keep = (args.facts?.features ?? []).slice(0, 8);
+  const keep = (args.facts?.features ?? []).slice(0, 12);
   if (keep.length) {
     lines.push("", "Keep all of this working exactly as it does now:");
     for (const f of keep) lines.push(`- ${one(f, 120)}`);
+  }
+  if (args.lock) {
+    lines.push(
+      "",
+      `This site has a locked direction, picked on ${one(args.lock.page, 60)} ("${one(args.lock.label, 40)}"): ${cleanEdit(args.lock.instruction)}. Build this page in it too.`,
+    );
+  }
+  if (args.designFile || args.siteFile) {
+    lines.push("", "Read before building — measured from the live site:");
+    if (args.designFile) lines.push(`- design system: ${args.designFile}`);
+    if (args.siteFile) lines.push(`- every page and what must keep working: ${args.siteFile}`);
   }
   lines.push(
     "",
@@ -321,14 +344,16 @@ Rules:
 - Reading 2 "polished": what was asked, plus two or three specific premium refinements to the same section.
 - Reading 3 "bold": what was asked, as a clearly different composition of that section (say the new layout).
 - Each gets a 1-3 word label naming its idea ("Navy hero", "Glass card hero", "Centred orb").
+- When a page outline is given, use it: it lists the page's real sections top to bottom, the colours and fonts the browser rendered, and what must keep working. Never drop a form, nav link or button it lists. When it names a LOCKED DIRECTION, all three readings stay inside that direction and differ only in how they apply it.
 
 Reply with JSON only: {"lanes":[{"label":"","instruction":""},{"label":"","instruction":""},{"label":"","instruction":""}]}`;
 
 /** The user turn for that model: the request, the site, and what the page says. */
-export function readingsUser(args: { edit: string; siteName: string; url?: string; pageText?: string }): string {
+export function readingsUser(args: { edit: string; siteName: string; url?: string; pageText?: string; outline?: string }): string {
   return [
     `Site: ${one(args.siteName, 60)}${args.url ? ` (${args.url})` : ""}`,
     `Requested change: ${cleanEdit(args.edit)}`,
+    args.outline ? `Page outline, read from the rendered page:\n${String(args.outline).slice(0, 2500)}` : "",
     args.pageText ? `Text on the page (for reference, top to bottom):\n${String(args.pageText).slice(0, 2500)}` : "",
     "The screenshot of the page as it is now is attached.",
   ]
