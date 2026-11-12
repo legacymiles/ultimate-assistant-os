@@ -50,6 +50,7 @@ export const PLUGIN_SLUGS = [
   "contradicting",
   "workflow-maker",
   "custom-video-swap",
+  "buildflip-2",
 ] as const;
 
 /**
