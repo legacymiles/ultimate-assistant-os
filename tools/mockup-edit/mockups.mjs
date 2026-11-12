@@ -14,6 +14,16 @@
 //
 //   node tools/mockup-edit/mockups.mjs --from DIR --pick 2 --tweak "make the button green"
 //   node tools/mockup-edit/mockups.mjs --from DIR --pick 2 --brief
+//   node tools/mockup-edit/mockups.mjs --from DIR --pick 2 --lock
+//
+//   node tools/mockup-edit/mockups.mjs --scan --url https://site.com [--pages 6] [--device phone]
+//
+// --scan reads the live site first (tools/mockup-edit/scan.mjs): every page's
+// rendered sections, colours, fonts, nav, forms and buttons, written as
+// DESIGN.md + SITE.md in ~/.cache/wangp-image/sites/<site>/ (or --context DIR).
+// Painting reuses that context (scanning first when there is none; --rescan
+// to refresh, --no-scan to skip). --lock makes a pick the direction for the
+// whole site: later pages are painted with its picture as a style reference.
 //
 // Prints one JSON object on stdout (paths, link, lanes); progress on stderr.
 // The prompts come from src/lib/mockup/edit.ts — the same code the hub uses.
@@ -21,7 +31,7 @@
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -38,6 +48,8 @@ const SEED = 7;
 // Node prints a one-line notice when it reads a .ts file; it is noise here.
 process.removeAllListeners("warning");
 const edit = await import(pathToFileURL(path.join(REPO, "src", "lib", "mockup", "edit.ts")).href);
+const sc = await import(pathToFileURL(path.join(REPO, "src", "lib", "mockup", "site-context.ts")).href);
+const scanner = await import(pathToFileURL(path.join(HERE, "scan.mjs")).href);
 
 // ----- arguments -------------------------------------------------------------
 
@@ -193,11 +205,70 @@ async function siteFacts(repo, pagePath) {
   };
 }
 
+// ----- what the live site says about itself ------------------------------------
+// The rendered DOM of every page, read once and kept per site, so page 2 knows
+// what page 1 looks like and what was picked there (site-context.ts).
+
+function contextDir(url) {
+  return flag("context") || path.join(homedir(), ".cache", "wangp-image", "sites", sc.siteSlug(url));
+}
+
+function pathOf(url) {
+  try {
+    return sc.cleanPath(new URL(url).pathname);
+  } catch {
+    return "/";
+  }
+}
+
+/** The site's context: read from disk, or by scanning the live site when there is none (or --rescan). */
+async function ensureContext(url, device, siteName) {
+  const dir = contextDir(url);
+  let ctx = await scanner.readContext(dir);
+  const sameSite = ctx && (() => {
+    try {
+      return new URL(ctx.origin).hostname.replace(/^www\./, "") === new URL(url).hostname.replace(/^www\./, "");
+    } catch {
+      return false;
+    }
+  })();
+  const want = pathOf(url);
+  const hasPage = ctx?.pages?.some((p) => sc.cleanPath(p.path) === want);
+  if (ctx && sameSite && hasPage && !has("rescan")) return { dir, ctx, files: await scanner.writeContext(dir, ctx) };
+  if (has("no-scan")) return { dir, ctx: sameSite ? ctx : null, files: null };
+  const pages = Math.max(1, Math.min(15, Number(flag("pages")) || 6));
+  say(`reading the live site (${pages} pages max) so the mockups know every section, form and colour…`);
+  const fresh = await scanner.scanSite(url, { maxPages: pages, device, name: siteName, saveDir: dir, say });
+  // A rescan keeps the direction already locked for the site.
+  if (ctx?.lock && sameSite) fresh.lock = ctx.lock;
+  return { dir, ctx: fresh, files: await scanner.writeContext(dir, fresh) };
+}
+
+async function scanOnly() {
+  const url = flag("url");
+  if (!url) fail("Pass --url, e.g. --scan --url https://site.com");
+  const device = flag("device") === "phone" ? "phone" : "desktop";
+  const siteName = flag("name") || edit.nameFromUrl(url);
+  const { ctx, files } = await ensureContext(url, device, siteName);
+  if (!ctx) fail("Nothing could be read from that site.");
+  const out = {
+    ok: true,
+    site: ctx.name,
+    origin: ctx.origin,
+    files,
+    pages: ctx.pages.map((p) => ({ path: p.path, title: p.title, sections: p.sections.length, forms: p.forms.length })),
+    locked: ctx.lock ? { page: ctx.lock.page, label: ctx.lock.label, instruction: ctx.lock.instruction } : null,
+    // What whoever writes the three readings should read first.
+    outline: sc.pageBrief(ctx, pathOf(url)),
+  };
+  process.stdout.write(JSON.stringify(out, null, 2) + "\n");
+}
+
 // ----- the board -------------------------------------------------------------
 
 const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
-function boardHtml({ site, url, edit: request, before, lanes, link, device }) {
+function boardHtml({ site, url, edit: request, before, lanes, link, device, note = "" }) {
   const phone = device === "phone";
   const card = (src, title, sub, n) => `
     <figure class="lane">
@@ -223,7 +294,7 @@ figcaption span{color:var(--ink2);font-size:13.5px}
 .open{display:inline-block;align-self:flex-start;background:var(--sig);color:#0b0b0b;padding:12px 18px;font:600 11px/1 ui-monospace,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;text-decoration:none}
 @media (max-width:820px){.lanes{grid-template-columns:1fr}.ask{grid-template-columns:1fr}}
 </style></head><body><main>
-<div><p class="k">Website Redesigner · Edit · ${esc(site)}</p><h1>Three versions of your change. Pick one.</h1></div>
+<div><p class="k">Website Redesigner · Edit · ${esc(site)}</p><h1>Three versions of your change. Pick one.</h1>${note ? `<p class="k" style="color:var(--ink2);margin-top:12px">${esc(note)}</p>` : ""}</div>
 <section class="ask">${card(before, "Now", url, 0)}<q>${esc(request)}</q></section>
 <section class="lanes">${lanes.map((l, i) => card(l.file ? path.basename(l.file) : "", l.label, l.instruction, i + 1)).join("")}</section>
 <a class="open" href="${esc(link)}">Open in the Redesigner to tweak and send</a>
@@ -251,8 +322,37 @@ async function paint() {
     path.join(homedir(), ".cache", "wangp-image", "boards", `${siteName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`);
   await mkdir(out, { recursive: true });
 
-  const facts = repo && existsSync(repo) ? await siteFacts(repo, (() => { try { return new URL(url).pathname.replace(/\/$/, "") || "/"; } catch { return "/"; } })()) : null;
-  if (facts) say(`read the site's code: ${facts.pages.length} pages, colours ${facts.colors.slice(0, 3).join(" ")}, fonts ${facts.fonts.join(", ") || "none named"}`);
+  const pagePath = pathOf(url);
+  const codeFacts = repo && existsSync(repo) ? await siteFacts(repo, pagePath) : null;
+  if (codeFacts) say(`read the site's code: ${codeFacts.pages.length} pages, colours ${codeFacts.colors.slice(0, 3).join(" ")}, fonts ${codeFacts.fonts.join(", ") || "none named"}`);
+
+  // The live site, read from its rendered pages. Never blocks the mockups.
+  let site = null;
+  try {
+    site = await ensureContext(url, device, siteName);
+  } catch (e) {
+    say(`couldn't read the live site (${e.message}) — painting from the screenshot alone.`);
+  }
+  const ctx = site?.ctx ?? null;
+  const liveFacts = ctx ? sc.scanFacts(ctx, pagePath) : null;
+  const facts =
+    liveFacts || codeFacts
+      ? {
+          ...(codeFacts ?? {}),
+          ...(liveFacts ?? {}),
+          pages: [...new Set([...(liveFacts?.pages ?? []), ...(codeFacts?.pages ?? [])])],
+          features: [...(liveFacts?.features ?? []), ...(codeFacts?.features ?? [])].slice(0, 12),
+        }
+      : null;
+  const outline = ctx ? sc.pageBrief(ctx, pagePath) : "";
+  if (ctx) say(`site context: ${ctx.pages.length} pages read → ${site.files?.design ?? site.dir}`);
+
+  // A direction locked on another page of this site steers this one: its
+  // picture rides along as image 2, for look (not layout).
+  const lock = has("no-lock") ? null : sc.lockFor(ctx, pagePath);
+  const lockImage = lock && existsSync(lock.image) ? lock.image : "";
+  if (lock && !lockImage) say(`the locked direction's picture is missing (${lock.image}) — painting without it.`);
+  if (lockImage) say(`painting in the direction locked on ${lock.page}: "${lock.label}"`);
 
   const h = await ensureDrawer();
   say(h.loaded ? "Flux 2 is loaded — 1–3 minutes a picture on this laptop." : "Flux 2 is cold — the first picture takes ~4 minutes, the rest 1–3 minutes.");
@@ -263,7 +363,14 @@ async function paint() {
   const beforeFile = path.join(out, `before.${before.ext}`);
   await writeFile(beforeFile, before.bytes);
 
-  const lanes = edit.editLanes(request, { siteName, device }, custom);
+  const styleRef = lock ? sc.lockedStyleLine(lock, Boolean(lockImage)) : undefined;
+  const lanes = edit.editLanes(request, { siteName, device, styleRef }, custom);
+  const refs = [{ image: shot.image, url }];
+  if (lockImage) {
+    const bytes = await readFile(lockImage);
+    const mime = lockImage.endsWith(".png") ? "image/png" : lockImage.endsWith(".webp") ? "image/webp" : "image/jpeg";
+    refs.push({ image: `data:${mime};base64,${bytes.toString("base64")}` });
+  }
   const results = [];
   for (const [i, lane] of lanes.entries()) {
     say(`painting ${i + 1}/3 — ${lane.label}…`);
@@ -271,7 +378,7 @@ async function paint() {
     try {
       const got = await post(
         "/generate",
-        { prompt: lane.prompt, ...SIZE[device], steps: 4, seed: edit.laneSeed(lane.id), refs: [{ image: shot.image, url }] },
+        { prompt: lane.prompt, ...SIZE[device], steps: 4, seed: edit.laneSeed(lane.id), refs },
         15 * 60_000,
       );
       const pic = bytesOf(got.image);
@@ -293,8 +400,18 @@ async function paint() {
   const localLink = `http://localhost:3000/apps/app-builder?${q.toString()}`;
 
   const board = path.join(out, "board.html");
-  await writeFile(board, boardHtml({ site: siteName, url, edit: request, before: path.basename(beforeFile), lanes: results, link, device }), "utf8");
-  const meta = { ok: results.some((r) => r.file), site: siteName, url, edit: request, device, out, board, before: beforeFile, lanes: results, link, localLink, facts };
+  await writeFile(board, boardHtml({ site: siteName, url, edit: request, before: path.basename(beforeFile), lanes: results, link, device, note: [ctx ? `${ctx.pages.length} pages of the live site read` : "", lock ? `painted in the direction locked on ${lock.page}: ${lock.label}` : ""].filter(Boolean).join(" · ") }), "utf8");
+  const context = ctx
+    ? {
+        dir: site.dir,
+        design: site.files?.design,
+        site: site.files?.site,
+        pages: ctx.pages.length,
+        locked: lock ? { page: lock.page, label: lock.label, instruction: lock.style || lock.instruction, image: lockImage || undefined } : null,
+        outline,
+      }
+    : null;
+  const meta = { ok: results.some((r) => r.file), site: siteName, url, edit: request, device, out, board, before: beforeFile, lanes: results, link, localLink, facts, context };
   await writeFile(path.join(out, "mockups.json"), JSON.stringify(meta, null, 2), "utf8");
   process.stdout.write(JSON.stringify(meta, null, 2) + "\n");
 }
@@ -333,14 +450,53 @@ async function brief() {
   const lane = meta.lanes.find((l) => l.n === n);
   if (!lane) fail(`There's no mockup ${n} on that board.`);
   const pick = { lane: lane.id, label: lane.label, edit: meta.edit, instruction: lane.instruction, tweaks: (lane.tweaks ?? []).map((t) => t.text) };
-  const text = edit.editBrief({ siteName: meta.site, url: meta.url, pick, facts: meta.facts ?? undefined });
+  const text = edit.editBrief({
+    siteName: meta.site,
+    url: meta.url,
+    pick,
+    facts: meta.facts ?? undefined,
+    designFile: meta.context?.design,
+    siteFile: meta.context?.site,
+    lock: meta.context?.locked ?? undefined,
+  });
   const image = lane.tweaks?.at(-1)?.file || lane.file;
   process.stdout.write(JSON.stringify({ ok: true, pick, image, brief: text }, null, 2) + "\n");
+}
+
+/** Make a pick the direction for the whole site (DESIGN.md §6, and image 2 for later pages). */
+async function lockPick() {
+  const dir = flag("from");
+  const n = Number(flag("pick"));
+  const meta = await loadBoard(dir);
+  const lane = meta.lanes.find((l) => l.n === n);
+  if (!lane?.file) fail(`Mockup ${n} wasn't drawn, so it can't be locked.`);
+  const cdir = meta.context?.dir || contextDir(meta.url);
+  const ctx = await scanner.readContext(cdir);
+  if (!ctx) fail(`This site hasn't been read yet, so there's nowhere to lock it. Run: node tools/mockup-edit/mockups.mjs --scan --url ${meta.url}`);
+  const src = lane.tweaks?.at(-1)?.file || lane.file;
+  const image = path.join(cdir, `locked${path.extname(src)}`);
+  await copyFile(src, image);
+  ctx.lock = {
+    page: pathOf(meta.url),
+    edit: meta.edit,
+    label: lane.label,
+    instruction: lane.instruction,
+    // The look alone, for other pages. Without it the page-specific instruction is used.
+    style: flag("style") ? String(flag("style")).slice(0, 400) : undefined,
+    tweaks: (lane.tweaks ?? []).map((t) => t.text),
+    image,
+    at: new Date().toISOString(),
+  };
+  if (!ctx.lock.style) say('no --style given: pass the look alone in words (e.g. --style "deep navy panels, red pill buttons") so it carries to other pages cleanly.');
+  const files = await scanner.writeContext(cdir, ctx);
+  process.stdout.write(JSON.stringify({ ok: true, locked: ctx.lock, ...files }, null, 2) + "\n");
 }
 
 try {
   if (flag("from") && flag("tweak")) await tweak();
   else if (flag("from") && has("brief")) await brief();
+  else if (flag("from") && has("lock")) await lockPick();
+  else if (has("scan")) await scanOnly();
   else await paint();
 } catch (e) {
   fail(e instanceof Error ? e.message : String(e));
