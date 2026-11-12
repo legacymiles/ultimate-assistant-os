@@ -1,5 +1,41 @@
 [
  {
+  "id": "d72627a:client-review",
+  "date": "2026-11-11",
+  "slug": "client-review",
+  "title": "Connect to this PC connects, and Move it into the hub starts",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c7da6fe:app-builder",
+  "date": "2026-11-11",
+  "slug": "app-builder",
+  "title": "Built only after your PC has checked it, with the failing checks on screen",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c7da6fe:client-review",
+  "date": "2026-11-11",
+  "slug": "client-review",
+  "title": "Built only after your PC has checked it, with the failing checks on screen",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "c7da6fe:jarvis",
+  "date": "2026-11-11",
+  "slug": "jarvis",
+  "title": "Built only after your PC has checked it, with the failing checks on screen",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "448eb02:client-review",
   "date": "2026-11-11",
   "slug": "client-review",
