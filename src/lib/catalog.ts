@@ -951,6 +951,31 @@ export const PROJECTS: CatalogProject[] = [
     // A carousel panel that asks a stranger for their location is not a preview.
     noPreview: true,
   },
+  {
+    slug: "buildflip-2",
+    title: "BuildFlip 2",
+    tag: "Know if a build makes money before you buy a single board",
+    category: "Apps",
+    overview:
+      "Paste the link to a build you saw — TikTok, Instagram, Pinterest — or just say what you want to "
+      + "make, and about fifty seconds later you have the plan and the money. The plan is real: finished "
+      + "dimensions you can drag, a numbered build with the tools and minutes each step takes, a cut list, "
+      + "and the safety notes that belong to THIS build rather than a generic list. The money is the part "
+      + "flippers get wrong: every board, screw, tube of glue and sheet of sandpaper priced at a current "
+      + "listing with a buy link and a running total, and a resale band built only from COMPLETED sales — "
+      + "asking prices are shown beside them and never counted. Out of that comes one number, your real "
+      + "hourly rate, and a build-or-skip call that says which two figures decided it. Tap any number and "
+      + "it tells you the page it came from, the day it was checked and how sure it is; anything from the "
+      + "bundled demo catalog says so wherever it appears. Size the build up and the quantities re-count "
+      + "themselves. At the store the list regroups by aisle with tap targets you can hit in gloves, and "
+      + "logging what you actually paid puts your receipts next to the estimate — after three finished "
+      + "builds of a type, the estimates correct themselves. Rank your ideas by profit per hour, put two "
+      + "head to head, and send any plan out on a read-only link that keeps your receipts to yourself.",
+    status: "live",
+    appUrl: "/apps/buildflip-2",
+    iconStyle: "mesh",
+    hue: [38, 158],
+  },
 ];
 
 export function getProject(slug: string): CatalogProject | null {
@@ -984,6 +1009,9 @@ const UNPREVIEWABLE = new Set([
   "ea-world",
   "trading-studio",
   "financial-bible",
+  // Someone's own build plans, their receipts and what they paid. Not something
+  // to put on a spinning panel on the front page.
+  "buildflip-2",
 ]);
 
 /**

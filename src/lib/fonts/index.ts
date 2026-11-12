@@ -147,6 +147,29 @@ export const vsMono = localFont({
   fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "Liberation Mono", "monospace"],
 });
 
+// --- BuildFlip 2 (/apps/buildflip-2) ---------------------------------------
+// The stand-alone site asked `next/font/google` for Inter Tight + JetBrains
+// Mono. Inter Tight is not one of the faces committed to public/fonts, and
+// fetching a font at build time is the thing this module exists to stop, so
+// the sans is the Inter already here — same family, drawn a touch wider. The
+// app's own tracking (-0.028em on headings) carries the tight look.
+
+export const bfSans = localFont({
+  src: "../../../public/fonts/inter-variable.woff2",
+  weight: "100 900",
+  display: "swap",
+  variable: "--font-bf-sans",
+  fallback: ["system-ui", "-apple-system", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
+});
+
+export const bfMono = localFont({
+  src: "../../../public/fonts/jetbrains-mono-variable.woff2",
+  weight: "100 800",
+  display: "swap",
+  variable: "--font-bf-mono",
+  fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "Liberation Mono", "monospace"],
+});
+
 // --- Website Redesigner ----------------------------------------------------
 // Six faces, so a skin can change its voice and not just its colours.
 
