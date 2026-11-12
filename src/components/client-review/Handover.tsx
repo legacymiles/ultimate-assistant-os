@@ -18,6 +18,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { admin } from "@/lib/client-review/client";
+import { MOVE_PHASE_LABEL, moveDied } from "@/lib/app-builder/absorb";
+import { latestWord } from "@/lib/app-builder/build";
+import { useBuild } from "@/lib/app-builder/useBuild";
+import { askedBefore } from "@/lib/new-jarvis/harness/families";
+import { harnessHref } from "@/lib/new-jarvis/harness/link";
+import { buildLinks } from "@/lib/client-review/autoBuild";
 import { HUB_ORIGIN, HUB_REPO } from "@/lib/client-review/apps";
 import {
   countFiles,
@@ -274,6 +280,129 @@ function Confirm({
   );
 }
 
+/**
+ * The move into the hub, followed live.
+ *
+ * The press used to end at `setMoved({ threadId })` and a sentence saying a
+ * pull request would turn up. Nothing watched the thread, so three things were
+ * invisible: a permission gate (the move waits forever and looks like it is
+ * working), a thread that died (the owner finds out when the pull request never
+ * arrives), and the pull request itself when it DID arrive. All three happened.
+ *
+ * So this is the same follower the client-edit builds get, in the language of a
+ * move: the real phase, the agent's own last words, gates answerable here, and
+ * the pull request as a link the moment Claude says `PR:`.
+ */
+function MoveThread({
+  threadId,
+  slug,
+  onStartOver,
+}: {
+  threadId: string;
+  slug: string;
+  onStartOver: () => void;
+}) {
+  const move = useBuild(threadId, true);
+  const links = buildLinks(move.view.turns.map((turn) => turn.text).join("\n"));
+  const word = move.phase === "working" ? latestWord(move.view) : "";
+  const died = moveDied(move.phase);
+  const done = move.phase === "done";
+  const gate = move.gate;
+  const repeat = gate ? askedBefore(move.view, gate) : false;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px]">
+        <span className={done ? "text-emerald-200" : died ? "text-rose-200" : "text-sky-200"}>
+          ● Moving in as <code className="font-mono">/apps/{slug}</code> — {MOVE_PHASE_LABEL[move.phase]}
+        </span>
+        <a className="text-brand hover:underline" href={harnessHref(threadId)} target="_blank" rel="noreferrer">
+          Open in Jarvis →
+        </a>
+      </div>
+
+      {word && <p className="truncate text-[11px] text-ink-faint">{word}</p>}
+
+      {/*
+        Answered here. A gate that can only be answered on another screen is a
+        move that stalls until the owner happens to look somewhere else, which
+        from the Ship panel is indistinguishable from one that failed.
+      */}
+      {gate && (
+        <div className="flex flex-wrap items-center gap-1.5 rounded border border-amber-400/40 bg-amber-400/10 px-1.5 py-1 text-[11px] text-amber-100">
+          <span className="min-w-0 truncate" title={gate.why || gate.command || gate.path}>
+            Needs you: {gate.title || gate.name}
+          </span>
+          <button
+            className={
+              repeat
+                ? "rounded border border-amber-300/40 px-1.5 py-0.5"
+                : "rounded border border-amber-300/60 bg-amber-300/20 px-1.5 py-0.5 font-semibold"
+            }
+            onClick={() => void move.decide(gate.gateId, true)}
+          >
+            Allow{repeat ? " once" : ""}
+          </button>
+          {gate.risk !== "grave" && (
+            <button
+              className="rounded border border-amber-300/50 px-1.5 py-0.5"
+              title={`Stop asking about ${gate.name} for the rest of this move`}
+              onClick={() => void move.decide(gate.gateId, true, true)}
+            >
+              Always
+            </button>
+          )}
+          <button className="rounded border border-amber-300/30 px-1.5 py-0.5" onClick={() => void move.decide(gate.gateId, false)}>
+            Not now
+          </button>
+        </div>
+      )}
+
+      {links.pr && (
+        <p className="text-[11.5px] leading-snug text-ink-muted">
+          <a className="font-semibold text-accent underline underline-offset-2" href={links.pr} target="_blank" rel="noreferrer">
+            Review and merge it ↗
+          </a>{" "}
+          — nothing is in the hub until you do.
+        </p>
+      )}
+
+      {move.error && <p className="text-[11px] text-amber-200">{move.error}</p>}
+
+      {/*
+        A dead thread with no pull request is the one state that needs a press,
+        and the press it needs is "go again" — the move only ever adds, so
+        restarting it costs a branch. Without this the panel showed a finished
+        move that had produced nothing and offered no way out.
+      */}
+      {died && !links.pr && (
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-[11px] text-rose-200">
+            It stopped without opening a pull request, so nothing was moved. Starting again only adds a branch.
+          </p>
+          <button
+            type="button"
+            className="rounded-md border border-line px-2 py-0.5 text-[11px] text-ink-muted hover:text-ink"
+            onClick={onStartOver}
+          >
+            Start it again
+          </button>
+        </div>
+      )}
+      {done && (
+        <button
+          type="button"
+          className="self-start rounded-md border border-line px-2 py-0.5 text-[11px] text-ink-faint hover:text-ink"
+          title="Stop following this move"
+          onClick={onStartOver}
+        >
+          Clear
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function Handover({
   project: p,
   busy,
@@ -289,7 +418,6 @@ export function Handover({
   const [reloadKey, setReloadKey] = useState(0);
   const [working, setWorking] = useState("");
   const [note, setNote] = useState<{ tone: "ok" | "warn"; text: string } | null>(null);
-  const [moved, setMoved] = useState<{ threadId: string } | null>(null);
 
   const live = [...p.versions].reverse().find((v) => v.status === "review" && v.siteUrl)?.siteUrl ?? "";
   const liveUrl = live.startsWith("/") ? `${HUB_ORIGIN}${live}` : live;
@@ -335,13 +463,23 @@ export function Handover({
     setWorking("Starting the move…");
     try {
       const out = await startPluginsBuild(p, { repo: state.repo, liveUrl });
-      setMoved({ threadId: out.threadId });
+      // On the project, not in this component. `run` puts the new project back
+      // into the page, which is what swaps the button for the live follower —
+      // and what makes a reload, or the same project opened on the phone, come
+      // back to the move that is actually running instead of losing it.
+      await run("move", { action: "moveStarted", id: p.id, threadId: out.threadId });
       setNote({ tone: "ok", text: `Claude Code is moving it in as /apps/${slug}. It opens a pull request when it's done — you merge it.` });
     } catch (e) {
       setNote({ tone: "warn", text: e instanceof Error ? e.message : "The move didn't start." });
     } finally {
       setWorking("");
     }
+  };
+
+  /** Stop following a move: a dead one so it can be pressed again, or a finished one. */
+  const forgetMove = () => {
+    setNote(null);
+    void run("move", { action: "moveStarted", id: p.id, threadId: "" });
   };
 
   return (
@@ -409,14 +547,6 @@ export function Handover({
           }`}
         >
           {working || note?.text}
-          {moved && !working && (
-            <>
-              {" "}
-              <a className="underline underline-offset-2" href={`/apps/new-jarvis?thread=${encodeURIComponent(moved.threadId)}`}>
-                Watch it ↗
-              </a>
-            </>
-          )}
         </p>
       )}
 
@@ -474,16 +604,20 @@ export function Handover({
                     </>
                   )}
             </p>
-            <Confirm
-              label="Move it into the hub"
-              question={`Start Claude Code moving ${p.name} into the hub as /apps/${slug}? It opens a pull request and never merges it itself.`}
-              yes="Yes, move it in"
-              busy={working.startsWith("Starting") ? "Starting…" : ""}
-              tone="core"
-              disabled={Boolean(state.pluginsBlocked) || Boolean(working)}
-              onGo={toPlugins}
-              hint="Runs on your PC. Nothing goes live until you merge it."
-            />
+            {p.pluginsMove ? (
+              <MoveThread threadId={p.pluginsMove.threadId} slug={slug} onStartOver={forgetMove} />
+            ) : (
+              <Confirm
+                label="Move it into the hub"
+                question={`Start Claude Code moving ${p.name} into the hub as /apps/${slug}? It opens a pull request and never merges it itself.`}
+                yes="Yes, move it in"
+                busy={working.startsWith("Starting") ? "Starting…" : ""}
+                tone="core"
+                disabled={Boolean(state.pluginsBlocked) || Boolean(working)}
+                onGo={toPlugins}
+                hint="Runs on your PC. Nothing goes live until you merge it."
+              />
+            )}
           </div>
         </div>
       )}

@@ -213,3 +213,29 @@ describe("a repository is not a source until the site is in it", () => {
     expect(repoTree).not.toHaveBeenCalled();
   });
 });
+
+describe("one move at a time", () => {
+  beforeEach(() => {
+    probe.mockResolvedValue(READY);
+    knownFolder.mockReturnValue("C:\dev\jarvis-plugins-studios");
+  });
+
+  it("refuses a second press while a move is already recorded", async () => {
+    const p = { ...builtHere(), pluginsMove: { threadId: "th_move", at: T } } as ClientProject;
+
+    await expect(startPluginsBuild(p, { repo: "a/b", liveUrl: "" })).rejects.toThrow(/already running/);
+    // Two agents cutting two worktrees of the hub against one site produce two
+    // branches that each half-do the move. Nothing may start.
+    expect(call.mock.calls.some(([route]) => route === "harness/start")).toBe(false);
+  });
+
+  it("says how to get out of it, rather than just no", async () => {
+    const p = { ...builtHere(), pluginsMove: { threadId: "th_move", at: T } } as ClientProject;
+    await expect(startPluginsBuild(p, { repo: "a/b", liveUrl: "" })).rejects.toThrow(/Start it again/);
+  });
+
+  it("starts normally once the move has been cleared", async () => {
+    const out = await startPluginsBuild(builtHere(), { repo: "a/b", liveUrl: "" });
+    expect(out.threadId).toBe("th_9");
+  });
+});

@@ -256,6 +256,24 @@ describe("answering a DeepSeek gate by the unattended rules", () => {
     expect(gateVerdict({ name: "Write", path: "" }, wt).allow).toBe(false);
   });
 
+  it("refuses a path that names its own place on EVERY platform, not just Windows", () => {
+    // This is the one that made clean-clone red while the same test passed on
+    // the owner's PC. `path.resolve("/tmp/wt", "C:/dev/.../x.ts")` is absolute
+    // on Windows and `/tmp/wt/C:/dev/.../x.ts` on Linux — inside the worktree,
+    // so the write at the owner's own checkout was allowed on the VPS.
+    for (const outside of [
+      "C:/dev/jarvis-plugins-studios/src/x.ts",
+      "C:\\dev\\jarvis-plugins-studios\\src\\x.ts",
+      "/etc/passwd",
+      "//share/somewhere/x.ts",
+    ]) {
+      expect(gateVerdict({ name: "Write", path: outside }, wt).allow, outside).toBe(false);
+    }
+    // And a relative path is still resolved against the worktree, so the
+    // ordinary case keeps working.
+    expect(gateVerdict({ name: "Write", path: "src/lib/x.ts" }, wt).allow).toBe(true);
+  });
+
   it("allows checks and refuses pushes, installs and unknown tools", () => {
     expect(gateVerdict({ name: "Bash", command: "npx vitest run src/lib/ea-world" }, wt).allow).toBe(true);
     expect(gateVerdict({ name: "Bash", command: "git push origin main" }, wt).allow).toBe(false);

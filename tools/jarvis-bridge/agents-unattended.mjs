@@ -175,7 +175,7 @@ export function bashAllowed(command, roots = []) {
 
   // An allowed program redirected over the owner's code is still a write.
   for (const target of redirectTargets(text)) {
-    if (/^[A-Za-z]:[\\/]|^[\\/]/.test(target) && !insideWorkspace(target, roots)) {
+    if (namesItsOwnPlace(target) && !insideWorkspace(target, roots)) {
       return { allow: false, why: `it writes to ${target}, outside the folder this agent was given` };
     }
   }
@@ -198,6 +198,20 @@ export function bashAllowed(command, roots = []) {
     }
   }
   return { allow: true, why: "" };
+}
+
+/**
+ * Does this path name a place on its own, rather than one relative to a folder?
+ *
+ * A drive letter, a leading slash, or a UNC share. Deliberately both flavours
+ * at once, on every platform: `path.isAbsolute` only knows the platform it is
+ * running on, so "C:/dev/jarvis-plugins-studios/src/x" is absolute on the
+ * owner's PC and an ordinary relative segment on a Linux VPS — where resolving
+ * it against the worktree lands it INSIDE the worktree, and the one check that
+ * keeps an unattended agent out of the owner's own checkout waves it through.
+ */
+export function namesItsOwnPlace(p) {
+  return /^(?:[A-Za-z]:[\\/]|[\\/])/.test(String(p || ""));
 }
 
 /** Is this path inside somewhere the agent is allowed to write? */

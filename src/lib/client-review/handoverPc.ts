@@ -167,6 +167,17 @@ export interface PluginsBuild {
  * Code that does it and a pull request the owner reviews that lands it.
  */
 export async function startPluginsBuild(p: ClientProject, opts: { repo: string; liveUrl: string }): Promise<PluginsBuild> {
+  // One move at a time. Nothing used to stop a second press (or a second tab,
+  // or the phone) cutting another worktree of the hub against the same site,
+  // and two agents moving one app in produce two branches that both half-do it.
+  // The panel shows the live one instead of the button; this is the door a
+  // stale tab comes through.
+  if (p.pluginsMove) {
+    throw new Error(
+      "A move is already running for this site. Reload this page to follow it — and if it has stopped, the panel there has a \"Start it again\".",
+    );
+  }
+
   const why = await pcOrWhy();
   if (why) throw new Error(why);
 

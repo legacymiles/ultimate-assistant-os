@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { absorbBranch, absorbBrief, absorbPr, absorbTitle, hubSlug } from "./absorb";
+import { absorbBranch, absorbBrief, absorbPr, absorbTitle, hubSlug, moveDied, moveEnded } from "./absorb";
 import { applyOps, bestGuesses, intakeQuestions, newProject, offlineFeatures, understand } from "./engine";
 import type { BuilderProject } from "./types";
 
@@ -86,5 +86,36 @@ describe("reading the pull request back", () => {
   });
   it("strips trailing punctuation", () => {
     expect(absorbPr("PR: https://github.com/me/hub/pull/12.")).toBe("https://github.com/me/hub/pull/12");
+  });
+});
+
+describe("both doors into the hub say the same thing", () => {
+  // App Builder's Move into Jarvis and Client Review's Ship are two briefs for
+  // one job. Ship grew the PLUGIN_SLUGS line after a move landed an app on the
+  // hub grid with no card on App plugins; this door had not.
+  const brief = () => absorbBrief(project(), "C:/dev/standalone");
+
+  it("puts the app on App plugins, not only in the catalog", () => {
+    expect(brief()).toContain("PLUGIN_SLUGS");
+    expect(brief()).toContain("src/lib/studio/plugins.ts");
+    expect(brief()).toContain("PROJECTS");
+  });
+
+  it("asks for the gate CI runs, by its one command", () => {
+    expect(brief()).toContain("npm run verify");
+    expect(brief()).toContain("npm run apps:index");
+    expect(brief()).toContain("npm run build");
+  });
+});
+
+describe("when a move needs the owner", () => {
+  it("counts every way a thread stops as ended", () => {
+    for (const p of ["done", "failed", "stopped", "lost", "unfinished"] as const) expect(moveEnded(p), p).toBe(true);
+    for (const p of ["starting", "working", "asking", "checking"] as const) expect(moveEnded(p), p).toBe(false);
+  });
+
+  it("separates finished from died, because only one of them has a pull request", () => {
+    expect(moveDied("done")).toBe(false);
+    for (const p of ["failed", "stopped", "lost", "unfinished"] as const) expect(moveDied(p), p).toBe(true);
   });
 });

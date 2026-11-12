@@ -430,6 +430,26 @@ export async function POST(req: Request) {
         return NextResponse.json({ project });
       }
 
+      // The thread moving this site into the hub. Stored on the project so the
+      // Ship panel can still find it after a reload — it used to live in a
+      // `useState` in the panel, which meant a refresh orphaned a move that was
+      // still running, with no way to answer its gates and nothing stopping a
+      // second one from starting next to it. An empty threadId clears it, which
+      // is what "start it again" presses after a thread has died.
+      case "moveStarted": {
+        const threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
+        if (threadId && !/^[\w-]{6,80}$/.test(threadId)) throw new ReviewError("That isn't a harness thread.", 400);
+        const now = new Date().toISOString();
+        const { project } = await updateProject(id, (p) => ({
+          project: threadId
+            ? { ...p, pluginsMove: { threadId, at: now }, updatedAt: now }
+            : { ...p, pluginsMove: undefined, updatedAt: now },
+          result: null,
+        }));
+        await updateIndex((i) => upsertIndex(i, project));
+        return NextResponse.json({ project });
+      }
+
       // A build that died on the PC (or was never going to run) leaves the
       // version saying "building" forever. This puts the batch back to pending
       // and removes the version, so Approve & build is there to press again.

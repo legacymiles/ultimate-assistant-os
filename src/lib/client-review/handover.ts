@@ -18,6 +18,7 @@
 // explain afterwards.
 // ---------------------------------------------------------------------------
 
+import { HUB_VERIFY_LINES, hubPluginLine } from "@/lib/app-builder/absorb";
 import type { ClientProject } from "./types";
 
 /** GitHub's flat tree, as `/repos/{repo}/git/trees/{sha}?recursive=1` gives it. */
@@ -236,7 +237,7 @@ export function pluginsBrief(p: ClientProject, opts: { repo?: string; folder?: s
     "This is not a file move. Bring it onto the hub's own foundations:",
     `- The route becomes \`src/app/apps/${slug}/page.tsx\`; UI goes in \`src/components/${slug}/\`, logic and types in \`src/lib/${slug}/\` with its tests beside them, server routes in \`src/app/api/${slug}/\`. If a folder name has to differ from the slug, add the row to CLAUDE.md's slug→folder table.`,
     "- Add ONE object to `PROJECTS` in `src/lib/catalog.ts`. That file is the single source of truth for what exists; an app that is not in it silently has no card.",
-    `- Add \`"${slug}"\` to \`PLUGIN_SLUGS\` in \`src/lib/studio/plugins.ts\`, so it arrives as a card on Jarvis › App plugins rather than only on the hub grid. That list is also what keeps one app from having two front doors: a slug in it leaves the hub grid, so do not also leave it there by hand.`,
+    hubPluginLine(slug),
     "- Every AI call goes through `src/lib/ai/provider.ts`. Delete the site's own provider or SDK wiring.",
     "- Cross-device state goes through `src/lib/sync/appState.ts`. Delete the site's own persistence layer where that replaces it.",
     "- Merge its dependencies into the hub's `package.json`, taking the hub's existing version where both have one. Drop anything the hub already provides.",
@@ -245,7 +246,7 @@ export function pluginsBrief(p: ClientProject, opts: { repo?: string; folder?: s
     "</what_moving_in_means>",
     "",
     "<done>",
-    "Typecheck and the full test suite pass (`npx tsc -p tsconfig.json --noEmit`, `npx vitest run`). The app opens at its route and its main task still works end to end — check it in a browser, do not assume.",
+    ...HUB_VERIFY_LINES,
     `Its card is on Jarvis › App plugins and it is NOT also on the hub's front grid — open both and look, because \`PLUGIN_SLUGS\` is what decides that and a missing slug shows up nowhere until someone goes hunting.`,
     `Then commit, push your branch and open a pull request into \`main\` titled "${p.name}: move into the hub". Do NOT merge it; the owner merges.`,
     "Say the pull request's address in your last message on its own line as `PR: <url>`, and nothing after it.",

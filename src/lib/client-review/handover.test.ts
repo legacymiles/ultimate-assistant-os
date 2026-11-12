@@ -234,3 +234,37 @@ describe("the brief puts the app where the owner looks for it", () => {
     expect(pluginsBrief(site(), { repo: "a/b", liveUrl: "" })).toContain("App plugins");
   });
 });
+
+describe("the brief asks for the gate CI actually runs", () => {
+  // Two moves in a row opened a RED pull request, for two different reasons,
+  // and both were invisible to the checks the brief used to name.
+  const briefs = () => [
+    { door: "Client Review Ship", text: pluginsBrief(site(), { repo: "a/b", liveUrl: "" }) },
+    { door: "Client Review Ship, from a folder", text: pluginsBrief(site(), { folder: "C:/work/x", liveUrl: "" }) },
+  ];
+
+  it("names one command, and it is the repository's own", () => {
+    for (const { door, text } of briefs()) expect(text, door).toContain("npm run verify");
+  });
+
+  it("says to regenerate the apps index, because a catalog entry always staleness it", () => {
+    for (const { door, text } of briefs()) {
+      expect(text, door).toContain("npm run apps:index");
+      expect(text, door).toContain("docs/apps/README.md");
+    }
+  });
+
+  it("says the build is the only check that sees an App Router mistake", () => {
+    for (const { door, text } of briefs()) {
+      expect(text, door).toContain("npm run build");
+      // The exact trap: `ownImagesOnly` exported from a route.ts typechecked
+      // clean and failed next build.
+      expect(text, door).toMatch(/route\.ts` may export nothing but route handlers/);
+      expect(text, door).toContain("tsc --noEmit");
+    }
+  });
+
+  it("puts a red pull request on the agent, not on the owner", () => {
+    expect(pluginsBrief(site(), { repo: "a/b", liveUrl: "" })).toMatch(/not finished work/);
+  });
+});

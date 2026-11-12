@@ -237,6 +237,23 @@ export interface ClientProject {
    * strips it for a client.
    */
   buildWatch?: { threadId: string; builderId?: string; versionId?: string; at: string };
+  /**
+   * The harness thread moving this site INTO the hub, once one is running.
+   *
+   * Deliberately not `buildWatch`: that one is the thread a VERSION was built
+   * in, and `handoverPc.siteFolder` reads it to find the folder the site's code
+   * is sitting in. A move would overwrite the very thing the next move needs.
+   *
+   * On the project rather than in the panel's own state, because the press used
+   * to hand its thread id to a `useState` and nothing else. Reload the page and
+   * the move was gone — still running on the PC, with no way left to watch it,
+   * no gate answerable, and nothing to stop a second one starting beside it.
+   * That is how a thread that died of a protocol error went unnoticed for an
+   * hour and the move had to be finished by hand.
+   *
+   * Owner-only; the portal endpoint strips it like `buildWatch`.
+   */
+  pluginsMove?: { threadId: string; at: string };
   settings: ClientSettings;
   pushSubs: PushSub[];
   notices: ClientNotice[];
