@@ -20,7 +20,8 @@ import { buildHarness } from "@/lib/new-jarvis/harness/choice";
 import { readTrust } from "@/lib/new-jarvis/trust";
 import { readChatModel } from "@/lib/new-jarvis/useChatModel";
 import { buildModelFor, buildsWithPick, pickValue } from "./models";
-import { pluginsBrief, repoUrl } from "./handover";
+import { admin } from "./client";
+import { pluginsBrief, repoHasNoSite, repoUrl, type RepoEntry } from "./handover";
 import type { ClientProject } from "./types";
 
 export interface PcResult {
@@ -180,6 +181,22 @@ export async function startPluginsBuild(p: ClientProject, opts: { repo: string; 
   const folder = opts.repo ? "" : await siteFolder(p).catch(() => "");
   if (!opts.repo && !folder) {
     throw new Error("This site has no repository and the folder it was built in is gone, so there is nothing to move in. Send it to the client first — that gives it a repository.");
+  }
+  // A repository is not a source until the site is IN it. Jarvis makes one on
+  // Send and writes a README into it; when the build folder has already been
+  // discarded nothing else ever follows, and starting a move against that
+  // spends a thread to discover one file. Having a repo row on screen is not
+  // the same as having a site, so this asks what is actually in it.
+  if (opts.repo) {
+    const out = await admin
+      .act<{ tree: { entries: RepoEntry[] } | null }>({ action: "repoTree", id: p.id })
+      .catch(() => null);
+    const entries = out?.tree?.entries;
+    if (entries && repoHasNoSite(entries)) {
+      throw new Error(
+        `${opts.repo} holds nothing but its README, so there is no site in it to move. Press "Put the site in it" with the folder this site was built in on this PC, or build a version — the code goes up with that.`,
+      );
+    }
   }
 
   const chosen = readChatModel();

@@ -468,8 +468,9 @@ export function Handover({
                 ? "Nothing has been built yet, so there is no site to move in. Build a version first."
                 : (
                     <>
-                      Moves it into the hub as <code className="font-mono text-ink">/apps/{slug}</code> — its own route, its own card, on the
-                      hub&rsquo;s provider and sync. Claude Code does it on your PC and opens a pull request for you to merge.
+                      Moves it into the hub as <code className="font-mono text-ink">/apps/{slug}</code> — its own route, its own card on
+                      Jarvis &rsaquo; App plugins, on the hub&rsquo;s provider and sync. Claude Code does it on your PC and opens a pull
+                      request for you to merge.
                     </>
                   )}
             </p>

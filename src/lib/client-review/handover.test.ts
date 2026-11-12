@@ -6,6 +6,8 @@ import {
   handover,
   hubSlugFor,
   pluginsBrief,
+  repoHasNoSite,
+  siteFileCount,
   readableSize,
   repoNameFor,
   repoOf,
@@ -180,5 +182,55 @@ describe("the brief that moves a site into the hub", () => {
 
   it("asks for the one line the console reads back", () => {
     expect(brief).toContain("`PR: <url>`");
+  });
+});
+
+describe("what counts as a site being in the repository", () => {
+  it("does not count the README Jarvis writes when it makes the repo", () => {
+    expect(repoHasNoSite([{ path: "README.md", type: "blob" }])).toBe(true);
+    expect(siteFileCount([{ path: "README.md", type: "blob" }])).toBe(0);
+  });
+
+  it("does not count a licence or a .gitignore either", () => {
+    const housekeeping = [
+      { path: "README.md", type: "blob" as const },
+      { path: "LICENSE", type: "blob" as const },
+      { path: "licence.txt", type: "blob" as const },
+      { path: ".gitignore", type: "blob" as const },
+      { path: ".gitattributes", type: "blob" as const },
+    ];
+    expect(repoHasNoSite(housekeeping)).toBe(true);
+  });
+
+  it("counts one real file as a site", () => {
+    expect(repoHasNoSite([{ path: "README.md", type: "blob" }, { path: "index.html", type: "blob" }])).toBe(false);
+  });
+
+  it("does not count folders — a tree entry is not a file", () => {
+    expect(repoHasNoSite([{ path: "src", type: "tree" }, { path: "README.md", type: "blob" }])).toBe(true);
+  });
+
+  it("is not fooled by a file whose name merely starts with readme", () => {
+    expect(repoHasNoSite([{ path: "readme-generator.js", type: "blob" }])).toBe(false);
+  });
+});
+
+describe("the brief puts the app where the owner looks for it", () => {
+  it("tells it to add the slug to PLUGIN_SLUGS, not only to the catalog", () => {
+    const brief = pluginsBrief(site(), { repo: "legacymiles/buildflip-2", liveUrl: "" });
+    expect(brief).toContain("PLUGIN_SLUGS");
+    expect(brief).toContain("src/lib/studio/plugins.ts");
+    // The catalog row alone was what left a moved app with no card on App
+    // plugins and nothing but a tile on the hub grid.
+    expect(brief).toContain("PROJECTS");
+  });
+
+  it("names the app's own slug in that instruction", () => {
+    const brief = pluginsBrief(site(), { repo: "a/b", liveUrl: "" });
+    expect(brief).toContain(`"${hubSlugFor(site().name)}"`);
+  });
+
+  it("makes checking the card part of done", () => {
+    expect(pluginsBrief(site(), { repo: "a/b", liveUrl: "" })).toContain("App plugins");
   });
 });

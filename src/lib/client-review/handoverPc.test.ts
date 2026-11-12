@@ -27,6 +27,7 @@ const probe = vi.fn<() => Promise<BridgeHealth>>();
 const connectToPc = vi.fn<() => Promise<Blocker | null>>();
 const call = vi.fn<(route: string, args?: Record<string, unknown>) => Promise<Record<string, unknown>>>();
 const knownFolder = vi.fn<() => string>();
+const repoTree = vi.fn<(action: Record<string, unknown>) => Promise<unknown>>();
 
 vi.mock("@/lib/new-jarvis/bridge", async () => {
   const actual = await vi.importActual<typeof import("@/lib/new-jarvis/bridge")>("@/lib/new-jarvis/bridge");
@@ -38,6 +39,7 @@ vi.mock("@/lib/new-jarvis/bridge", async () => {
   };
 });
 vi.mock("./buildHere", () => ({ connectToPc: () => connectToPc() }));
+vi.mock("./client", () => ({ admin: { act: (action: Record<string, unknown>) => repoTree(action) } }));
 vi.mock("@/lib/new-jarvis/harness/choice", () => ({ buildHarness: () => "claude-code" }));
 vi.mock("@/lib/new-jarvis/trust", () => ({ readTrust: () => "ask" }));
 vi.mock("@/lib/new-jarvis/useChatModel", () => ({ readChatModel: () => "" }));
@@ -69,6 +71,7 @@ function bridgeOnlyThroughRelay(): void {
 beforeEach(() => {
   vi.clearAllMocks();
   knownFolder.mockReturnValue("");
+  repoTree.mockResolvedValue({ tree: { entries: [{ path: "src/app/page.tsx", type: "blob" }] } });
   call.mockImplementation(async (route) => {
     if (route === "harness/threads") return { threads: [{ id: "th_1", worktree: { path: "C:\\work\\buildflip-2" } }] };
     if (route === "harness/start") return { session: { id: "th_9", worktree: { path: "C:\\work\\move" } } };
@@ -155,5 +158,58 @@ describe("finding the folder a site was built in", () => {
   it("is empty when the worktree has been discarded, rather than a guess at its path", async () => {
     call.mockImplementation(async () => ({ threads: [{ id: "th_other", worktree: { path: "C:\\work\\other" } }] }));
     expect(await siteFolder(builtHere())).toBe("");
+  });
+});
+
+describe("a repository is not a source until the site is in it", () => {
+  beforeEach(() => {
+    probe.mockResolvedValue(READY);
+    knownFolder.mockReturnValue("C:\dev\jarvis-plugins-studios");
+  });
+
+  it("refuses a repository holding nothing but the README Jarvis wrote", async () => {
+    repoTree.mockResolvedValue({ tree: { entries: [{ path: "README.md", type: "blob", size: 202 }] } });
+
+    await expect(startPluginsBuild(builtHere(), { repo: "legacymiles/buildflip-2-2", liveUrl: "" })).rejects.toThrow(
+      /holds nothing but its README/,
+    );
+    // Nothing may be started: a thread that exists to discover there is no
+    // site is the cost this guard exists to avoid.
+    expect(call.mock.calls.some(([route]) => route === "harness/start")).toBe(false);
+  });
+
+  it("ignores a licence and a .gitignore too — they are housekeeping, not the site", async () => {
+    repoTree.mockResolvedValue({
+      tree: {
+        entries: [
+          { path: "README.md", type: "blob" },
+          { path: "LICENSE", type: "blob" },
+          { path: ".gitignore", type: "blob" },
+        ],
+      },
+    });
+
+    await expect(startPluginsBuild(builtHere(), { repo: "a/b", liveUrl: "" })).rejects.toThrow(/holds nothing but its README/);
+  });
+
+  it("starts as soon as one real file is in there", async () => {
+    repoTree.mockResolvedValue({
+      tree: { entries: [{ path: "README.md", type: "blob" }, { path: "src/app/page.tsx", type: "blob" }] },
+    });
+
+    const out = await startPluginsBuild(builtHere(), { repo: "a/b", liveUrl: "" });
+    expect(out.threadId).toBe("th_9");
+  });
+
+  it("does not block the move when the repository cannot be read", async () => {
+    repoTree.mockRejectedValue(new Error("GitHub is down"));
+
+    const out = await startPluginsBuild(builtHere(), { repo: "a/b", liveUrl: "" });
+    expect(out.threadId).toBe("th_9");
+  });
+
+  it("never asks about a repository when the source is a folder on this PC", async () => {
+    await startPluginsBuild(builtHere(), { repo: "", liveUrl: "" });
+    expect(repoTree).not.toHaveBeenCalled();
   });
 });
