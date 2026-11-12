@@ -105,7 +105,14 @@ if (process.argv.includes("--check")) {
     console.error(`docs/apps/README.md is missing. Run: node scripts/apps-index.mjs`);
     process.exit(1);
   }
-  if (current.trim() !== next.trim()) {
+  // Line endings normalised on both sides. The generator writes LF; git
+  // materialises this file with CRLF on Windows after any checkout or merge,
+  // so a byte-exact compare fails on content that is perfectly correct — and
+  // it fails ONLY on the owner's own machine, never in CI, which is the worst
+  // shape a check can have. It cost one red pull request and would have made
+  // the verify Stop hook refuse to let any session on this PC finish.
+  const same = (s) => s.replace(/\r\n/g, "\n").trim();
+  if (same(current) !== same(next)) {
     console.error(
       "docs/apps/README.md is out of date with src/lib/catalog.ts.\n" +
         "Run: node scripts/apps-index.mjs",

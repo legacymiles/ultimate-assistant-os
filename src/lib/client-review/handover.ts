@@ -259,3 +259,73 @@ export function pluginsBrief(p: ClientProject, opts: { repo?: string; folder?: s
     .filter(Boolean)
     .join("\n");
 }
+
+// ----- taking a finished move live, without a second press ---------------------------
+
+/**
+ * What the Ship panel should do next about a move, and what it should say.
+ *
+ * Pure, and separate from the panel, because this is the decision that pushes
+ * to main. Four of its rules only exist because of a way it could go wrong:
+ *
+ *   `landedAt` outranks everything. The panel re-mounts on every reload and on
+ *   every device the project is open on, and pushing to main is not a read.
+ *
+ *   The checks having PASSED is the condition, never the phase being "done".
+ *   `phaseOf` reports "done" for a thread nobody checked, so reading the phase
+ *   would take "the gate was switched off" as permission to go live.
+ *
+ *   A failing or missing check does not block the owner, it just stops the
+ *   hub deciding for them: they get the reason and a press.
+ *
+ *   The pull request is recorded BEFORE anything lands, in its own step. If
+ *   the landing then fails, the address is still on the project instead of
+ *   only in a thread that may be gone by the time anyone looks.
+ */
+export type MoveShow = "running" | "pr-only" | "unchecked" | "failed" | "landing" | "live" | "restart";
+
+export interface MoveStep {
+  /** What to do with no press at all. */
+  act: "none" | "record-pr" | "land";
+  show: MoveShow;
+  prUrl: string;
+  /** Why the hub is not landing it by itself, when it isn't. */
+  why: string;
+}
+
+export function moveStep(args: {
+  move: { land?: boolean; prUrl?: string; landedAt?: string };
+  /** The address read out of the thread on this poll, "" until Claude says it. */
+  prUrl: string;
+  phase: string;
+  /** `checkedAndPassed(summary)` — something other than the agent approved it. */
+  passed: boolean;
+  /** `endedUnchecked(summary)` — it stopped and no check ever ran. */
+  unchecked: boolean;
+  /** A landing is in flight in this tab right now. */
+  shipping: boolean;
+}): MoveStep {
+  const { move, phase, passed, unchecked, shipping } = args;
+  const prUrl = move.prUrl || args.prUrl || "";
+
+  if (move.landedAt) return { act: "none", show: "live", prUrl, why: "" };
+  if (shipping) return { act: "none", show: "landing", prUrl, why: "" };
+
+  // Written down first, and on its own: a thread that dies after opening a
+  // pull request still has to leave the address somewhere that outlives it.
+  if (args.prUrl && !move.prUrl) return { act: "record-pr", show: "running", prUrl, why: "" };
+
+  const died = phase === "failed" || phase === "stopped" || phase === "lost" || phase === "unfinished";
+  if (!prUrl) return died ? { act: "none", show: "restart", prUrl: "", why: "" } : { act: "none", show: "running", prUrl: "", why: "" };
+
+  if (!move.land) return { act: "none", show: "pr-only", prUrl, why: "" };
+  if (passed) return { act: "land", show: "landing", prUrl, why: "" };
+  if (phase === "unverified") {
+    return { act: "none", show: "failed", prUrl, why: "your PC's checks are failing on it" };
+  }
+  if (unchecked) {
+    return { act: "none", show: "unchecked", prUrl, why: "nothing checked it — the build gate did not run" };
+  }
+  if (died) return { act: "none", show: "failed", prUrl, why: "it stopped before the checks finished" };
+  return { act: "none", show: "running", prUrl, why: "" };
+}

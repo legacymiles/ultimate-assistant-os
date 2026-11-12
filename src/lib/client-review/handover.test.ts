@@ -1,19 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { builderProject, createProject, sendToClient } from "./logic";
-import {
-  countFiles,
-  folderTree,
-  handover,
-  hubSlugFor,
-  pluginsBrief,
-  repoHasNoSite,
-  siteFileCount,
-  readableSize,
-  repoNameFor,
-  repoOf,
-  repoUrl,
-  type RepoEntry,
-} from "./handover";
+import { countFiles, folderTree, handover, hubSlugFor, moveStep, pluginsBrief, readableSize, repoHasNoSite, repoNameFor, repoOf, repoUrl, siteFileCount, type RepoEntry } from "./handover";
 import type { ClientProject } from "./types";
 
 const T = "2026-11-10T10:00:00.000Z";
@@ -266,5 +253,75 @@ describe("the brief asks for the gate CI actually runs", () => {
 
   it("puts a red pull request on the agent, not on the owner", () => {
     expect(pluginsBrief(site(), { repo: "a/b", liveUrl: "" })).toMatch(/not finished work/);
+  });
+});
+
+describe("deciding whether a finished move goes live by itself", () => {
+  const base = { move: {}, prUrl: "", phase: "working", passed: false, unchecked: false, shipping: false };
+  const PR = "https://github.com/legacymiles/ultimate-assistant-os/pull/28";
+
+  it("waits while the thread is still working", () => {
+    expect(moveStep(base)).toMatchObject({ act: "none", show: "running" });
+  });
+
+  it("writes the pull request down before it does anything with it", () => {
+    // Its own step on purpose: a thread that dies right after opening the PR
+    // must still leave the address on the project.
+    expect(moveStep({ ...base, prUrl: PR, phase: "done", passed: true, move: { land: true } })).toMatchObject({
+      act: "record-pr",
+      prUrl: PR,
+    });
+  });
+
+  it("lands it once the checks have passed and the address is recorded", () => {
+    expect(moveStep({ ...base, phase: "done", passed: true, move: { land: true, prUrl: PR } })).toMatchObject({
+      act: "land",
+      show: "landing",
+      prUrl: PR,
+    });
+  });
+
+  it("NEVER lands on the phase alone — a thread nobody checked reads as done", () => {
+    // phaseOf returns "done" when there is no verify report at all. Landing on
+    // that would treat a switched-off gate as permission to push to main.
+    const step = moveStep({ ...base, phase: "done", passed: false, unchecked: true, move: { land: true, prUrl: PR } });
+    expect(step.act).toBe("none");
+    expect(step.show).toBe("unchecked");
+    expect(step.why).toMatch(/nothing checked it/);
+  });
+
+  it("does not land when the checks are failing, and says which way it failed", () => {
+    const step = moveStep({ ...base, phase: "unverified", move: { land: true, prUrl: PR } });
+    expect(step.act).toBe("none");
+    expect(step.show).toBe("failed");
+    expect(step.why).toMatch(/checks are failing/);
+  });
+
+  it("does not land twice, whatever the thread says afterwards", () => {
+    // The panel re-mounts on every reload and on every device the project is
+    // open on. Pushing to main is not a read.
+    const landed = { land: true, prUrl: PR, landedAt: "2026-11-12T12:00:00.000Z" };
+    expect(moveStep({ ...base, phase: "done", passed: true, move: landed })).toMatchObject({ act: "none", show: "live" });
+    expect(moveStep({ ...base, phase: "unverified", move: landed })).toMatchObject({ act: "none", show: "live" });
+  });
+
+  it("does not land while a landing is already in flight", () => {
+    expect(moveStep({ ...base, phase: "done", passed: true, shipping: true, move: { land: true, prUrl: PR } })).toMatchObject({
+      act: "none",
+      show: "landing",
+    });
+  });
+
+  it("stops at the pull request when the owner did not ask for it to go live", () => {
+    expect(moveStep({ ...base, phase: "done", passed: true, move: { land: false, prUrl: PR } })).toMatchObject({
+      act: "none",
+      show: "pr-only",
+    });
+  });
+
+  it("offers a restart only when it died with no pull request at all", () => {
+    expect(moveStep({ ...base, phase: "failed", move: { land: true } })).toMatchObject({ act: "none", show: "restart" });
+    // With a PR there is something to keep, so restarting is the wrong offer.
+    expect(moveStep({ ...base, phase: "failed", move: { land: true, prUrl: PR } }).show).not.toBe("restart");
   });
 });

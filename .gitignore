@@ -36,7 +36,15 @@ next-env.d.ts
 # the deployed hub builds a download whose manifest points at a file that is not
 # there, and Chrome refuses to load the whole extension over it.
 !extension/**/*.png
-.claude/
+# `.claude/*`, not `.claude/`, for one reason: git does not descend into an
+# excluded DIRECTORY, so a `!` for a file inside one can never re-include it.
+# Ignoring the children instead leaves the negation below able to work.
+#
+# The Stop hook is not a local preference — it is the rule that a session may
+# not end on a red `npm run verify` — and a rule living on one machine is a
+# rule the next clone, and the VPS, do not have.
+.claude/*
+!.claude/settings.json
 
 
 .vercel

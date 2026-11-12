@@ -239,3 +239,19 @@ describe("one move at a time", () => {
     expect(out.threadId).toBe("th_9");
   });
 });
+
+describe("what the PC is asked to check", () => {
+  beforeEach(() => {
+    probe.mockResolvedValue(READY);
+    knownFolder.mockReturnValue("C:/dev/jarvis-plugins-studios");
+  });
+
+  it("names the new app's own route, so the gate opens the page the move is for", () => {
+    // A gate that only compiles and runs the tests cannot tell that the route
+    // 404s, which is the failure a move is most likely to leave behind.
+    return startPluginsBuild(builtHere(), { repo: "a/b", liveUrl: "" }).then(() => {
+      const started = call.mock.calls.find(([route]) => route === "harness/start");
+      expect(started?.[1]?.verifyPaths).toEqual(["/apps/buildflip-2"]);
+    });
+  });
+});

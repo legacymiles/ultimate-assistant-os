@@ -16,10 +16,10 @@
 // the page.
 // ---------------------------------------------------------------------------
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { admin } from "@/lib/client-review/client";
 import { MOVE_PHASE_LABEL, moveDied } from "@/lib/app-builder/absorb";
-import { latestWord } from "@/lib/app-builder/build";
+import { checkedAndPassed, endedUnchecked, latestWord } from "@/lib/app-builder/build";
 import { useBuild } from "@/lib/app-builder/useBuild";
 import { askedBefore } from "@/lib/new-jarvis/harness/families";
 import { harnessHref } from "@/lib/new-jarvis/harness/link";
@@ -32,10 +32,12 @@ import {
   hubSlugFor,
   OPEN_BY_DEFAULT,
   readableSize,
+  moveStep,
   repoUrl,
   type TreeNode,
 } from "@/lib/client-review/handover";
 import { pushSiteToRepo, startPluginsBuild } from "@/lib/client-review/handoverPc";
+import { shipThread } from "@/lib/client-review/pushMain";
 import type { ClientProject } from "@/lib/client-review/types";
 
 interface RepoTree {
@@ -47,6 +49,9 @@ interface RepoTree {
 }
 
 type Run = <T extends { project?: ClientProject }>(label: string, action: Record<string, unknown>) => Promise<T | null>;
+
+/** Whether a hub move should go live by itself, remembered on this device. */
+const LAND_KEY = "client-review:move-land";
 
 // ----- the folder view ---------------------------------------------------------
 
@@ -294,16 +299,67 @@ function Confirm({
  * the pull request as a link the moment Claude says `PR:`.
  */
 function MoveThread({
-  threadId,
+  record,
   slug,
+  onRecord,
   onStartOver,
 }: {
-  threadId: string;
+  record: NonNullable<ClientProject["pluginsMove"]>;
   slug: string;
+  onRecord: (patch: { prUrl?: string; landed?: boolean }) => Promise<void>;
   onStartOver: () => void;
 }) {
+  const threadId = record.threadId;
   const move = useBuild(threadId, true);
   const links = buildLinks(move.view.turns.map((turn) => turn.text).join("\n"));
+
+  const [shipping, setShipping] = useState(false);
+  const [landError, setLandError] = useState("");
+  const step = moveStep({
+    move: record,
+    prUrl: links.pr ?? "",
+    phase: move.phase,
+    passed: checkedAndPassed(move.summary),
+    unchecked: endedUnchecked(move.summary),
+    shipping,
+  });
+
+  // The whole of "one press" lives here: everything after the press, and it
+  // happens once. `moveStep` stops saying "land" the moment `landedAt` is
+  // written, and `acting` keeps the next poll out while one is in flight.
+  const acting = useRef("");
+  const act = step.act;
+  const prUrl = step.prUrl;
+  useEffect(() => {
+    if (act === "none") return;
+    const key = act + ":" + prUrl;
+    if (acting.current === key) return;
+    acting.current = key;
+    void (async () => {
+      try {
+        if (act === "record-pr") {
+          await onRecord({ prUrl });
+          return;
+        }
+        setShipping(true);
+        setLandError("");
+        const out = await shipThread(threadId, prUrl);
+        if (!out.ok) {
+          // Usually a conflict the build agent has just been told to fix, so
+          // this is left open for the next poll to try again.
+          setLandError(out.message);
+          acting.current = "";
+          return;
+        }
+        await onRecord({ landed: true });
+      } catch (e) {
+        setLandError(e instanceof Error ? e.message : "Taking it live failed.");
+        acting.current = "";
+      } finally {
+        setShipping(false);
+      }
+    })();
+  }, [act, prUrl, threadId, onRecord]);
   const word = move.phase === "working" ? latestWord(move.view) : "";
   const died = moveDied(move.phase);
   const done = move.phase === "done";
@@ -358,15 +414,70 @@ function MoveThread({
         </div>
       )}
 
-      {links.pr && (
+      {step.show === "live" && (
+        <p className="text-[11.5px] leading-snug text-emerald-200">
+          Live.{" "}
+          <a className="font-semibold underline underline-offset-2" href={`/apps/${slug}`}>
+            Open /apps/{slug}
+          </a>{" "}
+          — merged to main; its card is on Jarvis &rsaquo; App plugins once the deploy finishes.
+        </p>
+      )}
+
+      {step.show === "landing" && (
+        <p className="text-[11.5px] leading-snug text-sky-200">
+          The checks passed, so it is going live by itself — bringing main in, pushing, merging the pull request.
+        </p>
+      )}
+
+      {/*
+        The two states where the hub deliberately stops short of main. Not a
+        refusal — the owner gets the reason and the press. What it will not do
+        is decide for them, because "nothing checked it" and "the checks
+        passed" are the same `phase` and only one is safe to push.
+      */}
+      {(step.show === "unchecked" || step.show === "failed") && (
+        <div className="space-y-1.5 rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1.5">
+          <p className="text-[11.5px] leading-snug text-amber-100">
+            It opened a pull request but did not go live, because {step.why}.
+          </p>
+          {move.summary?.verify?.failures?.length ? (
+            <ul className="space-y-0.5 text-[11px] text-amber-200/90">
+              {move.summary.verify.failures.slice(0, 4).map((f) => (
+                <li key={`${f.step}-${f.page}-${f.title}`}>
+                  &bull; {f.step}
+                  {f.title ? `: ${f.title}` : ""}
+                  {f.page ? ` (${f.page})` : ""}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <a className="font-semibold text-accent underline underline-offset-2" href={step.prUrl} target="_blank" rel="noreferrer">
+              Read the pull request ↗
+            </a>
+            <button
+              type="button"
+              className="rounded-md border border-amber-300/50 px-2 py-0.5 text-[11px] text-amber-100"
+              title="Count it as checked although the report is failing, and let it go live"
+              onClick={() => void move.useAnyway()}
+            >
+              Take it live anyway
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step.show === "pr-only" && (
         <p className="text-[11.5px] leading-snug text-ink-muted">
-          <a className="font-semibold text-accent underline underline-offset-2" href={links.pr} target="_blank" rel="noreferrer">
+          <a className="font-semibold text-accent underline underline-offset-2" href={step.prUrl} target="_blank" rel="noreferrer">
             Review and merge it ↗
           </a>{" "}
           — nothing is in the hub until you do.
         </p>
       )}
 
+      {landError && <p className="text-[11px] text-rose-200">{landError}</p>}
       {move.error && <p className="text-[11px] text-amber-200">{move.error}</p>}
 
       {/*
@@ -375,7 +486,7 @@ function MoveThread({
         restarting it costs a branch. Without this the panel showed a finished
         move that had produced nothing and offered no way out.
       */}
-      {died && !links.pr && (
+      {step.show === "restart" && (
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-[11px] text-rose-200">
             It stopped without opening a pull request, so nothing was moved. Starting again only adds a branch.
@@ -389,7 +500,7 @@ function MoveThread({
           </button>
         </div>
       )}
-      {done && (
+      {(step.show === "live" || step.show === "pr-only") && (
         <button
           type="button"
           className="self-start rounded-md border border-line px-2 py-0.5 text-[11px] text-ink-faint hover:text-ink"
@@ -467,7 +578,7 @@ export function Handover({
       // into the page, which is what swaps the button for the live follower —
       // and what makes a reload, or the same project opened on the phone, come
       // back to the move that is actually running instead of losing it.
-      await run("move", { action: "moveStarted", id: p.id, threadId: out.threadId });
+      await run("move", { action: "moveStarted", id: p.id, threadId: out.threadId, land });
       setNote({ tone: "ok", text: `Claude Code is moving it in as /apps/${slug}. It opens a pull request when it's done — you merge it.` });
     } catch (e) {
       setNote({ tone: "warn", text: e instanceof Error ? e.message : "The move didn't start." });
@@ -475,6 +586,39 @@ export function Handover({
       setWorking("");
     }
   };
+
+  /**
+   * One press, or a pull request to read — remembered per device.
+   *
+   * On by default because that is what "one press" means: the owner presses
+   * once and the app turns up. Off is the honest alternative for a move they
+   * want to read first, and it has to be visible rather than buried, since the
+   * difference between the two is whether code reaches main unread.
+   */
+  const [land, setLand] = useState(true);
+  useEffect(() => {
+    try {
+      setLand(window.localStorage.getItem(LAND_KEY) !== "0");
+    } catch {
+      /* a private window has no storage; the default stands */
+    }
+  }, []);
+  const chooseLand = (next: boolean) => {
+    setLand(next);
+    try {
+      window.localStorage.setItem(LAND_KEY, next ? "1" : "0");
+    } catch {
+      /* nothing to do: the choice still holds for this visit */
+    }
+  };
+
+  /** Write the pull request, or the landing, onto the project. */
+  const recordMove = useCallback(
+    async (patch: { prUrl?: string; landed?: boolean }) => {
+      await run("move", { action: "moveLanded", id: p.id, ...patch });
+    },
+    [p.id, run],
+  );
 
   /** Stop following a move: a dead one so it can be pressed again, or a finished one. */
   const forgetMove = () => {
@@ -605,18 +749,40 @@ export function Handover({
                   )}
             </p>
             {p.pluginsMove ? (
-              <MoveThread threadId={p.pluginsMove.threadId} slug={slug} onStartOver={forgetMove} />
+              <MoveThread record={p.pluginsMove} slug={slug} onRecord={recordMove} onStartOver={forgetMove} />
             ) : (
-              <Confirm
-                label="Move it into the hub"
-                question={`Start Claude Code moving ${p.name} into the hub as /apps/${slug}? It opens a pull request and never merges it itself.`}
-                yes="Yes, move it in"
-                busy={working.startsWith("Starting") ? "Starting…" : ""}
-                tone="core"
-                disabled={Boolean(state.pluginsBlocked) || Boolean(working)}
-                onGo={toPlugins}
-                hint="Runs on your PC. Nothing goes live until you merge it."
-              />
+              <>
+                <label className="mb-2 flex items-start gap-2 text-[11.5px] leading-snug text-ink-muted">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={land}
+                    onChange={(e) => chooseLand(e.target.checked)}
+                  />
+                  <span>
+                    Take it live when the checks pass — one press and it is at <code className="font-mono text-ink">/apps/{slug}</code>.
+                    Untick to stop at a pull request you read first.
+                  </span>
+                </label>
+                <Confirm
+                  label="Move it into the hub"
+                  question={
+                    land
+                      ? `Move ${p.name} into the hub as /apps/${slug} and take it live? Claude Code does it on your PC, and it merges to main only if your PC's checks pass.`
+                      : `Start Claude Code moving ${p.name} into the hub as /apps/${slug}? It opens a pull request and never merges it itself.`
+                  }
+                  yes={land ? "Yes, move it in and ship it" : "Yes, move it in"}
+                  busy={working.startsWith("Starting") ? "Starting…" : ""}
+                  tone="core"
+                  disabled={Boolean(state.pluginsBlocked) || Boolean(working)}
+                  onGo={toPlugins}
+                  hint={
+                    land
+                      ? "Runs on your PC. It goes live only if the checks pass — otherwise it stops and tells you why."
+                      : "Runs on your PC. Nothing goes live until you merge it."
+                  }
+                />
+              </>
             )}
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBrief, isNewBuild, latestWord, phaseLabel, phaseOf, PHASE_LABEL, projectSlug, resultLinks, stalled, tally, threadTitle } from "./build";
+import { buildBrief, checkedAndPassed, endedUnchecked, isNewBuild, latestWord, PHASE_LABEL, phaseLabel, phaseOf, projectSlug, resultLinks, stalled, tally, threadTitle } from "./build";
 import { applyOps, bestGuesses, intakeQuestions, newProject, offlineFeatures, understand } from "./engine";
 import type { BuilderProject } from "./types";
 import type { ThreadSummary, ThreadView, Turn } from "@/lib/new-jarvis/harness/types";
@@ -306,5 +306,47 @@ describe("a build the PC has checked", () => {
   });
   it("tells the agent the check is coming", () => {
     expect(buildBrief(project())).toMatch(/the PC checks the build itself/);
+  });
+});
+
+describe("has anything other than the agent checked this work?", () => {
+  // The question anything that LANDS a build has to ask, and the reason it
+  // cannot read the phase: `settled()` returns "done" when there is no report
+  // at all, so the phase says the same thing for "checks passed" and "the gate
+  // was switched off". Only one of those is safe to push to main.
+  const ended = (verify: unknown) => ({ status: "ended", verify }) as unknown as ThreadSummary;
+  const rep = (state: string) => ({ state, run: 1, rounds: 0, max: 3, why: "", failures: [], report: "" });
+
+  it("is true only when a report says passed or accepted", () => {
+    expect(checkedAndPassed(ended(rep("passed")))).toBe(true);
+    // `accepted` is the owner having read a failing report and said use it
+    // anyway — a human decision, not a skipped one.
+    expect(checkedAndPassed(ended(rep("accepted")))).toBe(true);
+    for (const state of ["idle", "checking", "repairing", "failed"]) {
+      expect(checkedAndPassed(ended(rep(state))), state).toBe(false);
+    }
+  });
+
+  it("is false when nothing checked it, although the phase says done", () => {
+    const unchecked = ended(null);
+    expect(phaseOf(unchecked, view([turn("PR: https://github.com/a/b/pull/1")]))).toBe("done");
+    expect(checkedAndPassed(unchecked)).toBe(false);
+    expect(endedUnchecked(unchecked)).toBe(true);
+  });
+
+  it("is false while the thread is still running, whatever the report says", () => {
+    const running = { status: "thinking", verify: rep("passed") } as unknown as ThreadSummary;
+    expect(checkedAndPassed(running)).toBe(false);
+    expect(endedUnchecked(running)).toBe(false);
+  });
+
+  it("counts a report still at idle on an ended thread as never having run", () => {
+    expect(endedUnchecked(ended(rep("idle")))).toBe(true);
+    expect(endedUnchecked(ended(rep("failed")))).toBe(false);
+  });
+
+  it("is false for no thread at all", () => {
+    expect(checkedAndPassed(null)).toBe(false);
+    expect(endedUnchecked(null)).toBe(false);
   });
 });

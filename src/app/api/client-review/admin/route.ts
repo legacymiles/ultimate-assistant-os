@@ -440,12 +440,49 @@ export async function POST(req: Request) {
         const threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
         if (threadId && !/^[\w-]{6,80}$/.test(threadId)) throw new ReviewError("That isn't a harness thread.", 400);
         const now = new Date().toISOString();
+        const land = body.land !== false;
         const { project } = await updateProject(id, (p) => ({
           project: threadId
-            ? { ...p, pluginsMove: { threadId, at: now }, updatedAt: now }
+            ? { ...p, pluginsMove: { threadId, at: now, land }, updatedAt: now }
             : { ...p, pluginsMove: undefined, updatedAt: now },
           result: null,
         }));
+        await updateIndex((i) => upsertIndex(i, project));
+        return NextResponse.json({ project });
+      }
+
+      // The move reached a pull request, and then the hub merged it to main.
+      //
+      // Both recorded on the project rather than held in the panel, for the one
+      // reason that matters here: `landedAt` is what stops a second landing.
+      // Pushing to main twice is not idempotent the way reading is, and the
+      // panel that triggers it re-mounts on every reload and on every device
+      // the owner opens the project on.
+      case "moveLanded": {
+        const prUrl = typeof body.prUrl === "string" ? body.prUrl.trim().slice(0, 300) : "";
+        if (prUrl && !/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+$/.test(prUrl)) {
+          throw new ReviewError("That isn't a pull request address.", 400);
+        }
+        const landed = body.landed === true;
+        const now = new Date().toISOString();
+        const { project } = await updateProject(id, (p) => {
+          if (!p.pluginsMove) throw new ReviewError("There is no move to record this against.", 409);
+          // Already landed: say so rather than writing a second timestamp, so a
+          // second press cannot read back as a second successful landing.
+          if (landed && p.pluginsMove.landedAt) return { project: p, result: null };
+          return {
+            project: {
+              ...p,
+              pluginsMove: {
+                ...p.pluginsMove,
+                ...(prUrl ? { prUrl } : {}),
+                ...(landed ? { landedAt: now } : {}),
+              },
+              updatedAt: now,
+            },
+            result: null,
+          };
+        });
         await updateIndex((i) => upsertIndex(i, project));
         return NextResponse.json({ project });
       }

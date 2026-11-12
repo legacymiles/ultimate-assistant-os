@@ -183,6 +183,37 @@ export function stalledWhy(): string {
   return "Claude Code answered without doing anything, which almost always means it is not signed in on that PC. Open a terminal there, run `claude`, and sign in with /login — then press Build it again.";
 }
 
+/**
+ * Has something other than the agent checked this work, and did it pass?
+ *
+ * The question anything that LANDS a build by itself has to ask, and the reason
+ * it cannot just read `phase === "done"`: `settled()` above returns "done" when
+ * there is no verify report at all (`if (!v) return "done"`), which is the
+ * honest answer for a thread whose gate was switched off — and exactly the
+ * wrong input to a decision that pushes to main. "Nobody checked it" and "the
+ * checks passed" look identical in `phase` and must not here.
+ *
+ * `accepted` counts: that is the owner having looked at a failing report and
+ * said to use it anyway, which is a human decision, not a skipped one.
+ */
+export function checkedAndPassed(summary: ThreadSummary | null): boolean {
+  if (!summary || summary.status !== "ended") return false;
+  const state = summary.verify?.state;
+  return state === "passed" || state === "accepted";
+}
+
+/**
+ * Ended, but nothing ever checked it — so "done" here means only "stopped".
+ *
+ * No report at all (the gate is switched off, or this bridge has no gate), or
+ * one still sitting at `idle` on a thread that has already ended, which is the
+ * same thing: it never ran.
+ */
+export function endedUnchecked(summary: ThreadSummary | null): boolean {
+  if (!summary || summary.status !== "ended") return false;
+  return !summary.verify || summary.verify.state === "idle";
+}
+
 export function phaseOf(
   summary: ThreadSummary | null,
   view: ThreadView,

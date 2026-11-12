@@ -253,7 +253,20 @@ export interface ClientProject {
    *
    * Owner-only; the portal endpoint strips it like `buildWatch`.
    */
-  pluginsMove?: { threadId: string; at: string };
+  pluginsMove?: {
+    threadId: string;
+    at: string;
+    /**
+     * The owner asked for it to go live by itself once the checks pass, which
+     * is what "one press" means: the press, then nothing. Off means it stops at
+     * a pull request for them to read.
+     */
+    land?: boolean;
+    /** The pull request, once Claude has said `PR:`. */
+    prUrl?: string;
+    /** When the hub merged it to main. Set once; it is what stops a second go. */
+    landedAt?: string;
+  };
   settings: ClientSettings;
   pushSubs: PushSub[];
   notices: ClientNotice[];

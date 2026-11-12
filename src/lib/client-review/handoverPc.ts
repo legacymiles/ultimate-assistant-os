@@ -21,7 +21,7 @@ import { readTrust } from "@/lib/new-jarvis/trust";
 import { readChatModel } from "@/lib/new-jarvis/useChatModel";
 import { buildModelFor, buildsWithPick, pickValue } from "./models";
 import { admin } from "./client";
-import { pluginsBrief, repoHasNoSite, repoUrl, type RepoEntry } from "./handover";
+import { hubSlugFor, pluginsBrief, repoHasNoSite, repoUrl, type RepoEntry } from "./handover";
 import type { ClientProject } from "./types";
 
 export interface PcResult {
@@ -224,6 +224,11 @@ export async function startPluginsBuild(p: ClientProject, opts: { repo: string; 
       trust: readTrust(),
       model: buildModelFor(pick),
       durable: true,
+      // The page the gate should open once the agent says it is finished. The
+      // whole point of the move is that `/apps/<slug>` exists and works, and a
+      // gate that only compiles and runs the tests cannot tell that the route
+      // 404s — which is the one failure a move is most likely to leave.
+      verifyPaths: [`/apps/${hubSlugFor(p.name)}`],
       brief,
     });
     threadId = session.id;
