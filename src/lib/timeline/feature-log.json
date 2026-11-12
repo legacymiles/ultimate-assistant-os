@@ -1,5 +1,23 @@
 [
  {
+  "id": "e47ee53:client-review",
+  "date": "2026-11-12",
+  "slug": "client-review",
+  "title": "One press moves an app in, and the press is followed",
+  "detail": "Moving BuildFlip 2 into the hub took a press and then an hour by hand. Four separate things made that happen, and each is fixed here rather than worked around:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "e47ee53:app-builder",
+  "date": "2026-11-12",
+  "slug": "app-builder",
+  "title": "One press moves an app in, and the press is followed",
+  "detail": "Moving BuildFlip 2 into the hub took a press and then an hour by hand. Four separate things made that happen, and each is fixed here rather than worked around:",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "da5cdc1:client-review",
   "date": "2026-11-11",
   "slug": "client-review",
