@@ -44,7 +44,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describeFound, detect } from "./agents-capabilities.mjs";
-import { decide, denial } from "./agents-unattended.mjs";
+import { decide, denial, namesItsOwnPlace } from "./agents-unattended.mjs";
 import { describePick, resolvePick } from "./harness-models.mjs";
 import { loadIntoEnv, shareKeys } from "./keys.mjs";
 
@@ -414,7 +414,14 @@ export function harnessPromptFor(brief, { edits = [], ship = "review", deepseek 
  * blocked by decide() itself.
  */
 export function gateVerdict(card, worktree) {
-  const file = card?.path ? path.resolve(worktree, String(card.path)) : "";
+  const raw = card?.path ? String(card.path) : "";
+  // A path that names its own place is NOT resolved against the worktree: on a
+  // Linux VPS `path.resolve` reads "C:/dev/.../src/x" as a relative segment and
+  // hands back a path inside the worktree, so a write aimed at the owner's own
+  // checkout was refused on the PC and allowed on the VPS. Pass it through and
+  // let insideWorkspace — which compares normalised strings, not platform
+  // paths — have the final say.
+  const file = raw === "" ? "" : namesItsOwnPlace(raw) ? raw : path.resolve(worktree, raw);
   return decide(String(card?.name || ""), { command: String(card?.command || ""), file_path: file }, { roots: [worktree] });
 }
 

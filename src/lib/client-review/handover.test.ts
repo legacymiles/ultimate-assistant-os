@@ -6,6 +6,8 @@ import {
   handover,
   hubSlugFor,
   pluginsBrief,
+  repoHasNoSite,
+  siteFileCount,
   readableSize,
   repoNameFor,
   repoOf,
@@ -180,5 +182,89 @@ describe("the brief that moves a site into the hub", () => {
 
   it("asks for the one line the console reads back", () => {
     expect(brief).toContain("`PR: <url>`");
+  });
+});
+
+describe("what counts as a site being in the repository", () => {
+  it("does not count the README Jarvis writes when it makes the repo", () => {
+    expect(repoHasNoSite([{ path: "README.md", type: "blob" }])).toBe(true);
+    expect(siteFileCount([{ path: "README.md", type: "blob" }])).toBe(0);
+  });
+
+  it("does not count a licence or a .gitignore either", () => {
+    const housekeeping = [
+      { path: "README.md", type: "blob" as const },
+      { path: "LICENSE", type: "blob" as const },
+      { path: "licence.txt", type: "blob" as const },
+      { path: ".gitignore", type: "blob" as const },
+      { path: ".gitattributes", type: "blob" as const },
+    ];
+    expect(repoHasNoSite(housekeeping)).toBe(true);
+  });
+
+  it("counts one real file as a site", () => {
+    expect(repoHasNoSite([{ path: "README.md", type: "blob" }, { path: "index.html", type: "blob" }])).toBe(false);
+  });
+
+  it("does not count folders — a tree entry is not a file", () => {
+    expect(repoHasNoSite([{ path: "src", type: "tree" }, { path: "README.md", type: "blob" }])).toBe(true);
+  });
+
+  it("is not fooled by a file whose name merely starts with readme", () => {
+    expect(repoHasNoSite([{ path: "readme-generator.js", type: "blob" }])).toBe(false);
+  });
+});
+
+describe("the brief puts the app where the owner looks for it", () => {
+  it("tells it to add the slug to PLUGIN_SLUGS, not only to the catalog", () => {
+    const brief = pluginsBrief(site(), { repo: "legacymiles/buildflip-2", liveUrl: "" });
+    expect(brief).toContain("PLUGIN_SLUGS");
+    expect(brief).toContain("src/lib/studio/plugins.ts");
+    // The catalog row alone was what left a moved app with no card on App
+    // plugins and nothing but a tile on the hub grid.
+    expect(brief).toContain("PROJECTS");
+  });
+
+  it("names the app's own slug in that instruction", () => {
+    const brief = pluginsBrief(site(), { repo: "a/b", liveUrl: "" });
+    expect(brief).toContain(`"${hubSlugFor(site().name)}"`);
+  });
+
+  it("makes checking the card part of done", () => {
+    expect(pluginsBrief(site(), { repo: "a/b", liveUrl: "" })).toContain("App plugins");
+  });
+});
+
+describe("the brief asks for the gate CI actually runs", () => {
+  // Two moves in a row opened a RED pull request, for two different reasons,
+  // and both were invisible to the checks the brief used to name.
+  const briefs = () => [
+    { door: "Client Review Ship", text: pluginsBrief(site(), { repo: "a/b", liveUrl: "" }) },
+    { door: "Client Review Ship, from a folder", text: pluginsBrief(site(), { folder: "C:/work/x", liveUrl: "" }) },
+  ];
+
+  it("names one command, and it is the repository's own", () => {
+    for (const { door, text } of briefs()) expect(text, door).toContain("npm run verify");
+  });
+
+  it("says to regenerate the apps index, because a catalog entry always staleness it", () => {
+    for (const { door, text } of briefs()) {
+      expect(text, door).toContain("npm run apps:index");
+      expect(text, door).toContain("docs/apps/README.md");
+    }
+  });
+
+  it("says the build is the only check that sees an App Router mistake", () => {
+    for (const { door, text } of briefs()) {
+      expect(text, door).toContain("npm run build");
+      // The exact trap: `ownImagesOnly` exported from a route.ts typechecked
+      // clean and failed next build.
+      expect(text, door).toMatch(/route\.ts` may export nothing but route handlers/);
+      expect(text, door).toContain("tsc --noEmit");
+    }
+  });
+
+  it("puts a red pull request on the agent, not on the owner", () => {
+    expect(pluginsBrief(site(), { repo: "a/b", liveUrl: "" })).toMatch(/not finished work/);
   });
 });

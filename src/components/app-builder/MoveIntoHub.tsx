@@ -19,34 +19,11 @@
 // ---------------------------------------------------------------------------
 
 import { useState } from "react";
-import { hubSlug } from "@/lib/app-builder/absorb";
-import { latestWord, type BuildPhase } from "@/lib/app-builder/build";
+import { hubSlug, MOVE_PHASE_LABEL } from "@/lib/app-builder/absorb";
+import { latestWord } from "@/lib/app-builder/build";
 import type { BuilderProject } from "@/lib/app-builder/types";
 import type { UseBuild } from "@/lib/app-builder/useBuild";
 import type { Busy } from "@/lib/app-builder/useAppBuilder";
-
-/**
- * The thread's phases, said in the language of a move.
- *
- * `PHASE_LABEL` is written for a build ("Starting the build", "Built"), which
- * is the wrong sentence on a thread that is moving a finished app rather than
- * making one.
- */
-const MOVE_LABEL: Record<BuildPhase, string> = {
-  starting: "Starting",
-  reconnecting: "Reconnecting to your PC",
-  resuming: "Picking it back up",
-  paused: "Waiting for a limit to reset",
-  working: "Working",
-  asking: "Waiting on your answer",
-  checking: "Checking it works",
-  unverified: "Moved, but the checks are failing",
-  unfinished: "Stopped before it finished",
-  done: "Finished",
-  failed: "Stopped",
-  stopped: "Stopped",
-  lost: "No longer running",
-};
 
 export function MoveIntoHub({
   project,
@@ -88,7 +65,7 @@ export function MoveIntoHub({
       <section className="ab-move is-working" aria-label="Moving into the hub">
         <p className="ab-move-head">
           Moving into the hub
-          <span className="ab-move-phase">{MOVE_LABEL[moving.phase]}</span>
+          <span className="ab-move-phase">{MOVE_PHASE_LABEL[moving.phase]}</span>
         </p>
         {word && !absorb.prUrl && <p className="ab-move-note">{word}</p>}
         {moving.gate && (

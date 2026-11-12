@@ -18,6 +18,7 @@
 // explain afterwards.
 // ---------------------------------------------------------------------------
 
+import { HUB_VERIFY_LINES, hubPluginLine } from "@/lib/app-builder/absorb";
 import type { ClientProject } from "./types";
 
 /** GitHub's flat tree, as `/repos/{repo}/git/trees/{sha}?recursive=1` gives it. */
@@ -166,6 +167,26 @@ export function folderTree(entries: RepoEntry[]): TreeNode[] {
 }
 
 /** How many files are under here, so a collapsed folder still says something. */
+/**
+ * The files a repository holds that are actually the site.
+ *
+ * A repository Jarvis has just made is not empty — it holds the README Jarvis
+ * itself wrote, and nothing else. Counting that as a source is how a move
+ * starts against a repository with no site in it, hands Claude Code a brief
+ * pointing at one file, and spends a thread discovering there is nothing to
+ * bring in. Licences and a .gitignore are housekeeping for the same reason.
+ */
+const NOT_THE_SITE = /^(readme(\.[a-z]+)?|license(\.[a-z]+)?|licence(\.[a-z]+)?|\.gitignore|\.gitattributes)$/i;
+
+export function siteFileCount(entries: RepoEntry[]): number {
+  return entries.filter((e) => e.type === "blob" && !NOT_THE_SITE.test(e.path)).length;
+}
+
+/** True when the repository has nothing in it but the README Jarvis wrote. */
+export function repoHasNoSite(entries: RepoEntry[]): boolean {
+  return siteFileCount(entries) === 0;
+}
+
 export function countFiles(nodes: TreeNode[]): number {
   return nodes.reduce((n, node) => n + (node.kind === "file" ? 1 : countFiles(node.children)), 0);
 }
@@ -216,6 +237,7 @@ export function pluginsBrief(p: ClientProject, opts: { repo?: string; folder?: s
     "This is not a file move. Bring it onto the hub's own foundations:",
     `- The route becomes \`src/app/apps/${slug}/page.tsx\`; UI goes in \`src/components/${slug}/\`, logic and types in \`src/lib/${slug}/\` with its tests beside them, server routes in \`src/app/api/${slug}/\`. If a folder name has to differ from the slug, add the row to CLAUDE.md's slug→folder table.`,
     "- Add ONE object to `PROJECTS` in `src/lib/catalog.ts`. That file is the single source of truth for what exists; an app that is not in it silently has no card.",
+    hubPluginLine(slug),
     "- Every AI call goes through `src/lib/ai/provider.ts`. Delete the site's own provider or SDK wiring.",
     "- Cross-device state goes through `src/lib/sync/appState.ts`. Delete the site's own persistence layer where that replaces it.",
     "- Merge its dependencies into the hub's `package.json`, taking the hub's existing version where both have one. Drop anything the hub already provides.",
@@ -224,7 +246,8 @@ export function pluginsBrief(p: ClientProject, opts: { repo?: string; folder?: s
     "</what_moving_in_means>",
     "",
     "<done>",
-    "Typecheck and the full test suite pass (`npx tsc -p tsconfig.json --noEmit`, `npx vitest run`). The app opens at its route and its main task still works end to end — check it in a browser, do not assume.",
+    ...HUB_VERIFY_LINES,
+    `Its card is on Jarvis › App plugins and it is NOT also on the hub's front grid — open both and look, because \`PLUGIN_SLUGS\` is what decides that and a missing slug shows up nowhere until someone goes hunting.`,
     `Then commit, push your branch and open a pull request into \`main\` titled "${p.name}: move into the hub". Do NOT merge it; the owner merges.`,
     "Say the pull request's address in your last message on its own line as `PR: <url>`, and nothing after it.",
     "</done>",
