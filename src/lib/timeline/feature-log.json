@@ -1,5 +1,32 @@
 [
  {
+  "id": "0c17b38:app-builder",
+  "date": "2026-11-12",
+  "slug": "app-builder",
+  "title": "Plans now say how you'll know each feature works",
+  "detail": "Planning was the weak link: a feature was a title, what it does and why, and nothing in it said how anyone would know it works. So every board card got the same generic acceptance criteria, the build brief asked for \"a test per feature\" without saying what the test must show, and nothing checked the",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0c17b38:client-review",
+  "date": "2026-11-12",
+  "slug": "client-review",
+  "title": "Plans now say how you'll know each feature works",
+  "detail": "Planning was the weak link: a feature was a title, what it does and why, and nothing in it said how anyone would know it works. So every board card got the same generic acceptance criteria, the build brief asked for \"a test per feature\" without saying what the test must show, and nothing checked the",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f3bfa47:client-review",
+  "date": "2026-11-12",
+  "slug": "client-review",
+  "title": "\"Take it live anyway\" works when nothing checked it",
+  "detail": "Marking the verify report accepted was the whole of that button, and it does nothing in the state it is most likely to be pressed in: when the gate never ran there is no report to accept, so the press looked dead. It now accepts the report where there is one — so the thread carries the owner's decis",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "e408355:client-review",
   "date": "2026-11-12",
   "slug": "client-review",
