@@ -19,6 +19,8 @@
 // facts into text, which is the part worth testing.
 // ---------------------------------------------------------------------------
 
+import { designIntelligenceBlock } from "../../design-intelligence/brief";
+
 /** What a lane is pointed at. */
 export type Target =
   | { kind: "new"; idea: string }
@@ -265,6 +267,22 @@ export function buildBrief(opts: BriefOptions): string {
     section("What this is", whatBlock(target, facts, intent)),
     section("Features", featureBlock(facts.features)),
     section("Design authority", authorityBlock(skill)),
+    // The shared process around the skill — research, real components, one
+    // standout, and the design check. It names no palette, type or layout, so
+    // the skill's authority above is untouched.
+    section(
+      "Design intelligence",
+      designIntelligenceBlock({
+        mode: target.kind === "new" ? "build" : "redesign",
+        skill,
+        surface: target.kind === "url" ? "website" : "app",
+        beforeUrl: target.kind === "url" ? target.url : undefined,
+        importantPaths: [facts.route],
+        canInstall: false,
+        soleSkill: true,
+        runHint: "Start this worktree's site for the check with `node scripts/dev-preview.mjs <free port from 3300> --no-auth` and point the check at that port.",
+      }).replace(/<\/?design_intelligence>\n*/g, ""),
+    ),
     section("The contract", contractBlock(target, facts)),
     section("Your lane", laneBlock(facts, branch)),
     section(
@@ -276,6 +294,8 @@ export function buildBrief(opts: BriefOptions): string {
         "",
         `Then say, in two or three sentences, what \`${skill}\` led you to do that you would ` +
           "not have done otherwise. That sentence is what the bake-off is measuring.",
+        "",
+        "Last, paste the design check's first line (PASS/FAIL · score) and name the standout.",
       ].join("\n"),
     ),
   ]

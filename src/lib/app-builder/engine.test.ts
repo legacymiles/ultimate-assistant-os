@@ -206,6 +206,23 @@ describe("the hand-off", () => {
     expect(prompt).toContain("L1"); // accounts → sign-in rule
   });
 
+  it("every build runs Design Intelligence: the block, the pipeline step and the queue line", () => {
+    const p = decided();
+    const prompt = masterPrompt(p);
+    expect(prompt).toContain("<design_intelligence>");
+    expect(prompt).toContain("1. Understand");
+    expect(prompt).toContain("data-standout");
+    expect(prompt).toContain('node "$JARVIS_DESIGN_CHECK"');
+    // It sits before the design skill, which still owns the look.
+    const skills = prompt.slice(prompt.indexOf("<skills_pipeline>"), prompt.indexOf("</skills_pipeline>"));
+    expect(skills.indexOf("design-intelligence")).toBeGreaterThan(-1);
+    expect(skills.indexOf("design-intelligence")).toBeLessThan(skills.indexOf("impeccable"));
+    const t = queueText(p);
+    expect(t).toContain("→ design-intelligence →");
+    expect(t).toContain("Design Intelligence (build)");
+    expect(t.length).toBeLessThanOrEqual(4000);
+  });
+
   it("the master prompt and the queue text both carry the commercial depth", () => {
     const p = decided();
     const prompt = masterPrompt(p);

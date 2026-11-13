@@ -187,3 +187,25 @@ describe("laneBranch", () => {
     expect(branch).toMatch(/^[a-z0-9-]+$/);
   });
 });
+
+describe("buildBrief — design intelligence", () => {
+  it("every lane gets the shared process, port-don't-install, and the check against its own route", () => {
+    const out = buildBrief(base);
+    expect(out).toContain("## Design intelligence");
+    expect(out).toContain("data-standout");
+    expect(out).toContain("--important /apps/dashboard");
+    expect(out).toContain("may not install anything");
+    expect(out).toContain("scripts/dev-preview.mjs");
+    expect(out).not.toContain("<design_intelligence>");
+  });
+
+  it("a URL target is a redesign with the site as its baseline", () => {
+    const out = buildBrief({ ...base, target: { kind: "url", url: "https://example.org" } });
+    expect(out).toContain("Run it FIRST on the current site (https://example.org)");
+  });
+
+  it("design authority still comes before the shared process", () => {
+    const out = buildBrief(base);
+    expect(out.indexOf("## Design authority")).toBeLessThan(out.indexOf("## Design intelligence"));
+  });
+});

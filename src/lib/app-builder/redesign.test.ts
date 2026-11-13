@@ -116,6 +116,11 @@ describe("redesign → App Builder project", () => {
     expect(skills.slice(0, 2)).toEqual(["website-redesigner", "redesign-skill"]);
     expect(skills).not.toContain("video-analyzer");
     expect(skills).toContain("software-factory");
+    // Redesign mode: audit the current site first and beat it.
+    expect(brief).toContain("<design_intelligence>");
+    expect(brief).toContain("This is a redesign.");
+    expect(brief).toContain("Run it FIRST on the current site");
+    expect(skills.indexOf("design-intelligence")).toBeGreaterThan(skills.indexOf("redesign-skill"));
   });
 
   it("lands an own-site redesign in the site's own repo as a pull request", () => {

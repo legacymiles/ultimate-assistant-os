@@ -26,6 +26,7 @@ import type { ClientProject, EditRequest } from "../client-review/types";
 import type { BuilderProject, ClientEdit, ClientEditItem, Feature, Understanding } from "./types";
 import { joinEdits, pickMatches } from "../mockup/edit";
 import { deltaBlock, deltaLine } from "./spec";
+import { designIntelligenceBlock, designIntelligenceLine } from "../design-intelligence/brief";
 
 /**
  * The mockup the owner picked for this edit, as one line for the queue brief.
@@ -201,6 +202,7 @@ export function editPipeline(): { skill: string; role: string }[] {
     { skill: "felix", role: "Quick pass: the end goal is the client seeing exactly these edits; set the judge before touching code." },
     { skill: "prompt-enhancer", role: "Turn each edit into a precise change (which file, which element, what it becomes); resolve vague ones from the site itself." },
     { skill: "interactive-web-studio", role: "Match the site's existing design system — fonts, colours, spacing — so edits look native. No redesign." },
+    { skill: "design-intelligence", role: "Review mode: anything the edits add is a real component in the site's own language with real content, and the design check runs before and after — the edits add no new fail." },
     { skill: "software-factory", role: "Only when the batch is bigger than one pull request (~400 lines): split it into Backlog cards; the owner approves every merge." },
     { skill: "claude-security", role: "Scan the diff before the pull request; fix anything high or critical." },
     { skill: "website-build-checklist", role: `Hold the changed pages to ${EDIT_CHECKLIST.join(" ")}.` },
@@ -244,7 +246,8 @@ export function editQueueText(p: BuilderProject): string {
     `Client edit (Client Review → App Builder): ${edit.siteName} for ${edit.clientName || "a client"}, ${edit.fromVersion ? `${edit.fromVersion} → ` : ""}${edit.version}.`,
     whereLine(edit),
     edit.fromUrl ? `Site the client is looking at: ${edit.fromUrl}` : "",
-    `Run skills: felix → prompt-enhancer → match the site's existing design (interactive-web-studio rules, no redesign) → claude-security on the diff; software-factory only if it's more than one PR (~400 lines). Held to website-build-checklist ${EDIT_CHECKLIST.join(" ")}.`,
+    `Run skills: felix → prompt-enhancer → match the site's existing design (interactive-web-studio rules, no redesign) → design-intelligence (review) → claude-security on the diff; software-factory only if it's more than one PR (~400 lines). Held to website-build-checklist ${EDIT_CHECKLIST.join(" ")}.`,
+    designIntelligenceLine("review"),
     "Edits — approved by the owner; build exactly these, the owner's wording wins, change nothing else:",
   ].filter(Boolean);
   const tail = [
@@ -307,6 +310,14 @@ export function editMasterPrompt(p: BuilderProject): string {
     `<skills_pipeline>\n${editPipeline()
       .map((s, i) => `${i + 1}. ${s.skill} — ${s.role}`)
       .join("\n")}\n</skills_pipeline>`,
+    designIntelligenceBlock({
+      mode: "review",
+      beforeUrl: edit.fromUrl || undefined,
+      importantPaths: edit.appPath ? [edit.appPath] : undefined,
+      // A hub app is edited in a worktree whose node_modules belongs to another
+      // checkout: nothing may be installed there.
+      canInstall: !edit.appPath,
+    }),
     `<standard>\nChange only what the edits ask for. Keep the site's look, copy voice and structure everywhere else. Hold the changed pages to:\n${lines.map((c) => `- ${c.id} (${c.level}): ${c.text}`).join("\n")}\n</standard>`,
     `<finish>\n${finishSteps(edit).join("\n")}\n</finish>`,
     `<success_criteria>\n${u.judge.map((j) => `- ${j}`).join("\n")}\nReport honestly against these with real numbers, including anything that missed.\n</success_criteria>`,

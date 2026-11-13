@@ -115,10 +115,15 @@ describe("Client Review → App Builder edit mode", () => {
       "felix",
       "prompt-enhancer",
       "interactive-web-studio",
+      "design-intelligence",
       "software-factory",
       "claude-security",
       "website-build-checklist",
     ]);
+    // Client edits keep the site's look, and are still held to the design check.
+    expect(prompt).toContain("<design_intelligence>");
+    expect(prompt).toContain("No redesign");
+    expect(prompt).toContain("may not add a single new fail");
     expect(checklistLines(p).map((c) => c.id)).toEqual(expect.arrayContaining(["R1", "U1", "P1", "C4"]));
   });
 

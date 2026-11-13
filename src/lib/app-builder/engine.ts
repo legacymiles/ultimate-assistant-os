@@ -19,6 +19,7 @@
 // ---------------------------------------------------------------------------
 
 import { redesignBrief } from "./redesignBrief";
+import { designIntelligenceBlock, designIntelligenceLine } from "@/lib/design-intelligence/brief";
 import { shapeOf } from "@/lib/mockup/spec";
 import type { Shape } from "@/lib/mockup/types";
 
@@ -1231,6 +1232,10 @@ export function pipeline(
             }. Score ${depthAxes(depth, u.appType).join(" · ")}.`,
           },
         ]),
+    {
+      skill: "design-intelligence",
+      role: `${redesign ? "Audit the current site with the design check, then u" : "U"}nderstand, research real references, commit to one distinctive direction, find real components (shadcn + @magicui/@aceternity/21st.dev), give each important page one standout, and prove it with the design check — the shared process every Jarvis website build runs.`,
+    },
     { skill: u.designSkill, role: `Invoke before writing any UI — ${u.designWhy}.` },
     { skill: "impeccable", role: "The closing craft pass on every screen: spacing, hierarchy, type, contrast, and every state (hover, disabled, loading, error, empty)." },
     { skill: "software-factory", role: "Split the accepted features into Backlog cards (one PR under ~400 lines each), run super-board; a human approves every merge." },
@@ -1355,6 +1360,12 @@ export function masterPrompt(p: BuilderProject): string {
           p.look.by === "client" ? "the client approved" : "chose"
         } this one: ${p.look.skill}.\nThis is a DECISION, not a suggestion — build the app in that direction. Run ${p.look.skill} before any UI code and let it own the surface, the type voices, the corner radius and the density. Do not substitute another design skill because it would suit the content better; if you believe it is wrong, say so in your report and build it as chosen anyway.\nThe mockup they approved was drawn from the accepted features, with ${u.name}'s own nav and rows. Treat it as the structural brief: the main surface is ${shapeWord(p, u)}, and the sections are ${(p.teardown?.screens ?? []).length ? (p.teardown?.screens ?? []).map((s) => s.name).join(", ") : "the accepted features above"}.\n</look>`
       : "",
+    designIntelligenceBlock({
+      mode: p.redesign ? "redesign" : "build",
+      skill: p.look?.skill ?? u.designSkill,
+      surface: u.appType === "website" ? "website" : "app",
+      beforeUrl: p.redesign?.url,
+    }),
     reviewBrief(p),
     `<standard>\nGo beyond the basics: a fully featured, production-quality, commercial-grade product with a distinctive design, purposeful motion and interactivity — the standard a top product team would ship. Better, not bigger: raise the quality around the accepted features rather than adding unrequested ones.\nHold it to these checklist lines:\n${lines.map((c) => `- ${c.id} (${c.level}): ${c.text}`).join("\n")}\n</standard>`,
     `<success_criteria>\n${u.judge.map((j) => `- ${j}`).join("\n")}\n${scenarioCriteria(p)}\nReport honestly against these with real numbers, including anything that missed.\n</success_criteria>`,
@@ -1379,7 +1390,8 @@ export function queueText(p: BuilderProject): string {
     `App Builder: build ${u.name} (${APP_TYPE_LABEL[u.appType]}).`,
     `Run skills in order: ${p.redesign ? "website-redesigner → redesign-skill → " : p.teardown || p.sources?.length ? "video-analyzer → reverse-engineer-anything (rea) → " : ""}felix → prompt-enhancer${
       depth === "plain" ? "" : ` → ${depth === "commercial-2x" ? "commercial 2x" : "commercial"} (Steps ${depthSteps(depth, u.appType).join(", ")})`
-    } → ${u.designSkill} → impeccable → software-factory → claude-security, held to website-build-checklist.`,
+    } → design-intelligence → ${u.designSkill} → impeccable → software-factory → claude-security, held to website-build-checklist.`,
+    designIntelligenceLine(p.redesign ? "redesign" : "build"),
     p.look
       ? `Look: ${p.look.skill} — ${p.look.by === "client" ? "approved by the client" : "picked by the owner"} from three drawn mockups. A decision, not a suggestion: build it in that direction, main surface ${shapeWord(p, u)}.`
       : "",

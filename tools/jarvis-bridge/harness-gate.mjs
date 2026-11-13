@@ -14,6 +14,23 @@
 // approving a tool you have heard of.
 // ---------------------------------------------------------------------------
 
+import { fileURLToPath } from "node:url";
+
+/**
+ * Every harness thread can run the design check (design-check.mjs) without
+ * knowing where the bridge lives: both adapters import this file, and the
+ * Claude Code / DeepSeek children inherit the bridge's environment.
+ */
+process.env.JARVIS_DESIGN_CHECK ||= fileURLToPath(new URL("./design-check.mjs", import.meta.url));
+
+/**
+ * The design check, run the one way the briefs spell it. It opens pages and
+ * writes screenshots to the temp folder — a look, not an act — so a build is
+ * not stopped to ask before proving its own work. Only the variable form is
+ * trusted: any file NAMED design-check.mjs could be one the agent just wrote.
+ */
+const DESIGN_CHECK = /^\s*node\s+("\$JARVIS_DESIGN_CHECK"|\$JARVIS_DESIGN_CHECK|\$env:JARVIS_DESIGN_CHECK)(\s|$)/;
+
 /** Tools that only look. These never gate. */
 const READERS = new Set([
   "Read", "Glob", "Grep", "LS", "NotebookRead", "WebFetch", "WebSearch",
@@ -76,6 +93,7 @@ export function toolKind(name, input = {}) {
   if (WRITERS.has(name)) return "write";
   if (RUNNERS.has(name)) {
     const cmd = String(input.command ?? "");
+    if (DESIGN_CHECK.test(cmd) && !/[;&|>`]|\$\(/.test(cmd)) return "read";
     return SAFE_COMMAND.test(cmd) && !/[;&|>]/.test(cmd) ? "read" : "run";
   }
   if (READERS.has(name)) return "read";

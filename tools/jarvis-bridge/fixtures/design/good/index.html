@@ -1,0 +1,33 @@
+<!doctype html>
+<!-- The design check's "considered page" fixture: a direction, real copy, one standout. -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Northwind Capital</title>
+<style>
+  :root { --ink: #f2ede3; --ground: #0e1412; --gold: #d4af62; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: "Fraunces", Georgia, serif; }
+  .label { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: #b9b2a4; }
+  h1 { font-size: clamp(40px, 7vw, 88px); line-height: 1; margin: 0 0 24px; font-weight: 400; }
+  main { padding: 48px clamp(16px, 5vw, 96px); max-width: 1200px; }
+  p { font-size: 18px; max-width: 34em; line-height: 1.55; }
+  canvas { width: 100%; height: 260px; display: block; margin: 32px 0; }
+  a.cta { display: inline-block; background: var(--gold); color: #14110a; padding: 14px 22px; text-decoration: none; font-size: 16px; }
+  ol { padding-left: 1.2em; } li { margin: 12px 0; font-size: 17px; }
+  @media (prefers-reduced-motion: reduce) { canvas { animation: none; } }
+</style></head>
+<body><main>
+  <div class="label">Northwind Capital · Est. 1987</div>
+  <h1>Portfolios for families who plan in decades.</h1>
+  <p>We manage long-horizon capital for 214 families across three generations. Drag the curve to see what thirty years of patience does to a single decision.</p>
+  <canvas data-standout="compounding curve you can drag" aria-label="Compounding curve"></canvas>
+  <a class="cta" href="#approach">Read our approach</a>
+  <h2 id="approach">How we work</h2>
+  <ol><li>One adviser for the life of the relationship.</li><li>Fees fall as your horizon lengthens.</li><li>Quarterly letters written by the people who made the calls.</li></ol>
+</main>
+<script>
+  const c = document.querySelector("canvas"), x = c.getContext("2d");
+  c.width = c.clientWidth; c.height = c.clientHeight;
+  x.strokeStyle = "#d4af62"; x.lineWidth = 2; x.beginPath();
+  for (let i = 0; i <= c.width; i++) x.lineTo(i, c.height - Math.pow(1.0025, i) * 8);
+  x.stroke();
+</script>
+</body></html>
