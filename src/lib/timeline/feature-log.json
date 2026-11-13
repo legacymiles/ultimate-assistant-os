@@ -1,5 +1,41 @@
 [
  {
+  "id": "0380a0d:app-builder",
+  "date": "2026-11-12",
+  "slug": "app-builder",
+  "title": "Every website build researches, uses real components and passes a design check",
+  "detail": "App Builder, Client Review edits and Redesigner lanes now share one Design Intelligence layer instead of each naming skills in prose.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0380a0d:client-review",
+  "date": "2026-11-12",
+  "slug": "client-review",
+  "title": "Every website build researches, uses real components and passes a design check",
+  "detail": "Client edits now run Design Intelligence in review mode: match the site, build anything added from a real component in its own language, and run the design check before and after — the edits may not add a single new fail.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0380a0d:design-intelligence",
+  "date": "2026-11-12",
+  "slug": "design-intelligence",
+  "title": "Every website build researches, uses real components and passes a design check",
+  "detail": "App Builder, Client Review edits and Redesigner lanes now share one Design Intelligence layer instead of each naming skills in prose.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0380a0d:website-redesigner",
+  "date": "2026-11-12",
+  "slug": "website-redesigner",
+  "title": "Every website build researches, uses real components and passes a design check",
+  "detail": "App Builder, Client Review edits and Redesigner lanes now share one Design Intelligence layer instead of each naming skills in prose.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "0c17b38:app-builder",
   "date": "2026-11-12",
   "slug": "app-builder",
