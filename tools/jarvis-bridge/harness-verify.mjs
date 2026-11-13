@@ -13,6 +13,7 @@ export const MAX_ROUNDS = 3;
 /** Ceilings, not estimates: a step that passes them is killed as a tree. */
 export const LIMITS = {
   install: 600_000, typecheck: 300_000, lint: 300_000, test: 600_000, build: 600_000, boot: 180_000, crawl: 180_000,
+  design: 300_000,
 };
 export const MAX_PAGES = 25;
 export const MAX_DEPTH = 3;
@@ -42,7 +43,7 @@ export function managerOf(names = []) {
  * A step is `{ shell }` (a fixed string, never built from file names) or
  * `{ node }` (arguments to this same node binary, no shell at all).
  */
-export function planChecks({ pkg = null, names: listed = [], project = false, base = "", has: facts = {} } = {}) {
+export function planChecks({ pkg = null, names: listed = [], project = false, base = "", has: facts = {}, paths = [], design: wantDesign = true } = {}) {
   // Tolerant of a caller that passes null for a folder it could not read.
   const names = Array.isArray(listed) ? listed : [];
   const has = facts ?? {};
@@ -82,7 +83,66 @@ export function planChecks({ pkg = null, names: listed = [], project = false, ba
   else if (scripts.dev) boot = { kind: "shell", command: `${RUN[pm]} dev` };
   else if (has.staticDir) boot = { kind: "static", dir: has.staticDir };
 
-  return { pm, steps, boot };
+  return { pm, steps, boot, design: boot && wantDesign ? designPlan({ project, paths }) : null };
+}
+
+/**
+ * The design check, run by the bridge after the crawl, against the same
+ * running app.
+ *
+ * The builder is told to run design-check.mjs itself; this is the same check
+ * run by somebody who did not build it. `important` is where a standout must
+ * be: the pages the thread was started with, else the home page. A new project
+ * is followed link by link and its source scanned. A worktree of an existing
+ * site is not, for the crawl's reason: following the hub's home page, or
+ * reading its six hundred source files, would fail an edit for what was
+ * already there.
+ */
+export function designPlan({ project = false, paths = [] } = {}) {
+  const asked = (Array.isArray(paths) ? paths : []).filter((p) => typeof p === "string" && p.startsWith("/") && !p.startsWith("//"));
+  const important = asked.length ? [...new Set(asked)] : ["/"];
+  return {
+    id: "design", label: "Design check", limit: LIMITS.design,
+    important,
+    follow: Boolean(project),
+    source: Boolean(project),
+    maxPages: project ? 6 : important.length,
+  };
+}
+
+/**
+ * The design check's must-fix findings as gate failures.
+ *
+ * A finding's `where` is a page address with its width ("http://127.0.0.1:4123/
+ * @ 390px") or a source file. The port is new on every run and the same
+ * problem at two widths is one problem, so the page is kept as a path and the
+ * width dropped; the rule is part of the id, because "no standout" and
+ * "placeholder copy" on one page are two different things to fix.
+ */
+export function designFailures(verdict) {
+  const out = [];
+  for (const f of verdict?.fails ?? []) {
+    const page = designPage(f.where);
+    const id = fingerprint({ step: "design", page: `${page}:${f.rule}`, evidence: f.message });
+    if (out.some((o) => o.id === id)) continue;
+    out.push({
+      id, step: "design", page, rule: f.rule,
+      title: `Design check: ${f.rule} on ${page}`,
+      ran: "design check",
+      evidence: f.fix ? `${f.message}\nFix: ${f.fix}` : f.message,
+    });
+  }
+  return out;
+}
+
+function designPage(where) {
+  const at = String(where ?? "").replace(/\s*@\s*\d+px$/, "").trim();
+  try {
+    const u = new URL(at);
+    return `${u.pathname}${u.search}` || "/";
+  } catch {
+    return at || "/";
+  }
 }
 
 /** What a process needs to run at all. Compared in lower case: Windows env names are not case-sensitive. */
@@ -167,7 +227,12 @@ const FENCE = "`".repeat(3);
 /** What the agent is told when its build fails the checks. */
 export function repairPrompt(report, { round = 1, max = MAX_ROUNDS } = {}) {
   const all = report?.failures ?? [];
-  const shown = all.slice(0, 8);
+  // The design check's findings go back as its own report, below, which has
+  // every fix in it; one block per finding would say each twice and push the
+  // build's other failures past the cap.
+  const design = all.filter((f) => f.step === "design");
+  const rest = all.filter((f) => f.step !== "design");
+  const shown = rest.slice(0, 8);
   const lines = [
     "<checks_failed>",
     `The PC checked this build after your last message and ${all.length} check${all.length === 1 ? "" : "s"} failed. This is repair round ${round} of ${max}.`,
@@ -179,7 +244,19 @@ export function repairPrompt(report, { round = 1, max = MAX_ROUNDS } = {}) {
     if (f.page) lines.push(`Page: ${f.page}`);
     lines.push(FENCE, String(f.evidence ?? "").slice(-1_200).trim(), FENCE, "");
   }
-  if (all.length > shown.length) lines.push(`…and ${all.length - shown.length} more.`, "");
+  if (rest.length > shown.length) lines.push(`…and ${rest.length - shown.length} more.`, "");
+  if (design.length) {
+    const text = String(report?.design?.text ?? "").trim()
+      || design.map((f) => `- [${f.rule}] ${f.page} — ${String(f.evidence ?? "").replace(/\n/g, " ")}`).join("\n");
+    const where = (report?.design?.important ?? ["/"]).join(",");
+    lines.push(
+      `## The design check failed (${design.length} must-fix)`,
+      "The PC ran the design check on its own running copy of the app (the addresses below are that copy's). Its report, with the fix for each finding:",
+      FENCE, text.slice(0, 4_000), FENCE,
+      `Run it yourself before you finish: node "$JARVIS_DESIGN_CHECK" <the app's local address> --important ${where}`,
+      "",
+    );
+  }
   lines.push(
     "Fix the cause of each one. Do not delete, skip or weaken a test or a check to get past it, and do not change anything that already works.",
     "When they are fixed, redeploy if you had deployed, and end your message with the same final lines as before.",

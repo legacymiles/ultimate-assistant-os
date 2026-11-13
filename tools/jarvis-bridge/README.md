@@ -156,7 +156,19 @@ decides what, `harness-verify-run.mjs` does it:
 install (a project folder only, never a worktree: its `node_modules` is the
 junction above) → typecheck → lint (advice, never a failure) → its own tests →
 build → start it on a free port → open its pages in a hidden browser, plus the
-home page at 390 px → open the `Live:` address.
+home page at 390 px → the design check → open the `Live:` address.
+
+**The design check** is `design-check.mjs`, the same file every website build
+is told to run on itself — run here by the bridge, on the app it just started,
+so the builder is no longer the only one grading its look. Its important pages
+are the thread's `verifyPaths`, else `/`; a new project is followed link by
+link and its source scanned, a worktree opens only those pages. Each must-fix
+finding is a `design` failure (by page and rule, so the same finding on a new
+port is still "nothing changed"), and the repair message carries the check's
+own report with every fix. Warnings are advice. Its pictures are
+`design-home-390.jpg` / `design-home-1440.jpg` beside the crawl's, with
+`design-report.json`. A design check that cannot run or runs out of time
+(5 minutes) is "could not look", never a pass.
 
 A new project is crawled link by link, up to 25 pages. A worktree of an
 existing site is not: it opens the home page and the pages the thread was

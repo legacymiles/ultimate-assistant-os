@@ -23,9 +23,10 @@ import { createServer as createHttp } from "node:http";
 import { createServer as createNet } from "node:net";
 import path from "node:path";
 
+import { designCheck } from "./design-check.mjs";
 import { killTree } from "./harness-preview.mjs";
 import {
-  LIMITS, MAX_DEPTH, MAX_PAGES, crawlLinks, fingerprint, finishLinks, isPublicAddress, judgeResponse, planChecks, scrubEnv,
+  LIMITS, MAX_DEPTH, MAX_PAGES, crawlLinks, designFailures, fingerprint, finishLinks, isPublicAddress, judgeResponse, planChecks, scrubEnv,
 } from "./harness-verify.mjs";
 
 const WINDOWS = process.platform === "win32";
@@ -894,6 +895,72 @@ export async function checkLive(url, fetcher = fetch, probe = online) {
 const lastLine = (text) => String(text ?? "").trim().split(/\r?\n/).filter(Boolean).pop() ?? "";
 
 /**
+ * The design check, by the bridge, on the app the crawl just opened.
+ *
+ * design-check.mjs is the same file the builder is told to run on itself; the
+ * difference is who runs it. The browser is the gate's own (`launch`, no keys
+ * in its environment) and its files land in `dir` beside the crawl's, with a
+ * "design-" prefix so neither overwrites the other.
+ *
+ * It always comes back, and never throws. Past `limit`, or when the check is
+ * called off, the browser is closed and whatever designCheck then says is
+ * thrown away: a page that "did not load" because its browser was shut is not
+ * a finding. `cut` says which of the two it was; `error` that it could not run.
+ */
+export async function lookAtDesign({ url, design, dir, src = "", signal, limit = LIMITS.design, launch: open = launch, check = designCheck }) {
+  let browser = null;
+  let cut = "";
+  const close = () => (browser ? within(10_000, browser.close()).catch(() => {}) : Promise.resolve());
+  let timer = null;
+  let onAbort = null;
+  const stopped = new Promise((resolve) => {
+    const end = (why) => {
+      if (cut) return;
+      cut = why;
+      void close();
+      resolve();
+    };
+    timer = setTimeout(() => end("time"), limit);
+    onAbort = () => end("abort");
+    if (signal?.aborted) onAbort();
+    else signal?.addEventListener("abort", onAbort, { once: true });
+  });
+  const run = check(
+    {
+      url: new URL(design.important[0], url).href,
+      important: design.important,
+      paths: design.important.slice(1),
+      src,
+      useSrc: Boolean(src) && design.source,
+      out: dir,
+      prefix: "design-",
+      follow: design.follow,
+      maxPages: design.maxPages,
+    },
+    {
+      launch: async () => {
+        browser = await open();
+        // Called off while the browser was starting: nothing else will close it.
+        if (cut) void close();
+        return browser;
+      },
+    },
+  ).then((result) => ({ result }), (e) => ({ error: firstLine(e) }));
+  try {
+    const first = await Promise.race([run, stopped.then(() => null)]);
+    if (cut || !first) {
+      // Let it unwind on the closed browser before the app under it is stopped.
+      await within(5_000, run).catch(() => {});
+      return { cut: cut || "abort" };
+    }
+    return first;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener?.("abort", onAbort);
+  }
+}
+
+/**
  * Run every check on one folder and write the report beside the bridge.
  *
  * `text` is the agent's last message (for the live address); `paths` are extra
@@ -910,12 +977,12 @@ const lastLine = (text) => String(text ?? "").trim().split(/\r?\n/).filter(Boole
  */
 export async function runGate({
   cwd, project = false, base = "", text = "", paths = [], dir, onStep = () => {}, signal, env = process.env,
-  launch: open = launch, fetcher = fetch, probe, limits = {},
+  launch: open = launch, fetcher = fetch, probe, limits = {}, design: lookAtLooks = true, designCheck: check = designCheck,
 }) {
   const startedAt = Date.now();
   const ceilings = { ...LIMITS, ...limits };
   mkdirSync(dir, { recursive: true });
-  const plan = planChecks({ ...readFacts(cwd), project, base });
+  const plan = planChecks({ ...readFacts(cwd), project, base, paths, design: lookAtLooks });
   const clean = scrubEnv(env);
   const steps = [];
   const failures = [];
@@ -948,16 +1015,18 @@ export async function runGate({
 
   let pages = [];
   let broken = "";
+  let designSeen = null;
   const built = !failures.some((f) => f.step === "install" || f.step === "build");
   // How to start it is decided now, not before the steps ran: the folder a
   // build writes (dist/index.html) is not there until it has been built, and a
   // project with nothing but a build script would otherwise never be opened.
-  const { boot } = planChecks({ ...readFacts(cwd), project, base });
+  const { boot, design } = planChecks({ ...readFacts(cwd), project, base, paths, design: lookAtLooks });
   if (!boot) {
     skip("boot", "Start it", "Nothing here says how to start it: no start or dev script, and no index.html.");
   } else if (!built) {
     skip("boot", "Start it", "Skipped because it did not build.");
     skip("crawl", "Open every page", "Skipped because it did not build.");
+    if (design) skip("design", design.label, "Skipped because it did not build.");
   } else if (!signal?.aborted) {
     const ran = boot.command ?? (boot.args ? `node ${boot.args.join(" ")}` : `serve ${boot.dir}`);
     const t0 = Date.now();
@@ -1007,6 +1076,43 @@ export async function runGate({
           }
           record({ id: "crawl", label: "Open every page", ok: seen.failures.length === 0 && !seen.crashed, advisory: false, skipped: false, ms: Date.now() - t1, ran: `${pages.length} page(s)`, tail });
         }
+
+        // How it looks, judged by the same rules the builder was given. Run
+        // whatever the crawl found, so one repair round can fix both; not when
+        // the browser could not start at all, which the crawl already said.
+        if (design && !signal?.aborted) {
+          const ran = `design check ${design.important.join(",")}`;
+          if (!seen) {
+            skip("design", design.label, "Skipped because the hidden browser could not start.");
+          } else {
+            const t3 = Date.now();
+            const d = await lookAtDesign({ url: app.url, design, dir, src: cwd, signal, limit: ceilings.design, launch: open, check });
+            const ms = Date.now() - t3;
+            if (d.result) {
+              const v = d.result.verdict;
+              const found = designFailures(v);
+              failures.push(...found);
+              advice.push(...v.warnings.slice(0, 10).map((w) => `Design: [${w.rule}] ${w.message}`));
+              designSeen = {
+                pass: v.pass, score: v.score, fails: v.fails.length, warnings: v.warnings.length,
+                important: design.important, text: d.result.text,
+                shots: [...new Set(d.result.pages.map((p) => path.basename(p.screenshot)))],
+              };
+              record({ id: "design", label: design.label, ok: v.pass, advisory: false, skipped: false, ms, ran, tail: v.pass ? `score ${v.score}/10` : d.result.text.slice(0, 1_200) });
+            } else if (d.cut === "abort") {
+              skip("design", design.label, "Called off.");
+            } else {
+              // It could not finish looking. That is this PC's trouble, not the
+              // build's, and it is not a pass: nobody has judged how it looks.
+              const why = d.cut === "time"
+                ? `The design check ran out of time after ${Math.round(ms / 1_000)} seconds, so how it looks was not judged.`
+                : `The design check could not run: ${d.error}`;
+              record({ id: "design", label: design.label, ok: false, advisory: false, skipped: false, ms, ran, tail: why });
+              advice.push(why);
+              if (!broken) broken = why;
+            }
+          }
+        }
       } finally {
         await app.stop().catch(() => {});
       }
@@ -1049,6 +1155,7 @@ export async function runGate({
     pages,
     advice,
     failures,
+    ...(designSeen ? { design: designSeen } : {}),
   };
   // An aborted run decides nothing, so it is not called broken either. And a
   // run that found real failures is not broken: those go back to the agent

@@ -330,6 +330,12 @@ function samePath(base, href) {
 /**
  * Check a running site. Returns { verdict, pages, out, text }.
  * `chromium` can be injected (tests); otherwise Playwright is loaded from this folder.
+ * `launch` replaces both: the verify gate passes its own, which opens the
+ * browser without the bridge's keys in its environment.
+ *
+ * `prefix` goes in front of every file written to `out`, so the gate can keep
+ * these screenshots beside its own home-1280.jpg / home-390.jpg without one
+ * overwriting the other. `follow: false` opens only the pages it was given.
  */
 export async function designCheck(opts, deps = {}) {
   const { scanPage, scanSource, verdict, report } = await rules();
@@ -338,7 +344,7 @@ export async function designCheck(opts, deps = {}) {
   mkdirSync(out, { recursive: true });
 
   let chromium = deps.chromium;
-  if (!chromium) {
+  if (!chromium && !deps.launch) {
     try {
       ({ chromium } = await import("playwright"));
     } catch {
@@ -346,7 +352,8 @@ export async function designCheck(opts, deps = {}) {
     }
   }
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = deps.launch ? await deps.launch() : await chromium.launch({ headless: true });
+  const prefix = String(opts.prefix ?? "").replace(/[^\w.-]/g, "");
   const findings = [];
   const pages = [];
   try {
@@ -377,7 +384,7 @@ export async function designCheck(opts, deps = {}) {
           await page.waitForTimeout(1200);
           await scrollThrough(page);
           const snap = await page.evaluate(measure);
-          const shot = join(out, `${path === "/" ? "home" : path.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "")}-${width}.jpg`);
+          const shot = join(out, `${prefix}${path === "/" ? "home" : path.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "")}-${width}.jpg`);
           await page.screenshot({ path: shot, fullPage: true, type: "jpeg", quality: 55 }).catch(() => page.screenshot({ path: shot, type: "jpeg", quality: 55 }));
           const isImportant = important.has(path) && width === Math.max(...widths);
           const snapshot = { url, width, ...snap, consoleErrors: errors };
@@ -402,7 +409,7 @@ export async function designCheck(opts, deps = {}) {
             }
           }
           pages.push({ path, width, status, screenshot: shot, standouts: snap.standouts, cardGrids: snap.cardGrids, lowContrast: snap.lowContrast, fonts: snap.fonts.map((f) => f.split(",")[0].trim()) });
-          if (width === widths[0]) {
+          if (width === widths[0] && opts.follow !== false) {
             for (const href of snap.links) {
               const p = samePath(base.href, href);
               if (p && !seen.has(p) && !queue.includes(p)) queue.push(p);
@@ -434,8 +441,8 @@ export async function designCheck(opts, deps = {}) {
   }
   const v = verdict(unique);
   const text = report(v);
-  writeFileSync(join(out, "report.json"), JSON.stringify({ url: base.href, at: new Date().toISOString(), ...v, pages }, null, 2));
-  writeFileSync(join(out, "report.txt"), `${text}\n\nScreenshots: ${out}\n`);
+  writeFileSync(join(out, `${prefix}report.json`), JSON.stringify({ url: base.href, at: new Date().toISOString(), ...v, pages }, null, 2));
+  writeFileSync(join(out, `${prefix}report.txt`), `${text}\n\nScreenshots: ${out}\n`);
   return { verdict: v, pages, out, text };
 }
 

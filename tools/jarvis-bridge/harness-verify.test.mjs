@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   MAX_ROUNDS, afterRun, crawlLinks, fingerprint, finishLinks, isPublicAddress, judgeResponse,
-  managerOf, planChecks, repairPrompt, resumeAction, sameFailures, scrubEnv,
+  designFailures, designPlan, managerOf, planChecks, repairPrompt, resumeAction, sameFailures, scrubEnv,
 } from "./harness-verify.mjs";
 
 const NEXT_APP = {
@@ -52,7 +52,7 @@ describe("which checks a folder gets", () => {
   });
 
   it("survives a folder it could not read", () => {
-    expect(planChecks({ pkg: null, names: null, has: null, base: null })).toEqual({ pm: "npm", steps: [], boot: null });
+    expect(planChecks({ pkg: null, names: null, has: null, base: null })).toEqual({ pm: "npm", steps: [], boot: null, design: null });
   });
 
   it("uses the lockfile's package manager", () => {
@@ -240,5 +240,60 @@ describe("a restart", () => {
     expect(resumeAction({ verify: { state: "failed" } })).toBe("prompt");
     expect(resumeAction({ verify: { state: "idle" } })).toBe("prompt");
     expect(resumeAction({})).toBe("prompt");
+  });
+});
+
+describe("the design check, run by the bridge", () => {
+  const SITE = { scripts: { start: "node server.mjs" } };
+
+  it("comes after the crawl of anything it can start, and judges the home page by default", () => {
+    const plan = planChecks({ pkg: SITE, names: ["package.json"], project: true, has: {} });
+    expect(plan.design).toEqual({ id: "design", label: "Design check", limit: 300_000, important: ["/"], follow: true, source: true, maxPages: 6 });
+  });
+
+  it("in a worktree judges only the pages the thread was started with, and reads no source", () => {
+    const plan = planChecks({ pkg: NEXT_APP, names: ["package.json"], project: false, base: "main", has: { modules: true, devPreview: true }, paths: ["/apps/cook-connect", "/apps/cook-connect"] });
+    expect(plan.design).toMatchObject({ important: ["/apps/cook-connect"], follow: false, source: false, maxPages: 1 });
+  });
+
+  it("is not planned when there is nothing to start, or when it is switched off", () => {
+    expect(planChecks({ pkg: { scripts: { build: "tsc" } }, names: ["package.json"], project: true, has: {} }).design).toBeNull();
+    expect(planChecks({ pkg: SITE, names: ["package.json"], project: true, has: {}, design: false }).design).toBeNull();
+  });
+
+  it("only takes site-relative pages as important", () => {
+    expect(designPlan({ paths: ["//evil.example", "https://x.example/", 3, "/ok"] }).important).toEqual(["/ok"]);
+    expect(designPlan({ paths: [] }).important).toEqual(["/"]);
+  });
+
+  const verdict = (fails) => ({ pass: !fails.length, score: 5, fails, warnings: [] });
+  const noStandout = (port, width) => ({ rule: "no-standout", severity: "fail", where: `http://127.0.0.1:${port}/pricing @ ${width}px`, message: "Nothing on this page is memorable.", fix: "Give it one data-standout." });
+
+  it("turns each must-fix finding into a failure, by page and rule, without the port or the width", () => {
+    const found = designFailures(verdict([noStandout(4100, 1440), noStandout(4100, 390), { rule: "placeholder-copy", severity: "fail", where: "src/app/page.tsx", message: "Lorem ipsum is still on the page.", fix: "Write the real words." }]));
+    expect(found.map((f) => [f.step, f.page, f.rule])).toEqual([["design", "/pricing", "no-standout"], ["design", "src/app/page.tsx", "placeholder-copy"]]);
+    expect(found[0].evidence).toBe("Nothing on this page is memorable.\nFix: Give it one data-standout.");
+  });
+
+  it("keeps the same id when the same problem comes back on a new port, so a repair that changed nothing is seen", () => {
+    const a = designFailures(verdict([noStandout(4100, 1440)])).map((f) => f.id);
+    const b = designFailures(verdict([noStandout(5233, 1440)])).map((f) => f.id);
+    expect(a).toEqual(b);
+    expect(sameFailures(a, b)).toBe(true);
+  });
+
+  it("hands the agent the design check's own report, with every fix, and how to run it again", () => {
+    const failures = [
+      { id: "t", step: "test", title: "Its own tests failed", ran: "npm run test", evidence: "1 failed" },
+      ...designFailures(verdict([noStandout(4100, 1440)])),
+    ];
+    const text = repairPrompt({ failures, design: { important: ["/pricing"], text: "Design check: FAIL · score 7.5/10\nMust fix:\n- [no-standout] /pricing — Nothing on this page is memorable. Fix: Give it one data-standout." } });
+    expect(text).toContain("2 checks failed");
+    expect(text).toContain("## Its own tests failed");
+    expect(text).toContain("## The design check failed (1 must-fix)");
+    expect(text).toContain("Fix: Give it one data-standout.");
+    expect(text).toContain('node "$JARVIS_DESIGN_CHECK" <the app\'s local address> --important /pricing');
+    // Said once, in the report, not again as a block of its own.
+    expect(text).not.toContain("## Design check: no-standout");
   });
 });

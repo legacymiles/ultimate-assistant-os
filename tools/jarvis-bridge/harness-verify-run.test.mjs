@@ -6,10 +6,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { planChecks, scrubEnv } from "./harness-verify.mjs";
+import { afterRun, planChecks, repairPrompt, scrubEnv } from "./harness-verify.mjs";
 import { asFailure, canBrowse, checkLive, freePort, readFacts, runGate, runStep, startApp } from "./harness-verify-run.mjs";
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "verify");
+const DESIGN = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "design");
 const fx = (name) => path.join(FIX, name);
 
 // Every folder this file makes in %TEMP%, so the run can take them away again.
@@ -130,7 +131,7 @@ describe("starting the app", () => {
 });
 
 const browser = await canBrowse();
-const gate = (name, extra = {}) => runGate({ cwd: fx(name), project: true, dir: out(), ...extra });
+const gate = (name, extra = {}) => runGate({ design: false, cwd: fx(name), project: true, dir: out(), ...extra });
 
 describe("a PC that cannot open a browser", () => {
   it("is not a pass and not the build's fault: the gate says it is broken", async () => {
@@ -138,7 +139,7 @@ describe("a PC that cannot open a browser", () => {
     const launch = async () => {
       throw new Error("browserType.launch: Executable doesn't exist at C:\\nowhere\\chrome.exe\nLooks like Playwright was just installed.");
     };
-    const report = await runGate({ cwd: fx("clean"), project: true, dir, launch });
+    const report = await runGate({ design: false, cwd: fx("clean"), project: true, dir, launch });
     expect(report.passed).toBe(false);
     expect(report.broken).toBe(true);
     expect(report.brokenWhy).toContain("Executable doesn't exist");
@@ -153,7 +154,7 @@ describe("a PC that cannot open a browser", () => {
     const launch = async () => {
       throw new Error("browserType.launch: Executable doesn't exist");
     };
-    const report = await runGate({ cwd: fx("test-fails"), project: true, dir: out(), launch });
+    const report = await runGate({ design: false, cwd: fx("test-fails"), project: true, dir: out(), launch });
     expect(report.passed).toBe(false);
     // Its own tests failed: that is the agent's to fix, so the run is not "broken".
     expect(report.broken).toBeUndefined();
@@ -192,7 +193,7 @@ const diesOnPage = (n) => async () => {
 describe.skipIf(!browser)("the whole gate, on a real little app", () => {
   it("passes a clean app and leaves a report and two pictures", async () => {
     const dir = out();
-    const report = await runGate({ cwd: fx("clean"), project: true, dir });
+    const report = await runGate({ design: false, cwd: fx("clean"), project: true, dir });
     expect(report.failures).toEqual([]);
     expect(report.passed).toBe(true);
     expect(report.pages.map((p) => p.url).sort()).toEqual(["/", "/about"]);
@@ -285,12 +286,12 @@ describe.skipIf(!browser)("the whole gate, on a real little app", () => {
   }, 120_000);
 
   it("in a worktree it opens only the pages it was told to, and follows no links", async () => {
-    const report = await runGate({ cwd: fx("clean"), project: false, dir: out() });
+    const report = await runGate({ design: false, cwd: fx("clean"), project: false, dir: out() });
     expect(report.pages.map((p) => p.url)).toEqual(["/"]);
   }, 120_000);
 
   it("says so when there was nothing it could check", async () => {
-    const report = await runGate({ cwd: out(), project: true, dir: out() });
+    const report = await runGate({ design: false, cwd: out(), project: true, dir: out() });
     expect(report.passed).toBe(false);
     expect(report.failures[0].title).toMatch(/nothing to check/i);
   }, 60_000);
@@ -319,7 +320,7 @@ describe("a live address the agent should not be able to send the bridge to", ()
     try {
       const live = `http://127.0.0.1:${server.address().port}/admin`;
       // An empty folder: this is about the live address, not about a build.
-      const report = await runGate({ cwd: out(), project: true, dir: out(), text: `Repo: none\nLive: ${live}` });
+      const report = await runGate({ design: false, cwd: out(), project: true, dir: out(), text: `Repo: none\nLive: ${live}` });
       const step = report.steps.find((s) => s.id === "live");
       expect(hits).toBe(0);
       expect(step.skipped).toBe(true);
@@ -346,4 +347,93 @@ describe("the live address", () => {
   it("fails one that is down", async () => {
     expect((await checkLive("https://a.vercel.app", fake(404))).ok).toBe(false);
   });
+});
+
+// The design check, run by the bridge after the crawl. The verify fixtures
+// above are bare pages on purpose and run with `design: false`; these two are
+// the design check's own: one with every tell of a default AI site, one
+// considered page. Both are plain index.html folders the gate serves itself.
+describe.skipIf(!browser)("the design check, run by the gate", () => {
+  it("a sloppy build cannot pass: the design check's failures go back with every fix", async () => {
+    const dir = out();
+    const report = await runGate({ cwd: path.join(DESIGN, "slop"), project: true, dir });
+    const design = report.failures.filter((f) => f.step === "design");
+    expect(report.passed).toBe(false);
+    expect(report.broken).toBeUndefined();
+    expect(design.map((f) => f.rule)).toEqual(expect.arrayContaining(["placeholder-copy", "no-standout", "default-look"]));
+    // Pages are paths, never the port the app happened to get.
+    expect(design.every((f) => !/127\.0\.0\.1|localhost/.test(f.page))).toBe(true);
+    expect(report.steps.find((s) => s.id === "design")).toMatchObject({ ok: false, skipped: false });
+    expect(report.design).toMatchObject({ pass: false, important: ["/"] });
+    expect(report.design.text).toMatch(/^Design check: FAIL/);
+
+    // Its pictures sit beside the crawl's, and neither overwrote the other.
+    for (const f of ["home-1280.jpg", "home-390.jpg", "design-home-390.jpg", "design-home-1440.jpg", "design-report.json", "report.json"]) {
+      expect(existsSync(path.join(dir, f)), f).toBe(true);
+    }
+    expect(JSON.parse(readFileSync(path.join(dir, "report.json"), "utf8")).design.pass).toBe(false);
+
+    // What the agent is sent is the design check's own report.
+    const prompt = repairPrompt(report, { round: 1, max: 3 });
+    expect(prompt).toContain("## The design check failed");
+    expect(prompt).toContain(report.design.text.split("\n")[0]);
+    expect(prompt).toMatch(/Fix: /);
+
+    // And the loop's decision never reads "passed", in any round.
+    for (const rounds of [0, 1, 3]) expect(afterRun({ passed: report.passed, ids: report.failures.map((f) => f.id), rounds }).state).not.toBe("passed");
+  }, 180_000);
+
+  it("a considered build passes the whole gate, design check included", async () => {
+    const report = await runGate({ cwd: path.join(DESIGN, "good"), project: true, dir: out() });
+    expect(report.failures).toEqual([]);
+    expect(report.steps.find((s) => s.id === "design")).toMatchObject({ ok: true, skipped: false });
+    expect(report.design.pass).toBe(true);
+    expect(report.passed).toBe(true);
+  }, 180_000);
+
+  it("in a worktree it judges the page the thread named, not the home page", async () => {
+    let asked = null;
+    const check = async (opts) => {
+      asked = opts;
+      return { verdict: { pass: true, score: 10, fails: [], warnings: [] }, pages: [], out: opts.out, text: "Design check: PASS" };
+    };
+    const report = await runGate({ cwd: path.join(FIX, "clean"), project: false, dir: out(), paths: ["/about"], designCheck: check });
+    expect(new URL(asked.url).pathname).toBe("/about");
+    expect(asked).toMatchObject({ important: ["/about"], follow: false, useSrc: false, prefix: "design-" });
+    expect(report.passed).toBe(true);
+  }, 120_000);
+
+  it("is broken, not passed, when the design check cannot run", async () => {
+    const check = async () => {
+      throw new Error("slop.ts could not be loaded");
+    };
+    const report = await runGate({ cwd: path.join(DESIGN, "good"), project: true, dir: out(), designCheck: check });
+    expect(report.passed).toBe(false);
+    expect(report.broken).toBe(true);
+    expect(report.brokenWhy).toContain("slop.ts could not be loaded");
+    expect(report.failures).toEqual([]);
+  }, 120_000);
+
+  it("is broken, not passed, when the design check runs out of time, and closes its browser", async () => {
+    let closed = false;
+    const check = async (_opts, { launch }) => {
+      const b = await launch();
+      const close = b.close.bind(b);
+      b.close = async () => {
+        closed = true;
+        return close();
+      };
+      await new Promise(() => {});
+    };
+    const report = await runGate({ cwd: path.join(DESIGN, "good"), project: true, dir: out(), designCheck: check, limits: { design: 300 } });
+    expect(report.passed).toBe(false);
+    expect(report.brokenWhy).toMatch(/ran out of time/);
+    expect(closed).toBe(true);
+  }, 120_000);
+
+  it("is not run when it is switched off", async () => {
+    const report = await runGate({ cwd: path.join(DESIGN, "slop"), project: true, dir: out(), design: false });
+    expect(report.steps.some((s) => s.id === "design")).toBe(false);
+    expect(report.failures.some((f) => f.step === "design")).toBe(false);
+  }, 120_000);
 });
