@@ -212,6 +212,12 @@ export function judgeResponse({ url, origin, status, document = false }) {
 // would read as a page that did not load.
 const NOT_A_PAGE = /\.(pdf|zip|gz|tar|exe|msi|dmg|apk|png|jpe?g|gif|webp|avif|svg|ico|mp4|mov|webm|mp3|wav|ogg|csv|xlsx?|docx?|pptx?|ics|json|xml|rss|txt)$/i;
 
+// Links that DO something. The crawl only navigates, but a plain GET to
+// /logout signs the crawl out, so every page after it fails for a reason the
+// build does not have, and a GET to /delete/3 on a carelessly written app
+// deletes row 3. A whole path segment only: /deleted-items is a page.
+const AN_ACTION = /(?:^|\/)(?:logout|log-out|signout|sign-out|delete|remove|destroy)(?:\/|$)/i;
+
 /** The same-origin pages worth visiting next, as paths, in first-seen order. */
 export function crawlLinks(hrefs = [], origin) {
   const out = [];
@@ -223,7 +229,7 @@ export function crawlLinks(hrefs = [], origin) {
       continue;
     }
     if (u.origin !== origin || !/^https?:$/.test(u.protocol)) continue;
-    if (u.pathname.startsWith("/api/") || NOT_A_PAGE.test(u.pathname)) continue;
+    if (u.pathname.startsWith("/api/") || NOT_A_PAGE.test(u.pathname) || AN_ACTION.test(u.pathname)) continue;
     const at = `${u.pathname}${u.search}`;
     if (!out.includes(at)) out.push(at);
   }
@@ -242,7 +248,77 @@ export function finishLinks(text) {
   return { live: last };
 }
 
-/** A job that died mid-check is checked again; the agent had already finished its turn. */
+const PRIVATE_V4 = [
+  [0, 0, 0, 0, 32], // 0.0.0.0, "this machine" to most servers
+  [127, 0, 0, 0, 8], // loopback
+  [10, 0, 0, 0, 8], [172, 16, 0, 0, 12], [192, 168, 0, 0, 16], // private networks
+  [169, 254, 0, 0, 16], // link-local, where cloud machines serve their own credentials
+];
+
+function privateV4(a, b, c, d) {
+  const n = ((a << 24) | (b << 16) | (c << 8) | d) >>> 0;
+  return PRIVATE_V4.some(([w, x, y, z, bits]) => {
+    const mask = bits === 32 ? 0xffffffff : (~0 << (32 - bits)) >>> 0;
+    return ((n & mask) >>> 0) === ((((w << 24) | (x << 16) | (y << 8) | z) & mask) >>> 0);
+  });
+}
+
+/**
+ * May the bridge fetch this address?
+ *
+ * The live address is whatever the agent printed, and the bridge runs on the
+ * owner's PC, inside their network. Without this a build could have the
+ * bridge call the router, another app on this PC, or the bridge itself.
+ *
+ * This reads the address as written. It does NOT look the name up, so a public
+ * name that resolves to a private address still gets through; closing that
+ * needs the lookup and the fetch to be the same step.
+ */
+export function isPublicAddress(url) {
+  let u;
+  try {
+    u = new URL(String(url ?? ""));
+  } catch {
+    return false;
+  }
+  if (!/^https?:$/.test(u.protocol)) return false;
+  // URL has already lower-cased the name and rewritten every spelling of an
+  // IPv4 address (127.1, 2130706433, 0x7f.0.0.1) as four plain numbers.
+  const host = u.hostname.replace(/\.$/, "");
+  if (!host) return false;
+
+  if (host.startsWith("[")) {
+    const v6 = host.slice(1, -1);
+    if (v6 === "::1" || v6 === "::") return false;
+    // An IPv4 address carried inside an IPv6 one, which URL writes in hex.
+    const mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(v6);
+    if (mapped) {
+      const hi = parseInt(mapped[1], 16);
+      const lo = parseInt(mapped[2], 16);
+      return !privateV4(hi >> 8, hi & 255, lo >> 8, lo & 255);
+    }
+    const first = parseInt(v6.split(":")[0] || "0", 16);
+    if ((first & 0xffc0) === 0xfe80) return false; // fe80::/10, link-local
+    if ((first & 0xfe00) === 0xfc00) return false; // fc00::/7, unique-local
+    return true;
+  }
+
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (v4) return !privateV4(Number(v4[1]), Number(v4[2]), Number(v4[3]), Number(v4[4]));
+
+  if (host === "localhost") return false;
+  return !/\.(?:localhost|local|internal)$/.test(host);
+}
+
+/**
+ * What a restarted bridge does with a job.
+ *
+ * One that died mid-check is checked again: the agent had already finished its
+ * turn. One that died mid-repair is checked too, to see where the repair got
+ * to — the new model session has never been shown the failures, so it cannot
+ * be asked to carry on fixing them. Anything else is sent the brief again.
+ */
 export function resumeAction(job) {
-  return job?.verify?.state === "checking" ? "verify" : "prompt";
+  const state = job?.verify?.state;
+  return state === "checking" || state === "repairing" ? "verify" : "prompt";
 }

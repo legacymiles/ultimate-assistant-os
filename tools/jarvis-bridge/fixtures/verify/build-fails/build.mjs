@@ -1,0 +1,2 @@
+console.error("src/app.ts(3,7): error TS2322: Type 'string' is not assignable to type 'number'.");
+process.exit(1);

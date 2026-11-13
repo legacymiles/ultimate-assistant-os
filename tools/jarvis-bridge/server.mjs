@@ -32,6 +32,7 @@
 //   POST /browser/quit                close the whole browser
 //   POST /harness/list|start|say|events|decide|interrupt|stop|threads
 //   POST /harness/status|diff|land|discard|preview|preview/stop
+//   POST /harness/verify|verify/report|verify/accept   the bridge's own check of a build
 //   POST /harness/start-unattended    token AND out/agents-secret.txt; the 24/7 runner only
 //   POST /files/list|read|write
 //   POST /system/windows|focus|launch|screenshot|info
@@ -224,6 +225,9 @@ const ROUTES = {
   "POST /harness/interrupt": (b) => harness.interruptThread(b),
   "POST /harness/stop": (b) => harness.stopThread(b),
   "POST /harness/job/done": (b) => harness.markJobDone(b),
+  "POST /harness/verify": (b) => harness.verifyThread(b),
+  "POST /harness/verify/report": (b) => harness.verifyReport(b),
+  "POST /harness/verify/accept": (b) => harness.verifyAccept(b),
   "POST /harness/threads": () => harness.listThreads(),
   "POST /harness/status": (b) => harness.threadStatus(b),
   "POST /harness/diff": (b) => harness.threadDiff(b),

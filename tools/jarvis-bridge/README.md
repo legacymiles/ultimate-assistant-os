@@ -146,6 +146,82 @@ on this folder at once and it is almost never clean; merging on a button press
 is how one thread eats somebody else's afternoon. When it stops, it names the
 files that stopped it.
 
+#### A build is checked before it is called built
+
+A durable build (App Builder, a Client Review edit) used to be finished when
+the agent printed its `Repo:`/`Live:` lines. Now that line is a **claim**. When
+a turn ends on it, the bridge checks the folder itself — `harness-verify.mjs`
+decides what, `harness-verify-run.mjs` does it:
+
+install (a project folder only, never a worktree: its `node_modules` is the
+junction above) → typecheck → lint (advice, never a failure) → its own tests →
+build → start it on a free port → open its pages in a hidden browser, plus the
+home page at 390 px → open the `Live:` address.
+
+A new project is crawled link by link, up to 25 pages. A worktree of an
+existing site is not: it opens the home page and the pages the thread was
+started with (`verifyPaths`), because following the hub's home page would fail
+an edit for an error that was already there.
+
+Everything the gate starts gets `scrubEnv()`'s environment, not the bridge's:
+the bridge holds every key on this PC and a generated app must not. A worktree
+of the hub still reads the `.env.local` that was copied into it, as every
+preview always has.
+
+**What happens to the result** (`harness-verify-loop.mjs`):
+
+- **Pass** — the job is `done`.
+- **Fail** — the failures go back to the agent as one `<checks_failed>`
+  message, at most three times, stopping early when the same checks fail twice
+  running. Then the job is `unverified`, the page says "Built, but the checks
+  are failing", and the owner has **Check again** and **Use it anyway**.
+- **Could not look** — no browser on this PC, the runner itself broke, or a
+  check ran past an hour. That is not the build's fault, so nothing is sent to
+  the agent; the build is `unverified` and says why. It is never a pass.
+
+One check runs at a time across every thread. A thread that may not run
+commands unasked gets one card, "Run the checks on this build", once.
+
+**Who a turn was for decides what its end means.** A repair the gate sent keeps
+its round count. A message the owner types calls off a check in flight; if the
+agent then changes something, the old verdict is dropped and the next finish
+line is checked with fresh rounds; if it only answered a question, the verdict
+stands (and a check the question interrupted is run again).
+
+**A restart** mid-check checks again; mid-repair it checks where the repair got
+to. Either way the fresh model session is given the brief with the first thing
+the gate tells it. The runner is loaded on first use, so a mistake in it costs
+one check, never the bridge's boot — but a fixed runner needs a bridge restart.
+
+The crawl only navigates. It never clicks, types or submits, skips links that
+look like actions (`/logout`, `/delete/3`), and never uses the signed-in
+profile in `out/browser-profile`. The live address is fetched only if it is a
+public one.
+
+Reports and two screenshots are in `out/verify/<thread>/<run>/`. The 24/7
+runner asks for one check (`POST /harness/verify`) before a `SHIP: auto` run
+lands; anything but a pass turns auto into review.
+
+**Switching it off.** Put a file named `verify-off` in `out/` (any contents).
+New durable builds are then finished on their own word, as before, and the
+24/7 runner ships without asking for a check. A check asked for by hand still
+runs, as a look that changes nothing on the job.
+
+| What you see | What it means |
+|---|---|
+| "The checks could not run … the hidden browser could not start" | Chromium is not installed for this Playwright: `npx playwright install chromium` in this folder, then restart the bridge. |
+| "There was nothing to check" | The folder has no `package.json` scripts and no `index.html`. |
+| A build sits on "Checking it works" | Another build is being checked; one runs at a time. |
+| Builds are "Built" without being checked | The gate is off: `out/verify-off` exists. Delete it; the next build is checked. |
+| "The agent is still working" on Check again | A check mid-turn would grade a half-written folder. It is checked when the turn ends. |
+
+Known limits: pages past the 25-page cap, behind a login, or reachable only by
+a click are not opened; errors that appear more than a few seconds after load
+are missed; the phone check covers the home page only. With two messages
+queued at once, a turn's end can be read as the next message's. On DeepSeek a
+turn that throws sends no end-of-turn, so a failed repair reads "fixing" until
+the owner next types.
+
 ### MCP servers and the PC's CLIs
 
 An MCP server is a command that speaks JSON-RPC over stdio. `POST /mcp/save` stores one in

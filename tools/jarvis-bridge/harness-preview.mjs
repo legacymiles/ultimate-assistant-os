@@ -60,7 +60,7 @@ async function answers(port) {
  * Windows gets taskkill because of the shell layer described above. Everything
  * else gets a process-group kill, which is the same idea spelled differently.
  */
-function killTree(pid) {
+export function killTree(pid) {
   if (!pid) return Promise.resolve();
   return new Promise((done) => {
     if (process.platform === "win32") {

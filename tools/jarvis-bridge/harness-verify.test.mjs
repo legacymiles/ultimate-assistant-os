@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  MAX_ROUNDS, afterRun, crawlLinks, fingerprint, finishLinks, judgeResponse,
+  MAX_ROUNDS, afterRun, crawlLinks, fingerprint, finishLinks, isPublicAddress, judgeResponse,
   managerOf, planChecks, repairPrompt, resumeAction, sameFailures, scrubEnv,
 } from "./harness-verify.mjs";
 
@@ -165,6 +165,58 @@ describe("judging what the crawl saw", () => {
     expect(crawlLinks([`${origin}/about#team`, `${origin}/about`, `${origin}/api/x`, "https://x.com/a", "mailto:a@b.c", `${origin}/file.pdf`, `${origin}/shop?p=2`], origin))
       .toEqual(["/about", "/shop?p=2"]);
   });
+  it("does not follow a link that does something instead of showing something", () => {
+    const acts = ["/logout", "/log-out", "/signout", "/auth/sign-out", "/Delete/3", "/items/3/remove", "/account/DESTROY", "/delete?id=3"];
+    expect(crawlLinks(acts.map((p) => `${origin}${p}`), origin)).toEqual([]);
+    // Only a whole segment counts: these are pages that merely start the same.
+    const pages = ["/deleted-items", "/removal", "/logouts", "/blog/how-to-delete-a-file", "/about"];
+    expect(crawlLinks(pages.map((p) => `${origin}${p}`), origin)).toEqual(pages);
+  });
+});
+
+describe("which addresses the bridge will fetch", () => {
+  const no = (url) => expect(isPublicAddress(url), url).toBe(false);
+  it("fetches an ordinary public site", () => {
+    expect(isPublicAddress("https://a.vercel.app")).toBe(true);
+    expect(isPublicAddress("http://example.com:8080/apps/x?y=1")).toBe(true);
+    expect(isPublicAddress("https://8.8.8.8/")).toBe(true);
+    expect(isPublicAddress("https://[2606:4700:4700::1111]/")).toBe(true);
+    // Public addresses that only sit next to a private range.
+    expect(isPublicAddress("http://172.15.0.1/")).toBe(true);
+    expect(isPublicAddress("http://172.32.0.1/")).toBe(true);
+    expect(isPublicAddress("http://11.0.0.1/")).toBe(true);
+    expect(isPublicAddress("http://192.169.0.1/")).toBe(true);
+    expect(isPublicAddress("https://localhost.example.com/")).toBe(true);
+  });
+  it("never anything that is not a web address", () => {
+    ["", "not a url", "ftp://example.com/x", "file:///C:/Users/a/secret.txt", "javascript:alert(1)", null, undefined].forEach(no);
+  });
+  it("never this PC by name", () => {
+    ["http://localhost", "http://LOCALHOST:3000/x", "http://localhost./", "http://app.localhost:3000", "http://user:pw@localhost/"].forEach(no);
+  });
+  it("never a name that only exists on a private network", () => {
+    ["http://printer.local/", "http://nas.LOCAL:5000", "http://metadata.google.internal/computeMetadata/v1/", "https://db.corp.internal"].forEach(no);
+  });
+  it("never IPv4 loopback, however it is spelled", () => {
+    ["http://127.0.0.1:42020/", "http://127.1.2.3/", "http://127.1/", "http://2130706433/", "http://0x7f.0.0.1/", "http://0.0.0.0:3000/"].forEach(no);
+  });
+  it("never a private IPv4 network", () => {
+    ["http://10.0.0.5/", "http://10.255.255.255/", "http://172.16.0.1/", "http://172.31.255.254/", "http://192.168.1.1/admin"].forEach(no);
+  });
+  it("never a link-local IPv4 address, where cloud machines keep their keys", () => {
+    ["http://169.254.169.254/latest/meta-data/", "http://169.254.0.1/"].forEach(no);
+  });
+  it("never IPv6 loopback, link-local or unique-local", () => {
+    [
+      "http://[::1]:3000/", "http://[0:0:0:0:0:0:0:1]/", "http://[::]/",
+      "http://[fe80::1]/", "http://[febf::1]/",
+      "http://[fc00::1]/", "http://[fd12:3456:789a::1]/",
+      // IPv4 written inside an IPv6 address is still that IPv4 address.
+      "http://[::ffff:127.0.0.1]/", "http://[::ffff:192.168.1.1]/",
+    ].forEach(no);
+    expect(isPublicAddress("http://[fec0::1]/")).toBe(true);
+    expect(isPublicAddress("http://[::ffff:8.8.8.8]/")).toBe(true);
+  });
 });
 
 describe("reading the finish lines", () => {
@@ -184,7 +236,9 @@ describe("reading the finish lines", () => {
 describe("a restart", () => {
   it("re-runs the check when it died mid-check, and re-sends the brief otherwise", () => {
     expect(resumeAction({ verify: { state: "checking" } })).toBe("verify");
-    expect(resumeAction({ verify: { state: "repairing" } })).toBe("prompt");
+    expect(resumeAction({ verify: { state: "repairing" } })).toBe("verify");
+    expect(resumeAction({ verify: { state: "failed" } })).toBe("prompt");
+    expect(resumeAction({ verify: { state: "idle" } })).toBe("prompt");
     expect(resumeAction({})).toBe("prompt");
   });
 });

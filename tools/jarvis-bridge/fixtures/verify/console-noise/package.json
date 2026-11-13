@@ -1,0 +1,1 @@
+{ "name": "verify-console-noise", "private": true, "type": "module", "scripts": { "start": "node server.mjs" } }

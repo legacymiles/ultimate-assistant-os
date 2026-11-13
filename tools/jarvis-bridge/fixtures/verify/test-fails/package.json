@@ -1,0 +1,1 @@
+{ "name": "verify-test-fails", "private": true, "type": "module", "scripts": { "test": "node test.mjs", "start": "node server.mjs" } }
