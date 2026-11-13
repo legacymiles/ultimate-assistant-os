@@ -1,0 +1,14 @@
+/* Game Studio's own background (client edit, v2): red instead of the shared
+   near-black canvas. Scoped to this home only — Trading Studio and App Builder
+   use the same shell and keep their canvas. A deep red, so the muted grey text
+   that sits straight on it still reads at 4.5:1 (U2). */
+.gs-home .sh {
+  --sh-canvas: #6e090c;
+}
+
+/* The game counts in the "Your games" filter chips sit straight on the
+   background; the faint grey they use drops to ~2.5:1 on red, so here they
+   take the muted grey instead. */
+.gs-home .sh-stage button.rounded-full > .text-ink-faint {
+  color: var(--color-ink-muted, #9aa3b5);
+}
