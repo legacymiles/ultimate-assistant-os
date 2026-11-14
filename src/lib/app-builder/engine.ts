@@ -22,6 +22,9 @@ import { redesignBrief } from "./redesignBrief";
 import { designIntelligenceBlock, designIntelligenceLine } from "@/lib/design-intelligence/brief";
 import { shapeOf } from "@/lib/mockup/spec";
 import type { Shape } from "@/lib/mockup/types";
+import { ROLE as STUDIO_ROLE, SHIP_FIRST_LINE, shipFirstBlock } from "@/lib/website-studio/pipeline";
+import { combine, comboBrief } from "@/lib/website-studio/skills";
+import { flowsBrief, flowsLine } from "@/lib/website-studio/flows";
 
 import { CHECKLIST, type BoardTicket } from "../new-jarvis/felix";
 import { EDIT_CHECKLIST, editMasterPrompt, editPipeline, editQueueText } from "./clientEdit";
@@ -1229,7 +1232,7 @@ export function pipeline(
                 : depthSteps(depth, u.appType).includes(3)
                   ? "Apple-standard look, the full foundation (logins, profiles, roles, owner admin, billing wired but SWITCHED OFF, emails, legal pages), onboarding to the aha moment, growth and retention. The app stays completely free"
                   : "Apple-standard look, the growth layer and the honest-product pass. No foundation to build on a site people only visit"
-            }. Score ${depthAxes(depth, u.appType).join(" · ")}.`,
+            }. Score ${depthAxes(depth, u.appType).join(" · ")}. ${STUDIO_ROLE.commercialFirstSite}`,
           },
         ]),
     {
@@ -1238,8 +1241,11 @@ export function pipeline(
     },
     { skill: u.designSkill, role: `Invoke before writing any UI — ${u.designWhy}.` },
     { skill: "impeccable", role: "The closing craft pass on every screen: spacing, hierarchy, type, contrast, and every state (hover, disabled, loading, error, empty)." },
-    { skill: "software-factory", role: "Split the accepted features into Backlog cards (one PR under ~400 lines each), run super-board; a human approves every merge." },
-    { skill: "claude-security", role: "Deep scan before launch or handoff; fix every high/critical finding in its own PR." },
+    // Ship first (src/lib/website-studio/pipeline.ts): the site goes live on a
+    // quick security check, and only then does the factory deepen it.
+    { skill: "claude-security", role: STUDIO_ROLE.securityCheck },
+    { skill: "software-factory", role: STUDIO_ROLE.softwareFactory },
+    { skill: "claude-security", role: STUDIO_ROLE.securityDeep },
     { skill: "website-build-checklist", role: "Hold every screen to the owner's one build checklist; cite the codes in each card." },
   ];
 }
@@ -1319,6 +1325,20 @@ export function lookOf(p: BuilderProject, u: Understanding): Understanding {
   };
 }
 
+/**
+ * The design skills the owner ticked in Website Studio, as the build's own
+ * block — the stack around the look, in the order to run it.
+ *
+ * Only what the owner actually picked. With nothing picked the pipeline's own
+ * design skill stands alone, which is what every build did before the Studio
+ * existed, so this block is simply absent.
+ */
+export function pickedSkillsBlock(p: BuilderProject): string {
+  const picks = (p.skills ?? []).map((s) => s.trim()).filter(Boolean);
+  if (picks.length < 2) return "";
+  return `<design_skills>\n${comboBrief(combine(picks))}\n</design_skills>`;
+}
+
 export function masterPrompt(p: BuilderProject): string {
   if (p.edit) return editMasterPrompt(p);
   const base = p.understanding ?? understand(p.idea, p.answers);
@@ -1355,6 +1375,9 @@ export function masterPrompt(p: BuilderProject): string {
     `<skills_pipeline>\nRun these skills, in this order, for this build — every time:\n${pipeline(u, p.teardown, Boolean(p.sources?.length), false, depth, p.redesign)
       .map((s, i) => `${i + 1}. ${s.skill} — ${s.role}`)
       .join("\n")}\n</skills_pipeline>`,
+    pickedSkillsBlock(p),
+    p.flows?.approvedAt ? flowsBrief(p.flows) : "",
+    shipFirstBlock(),
     p.look
       ? `<look>\nThe owner was shown three directions drawn as working mockups and ${
           p.look.by === "client" ? "the client approved" : "chose"
@@ -1390,11 +1413,14 @@ export function queueText(p: BuilderProject): string {
     `App Builder: build ${u.name} (${APP_TYPE_LABEL[u.appType]}).`,
     `Run skills in order: ${p.redesign ? "website-redesigner → redesign-skill → " : p.teardown || p.sources?.length ? "video-analyzer → reverse-engineer-anything (rea) → " : ""}felix → prompt-enhancer${
       depth === "plain" ? "" : ` → ${depth === "commercial-2x" ? "commercial 2x" : "commercial"} (Steps ${depthSteps(depth, u.appType).join(", ")})`
-    } → design-intelligence → ${u.designSkill} → impeccable → software-factory → claude-security, held to website-build-checklist.`,
+    } → design-intelligence → ${u.designSkill} → impeccable → claude-security (check) → SITE LIVE → software-factory → claude-security (deep), held to website-build-checklist.`,
+    SHIP_FIRST_LINE,
     designIntelligenceLine(p.redesign ? "redesign" : "build"),
     p.look
       ? `Look: ${p.look.skill} — ${p.look.by === "client" ? "approved by the client" : "picked by the owner"} from three drawn mockups. A decision, not a suggestion: build it in that direction, main surface ${shapeWord(p, u)}.`
       : "",
+    (p.skills ?? []).length > 1 ? `Design skills the owner picked: ${combine(p.skills ?? []).order.join(" → ")}; the first look named owns the surface, the rest stack on it.` : "",
+    p.flows?.approvedAt ? flowsLine(p.flows) : "",
     depthBrief(depth, u.appType),
     `End goal: ${u.endGoal || u.purpose}. For: ${u.audience}. Money: ${u.model}.`,
     `Beyond: ${u.beyond}.`,

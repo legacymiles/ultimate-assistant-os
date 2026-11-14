@@ -494,6 +494,23 @@ export const PROJECTS: CatalogProject[] = [
     hue: [268, 330],
   },
   {
+    slug: "website-studio",
+    title: "Website Studio",
+    tag: "Build it, redesign it, edit it live — one workspace",
+    category: "Websites",
+    overview:
+      "One place for every website: describe what you want and it is built, paste an address and it is redesigned without losing a single thing " +
+      "the site does, or open one you have already shipped and change it with the client who owns it. Underneath it is one super harness — Felix, " +
+      "the prompt enhancer, two stages of mockups (the main design, then the supporting pages as a prototype you can actually walk), the design " +
+      "skills you picked, Impeccable and a security check — and the first working site goes LIVE before Software Factory deepens it, so there is " +
+      "something to open in minutes rather than at the end. Every website you have is in one library with its screenshot, and opening any of them " +
+      "lands in the same workspace: the site full-screen, the assistant folded beside it, and every build, file change and version in one panel.",
+    status: "live",
+    appUrl: "/apps/website-studio",
+    iconStyle: "mesh",
+    hue: [250, 190],
+  },
+  {
     slug: "app-builder",
     title: "App Builder",
     tag: "Idea or screen recording → a commercial-grade app",
@@ -1002,6 +1019,7 @@ const UNPREVIEWABLE = new Set([
   "youtube-videos",
   "app-builder",
   "client-review",
+  "website-studio",
   "jarvis",
   "projects-timeline",
   "personas-studio",

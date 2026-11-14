@@ -26,6 +26,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { editableApp } from "@/lib/client-review/apps";
 import { admin } from "@/lib/client-review/client";
+import { WebsiteStudio } from "../website-studio/WebsiteStudio";
 import { ClientPortal } from "./ClientPortal";
 import { ClientReviewAdmin } from "./ClientReviewAdmin";
 import { MyWebsites } from "./MyWebsites";
@@ -84,6 +85,9 @@ function writeLast(t: Target | null) {
 
 export function ClientReviewApp() {
   const [me, setMe] = useState<Me | null>(null);
+  // The old popup-chat screen, kept reachable while the new workspace is being
+  // checked against real client sites.
+  const [classic] = useState(() => (typeof window === "undefined" ? false : new URLSearchParams(window.location.search).get("classic") === "1"));
   const { model: harnessModel, setModel: setHarnessModel } = useChatModel();
   const [meError, setMeError] = useState("");
   const [tab, setTab] = useState<Tab>("client");
@@ -188,6 +192,16 @@ export function ClientReviewApp() {
   }
 
   const token = target?.kind === "site" ? target.token : target?.kind === "app" ? appTokens[target.slug] : undefined;
+
+  // The link a client holds has not moved, and neither have their push
+  // notifications or their home-screen app — all three are scoped to this
+  // address. What opens on it now is Website Studio's workspace: the site
+  // full-screen with the conversation folded beside it, instead of a chat
+  // floating over the page. `?classic=1` still opens the old screen, until the
+  // migration's last step takes it out (docs/superpowers/specs/website-studio.md).
+  if (token && !classic) {
+    return <WebsiteStudio clientToken={token} />;
+  }
   const label = target?.kind === "app" ? (editableApp(target.slug)?.title ?? target.slug) : "Pick an app or website";
   const picker = me.owner
     ? (name: string) => <SitePickerMenu current={target} label={name} onPick={(t) => go({ target: t, tab: "client" })} />

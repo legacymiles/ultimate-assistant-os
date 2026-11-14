@@ -89,8 +89,20 @@ export function Pipeline({ project }: { project: BuilderProject | null }) {
         ]),
     { skill: u?.designSkill ?? "interactive-web-studio", label: u?.designSkill ?? "Design skill", state: hasFeatures ? "done" : "wait", note: "drives the look" },
     { skill: "impeccable", label: "Impeccable", state: hasFeatures ? "done" : "wait", note: "closing craft pass" },
-    { skill: "software-factory", label: "Software factory", state: project?.handoff?.cards?.length ? "done" : t.accepted ? "now" : "wait", note: "board cards" },
-    { skill: "claude-security", label: "Claude Security", state: project?.handoff?.queueId ? "now" : "wait", note: "scan before launch" },
+    // Ship first: the factory waits for a live site (website-studio/pipeline.ts),
+    // so it is never "now" while the first site is still being built.
+    {
+      skill: "software-factory",
+      label: "Software factory",
+      state: project?.handoff?.cards?.length ? "done" : project?.handoff?.built ? "now" : "wait",
+      note: project?.handoff?.built ? "deepening the live site" : "after it's live",
+    },
+    {
+      skill: "claude-security",
+      label: "Claude Security",
+      state: project?.handoff?.thread || project?.handoff?.queueId ? "now" : "wait",
+      note: project?.handoff?.built ? "deep scan after the factory" : "check before deploy",
+    },
   ];
   return (
     <ol className="ab-pipeline" aria-label="Skills every build runs">

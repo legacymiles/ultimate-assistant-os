@@ -2,7 +2,7 @@
 
 **Generated — do not edit.** `node scripts/apps-index.mjs` rewrites this from [`src/lib/catalog.ts`](../../src/lib/catalog.ts), which is the single source of truth for the hub. `node scripts/apps-index.mjs --check` fails when the two disagree.
 
-41 projects — 41 live, 0 coming soon. Every live one is a real route under this one Next.js app; none of them is a separate project, repo or deployment. A rebuild that is missing routes from this table is not this site.
+42 projects — 42 live, 0 coming soon. Every live one is a real route under this one Next.js app; none of them is a separate project, repo or deployment. A rebuild that is missing routes from this table is not this site.
 
 ## AI (12)
 
@@ -49,12 +49,13 @@
 |---|---|---|
 | **Jarvis Audio Studio** | `/apps/jarvis-audio-studio` | Three music studios behind one switcher, because they were always three halves of the same job: get the recording, understand it, make the next one. |
 
-## Websites (2)
+## Websites (3)
 
 | App | Route | What it is |
 |---|---|---|
 | **Website Redesigner** | `/apps/website-redesigner` | Paste any URL and get a fresh redesign that keeps what the site does. |
 | **APEX/01 Kart Teardown** | `/apps/kart-showcase` | A cinematic, interactive 3D racing-kart teardown. |
+| **Website Studio** | `/apps/website-studio` | One place for every website: describe what you want and it is built, paste an address and it is redesigned without losing a single thing the site does, or open one you have alre… |
 
 ## Apps (9)
 

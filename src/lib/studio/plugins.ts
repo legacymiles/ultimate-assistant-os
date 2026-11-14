@@ -32,6 +32,7 @@ import { onTheWall } from "@/lib/studio-home/panels";
  * studios are dropped.
  */
 export const PLUGIN_SLUGS = [
+  "website-studio",
   "app-builder",
   "seedance-studio",
   "jarvis-audio-studio",

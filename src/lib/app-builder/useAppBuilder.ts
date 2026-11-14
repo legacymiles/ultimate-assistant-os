@@ -509,7 +509,7 @@ export function useAppBuilder() {
         const { depth } = depthOf(withReview);
         const skills = `${p.teardown ? "video-analyzer, rea (reverse-engineer-anything), " : ""}felix, prompt-enhancer, ${
           depth === "plain" ? "" : `${depth === "commercial-2x" ? "commercial 2x" : "commercial"}, `
-        }${p.understanding?.designSkill ?? "the design skill"}, impeccable, software-factory and claude-security`;
+        }${p.understanding?.designSkill ?? "the design skill"}, impeccable and a security check to get the site live, then software-factory and the deep claude-security scan on the live site`;
         update(p.id, (x) => ({
           ...x,
           handoff: {
@@ -679,6 +679,34 @@ export function useAppBuilder() {
     [current, update],
   );
 
+  /**
+   * The design skills picked in Website Studio's dropdown, in run order.
+   *
+   * Beside `look` rather than inside it: a look is picked by looking at three
+   * drawn mockups, and this is the stack around it, chosen before anything is
+   * drawn. `masterPrompt` writes both into the brief.
+   */
+  const setSkills = useCallback(
+    (skills: string[]) => {
+      if (!current) return;
+      update(current.id, (p) => (JSON.stringify(p.skills ?? []) === JSON.stringify(skills) ? p : { ...p, skills }));
+    },
+    [current, update],
+  );
+
+  /**
+   * Stage two of the mockups: the supporting pages and the journeys between
+   * them. Synced with everything else, because the build brief reads it later
+   * — a plan that lived in a component would be gone when the tab closed.
+   */
+  const setFlows = useCallback(
+    (flows: BuilderProject["flows"]) => {
+      if (!current) return;
+      update(current.id, (p) => ({ ...p, flows }));
+    },
+    [current, update],
+  );
+
   /** Don't open a Client Review link for this build. */
   const setNoReview = useCallback(
     (off: boolean) => {
@@ -772,6 +800,8 @@ export function useAppBuilder() {
     refreshBridge: bridge.refresh,
     setDepth,
     setNoReview,
+    setSkills,
+    setFlows,
     chooseLook,
     open,
     remove,

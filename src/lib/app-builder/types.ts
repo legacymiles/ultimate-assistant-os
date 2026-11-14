@@ -340,6 +340,27 @@ export interface BuilderProject {
   /** Handed over from Jarvis chat and not started yet: App Builder starts it on open. */
   pending?: boolean;
   /**
+   * The design skills the owner picked in Website Studio's dropdown, in the
+   * order they run (`combine().order` — see src/lib/website-studio/skills.ts).
+   *
+   * `look.skill` is the ONE skill that owns the look and is what the pipeline
+   * leads with; this is the whole stack around it — the pass that runs first,
+   * the centrepieces stacked on top, and Impeccable closing. Kept apart from
+   * `look` because a look is chosen by looking at mockups, while this is a
+   * choice made before anything is drawn.
+   */
+  skills?: string[];
+  /**
+   * Stage two of the mockups: the supporting pages and the journeys between
+   * them (src/lib/website-studio/flows.ts), drawn in the look picked at stage
+   * one and approved screen by screen.
+   *
+   * It reaches the build as the ROUTES to build, never as pictures — the plan
+   * is a graph of real screens with real links and real states, and the brief
+   * says in as many words that a screenshot is not the deliverable.
+   */
+  flows?: import("@/lib/website-studio/flows").FlowPlan;
+  /**
    * Set when this project is a REDESIGN of a live site (Website Redesigner).
    * The site's own content and behaviour, read from its URL: everything it
    * does is kept, only the look changes. Drives the interview, the features

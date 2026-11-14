@@ -1,0 +1,1922 @@
+/* ===========================================================================
+   Website Studio — "Studio dark".
+
+   One direction, applied everywhere: a near-black canvas, translucent slate
+   panels separated by hairlines rather than shadows, one accent that only ever
+   marks the live thing, and motion that is quick and confident (160–220ms)
+   rather than floaty. Dense over airy — the owner reads lists, not card grids.
+
+   The one standout is the pipeline rail (.ws-rail): the eight stages as a
+   filament with a physical gate at the moment the site goes live. It is the
+   only thing on the page that animates on its own, and it stops dead under
+   prefers-reduced-motion while staying completely legible.
+   =========================================================================== */
+
+.ws-root {
+  --ws-bg: #06070b;
+  --ws-bg-2: #0a0c13;
+  --ws-panel: #0e1119;
+  --ws-panel-2: #141824;
+  --ws-line: #ffffff14;
+  --ws-line-2: #ffffff0a;
+  --ws-ink: #eef1f7;
+  --ws-ink-2: #a7b0c2;
+  --ws-ink-3: #828b9e;
+  --ws-accent: #6f6bff;
+  --ws-accent-soft: #6f6bff26;
+  --ws-live: #30d158;
+  --ws-warn: #ffb020;
+  --ws-bad: #ff5f56;
+  --ws-r: 12px;
+  --ws-r-lg: 18px;
+  --ws-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ws-fast: 160ms var(--ws-ease);
+  --ws-slow: 240ms var(--ws-ease);
+
+  min-height: 100dvh;
+  background: var(--ws-bg);
+  color: var(--ws-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.ws-center {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.ws-empty {
+  max-width: 460px;
+  text-align: center;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+.ws-empty h2 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+.ws-empty p {
+  margin: 0;
+  color: var(--ws-ink-2);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.ws-spin {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--ws-line);
+  border-top-color: var(--ws-accent);
+  animation: ws-spin 700ms linear infinite;
+}
+@keyframes ws-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ----- buttons ------------------------------------------------------------ */
+
+.ws-btn {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--ws-accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  font-size: 13.5px;
+  padding: 9px 18px;
+  cursor: pointer;
+  transition: transform var(--ws-fast), background var(--ws-fast), opacity var(--ws-fast);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.ws-btn:hover:not(:disabled) {
+  background: #7e7aff;
+  transform: translateY(-1px);
+}
+.ws-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+.ws-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ws-btn.small {
+  padding: 6px 13px;
+  font-size: 12.5px;
+}
+.ws-btn.ghost {
+  background: transparent;
+  border-color: var(--ws-line);
+  color: var(--ws-ink-2);
+}
+.ws-btn.ghost:hover:not(:disabled) {
+  background: var(--ws-panel-2);
+  color: var(--ws-ink);
+}
+
+.ws-icon-btn {
+  appearance: none;
+  border: 1px solid var(--ws-line);
+  background: var(--ws-panel);
+  color: var(--ws-ink-2);
+  border-radius: 9px;
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  transition: color var(--ws-fast), border-color var(--ws-fast), background var(--ws-fast);
+  flex: none;
+}
+.ws-icon-btn:hover {
+  color: var(--ws-ink);
+  border-color: #ffffff28;
+}
+
+.ws-error {
+  color: var(--ws-bad);
+  font-size: 13px;
+  margin: 10px 0 0;
+}
+.ws-notice {
+  color: var(--ws-warn);
+  font-size: 13px;
+  margin: 10px 0 0;
+}
+.ws-hint {
+  color: var(--ws-ink-3);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+  padding: 14px 16px;
+}
+
+/* ===========================================================================
+   Home
+   =========================================================================== */
+
+.ws-home {
+  position: relative;
+  min-height: 100dvh;
+  padding-bottom: 72px;
+  /* The aurora behind the question breathes with a slight scale, which puts
+     its edges a few pixels past the viewport. `clip` cuts them without making
+     this a scroll container (which `hidden` would). */
+  overflow-x: clip;
+}
+
+/* The only ambient thing on the page: a slow aurora behind the question, so
+   the slab sits in light rather than on a flat black field. */
+.ws-sky {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 620px;
+  pointer-events: none;
+  background:
+    radial-gradient(62% 48% at 50% 8%, #6f6bff22, transparent 70%),
+    radial-gradient(40% 36% at 78% 0%, #00cae016, transparent 72%);
+  animation: ws-sky 22s var(--ws-ease) infinite alternate;
+}
+@keyframes ws-sky {
+  to {
+    transform: translate3d(0, 14px, 0) scale(1.06);
+    opacity: 0.78;
+  }
+}
+
+.ws-top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--ws-line-2);
+}
+.ws-top-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ws-ink-3);
+  text-decoration: none;
+  font-size: 13px;
+  transition: color var(--ws-fast);
+}
+.ws-top-back:hover {
+  color: var(--ws-ink);
+}
+.ws-top-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 650;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+.ws-mark {
+  width: 15px;
+  height: 15px;
+  border-radius: 5px;
+  background: linear-gradient(140deg, var(--ws-accent), #00cae0);
+  box-shadow: 0 0 0 1px #ffffff1f inset;
+}
+.ws-top-who {
+  margin-left: auto;
+  color: var(--ws-ink-3);
+  font-size: 12px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-hero {
+  position: relative;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 68px 20px 0;
+  text-align: center;
+}
+.ws-eyebrow {
+  margin: 0 0 14px;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ws-ink-3);
+}
+.ws-hero h1 {
+  margin: 0;
+  font-size: clamp(30px, 5.2vw, 50px);
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+  font-weight: 680;
+}
+.ws-lede {
+  margin: 14px auto 28px;
+  max-width: 540px;
+  color: var(--ws-ink-2);
+  font-size: 14.5px;
+  line-height: 1.65;
+}
+
+/* ----- the start slab ----------------------------------------------------- */
+
+.ws-start {
+  text-align: left;
+}
+.ws-slab {
+  background: linear-gradient(180deg, #151a27, #0f1320);
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-r-lg);
+  padding: 6px 6px 6px;
+  box-shadow: 0 24px 60px -30px #000, 0 0 0 1px #ffffff08 inset;
+  transition: border-color var(--ws-fast), box-shadow var(--ws-fast);
+}
+.ws-slab:focus-within {
+  border-color: #6f6bff66;
+  box-shadow: 0 24px 60px -28px #000, 0 0 0 1px #6f6bff33 inset;
+}
+.ws-slab-input {
+  display: block;
+  width: 100%;
+  resize: none;
+  border: 0;
+  background: transparent;
+  color: var(--ws-ink);
+  font: inherit;
+  font-size: 15.5px;
+  line-height: 1.6;
+  padding: 16px 16px 8px;
+  outline: none;
+}
+.ws-slab-input.small {
+  font-size: 13.5px;
+  color: var(--ws-ink-2);
+  padding-top: 4px;
+}
+.ws-slab-input::placeholder {
+  color: var(--ws-ink-3);
+}
+
+.ws-url-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 14px 16px 2px;
+}
+.ws-url-scheme {
+  color: var(--ws-ink-3);
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+.ws-slab-url {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--ws-ink);
+  font-family: var(--font-mono);
+  font-size: 14.5px;
+  outline: none;
+  min-width: 0;
+}
+.ws-slab-url::placeholder {
+  color: var(--ws-ink-3);
+}
+
+.ws-refs {
+  display: flex;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 4px 16px 6px;
+  flex-wrap: wrap;
+}
+.ws-refs li {
+  position: relative;
+  width: 54px;
+  height: 40px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--ws-line);
+}
+.ws-refs img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ws-refs button {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 5px;
+  background: #000b;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ws-slab-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 4px;
+}
+.ws-go {
+  margin-left: auto;
+  appearance: none;
+  border: 0;
+  border-radius: 12px;
+  background: var(--ws-accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  font-size: 13.5px;
+  padding: 10px 16px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: background var(--ws-fast), transform var(--ws-fast);
+}
+.ws-go:hover:not(:disabled) {
+  background: #7e7aff;
+  transform: translateY(-1px);
+}
+.ws-go:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.ws-modes {
+  display: inline-flex;
+  gap: 2px;
+  margin: 14px auto 0;
+  padding: 3px;
+  background: var(--ws-panel);
+  border: 1px solid var(--ws-line-2);
+  border-radius: 999px;
+}
+.ws-home .ws-start {
+  display: grid;
+  /* minmax(0, 1fr), not auto: an auto column is as wide as its widest child,
+     which let the footnote push the whole page sideways on a phone. */
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+}
+.ws-home .ws-start > * {
+  max-width: 100%;
+}
+.ws-home .ws-slab {
+  width: 100%;
+}
+.ws-modes button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ws-ink-3);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 7px 15px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color var(--ws-fast), background var(--ws-fast);
+}
+.ws-modes button.on {
+  background: var(--ws-panel-2);
+  color: var(--ws-ink);
+  box-shadow: 0 0 0 1px var(--ws-line) inset;
+}
+
+.ws-start-foot {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--ws-ink-3);
+  text-align: center;
+}
+
+/* ----- the skills dropdown ------------------------------------------------ */
+
+.ws-skills {
+  position: relative;
+}
+.ws-skills-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--ws-line);
+  background: var(--ws-panel);
+  color: var(--ws-ink-2);
+  border-radius: 9px;
+  padding: 7px 11px;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  max-width: 260px;
+  transition: color var(--ws-fast), border-color var(--ws-fast);
+}
+.ws-skills-btn:hover {
+  color: var(--ws-ink);
+  border-color: #ffffff28;
+}
+.ws-skills-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.ws-chev {
+  transition: transform var(--ws-fast);
+  flex: none;
+}
+.ws-chev.up {
+  transform: rotate(180deg);
+}
+
+.ws-skills-menu {
+  position: absolute;
+  z-index: 40;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: min(380px, 86vw);
+  background: #0d1017;
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-r);
+  box-shadow: 0 30px 70px -24px #000;
+  overflow: hidden;
+  animation: ws-pop var(--ws-fast);
+}
+@keyframes ws-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.ws-skills-head {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ws-line-2);
+  display: grid;
+  gap: 3px;
+}
+.ws-skills-head b {
+  font-size: 13px;
+}
+.ws-skills-head span {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ws-ink-3);
+  word-break: break-word;
+}
+.ws-skills-scroll {
+  max-height: min(48vh, 380px);
+  overflow: auto;
+  padding: 6px;
+}
+.ws-skills-group h4 {
+  margin: 8px 8px 4px;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ws-ink-3);
+  font-weight: 600;
+}
+.ws-skill {
+  display: flex;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 7px 8px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background var(--ws-fast);
+}
+.ws-skill:hover {
+  background: var(--ws-panel-2);
+}
+.ws-skill.locked {
+  cursor: default;
+  opacity: 0.75;
+}
+.ws-skill-mark {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  border-radius: 5px;
+  border: 1px solid var(--ws-line);
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+.ws-skill.on .ws-skill-mark {
+  background: var(--ws-accent);
+  border-color: var(--ws-accent);
+}
+.ws-skill-body {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.ws-skill-name {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ws-skill-paid,
+.ws-skill-always {
+  font-style: normal;
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #ffb02022;
+  color: var(--ws-warn);
+}
+.ws-skill-always {
+  background: #ffffff10;
+  color: var(--ws-ink-3);
+}
+.ws-skill-desc {
+  font-size: 11.5px;
+  color: var(--ws-ink-3);
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ws-skills-note {
+  margin: 0;
+  padding: 10px 14px;
+  border-top: 1px solid var(--ws-line-2);
+  font-size: 11.5px;
+  color: var(--ws-warn);
+  line-height: 1.5;
+}
+
+/* ===========================================================================
+   My websites
+   =========================================================================== */
+
+.ws-lib {
+  position: relative;
+  max-width: 1160px;
+  margin: 76px auto 0;
+  padding: 0 20px;
+}
+.ws-lib-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--ws-line-2);
+}
+.ws-lib-head h2 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  font-weight: 650;
+}
+.ws-lib-tools {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.ws-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--ws-panel);
+  border: 1px solid var(--ws-line);
+  border-radius: 9px;
+  padding: 0 9px;
+  color: var(--ws-ink-3);
+  transition: border-color var(--ws-fast);
+}
+.ws-search:focus-within {
+  border-color: #6f6bff55;
+}
+.ws-search input {
+  border: 0;
+  background: transparent;
+  color: var(--ws-ink);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 7px 0;
+  width: 190px;
+  outline: none;
+}
+.ws-search button {
+  border: 0;
+  background: transparent;
+  color: var(--ws-ink-3);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.ws-filters {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--ws-panel);
+  border: 1px solid var(--ws-line-2);
+  border-radius: 999px;
+  padding: 3px;
+}
+.ws-filters button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ws-ink-3);
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: color var(--ws-fast), background var(--ws-fast);
+}
+.ws-filters button.on {
+  background: var(--ws-panel-2);
+  color: var(--ws-ink);
+  box-shadow: 0 0 0 1px var(--ws-line) inset;
+}
+.ws-filters button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.ws-filters em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--ws-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.ws-grid {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(258px, 1fr));
+}
+.ws-card {
+  width: 100%;
+  appearance: none;
+  text-align: left;
+  border: 1px solid var(--ws-line-2);
+  background: var(--ws-panel);
+  border-radius: var(--ws-r);
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  display: grid;
+  transition: border-color var(--ws-fast), transform var(--ws-fast), background var(--ws-fast);
+}
+.ws-card:hover {
+  border-color: #ffffff26;
+  transform: translateY(-2px);
+  background: var(--ws-panel-2);
+}
+.ws-card.skeleton {
+  height: 196px;
+  background: linear-gradient(100deg, #0e1119, #141824, #0e1119);
+  background-size: 220% 100%;
+  animation: ws-shim 1.5s linear infinite;
+}
+@keyframes ws-shim {
+  to {
+    background-position: -220% 0;
+  }
+}
+.ws-card-shot {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  background: #0a0c13;
+  border-bottom: 1px solid var(--ws-line-2);
+  overflow: hidden;
+}
+.ws-card-shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+  transition: transform var(--ws-slow);
+}
+.ws-card:hover .ws-card-shot img {
+  transform: scale(1.03);
+}
+.ws-card-blank {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  color: #ffffff1c;
+}
+.ws-card-pending {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--ws-warn);
+  color: #000;
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+.ws-card-body {
+  display: grid;
+  gap: 4px;
+  padding: 11px 13px 13px;
+}
+.ws-card-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.ws-card-top b {
+  font-size: 13.5px;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-card-ver {
+  margin-left: auto;
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ws-ink-3);
+  flex: none;
+}
+.ws-card-host {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ws-ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--ws-ink-2);
+  margin-top: 2px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.ws-card-foot em {
+  font-style: normal;
+  color: var(--ws-ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-card-ago {
+  margin-left: auto;
+  flex: none;
+}
+
+.ws-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ws-ink-3);
+  flex: none;
+}
+.ws-dot.state-waiting,
+.ws-dot.state-sent {
+  background: var(--ws-warn);
+}
+.ws-dot.state-building,
+.ws-dot.state-being-created {
+  background: var(--ws-accent);
+  animation: ws-pulse 1.6s var(--ws-ease) infinite;
+}
+.ws-dot.state-live,
+.ws-dot.state-review,
+.ws-dot.state-approved,
+.ws-dot.state-done {
+  background: var(--ws-live);
+}
+.ws-dot.state-rejected {
+  background: var(--ws-bad);
+}
+@keyframes ws-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.ws-lib-empty {
+  color: var(--ws-ink-3);
+  font-size: 13.5px;
+  padding: 34px 0;
+  text-align: center;
+}
+
+/* ===========================================================================
+   The workspace
+   =========================================================================== */
+
+.ws-work {
+  display: grid;
+  grid-template-columns: 392px 1fr;
+  height: 100dvh;
+  background: var(--ws-bg);
+}
+.ws-work.shut {
+  grid-template-columns: 0 1fr;
+}
+
+.ws-panel {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  min-height: 0;
+  border-right: 1px solid var(--ws-line);
+  background: var(--ws-bg-2);
+  overflow: hidden;
+  transition: opacity var(--ws-fast);
+}
+.ws-work.shut .ws-panel {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ws-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid var(--ws-line-2);
+}
+.ws-back,
+.ws-fold {
+  appearance: none;
+  border: 1px solid var(--ws-line);
+  background: var(--ws-panel);
+  color: var(--ws-ink-2);
+  border-radius: 9px;
+  width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+  transition: color var(--ws-fast), border-color var(--ws-fast);
+}
+.ws-back:hover,
+.ws-fold:hover {
+  color: var(--ws-ink);
+  border-color: #ffffff28;
+}
+.ws-panel-name {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.ws-panel-name b {
+  font-size: 13.5px;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-panel-name i {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ws-ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-panel-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ws-line-2);
+}
+.ws-panel-tabs button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ws-ink-3);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 6px 11px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color var(--ws-fast), background var(--ws-fast);
+}
+.ws-panel-tabs button:hover {
+  color: var(--ws-ink-2);
+}
+.ws-panel-tabs button.on {
+  background: var(--ws-panel-2);
+  color: var(--ws-ink);
+  box-shadow: 0 0 0 1px var(--ws-line) inset;
+}
+.ws-panel-tabs em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--ws-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.ws-pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ws-live);
+  animation: ws-pulse 1.4s var(--ws-ease) infinite;
+}
+
+.ws-panel-body {
+  min-height: 0;
+  overflow: auto;
+}
+.ws-panel-body > .cr-list {
+  height: auto;
+  min-height: 100%;
+}
+.ws-panel-foot {
+  border-top: 1px solid var(--ws-line-2);
+  background: var(--ws-bg-2);
+}
+
+.ws-unfold {
+  position: fixed;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 30;
+  appearance: none;
+  border: 1px solid var(--ws-line);
+  border-left: 0;
+  background: #0f1320e8;
+  backdrop-filter: blur(8px);
+  color: var(--ws-ink-2);
+  border-radius: 0 10px 10px 0;
+  padding: 12px 9px;
+  cursor: pointer;
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  font: inherit;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: color var(--ws-fast), background var(--ws-fast);
+}
+.ws-unfold:hover {
+  color: var(--ws-ink);
+  background: #151a27f0;
+}
+.ws-unfold span {
+  writing-mode: vertical-rl;
+}
+
+/* ----- the canvas --------------------------------------------------------- */
+
+.ws-stage {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  min-width: 0;
+  min-height: 0;
+  background: var(--ws-bg-2);
+}
+.ws-stage-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ws-line-2);
+  min-width: 0;
+}
+.ws-addr {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--ws-panel);
+  border: 1px solid var(--ws-line-2);
+  border-radius: 8px;
+  padding: 6px 11px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ws-ink-2);
+  min-width: 0;
+  flex: 1;
+  max-width: 560px;
+}
+.ws-addr span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-stage-tools {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+}
+.ws-devices {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--ws-panel);
+  border: 1px solid var(--ws-line-2);
+  border-radius: 9px;
+  padding: 2px;
+}
+.ws-devices button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ws-ink-3);
+  border-radius: 7px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: color var(--ws-fast), background var(--ws-fast);
+}
+.ws-devices button.on {
+  background: var(--ws-panel-2);
+  color: var(--ws-ink);
+}
+
+.ws-banner {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--ws-line-2);
+  background: #6f6bff12;
+  font-size: 12.5px;
+  color: var(--ws-ink-2);
+}
+.ws-banner-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ws-canvas {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  background:
+    linear-gradient(0deg, #ffffff04, #ffffff04),
+    repeating-linear-gradient(45deg, #ffffff03 0 10px, transparent 10px 20px);
+}
+.ws-frame {
+  min-height: 0;
+  display: grid;
+}
+.ws-frame.phone {
+  justify-content: center;
+  padding: 18px 0;
+}
+.ws-frame.phone .ws-site {
+  width: 390px;
+  border: 1px solid var(--ws-line);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 30px 80px -40px #000;
+}
+.ws-site {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  border: 0;
+  background: #fff;
+  display: block;
+}
+.ws-canvas-pad {
+  padding: 16px;
+  overflow: auto;
+}
+
+/* ----- panel contents ----------------------------------------------------- */
+
+.ws-msg {
+  margin: 10px 14px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: var(--ws-panel);
+  border: 1px solid var(--ws-line-2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.ws-msg p {
+  margin: 0;
+}
+.ws-msg.notice {
+  border-color: #6f6bff33;
+  background: #6f6bff10;
+}
+.ws-msg.you {
+  background: #6f6bff16;
+  border-color: #6f6bff2e;
+  margin-left: 42px;
+}
+.ws-msg.agent {
+  margin-right: 42px;
+}
+.ws-msg footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+  font-size: 11px;
+  color: var(--ws-ink-3);
+  text-transform: capitalize;
+}
+.ws-msg footer em {
+  font-style: normal;
+}
+.ws-msg-note {
+  margin-top: 7px !important;
+  font-size: 12px;
+  color: var(--ws-ink-3);
+}
+.ws-msg-changes {
+  margin: 7px 0 0;
+  padding-left: 16px;
+  font-size: 12px;
+  color: var(--ws-ink-3);
+}
+
+.ws-compose {
+  padding: 10px 12px 12px;
+  display: grid;
+  gap: 8px;
+}
+.ws-compose textarea {
+  width: 100%;
+  resize: none;
+  border: 1px solid var(--ws-line);
+  background: var(--ws-panel);
+  color: var(--ws-ink);
+  border-radius: 11px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 10px 12px;
+  outline: none;
+  transition: border-color var(--ws-fast);
+}
+.ws-compose textarea:focus {
+  border-color: #6f6bff55;
+}
+.ws-compose-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ws-note {
+  font-size: 11.5px;
+  color: var(--ws-ink-2);
+  line-height: 1.45;
+  flex: 1;
+}
+.ws-note.faint {
+  color: var(--ws-ink-3);
+}
+.ws-compose-bar .ws-btn {
+  margin-left: auto;
+  flex: none;
+}
+
+.ws-files {
+  list-style: none;
+  margin: 0;
+  padding: 0 14px 12px;
+  display: grid;
+  gap: 5px;
+}
+.ws-files li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  min-width: 0;
+}
+.ws-files code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ws-ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+.ws-file-state {
+  flex: none;
+  width: 18px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ws-ink-3);
+  border: 1px solid var(--ws-line-2);
+  border-radius: 4px;
+  padding: 1px 0;
+}
+.ws-file-state.s-a {
+  color: var(--ws-live);
+}
+.ws-file-state.s-d {
+  color: var(--ws-bad);
+}
+.ws-diff {
+  margin: 0 14px 14px;
+  padding: 10px;
+  background: #0a0c13;
+  border: 1px solid var(--ws-line-2);
+  border-radius: 9px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--ws-ink-2);
+  overflow: auto;
+  max-height: 46vh;
+  white-space: pre;
+}
+
+.ws-ver {
+  margin: 10px 14px;
+  padding: 11px 12px;
+  border-radius: 11px;
+  background: var(--ws-panel);
+  border: 1px solid var(--ws-line-2);
+  display: grid;
+  gap: 6px;
+}
+.ws-ver header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: var(--ws-ink-3);
+  text-transform: capitalize;
+}
+.ws-ver header b {
+  font-size: 13px;
+  color: var(--ws-ink);
+  text-transform: none;
+}
+.ws-ver p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ws-ink-2);
+  line-height: 1.55;
+}
+.ws-ver a {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ws-accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-plan-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 14px 14px;
+  display: grid;
+  gap: 8px;
+}
+.ws-plan-list li {
+  display: grid;
+  gap: 2px;
+  padding: 9px 11px;
+  border: 1px solid var(--ws-line-2);
+  border-radius: 10px;
+  background: var(--ws-panel);
+}
+.ws-plan-list b {
+  font-size: 12.5px;
+}
+.ws-plan-list code {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ws-accent);
+}
+.ws-plan-list span {
+  font-size: 11.5px;
+  color: var(--ws-ink-3);
+  line-height: 1.5;
+}
+
+/* ===========================================================================
+   The standout: the pipeline rail
+   =========================================================================== */
+
+.ws-rail {
+  padding: 18px 16px;
+}
+.ws-rail.compact {
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--ws-line-2);
+}
+.ws-rail-track {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+  position: relative;
+}
+.ws-rail-item {
+  position: relative;
+  padding-left: 22px;
+}
+/* The filament itself. */
+.ws-rail-item::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--ws-line);
+}
+.ws-rail-item:first-child::before {
+  top: 12px;
+}
+.ws-rail-item:last-child::before {
+  bottom: calc(100% - 12px);
+}
+
+.ws-stage-node {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 6px 0;
+}
+.ws-stage-dot {
+  position: absolute;
+  left: 2px;
+  margin-top: 5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ws-bg-2);
+  border: 1.5px solid var(--ws-line);
+  transition: background var(--ws-fast), border-color var(--ws-fast);
+}
+.ws-stage-node.state-done .ws-stage-dot {
+  background: var(--ws-live);
+  border-color: var(--ws-live);
+}
+.ws-stage-node.state-now .ws-stage-dot {
+  background: var(--ws-accent);
+  border-color: var(--ws-accent);
+  box-shadow: 0 0 0 4px var(--ws-accent-soft);
+  animation: ws-pulse 1.7s var(--ws-ease) infinite;
+}
+.ws-stage-text {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.ws-stage-text b {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ws-ink-3);
+  transition: color var(--ws-fast);
+}
+.ws-stage-node.state-done .ws-stage-text b,
+.ws-stage-node.state-now .ws-stage-text b {
+  color: var(--ws-ink);
+}
+.ws-stage-text i {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ws-ink-3);
+}
+
+/* The gate: the moment the site is live, drawn as a thing to pass through. */
+.ws-gate {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 8px 0 8px -22px;
+  padding-left: 0;
+}
+.ws-gate-bar {
+  flex: 1;
+  height: 1px;
+  background: repeating-linear-gradient(90deg, var(--ws-warn) 0 5px, transparent 5px 10px);
+  opacity: 0.55;
+}
+.ws-gate.open .ws-gate-bar {
+  background: var(--ws-live);
+  opacity: 0.9;
+}
+.ws-gate-word {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 650;
+  color: var(--ws-warn);
+  white-space: nowrap;
+}
+.ws-gate.open .ws-gate-word {
+  color: var(--ws-live);
+}
+.ws-rail-say {
+  margin: 12px 0 0;
+  font-size: 11.5px;
+  color: var(--ws-ink-3);
+  line-height: 1.55;
+}
+
+/* ===========================================================================
+   Stage two: the pages prototype
+   =========================================================================== */
+
+.ws-flow {
+  display: grid;
+  grid-template-columns: 190px 1fr;
+  min-height: 0;
+  height: 100%;
+}
+.ws-flow-rail {
+  border-right: 1px solid var(--ws-line-2);
+  padding: 10px 8px;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  overflow: auto;
+}
+.ws-flow-rail button {
+  position: relative;
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ws-ink-2);
+  text-align: left;
+  border-radius: 9px;
+  padding: 8px 10px;
+  cursor: pointer;
+  display: grid;
+  gap: 2px;
+  font: inherit;
+  transition: background var(--ws-fast), border-color var(--ws-fast);
+}
+.ws-flow-rail button:hover {
+  background: var(--ws-panel);
+}
+.ws-flow-rail button.on {
+  background: var(--ws-panel-2);
+  border-color: var(--ws-line);
+  color: var(--ws-ink);
+}
+.ws-flow-rail b {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.ws-flow-rail code {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ws-ink-3);
+}
+.ws-flow-noted {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ws-warn);
+}
+
+.ws-flow-main {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 14px 16px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+.ws-flow-states {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--ws-panel);
+  border: 1px solid var(--ws-line-2);
+  border-radius: 999px;
+  padding: 3px;
+  justify-self: start;
+}
+.ws-flow-states button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ws-ink-3);
+  font: inherit;
+  font-size: 11.5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color var(--ws-fast), background var(--ws-fast);
+}
+.ws-flow-states button.on {
+  background: var(--ws-panel-2);
+  color: var(--ws-ink);
+  box-shadow: 0 0 0 1px var(--ws-line) inset;
+}
+
+.ws-flow-screen {
+  position: relative;
+  width: 100%;
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-r);
+  overflow: hidden;
+  background: #fff;
+  container-type: inline-size;
+}
+.ws-flow-screen iframe {
+  border: 0;
+  display: block;
+  transform-origin: top left;
+  /* 1280 is FRAME_WIDTH.desktop; the screen is drawn at a real width and
+     scaled, so what is judged is a true page rather than a squashed one. */
+  transform: scale(calc(100cqw / 1280));
+}
+.ws-work[data-device="phone"] .ws-flow-screen iframe {
+  transform: scale(calc(100cqw / 390));
+}
+
+.ws-flow-links {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.ws-flow-from {
+  font-size: 11.5px;
+  color: var(--ws-ink-3);
+}
+.ws-flow-links button {
+  appearance: none;
+  border: 1px solid var(--ws-line);
+  background: var(--ws-panel);
+  color: var(--ws-ink-2);
+  border-radius: 999px;
+  padding: 6px 13px;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color var(--ws-fast), border-color var(--ws-fast), transform var(--ws-fast);
+}
+.ws-flow-links button:hover {
+  color: var(--ws-ink);
+  border-color: #ffffff30;
+  transform: translateX(2px);
+}
+.ws-flow-links button.primary {
+  background: var(--ws-accent);
+  border-color: var(--ws-accent);
+  color: #fff;
+}
+.ws-flow-links em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--ws-bad);
+}
+
+.ws-flow-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 4px;
+  border-top: 1px solid var(--ws-line-2);
+  flex-wrap: wrap;
+}
+.ws-flow-bar > .ws-btn:last-child {
+  margin-left: auto;
+}
+.ws-flow-count {
+  font-size: 11.5px;
+  color: var(--ws-ink-3);
+}
+.ws-flow-note {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.ws-flow-note input {
+  flex: 1;
+  border: 1px solid var(--ws-line);
+  background: var(--ws-panel);
+  color: var(--ws-ink);
+  border-radius: 9px;
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 11px;
+  outline: none;
+}
+.ws-flow-note input:focus {
+  border-color: #6f6bff55;
+}
+.ws-flow-problems {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--ws-ink-3);
+}
+.ws-flow-problems li.fatal {
+  color: var(--ws-bad);
+}
+.ws-flow-problems b {
+  color: var(--ws-ink-2);
+  font-weight: 600;
+  margin-right: 5px;
+}
+
+/* ===========================================================================
+   Narrow screens — the panel becomes a sheet over the canvas.
+   =========================================================================== */
+
+@media (max-width: 860px) {
+  .ws-work,
+  .ws-work.shut {
+    grid-template-columns: 1fr;
+  }
+  .ws-panel {
+    position: fixed;
+    inset: 0 0 0 0;
+    z-index: 50;
+    border-right: 0;
+    width: 100%;
+  }
+  .ws-work.shut .ws-panel {
+    transform: translateX(-100%);
+  }
+  .ws-flow {
+    grid-template-columns: 1fr;
+  }
+  .ws-flow-rail {
+    border-right: 0;
+    border-bottom: 1px solid var(--ws-line-2);
+    grid-auto-flow: column;
+    grid-auto-columns: 148px;
+    overflow-x: auto;
+  }
+  .ws-hero {
+    padding-top: 44px;
+  }
+  .ws-lib {
+    margin-top: 52px;
+  }
+  .ws-lib-tools {
+    width: 100%;
+  }
+  .ws-search input {
+    width: 100%;
+  }
+  .ws-filters {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+  .ws-grid {
+    grid-template-columns: 1fr;
+  }
+  .ws-skills-menu {
+    left: auto;
+    right: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-root *,
+  .ws-root *::before,
+  .ws-root *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .ws-sky {
+    opacity: 0.6;
+  }
+  /* The standout still reads: the gate, the done stages and the live stage are
+     all told apart by colour and shape, never by motion alone. */
+  .ws-stage-node.state-now .ws-stage-dot {
+    box-shadow: 0 0 0 4px var(--ws-accent-soft);
+  }
+}
+
+/* Keyboard users must always be able to see where they are. */
+.ws-root :focus-visible {
+  outline: 2px solid var(--ws-accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* ----- the questions, when there is no feature list yet ------------------- */
+
+.ws-asks {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+.ws-ask {
+  border: 1px solid var(--ws-line-2);
+  border-radius: 11px;
+  background: var(--ws-panel);
+  padding: 10px 12px 12px;
+  margin: 0;
+}
+.ws-ask legend {
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 0 4px;
+}
+.ws-ask p {
+  margin: 2px 0 8px;
+  font-size: 11.5px;
+  color: var(--ws-ink-3);
+  line-height: 1.5;
+}
+.ws-ask-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ws-ask-chips button {
+  appearance: none;
+  border: 1px solid var(--ws-line);
+  background: transparent;
+  color: var(--ws-ink-2);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color var(--ws-fast), border-color var(--ws-fast), background var(--ws-fast);
+}
+.ws-ask-chips button:hover {
+  color: var(--ws-ink);
+  border-color: #ffffff30;
+}
+.ws-ask-chips button.on {
+  background: var(--ws-accent);
+  border-color: var(--ws-accent);
+  color: #fff;
+}
+.ws-asks > .ws-btn {
+  justify-self: start;
+}
+
+/* App Builder's feature table, inside the Studio's panel. */
+.ws-plan {
+  padding: 12px;
+}
+
+/* ----- the promise: the pipeline rail on the home ------------------------- */
+
+.ws-promise {
+  position: relative;
+  max-width: 760px;
+  margin: 54px auto 0;
+  padding: 0 20px;
+}
+.ws-promise .ws-rail {
+  border: 1px solid var(--ws-line-2);
+  border-radius: var(--ws-r-lg);
+  background: linear-gradient(180deg, #0f131e, #0b0e16);
+  padding: 20px 22px 18px;
+}
+/* On the home the rail is a promise, not a progress bar: the stages read as
+   the order of the work rather than as one of them happening right now. */
+.ws-promise .ws-stage-node.state-now .ws-stage-dot {
+  animation: none;
+}
+.ws-promise .ws-rail-say {
+  border-top: 1px solid var(--ws-line-2);
+  padding-top: 11px;
+  margin-top: 14px;
+}
+
+/* The slab's bottom row: three controls that must share one phone width.
+   The skills button carries a long skill name, so it is the one that gives. */
+.ws-slab-bar {
+  flex-wrap: wrap;
+}
+.ws-slab-bar .ws-skills {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.ws-slab-bar .ws-skills-btn {
+  max-width: 100%;
+  width: 100%;
+  justify-content: flex-start;
+}
+.ws-go {
+  flex: none;
+}
+@media (max-width: 460px) {
+  .ws-slab-bar .ws-skills {
+    order: 3;
+    flex-basis: 100%;
+  }
+  .ws-go {
+    margin-left: auto;
+  }
+}
