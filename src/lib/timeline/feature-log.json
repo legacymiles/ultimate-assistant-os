@@ -1,5 +1,77 @@
 [
  {
+  "id": "e92ce29:baby-no-scroll",
+  "date": "2026-11-15",
+  "slug": "baby-no-scroll",
+  "title": "The app is blue now, and its name sits on a lit glass plate",
+  "detail": "Client edit, v3 — \"make this app blue\", built to the \"Polished\" mockup the owner picked.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "072561f:jarvis",
+  "date": "2026-11-14",
+  "slug": "jarvis",
+  "title": "An edit reaches the harness again — model picker, / for skills, and the three mockups before a build",
+  "detail": "The owner pressed Send on an edit and nothing happened. It was not the PC and it was not the harness: the Studio's Send called the portal with no version id, and both `add` and `send` resolve a version by id and refuse without one. The request was never filed, so there was nothing to approve and not",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "072561f:website-studio",
+  "date": "2026-11-14",
+  "slug": "website-studio",
+  "title": "An edit reaches the harness again — model picker, / for skills, and the three mockups before a build",
+  "detail": "The owner pressed Send on an edit and nothing happened. It was not the PC and it was not the harness: the Studio's Send called the portal with no version id, and both `add` and `send` resolve a version by id and refuse without one. The request was never filed, so there was nothing to approve and not",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9d8d1c8:jarvis",
+  "date": "2026-11-14",
+  "slug": "jarvis",
+  "title": "A panel on the Studio tab, and the two apps it replaced move inside it",
+  "detail": "Website Studio joins the studio wall, second after Video Studio, so the Studio tab is every studio that makes something — including the one that makes websites. A panel is the better door than a card: a picture of what the studio makes rather than a line of text, and the wall already drops a studio ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "76c07b6:website-studio",
+  "date": "2026-11-13",
+  "slug": "website-studio",
+  "title": "Build, redesign and edit every website in one workspace",
+  "detail": "App Builder, Website Redesigner and Client Review were three front doors, two site lists, four build viewers and six lists of design skills, for one job. This is the one place: /apps/website-studio.",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "76c07b6:app-builder",
+  "date": "2026-11-13",
+  "slug": "app-builder",
+  "title": "Build, redesign and edit every website in one workspace",
+  "detail": "App Builder, Website Redesigner and Client Review were three front doors, two site lists, four build viewers and six lists of design skills, for one job. This is the one place: /apps/website-studio.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "76c07b6:client-review",
+  "date": "2026-11-13",
+  "slug": "client-review",
+  "title": "Build, redesign and edit every website in one workspace",
+  "detail": "App Builder, Website Redesigner and Client Review were three front doors, two site lists, four build viewers and six lists of design skills, for one job. This is the one place: /apps/website-studio.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "76c07b6:jarvis",
+  "date": "2026-11-13",
+  "slug": "jarvis",
+  "title": "Build, redesign and edit every website in one workspace",
+  "detail": "App Builder, Website Redesigner and Client Review were three front doors, two site lists, four build viewers and six lists of design skills, for one job. This is the one place: /apps/website-studio.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "0380a0d:app-builder",
   "date": "2026-11-12",
   "slug": "app-builder",
