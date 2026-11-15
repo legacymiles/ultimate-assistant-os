@@ -226,7 +226,7 @@ describe("app plugins", () => {
     // Every app that HAD a catalog entry before its merge still has one. (EA
     // Feature List, the Multi-Order Calculator and Slippery Escape never had
     // one — they were routes only — so they are merged without one.)
-    for (const slug of ["ea-world", "ea-lab", "game-creator", "website-redesigner", "fire-reveal", "kart-showcase"]) {
+    for (const slug of ["ea-world", "ea-lab", "game-creator", "website-redesigner", "fire-reveal", "kart-showcase", "app-builder", "client-review"]) {
       expect(PROJECTS.some((p) => p.slug === slug)).toBe(true);
     }
     for (const [slug, into] of Object.entries(MERGED_INTO)) {
@@ -242,14 +242,24 @@ describe("app plugins", () => {
         `${slug} merged into ${home}, which is offered nowhere`,
       ).toBe(true);
     }
-    expect(homeOf("fire-reveal")).toBe("app-builder");
+    // homeOf follows the chain to its end: the Showcase piece is inside
+    // Website Redesigner, which is inside App Builder, which is now inside
+    // Website Studio.
+    expect(MERGED_INTO["fire-reveal"]).toBe("website-redesigner");
+    expect(homeOf("fire-reveal")).toBe("website-studio");
     expect(homeOf("ea-world")).toBe("trading-studio");
     expect(homeOf("trading-studio")).toBeNull();
-    // App Builder is reached by its card; the two studios by their panels.
-    expect(plugins).toContain("app-builder");
-    expect(plugins).not.toContain("trading-studio");
-    expect(plugins).not.toContain("game-studio");
-    expect(onTheWall("trading-studio") && onTheWall("game-studio")).toBe(true);
+    // A studio is reached by its panel and never by a card as well.
+    for (const slug of ["website-studio", "trading-studio", "game-studio"]) {
+      expect(plugins, `${slug} has a card as well as a panel`).not.toContain(slug);
+      expect(onTheWall(slug), `${slug} has no panel`).toBe(true);
+    }
+    // The owner's call, Nov 2026: the two apps Website Studio consolidated
+    // came off the App plugins page, and are reached through it instead.
+    expect(plugins).not.toContain("app-builder");
+    expect(plugins).not.toContain("client-review");
+    expect(homeOf("app-builder")).toBe("website-studio");
+    expect(homeOf("client-review")).toBe("website-studio");
   });
 });
 

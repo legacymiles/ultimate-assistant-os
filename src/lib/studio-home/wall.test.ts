@@ -72,6 +72,19 @@ describe("the studio wall", () => {
     expect(Object.entries(MERGED_INTO).some(([, home]) => home === "trading-studio")).toBe(true);
   });
 
+  it("puts Website Studio on the wall, with the two apps it absorbed inside", () => {
+    // The owner's call, Nov 2026: App Builder and Client Review left the App
+    // plugins page and the Studio that consolidated them took the panel. The
+    // panel has to name them, or from the wall the two apps simply vanished.
+    const site = cards.find((c) => c.id === "website-studio");
+    expect(site, "Website Studio has no panel").toBeTruthy();
+    const labels = site!.inside.map((i) => i.label);
+    expect(labels).toContain("Build");
+    expect(labels).toContain("Redesign");
+    expect(labels).toContain("App Builder");
+    expect(labels).toContain("Client Review");
+  });
+
   it("gives each panel its own clip", () => {
     const clips = cards.map((c) => c.clip.video);
     expect(new Set(clips).size).toBe(clips.length);

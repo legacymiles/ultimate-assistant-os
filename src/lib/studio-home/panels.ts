@@ -42,6 +42,14 @@ export interface Panel {
  * what the Studio tab is for.
  */
 export const PANELS: readonly Panel[] = [
+  {
+    slug: "website-studio",
+    inside: [
+      { label: "Build", icon: "Sparkles" },
+      { label: "Redesign", icon: "Layers" },
+      { label: "Websites", icon: "Grid" },
+    ],
+  },
   { slug: "image-studio", inside: [{ label: "Agents", icon: "Sparkles" }, { label: "Gallery", icon: "Grid" }] },
   {
     slug: "jarvis-audio-studio",

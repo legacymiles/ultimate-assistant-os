@@ -104,6 +104,7 @@ export function wallCards(): WallCard[] {
  */
 function clipFor(slug: string): string {
   const named: Record<string, string> = {
+    "website-studio": "website",
     "jarvis-audio-studio": "audio",
     "seedance-studio": "music-video",
     "image-studio": "image",

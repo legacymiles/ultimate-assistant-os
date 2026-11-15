@@ -33,7 +33,6 @@ import { onTheWall } from "@/lib/studio-home/panels";
  */
 export const PLUGIN_SLUGS = [
   "website-studio",
-  "app-builder",
   "seedance-studio",
   "jarvis-audio-studio",
   "image-studio",
@@ -45,7 +44,6 @@ export const PLUGIN_SLUGS = [
   "trading-studio",
   "baby-no-scroll",
   "dump-finder",
-  "client-review",
   "personas-studio",
   "money-agent-studio",
   "contradicting",
@@ -84,12 +82,14 @@ export const TOOLBOX_SLUGS = ["prompt-architect", "projects-timeline"] as const;
  * Apps that now live inside another app — "one home per kind of thing".
  *
  * Each still has its catalog entry (the detail page, the Projects Timeline
- * history and old links all read it) and its old route redirects into its new
- * home with the right section open. What it loses is a tile of its own: a
- * merged slug leaves the hub grid AND the App plugins page, because the home
- * it moved into is already listed in one of them. The value is the slug of
- * that home — which may itself be merged (EMBER Reveal and the Kart Teardown
- * are the Showcase inside Website Redesigner, which is inside App Builder).
+ * history and old links all read it), and its old route either redirects into
+ * its new home with the right section open or — for the two Website Studio
+ * absorbed — stays live because something else already opens it. What it loses
+ * is a tile of its own: a merged slug leaves the hub grid AND the App plugins
+ * page, because the home it moved into is already listed in one of them. The
+ * value is the slug of that home, which may itself be merged: EMBER Reveal is
+ * the Showcase inside Website Redesigner, inside App Builder, inside Website
+ * Studio, and `homeOf` follows the chain to the end.
  */
 export const MERGED_INTO: Record<string, string> = {
   "ea-world": "trading-studio",
@@ -99,6 +99,15 @@ export const MERGED_INTO: Record<string, string> = {
   "game-creator": "game-studio",
   "slippery-escape": "game-studio",
   "item-storm-arena": "game-studio",
+  // The two apps Website Studio consolidated (Nov 2026). Unlike the merges
+  // above, these keep live routes rather than redirecting into their new home:
+  // /apps/app-builder is what Jarvis chat's `app_builder` tool pulls up in a
+  // sheet and what an In Queue hand-off opens, and /apps/client-review?site=
+  // <secret> is the link every client already holds — it serves the Studio's
+  // client mode now. So the merge is about where the OWNER goes looking, which
+  // is the Studio's panel on the Studio tab.
+  "app-builder": "website-studio",
+  "client-review": "website-studio",
   "website-redesigner": "app-builder",
   "fire-reveal": "website-redesigner",
   "kart-showcase": "website-redesigner",
@@ -143,12 +152,6 @@ const WHY: Record<string, string> = {
   contradicting:
     "Receipts for “I never said that.” A clip-on Omi recorder streams the conversation in; when someone denies a line, the "
     + "exact words and time come back on your phone, with the lead-up one tap away. Consent-first and fair to both people.",
-  "app-builder":
-    "Where every new app starts. Say the idea — or show a recording of an app or workflow — and its super agent takes it "
-    + "apart, asks what it is for, and proposes the features that would make it the best in its category for you to accept, "
-    + "deny or edit. Build it hands the brief to Claude Code with felix, prompt-enhancer, the design skill, software-factory "
-    + "and claude-security (plus video-analyzer and rea for a recording). Jarvis chat and Camera Autopilot send new apps here. "
-    + "Website Redesigner lives here too — a new look for a site that keeps what it does, and a Showcase of app ideas worth building again.",
   "seedance-studio":
     "Studio the other way round. Every workflow here starts from a prompt and the audio arrives last; "
     + "this one starts from the track — it measures the tempo, the bar lines, the sections and the "
@@ -208,11 +211,6 @@ const WHY: Record<string, string> = {
     + "screen, everything else is taken away, and the way out is a padlock that has to be dragged the "
     + "whole width of the screen — a gesture question rather than a password one, because a password "
     + "typed one-handed in a dark room is the thing nobody does twice.",
-  "client-review":
-    "Where client work comes back in. Send a client their site on a private link; they sign in, type "
-    + "their edits over the live page and press Send to Jarvis, and the batch waits here for you to "
-    + "approve, reword or reject before it becomes the next version — and they get a notification when "
-    + "it is ready.",
   "dump-finder":
     "The one plugin that is used from a truck cab. Everything else here makes or keeps something; this "
     + "answers where a load of millings, concrete, trash or scrap can go within so many miles, nearest "

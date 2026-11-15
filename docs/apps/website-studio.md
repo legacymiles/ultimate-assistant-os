@@ -2,7 +2,7 @@
 
 Route: `/apps/website-studio` · Category: Websites · Live
 
-Record reviewed: 2026-11-13
+Record reviewed: 2026-11-14
 
 > **This file is the truth about this app.** Read it before changing the app and update it in the
 > same commit. Everything above the "From the code" block is written by hand and kept; that block
@@ -14,6 +14,12 @@ Record reviewed: 2026-11-13
 One place for every website: describe what you want and it is built, paste an address and it is redesigned without losing a single thing the site does, or open one you have already shipped and change it with the client who owns it. Underneath it is one super harness — Felix, the prompt enhancer, two stages of mockups (the main design, then the supporting pages as a prototype you can actually walk), the design skills you picked, Impeccable and a security check — and the first working site goes LIVE before Software Factory deepens it, so there is something to open in minutes rather than at the end. Every website you have is in one library with its screenshot, and opening any of them lands in the same workspace: the site full-screen, the assistant folded beside it, and every build, file change and version in one panel.
 
 ## Features
+
+**Where you find it.** A panel on Jarvis's **Studio tab**, next to Image, Audio, Music Video,
+Personas, Money Agent, Game and Trading Studio — not a card on App plugins. App Builder and Client
+Review came off that page in the same edit (owner's call, 14 Nov 2026) and are reached through this
+Studio; the panel names them as what moved in. Their routes stay live: Jarvis chat's `app_builder`
+tool still opens App Builder in its sheet, and every client link is still `/apps/client-review?site=`.
 
 **Starting a website — one slab, two modes.**
 - **Build from a prompt** — describe the site; reference pictures and screen recordings can be
@@ -66,15 +72,17 @@ scan. Sent once — the thread itself is the record, so a second device cannot s
 - A finished build still publishes itself onto the version, and the owner still presses Mark ready
   before anything reaches a client.
 - `/apps/app-builder?p=<id>` still opens a draft started here; Jarvis chat's `app_builder` hand-off
-  still works.
+  still works. Both apps are in `MERGED_INTO` now, which takes their tiles away — it must not take
+  their routes away.
 - Offline: the whole page works with no keys and no PC. The pages plan is written with no model at
   all, and the mockups fall back to the coded drawings when Flux is not running.
 
 ## Requested, not built yet
 
 - The old routes (`/apps/app-builder`, `/apps/website-redesigner`, the owner's bare
-  `/apps/client-review`) still stand on their own. They redirect in here only after the library has
-  been checked against every live website — migration step 6 in
+  `/apps/client-review`) still stand on their own. They are off the App plugins page, so the owner
+  reaches them through this Studio, but nothing redirects yet — and two of them must never redirect
+  blindly (the framed App Builder sheet, the client links). Migration step 6 in
   `docs/superpowers/specs/website-studio.md`.
 - The PC helper emits no task list for a Claude thread and `harness/preview` refuses a new-app
   project thread, so the Build tab shows the tool log rather than live tasks, and a draft has no
