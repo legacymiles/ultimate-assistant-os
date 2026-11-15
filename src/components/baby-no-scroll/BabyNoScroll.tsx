@@ -190,12 +190,17 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
 
   // --- the console --------------------------------------------------------
   return (
-    <main className="bns-console min-h-screen px-4 py-6 text-ink sm:px-6 lg:px-8">
+    <main className="bns-console min-h-screen px-4 py-7 text-ink sm:px-6 sm:py-9 lg:px-8">
       <div className="mx-auto max-w-6xl">
-        <header className="bns-on-yellow mb-6 flex flex-wrap items-end justify-between gap-3 border-b border-line pb-4">
+        <header
+          className="bns-plate mb-7 flex flex-wrap items-end justify-between gap-4 px-5 py-5 sm:mb-9 sm:px-7 sm:py-7"
+          data-standout="glass name plate on the app's blue, lit along one hairline edge"
+        >
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Baby No Scroll</h1>
-            <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-ink-muted">
+            <h1 className="text-2xl font-semibold tracking-[-0.025em] sm:text-[28px] sm:leading-[1.05]">
+              Baby No Scroll
+            </h1>
+            <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-ink-muted">
               Put one video or one game on the whole screen and take everything else away. The only
               thing left that answers to a touch is a padlock in the corner, and it opens by being
               dragged the width of the screen — which is a gesture a baby does not make.
@@ -320,7 +325,7 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
                               <span className="flex items-center gap-2">
                                 <span
                                   className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                                    on ? "bg-amber-400" : "bg-ink-faint/40"
+                                    on ? "bg-sky-400" : "bg-ink-faint/40"
                                   }`}
                                 />
                                 <span className="truncate text-[13px] font-medium text-ink">
@@ -383,7 +388,7 @@ export function BabyNoScroll({ initialMode }: { initialMode?: Mode }) {
                                 from {g.from}
                               </span>
                               {on && (
-                                <span className="ml-auto rounded border border-amber-400/40 px-1.5 py-px text-[9px] uppercase tracking-wide text-amber-400">
+                                <span className="ml-auto rounded border border-sky-400/40 px-1.5 py-px text-[9px] uppercase tracking-wide text-sky-300">
                                   on
                                 </span>
                               )}
@@ -526,7 +531,7 @@ function Toggle({
         aria-checked={on}
         onClick={() => onChange(!on)}
         className={`mt-0.5 h-5 w-9 shrink-0 rounded-full border transition ${
-          on ? "border-amber-400/50 bg-amber-400/30" : "border-line bg-elevated"
+          on ? "border-sky-400/50 bg-sky-400/30" : "border-line bg-elevated"
         }`}
       >
         <span
