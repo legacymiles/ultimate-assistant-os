@@ -58,28 +58,40 @@ export function StudioHome({
 
   return (
     <div className="mx-auto w-full max-w-6xl px-3 py-5 sm:px-5 sm:py-6">
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="min-w-0 flex-1">
-          <h1 className="ps-title text-2xl font-bold text-ink">Personas Studio</h1>
-          <p className="mt-1 max-w-2xl text-sm text-ink-muted">
-            Every creator persona you run, in one place: what to post today, a calendar that posts for you, and how each video is doing.
-          </p>
+      <div
+        className="ps-hero mb-5 rounded-2xl px-5 py-10 text-center sm:px-8 sm:py-14"
+        onPointerMove={(e) => {
+          // The light leans toward the pointer. Cheap: two CSS vars, no state.
+          const r = e.currentTarget.getBoundingClientRect();
+          e.currentTarget.style.setProperty("--ps-x", `${((e.clientX - r.left) / r.width) * 100}%`);
+          e.currentTarget.style.setProperty("--ps-y", `${((e.clientY - r.top) / r.height) * 100}%`);
+        }}
+        onPointerLeave={(e) => {
+          e.currentTarget.style.removeProperty("--ps-x");
+          e.currentTarget.style.removeProperty("--ps-y");
+        }}
+      >
+        <h1 className="ps-title ps-hero-title mx-auto max-w-3xl font-bold">Personas Studio</h1>
+        <p className="mx-auto mt-4 max-w-2xl text-sm text-ink-muted sm:text-base">
+          Every creator persona you run, in one place: what to post today, a calendar that posts for you, and how each video is doing.
+        </p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <button onClick={onNew} className="ps-cta inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-2">
+            <Icon.Plus width={15} height={15} /> New persona
+          </button>
+          <button
+            onClick={onSetup}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-brand/40 bg-black/20 px-3 py-2.5 text-sm font-medium text-ink-muted backdrop-blur transition hover:bg-brand/15 hover:text-ink"
+            title="Set up TikTok, Instagram, Facebook and YouTube sign-in (once)"
+          >
+            <Icon.Link width={14} height={14} /> Connections
+            <span className="flex gap-0.5" aria-hidden>
+              {(["tiktok", "instagram", "facebook", "youtube"] as const).map((x) => (
+                <span key={x} className={"h-1.5 w-1.5 rounded-full " + (ready[x] ? "bg-emerald-400" : "bg-ink-faint/40")} />
+              ))}
+            </span>
+          </button>
         </div>
-        <button
-          onClick={onSetup}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-sm font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink"
-          title="Set up TikTok, Instagram, Facebook and YouTube sign-in (once)"
-        >
-          <Icon.Link width={14} height={14} /> Connections
-          <span className="flex gap-0.5" aria-hidden>
-            {(["tiktok", "instagram", "facebook", "youtube"] as const).map((x) => (
-              <span key={x} className={"h-1.5 w-1.5 rounded-full " + (ready[x] ? "bg-emerald-400" : "bg-ink-faint/40")} />
-            ))}
-          </span>
-        </button>
-        <button onClick={onNew} className="ps-cta inline-flex items-center gap-1.5 rounded-xl bg-brand px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-brand-2">
-          <Icon.Plus width={15} height={15} /> New persona
-        </button>
       </div>
 
       {loaded && personas.length === 0 ? (
