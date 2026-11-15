@@ -27,9 +27,9 @@ import { MockupBakeOff } from "../mockup/MockupBakeOff";
 import "../app-builder/app-builder.css";
 import { BuildFeed, BuildSteer } from "../client-review/LiveBuild";
 import { ModelPicker } from "../new-jarvis/ModelPicker";
-import { SlashSkills, withSkill } from "../new-jarvis/SlashSkills";
 import { FlowStudio } from "./FlowStudio";
 import { PipelineRail } from "./PipelineRail";
+import { DesignSlash } from "./DesignSlash";
 import { SkillsMenu } from "./SkillsMenu";
 import { WorkShell, type StageDevice, type WorkTab } from "./WorkShell";
 import "../client-review/client-review.css";
@@ -162,7 +162,11 @@ export function DraftWorkspace({ draftId, onBack, onChanged }: Props) {
       actions={
         <div className="ws-actions-row">
           <SkillsMenu picks={p.skills ?? (look ? [look] : [])} onChange={(picks) => ab.setSkills(picks)} compact />
-          <ModelPicker value={harnessModel} onChange={setHarnessModel} />
+          {/* App Builder's own board for this same project — the Orbit, depth,
+              Send to board, delete — which the Studio does not draw itself. */}
+          <a className="ws-btn ghost small" href={`/apps/app-builder?p=${encodeURIComponent(p.id)}&classic=1`} title="Feature Orbit, depth, Send to board and the rest of App Builder's controls">
+            App Builder
+          </a>
         </div>
       }
       stage={(device: StageDevice) =>
@@ -320,7 +324,14 @@ export function DraftWorkspace({ draftId, onBack, onChanged }: Props) {
         tab === "chat" ? (
           <div className="ws-compose">
             <div className="ws-compose-box">
-              <SlashSkills text={text} onPick={(skill) => setText(withSkill(text, skill))} />
+              <DesignSlash
+                text={text}
+                onText={setText}
+                onPick={(name) => {
+                  const now = p.skills ?? (look ? [look] : []);
+                  if (!now.includes(name)) ab.setSkills([...now, name]);
+                }}
+              />
               <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
@@ -340,7 +351,9 @@ export function DraftWorkspace({ draftId, onBack, onChanged }: Props) {
               />
             </div>
             <div className="ws-compose-bar">
-              <span className="ws-note faint">{accepted.length} features accepted</span>
+              {/* The model that builds it, in the panel you talk to it from. */}
+              <ModelPicker value={harnessModel} onChange={setHarnessModel} up />
+              <span className="ws-note faint">{accepted.length} accepted</span>
               <button
                 className="ws-btn small"
                 onClick={() => {

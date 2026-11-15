@@ -14,12 +14,15 @@
 // the client link) already runs on. Nothing new is invented to carry a start.
 // ---------------------------------------------------------------------------
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ACCEPT, MAX_ITEMS, prepare, type PreparedMedia } from "@/lib/app-builder/media";
 import { handRedesignToAppBuilder } from "@/lib/app-builder/fromRedesigner";
 import { normalizeSiteUrl } from "@/lib/app-builder/redesign";
-import { combine, studioSkills } from "@/lib/website-studio/skills";
-import { SlashSkills, withSkill } from "../new-jarvis/SlashSkills";
+import { useChatModel } from "@/lib/new-jarvis/useChatModel";
+import { readStart } from "@/lib/website-studio/redirects";
+import { combine, studioSkills, toggleSkill } from "@/lib/website-studio/skills";
+import { ModelPicker } from "../new-jarvis/ModelPicker";
+import { DesignSlash } from "./DesignSlash";
 import { SkillsMenu } from "./SkillsMenu";
 
 export type StartMode = "prompt" | "redesign";
@@ -35,6 +38,7 @@ interface Props {
 const SKILLS = studioSkills();
 
 export function StartPanel({ onPrompt, onRedesign, busy }: Props) {
+  const { model, setModel } = useChatModel();
   const [mode, setMode] = useState<StartMode>("prompt");
   const [text, setText] = useState("");
   const [url, setUrl] = useState("");
@@ -45,6 +49,15 @@ export function StartPanel({ onPrompt, onRedesign, busy }: Props) {
   const [error, setError] = useState("");
   const file = useRef<HTMLInputElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
+
+  // An old Redesigner link lands here as ?start=redesign&url=…, and a Showcase
+  // idea as ?idea=… — read once, so the start opens already filled in.
+  useEffect(() => {
+    const s = readStart(window.location.search);
+    if (s.mode === "redesign") setMode("redesign");
+    if (s.url) setUrl(s.url);
+    if (s.idea) setText(s.idea);
+  }, []);
 
   const addFiles = useCallback((list: FileList | null) => {
     if (!list?.length) return;
@@ -101,9 +114,14 @@ export function StartPanel({ onPrompt, onRedesign, busy }: Props) {
         {mode === "prompt" ? (
           <>
             <div className="ws-slab-box">
-              {/* `/` is the skill menu, here as well as in the workspaces: the
-                  look can be named in the same breath as the idea. */}
-              <SlashSkills text={text} onPick={(skill) => setText(withSkill(text, skill))} />
+              {/* `/` lists the design skills, here as well as in the
+                  workspaces: the look can be named in the same breath as the
+                  idea, and the pick is ticked in the Skills menu too. */}
+              <DesignSlash
+                text={text}
+                onText={setText}
+                onPick={(name) => setPicks((p) => (p.includes(name) ? p : toggleSkill(p, name, SKILLS)))}
+              />
               <textarea
                 ref={box}
                 className="ws-slab-input"
@@ -186,6 +204,9 @@ export function StartPanel({ onPrompt, onRedesign, busy }: Props) {
           <input ref={file} type="file" accept={ACCEPT} multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
 
           <SkillsMenu picks={picks} onChange={setPicks} skills={SKILLS} compact />
+          {/* Which Claude (plan or API) or other model builds it — the same
+              pick every Studio build, edit and Jarvis chat reads. */}
+          <ModelPicker value={model} onChange={setModel} />
 
           <button type="button" className="ws-go" onClick={() => void go()} disabled={working}>
             {working ? (mode === "redesign" ? "Reading the site…" : "Starting…") : mode === "prompt" ? "Start building" : "Read it and redesign"}

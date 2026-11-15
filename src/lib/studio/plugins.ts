@@ -108,7 +108,7 @@ export const MERGED_INTO: Record<string, string> = {
   // is the Studio's panel on the Studio tab.
   "app-builder": "website-studio",
   "client-review": "website-studio",
-  "website-redesigner": "app-builder",
+  "website-redesigner": "website-studio",
   "fire-reveal": "website-redesigner",
   "kart-showcase": "website-redesigner",
   "financial-bible": "money-agent-studio",

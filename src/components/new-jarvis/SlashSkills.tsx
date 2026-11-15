@@ -16,42 +16,62 @@ import type { Skill } from "@/lib/skills/types";
 
 const TRIGGER = /(?:^|\s)\/([^\s/]*)$/;
 
+/** What the menu needs of a skill. A store Skill is one; so is a design-roster entry. */
+export type SlashItem = Pick<Skill, "id" | "title" | "overview">;
+
 /** The text with the current `/query` replaced by a skill sentence. */
-export function withSkill(text: string, skill: Skill): string {
+export function withSkill(text: string, skill: Pick<Skill, "title">): string {
   return text.replace(TRIGGER, (match) => `${match.startsWith(" ") ? " " : ""}Use my "${skill.title}" skill: `);
 }
 
-export function SlashSkills({ text, onPick }: { text: string; onPick: (skill: Skill) => void }) {
+export function SlashSkills<T extends SlashItem = Skill>({
+  text,
+  onPick,
+  skills: fixed,
+  label = "Skills",
+}: {
+  text: string;
+  onPick: (skill: T) => void;
+  /**
+   * A fixed list instead of the whole skill store. Website Studio passes its
+   * design roster, so `/` there lists design skills and nothing else.
+   */
+  skills?: T[];
+  label?: string;
+}) {
   const match = TRIGGER.exec(text);
   const query = match ? match[1] : null;
-  const [skills, setSkills] = useState<Skill[]>([]);
-  const [state, setState] = useState<"idle" | "loading" | "ready" | "failed">("idle");
+  const [stored, setSkills] = useState<T[]>([]);
+  const [state, setState] = useState<"idle" | "loading" | "ready" | "failed">(fixed ? "ready" : "idle");
+  const skills = fixed ?? stored;
 
   useEffect(() => {
-    if (query === null || state !== "idle") return;
+    if (fixed || query === null || state !== "idle") return;
     setState("loading");
     void listSkills()
       .then((list) => {
-        setSkills(list);
+        setSkills(list as unknown as T[]);
         setState("ready");
       })
       .catch(() => setState("failed"));
-  }, [query, state]);
+  }, [fixed, query, state]);
 
   const found = useMemo(() => {
     const q = (query ?? "").trim().toLowerCase();
-    if (!q) return skills.slice(0, 8);
+    // A fixed list is short and chosen on purpose: all of it shows.
+    const cap = fixed ? skills.length : 8;
+    if (!q) return skills.slice(0, cap);
     return skills
       .filter((s) => s.title.toLowerCase().includes(q) || s.overview.toLowerCase().includes(q))
-      .slice(0, 8);
-  }, [skills, query]);
+      .slice(0, cap);
+  }, [skills, query, fixed]);
 
   if (query === null) return null;
 
   return (
-    <div className="absolute bottom-full left-0 z-40 mb-2 w-[22rem] overflow-hidden rounded-lg border border-line bg-panel shadow-[0_18px_50px_rgba(0,0,0,0.5)]">
+    <div className="absolute bottom-full left-0 z-40 mb-2 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-line bg-panel shadow-[0_18px_50px_rgba(0,0,0,0.5)]">
       <p className="border-b border-line-soft px-3 py-1.5 text-[10px] uppercase tracking-wider text-ink-faint">
-        Skills · {query ? `“${query}”` : "type to filter"}
+        {label} · {query ? `“${query}”` : "type to filter"}
       </p>
       {state === "loading" && <p className="px-3 py-2 text-[11px] text-ink-muted">Reading your skills…</p>}
       {state === "failed" && <p className="px-3 py-2 text-[11px] text-ink-muted">Your skills couldn't be read just now.</p>}

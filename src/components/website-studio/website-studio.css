@@ -1933,3 +1933,165 @@
     margin-left: auto;
   }
 }
+
+/* ----- the edit checklist: what Claude is doing, ticked off live ----------- */
+.ws-checklist {
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-r);
+  background: var(--ws-panel-2);
+  padding: 12px 14px;
+}
+.ws-checklist header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.ws-checklist header b {
+  color: var(--ws-ink);
+  font-weight: 600;
+}
+.ws-checklist header span {
+  color: var(--ws-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.ws-checklist ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.ws-checklist li {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-items: start;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ws-ink-3);
+}
+.ws-checklist li.is-done {
+  color: var(--ws-ink-2);
+}
+.ws-checklist li.is-now {
+  color: var(--ws-ink);
+}
+.ws-check {
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ws-line);
+  display: grid;
+  place-items: center;
+  color: #06070b;
+  transition: background var(--ws-fast), border-color var(--ws-fast);
+}
+.ws-checklist li.is-done .ws-check {
+  background: var(--ws-live);
+  border-color: var(--ws-live);
+}
+.ws-checklist li.is-now .ws-check {
+  border-color: var(--ws-accent);
+  box-shadow: 0 0 0 3px var(--ws-accent-soft);
+  animation: ws-check-pulse 1.4s var(--ws-ease) infinite;
+}
+@keyframes ws-check-pulse {
+  50% {
+    box-shadow: 0 0 0 5px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ws-checklist li.is-now .ws-check {
+    animation: none;
+  }
+}
+.ws-checklist.compact {
+  padding: 10px 12px;
+}
+
+/* ----- the Software Factory switch in the side panel ---------------------- */
+.ws-factory {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--ws-ink-2);
+  cursor: pointer;
+  user-select: none;
+}
+.ws-factory input {
+  appearance: none;
+  width: 28px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--ws-line);
+  position: relative;
+  cursor: pointer;
+  transition: background var(--ws-fast);
+  flex: none;
+}
+.ws-factory input::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--ws-ink);
+  transition: transform var(--ws-fast);
+}
+.ws-factory input:checked {
+  background: var(--ws-accent);
+}
+.ws-factory input:checked::after {
+  transform: translateX(12px);
+}
+.ws-factory input:focus-visible {
+  outline: 2px solid var(--ws-accent);
+  outline-offset: 2px;
+}
+.ws-factory em {
+  font-style: normal;
+  color: var(--ws-ink-3);
+}
+.ws-compose-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ----- the old boards, one press away from the home ----------------------- */
+.ws-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 18px 0 40px;
+  border-top: 1px solid var(--ws-line-2);
+  font-size: 12px;
+}
+.ws-more span {
+  color: var(--ws-ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10.5px;
+  margin-right: 4px;
+}
+.ws-more a {
+  color: var(--ws-ink-2);
+  text-decoration: none;
+  padding: 6px 0;
+}
+.ws-more a:hover,
+.ws-more a:focus-visible {
+  color: var(--ws-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

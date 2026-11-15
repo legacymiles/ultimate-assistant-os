@@ -17,6 +17,11 @@
 // SAME thread, which is what starts Software Factory and the deep security
 // scan. Once, never early, and the thread itself is the record that it was
 // sent — so a second device opening this page cannot send it again.
+//
+// But only on the full road. An edit takes the quick lane by default (see
+// src/lib/website-studio/lane.ts): change it, typecheck, merge — and no
+// Software Factory afterwards, which used to run after EVERY edit. The switch
+// in the side panel puts an edit on the full road when it is really a feature.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -29,11 +34,13 @@ import { call, probe, type BridgeHealth } from "@/lib/new-jarvis/bridge";
 import { useChatModel } from "@/lib/new-jarvis/useChatModel";
 import type { WorkSummary } from "@/lib/new-jarvis/harness/types";
 import { canPaintEdit, needsLookPass } from "@/lib/website-studio/edits";
+import { editChecklist, laneFor, laneOf, wantsFactory } from "@/lib/website-studio/lane";
 import { FACTORY_DONE, factoryBrief, type StageFacts } from "@/lib/website-studio/pipeline";
 import { BuildFeed, BuildSteer, useLiveBuild } from "../client-review/LiveBuild";
 import { LookPass } from "../client-review/LookPass";
 import { ModelPicker } from "../new-jarvis/ModelPicker";
-import { SlashSkills, withSkill } from "../new-jarvis/SlashSkills";
+import { DesignSlash } from "./DesignSlash";
+import { EditChecklist } from "./EditChecklist";
 import { PipelineRail } from "./PipelineRail";
 import { WorkShell, type StageDevice, type WorkTab } from "./WorkShell";
 import "../client-review/client-review.css";
@@ -127,8 +134,12 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
   const liveUrl = current?.siteUrl ?? "";
   const sentFactory = useRef(false);
 
+  // A quick edit never gets the factory follow-up; the thread says which lane it is.
+  const buildLane = laneOf(live.build.view);
+  const factoryWanted = wantsFactory(live.build.view);
+
   useEffect(() => {
-    if (!owner || !live.watching || factoryStarted || factoryDone || sentFactory.current) return;
+    if (!owner || !live.watching || !factoryWanted || factoryStarted || factoryDone || sentFactory.current) return;
     if (!liveUrl || live.finish.kind === "running") return;
     sentFactory.current = true;
     void live.build
@@ -136,7 +147,33 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
       .catch(() => {
         sentFactory.current = false;
       });
-  }, [owner, live.watching, live.finish.kind, live.build, factoryStarted, factoryDone, liveUrl, view?.name, project?.repo]);
+  }, [owner, live.watching, live.finish.kind, live.build, factoryWanted, factoryStarted, factoryDone, liveUrl, view?.name, project?.repo]);
+
+  // ----- Software Factory: off for an edit, one switch to put it on --------------------
+  //
+  // Remembered per website on this device. Off is the default because this
+  // screen is where a live site is EDITED; a new website gets the factory from
+  // its own first build, which is not started from here.
+  const factoryKey = `website-studio:factory:${token}`;
+  const [factory, setFactoryState] = useState(false);
+  useEffect(() => {
+    try {
+      setFactoryState(window.localStorage.getItem(factoryKey) === "1");
+    } catch {
+      setFactoryState(false);
+    }
+  }, [factoryKey]);
+  const setFactory = useCallback(
+    (on: boolean) => {
+      setFactoryState(on);
+      try {
+        window.localStorage.setItem(factoryKey, on ? "1" : "0");
+      } catch {
+        // Private window: the switch still works for this visit.
+      }
+    },
+    [factoryKey],
+  );
 
   // ----- is the harness there? --------------------------------------------------------
   //
@@ -192,15 +229,17 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
   /** Approve what is waiting and start Claude Code on the PC. */
   const startBuild = useCallback(async () => {
     if (!view) return;
-    const out = await approveAndStart(token, askVersionId ?? undefined);
+    const out = await approveAndStart(token, askVersionId ?? undefined, undefined, laneFor(factory));
     setNote(out.message);
     setBlocker(out.blocker ?? null);
     if (out.state === "working") {
-      setTab("build");
+      // The chat panel shows the checklist while it works, so the owner stays
+      // where they typed the edit.
+      setTab("chat");
       await load();
       onChanged?.();
     }
-  }, [view, token, askVersionId, load, onChanged]);
+  }, [view, token, askVersionId, load, onChanged, factory]);
 
   const send = useCallback(async () => {
     const body = text.trim();
@@ -303,6 +342,19 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
     [view, building, liveUrl, factoryStarted, factoryDone],
   );
 
+  /** What the owner watches while Claude works: its own task list, or the lane's steps. */
+  const checklist = useMemo(
+    () =>
+      live.watching
+        ? editChecklist(live.build.view, buildLane, {
+            live: live.finish.kind === "publish" && !building,
+            running: building && live.finish.kind === "running",
+          })
+        : [],
+    [live.watching, live.build.view, live.finish.kind, buildLane, building],
+  );
+  const checklistTitle = buildLane === "quick" ? "Quick edit" : "Full build";
+
   /** Answering, and holding a token this browser has. */
   const pcReady = Boolean(health?.up && health?.paired);
   const waiting = view?.pending ?? 0;
@@ -339,7 +391,15 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
       tabs={tabs}
       tab={tab}
       onTab={(t) => setTab(t as Tab)}
-      actions={owner ? <ModelPicker value={harnessModel} onChange={setHarnessModel} /> : undefined}
+      actions={
+        owner ? (
+          // Client Review's Ship console for this site: repo and Vercel fields,
+          // a new client link, release, archive, delete, move into the hub.
+          <a className="ws-btn ghost small" href="/apps/client-review?tab=admin" title="Repo and Vercel, client link, release, archive, delete">
+            Ship console
+          </a>
+        ) : undefined
+      }
       banner={
         building ? (
           <span className="ws-banner-live">
@@ -404,10 +464,11 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
                 {r.adminNote && <p className="ws-msg-note">{r.adminNote}</p>}
               </article>
             ))}
+            {owner && building && checklist.length > 0 && <EditChecklist items={checklist} title={checklistTitle} compact />}
           </div>
         ) : tab === "build" ? (
           <div className="cr-list ws-build">
-            <PipelineRail facts={facts} compact />
+            {checklist.length > 0 ? <EditChecklist items={checklist} title={checklistTitle} /> : <PipelineRail facts={facts} compact />}
             {owner && health && (
               <p className={`ws-note ${pcReady ? "faint" : "warn"}`}>
                 {pcReady
@@ -481,10 +542,10 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
         ) : tab === "chat" || tab === "look" ? (
           <div className="ws-compose">
             <div className="ws-compose-box">
-              {/* `/` lists the owner's skills — the design skills among them —
-                  and writes the one picked into the edit as a sentence the
-                  build agent acts on. The same menu the old chat intake had. */}
-              <SlashSkills text={text} onPick={(skill) => setText(withSkill(text, skill))} />
+              {/* `/` lists the owner's website design skills — the design
+                  roster, nothing else — and writes the one picked into the edit
+                  as a sentence the build agent acts on. */}
+              {owner && <DesignSlash text={text} onText={setText} />}
               <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
@@ -505,6 +566,16 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
                 disabled={sending}
               />
             </div>
+            {owner && (
+              <div className="ws-compose-tools">
+                {/* The model that builds the edit, where the edit is typed. */}
+                <ModelPicker value={harnessModel} onChange={setHarnessModel} up />
+                <label className="ws-factory" title="Off: a quick edit — change, typecheck, merge, live in minutes. On: the full road, then Software Factory deepens the backend after it is live.">
+                  <input type="checkbox" checked={factory} onChange={(e) => setFactory(e.target.checked)} />
+                  Software Factory <em>{factory ? "· full build" : "· off for edits"}</em>
+                </label>
+              </div>
+            )}
             <div className="ws-compose-bar">
               {note ? (
                 <span className={`ws-note${blocker ? " warn" : ""}`}>{note}</span>

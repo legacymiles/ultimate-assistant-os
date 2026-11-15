@@ -51,4 +51,38 @@ describe("a trusted build's own tools", () => {
   it("keeps asking under Ask", () => {
     expect(allowed("PowerShell", { command: "node -v" }, { trust: "ask" })).toBe(false);
   });
+
+  // The two cards that stopped a "make it blue" edit for the owner.
+  it("lets a build lane clear its own scratch folder", () => {
+    const lane = { trust: "trusted", laneWrites: true };
+    expect(allowed("Bash", { command: "cp .shots/mine/a.css src/a.css && rm -rf .shots .playwright-mcp" }, lane)).toBe(true);
+    expect(allowed("PowerShell", { command: "Remove-Item -Recurse -Force .shots" }, lane)).toBe(true);
+  });
+
+  it("runs Monitor like any other command", () => {
+    expect(allowed("Monitor", { command: "gh pr checks 29" }, { trust: "trusted", laneWrites: true })).toBe(true);
+  });
+});
+
+describe("a delete that could reach outside the worktree", () => {
+  const lane = { trust: "trusted", laneWrites: true };
+  it.each([
+    "rm -rf .",
+    "rm -rf *",
+    "rm -rf ../other",
+    "rm -rf /c/Users/honey",
+    "rm -rf ~/x",
+    "rm -rf C:/dev",
+    "rm -rf node_modules",
+    "rm -rf .git",
+    "cd .. && rm -rf build",
+    "rm -rf $DIR",
+    "find . -name x | xargs rm",
+  ])("still asks for %s", (command) => {
+    expect(allowed("Bash", { command }, lane)).toBe(false);
+  });
+
+  it("still asks in an ordinary chat thread", () => {
+    expect(allowed("Bash", { command: "rm -rf .shots" }, { trust: "trusted" })).toBe(false);
+  });
 });

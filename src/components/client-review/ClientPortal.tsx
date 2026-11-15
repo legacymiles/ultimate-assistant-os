@@ -28,7 +28,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { BuildFeed, BuildSteer, useLiveBuild } from "./LiveBuild";
 import { BuildingStage } from "./BuildingStage";
 import { LookPass } from "./LookPass";
-import { SlashSkills, withSkill } from "../new-jarvis/SlashSkills";
+import { DesignSlash } from "../website-studio/DesignSlash";
 import { SignInGate } from "./SignInGate";
 import type { PortalRequest, PortalView, RequestPin, ReviewVersion } from "@/lib/client-review/types";
 import "./client-review.css";
@@ -959,7 +959,7 @@ export function ClientPortal({
                 </div>
               )}
               <div className="relative">
-                <SlashSkills text={text} onPick={(skill) => setText(withSkill(text, skill))} />
+                <DesignSlash text={text} onText={setText} />
                 <textarea
                 ref={inputRef}
                 value={text}

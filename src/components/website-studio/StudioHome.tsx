@@ -99,6 +99,17 @@ export function StudioHome({ studio, busy, onPrompt, onRedesign, onOpen, notice 
         onOpen={onOpen}
         loading={studio.loading}
       />
+
+      {/* Every board the three old apps had that the Studio does not draw
+          itself, one press away — so redirecting their front doors here never
+          hides a feature. */}
+      <nav className="ws-more" aria-label="More website tools">
+        <span>More tools</span>
+        <a href="/apps/app-builder?section=redesign&v=edit">Edit mockups (Flux 2)</a>
+        <a href="/apps/app-builder?section=redesign&v=2">Redesign bake-off</a>
+        <a href="/apps/app-builder?section=redesign&v=showcase">Showcase</a>
+        <a href="/apps/client-review?tab=admin">Ship console</a>
+      </nav>
     </div>
   );
 }

@@ -18,6 +18,7 @@
 import { call, connectPc, probe, START_LINK } from "@/lib/new-jarvis/bridge";
 import { admin } from "./client";
 import { CannotBuildHere, startClientEditBuild } from "./autoBuild";
+import type { Lane } from "@/lib/website-studio/lane";
 import { blockerAdvice, type Blocker } from "./liveBuild";
 import type { ClientProject, ReviewVersion } from "./types";
 
@@ -104,7 +105,13 @@ export function waitingBatch(project: ClientProject) {
  * it just sent); without it, the first waiting batch is built — a client's
  * requests, or edits a failed start handed back.
  */
-export async function approveAndStart(token: string, versionId?: string, beforeImage?: string): Promise<BuildStarted> {
+export async function approveAndStart(
+  token: string,
+  versionId?: string,
+  beforeImage?: string,
+  /** Website Studio passes "quick" for an edit; Client Review keeps the full road. */
+  lane: Lane = "full",
+): Promise<BuildStarted> {
   // FIRST, before any other round trip: a browser only offers "let this site
   // reach your PC?" while the press that started this is still warm, and it
   // expires in seconds. Asking the server about the project first is what
@@ -134,7 +141,7 @@ export async function approveAndStart(token: string, versionId?: string, beforeI
       .catch(() => null);
   }
   try {
-    const started = await startClientEditBuild(out.project, batch.id);
+    const started = await startClientEditBuild(out.project, batch.id, lane);
     await admin.act({
       action: "buildQueued",
       id: out.project.id,

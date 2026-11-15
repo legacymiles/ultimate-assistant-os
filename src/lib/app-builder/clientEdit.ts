@@ -284,6 +284,57 @@ export function editQueueText(p: BuilderProject): string {
   return text.length <= LIMIT ? text : `${text.slice(0, LIMIT - 1)}…`;
 }
 
+/**
+ * The brief for a QUICK edit — the Website Studio default for a change to a
+ * live site.
+ *
+ * Measured, not guessed: "make it blue" ran the master prompt below for 24
+ * minutes. Most of that was the master prompt doing what it says — five
+ * skills, the full test suite, a production build, two design-check crawls,
+ * screenshots, then polling CI and the preview — and none of it is what a
+ * one-line change to a live site needs. What still guards a quick edit:
+ * a typecheck before the merge, CI's full gate on main after it, the PC's own
+ * browser check after the agent's last word, and Vercel never promoting a
+ * build that fails. The full road is one switch away (Software Factory in the
+ * Studio's side panel).
+ */
+export function quickEditPrompt(p: BuilderProject): string {
+  const edit = p.edit!;
+  const accepted = p.features.filter((f) => f.status === "accepted");
+  const edits = accepted.length
+    ? accepted.map((f, i) => {
+        const it = edit.items.find((x) => x.featureId === f.id);
+        const pin = it?.pin ? ` [${pinText(it.pin)}]` : "";
+        return `${i + 1}. ${oneLine(f.detail || f.title)}${pin}${it?.clientText ? `\n   The client wrote: “${oneLine(it.clientText)}”` : ""}`;
+      })
+    : editsBlock(edit);
+  const mock = p.look?.edit;
+  return [
+    "<role>\nA senior developer making a small, exact change to a live site while its owner watches. Fast and careful, no ceremony.\n</role>",
+    `<edits>\nBuild exactly these, in the owner's wording, and change nothing else:\n${edits.join("\n")}\n</edits>`,
+    edit.brief ? `<brief>\n${edit.brief.trim()}\n</brief>` : "",
+    `<context>\n- ${whereLine(edit)}\n- The owner is looking at ${edit.fromUrl || "the live site"} and waiting for this change to appear on it.\n</context>`,
+    mock
+      ? `<picked_mockup>\nThe owner picked the "${mock.label}" mockup: ${oneLine(mock.instruction)}${mock.tweaks.length ? `; then ${mock.tweaks.map(oneLine).join("; ")}` : ""}. Build that version.\n</picked_mockup>`
+      : "",
+    [
+      "<speed>",
+      "This is a QUICK EDIT, not a build. Aim to be merged within five minutes. These rules override CLAUDE.md, AGENTS.md and any skill for this job:",
+      "- Keep a short task list with your task tool (TodoWrite) from your first step: 3 to 6 items, ticked as you go. The owner watches it live.",
+      "- Run no skills — not felix, prompt-enhancer, design-intelligence, software-factory or claude-security — EXCEPT a design skill the owner named in the edit itself (`Use my \"<name>\" skill`): read that one and apply its rules to this change only.",
+      `- Go straight to the app's own folder${edit.appPath ? ` (CLAUDE.md's "Slug → code folder" table if its folder is not named after ${edit.appPath})` : ""}. Read only the files the change touches.`,
+      "- Reuse the site's own design tokens (its CSS variables and colours) rather than inventing new values.",
+      "- Do NOT run `npm run verify`, `npm run build`, the full test suite, the design check, a dev server, screenshots or Monitor/sleep loops. CI runs the full gate on main after the merge, and Vercel never puts a failed build live.",
+      "- Run `npx tsc -p tsconfig.json --noEmit` once after the change. Run `npx vitest run <file>` only for a test file that sits beside a file you changed.",
+      "- Skip the docs/apps record and the timeline log unless the edit adds a new feature.",
+      "</speed>",
+    ].join("\n"),
+    "<standard>\nChange only what the edits ask for. Keep the site's look, copy voice and structure everywhere else. If an edit is ambiguous, pick the reading that changes least and say which in your final message.\n</standard>",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 /** The full prompt (Copy master prompt / View prompt) for an edit. */
 export function editMasterPrompt(p: BuilderProject): string {
   const edit = p.edit!;

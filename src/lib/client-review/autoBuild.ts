@@ -32,12 +32,13 @@
 // site and nothing else, whatever the owner's checkout is doing.
 // ---------------------------------------------------------------------------
 
-import { clientEditProject, editMasterPrompt } from "@/lib/app-builder/clientEdit";
+import { clientEditProject, editMasterPrompt, quickEditPrompt } from "@/lib/app-builder/clientEdit";
 import type { BuilderProject } from "@/lib/app-builder/types";
 import { readStore, writeStore } from "@/lib/app-builder/useAppBuilder";
 import { BridgeError, call, knownFolder, probe } from "@/lib/new-jarvis/bridge";
 import { buildHarness } from "@/lib/new-jarvis/harness/choice";
-import { HUB_REPO } from "./apps";
+import type { Lane } from "@/lib/website-studio/lane";
+import { HUB_ORIGIN, HUB_REPO } from "./apps";
 import { buildModelFor, buildsWithPick, pickValue } from "./models";
 import { readTrust } from "@/lib/new-jarvis/trust";
 import { readChatModel } from "@/lib/new-jarvis/useChatModel";
@@ -130,8 +131,9 @@ function checkoutFor(review: ClientProject): string {
  * check fails is a build whose failure nobody ever reads. So everything it has
  * to say, it says in its own final message.
  */
-export function harnessBrief(p: BuilderProject): string {
+export function harnessBrief(p: BuilderProject, lane: Lane = "full"): string {
   const app = p.edit?.appPath ?? "";
+  if (lane === "quick") return quickHarnessBrief(p);
   return [
     editMasterPrompt(p),
     [
@@ -157,6 +159,45 @@ export function harnessBrief(p: BuilderProject): string {
   ].join("\n\n");
 }
 
+/** Where the worktree stands — the same facts both lanes need. */
+const WHERE_YOU_ARE = [
+  "<where_you_are>",
+  "You are in a git worktree of the repository, on its own branch, cut for this job and ALREADY reset to `origin/main`: HEAD is the shipped site plus nothing. The owner's own checkout is untouched. Work only inside this folder, and push the branch you are on.",
+  "Do not rebase, reset, merge or fetch anything before you start.",
+  "`node_modules` here is a link to another checkout of this same repo. Use it for `npx tsc` and `npx vitest`, never run `npm install` here, and never delete it.",
+  "</where_you_are>",
+].join("\n");
+
+/**
+ * A quick edit's brief: change it, typecheck, merge, done.
+ *
+ * It merges without waiting for CI or a preview. Main is not protected, CI's
+ * full gate runs on main after the merge, and Vercel only promotes a build that
+ * succeeds — so waiting bought nothing but the owner's time (seven of the
+ * twenty-four minutes "make it blue" took). The `Preview:` line is the live
+ * address, which is what the Studio puts on the page.
+ */
+function quickHarnessBrief(p: BuilderProject): string {
+  const app = p.edit?.appPath ?? "";
+  const live = app ? `${HUB_ORIGIN}${app}` : "";
+  const subject = `${p.edit?.siteName ?? "Site"}: <what changed, in plain words>`;
+  return [
+    quickEditPrompt(p),
+    WHERE_YOU_ARE,
+    [
+      "<how_to_finish_here>",
+      "This session has no Jarvis connector and no queue: everything you have to say goes in your final message. Finish like this, without stopping to ask — you have full access for every step:",
+      `1. Commit with the subject "${subject}" and push your branch.`,
+      `2. \`gh pr create --base main --title "<the same subject>" --body "<one line per edit>"\`, then straight away \`gh pr merge <number> --squash --delete-branch\`. Do not wait for checks or a preview. If the merge conflicts, fetch origin/main, merge it, resolve, push, and merge.`,
+      "3. End your final message with exactly two lines, each on its own line and nothing after them:",
+      "PR: <the pull request url>",
+      `Preview: ${live || "<the live url of the page you changed>"}`,
+      "If the typecheck fails and you cannot fix it, do not merge: say what failed and end with `Preview: none`.",
+      "</how_to_finish_here>",
+    ].join("\n"),
+  ].join("\n\n");
+}
+
 /**
  * The two lines the thread is told to end on.
  *
@@ -164,13 +205,20 @@ export function harnessBrief(p: BuilderProject): string {
  * `Repo:`/`Live:` — a client edit has no new repository, and the pull request
  * is the thing worth linking. Only http(s) is accepted, so a half-written
  * sentence never becomes a link the owner clicks.
+ *
+ * The link is the FIRST word after the label, and anything after it on the
+ * line is commentary. It used to have to be the whole line, and a build that
+ * wrote "Preview: https://… — the branch preview is behind a login, so this is
+ * the live page" was read as having no preview at all: the edit merged and went
+ * live, and the Studio left it on "Building" forever. `Preview: none — why`
+ * still means none, because its first word is not a link.
  */
 export function buildLinks(text: string): { pr?: string; preview?: string } {
   const pick = (label: string) => {
-    const matches = [...text.matchAll(new RegExp(`^\\s*${label}:\\s*(\\S+)\\s*$`, "gim"))];
+    const matches = [...text.matchAll(new RegExp(`^\\s*${label}:\\s*(\\S+)`, "gim"))];
     const last = matches.at(-1)?.[1];
     if (!last) return undefined;
-    const clean = last.replace(/[)\].,;]+$/, "");
+    const clean = last.replace(/^[<(]+/, "").replace(/[)\]>.,;]+$/, "");
     return /^https?:\/\/\S+$/i.test(clean) ? clean : undefined;
   };
   return { pr: pick("PR"), preview: pick("Preview") };
@@ -225,7 +273,7 @@ async function standOnMain(where: string): Promise<string> {
  * batch stays approved, the caller shows the sentence, and pressing build again
  * is the retry.
  */
-export async function startClientEditBuild(review: ClientProject, batchId: string): Promise<StartedBuild> {
+export async function startClientEditBuild(review: ClientProject, batchId: string, lane: Lane = "full"): Promise<StartedBuild> {
   const bucket = builderFor(review, batchId);
   // The Chat's model pick is the harness pick too. Claude Code can only run a
   // Claude model, so a Claude pick is honoured and anything else leaves the
@@ -276,9 +324,14 @@ export async function startClientEditBuild(review: ClientProject, batchId: strin
       // is recorded now, before `standOnMain` and before the agent is told
       // anything, so a closed tab cannot lose the instructions either.
       durable: true,
-      brief: harnessBrief(bucket),
+      brief: harnessBrief(bucket, lane),
       // The PC's check opens the edited app's own page, not only the hub's home.
       verifyPaths: bucket.edit?.appPath ? [bucket.edit.appPath] : [],
+      // A quick edit is merged before the agent's last word, so the PC's own
+      // check — a full install, build, boot and crawl — could only hold the
+      // owner's "it's live" back by several minutes after it already was. CI's
+      // full gate on main and Vercel refusing a failed build are what guard it.
+      ...(lane === "quick" ? { verify: "off" } : {}),
     });
     threadId = session.id;
     const where = session.worktree?.path ?? "";
@@ -287,7 +340,7 @@ export async function startClientEditBuild(review: ClientProject, batchId: strin
     }
     // Before the agent is told anything, so it never sees the wrong base.
     base = await standOnMain(where);
-    await call("harness/say", { id: threadId, text: harnessBrief(bucket) });
+    await call("harness/say", { id: threadId, text: harnessBrief(bucket, lane) });
   } catch (e) {
     // A thread that was started but cannot be based correctly is stopped rather
     // than left running on the wrong tree with no brief.

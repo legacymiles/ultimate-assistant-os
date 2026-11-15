@@ -103,6 +103,17 @@ export function ClientReviewApp() {
       .then((m) => {
         setMe(m);
         const url = readUrl();
+        // The owner's own front door is Website Studio now. A client link
+        // (?site=), the Ship console (?tab=admin), the classic screen and any
+        // framed copy stay here; the bare page and ?app= move.
+        if (m.owner && !classic && !url.tab && window.self === window.top) {
+          const q = new URLSearchParams(window.location.search);
+          if (!q.get("site")) {
+            const app = q.get("app");
+            window.location.replace(app ? `/apps/website-studio?app=${encodeURIComponent(app)}` : "/apps/website-studio");
+            return;
+          }
+        }
         // The owner with no link reopens what they had open last (or the
         // picker); a client, or anyone following a link, lands in Client.
         const target = url.target ?? (m.owner && !url.tab ? readLast() : null);
@@ -112,7 +123,7 @@ export function ClientReviewApp() {
         setTab(want === "admin" && !m.owner ? "client" : want);
       })
       .catch(() => setMeError("Couldn't reach the server — check your connection and refresh."));
-  }, []);
+  }, [classic]);
 
   useEffect(() => {
     const onPop = () => {

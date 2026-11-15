@@ -27,6 +27,7 @@ try {
   /* not installed yet — listHarnesses() reports it, selfheal.mjs installs it */
 }
 import { autoAllow, describeTool, denialMessage } from "./harness-gate.mjs";
+import { makePlanTracker } from "./harness-plan.mjs";
 import { decide as unattendedDecide, denial as unattendedDenial } from "./agents-unattended.mjs";
 
 export const CLAUDE_LABEL = "Claude Code";
@@ -66,6 +67,8 @@ export function startClaude({
   let closed = false;
   let sessionId = "";
   let busy = false;
+  /** Claude's TodoWrite / TaskCreate list, re-emitted as `plan` events. */
+  const trackPlan = makePlanTracker();
   /**
    * Did this turn send any assistant text as a stream?
    *
@@ -206,6 +209,9 @@ export function startClaude({
                 path: d.path,
                 command: d.command,
               });
+              // Claude's own task list, drawn as the checklist the page shows.
+              const plan = trackPlan(block.name, block.input ?? {});
+              if (plan) emit({ kind: "plan", entries: plan });
             }
           }
           continue;

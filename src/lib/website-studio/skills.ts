@@ -180,6 +180,26 @@ export const ROLE_LABEL: Record<SkillRole, string> = {
   workflow: "Ways to start — stack",
 };
 
+const ROLE_SHORT: Record<SkillRole, string> = {
+  base: "Look",
+  pass: "Craft pass",
+  specialist: "Centrepiece",
+  workflow: "Way to start",
+};
+
+/**
+ * The roster as the `/` menu lists it — design skills only, never the whole
+ * skill store. Same order and same filter as the dropdown, so `/` and the
+ * Skills button can never disagree about what a design skill is.
+ */
+export function slashEntries(skills: StudioSkill[] = studioSkills()): { id: string; title: string; overview: string }[] {
+  return skills.map((s) => ({
+    id: s.name,
+    title: s.name,
+    overview: `${ROLE_SHORT[s.role]}${s.paid ? " · opt-in, renders media" : ""} · ${s.bestFor || s.description}`,
+  }));
+}
+
 /** The dropdown's sections, in order, empty ones left out. */
 export function skillGroups(skills: StudioSkill[]): { role: SkillRole; label: string; skills: StudioSkill[] }[] {
   return ROLE_ORDER.map((role) => ({ role, label: ROLE_LABEL[role], skills: skills.filter((s) => s.role === role) })).filter(

@@ -35,6 +35,9 @@ const DESIGN_CHECK = /^\s*node\s+("\$JARVIS_DESIGN_CHECK"|\$JARVIS_DESIGN_CHECK|
 const READERS = new Set([
   "Read", "Glob", "Grep", "LS", "NotebookRead", "WebFetch", "WebSearch",
   "TodoWrite", "Task", "Agent", "ExitPlanMode", "BashOutput", "SlashCommand", "Skill",
+  // Claude Code's own task list and background-shell bookkeeping. TaskStop only
+  // stops a command the build itself started in the background.
+  "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "TaskOutput", "TaskStop",
 ]);
 
 /** Tools that change files. */
@@ -50,7 +53,59 @@ const WRITERS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit", "ApplyPat
  * only way past it was a tap per command. `Pwsh` and `Shell` are the same tool
  * under the names other adapters use.
  */
-const RUNNERS = new Set(["Bash", "PowerShell", "Pwsh", "Shell", "KillShell", "KillBash"]);
+const RUNNERS = new Set(["Bash", "PowerShell", "Pwsh", "Shell", "KillShell", "KillBash", "Monitor"]);
+
+/**
+ * Does every delete in this command land inside the thread's own worktree?
+ *
+ * A build tidying its own scratch folder (`rm -rf .shots`) was stopped with
+ * "This deletes files. It cannot be undone from here." — true, and beside the
+ * point: the folder is a worktree cut for this job minutes ago, and the owner
+ * was asked to approve the build cleaning up after itself. Only a delete whose
+ * every target is a plain relative path is let through. Anything that could
+ * point somewhere else is not:
+ *   - a `cd` / `pushd` / `Set-Location` anywhere in the command, because the
+ *     relative path no longer means "inside the worktree" after it;
+ *   - variables and substitutions, whose value is not readable here;
+ *   - absolute, home, drive-letter and `..` paths;
+ *   - the worktree itself (`.`, `*`), `.git`, and `node_modules` — which is
+ *     a junction into the owner's main checkout, the one delete that would
+ *     reach their real files.
+ */
+export function deletesOnlyInside(command) {
+  const c = String(command ?? "");
+  if (/\b(cd|pushd|popd|Set-Location|chdir)\b/i.test(c)) return false;
+  if (/`|\$[({A-Za-z_]|%[A-Za-z_]+%/.test(c)) return false;
+  let deletes = 0;
+  for (const part of c.split(/&&|\|\||;|\||\r?\n/)) {
+    const words = part.trim().match(/"[^"]*"|'[^']*'|\S+/g) ?? [];
+    const at = words.findIndex((w) => /^(rm|del|rmdir|rd|Remove-Item|rimraf)$/i.test(w));
+    if (at === -1) {
+      if (/\b(rm|del|rmdir|Remove-Item|rimraf)\b/i.test(part)) return false;
+      continue;
+    }
+    // The verb must lead the command (`npx rimraf` aside): `xargs rm` and
+    // `find -exec rm` delete whatever the left side produced.
+    if (at > 0 && !(at === 1 && /^npx$/i.test(words[0]))) return false;
+    deletes += 1;
+    const verb = words[at].toLowerCase();
+    const targets = words.slice(at + 1).filter((w) => {
+      if (w.startsWith("-")) return false;
+      // `del /s /q` and `rd /s` take slash switches.
+      if ((verb === "del" || verb === "rd" || verb === "rmdir") && /^\/[a-z]$/i.test(w)) return false;
+      return true;
+    });
+    if (!targets.length) return false;
+    for (const raw of targets) {
+      const t = raw.replace(/^["']|["']$/g, "").replace(/\\/g, "/");
+      if (!t || /^[/~]|^[A-Za-z]:/.test(t)) return false;
+      const segs = t.split("/").filter((s) => s && s !== ".");
+      if (!segs.length) return false;
+      if (segs.some((s) => s === ".." || s === ".git" || s.toLowerCase() === "node_modules" || /^\*+$/.test(s))) return false;
+    }
+  }
+  return deletes > 0;
+}
 
 /** Commands that look, even though they arrive through a runner. */
 const SAFE_COMMAND =
@@ -229,6 +284,7 @@ export function describeTool(name, input = {}, cwd = "") {
   let title = name;
   let why = "";
   let risk = kind === "read" ? "read" : "act";
+  let localDelete = false;
 
   if (name === "Write") {
     title = `Write ${path}`;
@@ -244,7 +300,10 @@ export function describeTool(name, input = {}, cwd = "") {
     why = String(input.description ?? "");
     if (/\b(rm|del|rmdir|Remove-Item)\b/i.test(command)) {
       risk = "grave";
-      why = "This deletes files. It cannot be undone from here.";
+      localDelete = deletesOnlyInside(command);
+      why = localDelete
+        ? "This deletes files inside this build's own worktree, nowhere else."
+        : "This deletes files. It cannot be undone from here.";
     } else if (/\bgit\s+push\b/i.test(command)) {
       const grave = pushIsGrave(command);
       risk = grave ? "grave" : "act";
@@ -267,6 +326,9 @@ export function describeTool(name, input = {}, cwd = "") {
     title,
     why,
     risk,
+    // A grave delete whose every target is inside the worktree. autoAllow lets
+    // it through on a build lane only.
+    localDelete,
     path,
     command,
     // An MCP server's tool is the one thing here whose reach cannot be read
@@ -347,6 +409,9 @@ export function autoAllow(described, { strict = false, laneWrites = false, trust
     // change to the owner's checkout. A worktree's install reaches the shared
     // node_modules through the junction, so that one keeps asking.
     if (project && described.kind === "run" && /\bnpm\s+(install|i|ci)\b/i.test(described.command)) return true;
+    // A build cleaning up its own scratch files, inside the worktree cut for
+    // it. Only on a build lane: an ordinary chat thread keeps asking.
+    if (described.localDelete && (laneWrites || project) && (trust === "trusted" || trust === "auto")) return true;
     return false;
   }
 

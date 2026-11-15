@@ -23,6 +23,20 @@ describe("reading the build's last words", () => {
     expect(buildLinks(text)).toEqual({ pr: "https://github.com/a/b/pull/2", preview: "https://new.example/x" });
   });
 
+  it("reads the link when the build adds a sentence after it on the same line", () => {
+    // The blue Baby No Scroll edit (Nov 2026) ended like this, merged, went
+    // live — and sat on "Building" because the line was not the bare URL.
+    const text = [
+      "PR: https://github.com/legacymiles/ultimate-assistant-os/pull/29",
+      "Preview: https://bighomieai.com/apps/baby-no-scroll — the branch preview (`https://x-git-y.vercel.app/apps/baby-no-scroll`) is behind a Vercel login, so this live page is the working link.",
+    ].join("\n");
+    expect(buildLinks(text)).toEqual({
+      pr: "https://github.com/legacymiles/ultimate-assistant-os/pull/29",
+      preview: "https://bighomieai.com/apps/baby-no-scroll",
+    });
+    expect(buildLinks("Preview: <https://bighomieai.com/apps/x>")).toEqual({ pr: undefined, preview: "https://bighomieai.com/apps/x" });
+  });
+
   it("does not turn a half-written sentence into a link", () => {
     expect(buildLinks("Preview: none — the preview requires a Vercel login.")).toEqual({ pr: undefined, preview: undefined });
     expect(buildLinks("Preview: https://preview.example/x.")).toEqual({ pr: undefined, preview: "https://preview.example/x" });

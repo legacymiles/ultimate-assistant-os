@@ -2,7 +2,7 @@
 
 Route: `/apps/website-studio` · Category: Websites · Live
 
-Record reviewed: 2026-11-14
+Record reviewed: 2026-11-15
 
 > **This file is the truth about this app.** Read it before changing the app and update it in the
 > same commit. Everything above the "From the code" block is written by hand and kept; that block
@@ -18,8 +18,21 @@ One place for every website: describe what you want and it is built, paste an ad
 **Where you find it.** A panel on Jarvis's **Studio tab**, next to Image, Audio, Music Video,
 Personas, Money Agent, Game and Trading Studio — not a card on App plugins. App Builder and Client
 Review came off that page in the same edit (owner's call, 14 Nov 2026) and are reached through this
-Studio; the panel names them as what moved in. Their routes stay live: Jarvis chat's `app_builder`
-tool still opens App Builder in its sheet, and every client link is still `/apps/client-review?site=`.
+Studio; the panel names them as what moved in. Since 15 Nov 2026 their front doors REDIRECT here
+(`src/lib/website-studio/redirects.ts`): `/apps/app-builder` (and `?p=<id>`, which opens that draft
+here), `/apps/website-redesigner` (onto the start's "Redesign a website", address carried), and the
+owner's bare `/apps/client-review` (and `?app=`). What deliberately does not move: App Builder framed
+inside Jarvis chat's sheet (read from `Sec-Fetch-Dest: iframe`), the Flux edit-mockup board, the
+bake-off and the Showcase (`?section=redesign&v=edit|2|showcase`), `?classic=1`, every client link
+`/apps/client-review?site=`, and Client Review's Ship console (`?tab=admin`).
+
+**Everything the three old apps did, reachable from here.** Drawn by the Studio itself: starts,
+recordings and pictures, design skills, Felix and the feature list, both mockup stages, the build,
+the edit look pass, versions, changes, Mark ready, the client's link. One press away, on the old
+screen: App Builder's feature Orbit, depth, Send to board and delete (a draft's **App Builder**
+button, `?p=<id>&classic=1`); Client Review's Ship console — repo and Vercel fields, a new client
+link, release, archive, delete, move into the hub (a site's **Ship console** button); and the Flux
+edit board, the bake-off and the Showcase (**More tools** under the library).
 
 **Starting a website — one slab, two modes.**
 - **Build from a prompt** — describe the site; reference pictures and screen recordings can be
@@ -42,12 +55,30 @@ the bottom.
 **One workspace for every website.** Full-screen canvas with the assistant folded on the LEFT —
 `Ctrl+\` or the fold button maximises the page, and the choice is remembered per device. Desktop
 / phone (390px) widths, reload, open in a new tab, and the address always on screen.
-- **Which model runs it** — the same `ModelPicker` the Jarvis chat and App Builder use, in the
-  shell beside the address, on a draft and on a live site alike. It writes the one pick
-  (`useChatModel`) that `autoBuild` and `useBuild` both read, so choosing Opus 5.5 on your own
-  plan — or any OpenRouter model — is what actually starts.
-- **`/` is the skills menu** — in the idea box on the home, in a draft's chat and in a live
-  site's edit box. Picking one writes it into the words as a sentence the build agent acts on.
+- **Which model runs it** — the same `ModelPicker` the Jarvis chat and App Builder use: your Claude
+  plan (Opus 5.5 / Opus 5 on the subscription), Claude through the API, the other LLMs, and a search
+  of every OpenRouter model. On the home beside the Skills button, and in the side panel's compose
+  bar on a draft and on a live site. It writes the one pick (`useChatModel`) that `autoBuild` and
+  `useBuild` both read, so what you choose is what actually starts.
+- **`/` lists the website design skills, and only those** — the design roster, in the Skills
+  dropdown's own order (looks, craft passes, centrepieces, ways to start; `slashEntries` in
+  `skills.ts`, menu `DesignSlash.tsx`), in the idea box on the home, in a draft's chat and in a
+  live site's edit box. It used to list the first eight skills in the whole store. Picking one
+  writes it into the words as a sentence the build agent acts on AND ticks it in the Skills menu.
+  Client Review's owner box and the Redesigner bake-off use the same menu.
+- **Quick edits** — an edit to a live site takes the quick lane by default
+  (`src/lib/website-studio/lane.ts`, brief `quickEditPrompt` + `autoBuild.ts`): find the code,
+  change it, typecheck, merge — no skills pipeline, no full test suite or build, no waiting on CI or
+  a preview, no PC re-check, and no Software Factory afterwards. "Make it blue" took 24 minutes on
+  the full road. CI's full gate still runs on main after the merge and Vercel never promotes a
+  failed build.
+- **Software Factory switch** — in the side panel of a live site, off by default ("off for
+  edits"), remembered per site on this device. On puts the next edit on the full road and sends
+  Software Factory after it is live; a new website's first build gets it as before.
+- **A checklist of what Claude is doing** — in the side panel while an edit builds, and on the
+  Build tab: Claude's own task list (the PC helper relays TodoWrite / TaskCreate as `plan` events,
+  `tools/jarvis-bridge/harness-plan.mjs`), otherwise the lane's own steps ticked off from the tools
+  it ran, ending with "Live on the site".
 - **Is the PC there** — the helper is probed on open and every 20s, and the answer is on screen
   BEFORE Send is pressed, with the one button that can fix it. A build that cannot start says so
   in the owner's language instead of looking like nothing happened.
@@ -90,23 +121,27 @@ scan. Sent once — the thread itself is the record, so a second device cannot s
 - The model pick is the harness pick, not a second setting: anything that reads `readChatModel()`
   must keep seeing what this menu wrote.
 - A finished build still publishes itself onto the version, and the owner still presses Mark ready
-  before anything reaches a client.
-- `/apps/app-builder?p=<id>` still opens a draft started here; Jarvis chat's `app_builder` hand-off
-  still works. Both apps are in `MERGED_INTO` now, which takes their tiles away — it must not take
-  their routes away.
+  before anything reaches a client. The `Preview:` link is the first word after the label, so a
+  build that adds a sentence after it on the same line still publishes (the blue Baby No Scroll
+  edit merged and went live but sat on "Building" because of exactly that).
+- `/apps/app-builder?p=<id>` opens that draft here; inside Jarvis chat's sheet it stays App
+  Builder, and `?classic=1` always does. The Flux edit board link the `website-edit-mockups` skill
+  hands out (`?section=redesign&v=edit…`) never redirects. All three old apps are in `MERGED_INTO`
+  (pointing here), which takes their tiles away — it must not take their routes away.
+- A quick edit never stops to ask: a build lane deleting its own scratch files inside its worktree
+  and Claude's `Monitor` tool pass the PC helper's gate (`harness-gate.mjs`); a delete that could
+  reach outside it — `..`, absolute paths, `node_modules` (a junction into the main checkout),
+  `.git`, a `cd` first — still asks.
 - Offline: the whole page works with no keys and no PC. The pages plan is written with no model at
   all, and the mockups fall back to the coded drawings when Flux is not running.
 
 ## Requested, not built yet
 
-- The old routes (`/apps/app-builder`, `/apps/website-redesigner`, the owner's bare
-  `/apps/client-review`) still stand on their own. They are off the App plugins page, so the owner
-  reaches them through this Studio, but nothing redirects yet — and two of them must never redirect
-  blindly (the framed App Builder sheet, the client links). Migration step 6 in
-  `docs/superpowers/specs/website-studio.md`.
-- The PC helper emits no task list for a Claude thread and `harness/preview` refuses a new-app
-  project thread, so the Build tab shows the tool log rather than live tasks, and a draft has no
-  local preview until it is deployed.
+- Draw App Builder's feature Orbit, depth and Send to board, and Client Review's Ship console,
+  natively in the Studio instead of one press away on the old screens. Then migration step 7 in
+  `docs/superpowers/specs/website-studio.md` (deleting the old shells) can happen.
+- `harness/preview` refuses a new-app project thread, so a draft has no local preview until it is
+  deployed.
 - Stage two can be written by a model or by a design engine (`FlowPlan.engine`); today it is the
   offline planner. Google Stitch was researched for this and left out on purpose — it is a
   quota-metered Google cloud service, its build half assumes Vite + React Router, and its output is
@@ -143,7 +178,9 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 
 - `src/lib/website-studio/edits.test.ts`
 - `src/lib/website-studio/flows.test.ts`
+- `src/lib/website-studio/lane.test.ts`
 - `src/lib/website-studio/library.test.ts`
 - `src/lib/website-studio/pipeline.test.ts`
+- `src/lib/website-studio/redirects.test.ts`
 - `src/lib/website-studio/skills.test.ts`
 <!-- code:end -->
