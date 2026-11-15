@@ -17,6 +17,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppBuilder } from "@/lib/app-builder/useAppBuilder";
+import { useChatModel } from "@/lib/new-jarvis/useChatModel";
 import { specFromProject } from "@/lib/mockup/spec";
 import { approve, draftFlows, type FlowPlan } from "@/lib/website-studio/flows";
 import { combine, studioSkills } from "@/lib/website-studio/skills";
@@ -25,6 +26,8 @@ import { FeatureTable } from "../app-builder/FeatureTable";
 import { MockupBakeOff } from "../mockup/MockupBakeOff";
 import "../app-builder/app-builder.css";
 import { BuildFeed, BuildSteer } from "../client-review/LiveBuild";
+import { ModelPicker } from "../new-jarvis/ModelPicker";
+import { SlashSkills, withSkill } from "../new-jarvis/SlashSkills";
 import { FlowStudio } from "./FlowStudio";
 import { PipelineRail } from "./PipelineRail";
 import { SkillsMenu } from "./SkillsMenu";
@@ -41,6 +44,7 @@ type Tab = "chat" | "plan" | "pages" | "build";
 
 export function DraftWorkspace({ draftId, onBack, onChanged }: Props) {
   const ab = useAppBuilder();
+  const { model: harnessModel, setModel: setHarnessModel } = useChatModel();
   const [tab, setTab] = useState<Tab>("chat");
   const [text, setText] = useState("");
   const [plan, setPlan] = useState<FlowPlan | null>(null);
@@ -155,7 +159,12 @@ export function DraftWorkspace({ draftId, onBack, onChanged }: Props) {
       tabs={tabs}
       tab={tab}
       onTab={(t) => setTab(t as Tab)}
-      actions={<SkillsMenu picks={p.skills ?? (look ? [look] : [])} onChange={(picks) => ab.setSkills(picks)} compact />}
+      actions={
+        <div className="ws-actions-row">
+          <SkillsMenu picks={p.skills ?? (look ? [look] : [])} onChange={(picks) => ab.setSkills(picks)} compact />
+          <ModelPicker value={harnessModel} onChange={setHarnessModel} />
+        </div>
+      }
       stage={(device: StageDevice) =>
         stage === "live" && built?.url ? (
           <iframe className="ws-site" src={built.url} title={name} sandbox="allow-same-origin allow-scripts allow-forms allow-popups" style={device === "phone" ? { width: 390 } : undefined} />
@@ -310,23 +319,26 @@ export function DraftWorkspace({ draftId, onBack, onChanged }: Props) {
       panelFoot={
         tab === "chat" ? (
           <div className="ws-compose">
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  if (text.trim()) {
-                    void ab.say(text.trim());
-                    setText("");
+            <div className="ws-compose-box">
+              <SlashSkills text={text} onPick={(skill) => setText(withSkill(text, skill))} />
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (text.trim()) {
+                      void ab.say(text.trim());
+                      setText("");
+                    }
                   }
-                }
-              }}
-              rows={2}
-              placeholder={p.understanding ? "Change the plan — “accept 1 and 3”, “add a gallery”, “drop the blog”." : "One moment…"}
-              aria-label="Talk to the agent"
-              disabled={Boolean(ab.busy)}
-            />
+                }}
+                rows={2}
+                placeholder={p.understanding ? "Change the plan — “accept 1 and 3”, “add a gallery”. Press / for a skill." : "One moment…"}
+                aria-label="Talk to the agent"
+                disabled={Boolean(ab.busy)}
+              />
+            </div>
             <div className="ws-compose-bar">
               <span className="ws-note faint">{accepted.length} features accepted</span>
               <button

@@ -42,6 +42,15 @@ the bottom.
 **One workspace for every website.** Full-screen canvas with the assistant folded on the LEFT —
 `Ctrl+\` or the fold button maximises the page, and the choice is remembered per device. Desktop
 / phone (390px) widths, reload, open in a new tab, and the address always on screen.
+- **Which model runs it** — the same `ModelPicker` the Jarvis chat and App Builder use, in the
+  shell beside the address, on a draft and on a live site alike. It writes the one pick
+  (`useChatModel`) that `autoBuild` and `useBuild` both read, so choosing Opus 5.5 on your own
+  plan — or any OpenRouter model — is what actually starts.
+- **`/` is the skills menu** — in the idea box on the home, in a draft's chat and in a live
+  site's edit box. Picking one writes it into the words as a sentence the build agent acts on.
+- **Is the PC there** — the helper is probed on open and every 20s, and the answer is on screen
+  BEFORE Send is pressed, with the one button that can fix it. A build that cannot start says so
+  in the owner's language instead of looking like nothing happened.
 - On a live site: **Chat** (the client's requests and notices; the owner's Send is Send & build),
   **Build** (the pipeline rail and the harness narration), **Changes** (`harness/diff` — the files
   being changed, with the diff), **Versions** (the history, and Mark ready for the client).
@@ -53,6 +62,14 @@ owner's PC (free and local). Stage two is new: the supporting pages as a prototy
 every screen drawn in the approved look, clickable links between them, loading / empty / success /
 error states per screen, and Revise on any one screen without redrawing the others. A plan whose
 links point nowhere, or that has a screen nothing can reach, cannot be approved.
+
+**Three mockups before an edit is built.** The owner's standing rule (10 Nov 2026) holds here:
+Send files the request and opens **Look**, where the edit is painted three ways with Flux 2 onto a
+screenshot of the real page (`LookPass`, the same one Client Review used). The pick is saved on the
+project and is what starts the build — carried into the brief by `pickedMockupLine`. The paintings
+are saved to the link so the client sees the same three. `Skip the mockups and build it as asked`
+is one press away, and a site with no address yet skips straight to the build, because there is
+nothing to paint onto. The rule lives in `src/lib/website-studio/edits.ts`, not in the screen.
 
 **Ship first.** The approved routes go into the build brief as a specification, never as pictures.
 The first working site goes live after a fast security check; the Studio then says the after-live
@@ -67,8 +84,11 @@ scan. Sent once — the thread itself is the record, so a second device cannot s
   this workspace. Their push notifications, their home-screen app and the service worker are all
   scoped to that address and must stay there. `?classic=1` opens the old screen.
 - A hub app opened for the first time still gets its project made (`ensureApp`).
-- Send & build still approves the waiting batch and starts the build on the PC in one action, and
-  still undoes the approval if the build fails to start.
+- Send still files the request and still reaches a build on the PC, and a failed start still undoes
+  its own approval. What changed (14 Nov 2026) is that the owner's Send stops at the look pass
+  first — the pick, or Skip, is what approves and starts. A client's Send is unchanged.
+- The model pick is the harness pick, not a second setting: anything that reads `readChatModel()`
+  must keep seeing what this menu wrote.
 - A finished build still publishes itself onto the version, and the owner still presses Mark ready
   before anything reaches a client.
 - `/apps/app-builder?p=<id>` still opens a draft started here; Jarvis chat's `app_builder` hand-off
@@ -121,6 +141,7 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 
 ### Tests
 
+- `src/lib/website-studio/edits.test.ts`
 - `src/lib/website-studio/flows.test.ts`
 - `src/lib/website-studio/library.test.ts`
 - `src/lib/website-studio/pipeline.test.ts`

@@ -22,11 +22,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { admin, portal, ApiError } from "@/lib/client-review/client";
 import { approveAndStart, connectToPc } from "@/lib/client-review/buildHere";
+import { blockerAdvice, type Blocker } from "@/lib/client-review/liveBuild";
+import type { EditLaneId, EditPick } from "@/lib/mockup/edit";
 import type { ClientProject, PortalView } from "@/lib/client-review/types";
-import { call } from "@/lib/new-jarvis/bridge";
+import { call, probe, type BridgeHealth } from "@/lib/new-jarvis/bridge";
+import { useChatModel } from "@/lib/new-jarvis/useChatModel";
 import type { WorkSummary } from "@/lib/new-jarvis/harness/types";
+import { canPaintEdit, needsLookPass } from "@/lib/website-studio/edits";
 import { FACTORY_DONE, factoryBrief, type StageFacts } from "@/lib/website-studio/pipeline";
 import { BuildFeed, BuildSteer, useLiveBuild } from "../client-review/LiveBuild";
+import { LookPass } from "../client-review/LookPass";
+import { ModelPicker } from "../new-jarvis/ModelPicker";
+import { SlashSkills, withSkill } from "../new-jarvis/SlashSkills";
 import { PipelineRail } from "./PipelineRail";
 import { WorkShell, type StageDevice, type WorkTab } from "./WorkShell";
 import "../client-review/client-review.css";
@@ -39,9 +46,10 @@ interface Props {
   onChanged?: () => void;
 }
 
-type Tab = "chat" | "build" | "changes" | "versions";
+type Tab = "chat" | "look" | "build" | "changes" | "versions";
 
 export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
+  const { model: harnessModel, setModel: setHarnessModel } = useChatModel();
   const [view, setView] = useState<PortalView | null>(null);
   const [project, setProject] = useState<ClientProject | null>(null);
   const [error, setError] = useState("");
@@ -49,7 +57,11 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [note, setNote] = useState("");
+  /** Set when the last attempt was stopped by something a press can fix. */
+  const [blocker, setBlocker] = useState<Blocker | null>(null);
   const [work, setWork] = useState<WorkSummary | null>(null);
+  /** The PC helper, as it is right now. Owner only — a client never builds. */
+  const [health, setHealth] = useState<BridgeHealth | null>(null);
   const [diff, setDiff] = useState("");
   const alive = useRef(true);
 
@@ -85,6 +97,14 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
   }, [load]);
 
   const current = view?.versions.find((v) => v.id === view.currentVersionId) ?? null;
+  /**
+   * The version an edit is written against.
+   *
+   * Not optional, and not left to the server to guess: `addRequest` and
+   * `sendToJarvis` both resolve a version by id and refuse without one, which
+   * is what made Send look like it did nothing at all.
+   */
+  const askVersionId = view?.currentVersionId ?? view?.versions.at(-1)?.id ?? null;
   const building = Boolean(view?.buildingVersionId);
   const live = useLiveBuild({
     token,
@@ -118,6 +138,26 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
       });
   }, [owner, live.watching, live.finish.kind, live.build, factoryStarted, factoryDone, liveUrl, view?.name, project?.repo]);
 
+  // ----- is the harness there? --------------------------------------------------------
+  //
+  // Asked on open and kept fresh, rather than only discovered by a failed
+  // build. The owner pressed Send and nothing visible happened; the honest
+  // fix is to say the PC is unreachable BEFORE the press, every time.
+  useEffect(() => {
+    if (!owner) return;
+    let alive = true;
+    const read = () =>
+      probe()
+        .then((h) => alive && setHealth(h))
+        .catch(() => alive && setHealth(null));
+    void read();
+    const id = window.setInterval(() => document.visibilityState === "visible" && void read(), 20_000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, [owner]);
+
   // ----- the files being changed ------------------------------------------------------
   const threadId = live.row?.threadId;
   useEffect(() => {
@@ -142,36 +182,97 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
   }, [tab, threadId]);
 
   // ----- asking for a change ----------------------------------------------------------
+  //
+  // Two steps, not one, because of the owner's standing rule (Nov 2026): an
+  // edit to a page that exists is painted three ways onto that page before
+  // anything is built, and the pick is what starts the build. Send files the
+  // request and opens the look pass; the pick runs the build. A site with no
+  // address yet has nothing to paint onto, so it builds the way it always did.
+
+  /** Approve what is waiting and start Claude Code on the PC. */
+  const startBuild = useCallback(async () => {
+    if (!view) return;
+    const out = await approveAndStart(token, askVersionId ?? undefined);
+    setNote(out.message);
+    setBlocker(out.blocker ?? null);
+    if (out.state === "working") {
+      setTab("build");
+      await load();
+      onChanged?.();
+    }
+  }, [view, token, askVersionId, load, onChanged]);
+
   const send = useCallback(async () => {
     const body = text.trim();
     if (!body || sending || !view) return;
     setSending(true);
     setNote("");
+    setBlocker(null);
+    if (!askVersionId) {
+      setNote("There is no version to ask against yet — the first one has to be built first.");
+      setSending(false);
+      return;
+    }
     try {
-      const after = await portal.act(token, { action: "add", text: body });
-      setView(after);
+      await portal.act(token, { action: "add", versionId: askVersionId, text: body });
+      setView(await portal.act(token, { action: "send", versionId: askVersionId }));
       setText("");
-      const added = after.requests.filter((r) => r.status === "draft");
-      const sent = await portal.act(token, { action: "send", ids: added.map((r) => r.id) });
-      setView(sent);
-      if (owner) {
-        // The owner's Send is Send & build: approving and starting are one
-        // action, exactly as they were on the old screen.
-        const out = await approveAndStart(token, view.currentVersionId ?? undefined);
-        setNote(out.message);
-        if (out.state === "working") {
-          await load();
-          onChanged?.();
-        }
-      } else {
+      if (!owner) {
         setNote("Sent. Jarvis has it — you'll hear when it's approved and when the new version is ready.");
+        return;
       }
+      if (canPaintEdit({ liveUrl, building }, owner)) {
+        setTab("look");
+        setNote("Painting three readings of that edit onto the page. Pick one and the build starts.");
+        return;
+      }
+      await startBuild();
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));
     } finally {
       setSending(false);
     }
-  }, [text, sending, view, token, owner, load, onChanged]);
+  }, [text, sending, view, token, owner, liveUrl, building, askVersionId, startBuild]);
+
+  /** Anything that runs a build from a press: one place for busy and the note. */
+  const run = useCallback(
+    async (job: () => Promise<void>) => {
+      if (sending) return;
+      setSending(true);
+      setNote("");
+      setBlocker(null);
+      try {
+        await job();
+      } catch (e) {
+        setNote(e instanceof Error ? e.message : String(e));
+      } finally {
+        setSending(false);
+      }
+    },
+    [sending],
+  );
+
+  /** The look pass picked one: save it on the project, then build that. */
+  const pickLook = useCallback(
+    (skill: string, pick?: EditPick) =>
+      run(async () => {
+        setView(await portal.act(token, { action: "look", skill, ...(pick ? { edit: pick } : {}) }));
+        await startBuild();
+      }),
+    [run, token, startBuild],
+  );
+
+  /** Owner only: keep the three paintings on the project so the client sees them too. */
+  const saveMockups = useCallback(
+    async (edit: string, lanes: { lane: EditLaneId; image: string; label: string; instruction: string }[]) => {
+      try {
+        setView(await portal.act(token, { action: "mockups", edit, lanes }));
+      } catch {
+        // A nicety for the client's link. A build never waits on it.
+      }
+    },
+    [token],
+  );
 
   const markReady = useCallback(
     async (versionId: string, siteUrl: string) => {
@@ -202,10 +303,14 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
     [view, building, liveUrl, factoryStarted, factoryDone],
   );
 
+  /** Answering, and holding a token this browser has. */
+  const pcReady = Boolean(health?.up && health?.paired);
   const waiting = view?.pending ?? 0;
   const changed = work?.files.length ?? 0;
+  const canPaint = needsLookPass({ liveUrl, building, requests: view?.requests ?? [] }, owner);
   const tabs: WorkTab[] = [
     { id: "chat", label: "Chat", count: waiting },
+    ...(canPaint ? [{ id: "look", label: "Look" }] : []),
     { id: "build", label: "Build", live: building },
     ...(owner ? [{ id: "changes", label: "Changes", count: changed }] : []),
     { id: "versions", label: "Versions", count: view?.versions.length ?? 0 },
@@ -234,6 +339,7 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
       tabs={tabs}
       tab={tab}
       onTab={(t) => setTab(t as Tab)}
+      actions={owner ? <ModelPicker value={harnessModel} onChange={setHarnessModel} /> : undefined}
       banner={
         building ? (
           <span className="ws-banner-live">
@@ -243,7 +349,16 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
         ) : null
       }
       stage={(device: StageDevice) =>
-        liveUrl ? (
+        tab === "look" && view && canPaint ? (
+          <div className="ws-canvas-pad">
+            <LookPass
+              view={view}
+              busy={sending ? "look" : ""}
+              onPick={pickLook}
+              onSaveMockups={saveMockups}
+            />
+          </div>
+        ) : liveUrl ? (
           <iframe
             className="ws-site"
             src={liveUrl}
@@ -265,7 +380,7 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
         )
       }
       panel={
-        tab === "chat" ? (
+        tab === "chat" || tab === "look" ? (
           <div className="cr-list ws-chat">
             {(view?.notices ?? []).map((n) => (
               <article key={n.id} className="ws-msg notice">
@@ -293,6 +408,13 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
         ) : tab === "build" ? (
           <div className="cr-list ws-build">
             <PipelineRail facts={facts} compact />
+            {owner && health && (
+              <p className={`ws-note ${pcReady ? "faint" : "warn"}`}>
+                {pcReady
+                  ? "Your PC is connected — Claude Code runs these builds on it."
+                  : health.problem || "Your PC isn't connected, so a build can't start from here."}
+              </p>
+            )}
             {building ? (
               <BuildFeed live={live} number={view?.versions.find((v) => v.id === view.buildingVersionId)?.number ?? ""} since={new Date().toISOString()} owner={owner} />
             ) : (
@@ -356,32 +478,70 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
       panelFoot={
         tab === "build" && building ? (
           <BuildSteer live={live} />
-        ) : tab === "chat" ? (
+        ) : tab === "chat" || tab === "look" ? (
           <div className="ws-compose">
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void send();
+            <div className="ws-compose-box">
+              {/* `/` lists the owner's skills — the design skills among them —
+                  and writes the one picked into the edit as a sentence the
+                  build agent acts on. The same menu the old chat intake had. */}
+              <SlashSkills text={text} onPick={(skill) => setText(withSkill(text, skill))} />
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    void send();
+                  }
+                }}
+                rows={2}
+                maxLength={2000}
+                placeholder={
+                  owner
+                    ? "What should change? Press / for a skill. Sending paints it three ways first."
+                    : "What would you like changed?"
                 }
-              }}
-              rows={2}
-              maxLength={2000}
-              placeholder={owner ? "What should change? Sending it starts the build." : "What would you like changed?"}
-              aria-label="Ask for a change"
-              disabled={sending}
-            />
+                aria-label="Ask for a change"
+                disabled={sending}
+              />
+            </div>
             <div className="ws-compose-bar">
-              {note ? <span className="ws-note">{note}</span> : <span className="ws-note faint">{owner ? "Send & build" : "Jarvis reviews it first"}</span>}
+              {note ? (
+                <span className={`ws-note${blocker ? " warn" : ""}`}>{note}</span>
+              ) : (
+                <span className="ws-note faint">{owner ? "Send, pick a look, and it builds" : "Jarvis reviews it first"}</span>
+              )}
               <button className="ws-btn small" onClick={() => void send()} disabled={sending || !text.trim()}>
-                {sending ? "Sending…" : owner ? "Send & build" : "Send"}
+                {sending ? "Sending…" : "Send"}
               </button>
             </div>
-            {note.includes("PC") && owner && (
-              <button className="ws-btn ghost small" onClick={() => void connectToPc().then(() => setNote("Connected. Press Send & build again."))}>
+            {/* Said before the press, not only after a failed one. */}
+            {owner && health && !pcReady && !note && (
+              <p className="ws-note warn">{health.problem || "Your PC isn't connected, so a build can't start from here yet."}</p>
+            )}
+            {/* Named by the blocker the attempt actually came back with, or by
+                the helper being unreachable: a press that can fix it is
+                offered, and one that cannot is not pretended. */}
+            {owner && (blocker ? blockerAdvice(blocker).canConnect : Boolean(health) && !pcReady) && (
+              <button
+                className="ws-btn ghost small"
+                onClick={() =>
+                  void connectToPc().then((still) => {
+                    setBlocker(still);
+                    setNote(still ? blockerAdvice(still).text : "Connected to your PC. Press Send again.");
+                  })
+                }
+              >
                 Connect to my PC
+              </button>
+            )}
+            {owner && canPaint && (
+              <button
+                className="ws-btn ghost small"
+                disabled={sending}
+                onClick={() => void run(() => startBuild())}
+              >
+                Skip the mockups and build it as asked
               </button>
             )}
           </div>

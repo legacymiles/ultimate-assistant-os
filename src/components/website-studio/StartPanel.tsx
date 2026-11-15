@@ -19,6 +19,7 @@ import { ACCEPT, MAX_ITEMS, prepare, type PreparedMedia } from "@/lib/app-builde
 import { handRedesignToAppBuilder } from "@/lib/app-builder/fromRedesigner";
 import { normalizeSiteUrl } from "@/lib/app-builder/redesign";
 import { combine, studioSkills } from "@/lib/website-studio/skills";
+import { SlashSkills, withSkill } from "../new-jarvis/SlashSkills";
 import { SkillsMenu } from "./SkillsMenu";
 
 export type StartMode = "prompt" | "redesign";
@@ -99,19 +100,24 @@ export function StartPanel({ onPrompt, onRedesign, busy }: Props) {
       <div className="ws-slab" data-mode={mode}>
         {mode === "prompt" ? (
           <>
-            <textarea
-              ref={box}
-              className="ws-slab-input"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void go();
-              }}
-              rows={3}
-              placeholder="A booking site for a mobile dog groomer — online payments, client accounts, and a gallery of before-and-afters."
-              aria-label="What should this website be?"
-              disabled={working}
-            />
+            <div className="ws-slab-box">
+              {/* `/` is the skill menu, here as well as in the workspaces: the
+                  look can be named in the same breath as the idea. */}
+              <SlashSkills text={text} onPick={(skill) => setText(withSkill(text, skill))} />
+              <textarea
+                ref={box}
+                className="ws-slab-input"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void go();
+                }}
+                rows={3}
+                placeholder="A booking site for a mobile dog groomer — online payments, client accounts, and a gallery of before-and-afters. Press / for a skill."
+                aria-label="What should this website be?"
+                disabled={working}
+              />
+            </div>
             {media.length > 0 && (
               <ul className="ws-refs" aria-label="References">
                 {media.map((m) => (

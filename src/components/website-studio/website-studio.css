@@ -1236,6 +1236,16 @@
   display: grid;
   gap: 8px;
 }
+.ws-compose-box,
+.ws-slab-box {
+  position: relative;
+}
+.ws-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 .ws-compose textarea {
   width: 100%;
   resize: none;
@@ -1263,6 +1273,9 @@
   color: var(--ws-ink-2);
   line-height: 1.45;
   flex: 1;
+}
+.ws-note.warn {
+  color: #ffd2a8;
 }
 .ws-note.faint {
   color: var(--ws-ink-3);

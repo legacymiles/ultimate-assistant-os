@@ -51,7 +51,7 @@ export function SlashSkills({ text, onPick }: { text: string; onPick: (skill: Sk
   return (
     <div className="absolute bottom-full left-0 z-40 mb-2 w-[22rem] overflow-hidden rounded-lg border border-line bg-panel shadow-[0_18px_50px_rgba(0,0,0,0.5)]">
       <p className="border-b border-line-soft px-3 py-1.5 text-[10px] uppercase tracking-wider text-ink-faint">
-        Skills Â· {query ? `“${query}”` : "type to filter"}
+        Skills · {query ? `“${query}”` : "type to filter"}
       </p>
       {state === "loading" && <p className="px-3 py-2 text-[11px] text-ink-muted">Reading your skills…</p>}
       {state === "failed" && <p className="px-3 py-2 text-[11px] text-ink-muted">Your skills couldn't be read just now.</p>}
