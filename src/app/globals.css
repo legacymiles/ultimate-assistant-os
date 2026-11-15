@@ -2488,13 +2488,24 @@ video.dance-tile__player { object-fit: cover; }
    Personas Studio. Motion language: snappy and springy — things land with a
    small overshoot and settle; nothing loops except a breakout's slow pulse.
    Each persona carries its own hue in --ps-hue (set on its row / workspace).
+   The app is purple (owner's ask): the brand tokens and the glow colour are
+   re-pointed on .ps-app only, so every bg-brand / text-brand / ps-* glow in
+   this app turns purple while the rest of the hub (and PlayShelf, which shares
+   the .ps- prefix) keeps the indigo it had.
    --------------------------------------------------------------------------- */
+.ps-app {
+  --color-brand: #a855f7;
+  --color-brand-2: #7e22ce;
+  --color-brand-press: #6b21a8;
+  --ps-glow: 168 85 247;
+  --ps-hue: 276;
+}
 .ps-mark {
   width: 10px;
   height: 10px;
   border-radius: 3px;
   background: conic-gradient(from 200deg, #ff0050, #d62976, var(--color-brand), #00cae0, #ff0050);
-  box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 10px rgb(var(--ps-glow, 99 102 241) / 0.5);
 }
 .ps-band {
   background:
@@ -2512,7 +2523,7 @@ video.dance-tile__player { object-fit: cover; }
 }
 .ps-day.is-over {
   transform: translateY(-2px) scale(1.015);
-  box-shadow: 0 10px 30px -12px rgba(99, 102, 241, 0.65), inset 0 0 0 1px rgba(99, 102, 241, 0.6);
+  box-shadow: 0 10px 30px -12px rgb(var(--ps-glow, 99 102 241) / 0.65), inset 0 0 0 1px rgb(var(--ps-glow, 99 102 241) / 0.6);
   transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 220ms ease;
 }
 .ps-chip { transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1), border-color 150ms ease; }
@@ -2521,29 +2532,79 @@ video.dance-tile__player { object-fit: cover; }
 .ps-chip[draggable="true"] { cursor: grab; }
 .ps-chip.is-landed { animation: ps-land 620ms cubic-bezier(0.34, 1.56, 0.64, 1); }
 @keyframes ps-land {
-  0% { transform: translateY(-14px) scale(0.92); box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7); }
-  55% { transform: translateY(2px) scale(1.03); box-shadow: 0 0 0 8px rgba(99, 102, 241, 0); }
+  0% { transform: translateY(-14px) scale(0.92); box-shadow: 0 0 0 0 rgb(var(--ps-glow, 99 102 241) / 0.7); }
+  55% { transform: translateY(2px) scale(1.03); box-shadow: 0 0 0 8px rgb(var(--ps-glow, 99 102 241) / 0); }
   100% { transform: none; }
 }
 .ps-pulse { animation: ps-pulse 2.4s ease-in-out infinite; }
 @keyframes ps-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.45); }
-  50% { box-shadow: 0 0 0 5px rgba(99, 102, 241, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgb(var(--ps-glow, 99 102 241) / 0.45); }
+  50% { box-shadow: 0 0 0 5px rgb(var(--ps-glow, 99 102 241) / 0); }
 }
 .ps-sheet { animation: ps-rise 260ms cubic-bezier(0.22, 1, 0.36, 1); }
 @keyframes ps-rise {
   from { transform: translateY(12px); opacity: 0; }
   to { transform: none; opacity: 1; }
 }
-.ps-cta { box-shadow: 0 8px 24px -10px rgba(99, 102, 241, 0.8); }
+.ps-cta { box-shadow: 0 8px 24px -10px rgb(var(--ps-glow, 99 102 241) / 0.8); }
+
+/* The front door: one oversized centred headline standing on a field of
+   purple light. The light leans toward the pointer (--ps-x/--ps-y, set by
+   StudioHome) and a slow aurora drifts behind it; both still on reduced
+   motion, and the headline is plain legible text with the light switched off. */
+.ps-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--color-brand) 30%, transparent);
+  background:
+    radial-gradient(60% 120% at var(--ps-x, 50%) var(--ps-y, 10%), rgb(var(--ps-glow) / 0.42), transparent 62%),
+    radial-gradient(120% 100% at 88% 118%, rgb(126 34 206 / 0.45), transparent 60%),
+    linear-gradient(165deg, #150a26 0%, #0b0714 62%, #080510 100%);
+  box-shadow: 0 30px 80px -48px rgb(var(--ps-glow) / 0.8);
+  transition: box-shadow 300ms ease;
+}
+.ps-hero::before {
+  content: "";
+  position: absolute;
+  inset: -40% -10%;
+  z-index: -1;
+  background: conic-gradient(from 210deg at 50% 50%, transparent 0deg, rgb(var(--ps-glow) / 0.3) 70deg, transparent 150deg, rgb(217 70 239 / 0.22) 250deg, transparent 330deg);
+  filter: blur(34px);
+  animation: ps-aurora 26s linear infinite;
+}
+.ps-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(to right, rgb(var(--ps-glow) / 0.16) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(var(--ps-glow) / 0.16) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(70% 90% at 50% 100%, #000, transparent 72%);
+}
+@keyframes ps-aurora {
+  to { transform: rotate(1turn); }
+}
+.ps-hero-title {
+  font-size: clamp(2.3rem, 7.2vw, 4.6rem);
+  line-height: 0.94;
+  letter-spacing: -0.045em;
+  background: linear-gradient(180deg, #fff 18%, color-mix(in oklab, var(--color-brand) 70%, #fff) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 60px rgb(var(--ps-glow) / 0.35);
+}
 
 /* Message Inbox. A source chip glows in its platform colour (--src) when it
    has unread messages; a sent bubble springs in from the reply box; the AI
    draft types itself into the box. */
 .ps-src { transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms ease, border-color 150ms ease; }
 .ps-src:hover { transform: translateY(-1px); }
-.ps-src.has-unread { box-shadow: 0 0 0 1px color-mix(in oklab, var(--src, #6366f1) 55%, transparent), 0 6px 18px -8px var(--src, #6366f1); }
-.ps-src[aria-pressed="true"] { border-color: var(--src, var(--color-brand)); background: color-mix(in oklab, var(--src, #6366f1) 12%, var(--color-panel)); }
+.ps-src.has-unread { box-shadow: 0 0 0 1px color-mix(in oklab, var(--src, rgb(var(--ps-glow, 99 102 241))) 55%, transparent), 0 6px 18px -8px var(--src, rgb(var(--ps-glow, 99 102 241))); }
+.ps-src[aria-pressed="true"] { border-color: var(--src, var(--color-brand)); background: color-mix(in oklab, var(--src, rgb(var(--ps-glow, 99 102 241))) 12%, var(--color-panel)); }
 .ps-thread { box-shadow: inset 3px 0 0 transparent; transition: background-color 120ms ease, box-shadow 160ms ease; }
 .ps-thread.is-unread { box-shadow: inset 3px 0 0 hsl(var(--ps-hue, 240) 80% 62%); }
 .ps-thread[aria-current="true"] { background: color-mix(in oklab, hsl(var(--ps-hue, 240) 70% 55%) 12%, transparent); }
@@ -2558,5 +2619,5 @@ video.dance-tile__player { object-fit: cover; }
 
 @media (prefers-reduced-motion: reduce) {
   .ps-chip, .ps-day.is-over, .ps-src { transition: none; transform: none; }
-  .ps-chip.is-landed, .ps-pulse, .ps-sheet, .ps-bubble.is-new { animation: none; }
+  .ps-chip.is-landed, .ps-pulse, .ps-sheet, .ps-bubble.is-new, .ps-hero::before { animation: none; }
 }

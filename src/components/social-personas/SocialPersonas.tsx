@@ -296,7 +296,7 @@ export function PersonasStudio({ embedded = false }: { embedded?: boolean }) {
   };
 
   return (
-    <div className={"flex flex-col " + (embedded ? "h-full min-h-0" : "min-h-dvh bg-canvas")}>
+    <div className={"ps-app flex flex-col " + (embedded ? "h-full min-h-0" : "min-h-dvh bg-canvas")}>
       <div className="flex items-center gap-2 border-b border-line bg-panel px-3 py-2.5 sm:px-4">
         {!embedded && (
           <Link
