@@ -156,6 +156,11 @@ export type Finish =
   | { kind: "publish"; url: string; pr?: string; repo?: string }
   /** Built, but it printed no usable preview — say why, in its own words. */
   | { kind: "no-preview"; why: string; pr?: string }
+  /**
+   * A quick edit made the change and stopped BEFORE committing: the owner looks
+   * at it on a preview, then presses Ship it or says what else to change.
+   */
+  | { kind: "review"; what: string }
   | { kind: "failed"; why: string };
 
 export function finishOf(phase: BuildPhase, view: ThreadView): Finish {
@@ -180,6 +185,11 @@ export function finishOf(phase: BuildPhase, view: ThreadView): Finish {
   const text = view.turns.map((t) => t.text).join("\n");
   const { pr, preview } = buildLinks(text);
   if (preview) return { kind: "publish", url: preview, ...(pr ? { pr } : {}) };
+  // Its newest turn stopped on `READY:` — waiting for the owner, not finished.
+  const lastTurn = view.turns.at(-1)?.text ?? "";
+  if (/^\s*READY:\s*\S/im.test(lastTurn) && !/^\s*Preview:\s*none\b/im.test(lastTurn)) {
+    return { kind: "review", what: /^\s*READY:\s*(.+)$/im.exec(lastTurn)?.[1].trim() ?? "" };
+  }
   // A NEW app's brief asks for `Repo:`/`Live:` instead of `PR:`/`Preview:`.
   // Same finish, read through the other pair of names.
   const app = resultLinks(view);

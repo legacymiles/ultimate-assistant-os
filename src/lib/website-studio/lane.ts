@@ -64,8 +64,8 @@ export interface CheckItem {
 
 interface Step {
   text: string;
-  /** Has a tool that proves this step happened run (and not failed)? */
-  done: (tools: ToolRow[]) => boolean;
+  /** Has a tool that proves this step happened run (and not failed)? `said` is everything the agent wrote. */
+  done: (tools: ToolRow[], said: string) => boolean;
 }
 
 const ran = (tools: ToolRow[], re: RegExp) => tools.some((t) => t.status === "ok" && re.test(`${t.command}\n${t.title}`));
@@ -76,6 +76,9 @@ const QUICK: Step[] = [
   { text: "Find the code", done: (t) => wrote(t) || t.some((x) => x.kindOf === "read" && /\bsrc\//.test(x.path || x.title)) },
   { text: "Make the change", done: wrote },
   { text: "Check it compiles", done: (t) => ran(t, /\btsc\b/) },
+  // The quick lane stops here and shows the owner the change on a preview;
+  // nothing is committed until they press Ship it.
+  { text: "Ready for you to look", done: (_t, said) => READY.test(said) },
   { text: "Commit and push", done: (t) => ran(t, /\bgit\s+push\b/) },
   { text: "Merge to main", done: (t) => ran(t, /\bgh\s+pr\s+merge\b/) },
 ];
@@ -90,6 +93,18 @@ const FULL: Step[] = [
 ];
 
 const LIVE = "Live on the site";
+
+/** The line a quick edit stops on, before anything is committed. */
+export const READY = /^\s*READY:\s*\S/im;
+
+/** What it said it changed, from its newest `READY:` line. */
+export function readyLine(view: ThreadView): string {
+  for (let i = view.turns.length - 1; i >= 0; i--) {
+    const m = /^\s*READY:\s*(.+)$/im.exec(view.turns[i].text);
+    if (m) return m[1].trim();
+  }
+  return "";
+}
 
 function agentPlan(view: ThreadView): { text: string; status: string }[] {
   for (let i = view.turns.length - 1; i >= 0; i--) {
@@ -121,7 +136,8 @@ export function editChecklist(view: ThreadView, lane: Lane, opts: { live: boolea
     items = plan.map((p) => ({ text: p.text, state: stateOf(p.status) }));
   } else {
     const tools = view.turns.flatMap((t) => t.tools);
-    items = (lane === "quick" ? QUICK : FULL).map((s) => ({ text: s.text, state: s.done(tools) ? "done" : "todo" }));
+    const said = view.turns.map((t) => t.text).join("\n");
+    items = (lane === "quick" ? QUICK : FULL).map((s) => ({ text: s.text, state: s.done(tools, said) ? "done" : "todo" }));
     // A later step proves the earlier ones: a merge means it was pushed.
     const last = items.map((i) => i.state).lastIndexOf("done");
     items = items.map((it, i) => (i < last ? { ...it, state: "done" } : it));

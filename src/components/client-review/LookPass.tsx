@@ -23,7 +23,7 @@
 //   because the project carries `designSkill` across the hand-off.
 // ---------------------------------------------------------------------------
 
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { MockupBakeOff } from "@/components/mockup/MockupBakeOff";
 import { absoluteSiteUrl } from "@/lib/client-review/apps";
@@ -37,7 +37,14 @@ export function LookPass({
   busy,
   onPick,
   onSaveMockups,
+  onRedo,
 }: {
+  /**
+   * Owner only: none of the three is right. The note is added to the edit's
+   * wording, so the three are written and painted again from it — and the
+   * build reads the same note.
+   */
+  onRedo?: (note: string) => Promise<void> | void;
   view: PortalView;
   busy: string;
   onPick: (skill: string, pick?: EditPick) => void;
@@ -141,6 +148,45 @@ export function LookPass({
           Saving your choice…
         </p>
       )}
+      {owner && editing && onRedo && <RedoBox onRedo={onRedo} busy={busy === "look"} />}
     </div>
+  );
+}
+
+/** "None of these" — say what to change, and all three are made again from it. */
+function RedoBox({ onRedo, busy }: { onRedo: (note: string) => Promise<void> | void; busy: boolean }) {
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  return (
+    <form
+      className="cr-look-redo"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const note = text.trim();
+        if (!note || sending) return;
+        setSending(true);
+        try {
+          await onRedo(note);
+          setText("");
+        } finally {
+          setSending(false);
+        }
+      }}
+    >
+      <label htmlFor="cr-look-redo-in">Not quite? Tell it what to change and all three are made again.</label>
+      <div>
+        <input
+          id="cr-look-redo-in"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="e.g. a deeper purple, and keep the white cards"
+          maxLength={400}
+          disabled={busy || sending}
+        />
+        <button type="submit" className="cr-btn small" disabled={busy || sending || !text.trim()}>
+          {sending ? "Redoing…" : "Redo the mockups"}
+        </button>
+      </div>
+    </form>
   );
 }

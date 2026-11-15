@@ -222,7 +222,9 @@ export function BuildFeed({
         ? `${number} is built`
         : finish.kind === "no-preview"
           ? `${number} is built — no preview yet`
-          : finish.kind === "failed"
+          : finish.kind === "review"
+            ? "Ready for you to look — nothing committed yet"
+            : finish.kind === "failed"
             ? "The build stopped"
             : watching
               ? phaseLabel(build.phase, build.summary)

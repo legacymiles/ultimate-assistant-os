@@ -187,13 +187,18 @@ function quickHarnessBrief(p: BuilderProject): string {
     WHERE_YOU_ARE,
     [
       "<how_to_finish_here>",
-      "This session has no Jarvis connector and no queue: everything you have to say goes in your final message. Finish like this, without stopping to ask — you have full access for every step:",
+      "This session has no Jarvis connector and no queue: everything you have to say goes in your messages. You have full access for every step — never stop to ask. The owner looks at your change BEFORE it is committed, so work in two steps:",
+      "STEP 1 — THE CHANGE. Make it and run the typecheck. Do NOT commit, push or open a pull request. End your message with exactly one line, nothing after it:",
+      "READY: <what changed, in plain words, one line>",
+      "The owner now sees your change running on a preview on this PC.",
+      "Any next message from the owner that does not contain `<ship>` is more to change: make it, typecheck, and end with a new `READY:` line. If they say stop, don't commit, or throw it away, commit nothing and say so.",
+      "STEP 2 — SHIP IT, only when the owner's message contains `<ship>`:",
       `1. Commit with the subject "${subject}" and push your branch.`,
       `2. \`gh pr create --base main --title "<the same subject>" --body "<one line per edit>"\`, then straight away \`gh pr merge <number> --squash --delete-branch\`. Do not wait for checks or a preview. If the merge conflicts, fetch origin/main, merge it, resolve, push, and merge.`,
       "3. End your final message with exactly two lines, each on its own line and nothing after them:",
       "PR: <the pull request url>",
       `Preview: ${live || "<the live url of the page you changed>"}`,
-      "If the typecheck fails and you cannot fix it, do not merge: say what failed and end with `Preview: none`.",
+      "If the typecheck fails and you cannot fix it, do not commit: say what failed and end with `Preview: none`.",
       "</how_to_finish_here>",
     ].join("\n"),
   ].join("\n\n");
@@ -401,3 +406,10 @@ export async function startUndoBuild(review: ClientProject, plan: UndoPlan): Pro
   );
   return { threadId };
 }
+
+/**
+ * The owner looked at the change on the preview and pressed Ship it. Said into
+ * the same thread, so the agent that made the change is the one that ships it.
+ */
+export const SHIP_SAY =
+  "<ship>The owner looked at your change on the preview and says ship it. Do STEP 2 now: commit, push, open the pull request and merge it straight away, then end with the two lines `PR:` and `Preview:`.</ship>";

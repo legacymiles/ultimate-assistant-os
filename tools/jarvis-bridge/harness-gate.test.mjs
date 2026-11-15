@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { autoAllow, describeTool } from "./harness-gate.mjs";
+import { autoAllow, describeTool, pushIsGrave } from "./harness-gate.mjs";
 
 // The policy is the line between "a build runs" and "a build waits for a card
 // nobody is watching". These pin the two names that made it wait.
@@ -84,5 +84,35 @@ describe("a delete that could reach outside the worktree", () => {
 
   it("still asks in an ordinary chat thread", () => {
     expect(allowed("Bash", { command: "rm -rf .shots" }, { trust: "trusted" })).toBe(false);
+  });
+});
+
+describe("a build's own commit and push", () => {
+  // The exact line a quick edit ended on (Personas Studio, 15 Nov 2026). The
+  // commit's `-F -` was read as `push -f`, and the edit waited 17 minutes on
+  // "Allow once".
+  const chained = [
+    "cd C:/Users/honey/.jarvis-harness/worktrees/personas-studio-v2-client-edits-da584f && git add -A src/app/globals.css && git commit -q -F - <<'EOF' && git push -q -u origin HEAD && git log --oneline -1",
+    "Personas Studio: purple brand colours and a bold centred hero",
+    "",
+    "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>",
+    "EOF",
+  ].join("\n");
+
+  it("is not a force push", () => {
+    expect(pushIsGrave(chained)).toBe(false);
+  });
+
+  it("passes for a trusted build lane", () => {
+    const wt = "C:/Users/honey/.jarvis-harness/worktrees/personas-studio-v2-client-edits-da584f";
+    const d = describeTool("Bash", { command: chained }, wt);
+    expect(autoAllow(d, { trust: "trusted", laneWrites: true, project: wt })).toBe(true);
+  });
+
+  it("still stops a real force push or a push to main, chained or not", () => {
+    expect(pushIsGrave("git commit -q -F - && git push -f origin HEAD")).toBe(true);
+    expect(pushIsGrave("git add -A && git commit -m x && git push origin main")).toBe(true);
+    expect(pushIsGrave("git push --force-with-lease")).toBe(true);
+    expect(pushIsGrave("git push origin HEAD:main")).toBe(true);
   });
 });

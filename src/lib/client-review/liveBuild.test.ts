@@ -183,3 +183,18 @@ describe("blockerAdvice — the words, and whether a press can fix it", () => {
     }
   });
 });
+
+describe("a quick edit waiting for the owner to look", () => {
+  it("is review, not finished, when its newest turn stops on READY", () => {
+    const v = view([turn({ text: "Made the hero purple and checked the types.\n\nREADY: the hero and buttons are purple" })]);
+    expect(finishOf("done", v)).toEqual({ kind: "review", what: "the hero and buttons are purple" });
+  });
+
+  it("publishes once it shipped after the review", () => {
+    const v = view([
+      turn({ text: "READY: purple" }),
+      turn({ id: "t2", text: "Merged.\nPR: https://github.com/o/r/pull/32\nPreview: https://bighomieai.com/apps/personas-studio" }),
+    ]);
+    expect(finishOf("done", v)).toMatchObject({ kind: "publish", url: "https://bighomieai.com/apps/personas-studio" });
+  });
+});

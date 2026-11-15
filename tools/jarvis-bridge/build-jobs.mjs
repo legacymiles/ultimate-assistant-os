@@ -47,6 +47,14 @@ const MAX_TEXT = 8_000;
  */
 export const FINISH_LINE = /^\s*(?:Preview|Live|Repo|PR):\s*(?:https?:\/\/\S+|none)\s*$/im;
 
+/**
+ * A quick edit stops BEFORE it commits and says `READY: <what changed>`: the
+ * owner looks at the change on a preview, then says ship it or asks for more.
+ * The job is still live — it is waiting on a person, not finished — and a
+ * restart must bring it back to that same waiting point, never on to shipping.
+ */
+export const READY_LINE = /^\s*READY:\s*\S/im;
+
 /** A stopped build is never resumed, however it stopped. */
 const LIVE = new Set(["running"]);
 
@@ -275,6 +283,7 @@ export function createJobStore({ file = DEFAULT_JOBS_FILE, now = Date.now } = {}
         j.lastError = "";
         j.lastTurnEnded = false;
         j.claimed = false;
+        j.awaiting = false;
       } else if (row.kind === "text") {
         j.turnText = `${j.turnText || ""}${row.text || ""}`.slice(-40_000);
       } else if (row.kind === "error") {
@@ -288,6 +297,9 @@ export function createJobStore({ file = DEFAULT_JOBS_FILE, now = Date.now } = {}
           j.retry = RETRYABLE.test(why);
           j.status = j.retry ? "running" : "failed";
           j.why = why;
+        } else if (!FINISH_LINE.test(j.turnText || "") && READY_LINE.test(j.turnText || "")) {
+          j.awaiting = true;
+          j.why = "Waiting for the owner to look at the change.";
         } else if (FINISH_LINE.test(j.turnText || "")) {
           if (j.verify) {
             // It SAYS it is finished. harness.mjs sees this and runs the gate;
@@ -364,6 +376,19 @@ export const buildJobs = createJobStore();
 export function resumePrompt(job) {
   const brief = String(job?.brief || "").trim();
   const wasMidTurn = !job?.lastTurnEnded;
+  if (job?.awaiting && !wasMidTurn) {
+    return [
+      "<resuming>",
+      "The PC's Jarvis helper restarted while this edit was waiting for the owner to look at it. You are the same build, continued.",
+      "The change is already made in this folder and has NOT been committed. Do not commit, push or open a pull request — the owner has not said ship it yet.",
+      "Run `git diff --stat` to confirm the change is still there, then end your message with the same `READY:` line as before. Wait for the owner.",
+      "</resuming>",
+      "",
+      "<the_job>",
+      brief,
+      "</the_job>",
+    ].join("\n");
+  }
   return [
     "<resuming>",
     wasMidTurn

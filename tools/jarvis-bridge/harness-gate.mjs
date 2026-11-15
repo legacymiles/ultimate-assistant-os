@@ -234,8 +234,20 @@ function previewPatch(name, input, cwd) {
  *   - deleting a remote branch
  */
 export function pushIsGrave(command) {
+  // Judge the `git push` itself, not the whole line. A build ends on one
+  // chained command — `git add … && git commit -q -F - <<'EOF' … && git push
+  // -u origin HEAD` — and reading all of it as the push made commit's `-F`
+  // (message from stdin) look like `push -f`: a quick edit sat on "Allow once"
+  // for 17 minutes because of it (Personas Studio, 15 Nov 2026).
   const c = String(command ?? "");
-  if (/--force\b|--force-with-lease\b|(^|\s)-f(\s|$)/i.test(c)) return true;
+  const pushes = c.split(/&&|\|\||[;|\n]/).filter((s) => /\bgit\s+push\b/i.test(s));
+  return (pushes.length ? pushes : [c]).some(pushSegmentIsGrave);
+}
+
+function pushSegmentIsGrave(segment) {
+  const c = segment.trim();
+  // `-f` is case-sensitive in git: `-F` is not a push flag at all.
+  if (/--force\b|--force-with-lease\b/i.test(c) || /(^|\s)-f(\s|$)/.test(c)) return true;
   if (/--delete\b|--prune\b/i.test(c)) return true;
   // `+refs/heads/x:refs/heads/y` is a force push wearing a different hat.
   if (/\s\+[^\s:]+:/.test(c)) return true;

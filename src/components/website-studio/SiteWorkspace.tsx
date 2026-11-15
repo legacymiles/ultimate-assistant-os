@@ -27,10 +27,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { admin, portal, ApiError } from "@/lib/client-review/client";
 import { approveAndStart, connectToPc, undoTo } from "@/lib/client-review/buildHere";
+import { SHIP_SAY } from "@/lib/client-review/autoBuild";
 import { blockerAdvice, type Blocker } from "@/lib/client-review/liveBuild";
 import type { EditLaneId, EditPick } from "@/lib/mockup/edit";
 import type { ClientProject, PortalView } from "@/lib/client-review/types";
-import { call, probe, type BridgeHealth } from "@/lib/new-jarvis/bridge";
+import { BridgeError, call, probe, type BridgeHealth } from "@/lib/new-jarvis/bridge";
 import { useChatModel } from "@/lib/new-jarvis/useChatModel";
 import type { WorkSummary } from "@/lib/new-jarvis/harness/types";
 import { canPaintEdit, needsLookPass } from "@/lib/website-studio/edits";
@@ -38,13 +39,12 @@ import { editChecklist, laneFor, laneOf, wantsFactory } from "@/lib/website-stud
 import { shotFor, undoPlan } from "@/lib/website-studio/undo";
 import { coerceIdeas, decide, foldIdeas, type EditIdea } from "@/lib/website-studio/ideas";
 import { FACTORY_DONE, factoryBrief, type StageFacts } from "@/lib/website-studio/pipeline";
-import { BuildFeed, BuildSteer, useLiveBuild } from "../client-review/LiveBuild";
+import { BuildFeed, useLiveBuild } from "../client-review/LiveBuild";
 import { LookPass } from "../client-review/LookPass";
 import { ModelPicker } from "../new-jarvis/ModelPicker";
 import { DesignSlash } from "./DesignSlash";
 import { EditChecklist } from "./EditChecklist";
 import { EditIdeas } from "./EditIdeas";
-import { PipelineRail } from "./PipelineRail";
 import { ShipPanel } from "./ShipPanel";
 import { WorkShell, type StageDevice, type WorkTab } from "./WorkShell";
 import "../client-review/client-review.css";
@@ -57,7 +57,10 @@ interface Props {
   onChanged?: () => void;
 }
 
-type Tab = "chat" | "look" | "build" | "changes" | "versions" | "ship";
+type Tab = "chat" | "look" | "changes" | "versions" | "ship";
+
+/** Where the PC serves a quick edit for the owner to look at before it is committed. */
+const PREVIEW_PORT = 3290;
 
 export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
   const { model: harnessModel, setModel: setHarnessModel } = useChatModel();
@@ -327,6 +330,30 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
     [ideas, view, building, load],
   );
 
+  /**
+   * None of the three mockups is right: the owner's note goes into the edit's
+   * wording (their reword), so the three are written and painted again from
+   * it, and the build reads the same words.
+   */
+  const redoMockups = useCallback(
+    async (note: string) => {
+      if (!view) return;
+      const waiting = view.requests.filter((r) => r.status === "sent" || r.status === "approved").at(-1);
+      if (!waiting) return;
+      const base = waiting.adminText || waiting.text;
+      const next = `${base}\n${note}`;
+      try {
+        await admin.act({ action: "review", id: view.projectId, requestId: waiting.id, adminText: next });
+        // Accepted ideas are folded on top of the edit's words: keep the note in them.
+        setIdeas((cur) => (cur?.requestId === waiting.id ? { ...cur, text: `${cur.text}\n${note}` } : cur));
+        await load();
+      } catch (e) {
+        setNote(e instanceof Error ? e.message : "That note didn't save.");
+      }
+    },
+    [view, load],
+  );
+
   /** The build already started: the accepted ideas go in as one more edit. */
   const sendIdeasLate = useCallback(async () => {
     if (!ideas || !askVersionId) return;
@@ -352,6 +379,24 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
     setSending(true);
     setNote("");
     setBlocker(null);
+    // While a build runs, the owner is talking to the agent doing it: "stop",
+    // "don't commit", "make it darker" go straight into that thread.
+    if (owner && building && live.watching) {
+      try {
+        await live.build.say(body);
+        setText("");
+        setNote(
+          live.finish.kind === "review"
+            ? "Sent — Claude is changing it. The preview updates when it's done."
+            : "Sent to Claude — it reads it at its next step.",
+        );
+      } catch (e) {
+        setNote(e instanceof Error ? e.message : String(e));
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
     if (!askVersionId) {
       setNote("There is no version to ask against yet — the first one has to be built first.");
       setSending(false);
@@ -381,7 +426,7 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
     } finally {
       setSending(false);
     }
-  }, [text, sending, view, token, owner, liveUrl, building, askVersionId, startBuild, loadIdeas]);
+  }, [text, sending, view, token, owner, liveUrl, building, askVersionId, startBuild, loadIdeas, live.watching, live.build, live.finish.kind]);
 
   /** Anything that runs a build from a press: one place for busy and the note. */
   const run = useCallback(
@@ -506,6 +551,67 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
     [live.watching, live.build.view, live.finish.kind, buildLane, building],
   );
   const checklistTitle = buildLane === "quick" ? "Quick edit" : "Full build";
+  const buildingVersion = view?.versions.find((v) => v.id === view.buildingVersionId);
+  const buildingNumber = buildingVersion?.number ?? "";
+  const buildingSince = buildingVersion?.createdAt ?? "";
+
+  // ----- review before commit: the change, running on the PC ------------------------
+  //
+  // A quick edit stops on `READY:` with nothing committed. The PC serves that
+  // worktree (`harness/preview`, a dev server of the build's own folder) and
+  // the canvas shows it beside the chat at once — seconds after the change is
+  // made, instead of minutes after a deploy. Ship it says <ship> into the same
+  // thread; anything typed instead is more to change.
+  const reviewing = owner && building && live.finish.kind === "review";
+  const [preview, setPreview] = useState<{ threadId: string; url: string; error?: string } | null>(null);
+  const [shipping, setShipping] = useState(false);
+  const appPath = project?.appPath ?? "";
+  useEffect(() => {
+    if (!reviewing || !threadId || preview?.threadId === threadId) return;
+    let cancelled = false;
+    void (async () => {
+      for (let i = 0; i < 4; i++) {
+        try {
+          const res = await call<{ url: string }>("harness/preview", { id: threadId, port: PREVIEW_PORT + i });
+          if (!cancelled) setPreview({ threadId, url: `${res.url}${appPath}` });
+          return;
+        } catch (e) {
+          // The port is taken by something else: the next one along.
+          if (e instanceof BridgeError && e.status === 409 && i < 3) continue;
+          if (!cancelled) setPreview({ threadId, url: "", error: e instanceof Error ? e.message : "it didn't answer" });
+          return;
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reviewing, threadId, preview?.threadId, appPath]);
+
+  // Once it is live (or thrown away) the PC's preview server is let go.
+  useEffect(() => {
+    if (!preview || building) return;
+    void call("harness/preview/stop", { id: preview.threadId }).catch(() => {});
+    setPreview(null);
+  }, [building, preview]);
+
+  const shipIt = useCallback(async () => {
+    setShipping(true);
+    try {
+      await live.build.say(SHIP_SAY);
+      setNote("Shipping — commit, merge, and live in about 3 minutes. The preview stays up until then.");
+    } finally {
+      setShipping(false);
+    }
+  }, [live.build]);
+
+  const throwAway = useCallback(async () => {
+    if (!window.confirm("Throw this change away? Nothing was committed, so the live site stays as it is.")) return;
+    if (preview) await call("harness/preview/stop", { id: preview.threadId }).catch(() => {});
+    setPreview(null);
+    await live.stop();
+    setNote("Thrown away. Your request is back to waiting — Send to try again.");
+  }, [live, preview]);
 
   /** Answering, and holding a token this browser has. */
   const pcReady = Boolean(health?.up && health?.paired);
@@ -515,7 +621,6 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
   const tabs: WorkTab[] = [
     { id: "chat", label: "Chat", count: waiting },
     ...(canPaint ? [{ id: "look", label: "Look" }] : []),
-    { id: "build", label: "Build", live: building },
     ...(owner ? [{ id: "changes", label: "Changes", count: changed }] : []),
     { id: "versions", label: "Versions", count: view?.versions.length ?? 0 },
     ...(owner && project ? [{ id: "ship", label: "Ship" }] : []),
@@ -560,6 +665,22 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
               busy={sending ? "look" : ""}
               onPick={pickLook}
               onSaveMockups={saveMockups}
+              onRedo={owner ? redoMockups : undefined}
+            />
+          </div>
+        ) : preview?.url && building ? (
+          // The change, running on the PC — not live, nothing committed.
+          <div className="ws-preview-wrap">
+            <span className="ws-preview-tag">
+              <span className="ws-pip" aria-hidden /> Your change, running on your PC — not live yet
+            </span>
+            <iframe
+              key={preview.url}
+              className="ws-site"
+              src={preview.url}
+              title={`${view?.name ?? "The website"} — preview of the change`}
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+              style={device === "phone" ? { width: 390 } : undefined}
             />
           </div>
         ) : liveUrl ? (
@@ -621,28 +742,41 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
                 onSendLate={() => void sendIdeasLate()}
               />
             )}
+            {/* The build lives in the chat, not on a tab of its own (owner,
+                15 Nov 2026): the checklist, then the one live line —
+                "Writing the code · …", "Deep diving for 40s …" — and, when a
+                quick edit stops before committing, the review card. */}
             {owner && building && checklist.length > 0 && <EditChecklist items={checklist} title={checklistTitle} compact />}
-          </div>
-        ) : tab === "build" ? (
-          <div className="cr-list ws-build">
-            {checklist.length > 0 ? <EditChecklist items={checklist} title={checklistTitle} /> : <PipelineRail facts={facts} compact />}
-            {owner && health && (
-              <p className={`ws-note ${pcReady ? "faint" : "warn"}`}>
-                {pcReady
-                  ? "Your PC is connected — Claude Code runs these builds on it."
-                  : health.problem || "Your PC isn't connected, so a build can't start from here."}
-              </p>
+            {owner && reviewing && (
+              <section className="ws-review" aria-labelledby="ws-review-h">
+                <h3 id="ws-review-h">Ready for you to look</h3>
+                {live.finish.kind === "review" && live.finish.what && <p>{live.finish.what}</p>}
+                <p className="ws-hint">
+                  {preview?.error
+                    ? `The preview didn't start: ${preview.error}`
+                    : preview?.url
+                      ? "That's the change running on your PC, beside this chat. Nothing is committed yet."
+                      : "Starting a preview of the change on your PC…"}
+                </p>
+                <div className="ws-review-acts">
+                  <button className="ws-btn small" disabled={shipping} onClick={() => void shipIt()}>
+                    {shipping ? "Shipping…" : "Ship it"}
+                  </button>
+                  <button className="ws-btn ghost small" disabled={live.stopping} onClick={() => void throwAway()}>
+                    {live.stopping ? "Throwing away…" : "Throw it away"}
+                  </button>
+                </div>
+                <p className="ws-hint">Or type what else to change below — it adjusts the same change and shows you again.</p>
+              </section>
             )}
             {building ? (
-              <BuildFeed live={live} number={view?.versions.find((v) => v.id === view.buildingVersionId)?.number ?? ""} since={new Date().toISOString()} owner={owner} />
+              <ul className="ws-feed">
+                <BuildFeed live={live} number={buildingNumber} since={buildingSince} owner={owner} />
+              </ul>
             ) : (
-              <p className="ws-hint">
-                {factoryDone
-                  ? "Everything is merged and live."
-                  : facts.live
-                    ? "Live. Ask for a change in Chat and the next version starts from here."
-                    : "Nothing is building right now."}
-              </p>
+              owner &&
+              health &&
+              !pcReady && <p className="ws-note warn">{health.problem || "Your PC isn't connected, so a build can't start from here."}</p>
             )}
           </div>
         ) : tab === "changes" ? (
@@ -719,9 +853,7 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
         )
       }
       panelFoot={
-        tab === "build" && building ? (
-          <BuildSteer live={live} />
-        ) : tab === "chat" || tab === "look" ? (
+        tab === "chat" || tab === "look" ? (
           <div className="ws-compose">
             <div className="ws-compose-box">
               {/* `/` lists the owner's website design skills — the design
@@ -740,9 +872,13 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
                 rows={2}
                 maxLength={2000}
                 placeholder={
-                  owner
-                    ? "What should change? Press / for a skill. Sending paints it three ways first."
-                    : "What would you like changed?"
+                  owner && building && live.watching
+                    ? live.finish.kind === "review"
+                      ? "Tell Claude what else to change — or press Ship it"
+                      : "Tell Claude something while it works — “stop”, “don't commit”, “make it darker”"
+                    : owner
+                      ? "What should change? Press / for a skill. Sending paints it three ways first."
+                      : "What would you like changed?"
                 }
                 aria-label="Ask for a change"
                 disabled={sending}
@@ -765,7 +901,7 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
                 <span className="ws-note faint">{owner ? "Send, pick a look, and it builds" : "Jarvis reviews it first"}</span>
               )}
               <button className="ws-btn small" onClick={() => void send()} disabled={sending || !text.trim()}>
-                {sending ? "Sending…" : "Send"}
+                {sending ? "Sending…" : owner && building && live.watching ? "Send to Claude" : "Send"}
               </button>
             </div>
             {/* Said before the press, not only after a failed one. */}

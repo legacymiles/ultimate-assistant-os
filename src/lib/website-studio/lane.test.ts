@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EMPTY_THREAD, type ThreadView, type ToolRow, type Turn } from "@/lib/new-jarvis/harness/types";
-import { editChecklist, laneFor, laneOf, wantsFactory } from "./lane";
+import { editChecklist, laneFor, laneOf, readyLine, wantsFactory } from "./lane";
 
 const tool = (over: Partial<ToolRow>): ToolRow => ({
   callId: Math.random().toString(36),
@@ -62,7 +62,7 @@ describe("the checklist the owner watches", () => {
       "quick",
       { live: false, running: true },
     );
-    expect(items.map((i) => i.state)).toEqual(["done", "done", "done", "done", "now", "todo", "todo"]);
+    expect(items.map((i) => i.state)).toEqual(["done", "done", "done", "done", "now", "todo", "todo", "todo"]);
     expect(items.at(-1)?.text).toBe("Live on the site");
   });
 
@@ -96,5 +96,22 @@ describe("the checklist the owner watches", () => {
   it("is all ticked once the version is live", () => {
     const items = editChecklist(view(turn([])), "quick", { live: true, running: false });
     expect(items.every((i) => i.state === "done")).toBe(true);
+  });
+});
+
+describe("the stop before commit", () => {
+  it("ticks Ready for you to look when the edit stopped on READY, and nothing after it", () => {
+    const t = {
+      ...turn([
+        tool({ kindOf: "write", path: "src/app/globals.css", title: "Edit globals.css" }),
+        tool({ kindOf: "run", command: "npx tsc -p tsconfig.json --noEmit", title: "Bash" }),
+      ]),
+      text: "Done.\nREADY: the app is purple",
+    };
+    const items = editChecklist(view(t), "quick", { live: false, running: false });
+    const by = Object.fromEntries(items.map((i) => [i.text, i.state]));
+    expect(by["Ready for you to look"]).toBe("done");
+    expect(by["Commit and push"]).toBe("todo");
+    expect(readyLine(view(t))).toBe("the app is purple");
   });
 });

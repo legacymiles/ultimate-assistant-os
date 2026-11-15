@@ -95,23 +95,36 @@ the bottom.
   Client Review's owner box and the Redesigner bake-off use the same menu.
 - **Quick edits** — an edit to a live site takes the quick lane by default
   (`src/lib/website-studio/lane.ts`, brief `quickEditPrompt` + `autoBuild.ts`): find the code,
-  change it, typecheck, merge — no skills pipeline, no full test suite or build, no waiting on CI or
-  a preview, no PC re-check, and no Software Factory afterwards. "Make it blue" took 24 minutes on
-  the full road. CI's full gate still runs on main after the merge and Vercel never promotes a
-  failed build.
+  change it, typecheck — no skills pipeline, no full test suite or build, no waiting on CI, no PC
+  re-check, and no Software Factory afterwards. "Make it blue" took 24 minutes on the full road.
+  CI's full gate still runs on main after the merge and Vercel never promotes a failed build.
+- **Look before it is committed** (owner, 15 Nov 2026) — a quick edit stops with nothing committed
+  and says `READY: <what changed>`. The PC serves that build's own folder (`harness/preview`, from
+  port 3290) and the canvas shows the change running there at once, tagged "not live yet", with a
+  **Ready for you to look** card in the chat: **Ship it** says `<ship>` into the same thread (commit,
+  pull request, merge, live in about 3 minutes), **Throw it away** stops it with nothing committed,
+  and anything typed instead is more to change — it adjusts and shows it again. While any build
+  runs, the chat box talks to the agent doing it ("stop", "don't commit", "make it darker"). A PC
+  restart brings a waiting edit back to the same `READY:` point, never on to shipping
+  (`build-jobs.mjs` `awaiting`).
+- **Where the time went** — the purple Personas Studio edit made its change in about 2 minutes,
+  then sat 17m 43s on an "Allow once" card: the gate read the chained `git commit -F - … && git
+  push` as a force push (`-F` matched a case-insensitive `-f`). `pushIsGrave` now judges only the
+  push itself, with `-f` case-sensitive.
 - **Software Factory switch** — in the side panel of a live site, off by default ("off for
   edits"), remembered per site on this device. On puts the next edit on the full road and sends
   Software Factory after it is live; a new website's first build gets it as before.
-- **A checklist of what Claude is doing** — in the side panel while an edit builds, and on the
-  Build tab: Claude's own task list (the PC helper relays TodoWrite / TaskCreate as `plan` events,
+- **A checklist of what Claude is doing** — in the chat while an edit builds, above the one live
+  line ("Writing the code · …", "Deep diving for 40s …"): Claude's own task list (the PC helper relays TodoWrite / TaskCreate as `plan` events,
   `tools/jarvis-bridge/harness-plan.mjs`), otherwise the lane's own steps ticked off from the tools
   it ran, ending with "Live on the site".
 - **Is the PC there** — the helper is probed on open and every 20s, and the answer is on screen
   BEFORE Send is pressed, with the one button that can fix it. A build that cannot start says so
   in the owner's language instead of looking like nothing happened.
-- On a live site: **Chat** (the client's requests and notices; the owner's Send is Send & build),
-  **Build** (the pipeline rail and the harness narration), **Changes** (`harness/diff` — the files
-  being changed, with the diff), **Versions** (the history, and Mark ready for the client).
+- On a live site: **Chat** (the client's requests and notices, and — owner, 15 Nov 2026 — the
+  build itself: checklist, live line, review card; there is no separate Build tab), **Changes**
+  (`harness/diff` — the files being changed, with the diff), **Versions** (pictures, Undo, Mark
+  ready), **Ship**.
 - On a draft: **Chat**, **Features** (Felix's questions, then the feature table), **Pages**,
   **Build**. The panel follows the work — there is one thing to do at a time and it opens on it.
 
@@ -139,6 +152,13 @@ project and is what starts the build — carried into the brief by `pickedMockup
 are saved to the link so the client sees the same three. `Skip the mockups and build it as asked`
 is one press away, and a site with no address yet skips straight to the build, because there is
 nothing to paint onto. The rule lives in `src/lib/website-studio/edits.ts`, not in the screen.
+The picture drawer on the PC is started by the page itself when it is off (through the Jarvis
+helper — `wakeDrawer` in `useMockupPictures.ts`; WanGP is called directly, Pinokio need not be
+open), the page is photographed again once it answers, and each card shows what is happening while
+it paints — "Generating mockup 2 of 3", a clock, a paint sweep, a light that follows the pointer. An
+edit once sat on an empty board because the drawer was off. **Not quite?** under the three takes a
+note ("a deeper purple, keep the white cards"): it is added to the edit's wording, so all three are
+written and painted again from it and the build reads the same words.
 
 **Ship first.** The approved routes go into the build brief as a specification, never as pictures.
 The first working site goes live after a fast security check; the Studio then says the after-live
@@ -166,6 +186,7 @@ scan. Sent once — the thread itself is the record, so a second device cannot s
   Builder, and `?classic=1` always does. The Flux edit board link the `website-edit-mockups` skill
   hands out (`?section=redesign&v=edit…`) never redirects. All three old apps are in `MERGED_INTO`
   (pointing here), which takes their tiles away — it must not take their routes away.
+- Nothing from a quick edit is committed until the owner presses Ship it (or types `<ship>`).
 - A quick edit never stops to ask: a build lane deleting its own scratch files inside its worktree
   and Claude's `Monitor` tool pass the PC helper's gate (`harness-gate.mjs`); a delete that could
   reach outside it — `..`, absolute paths, `node_modules` (a junction into the main checkout),

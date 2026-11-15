@@ -243,3 +243,29 @@ describe("a build that is checked before it is called built", () => {
     expect(createJobStore({ file }).resumable()).toEqual([]);
   });
 });
+
+describe("a quick edit waiting for the owner to look", () => {
+  it("stays live, remembers it is waiting, and a restart brings it back to READY — never to shipping", () => {
+    const { s } = store();
+    s.begin(job());
+    s.arm("t_1");
+    turn(s, "t_1", "Changed the background.\n\nREADY: the background is blue on every screen");
+    const j = s.get("t_1");
+    expect(j.status).toBe("running");
+    expect(j.awaiting).toBe(true);
+    const said = resumePrompt(j);
+    expect(said).toContain("has NOT been committed");
+    expect(said).toContain("READY:");
+    expect(said).not.toContain("Finish the job");
+  });
+
+  it("is done once the owner said ship it and it printed its finish lines", () => {
+    const { s } = store();
+    s.begin(job());
+    s.arm("t_1");
+    turn(s, "t_1", "READY: blue");
+    turn(s, "t_1", "Merged.\n\nPR: https://github.com/x/y/pull/2\nPreview: https://bighomieai.com/apps/x");
+    expect(s.get("t_1").status).toBe("done");
+    expect(s.get("t_1").awaiting).toBe(false);
+  });
+});

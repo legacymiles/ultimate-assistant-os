@@ -150,6 +150,8 @@ export function MockupBakeOff({
 
   // ----- the page as it is now (edit mode) ---------------------------------
   const [before, setBefore] = useState<Before | null>(null);
+  /** Bumped to photograph the page again — when the drawer comes up after the board opened. */
+  const [shotTry, setShotTry] = useState(0);
   const refUrl = reference?.url?.trim() || "";
   const refImage = reference?.image || "";
   useEffect(() => {
@@ -172,7 +174,7 @@ export function MockupBakeOff({
     return () => {
       alive = false;
     };
-  }, [editing, refUrl, refImage, device, wantPictures]);
+  }, [editing, refUrl, refImage, device, wantPictures, shotTry]);
 
   const directions = useMemo(() => directionsFor(recommended), [recommended]);
   const baseSkill = directions[0]?.skill ?? "interactive-web-studio";
@@ -327,6 +329,12 @@ export function MockupBakeOff({
   }, [lanes, tweaks, seen, device, spec.name, facts]);
 
   const { pc, pictures, redraw } = useMockupPictures(jobs, device, wantPictures);
+  // The drawer was off (or still starting) when the page was photographed, so
+  // there was nothing to paint onto. It is up now: photograph it again.
+  const beforeNone = before?.state === "none";
+  useEffect(() => {
+    if ((pc === "direct" || pc === "server") && beforeNone && refUrl && wantPictures) setShotTry((n) => n + 1);
+  }, [pc, beforeNone, refUrl, wantPictures]);
 
   useEffect(() => {
     setSeen((had) => {
@@ -533,8 +541,16 @@ export function MockupBakeOff({
                 </div>
               ) : editing ? (
                 <div className="mk-frame-wrap">
-                  <EditPlaceholder shot={shot} device={device} instruction={lane.instruction ?? ""} />
-                  {wantPictures && <PaintingBadge pic={pictures[lane.id]} />}
+                  <EditPlaceholder
+                    shot={shot}
+                    device={device}
+                    instruction={lane.instruction ?? ""}
+                    pic={wantPictures ? pictures[lane.id] : undefined}
+                    pc={wantPictures ? pc : "off"}
+                    order={shown.indexOf(lane) + 1}
+                    total={shown.length}
+                    taking={before?.state === "taking"}
+                  />
                 </div>
               ) : (
                 <div className="mk-frame-wrap">
@@ -631,12 +647,86 @@ function BeforeStrip({ edit, before, url, device }: { edit: string; before: Befo
 }
 
 /** An edit lane before Flux has painted it: the page as it is, dimmed, with the reading on top. */
-function EditPlaceholder({ shot, device, instruction }: { shot: string; device: Device; instruction: string }) {
+/**
+ * A lane while its mockup is being made: the page as it is now, a paint sweep
+ * moving across it, a light that follows the pointer, and words that say
+ * exactly what is happening — the owner should never stare at an empty card
+ * wondering whether anything is happening (15 Nov 2026).
+ */
+function EditPlaceholder({
+  shot,
+  device,
+  instruction,
+  pic,
+  pc,
+  order,
+  total,
+  taking,
+}: {
+  shot: string;
+  device: Device;
+  instruction: string;
+  pic?: PictureState;
+  pc: PcState;
+  order: number;
+  total: number;
+  taking: boolean;
+}) {
+  const drawing = pic?.status === "drawing";
+  const [since, setSince] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (drawing) setSince(Date.now());
+  }, [drawing]);
+  useEffect(() => {
+    if (!drawing) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [drawing]);
+  const secs = drawing && since ? Math.max(0, Math.round((now - since) / 1000)) : 0;
+  const clock = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+  const failed = pic?.status === "failed" && pic.error !== "off";
+  const busy = !failed && pc !== "off";
+  const title = failed
+    ? "This one didn't paint"
+    : pc === "off"
+      ? "Mockups need your PC"
+      : `Generating mockup ${order} of ${total}`;
+  const line = failed
+    ? pic?.error || "Flux didn't draw this one. Press Redraw, or tell it what to change."
+    : pc === "off"
+      ? "Your PC's picture drawer isn't reachable, so Flux can't paint yet. Open this on the PC with Jarvis running."
+      : pc === "checking"
+        ? "Looking for Flux 2 on your PC…"
+        : pc === "starting"
+          ? "Starting the picture drawer on your PC — the first picture takes a few minutes while Flux warms up."
+          : taking
+            ? "Photographing your live page so Flux paints onto the real thing…"
+            : drawing
+              ? `Painting with Flux 2 on your PC · ${clock}`
+              : order > 1
+                ? "Next in line — Flux paints them one at a time."
+                : "Getting ready to paint…";
   return (
-    <div className={`mk-pic mk-pic-wait is-${device}`}>
+    <div
+      className={`mk-pic mk-pic-wait mk-gen is-${device}${busy ? " is-busy" : ""}${drawing ? " is-drawing" : ""}`}
+      role="status"
+      aria-live="polite"
+      onPointerMove={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        e.currentTarget.style.setProperty("--mx", `${((e.clientX - r.left) / r.width) * 100}%`);
+        e.currentTarget.style.setProperty("--my", `${((e.clientY - r.top) / r.height) * 100}%`);
+      }}
+    >
       {/* eslint-disable-next-line @next/next/no-img-element -- the before picture, dimmed behind the words */}
       {shot && <img src={shot} alt="" aria-hidden />}
-      <p className="mk-pic-wait-t">{instruction}</p>
+      {busy && <span className="mk-gen-sweep" aria-hidden />}
+      <span className="mk-gen-light" aria-hidden />
+      <div className="mk-gen-copy">
+        <b>{title}</b>
+        <span>{line}</span>
+        {instruction && <em>{instruction}</em>}
+      </div>
     </div>
   );
 }
@@ -712,6 +802,8 @@ function PcLine({
   const left = Object.values(pictures).filter((p) => p.status === "drawing" || p.status === "waiting").length;
   let text: string;
   if (pc === "checking") text = "Looking for Flux 2 on your PC…";
+  else if (pc === "starting")
+    text = "Mockups are being generated — starting the picture drawer on your PC first. The first one takes a few minutes while Flux warms up.";
   else if (pc === "off")
     text = any
       ? "Showing Flux 2 renders saved earlier. Your PC's drawer is off, so new ones wait until it's back."
@@ -723,7 +815,7 @@ function PcLine({
   else if (noShot && !any)
     text = "Couldn't photograph the live page, so there's nothing to paint onto yet. Check the address opens, then switch Desktop/Phone to try again.";
   else if (left)
-    text = `Painting with Flux 2 on your PC, one at a time, each one appearing as it lands — 1–3 minutes each on this laptop (faster with other apps closed). ${left} to go.`;
+    text = `Mockups are being generated — Flux 2 paints them on your PC one at a time, each appearing as it lands (1–3 minutes each). ${left} to go.`;
   else
     text = editing
       ? "Painted onto your live page with Flux 2 — free. Tweak any one, or pick it."

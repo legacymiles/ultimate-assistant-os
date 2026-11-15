@@ -38,7 +38,41 @@ const BUSY_WAIT_MS = 4000;
 // command may be painting a board of three: wait up to ~16 minutes.
 const BUSY_TRIES = 240;
 
-export type PcState = "checking" | "direct" | "server" | "off";
+export type PcState = "checking" | "starting" | "direct" | "server" | "off";
+
+/** How long a woken drawer gets to answer before the board says it is off. */
+const WAKE_MS = 90_000;
+
+/**
+ * Start the drawer on the owner's PC through the Jarvis helper, when it is
+ * off. Painting is the owner's standing rule before every edit, and "start
+ * node tools/wangp-image/server.mjs yourself" is not a step anyone should have
+ * to take: an edit sat on an empty mockup board because of it (15 Nov 2026).
+ * The drawer talks to WanGP directly, so Pinokio does not have to be open.
+ * Silent and harmless anywhere the helper isn't paired (a client's phone).
+ */
+let wokeAt = 0;
+async function wakeDrawer(): Promise<boolean> {
+  if (Date.now() - wokeAt < WAKE_MS) return true;
+  try {
+    const { call, knownFolder, probe: helper } = await import("@/lib/new-jarvis/bridge");
+    const h = await helper();
+    const folder = knownFolder();
+    if (!h.up || !h.paired || !folder) return false;
+    // The folder this browser knows is the helper's own (…\tools\jarvis-bridge);
+    // the drawer lives beside it in the same checkout.
+    const root = folder.replace(/[\\/]+$/, "").replace(/[\\/]tools[\\/]jarvis-bridge$/i, "");
+    const script = `${root}/tools/wangp-image/server.mjs`.replace(/\//g, "\\");
+    await call("shell", {
+      command: `Start-Process -WindowStyle Hidden -FilePath node -ArgumentList '"${script}"'`,
+      timeoutMs: 20_000,
+    });
+    wokeAt = Date.now();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export interface PictureJob {
   id: string;
@@ -201,9 +235,18 @@ export function useMockupPictures(jobs: PictureJob[], device: Device, enabled = 
     if (!enabled) return;
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let waking = 0;
     const tick = async () => {
       const state = await probe();
       if (!alive) return;
+      if (state === "off" && !waking && (await wakeDrawer())) waking = Date.now();
+      if (!alive) return;
+      // Woken and warming up: said as such, and asked again every few seconds.
+      if (state === "off" && waking && Date.now() - waking < WAKE_MS) {
+        setPc("starting");
+        timer = setTimeout(tick, 3000);
+        return;
+      }
       setPc(state);
       if (state === "off") timer = setTimeout(tick, RECHECK_MS);
     };
@@ -217,7 +260,7 @@ export function useMockupPictures(jobs: PictureJob[], device: Device, enabled = 
   const signature = jobs.map((j) => `${j.id}:${jobKey(j, device)}`).join("|");
 
   useEffect(() => {
-    if (!enabled || pc === "checking") return;
+    if (!enabled || pc === "checking" || pc === "starting") return;
     const mine = ++run.current;
     const live = () => run.current === mine;
     const set = (id: string, s: PictureState) => {

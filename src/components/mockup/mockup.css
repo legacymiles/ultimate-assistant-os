@@ -629,3 +629,93 @@
   .mk-before { grid-template-columns: 1fr; }
   .mk-before-pic.is-phone { justify-self: center; }
 }
+
+/* ----- a mockup being generated: sweep, pointer light, words ----------------- */
+.mk-gen {
+  --mx: 50%;
+  --my: 40%;
+  isolation: isolate;
+  cursor: progress;
+}
+.mk-gen:not(.is-busy) {
+  cursor: default;
+}
+.mk-gen img {
+  filter: grayscale(0.85) brightness(0.3) blur(1px);
+}
+.mk-gen.is-drawing img {
+  animation: mk-gen-breathe 3.2s ease-in-out infinite;
+}
+/* A band of colour moving across the page — the paint going on. */
+.mk-gen-sweep {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--mk-brand) 22%, transparent) 45%,
+    color-mix(in srgb, #ff7ad9 18%, transparent) 52%,
+    transparent 68%
+  );
+  background-size: 250% 100%;
+  mix-blend-mode: screen;
+  animation: mk-gen-sweep 2.6s var(--mk-ease) infinite;
+}
+/* A soft light that follows the pointer, so the card answers a hand. */
+.mk-gen-light {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(240px circle at var(--mx) var(--my), rgba(255, 255, 255, 0.1), transparent 70%);
+  pointer-events: none;
+  transition: background 120ms linear;
+}
+.mk-gen-copy {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 2;
+  display: grid;
+  gap: 4px;
+  padding: 34px 14px 13px;
+  background: linear-gradient(transparent, rgba(8, 9, 13, 0.92) 40%);
+  text-wrap: pretty;
+}
+.mk-gen-copy b {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--mk-ink);
+}
+.mk-gen-copy span {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--mk-muted);
+  font-variant-numeric: tabular-nums;
+}
+.mk-gen-copy em {
+  font-style: normal;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--mk-faint);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@keyframes mk-gen-sweep {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
+@keyframes mk-gen-breathe {
+  0%, 100% { filter: grayscale(0.85) brightness(0.3) blur(1px); }
+  50% { filter: grayscale(0.55) brightness(0.42) blur(0.5px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mk-gen-sweep,
+  .mk-gen.is-drawing img {
+    animation: none;
+  }
+  .mk-gen-sweep {
+    background-position: 50% 0;
+  }
+}
