@@ -2290,3 +2290,128 @@
 .ws-addons .ws-cards a {
   color: var(--ws-accent);
 }
+
+/* ----- ideas that go with an edit: accept or skip each -------------------------- */
+.ws-ideas {
+  margin: 10px 14px;
+  padding: 12px;
+  border-radius: 11px;
+  background: var(--ws-panel);
+  border: 1px solid color-mix(in srgb, var(--ws-accent) 30%, transparent);
+  display: grid;
+  gap: 9px;
+}
+.ws-ideas header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ws-ideas h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ws-ink-3);
+}
+.ws-ideas-count {
+  font-size: 11.5px;
+  color: var(--ws-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.ws-ideas ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.ws-ideas .ws-hint {
+  margin: 0;
+  padding: 0;
+}
+.ws-ideas > .ws-btn {
+  justify-self: start;
+}
+.ws-idea {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: start;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: var(--ws-bg-2);
+  border: 1px solid var(--ws-line-2);
+  transition: border-color var(--ws-fast), opacity var(--ws-fast);
+}
+.ws-idea.accepted {
+  border-color: color-mix(in srgb, var(--ws-live) 45%, transparent);
+}
+.ws-idea.denied {
+  opacity: 0.5;
+}
+.ws-idea-body {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.ws-idea-body b {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ws-ink);
+}
+.ws-idea-body span {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ws-ink-2);
+}
+.ws-idea-body em {
+  font-style: normal;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ws-ink-3);
+}
+.ws-idea-acts {
+  display: flex;
+  gap: 5px;
+}
+.ws-idea-acts button {
+  appearance: none;
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--ws-line);
+  background: transparent;
+  color: var(--ws-ink-2);
+  cursor: pointer;
+  transition: background var(--ws-fast), color var(--ws-fast), border-color var(--ws-fast);
+}
+.ws-idea-acts button:hover:not(:disabled) {
+  color: var(--ws-ink);
+  background: var(--ws-panel-2);
+}
+.ws-idea-acts button.yes[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--ws-live) 20%, transparent);
+  border-color: color-mix(in srgb, var(--ws-live) 50%, transparent);
+  color: #c9f7d4;
+}
+.ws-idea-acts button.no[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--ws-bad) 45%, transparent);
+  color: #ffd9d6;
+}
+.ws-idea-acts button:focus-visible {
+  outline: 2px solid var(--ws-accent);
+  outline-offset: 1px;
+}
+.ws-idea-acts button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ws-idea,
+  .ws-idea-acts button {
+    transition: none;
+  }
+}

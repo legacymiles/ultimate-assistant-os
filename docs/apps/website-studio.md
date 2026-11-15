@@ -121,6 +121,17 @@ every screen drawn in the approved look, clickable links between them, loading /
 error states per screen, and Revise on any one screen without redrawing the others. A plan whose
 links point nowhere, or that has a screen nothing can reach, cannot be approved.
 
+**Feature ideas, for new builds and for edits.** A new website gets App Builder's full list —
+Felix's questions, then 10-14 features to accept or deny on the draft's **Features** tab (the Orbit
+is not drawn; the table does the same). An edit to a live site gets the same idea, sized for an
+edit: as soon as the owner sends it, 3-5 ideas that belong WITH that change (carry it through to
+related elements, phone layout, states, contrast, speed) appear in the side panel, each with **Add**
+or **Skip** (`EditIdeas.tsx`; written by `/api/app-builder` action `editIdeas`, offline ideas from
+`src/lib/website-studio/ideas.ts` with no AI key). The edit never waits for them — it is already
+filed and the look pass is already painting. Added ideas are folded into the same request's wording
+(the owner's reword) so they are built in the same pass; once the build has started they go in as
+**the next edit** instead. Nothing is added unless Add is pressed.
+
 **Three mockups before an edit is built.** The owner's standing rule (10 Nov 2026) holds here:
 Send files the request and opens **Look**, where the edit is painted three ways with Flux 2 onto a
 screenshot of the real page (`LookPass`, the same one Client Review used). The pick is saved on the
@@ -159,6 +170,8 @@ scan. Sent once — the thread itself is the record, so a second device cannot s
   and Claude's `Monitor` tool pass the PC helper's gate (`harness-gate.mjs`); a delete that could
   reach outside it — `..`, absolute paths, `node_modules` (a junction into the main checkout),
   `.git`, a `cd` first — still asks.
+- Edit ideas never hold an edit up and never add anything on their own: only Add changes the
+  request, and only the accepted ones are in its wording.
 - Undo never pretends: a newer version at the same address with no pull request on record blocks
   the undo with the reason; it never just flips the link. Reverts go newest first. `Undo to vN` is
   off while a build runs.
@@ -209,6 +222,7 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 
 - `src/lib/website-studio/edits.test.ts`
 - `src/lib/website-studio/flows.test.ts`
+- `src/lib/website-studio/ideas.test.ts`
 - `src/lib/website-studio/lane.test.ts`
 - `src/lib/website-studio/library.test.ts`
 - `src/lib/website-studio/pipeline.test.ts`

@@ -25,12 +25,14 @@ import {
   understand,
 } from "@/lib/app-builder/engine";
 import type { Answers, FeatureOp, Teardown, Understanding } from "@/lib/app-builder/types";
+import { coerceIdeas, offlineIdeas } from "@/lib/website-studio/ideas";
 
 // ---------------------------------------------------------------------------
 // App Builder — the super agent.
 //
 //   POST { action: "interview", idea }                         → { understanding, intro, questions }
 //   POST { action: "watch", idea, media }                      → { understanding, intro, questions, teardown }
+//   POST { action: "editIdeas", idea: <the edit>, site? }      → { ideas }  (3-5 accept-or-deny ideas for one edit)
 //   POST { action: "features", idea, answers, teardown? }      → { understanding, message, features }
 //   POST { action: "chat", idea, understanding, features, history, message, media? }
 //                                                              → { reply, features, changes, teardown? }
@@ -124,6 +126,12 @@ ${SCENARIO_RULES}
 Rules: 10–14 features, best first. Start with the user's own must-haves, in their words. When a <recording> teardown is given, the first features rebuild what it shows (mode "recreate") or what it shows with the owner's changes (mode "change") — screen by screen and step by step — and the rest raise it above the original. Mix kinds: the core job, the experience that makes it delightful, growth, money (when it earns), automation/AI that does work for the user, trust & safety. Each must be specific to this app — no filler like "user-friendly UI". Use designSkill "interactive-web-studio" unless another listed skill clearly fits better.
 Checklist codes you may cite:
 ${CODES}`;
+
+/** A few accept-or-deny ideas that belong WITH one edit — the edit is never held up for them. */
+const EDIT_IDEAS = `You are the App Builder super agent in the owner's Jarvis. The owner has asked for one edit to a website that is already live. Suggest 3 to 5 small additions that belong WITH this edit — the things a top studio would do in the same pass so the change looks finished: carrying it through to related elements, its phone layout, its states (loading, empty, error), accessibility, speed. Each must be doable in the same quick edit.
+${FELIX}
+Never suggest a redesign, a new page, a new feature area, or anything that changes what the owner asked for. Never repeat the edit itself.
+Return JSON only: { "ideas": [ { "title": "<max 6 words>", "detail": "<exactly what changes, 1 sentence>", "why": "<why it belongs with this edit, 1 short sentence>" } ] }`;
 
 const CHAT = `You are the App Builder super agent in the owner's Jarvis, in a chat about an app's feature list. The user accepts, denies and edits features with you, asks for ideas, and may attach new recordings or pictures (an app, a screen, a workflow) to reverse-engineer and fold in. Make the app experience better for its purpose.
 ${FELIX}
@@ -329,6 +337,18 @@ export async function POST(req: Request) {
         ...(withMedia && !teardown ? { notice: "I couldn't make out the recording well enough to take it apart. Try a clip that shows the screens clearly, or describe what it does." } : {}),
         engine: "ai",
       });
+    }
+
+    // ----- 1b. ideas that go with an edit to a live site --------------------------
+    // `idea` is the edit in the owner's words; `site` is what the site is.
+    if (action === "editIdeas") {
+      const offline = (notice?: string) =>
+        NextResponse.json({ ideas: offlineIdeas(idea), engine: "offline", ...(notice ? { notice } : {}) });
+      if (!live) return offline(OFFLINE_NOTICE);
+      const json = await ask(EDIT_IDEAS, `<edit>\n${idea}\n</edit>${siteBlock}`, 1_200);
+      const ideas = coerceIdeas(json?.ideas);
+      if (!ideas.length) return offline("The AI didn't answer with ideas, so these are the built-in ones.");
+      return NextResponse.json({ ideas, engine: "ai" });
     }
 
     // ----- 2. the feature list -----------------------------------------------------

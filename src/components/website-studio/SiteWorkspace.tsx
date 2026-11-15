@@ -36,12 +36,14 @@ import type { WorkSummary } from "@/lib/new-jarvis/harness/types";
 import { canPaintEdit, needsLookPass } from "@/lib/website-studio/edits";
 import { editChecklist, laneFor, laneOf, wantsFactory } from "@/lib/website-studio/lane";
 import { shotFor, undoPlan } from "@/lib/website-studio/undo";
+import { coerceIdeas, decide, foldIdeas, type EditIdea } from "@/lib/website-studio/ideas";
 import { FACTORY_DONE, factoryBrief, type StageFacts } from "@/lib/website-studio/pipeline";
 import { BuildFeed, BuildSteer, useLiveBuild } from "../client-review/LiveBuild";
 import { LookPass } from "../client-review/LookPass";
 import { ModelPicker } from "../new-jarvis/ModelPicker";
 import { DesignSlash } from "./DesignSlash";
 import { EditChecklist } from "./EditChecklist";
+import { EditIdeas } from "./EditIdeas";
 import { PipelineRail } from "./PipelineRail";
 import { ShipPanel } from "./ShipPanel";
 import { WorkShell, type StageDevice, type WorkTab } from "./WorkShell";
@@ -79,6 +81,9 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
   const [frameLoads, setFrameLoads] = useState(0);
   const capturedFor = useRef("");
   const [undoing, setUndoing] = useState("");
+  /** Ideas that go with the edit just sent: App Builder's accept-or-deny list, for an edit. */
+  const [ideas, setIdeas] = useState<{ requestId: string; text: string; items: EditIdea[]; loading: boolean; note?: string } | null>(null);
+  const [ideasBusy, setIdeasBusy] = useState(false);
 
   useEffect(() => {
     alive.current = true;
@@ -275,6 +280,72 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
     }
   }, [view, token, askVersionId, load, onChanged, factory, captureFrame]);
 
+  /**
+   * A few ideas that belong with the edit just sent, fetched beside it — the
+   * edit is already filed and the look pass is painting, so nothing waits.
+   */
+  const loadIdeas = useCallback(
+    async (requestId: string, edit: string) => {
+      setIdeas({ requestId, text: edit, items: [], loading: true });
+      let items: EditIdea[] = [];
+      let notice = "";
+      try {
+        const res = await fetch("/api/app-builder", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "editIdeas", idea: edit, site: `${view?.name ?? "This website"} — ${liveUrl || "not deployed yet"}` }),
+        });
+        const json = (await res.json().catch(() => ({}))) as { ideas?: unknown; notice?: string };
+        items = coerceIdeas(json.ideas);
+        notice = json.notice ?? "";
+      } catch {
+        notice = "Couldn't reach the idea writer just now — your edit is unaffected.";
+      }
+      if (!alive.current) return;
+      setIdeas((cur) => (cur?.requestId === requestId ? { ...cur, items, loading: false, note: notice || undefined } : cur));
+    },
+    [view?.name, liveUrl],
+  );
+
+  /** Add or skip one idea. Before the build starts, the request's wording is what changes. */
+  const decideIdea = useCallback(
+    async (id: string, choice: "accepted" | "denied") => {
+      if (!ideas || !view) return;
+      const items = decide(ideas.items, id, choice);
+      setIdeas({ ...ideas, items });
+      if (building) return; // too late for this pass: "Send as the next edit" carries them
+      setIdeasBusy(true);
+      try {
+        await admin.act({ action: "review", id: view.projectId, requestId: ideas.requestId, adminText: foldIdeas(ideas.text, items) });
+        void load();
+      } catch (e) {
+        setIdeas((cur) => (cur ? { ...cur, note: e instanceof Error ? e.message : "That didn't save." } : cur));
+      } finally {
+        setIdeasBusy(false);
+      }
+    },
+    [ideas, view, building, load],
+  );
+
+  /** The build already started: the accepted ideas go in as one more edit. */
+  const sendIdeasLate = useCallback(async () => {
+    if (!ideas || !askVersionId) return;
+    const yes = ideas.items.filter((i) => i.status === "accepted");
+    if (!yes.length) return;
+    setIdeasBusy(true);
+    try {
+      const body = [`Following "${ideas.text.slice(0, 120)}":`, ...yes.map((i) => `- ${i.title}: ${i.detail}`)].join("\n");
+      await portal.act(token, { action: "add", versionId: askVersionId, text: body });
+      setView(await portal.act(token, { action: "send", versionId: askVersionId }));
+      setIdeas(null);
+      setNote("Filed as the next edit. Build it when this one lands.");
+    } catch (e) {
+      setIdeas((cur) => (cur ? { ...cur, note: e instanceof Error ? e.message : "That didn't go through." } : cur));
+    } finally {
+      setIdeasBusy(false);
+    }
+  }, [ideas, askVersionId, token]);
+
   const send = useCallback(async () => {
     const body = text.trim();
     if (!body || sending || !view) return;
@@ -288,8 +359,13 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
     }
     try {
       await portal.act(token, { action: "add", versionId: askVersionId, text: body });
-      setView(await portal.act(token, { action: "send", versionId: askVersionId }));
+      const sentView = await portal.act(token, { action: "send", versionId: askVersionId });
+      setView(sentView);
       setText("");
+      if (owner) {
+        const filed = sentView.requests.filter((r) => r.text === body).at(-1);
+        if (filed) void loadIdeas(filed.id, body);
+      }
       if (!owner) {
         setNote("Sent. Jarvis has it — you'll hear when it's approved and when the new version is ready.");
         return;
@@ -305,7 +381,7 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
     } finally {
       setSending(false);
     }
-  }, [text, sending, view, token, owner, liveUrl, building, askVersionId, startBuild]);
+  }, [text, sending, view, token, owner, liveUrl, building, askVersionId, startBuild, loadIdeas]);
 
   /** Anything that runs a build from a press: one place for busy and the note. */
   const run = useCallback(
@@ -534,6 +610,17 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
                 {r.adminNote && <p className="ws-msg-note">{r.adminNote}</p>}
               </article>
             ))}
+            {owner && ideas && (
+              <EditIdeas
+                items={ideas.items}
+                loading={ideas.loading}
+                late={building}
+                note={ideas.note}
+                busy={ideasBusy}
+                onDecide={(id, choice) => void decideIdea(id, choice)}
+                onSendLate={() => void sendIdeasLate()}
+              />
+            )}
             {owner && building && checklist.length > 0 && <EditChecklist items={checklist} title={checklistTitle} compact />}
           </div>
         ) : tab === "build" ? (
