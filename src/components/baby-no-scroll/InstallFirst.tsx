@@ -95,14 +95,14 @@ export function InstallFirst({ platform, onLockAnyway, onClose }: Props) {
             ref={route.kind === "prompt" && !justInstalled ? undefined : primary}
             type="button"
             onClick={onClose}
-            className="rounded-lg px-3 py-2 text-[12px] font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400"
+            className="rounded-lg px-3 py-2 text-[12px] font-medium text-ink-muted transition hover:bg-panel-2 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400"
           >
             Not now
           </button>
           <button
             type="button"
             onClick={onLockAnyway}
-            className="rounded-lg border border-line px-3 py-2 text-[12px] text-ink-faint transition hover:border-ink-faint hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400"
+            className="rounded-lg border border-line px-3 py-2 text-[12px] text-ink-faint transition hover:border-ink-faint hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400"
           >
             Lock in this tab anyway
           </button>

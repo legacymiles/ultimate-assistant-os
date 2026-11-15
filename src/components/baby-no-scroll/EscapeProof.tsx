@@ -79,7 +79,7 @@ export function EscapeProof() {
             role="tab"
             aria-selected={platform === p}
             onClick={() => setPlatform(p)}
-            className={`flex-1 px-2 py-1.5 text-[11px] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400 ${
+            className={`flex-1 px-2 py-1.5 text-[11px] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400 ${
               platform === p ? "bg-elevated text-ink" : "text-ink-faint hover:text-ink"
             }`}
           >
@@ -107,7 +107,7 @@ export function EscapeProof() {
             <button
               type="button"
               onClick={install}
-              className="mt-1 rounded-lg border border-amber-400/50 bg-amber-400/15 px-3 py-1.5 text-[12px] font-semibold text-amber-300 transition hover:bg-amber-400/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
+              className="mt-1 rounded-lg border border-sky-400/50 bg-sky-400/15 px-3 py-1.5 text-[12px] font-semibold text-sky-200 transition hover:bg-sky-400/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
             >
               Install Baby No Scroll
             </button>
@@ -157,7 +157,7 @@ function Step({
     <li className="flex gap-3">
       <span
         className={`mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold tabular-nums ${
-          done ? "bg-core/20 text-core" : "bg-amber-400/20 text-amber-300"
+          done ? "bg-core/20 text-core" : "bg-sky-400/20 text-sky-200"
         }`}
         aria-hidden
       >

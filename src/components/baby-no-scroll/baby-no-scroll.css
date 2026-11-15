@@ -91,16 +91,16 @@
   --bns-dash-angle: 180deg;
 }
 
-/* How far across the puck has got. It is the one warm thing about the lock,
-   and it only exists while a hand is on it. */
+/* How far across the puck has got. It is the one lit thing about the lock, and
+   it only exists while a hand is on it. Blue, like the rest of the app. */
 .bns-rail__fill {
-  background: linear-gradient(90deg, hsl(45 95% 60%), hsl(32 95% 55%));
+  background: linear-gradient(90deg, hsl(196 100% 66%), hsl(214 95% 58%));
   transform-origin: left center;
   transform: scaleX(var(--p, 0));
-  box-shadow: 0 0 22px hsl(40 95% 55% / 0.5);
+  box-shadow: 0 0 22px hsl(205 95% 58% / 0.5);
 }
 .bns-rail.is-y .bns-rail__fill {
-  background: linear-gradient(180deg, hsl(45 95% 60%), hsl(32 95% 55%));
+  background: linear-gradient(180deg, hsl(196 100% 66%), hsl(214 95% 58%));
   transform-origin: center top;
   transform: scaleY(var(--p, 0));
 }
@@ -165,13 +165,13 @@
 }
 .bns-latch__ring-fg {
   fill: none;
-  stroke: hsl(45 95% 62%);
+  stroke: hsl(199 95% 66%);
   stroke-width: 4;
   stroke-linecap: round;
   /* 2πr for r=21. The dash offset is the hold, so the ring IS the countdown. */
   stroke-dasharray: 131.95;
   stroke-dashoffset: calc(131.95 - 131.95 * var(--hold, 0));
-  filter: drop-shadow(0 0 8px hsl(45 95% 55% / 0.7));
+  filter: drop-shadow(0 0 8px hsl(199 95% 58% / 0.7));
 }
 
 .bns-latch__hole {
@@ -212,7 +212,7 @@
   z-index: 2;
 }
 .bns-puck:focus-visible {
-  outline: 3px solid hsl(45 95% 62%);
+  outline: 3px solid hsl(199 95% 66%);
   outline-offset: 4px;
 }
 .bns-puck.is-lit {
@@ -220,8 +220,8 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
     inset 0 -2px 6px rgba(0, 0, 0, 0.6),
     0 10px 30px rgba(0, 0, 0, 0.55),
-    0 0 0 1px hsl(45 90% 60% / 0.5),
-    0 0 28px hsl(42 95% 55% / 0.35);
+    0 0 0 1px hsl(204 92% 62% / 0.55),
+    0 0 28px hsl(204 95% 58% / 0.38);
 }
 /* While it is being dragged it must track the finger exactly — a transition
    here would feel like lag, which reads as a lock that is not working. */
@@ -545,45 +545,95 @@
 /*  The console (parent's side) — small additions over the hub's own tokens.  */
 /* ------------------------------------------------------------------------- */
 
-/* The console's page is yellow (client edit, v2) — the same warm yellow as the
-   Hand it over button and the lock's rail, so it reads as the app's own colour.
-   The panels stay hub-dark; only what sits straight on the yellow turns dark. */
+/* The console's page is blue (client edit, v3 — it was yellow in v2): the same
+   blue as the Hand it over button and the lock's rail, so it reads as the app's
+   own colour. Deep and saturated rather than pale, because the panels on top of
+   it are hub-dark and a pale page would leave them floating.
+
+   One azure glow where the eye lands first — the top of the page, where the
+   name is — and a second, cooler one in the far corner, so the field is never
+   a flat fill. */
 .bns-console {
-  background: hsl(48 96% 62%);
+  /* Sized rather than stretched: the top glow is pinned to the first screen,
+     so it does not become a wash the length of a long console, and neither one
+     is attachment: fixed — pinning a gradient to the viewport costs a repaint
+     on every scroll frame on a phone, which is the one device this is for. */
+  background-color: hsl(215 85% 26%);
+  background-image:
+    radial-gradient(130% 78% at 50% -12%, hsl(199 95% 62% / 0.32), transparent 62%),
+    radial-gradient(85% 60% at 108% 104%, hsl(226 90% 48% / 0.5), transparent 72%);
+  background-repeat: no-repeat;
+  background-size: 100% 760px, 100% 620px;
+  background-position: top center, bottom right;
 }
-.bns-console .bns-on-yellow {
-  color: #1a1206;
-  border-color: rgba(26, 18, 6, 0.22);
+
+/* The plate: one piece of glass holding the app's name. The premium detail of
+   the pick — nothing else on the console gets one, which is what keeps it a
+   detail rather than a theme.
+
+   The glass is lit rather than tinted — it takes its blue from the page behind
+   it — and the words on it are white, not the hub's muted ink. That pairing was
+   measured: muted ink on this glass is 1.4:1, which is a headline nobody can
+   read; white on it is 5.3:1 at the darkest point of the plate. The hierarchy
+   that colour used to carry is carried by size and weight instead. */
+.bns-plate {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 22px 58px hsl(215 90% 6% / 0.5),
+    /* the soft glow — outside the glass, never behind the words */
+    0 0 70px -14px hsl(199 95% 60% / 0.45);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  backdrop-filter: blur(18px) saturate(1.2);
 }
-.bns-console .bns-on-yellow .text-ink-muted,
-.bns-console .bns-on-yellow .text-ink-faint,
-.bns-console .bns-on-yellow.text-ink-faint {
-  color: rgba(26, 18, 6, 0.74);
+.bns-plate h1 {
+  color: #fff;
 }
-.bns-console .bns-on-yellow strong,
-.bns-console .bns-on-yellow span {
-  color: #1a1206;
+.bns-plate p {
+  color: rgba(255, 255, 255, 0.95);
 }
-.bns-console .bns-on-yellow a {
-  border-color: rgba(26, 18, 6, 0.3);
-  color: rgba(26, 18, 6, 0.8);
+/* The hairline: one lit edge along the top of the glass, brightest where the
+   name starts and gone by the far end. */
+.bns-plate::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    hsl(199 100% 78% / 0.95) 0%,
+    hsl(214 95% 68% / 0.55) 45%,
+    transparent 85%
+  );
 }
-.bns-console .bns-on-yellow a:hover {
-  border-color: rgba(26, 18, 6, 0.6);
-  color: #1a1206;
+/* Nothing is drawn inside the glass behind the words — a bloom was, and it took
+   the plate to 2.8:1. The glow lives outside, in the box-shadow above, where it
+   lights the page instead of the reading surface. The words sit above the
+   hairline so a line of type can never be crossed by it. */
+.bns-plate > * {
+  position: relative;
+  z-index: 1;
 }
-.bns-console .bns-on-yellow a:focus-visible {
-  outline: 2px solid #1a1206;
+
+/* The link out, on the glass: a hairline pill rather than a bordered box. */
+.bns-plate a {
+  border-color: rgba(255, 255, 255, 0.38);
+  color: #fff;
+}
+.bns-plate a:hover {
+  border-color: hsl(199 95% 72% / 0.7);
+  color: #fff;
+}
+.bns-plate a:focus-visible {
+  outline: 2px solid hsl(199 95% 72%);
   outline-offset: 2px;
 }
-/* On a yellow page the yellow button needs an edge to stay a button. */
-.bns-console .bns-handover:not(:disabled) {
-  box-shadow:
-    inset 0 0 0 1px rgba(26, 18, 6, 0.28),
-    0 10px 30px hsl(35 90% 35% / 0.35);
-}
+
 .bns-console .bns-handover:focus-visible {
-  outline: 2px solid #1a1206;
+  outline: 2px solid hsl(199 95% 78%);
   outline-offset: 3px;
 }
 
@@ -597,20 +647,29 @@
   inset: auto 10px -1px 10px;
   height: 2px;
   border-radius: 2px;
-  background: linear-gradient(90deg, hsl(45 95% 60%), hsl(330 85% 62%));
+  background: linear-gradient(90deg, hsl(196 100% 66%), hsl(222 92% 62%));
 }
 
 /* The one button that matters is the one that hands the device over, so it is
-   the only warm thing on the console too. */
+   the only lit thing on the console too — the app's blue at its brightest,
+   with a hairline inside the edge and a lip of light along the top so it reads
+   as a machined key rather than a coloured rectangle. */
 .bns-handover {
-  background: linear-gradient(135deg, hsl(45 95% 58%), hsl(28 92% 54%));
-  color: #1a1206;
-  box-shadow: 0 10px 30px hsl(35 90% 45% / 0.3);
+  background: linear-gradient(135deg, hsl(196 100% 68%), hsl(213 95% 60%));
+  color: #06121f;
+  letter-spacing: -0.01em;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 0 0 1px hsl(205 95% 82% / 0.35),
+    0 12px 34px hsl(210 95% 42% / 0.42);
   transition: transform 0.18s cubic-bezier(0.3, 1.5, 0.5, 1), box-shadow 0.2s ease;
 }
 .bns-handover:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 16px 40px hsl(35 90% 45% / 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 0 0 1px hsl(205 95% 86% / 0.45),
+    0 18px 44px hsl(210 95% 42% / 0.52);
 }
 .bns-handover:disabled {
   background: var(--color-elevated);
@@ -647,5 +706,5 @@
   scale: 1.5;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.4),
-    0 0 0 3px hsl(45 95% 60% / 0.35);
+    0 0 0 3px hsl(199 95% 62% / 0.4);
 }
