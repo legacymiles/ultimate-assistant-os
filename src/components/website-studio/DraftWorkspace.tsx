@@ -16,6 +16,7 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { frameAddress } from "@/lib/client-review/frame";
 import { useAppBuilder } from "@/lib/app-builder/useAppBuilder";
 import { DEPTH_BLURB, depthOf } from "@/lib/app-builder/depth";
 import { useChatModel } from "@/lib/new-jarvis/useChatModel";
@@ -183,7 +184,7 @@ export function DraftWorkspace({ draftId, onBack, onChanged }: Props) {
       }
       stage={(device: StageDevice) =>
         stage === "live" && built?.url ? (
-          <iframe className="ws-site" src={built.url} title={name} sandbox="allow-same-origin allow-scripts allow-forms allow-popups" style={device === "phone" ? { width: 390 } : undefined} />
+          <iframe className="ws-site" src={frameAddress(built.url)} title={name} sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox" style={device === "phone" ? { width: 390 } : undefined} />
         ) : stage === "look" ? (
           <div className="ws-canvas-pad">
             <MockupBakeOff

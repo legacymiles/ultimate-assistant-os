@@ -165,6 +165,15 @@ The first working site goes live after a fast security check; the Studio then sa
 message into the same harness thread, which is what starts Software Factory and the deep security
 scan. Sent once — the thread itself is the record, so a second device cannot send it again.
 
+**No sign-in inside the frame.** A hub app is framed on the Studio's own address
+(`frameAddress` in `src/lib/client-review/frame.ts`), whichever hub address the build reported —
+`ultimate-assistant-os.vercel.app`, `bighomieai.com` or `www.` — so the owner's session is already
+there and the frame never shows the login wall. When a frame does reach a sign-in (a client's
+link, a signed-out device), Google opens in a small popup instead of inside the frame, where Google
+refuses with a bare "403. That's an error."; the popup closes itself at `/auth/popup-done` and the
+frame lands on the page it was on (`signInFromFrame` in `src/lib/auth/google.ts`). The hub login
+now returns every visitor to the page the wall stood in front of (`/login?next=`).
+
 ## Must keep working
 
 - Every existing Client Review website opens with its own id and link secret unchanged. Nothing was
@@ -198,6 +207,8 @@ scan. Sent once — the thread itself is the record, so a second device cannot s
   off while a build runs.
 - Delete asks: a draft by confirm, a live website by typing its name. Deleting a website removes its
   requests, versions and link — never its code or the live site.
+- A hub app in the frame never asks to sign in, and Google's sign-in never loads inside a frame:
+  it always opens as a popup (or a tab when pop-ups are blocked) and the frame follows on its own.
 - Offline: the whole page works with no keys and no PC. The pages plan is written with no model at
   all, and the mockups fall back to the coded drawings when Flux is not running.
 

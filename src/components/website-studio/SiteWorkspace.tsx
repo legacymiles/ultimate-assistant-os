@@ -26,6 +26,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { admin, portal, ApiError } from "@/lib/client-review/client";
+import { frameAddress } from "@/lib/client-review/frame";
 import { approveAndStart, connectToPc, undoTo } from "@/lib/client-review/buildHere";
 import { SHIP_SAY } from "@/lib/client-review/autoBuild";
 import { blockerAdvice, type Blocker } from "@/lib/client-review/liveBuild";
@@ -679,7 +680,7 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
               className="ws-site"
               src={preview.url}
               title={`${view?.name ?? "The website"} — preview of the change`}
-              sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
               style={device === "phone" ? { width: 390 } : undefined}
             />
           </div>
@@ -688,9 +689,9 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
             ref={frameRef}
             onLoad={() => setFrameLoads((n) => n + 1)}
             className="ws-site"
-            src={liveUrl}
+            src={frameAddress(liveUrl)}
             title={view?.name ?? "The website"}
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
             style={device === "phone" ? { width: 390 } : undefined}
           />
         ) : (

@@ -225,7 +225,8 @@ export async function middleware(request: NextRequest) {
         null,
       );
     }
-    const url = publicUrl(request, "/login");
+    // `next` brings them back to this page after Google, not to the hub's front page.
+    const url = publicUrl(request, "/login", `?next=${encodeURIComponent(path + request.nextUrl.search)}`);
     return setUidCookie(NextResponse.redirect(url), null);
   }
   if (!owner) {

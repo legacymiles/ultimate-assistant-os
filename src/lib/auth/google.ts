@@ -153,7 +153,8 @@ export function cancelOneTap(): void {
  * public app, and that rule lives in one place.
  */
 export async function signInWithGoogle(supabase: SupabaseClient, next = "/"): Promise<void> {
-  const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
+  if (isFramed()) return signInFromFrame(supabase, safeNext(next));
+  const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNext(next))}`;
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
@@ -164,4 +165,87 @@ export async function signInWithGoogle(supabase: SupabaseClient, next = "/"): Pr
     },
   });
   if (error) throw error;
+}
+
+/** Only a path on this site — never an address somewhere else. */
+export function safeNext(next: string | null | undefined): string {
+  return typeof next === "string" && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/";
+}
+
+/** Inside an <iframe> — the Website Studio's or Client Review's site frame. */
+export function isFramed(): boolean {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true; // A cross-origin parent can't even be compared: certainly framed.
+  }
+}
+
+/** What /auth/popup-done says on this channel once the session is set. */
+export const AUTH_CHANNEL = "jarvis-auth";
+
+/**
+ * Sign in from inside a frame.
+ *
+ * Google will not draw its sign-in page inside a frame — the visitor gets a
+ * bare "403. That's an error." So the Google part runs in a small popup window
+ * of its own, which lands on /auth/popup-done, says so and closes; this frame
+ * then goes on to `next`, signed in. Three ways of hearing it is done, because
+ * any one can be cut: the popup's own message, a same-site broadcast, and the
+ * session simply appearing in this frame's cookies.
+ */
+async function signInFromFrame(supabase: SupabaseClient, next: string): Promise<void> {
+  // Opened first, while the click still counts, or the browser blocks it.
+  const pop = window.open("about:blank", "jarvis-signin", "popup,width=480,height=640");
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/auth/popup-done")}`,
+      queryParams: { prompt: "select_account" },
+      skipBrowserRedirect: true,
+    },
+  });
+  if (error || !data?.url) {
+    pop?.close();
+    throw error ?? new Error("Google sign-in didn't start. Try again.");
+  }
+  if (!pop) {
+    // Pop-ups blocked: a new tab still signs them in; this frame follows on its own.
+    if (!window.open(data.url, "_blank")) throw new Error("Allow pop-ups for this site, then press the button again.");
+  } else {
+    pop.location.href = data.url;
+  }
+
+  let finished = false;
+  const go = () => {
+    if (finished) return;
+    finished = true;
+    window.clearInterval(timer);
+    channel?.close();
+    window.removeEventListener("message", onMessage);
+    window.location.href = next;
+  };
+  const onMessage = (e: MessageEvent) => {
+    if (e.origin === window.location.origin && e.data?.type === `${AUTH_CHANNEL}:done`) go();
+  };
+  window.addEventListener("message", onMessage);
+  let channel: BroadcastChannel | null = null;
+  try {
+    channel = new BroadcastChannel(AUTH_CHANNEL);
+    channel.onmessage = (e) => {
+      if (e.data === "done") go();
+    };
+  } catch {
+    channel = null;
+  }
+  const started = Date.now();
+  const timer = window.setInterval(() => {
+    if (Date.now() - started > 10 * 60_000) {
+      window.clearInterval(timer);
+      return;
+    }
+    void supabase.auth.getSession().then(({ data: s }) => {
+      if (s.session) go();
+    });
+  }, 1500);
 }

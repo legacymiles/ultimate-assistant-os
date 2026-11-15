@@ -21,6 +21,7 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { frameAddress } from "@/lib/client-review/frame";
 import { approveAndStart, connectToPc } from "@/lib/client-review/buildHere";
 import { blockerAdvice, type Blocker } from "@/lib/client-review/liveBuild";
 import { ApiError, admin, portal, urlBase64ToUint8Array } from "@/lib/client-review/client";
@@ -726,7 +727,7 @@ export function ClientPortal({
             )}
             <iframe
               key={`${viewing.siteUrl}-${device}-${frameNonce}`}
-              src={viewing.siteUrl}
+              src={frameAddress(viewing.siteUrl)}
               title={`${view.name} ${viewing.number}`}
               referrerPolicy="no-referrer"
               allow="clipboard-write; fullscreen"

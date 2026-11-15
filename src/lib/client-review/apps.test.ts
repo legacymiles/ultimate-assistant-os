@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { clientEditProject, editQueueText } from "../app-builder/clientEdit";
 import { absoluteSiteUrl, appEntry, appProject, editableApp, editableApps, HUB_ORIGIN, HUB_REPO } from "./apps";
+import { frameAddress } from "./frame";
 import { addRequest, approveBatch, currentVersion, emptyIndex, portalView, sendToJarvis, upsertIndex } from "./logic";
 
 const T = "2026-10-28T23:00:00.000Z";
@@ -58,5 +59,23 @@ describe("the owner's apps in Client Review", () => {
   it("leaves real addresses alone", () => {
     expect(absoluteSiteUrl("https://glowspa.vercel.app/")).toBe("https://glowspa.vercel.app/");
     expect(absoluteSiteUrl("/apps/jarvis")).toBe(`${HUB_ORIGIN}/apps/jarvis`);
+  });
+});
+
+describe("frameAddress", () => {
+  it("frames a hub app as a path on this site, whichever hub address the build named", () => {
+    expect(frameAddress("https://ultimate-assistant-os.vercel.app/apps/personas-studio")).toBe("/apps/personas-studio");
+    expect(frameAddress("https://bighomieai.com/apps/jarvis?x=1#a")).toBe("/apps/jarvis?x=1#a");
+    expect(frameAddress("https://www.bighomieai.com/")).toBe("/");
+    expect(frameAddress("http://localhost:3220/apps/x", "http://localhost:3220/apps/website-studio")).toBe("/apps/x");
+  });
+  it("leaves relative paths, client sites and branch previews alone", () => {
+    expect(frameAddress("/apps/cook-connect")).toBe("/apps/cook-connect");
+    expect(frameAddress("https://acme-bakery.com/menu")).toBe("https://acme-bakery.com/menu");
+    expect(frameAddress("https://ultimate-assistant-os-git-x-legacy.vercel.app/apps/a")).toBe(
+      "https://ultimate-assistant-os-git-x-legacy.vercel.app/apps/a",
+    );
+    expect(frameAddress("")).toBe("");
+    expect(frameAddress("not a url")).toBe("not a url");
   });
 });

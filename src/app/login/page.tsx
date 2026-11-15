@@ -16,7 +16,7 @@
 
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/icons";
-import { cancelOneTap, oneTapAvailable, signInWithGoogle, startOneTap } from "@/lib/auth/google";
+import { cancelOneTap, oneTapAvailable, safeNext, signInWithGoogle, startOneTap } from "@/lib/auth/google";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
@@ -45,6 +45,12 @@ function GoogleMark(props: { size?: number }) {
   );
 }
 
+/** Where to land after signing in: the page the login wall stood in front of. */
+function nextPath(): string {
+  if (typeof window === "undefined") return "/";
+  return safeNext(new URLSearchParams(window.location.search).get("next"));
+}
+
 export default function LoginPage() {
   const configured = isSupabaseConfigured();
   const [busy, setBusy] = useState(false);
@@ -61,7 +67,7 @@ export default function LoginPage() {
     void startOneTap(
       supabase,
       () => {
-        window.location.href = "/";
+        window.location.href = nextPath();
       },
       setError,
     );
@@ -74,7 +80,7 @@ export default function LoginPage() {
     setBusy(true);
     setError(null);
     try {
-      await signInWithGoogle(supabase);
+      await signInWithGoogle(supabase, nextPath());
       // A redirect is in flight; the button stays busy until the page leaves.
     } catch (err) {
       const message = err instanceof Error ? err.message : "Google sign-in failed.";
@@ -181,7 +187,7 @@ function EmergencyEmailForm() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      window.location.href = "/";
+      window.location.href = nextPath();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed.");
       setBusy(false);
