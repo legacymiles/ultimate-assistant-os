@@ -82,6 +82,20 @@ describe("client review flow", () => {
     expect(nextVersionNumber(ready.project.versions)).toBe("v3");
   });
 
+  it("keeps the pull request a finished build ended on, so Undo can revert it", () => {
+    let p = fresh();
+    const v1 = p.versions[0].id;
+    p = addRequest(p, { versionId: v1, text: "A" }, T).project;
+    const { project: sent, batch } = sendToJarvis(p, v1, T);
+    const out = approveBatch(sent, { batchId: batch.id }, T);
+    const pr = "https://github.com/legacymiles/ultimate-assistant-os/pull/29";
+    const ready = markVersionReady(out.project, { versionId: out.version.id, siteUrl: "https://v2.glowspa.app", prUrl: pr }, T);
+    expect(ready.version.prUrl).toBe(pr);
+    // Anything that is not a GitHub pull request is not kept.
+    const odd = markVersionReady(out.project, { versionId: out.version.id, siteUrl: "https://v2.glowspa.app", prUrl: "javascript:alert(1)" }, T);
+    expect(odd.version.prUrl).toBeUndefined();
+  });
+
   it("a batch with every request rejected can't be approved", () => {
     let p = fresh();
     const v1 = p.versions[0].id;

@@ -16,8 +16,9 @@
 // ---------------------------------------------------------------------------
 
 import { call, connectPc, probe, START_LINK } from "@/lib/new-jarvis/bridge";
-import { admin } from "./client";
-import { CannotBuildHere, startClientEditBuild } from "./autoBuild";
+import { admin, ApiError } from "./client";
+import { CannotBuildHere, startClientEditBuild, startUndoBuild } from "./autoBuild";
+import { undoPlan } from "@/lib/website-studio/undo";
 import type { Lane } from "@/lib/website-studio/lane";
 import { blockerAdvice, type Blocker } from "./liveBuild";
 import type { ClientProject, ReviewVersion } from "./types";
@@ -176,8 +177,8 @@ export async function approveAndStart(
 }
 
 /** The finished build's preview becomes what this page shows. */
-export async function publishBuilt(projectId: string, versionId: string, url: string, threadId?: string) {
-  const out = await admin.act({ action: "ready", id: projectId, versionId, siteUrl: url });
+export async function publishBuilt(projectId: string, versionId: string, url: string, threadId?: string, prUrl?: string) {
+  const out = await admin.act({ action: "ready", id: projectId, versionId, siteUrl: url, ...(prUrl ? { prUrl } : {}) });
   // The strongest "this job is finished" signal the bridge can get. Without
   // it a job whose last words did not include `Preview:` would be resumed on
   // the next boot, doing work that is already on the page.
@@ -188,4 +189,53 @@ export async function publishBuilt(projectId: string, versionId: string, url: st
 /** Stop a build and hand its edits back. The thread is killed by the caller first. */
 export function removeBuild(projectId: string, versionId: string) {
   return admin.act({ action: "cancelBuild", id: projectId, versionId });
+}
+
+export interface UndoResult {
+  state: "done" | "working" | "failed";
+  message: string;
+  /** Set when the PC is doing it: the thread to follow. */
+  threadId?: string;
+}
+
+/**
+ * Undo to an earlier version. The website asks GitHub to revert the newer
+ * edits and merge the reverts, which works with the PC off. When GitHub can't
+ * (no key, or a key without pull-request rights) the same undo is handed to
+ * the PC, and the client's link moves back straight away either way.
+ */
+export async function undoTo(project: ClientProject, versionId: string): Promise<UndoResult> {
+  const plan = undoPlan(project.versions, versionId);
+  if (!plan) return { state: "failed", message: "That version no longer exists." };
+  if (plan.blocked) return { state: "failed", message: plan.blocked };
+  try {
+    const out = await admin.act<{ reverted?: { url: string }[] }>({ action: "revert", id: project.id, versionId });
+    const n = out.reverted?.length ?? 0;
+    return {
+      state: "done",
+      message: n
+        ? `Back to ${plan.target.number}. GitHub reverted ${n} edit${n === 1 ? "" : "s"} on main; the site is live again in about 3 minutes.`
+        : `Your client's link shows ${plan.target.number} again.`,
+    };
+  } catch (e) {
+    const status = e instanceof ApiError ? e.status : 0;
+    if (!plan.codeChange || (status !== 403 && status !== 503)) {
+      return { state: "failed", message: e instanceof Error ? e.message : "It couldn't go back to that version." };
+    }
+    const why = e instanceof Error ? e.message : "";
+    try {
+      const { threadId } = await startUndoBuild(project, plan);
+      await admin.act({ action: "undo", id: project.id, versionId }).catch(() => null);
+      return {
+        state: "working",
+        threadId,
+        message: `GitHub couldn't do it from the website, so your PC is reverting ${plan.reverts.map((r) => r.number).join(", ")} now — live in a few minutes. (${why})`,
+      };
+    } catch (pc) {
+      return {
+        state: "failed",
+        message: `${why} Your PC couldn't take it either: ${pc instanceof Error ? pc.message : "it didn't answer"}.`,
+      };
+    }
+  }
 }

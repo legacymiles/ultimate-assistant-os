@@ -792,7 +792,7 @@ export function rejectBatch(
  */
 export function markVersionReady(
   src: ClientProject,
-  input: { versionId: unknown; siteUrl: unknown; summary?: unknown },
+  input: { versionId: unknown; siteUrl: unknown; summary?: unknown; prUrl?: unknown },
   now = new Date().toISOString(),
 ): { project: ClientProject; version: ReviewVersion } {
   const p = clone(src);
@@ -801,6 +801,11 @@ export function markVersionReady(
   const url = cleanUrl(input.siteUrl);
   if (!url) throw new ReviewError("Add the website address for this version first.");
   v.siteUrl = url;
+  // The pull request that put this version live. Undo reverts it, so a
+  // version published without it can only be gone back to on the client's
+  // link, never in the code.
+  const pr = typeof input.prUrl === "string" && /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/.test(input.prUrl.trim()) ? input.prUrl.trim() : "";
+  if (pr) v.prUrl = pr;
   if (typeof input.summary === "string" && input.summary.trim()) v.summary = input.summary.trim().slice(0, 4000);
   v.status = "review";
   v.readyAt = now;

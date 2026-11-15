@@ -190,3 +190,62 @@ export function readmeFor(input: { name: string; clientName: string; liveUrl: st
     .filter((l, i, all) => !(l === "" && all[i - 1] === ""))
     .join("\n");
 }
+
+// ----- undo: taking merged edits back off main --------------------------------------
+
+/** One GraphQL call with the hub's token; GitHub's own words become the sentence. */
+async function gql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+  const out = await gh<{ data?: T; errors?: { message?: string; type?: string }[] }>("/graphql", {
+    method: "POST",
+    body: JSON.stringify({ query, variables }),
+  });
+  if (out.errors?.length) {
+    const said = out.errors.map((e) => e.message).filter(Boolean).join(" ");
+    const forbidden = out.errors.some((e) => e.type === "FORBIDDEN") || /not accessible|permission/i.test(said);
+    throw new ReviewError(
+      forbidden
+        ? `GitHub's key can't revert pull requests (${said}). Give JARVIS_GITHUB_TOKEN "Pull requests: read and write" — until then your PC does the undo.`
+        : `GitHub said: ${said}`,
+      forbidden ? 403 : 502,
+    );
+  }
+  if (!out.data) throw new ReviewError("GitHub answered with nothing.", 502);
+  return out.data;
+}
+
+export interface Reverted {
+  from: string;
+  url: string;
+}
+
+/**
+ * Revert merged pull requests on their base branch, newest first, and merge
+ * each revert straight away — the same no-waiting finish a quick edit uses.
+ * GitHub makes the revert commit itself, so this needs no checkout and no PC.
+ * A pull request that never merged has nothing on main to take off, and is
+ * skipped.
+ */
+export async function revertPullRequests(prUrls: string[]): Promise<Reverted[]> {
+  const done: Reverted[] = [];
+  for (const url of prUrls) {
+    const m = /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/pull\/(\d+)/.exec(url.trim());
+    if (!m) throw new ReviewError(`${url} isn't a GitHub pull request link.`);
+    const [, owner, name, num] = m;
+    const found = await gql<{ repository: { pullRequest: { id: string; merged: boolean; title: string } | null } | null }>(
+      "query($o:String!,$n:String!,$k:Int!){repository(owner:$o,name:$n){pullRequest(number:$k){id merged title}}}",
+      { o: owner, n: name, k: Number(num) },
+    );
+    const pr = found.repository?.pullRequest;
+    if (!pr) throw new ReviewError(`GitHub can't find ${url}, or the key can't see it.`, 404);
+    if (!pr.merged) continue;
+    const made = await gql<{ revertPullRequest: { revertPullRequest: { id: string; url: string } | null } }>(
+      "mutation($id:ID!,$t:String!,$b:String!){revertPullRequest(input:{pullRequestId:$id,title:$t,body:$b}){revertPullRequest{id url}}}",
+      { id: pr.id, t: `Undo: ${pr.title}`.slice(0, 250), b: `Reverts ${url} — pressed Undo in Website Studio.` },
+    );
+    const rev = made.revertPullRequest.revertPullRequest;
+    if (!rev) throw new ReviewError(`GitHub didn't make a revert for ${url}.`, 502);
+    await gql("mutation($id:ID!){mergePullRequest(input:{pullRequestId:$id,mergeMethod:SQUASH}){pullRequest{merged}}}", { id: rev.id });
+    done.push({ from: url, url: rev.url });
+  }
+  return done;
+}

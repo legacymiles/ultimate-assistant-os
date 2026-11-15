@@ -38,6 +38,7 @@ import { readStore, writeStore } from "@/lib/app-builder/useAppBuilder";
 import { BridgeError, call, knownFolder, probe } from "@/lib/new-jarvis/bridge";
 import { buildHarness } from "@/lib/new-jarvis/harness/choice";
 import type { Lane } from "@/lib/website-studio/lane";
+import { revertBrief, type UndoPlan } from "@/lib/website-studio/undo";
 import { HUB_ORIGIN, HUB_REPO } from "./apps";
 import { buildModelFor, buildsWithPick, pickValue } from "./models";
 import { readTrust } from "@/lib/new-jarvis/trust";
@@ -266,15 +267,17 @@ async function standOnMain(where: string): Promise<string> {
 }
 
 /**
- * Start the build, here, now, on this PC.
- *
- * Throws `CannotBuildHere` when this PC cannot do it and a plain Error when
- * something else broke. Either way nothing is filed and nothing is queued: the
- * batch stays approved, the caller shows the sentence, and pressing build again
- * is the retry.
+ * Start one thread on the PC, in a fresh worktree stood on shipped main, and
+ * tell it `brief`. Shared by edits and by Undo, so both refuse the same way
+ * (`CannotBuildHere`) and both run on the model the owner picked.
  */
-export async function startClientEditBuild(review: ClientProject, batchId: string, lane: Lane = "full"): Promise<StartedBuild> {
-  const bucket = builderFor(review, batchId);
+async function startPcThread(
+  review: ClientProject,
+  title: string,
+  brief: string,
+  verifyPaths: string[],
+  lane: Lane,
+): Promise<{ threadId: string; model: string; base: string }> {
   // The Chat's model pick is the harness pick too. Claude Code can only run a
   // Claude model, so a Claude pick is honoured and anything else leaves the
   // project's own choice (which is also Claude) in place.
@@ -307,7 +310,7 @@ export async function startClientEditBuild(review: ClientProject, batchId: strin
   try {
     const { session } = await call<{ session: { id: string; worktree?: { path?: string } } }>("harness/start", {
       harness: buildHarness(),
-      title: `${review.name} ${bucket.edit?.version ?? ""}`.trim() + " client edits",
+      title,
       // A worktree, not a project folder: these edits belong to a repo that
       // already exists.
       repo,
@@ -324,9 +327,9 @@ export async function startClientEditBuild(review: ClientProject, batchId: strin
       // is recorded now, before `standOnMain` and before the agent is told
       // anything, so a closed tab cannot lose the instructions either.
       durable: true,
-      brief: harnessBrief(bucket, lane),
+      brief,
       // The PC's check opens the edited app's own page, not only the hub's home.
-      verifyPaths: bucket.edit?.appPath ? [bucket.edit.appPath] : [],
+      verifyPaths,
       // A quick edit is merged before the agent's last word, so the PC's own
       // check — a full install, build, boot and crawl — could only hold the
       // owner's "it's live" back by several minutes after it already was. CI's
@@ -340,7 +343,7 @@ export async function startClientEditBuild(review: ClientProject, batchId: strin
     }
     // Before the agent is told anything, so it never sees the wrong base.
     base = await standOnMain(where);
-    await call("harness/say", { id: threadId, text: harnessBrief(bucket, lane) });
+    await call("harness/say", { id: threadId, text: brief });
   } catch (e) {
     // A thread that was started but cannot be based correctly is stopped rather
     // than left running on the wrong tree with no brief.
@@ -350,6 +353,27 @@ export async function startClientEditBuild(review: ClientProject, batchId: strin
     }
     throw new Error(e instanceof Error ? e.message : "The build didn't start.");
   }
+  return { threadId, model, base };
+}
+
+/**
+ * Start the build, here, now, on this PC.
+ *
+ * Throws `CannotBuildHere` when this PC cannot do it and a plain Error when
+ * something else broke. Either way nothing is filed and nothing is queued: the
+ * batch stays approved, the caller shows the sentence, and pressing build again
+ * is the retry.
+ */
+export async function startClientEditBuild(review: ClientProject, batchId: string, lane: Lane = "full"): Promise<StartedBuild> {
+  const bucket = builderFor(review, batchId);
+  const { threadId, model, base } = await startPcThread(
+    review,
+    `${review.name} ${bucket.edit?.version ?? ""}`.trim() + " client edits",
+    harnessBrief(bucket, lane),
+    // The PC's check opens the edited app's own page, not only the hub's home.
+    bucket.edit?.appPath ? [bucket.edit.appPath] : [],
+    lane,
+  );
 
   // Keep the project, so the console can open it and a reload still finds it.
   const store = readStore();
@@ -359,4 +383,21 @@ export async function startClientEditBuild(review: ClientProject, batchId: strin
   });
 
   return { threadId, builderId: bucket.id, model, base };
+}
+
+/**
+ * Undo on the PC: the same revert GitHub would have made, done by Claude Code
+ * in a fresh worktree, when the website's GitHub key can't. Quick lane: no
+ * skills, a typecheck, merge, end on the two lines the Studio reads.
+ */
+export async function startUndoBuild(review: ClientProject, plan: UndoPlan): Promise<{ threadId: string }> {
+  const live = review.appPath ? `${HUB_ORIGIN}${review.appPath}` : plan.target.siteUrl;
+  const { threadId } = await startPcThread(
+    review,
+    `${review.name} undo to ${plan.target.number}`,
+    revertBrief(plan, live),
+    review.appPath ? [review.appPath] : [],
+    "quick",
+  );
+  return { threadId };
 }

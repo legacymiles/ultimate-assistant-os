@@ -26,13 +26,40 @@ inside Jarvis chat's sheet (read from `Sec-Fetch-Dest: iframe`), the Flux edit-m
 bake-off and the Showcase (`?section=redesign&v=edit|2|showcase`), `?classic=1`, every client link
 `/apps/client-review?site=`, and Client Review's Ship console (`?tab=admin`).
 
-**Everything the three old apps did, reachable from here.** Drawn by the Studio itself: starts,
-recordings and pictures, design skills, Felix and the feature list, both mockup stages, the build,
-the edit look pass, versions, changes, Mark ready, the client's link. One press away, on the old
-screen: App Builder's feature Orbit, depth, Send to board and delete (a draft's **App Builder**
-button, `?p=<id>&classic=1`); Client Review's Ship console — repo and Vercel fields, a new client
-link, release, archive, delete, move into the hub (a site's **Ship console** button); and the Flux
-edit board, the bake-off and the Showcase (**More tools** under the library).
+**Everything the three old apps did, drawn here.** Starts, recordings and pictures, design
+skills, Felix and the feature list, depth, Send to board, delete, both mockup stages, the build,
+the edit look pass, versions with their pictures and Undo, changes, Mark ready, the client's link,
+and the Ship console with Move into hub. App Builder's feature Orbit was left out on purpose (owner,
+15 Nov 2026 — the feature table does the same job). One press away: the full build log
+(`?p=<id>&classic=1`, linked from a draft's Build tab), the old console for the brief lane and
+invites (linked at the foot of Ship), and the Flux edit board, the bake-off and the Showcase
+(**More tools** under the library).
+
+**Versions — a picture of each one, and a real Undo.** Send photographs the page in the frame
+before the edit is built (`beforeImage`), and once a version lands and the frame reloads on it, the
+page is photographed again (`image`). Each version shows its picture (its own, else the next
+version's before picture — `shotFor` in `src/lib/website-studio/undo.ts`). **Undo to vN** goes back
+for real: the newer edits at the same address come off main and the site redeploys (about 3
+minutes). The website asks GitHub to revert each one's pull request and merge the revert
+(`revertPullRequests` in `src/lib/client-review/github.ts`, admin action `revert`), so it works with
+the PC off; when GitHub can't (no `JARVIS_GITHUB_TOKEN`, or one without "Pull requests: read and
+write"), the same undo goes to the PC as a quick thread (`startUndoBuild`). Versions that each have
+their own address (branch previews) only move the client's link back, and say so. A finished build
+now saves the pull request it ended on (`prUrl`, via the publish), which is what makes this
+possible.
+
+**Ship — the Ship console, as a tab.** On a live site, owner only: where it lives (live address,
+GitHub repo and Vercel project — hidden for hub apps, which always build in the hub's repo), the
+client link (copy, new link, release the claiming account), **Move into hub** for a site App Builder
+built on its own folder and repo (the same pull-request move as App Builder, retire only after
+typing its name), archive / unarchive, and delete (type the name). `ShipPanel.tsx`.
+
+**Draft add-ons.** Under a draft's feature table: **Commercial foundation** (on by default for
+anything with a second person or a server; untick for a one-screen tool) with **Charge for it (2x)**
+under it — the same `depth` App Builder's brief reads, locked once the build has started. **Send to
+board** files one Software Factory card per accepted feature in Backlog, never twice, with links to
+the cards. **Delete** sits in the draft's header (asks first). A built standalone draft shows **Move
+into hub** on its Build tab.
 
 **Starting a website — one slab, two modes.**
 - **Build from a prompt** — describe the site; reference pictures and screen recordings can be
@@ -132,14 +159,18 @@ scan. Sent once — the thread itself is the record, so a second device cannot s
   and Claude's `Monitor` tool pass the PC helper's gate (`harness-gate.mjs`); a delete that could
   reach outside it — `..`, absolute paths, `node_modules` (a junction into the main checkout),
   `.git`, a `cd` first — still asks.
+- Undo never pretends: a newer version at the same address with no pull request on record blocks
+  the undo with the reason; it never just flips the link. Reverts go newest first. `Undo to vN` is
+  off while a build runs.
+- Delete asks: a draft by confirm, a live website by typing its name. Deleting a website removes its
+  requests, versions and link — never its code or the live site.
 - Offline: the whole page works with no keys and no PC. The pages plan is written with no model at
   all, and the mockups fall back to the coded drawings when Flux is not running.
 
 ## Requested, not built yet
 
-- Draw App Builder's feature Orbit, depth and Send to board, and Client Review's Ship console,
-  natively in the Studio instead of one press away on the old screens. Then migration step 7 in
-  `docs/superpowers/specs/website-studio.md` (deleting the old shells) can happen.
+- Migration step 7 in `docs/superpowers/specs/website-studio.md` (deleting the old shells). What is
+  still only on them: the full build log, Client Review's brief lane / brief model and invite email.
 - `harness/preview` refuses a new-app project thread, so a draft has no local preview until it is
   deployed.
 - Stage two can be written by a model or by a design engine (`FlowPlan.engine`); today it is the
@@ -183,4 +214,5 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 - `src/lib/website-studio/pipeline.test.ts`
 - `src/lib/website-studio/redirects.test.ts`
 - `src/lib/website-studio/skills.test.ts`
+- `src/lib/website-studio/undo.test.ts`
 <!-- code:end -->

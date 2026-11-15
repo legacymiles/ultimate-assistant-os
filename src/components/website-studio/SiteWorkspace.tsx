@@ -26,7 +26,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { admin, portal, ApiError } from "@/lib/client-review/client";
-import { approveAndStart, connectToPc } from "@/lib/client-review/buildHere";
+import { approveAndStart, connectToPc, undoTo } from "@/lib/client-review/buildHere";
 import { blockerAdvice, type Blocker } from "@/lib/client-review/liveBuild";
 import type { EditLaneId, EditPick } from "@/lib/mockup/edit";
 import type { ClientProject, PortalView } from "@/lib/client-review/types";
@@ -35,6 +35,7 @@ import { useChatModel } from "@/lib/new-jarvis/useChatModel";
 import type { WorkSummary } from "@/lib/new-jarvis/harness/types";
 import { canPaintEdit, needsLookPass } from "@/lib/website-studio/edits";
 import { editChecklist, laneFor, laneOf, wantsFactory } from "@/lib/website-studio/lane";
+import { shotFor, undoPlan } from "@/lib/website-studio/undo";
 import { FACTORY_DONE, factoryBrief, type StageFacts } from "@/lib/website-studio/pipeline";
 import { BuildFeed, BuildSteer, useLiveBuild } from "../client-review/LiveBuild";
 import { LookPass } from "../client-review/LookPass";
@@ -42,6 +43,7 @@ import { ModelPicker } from "../new-jarvis/ModelPicker";
 import { DesignSlash } from "./DesignSlash";
 import { EditChecklist } from "./EditChecklist";
 import { PipelineRail } from "./PipelineRail";
+import { ShipPanel } from "./ShipPanel";
 import { WorkShell, type StageDevice, type WorkTab } from "./WorkShell";
 import "../client-review/client-review.css";
 
@@ -53,7 +55,7 @@ interface Props {
   onChanged?: () => void;
 }
 
-type Tab = "chat" | "look" | "build" | "changes" | "versions";
+type Tab = "chat" | "look" | "build" | "changes" | "versions" | "ship";
 
 export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
   const { model: harnessModel, setModel: setHarnessModel } = useChatModel();
@@ -71,6 +73,12 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
   const [health, setHealth] = useState<BridgeHealth | null>(null);
   const [diff, setDiff] = useState("");
   const alive = useRef(true);
+  /** The site's frame, so its page can be photographed before and after an edit. */
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  /** Bumped on every frame load; the after-picture waits for a fresh one. */
+  const [frameLoads, setFrameLoads] = useState(0);
+  const capturedFor = useRef("");
+  const [undoing, setUndoing] = useState("");
 
   useEffect(() => {
     alive.current = true;
@@ -226,10 +234,36 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
   // request and opens the look pass; the pick runs the build. A site with no
   // address yet has nothing to paint onto, so it builds the way it always did.
 
+  /**
+   * The page as it looks right now. The owner's hub apps are framed
+   * same-origin, so the frame's own document can be drawn; a client's site on
+   * another domain cannot be read, which just means no picture.
+   */
+  const captureFrame = useCallback(async (): Promise<string> => {
+    const doc = frameRef.current?.contentDocument;
+    if (!doc?.documentElement) return "";
+    try {
+      const html2canvas = (await import("html2canvas-pro")).default;
+      const canvas = await html2canvas(doc.documentElement, {
+        backgroundColor: "#0a0b0f",
+        scale: 0.5,
+        useCORS: true,
+        logging: false,
+        windowWidth: doc.documentElement.clientWidth,
+        windowHeight: doc.documentElement.clientHeight,
+      });
+      return canvas.toDataURL("image/jpeg", 0.72);
+    } catch {
+      return "";
+    }
+  }, []);
+
   /** Approve what is waiting and start Claude Code on the PC. */
   const startBuild = useCallback(async () => {
     if (!view) return;
-    const out = await approveAndStart(token, askVersionId ?? undefined, undefined, laneFor(factory));
+    // The before picture: what Versions shows beside Undo.
+    const before = await captureFrame();
+    const out = await approveAndStart(token, askVersionId ?? undefined, before || undefined, laneFor(factory));
     setNote(out.message);
     setBlocker(out.blocker ?? null);
     if (out.state === "working") {
@@ -239,7 +273,7 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
       await load();
       onChanged?.();
     }
-  }, [view, token, askVersionId, load, onChanged, factory]);
+  }, [view, token, askVersionId, load, onChanged, factory, captureFrame]);
 
   const send = useCallback(async () => {
     const body = text.trim();
@@ -313,6 +347,48 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
     [token],
   );
 
+  // Once a version has landed and the frame has reloaded on it, keep what it
+  // actually looks like — the picture Versions shows for it from then on.
+  useEffect(() => {
+    if (!owner || building || !current?.siteUrl || current.image || !view?.projectId || !frameLoads) return;
+    if (capturedFor.current === current.id) return;
+    const versionId = current.id;
+    const projectId = view.projectId;
+    const t = window.setTimeout(async () => {
+      capturedFor.current = versionId;
+      const image = await captureFrame();
+      if (!image) return;
+      await admin.act({ action: "image", id: projectId, versionId, image }).catch(() => null);
+      void load();
+    }, 4000);
+    return () => window.clearTimeout(t);
+  }, [owner, building, current?.id, current?.image, current?.siteUrl, view?.projectId, frameLoads, captureFrame, load]);
+
+  /** Back to an earlier version: its code back on main, and on the client's link. */
+  const undoVersion = useCallback(
+    async (versionId: string) => {
+      if (!project) return;
+      const plan = undoPlan(project.versions, versionId);
+      if (!plan) return;
+      if (plan.blocked) {
+        setNote(plan.blocked);
+        return;
+      }
+      if (!window.confirm(plan.says)) return;
+      setUndoing(versionId);
+      setNote("");
+      try {
+        const out = await undoTo(project, versionId);
+        setNote(out.message);
+        await load();
+        onChanged?.();
+      } finally {
+        setUndoing("");
+      }
+    },
+    [project, load, onChanged],
+  );
+
   const markReady = useCallback(
     async (versionId: string, siteUrl: string) => {
       if (!view) return;
@@ -366,6 +442,7 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
     { id: "build", label: "Build", live: building },
     ...(owner ? [{ id: "changes", label: "Changes", count: changed }] : []),
     { id: "versions", label: "Versions", count: view?.versions.length ?? 0 },
+    ...(owner && project ? [{ id: "ship", label: "Ship" }] : []),
   ];
 
   if (error && !view) {
@@ -391,15 +468,6 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
       tabs={tabs}
       tab={tab}
       onTab={(t) => setTab(t as Tab)}
-      actions={
-        owner ? (
-          // Client Review's Ship console for this site: repo and Vercel fields,
-          // a new client link, release, archive, delete, move into the hub.
-          <a className="ws-btn ghost small" href="/apps/client-review?tab=admin" title="Repo and Vercel, client link, release, archive, delete">
-            Ship console
-          </a>
-        ) : undefined
-      }
       banner={
         building ? (
           <span className="ws-banner-live">
@@ -420,6 +488,8 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
           </div>
         ) : liveUrl ? (
           <iframe
+            ref={frameRef}
+            onLoad={() => setFrameLoads((n) => n + 1)}
             className="ws-site"
             src={liveUrl}
             title={view?.name ?? "The website"}
@@ -509,30 +579,55 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
               <p className="ws-hint">{threadId ? "Nothing changed yet in this build." : "No build is running, so there is nothing being changed."}</p>
             )}
           </div>
+        ) : tab === "ship" && owner && project ? (
+          <ShipPanel project={project} liveUrl={liveUrl} onChanged={() => void load()} onDeleted={() => {
+            onChanged?.();
+            onBack();
+          }} />
         ) : (
           <div className="cr-list ws-versions">
+            <p className="ws-hint">
+              Each version as it looked when it landed.{owner ? " Undo puts that one back — its code on main and on your client's link." : ""}
+            </p>
+            {owner && note && <p className="ws-notice">{note}</p>}
             {(view?.versions ?? [])
               .slice()
               .reverse()
-              .map((v) => (
-                <article key={v.id} className={`ws-ver ${v.status}`}>
-                  <header>
-                    <b>{v.number}</b>
-                    <span className={`ws-dot state-${v.status}`} aria-hidden />
-                    {v.status}
-                  </header>
-                  {v.summary && <p>{v.summary}</p>}
-                  {v.siteUrl ? (
-                    <a href={v.siteUrl} target="_blank" rel="noopener noreferrer">
-                      {v.siteUrl}
-                    </a>
-                  ) : owner && v.status === "building" && live.finish.kind === "publish" ? (
-                    <button className="ws-btn small" onClick={() => void markReady(v.id, live.finish.kind === "publish" ? live.finish.url : "")}>
-                      Mark ready for the client
-                    </button>
-                  ) : null}
-                </article>
-              ))}
+              .map((v) => {
+                const shot = shotFor(view?.versions ?? [], v);
+                const showing = v.id === view?.currentVersionId;
+                return (
+                  <article key={v.id} className={`ws-ver ${v.status}${showing ? " showing" : ""}`}>
+                    {shot ? (
+                      <img className="ws-ver-shot" src={shot} alt={`${v.number} as it looked`} loading="lazy" />
+                    ) : (
+                      <div className="ws-ver-shot blank" aria-hidden>
+                        No picture yet
+                      </div>
+                    )}
+                    <header>
+                      <b>{v.number}</b>
+                      <span className={`ws-dot state-${v.status}`} aria-hidden />
+                      {showing ? "showing now" : v.status}
+                    </header>
+                    {v.summary && <p>{v.summary}</p>}
+                    {v.siteUrl ? (
+                      <a href={v.siteUrl} target="_blank" rel="noopener noreferrer">
+                        {v.siteUrl}
+                      </a>
+                    ) : owner && v.status === "building" && live.finish.kind === "publish" ? (
+                      <button className="ws-btn small" onClick={() => void markReady(v.id, live.finish.kind === "publish" ? live.finish.url : "")}>
+                        Mark ready for the client
+                      </button>
+                    ) : null}
+                    {owner && !showing && v.siteUrl && v.status !== "building" && (
+                      <button className="ws-btn ghost small ws-undo" disabled={Boolean(undoing) || building} onClick={() => void undoVersion(v.id)}>
+                        {undoing === v.id ? "Going back…" : `Undo to ${v.number}`}
+                      </button>
+                    )}
+                  </article>
+                );
+              })}
           </div>
         )
       }

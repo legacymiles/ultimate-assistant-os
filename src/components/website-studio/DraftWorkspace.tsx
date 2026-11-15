@@ -17,12 +17,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppBuilder } from "@/lib/app-builder/useAppBuilder";
+import { DEPTH_BLURB, depthOf } from "@/lib/app-builder/depth";
 import { useChatModel } from "@/lib/new-jarvis/useChatModel";
 import { specFromProject } from "@/lib/mockup/spec";
 import { approve, draftFlows, type FlowPlan } from "@/lib/website-studio/flows";
 import { combine, studioSkills } from "@/lib/website-studio/skills";
 import type { StageFacts } from "@/lib/website-studio/pipeline";
 import { FeatureTable } from "../app-builder/FeatureTable";
+import { MoveIntoHub } from "../app-builder/MoveIntoHub";
 import { MockupBakeOff } from "../mockup/MockupBakeOff";
 import "../app-builder/app-builder.css";
 import { BuildFeed, BuildSteer } from "../client-review/LiveBuild";
@@ -149,6 +151,9 @@ export function DraftWorkspace({ draftId, onBack, onChanged }: Props) {
   }
 
   const name = p.understanding?.name || "New website";
+  const { depth, why: depthWhy } = depthOf(p);
+  /** Once the build has the brief, its depth is set. */
+  const inFlight = Boolean(p.handoff?.thread || p.handoff?.queueId);
 
   return (
     <WorkShell
@@ -162,11 +167,18 @@ export function DraftWorkspace({ draftId, onBack, onChanged }: Props) {
       actions={
         <div className="ws-actions-row">
           <SkillsMenu picks={p.skills ?? (look ? [look] : [])} onChange={(picks) => ab.setSkills(picks)} compact />
-          {/* App Builder's own board for this same project — the Orbit, depth,
-              Send to board, delete — which the Studio does not draw itself. */}
-          <a className="ws-btn ghost small" href={`/apps/app-builder?p=${encodeURIComponent(p.id)}&classic=1`} title="Feature Orbit, depth, Send to board and the rest of App Builder's controls">
-            App Builder
-          </a>
+          <button
+            className="ws-btn ghost small"
+            title="Delete this draft"
+            onClick={() => {
+              if (!window.confirm(`Delete the draft “${name}”? Its features, mockups and pages go with it. This can't be undone.`)) return;
+              ab.remove(p.id);
+              onChanged?.();
+              onBack();
+            }}
+          >
+            Delete
+          </button>
         </div>
       }
       stage={(device: StageDevice) =>
@@ -223,22 +235,85 @@ export function DraftWorkspace({ draftId, onBack, onChanged }: Props) {
           <div className="cr-list ws-build">
             <PipelineRail facts={facts} compact />
             {p.handoff?.thread ? (
-              <p className="ws-hint">The build is running on your PC. Its narration is in App Builder&apos;s build panel.</p>
+              <p className="ws-hint">
+                The build is running on your PC.{" "}
+                <a href={`/apps/app-builder?p=${encodeURIComponent(p.id)}&classic=1`}>Open its full build log</a>
+              </p>
             ) : (
               <p className="ws-hint">Approve the pages and the build starts.</p>
             )}
+            {/* Built on its own folder and repo: bring it into the hub as /apps/<slug>. */}
+            <MoveIntoHub project={p} busy={ab.busy} moving={ab.moving} onMove={() => void ab.absorb()} onRetire={() => void ab.retire()} />
           </div>
         ) : tab === "plan" ? (
           <div className="cr-list ws-plan">
             {p.features.length ? (
-              <FeatureTable
-                features={p.features}
-                selectedId={picked}
-                hoverId={null}
-                onSelect={setPicked}
-                onHover={() => {}}
-                onOps={(ops) => ab.apply(ops)}
-              />
+              <>
+                <FeatureTable
+                  features={p.features}
+                  selectedId={picked}
+                  hoverId={null}
+                  onSelect={setPicked}
+                  onHover={() => {}}
+                  onOps={(ops) => ab.apply(ops)}
+                />
+                {/* Add-ons: how far the build goes, and the board. Depth is
+                    App Builder's own setting on the same project, so the brief
+                    reads exactly what is ticked here. */}
+                <section className="ws-addons" aria-labelledby="ws-addons-h">
+                  <h3 id="ws-addons-h">Add-ons</h3>
+                  <label className="ws-addon" aria-disabled={inFlight}>
+                    <input
+                      type="checkbox"
+                      checked={depth !== "plain"}
+                      disabled={inFlight}
+                      onChange={(e) => ab.setDepth(e.target.checked ? "commercial" : "plain")}
+                    />
+                    <b>Commercial foundation</b>
+                    <span>{DEPTH_BLURB.commercial}</span>
+                  </label>
+                  <label className="ws-addon sub" aria-disabled={inFlight || depth === "plain"}>
+                    <input
+                      type="checkbox"
+                      checked={depth === "commercial-2x"}
+                      disabled={inFlight || depth === "plain"}
+                      onChange={(e) => ab.setDepth(e.target.checked ? "commercial-2x" : "commercial")}
+                    />
+                    <b>Charge for it (2x)</b>
+                    <span>Pricing, paywalls and upgrade moments, and a critic panel to 9/10.</span>
+                  </label>
+                  <p className="ws-hint">
+                    {inFlight
+                      ? "Set — the build is already running at this depth."
+                      : p.depth
+                        ? "Your choice."
+                        : `Picked for you because ${depthWhy}. Untick it for a one-screen tool that saves in the browser.`}
+                  </p>
+                  <button className="ws-btn ghost small" disabled={!accepted.length || Boolean(ab.busy)} onClick={() => void ab.sendCards()}>
+                    {ab.busy === "board" ? "Filing cards…" : `Send ${accepted.length} feature${accepted.length === 1 ? "" : "s"} to the board`}
+                  </button>
+                  {p.handoff?.cards?.length ? (
+                    <p className="ws-cards">
+                      On the board:{" "}
+                      {p.handoff.cards.map((c, i) => (
+                        <span key={c.number}>
+                          {i > 0 && ", "}
+                          {c.url ? (
+                            <a href={c.url} target="_blank" rel="noopener noreferrer">
+                              #{c.number}
+                            </a>
+                          ) : (
+                            `#${c.number}`
+                          )}
+                        </span>
+                      ))}
+                    </p>
+                  ) : (
+                    <p className="ws-hint">One Software Factory card per accepted feature, in Backlog. You approve every merge.</p>
+                  )}
+                  {ab.error && ab.busy === null && <p className="ws-error">{ab.error}</p>}
+                </section>
+              </>
             ) : p.questions.length ? (
               <div className="ws-asks">
                 <p className="ws-hint">

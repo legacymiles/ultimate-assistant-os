@@ -94,13 +94,15 @@ export function useLiveBuild({
   const watching = Boolean(threadId);
   const finish: Finish = watching ? finishOf(build.phase, build.view) : { kind: "running" };
   const standing = standingOf(active ? row : null);
+  /** The pull request the build ended on — kept on the version, so Undo can revert it. */
+  const finishPr = finish.kind === "publish" ? finish.pr : undefined;
 
   const doPublish = useCallback(
     async (url: string) => {
       if (!row?.projectId) return;
       setPublish("working");
       try {
-        await publishBuilt(row.projectId, row.versionId, url, row.threadId);
+        await publishBuilt(row.projectId, row.versionId, url, row.threadId, finishPr);
         setPublish("");
         doneRef.current();
       } catch (e) {
@@ -108,7 +110,7 @@ export function useLiveBuild({
         setPublish({ error: e instanceof Error ? e.message : "It couldn't be put on the page." });
       }
     },
-    [row?.projectId, row?.versionId, row?.threadId],
+    [row?.projectId, row?.versionId, row?.threadId, finishPr],
   );
 
   // The whole point: built → on the page, with nobody pressing anything. Once

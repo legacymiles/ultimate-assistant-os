@@ -27,7 +27,8 @@ import {
 } from "@/lib/client-review/logic";
 import { appEntry, appProject, HUB_REPO } from "@/lib/client-review/apps";
 import { handover, repoNameFor, repoOf } from "@/lib/client-review/handover";
-import { createRepo, existingRepoNames, githubReady, readmeFor, readTree } from "@/lib/client-review/github";
+import { createRepo, existingRepoNames, githubReady, readmeFor, readTree, revertPullRequests } from "@/lib/client-review/github";
+import { undoPlan } from "@/lib/website-studio/undo";
 import { isSubscriptionValue } from "@/lib/client-review/models";
 import { vapidPublicKey } from "@/lib/client-review/push";
 import { tell } from "@/lib/client-review/ship";
@@ -359,6 +360,29 @@ export async function POST(req: Request) {
         return NextResponse.json({ project, version: result });
       }
 
+      /**
+       * Undo for real: the newer edits at the same address come off main
+       * (GitHub reverts their pull requests and merges the reverts), then the
+       * older version is what the client's link shows. When GitHub can't — no
+       * key, or a key without pull-request rights — it answers 403/503 and the
+       * Studio hands the same undo to the PC.
+       */
+      case "revert": {
+        const before = await readProject(id);
+        if (!before) throw new ReviewError("That website no longer exists.", 404);
+        const plan = undoPlan(before.versions, String(body.versionId ?? ""));
+        if (!plan) throw new ReviewError("That version no longer exists.", 404);
+        if (plan.blocked) throw new ReviewError(plan.blocked, 409);
+        const reverted = plan.codeChange ? await revertPullRequests(plan.reverts.map((r) => r.prUrl)) : [];
+        const { project, result } = await updateProject(id, (p) => {
+          const out = undoToVersion(p, { versionId: body.versionId });
+          return { project: out.project, result: out.version };
+        });
+        const told = await tell(project, project.notices.at(-1), origin);
+        await updateIndex((i) => upsertIndex(i, told));
+        return NextResponse.json({ project: told, version: result, reverted });
+      }
+
       /** Put an older version back on the client's screen. */
       case "undo": {
         const { project, result } = await updateProject(id, (p) => {
@@ -375,7 +399,7 @@ export async function POST(req: Request) {
         const { project, result } = await updateProject(id, (p) => {
           const out =
             body.action === "ready"
-              ? markVersionReady(p, { versionId: body.versionId, siteUrl: body.siteUrl, summary: body.summary })
+              ? markVersionReady(p, { versionId: body.versionId, siteUrl: body.siteUrl, summary: body.summary, prUrl: body.prUrl })
               : addVersion(p, { siteUrl: body.siteUrl, summary: body.summary });
           return { project: out.project, result: out.version };
         });
