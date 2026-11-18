@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { digestHtml } from "@/lib/ai-rankings/analyzeLink";
 import { aiConfigured, aiFetch, describeFailure, DEFAULT_MODEL } from "@/lib/ai/provider";
-import { coerceReadings, READINGS_SYSTEM, readingsUser } from "@/lib/mockup/edit";
+import { coerceReadings, READINGS_EDIT_MAX, READINGS_SYSTEM, readingsUser, REVISE_SYSTEM, reviseUser, type CustomLane } from "@/lib/mockup/edit";
 import { callerIsMember } from "@/lib/recall/lists/session";
 import { fetchText } from "@/lib/social-import/safeFetch";
 
@@ -10,7 +10,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// POST /api/mockup/readings { edit, siteName, url?, image? } → { lanes: [{label, instruction}] x3 } | { lanes: null }
+// POST /api/mockup/readings { edit, siteName, url?, image?, change?, previous? } → { lanes: [{label, instruction}] x3 } | { lanes: null }
+//
+// With `change` and `previous` it REVISES: the three readings on screen are
+// rewritten so each applies the owner's note (see REVISE_SYSTEM). The Studio
+// asks Claude on the owner's plan first and comes here only when the PC can't.
 //
 // Three concrete readings of a website change, written by the hub's vision
 // model looking at the screenshot Flux will paint onto (see edit.ts for why).
@@ -23,13 +27,13 @@ export async function POST(req: Request) {
   if (await callerIsMember()) {
     return NextResponse.json({ error: "Mockups are drawn for the owner only." }, { status: 403 });
   }
-  let body: { edit?: unknown; siteName?: unknown; url?: unknown; image?: unknown };
+  let body: { edit?: unknown; siteName?: unknown; url?: unknown; image?: unknown; change?: unknown; previous?: unknown };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Send a JSON body." }, { status: 400 });
   }
-  const edit = typeof body.edit === "string" ? body.edit.trim().slice(0, 1200) : "";
+  const edit = typeof body.edit === "string" ? body.edit.trim().slice(0, READINGS_EDIT_MAX) : "";
   if (!edit) return NextResponse.json({ error: "Say what to change." }, { status: 400 });
   if (!aiConfigured()) return NextResponse.json({ lanes: null, why: "no-model" });
 
@@ -53,7 +57,12 @@ export async function POST(req: Request) {
     }
   }
 
-  const user = readingsUser({ edit, siteName, url, pageText });
+  const change = typeof body.change === "string" ? body.change.trim().slice(0, READINGS_EDIT_MAX) : "";
+  const previous = change ? coerceReadings({ lanes: body.previous }) : null;
+  const revising: CustomLane[] | null = change && previous ? previous : null;
+  const user = revising
+    ? reviseUser({ edit, change, previous: revising, siteName, url, pageText })
+    : readingsUser({ edit, siteName, url, pageText });
   const content = image
     ? [
         { type: "text", text: user },
@@ -70,7 +79,7 @@ export async function POST(req: Request) {
         max_tokens: 900,
         response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: READINGS_SYSTEM },
+          { role: "system", content: revising ? REVISE_SYSTEM : READINGS_SYSTEM },
           { role: "user", content },
         ],
       }),

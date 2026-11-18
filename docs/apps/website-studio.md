@@ -174,6 +174,18 @@ panel to 9/10. A commercial edit always takes the full road, so the factory swit
 Commercial" while it is on. The brief carries a `<depth>` block (`editDepthBlock` in
 `src/lib/app-builder/clientEdit.ts`); the quick lane never does.
 
+**Change the mockups by talking to them.** While the three mockups wait for a pick, the chat box
+at the bottom (button "Redo mockups") and the "Not quite?" box under the board both take a note on
+them — "a darker purple, pink gradient buttons", "the bold one but keep the logo". The note is added
+to the edit's wording (so the build reads it too), and Claude on the owner's plan — the harness's
+own model, through the PC helper's `brain/claude` — rewrites all three readings from the ones on
+screen, the note and the page screenshot; the hub's AI does it when the PC can't
+(`/api/mockup/readings` with `change`). Flux then paints the three again. Measured 18 Nov 2026:
+6.3 s on Opus 5.5, every lane carrying the note. Code: `src/lib/mockup/revise.ts`,
+`REVISE_SYSTEM`/`reviseUser` in `src/lib/mockup/edit.ts`. The readings model now reads the whole
+request (6,000 characters); it used to read 600, so a note at the end of a long edit was cut and the
+same three pictures came back.
+
 **Long prompts.** Every Jarvis chat box takes a prompt up to 100,000 characters — this chat box,
 the steer box while a build runs, Client Review, App Builder, In Queue, the main chat and Enhance —
 one number, `MAX_PROMPT_CHARS` in `src/lib/new-jarvis/promptLimit.ts`, read by the browser boxes
@@ -226,6 +238,8 @@ now returns every visitor to the page the wall stood in front of (`/login?next=`
 - With Commercial off, an edit's brief has no `<depth>` block and the quick lane is unchanged.
   Commercial 2x can never be on without Commercial.
 - A pasted prompt is never cut short below `MAX_PROMPT_CHARS`.
+- A message typed while the mockups wait for a pick changes the mockups; it never files a second
+  edit. Switching to the Chat tab is how a separate edit is sent.
 - Offline: the whole page works with no keys and no PC. The pages plan is written with no model at
   all, and the mockups fall back to the coded drawings when Flux is not running.
 

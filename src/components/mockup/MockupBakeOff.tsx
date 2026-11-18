@@ -48,6 +48,7 @@ import {
   type PictureState,
 } from "@/lib/mockup/useMockupPictures";
 import { shrinkImage } from "@/lib/mockup/shrink";
+import { reviseReadings } from "@/lib/mockup/revise";
 
 import "./mockup.css";
 
@@ -94,6 +95,14 @@ interface Props {
   shared?: { lane: string; image: string }[] | null;
   /** Called once all three edit lanes are painted, so the host can save them for others to see. */
   onPainted?: (lanes: { lane: EditLaneId; image: string; label: string; instruction: string }[]) => void;
+  /**
+   * The owner's note on the three on screen ("a deeper purple, keep the white
+   * cards"), for the request it was added to (`edit` = that request's words
+   * with the note in them). The three readings are rewritten from the ones on
+   * screen plus the note — by Claude on the owner's plan first — and painted
+   * again. A new `id` is a new note.
+   */
+  revision?: { id: number; change: string; edit: string } | null;
 }
 
 /** A lane that could not be drawn still holds its place, carrying why. */
@@ -137,6 +146,7 @@ export function MockupBakeOff({
   customLanes,
   shared,
   onPainted,
+  revision,
 }: Props) {
   const [device, setDevice] = useState<Device>("desktop");
   /** Show the Flux picture, or the coded layout, in each lane. */
@@ -190,6 +200,11 @@ export function MockupBakeOff({
   const readingsKey = `mk-readings:${(edit ?? "").trim()}|${refUrl}`;
   const wantsReadings = editing && !given && wantPictures && as === "owner";
   const deskShot = before?.device === "desktop" && before.state === "done" ? before.image : "";
+  /** The three readings last on screen — what a note revises. */
+  const lastLanes = useRef<CustomLane[] | null>(null);
+  /** Who wrote the readings on screen after a note, for the status line. */
+  const [revisedBy, setRevisedBy] = useState("");
+  const revising = revision && revision.edit.trim() === (edit ?? "").trim() ? revision : null;
   useEffect(() => {
     if (!wantsReadings || auto?.key === readingsKey) return;
     try {
@@ -207,6 +222,23 @@ export function MockupBakeOff({
     let alive = true;
     void (async () => {
       let lanes: CustomLane[] | null = null;
+      const previous = lastLanes.current;
+      if (revising && previous) {
+        // A note on the three on screen: rewrite those, don't start over.
+        const image = deskShot ? await shrinkImage(deskShot, 1280, 0.8).catch(() => "") : "";
+        const out = await reviseReadings({ edit: edit ?? "", change: revising.change, previous, siteName: spec.name, url: refUrl || undefined, image: image || undefined });
+        if (!alive) return;
+        if (out) {
+          try {
+            localStorage.setItem(readingsKey, JSON.stringify(out.lanes));
+          } catch {
+            /* fine: they just aren't remembered */
+          }
+        }
+        setRevisedBy(out?.by ?? "");
+        setAuto({ key: readingsKey, lanes: out?.lanes ?? null });
+        return;
+      }
       try {
         const image = deskShot ? await shrinkImage(deskShot, 1280, 0.8) : "";
         const res = await fetch("/api/mockup/readings", {
@@ -233,7 +265,7 @@ export function MockupBakeOff({
     return () => {
       alive = false;
     };
-  }, [wantsReadings, readingsKey, auto?.key, before?.state, deskShot, edit, spec.name, refUrl]);
+  }, [wantsReadings, readingsKey, auto?.key, before?.state, deskShot, edit, spec.name, refUrl, revising]);
   const reading = wantsReadings && auto?.key !== readingsKey;
   const lanesText = given ?? (auto?.key === readingsKey ? (auto.lanes ?? undefined) : undefined);
 
@@ -303,6 +335,13 @@ export function MockupBakeOff({
       }
     });
   }, [editing, edit, directions, spec, device, facts, lanesText, reading, shot, refUrl, baseSkill]);
+
+  // Remember the readings on screen once they are settled: a note revises them.
+  useEffect(() => {
+    if (editing && !reading && lanes.length === 3) {
+      lastLanes.current = lanes.map((l) => ({ label: l.title, instruction: l.instruction ?? "" }));
+    }
+  }, [editing, reading, lanes]);
 
   // ----- the jobs: each lane, then each tweak on top of the step before -----
   // A tweak is drawn from the picture it changes, so step n is listed once
@@ -500,6 +539,8 @@ export function MockupBakeOff({
           noShot={editing && before?.device === device && before.state === "none"}
           taking={editing && before?.state === "taking"}
           reading={reading && before?.state !== "taking"}
+          revising={Boolean(revising && reading)}
+          revisedBy={revising && !reading ? revisedBy : ""}
         />
       )}
 
@@ -790,7 +831,11 @@ function PcLine({
   noShot,
   taking,
   reading,
+  revising = false,
+  revisedBy = "",
 }: {
+  revising?: boolean;
+  revisedBy?: string;
   pc: PcState;
   any: boolean;
   pictures: Record<string, PictureState>;
@@ -811,6 +856,7 @@ function PcLine({
         ? "Flux 2 paints your change onto the live page when your PC's picture drawer is running (Pinokio + node tools/wangp-image/server.mjs)."
         : "Flux 2 renders appear here when your PC's picture drawer is running (Pinokio + node tools/wangp-image/server.mjs). Until then each lane is the live layout.";
   else if (taking) text = "Photographing the live page on your PC, so Flux paints onto the real thing…";
+  else if (revising) text = "Claude is reading your note and rewriting all three mockups to match it…";
   else if (reading) text = "Reading the page to write three concrete versions of your change…";
   else if (noShot && !any)
     text = "Couldn't photograph the live page, so there's nothing to paint onto yet. Check the address opens, then switch Desktop/Phone to try again.";
@@ -818,7 +864,9 @@ function PcLine({
     text = `Mockups are being generated — Flux 2 paints them on your PC one at a time, each appearing as it lands (1–3 minutes each). ${left} to go.`;
   else
     text = editing
-      ? "Painted onto your live page with Flux 2 — free. Tweak any one, or pick it."
+      ? revisedBy
+        ? `Rewritten from your note by ${revisedBy}, then painted with Flux 2. Not there yet? Say what else to change.`
+        : "Painted onto your live page with Flux 2 — free. Tweak any one, or pick it."
       : "Painted with Flux 2 on your PC — free. Switch to Live layout to see the exact page structure.";
   return (
     <p className={`mk-pc is-${pc}${left || taking || reading ? " is-busy" : ""}`} role="status">

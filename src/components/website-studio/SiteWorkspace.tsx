@@ -375,6 +375,9 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
    * wording (their reword), so the three are written and painted again from
    * it, and the build reads the same words.
    */
+  const [revision, setRevision] = useState<{ id: number; change: string; after: string } | null>(null);
+  /** The three mockups are up, waiting for a pick. */
+  const lookPassOpen = needsLookPass({ liveUrl, building, requests: view?.requests ?? [] }, owner);
   const redoMockups = useCallback(
     async (note: string) => {
       if (!view) return;
@@ -383,6 +386,9 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
       const base = waiting.adminText || waiting.text;
       const next = `${base}\n${note}`;
       try {
+        // The board rewrites the three on screen from this note (Claude on the
+        // owner's plan first) once the request carries it.
+        setRevision({ id: Date.now(), change: note, after: next });
         await admin.act({ action: "review", id: view.projectId, requestId: waiting.id, adminText: next });
         // Accepted ideas are folded on top of the edit's words: keep the note in them.
         setIdeas((cur) => (cur?.requestId === waiting.id ? { ...cur, text: `${cur.text}\n${note}` } : cur));
@@ -437,6 +443,18 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
       }
       return;
     }
+    // On the mockups, waiting for a pick: the message is a note on THEM —
+    // "deeper purple", "the bold one but keep the logo" — not a new edit.
+    if (owner && tab === "look" && lookPassOpen && !building) {
+      try {
+        await redoMockups(body);
+        setText("");
+        setNote("Claude is rewriting the three mockups from that, then they're painted again.");
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
     if (!askVersionId) {
       setNote("There is no version to ask against yet — the first one has to be built first.");
       setSending(false);
@@ -466,7 +484,7 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
     } finally {
       setSending(false);
     }
-  }, [text, sending, view, token, owner, liveUrl, building, askVersionId, startBuild, loadIdeas, live.watching, live.build, live.finish.kind]);
+  }, [text, sending, view, token, owner, liveUrl, building, askVersionId, startBuild, loadIdeas, live.watching, live.build, live.finish.kind, tab, lookPassOpen, redoMockups]);
 
   /** Anything that runs a build from a press: one place for busy and the note. */
   const run = useCallback(
@@ -706,6 +724,7 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
               onPick={pickLook}
               onSaveMockups={saveMockups}
               onRedo={owner ? redoMockups : undefined}
+              revision={revision}
             />
           </div>
         ) : preview?.url && building ? (
@@ -916,7 +935,9 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
                     ? live.finish.kind === "review"
                       ? "Tell Claude what else to change — or press Ship it"
                       : "Tell Claude something while it works — “stop”, “don't commit”, “make it darker”"
-                    : owner
+                    : owner && tab === "look" && lookPassOpen
+                      ? "Not quite? Tell Claude what to change in the mockups — all three are rewritten and painted again"
+                      : owner
                       ? "What should change? Press / for a skill. Sending paints it three ways first."
                       : "What would you like changed?"
                 }
@@ -965,7 +986,13 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
                 <span className="ws-note faint">{owner ? "Send, pick a look, and it builds" : "Jarvis reviews it first"}</span>
               )}
               <button className="ws-btn small" onClick={() => void send()} disabled={sending || !text.trim()}>
-                {sending ? "Sending…" : owner && building && live.watching ? "Send to Claude" : "Send"}
+                {sending
+                  ? "Sending…"
+                  : owner && building && live.watching
+                    ? "Send to Claude"
+                    : owner && tab === "look" && lookPassOpen
+                      ? "Redo mockups"
+                      : "Send"}
               </button>
             </div>
             {/* Said before the press, not only after a failed one. */}

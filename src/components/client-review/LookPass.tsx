@@ -39,7 +39,14 @@ export function LookPass({
   onPick,
   onSaveMockups,
   onRedo,
+  revision,
 }: {
+  /**
+   * The owner's last note on the mockups and the request words it was saved
+   * into: once the page shows those words, the board rewrites the three it had
+   * from the note instead of starting from scratch.
+   */
+  revision?: { id: number; change: string; after: string } | null;
   /**
    * Owner only: none of the three is right. The note is added to the edit's
    * wording, so the three are written and painted again from it — and the
@@ -75,6 +82,13 @@ export function LookPass({
   }, [view.requests]);
 
   const editText = useMemo(() => joinEdits(edits.map((e) => e.text)), [edits]);
+  const boardRevision = useMemo(
+    () =>
+      revision && edits.some((e) => e.text.trim() === revision.after.trim())
+        ? { id: revision.id, change: revision.change, edit: editText }
+        : null,
+    [revision, edits, editText],
+  );
   // Only an edit to a page that exists can be painted onto it.
   const editing = Boolean(editText && (live?.siteUrl || live?.image));
 
@@ -130,6 +144,7 @@ export function LookPass({
         shared={shared}
         customLanes={sharedLanes}
         onPainted={owner && editing ? painted : undefined}
+        revision={owner && editing ? boardRevision : null}
         caption={
           editing
             ? chosen?.edit
@@ -174,7 +189,7 @@ function RedoBox({ onRedo, busy }: { onRedo: (note: string) => Promise<void> | v
         }
       }}
     >
-      <label htmlFor="cr-look-redo-in">Not quite? Tell it what to change and all three are made again.</label>
+      <label htmlFor="cr-look-redo-in">Not quite? Tell Claude what to change — it rewrites all three and they're painted again. The chat box below does the same.</label>
       <div>
         <input
           id="cr-look-redo-in"

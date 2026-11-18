@@ -352,13 +352,79 @@ Reply with JSON only: {"lanes":[{"label":"","instruction":""},{"label":"","instr
 export function readingsUser(args: { edit: string; siteName: string; url?: string; pageText?: string; outline?: string }): string {
   return [
     `Site: ${one(args.siteName, 60)}${args.url ? ` (${args.url})` : ""}`,
-    `Requested change: ${cleanEdit(args.edit)}`,
+    // The whole request, not the 600-character Flux line: a note added to the
+    // end of a long edit is the part that matters most, and it used to be cut.
+    `Requested change: ${one(args.edit, READINGS_EDIT_MAX)}`,
     args.outline ? `Page outline, read from the rendered page:\n${String(args.outline).slice(0, 2500)}` : "",
     args.pageText ? `Text on the page (for reference, top to bottom):\n${String(args.pageText).slice(0, 2500)}` : "",
     "The screenshot of the page as it is now is attached.",
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+// ----- changing the three readings from a note ------------------------------
+// "Not quite — a deeper purple, keep the white cards." The note goes to a model
+// with the three readings the owner is looking at, the screenshot and the
+// request, and comes back as three rewritten readings: every lane applies the
+// note, and each keeps the idea that made it different. Claude on the owner's
+// plan writes it first (the harness's own model, through the PC helper); the
+// hub's model is the fallback. Either way it is this one prompt.
+
+/** How much of the request a readings model reads. Long pasted prompts fit. */
+export const READINGS_EDIT_MAX = 6000;
+
+export const REVISE_SYSTEM = `${READINGS_SYSTEM.split("\n\nReply with JSON only")[0]}
+
+You are REVISING three readings the owner has already seen as pictures. They were not quite right, and the owner said what to change.
+- Apply the owner's note to ALL THREE readings. The note wins over anything it contradicts in the earlier readings or the original request.
+- Keep what each earlier reading got right and what made the three different from each other, unless the note says otherwise.
+- If the note names one reading ("the second one", "the bold one"), change that one the most, and carry the note into the other two only where it fits them.
+- Each reading still names real elements on the page and says exactly how they look — never "as before" or "same as reading 1": Flux only sees the reading itself.
+
+Reply with JSON only: {"lanes":[{"label":"","instruction":""},{"label":"","instruction":""},{"label":"","instruction":""}]}`;
+
+/** The user turn for a revision: the request, the readings on screen, and the note. */
+export function reviseUser(args: {
+  edit: string;
+  change: string;
+  previous: CustomLane[];
+  siteName: string;
+  url?: string;
+  pageText?: string;
+}): string {
+  const names = ["As asked", "Polished", "Bold"];
+  return [
+    `Site: ${one(args.siteName, 60)}${args.url ? ` (${args.url})` : ""}`,
+    `The original request: ${one(args.edit, READINGS_EDIT_MAX)}`,
+    `The three readings the owner was shown:\n${args.previous
+      .slice(0, 3)
+      .map((l, i) => `${i + 1}. ${one(l.label || names[i], 32)}: ${one(l.instruction, 520)}`)
+      .join("\n")}`,
+    `What the owner wants changed in them: ${one(args.change, READINGS_EDIT_MAX)}`,
+    args.pageText ? `Text on the page (for reference, top to bottom):\n${String(args.pageText).slice(0, 2500)}` : "",
+    "The screenshot of the page as it is now is attached.",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/**
+ * Three readings out of a model's reply text: plain JSON, JSON with chatter or
+ * fences around it, or the PC helper's {"answer": "<json>"} envelope.
+ */
+export function readingsFromText(text: string): CustomLane[] | null {
+  const s = String(text ?? "");
+  const start = s.indexOf("{");
+  const end = s.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    const parsed = JSON.parse(s.slice(start, end + 1)) as { lanes?: unknown; answer?: unknown };
+    if (typeof parsed.answer === "string") return readingsFromText(parsed.answer);
+    return coerceReadings(parsed);
+  } catch {
+    return null;
+  }
 }
 
 /** The model's answer, checked: exactly three usable lanes, or null. */
