@@ -33,7 +33,7 @@
 // ---------------------------------------------------------------------------
 
 import { clientEditProject, editMasterPrompt, quickEditPrompt } from "@/lib/app-builder/clientEdit";
-import type { BuilderProject } from "@/lib/app-builder/types";
+import type { BuilderProject, Depth } from "@/lib/app-builder/types";
 import { readStore, writeStore } from "@/lib/app-builder/useAppBuilder";
 import { BridgeError, call, knownFolder, probe } from "@/lib/new-jarvis/bridge";
 import { buildHarness } from "@/lib/new-jarvis/harness/choice";
@@ -369,15 +369,24 @@ async function startPcThread(
  * batch stays approved, the caller shows the sentence, and pressing build again
  * is the retry.
  */
-export async function startClientEditBuild(review: ClientProject, batchId: string, lane: Lane = "full"): Promise<StartedBuild> {
-  const bucket = builderFor(review, batchId);
+export async function startClientEditBuild(
+  review: ClientProject,
+  batchId: string,
+  lane: Lane = "full",
+  /** Website Studio's Commercial / Commercial 2x switch for this edit. */
+  depth?: Depth,
+): Promise<StartedBuild> {
+  const found = builderFor(review, batchId);
+  const bucket = depth ? { ...found, depth } : found;
+  // A commercial edit is never a quick one: it runs skills and builds layers.
+  const road: Lane = depth && depth !== "plain" ? "full" : lane;
   const { threadId, model, base } = await startPcThread(
     review,
     `${review.name} ${bucket.edit?.version ?? ""}`.trim() + " client edits",
-    harnessBrief(bucket, lane),
+    harnessBrief(bucket, road),
     // The PC's check opens the edited app's own page, not only the hub's home.
     bucket.edit?.appPath ? [bucket.edit.appPath] : [],
-    lane,
+    road,
   );
 
   // Keep the project, so the console can open it and a reload still finds it.

@@ -216,3 +216,17 @@ describe("client accounts", () => {
     expect(json).not.toContain("dana@gmail.com");
   });
 });
+
+describe("a long pasted prompt", () => {
+  it("is kept whole up to the shared chat limit, and refused plainly past it", async () => {
+    const { MAX_PROMPT_CHARS } = await import("../new-jarvis/promptLimit");
+    expect(MAX_PROMPT_CHARS).toBeGreaterThanOrEqual(100_000);
+    const p = fresh();
+    const v1 = p.versions[0].id;
+    const long = `Make the hero bigger. ${"Keep every section exactly as it is. ".repeat(500)}`.trim();
+    expect(long.length).toBeGreaterThan(10_000);
+    const out = addRequest(p, { versionId: v1, text: long }, T);
+    expect(out.request.text).toBe(long);
+    expect(() => addRequest(p, { versionId: v1, text: "x".repeat(MAX_PROMPT_CHARS + 1) }, T)).toThrow(/too long/);
+  });
+});

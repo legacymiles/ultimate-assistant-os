@@ -20,6 +20,7 @@ import { admin, ApiError } from "./client";
 import { CannotBuildHere, startClientEditBuild, startUndoBuild } from "./autoBuild";
 import { undoPlan } from "@/lib/website-studio/undo";
 import type { Lane } from "@/lib/website-studio/lane";
+import type { Depth } from "@/lib/app-builder/types";
 import { blockerAdvice, type Blocker } from "./liveBuild";
 import type { ClientProject, ReviewVersion } from "./types";
 
@@ -112,6 +113,8 @@ export async function approveAndStart(
   beforeImage?: string,
   /** Website Studio passes "quick" for an edit; Client Review keeps the full road. */
   lane: Lane = "full",
+  /** Website Studio's Commercial / Commercial 2x switch; unset = the edit alone. */
+  depth?: Depth,
 ): Promise<BuildStarted> {
   // FIRST, before any other round trip: a browser only offers "let this site
   // reach your PC?" while the press that started this is still warm, and it
@@ -142,7 +145,7 @@ export async function approveAndStart(
       .catch(() => null);
   }
   try {
-    const started = await startClientEditBuild(out.project, batch.id, lane);
+    const started = await startClientEditBuild(out.project, batch.id, lane, depth);
     await admin.act({
       action: "buildQueued",
       id: out.project.id,

@@ -2066,6 +2066,24 @@
   gap: 10px;
   flex-wrap: wrap;
 }
+/* Commercial / 2x — under the factory switch, 2x stepped in as its child. */
+.ws-compose-depth {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.ws-compose-depth .ws-factory + .ws-factory {
+  padding-left: 14px;
+}
+.ws-factory[aria-disabled="true"],
+.ws-factory:has(input:disabled) {
+  cursor: default;
+  opacity: 0.55;
+}
+.ws-factory input:disabled {
+  cursor: default;
+}
 
 /* ----- the old boards, one press away from the home ----------------------- */
 .ws-more {

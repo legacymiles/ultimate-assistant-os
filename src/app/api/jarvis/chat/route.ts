@@ -1,3 +1,4 @@
+import { MAX_PROMPT_CHARS } from "@/lib/new-jarvis/promptLimit";
 import { after, NextResponse } from "next/server";
 import { runAgent } from "@/lib/jarvis/server/agent";
 import { connector } from "@/lib/jarvis/server/connectors";
@@ -109,7 +110,7 @@ export async function POST(req: Request) {
   const messages = (body.messages ?? [])
     .map((m) => ({
       role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
-      content: typeof m.content === "string" ? m.content.slice(0, 12000) : "",
+      content: typeof m.content === "string" ? m.content.slice(0, MAX_PROMPT_CHARS) : "",
       images: m.role === "assistant" ? [] : cleanImages(m.images),
     }))
     .filter((m) => m.content.trim() || m.images.length)

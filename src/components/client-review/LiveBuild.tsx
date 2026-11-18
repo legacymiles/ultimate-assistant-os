@@ -14,6 +14,7 @@
 // the feed in the chat's list, the steer box where the compose box would be.
 // ---------------------------------------------------------------------------
 
+import { MAX_PROMPT_CHARS } from "@/lib/new-jarvis/promptLimit";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { phaseLabel } from "@/lib/app-builder/build";
 import { useBuild, type UseBuild } from "@/lib/app-builder/useBuild";
@@ -469,7 +470,7 @@ export function BuildSteer({ live }: { live: LiveBuild }) {
         }}
         placeholder={busy ? "The build has finished." : "Tell Claude Code something while it works…"}
         rows={2}
-        maxLength={4000}
+        maxLength={MAX_PROMPT_CHARS}
         disabled={busy}
         aria-label="Message to Claude Code"
       />

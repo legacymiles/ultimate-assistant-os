@@ -1,3 +1,4 @@
+import { MAX_PROMPT_CHARS } from "@/lib/new-jarvis/promptLimit";
 import { NextResponse } from "next/server";
 import { aiEndpoint, aiFetch, describeFailure, DEFAULT_MODEL } from "@/lib/ai/provider";
 import { callerIsMember } from "@/lib/recall/lists/session";
@@ -57,7 +58,7 @@ export async function POST(req: Request) {
           { role: "system", content: systemPrompt(body) },
           ...body.messages
             .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
-            .map((m) => ({ role: m.role, content: m.content.slice(0, 2000) })),
+            .map((m) => ({ role: m.role, content: m.content.slice(0, MAX_PROMPT_CHARS) })),
         ],
       }),
     });

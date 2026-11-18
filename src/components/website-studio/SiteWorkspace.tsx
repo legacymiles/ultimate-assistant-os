@@ -24,6 +24,7 @@
 // in the side panel puts an edit on the full road when it is really a feature.
 // ---------------------------------------------------------------------------
 
+import { MAX_PROMPT_CHARS } from "@/lib/new-jarvis/promptLimit";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { admin, portal, ApiError } from "@/lib/client-review/client";
 import { frameAddress } from "@/lib/client-review/frame";
@@ -43,6 +44,7 @@ import { FACTORY_DONE, factoryBrief, type StageFacts } from "@/lib/website-studi
 import { BuildFeed, useLiveBuild } from "../client-review/LiveBuild";
 import { LookPass } from "../client-review/LookPass";
 import { ModelPicker } from "../new-jarvis/ModelPicker";
+import { DEPTH_BLURB } from "@/lib/app-builder/depth";
 import { DesignSlash } from "./DesignSlash";
 import { EditChecklist } from "./EditChecklist";
 import { EditIdeas } from "./EditIdeas";
@@ -59,6 +61,8 @@ interface Props {
 }
 
 type Tab = "chat" | "look" | "changes" | "versions" | "ship";
+/** The Commercial switches: off = the edit alone. */
+type EditDepth = "off" | "commercial" | "commercial-2x";
 
 /** Where the PC serves a quick edit for the owner to look at before it is committed. */
 const PREVIEW_PORT = 3290;
@@ -192,6 +196,35 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
     [factoryKey],
   );
 
+  // ----- Commercial / Commercial 2x: how far an edit goes ------------------------------
+  //
+  // Off by default, like the factory: an edit changes what it asks for. On, the
+  // same build also brings the whole site up to that depth (the `commercial`
+  // skill), which needs the full road — so the factory switch reads on with it.
+  // Remembered per website on this device.
+  const depthKey = `website-studio:depth:${token}`;
+  const [depth, setDepthState] = useState<EditDepth>("off");
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(depthKey);
+      setDepthState(saved === "commercial" || saved === "commercial-2x" ? saved : "off");
+    } catch {
+      setDepthState("off");
+    }
+  }, [depthKey]);
+  const setDepth = useCallback(
+    (d: EditDepth) => {
+      setDepthState(d);
+      try {
+        window.localStorage.setItem(depthKey, d);
+      } catch {
+        // Private window: the switch still works for this visit.
+      }
+    },
+    [depthKey],
+  );
+  const fullRoad = factory || depth !== "off";
+
   // ----- is the harness there? --------------------------------------------------------
   //
   // Asked on open and kept fresh, rather than only discovered by a failed
@@ -272,7 +305,13 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
     if (!view) return;
     // The before picture: what Versions shows beside Undo.
     const before = await captureFrame();
-    const out = await approveAndStart(token, askVersionId ?? undefined, before || undefined, laneFor(factory));
+    const out = await approveAndStart(
+      token,
+      askVersionId ?? undefined,
+      before || undefined,
+      laneFor(fullRoad),
+      depth === "off" ? undefined : depth,
+    );
     setNote(out.message);
     setBlocker(out.blocker ?? null);
     if (out.state === "working") {
@@ -282,7 +321,7 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
       await load();
       onChanged?.();
     }
-  }, [view, token, askVersionId, load, onChanged, factory, captureFrame]);
+  }, [view, token, askVersionId, load, onChanged, fullRoad, depth, captureFrame]);
 
   /**
    * A few ideas that belong with the edit just sent, fetched beside it — the
@@ -871,7 +910,7 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
                   }
                 }}
                 rows={2}
-                maxLength={2000}
+                maxLength={MAX_PROMPT_CHARS}
                 placeholder={
                   owner && building && live.watching
                     ? live.finish.kind === "review"
@@ -889,9 +928,33 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
               <div className="ws-compose-tools">
                 {/* The model that builds the edit, where the edit is typed. */}
                 <ModelPicker value={harnessModel} onChange={setHarnessModel} up />
-                <label className="ws-factory" title="Off: a quick edit — change, typecheck, merge, live in minutes. On: the full road, then Software Factory deepens the backend after it is live.">
-                  <input type="checkbox" checked={factory} onChange={(e) => setFactory(e.target.checked)} />
-                  Software Factory <em>{factory ? "· full build" : "· off for edits"}</em>
+                <label
+                  className="ws-factory"
+                  title={
+                    depth !== "off"
+                      ? "On while Commercial is on: building the commercial layers takes the full road."
+                      : "Off: a quick edit — change, typecheck, merge, live in minutes. On: the full road, then Software Factory deepens the backend after it is live."
+                  }
+                >
+                  <input type="checkbox" checked={fullRoad} disabled={depth !== "off"} onChange={(e) => setFactory(e.target.checked)} />
+                  Software Factory <em>{depth !== "off" ? "· on with Commercial" : factory ? "· full build" : "· off for edits"}</em>
+                </label>
+              </div>
+            )}
+            {owner && (
+              <div className="ws-compose-depth" role="group" aria-label="How far this edit goes">
+                <label className="ws-factory" title={DEPTH_BLURB.commercial}>
+                  <input type="checkbox" checked={depth !== "off"} onChange={(e) => setDepth(e.target.checked ? "commercial" : "off")} />
+                  Commercial <em>{depth !== "off" ? "· logins, profiles, admin, legal — stays free" : "· off"}</em>
+                </label>
+                <label className="ws-factory" title={DEPTH_BLURB["commercial-2x"]} aria-disabled={depth === "off"}>
+                  <input
+                    type="checkbox"
+                    checked={depth === "commercial-2x"}
+                    disabled={depth === "off"}
+                    onChange={(e) => setDepth(e.target.checked ? "commercial-2x" : "commercial")}
+                  />
+                  Commercial 2x <em>{depth === "commercial-2x" ? "· pricing, paywalls, critic to 9/10" : depth === "off" ? "· needs Commercial" : "· off"}</em>
                 </label>
               </div>
             )}

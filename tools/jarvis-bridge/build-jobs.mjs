@@ -37,6 +37,8 @@ const MAX_EVENTS = 500;
 
 /** Text is capped so one long assistant message cannot bloat the file. */
 const MAX_TEXT = 8_000;
+/** Same as the hub's MAX_PROMPT_CHARS (src/lib/new-jarvis/promptLimit.ts). */
+const MAX_USER_TEXT = 100_000;
 
 /**
  * The lines a build is told to finish on.
@@ -108,8 +110,12 @@ function compact(event) {
   if (!kind || kind === "thinking") return null;
   const row = { seq: Number(event.seq) || 0, at: Number(event.at) || Date.now(), kind };
   switch (kind) {
-    case "text":
     case "user":
+      // What the owner typed is kept whole (up to the hub's chat limit): a
+      // long pasted prompt cut here is a prompt the job's record misquotes.
+      row.text = String(event.text ?? "").slice(0, MAX_USER_TEXT);
+      break;
+    case "text":
     case "note":
       row.text = String(event.text ?? "").slice(0, MAX_TEXT);
       break;

@@ -1,3 +1,4 @@
+import { MAX_PROMPT_CHARS } from "@/lib/new-jarvis/promptLimit";
 import { NextResponse } from "next/server";
 import { aiEndpoint, aiFetch, describeFailure, DEFAULT_MODEL } from "@/lib/ai/provider";
 import { callerIsMember } from "@/lib/recall/lists/session";
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
   let topic: FelixTopic | null = null;
   try {
     const body = (await req.json()) as { text?: unknown; answers?: unknown; topic?: unknown };
-    text = typeof body.text === "string" ? body.text.slice(0, 8_000) : "";
+    text = typeof body.text === "string" ? body.text.slice(0, MAX_PROMPT_CHARS) : "";
     answers = coerceAnswers(body.answers);
     topic = TOPICS.includes(body.topic as FelixTopic) ? (body.topic as FelixTopic) : topicOf(text);
   } catch {

@@ -26,6 +26,7 @@ import type { ClientProject, EditRequest } from "../client-review/types";
 import type { BuilderProject, ClientEdit, ClientEditItem, Feature, Understanding } from "./types";
 import { joinEdits, pickMatches } from "../mockup/edit";
 import { deltaBlock, deltaLine } from "./spec";
+import { depthBrief } from "./depth";
 import { designIntelligenceBlock, designIntelligenceLine } from "../design-intelligence/brief";
 
 /**
@@ -335,6 +336,23 @@ export function quickEditPrompt(p: BuilderProject): string {
     .join("\n\n");
 }
 
+/**
+ * The depth the owner switched on for this edit (Website Studio's Commercial /
+ * Commercial 2x switches). Off — or plain — adds nothing: an edit changes only
+ * what it asks for. On, the whole site is brought up to that depth as part of
+ * the same build, which is the one place "change nothing else" gives way.
+ */
+export function editDepthBlock(p: Pick<BuilderProject, "depth">): string {
+  if (!p.depth || p.depth === "plain") return "";
+  return [
+    "<depth>",
+    `The owner switched on ${p.depth === "commercial-2x" ? "Commercial 2x" : "Commercial"} for this edit. Make the edits above, AND bring the whole site up to this depth in the same build — not only the pages the edits touch. Keep every feature, page and route that works today.`,
+    depthBrief(p.depth),
+    "This is the one place \"change only what the edits ask for\" gives way: for these layers only. Where a layer already exists and works, keep it and say so instead of rebuilding it.",
+    "</depth>",
+  ].join("\n");
+}
+
 /** The full prompt (Copy master prompt / View prompt) for an edit. */
 export function editMasterPrompt(p: BuilderProject): string {
   const edit = p.edit!;
@@ -357,6 +375,7 @@ export function editMasterPrompt(p: BuilderProject): string {
     // half an edit can break a form two pages away and the report still reads
     // green, because nothing ever said what "unchanged" meant.
     deltaBlock(p),
+    editDepthBlock(p),
     pickedMockupBlock(p),
     `<skills_pipeline>\n${editPipeline()
       .map((s, i) => `${i + 1}. ${s.skill} — ${s.role}`)

@@ -23,6 +23,7 @@
 //   because the project carries `designSkill` across the hand-off.
 // ---------------------------------------------------------------------------
 
+import { MAX_PROMPT_CHARS } from "@/lib/new-jarvis/promptLimit";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { MockupBakeOff } from "@/components/mockup/MockupBakeOff";
@@ -180,7 +181,7 @@ function RedoBox({ onRedo, busy }: { onRedo: (note: string) => Promise<void> | v
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="e.g. a deeper purple, and keep the white cards"
-          maxLength={400}
+          maxLength={MAX_PROMPT_CHARS}
           disabled={busy || sending}
         />
         <button type="submit" className="cr-btn small" disabled={busy || sending || !text.trim()}>

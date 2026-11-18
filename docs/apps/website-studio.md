@@ -165,6 +165,20 @@ The first working site goes live after a fast security check; the Studio then sa
 message into the same harness thread, which is what starts Software Factory and the deep security
 scan. Sent once — the thread itself is the record, so a second device cannot send it again.
 
+**Commercial and Commercial 2x on an edit.** Two switches sit under Software Factory in the chat
+box, remembered per website on this device. Off (the default), an edit changes only what it asks
+for. Commercial makes the same build also bring the whole site up to the `commercial` depth —
+logins, profiles, admin, onboarding, legal pages, billing wired and off, still free; Commercial 2x
+(only with Commercial on) switches the money on: pricing, paywalls, upgrade moments and a critic
+panel to 9/10. A commercial edit always takes the full road, so the factory switch reads "on with
+Commercial" while it is on. The brief carries a `<depth>` block (`editDepthBlock` in
+`src/lib/app-builder/clientEdit.ts`); the quick lane never does.
+
+**Long prompts.** Every Jarvis chat box takes a prompt up to 100,000 characters — this chat box,
+the steer box while a build runs, Client Review, App Builder, In Queue, the main chat and Enhance —
+one number, `MAX_PROMPT_CHARS` in `src/lib/new-jarvis/promptLimit.ts`, read by the browser boxes
+and the server alike. It used to be 2,000 here, and a pasted prompt was cut off without a word.
+
 **No sign-in inside the frame.** A hub app is framed on the Studio's own address
 (`frameAddress` in `src/lib/client-review/frame.ts`), whichever hub address the build reported —
 `ultimate-assistant-os.vercel.app`, `bighomieai.com` or `www.` — so the owner's session is already
@@ -209,6 +223,9 @@ now returns every visitor to the page the wall stood in front of (`/login?next=`
   requests, versions and link — never its code or the live site.
 - A hub app in the frame never asks to sign in, and Google's sign-in never loads inside a frame:
   it always opens as a popup (or a tab when pop-ups are blocked) and the frame follows on its own.
+- With Commercial off, an edit's brief has no `<depth>` block and the quick lane is unchanged.
+  Commercial 2x can never be on without Commercial.
+- A pasted prompt is never cut short below `MAX_PROMPT_CHARS`.
 - Offline: the whole page works with no keys and no PC. The pages plan is written with no model at
   all, and the mockups fall back to the coded drawings when Flux is not running.
 

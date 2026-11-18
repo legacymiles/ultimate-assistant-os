@@ -12,6 +12,7 @@
 // Pure: the shell and the senders both import it, and the tests cover it.
 // ---------------------------------------------------------------------------
 
+import { MAX_PROMPT_CHARS } from "./promptLimit";
 import type { Mode } from "./types";
 
 export const ASK_EVENT = "jarvis:ask";
@@ -26,7 +27,7 @@ export interface AskRequest {
 }
 
 const MODES: Mode[] = ["ask", "do", "browse", "run"];
-const MAX_TEXT = 8_000;
+const MAX_TEXT = MAX_PROMPT_CHARS;
 const MAX_FILES = 6;
 
 /** Whatever was fired, as a request the shell can trust — or null. */

@@ -3,6 +3,7 @@
 // In Queue. Pure, so it is tested; the posting is in NewJarvis.tsx.
 // ---------------------------------------------------------------------------
 
+import { MAX_PROMPT_CHARS } from "./promptLimit";
 import { INBOX } from "./requests";
 
 export interface AppRef {
@@ -40,5 +41,5 @@ export function buildRequest(appSaid: string, request: string, apps: AppRef[]): 
   const text = app
     ? `${app.title} (/apps/${app.slug}): ${body}`
     : `${appSaid.trim() || "App"}: ${body}`;
-  return { folder: app ? `app:${app.slug}` : INBOX, text: text.slice(0, 3_900), app };
+  return { folder: app ? `app:${app.slug}` : INBOX, text: text.slice(0, MAX_PROMPT_CHARS), app };
 }

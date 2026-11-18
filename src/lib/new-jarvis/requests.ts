@@ -19,6 +19,8 @@
 // functions, so they cannot disagree about what a request is.
 // ---------------------------------------------------------------------------
 
+import { MAX_PROMPT_CHARS } from "./promptLimit";
+
 /** `open` = waiting; `working` = an agent called queue_start on it. */
 export type RequestStatus = "open" | "working";
 
@@ -79,7 +81,7 @@ export interface RequestsDoc {
 
 export const INBOX = "inbox";
 export const MAX_IMAGES = 4;
-export const MAX_TEXT = 4000;
+export const MAX_TEXT = MAX_PROMPT_CHARS;
 /** One image after downscaling; a bigger one is refused rather than stored. */
 export const MAX_IMAGE_CHARS = 900_000;
 export const FINISHED_KEEP = 40;

@@ -9,6 +9,7 @@
 // ReviewError whose message is fit to show a person.
 // ---------------------------------------------------------------------------
 
+import { MAX_PROMPT_CHARS } from "@/lib/new-jarvis/promptLimit";
 import { cleanPick } from "../mockup/edit";
 import { directionsFor } from "@/lib/mockup/directions";
 
@@ -40,7 +41,8 @@ export class ReviewError extends Error {
 }
 
 /** Longest single request a client can send. A request, not an essay. */
-export const MAX_REQUEST_CHARS = 2000;
+/** A request is a chat prompt: the same ceiling as every Jarvis chat. */
+export const MAX_REQUEST_CHARS = MAX_PROMPT_CHARS;
 /** Unsent drafts per version before the client is asked to send some. */
 export const MAX_DRAFTS = 40;
 /** Notices / events kept before the oldest are dropped. */

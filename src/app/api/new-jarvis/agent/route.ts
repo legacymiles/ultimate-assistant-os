@@ -1,3 +1,4 @@
+import { MAX_PROMPT_CHARS } from "@/lib/new-jarvis/promptLimit";
 import { NextResponse } from "next/server";
 import { aiEndpoint, aiFetch, describeFailure, DEFAULT_MODEL } from "@/lib/ai/provider";
 import { runNote, sanitizeAssistant, toApiTools, toolsFor, type AgentTool } from "@/lib/new-jarvis/agentTools";
@@ -86,7 +87,7 @@ function cleanParts(parts: unknown[]): Part[] {
   for (const raw of parts.slice(0, 16)) {
     const p = raw as Record<string, unknown>;
     if (p?.type === "text" && typeof p.text === "string") {
-      out.push({ type: "text", text: p.text.slice(0, 24_000) });
+      out.push({ type: "text", text: p.text.slice(0, MAX_PROMPT_CHARS) });
     } else if (p?.type === "image_url") {
       const url = String((p.image_url as { url?: unknown } | undefined)?.url ?? "");
       const ok = /^data:image\/(jpeg|png|webp|gif);base64,/.test(url) || /^https:\/\//.test(url);
@@ -180,7 +181,7 @@ function clean(messages: WireMessage[]): WireMessage[] {
         // outright and takes the whole run with it.
         const rest = sanitizeAssistant({ ...(m as Record<string, unknown>) });
         delete rest.role;
-        if (typeof rest.content === "string") rest.content = rest.content.slice(0, 24_000);
+        if (typeof rest.content === "string") rest.content = rest.content.slice(0, MAX_PROMPT_CHARS);
         return { ...rest, role } as WireMessage;
       }
       const out: WireMessage = {
@@ -189,7 +190,7 @@ function clean(messages: WireMessage[]): WireMessage[] {
           role === "user" && Array.isArray(m.content)
             ? cleanParts(m.content)
             : typeof m.content === "string"
-              ? m.content.slice(0, 24_000)
+              ? m.content.slice(0, MAX_PROMPT_CHARS)
               : "",
       };
       if (role === "tool") {

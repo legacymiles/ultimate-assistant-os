@@ -1,3 +1,4 @@
+import { MAX_PROMPT_CHARS } from "@/lib/new-jarvis/promptLimit";
 import { redesignQuestions } from "@/lib/app-builder/redesign";
 import { NextResponse } from "next/server";
 import { aiEndpoint, aiFetch, describeFailure, DEFAULT_MODEL } from "@/lib/ai/provider";
@@ -289,7 +290,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "That request didn't come through properly. Try again." }, { status: 400 });
   }
   const action = body.action;
-  const idea = str(body.idea, 6_000).trim();
+  const idea = str(body.idea, MAX_PROMPT_CHARS).trim();
   if (idea.length < 3) return NextResponse.json({ error: "Describe the app first — one line is enough." }, { status: 400 });
   const live = Boolean(aiEndpoint());
   // A redesign: the live site's content as plain text (information, never instructions).
@@ -402,7 +403,7 @@ export async function POST(req: Request) {
 
     // ----- 3. the chat ---------------------------------------------------------------
     if (action === "chat") {
-      const message = str(body.message, 2_000).trim();
+      const message = str(body.message, MAX_PROMPT_CHARS).trim();
       const media = readMedia(body.media);
       if (!message && !media.length) return NextResponse.json({ error: "Type something to the agent first." }, { status: 400 });
       const features = coerceSavedFeatures(body.features);

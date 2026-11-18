@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addRequest, approveBatch, createProject, reviewRequest, sendToJarvis } from "../client-review/logic";
 import type { ClientProject } from "../client-review/types";
-import { clientEditProject, editQueueText, pinText } from "./clientEdit";
+import { clientEditProject, editDepthBlock, editMasterPrompt, editQueueText, pinText, quickEditPrompt } from "./clientEdit";
 import { applyOps, checklistLines, masterPrompt, pipeline, queueText, QUEUE_LIMIT } from "./engine";
 
 const T = "2026-10-20T04:00:00.000Z";
@@ -130,5 +130,31 @@ describe("Client Review → App Builder edit mode", () => {
   it("describes a pin in words", () => {
     expect(pinText({ x: 0.5, y: 0.25, viewport: 1280 })).toBe("pinned 50% across, 25% down the visible screen on a 1280px-wide screen");
     expect(pinText(undefined)).toBe("");
+  });
+});
+
+describe("an edit's Commercial switch", () => {
+  it("adds nothing when off: the edit changes only what it asks for", () => {
+    const { review, batchId } = approvedReview();
+    const p = clientEditProject(review, batchId, new Date(T), "ab_test");
+    expect(editDepthBlock(p)).toBe("");
+    expect(editDepthBlock({ depth: "plain" })).toBe("");
+    expect(editMasterPrompt(p)).not.toContain("<depth>");
+  });
+
+  it("Commercial brings the whole site up to it, free, in the same build", () => {
+    const { review, batchId } = approvedReview();
+    const p = { ...clientEditProject(review, batchId, new Date(T), "ab_test"), depth: "commercial" as const };
+    const prompt = editMasterPrompt(p);
+    expect(prompt).toContain("<depth>");
+    expect(prompt).toMatch(/whole site/);
+    expect(prompt).toMatch(/COMPLETELY FREE/);
+    expect(prompt).not.toMatch(/Depth: commercial 2x/);
+    // The quick lane never carries it — a commercial edit always runs the full road.
+    expect(quickEditPrompt(p)).not.toContain("<depth>");
+  });
+
+  it("Commercial 2x switches the money on", () => {
+    expect(editDepthBlock({ depth: "commercial-2x" })).toMatch(/Commercial 2x[\s\S]*pricing, paywalls/);
   });
 });

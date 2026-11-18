@@ -4,6 +4,7 @@
 // by the paperclip, by dropping them on it, or by pasting. Videos are read
 // right here (frames + narration) before anything is sent.
 
+import { MAX_PROMPT_CHARS } from "@/lib/new-jarvis/promptLimit";
 import { useRef, useState } from "react";
 import { ACCEPT, MAX_ITEMS, prepare, type PreparedMedia } from "@/lib/app-builder/media";
 import { SlashSkills, withSkill } from "../new-jarvis/SlashSkills";
@@ -139,7 +140,7 @@ export function Composer({ busy, onSend, placeholder, hero, sendLabel, autoFocus
           placeholder={placeholder}
           value={text}
           rows={hero ? 3 : 2}
-          maxLength={6000}
+          maxLength={MAX_PROMPT_CHARS}
           autoFocus={autoFocus}
           onChange={(e) => {
             setText(e.target.value);

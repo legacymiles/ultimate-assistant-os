@@ -20,6 +20,7 @@
 // a client's own repo and Vercel is what the Ship tab is for.
 // ---------------------------------------------------------------------------
 
+import { MAX_PROMPT_CHARS } from "@/lib/new-jarvis/promptLimit";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { frameAddress } from "@/lib/client-review/frame";
 import { approveAndStart, connectToPc } from "@/lib/client-review/buildHere";
@@ -973,7 +974,7 @@ export function ClientPortal({
                 }}
                 placeholder="e.g. Make the headline bigger and change “Book now” to “Reserve your spot”"
                 rows={2}
-                maxLength={2000}
+                maxLength={MAX_PROMPT_CHARS}
                 aria-label="New edit request"
               />
               </div>
