@@ -2,9 +2,9 @@
 
 **Generated — do not edit.** `node scripts/apps-index.mjs` rewrites this from [`src/lib/catalog.ts`](../../src/lib/catalog.ts), which is the single source of truth for the hub. `node scripts/apps-index.mjs --check` fails when the two disagree.
 
-42 projects — 42 live, 0 coming soon. Every live one is a real route under this one Next.js app; none of them is a separate project, repo or deployment. A rebuild that is missing routes from this table is not this site.
+43 projects — 43 live, 0 coming soon. Every live one is a real route under this one Next.js app; none of them is a separate project, repo or deployment. A rebuild that is missing routes from this table is not this site.
 
-## AI (12)
+## AI (13)
 
 | App | Route | What it is |
 |---|---|---|
@@ -15,6 +15,7 @@
 | **Projects Timeline** | `/apps/projects-timeline` | A project intelligence system that becomes the single source of truth for every one of your projects. |
 | **App Builder** | `/apps/app-builder` | Type an app idea — one line or a full brief — or drop a screen recording or screenshots of an app or workflow you want recreated or changed. |
 | **YouTube videos** | `/apps/youtube-videos` | Paste any YouTube, Shorts, TikTok, Instagram, Facebook, X, Vimeo or Twitch link (or several at once, or paste anywhere on the page) and it lands at the top of your watch-later l… |
+| **Profiles** | `/apps/profiles` | A web of folders for your life: your son, your girlfriend, your businesses, your jobs. |
 | **iPhone Notes** | `/apps/iphone-notes` | An iPhone Shortcut sends the notes you wrote or changed lately, and Jarvis reads each one into what it would do: a to-do, a calendar event, a birthday, something to remember, an… |
 | **Text Inbox** | `/apps/text-inbox` | An iPhone Shortcut automation sends each text from the people you pick, and Jarvis drafts a reply in your voice — your own words about how you text, plus every reply you rewrite… |
 | **Find My Life** | `/apps/find-my-life` | Your phone, laptop, Meta glasses, car, keys and wallet in one place, on a live radar with you in the middle. |

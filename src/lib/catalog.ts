@@ -545,6 +545,24 @@ export const PROJECTS: CatalogProject[] = [
     hue: [4, 195],
   },
   {
+    slug: "profiles",
+    title: "Profiles",
+    tag: "Every person, business and job in your life — told to Jarvis, filed for you",
+    category: "AI",
+    overview:
+      "A web of folders for your life: your son, your girlfriend, your businesses, your jobs. Each profile opens into its own world — " +
+      "the profiles inside it (School, Equipment, Vendors), sections of details that only exist when there is something in them, " +
+      "and a photo and video gallery. You only ever see the current level; click to go deeper. Jarvis is how information gets in: " +
+      "tell it things in your own words or drop in photos, and it works out where each piece belongs, shows the changes, and saves " +
+      "nothing until you tap Save — every save has an Undo. Ask and it answers first, then shows where it found it and flies you " +
+      "there level by level. The chat is your Jarvis harness on your PC when it is on, the cloud model when it is not, and an " +
+      "offline reader with neither. It collapses to a bar or an orb so you can browse by hand. Codes stay hidden until tapped.",
+    status: "live",
+    appUrl: "/apps/profiles",
+    iconStyle: "orbit",
+    hue: [158, 208],
+  },
+  {
     slug: "iphone-notes",
     title: "iPhone Notes",
     tag: "Your notes, read by Jarvis — you approve every one",
@@ -1013,6 +1031,7 @@ const UNPREVIEWABLE = new Set([
   "custom-video-swap",
   "dashboard",
   "find-my-life",
+  "profiles",
   "iphone-notes",
   "text-inbox",
   "contradicting",
