@@ -11,7 +11,12 @@
 // kind of model only.
 // ---------------------------------------------------------------------------
 
+import { blend, dimValues } from "./dimensions";
+import type { Blend, Dimension, DimValue } from "./dimensions";
 import type { Access, ContentRating } from "./types";
+
+export type { Dimension, DimValue, DimSource, MetricScale } from "./dimensions";
+export { dimsOf, dimOf, formatMetric, scoreMetric, ALL_DIM_IDS } from "./dimensions";
 
 // ----- categories ------------------------------------------------------------
 
@@ -121,8 +126,27 @@ export interface Model {
   features: string[];
   tags: string[];
   publicScore?: PublicScore;
-  /** The owner's own 1–10. */
+  /** The owner's own 1–10, overall. */
   myRating?: number;
+  /**
+   * The owner's 1–10 on one named dimension of this model's category —
+   * `{ naturalness: 9, emotion: 7 }`. Keys are dimension ids from
+   * `dimensions.ts`; anything else is dropped when the model is cleaned.
+   */
+  ratings?: Record<string, number>;
+  /**
+   * Measured numbers, each in its dimension's own unit: `$/M tokens`,
+   * `ms to first audio`, `% word error`. A measurement outranks a rating.
+   */
+  metrics?: Record<string, number>;
+  /**
+   * Where each measurement came from — "Artificial Analysis" for one the
+   * daily refresh wrote, "owner" for one typed in by hand. The refresh only
+   * rewrites its own, so a number the owner checked themselves stands.
+   */
+  metricsFrom?: Record<string, string>;
+  /** yyyy-mm-dd the measurements above were last checked. */
+  measuredAt?: string;
   /** The owner's take, shown to visitors. */
   note?: string;
   contentRating?: ContentRating;
@@ -142,6 +166,13 @@ export interface InboxItem {
   license?: string;
   pipeline: string;
   foundAt: string;
+  /**
+   * Which feed found it. A trending repo is open weights you can run; an
+   * arena entry says only that the model exists, so an approved one starts
+   * as hosted and paid for the owner to correct. Missing means "hf", which
+   * is what every suggestion filed before arenas were read was.
+   */
+  source?: "hf" | "aa";
 }
 
 export interface PublicBoard {
@@ -166,13 +197,19 @@ export const EMPTY_BOARD: PublicBoard = { version: 1, models: [], inbox: [], dis
 /** Elo points per score point: 400 Elo (10:1 odds) spans the whole 0–100 scale. */
 const ELO_PER_POINT = 4;
 
-export interface ScoreBreakdown {
+export interface ScoreBreakdown extends Blend {
   /** 0–100, or null when there is nothing to rank by. */
   total: number | null;
   /** The public score on the 0–100 scale, or null. */
   publicPart: number | null;
-  /** The owner's rating on the 0–100 scale, or null. */
+  /** The owner's overall rating on the 0–100 scale, or null. */
   ownerPart: number | null;
+  /**
+   * Every dimension this category is judged on, in weight order, each with
+   * its number and where that number came from. This is what the board's
+   * score columns and the model sheet's breakdown both read.
+   */
+  dims: DimValue[];
 }
 
 /** Highest Elo in each category, which the rest are measured from. */
@@ -189,7 +226,7 @@ export function eloLeaders(models: Model[]): Map<string, number> {
 const clamp = (n: number) => Math.max(0, Math.min(100, n));
 
 /**
- * One model's score.
+ * The public score on the 0–100 scale.
  *
  * Elo is relative, so it is read as a distance from the category leader: the
  * leader scores 100 and every 4 Elo behind costs a point. That keeps a TTS
@@ -197,25 +234,59 @@ const clamp = (n: number) => Math.max(0, Math.min(100, n));
  * pretending their raw numbers mean the same thing — and a category with a
  * single Elo entry still scores it sensibly instead of dividing by zero.
  */
-export function scoreOf(model: Model, leaders: Map<string, number>): ScoreBreakdown {
-  let publicPart: number | null = null;
+export function benchPart(model: Model, leaders: Map<string, number>): number | null {
   const ps = model.publicScore;
-  if (ps && Number.isFinite(ps.value)) {
-    if (ps.kind === "percent") publicPart = clamp(ps.value);
-    else {
-      const top = leaders.get(model.category) ?? ps.value;
-      publicPart = clamp(100 - (top - ps.value) / ELO_PER_POINT);
-    }
-  }
-  const ownerPart =
-    model.myRating !== undefined && Number.isFinite(model.myRating)
-      ? clamp(model.myRating * 10)
-      : null;
+  if (!ps || !Number.isFinite(ps.value)) return null;
+  if (ps.kind === "percent") return clamp(ps.value);
+  const top = leaders.get(model.category) ?? ps.value;
+  return clamp(100 - (top - ps.value) / ELO_PER_POINT);
+}
 
-  let total: number | null = null;
-  if (publicPart !== null && ownerPart !== null) total = (publicPart + ownerPart) / 2;
-  else total = publicPart ?? ownerPart;
-  return { total: total === null ? null : Math.round(total * 10) / 10, publicPart, ownerPart };
+/**
+ * One model's score: the weighted blend of its category's dimensions.
+ *
+ * The public leaderboard is one dimension of several — the heaviest one
+ * wherever a real arena exists — so a model that wins the arena but costs
+ * twenty times as much no longer wins the board on the arena alone. Weights
+ * renormalise over the dimensions that have a number, so a thinly measured
+ * model is scored on what is known rather than punished for the gaps, and
+ * `coverage` says how much of its category's weight that was.
+ */
+export function scoreOf(model: Model, leaders: Map<string, number>, now = Date.now()): ScoreBreakdown {
+  const publicPart = benchPart(model, leaders);
+  const ownerPart =
+    model.myRating !== undefined && Number.isFinite(model.myRating) ? clamp(model.myRating * 10) : null;
+
+  const age = model.releasedAt ? daysSince(model.releasedAt, now) : Infinity;
+  const dims = dimValues({
+    category: model.category,
+    ageDays: Number.isFinite(age) ? age : null,
+    openSource: model.openSource,
+    runsLocally: model.runsLocally,
+    access: model.access,
+    myRating: model.myRating,
+    ratings: model.ratings,
+    metrics: model.metrics,
+    bench: publicPart,
+  });
+
+  // A category with no dimensions defined yet keeps the old two-part average,
+  // so adding one to CATEGORIES can never silently unrank its models.
+  if (dims.length === 0) {
+    const flat = publicPart !== null && ownerPart !== null ? (publicPart + ownerPart) / 2 : publicPart ?? ownerPart;
+    return {
+      total: flat === null ? null : Math.round(flat * 10) / 10,
+      publicPart,
+      ownerPart,
+      dims,
+      judged: flat !== null,
+      coverage: flat === null ? 0 : 1,
+      known: flat === null ? 0 : 1,
+      of: 1,
+    };
+  }
+
+  return { ...blend(dims), publicPart, ownerPart, dims };
 }
 
 export interface RankedModel {
@@ -232,12 +303,12 @@ export interface RankedModel {
  * "open source" should show the open models at their true positions (#3, #5),
  * not renumber them as if the closed leaders didn't exist.
  */
-export function rankAll(models: Model[]): Map<string, RankedModel> {
+export function rankAll(models: Model[], now = Date.now()): Map<string, RankedModel> {
   const leaders = eloLeaders(models);
   const out = new Map<string, RankedModel>();
   const byCat = new Map<string, RankedModel[]>();
   for (const m of models) {
-    const r: RankedModel = { model: m, score: scoreOf(m, leaders) };
+    const r: RankedModel = { model: m, score: scoreOf(m, leaders, now) };
     out.set(m.id, r);
     const list = byCat.get(m.category) ?? [];
     list.push(r);
@@ -327,6 +398,61 @@ export function topRanked(models: Model[], ranks: Map<string, RankedModel>): Ran
     if (b.rank !== undefined) return 1;
     return b.model.releasedAt.localeCompare(a.model.releasedAt);
   });
+}
+
+// ----- sorting by one dimension ------------------------------------------------------
+//
+// "Which is best overall" is the board's default question and rarely the one a
+// reader actually arrives with: they want the cheapest that is still good, or
+// the fastest, or the one that sounds most human. So every score column sorts
+// the list — and a dimension-sorted row keeps its TRUE overall rank beside it,
+// so the new answer never costs you the old one.
+
+/** The sort that means "leave it in rank order". */
+export const OVERALL = "overall";
+
+export function dimValueOf(r: RankedModel, dimId: string): DimValue | undefined {
+  return r.score.dims.find((d) => d.dim.id === dimId);
+}
+
+/** Best on that dimension first; models with no number for it go last. */
+export function sortByDim(rows: RankedModel[], dimId: string): RankedModel[] {
+  if (dimId === OVERALL) return rows;
+  const byRank = (a: RankedModel, b: RankedModel) => (a.rank ?? Infinity) - (b.rank ?? Infinity);
+  return [...rows].sort((a, b) => {
+    const av = dimValueOf(a, dimId)?.value ?? null;
+    const bv = dimValueOf(b, dimId)?.value ?? null;
+    if (av === null || bv === null) {
+      if (av === bv) return byRank(a, b);
+      return av === null ? 1 : -1;
+    }
+    return bv !== av ? bv - av : byRank(a, b);
+  });
+}
+
+export interface DimLeader {
+  r: RankedModel;
+  value: number;
+  dim: Dimension;
+}
+
+/**
+ * Who leads each dimension — the "best at" line.
+ *
+ * Only dimensions where somebody actually has a number, and only where the
+ * leader is not also the overall leader: "best for cost: Kokoro" is worth a
+ * line, "best overall: the model at the top of this list" is not.
+ */
+export function leadersByDim(rows: RankedModel[]): DimLeader[] {
+  const best = new Map<string, DimLeader>();
+  for (const r of rows) {
+    for (const v of r.score.dims) {
+      if (v.value === null) continue;
+      const cur = best.get(v.dim.id);
+      if (!cur || v.value > cur.value) best.set(v.dim.id, { r, value: v.value, dim: v.dim });
+    }
+  }
+  return [...best.values()];
 }
 
 // ----- what a filter is hiding -------------------------------------------------------

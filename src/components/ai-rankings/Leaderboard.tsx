@@ -6,13 +6,15 @@ import { Icon } from "../icons";
 import { AnalyzeLink } from "./AnalyzeLink";
 import { InboxPanel } from "./InboxPanel";
 import { ModelSheet } from "./ModelSheet";
-import { Flag, ModelFlags, RankMark, ScoreBar, SlideOver, Toggle } from "./parts";
+import { Coverage, DimCells, DimChips, DimHeader, Flag, ModelFlags, RankMark, ScoreBar, SlideOver, Toggle } from "./parts";
+import { SourcePanel } from "./SourcePanel";
 import * as oldStore from "@/lib/ai-rankings/store";
 import { fromOldBoard } from "@/lib/ai-rankings/fromOldBoard";
 import {
   CATEGORIES,
   FAMILIES,
   NO_FILTERS,
+  OVERALL,
   categoryFromLabel,
   categoryOf,
   filterModels,
@@ -22,11 +24,14 @@ import {
   justDropped,
   openStanding,
   rankAll,
+  dimsOf,
+  leadersByDim,
   releasedLabel,
+  sortByDim,
   topRanked,
   topRowsWithGaps,
 } from "@/lib/ai-rankings/leaderboard";
-import type { BoardFilters, InboxItem, Model, RankedModel, ReleasedWithin } from "@/lib/ai-rankings/leaderboard";
+import type { BoardFilters, Dimension, InboxItem, Model, RankedModel, ReleasedWithin } from "@/lib/ai-rankings/leaderboard";
 import type { BoardAction } from "@/lib/ai-rankings/boardActions";
 import type { AnalyzeResult } from "@/lib/ai-rankings/analyzeLink";
 
@@ -48,12 +53,16 @@ const IMPORT_DISMISSED_KEY = "ai-rankings:import-dismissed";
 
 // ----- URL state: a category and its filters are a link you can share ---------------
 
-function readUrl(): { category: string | null; filters: BoardFilters } {
+function readUrl(): { category: string | null; filters: BoardFilters; sort: string } {
   const p = new URLSearchParams(window.location.search);
   const c = p.get("c");
   const r = p.get("r");
+  const s = p.get("s") ?? "";
   return {
     category: c && categoryOf(c) ? c : null,
+    // A sort only means something inside a category, so it is validated
+    // against that category's own dimensions.
+    sort: c && s && dimsOf(c).some((d) => d.id === s) ? s : OVERALL,
     filters: {
       query: p.get("q") ?? "",
       openSource: p.get("open") === "1",
@@ -64,9 +73,10 @@ function readUrl(): { category: string | null; filters: BoardFilters } {
   };
 }
 
-export function urlFor(category: string | null, f: BoardFilters): string {
+export function urlFor(category: string | null, f: BoardFilters, sort: string = OVERALL): string {
   const p = new URLSearchParams();
   if (category) p.set("c", category);
+  if (category && sort !== OVERALL) p.set("s", sort);
   if (f.query.trim()) p.set("q", f.query.trim());
   if (f.openSource) p.set("open", "1");
   if (f.runsLocally) p.set("local", "1");
@@ -76,8 +86,8 @@ export function urlFor(category: string | null, f: BoardFilters): string {
   return `?${p.toString()}`;
 }
 
-function writeUrl(category: string | null, f: BoardFilters) {
-  const qs = urlFor(category, f);
+function writeUrl(category: string | null, f: BoardFilters, sort: string) {
+  const qs = urlFor(category, f, sort);
   window.history.replaceState(null, "", `${window.location.pathname}${qs === "?" ? "" : qs}`);
 }
 
@@ -104,6 +114,7 @@ export function Leaderboard() {
 
   const [category, setCategory] = useState<string | null>(null);
   const [filters, setFilters] = useState<BoardFilters>(NO_FILTERS);
+  const [sort, setSort] = useState<string>(OVERALL);
   const [urlReady, setUrlReady] = useState(false);
   const [mobileList, setMobileList] = useState<"top" | "new">("top");
 
@@ -142,6 +153,7 @@ export function Leaderboard() {
     const u = readUrl();
     setCategory(u.category);
     setFilters(u.filters);
+    setSort(u.sort);
     setUrlReady(true);
     void load();
   }, [load]);
@@ -150,9 +162,9 @@ export function Leaderboard() {
   // throws once replaceState is called too many times in a row.
   useEffect(() => {
     if (!urlReady) return;
-    const t = setTimeout(() => writeUrl(category, filters), 150);
+    const t = setTimeout(() => writeUrl(category, filters, sort), 150);
     return () => clearTimeout(t);
-  }, [category, filters, urlReady]);
+  }, [category, filters, sort, urlReady]);
 
   useEffect(() => {
     if (!flash) return;
@@ -199,7 +211,7 @@ export function Leaderboard() {
 
   // ----- derived ------------------------------------------------------------------------
 
-  const ranks = useMemo(() => rankAll(models), [models]);
+  const ranks = useMemo(() => rankAll(models, now), [models, now]);
   const filtered = useMemo(() => filterModels(models, filters, now), [models, filters, now]);
   const byCategory = useMemo(() => {
     const map = new Map<string, Model[]>();
@@ -259,6 +271,17 @@ export function Leaderboard() {
     const r = await send({ type: "rate", id, myRating: rating });
     setBusy(false);
     if (!r.ok) setFlash({ text: r.error ?? "", tone: "error" });
+  };
+
+  /**
+   * One dimension of one model. Saved on its own so a row can be scored a
+   * field at a time, straight from the sheet, without opening the edit form.
+   */
+  const setDim = async (id: string, dim: string, kind: "rating" | "metric", value: number | null) => {
+    setBusy(true);
+    const r = await send({ type: "setDim", id, dim, kind, value });
+    setBusy(false);
+    setFlash(r.ok ? { text: r.message ?? "Saved", tone: "ok" } : { text: r.error ?? "", tone: "error" });
   };
 
   const approve = async (inboxId: string, cat: string) => {
@@ -350,6 +373,9 @@ export function Leaderboard() {
 
   const pick = (id: string | null) => {
     setCategory(id);
+    // A sort belongs to the category it was chosen in: "cheapest" means
+    // nothing once you are looking at a different field.
+    setSort(OVERALL);
     setMobileList("top");
     window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
   };
@@ -552,6 +578,9 @@ export function Leaderboard() {
             linkTo={(id) => urlFor(id, filters)}
             onPick={linkClick}
             onOpen={(id) => setSheet({ id })}
+            canEdit={canEdit}
+            lastSweepAt={lastSweep.at}
+            lastSweepNote={lastSweep.note}
           />
         )}
 
@@ -567,6 +596,9 @@ export function Leaderboard() {
             active={active}
             filters={filters}
             canEdit={canEdit}
+            category={cat.id}
+            sort={sort}
+            onSort={(id) => setSort((cur) => (cur === id ? OVERALL : id))}
             mobileList={mobileList}
             setMobileList={setMobileList}
             onOpen={(id) => setSheet({ id })}
@@ -582,8 +614,13 @@ export function Leaderboard() {
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-[1320px] flex-col gap-3 px-4 py-6 text-[12px] text-ink-muted sm:flex-row sm:items-start sm:justify-between sm:px-6">
           <p className="max-w-[70ch] leading-relaxed">
-            <span className="text-ink-muted">How the score works.</span> Each model gets a public score where one exists (an arena Elo or a benchmark), measured
-            against the leader of its category, and the curator&apos;s own 1–10 rating. With both, the score is their average. New releases are checked daily on Hugging Face and added once reviewed.
+            <span className="text-ink-muted">How the score works.</span> Every category is judged on its own dimensions — text-to-speech on naturalness,
+            emotion, clarity, pronunciation, speed, cost and age; video on motion, consistency, native audio and clip length — each carrying its own weight, and
+            the score out of 100 is their weighted blend. A dimension can come from a public benchmark, a measured number, the curator&apos;s 1–10, or the record
+            itself (age, openness, what it costs you); a measurement outranks a rating, and a dimension nobody has established is left empty rather than guessed,
+            with the weights sharing out over what is known. A value worked out from the record counts for half of its weight, so a guess can shade the order
+            but never decide it — and it counts in full the moment a real number replaces it. Age, openness and a price inferred from &ldquo;free&rdquo; are
+            never a score on their own, so a model nobody has measured stays unranked. Releases and prices are checked daily; the sources are listed on the overview.
             Arena scores come from <a href="https://artificialanalysis.ai" target="_blank" rel="noopener noreferrer" className="underline decoration-line underline-offset-2 hover:text-ink">Artificial Analysis</a>,{" "}
             <a href="https://lmarena.ai" target="_blank" rel="noopener noreferrer" className="underline decoration-line underline-offset-2 hover:text-ink">LMArena</a> and 3D Arena; each model links to its own.
           </p>
@@ -607,6 +644,7 @@ export function Leaderboard() {
             onSave={saveModel}
             onDelete={deleteModel}
             onRate={rate}
+            onSetDim={setDim}
             onClose={closeSheet}
             onGuard={registerGuard}
           />
@@ -714,6 +752,9 @@ function Overview({
   linkTo,
   onPick,
   onOpen,
+  canEdit,
+  lastSweepAt,
+  lastSweepNote,
 }: {
   byCategory: Map<string, Model[]>;
   filtered: Model[];
@@ -724,6 +765,9 @@ function Overview({
   linkTo: (id: string | null) => string;
   onPick: (id: string | null) => (e: React.MouseEvent) => void;
   onOpen: (id: string) => void;
+  canEdit: boolean;
+  lastSweepAt: string | null;
+  lastSweepNote: string | null;
 }) {
   const newest = justDropped(filtered, ranks).slice(0, 8);
   return (
@@ -823,7 +867,14 @@ function Overview({
                         )}
                       </div>
                     )}
-                    <span aria-hidden="true" className="mt-auto flex items-center gap-1 pt-4 text-[11.5px] text-ink-muted transition group-hover:text-ink">
+                    {/* What this category is actually judged on — every one
+                        has its own, and a visitor should see that before
+                        trusting a single number. */}
+                    <p className="mt-3 text-[11px] leading-relaxed text-ink-muted">
+                      <span className="text-ink-faint">Judged on </span>
+                      {judgedOn(c.id)}
+                    </p>
+                    <span aria-hidden="true" className="mt-auto flex items-center gap-1 pt-3 text-[11.5px] text-ink-muted transition group-hover:text-ink">
                       See the full ranking <Icon.ArrowRight width={11} height={11} />
                     </span>
                   </article>
@@ -833,8 +884,18 @@ function Overview({
           </section>
         );
       })}
+
+      <SourcePanel lastSweepAt={lastSweepAt} lastSweepNote={lastSweepNote} canEdit={canEdit} now={now} />
     </>
   );
+}
+
+/** The dimensions that make a category its own — not the ones every one shares. */
+function judgedOn(category: string): string {
+  const own = dimsOf(category).filter((d) => d.source !== "auto" && d.id !== "curator" && d.id !== "bench");
+  const names = own.slice(0, 4).map((d) => d.label.toLowerCase());
+  const rest = own.length - names.length;
+  return `${names.join(", ")}${rest > 0 ? ` +${rest} more` : ""}`;
 }
 
 /**
@@ -894,6 +955,9 @@ function CategoryView(p: {
   label: string;
   blurb: string;
   family: string;
+  category: string;
+  sort: string;
+  onSort: (id: string) => void;
   all: Model[];
   shown: Model[];
   ranks: Map<string, RankedModel>;
@@ -917,8 +981,29 @@ function CategoryView(p: {
   // With a filter on, the Top ranked list keeps its true ranks and so has
   // holes in it. Fill them with the rows the filter removed, muted, so the
   // reader can see what an open model is actually behind.
-  const rows = p.active ? topRowsWithGaps(top, topRanked(p.all, p.ranks)) : top.map((r) => ({ kind: "model" as const, r }));
+  const dims = dimsOf(p.category);
+  const sorted = p.sort === OVERALL ? top : sortByDim(top, p.sort);
+  // The holes only make sense while the list is in rank order: sorted by
+  // cost, a missing #2 is not a hole, it is just further down.
+  const rows =
+    p.active && p.sort === OVERALL
+      ? topRowsWithGaps(top, topRanked(p.all, p.ranks))
+      : sorted.map((r) => ({ kind: "model" as const, r }));
   const standing = p.filters.openSource ? openStanding(p.all, p.ranks) : null;
+  // "Best for cost" is the question these columns exist to answer, so the two
+  // or three where the leader is NOT the overall leader are said out loud.
+  const bestAt = leadersByDim(top)
+    .filter(
+      (l) =>
+        l.r.model.id !== top[0]?.model.id &&
+        // Derived dimensions make weak headlines: "best for age" only ever
+        // means newest, which the Just dropped list already says.
+        l.dim.source !== "auto" &&
+        l.dim.id !== "curator" &&
+        l.dim.id !== "bench",
+    )
+    .sort((a, b) => b.dim.weight - a.dim.weight)
+    .slice(0, 3);
 
   return (
     <>
@@ -978,12 +1063,54 @@ function CategoryView(p: {
             ))}
           </div>
 
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,2.3fr)_minmax(0,1fr)]">
             <section aria-labelledby="top-h" className={`${p.mobileList === "top" ? "" : "hidden"} lg:block`}>
               <div className="overflow-hidden rounded-[10px] border border-line bg-panel">
-                <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
-                  <h2 id="top-h" className="text-[12.5px] font-medium text-ink">Top ranked</h2>
-                  <span className="text-[11px] text-ink-muted">score out of 100</span>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2.5">
+                  <h2 id="top-h" className="text-[12.5px] font-medium text-ink">
+                    {p.sort === OVERALL
+                      ? "Top ranked"
+                      : `Best for ${dims.find((d) => d.id === p.sort)?.label.toLowerCase() ?? "that"}`}
+                  </h2>
+                  {/* Below the column layout the same sort lives in a select,
+                      so every dimension is reachable on a phone too. */}
+                  <label className="flex items-center gap-1.5 text-[11px] text-ink-muted xl:hidden">
+                    Sort
+                    <select
+                      value={p.sort}
+                      onChange={(e) => p.onSort(e.target.value)}
+                      className="min-h-8 rounded-md border border-line bg-canvas px-1.5 py-0.5 text-[11.5px] text-ink pointer-coarse:min-h-10"
+                    >
+                      <option value={OVERALL}>Overall score</option>
+                      {dims.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <span className="hidden text-[11px] text-ink-muted xl:inline">
+                    every score out of 100 · click a column to sort
+                  </span>
+                </div>
+                <div className="hidden items-end gap-3 border-b border-line-soft bg-panel-2/30 px-4 py-1 xl:grid xl:grid-cols-[28px_minmax(0,1fr)_110px_auto_76px]">
+                  <span aria-hidden="true" />
+                  <span className="font-mono text-[9.5px] uppercase tracking-wider text-ink-muted">Model</span>
+                  <button
+                    type="button"
+                    onClick={() => p.onSort(OVERALL)}
+                    aria-pressed={p.sort === OVERALL}
+                    title="Sort by the overall score — every dimension below, weighted"
+                    className={`rounded py-0.5 text-left font-mono text-[9.5px] uppercase tracking-wider transition ${
+                      p.sort === OVERALL ? "text-ink" : "text-ink-muted hover:text-ink"
+                    }`}
+                  >
+                    Score
+                  </button>
+                  <DimHeader dims={dims} sort={p.sort} onSort={p.onSort} />
+                  {/* Not "Age": that is the AGE column's name, and this is
+                      the release date the age is worked out from. */}
+                  <span className="text-right font-mono text-[9.5px] uppercase tracking-wider text-ink-muted">Released</span>
                 </div>
                 {standing && (
                   // The question the Open source filter is really asking,
@@ -1002,6 +1129,23 @@ function CategoryView(p: {
                     )}
                   </p>
                 )}
+                {p.sort === OVERALL && bestAt.length > 0 && (
+                  <p className="border-b border-line-soft px-4 py-2 text-[11.5px] text-ink-muted">
+                    {bestAt.map((l, i) => (
+                      <span key={l.dim.id}>
+                        {i > 0 && " · "}
+                        Best for {l.dim.label.toLowerCase()}:{" "}
+                        <button
+                          type="button"
+                          onClick={() => p.onOpen(l.r.model.id)}
+                          className="font-medium text-ink underline decoration-line underline-offset-2 hover:decoration-ink-faint"
+                        >
+                          {l.r.model.name}
+                        </button>
+                      </span>
+                    ))}
+                  </p>
+                )}
                 <ol>
                   {rows.map((row, i) =>
                     row.kind === "gap" ? (
@@ -1012,7 +1156,7 @@ function CategoryView(p: {
                       <li key={row.r.model.id} className="animate-fade-in" style={{ animationDelay: `${Math.min(i, 12) * 25}ms` }}>
                         <button
                           onClick={() => p.onOpen(row.r.model.id)}
-                          className="grid w-full grid-cols-[24px_minmax(0,1fr)_92px] items-center gap-3 border-b border-line-soft px-4 py-3 text-left transition last:border-0 hover:bg-panel-2 sm:grid-cols-[28px_minmax(0,1fr)_150px] md:grid-cols-[28px_minmax(0,1fr)_170px_92px]"
+                          className="grid w-full grid-cols-[24px_minmax(0,1fr)_92px] items-center gap-3 border-b border-line-soft px-4 py-3 text-left transition last:border-0 hover:bg-panel-2 sm:grid-cols-[28px_minmax(0,1fr)_150px] md:grid-cols-[28px_minmax(0,1fr)_170px_92px] xl:grid-cols-[28px_minmax(0,1fr)_110px_auto_76px]"
                         >
                           <RankMark rank={row.r.rank} />
                           <span className="min-w-0">
@@ -1024,8 +1168,13 @@ function CategoryView(p: {
                               {row.r.model.maker}{row.r.model.maker && row.r.model.summary ? " · " : ""}{row.r.model.summary}
                               {p.canEdit && !row.r.model.summary && <span className="text-amber-300/80"> needs a summary</span>}
                             </span>
+                            <DimChips dims={row.r.score.dims} />
                           </span>
-                          <ScoreBar score={row.r.score} />
+                          <span className="flex items-center gap-1.5">
+                            <ScoreBar score={row.r.score} className="min-w-0 flex-1" />
+                            <Coverage score={row.r.score} className="hidden md:inline" />
+                          </span>
+                          <DimCells dims={row.r.score.dims} sort={p.sort} />
                           <span className={`hidden text-right font-mono text-[11px] md:block ${isFresh(row.r.model, p.now) ? "text-accent" : "text-ink-muted"}`}>
                             {releasedLabel(row.r.model.releasedAt, p.now)}
                           </span>

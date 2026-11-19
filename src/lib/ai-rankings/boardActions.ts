@@ -9,7 +9,8 @@
 // and is written to a public page — so every model goes through cleanModel.
 // ---------------------------------------------------------------------------
 
-import { categoryOf, findExisting } from "./leaderboard";
+import { OWNER_SOURCE } from "./dimensions";
+import { ALL_DIM_IDS, categoryOf, dimOf, findExisting } from "./leaderboard";
 import type { InboxItem, Model, PublicBoard, PublicScore } from "./leaderboard";
 import type { Access, ContentRating } from "./types";
 
@@ -17,6 +18,7 @@ export type BoardAction =
   | { type: "upsert"; model: Partial<Model> }
   | { type: "delete"; id: string }
   | { type: "rate"; id: string; myRating: number | null }
+  | { type: "setDim"; id: string; dim: string; kind: "rating" | "metric"; value: number | null }
   | { type: "approve"; inboxId: string; category?: string }
   | { type: "dismiss"; inboxId: string }
   | { type: "dismissAll" }
@@ -75,6 +77,53 @@ function cleanRating(v: unknown): number | undefined {
   return Number.isFinite(n) && n >= 1 && n <= 10 ? n : undefined;
 }
 
+const DIM_IDS = new Set(ALL_DIM_IDS);
+
+/**
+ * A map of dimension id → number, keeping only the ids dimensions.ts knows.
+ *
+ * An unknown key is dropped rather than rejected: a rating typed under one
+ * category and then moved to another would otherwise block the save, and the
+ * value is harmless — it simply has no column to appear in.
+ */
+function cleanDimMap(v: unknown, clean: (x: unknown) => number | undefined): Record<string, number> | undefined {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  const out: Record<string, number> = {};
+  for (const [k, raw] of Object.entries(v as Record<string, unknown>).slice(0, 60)) {
+    if (!DIM_IDS.has(k)) continue;
+    const n = clean(raw);
+    if (n !== undefined) out[k] = n;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** Where each measurement came from, kept so a refresh never overwrites a typed one. */
+function cleanSourceMap(v: unknown): Record<string, string> | undefined {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  const out: Record<string, string> = {};
+  for (const [k, raw] of Object.entries(v as Record<string, unknown>).slice(0, 60)) {
+    if (!DIM_IDS.has(k)) continue;
+    const s = str(raw, 60);
+    if (s) out[k] = s;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/**
+ * A measurement in its dimension's own unit.
+ *
+ * Any non-negative number is allowed — the units run from 0.003 dollars an
+ * image to a million tokens of context — so the only rules are that it is a
+ * real number, not negative, and not absurd enough to be a paste accident.
+ */
+function cleanMeasure(v: unknown): number | undefined {
+  if (v === null || v === undefined || v === "") return undefined;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0 || n > 1e12) return undefined;
+  // Keep four significant decimals: $0.0035 an image is a real price.
+  return Math.round(n * 10000) / 10000;
+}
+
 /** A model from untrusted input, or the reason it can't be one. */
 export function cleanModel(
   raw: Partial<Model>,
@@ -97,7 +146,11 @@ export function cleanModel(
     url,
     hfId: str(raw.hfId, 120) || existing?.hfId || undefined,
     summary: str(raw.summary, 160) || (raw.summary === "" ? "" : existing?.summary ?? ""),
-    releasedAt: cleanDate(raw.releasedAt, existing?.releasedAt ?? today),
+    // An empty date is a real answer — "the release date could not be
+    // confirmed" — and the board already reads it as "date unknown". Falling
+    // back to today instead would date an arena find to the day it was found
+    // and hand it a full recency score it has not earned.
+    releasedAt: raw.releasedAt === "" ? "" : cleanDate(raw.releasedAt, existing?.releasedAt ?? today),
     addedAt: existing?.addedAt ?? (str(raw.addedAt, 30) || now),
     updatedAt: now,
     openSource: typeof raw.openSource === "boolean" ? raw.openSource : existing?.openSource ?? false,
@@ -108,6 +161,10 @@ export function cleanModel(
     tags: raw.tags !== undefined ? strList(raw.tags, 8).map((t) => t.toLowerCase()) : existing?.tags ?? [],
     publicScore: "publicScore" in raw ? cleanScore(raw.publicScore) : existing?.publicScore,
     myRating: "myRating" in raw ? cleanRating(raw.myRating) : existing?.myRating,
+    ratings: "ratings" in raw ? cleanDimMap(raw.ratings, cleanRating) : existing?.ratings,
+    metrics: "metrics" in raw ? cleanDimMap(raw.metrics, cleanMeasure) : existing?.metrics,
+    metricsFrom: "metricsFrom" in raw ? cleanSourceMap(raw.metricsFrom) : existing?.metricsFrom,
+    measuredAt: "measuredAt" in raw ? cleanDate(raw.measuredAt, "") || undefined : existing?.measuredAt,
     note: raw.note !== undefined ? str(raw.note, 600) || undefined : existing?.note,
     contentRating: RATINGS.includes(raw.contentRating as ContentRating)
       ? raw.contentRating === "unknown" ? undefined : (raw.contentRating as ContentRating)
@@ -115,20 +172,28 @@ export function cleanModel(
   };
 }
 
-/** What an approved inbox item becomes: an HF repo is open weights you can run. */
+/**
+ * What an approved inbox item becomes.
+ *
+ * A Hugging Face repo is open weights you can download and run, which is why
+ * those three facts can be assumed. An arena entry is not: it says a model
+ * exists and nothing about where its weights are, so one starts as hosted and
+ * paid — the conservative reading — and carries no Hugging Face id.
+ */
 export function modelFromInbox(item: InboxItem, category: string, now: string): Partial<Model> {
+  const fromHf = item.source !== "aa";
   return {
     name: item.name.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim(),
     maker: item.maker,
     category,
     url: item.url,
-    hfId: item.hfId,
+    hfId: fromHf ? item.hfId : undefined,
     summary: "",
     releasedAt: item.releasedAt,
     addedAt: now,
-    openSource: true,
-    runsLocally: true,
-    access: "free",
+    openSource: fromHf,
+    runsLocally: fromHf,
+    access: fromHf ? "free" : "paid",
     license: item.license,
     tags: [],
     features: [],
@@ -165,6 +230,54 @@ export function applyAction(board: PublicBoard, action: BoardAction, now: string
       const next = cleanModel({ myRating: action.myRating as number | undefined }, now, m);
       if (typeof next === "string") return { ok: false, error: next };
       return { ok: true, board: { ...board, models: board.models.map((x) => (x.id === m.id ? next : x)) }, message: "Rating saved", id: m.id };
+    }
+    case "setDim": {
+      // One dimension at a time, so the owner can score a model from the
+      // sheet without opening the whole edit form — and so a half-filled
+      // row is saved as it is filled rather than all at the end.
+      const m = board.models.find((x) => x.id === action.id);
+      if (!m) return { ok: false, error: "That model isn't on the board any more." };
+      const dim = dimOf(m.category, action.dim);
+      if (!dim) return { ok: false, error: "That isn't one of this category's dimensions." };
+      const measuring = action.kind === "metric";
+      if (measuring && !dim.metric) return { ok: false, error: `${dim.label} is a 1–10 rating, not a measurement.` };
+      const clearing = action.value === null || action.value === undefined;
+      const value = measuring ? cleanMeasure(action.value) : cleanRating(action.value);
+      if (!clearing && value === undefined) {
+        return {
+          ok: false,
+          error: measuring
+            ? `Give ${dim.label.toLowerCase()} a number in ${dim.metric!.unit}.`
+            : `${dim.label} is a number from 1 to 10.`,
+        };
+      }
+
+      const next = { ...((measuring ? m.metrics : m.ratings) ?? {}) };
+      if (value === undefined) delete next[action.dim];
+      else next[action.dim] = value;
+      const kept = Object.keys(next).length ? next : undefined;
+
+      // A measurement typed here is the owner's, so the daily refresh leaves
+      // it alone from now on; clearing it hands the dimension back.
+      const from = { ...(m.metricsFrom ?? {}) };
+      if (value === undefined) delete from[action.dim];
+      else from[action.dim] = OWNER_SOURCE;
+
+      const updated: Model = measuring
+        ? {
+            ...m,
+            metrics: kept,
+            metricsFrom: Object.keys(from).length ? from : undefined,
+            measuredAt: value === undefined ? m.measuredAt : now.slice(0, 10),
+            updatedAt: now,
+          }
+        : { ...m, ratings: kept, updatedAt: now };
+      return {
+        ok: true,
+        board: { ...board, models: board.models.map((x) => (x.id === m.id ? updated : x)) },
+        message: value === undefined ? `${dim.label} cleared` : `${dim.label} saved`,
+        id: m.id,
+      };
     }
     case "approve": {
       const item = board.inbox.find((i) => i.id === action.inboxId);

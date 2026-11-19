@@ -211,19 +211,34 @@ export interface MatchResult {
  * "Kling 2.1 Master" and "Kling 2.1 Pro" stays unmatched rather than picking.
  */
 export function matchEntry(model: Pick<Model, "name" | "maker">, entries: AaEntry[]): MatchResult {
-  const usable = usableEntries(entries);
+  return matchNamed(model, usableEntries(entries), entryName, entryMaker, (e) => e.slug ?? "");
+}
+
+/**
+ * The same matching, for any list of named entries.
+ *
+ * The score refresh and the metric refresh read different Artificial Analysis
+ * endpoints with different shapes, and a second copy of this logic is how one
+ * of them quietly starts matching "Veo 4.1" to "Veo 4". So the rules live
+ * here once and the callers only say how to read a name and a maker.
+ */
+export function matchNamed<T>(
+  model: Pick<Model, "name" | "maker">,
+  entries: T[],
+  nameOf: (e: T) => string,
+  makerOf: (e: T) => string,
+  slugOf: (e: T) => string = () => "",
+): { entry?: T; miss?: MatchMiss } {
   const want = squash(model.name);
   if (!want) return { miss: "none" };
 
-  const byMaker = (e: AaEntry) => makersAgree(model.maker, entryMaker(e));
-  const exact = usable.filter(
-    (e) => byMaker(e) && (squash(entryName(e)) === want || squash(e.slug ?? "") === want),
-  );
+  const byMaker = (e: T) => makersAgree(model.maker, makerOf(e));
+  const exact = entries.filter((e) => byMaker(e) && (squash(nameOf(e)) === want || squash(slugOf(e)) === want));
   if (exact.length === 1) return { entry: exact[0] };
   if (exact.length > 1) return { miss: "ambiguous" };
 
   const needle = words(model.name);
-  const loose = usable.filter((e) => byMaker(e) && hasRun(words(entryName(e)), needle));
+  const loose = entries.filter((e) => byMaker(e) && hasRun(words(nameOf(e)), needle));
   if (loose.length === 1) return { entry: loose[0] };
   return { miss: loose.length ? "ambiguous" : "none" };
 }
@@ -328,6 +343,13 @@ export interface ScoreRefreshResult {
   failed: string[];
   /** Set when there is no key: nothing was called at all. */
   noKey?: boolean;
+  /**
+   * The entries each board answered with, by category.
+   *
+   * Handed back so discovery can read them too: an arena lists hosted models
+   * that Hugging Face trending cannot see, and these are already paid for.
+   */
+  entries?: Record<string, AaEntry[]>;
 }
 
 /** A fresh result — a factory, so no two runs share an array. */
@@ -401,6 +423,7 @@ export async function refreshScores(
     result.skipped.push(...plan.skipped);
     result.unchanged += plan.unchanged;
     result.refreshedAt[b.category] = at;
+    result.entries = { ...(result.entries ?? {}), [b.category]: entries };
   }
   return result;
 }

@@ -1,9 +1,12 @@
-# AI Rankings — the daily check.
-# Once a day GitHub pings the live site's sweep, which reads Hugging Face's
-# trending models and files new releases in the owner's inbox, and re-reads the
-# arena scores from Artificial Analysis. Nothing new is published until the
-# owner approves it in the app; scores already on the board are updated in
-# place.
+# AI Rankings — the daily check, in three halves.
+# Once a day GitHub pings the live site's sweep, which (1) reads Hugging Face's
+# trending models AND the Artificial Analysis boards and files new releases in
+# the owner's inbox — the arenas are what make a hosted model findable, since
+# Veo and Kling have no HF repo to trend; (2) re-reads the arena scores; and
+# (3) re-reads the measured prices, throughput and context windows the score
+# dimensions are made of. Nothing new is published until the owner approves it
+# in the app; scores and measurements already on the board are updated in
+# place, and a measurement the owner typed by hand is never overwritten.
 # Needs the AI_RANKINGS_SWEEP_TOKEN secret set here AND on Vercel; without it
 # the route refuses the call and the owner can still press "Check now".
 # The score half also needs ARTIFICIAL_ANALYSIS_API_KEY on Vercel (nothing

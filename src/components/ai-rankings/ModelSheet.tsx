@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icons";
-import { CATEGORIES, FAMILIES, categoryOf, releasedLabel } from "@/lib/ai-rankings/leaderboard";
-import type { Model, PublicScore, RankedModel } from "@/lib/ai-rankings/leaderboard";
+import { CATEGORIES, FAMILIES, categoryOf, formatMetric, releasedLabel } from "@/lib/ai-rankings/leaderboard";
+import type { DimValue, Model, PublicScore, RankedModel } from "@/lib/ai-rankings/leaderboard";
 import { ACCESS_LABEL, CONTENT_LABEL } from "@/lib/ai-rankings/types";
 import type { Access, ContentRating } from "@/lib/ai-rankings/types";
 import { ModelFlags } from "./parts";
@@ -20,6 +20,8 @@ interface Props {
   onSave: (model: Partial<Model>) => void;
   onDelete: (id: string) => void;
   onRate: (id: string, rating: number | null) => void;
+  /** One dimension at a time: a 1–10 rating, or a measurement in its own unit. */
+  onSetDim: (id: string, dim: string, kind: "rating" | "metric", value: number | null) => void;
   onClose: () => void;
   /**
    * Hands the parent a question to ask before it closes the sheet: true means
@@ -44,10 +46,18 @@ export function ModelSheet(props: Props) {
 
 // ----- reading ---------------------------------------------------------------------
 
-function View({ ranked, canEdit, now, busy, onRate, onClose, onEdit }: Props & { ranked: RankedModel; onEdit: () => void }) {
+function View({
+  ranked,
+  canEdit,
+  now,
+  busy,
+  onRate,
+  onSetDim,
+  onClose,
+  onEdit,
+}: Props & { ranked: RankedModel; onEdit: () => void }) {
   const { model: m, score, rank } = ranked;
   const cat = categoryOf(m.category);
-  const ps = m.publicScore;
   return (
     <>
       <header className="flex items-start gap-3 border-b border-line px-5 py-4">
@@ -81,7 +91,19 @@ function View({ ranked, canEdit, now, busy, onRate, onClose, onEdit }: Props & {
 
         <section aria-labelledby="score-h" className="rounded-[10px] border border-line bg-canvas/60 p-4">
           <div className="flex items-baseline justify-between gap-3">
-            <h3 id="score-h" className="text-[12px] font-medium text-ink-muted">Score</h3>
+            <div>
+              <h3 id="score-h" className="text-[12px] font-medium text-ink-muted">Score</h3>
+              <p className="mt-0.5 text-[11px] text-ink-muted">
+                {score.of > 0 ? (
+                  <>
+                    {score.known} of {score.of} dimensions scored
+                    {score.coverage < 1 && <> · {Math.round(score.coverage * 100)}% of this category&apos;s weight</>}
+                  </>
+                ) : (
+                  "This category has no dimensions yet"
+                )}
+              </p>
+            </div>
             <div className="flex items-baseline gap-2">
               <span className="font-mono text-3xl font-semibold tabular-nums tracking-tight text-ink">
                 {score.total === null ? "—" : Math.round(score.total)}
@@ -89,42 +111,35 @@ function View({ ranked, canEdit, now, busy, onRate, onClose, onEdit }: Props & {
               <span className="text-[11px] text-ink-muted">/ 100</span>
             </div>
           </div>
-          <div className="mt-3 space-y-2.5">
-            <BreakdownRow
-              label="Public score"
-              value={score.publicPart}
-              detail={ps ? `${ps.label} ${ps.kind === "elo" ? Math.round(ps.value) : `${ps.value}%`} · ${ps.source}${ps.asOf ? ` · ${ps.asOf}` : ""}` : "No public benchmark yet"}
-              href={ps?.url}
-            />
-            <BreakdownRow
-              label="Curator rating"
-              value={score.ownerPart}
-              detail={m.myRating !== undefined ? `${m.myRating} / 10` : "Not rated yet"}
-            />
-          </div>
-          <p className="mt-3 text-[11px] leading-relaxed text-ink-muted">
-            Elo is measured from the category leader, 4 points of Elo per point of score. With both parts the score is their average.
-          </p>
-          {canEdit && (
-            <div className="mt-4 border-t border-line pt-3">
-              <p className="mb-1.5 text-[11px] text-ink-muted">Your rating</p>
-              <div className="flex flex-wrap gap-1" role="group" aria-label="Your rating out of 10">
-                {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                  <button
-                    key={n}
-                    disabled={busy}
-                    onClick={() => onRate(m.id, m.myRating === n ? null : n)}
-                    aria-pressed={m.myRating === n}
-                    className={`h-9 w-9 rounded-md border font-mono text-[12px] tabular-nums transition active:scale-95 pointer-coarse:h-11 pointer-coarse:w-11 ${
-                      m.myRating === n ? "border-brand bg-brand text-white" : "border-line text-ink-muted hover:border-ink-faint hover:text-ink"
-                    }`}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </div>
+
+          {score.total === null && score.of > 0 && (
+            <p className="mt-2 text-[11.5px] leading-relaxed text-amber-300/90">
+              Unranked: nothing has been established about it yet. One benchmark, rating or measurement below is enough
+              to rank it — age and openness alone are not.
+            </p>
           )}
+
+          <div className="mt-3 space-y-3">
+            {score.dims.map((v) => (
+              <DimRow
+                key={v.dim.id}
+                v={v}
+                model={m}
+                canEdit={canEdit}
+                busy={busy}
+                onSetDim={(dim, kind, value) => onSetDim(m.id, dim, kind, value)}
+                onRate={onRate}
+              />
+            ))}
+          </div>
+
+          <p className="mt-3 border-t border-line pt-3 text-[11px] leading-relaxed text-ink-muted">
+            Each dimension carries the weight shown beside it, and the score is their blend over the ones that have a
+            number. A measurement beats a rating, a rating beats something worked out from the record — and a worked-out
+            value counts for half, so a guess can shade the ranking but never decide it. Elo is measured from the
+            category leader, 4 points of Elo per point of score.
+            {m.measuredAt && <> Measurements last checked {m.measuredAt}.</>}
+          </p>
         </section>
 
         {m.note && (
@@ -186,25 +201,147 @@ function hostOf(url: string): string {
   }
 }
 
-function BreakdownRow({ label, value, detail, href }: { label: string; value: number | null; detail: string; href?: string }) {
+/**
+ * One dimension: what it scored, where that came from, and — for the owner —
+ * the two ways to change it.
+ *
+ * A measurement and a rating sit side by side on purpose. The measurement is
+ * the better number and the engine prefers it, but "I can hear it is fast"
+ * is worth recording on a day nobody has a figure for the real-time factor,
+ * and a dimension with no way to answer it quickly is a dimension that stays
+ * empty forever.
+ */
+function DimRow({
+  v,
+  model,
+  canEdit,
+  busy,
+  onSetDim,
+  onRate,
+}: {
+  v: DimValue;
+  model: Model;
+  canEdit: boolean;
+  busy: boolean;
+  onSetDim: (dim: string, kind: "rating" | "metric", value: number | null) => void;
+  onRate: (id: string, rating: number | null) => void;
+}) {
+  const { dim, value, from } = v;
+  const isCurator = dim.id === "curator";
+  const rating = isCurator ? model.ratings?.[dim.id] ?? model.myRating : model.ratings?.[dim.id];
+  const metric = model.metrics?.[dim.id];
+  const ps = model.publicScore;
+
+  const detail =
+    from === "bench" && ps
+      ? `${ps.label} ${ps.kind === "elo" ? Math.round(ps.value) : `${ps.value}%`} · ${ps.source}${ps.asOf ? ` · ${ps.asOf}` : ""}`
+      : from === "metric" && v.raw !== undefined && dim.metric
+        ? `${formatMetric(v.raw, dim.metric)} · ${model.metricsFrom?.[dim.id] ?? "measured"}`
+        : from === "rated"
+          ? `rated ${rating} out of 10`
+          : from === "auto"
+            ? "worked out from the record — counts half"
+            : dim.source === "bench"
+              ? "no public score for it yet"
+              : "not scored yet";
+
+  /** Commit a typed number, or clear the dimension when the field is emptied. */
+  const commit = (kind: "rating" | "metric", raw: string, was: number | undefined) => {
+    const text = raw.trim();
+    if (text === "") {
+      if (was !== undefined) {
+        if (kind === "rating" && isCurator) onRate(model.id, null);
+        else onSetDim(dim.id, kind, null);
+      }
+      return;
+    }
+    const n = Number(text);
+    if (!Number.isFinite(n) || n === was) return;
+    if (kind === "rating" && isCurator) onRate(model.id, n);
+    else onSetDim(dim.id, kind, n);
+  };
+
+  const field =
+    "w-full rounded-md border border-line bg-canvas px-2 py-1 font-mono text-[12px] text-ink transition placeholder:text-ink-faint focus:border-brand";
+
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2 text-[12px]">
-        <span className="text-ink">{label}</span>
-        <span className="font-mono tabular-nums text-ink">{value === null ? "—" : Math.round(value)}</span>
+        <span className="min-w-0 truncate text-ink" title={dim.hint}>
+          {dim.label}
+          <span className="ml-1.5 font-mono text-[10px] text-ink-faint">{dim.weight}%</span>
+        </span>
+        <span className={`font-mono tabular-nums ${value === null ? "text-ink-faint" : from === "auto" ? "text-ink-muted" : "text-ink"}`}>
+          {value === null ? "—" : Math.round(value)}
+        </span>
       </div>
       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-panel-2" aria-hidden="true">
-        {value !== null && <div className="h-full rounded-full bg-brand" style={{ width: `${Math.max(2, value)}%` }} />}
+        {value !== null && (
+          <div
+            className={`h-full rounded-full bg-brand ${from === "auto" ? "opacity-40" : ""}`}
+            style={{ width: `${Math.max(2, value)}%` }}
+          />
+        )}
       </div>
       <p className="mt-1 text-[11px] text-ink-muted">
-        {href ? (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="underline decoration-line underline-offset-2 hover:text-ink-muted">
+        {from === "bench" && ps?.url ? (
+          <a href={ps.url} target="_blank" rel="noopener noreferrer" className="underline decoration-line underline-offset-2 hover:text-ink">
             {detail}
           </a>
         ) : (
           detail
         )}
       </p>
+
+      {canEdit && dim.source !== "bench" && (
+        <div className="mt-1.5 flex items-end gap-2">
+          <label className="w-20 shrink-0">
+            <span className="mb-0.5 block text-[10px] text-ink-muted">1–10</span>
+            <input
+              // Keyed on the saved value so the field follows a save, a
+              // refresh, or another tab's edit instead of going stale.
+              key={`r-${rating ?? ""}`}
+              defaultValue={rating ?? ""}
+              onBlur={(e) => commit("rating", e.target.value, rating)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                }
+              }}
+              disabled={busy}
+              inputMode="decimal"
+              placeholder="—"
+              aria-label={`Rate ${dim.label} out of 10`}
+              className={field}
+            />
+          </label>
+          {dim.metric && (
+            <label className="min-w-0 flex-1">
+              <span className="mb-0.5 block truncate text-[10px] text-ink-muted">
+                {dim.metric.unit}
+                {dim.metric.lowerIsBetter ? " · lower is better" : ""}
+              </span>
+              <input
+                key={`m-${metric ?? ""}`}
+                defaultValue={metric ?? ""}
+                onBlur={(e) => commit("metric", e.target.value, metric)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    e.currentTarget.blur();
+                  }
+                }}
+                disabled={busy}
+                inputMode="decimal"
+                placeholder="—"
+                aria-label={`${dim.label} in ${dim.metric.unit}`}
+                className={field}
+              />
+            </label>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   GAP_NAMED,
+  benchPart,
   NO_FILTERS,
   categoryFromLabel,
   filterModels,
@@ -40,24 +41,68 @@ function model(p: Partial<Model> & Pick<Model, "id">): Model {
   };
 }
 
-describe("scoreOf", () => {
+describe("benchPart", () => {
   it("reads Elo as distance from the category leader, 4 Elo per point", () => {
     const leaders = new Map([["tts", 1200]]);
-    expect(scoreOf(model({ id: "a", publicScore: { value: 1200, kind: "elo", label: "", source: "" } }), leaders).total).toBe(100);
-    expect(scoreOf(model({ id: "b", publicScore: { value: 1160, kind: "elo", label: "", source: "" } }), leaders).total).toBe(90);
-  });
-
-  it("blends 50/50 when both scores exist, and uses whichever exists otherwise", () => {
-    const leaders = new Map<string, number>();
-    const both = model({ id: "a", myRating: 8, publicScore: { value: 60, kind: "percent", label: "", source: "" } });
-    expect(scoreOf(both, leaders)).toEqual({ total: 70, publicPart: 60, ownerPart: 80 });
-    expect(scoreOf(model({ id: "b", myRating: 7 }), leaders).total).toBe(70);
-    expect(scoreOf(model({ id: "c" }), leaders).total).toBeNull();
+    expect(benchPart(model({ id: "a", publicScore: { value: 1200, kind: "elo", label: "", source: "" } }), leaders)).toBe(100);
+    expect(benchPart(model({ id: "b", publicScore: { value: 1160, kind: "elo", label: "", source: "" } }), leaders)).toBe(90);
   });
 
   it("scores a lone Elo entry as its category's leader instead of dividing by zero", () => {
     const m = model({ id: "solo", publicScore: { value: 1010, kind: "elo", label: "", source: "" } });
-    expect(scoreOf(m, new Map()).total).toBe(100);
+    expect(benchPart(m, new Map())).toBe(100);
+  });
+
+  it("uses a percent as it is, and has nothing to say without a score", () => {
+    expect(benchPart(model({ id: "p", publicScore: pct(61) }), new Map())).toBe(61);
+    expect(benchPart(model({ id: "n" }), new Map())).toBeNull();
+  });
+});
+
+describe("scoreOf", () => {
+  const leaders = new Map<string, number>();
+  // Released on the day the clock says, so recency is exactly 100 and the
+  // arithmetic below can be checked by hand.
+  const today = { releasedAt: "2026-11-08" };
+
+  it("blends the category's dimensions, renormalised over the ones that are known", () => {
+    // tts: bench 20 and curator 8 are established, cost 10 and recency 6 are
+    // only derived and so count half — (60×20 + 80×8 + 30×5 + 100×3) / 36.
+    const m = model({ id: "a", ...today, myRating: 8, publicScore: pct(60) });
+    const s = scoreOf(m, leaders, NOW);
+    expect(s.total).toBe(63.6);
+    expect({ publicPart: s.publicPart, ownerPart: s.ownerPart }).toEqual({ publicPart: 60, ownerPart: 80 });
+    expect(s.known).toBe(4);
+    expect(s.of).toBe(9);
+  });
+
+  it("counts a per-dimension rating, and lets a measurement outrank it", () => {
+    const rated = scoreOf(model({ id: "b", ...today, ratings: { accuracy: 5 } }), leaders, NOW);
+    expect(rated.dims.find((d) => d.dim.id === "accuracy")).toMatchObject({ value: 50, from: "rated" });
+
+    // 2% word error is near the good end of tts accuracy (1% scores 100).
+    const measured = scoreOf(
+      model({ id: "c", ...today, ratings: { accuracy: 5 }, metrics: { accuracy: 2 } }),
+      leaders,
+      NOW,
+    );
+    expect(measured.dims.find((d) => d.dim.id === "accuracy")).toMatchObject({ from: "metric", raw: 2 });
+    expect(measured.total!).toBeGreaterThan(rated.total!);
+  });
+
+  it("will not rank a model on derivations alone", () => {
+    // New, open and free is not evidence of being good at anything.
+    const s = scoreOf(model({ id: "d", ...today, openSource: true, access: "free" }), leaders, NOW);
+    expect(s.judged).toBe(false);
+    expect(s.total).toBeNull();
+    // The cells still carry what IS known, so the row isn't blank.
+    expect(s.dims.find((d) => d.dim.id === "recency")).toMatchObject({ value: 100, from: "auto" });
+  });
+
+  it("scores an older model lower than the same model released today", () => {
+    const now = scoreOf(model({ id: "e", ...today, myRating: 8 }), leaders, NOW);
+    const old = scoreOf(model({ id: "f", releasedAt: "2024-01-01", myRating: 8 }), leaders, NOW);
+    expect(now.total!).toBeGreaterThan(old.total!);
   });
 });
 
@@ -219,15 +264,13 @@ describe("openStanding", () => {
   ];
 
   it("measures the best open model against the category leader", () => {
-    expect(openStanding(board, rankAll(board))).toEqual({
-      rank: 2,
-      name: "Open One",
-      total: 84,
-      of: 3,
-      leaderName: "Closed One",
-      leaderTotal: 95,
-      behind: 11,
-    });
+    const ranks = rankAll(board);
+    const s = openStanding(board, ranks)!;
+    expect(s).toMatchObject({ rank: 2, name: "Open One", of: 3, leaderName: "Closed One" });
+    // The gap is the real distance between the two scores, whatever the
+    // dimensions blended out to.
+    expect(s.behind).toBe(Math.round((s.leaderTotal - s.total) * 10) / 10);
+    expect(s.behind).toBeGreaterThan(0);
   });
 
   it("reports a lead of nothing when the open model is the leader", () => {

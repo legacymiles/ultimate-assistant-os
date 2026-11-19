@@ -78,3 +78,61 @@ describe("applyAction", () => {
     expect(applyAction(EMPTY_BOARD, { type: "delete", id: "gone" }, NOW)).toEqual({ ok: false, error: "That model isn't on the board any more." });
   });
 });
+
+describe("scoring one dimension at a time", () => {
+  const board = withModel();
+  const id = board.models[0].id;
+  const set = (p: Partial<{ dim: string; kind: "rating" | "metric"; value: number | null }>) =>
+    applyAction(board, { type: "setDim", id, dim: "naturalness", kind: "rating", value: 9, ...p }, NOW);
+
+  it("saves a 1-10 rating against the dimension", () => {
+    const r = set({});
+    expect(r.ok && r.board.models[0].ratings).toEqual({ naturalness: 9 });
+    expect(r.ok && r.message).toBe("Naturalness saved");
+  });
+
+  it("saves a measurement, and marks it as the owner's so a refresh leaves it alone", () => {
+    const r = set({ dim: "accuracy", kind: "metric", value: 3.2 });
+    expect(r.ok && r.board.models[0].metrics).toEqual({ accuracy: 3.2 });
+    expect(r.ok && r.board.models[0].metricsFrom).toEqual({ accuracy: "owner" });
+    expect(r.ok && r.board.models[0].measuredAt).toBe("2026-11-08");
+  });
+
+  it("clears one without disturbing the others", () => {
+    const two = set({});
+    if (!two.ok) throw new Error(two.error);
+    const withBoth = applyAction(two.board, { type: "setDim", id, dim: "emotion", kind: "rating", value: 7 }, NOW);
+    if (!withBoth.ok) throw new Error(withBoth.error);
+    const cleared = applyAction(withBoth.board, { type: "setDim", id, dim: "emotion", kind: "rating", value: null }, NOW);
+    expect(cleared.ok && cleared.board.models[0].ratings).toEqual({ naturalness: 9 });
+    expect(cleared.ok && cleared.message).toBe("Emotion cleared");
+  });
+
+  it("drops the map entirely once the last one goes", () => {
+    const one = set({});
+    if (!one.ok) throw new Error(one.error);
+    const gone = applyAction(one.board, { type: "setDim", id, dim: "naturalness", kind: "rating", value: null }, NOW);
+    expect(gone.ok && gone.board.models[0].ratings).toBeUndefined();
+  });
+
+  it("refuses a dimension this category does not have, in plain words", () => {
+    expect(set({ dim: "motion" })).toEqual({ ok: false, error: "That isn't one of this category's dimensions." });
+    expect(set({ dim: "naturalness", kind: "metric" })).toEqual({
+      ok: false,
+      error: "Naturalness is a 1–10 rating, not a measurement.",
+    });
+  });
+
+  it("says what a number has to be when it isn't one", () => {
+    expect(set({ value: 40 })).toEqual({ ok: false, error: "Naturalness is a number from 1 to 10." });
+    expect(set({ dim: "accuracy", kind: "metric", value: -1 })).toEqual({
+      ok: false,
+      error: "Give accuracy a number in % word error.",
+    });
+  });
+
+  it("has nothing to change on a model that has gone", () => {
+    const r = applyAction(board, { type: "setDim", id: "nope", dim: "emotion", kind: "rating", value: 5 }, NOW);
+    expect(r).toEqual({ ok: false, error: "That model isn't on the board any more." });
+  });
+});

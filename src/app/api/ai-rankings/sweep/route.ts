@@ -1,7 +1,22 @@
 import { NextResponse } from "next/server";
 import { readBoard, saveBoard, viewerCanEdit } from "@/lib/ai-rankings/boardServer";
 import { mergeInbox, runSweep } from "@/lib/ai-rankings/sweep";
-import { applyScoreRefresh, countApplied, refreshScores, scoreNote } from "@/lib/ai-rankings/scores";
+import { AA_BOARDS, applyScoreRefresh, countApplied, refreshScores, scoreNote } from "@/lib/ai-rankings/scores";
+import {
+  applyMetricRefresh,
+  countApplied as countMetricsApplied,
+  metricNote,
+  refreshMetrics,
+} from "@/lib/ai-rankings/metrics";
+import {
+  AA_MODEL_PAGE,
+  ARENA_DISCOVER_TOP,
+  discoveriesFrom,
+  fromAaEntries,
+  fromAaLlmEntries,
+  nameKey,
+} from "@/lib/ai-rankings/sources";
+import type { InboxItem } from "@/lib/ai-rankings/leaderboard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,13 +61,51 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Couldn't reach storage. The next run will try again." }, { status: 503 });
   }
 
-  // Both halves read the web, so they run together; neither writes anything.
-  const [result, scores] = await Promise.all([
+  // All three halves read the web, so they run together; none of them writes.
+  const key = process.env.ARTIFICIAL_ANALYSIS_API_KEY;
+  const [result, scores, measures] = await Promise.all([
     runSweep(board),
-    refreshScores(board, { apiKey: process.env.ARTIFICIAL_ANALYSIS_API_KEY }),
+    refreshScores(board, { apiKey: key }),
+    refreshMetrics(board, { apiKey: key }),
   ]);
   const at = new Date().toISOString();
-  const n = result.added.length;
+  const nowMs = Date.parse(at);
+
+  // Discovery from the arenas, out of entries the two refreshes already
+  // fetched — so it costs no extra call against the free tier's 100 a day.
+  // Seeded with what the trending feed just found and what is already
+  // waiting, so one model found twice is suggested once.
+  const seen = new Set<string>([...result.added, ...board.inbox].map((i) => nameKey(i.name)));
+  const arena: InboxItem[] = [];
+  for (const b of AA_BOARDS) {
+    const entries = scores.entries?.[b.category];
+    if (!entries?.length) continue;
+    arena.push(
+      ...discoveriesFrom(
+        fromAaEntries(entries).slice(0, ARENA_DISCOVER_TOP),
+        b.category,
+        b.url,
+        board,
+        nowMs,
+        seen,
+      ),
+    );
+  }
+  if (measures.entries?.length) {
+    arena.push(
+      ...discoveriesFrom(
+        fromAaLlmEntries(measures.entries).slice(0, ARENA_DISCOVER_TOP),
+        "llm",
+        AA_MODEL_PAGE,
+        board,
+        nowMs,
+        seen,
+      ),
+    );
+  }
+
+  const found = [...result.added, ...arena];
+  const n = found.length;
 
   // Re-read just before saving: the owner may have approved something, or
   // typed a score, while the feeds were loading, and saving the stale copy
@@ -64,22 +117,41 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Couldn't reach storage. The next run will try again." }, { status: 503 });
   }
   const scored = applyScoreRefresh(latest, scores, at);
+  const measured = applyMetricRefresh(scored, measures, at);
   const applied = countApplied(latest, scored, scores);
+  const metricsApplied = countMetricsApplied(scored, measured, measures);
   const note = [
-    (n ? `${n} new release${n === 1 ? "" : "s"} found` : "No new releases") +
-      (result.failed.length ? ` · couldn't read ${result.failed.join(", ")}` : ""),
+    (n
+      ? `${n} new release${n === 1 ? "" : "s"} found` +
+        (arena.length ? ` (${arena.length} from the arenas)` : "")
+      : "No new releases") + (result.failed.length ? ` · couldn't read ${result.failed.join(", ")}` : ""),
     scoreNote(scores, applied),
+    metricNote(measures, metricsApplied),
   ]
     .filter(Boolean)
     .join(" · ");
 
-  const next = { ...scored, inbox: mergeInbox(latest, result.added), lastSweepAt: at, lastSweepNote: note };
+  const next = { ...measured, inbox: mergeInbox(latest, found), lastSweepAt: at, lastSweepNote: note };
   if (!(await saveBoard(next))) {
     return NextResponse.json({ error: "Checked, but couldn't save the result. The next run will try again." }, { status: 503 });
   }
   return NextResponse.json({
     added: n,
+    fromArenas: arena.length,
     failed: result.failed,
+    measurements: {
+      updated: metricsApplied,
+      skippedForKey: Boolean(measures.noKey),
+      failed: Boolean(measures.failed),
+      // Every measurement that moved, so a wrong match is visible here too.
+      changes: measures.changes.map((c) => ({
+        name: c.name,
+        dim: c.dim,
+        from: c.from,
+        to: c.to,
+        aaName: c.aaName,
+      })),
+    },
     note,
     inbox: next.inbox,
     lastSweepAt: at,
