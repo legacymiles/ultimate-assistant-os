@@ -6,8 +6,11 @@ export type TtsFormat = "mp3" | "wav";
 
 /** What the /api/tts backend can currently do (reported to the client). */
 export interface TtsCapabilities {
-  /** fish-audio = hosted API keyed; self-hosted = own server; browser = no key. */
-  mode: "fish-audio" | "self-hosted" | "browser";
+  /**
+   * phonon = local Phonon server (tools/phonon-tts, CPU, no key);
+   * fish-audio = hosted API keyed; self-hosted = own server; browser = no key.
+   */
+  mode: "phonon" | "fish-audio" | "self-hosted" | "browser";
   /** Whether cloning is available (needs a real model backend, not the browser). */
   cloning: boolean;
 }

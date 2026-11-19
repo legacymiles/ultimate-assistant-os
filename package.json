@@ -13,6 +13,7 @@
     "start": "next start",
     "lint": "next lint",
     "dev:preview": "node scripts/dev-preview.mjs 3210",
+    "tts:phonon": "node tools/phonon-tts/start.mjs",
     "test": "vitest run",
   "verify": "npm run check:apps && npm run check:fonts && npx tsc -p tsconfig.json --noEmit && npm test && npm run build",
     "test:watch": "vitest",

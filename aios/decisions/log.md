@@ -191,3 +191,34 @@ in?" has no answer); letting the model decide for itself whether a picture is a 
 plausible recipe for a dish nobody photographed); sending photos through a new
 `/api/cook-connect/photo` route (would have duplicated the link resolver, the video downloader and
 the recipe normaliser to avoid renaming one route).
+
+## 2026-11-18 — Jarvis speaks locally with Phonon 31M; fish.audio becomes the net, not the voice
+
+**Decision:** Jarvis's speaking voice is **Gradium Phonon running on this machine's CPU**, served by
+`tools/phonon-tts` and selected with `TTS_BACKEND=phonon`. `/api/tts` was rewritten around
+`src/lib/voice-studio/backend.ts` `resolveTtsPlan(env)`, which returns a primary backend **and a
+fallback**: with `FISH_API_KEY` still set, fish.audio catches a Phonon server that is not running,
+because a laptop asleep is an everyday state rather than an outage and the browser's
+`speechSynthesis` voice is worse than a paid round-trip. The deployed site keeps fish.audio
+regardless — Vercel cannot reach `127.0.0.1` — so this is a backend selector, not a migration.
+The model is **`phonon-31m-en`, not the 40M** the search started from.
+
+**Why:** the hosted call cost a network round-trip on every sentence Jarvis spoke, plus a key and a
+free-tier quota, for a voice that stops working on a train. Phonon answers in ~1.0 s for a 5.3 s
+sentence (~5.5x realtime) from a 65 MB `q8` checkpoint, with 102 voices, and — the surprise — it is
+**CPU-only**: `ptts.available_devices()` returns `['cpu']`, there is no CUDA backend, so this is the
+one local model the 6 GB VRAM ceiling in `aios/context/my-computer.md` does not apply to. 31M over
+40M on two counts: the 40M weights are **CC BY-NC 4.0**, so they could never ship in a commercial
+app, while 31M is **Apache 2.0**; and on Gradium's own English benchmarks 31M scores *higher*
+(Elo 2098, hard-set WER 1.5%) — 40M buys fr/de/es/pt, not a better English voice.
+
+**Alternatives considered:** keeping fish.audio alone (the status quo, and the thing that fails
+offline); pointing the existing `TTS_BACKEND=self-hosted` branch at Phonon (that branch speaks
+fish-shaped msgpack, so Phonon would have had to impersonate another vendor's wire format — a
+`phonon` mode sending plain JSON is honest and leaves the fish path untouched); accepting the 40M
+terms on HuggingFace and setting `HF_TOKEN` (left documented as opt-in in
+`tools/phonon-tts/README.md`, since the licence rules it out of anything shippable); running
+Phonon's OpenAI-compatible Docker image instead of a 200-line stdlib server (a Linux container and
+a daemon to manage, for one POST endpoint on a Windows laptop); and cloning the owner's own voice
+locally — not possible, the open checkpoints report `supports_voice_cloning: false` and Gradium's
+cloning is a cloud call, so cloning stays on fish.
