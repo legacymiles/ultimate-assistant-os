@@ -10,6 +10,7 @@
 // ---------------------------------------------------------------------------
 
 import { sanitizeChanges } from "./changes";
+import { intakePromptBlock } from "./intake";
 import { ROOT } from "./seed";
 import { childrenOf, linksOf, pathTo } from "./tree";
 import type { AgentActions, ProfilesData } from "./types";
@@ -26,7 +27,9 @@ export function outline(data: ProfilesData): string {
       const aka = n.aliases?.length ? ` aka ${n.aliases.slice(0, 4).join("/")}` : "";
       lines.push(`${pad}#${n.id} "${n.name}" ${n.kind} · ${n.label}${n.sub ? ` · ${n.sub}` : ""}${aka}`);
       for (const s of n.sections) {
-        const rows = s.items.map((i) => `@${i.id} ${i.k}=${i.v}${i.date ? ` (${i.date})` : ""}${i.secret ? " [private]" : ""}`).join(" | ");
+        const rows = s.items
+          .map((i) => `@${i.id} ${i.k}=${i.noAi ? "[withheld — the owner can tap it]" : i.v}${i.date ? ` (${i.date})` : ""}${i.secret ? " [private]" : ""}`)
+          .join(" | ");
         lines.push(`${pad}  [${s.title}] ${rows}`);
       }
       if (n.media.length) lines.push(`${pad}  [Photos] ${n.media.length}`);
@@ -43,7 +46,7 @@ export function outline(data: ProfilesData): string {
   return lines.join("\n");
 }
 
-export function systemPrompt(data: ProfilesData, here: string, ownerName = ""): string {
+export function systemPrompt(data: ProfilesData, here: string, ownerName = "", found = ""): string {
   const at = pathTo(data, here)
     .filter((x) => x !== ROOT)
     .map((x) => data.nodes[x]?.name)
@@ -63,11 +66,17 @@ export function systemPrompt(data: ProfilesData, here: string, ownerName = ""): 
     "- When you propose changes, say what you WILL do (\"I'll add…\"), never that it is done: nothing is saved until the owner taps Save. Don't list sources for a change set.",
     "- After proposing changes, ask at most ONE follow-up question for what is still missing, with 2–3 short chips.",
     "- To move or reorganise, use move_node; to show a profile in a second place, link_node.",
+    "- Values shown as [withheld] are never sent to you. Say where they are and that the owner can tap to see them; never guess them.",
+    "- When something came from FOUND ELSEWHERE, say so (\"from your Memory\", \"in Folders › …\") and put its ~id in sources.",
+    "",
+    intakePromptBlock(),
     "",
     `The owner is looking at: ${at || "the Profiles home"} (#${here}).`,
     "",
     "OUTLINE (#id = profile, @id = row)",
     outline(data),
+    found ? `
+${found}` : "",
     "",
     "REPLY FORMAT",
     "Plain words first. Then, only if you have actions, ONE fenced block:",
@@ -98,7 +107,7 @@ export function parseReply(raw: string): { text: string; actions: AgentActions }
     words = (text.slice(0, m.index) + text.slice((m.index ?? 0) + m[0].length)).trim();
     try {
       const j = JSON.parse(m[1].trim()) as Record<string, unknown>;
-      const ids = (x: unknown) => (Array.isArray(x) ? x.filter((s): s is string => typeof s === "string").map((s) => s.replace(/^[#@]/, "")).slice(0, 8) : []);
+      const ids = (x: unknown) => (Array.isArray(x) ? x.filter((s): s is string => typeof s === "string").map((s) => s.replace(/^[#@~]/, "")).slice(0, 8) : []);
       const one = (x: unknown) => (typeof x === "string" && x ? x.replace(/^[#@]/, "") : undefined);
       actions = {
         changes: sanitizeChanges(j.changes),

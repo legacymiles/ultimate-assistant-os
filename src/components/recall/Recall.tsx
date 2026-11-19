@@ -28,7 +28,7 @@ import { SecurityDialog } from "./SecurityDialog";
 import { ListsBoard } from "./lists/ListsBoard";
 import { PhotosBoard } from "./photos/PhotosBoard";
 import { CalendarBoard } from "./calendar/CalendarBoard";
-import { ProfilesBoard } from "./ProfilesBoard";
+import { ProfilesApp } from "../profiles/ProfilesApp";
 import { ProfileView } from "./ProfileView";
 import { ProfileWizard } from "./ProfileWizard";
 import { MemoryBoard } from "./MemoryBoard";
@@ -480,13 +480,14 @@ export function Recall({ section, onSection }: RecallProps = {}) {
               </>
             )}
             {homeTab === "profiles" && (
-              <ProfilesBoard
-                data={data}
-                onOpenProfile={openProfile}
-                onAddProfile={(kind, role) => setProfileWizard({ kind, role })}
-                onOpenMemory={() => setHomeTab("memory")}
-                onOpenFolder={navigate}
-              />
+              // ONE Profiles app (owner, Nov 2026): the same one as Jarvis ›
+              // Profile and /apps/profiles. Profiles imported every profile
+              // that was on this board, and mirrors each one back here as a
+              // folder under "Profiles", so Folders, Memory and Photos still
+              // see them.
+              <div className="overflow-hidden rounded-2xl border border-line" style={{ height: "max(560px, calc(100dvh - 160px))" }}>
+                <ProfilesApp embedded />
+              </div>
             )}
             {homeTab === "memory" && (
               <MemoryBoard

@@ -618,9 +618,16 @@ function Switch({ on, set, label, hue }: { on: boolean; set: (v: boolean) => voi
   return <button type="button" role="switch" aria-checked={on} aria-label={label} className="pf-switch" style={sty({ "--h": hue ?? 158 })} onClick={() => set(!on)} />;
 }
 
-export function SettingsView({ store, nav, stack, id, harness, recheck, resetChat }: { store: ProfilesStore; nav: Nav; stack: View[]; id: string; harness: HarnessStatus | null; recheck: () => void; resetChat: () => void }) {
+export interface Extra {
+  id: string;
+  title: string;
+  blurb?: string;
+  render: () => ReactNode;
+}
+
+export function SettingsView({ store, nav, stack, id, harness, recheck, resetChat, extras = [], openExtra, embedded = false }: { store: ProfilesStore; nav: Nav; stack: View[]; id: string; harness: HarnessStatus | null; recheck: () => void; resetChat: () => void; extras?: Extra[]; openExtra?: string; embedded?: boolean }) {
   const { data } = store;
-  if (id === ROOT) return <AppSettings store={store} nav={nav} stack={stack} harness={harness} recheck={recheck} resetChat={resetChat} />;
+  if (id === ROOT) return <AppSettings store={store} nav={nav} stack={stack} harness={harness} recheck={recheck} resetChat={resetChat} extras={extras} openExtra={openExtra} embedded={embedded} />;
   const node = data.nodes[id];
   if (!node) return null;
   return <NodeSettings key={id} store={store} nav={nav} stack={stack} node={node} />;
@@ -771,8 +778,14 @@ function NodeSettings({ store, nav, stack, node }: { store: ProfilesStore; nav: 
   );
 }
 
-function AppSettings({ store, nav, stack, harness, recheck, resetChat }: { store: ProfilesStore; nav: Nav; stack: View[]; harness: HarnessStatus | null; recheck: () => void; resetChat: () => void }) {
+function AppSettings({ store, nav, stack, harness, recheck, resetChat, extras, openExtra, embedded }: { store: ProfilesStore; nav: Nav; stack: View[]; harness: HarnessStatus | null; recheck: () => void; resetChat: () => void; extras: Extra[]; openExtra?: string; embedded: boolean }) {
   const { data } = store;
+  // "connections@youtube" — the part before @ is the group; the rest only makes a repeat link count.
+  const wanted = openExtra?.split("@")[0] ?? "";
+  const [open, setOpen] = useState<string>(wanted);
+  useEffect(() => {
+    if (wanted) setOpen(wanted);
+  }, [openExtra, wanted]);
   const brains: { id: ProfilesData["settings"]["brain"]; name: string }[] = [
     { id: "auto", name: "Automatic" },
     { id: "harness", name: "My PC harness" },
@@ -852,6 +865,18 @@ function AppSettings({ store, nav, stack, harness, recheck, resetChat }: { store
             )}
           </div>
         </section>
+        {!embedded ? (
+          <section className="pf-group pf-rise" style={sty({ "--i": 3 })}>
+            <h3>Connections and Backend checklist</h3>
+            <div className="pf-field">
+              <span>
+                Your API keys and the build checklist
+                <small>They live in Profiles › Settings inside Jarvis, where your PC helper can save keys.</small>
+              </span>
+              <a className="pf-btn" href="/apps/jarvis#connections">Open in Jarvis</a>
+            </div>
+          </section>
+        ) : null}
         {archived.length ? (
           <section className="pf-group pf-rise" style={sty({ "--i": 3 })}>
             <h3>Archived</h3>
@@ -866,6 +891,22 @@ function AppSettings({ store, nav, stack, harness, recheck, resetChat }: { store
           </section>
         ) : null}
       </div>
+      {extras.length ? (
+        <div className="pf-extras">
+          {extras.map((x) => (
+            <section key={x.id} className={`pf-sec pf-extra${open === x.id ? " open" : ""}`}>
+              <button type="button" className="pf-sec-h" onClick={() => setOpen((o) => (o === x.id ? "" : x.id))} aria-expanded={open === x.id}>
+                <span>
+                  {x.title}
+                  {x.blurb ? <small className="pf-extra-blurb">{x.blurb}</small> : null}
+                </span>
+                <ChevronDown className="pf-chev" aria-hidden="true" style={{ marginLeft: "auto" }} />
+              </button>
+              {open === x.id ? <div className="pf-extra-body">{x.render()}</div> : null}
+            </section>
+          ))}
+        </div>
+      ) : null}
     </>
   );
 }

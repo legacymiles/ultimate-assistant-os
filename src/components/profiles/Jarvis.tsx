@@ -22,6 +22,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ask } from "@/lib/profiles/brain";
 import type { Turn } from "@/lib/profiles/agent";
+import type { Found } from "@/lib/profiles/found";
 import { applyChanges, describeChanges, type ChangeLine } from "@/lib/profiles/changes";
 import { ROOT } from "@/lib/profiles/seed";
 import { findItem, hueOf, mediaUnder, pathTo, resolveNode, whereLabel } from "@/lib/profiles/tree";
@@ -43,7 +44,7 @@ interface Pending {
 
 type Msg =
   | { id: string; role: "user"; text: string; media?: Media[] }
-  | { id: string; role: "jarvis"; text: string; status: "thinking" | "done" | "error"; by?: string; note?: string; actions?: AgentActions; pending?: Pending; ask: string };
+  | { id: string; role: "jarvis"; text: string; status: "thinking" | "done" | "error"; by?: string; note?: string; actions?: AgentActions; pending?: Pending; ask: string; found?: Found[] };
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const sty = (o: Record<string, string | number>) => o as CSSProperties;
@@ -85,8 +86,13 @@ export function Jarvis(p: JarvisProps) {
   const dataRef = useRef(data);
   dataRef.current = data;
 
-  const hereNode = data.nodes[here];
-  const hue = hueOf(data, here);
+  // After a new profile is saved, the conversation stays with it, so the
+  // answers to its intake questions are filed there — until the page moves.
+  const [focus, setFocus] = useState<string | null>(null);
+  useEffect(() => setFocus(null), [here]);
+  const chatHere = focus && data.nodes[focus] && !data.nodes[focus].archived ? focus : here;
+  const hereNode = data.nodes[chatHere];
+  const hue = hueOf(data, chatHere);
 
   // Fresh conversation (Settings → Start fresh).
   useEffect(() => {
@@ -143,7 +149,7 @@ export function Jarvis(p: JarvisProps) {
       try {
         const a = await ask({
           data: d,
-          here,
+          here: chatHere,
           scope,
           message,
           history,
@@ -153,7 +159,7 @@ export function Jarvis(p: JarvisProps) {
         const changes = [...(a.actions.changes ?? [])];
         let words = a.text;
         if (media.length) {
-          const target = a.actions.media ?? a.actions.open ?? resolveNode(d, text, here)?.id ?? (here !== ROOT ? here : null);
+          const target = a.actions.media ?? a.actions.open ?? resolveNode(d, text, chatHere)?.id ?? (chatHere !== ROOT ? chatHere : null);
           if (target && d.nodes[target]) {
             changes.push({ op: "add_media", node: target, media });
             if (!a.actions.changes?.length && a.by !== "harness") words = `I'll file ${media.length === 1 ? "it" : `all ${media.length}`} in ${d.nodes[target].name}'s photos.`;
@@ -166,7 +172,7 @@ export function Jarvis(p: JarvisProps) {
         setMsgs((m) =>
           m.map((x) =>
             x.id === jid
-              ? { id: jid, role: "jarvis", ask: text, text: words, status: "done", by: a.label, note: a.note, actions: { ...a.actions, media: media.length ? undefined : a.actions.media }, pending }
+              ? { id: jid, role: "jarvis", ask: text, text: words, status: "done", by: a.label, note: a.note, actions: { ...a.actions, media: media.length ? undefined : a.actions.media }, pending, found: a.found }
               : x,
           ),
         );
@@ -182,7 +188,7 @@ export function Jarvis(p: JarvisProps) {
         setBusy(false);
       }
     },
-    [busy, here, msgs, p, scope, setMode, setPeek],
+    [busy, chatHere, msgs, p, scope, setMode, setPeek],
   );
 
   // Requests from the page ("Add details with Jarvis", chips, settings).
@@ -211,6 +217,8 @@ export function Jarvis(p: JarvisProps) {
     const chosen = m.pending.changes.filter((_, i) => m.pending!.on[i]);
     if (!chosen.length) return;
     const r = store.apply(chosen, m.pending.lines.filter((_, i) => m.pending!.on[i]).map((l) => l.title).join(" · "));
+    const made = Object.values(r.created)[0];
+    if (made) setFocus(made);
     setMsgs((all) => all.map((x) => (x.id === id && x.role === "jarvis" && x.pending ? { ...x, pending: { ...x.pending, state: "saved", logId: r.logId, skipped: r.skipped, focus: r.focus } } : x)));
   };
 
@@ -297,7 +305,7 @@ export function Jarvis(p: JarvisProps) {
                     <strong>Jarvis</strong>
                     <span>{p.brainLabel}</span>
                   </div>
-                  {here !== ROOT && hereNode ? (
+                  {chatHere !== ROOT && hereNode ? (
                     <div className="pf-scope" role="group" aria-label="Search where">
                       <button type="button" aria-pressed={scope === "all"} onClick={() => setScope("all")}>Everywhere</button>
                       <button type="button" aria-pressed={scope === "here"} onClick={() => setScope("here")}>In {hereNode.name}</button>
@@ -312,7 +320,7 @@ export function Jarvis(p: JarvisProps) {
                 <div className="pf-thread" ref={thread} aria-live="polite">
                   {!msgs.length ? (
                     <div className="pf-welcome">
-                      <h2>{here !== ROOT && hereNode ? `What should I know about ${hereNode.name}?` : "Tell me anything. I'll file it."}</h2>
+                      <h2>{chatHere !== ROOT && hereNode ? `What should I know about ${hereNode.name}?` : "Tell me anything. I'll file it."}</h2>
                       <p>Ask where something is, or tell me something new in your own words: a person, a code, a date, a purchase. I&apos;ll work out where it belongs and ask before saving. Drop photos in and I&apos;ll file those too.</p>
                       <div className="pf-chips">
                         {asks.map((t) => (
@@ -364,7 +372,7 @@ export function Jarvis(p: JarvisProps) {
                     id="pf-composer"
                     rows={1}
                     value={draft}
-                    placeholder={here !== ROOT && hereNode ? `Tell Jarvis about ${hereNode.name}, or ask anything…` : "Tell Jarvis something, or ask anything…"}
+                    placeholder={chatHere !== ROOT && hereNode ? `Tell Jarvis about ${hereNode.name}, or ask anything…` : "Tell Jarvis something, or ask anything…"}
                     onChange={(e) => {
                       setDraft(e.target.value);
                       e.target.style.height = "auto";
@@ -486,7 +494,7 @@ export function Jarvis(p: JarvisProps) {
                   onChange={(e) => setBar(e.target.value)}
                   onFocus={() => setFocused(true)}
                   onBlur={() => setTimeout(() => setFocused(false), 120)}
-                  placeholder={here !== ROOT && hereNode ? `Ask about ${hereNode.name}, or tell Jarvis something…` : "Ask about anything, or tell Jarvis something new"}
+                  placeholder={chatHere !== ROOT && hereNode ? `Ask about ${hereNode.name}, or tell Jarvis something…` : "Ask about anything, or tell Jarvis something new"}
                   aria-label="Ask or tell Jarvis"
                 />
                 {bar ? (
@@ -543,15 +551,33 @@ function JarvisBody({ m, data, compact, mask, reveal, setReveal, go, lightbox, t
       </div>
     );
   // A change set is the answer; source cards beside it are clutter.
-  const sources = m.pending ? [] : (m.actions?.sources ?? []).slice(0, compact ? 1 : 4);
+  const sources = (m.pending ? (m.actions?.sources ?? []).filter((id) => /^(mem|rec):/.test(id)) : (m.actions?.sources ?? [])).slice(0, compact ? 1 : 4);
   const mediaNode = m.actions?.media && data.nodes[m.actions.media] ? m.actions.media : null;
   const media = mediaNode ? mediaUnder(data, mediaNode) : [];
   const openNode = m.actions?.open && data.nodes[m.actions.open] ? data.nodes[m.actions.open] : null;
   const pend = m.pending;
   return (
     <div className="pf-a-body">
-      {m.text ? <p>{m.text}</p> : null}
+      {m.text ? <p>{rich(m.text)}</p> : null}
       {sources.map((id) => {
+        const elsewhere = m.found?.find((x) => x.id === id);
+        if (elsewhere)
+          return (
+            <div key={id} className="pf-rc" style={sty({ "--h": elsewhere.source === "Memory" ? 268 : elsewhere.source === "Photos" ? 34 : 198 })}>
+              {elsewhere.src ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="pf-thumb" src={elsewhere.src} alt="" />
+              ) : null}
+              <div className="pf-rc-main">
+                <div className="pf-src">
+                  <span className="pf-tag">{elsewhere.source}</span>
+                  {elsewhere.where}
+                </div>
+                <div className="pf-rc-v">{elsewhere.title}</div>
+                {elsewhere.text ? <div className="pf-rc-t">{elsewhere.text}</div> : null}
+              </div>
+            </div>
+          );
         const f = findItem(data, id);
         if (f) {
           const hidden = f.item.secret && mask && !reveal.has(f.item.id);
@@ -657,6 +683,19 @@ function JarvisBody({ m, data, compact, mask, reveal, setReveal, go, lightbox, t
       {!compact && m.by ? <span className="pf-by">{m.by.toUpperCase()}</span> : null}
       {!compact && m.note ? <span className="pf-note">{m.note}</span> : null}
     </div>
+  );
+}
+
+/** Models write **bold** and `code`; show them as such instead of raw marks. */
+function rich(text: string) {
+  return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, i) =>
+    part.startsWith("**") && part.endsWith("**") ? (
+      <strong key={i} style={{ fontWeight: 600, color: "var(--pf-ink)" }}>{part.slice(2, -2)}</strong>
+    ) : part.startsWith("`") && part.endsWith("`") ? (
+      <code key={i} style={{ fontFamily: "var(--pf-mono)", fontSize: "0.92em" }}>{part.slice(1, -1)}</code>
+    ) : (
+      part
+    ),
   );
 }
 

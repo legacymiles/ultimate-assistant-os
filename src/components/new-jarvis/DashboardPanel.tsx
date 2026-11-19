@@ -18,14 +18,10 @@ import { VaultStatus } from "./VaultStatus";
 import { MemoryMap } from "./MemoryMap";
 import { ImprovePanel } from "./ImprovePanel";
 import { RecordFiles } from "./RecordFiles";
-import { ScreenScan } from "./ScreenScan";
 
 import { MemoryTab } from "../jarvis/MemoryTab";
-import { NewDashboard } from "../new-dashboard/NewDashboard";
 import { DashboardTab } from "../jarvis/DashboardTab";
-import { RecordTab } from "../jarvis/RecordTab";
-import { ProfileApp } from "../profile/ProfileApp";
-import { Recall } from "../recall/Recall";
+import { ProfilesApp } from "../profiles/ProfilesApp";
 import { ReminderBanner } from "../jarvis/ReminderBanner";
 
 import type { UseVault } from "@/lib/new-jarvis/useVault";
@@ -275,78 +271,49 @@ export function DashboardPanel({
             )}
           </div>
         ) : pane === "profile" ? (
-          <div className="flex h-full min-h-0 flex-col">
-            {/* Two halves of one subject, and both are "the profile":
-                WHO YOU ARE is the life record — the 47 fields a form asks for.
-                HOW YOU WORK is the Four-Cs intake, which also carries the
-                onboarding interview.
-                The record half had no mount in this shell at all until now,
-                which meant a screen scan could write facts the owner then had
-                no way to see. */}
-            <div className="flex shrink-0 items-center gap-0.5 border-b border-line-soft px-3 py-1.5">
-              {(
-                [
-                  { id: "details", label: "Who you are" },
-                  // Business and personal profiles — one card each, added
-                  // with a button. The same board as Yours › Profiles, so
-                  // the Profile is where you add them, not only More.
-                  { id: "people", label: "Business & personal" },
-                  // The form is still here, unchanged and reachable. The
-                  // folder tree holds what a fixed 47 fields never could,
-                  // and imports the record rather than replacing it.
-                  { id: "record", label: "Life record" },
-                  { id: "aios", label: "How you work" },
-                  // The one build checklist lives here, in the owner's
-                  // Profile, rather than behind a tab of its own.
-                  { id: "checklist", label: "Backend checklist" },
-                  // Every API key, each with a clickable step-by-step guide.
-                  { id: "connections", label: "Connections" },
-                ] as const
-              ).map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setProfileFace(t.id)}
-                  aria-current={profileFace === t.id ? "page" : undefined}
-                  className={`rounded px-2 py-1 text-[11px] transition ${
-                    profileFace === t.id ? "bg-elevated text-ink" : "text-ink-muted hover:bg-panel-2 hover:text-ink"
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              {profileFace === "connections" ? (
-                <Connections setup={setup} bridge={keysBridge} ask={ask} focus={connFocus} />
-              ) : profileFace === "checklist" ? (
-                <BackendChecklist api={jarvisProfile} />
-              ) : profileFace === "details" ? (
-                <ProfileApp />
-              ) : profileFace === "people" ? (
-                <Recall section="profiles" onSection={(s) => (s === "profiles" ? undefined : go(s))} />
-              ) : profileFace === "record" ? (
-                <>
-                  {/* Reading a screen belongs HERE, above the record it writes
-                      into. What it proposes is judged against that record, so
-                      the two want to be in one place. */}
-                  <div className="space-y-2.5 border-b border-line-soft p-3">
+          // ONE Profiles app (owner, Nov 2026). Who you are, Business & personal,
+          // Life record and How you work are gone from here: their facts are
+          // imported into Profiles (the Life record keeps syncing into My
+          // Profile, which is where Read my screen's finds now show up), and
+          // Connections and the Backend checklist live in Profiles › Settings.
+          <ProfilesApp
+            embedded
+            openSettings={profileFace === "connections" ? `connections@${connFocus ?? ""}` : undefined}
+            settingsExtras={[
+              {
+                id: "connections",
+                title: "Connections",
+                blurb: "Every API key, each with a step-by-step guide.",
+                render: () => <Connections setup={setup} bridge={keysBridge} ask={ask} focus={connFocus} />,
+              },
+              {
+                id: "checklist",
+                title: "Backend checklist",
+                blurb: "The one build checklist every app is held to.",
+                render: () => <BackendChecklist api={jarvisProfile} />,
+              },
+              {
+                id: "setup",
+                title: "Finish setup",
+                blurb: "What Jarvis still needs from you.",
+                render: () => (
+                  <div className="p-3">
                     <FinishSetup setup={setup} onOpen={onOpenSetup} go={go} />
-                    <ScreenScan onSaved={() => setProfileKey((n) => n + 1)} />
-                    {/* The documents sit with the reader that made them, and
-                        are keyed with the record so one just kept appears. */}
+                  </div>
+                ),
+              },
+              {
+                id: "documents",
+                title: "Saved documents",
+                blurb: "Cards and letters kept by Read my screen.",
+                render: () => (
+                  <div className="p-3">
                     <RecordFiles key={`files-${profileKey}`} onChanged={() => setProfileKey((n) => n + 1)} />
                   </div>
-                  {/* Keyed, so the record redraws with what a scan just saved
-                      rather than what it held when it mounted. */}
-                  <RecordTab key={profileKey} />
-                </>
-              ) : (
-                <NewDashboard chromeless />
-              )}
-            </div>
-          </div>
+                ),
+              },
+            ]}
+          />
         ) : (
           <div className="h-full overflow-y-auto p-3">
             <div className="mx-auto max-w-2xl">

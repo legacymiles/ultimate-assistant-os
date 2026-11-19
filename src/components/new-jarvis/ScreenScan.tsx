@@ -210,6 +210,9 @@ export function ScreenScan({ onSaved }: { onSaved?: () => void }) {
     }
 
     saveRecord(record);
+    // Profiles keeps My Profile in step with the record; tell it, wherever it
+    // is mounted, so what was just read shows up there without a reload.
+    window.dispatchEvent(new Event("jarvis:record-changed"));
     setSaved(count);
     setBusy(false);
     setShot(null);
@@ -303,7 +306,7 @@ export function ScreenScan({ onSaved }: { onSaved?: () => void }) {
     return (
       <section className="rounded-md border border-line-soft bg-panel p-3">
         <p className="text-[11.5px] text-ink">
-          {saved === 0 ? "Nothing was saved." : `Saved ${saved} ${saved === 1 ? "thing" : "things"} to your profile.`}
+          {saved === 0 ? "Nothing was saved." : `Saved ${saved} ${saved === 1 ? "thing" : "things"} to My Profile in Profiles.`}
         </p>
         {/* Where the picture landed, when it did not land where it should
             have. Silence here is how an owner finds out at the clinic desk. */}

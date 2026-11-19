@@ -16,7 +16,7 @@
 
 import { LayoutGroup, motion, AnimatePresence } from "motion/react";
 import { Undo2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { harnessReady } from "@/lib/profiles/brain";
 import type { HarnessStatus } from "@/lib/profiles/harnessBrain";
 import { resetHarnessThread } from "@/lib/profiles/harnessBrain";
@@ -45,7 +45,27 @@ function hashFor(v: View): string {
   return `#${v.id}${v.t === "gallery" ? "/photos" : v.t === "settings" ? "/settings" : ""}`;
 }
 
-export function ProfilesApp() {
+export interface SettingsExtra {
+  id: string;
+  title: string;
+  blurb?: string;
+  render: () => ReactNode;
+}
+
+export interface ProfilesAppProps {
+  /**
+   * Mounted inside another surface (Jarvis › Profile, the Dashboard's Profiles
+   * tab): scrolls inside its own box, never touches the page's address bar,
+   * and keeps the Jarvis bar inside that box.
+   */
+  embedded?: boolean;
+  /** Extra settings groups the host owns — Jarvis passes Connections and the Backend checklist. */
+  settingsExtras?: SettingsExtra[];
+  /** Open Profiles › Settings with this extra expanded (e.g. a #connections link). */
+  openSettings?: string;
+}
+
+export function ProfilesApp({ embedded = false, settingsExtras = [], openSettings }: ProfilesAppProps = {}) {
   const store = useProfiles();
   const { data } = store;
   const [stack, setStack] = useState<View[]>([{ t: "node", id: ROOT }]);
@@ -90,7 +110,8 @@ export function ProfilesApp() {
   }, []);
   const hashRead = useRef(false);
   useEffect(() => {
-    if (!store.ready) return;
+    // Inside Jarvis the hash is Jarvis's (#connections, #harness…), not ours.
+    if (!store.ready || embedded) return;
     const s = fromHash();
     if (s) setStack(s);
     hashRead.current = true;
@@ -100,14 +121,19 @@ export function ProfilesApp() {
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, [fromHash, store.ready]);
+  }, [embedded, fromHash, store.ready]);
   useEffect(() => {
     // Not before the link we arrived on has been read, or it would be wiped.
-    if (!hashRead.current) return;
+    if (!hashRead.current || embedded) return;
     const h = hashFor(view);
     // Each level is a history entry, so the browser's Back goes up a level.
     if (window.location.hash !== h && (window.location.hash || h)) history.pushState(null, "", h || window.location.pathname + window.location.search);
-  }, [view]);
+  }, [embedded, view]);
+
+  // A host can ask for Settings with one of its groups open.
+  useEffect(() => {
+    if (openSettings) setStack([{ t: "node", id: ROOT }, { t: "settings", id: ROOT }]);
+  }, [openSettings]);
 
   // --- the page's light follows the world you are in --------------------------------
   const root = useRef<HTMLDivElement>(null);
@@ -116,11 +142,13 @@ export function ProfilesApp() {
   }, [hue]);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 140);
+    const box = embedded ? root.current : null;
+    const onScroll = () => setScrolled((box ? box.scrollTop : window.scrollY) > 140);
     onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+    const target: HTMLElement | Window = box ?? window;
+    target.addEventListener("scroll", onScroll, { passive: true });
+    return () => target.removeEventListener("scroll", onScroll);
+  }, [embedded]);
 
   const recheck = useCallback(() => {
     setHarness(null);
@@ -133,9 +161,10 @@ export function ProfilesApp() {
   // --- navigation ---------------------------------------------------------------
   const setTop = useCallback((next: View[], d: "in" | "out") => {
     setDir(d);
-    window.scrollTo({ top: 0 });
+    if (embedded) root.current?.scrollTo({ top: 0 });
+    else window.scrollTo({ top: 0 });
     setStack(next);
-  }, []);
+  }, [embedded]);
 
   const showToast = useCallback(
     (text: string, undo?: string) => setToast({ text, undo: undo === "last" ? store.lastLog() : undo, n: Date.now() }),
@@ -233,7 +262,7 @@ export function ProfilesApp() {
 
   const page =
     view.t === "settings" ? (
-      <SettingsView store={store} nav={nav} stack={stack} id={view.id} harness={harness} recheck={recheck} resetChat={() => { void resetHarnessThread(); setResetNonce(Date.now()); showToast("Fresh conversation"); }} />
+      <SettingsView store={store} nav={nav} stack={stack} id={view.id} harness={harness} recheck={recheck} extras={settingsExtras} openExtra={openSettings} embedded={embedded} resetChat={() => { void resetHarnessThread(); setResetNonce(Date.now()); showToast("Fresh conversation"); }} />
     ) : view.t === "gallery" ? (
       <GalleryView store={store} nav={nav} stack={stack} id={view.id} lightbox={(list, i) => setLb({ list, i })} />
     ) : view.id === ROOT ? (
@@ -243,7 +272,7 @@ export function ProfilesApp() {
     );
 
   return (
-    <div ref={root} className={`pf${still ? " still" : ""}`} style={{ "--pf-hue": hue } as CSSProperties}>
+    <div ref={root} className={`pf${still ? " still" : ""}${embedded ? " embedded" : ""}`} style={{ "--pf-hue": hue } as CSSProperties}>
       <div className="pf-ambient" aria-hidden="true" />
       <LayoutGroup>
         <motion.main

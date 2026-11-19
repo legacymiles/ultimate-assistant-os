@@ -29,8 +29,15 @@ export function Ico({ name, className }: { name?: string; className?: string }) 
 }
 
 /** People are round, things are square. */
-export function Mark({ node, hue, size = 52, soft = false }: { node: Pick<ProfileNode, "kind" | "icon" | "initials" | "name">; hue: number; size?: number; soft?: boolean }) {
+export function Mark({ node, hue, size = 52, soft = false }: { node: Pick<ProfileNode, "kind" | "icon" | "initials" | "name"> & { avatar?: string }; hue: number; size?: number; soft?: boolean }) {
   const style = { "--s": `${size}px`, "--h": hue } as CSSProperties;
+  if (node.avatar)
+    return (
+      <span className={`pf-mark ${node.kind === "person" ? "person" : "thing"} pf-avatar`} style={style} aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={node.avatar} alt="" />
+      </span>
+    );
   if (node.kind === "person")
     return (
       <span className="pf-mark person" style={style} aria-hidden="true">

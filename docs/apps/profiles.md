@@ -25,6 +25,34 @@ tab bars.
 
 ## Features
 
+- **The one Profiles app (Nov 2026)** — the same app is Jarvis › Dashboard › Profile, the
+  Dashboard's Profiles tab and `/apps/profiles`. The old Profile tabs (Who you are, Business &
+  personal, Life record, How you work) are gone from Jarvis; **Connections**, the **Backend
+  checklist**, **Finish setup** and **Saved documents** live in Profiles › Settings (inside
+  Jarvis). `/apps/jarvis#connections` opens Settings with Connections expanded.
+- **Your existing profiles come in** — every Dashboard profile is imported once (businesses into
+  My Businesses, people where they belong, accounts and passwords as private rows); the Life
+  record is synced into My Profile every time Profiles opens, updated in place, its Work history
+  becoming job profiles inside My Jobs. The examples clear themselves the moment real data
+  arrives.
+- **Read my screen feeds Profiles** — it stays in the main Jarvis chat bar; what it saves to the
+  Life record shows up in My Profile straight away (it fires `jarvis:record-changed`).
+- **Synced with Folders, Memory and Photos** — each real profile gets a folder under "Profiles"
+  in the Dashboard (nested and moved/renamed with it) holding a searchable note of its details
+  (private rows left out), so Folders search and the Memory graph find it; photos uploaded to a
+  profile land in Photos › <profile>; a profile's gallery also shows every picture already in
+  its folder or Photos folder.
+- **New profiles start from what is already known** — "create a profile for my 3D printing
+  business" searches Jarvis Memory and the Dashboard's folders, notes and photos first, files
+  what it finds into the new profile (cited), puts it in the right parent (a teacher inside the
+  child's School, a business inside My Businesses, a job inside My Jobs) and asks questions for
+  that kind of profile: equipment with purchase date, seller and price, vendors, websites and
+  which email is used for which site for a business; school, doctor and sizes for a child;
+  anniversary and favorites for a partner; codes, coworkers and payday for a job. After saving,
+  the chat stays with the new profile so the answers are filed there.
+- **Never-send-to-AI values** — what the Life record marks sensitive (SSN and the like) and
+  imported passwords are withheld from every prompt; the owner can still tap to see them.
+
 - **Profiles home** — only the main profiles, as glass cards. Each shows its next upcoming date
   and a peek of what's inside; My Profile shows who it is connected to. Hover lifts a card and
   lights it in that profile's colour.
@@ -63,6 +91,12 @@ tab bars.
   only otherwise.
 
 ## Must keep working
+
+- Jarvis › Profile shows only Profiles, and Profiles › Settings shows Connections and the Backend
+  checklist working.
+- Profiles never writes the Dashboard store on a device that has no Dashboard copy (it would
+  overwrite the account's real folders); it reconciles first (`recallBridge.ts` `syncToRecall`).
+- Life record sensitive values and imported passwords never reach a prompt (`noAi`).
 
 - Asking "What email do I use for my printing suppliers?", "What is the gas code at my job?",
   "Show me pictures of my son" and "Move my son's teacher profile into his school folder" on the
@@ -110,5 +144,6 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 
 ### Tests
 
+- `src/lib/profiles/integrations.test.ts`
 - `src/lib/profiles/profiles.test.ts`
 <!-- code:end -->

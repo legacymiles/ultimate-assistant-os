@@ -22,6 +22,12 @@ export interface Item {
   v: string;
   /** Codes, serials, account numbers: hidden until tapped. */
   secret?: boolean;
+  /**
+   * Never put in any prompt — not the harness, not the cloud. Set on what the
+   * Life record marks sensitive (SSN and the like) and on imported passwords.
+   * The owner can still see and copy it here.
+   */
+  noAi?: boolean;
   /** ISO yyyy-mm-dd when the row is a date, so "next up" can be worked out. */
   date?: string;
   /** Dollars, when the row is a purchase or an expense. */
@@ -49,6 +55,24 @@ export interface Media {
   date?: string;
   /** "0:24" for a video. */
   dur?: string;
+  /** The Dashboard (Recall) image item this upload was mirrored into. */
+  recallItemId?: string;
+  /** Read live from the Dashboard's Photos/Folders, not stored here. */
+  fromRecall?: boolean;
+}
+
+/**
+ * Where a profile lives in the Dashboard (Recall) — the Folders, Memory and
+ * Photos tabs. Profiles writes its own folder, a searchable note mirroring its
+ * details, and a Photos sub-folder for what is uploaded here, so those tabs
+ * always show the same profile.
+ */
+export interface RecallLink {
+  folderId?: string;
+  noteId?: string;
+  photosFolderId?: string;
+  /** The Dashboard profile this one was imported from, when it was. */
+  profileId?: string;
 }
 
 export interface ProfileNode {
@@ -78,6 +102,11 @@ export interface ProfileNode {
   example?: boolean;
   /** Questions this page suggests in the bar. */
   asks?: string[];
+  /** A small square photo (data URL), shown in place of initials. */
+  avatar?: string;
+  recall?: RecallLink;
+  /** Life record field key → the row it lives in here (My Profile only). */
+  recordKeys?: Record<string, string>;
 }
 
 /** A fact Jarvis remembered that does not belong in a section yet. */
@@ -107,6 +136,8 @@ export interface ProfilesData {
   log: LogEntry[];
   /** True while the seeded examples are still in. */
   examples: boolean;
+  /** Sources already imported once ("recall:<id>"), so they never import twice. */
+  imported?: string[];
   settings: {
     /** Hide `secret` values until tapped. */
     mask: boolean;

@@ -8,6 +8,8 @@
 // small "offline" label under the message.
 // ---------------------------------------------------------------------------
 
+import type { Found } from "./found";
+import { classifyIntake, intakeName, isNewProfileAsk, type IntakeGuide } from "./intake";
 import { ROOT } from "./seed";
 import { findItem, mediaUnder, resolveNode, search, tokens, whereLabel, type Hit } from "./tree";
 import type { AgentReply, Change, ProfilesData } from "./types";
@@ -22,9 +24,61 @@ function hitId(h: Hit): string {
   return h.type === "item" ? h.item.id : h.type === "memory" ? h.node.id : h.node.id;
 }
 
-export function offlineBrain(data: ProfilesData, input: string, here: string, scope: "all" | "here" = "all"): AgentReply {
+/** Where a new profile of this kind belongs, from what already exists. */
+function homeFor(data: ProfilesData, guide: IntakeGuide, text: string, here: string): string {
+  const byName = (re: RegExp) => Object.values(data.nodes).find((n) => !n.archived && n.id !== ROOT && re.test(`${n.name} ${(n.aliases ?? []).join(" ")}`))?.id;
+  switch (guide.type) {
+    case "teacher": {
+      const school = byName(/\bschool\b/i);
+      return school ?? (data.nodes[here]?.kind === "person" ? here : ROOT);
+    }
+    case "business":
+      return byName(/\b(my businesses|businesses)\b/i) ?? ROOT;
+    case "job":
+      return byName(/\b(my jobs|jobs)\b/i) ?? ROOT;
+    case "coworker":
+    case "doctor":
+      return here !== ROOT ? here : ROOT;
+    case "parent":
+    case "relative":
+    case "friend":
+      return data.nodes.me && !data.nodes.me.archived ? "me" : ROOT;
+    default: {
+      // "add X inside Y" names the parent outright.
+      const inside = text.match(/\b(?:in|inside|under)\s+(.+)$/i);
+      return (inside && resolveNode(data, inside[1], here)?.id) || ROOT;
+    }
+  }
+}
+
+function intake(data: ProfilesData, text: string, here: string, found: Found[]): AgentReply {
+  const guide = classifyIntake(text);
+  const name = intakeName(text.replace(/\b(?:in|inside|under)\s+.+$/i, ""));
+  const parent = homeFor(data, guide, text, here);
+  const changes: Change[] = [
+    { op: "add_node", ref: "new:1", parent, name, kind: guide.kind, label: guide.label, icon: guide.icon },
+  ];
+  const facts = found.filter((f) => !f.src).slice(0, 4);
+  for (const f of facts) changes.push({ op: "add_item", node: "new:1", section: "Found elsewhere", k: f.title.slice(0, 60), v: f.text.slice(0, 160), meta: `${f.source} · ${f.where}` });
+  const photos = found.filter((f) => f.src).length;
+  const where = parent === ROOT ? "your Profiles home" : whereLabel(data, parent, false);
+  const seen = facts.length
+    ? ` I searched your Memory and Folders and found ${facts.length} ${facts.length === 1 ? "thing" : "things"} that look related, so they're in the change set. Untick any that aren't.`
+    : " I searched your Memory and Folders and didn't find anything about it yet.";
+  const pics = photos ? ` There ${photos === 1 ? "is 1 photo" : `are ${photos} photos`} in Photos that may be ${guide.kind === "person" ? "them" : "it"}.` : "";
+  return reply(`I'll make a ${guide.label.toLowerCase()} profile for ${name} in ${where}.${seen}${pics}\n\nOnce it's saved: ${guide.questions[0]}`, {
+    changes,
+    sources: found.slice(0, 3).map((f) => f.id),
+    chips: guide.questions.slice(1, 3).map((q) => q.split(/[?—.]/)[0].slice(0, 48)),
+  });
+}
+
+export function offlineBrain(data: ProfilesData, input: string, here: string, scope: "all" | "here" = "all", found: Found[] = []): AgentReply {
   const text = input.trim().replace(/\s+/g, " ");
   if (!text) return reply("Ask me anything about your profiles, or tell me something new to file.");
+
+  // --- a new profile --------------------------------------------------------
+  if (isNewProfileAsk(text)) return intake(data, text, here, found);
 
   // --- move ---------------------------------------------------------------
   const move = text.match(/^(?:please\s+)?(?:move|put|file|place)\s+(.+?)\s+(?:into|in|to|under|inside)\s+(.+?)[.?!]*$/i);
@@ -106,7 +160,11 @@ export function offlineBrain(data: ProfilesData, input: string, here: string, sc
         changes: [{ op: "add_item", node: here, section: "Notes", k: "Note", v: text }],
       });
     }
-    return reply(`I couldn't find anything about "${text}" in your profiles. Tell me and I'll add it.`);
+    if (found.length) {
+      const f = found[0];
+      return reply(`Not in your profiles, but your ${f.source} has it: ${f.title}. ${f.text}`, { sources: found.slice(0, 3).map((x) => x.id) });
+    }
+    return reply(`I couldn't find anything about "${text}" in your profiles, Memory or Folders. Tell me and I'll add it.`);
   }
   const related = hits.filter((h, i) => i > 0 && h.score >= top.score * 0.55).slice(0, 3);
   const sources = [top, ...related].map(hitId);
