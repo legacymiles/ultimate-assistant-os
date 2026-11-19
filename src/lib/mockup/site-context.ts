@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Site context — what the mockups know about a site beyond one screenshot.
 //
-// The Flux mockups used to start from a single picture of one page, so they
+// The first mockups started from a single picture of one page, so they
 // knew nothing the picture didn't show: not the other pages, not the forms
 // that must keep working, not the look already chosen for page 1 when page 2
 // came round. This module is the cure, after Google's stitch-skills pattern
@@ -14,10 +14,10 @@
 //        DESIGN.md  — the site's design system as it really renders
 //        SITE.md    — the sitemap and every feature that must keep working
 //        pageBrief  — one page, top to bottom, for whoever writes the three
-//                     readings (Claude in chat, or the hub's vision model)
+//                     mockups (Claude in chat, or Claude in the hub)
 //   3. A pick can be LOCKED: the chosen direction is written into DESIGN.md
-//      and its picture becomes the style reference for every later page, so
-//      page 2 is painted in the look picked on page 1.
+//      and carried in words to every later page, so page 2 is mocked up in
+//      the look picked on page 1.
 //
 // No imports on purpose, like edit.ts: the chat command loads this file with
 // Node's own TypeScript support.
@@ -109,8 +109,8 @@ export interface SiteLock {
    * The LOOK alone, in words that apply to any page ("deep navy #0e232d
    * panels, red pill buttons with a soft glow"). The instruction names the
    * page it was picked on (its hero, its headline), so it can't be pasted
-   * onto page 2; this can. Measured 2026-11-12: the locked picture as Flux's
-   * image 2 barely moved page 2 — words carried the direction.
+   * onto page 2; this can. Measured 2026-11-12: a picture of the locked look
+   * barely moved page 2 — words carried the direction.
    */
   style?: string;
   tweaks: string[];
@@ -144,7 +144,7 @@ const HEX = /^#[0-9a-f]{6}$/;
 /**
  * A font's real name. Build tools hash the family a page loads —
  * next/font's "__Inter_d65c78", "Degular Display-49792c92be2412d3" —
- * and a designer, or Flux, needs "Inter" and "Degular Display".
+ * and a designer, or Claude writing a mockup, needs "Inter" and "Degular Display".
  */
 export function cleanFont(name: unknown): string {
   return String(name ?? "")
@@ -344,7 +344,7 @@ export function designMd(ctx: SiteContext): string {
       `What it did on ${ctx.lock.page}: ${one(ctx.lock.instruction, 400)}.`,
       ...ctx.lock.tweaks.map((t) => `- then: ${one(t, 200)}`),
       `Picture: ${ctx.lock.image}`,
-      "Every later page is painted and built in this direction. It overrides sections 1–4 where they disagree.",
+      "Every later page is mocked up and built in this direction. It overrides sections 1–4 where they disagree.",
     );
   }
   return lines.filter((l, i, a) => l !== "" || a[i - 1] !== "").join("\n").trim() + "\n";
@@ -436,10 +436,10 @@ export function lockFor(ctx: SiteContext | null | undefined, path?: string): Sit
 }
 
 /**
- * The words that carry a locked direction into the Flux prompt for another
- * page. The look in words does the work (Flux follows concrete visual
- * words); the picture rides along as image 2 for look, never layout — it is
- * a different page, so copying its sections would paint the wrong page.
+ * The words that carry a locked direction into the mockup for another page.
+ * The look in words does the work; when a picture of it rides along, it is
+ * for look, never layout — it is a different page, so copying its sections
+ * would mock up the wrong page.
  */
 export function lockedStyleLine(lock: SiteLock, withImage = true): string {
   const look = one(lock.style || lock.instruction, 260);

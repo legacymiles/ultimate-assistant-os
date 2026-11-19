@@ -69,8 +69,8 @@ export function Pipeline({ project }: { project: BuilderProject | null }) {
       : []),
     { skill: "felix", label: "Felix", state: hasFeatures ? "done" : project?.stage === "interview" ? "now" : "wait", note: "end goal first" },
     { skill: "prompt-enhancer", label: "Prompt enhancer", state: t.accepted ? "done" : hasFeatures ? "now" : "wait", note: "sharp brief" },
-    // The look is chosen BEFORE depth and build: three mockups (Flux 2 on the
-    // PC when it's up), one picked, and the build is held to it.
+    // The look is chosen BEFORE depth and build: three mockups (coded pages
+    // Claude writes), one picked, and the build is held to it.
     {
       skill: "mockups",
       label: "Mockups",

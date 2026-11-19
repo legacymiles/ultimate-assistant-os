@@ -211,9 +211,9 @@ export interface ClientProject {
    */
   look?: LookChoice;
   /**
-   * The owner's Flux 2 paintings of the edits being built, saved so the
-   * client sees the same three pictures on their own screen (Flux only runs
-   * on the owner's PC). Replaced whenever the edits change.
+   * The owner's three coded mockups of the edits being built, saved so the
+   * client sees the same three versions on their own screen (they are written
+   * on the owner's screen). Replaced whenever the edits change.
    */
   mockups?: SharedMockups;
   lane: ContentLane;
@@ -358,15 +358,19 @@ export interface PortalView {
    */
   designSkill?: string | null;
   look?: LookChoice | null;
-  /** The owner's Flux 2 paintings of the edits, when there are some. */
+  /** The owner's three mockups of the edits, when there are some. */
   mockups?: SharedMockups | null;
 }
 
-/** Three painted versions of one change, as the owner drew them. */
+/** Three coded versions of one change, as the owner's screen wrote them. */
 export interface SharedMockups {
   /** The request they answer (joinEdits of the edits), to tell stale ones apart. */
   edit: string;
   at: string;
-  /** Each lane's picture, and the reading it painted — so the client reads the same words. */
-  lanes: { lane: "faithful" | "polished" | "bold"; image: string; label?: string; instruction?: string }[];
+  /**
+   * Each lane's coded mockup (a self-contained HTML page Claude wrote), and the
+   * reading it made — so the client sees and reads the same three versions.
+   * `image` is a Flux picture saved before 18 Nov 2026; new saves carry `html`.
+   */
+  lanes: { lane: "faithful" | "polished" | "bold"; html?: string; image?: string; label?: string; instruction?: string }[];
 }

@@ -1,32 +1,42 @@
 #!/usr/bin/env node
 // ---------------------------------------------------------------------------
-// Three Flux 2 mockups of a website edit, before the edit is built.
+// Three coded mockups of a website edit, before the edit is built.
 //
-// This is how a website edit starts from Claude Code chat. It photographs the
-// live page on this PC, paints three versions of the change onto that
-// screenshot with Flux 2 Klein in WanGP (free, local), writes a board to look
-// at, and prints a link that opens the SAME board in the Website Redesigner
-// (the drawer's cache hands it the same pictures, so nothing is painted twice).
+// This is how a website edit starts from Claude Code chat. Since 18 Nov 2026
+// the mockups are real HTML pages Claude writes (they replaced Flux 2
+// paintings: better looking, exact words, seconds instead of GPU minutes).
+// In chat, Claude IS the writer, so this command does the parts around it:
+//
+//   1. start   — reads the live site (scan.mjs), photographs the page and
+//                saves its trimmed markup, and prints, for each of the three
+//                lanes, the file to write and the same brief the hub's writer
+//                gets (src/lib/mockup/coded.ts codedUser).
+//   2. render  — after Claude has written lane-1.html … lane-3.html: cleans
+//                them (no scripts ever), photographs each at device width,
+//                reads each one's label and reading, and writes a board.
 //
 //   node tools/mockup-edit/mockups.mjs --url https://site.com --edit "make the hero dark" \
 //        [--name "Site"] [--repo C:/path/to/site] [--device desktop|phone] \
 //        [--lane "Label::what this version does"] x3 [--out DIR]
+//   node tools/mockup-edit/mockups.mjs --from DIR --render
 //
 //   node tools/mockup-edit/mockups.mjs --from DIR --pick 2 --tweak "make the button green"
+//        (copies lane 2's page to lane-2-t1.html for Claude to edit; then --render)
 //   node tools/mockup-edit/mockups.mjs --from DIR --pick 2 --brief
-//   node tools/mockup-edit/mockups.mjs --from DIR --pick 2 --lock
+//   node tools/mockup-edit/mockups.mjs --from DIR --pick 2 --lock --style "the look in words"
 //
 //   node tools/mockup-edit/mockups.mjs --scan --url https://site.com [--pages 6] [--device phone]
 //
 // --scan reads the live site first (tools/mockup-edit/scan.mjs): every page's
 // rendered sections, colours, fonts, nav, forms and buttons, written as
 // DESIGN.md + SITE.md in ~/.cache/wangp-image/sites/<site>/ (or --context DIR).
-// Painting reuses that context (scanning first when there is none; --rescan
-// to refresh, --no-scan to skip). --lock makes a pick the direction for the
-// whole site: later pages are painted with its picture as a style reference.
+// Starting a board reuses that context (scanning first when there is none;
+// --rescan to refresh, --no-scan to skip). --lock makes a pick the direction
+// for the whole site: later pages' briefs carry it in words.
 //
 // Prints one JSON object on stdout (paths, link, lanes); progress on stderr.
-// The prompts come from src/lib/mockup/edit.ts — the same code the hub uses.
+// Screenshots come from the screenshot helper in tools/wangp-image (headless
+// Chrome — no image model is involved).
 // ---------------------------------------------------------------------------
 
 import { spawn } from "node:child_process";
@@ -38,16 +48,17 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..");
-const DRAWER = process.env.WANGP_IMAGE_URL || "http://127.0.0.1:3391";
+const HELPER = process.env.WANGP_IMAGE_URL || "http://127.0.0.1:3391";
 const HUB = (process.env.HUB_ORIGIN || "https://ultimate-assistant-os.vercel.app").replace(/\/$/, "");
-/** Same sizes as the hub (src/lib/mockup/flux.ts FLUX_SIZE); lane seeds come from edit.ts laneSeed. */
-const SIZE = { desktop: { width: 1024, height: 656 }, phone: { width: 512, height: 1024 } };
+/** The before picture, at the hub's sizes (useCodedMockups photographPage). */
 const SHOT = { desktop: { width: 1280, height: 820 }, phone: { width: 390, height: 780 } };
-const SEED = 7;
+/** A written mockup is photographed taller, so the board shows more than the first screen. */
+const LANE_SHOT = { desktop: { width: 1280, height: 1600 }, phone: { width: 390, height: 1600 } };
 
 // Node prints a one-line notice when it reads a .ts file; it is noise here.
 process.removeAllListeners("warning");
 const edit = await import(pathToFileURL(path.join(REPO, "src", "lib", "mockup", "edit.ts")).href);
+const coded = await import(pathToFileURL(path.join(REPO, "src", "lib", "mockup", "coded.ts")).href);
 const sc = await import(pathToFileURL(path.join(REPO, "src", "lib", "mockup", "site-context.ts")).href);
 const scanner = await import(pathToFileURL(path.join(HERE, "scan.mjs")).href);
 
@@ -72,24 +83,24 @@ function fail(message) {
   process.exit(1);
 }
 
-// ----- the drawer ------------------------------------------------------------
+// ----- the screenshot helper ---------------------------------------------------
 
 async function health() {
   try {
-    const res = await fetch(`${DRAWER}/health`, { signal: AbortSignal.timeout(3000) });
+    const res = await fetch(`${HELPER}/health`, { signal: AbortSignal.timeout(3000) });
     return res.ok ? await res.json() : null;
   } catch {
     return null;
   }
 }
 
-/** Make sure the drawer is up, starting it (detached, so it outlives this command) when it isn't. */
-async function ensureDrawer() {
+/** Make sure the screenshot helper is up, starting it (detached, so it outlives this command) when it isn't. */
+async function ensureHelper() {
   let h = await health();
-  if (h?.ok && h.refs) return h;
-  if (h?.ok && !h.refs) fail("The picture drawer running on port 3391 is an older one that can't start from a screenshot. Stop it and run: node tools/wangp-image/server.mjs");
-  if (has("no-start")) fail("The picture drawer isn't running. Start it with: node tools/wangp-image/server.mjs");
-  say("starting the Flux 2 drawer (tools/wangp-image/server.mjs)…");
+  if (h?.ok && h.shot) return h;
+  if (h?.ok && !h.shot) fail("The screenshot helper on port 3391 can't find Chrome. Install Google Chrome, then restart: node tools/wangp-image/server.mjs");
+  if (has("no-start")) fail("The screenshot helper isn't running. Start it with: node tools/wangp-image/server.mjs");
+  say("starting the screenshot helper (tools/wangp-image/server.mjs)…");
   const child = spawn(process.execPath, [path.join(REPO, "tools", "wangp-image", "server.mjs")], {
     cwd: REPO,
     detached: true,
@@ -102,42 +113,32 @@ async function ensureDrawer() {
     h = await health();
     if (h?.ok) break;
   }
-  if (!h?.ok) fail("The picture drawer didn't start. Run it yourself to see why: node tools/wangp-image/server.mjs");
-  if (!h.hasWanGP) fail(`WanGP isn't installed where the drawer looks (${h.root}). Set WANGP_ROOT.`);
+  if (!h?.ok) fail("The screenshot helper didn't start. Run it yourself to see why: node tools/wangp-image/server.mjs");
   return h;
 }
 
-async function post(route, body, timeoutMs) {
-  for (let attempt = 0; attempt < 180; attempt += 1) {
-    const res = await fetch(`${DRAWER}${route}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    // 429: another picture (perhaps the Redesigner's) is on the GPU. Wait our turn.
-    if (res.status === 429) {
-      await new Promise((r) => setTimeout(r, 4000));
-      continue;
-    }
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.image) throw new Error(data.error || `The drawer answered ${res.status}.`);
-    return data;
-  }
-  throw new Error("The drawer stayed busy for 12 minutes.");
+/** Photograph a page (url) or a written mockup (html). */
+async function shoot(body) {
+  const res = await fetch(`${HELPER}/shot`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(90_000),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.image) throw new Error(data.error || `The screenshot helper answered ${res.status}.`);
+  return data;
 }
 
 function bytesOf(dataUrl) {
   const m = /^data:(image\/[a-z]+);base64,(.+)$/.exec(dataUrl);
-  if (!m) throw new Error("The drawer sent something that isn't a picture.");
+  if (!m) throw new Error("The helper sent something that isn't a picture.");
   return { mime: m[1], bytes: Buffer.from(m[2], "base64"), ext: m[1] === "image/png" ? "png" : m[1] === "image/webp" ? "webp" : "jpg" };
 }
 
 // ----- what the code says about the site --------------------------------------
 // Colours, fonts and pages, read from the repo when one is given. They go in
-// the brief (what must keep working) and are printed for whoever writes the
-// three readings; they are NOT put in the Flux prompt, which keeps the prompt
-// identical to the Redesigner's so the two share pictures.
+// each lane's brief and the build brief (what must keep working).
 
 const SKIP = new Set(["node_modules", ".git", ".next", "dist", "build", "out", ".vercel", ".claude", "coverage", ".turbo"]);
 
@@ -270,9 +271,16 @@ const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 
 function boardHtml({ site, url, edit: request, before, lanes, link, device, note = "" }) {
   const phone = device === "phone";
-  const card = (src, title, sub, n) => `
+  const w = phone ? 390 : 1280;
+  const h = phone ? 780 : 820;
+  // Each lane is its own page, shown live (no scripts run in it) and scaled to the column.
+  const frame = (file, title) =>
+    file
+      ? `<div class="pic"><iframe src="${esc(file)}" title="${esc(title)}" sandbox="allow-same-origin" style="width:${w}px;height:${h}px" data-w="${w}"></iframe></div>`
+      : `<div class="pic"><span>not written yet</span></div>`;
+  const card = (body, title, sub, n) => `
     <figure class="lane">
-      <div class="pic${phone ? " phone" : ""}">${src ? `<img src="${esc(src)}" alt="${esc(title)}">` : `<span>not drawn</span>`}</div>
+      ${body}
       <figcaption><b>${n ? `${n} · ` : ""}${esc(title)}</b><span>${esc(sub)}</span></figcaption>
     </figure>`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -287,23 +295,41 @@ h1{font:900 clamp(28px,4.6vw,54px)/.98 "Archivo Black",ui-sans-serif,system-ui,s
 .ask q{font-size:19px;line-height:1.35}.ask a{color:var(--ink2)}
 .lanes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 .lane{margin:0;border:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:10px}
-.pic{aspect-ratio:1024/656;background:#111;overflow:hidden;display:grid;place-items:center}.pic.phone{aspect-ratio:1/2}
+.pic{position:relative;aspect-ratio:${w}/${h};background:#111;overflow:hidden;display:grid;place-items:center}
 .pic img{width:100%;height:100%;object-fit:cover;object-position:top}
+.pic iframe{position:absolute;top:0;left:0;border:0;transform-origin:top left;background:#fff}
 figcaption{display:flex;flex-direction:column;gap:4px}figcaption b{font:600 12px/1.2 ui-monospace,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase}
 figcaption span{color:var(--ink2);font-size:13.5px}
 .open{display:inline-block;align-self:flex-start;background:var(--sig);color:#0b0b0b;padding:12px 18px;font:600 11px/1 ui-monospace,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;text-decoration:none}
 @media (max-width:820px){.lanes{grid-template-columns:1fr}.ask{grid-template-columns:1fr}}
 </style></head><body><main>
-<div><p class="k">Website Redesigner · Edit · ${esc(site)}</p><h1>Three versions of your change. Pick one.</h1>${note ? `<p class="k" style="color:var(--ink2);margin-top:12px">${esc(note)}</p>` : ""}</div>
-<section class="ask">${card(before, "Now", url, 0)}<q>${esc(request)}</q></section>
-<section class="lanes">${lanes.map((l, i) => card(l.file ? path.basename(l.file) : "", l.label, l.instruction, i + 1)).join("")}</section>
+<div><p class="k">Website edit · coded mockups · ${esc(site)}</p><h1>Three versions of your change. Pick one.</h1>${note ? `<p class="k" style="color:var(--ink2);margin-top:12px">${esc(note)}</p>` : ""}</div>
+<section class="ask">${card(before ? `<div class="pic"><img src="${esc(before)}" alt="Now"></div>` : "", "Now", url, 0)}<q>${esc(request)}</q></section>
+<section class="lanes">${lanes.map((l, i) => card(frame(l.html ? path.basename(l.tweaks?.at(-1)?.html || l.html) : "", l.label), l.label, l.instruction, i + 1)).join("")}</section>
 <a class="open" href="${esc(link)}">Open in the Redesigner to tweak and send</a>
-</main></body></html>`;
+</main>
+<script>
+// The board's own script (never a mockup's): scale each lane's page to its column.
+for (const f of document.querySelectorAll("iframe[data-w]")) {
+  const fit = () => { f.style.transform = "scale(" + (f.parentElement.clientWidth / Number(f.dataset.w)) + ")"; };
+  fit(); new ResizeObserver(fit).observe(f.parentElement);
+}
+</script></body></html>`;
 }
 
-// ----- the three modes ---------------------------------------------------------
+// ----- the modes ---------------------------------------------------------------
 
-async function paint() {
+/** The live page's markup, trimmed the way the hub trims it. "" when it won't load. */
+async function pageMarkup(url) {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(20_000), headers: { "User-Agent": "Mozilla/5.0 (mockup reader)" } });
+    return res.ok ? coded.trimMarkup(await res.text(), url) : "";
+  } catch {
+    return "";
+  }
+}
+
+async function start() {
   const url = flag("url");
   const request = flag("edit");
   if (!url || !request) fail('Pass --url and --edit, e.g. --url https://site.com --edit "make the hero dark".');
@@ -313,9 +339,6 @@ async function paint() {
     const [label, ...rest] = l.split("::");
     return rest.length ? { label: label.trim(), instruction: rest.join("::").trim() } : { instruction: l.trim() };
   });
-  if (!custom.some((c) => c.instruction)) {
-    say("no --lane readings given, so the built-in ones are used. They are generic and tend to paint three similar pictures — pass three concrete --lane readings that name the page's own elements.");
-  }
   const repo = flag("repo");
   const out =
     flag("out") ||
@@ -331,7 +354,7 @@ async function paint() {
   try {
     site = await ensureContext(url, device, siteName);
   } catch (e) {
-    say(`couldn't read the live site (${e.message}) — painting from the screenshot alone.`);
+    say(`couldn't read the live site (${e.message}) — working from the screenshot and markup alone.`);
   }
   const ctx = site?.ctx ?? null;
   const liveFacts = ctx ? sc.scanFacts(ctx, pagePath) : null;
@@ -344,82 +367,143 @@ async function paint() {
           features: [...(liveFacts?.features ?? []), ...(codeFacts?.features ?? [])].slice(0, 12),
         }
       : null;
-  const outline = ctx ? sc.pageBrief(ctx, pagePath) : "";
-  if (ctx) say(`site context: ${ctx.pages.length} pages read → ${site.files?.design ?? site.dir}`);
-
-  // A direction locked on another page of this site steers this one: its
-  // picture rides along as image 2, for look (not layout).
   const lock = has("no-lock") ? null : sc.lockFor(ctx, pagePath);
-  const lockImage = lock && existsSync(lock.image) ? lock.image : "";
-  if (lock && !lockImage) say(`the locked direction's picture is missing (${lock.image}) — painting without it.`);
-  if (lockImage) say(`painting in the direction locked on ${lock.page}: "${lock.label}"`);
+  const outline = [ctx ? sc.pageBrief(ctx, pagePath) : "", lock ? sc.lockedStyleLine(lock, false) : ""].filter(Boolean).join("\n\n");
+  if (ctx) say(`site context: ${ctx.pages.length} pages read → ${site.files?.design ?? site.dir}`);
+  if (lock) say(`mocking up in the direction locked on ${lock.page}: "${lock.label}"`);
 
-  const h = await ensureDrawer();
-  say(h.loaded ? "Flux 2 is loaded — 1–3 minutes a picture on this laptop." : "Flux 2 is cold — the first picture takes ~4 minutes, the rest 1–3 minutes.");
-
+  await ensureHelper();
   say(`photographing ${url} at ${device} width…`);
-  const shot = await post("/shot", { url, ...SHOT[device] }, 90_000).catch((e) => fail(`Couldn't photograph the page: ${e.message}`));
+  const shot = await shoot({ url, ...SHOT[device] }).catch((e) => fail(`Couldn't photograph the page: ${e.message}`));
   const before = bytesOf(shot.image);
   const beforeFile = path.join(out, `before.${before.ext}`);
   await writeFile(beforeFile, before.bytes);
 
-  const styleRef = lock ? sc.lockedStyleLine(lock, Boolean(lockImage)) : undefined;
-  const lanes = edit.editLanes(request, { siteName, device, styleRef }, custom);
-  const refs = [{ image: shot.image, url }];
-  if (lockImage) {
-    const bytes = await readFile(lockImage);
-    const mime = lockImage.endsWith(".png") ? "image/png" : lockImage.endsWith(".webp") ? "image/webp" : "image/jpeg";
-    refs.push({ image: `data:${mime};base64,${bytes.toString("base64")}` });
-  }
-  const results = [];
-  for (const [i, lane] of lanes.entries()) {
-    say(`painting ${i + 1}/3 — ${lane.label}…`);
-    const started = Date.now();
-    try {
-      const got = await post(
-        "/generate",
-        { prompt: lane.prompt, ...SIZE[device], steps: 4, seed: edit.laneSeed(lane.id), refs },
-        15 * 60_000,
-      );
-      const pic = bytesOf(got.image);
-      const file = path.join(out, `lane-${i + 1}.${pic.ext}`);
-      await writeFile(file, pic.bytes);
-      results.push({ n: i + 1, id: lane.id, label: lane.label, instruction: lane.instruction, prompt: lane.prompt, file, cached: Boolean(got.cached), seconds: Math.round((Date.now() - started) / 1000) });
-    } catch (e) {
-      results.push({ n: i + 1, id: lane.id, label: lane.label, instruction: lane.instruction, prompt: lane.prompt, file: "", error: e.message });
-    }
-  }
+  const markup = await pageMarkup(url);
+  const markupFile = path.join(out, "page.html");
+  if (markup) await writeFile(markupFile, markup, "utf8");
+  else say("the page's markup couldn't be fetched from here — read the rendered page in the site context (pages/*.html) instead.");
 
-  const q = new URLSearchParams({ section: "redesign", v: "edit", url, edit: request });
-  if (flag("name")) q.set("name", siteName);
-  custom.forEach((c, i) => {
-    if (c?.instruction) q.set(`l${i + 1}`, c.instruction);
-    if (c?.label) q.set(`n${i + 1}`, c.label);
+  const lanes = edit.editLanes(request, custom).map((lane, i) => {
+    const req = {
+      kind: "edit",
+      edit: request,
+      lane: lane.id,
+      ...(custom[i]?.instruction ? { reading: custom[i] } : {}),
+      siteName,
+      url,
+      device,
+      ...(facts ? { facts } : {}),
+      ...(outline ? { outline } : {}),
+    };
+    return {
+      n: i + 1,
+      id: lane.id,
+      label: custom[i]?.instruction ? lane.label : coded.roleLabel(lane.id),
+      instruction: lane.instruction,
+      html: path.join(out, `lane-${i + 1}.html`),
+      shot: "",
+      brief: coded.codedUser(req),
+    };
   });
-  const link = `${HUB}/apps/app-builder?${q.toString()}`;
-  const localLink = `http://localhost:3000/apps/app-builder?${q.toString()}`;
 
-  const board = path.join(out, "board.html");
-  await writeFile(board, boardHtml({ site: siteName, url, edit: request, before: path.basename(beforeFile), lanes: results, link, device, note: [ctx ? `${ctx.pages.length} pages of the live site read` : "", lock ? `painted in the direction locked on ${lock.page}: ${lock.label}` : ""].filter(Boolean).join(" · ") }), "utf8");
-  const context = ctx
-    ? {
-        dir: site.dir,
-        design: site.files?.design,
-        site: site.files?.site,
-        pages: ctx.pages.length,
-        locked: lock ? { page: lock.page, label: lock.label, instruction: lock.style || lock.instruction, image: lockImage || undefined } : null,
-        outline,
-      }
-    : null;
-  const meta = { ok: results.some((r) => r.file), site: siteName, url, edit: request, device, out, board, before: beforeFile, lanes: results, link, localLink, facts, context };
+  const meta = {
+    ok: true,
+    stage: "write",
+    site: siteName,
+    url,
+    edit: request,
+    device,
+    out,
+    before: beforeFile,
+    markup: markup ? markupFile : "",
+    facts,
+    context: ctx
+      ? {
+          dir: site.dir,
+          design: site.files?.design,
+          site: site.files?.site,
+          pages: ctx.pages.length,
+          locked: lock ? { page: lock.page, label: lock.label, instruction: lock.style || lock.instruction } : null,
+        }
+      : null,
+    rules: coded.CODED_SYSTEM,
+    lanes,
+    next: `Write each lane's page to its "html" path (one self-contained HTML document per lane, following "rules" and that lane's "brief", reading "markup" and "before"), then run: node tools/mockup-edit/mockups.mjs --from "${out}" --render`,
+  };
   await writeFile(path.join(out, "mockups.json"), JSON.stringify(meta, null, 2), "utf8");
   process.stdout.write(JSON.stringify(meta, null, 2) + "\n");
 }
 
 async function loadBoard(dir) {
   const file = path.join(dir, "mockups.json");
-  if (!existsSync(file)) fail(`No mockups.json in ${dir}. Paint a board first.`);
+  if (!existsSync(file)) fail(`No mockups.json in ${dir}. Start a board first.`);
   return JSON.parse(await readFile(file, "utf8"));
+}
+
+/** The page a lane shows now: its last tweak, else its first version. */
+const currentHtml = (lane) => lane.tweaks?.at(-1)?.html || lane.html;
+
+async function render() {
+  const dir = flag("from");
+  const meta = await loadBoard(dir);
+  await ensureHelper();
+  for (const lane of meta.lanes) {
+    const file = currentHtml(lane);
+    if (!existsSync(file)) {
+      lane.shot = "";
+      lane.error = `not written yet: ${file}`;
+      continue;
+    }
+    const clean = coded.cleanMockupHtml(await readFile(file, "utf8"));
+    if (!clean) {
+      lane.shot = "";
+      lane.error = `${path.basename(file)} has no HTML document in it.`;
+      continue;
+    }
+    await writeFile(file, clean, "utf8");
+    const m = coded.mockupMeta(clean);
+    if (m.label) lane.label = m.label;
+    if (m.reading) lane.instruction = m.reading;
+    say(`photographing ${path.basename(file)}…`);
+    try {
+      const got = bytesOf((await shoot({ html: clean, ...LANE_SHOT[meta.device] })).image);
+      lane.shot = file.replace(/\.html$/, `.${got.ext}`);
+      await writeFile(lane.shot, got.bytes);
+      delete lane.error;
+    } catch (e) {
+      lane.shot = "";
+      lane.error = `couldn't photograph it: ${e.message}`;
+    }
+  }
+  const q = new URLSearchParams({ section: "redesign", v: "edit", url: meta.url, edit: meta.edit });
+  if (meta.site) q.set("name", meta.site);
+  meta.lanes.forEach((l, i) => {
+    if (l.instruction) q.set(`l${i + 1}`, l.instruction);
+    if (l.label) q.set(`n${i + 1}`, l.label);
+  });
+  meta.link = `${HUB}/apps/app-builder?${q.toString()}`;
+  meta.localLink = `http://localhost:3000/apps/app-builder?${q.toString()}`;
+  meta.board = path.join(dir, "board.html");
+  meta.stage = "pick";
+  meta.ok = meta.lanes.every((l) => l.shot);
+  delete meta.next;
+  await writeFile(
+    meta.board,
+    boardHtml({
+      site: meta.site,
+      url: meta.url,
+      edit: meta.edit,
+      before: path.basename(meta.before),
+      lanes: meta.lanes,
+      link: meta.link,
+      device: meta.device,
+      note: meta.context ? `${meta.context.pages} pages of the live site read` : "",
+    }),
+    "utf8",
+  );
+  await writeFile(path.join(dir, "mockups.json"), JSON.stringify(meta, null, 2), "utf8");
+  process.stdout.write(JSON.stringify(meta, null, 2) + "\n");
 }
 
 async function tweak() {
@@ -428,19 +512,25 @@ async function tweak() {
   const text = flag("tweak");
   const meta = await loadBoard(dir);
   const lane = meta.lanes.find((l) => l.n === n);
-  if (!lane?.file) fail(`Mockup ${n} wasn't drawn, so there's nothing to tweak.`);
-  await ensureDrawer();
-  const src = lane.tweaks?.at(-1)?.file || lane.file;
-  const bytes = await readFile(src);
-  const mime = src.endsWith(".png") ? "image/png" : "image/jpeg";
-  const prompt = edit.refineFluxPrompt(text, { siteName: meta.site, device: meta.device });
-  say(`tweaking ${n} — "${text}"…`);
-  const got = await post("/generate", { prompt, ...SIZE[meta.device], steps: 4, seed: SEED, refs: [{ image: `data:${mime};base64,${bytes.toString("base64")}` }] }, 15 * 60_000);
-  const pic = bytesOf(got.image);
-  lane.tweaks = [...(lane.tweaks ?? []), { text, file: path.join(dir, `lane-${n}-t${(lane.tweaks?.length ?? 0) + 1}.${pic.ext}`) }];
-  await writeFile(lane.tweaks.at(-1).file, pic.bytes);
+  if (!lane || !existsSync(currentHtml(lane))) fail(`Mockup ${n} hasn't been written, so there's nothing to tweak.`);
+  const k = (lane.tweaks?.length ?? 0) + 1;
+  const file = path.join(dir, `lane-${n}-t${k}.html`);
+  await copyFile(currentHtml(lane), file);
+  lane.tweaks = [...(lane.tweaks ?? []), { text, html: file }];
   await writeFile(path.join(dir, "mockups.json"), JSON.stringify(meta, null, 2), "utf8");
-  process.stdout.write(JSON.stringify({ ok: true, lane: n, file: lane.tweaks.at(-1).file, tweaks: lane.tweaks.map((t) => t.text) }, null, 2) + "\n");
+  process.stdout.write(
+    JSON.stringify(
+      {
+        ok: true,
+        lane: n,
+        file,
+        tweak: text,
+        next: `Edit ${file} so it makes this change and nothing else (update its mockup-label and mockup-reading tags), then run: node tools/mockup-edit/mockups.mjs --from "${dir}" --render`,
+      },
+      null,
+      2,
+    ) + "\n",
+  );
 }
 
 async function brief() {
@@ -459,23 +549,22 @@ async function brief() {
     siteFile: meta.context?.site,
     lock: meta.context?.locked ?? undefined,
   });
-  const image = lane.tweaks?.at(-1)?.file || lane.file;
-  process.stdout.write(JSON.stringify({ ok: true, pick, image, brief: text }, null, 2) + "\n");
+  const page = currentHtml(lane);
+  process.stdout.write(JSON.stringify({ ok: true, pick, html: page, image: lane.shot, brief: `${text}\nThe picked mockup, as a page: ${page}` }, null, 2) + "\n");
 }
 
-/** Make a pick the direction for the whole site (DESIGN.md §6, and image 2 for later pages). */
+/** Make a pick the direction for the whole site (DESIGN.md §6, carried in words to later pages). */
 async function lockPick() {
   const dir = flag("from");
   const n = Number(flag("pick"));
   const meta = await loadBoard(dir);
   const lane = meta.lanes.find((l) => l.n === n);
-  if (!lane?.file) fail(`Mockup ${n} wasn't drawn, so it can't be locked.`);
+  if (!lane?.shot) fail(`Mockup ${n} hasn't been rendered, so it can't be locked. Run --render first.`);
   const cdir = meta.context?.dir || contextDir(meta.url);
   const ctx = await scanner.readContext(cdir);
   if (!ctx) fail(`This site hasn't been read yet, so there's nowhere to lock it. Run: node tools/mockup-edit/mockups.mjs --scan --url ${meta.url}`);
-  const src = lane.tweaks?.at(-1)?.file || lane.file;
-  const image = path.join(cdir, `locked${path.extname(src)}`);
-  await copyFile(src, image);
+  const image = path.join(cdir, `locked${path.extname(lane.shot)}`);
+  await copyFile(lane.shot, image);
   ctx.lock = {
     page: pathOf(meta.url),
     edit: meta.edit,
@@ -494,10 +583,11 @@ async function lockPick() {
 
 try {
   if (flag("from") && flag("tweak")) await tweak();
+  else if (flag("from") && has("render")) await render();
   else if (flag("from") && has("brief")) await brief();
   else if (flag("from") && has("lock")) await lockPick();
   else if (has("scan")) await scanOnly();
-  else await paint();
+  else await start();
 } catch (e) {
   fail(e instanceof Error ? e.message : String(e));
 }

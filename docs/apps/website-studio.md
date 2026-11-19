@@ -2,7 +2,7 @@
 
 Route: `/apps/website-studio` · Category: Websites · Live
 
-Record reviewed: 2026-11-15
+Record reviewed: 2026-11-18
 
 > **This file is the truth about this app.** Read it before changing the app and update it in the
 > same commit. Everything above the "From the code" block is written by hand and kept; that block
@@ -22,7 +22,7 @@ Studio; the panel names them as what moved in. Since 15 Nov 2026 their front doo
 (`src/lib/website-studio/redirects.ts`): `/apps/app-builder` (and `?p=<id>`, which opens that draft
 here), `/apps/website-redesigner` (onto the start's "Redesign a website", address carried), and the
 owner's bare `/apps/client-review` (and `?app=`). What deliberately does not move: App Builder framed
-inside Jarvis chat's sheet (read from `Sec-Fetch-Dest: iframe`), the Flux edit-mockup board, the
+inside Jarvis chat's sheet (read from `Sec-Fetch-Dest: iframe`), the edit-mockup board, the
 bake-off and the Showcase (`?section=redesign&v=edit|2|showcase`), `?classic=1`, every client link
 `/apps/client-review?site=`, and Client Review's Ship console (`?tab=admin`).
 
@@ -32,7 +32,7 @@ the edit look pass, versions with their pictures and Undo, changes, Mark ready, 
 and the Ship console with Move into hub. App Builder's feature Orbit was left out on purpose (owner,
 15 Nov 2026 — the feature table does the same job). One press away: the full build log
 (`?p=<id>&classic=1`, linked from a draft's Build tab), the old console for the brief lane and
-invites (linked at the foot of Ship), and the Flux edit board, the bake-off and the Showcase
+invites (linked at the foot of Ship), and the edit-mockup board, the bake-off and the Showcase
 (**More tools** under the library).
 
 **Versions — a picture of each one, and a real Undo.** Send photographs the page in the frame
@@ -128,8 +128,9 @@ the bottom.
 - On a draft: **Chat**, **Features** (Felix's questions, then the feature table), **Pages**,
   **Build**. The panel follows the work — there is one thing to do at a time and it opens on it.
 
-**Two stages of mockups.** Stage one is the three-direction bake-off, painted with Flux 2 on the
-owner's PC (free and local). Stage two is new: the supporting pages as a prototype you can walk —
+**Two stages of mockups.** Stage one is the three-direction bake-off: each direction is a real
+page Claude writes in HTML and CSS from the spec (instant layout drawings stand in while it
+writes). Stage two is new: the supporting pages as a prototype you can walk —
 every screen drawn in the approved look, clickable links between them, loading / empty / success /
 error states per screen, and Revise on any one screen without redrawing the others. A plan whose
 links point nowhere, or that has a screen nothing can reach, cannot be approved.
@@ -141,24 +142,30 @@ edit: as soon as the owner sends it, 3-5 ideas that belong WITH that change (car
 related elements, phone layout, states, contrast, speed) appear in the side panel, each with **Add**
 or **Skip** (`EditIdeas.tsx`; written by `/api/app-builder` action `editIdeas`, offline ideas from
 `src/lib/website-studio/ideas.ts` with no AI key). The edit never waits for them — it is already
-filed and the look pass is already painting. Added ideas are folded into the same request's wording
+filed and the look pass is already being mocked up. Added ideas are folded into the same request's wording
 (the owner's reword) so they are built in the same pass; once the build has started they go in as
 **the next edit** instead. Nothing is added unless Add is pressed.
 
 **Three mockups before an edit is built.** The owner's standing rule (10 Nov 2026) holds here:
-Send files the request and opens **Look**, where the edit is painted three ways with Flux 2 onto a
-screenshot of the real page (`LookPass`, the same one Client Review used). The pick is saved on the
-project and is what starts the build — carried into the brief by `pickedMockupLine`. The paintings
-are saved to the link so the client sees the same three. `Skip the mockups and build it as asked`
-is one press away, and a site with no address yet skips straight to the build, because there is
-nothing to paint onto. The rule lives in `src/lib/website-studio/edits.ts`, not in the screen.
-The picture drawer on the PC is started by the page itself when it is off (through the Jarvis
-helper — `wakeDrawer` in `useMockupPictures.ts`; WanGP is called directly, Pinokio need not be
-open), the page is photographed again once it answers, and each card shows what is happening while
-it paints — "Generating mockup 2 of 3", a clock, a paint sweep, a light that follows the pointer. An
-edit once sat on an empty board because the drawer was off. **Not quite?** under the three takes a
-note ("a deeper purple, keep the white cards"): it is added to the edit's wording, so all three are
-written and painted again from it and the build reads the same words.
+Send files the request and opens **Look**, where the edit is mocked up three ways (`LookPass`, the
+same one Client Review uses). **Coded mockups (owner's call, 18 Nov 2026 — replaced Flux 2: better
+looking, more accurate, faster):** the page is photographed on the PC (headless Chrome — the
+screenshot helper in `tools/wangp-image`, started by the page itself through the Jarvis helper when
+it is off) and its markup is read (`/api/mockup/page`, or straight from the browser for a hub page);
+then Claude recreates the page in HTML and CSS three times with only the change made — As asked,
+Polished, Bold — all three at once, each landing in seconds. Claude on the owner's plan writes them
+(`brain/claude` through the PC helper); the hub's AI (`/api/mockup/code`) only when the PC can't.
+Each mockup names its own idea and reading in its `<head>`, which become the lane's label and what
+the pick carries. Code: `src/lib/mockup/coded.ts` (prompts, sanitising — no scripts, handlers or
+frames ever reach a screen), `useCodedMockups.ts` (writers, IndexedDB cache), `MockupBakeOff.tsx`.
+The pick is saved on the project and is what starts the build — carried into the brief by
+`pickedMockupLine`. The three mockups are saved to the link (sanitised again on the server) so the
+client sees the same three pages. `Skip the mockups and build it as asked` is one press away, and a
+site with no address yet skips straight to the build, because there is nothing to mock up. The rule
+lives in `src/lib/website-studio/edits.ts`, not in the screen. Each card says what is happening
+while it is written — "Recreating your page in HTML with the change made", a clock, a sweep. **Not
+quite?** under the three takes a note ("a deeper purple, keep the white cards"): it is added to the
+edit's wording, and Claude applies it to all three as a tweak; the build reads the same words.
 
 **Ship first.** The approved routes go into the build brief as a specification, never as pictures.
 The first working site goes live after a fast security check; the Studio then says the after-live
@@ -177,14 +184,10 @@ Commercial" while it is on. The brief carries a `<depth>` block (`editDepthBlock
 **Change the mockups by talking to them.** While the three mockups wait for a pick, the chat box
 at the bottom (button "Redo mockups") and the "Not quite?" box under the board both take a note on
 them — "a darker purple, pink gradient buttons", "the bold one but keep the logo". The note is added
-to the edit's wording (so the build reads it too), and Claude on the owner's plan — the harness's
-own model, through the PC helper's `brain/claude` — rewrites all three readings from the ones on
-screen, the note and the page screenshot; the hub's AI does it when the PC can't
-(`/api/mockup/readings` with `change`). Flux then paints the three again. Measured 18 Nov 2026:
-6.3 s on Opus 5.5, every lane carrying the note. Code: `src/lib/mockup/revise.ts`,
-`REVISE_SYSTEM`/`reviseUser` in `src/lib/mockup/edit.ts`. The readings model now reads the whole
-request (6,000 characters); it used to read 600, so a note at the end of a long edit was cut and the
-same three pictures came back.
+to the edit's wording (so the build reads it too), and Claude edits each of the three pages on
+screen with it (a tweak on every lane, `revision` in `MockupBakeOff.tsx`) — on the owner's plan
+first, the hub's AI when the PC can't. The whole request reaches the writer (6,000 characters), so
+a note at the end of a long edit is never cut.
 
 **Long prompts.** Every Jarvis chat box takes a prompt up to 100,000 characters — this chat box,
 the steer box while a build runs, Client Review, App Builder, In Queue, the main chat and Enhance —
@@ -218,7 +221,7 @@ now returns every visitor to the page the wall stood in front of (`/login?next=`
   build that adds a sentence after it on the same line still publishes (the blue Baby No Scroll
   edit merged and went live but sat on "Building" because of exactly that).
 - `/apps/app-builder?p=<id>` opens that draft here; inside Jarvis chat's sheet it stays App
-  Builder, and `?classic=1` always does. The Flux edit board link the `website-edit-mockups` skill
+  Builder, and `?classic=1` always does. The edit-mockup board link the `website-edit-mockups` skill
   hands out (`?section=redesign&v=edit…`) never redirects. All three old apps are in `MERGED_INTO`
   (pointing here), which takes their tiles away — it must not take their routes away.
 - Nothing from a quick edit is committed until the owner presses Ship it (or types `<ship>`).
@@ -241,7 +244,9 @@ now returns every visitor to the page the wall stood in front of (`/login?next=`
 - A message typed while the mockups wait for a pick changes the mockups; it never files a second
   edit. Switching to the Chat tab is how a separate edit is sent.
 - Offline: the whole page works with no keys and no PC. The pages plan is written with no model at
-  all, and the mockups fall back to the coded drawings when Flux is not running.
+  all, and the look-mode mockups fall back to the instant layout drawings when Claude can't write.
+- A mockup never runs a script: coded mockups are sanitised (`cleanMockupHtml`) before they are
+  shown or saved, and the iframes are sandboxed without `allow-scripts`.
 
 ## Requested, not built yet
 

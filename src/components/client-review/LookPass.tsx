@@ -11,11 +11,11 @@
 //
 // Two shapes, decided by what is being built:
 //
-//   EDITS to a live site → the edit bake-off: the approved edits painted with
-//   Flux 2 onto a screenshot of the version the client asked against, three
+//   EDITS to a live site → the edit bake-off: the approved edits made by
+//   Claude on a coded copy of the version the client asked against, three
 //   ways. It answers "did you understand what I asked for" before a build
-//   finds out. The owner's paintings are saved on the project, so the client
-//   sees the same three pictures on their own phone.
+//   finds out. The owner's mockups are saved on the project, so the client
+//   sees the same three pages on their own phone.
 //
 //   A FIRST build → the look bake-off: three design directions, drawn from
 //   the version summary (App Builder writes a bullet per accepted feature) or
@@ -26,10 +26,9 @@
 import { MAX_PROMPT_CHARS } from "@/lib/new-jarvis/promptLimit";
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import { MockupBakeOff } from "@/components/mockup/MockupBakeOff";
+import { MockupBakeOff, type PaintedLane } from "@/components/mockup/MockupBakeOff";
 import { absoluteSiteUrl } from "@/lib/client-review/apps";
 import { joinEdits, pickMatches, type CustomLane, type EditLaneId, type EditPick } from "@/lib/mockup/edit";
-import { shrinkImage } from "@/lib/mockup/shrink";
 import { specFromEdits, specFromSummary } from "@/lib/mockup/spec";
 import type { PortalView } from "@/lib/client-review/types";
 
@@ -49,15 +48,15 @@ export function LookPass({
   revision?: { id: number; change: string; after: string } | null;
   /**
    * Owner only: none of the three is right. The note is added to the edit's
-   * wording, so the three are written and painted again from it — and the
+   * wording, so Claude rewrites the three from it — and the
    * build reads the same note.
    */
   onRedo?: (note: string) => Promise<void> | void;
   view: PortalView;
   busy: string;
   onPick: (skill: string, pick?: EditPick) => void;
-  /** Owner only: keep the three paintings on the project for the client. */
-  onSaveMockups?: (edit: string, lanes: { lane: EditLaneId; image: string; label: string; instruction: string }[]) => void;
+  /** Owner only: keep the three mockups on the project for the client. */
+  onSaveMockups?: (edit: string, lanes: PaintedLane[]) => void;
 }) {
   const version = useMemo(
     () => view.versions.find((v) => v.id === view.buildingVersionId) ?? view.versions[0] ?? null,
@@ -89,7 +88,7 @@ export function LookPass({
         : null,
     [revision, edits, editText],
   );
-  // Only an edit to a page that exists can be painted onto it.
+  // Only an edit to a page that exists can be mocked up on it.
   const editing = Boolean(editText && (live?.siteUrl || live?.image));
 
   const spec = useMemo(() => {
@@ -100,12 +99,13 @@ export function LookPass({
     return specFromSummary({ siteName, clientName, version: number, summary: version?.summary ?? "" });
   }, [view.name, view.clientName, edits, version]);
 
-  // The owner's paintings, but only the ones drawn for THESE edits — and the
-  // readings they painted, so everyone reads the same three versions (and
-  // the owner's board asks Flux for the same pictures again).
+  // The owner's mockups, but only the ones made for THESE edits. Coded ones
+  // carry their own label and reading inside the page; a set saved as
+  // pictures (before 18 Nov 2026) passes its readings on, so everyone reads
+  // the same three versions.
   const shared = view.mockups && view.mockups.edit === editText ? view.mockups.lanes : null;
   const sharedLanes = useMemo<CustomLane[] | undefined>(() => {
-    if (!shared) return undefined;
+    if (!shared || shared.some((l) => l.html)) return undefined;
     const order: EditLaneId[] = ["faithful", "polished", "bold"];
     const lanes = order.map((id) => shared.find((l) => l.lane === id));
     return lanes.every((l) => l?.instruction) ? lanes.map((l) => ({ label: l!.label, instruction: l!.instruction! })) : undefined;
@@ -115,14 +115,12 @@ export function LookPass({
 
   const saving = useRef("");
   const painted = useCallback(
-    (lanes: { lane: EditLaneId; image: string; label: string; instruction: string }[]) => {
+    (lanes: PaintedLane[]) => {
       if (!onSaveMockups || !view.viewerOwner) return;
-      const sig = `${editText}|${lanes.map((l) => l.image.length).join(",")}`;
+      const sig = `${editText}|${lanes.map((l) => l.html.length).join(",")}`;
       if (saving.current === sig) return;
       saving.current = sig;
-      void Promise.all(lanes.map(async (l) => ({ ...l, image: await shrinkImage(l.image) }))).then((small) =>
-        onSaveMockups(editText, small),
-      );
+      onSaveMockups(editText, lanes);
     },
     [onSaveMockups, view.viewerOwner, editText],
   );
@@ -137,7 +135,7 @@ export function LookPass({
         onChoose={busy === "look" ? undefined : (skill, pick) => onPick(skill, pick)}
         chooseLabel={editing ? "This is what I meant" : "Build this one"}
         as={owner ? "owner" : "client"}
-        // Flux runs on the owner's PC; a client's screen shows what the owner saved.
+        // Mockups are written on the owner's screen; a client's shows what the owner saved.
         pictures={owner}
         edit={editing ? editText : undefined}
         reference={editing ? { url: live?.siteUrl ? absoluteSiteUrl(live.siteUrl) : undefined, image: live?.image } : null}
@@ -150,10 +148,10 @@ export function LookPass({
             ? chosen?.edit
               ? `${chosen.by === "client" ? "You picked" : "Picked"} "${chosen.edit.label}" — the build follows it. Tap another to change your mind.`
               : owner
-                ? "Your client's edits, painted onto their live page three ways. These pictures are saved to their link once all three are done."
+                ? "Your client's edits, made on their live page three ways. These mockups are saved to their link once all three are done."
                 : shared
-                  ? "Your changes, painted onto your site three ways while we build. Pick the one that's closest to what you meant."
-                  : "We're painting your changes onto your site — check back in a minute, or pick from the descriptions below."
+                  ? "Your changes, made on your site three ways while we build. Pick the one that's closest to what you meant."
+                  : "We're mocking up your changes on your site — check back in a minute, or pick from the descriptions below."
             : view.look
               ? `${view.look.by === "client" ? "You picked" : "Picked"} this look — the build follows it. Tap another to change your mind.`
               : "While that's building, here's how it could look. Pick the one you want and we build that."
@@ -189,7 +187,7 @@ function RedoBox({ onRedo, busy }: { onRedo: (note: string) => Promise<void> | v
         }
       }}
     >
-      <label htmlFor="cr-look-redo-in">Not quite? Tell Claude what to change — it rewrites all three and they're painted again. The chat box below does the same.</label>
+      <label htmlFor="cr-look-redo-in">Not quite? Tell Claude what to change — it rewrites all three. The chat box below does the same.</label>
       <div>
         <input
           id="cr-look-redo-in"

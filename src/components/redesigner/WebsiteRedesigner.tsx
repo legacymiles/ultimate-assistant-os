@@ -4,7 +4,7 @@
 // Website Redesigner — the whole app as one component, so it can be mounted
 // as App Builder's "Website Redesigner" section.
 //
-// Four views behind the docked toggle: Edit (three Flux 2 mockups of a change
+// Four views behind the docked toggle: Edit (three coded mockups of a change
 // to a live page — where every website edit starts), V1 (the seven-
 // composition redesigner), V2 (the bake-off console) and Showcase (app ideas). Which one
 // is in the address as `?v=`; reading it here, not in a page, is what lets the

@@ -1,56 +1,69 @@
 "use client";
 
 // ---------------------------------------------------------------------------
-// The mockup bake-off — one surface, used by App Builder, the Website
-// Redesigner and Client Review.
+// The mockup bake-off — one surface, used by App Builder, Website Studio, the
+// Website Redesigner and Client Review.
 //
-// Three lanes, drawn, side by side, pick one. Shared rather than written
-// twice because the owner and their client must be looking at the SAME thing:
-// a client approving a look the owner never saw rendered the same way is the
-// bug this component exists to make impossible.
+// Three lanes side by side, pick one. Shared rather than written twice because
+// the owner and their client must be looking at the SAME thing: a client
+// approving a look the owner never saw rendered the same way is the bug this
+// component exists to make impossible.
+//
+// Every lane is a real page Claude writes in HTML and CSS (lib/mockup/coded.ts),
+// shown in a sandboxed iframe at a true device width. Owner's call, 18 Nov
+// 2026: better looking, more accurate and faster than the Flux 2 paintings it
+// replaced — the words are exact and all three are written at once.
 //
 // Two modes:
 //
 //   look  — three DESIGN DIRECTIONS for something new or redesigned. Each lane
-//           is a coded drawing (exact layout and words), and Flux 2 paints a
-//           finished picture FROM that drawing, so the words come out right.
-//   edit  — three READINGS OF ONE CHANGE to a live page (`edit` prop). The
-//           page is photographed on the owner's PC and Flux 2 paints each
-//           reading onto that screenshot, so the mockup is the owner's own
-//           site with only the asked-for part moved.
+//           shows an instant layout drawing (render.ts) while Claude writes
+//           the finished design from the same spec and direction.
+//   edit  — three READINGS OF ONE CHANGE to a live page (`edit` prop). Claude
+//           reads the page's markup and screenshot and recreates it with only
+//           the asked-for part changed.
 //
-// Any lane can then be tweaked ("make the button green") — drawn from that
-// lane's current picture, so tweaks stack like Google Stitch's.
+// Any lane can then be tweaked ("make the button green") — Claude edits that
+// lane's current page, so tweaks stack. A note on the board (`revision`) is a
+// tweak to all three.
 //
-// Why iframes for the coded drawings and not a React preview: a mockup has to
-// be able to use its own type scale, corner radius and colour polarity without
-// the hub's stylesheet leaking in. They are `sandbox="allow-same-origin"` and
-// never `allow-scripts` — same-origin so the hub's woff2 faces load, no
-// scripts because a drawing has no business running anything.
-//
-// Each lane is drawn at a real device width and then SCALED to fit its
-// column, so what the owner judges is a true 1280px page, not one reflowed
-// into 380px of panel and made to look broken.
+// Iframes are `sandbox="allow-same-origin"` and never `allow-scripts` — the
+// writer is told not to use scripts and coded.ts strips any anyway.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
+import { CODED_WIDTH, mockupMeta, roleLabel, type CodedRequest } from "@/lib/mockup/coded";
+import { codedLook, codedSpec } from "@/lib/mockup/codedLook";
 import { directionsFor } from "@/lib/mockup/directions";
-import { editLanes, laneSeed, refineFluxPrompt, type CustomLane, type EditLaneId, type EditPick, type SiteFacts } from "@/lib/mockup/edit";
-import { fluxPrompt } from "@/lib/mockup/flux";
+import { editLanes, type CustomLane, type EditLaneId, type EditPick, type SiteFacts } from "@/lib/mockup/edit";
 import { FRAME_HEIGHT, FRAME_WIDTH, renderMockup } from "@/lib/mockup/render";
-import type { Chrome, Device, LookChoice, MockupRef, MockupSpec } from "@/lib/mockup/types";
+import { shrinkImage } from "@/lib/mockup/shrink";
+import type { Chrome, Device, LookChoice, MockupSpec } from "@/lib/mockup/types";
 import {
   photographPage,
-  useMockupPictures,
-  type PcState,
-  type PictureJob,
-  type PictureState,
-} from "@/lib/mockup/useMockupPictures";
-import { shrinkImage } from "@/lib/mockup/shrink";
-import { reviseReadings } from "@/lib/mockup/revise";
+  readPageMarkup,
+  useCodedMockups,
+  type CodedJob,
+  type CodedState,
+} from "@/lib/mockup/useCodedMockups";
 
 import "./mockup.css";
+
+/** One saved lane: its page (and, from before 18 Nov 2026, maybe a picture). */
+export interface SharedLane {
+  lane: string;
+  html?: string;
+  image?: string;
+}
+
+/** One finished lane, handed to the host so others can see it. */
+export interface PaintedLane {
+  lane: EditLaneId;
+  html: string;
+  label: string;
+  instruction: string;
+}
 
 interface Props {
   spec: MockupSpec;
@@ -61,9 +74,9 @@ interface Props {
   /**
    * Pick (or re-pick) a lane. Omit to make the bake-off read-only. In edit
    * mode `pick` says which reading of the change was picked, with its tweaks;
-   * `image` is the lane's Flux picture, for the build to be held to.
+   * `html` is the lane's coded mockup, for the build to be held to.
    */
-  onChoose?: (skill: string, pick?: EditPick, image?: string) => void;
+  onChoose?: (skill: string, pick?: EditPick, html?: string) => void;
   /** Shown on the button. "Build this look" for the owner, "Approve" for a client. */
   chooseLabel?: string;
   /** Who is looking. A client is never shown the skill's internal name. */
@@ -71,36 +84,31 @@ interface Props {
   /** A short line above the lanes, in the host app's voice. */
   caption?: string;
   /**
-   * Paint each lane with Flux 2 on the owner's PC when its drawer is up.
-   * On by default. The drawer only answers on the owner's own machine, so a
-   * client's screen simply shows the layouts.
+   * Have Claude write each lane as a finished page. On by default. Off on a
+   * client's screen: they see the owner's saved mockups, or the layouts.
    */
   pictures?: boolean;
   /**
    * EDIT MODE: the change being asked for, in the asker's words. When set,
-   * the three lanes are three readings of this change painted onto the live
-   * page, instead of three design directions.
+   * the three lanes are three readings of this change made on the live page,
+   * instead of three design directions.
    */
   edit?: string;
-  /** The page as it is now: its address (photographed on the PC) and/or a picture already taken. */
+  /** The page as it is now: its address and/or a picture already taken. */
   reference?: { url?: string; image?: string } | null;
   /** What is known about the site beyond the screenshot (colours, fonts, features). */
   facts?: SiteFacts;
   /** Lane readings written by someone who read the code (Claude in chat), by position. */
   customLanes?: CustomLane[];
-  /**
-   * Paintings saved earlier (Client Review keeps the owner's), shown wherever
-   * Flux can't paint — a client's phone has no drawer.
-   */
-  shared?: { lane: string; image: string }[] | null;
-  /** Called once all three edit lanes are painted, so the host can save them for others to see. */
-  onPainted?: (lanes: { lane: EditLaneId; image: string; label: string; instruction: string }[]) => void;
+  /** Mockups saved earlier (Client Review keeps the owner's), shown wherever new ones aren't written. */
+  shared?: SharedLane[] | null;
+  /** Called once all three edit lanes are written, so the host can save them for others to see. */
+  onPainted?: (lanes: PaintedLane[]) => void;
   /**
    * The owner's note on the three on screen ("a deeper purple, keep the white
    * cards"), for the request it was added to (`edit` = that request's words
-   * with the note in them). The three readings are rewritten from the ones on
-   * screen plus the note — by Claude on the owner's plan first — and painted
-   * again. A new `id` is a new note.
+   * with the note in them). Claude applies it to all three. A new `id` is a
+   * new note.
    */
   revision?: { id: number; change: string; edit: string } | null;
 }
@@ -116,13 +124,14 @@ interface Lane {
   role: "recommended" | "contrast";
   chrome?: Chrome;
   editId?: EditLaneId;
+  /** Set when someone already wrote this lane's reading (Claude in chat). */
+  custom?: CustomLane;
   instruction?: string;
+  /** The instant layout drawing (look mode). */
   html: string;
   error: string;
-  prompt: string;
-  plainPrompt?: string;
-  refs?: MockupRef[];
-  seed?: number;
+  /** What Claude is asked to write for this lane; null until there is enough to ask. */
+  request: CodedRequest | null;
 }
 
 interface Before {
@@ -139,7 +148,7 @@ export function MockupBakeOff({
   chooseLabel = "Build this look",
   as = "owner",
   caption,
-  pictures: wantPictures = true,
+  pictures: write = true,
   edit,
   reference,
   facts,
@@ -149,19 +158,18 @@ export function MockupBakeOff({
   revision,
 }: Props) {
   const [device, setDevice] = useState<Device>("desktop");
-  /** Show the Flux picture, or the coded layout, in each lane. */
-  const [view, setView] = useState<"picture" | "layout">("picture");
+  /** Show Claude's design, or the instant layout, in each lane (look mode). */
+  const [view, setView] = useState<"designed" | "layout">("designed");
   /** Which lane is open full-width. null = all three side by side. */
   const [solo, setSolo] = useState<string | null>(null);
   /** Tweaks per lane, in order. */
   const [tweaks, setTweaks] = useState<Record<string, string[]>>({});
   const headingId = useId();
   const editing = Boolean(edit?.trim());
+  const owner = as === "owner";
 
   // ----- the page as it is now (edit mode) ---------------------------------
   const [before, setBefore] = useState<Before | null>(null);
-  /** Bumped to photograph the page again — when the drawer comes up after the board opened. */
-  const [shotTry, setShotTry] = useState(0);
   const refUrl = reference?.url?.trim() || "";
   const refImage = reference?.image || "";
   useEffect(() => {
@@ -172,7 +180,7 @@ export function MockupBakeOff({
       setBefore({ device, image: refImage, state: "done" });
       return;
     }
-    if (!refUrl || !wantPictures) {
+    if (!refUrl || !write) {
       setBefore({ device, image: "", state: "none" });
       return;
     }
@@ -184,249 +192,215 @@ export function MockupBakeOff({
     return () => {
       alive = false;
     };
-  }, [editing, refUrl, refImage, device, wantPictures, shotTry]);
+  }, [editing, refUrl, refImage, device, write]);
 
-  const directions = useMemo(() => directionsFor(recommended), [recommended]);
-  const baseSkill = directions[0]?.skill ?? "interactive-web-studio";
-  const shot = editing && before?.device === device && before.state === "done" ? before.image : "";
-
-  // ----- the three readings (edit mode) -------------------------------------
-  // Written by Claude in chat when the board came from there (customLanes);
-  // otherwise the hub's vision model writes them from the screenshot, because
-  // generic readings paint three near-identical pictures. Remembered per
-  // request, so reopening the board asks Flux for the same pictures.
-  const given = customLanes?.some((l) => l?.instruction?.trim()) ? customLanes : null;
-  const [auto, setAuto] = useState<{ key: string; lanes: CustomLane[] | null } | null>(null);
-  const readingsKey = `mk-readings:${(edit ?? "").trim()}|${refUrl}`;
-  const wantsReadings = editing && !given && wantPictures && as === "owner";
-  const deskShot = before?.device === "desktop" && before.state === "done" ? before.image : "";
-  /** The three readings last on screen — what a note revises. */
-  const lastLanes = useRef<CustomLane[] | null>(null);
-  /** Who wrote the readings on screen after a note, for the status line. */
-  const [revisedBy, setRevisedBy] = useState("");
-  const revising = revision && revision.edit.trim() === (edit ?? "").trim() ? revision : null;
+  // The page's markup: what Claude recreates it from, beside the screenshot.
+  const [markup, setMarkup] = useState<{ url: string; text: string; state: "reading" | "done" } | null>(null);
   useEffect(() => {
-    if (!wantsReadings || auto?.key === readingsKey) return;
-    try {
-      const kept = localStorage.getItem(readingsKey);
-      if (kept) {
-        setAuto({ key: readingsKey, lanes: JSON.parse(kept) as CustomLane[] });
-        return;
-      }
-    } catch {
-      /* no storage: ask again */
-    }
-    // Read from the desktop screenshot once it exists; with no picture at all
-    // (the page couldn't be photographed) the built-in readings are used.
-    if (before?.state === "taking") return;
+    if (!editing || !write || !owner || !refUrl) return;
+    if (markup?.url === refUrl) return;
     let alive = true;
-    void (async () => {
-      let lanes: CustomLane[] | null = null;
-      const previous = lastLanes.current;
-      if (revising && previous) {
-        // A note on the three on screen: rewrite those, don't start over.
-        const image = deskShot ? await shrinkImage(deskShot, 1280, 0.8).catch(() => "") : "";
-        const out = await reviseReadings({ edit: edit ?? "", change: revising.change, previous, siteName: spec.name, url: refUrl || undefined, image: image || undefined });
-        if (!alive) return;
-        if (out) {
-          try {
-            localStorage.setItem(readingsKey, JSON.stringify(out.lanes));
-          } catch {
-            /* fine: they just aren't remembered */
-          }
-        }
-        setRevisedBy(out?.by ?? "");
-        setAuto({ key: readingsKey, lanes: out?.lanes ?? null });
-        return;
-      }
-      try {
-        const image = deskShot ? await shrinkImage(deskShot, 1280, 0.8) : "";
-        const res = await fetch("/api/mockup/readings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ edit, siteName: spec.name, url: refUrl || undefined, image: image || undefined }),
-          signal: AbortSignal.timeout(60_000),
-        });
-        const data = (await res.json().catch(() => ({}))) as { lanes?: CustomLane[] | null };
-        lanes = res.ok && Array.isArray(data.lanes) && data.lanes.length === 3 ? data.lanes : null;
-      } catch {
-        lanes = null;
-      }
-      if (!alive) return;
-      if (lanes) {
-        try {
-          localStorage.setItem(readingsKey, JSON.stringify(lanes));
-        } catch {
-          /* fine: they just aren't remembered */
-        }
-      }
-      setAuto({ key: readingsKey, lanes });
-    })();
+    setMarkup({ url: refUrl, text: "", state: "reading" });
+    void readPageMarkup(refUrl).then((text) => {
+      if (alive) setMarkup({ url: refUrl, text, state: "done" });
+    });
     return () => {
       alive = false;
     };
-  }, [wantsReadings, readingsKey, auto?.key, before?.state, deskShot, edit, spec.name, refUrl, revising]);
-  const reading = wantsReadings && auto?.key !== readingsKey;
-  const lanesText = given ?? (auto?.key === readingsKey ? (auto.lanes ?? undefined) : undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- read once per address
+  }, [editing, write, owner, refUrl]);
 
-  // Drawing is pure string work and takes under a millisecond a lane, so it
-  // happens in a memo rather than an effect.
+  const shot = editing && before?.device === device && before.state === "done" ? before.image : "";
+  // The screenshot Claude looks at: small enough to send, sharp enough to read.
+  const [lookAt, setLookAt] = useState<{ src: string; small: string } | null>(null);
+  useEffect(() => {
+    if (!shot || lookAt?.src === shot) return;
+    let alive = true;
+    void shrinkImage(shot, 1280, 0.8)
+      .catch(() => shot)
+      .then((small) => {
+        if (alive) setLookAt({ src: shot, small });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [shot, lookAt?.src]);
+  const shotSmall = lookAt?.src === shot ? lookAt.small : "";
+
+  const directions = useMemo(() => directionsFor(recommended), [recommended]);
+  const baseSkill = directions[0]?.skill ?? "interactive-web-studio";
+
+  // Edit lanes wait for the page to be read: a mockup written before the
+  // screenshot and markup arrive is a stranger's website.
+  const pageReady =
+    !editing ||
+    (before?.device === device &&
+      before.state !== "taking" &&
+      (!refUrl || markup?.url !== refUrl || markup.state === "done") &&
+      (!shot || Boolean(shotSmall)));
+
+  const given = customLanes?.some((l) => l?.instruction?.trim()) ? customLanes : null;
+
+  // Building the lanes is pure string work, so it happens in a memo.
   const lanes = useMemo<Lane[]>(() => {
     if (editing) {
-      const site = { siteName: spec.name, facts, device };
-      // The page's address rides along with the picture: it is what the
-      // drawer's cache keys on, so the chat command and this board share
-      // pictures instead of painting the same thing twice.
-      const refs: MockupRef[] | undefined = shot ? [{ image: shot, ...(refUrl ? { url: refUrl } : {}) }] : undefined;
-      return editLanes(edit ?? "", site, lanesText ?? []).map((l, i) => ({
-        id: l.id,
-        editId: l.id,
-        skill: baseSkill,
-        title: l.label,
-        note: l.note,
-        role: i === 0 ? ("recommended" as const) : ("contrast" as const),
-        instruction: l.instruction,
-        html: "",
-        error: "",
-        // No screenshot, no picture: painting "edit image 1" without an image
-        // 1 is how a mockup ends up being a stranger's website.
-        // Nothing is painted until the readings are settled: painting the
-        // built-in ones first would spend three GPU minutes on pictures that
-        // are about to be replaced.
-        prompt: refs && !reading ? l.prompt : "",
-        refs,
-        seed: laneSeed(l.id),
-      }));
-    }
-    return directions.map((d) => {
-      try {
-        const html = renderMockup(spec, d, { device });
+      const site = spec.name;
+      return editLanes(edit ?? "", given ?? []).map((l, i) => {
+        const custom = given?.[i]?.instruction?.trim() ? (given[i] as CustomLane) : undefined;
         return {
-          ...d,
-          id: d.skill,
-          title: d.skill,
-          html,
-          error: "",
-          // The coded drawing is image 1: Flux keeps its structure and words
-          // and does what a picture model is good at — finish.
-          prompt: fluxPrompt(spec, d, device, { layoutRef: true }),
-          plainPrompt: fluxPrompt(spec, d, device),
-          refs: [
-            {
-              html,
-              base: typeof window === "undefined" ? undefined : window.location.origin,
-              width: FRAME_WIDTH[device],
-              height: FRAME_HEIGHT[device],
-            },
-          ],
-        };
-      } catch {
-        // A lane that fails keeps its place. "Why did this direction not
-        // draw" is itself a result; a lane that vanishes destroys the
-        // comparison the panel exists to make (checklist R1).
-        return {
-          ...d,
-          id: d.skill,
-          title: d.skill,
+          id: l.id,
+          editId: l.id,
+          skill: baseSkill,
+          title: custom ? l.label : roleLabel(l.id),
+          note: l.note,
+          role: i === 0 ? ("recommended" as const) : ("contrast" as const),
+          custom,
+          instruction: l.instruction,
           html: "",
-          prompt: "",
-          error: "This direction didn't draw. The other two still work, and picking one of them is safe.",
+          error: "",
+          request: pageReady
+            ? {
+                kind: "edit" as const,
+                edit: edit ?? "",
+                lane: l.id,
+                ...(custom ? { reading: custom } : {}),
+                siteName: site,
+                ...(refUrl ? { url: refUrl } : {}),
+                device,
+                ...(facts ? { facts } : {}),
+                ...(markup?.url === refUrl && markup.text ? { markup: markup.text } : {}),
+              }
+            : null,
         };
-      }
-    });
-  }, [editing, edit, directions, spec, device, facts, lanesText, reading, shot, refUrl, baseSkill]);
-
-  // Remember the readings on screen once they are settled: a note revises them.
-  useEffect(() => {
-    if (editing && !reading && lanes.length === 3) {
-      lastLanes.current = lanes.map((l) => ({ label: l.title, instruction: l.instruction ?? "" }));
+      });
     }
-  }, [editing, reading, lanes]);
+    const cspec = codedSpec(spec);
+    return directions.map((d) => {
+      let html = "";
+      try {
+        html = renderMockup(spec, d, { device });
+      } catch {
+        html = "";
+      }
+      return {
+        ...d,
+        id: d.skill,
+        title: d.skill,
+        html,
+        error: "",
+        request: { kind: "look" as const, spec: cspec, look: codedLook(d, Boolean(spec.site)), role: d.role, device },
+      };
+    });
+  }, [editing, edit, given, directions, spec, device, facts, refUrl, markup, pageReady, baseSkill]);
 
   // ----- the jobs: each lane, then each tweak on top of the step before -----
-  // A tweak is drawn from the picture it changes, so step n is listed once
-  // step n-1 has landed. `seen` mirrors the finished pictures so the list can
-  // grow as they arrive; every step keeps its own id, so stepping back is
-  // instant.
+  // A tweak edits the page it changes, so step n is listed once step n-1 has
+  // landed. `seen` mirrors the finished pages so the list can grow as they
+  // arrive; every step keeps its own id, so stepping back is instant.
   const [seen, setSeen] = useState<Record<string, string>>({});
-  const jobs = useMemo<PictureJob[]>(() => {
-    const out: PictureJob[] = [];
-    // Lane order IS draw order: the recommendation is painted first.
+  const jobs = useMemo<CodedJob[]>(() => {
+    const out: CodedJob[] = [];
     for (const l of lanes) {
-      if (l.prompt) out.push({ id: l.id, prompt: l.prompt, refs: l.refs, plainPrompt: l.plainPrompt, seed: l.seed });
+      if (l.request) out.push({ id: l.id, request: l.request, image: editing ? shotSmall || undefined : undefined });
     }
     for (const l of lanes) {
       let prev = seen[`${device}:${l.id}`];
       const list = tweaks[l.id] ?? [];
       for (let n = 0; n < list.length && prev; n += 1) {
         const id = `${l.id}#${n + 1}`;
-        out.push({ id, prompt: refineFluxPrompt(list[n], { siteName: spec.name, facts, device }), refs: [{ image: prev }] });
+        out.push({ id, request: { kind: "tweak", html: prev, change: list[n], siteName: spec.name, device } });
         prev = seen[`${device}:${id}`];
       }
     }
     return out;
-  }, [lanes, tweaks, seen, device, spec.name, facts]);
+  }, [lanes, tweaks, seen, device, spec.name, editing, shotSmall]);
 
-  const { pc, pictures, redraw } = useMockupPictures(jobs, device, wantPictures);
-  // The drawer was off (or still starting) when the page was photographed, so
-  // there was nothing to paint onto. It is up now: photograph it again.
-  const beforeNone = before?.state === "none";
-  useEffect(() => {
-    if ((pc === "direct" || pc === "server") && beforeNone && refUrl && wantPictures) setShotTry((n) => n + 1);
-  }, [pc, beforeNone, refUrl, wantPictures]);
+  const wanted = write && owner;
+  const { docs, rewrite } = useCodedMockups(jobs, wanted);
 
   useEffect(() => {
     setSeen((had) => {
       let changed = false;
       const next = { ...had };
-      for (const [id, p] of Object.entries(pictures)) {
+      for (const [id, d] of Object.entries(docs)) {
         const key = `${device}:${id}`;
-        if (p.status === "done" && p.image && next[key] !== p.image) {
-          next[key] = p.image;
+        if (d.status === "done" && d.html && next[key] !== d.html) {
+          next[key] = d.html;
           changed = true;
         }
       }
       return changed ? next : had;
     });
-  }, [pictures, device]);
+  }, [docs, device]);
 
-  // Saved paintings stand in for a lane Flux hasn't painted on THIS screen.
-  // Desktop only: they were painted at desktop width.
-  const sharedPics = useMemo(() => {
-    const out: Record<string, PictureState> = {};
-    if (!editing || device !== "desktop") return out;
-    for (const l of shared ?? []) if (l.image) out[l.lane] = { status: "done", image: l.image, ms: 0 };
+  // A note on the board is a tweak to all three, once per note.
+  const appliedNote = useRef(0);
+  useEffect(() => {
+    if (!revision || revision.id === appliedNote.current) return;
+    if (revision.edit.trim() !== (edit ?? "").trim() || !revision.change.trim()) return;
+    appliedNote.current = revision.id;
+    setTweaks((all) => {
+      const next = { ...all };
+      for (const l of lanes) next[l.id] = [...(next[l.id] ?? []), revision.change.trim()].slice(0, 6);
+      return next;
+    });
+  }, [revision, edit, lanes]);
+
+  // Saved mockups stand in for a lane not written on THIS screen. Desktop only.
+  const sharedDocs = useMemo(() => {
+    const out: Record<string, CodedState & { image?: string }> = {};
+    if (device !== "desktop") return out;
+    for (const l of shared ?? []) {
+      if (l.html) out[l.lane] = { status: "done", html: l.html, ms: 0 };
+      else if (l.image) out[l.lane] = { status: "done", image: l.image, ms: 0 };
+    }
     return out;
-  }, [shared, editing, device]);
+  }, [shared, device]);
 
-  const anyPicture = Object.values(pictures).some((p) => p.status === "done") || Object.keys(sharedPics).length > 0;
-
-  /** The newest finished picture for a lane: its last tweak, else its first painting. */
+  /** The newest finished page for a lane: its last tweak, else its first version. */
   const current = useCallback(
-    (laneId: string): { id: string; pic?: PictureState; step: number } => {
+    (laneId: string): { id: string; doc?: CodedState & { image?: string }; step: number } => {
       for (let k = (tweaks[laneId] ?? []).length; k >= 1; k -= 1) {
-        const pic = pictures[`${laneId}#${k}`];
-        if (pic?.status === "done") return { id: `${laneId}#${k}`, pic, step: k };
+        const d = docs[`${laneId}#${k}`];
+        if (d?.status === "done") return { id: `${laneId}#${k}`, doc: d, step: k };
       }
-      const own = pictures[laneId];
-      if (own?.status !== "done" && sharedPics[laneId]) return { id: laneId, pic: sharedPics[laneId], step: 0 };
-      return { id: laneId, pic: own, step: 0 };
+      const own = docs[laneId];
+      if (own?.status !== "done" && sharedDocs[laneId]) return { id: laneId, doc: sharedDocs[laneId], step: 0 };
+      return { id: laneId, doc: own, step: 0 };
     },
-    [pictures, tweaks, sharedPics],
+    [docs, tweaks, sharedDocs],
   );
 
-  // All three painted here → hand them to the host once, so it can keep them
+  /** What Claude says a lane does — its own label and reading, when it wrote one. */
+  const laneText = useCallback(
+    (lane: Lane): { title: string; instruction: string } => {
+      const html = current(lane.id).doc?.html ?? "";
+      const meta = html ? mockupMeta(html) : { label: "", reading: "" };
+      return {
+        title: lane.custom ? lane.title : meta.label || lane.title,
+        instruction: meta.reading || lane.instruction || edit || "",
+      };
+    },
+    [current, edit],
+  );
+
+  // All three written here → hand them to the host once, so it can keep them
   // where others can see them (Client Review shows them to the client).
   const told = useRef("");
   useEffect(() => {
     if (!editing || !onPainted || device !== "desktop") return;
-    const done = lanes.map((l) => ({ lane: l.editId!, pic: pictures[l.id], label: l.title, instruction: l.instruction ?? "" }));
-    if (done.length !== 3 || done.some((d) => d.pic?.status !== "done" || !d.pic.image)) return;
-    const sig = `${edit}|${done.map((d) => `${d.lane}:${d.pic!.image!.length}`).join(",")}`;
+    const done = lanes.map((l) => ({ lane: l, now: current(l.id) }));
+    if (done.length !== 3 || done.some((d) => docs[d.lane.id]?.status !== "done" || !d.now.doc?.html)) return;
+    const sig = `${edit}|${done.map((d) => `${d.lane.id}:${d.now.id}:${d.now.doc!.html!.length}`).join(",")}`;
     if (told.current === sig) return;
     told.current = sig;
-    onPainted(done.map((d) => ({ lane: d.lane, image: d.pic!.image!, label: d.label, instruction: d.instruction })));
-  }, [editing, onPainted, device, lanes, pictures, edit]);
+    onPainted(
+      done.map((d) => {
+        const t = laneText(d.lane);
+        return { lane: d.lane.editId!, html: d.now.doc!.html!, label: t.title, instruction: t.instruction };
+      }),
+    );
+  }, [editing, onPainted, device, lanes, docs, edit, current, laneText]);
 
   const shown = solo ? lanes.filter((l) => l.id === solo) : lanes;
   const pickedId = editing ? chosen?.edit?.lane : chosen?.skill;
@@ -434,26 +408,26 @@ export function MockupBakeOff({
   const choose = useCallback(
     (lane: Lane) => {
       if (!onChoose) return;
-      const image = current(lane.id).pic?.image;
+      const html = current(lane.id).doc?.html;
       if (editing && lane.editId) {
+        const t = laneText(lane);
         const pick: EditPick = {
           lane: lane.editId,
-          label: lane.title,
+          label: t.title,
           edit: edit ?? "",
-          instruction: lane.instruction ?? edit ?? "",
+          instruction: t.instruction,
           tweaks: tweaks[lane.id] ?? [],
         };
         // Same lane with the same tweaks is already saved (checklist D5).
         const same = chosen?.edit?.lane === pick.lane && (chosen.edit.tweaks ?? []).join("\n") === pick.tweaks.join("\n");
-        if (!same) onChoose(lane.skill, pick, image);
+        if (!same) onChoose(lane.skill, pick, html);
         return;
       }
       // Picking the direction that is already picked is a no-op rather than a
-      // second write (checklist D5) — double-tapping a card on a phone is the
-      // normal way to hit this.
-      if (chosen?.skill !== lane.skill) onChoose(lane.skill, undefined, image);
+      // second write (checklist D5).
+      if (chosen?.skill !== lane.skill) onChoose(lane.skill, undefined, html);
     },
-    [onChoose, chosen, editing, edit, tweaks, current],
+    [onChoose, chosen, editing, edit, tweaks, current, laneText],
   );
 
   const addTweak = useCallback((laneId: string, text: string) => {
@@ -473,6 +447,8 @@ export function MockupBakeOff({
       ? "Three versions of your change"
       : "Three directions";
 
+  const anyDone = Object.values(docs).some((d) => d.status === "done") || Object.keys(sharedDocs).length > 0;
+
   return (
     <section className="mk" aria-labelledby={headingId} data-mode={editing ? "edit" : "look"}>
       <header className="mk-top">
@@ -484,17 +460,17 @@ export function MockupBakeOff({
             {caption ??
               (editing
                 ? as === "client"
-                  ? "Your change, painted onto your site three ways. Pick the one you want and we build that."
-                  : "Painted onto a screenshot of the live page with Flux 2. Pick one and the build is held to it."
+                  ? "Your change, made on your site three ways. Pick the one you want and we build that."
+                  : "Real pages Claude writes from your live page, with only the change made. Pick one and the build is held to it."
                 : as === "client"
                   ? "How your site could look. Pick the one you want and we build that."
-                  : "Drawn from the features you accepted. Pick one and the build is held to it.")}
+                  : "Designed by Claude from the features you accepted. Pick one and the build is held to it.")}
           </p>
         </div>
         <div className="mk-controls">
-          {wantPictures && !editing && (
+          {wanted && !editing && (
             <div className="mk-seg" role="group" aria-label="What each lane shows">
-              {(["picture", "layout"] as const).map((v) => (
+              {(["designed", "layout"] as const).map((v) => (
                 <button
                   key={v}
                   type="button"
@@ -502,7 +478,7 @@ export function MockupBakeOff({
                   aria-pressed={view === v}
                   onClick={() => setView(v)}
                 >
-                  {v === "picture" ? "Flux render" : "Live layout"}
+                  {v === "designed" ? "Designed" : "Layout"}
                 </button>
               ))}
             </div>
@@ -530,17 +506,13 @@ export function MockupBakeOff({
 
       {editing && <BeforeStrip edit={edit ?? ""} before={before} url={refUrl} device={device} />}
 
-      {wantPictures && (
-        <PcLine
-          pc={pc}
-          any={anyPicture}
-          pictures={pictures}
+      {wanted && (
+        <StatusLine
+          docs={docs}
+          any={anyDone}
           editing={editing}
-          noShot={editing && before?.device === device && before.state === "none"}
-          taking={editing && before?.state === "taking"}
-          reading={reading && before?.state !== "taking"}
-          revising={Boolean(revising && reading)}
-          revisedBy={revising && !reading ? revisedBy : ""}
+          reading={editing && !pageReady}
+          noted={Boolean(revision && appliedNote.current === revision.id)}
         />
       )}
 
@@ -549,10 +521,12 @@ export function MockupBakeOff({
           const picked = pickedId === (editing ? lane.editId : lane.skill);
           const now = current(lane.id);
           const steps = tweaks[lane.id] ?? [];
-          const pending = steps.length > now.step ? pictures[`${lane.id}#${now.step + 1}`] : undefined;
+          const pending = steps.length > now.step ? docs[`${lane.id}#${now.step + 1}`] : undefined;
           const tweakFailed = pending?.status === "failed";
-          const name = editing ? lane.title : as === "client" ? directionLabel(lane) : lane.skill;
-          const showPicture = (wantPictures || editing) && (editing || view === "picture") && now.pic?.status === "done";
+          const t = laneText(lane);
+          const name = editing ? t.title : as === "client" ? directionLabel(lane) : lane.skill;
+          const base = docs[lane.id];
+          const showDoc = now.doc?.status === "done" && (editing || view === "designed" || !wanted);
           return (
             <article key={lane.id} className={`mk-lane${picked ? " picked" : ""}`}>
               <div className="mk-lane-top">
@@ -567,62 +541,77 @@ export function MockupBakeOff({
                 <div className="mk-fail" role="status">
                   <p>{lane.error}</p>
                 </div>
-              ) : showPicture ? (
+              ) : showDoc && now.doc?.html ? (
                 <div className="mk-frame-wrap">
-                  <Picture
-                    pic={now.pic!}
+                  <Frame
+                    html={now.doc.html}
                     device={device}
-                    title={`${spec.name}: ${name}, drawn with Flux 2`}
+                    title={`${spec.name}: ${name}`}
                     onOpen={() => setSolo(solo ? null : lane.id)}
-                    // Only where Flux can actually paint: never on a client's screen.
-                    onRedraw={wantPictures && (pc === "direct" || pc === "server") ? () => redraw(now.id) : undefined}
                     expanded={Boolean(solo)}
                   />
-                  {pending && <PaintingBadge pic={pending} tweak />}
+                  {wanted && (
+                    <button type="button" className="mk-redraw" onClick={() => rewrite(now.id)} title="Have Claude write this one again">
+                      Rewrite
+                    </button>
+                  )}
+                  {pending && <WritingBadge doc={pending} tweak />}
+                </div>
+              ) : showDoc && now.doc?.image ? (
+                <div className="mk-frame-wrap">
+                  <div className={`mk-pic is-${device}`}>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- a mockup saved as a picture before 18 Nov 2026 */}
+                    <img src={now.doc.image} alt={`${spec.name}: ${name}`} />
+                  </div>
                 </div>
               ) : editing ? (
                 <div className="mk-frame-wrap">
                   <EditPlaceholder
                     shot={shot}
                     device={device}
-                    instruction={lane.instruction ?? ""}
-                    pic={wantPictures ? pictures[lane.id] : undefined}
-                    pc={wantPictures ? pc : "off"}
-                    order={shown.indexOf(lane) + 1}
-                    total={shown.length}
-                    taking={before?.state === "taking"}
+                    instruction={lane.custom?.instruction ?? ""}
+                    doc={wanted ? base : undefined}
+                    reading={!pageReady}
+                    writes={wanted}
+                    onRetry={wanted ? () => rewrite(lane.id) : undefined}
                   />
                 </div>
               ) : (
                 <div className="mk-frame-wrap">
-                  <Frame
-                    html={lane.html}
-                    device={device}
-                    title={`${spec.name} in the ${directionLabel(lane)} direction`}
-                    onOpen={() => setSolo(solo ? null : lane.id)}
-                    expanded={Boolean(solo)}
-                  />
-                  {wantPictures && view === "picture" && <PaintingBadge pic={pictures[lane.id]} />}
+                  {lane.html ? (
+                    <Frame
+                      html={lane.html}
+                      device={device}
+                      title={`${spec.name} in the ${directionLabel(lane)} direction`}
+                      onOpen={() => setSolo(solo ? null : lane.id)}
+                      expanded={Boolean(solo)}
+                    />
+                  ) : (
+                    <div className="mk-fail" role="status">
+                      <p>This direction&apos;s layout didn&apos;t draw. The other two still work.</p>
+                    </div>
+                  )}
+                  {wanted && view === "designed" && <WritingBadge doc={base} onRetry={() => rewrite(lane.id)} />}
                 </div>
               )}
 
-              <p className="mk-note">{lane.note}</p>
+              <p className="mk-note">{editing && t.instruction !== edit ? t.instruction : lane.note}</p>
 
               {steps.length > 0 && (
                 <ol className="mk-steps" aria-label="Tweaks to this one">
-                  {steps.map((t, i) => (
-                    <li key={`${i}-${t}`} data-done={i < now.step ? "yes" : "no"}>
-                      {t}
+                  {steps.map((s, i) => (
+                    <li key={`${i}-${s}`} data-done={i < now.step ? "yes" : "no"}>
+                      {s}
                     </li>
                   ))}
                 </ol>
               )}
 
-              {wantPictures && as === "owner" && pc !== "off" && pc !== "checking" && !lane.error && now.pic?.status === "done" && (
+              {wanted && !lane.error && now.doc?.status === "done" && now.doc.html && (
                 <TweakBox
                   busy={Boolean(pending) && !tweakFailed}
                   canUndo={steps.length > 0}
-                  onTweak={(t) => addTweak(lane.id, t)}
+                  onTweak={(text) => addTweak(lane.id, text)}
                   onUndo={() => undoTweak(lane.id)}
                 />
               )}
@@ -644,8 +633,8 @@ export function MockupBakeOff({
 
       <p className="mk-fine">
         {editing
-          ? "A painting of the change, not the built page — the builder matches it, then checks its work against it."
-          : "A drawing, not the finished app — the numbers in it are illustrative. Everything else is your own spec."}
+          ? "A mockup of the change, not the built page — the builder matches it, then checks its work against it."
+          : "A mockup, not the finished app — the numbers in it are illustrative. Everything else is your own spec."}
       </p>
     </section>
   );
@@ -687,78 +676,54 @@ function BeforeStrip({ edit, before, url, device }: { edit: string; before: Befo
   );
 }
 
-/** An edit lane before Flux has painted it: the page as it is, dimmed, with the reading on top. */
 /**
- * A lane while its mockup is being made: the page as it is now, a paint sweep
- * moving across it, a light that follows the pointer, and words that say
- * exactly what is happening — the owner should never stare at an empty card
- * wondering whether anything is happening (15 Nov 2026).
+ * A lane while its mockup is being written: the page as it is now, a sweep
+ * moving across it, and words that say exactly what is happening — the owner
+ * should never stare at an empty card wondering whether anything is happening.
  */
 function EditPlaceholder({
   shot,
   device,
   instruction,
-  pic,
-  pc,
-  order,
-  total,
-  taking,
+  doc,
+  reading,
+  writes,
+  onRetry,
 }: {
   shot: string;
   device: Device;
   instruction: string;
-  pic?: PictureState;
-  pc: PcState;
-  order: number;
-  total: number;
-  taking: boolean;
+  doc?: CodedState;
+  reading: boolean;
+  writes: boolean;
+  onRetry?: () => void;
 }) {
-  const drawing = pic?.status === "drawing";
+  const writing = doc?.status === "writing" || doc?.status === "waiting";
   const [since, setSince] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (drawing) setSince(Date.now());
-  }, [drawing]);
+    if (writing) setSince(Date.now());
+  }, [writing]);
   useEffect(() => {
-    if (!drawing) return;
+    if (!writing) return;
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, [drawing]);
-  const secs = drawing && since ? Math.max(0, Math.round((now - since) / 1000)) : 0;
-  const clock = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
-  const failed = pic?.status === "failed" && pic.error !== "off";
-  const busy = !failed && pc !== "off";
-  const title = failed
-    ? "This one didn't paint"
-    : pc === "off"
-      ? "Mockups need your PC"
-      : `Generating mockup ${order} of ${total}`;
+  }, [writing]);
+  const secs = writing && since ? Math.max(0, Math.round((now - since) / 1000)) : 0;
+  const failed = doc?.status === "failed";
+  const busy = writes && !failed;
+  const title = failed ? "This one didn't write" : !writes ? "Mockups are made on the owner's screen" : reading ? "Reading your live page" : "Claude is writing this version";
   const line = failed
-    ? pic?.error || "Flux didn't draw this one. Press Redraw, or tell it what to change."
-    : pc === "off"
-      ? "Your PC's picture drawer isn't reachable, so Flux can't paint yet. Open this on the PC with Jarvis running."
-      : pc === "checking"
-        ? "Looking for Flux 2 on your PC…"
-        : pc === "starting"
-          ? "Starting the picture drawer on your PC — the first picture takes a few minutes while Flux warms up."
-          : taking
-            ? "Photographing your live page so Flux paints onto the real thing…"
-            : drawing
-              ? `Painting with Flux 2 on your PC · ${clock}`
-              : order > 1
-                ? "Next in line — Flux paints them one at a time."
-                : "Getting ready to paint…";
+    ? doc?.error || "Claude couldn't write this one."
+    : !writes
+      ? "Nothing has been mocked up for this change yet."
+      : reading
+        ? "Photographing the page and reading its markup, so the mockup is your real page with only the change made…"
+        : writing
+          ? `Recreating your page in HTML with the change made · ${secs}s`
+          : "Getting ready…";
   return (
-    <div
-      className={`mk-pic mk-pic-wait mk-gen is-${device}${busy ? " is-busy" : ""}${drawing ? " is-drawing" : ""}`}
-      role="status"
-      aria-live="polite"
-      onPointerMove={(e) => {
-        const r = e.currentTarget.getBoundingClientRect();
-        e.currentTarget.style.setProperty("--mx", `${((e.clientX - r.left) / r.width) * 100}%`);
-        e.currentTarget.style.setProperty("--my", `${((e.clientY - r.top) / r.height) * 100}%`);
-      }}
-    >
+    <div className={`mk-pic mk-pic-wait mk-gen is-${device}${busy ? " is-busy" : ""}${writing ? " is-drawing" : ""}`} role="status" aria-live="polite">
       {/* eslint-disable-next-line @next/next/no-img-element -- the before picture, dimmed behind the words */}
       {shot && <img src={shot} alt="" aria-hidden />}
       {busy && <span className="mk-gen-sweep" aria-hidden />}
@@ -767,12 +732,17 @@ function EditPlaceholder({
         <b>{title}</b>
         <span>{line}</span>
         {instruction && <em>{instruction}</em>}
+        {failed && onRetry && (
+          <button type="button" className="mk-tweak-b" onClick={onRetry}>
+            Try again
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
-/** "Change this one": a tweak, drawn from this lane's current picture. */
+/** "Change this one": a tweak, made to this lane's current page. */
 function TweakBox({
   busy,
   canUndo,
@@ -804,7 +774,7 @@ function TweakBox({
         className="mk-tweak-in"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder={busy ? "Painting your tweak…" : "Change this one, e.g. make the button green"}
+        placeholder={busy ? "Claude is making your tweak…" : "Change this one, e.g. make the button green"}
         disabled={busy}
         maxLength={300}
         enterKeyHint="send"
@@ -822,111 +792,70 @@ function TweakBox({
   );
 }
 
-/** One line saying whether Flux is painting, and how to switch it on when it isn't. */
-function PcLine({
-  pc,
+/** One line saying what Claude is doing with the mockups. */
+function StatusLine({
+  docs,
   any,
-  pictures,
   editing,
-  noShot,
-  taking,
   reading,
-  revising = false,
-  revisedBy = "",
+  noted,
 }: {
-  revising?: boolean;
-  revisedBy?: string;
-  pc: PcState;
+  docs: Record<string, CodedState>;
   any: boolean;
-  pictures: Record<string, PictureState>;
   editing: boolean;
-  noShot: boolean;
-  taking: boolean;
   reading: boolean;
+  noted: boolean;
 }) {
-  const left = Object.values(pictures).filter((p) => p.status === "drawing" || p.status === "waiting").length;
+  const all = Object.values(docs);
+  const left = all.filter((d) => d.status === "writing" || d.status === "waiting").length;
+  const failed = all.filter((d) => d.status === "failed").length;
+  const by = all.find((d) => d.status === "done" && d.by)?.by ?? "";
   let text: string;
-  if (pc === "checking") text = "Looking for Flux 2 on your PC…";
-  else if (pc === "starting")
-    text = "Mockups are being generated — starting the picture drawer on your PC first. The first one takes a few minutes while Flux warms up.";
-  else if (pc === "off")
-    text = any
-      ? "Showing Flux 2 renders saved earlier. Your PC's drawer is off, so new ones wait until it's back."
-      : editing
-        ? "Flux 2 paints your change onto the live page when your PC's picture drawer is running (Pinokio + node tools/wangp-image/server.mjs)."
-        : "Flux 2 renders appear here when your PC's picture drawer is running (Pinokio + node tools/wangp-image/server.mjs). Until then each lane is the live layout.";
-  else if (taking) text = "Photographing the live page on your PC, so Flux paints onto the real thing…";
-  else if (revising) text = "Claude is reading your note and rewriting all three mockups to match it…";
-  else if (reading) text = "Reading the page to write three concrete versions of your change…";
-  else if (noShot && !any)
-    text = "Couldn't photograph the live page, so there's nothing to paint onto yet. Check the address opens, then switch Desktop/Phone to try again.";
-  else if (left)
-    text = `Mockups are being generated — Flux 2 paints them on your PC one at a time, each appearing as it lands (1–3 minutes each). ${left} to go.`;
-  else
-    text = editing
-      ? revisedBy
-        ? `Rewritten from your note by ${revisedBy}, then painted with Flux 2. Not there yet? Say what else to change.`
-        : "Painted onto your live page with Flux 2 — free. Tweak any one, or pick it."
-      : "Painted with Flux 2 on your PC — free. Switch to Live layout to see the exact page structure.";
+  let state = "is-direct";
+  if (reading) {
+    text = "Reading your live page — a screenshot and its markup — so Claude recreates the real thing…";
+    state = "is-busy";
+  } else if (left) {
+    text = noted
+      ? `Claude is applying your note to the mockups — ${left} to go.`
+      : `Claude is writing the mockups as real pages, all at once — each appears as it lands. ${left} to go.`;
+    state = "is-busy";
+  } else if (failed && !any) {
+    text = "Claude couldn't write the mockups — your PC's Claude isn't reachable and the hub's AI didn't answer. Press Try again on a lane.";
+    state = "is-off";
+  } else if (any) {
+    text = `${editing ? "Your live page, recreated with the change" : "Designed"}${by ? ` by ${by}` : ""}. Tweak any one, or pick it.`;
+  } else {
+    text = "Getting ready to write the mockups…";
+    state = "is-busy";
+  }
   return (
-    <p className={`mk-pc is-${pc}${left || taking || reading ? " is-busy" : ""}`} role="status">
+    <p className={`mk-pc ${state}`} role="status">
       <span className="mk-pc-dot" aria-hidden />
       {text}
     </p>
   );
 }
 
-function PaintingBadge({ pic, tweak = false }: { pic?: PictureState; tweak?: boolean }) {
-  if (!pic || pic.status === "done") return null;
-  if (pic.status === "failed") {
-    if (pic.error === "off") return null;
+function WritingBadge({ doc, tweak = false, onRetry }: { doc?: CodedState; tweak?: boolean; onRetry?: () => void }) {
+  if (!doc || doc.status === "done") return null;
+  if (doc.status === "failed") {
     return (
-      <span className="mk-paint is-failed" title={pic.error}>
-        {tweak ? "That tweak didn't draw — Undo, or try other words" : "Flux didn't draw this one"}
+      <span className="mk-paint is-failed" title={doc.error}>
+        {tweak ? "That tweak didn't go through — Undo, or try other words" : "Claude didn't write this one"}
+        {onRetry && (
+          <button type="button" className="mk-paint-retry" onClick={onRetry}>
+            Try again
+          </button>
+        )}
       </span>
     );
   }
   return (
     <span className="mk-paint" aria-live="polite">
       <span className="mk-paint-dot" aria-hidden />
-      {pic.status === "drawing"
-        ? tweak
-          ? "Painting your tweak…"
-          : "Painting with Flux 2…"
-        : "Waiting its turn for Flux 2"}
+      {tweak ? "Making your tweak…" : "Claude is designing this one…"}
     </span>
-  );
-}
-
-/** A lane's Flux picture, at the lane's width. */
-function Picture({
-  pic,
-  device,
-  title,
-  onOpen,
-  onRedraw,
-  expanded,
-}: {
-  pic: PictureState;
-  device: Device;
-  title: string;
-  onOpen: () => void;
-  onRedraw?: () => void;
-  expanded: boolean;
-}) {
-  return (
-    <div className={`mk-pic is-${device}`}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL from the owner's PC; next/image adds nothing */}
-      <img src={pic.image} alt={title} />
-      <button type="button" className="mk-open" onClick={onOpen}>
-        <span>{expanded ? "Close" : "Open full width"}</span>
-      </button>
-      {onRedraw && (
-        <button type="button" className="mk-redraw" onClick={onRedraw} title="Paint this one again with Flux 2">
-          Redraw
-        </button>
-      )}
-    </div>
   );
 }
 
@@ -941,12 +870,16 @@ function directionLabel(lane: { skill: string; role: string }): string {
 }
 
 /**
- * One drawn mockup, scaled to fit.
+ * One mockup, scaled to fit.
  *
  * The scale is measured from the column rather than guessed with a media
  * query, because this component is dropped into a full-width panel in one app
  * and a narrow side column in another, and the frame has to be right in both
  * without either host knowing about it.
+ *
+ * Side by side, an overlay owns the pointer so a scaled iframe never traps a
+ * finger mid-swipe (checklist U1) and a tap opens the lane full width. Open
+ * full width, the page itself scrolls, so the whole mockup can be read.
  */
 function Frame({
   html,
@@ -963,7 +896,7 @@ function Frame({
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(0.3);
-  const w = FRAME_WIDTH[device];
+  const w = FRAME_WIDTH[device] ?? CODED_WIDTH[device];
   const h = FRAME_HEIGHT[device];
 
   useEffect(() => {
@@ -985,25 +918,19 @@ function Frame({
   return (
     <div className="mk-frame" ref={hostRef} style={{ height: `${Math.round(h * scale)}px` }}>
       <iframe
-        className="mk-iframe"
+        className={`mk-iframe${expanded ? " is-live" : ""}`}
         title={title}
         srcDoc={html}
         sandbox="allow-same-origin"
         loading="lazy"
-        tabIndex={-1}
+        tabIndex={expanded ? 0 : -1}
         style={{
           width: `${w}px`,
           height: `${h}px`,
           transform: `scale(${scale})`,
         }}
       />
-      {/*
-        The overlay is what makes the lane tappable at all: a scaled iframe
-        swallows pointer events and would trap a finger mid-swipe on a phone
-        (checklist U1). It sits over the frame, so the page keeps scrolling and
-        a tap opens the lane full width.
-      */}
-      <button type="button" className="mk-open" onClick={onOpen}>
+      <button type="button" className={`mk-open${expanded ? " is-corner" : ""}`} onClick={onOpen}>
         <span>{expanded ? "Close" : "Open full width"}</span>
       </button>
     </div>

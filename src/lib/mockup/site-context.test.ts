@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { editBrief, editLanes, readingsUser } from "./edit";
+import { codedUser } from "./coded";
+import { editBrief } from "./edit";
 import {
   cleanFont,
   cleanPath,
@@ -181,15 +182,6 @@ describe("site context — a locked direction carries to the next page", () => {
     const styled = lockedStyleLine({ ...locked.lock!, style: "forest-green #1f3d2b panels, cream serif headings" });
     expect(styled).toContain("forest-green #1f3d2b panels");
     expect(styled).not.toContain("hero");
-    const [lane] = editLanes("make the gallery bigger", { siteName: "Bloom", styleRef: styled });
-    expect(lane.prompt).toContain("this site's chosen look: forest-green #1f3d2b panels");
-  });
-
-  it("without a lock the Flux prompt is unchanged, so the hub's cache still matches", () => {
-    const a = editLanes("make the hero dark", { siteName: "Bloom" });
-    const b = editLanes("make the hero dark", { siteName: "Bloom", styleRef: undefined });
-    expect(b.map((l) => l.prompt)).toEqual(a.map((l) => l.prompt));
-    expect(a[0].prompt).not.toContain("image 2");
   });
 
   it("the build brief points at DESIGN.md, SITE.md and the lock", () => {
@@ -200,8 +192,8 @@ describe("site context — a locked direction carries to the next page", () => {
     expect(b).toContain("what must keep working: D/SITE.md");
   });
 
-  it("the readings model gets the page outline", () => {
-    const u = readingsUser({ edit: "x", siteName: "Bloom", outline: pageBrief(locked, "/weddings") });
+  it("the mockup writer gets the page outline, lock and all", () => {
+    const u = codedUser({ kind: "edit", edit: "x", lane: "faithful", siteName: "Bloom", device: "desktop", outline: pageBrief(locked, "/weddings") });
     expect(u).toContain("Page outline, read from the rendered page:");
     expect(u).toContain("LOCKED DIRECTION");
   });

@@ -508,7 +508,7 @@ function LookSection({
   // A client edit changes a site that already has a look, so there is no look
   // to choose — but there IS a question to answer before the build: "is this
   // what the client meant?". So an edit gets the edit bake-off: the approved
-  // edits, painted three ways onto a screenshot of the page the client is on.
+  // edits, made three ways on a coded copy of the page the client is on.
   if (project.edit) return <EditLookSection project={project} spec={spec} onChoose={onChoose} />;
 
   const accepted = project.features.some((f) => f.status === "accepted");
@@ -518,11 +518,11 @@ function LookSection({
         <b>{project.look ? "✓ Look picked" : "Next · pick the look"}</b>
         <span>features → mockups → depth → build on your PC → Client Review</span>
       </p>
-      {!accepted && <p className="ab-look-wait">These draw from the whole list for now. Accept features and they redraw from yours — Flux 2 paints them once you have.</p>}
+      {!accepted && <p className="ab-look-wait">These draw from the whole list for now. Accept features and they redraw from yours — Claude designs them once you have.</p>}
       {
         <MockupBakeOff
           spec={spec}
-          // Painting costs a GPU minute per lane; wait until the list means something.
+          // Claude writes a full page per lane; wait until the list means something.
           pictures={accepted}
           // A skill the owner pinned in the Redesigner leads lane 1.
           recommended={project.redesign?.skills?.[0] ?? project.understanding?.designSkill}
@@ -542,7 +542,7 @@ function LookSection({
   );
 }
 
-/** The edit bake-off for a client edit: the approved edits, painted onto the live page. */
+/** The edit bake-off for a client edit: the approved edits, made on the live page. */
 export function EditLookSection({
   project,
   spec,
@@ -575,7 +575,7 @@ export function EditLookSection({
       </p>
       <MockupBakeOff
         // The site's own name, as Client Review and the Redesigner use it: it
-        // is part of the Flux prompt, so the same name means the same pictures.
+        // is part of the mockup request, so the same name means the same mockups.
         spec={siteSpec}
         recommended={project.understanding?.designSkill}
         chosen={project.look ?? null}
@@ -586,7 +586,7 @@ export function EditLookSection({
         caption={
           project.look?.edit
             ? `The build is held to "${project.look.edit.label}". Pick another, or tweak one, to change it.`
-            : `${edit.siteName}'s live page with the approved edits painted on, three ways. Pick the one that matches what ${edit.clientName || "the client"} meant.`
+            : `${edit.siteName}'s live page with the approved edits made, three ways. Pick the one that matches what ${edit.clientName || "the client"} meant.`
         }
       />
     </section>

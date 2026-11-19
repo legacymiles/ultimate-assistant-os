@@ -45,7 +45,7 @@ export const dynamic = "force-dynamic";
 //        { action: "subscribe", subscription }      — a browser push subscription
 //        { action: "seen" }                         — notices read
 //        { action: "look", skill, edit? }           — pick a direction, or a version of an edit
-//        { action: "mockups", edit, lanes }         — owner only: the Flux paintings, for the client
+//        { action: "mockups", edit, lanes }         — owner only: the coded mockups, for the client
 // ---------------------------------------------------------------------------
 
 type Outcome =
@@ -57,8 +57,8 @@ type Outcome =
 
 const NOT_FOUND = { error: "This review link isn't active. Ask for a new one." };
 const MAX_BODY = 16_000;
-/** Three mockup pictures (see saveMockups) plus room for the JSON around them. */
-const MOCKUP_BODY_MAX = 3 * 420_000 + 4_000;
+/** Three coded mockups (see saveMockups), escaped as JSON, plus room around them. */
+const MOCKUP_BODY_MAX = 3 * 200_000 + 4_000;
 
 async function load(token: string): Promise<ClientProject | null> {
   if (!isToken(token)) return null;
@@ -121,7 +121,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
   const found = g.project;
 
   const raw = await req.text();
-  // Three painted mockups are the one big thing this route takes, and only
+  // Three coded mockups are the one big thing this route takes, and only
   // from the owner; everything a client sends stays under the small limit.
   const limit = g.owner && raw.startsWith('{"action":"mockups"') ? MOCKUP_BODY_MAX : MAX_BODY;
   if (raw.length > limit) return NextResponse.json({ error: "That's too much in one go." }, { status: 413 });
@@ -183,8 +183,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
           };
         }
         case "mockups": {
-          // Only the owner paints (Flux runs on their PC); a client can't
-          // put pictures on their own link.
+          // Only the owner's screen writes mockups; a client can't put
+          // pages on their own link.
           if (!g.owner) throw new ReviewError("Only the owner can add mockups.", 403);
           return { project: saveMockups(p, { edit: body.edit, lanes: body.lanes }), result: { kind: "mockups" as const } };
         }

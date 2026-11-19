@@ -9,7 +9,7 @@
 //     up in a sheet, and a redirect inside that frame would swap the sheet's
 //     contents for a whole second app. The page reads `Sec-Fetch-Dest: iframe`
 //     and passes `framed`.
-//   - The boards the Studio does not host: the Flux edit-mockup board
+//   - The boards the Studio does not host: the edit-mockup board
 //     (`v=edit`, which the website-edit-mockups skill links to), the bake-off
 //     (`v=2`) and the Showcase (`v=showcase`).
 //

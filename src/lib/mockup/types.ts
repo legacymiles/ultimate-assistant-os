@@ -8,9 +8,9 @@
 // image model — a picture of an interface tells you about the colours, and a
 // rendered interface tells you whether you want to use it.
 //
-// Nothing here calls out. A spec plus a skin is enough to draw an app, so a
-// mockup costs nothing, needs no key, and appears the moment the feature list
-// does (checklist R4).
+// Two kinds: the instant layout drawing (render.ts — a spec plus a skin, no
+// call out, appears the moment the feature list does, checklist R4) and the
+// finished design Claude writes from the same spec (coded.ts).
 //
 // Two axes make the three directions genuinely different rather than three
 // palettes of the same page:
@@ -110,15 +110,6 @@ export interface MockupSite {
   oldColors?: string[];
 }
 
-/** A Flux 2 picture of one lane, drawn on the owner's PC. */
-export interface MockupPicture {
-  /** data: URL of the picture. */
-  image: string;
-  /** The prompt that drew it — the cache key, and what the owner can read. */
-  prompt: string;
-  ms: number;
-}
-
 /** One lane of the bake-off: a design skill, drawn. */
 export interface MockupDirection {
   /** The design skill. Its identity in the UI, and what lands in the brief. */
@@ -150,24 +141,6 @@ export interface LookChoice {
    * above stays the site's own look, so nothing that reads `skill` changes.
    */
   edit?: EditPick;
-}
-
-/**
- * A picture Flux starts FROM. The first one is the scene being changed.
- *
- * `url` and `html` are photographed by the drawer on the owner's PC at the
- * size being drawn, so the reference and the result line up; `image` is a
- * data URL already in hand (a screenshot the app took, or a lane's own
- * picture when it is being tweaked).
- */
-export interface MockupRef {
-  image?: string;
-  url?: string;
-  html?: string;
-  /** Lets coded mockup HTML load the hub's own fonts. */
-  base?: string;
-  width?: number;
-  height?: number;
 }
 
 export type { EditLaneId, EditPick, SiteFacts } from "./edit";

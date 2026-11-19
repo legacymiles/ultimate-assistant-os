@@ -30,6 +30,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { BuildFeed, BuildSteer, useLiveBuild } from "./LiveBuild";
 import { BuildingStage } from "./BuildingStage";
 import { LookPass } from "./LookPass";
+import type { PaintedLane } from "../mockup/MockupBakeOff";
 import { DesignSlash } from "../website-studio/DesignSlash";
 import { SignInGate } from "./SignInGate";
 import type { PortalRequest, PortalView, RequestPin, ReviewVersion } from "@/lib/client-review/types";
@@ -269,12 +270,12 @@ export function ClientPortal({
   );
 
   /**
-   * Keep the owner's Flux paintings on the link, quietly: it happens on its
-   * own once all three are painted, so it neither blocks the screen nor
-   * shouts when it fails — the owner still has the pictures in front of them.
+   * Keep the owner's coded mockups on the link, quietly: it happens on its
+   * own once all three are written, so it neither blocks the screen nor
+   * shouts when it fails — the owner still has the mockups in front of them.
    */
   const saveMockups = useCallback(
-    async (edit: string, lanes: { lane: string; image: string; label: string; instruction: string }[]) => {
+    async (edit: string, lanes: PaintedLane[]) => {
       try {
         apply(await portal.act(token, { action: "mockups", edit, lanes }));
       } catch (e) {

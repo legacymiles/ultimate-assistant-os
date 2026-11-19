@@ -1,5 +1,5 @@
 /* ---------------------------------------------------------------------------
-   Mockup bake-off — shared by App Builder and Client Review.
+   Mockup bake-off — shared by App Builder, Website Studio and Client Review.
 
    Design skill: interactive-web-studio (craft floor only — this is dense
    product UI inside an existing shell, so no scroll cinematography, no custom
@@ -10,7 +10,7 @@
    owns is the chosen state, because "which one did I pick" is the single piece
    of state this panel has.
 
-   The drawn mockups inside the frames bring their OWN design systems — that is
+   The coded mockups inside the frames bring their OWN design systems — that is
    the whole point — so this chrome stays deliberately quiet. Anything louder
    here would compete with the three things it exists to show.
    --------------------------------------------------------------------------- */
@@ -206,6 +206,9 @@
   pointer-events: none; /* the overlay owns the pointer — see MockupBakeOff */
 }
 
+/* Open full width: the mockup is a real page, so let it scroll. */
+.mk-iframe.is-live { pointer-events: auto; }
+
 .mk-open {
   position: absolute;
   inset: 0;
@@ -239,6 +242,13 @@
 /* A touch screen has no hover, so the label is simply always there. */
 @media (hover: none) {
   .mk-open { opacity: 1; }
+}
+
+.mk-open.is-corner {
+  inset: 8px auto auto 8px;
+  padding: 0;
+  opacity: 1;
+  z-index: 2;
 }
 
 .mk-fail {
@@ -339,10 +349,11 @@
   .mk-open { opacity: 1; }
 }
 
-/* ----- Flux 2 pictures ----------------------------------------------------
-   The painted lane. Same box as the drawing, so switching Flux render / Live
-   layout never moves the page. Status speaks in the panel's one accent, and
-   "painting" pulses — the only motion here, and it stops for reduced motion. */
+/* ----- coded mockups -------------------------------------------------------
+   Claude's written page sits in the same box as the layout drawing, so
+   switching Designed / Layout never moves the page. Status speaks in the
+   panel's one accent, and "writing" pulses — the only motion here, and it
+   stops for reduced motion. */
 
 .mk-pc {
   display: flex;
@@ -366,6 +377,7 @@
 .mk-pc.is-direct .mk-pc-dot,
 .mk-pc.is-server .mk-pc-dot { background: var(--mk-yes); }
 .mk-pc.is-busy .mk-pc-dot { background: #f59e0b; animation: mk-pulse 1.2s ease-in-out infinite; }
+.mk-pc.is-off .mk-pc-dot { background: var(--mk-faint); }
 
 .mk-frame-wrap { position: relative; }
 
@@ -389,7 +401,20 @@
   pointer-events: none;
 }
 
-.mk-paint.is-failed { color: var(--mk-muted); }
+.mk-paint.is-failed { color: var(--mk-muted); pointer-events: auto; }
+
+.mk-paint-retry {
+  appearance: none;
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--mk-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
 
 .mk-paint-dot {
   width: 6px;
@@ -441,6 +466,7 @@
 }
 
 .mk-pic:hover .mk-redraw,
+.mk-frame-wrap:hover .mk-redraw,
 .mk-redraw:focus-visible { opacity: 1; }
 .mk-redraw:hover { color: var(--mk-ink); }
 

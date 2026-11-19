@@ -32,7 +32,7 @@ describe("the picked edit mockup reaches the build", () => {
     const withPick = { ...review, look: { skill: "interactive-web-studio", at: T, by: "client" as const, edit: pickFor(edit) } };
     const p = clientEditProject(withPick, batchId, new Date(T), "ab_t");
     expect(p.look?.edit?.label).toBe("Polished");
-    expect(pickedMockupLine(p)).toContain('Mockup picked (Flux 2, "Polished")');
+    expect(pickedMockupLine(p)).toContain('Mockup picked (coded, "Polished")');
     expect(editQueueText(p)).toContain("make the pink a touch warmer");
     const master = editMasterPrompt(p);
     expect(master).toContain("<picked_mockup>");

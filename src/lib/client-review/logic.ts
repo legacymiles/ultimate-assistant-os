@@ -30,6 +30,7 @@ import type {
   RequestPin,
   ReviewIndex,
   ReviewVersion, SharedMockups } from "./types";
+import { cleanMockupHtml, CODED_MAX } from "@/lib/mockup/coded";
 
 export class ReviewError extends Error {
   constructor(
@@ -1061,15 +1062,17 @@ export function pickLook(
   return { ...src, look: { skill, at: now, by, ...(edit ? { edit } : {}) }, updatedAt: now };
 }
 
-/** One painted lane can be at most this big as a data URL (~300 KB of JPEG). */
+/** One saved lane's picture (from before coded mockups) can be at most this big as a data URL. */
 export const MOCKUP_IMAGE_MAX = 420_000;
 
 /**
- * Keep the owner's three Flux paintings of the edits, so the client sees them.
+ * Keep the owner's three coded mockups of the edits, so the client sees them.
  *
- * Owner only (the route checks), validated like a screenshot: a real image
- * data URL of bounded size, a known lane, at most one of each. Saving the same
- * set again writes nothing (D5).
+ * Owner only (the route checks): a known lane, at most one of each, and a
+ * page that cleanMockupHtml accepts — scripts, handlers and frames are
+ * stripped again here, because the client's browser shows it. A lane may
+ * still carry a picture instead (a set saved before 18 Nov 2026). Saving the
+ * same set again writes nothing (D5).
  */
 export function saveMockups(
   src: ClientProject,
@@ -1086,16 +1089,17 @@ export function saveMockups(
     if (lane !== "faithful" && lane !== "polished" && lane !== "bold") continue;
     if (lanes.some((l) => l.lane === lane)) continue;
     if (lanes.length >= 3) break;
-    const image = typeof o.image === "string" ? o.image.trim() : "";
-    if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(image) || image.length > MOCKUP_IMAGE_MAX) {
-      throw new ReviewError("A mockup picture couldn't be saved.", 400);
+    const html = typeof o.html === "string" && o.html.length <= CODED_MAX ? cleanMockupHtml(o.html) : "";
+    const image = !html && typeof o.image === "string" ? o.image.trim() : "";
+    if (!html && (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(image) || image.length > MOCKUP_IMAGE_MAX)) {
+      throw new ReviewError("A mockup couldn't be saved.", 400);
     }
     const text = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
     const label = text(o.label, 40);
     const instruction = text(o.instruction, 600);
-    lanes.push({ lane, image, ...(label ? { label } : {}), ...(instruction ? { instruction } : {}) });
+    lanes.push({ lane, ...(html ? { html } : { image }), ...(label ? { label } : {}), ...(instruction ? { instruction } : {}) });
   }
-  if (!lanes.length) throw new ReviewError("There were no mockup pictures to save.", 400);
+  if (!lanes.length) throw new ReviewError("There were no mockups to save.", 400);
   const had = src.mockups;
   if (
     had &&
@@ -1104,7 +1108,8 @@ export function saveMockups(
     had.lanes.every(
       (l, i) =>
         l.lane === lanes[i].lane &&
-        l.image === lanes[i].image &&
+        (l.html ?? "") === (lanes[i].html ?? "") &&
+        (l.image ?? "") === (lanes[i].image ?? "") &&
         (l.label ?? "") === (lanes[i].label ?? "") &&
         (l.instruction ?? "") === (lanes[i].instruction ?? ""),
     )

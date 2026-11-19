@@ -31,7 +31,7 @@ import { frameAddress } from "@/lib/client-review/frame";
 import { approveAndStart, connectToPc, undoTo } from "@/lib/client-review/buildHere";
 import { SHIP_SAY } from "@/lib/client-review/autoBuild";
 import { blockerAdvice, type Blocker } from "@/lib/client-review/liveBuild";
-import type { EditLaneId, EditPick } from "@/lib/mockup/edit";
+import type { EditPick } from "@/lib/mockup/edit";
 import type { ClientProject, PortalView } from "@/lib/client-review/types";
 import { BridgeError, call, probe, type BridgeHealth } from "@/lib/new-jarvis/bridge";
 import { useChatModel } from "@/lib/new-jarvis/useChatModel";
@@ -43,6 +43,7 @@ import { coerceIdeas, decide, foldIdeas, type EditIdea } from "@/lib/website-stu
 import { FACTORY_DONE, factoryBrief, type StageFacts } from "@/lib/website-studio/pipeline";
 import { BuildFeed, useLiveBuild } from "../client-review/LiveBuild";
 import { LookPass } from "../client-review/LookPass";
+import type { PaintedLane } from "../mockup/MockupBakeOff";
 import { ModelPicker } from "../new-jarvis/ModelPicker";
 import { DEPTH_BLURB } from "@/lib/app-builder/depth";
 import { DesignSlash } from "./DesignSlash";
@@ -271,10 +272,10 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
   // ----- asking for a change ----------------------------------------------------------
   //
   // Two steps, not one, because of the owner's standing rule (Nov 2026): an
-  // edit to a page that exists is painted three ways onto that page before
+  // edit to a page that exists is mocked up three ways on that page before
   // anything is built, and the pick is what starts the build. Send files the
   // request and opens the look pass; the pick runs the build. A site with no
-  // address yet has nothing to paint onto, so it builds the way it always did.
+  // address yet has nothing to mock up, so it builds the way it always did.
 
   /**
    * The page as it looks right now. The owner's hub apps are framed
@@ -372,7 +373,7 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
 
   /**
    * None of the three mockups is right: the owner's note goes into the edit's
-   * wording (their reword), so the three are written and painted again from
+   * wording (their reword), so Claude rewrites the three from
    * it, and the build reads the same words.
    */
   const [revision, setRevision] = useState<{ id: number; change: string; after: string } | null>(null);
@@ -449,7 +450,7 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
       try {
         await redoMockups(body);
         setText("");
-        setNote("Claude is rewriting the three mockups from that, then they're painted again.");
+        setNote("Claude is rewriting the three mockups from that.");
       } finally {
         setSending(false);
       }
@@ -475,7 +476,7 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
       }
       if (canPaintEdit({ liveUrl, building }, owner)) {
         setTab("look");
-        setNote("Painting three readings of that edit onto the page. Pick one and the build starts.");
+        setNote("Claude is mocking up three readings of that edit on the page. Pick one and the build starts.");
         return;
       }
       await startBuild();
@@ -514,9 +515,9 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
     [run, token, startBuild],
   );
 
-  /** Owner only: keep the three paintings on the project so the client sees them too. */
+  /** Owner only: keep the three mockups on the project so the client sees them too. */
   const saveMockups = useCallback(
-    async (edit: string, lanes: { lane: EditLaneId; image: string; label: string; instruction: string }[]) => {
+    async (edit: string, lanes: PaintedLane[]) => {
       try {
         setView(await portal.act(token, { action: "mockups", edit, lanes }));
       } catch {
@@ -936,7 +937,7 @@ export function SiteWorkspace({ token, owner, onBack, onChanged }: Props) {
                       ? "Tell Claude what else to change — or press Ship it"
                       : "Tell Claude something while it works — “stop”, “don't commit”, “make it darker”"
                     : owner && tab === "look" && lookPassOpen
-                      ? "Not quite? Tell Claude what to change in the mockups — all three are rewritten and painted again"
+                      ? "Not quite? Tell Claude what to change in the mockups — all three are rewritten"
                       : owner
                       ? "What should change? Press / for a skill. Sending paints it three ways first."
                       : "What would you like changed?"

@@ -40,7 +40,7 @@ export function pickedMockupLine(p: BuilderProject, max = 420): string {
   const e = p.look?.edit;
   if (!e) return "";
   const tweaks = e.tweaks.length ? `; then: ${e.tweaks.map(oneLine).join("; ")}` : "";
-  const text = `Mockup picked (Flux 2, "${e.label}") — build this version: ${oneLine(e.instruction)}${tweaks}. Match the picked mockup and compare against it before posting the preview.`;
+  const text = `Mockup picked (coded, "${e.label}") — build this version: ${oneLine(e.instruction)}${tweaks}. Match the picked mockup and compare against it before posting the preview.`;
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
@@ -50,7 +50,7 @@ export function pickedMockupBlock(p: BuilderProject): string {
   if (!e) return "";
   return [
     "<picked_mockup>",
-    `The owner was shown three Flux 2 mockups of these edits, painted onto the live page, and picked "${e.label}".`,
+    `The owner was shown three coded mockups of these edits (the live page recreated in HTML by Claude, with the edits made) and picked "${e.label}".`,
     `Build this version: ${oneLine(e.instruction)}`,
     ...(e.tweaks.length ? ["Refined after the first drawing, in order:", ...e.tweaks.map((t) => `- ${oneLine(t)}`)] : []),
     "Match it, then screenshot the result at desktop and 390 px and compare it with the mockup before posting the preview.",

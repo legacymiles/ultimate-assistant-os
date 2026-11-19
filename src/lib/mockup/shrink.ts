@@ -1,9 +1,9 @@
 "use client";
 
 // ---------------------------------------------------------------------------
-// Make a painted mockup small enough to keep on a project or post to the
-// queue: at most `maxWidth` wide, JPEG. A Flux picture arrives at ~150-300 KB;
-// a 960 px JPEG at 0.74 is ~70-120 KB and still reads every word.
+// Make a picture (a page screenshot, or a photographed mockup) small enough
+// to send to a model or post to the queue: at most `maxWidth` wide, JPEG. A
+// 960 px JPEG at 0.74 is ~70-120 KB and still reads every word.
 //
 // createImageBitmap, not <img>.decode(): measured in the hub's own browser
 // pane, decode() on an image that isn't in the page never settled, so the

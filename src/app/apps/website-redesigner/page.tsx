@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { studioRedirectFor } from "@/lib/website-studio/redirects";
 
 // Website Redesigner lives inside Website Studio now (its "Redesign a website"
-// start); the bake-off, Showcase and Flux edit board stay on App Builder's
+// start); the bake-off, Showcase and edit-mockup board stay on App Builder's
 // redesign section, which the Studio does not host.
 // The route stays alive because links to it exist; `?v=2` (the bake-off),
 // `?v=showcase` and `?v=edit` (with an edit's url / edit / name / lanes) are

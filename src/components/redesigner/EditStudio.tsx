@@ -3,16 +3,15 @@
 // ---------------------------------------------------------------------------
 // Website Redesigner — Edit.
 //
-// Every website edit starts here: the page, the change, and three Flux 2
-// mockups of it painted onto the live page before a line of code moves.
-// Pick one (tweak it first if it's nearly right) and it goes to the build
-// with the picked picture attached, so the builder is held to what the owner
-// actually saw.
+// Every website edit starts here: the page, the change, and three coded
+// mockups of it — the live page recreated in HTML by Claude with only the
+// change made — before a line of code moves. Pick one (tweak it first if it's
+// nearly right) and it goes to the build with a picture of the picked mockup
+// attached, so the builder is held to what the owner actually saw.
 //
 // It is also where an edit asked for in Claude Code chat lands: the chat
 // command (tools/mockup-edit) prints a link here carrying the page, the change
-// and the three readings it wrote from the code, and the drawer's cache hands
-// this board the same pictures the chat already showed.
+// and the three readings Claude wrote from the code.
 //
 //   /apps/app-builder?section=redesign&v=edit&url=…&edit=…[&name=…][&l1=…&l2=…&l3=…][&go=1]
 //
@@ -28,6 +27,7 @@ import { QUEUE_FOLDER, QUEUE_HREF } from "@/lib/app-builder/queue";
 import { editBrief, nameFromUrl, type CustomLane, type EditPick } from "@/lib/mockup/edit";
 import { shrinkImage } from "@/lib/mockup/shrink";
 import { specFromEdits } from "@/lib/mockup/spec";
+import { photographMockup } from "@/lib/mockup/useCodedMockups";
 
 import "./edit-studio.css";
 
@@ -40,7 +40,8 @@ interface Job {
 
 interface Picked {
   pick: EditPick;
-  image?: string;
+  /** The picked lane's coded mockup. */
+  html?: string;
 }
 
 const RECENT_KEY = "rdx-edit-recent";
@@ -97,7 +98,7 @@ export function EditStudio() {
   const [recent, setRecent] = useState<Job[]>([]);
   const [picked, setPicked] = useState<Picked | null>(null);
 
-  // A link from the chat command fills the form and starts painting at once.
+  // A link from the chat command fills the form and starts the mockups at once.
   useEffect(() => {
     setRecent(readRecent());
     const q = readQuery();
@@ -154,8 +155,8 @@ export function EditStudio() {
         <p className="rdx-edit-kick">Website Redesigner · Edit</p>
         <h1 className="rdx-edit-h">See the change before it&apos;s built.</h1>
         <p className="rdx-edit-sub">
-          Give the page and the change. Flux 2 photographs the live page on your PC and paints your change onto it
-          three ways. Tweak the one that&apos;s nearly right, pick it, and the build is held to that picture.
+          Give the page and the change. Claude reads the live page and recreates it in HTML with your change made,
+          three ways. Tweak the one that&apos;s nearly right, pick it, and the build is held to that mockup.
         </p>
       </header>
 
@@ -196,8 +197,8 @@ export function EditStudio() {
         </label>
         <button type="submit" className="rdx-edit-go" disabled={!canStart}>
           {job && job.url === normalizeUrl(url, typeof window === "undefined" ? "" : window.location.origin) && job.edit === edit.trim()
-            ? "Painting below"
-            : "Paint 3 mockups"}
+            ? "Mockups below"
+            : "Make 3 mockups"}
         </button>
       </form>
 
@@ -231,7 +232,7 @@ export function EditStudio() {
             reference={{ url: job.url }}
             customLanes={job.lanes}
             chosen={picked ? { skill: "interactive-web-studio", at: "", by: "owner", edit: picked.pick } : null}
-            onChoose={(_skill, pick, image) => pick && setPicked({ pick, image })}
+            onChoose={(_skill, pick, html) => pick && setPicked({ pick, html })}
             chooseLabel="Build this one"
           />
           {picked && <SendPanel job={job} siteName={siteName} picked={picked} />}
@@ -259,7 +260,10 @@ function SendPanel({ job, siteName, picked }: { job: Job; siteName: string; pick
     setState("sending");
     setError("");
     try {
-      const image = picked.image ? await shrinkImage(picked.image, 1280, 0.8) : "";
+      // A picture of the picked mockup rides along when the PC can take one;
+      // the brief stands on its own when it can't.
+      const shot = picked.html ? await photographMockup(picked.html, "desktop").catch(() => "") : "";
+      const image = shot ? await shrinkImage(shot, 1280, 0.8).catch(() => "") : "";
       const res = await fetch("/api/new-jarvis/requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -305,7 +309,7 @@ function SendPanel({ job, siteName, picked }: { job: Job; siteName: string; pick
           {picked.pick.tweaks.length
             ? `With ${picked.pick.tweaks.length} tweak${picked.pick.tweaks.length === 1 ? "" : "s"}. `
             : ""}
-          The builder gets this brief and the picked picture, and checks its result against it.
+          The builder gets this brief and the picked mockup, and checks its result against it.
         </p>
       </div>
       <pre className="rdx-edit-brief">{brief}</pre>
