@@ -1,10 +1,289 @@
 [
  {
+  "id": "a4f4a5e:ai-rankings",
+  "date": "2026-11-18",
+  "slug": "ai-rankings",
+  "title": "Every category scored on its own dimensions",
+  "detail": "One 0-100 answered \"which is best\" and hid the only question anyone asks: best at what. Every category now carries its own weighted dimensions - text-to-speech on naturalness, emotion, clarity, pronunciation accuracy, speed, cost and age; video on motion, consistency, native audio and clip length; L",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ace1bd6:client-review",
+  "date": "2026-11-18",
+  "slug": "client-review",
+  "title": "Mockups are now real pages Claude writes, not Flux paintings",
+  "detail": "Every mockup board (Website Studio Look, App Builder look and client edits, Client Review, the Redesigner's Edit board, and the chat command) now shows three self-contained HTML/CSS pages written by Claude instead of Flux 2 pictures painted on the PC. Owner's call: better looking, exact words, and a",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ace1bd6:mockup",
+  "date": "2026-11-18",
+  "slug": "mockup",
+  "title": "Mockups are now real pages Claude writes, not Flux paintings",
+  "detail": "Every mockup board (Website Studio Look, App Builder look and client edits, Client Review, the Redesigner's Edit board, and the chat command) now shows three self-contained HTML/CSS pages written by Claude instead of Flux 2 pictures painted on the PC. Owner's call: better looking, exact words, and a",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ace1bd6:website-redesigner",
+  "date": "2026-11-18",
+  "slug": "website-redesigner",
+  "title": "Mockups are now real pages Claude writes, not Flux paintings",
+  "detail": "Every mockup board (Website Studio Look, App Builder look and client edits, Client Review, the Redesigner's Edit board, and the chat command) now shows three self-contained HTML/CSS pages written by Claude instead of Flux 2 pictures painted on the PC. Owner's call: better looking, exact words, and a",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ace1bd6:app-builder",
+  "date": "2026-11-18",
+  "slug": "app-builder",
+  "title": "Mockups are now real pages Claude writes, not Flux paintings",
+  "detail": "Every mockup board (Website Studio Look, App Builder look and client edits, Client Review, the Redesigner's Edit board, and the chat command) now shows three self-contained HTML/CSS pages written by Claude instead of Flux 2 pictures painted on the PC. Owner's call: better looking, exact words, and a",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "ace1bd6:website-studio",
+  "date": "2026-11-18",
+  "slug": "website-studio",
+  "title": "Mockups are now real pages Claude writes, not Flux paintings",
+  "detail": "Every mockup board (Website Studio Look, App Builder look and client edits, Client Review, the Redesigner's Edit board, and the chat command) now shows three self-contained HTML/CSS pages written by Claude instead of Flux 2 pictures painted on the PC. Owner's call: better looking, exact words, and a",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7f69f5e:profiles",
+  "date": "2026-11-18",
+  "slug": "profiles",
+  "title": "New app — a web of your people, businesses and jobs, filled by talking to Jarvis",
+  "detail": "/apps/profiles: profile cards on home, profiles inside profiles shown one level at a time, foldable detail sections, a gallery, and settings. Jarvis collapses to an orb or a bar and opens into a full chat where telling it something becomes a change set you Save (every save can be undone).",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "6daf53f:mockup",
+  "date": "2026-11-18",
+  "slug": "mockup",
+  "title": "Talk to the mockups — a note in the chat box rewrites all three with Claude on your plan",
+  "detail": "While the three mockups wait for a pick, the chat box (Redo mockups) and the Not quite? box take a note on them. Claude on the owner's plan, through the PC helper's brain/claude, rewrites the three readings from the ones on screen, the note and the screenshot (hub AI as fallback), and Flux paints th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6daf53f:client-review",
+  "date": "2026-11-18",
+  "slug": "client-review",
+  "title": "Talk to the mockups — a note in the chat box rewrites all three with Claude on your plan",
+  "detail": "While the three mockups wait for a pick, the chat box (Redo mockups) and the Not quite? box take a note on them. Claude on the owner's plan, through the PC helper's brain/claude, rewrites the three readings from the ones on screen, the note and the screenshot (hub AI as fallback), and Flux paints th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "6daf53f:website-studio",
+  "date": "2026-11-18",
+  "slug": "website-studio",
+  "title": "Talk to the mockups — a note in the chat box rewrites all three with Claude on your plan",
+  "detail": "While the three mockups wait for a pick, the chat box (Redo mockups) and the Not quite? box take a note on them. Claude on the owner's plan, through the PC helper's brain/claude, rewrites the three readings from the ones on screen, the note and the screenshot (hub AI as fallback), and Flux paints th",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5599404:app-builder",
+  "date": "2026-11-18",
+  "slug": "app-builder",
+  "title": "Commercial and Commercial 2x switches on edits, and every Jarvis chat takes prompts up to 100,000 characters",
+  "detail": "Commercial / Commercial 2x sit under Software Factory in the chat box. On, the edit's build also brings the whole site up to that depth (a <depth> block in the brief) and always takes the full road; off, edits are unchanged.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5599404:jarvis",
+  "date": "2026-11-18",
+  "slug": "jarvis",
+  "title": "Commercial and Commercial 2x switches on edits, and every Jarvis chat takes prompts up to 100,000 characters",
+  "detail": "Commercial / Commercial 2x sit under Software Factory in the chat box. On, the edit's build also brings the whole site up to that depth (a <depth> block in the brief) and always takes the full road; off, edits are unchanged.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5599404:client-review",
+  "date": "2026-11-18",
+  "slug": "client-review",
+  "title": "Commercial and Commercial 2x switches on edits, and every Jarvis chat takes prompts up to 100,000 characters",
+  "detail": "Commercial / Commercial 2x sit under Software Factory in the chat box. On, the edit's build also brings the whole site up to that depth (a <depth> block in the brief) and always takes the full road; off, edits are unchanged.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "5599404:website-studio",
+  "date": "2026-11-18",
+  "slug": "website-studio",
+  "title": "Commercial and Commercial 2x switches on edits, and every Jarvis chat takes prompts up to 100,000 characters",
+  "detail": "Commercial / Commercial 2x sit under Software Factory in the chat box. On, the edit's build also brings the whole site up to that depth (a <depth> block in the brief) and always takes the full road; off, edits are unchanged.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "b3fc4cf:voice-studio",
   "date": "2026-11-18",
   "slug": "voice-studio",
   "title": "The voice runs on your own CPU with Phonon, instead of calling fish.audio",
   "detail": "Gradium's Phonon (phonon-31m-en, 65 MB q8) now speaks for Jarvis from a small local server, selected with TTS_BACKEND=phonon. Free, offline, no key, ~5.5x realtime on this laptop, and 102 voices. It is a CPU runtime -- no CUDA backend exists -- so it never touches the 6 GB GPU.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2552816:client-review",
+  "date": "2026-11-15",
+  "slug": "client-review",
+  "title": "Hub apps open signed in, and Google sign-in inside a frame opens a popup instead of a 403",
+  "detail": "Builds report the hub at ultimate-assistant-os.vercel.app while the Studio runs on bighomieai.com, so the frame was another site: no session, the login wall, and Google refusing to draw inside a frame. Hub addresses are now framed as paths on the Studio's own site (frameAddress). A sign-in that stil",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2552816:website-studio",
+  "date": "2026-11-15",
+  "slug": "website-studio",
+  "title": "Hub apps open signed in, and Google sign-in inside a frame opens a popup instead of a 403",
+  "detail": "Builds report the hub at ultimate-assistant-os.vercel.app while the Studio runs on bighomieai.com, so the frame was another site: no session, the login wall, and Google refusing to draw inside a frame. Hub addresses are now framed as paths on the Studio's own site (frameAddress). A sign-in that stil",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0c003bb:client-review",
+  "date": "2026-11-15",
+  "slug": "client-review",
+  "title": "Look at an edit before it is committed, mockups that start and show themselves, and the build inside the chat",
+  "detail": "- A quick edit now stops with nothing committed and says READY. The PC serves that build's folder and the canvas shows the change at once, beside a Ready for you to look card: Ship it commits, merges and puts it live; Throw it away keeps nothing; anything typed is more to change. While a build runs,",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0c003bb:mockup",
+  "date": "2026-11-15",
+  "slug": "mockup",
+  "title": "Look at an edit before it is committed, mockups that start and show themselves, and the build inside the chat",
+  "detail": "- A quick edit now stops with nothing committed and says READY. The PC serves that build's folder and the canvas shows the change at once, beside a Ready for you to look card: Ship it commits, merges and puts it live; Throw it away keeps nothing; anything typed is more to change. While a build runs,",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "0c003bb:website-studio",
+  "date": "2026-11-15",
+  "slug": "website-studio",
+  "title": "Look at an edit before it is committed, mockups that start and show themselves, and the build inside the chat",
+  "detail": "- A quick edit now stops with nothing committed and says READY. The PC serves that build's folder and the canvas shows the change at once, beside a Ready for you to look card: Ship it commits, merges and puts it live; Throw it away keeps nothing; anything typed is more to change. While a build runs,",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "f17e8f6:personas-studio",
+  "date": "2026-11-15",
+  "slug": "personas-studio",
+  "title": "Purple brand colours and a bold centred hero (#32)",
+  "detail": "",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1947b34:app-builder",
+  "date": "2026-11-15",
+  "slug": "app-builder",
+  "title": "Feature ideas to accept or skip on every edit, like App Builder's list for new builds",
+  "detail": "As soon as an edit is sent, 3-5 ideas that belong with that change (carry it through to related elements, phone layout, states, contrast, speed) appear in the side panel with Add or Skip. The edit never waits for them; added ideas are folded into the same request's wording so they build in the same ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "1947b34:website-studio",
+  "date": "2026-11-15",
+  "slug": "website-studio",
+  "title": "Feature ideas to accept or skip on every edit, like App Builder's list for new builds",
+  "detail": "As soon as an edit is sent, 3-5 ideas that belong with that change (carry it through to related elements, phone layout, states, contrast, speed) appear in the side panel with Add or Skip. The edit never waits for them; added ideas are folded into the same request's wording so they build in the same ",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9dc2868:client-review",
+  "date": "2026-11-15",
+  "slug": "client-review",
+  "title": "A picture of every version with a real Undo, the Ship console as a tab, and depth, Send to board and Delete on drafts",
+  "detail": "- Versions: Send photographs the page before an edit and again once it lands; each version shows its picture. Undo to vN takes the newer edits off main — GitHub reverts their pull requests and merges the reverts from the website (works with the PC off), else the PC does it as a quick thread — and mo",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "9dc2868:website-studio",
+  "date": "2026-11-15",
+  "slug": "website-studio",
+  "title": "A picture of every version with a real Undo, the Ship console as a tab, and depth, Send to board and Delete on drafts",
+  "detail": "- Versions: Send photographs the page before an edit and again once it lands; each version shows its picture. Undo to vN takes the newer edits off main — GitHub reverts their pull requests and merges the reverts from the website (works with the PC off), else the PC does it as a quick thread — and mo",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7a787af:app-builder",
+  "date": "2026-11-15",
+  "slug": "app-builder",
+  "title": "Quick edits in minutes without asking, a live checklist, design skills on /, the model menu where you type",
+  "detail": "\"Change it to blue\" took 24 minutes and stopped twice for permission. Its own log showed why: a one-line edit got the new-app road (five skills, the whole test suite, a production build, two design-check crawls, polling CI and the preview), then the PC re-built and crawled it, and the Studio sent So",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7a787af:website-redesigner",
+  "date": "2026-11-15",
+  "slug": "website-redesigner",
+  "title": "Quick edits in minutes without asking, a live checklist, design skills on /, the model menu where you type",
+  "detail": "\"Change it to blue\" took 24 minutes and stopped twice for permission. Its own log showed why: a one-line edit got the new-app road (five skills, the whole test suite, a production build, two design-check crawls, polling CI and the preview), then the PC re-built and crawled it, and the Studio sent So",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7a787af:client-review",
+  "date": "2026-11-15",
+  "slug": "client-review",
+  "title": "Quick edits in minutes without asking, a live checklist, design skills on /, the model menu where you type",
+  "detail": "\"Change it to blue\" took 24 minutes and stopped twice for permission. Its own log showed why: a one-line edit got the new-app road (five skills, the whole test suite, a production build, two design-check crawls, polling CI and the preview), then the PC re-built and crawled it, and the Studio sent So",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7a787af:jarvis",
+  "date": "2026-11-15",
+  "slug": "jarvis",
+  "title": "Quick edits in minutes without asking, a live checklist, design skills on /, the model menu where you type",
+  "detail": "\"Change it to blue\" took 24 minutes and stopped twice for permission. Its own log showed why: a one-line edit got the new-app road (five skills, the whole test suite, a production build, two design-check crawls, polling CI and the preview), then the PC re-built and crawled it, and the Studio sent So",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "7a787af:website-studio",
+  "date": "2026-11-15",
+  "slug": "website-studio",
+  "title": "Quick edits in minutes without asking, a live checklist, design skills on /, the model menu where you type",
+  "detail": "\"Change it to blue\" took 24 minutes and stopped twice for permission. Its own log showed why: a one-line edit got the new-app road (five skills, the whole test suite, a production build, two design-check crawls, polling CI and the preview), then the PC re-built and crawled it, and the Studio sent So",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "42ec22a:baby-no-scroll",
+  "date": "2026-11-15",
+  "slug": "baby-no-scroll",
+  "title": "V3 client edits (#29)",
+  "detail": "* Baby No Scroll: the app is blue now, and its name sits on a lit glass plate",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "42ec22a:projects-timeline",
+  "date": "2026-11-15",
+  "slug": "projects-timeline",
+  "title": "V3 client edits (#29)",
+  "detail": "* Baby No Scroll: the app is blue now, and its name sits on a lit glass plate",
   "group": "supporting",
   "source": "git"
  },
