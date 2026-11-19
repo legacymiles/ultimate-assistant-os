@@ -1,5 +1,14 @@
 [
  {
+  "id": "b3fc4cf:voice-studio",
+  "date": "2026-11-18",
+  "slug": "voice-studio",
+  "title": "The voice runs on your own CPU with Phonon, instead of calling fish.audio",
+  "detail": "Gradium's Phonon (phonon-31m-en, 65 MB q8) now speaks for Jarvis from a small local server, selected with TTS_BACKEND=phonon. Free, offline, no key, ~5.5x realtime on this laptop, and 102 voices. It is a CPU runtime -- no CUDA backend exists -- so it never touches the 6 GB GPU.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "e92ce29:baby-no-scroll",
   "date": "2026-11-15",
   "slug": "baby-no-scroll",
