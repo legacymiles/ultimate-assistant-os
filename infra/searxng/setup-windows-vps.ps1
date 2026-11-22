@@ -69,27 +69,66 @@ if ([int]$os.BuildNumber -lt 19041) {
 }
 
 if (-not $SkipPreflight) {
-    # On a VPS the box is itself a virtual machine, so what matters is whether
-    # the host exposes nested virtualization. Win32_Processor reports it, and
-    # it is the single most common reason this whole path is a dead end.
+    # Reported, not judged.
+    #
+    # The first version of this decided here whether WSL2 could run, and it was
+    # wrong: on a VPS the box is itself a guest, so Win32_ComputerSystem always
+    # reports HypervisorPresent = True (it can see the HOST's hypervisor), and
+    # that says nothing about whether nested virtualization is exposed TO this
+    # guest. The check passed on every VPS, including ones where WSL2 is
+    # impossible, and then the real failure arrived later wearing a hex code.
+    #
+    # So these are printed as facts, and the decision is made by actually
+    # trying to start WSL further down, where the failure is unambiguous and
+    # Microsoft's error codes say exactly which feature is missing.
     $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
-    $vmFirmware = $cpu.VirtualizationFirmwareEnabled
-    $hypervisorPresent = $os.Caption -and (Get-CimInstance Win32_ComputerSystem).HypervisorPresent
+    $cs = Get-CimInstance Win32_ComputerSystem
+    Write-Host "   CPU                : $($cpu.Name)"
+    Write-Host "   VM firmware enabled: $($cpu.VirtualizationFirmwareEnabled)"
+    Write-Host "   VM monitor ext     : $($cpu.VMMonitorModeExtensions)"
+    Write-Host "   SLAT               : $($cpu.SecondLevelAddressTranslationExtensions)"
+    Write-Host "   Hypervisor present : $($cs.HypervisorPresent)  (true on every VPS - says nothing about nested virt)"
 
-    if ($vmFirmware -eq $false -and -not $hypervisorPresent) {
+    if ($cpu.VMMonitorModeExtensions -eq $false) {
+        Warn "VT-x is not exposed to this guest, so WSL2 will probably fail."
+        Warn "Carrying on anyway - the attempt below is the real answer."
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Turn a WSL failure into the sentence that explains it.
+#
+# These codes are the whole reason the preflight above stopped guessing: they
+# name the missing feature precisely, where a CIM property only hints.
+# ---------------------------------------------------------------------------
+function Explain-WslFailure {
+    param([string] $Output, [int] $Code)
+
+    $text = "$Output"
+    if ($text -match "0x80370102" -or $text -match "0x80370114") {
         Write-Host ""
-        Warn "This VPS does not expose hardware virtualization, so WSL2 cannot run here."
-        Warn "That is a limit of the host, not something this script can configure."
+        Warn "WSL2 cannot start on this VPS: the host does not expose hardware virtualization to it."
+        Warn "That is a limit of your provider's hypervisor, not something this script can configure."
         Write-Host ""
-        Write-Host "   Your options, in the order I'd try them:" -ForegroundColor Gray
-        Write-Host "     1. Ask your provider to enable nested virtualization for this VM." -ForegroundColor Gray
-        Write-Host "     2. Run SearXNG natively from Python on Windows (no Docker, no WSL)." -ForegroundColor Gray
-        Write-Host "     3. Put SearXNG on a small Linux VPS and use infra/searxng/install.sh." -ForegroundColor Gray
+        Write-Host "   Your options, in the order I would try them:" -ForegroundColor Gray
+        Write-Host "     1. Ask your provider to enable NESTED VIRTUALIZATION for this VM." -ForegroundColor Gray
+        Write-Host "        Some enable it on request; some only on certain plans." -ForegroundColor Gray
+        Write-Host "     2. Run SearXNG natively from Python on Windows - no Docker, no WSL." -ForegroundColor Gray
+        Write-Host "        Unsupported upstream and more fragile, but it runs on any Windows box." -ForegroundColor Gray
+        Write-Host "     3. Put SearXNG on a small Linux VPS and use install.sh as written." -ForegroundColor Gray
         Write-Host ""
         Write-Host "   Tell Claude which, and it will write that path." -ForegroundColor Gray
-        exit 2
+        return
     }
-    Ok "Virtualization looks available."
+    if ($text -match "0x8007019e" -or $text -match "WslRegisterDistribution") {
+        Warn "The WSL optional component is not enabled yet. A reboot usually finishes this."
+        return
+    }
+    if ($text -match "0x800701bc") {
+        Warn "The WSL2 kernel needs updating. Run: wsl.exe --update"
+        return
+    }
+    Warn "WSL failed with exit code $Code. The output above is what it said."
 }
 
 # ---------------------------------------------------------------------------
@@ -157,9 +196,10 @@ if ($needsReboot) {
 # A distro installed with --no-launch has no user yet; this creates one on
 # first run. Running as root inside WSL is fine here: the box exists to run
 # one container stack.
-wsl.exe -d $Distro -u root -- echo "wsl-ready" | Out-Null
+$startOutput = (wsl.exe -d $Distro -u root -- echo "wsl-ready" 2>&1 | Out-String)
 if ($LASTEXITCODE -ne 0) {
-    Die "$Distro is installed but would not start. Try: wsl --shutdown, then run this again."
+    Explain-WslFailure -Output $startOutput -Code $LASTEXITCODE
+    exit 2
 }
 Ok "$Distro starts."
 
