@@ -17,6 +17,7 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useChatVoice } from "../voice/useChatVoice";
 import { tally } from "@/lib/app-builder/engine";
 import { fixMessage, planCheck, planSummary } from "@/lib/app-builder/planCheck";
 import { useAppBuilder } from "@/lib/app-builder/useAppBuilder";
@@ -130,6 +131,14 @@ export function AppBuilder() {
   const name = current?.understanding?.name ?? "New app";
   const ops = ab.apply;
 
+  // The hub's voice (components/voice): "Jarvis, …" here talks to this agent.
+  const voiceTarget = useChatVoice({
+    id: "app-builder",
+    label: `App Builder · ${name}`,
+    say: (text) => ab.say(text),
+    answers: (current?.chat ?? []).filter((m) => m.role === "agent").map((m) => m.text),
+  });
+
   const orbitProps = useMemo(
     () => ({
       onAccept: (id: string) => ops([{ op: "accept", id }]),
@@ -146,7 +155,10 @@ export function AppBuilder() {
     <AgentChat
       chat={current?.chat ?? []}
       busy={busy === "chat"}
-      onSay={(text, media) => ab.say(text, media)}
+      onSay={(text, media) => {
+        voiceTarget.touch();
+        return ab.say(text, media);
+      }}
       chips={stage === "features" ? (current?.edit ? EDIT_CHIPS : CHAT_CHIPS) : []}
       placeholder={stage === "interview" ? "Tell the agent more, or attach another recording" : undefined}
     />

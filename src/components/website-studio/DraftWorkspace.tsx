@@ -16,6 +16,7 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useChatVoice } from "../voice/useChatVoice";
 import { frameAddress } from "@/lib/client-review/frame";
 import { useAppBuilder } from "@/lib/app-builder/useAppBuilder";
 import { DEPTH_BLURB, depthOf } from "@/lib/app-builder/depth";
@@ -54,6 +55,15 @@ export function DraftWorkspace({ draftId, onBack, onChanged }: Props) {
   const [picked, setPicked] = useState<string | null>(null);
 
   const p = ab.current;
+
+  // The hub's voice (components/voice): talk to this draft's agent.
+  useChatVoice({
+    id: `website-draft`,
+    label: `Website Studio · ${p?.understanding?.name ?? "draft"}`,
+    active: tab === "chat",
+    say: (said) => ab.say(said),
+    answers: (p?.chat ?? []).filter((m) => m.role === "agent").map((m) => m.text),
+  });
 
   // Open the one asked for. App Builder keeps the current project in its own
   // store, so this is the same "open" a link into App Builder does.

@@ -28,6 +28,8 @@ import { PoweredBy } from "./PoweredBy";
 import { LiveActivity } from "./LiveActivity";
 import { routeOf, routeStates } from "@/lib/new-jarvis/harness/models";
 import { usePick } from "@/lib/new-jarvis/harness/usePick";
+import { useVoiceTarget } from "../voice/VoiceProvider";
+import { waitForReply } from "@/lib/voice/harnessReply";
 import { useHarness } from "@/lib/new-jarvis/harness/useHarness";
 import { countActions } from "@/lib/new-jarvis/harness/model";
 import { readTrust, TRUSTS, writeTrust, type Trust } from "@/lib/new-jarvis/trust";
@@ -643,6 +645,26 @@ export function HarnessConsole({
 
   const counts = useMemo(() => countActions(h.view), [h.view]);
 
+  // The hub's voice (components/voice): "Jarvis, …" while a thread is open
+  // goes to that thread, and its answer — or the gate it stopped at — is read
+  // back when the turn finishes.
+  const viewRef = useRef(h.view);
+  viewRef.current = h.view;
+  const gateRef = useRef(h.gate);
+  gateRef.current = h.gate;
+  const voiceTarget = useVoiceTarget({
+    id: "harness-console",
+    label: `Harness · ${h.thread?.title ?? "thread"}`,
+    kind: "harness",
+    priority: 20,
+    active: Boolean(paired && h.thread && h.thread.status !== "ended"),
+    send: async (text) => {
+      const before = viewRef.current.turns.length;
+      await h.say(text);
+      return waitForReply({ turns: () => viewRef.current.turns, gate: () => gateRef.current }, before);
+    },
+  });
+
   if (!paired) {
     return (
       <div className="mx-auto max-w-md p-6 text-center">
@@ -861,6 +883,7 @@ export function HarnessConsole({
               rows={1}
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onFocus={voiceTarget.touch}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();

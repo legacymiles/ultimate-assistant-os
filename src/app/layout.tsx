@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { IdentityBoundary } from "@/components/IdentityBoundary";
 import { ErrorReporter } from "@/components/ErrorReporter";
+import { VoiceProvider } from "@/components/voice/VoiceProvider";
 
 // The hub's own identity. Every app page sets its own full title
 // ("Jarvis · Ultimate Assistant OS"), so this is the default for `/` and for
@@ -31,7 +32,9 @@ export default function RootLayout({
       <body>
         <IdentityBoundary />
         <ErrorReporter />
-        {children}
+        {/* One always-listening voice for every owner page: it talks to
+            whichever chat or harness thread is in use (components/voice). */}
+        <VoiceProvider>{children}</VoiceProvider>
       </body>
     </html>
   );

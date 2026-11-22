@@ -40,7 +40,7 @@ import { useQueue } from "@/lib/new-jarvis/useQueue";
 import type { ReactorMode } from "@/lib/new-jarvis/reactor";
 
 import { useBridge } from "@/lib/new-jarvis/useBridge";
-import { useWakeVoice } from "@/lib/new-jarvis/useWakeVoice";
+import { takePendingVoiceAsk, useHubVoice, useVoiceTarget } from "../voice/VoiceProvider";
 import { runBlock, type WireMessage } from "@/lib/new-jarvis/runner";
 import {
   DEFAULT_TRUST,
@@ -649,14 +649,41 @@ export function NewJarvis() {
   // breaks that cycle without either one being recreated on every keystroke.
   const submitRef = useRef<(text?: string, source?: Block["source"], opts?: SubmitOpts) => void>(() => {});
 
-  const voice = useWakeVoice({
-    speakReplies,
-    onInterrupt: () => {
-      // Talking over it stops whatever is speaking; it does not cancel the
-      // work, which may already have changed something.
-    },
-    onCommand: (text) => submitRef.current(text, "voice"),
+  // ONE microphone for the whole hub (components/voice/VoiceProvider): Jarvis
+  // no longer owns its own. On this page the main chat is the voice's target,
+  // so "Jarvis, …" lands here exactly as before; on every other page the same
+  // voice talks to that page's chat or harness thread instead. Talking over it
+  // stops whatever is speaking; it does not cancel the work, which may already
+  // have changed something.
+  const hub = useHubVoice();
+  const voice = hub!.voice;
+  const setHubSpeak = hub?.setSpeakReplies;
+  // Jarvis's own orb: "Wait for the name" is the hub's Hands-free switch, so
+  // always-listening is the same opt-in here as on every other page.
+  const orbVoice = useMemo(
+    () => (hub ? { ...voice, toggle: () => hub.setHandsFree(!hub.handsFree) } : voice),
+    [hub, voice],
+  );
+  useEffect(() => setHubSpeak?.(speakReplies), [setHubSpeak, speakReplies]);
+  useVoiceTarget({
+    id: "jarvis-chat",
+    label: "Jarvis chat",
+    kind: "chat",
+    priority: 30,
+    // The chat marks the round trip and reads its own answer aloud.
+    speaksForItself: true,
+    send: (text) => submitRef.current(text, "voice"),
   });
+  // Something said on another page that no chat there could take.
+  // Read only when it is sent: a mount that is undone before then (React runs
+  // effects twice in development) must leave the request for the real one.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const pending = takePendingVoiceAsk();
+      if (pending) submitRef.current(pending, "voice");
+    }, 400);
+    return () => clearTimeout(t);
+  }, []);
 
 
   /** The running turn's attachments and where it came from, for tools that take them (app_builder). */
@@ -1554,7 +1581,8 @@ ${reflex.best.excerpt ?? ""}`.trim()
                   voiceState: voice.state,
                   heard: voice.heard,
                   micSupported: voice.supported,
-                  onMic: voice.toggle,
+                  // Start / stop: one request, then the microphone goes off.
+                  onMic: () => void hub?.tap(),
                   busy: chatBlocks.some((b) => b.status === "running" || b.status === "waiting"),
                   model: chatModel,
                   onModel: setChatModel,
@@ -1673,7 +1701,7 @@ ${reflex.best.excerpt ?? ""}`.trim()
       />
 
       <VoiceOrb
-        voice={voice}
+        voice={orbVoice}
         mode={reactorMode}
         onMode={setReactorMode}
         speakReplies={speakReplies}

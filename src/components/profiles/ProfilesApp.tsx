@@ -81,6 +81,7 @@ export function ProfilesApp({ embedded = false, settingsExtras = [], openSetting
   const [harness, setHarness] = useState<HarnessStatus | null>(null);
   const [resetNonce, setResetNonce] = useState(0);
   const flying = useRef(false);
+  const [navigated, setNavigated] = useState(false);
   const [still, setStill] = useState(false);
   useEffect(() => {
     const sync = () => setStill(hidden());
@@ -160,6 +161,7 @@ export function ProfilesApp({ embedded = false, settingsExtras = [], openSetting
 
   // --- navigation ---------------------------------------------------------------
   const setTop = useCallback((next: View[], d: "in" | "out") => {
+    setNavigated(true);
     setDir(d);
     if (embedded) root.current?.scrollTo({ top: 0 });
     else window.scrollTo({ top: 0 });
@@ -278,7 +280,10 @@ export function ProfilesApp({ embedded = false, settingsExtras = [], openSetting
         <motion.main
           key={keyOf(view)}
           className="pf-wrap"
-          initial={reduced() || hidden() ? false : { opacity: 0, scale: dir === "in" ? 0.975 : 1.025, filter: "blur(8px)" }}
+          // No entrance on the very first paint: the server cannot know whether
+          // the tab is visible, and guessing differently from the browser is a
+          // hydration mismatch. Every later page change animates.
+          initial={!navigated || reduced() || hidden() ? false : { opacity: 0, scale: dir === "in" ? 0.975 : 1.025, filter: "blur(8px)" }}
           animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
           transition={{ duration: 0.55, ease: EASE }}
           style={{ transformOrigin: "50% 20%" }}

@@ -16,6 +16,21 @@ Your memory, folders, photos, lists, calendar and Record in one place. Every req
 
 ## Features
 
+- **One voice for the whole hub (Nov 2026)** — the always-listening voice no longer lives only in
+  Chat: it is mounted once in the root layout (`src/components/voice/VoiceProvider.tsx`), keeps
+  listening across pages, and shows as a small orb in the bottom-left of every owner page (Jarvis
+  itself keeps its reactor for the same voice). "Jarvis, …" goes to the chat or harness thread in
+  use — Jarvis chat, Profiles, an open harness thread, a running build (Client Review / Website
+  Studio), App Builder, Website Studio drafts, the Dashboard agent — and the answer is read back
+  (a harness's answer when its turn finishes, or the gate it stopped at). With no chat on the
+  page it types into the box you were in, and with no box it opens Jarvis and runs it here.
+  Owner pages only, never inside a frame, only the visible tab listens.
+- **Start / stop, not always listening** — nothing listens until you tap the orb (or Jarvis's
+  mic): it hears ONE request, answers, and switches the microphone off by itself; **Stop** cuts
+  listening and speaking at once. Always listening for "Jarvis" is **Hands-free**, an opt-in
+  switch remembered on this device (Jarvis's "Wait for the name" is the same switch), so it
+  never picks up a conversation in the room and starts a task.
+
 _Seeded from this app's edit log. Rewrite it into plain features the next time the app is edited, then set Record reviewed._
 
 - **Choose how Jarvis sounds** — a Voice stage at the top of the Dashboard, above the memory core.

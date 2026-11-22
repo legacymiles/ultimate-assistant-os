@@ -2,7 +2,7 @@
 
 Route: `/apps/profiles` · Category: AI · Live
 
-Record reviewed: 2026-11-18
+Record reviewed: 2026-11-22
 
 > **This file is the truth about this app.** Read it before changing the app and update it in the
 > same commit. Everything above the "From the code" block is written by hand and kept; that block
@@ -25,6 +25,9 @@ tab bars.
 
 ## Features
 
+- **Talk to it** — the hub's voice ("Jarvis, …" or the orb) goes to the Profiles chat on any
+  Profiles page, opens the answer in the peek card and reads it back, saying when changes are
+  waiting for Save.
 - **The one Profiles app (Nov 2026)** — the same app is Jarvis › Dashboard › Profile, the
   Dashboard's Profiles tab and `/apps/profiles`. The old Profile tabs (Who you are, Business &
   personal, Life record, How you work) are gone from Jarvis; **Connections**, the **Backend

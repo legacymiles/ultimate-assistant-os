@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useVoiceTarget } from "../voice/VoiceProvider";
 import { Icon } from "../icons";
 import { askAgent } from "@/lib/recall/agent";
 import { executeAction, folderPathString } from "@/lib/recall/store";
@@ -154,9 +155,9 @@ export function AgentChat({
     if (open) setEvents(getEvents());
   }, [open]);
 
-  const send = async (question: string) => {
+  const send = async (question: string): Promise<string> => {
     const q = question.trim();
-    if (!q || busy) return;
+    if (!q || busy) return "";
     setInput("");
     const userMsg: ChatMessage = { id: uid("msg"), role: "user", content: q };
     setMessages((m) => [...m, userMsg]);
@@ -174,7 +175,21 @@ export function AgentChat({
       },
     ]);
     setBusy(false);
+    return reply.answer;
   };
+
+  // The hub's voice (components/voice): on the Dashboard, "Jarvis, where's my…"
+  // opens this agent, asks it, and reads the answer back.
+  const voiceTarget = useVoiceTarget({
+    id: "dashboard-agent",
+    label: "Dashboard agent",
+    kind: "chat",
+    priority: 12,
+    send: async (said) => {
+      onOpen();
+      return send(said);
+    },
+  });
 
   // Auto-ask when the parent hands us a question.
   useEffect(() => {
@@ -428,6 +443,7 @@ export function AgentChat({
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onFocus={voiceTarget.touch}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();

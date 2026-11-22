@@ -16,6 +16,8 @@
 
 import { MAX_PROMPT_CHARS } from "@/lib/new-jarvis/promptLimit";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useVoiceTarget } from "../voice/VoiceProvider";
+import { waitForReply } from "@/lib/voice/harnessReply";
 import { phaseLabel } from "@/lib/app-builder/build";
 import { useBuild, type UseBuild } from "@/lib/app-builder/useBuild";
 import { waitedFor, type BuildRow } from "@/lib/client-review/building";
@@ -450,6 +452,24 @@ export function BuildSteer({ live }: { live: LiveBuild }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const busy = live.finish.kind !== "running" || !live.watching;
+  // The hub's voice (components/voice): talk to the build while it runs, and
+  // hear its answer — or the gate it stopped at — when the turn finishes.
+  const viewRef = useRef(live.build.view);
+  viewRef.current = live.build.view;
+  const gateRef = useRef(live.build.gate);
+  gateRef.current = live.build.gate;
+  const voiceTarget = useVoiceTarget({
+    id: "build-steer",
+    label: "The build on your PC",
+    kind: "harness",
+    priority: 25,
+    active: !busy,
+    send: async (said) => {
+      const before = viewRef.current.turns.length;
+      await live.build.say(said);
+      return waitForReply({ turns: () => viewRef.current.turns, gate: () => gateRef.current }, before);
+    },
+  });
   const send = async () => {
     if (!text.trim() || sending) return;
     setSending(true);
@@ -462,6 +482,7 @@ export function BuildSteer({ live }: { live: LiveBuild }) {
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
+        onFocus={voiceTarget.touch}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();

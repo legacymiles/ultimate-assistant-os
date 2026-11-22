@@ -28,6 +28,7 @@ import { ROOT } from "@/lib/profiles/seed";
 import { findItem, hueOf, mediaUnder, pathTo, resolveNode, whereLabel } from "@/lib/profiles/tree";
 import type { AgentActions, Change, Media, ProfilesData } from "@/lib/profiles/types";
 import type { ProfilesStore } from "@/lib/profiles/useProfiles";
+import { useVoiceTarget } from "../voice/VoiceProvider";
 import { fileToMedia, MediaTile, Mark } from "./bits";
 
 export type JarvisMode = "bar" | "full";
@@ -129,9 +130,9 @@ export function Jarvis(p: JarvisProps) {
   // --- talking -----------------------------------------------------------------
 
   const send = useCallback(
-    async (raw: string, from: "bar" | "full", media: Media[] = []) => {
+    async (raw: string, from: "bar" | "full", media: Media[] = []): Promise<string> => {
       const text = raw.trim();
-      if ((!text && !media.length) || busy) return;
+      if ((!text && !media.length) || busy) return busy ? "I'm still answering the last one." : "";
       const d = dataRef.current;
       const history: Turn[] = msgs
         .filter((m) => m.role === "user" || (m.role === "jarvis" && m.status === "done"))
@@ -178,18 +179,35 @@ export function Jarvis(p: JarvisProps) {
         );
         // "Open the heat press" — go there straight away.
         if (a.actions.open && !changes.length && /^(open|go to|take me|jump|show me)\b/i.test(text)) p.go(a.actions.open);
+        // What the voice reads back: the words, plus a nudge when changes wait for Save.
+        return pending
+          ? `${words} ${pending.lines.length === 1 ? "One change is" : `${pending.lines.length} changes are`} waiting for you to tap Save.`
+          : words;
       } catch (e) {
         if ((e as Error).name === "AbortError") {
           setMsgs((m) => m.filter((x) => x.id !== jid));
-        } else {
-          setMsgs((m) => m.map((x) => (x.id === jid ? { id: jid, role: "jarvis", ask: text, text: `Something went wrong: ${(e as Error).message}`, status: "error" } : x)));
+          return "";
         }
+        setMsgs((m) => m.map((x) => (x.id === jid ? { id: jid, role: "jarvis", ask: text, text: `Something went wrong: ${(e as Error).message}`, status: "error" } : x)));
+        return `Something went wrong: ${(e as Error).message}`;
       } finally {
         setBusy(false);
       }
     },
     [busy, chatHere, msgs, p, scope, setMode, setPeek],
   );
+
+  // The hub's voice (components/voice): "Jarvis, …" on any Profiles page comes
+  // here, answers in the peek card or the open chat, and is read back.
+  const voiceTarget = useVoiceTarget({
+    id: "profiles-chat",
+    label: hereNode && chatHere !== ROOT ? `Profiles · ${hereNode.name}` : "Profiles",
+    kind: "chat",
+    // Profiles is only mounted while it is on screen (its own page, or the
+    // Profile pane inside Jarvis), so it outranks Jarvis's main chat then.
+    priority: 35,
+    send: (text) => send(text, mode === "full" ? "full" : "bar"),
+  });
 
   // Requests from the page ("Add details with Jarvis", chips, settings).
   useEffect(() => {
@@ -370,6 +388,7 @@ export function Jarvis(p: JarvisProps) {
                   <textarea
                     ref={area}
                     id="pf-composer"
+                    onFocus={voiceTarget.touch}
                     rows={1}
                     value={draft}
                     placeholder={chatHere !== ROOT && hereNode ? `Tell Jarvis about ${hereNode.name}, or ask anything…` : "Tell Jarvis something, or ask anything…"}
@@ -492,7 +511,10 @@ export function Jarvis(p: JarvisProps) {
                   value={bar}
                   autoComplete="off"
                   onChange={(e) => setBar(e.target.value)}
-                  onFocus={() => setFocused(true)}
+                  onFocus={() => {
+                    setFocused(true);
+                    voiceTarget.touch();
+                  }}
                   onBlur={() => setTimeout(() => setFocused(false), 120)}
                   placeholder={chatHere !== ROOT && hereNode ? `Ask about ${hereNode.name}, or tell Jarvis something…` : "Ask about anything, or tell Jarvis something new"}
                   aria-label="Ask or tell Jarvis"
