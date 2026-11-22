@@ -123,6 +123,14 @@ function phononPayload({ text, format, speed, body }: SendArgs): Record<string, 
   // Phonon names voices ("Easton", "Hadley"), where fish uses reference ids.
   if (body.voiceId && body.voiceId !== "default") payload.voice = body.voiceId;
   else if (process.env.PHONON_VOICE) payload.voice = process.env.PHONON_VOICE;
+  // The Voice stage's Expression and Consistency dials. Both are left out
+  // unless asked for, so the server's own defaults stay the defaults.
+  if (typeof body.temperature === "number" && Number.isFinite(body.temperature)) {
+    payload.temperature = clamp(body.temperature, 0, 1);
+  }
+  if (typeof body.seed === "number" && Number.isFinite(body.seed)) {
+    payload.seed = Math.trunc(body.seed);
+  }
   return payload;
 }
 

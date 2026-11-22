@@ -16,8 +16,13 @@
 // to run, because that is the moment the detail is worth the space.
 // ---------------------------------------------------------------------------
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Icon } from "../icons";
+import {
+  DEFAULT_VOICE_SETTINGS,
+  VOICE_SETTINGS_CHANGED,
+  loadVoiceSettings,
+} from "@/lib/voice-settings/settings";
 import { BridgePanel } from "./SidePanels";
 import type { BridgeHealth } from "@/lib/new-jarvis/bridge";
 import type { UseWakeVoice } from "@/lib/new-jarvis/useWakeVoice";
@@ -52,6 +57,16 @@ export function StatusDock({
   onQueue,
 }: Props) {
   const [open, setOpen] = useState(false);
+
+  // Which voice is live, so the dock says it without opening the Voice stage.
+  // Read after mount (localStorage), then kept current by the stage's event.
+  const [voiceName, setVoiceName] = useState(DEFAULT_VOICE_SETTINGS.voice);
+  useEffect(() => {
+    setVoiceName(loadVoiceSettings().voice);
+    const onChange = () => setVoiceName(loadVoiceSettings().voice);
+    window.addEventListener(VOICE_SETTINGS_CHANGED, onChange);
+    return () => window.removeEventListener(VOICE_SETTINGS_CHANGED, onChange);
+  }, []);
   const caps = health.capabilities;
   const usable = health.up && health.paired;
   const readyCount = caps ? CAP_KEYS.filter((k) => caps[k] === true).length : 0;
@@ -121,6 +136,9 @@ export function StatusDock({
                   : voice.state === "thinking"
                     ? "thinking"
                     : "speaking"}
+            {/* The state is still the fact this carries; the name is which
+                voice would say it. */}
+            <span className="text-ink-faint"> · {voiceName}</span>
           </span>
         </span>
 

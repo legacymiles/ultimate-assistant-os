@@ -60,10 +60,14 @@ export interface TtsRequest {
   format: TtsFormat;
   /** Playback speed 0.5–2.0. */
   speed: number;
-  /** A fish.audio voice/model id (preset or pasted). Omit for the default voice. */
+  /** A fish.audio voice/model id, or a Phonon voice name ("Hadley"). Omit for the default. */
   voiceId?: string;
   /** Inline cloning reference (takes priority over voiceId). */
   reference?: CloneReference;
+  /** Phonon sampling temperature 0-1. Ignored by the fish backend. */
+  temperature?: number;
+  /** Phonon seed. Omitted means Phonon's own fixed seed, i.e. repeatable. */
+  seed?: number;
 }
 
 /** A built-in "default voice" sentinel used by the picker. */

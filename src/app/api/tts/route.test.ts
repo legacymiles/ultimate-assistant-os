@@ -195,3 +195,46 @@ describe("POST /api/tts — guards", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("POST /api/tts — the Voice stage's dials", () => {
+  beforeEach(() => setEnv({ TTS_BACKEND: "phonon" }));
+
+  it("passes expression and seed through to Phonon", async () => {
+    fetchMock.mockResolvedValue(audioResponse());
+    await POST(post({ text: "hi", voiceId: "Maeve", temperature: 0.42, seed: 7 }));
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      voice: "Maeve",
+      temperature: 0.42,
+      seed: 7,
+    });
+  });
+
+  it("leaves them out when they are not asked for, so the server's defaults stand", async () => {
+    fetchMock.mockResolvedValue(audioResponse());
+    await POST(post({ text: "hi" }));
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body).not.toHaveProperty("temperature");
+    expect(body).not.toHaveProperty("seed");
+  });
+
+  it("clamps expression and ignores a non-numeric one", async () => {
+    fetchMock.mockResolvedValue(audioResponse());
+    await POST(post({ text: "hi", temperature: 9 }));
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).temperature).toBe(1);
+
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValue(audioResponse());
+    await POST(post({ text: "hi", temperature: "loud" as never }));
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).not.toHaveProperty("temperature");
+  });
+
+  it("never sends them to fish, which has no such fields", async () => {
+    setEnv({ FISH_API_KEY: "k" });
+    fetchMock.mockResolvedValue(audioResponse("audio/mpeg"));
+    await POST(post({ text: "hi", temperature: 0.5, seed: 3 }));
+    // msgpack body: assert on the bytes rather than guessing the encoding.
+    const bytes = Buffer.from(fetchMock.mock.calls[0][1].body as ArrayBuffer).toString("latin1");
+    expect(bytes).not.toContain("temperature");
+    expect(bytes).not.toContain("seed");
+  });
+});

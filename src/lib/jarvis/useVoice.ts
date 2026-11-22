@@ -14,6 +14,7 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { loadVoiceSettings, ttsBody } from "@/lib/voice-settings/settings";
 
 export type VoiceState = "idle" | "listening" | "thinking" | "speaking";
 
@@ -173,12 +174,15 @@ export function useVoice(): UseVoice {
       if (!say) return;
       setState("speaking");
 
-      // Server voice first (fish.audio, or a self-hosted backend).
+      // Server voice first (Phonon on this PC, fish.audio, or a self-hosted
+      // backend). The voice and the dials are whatever the Voice stage saved,
+      // built by the same `ttsBody` its preview uses — so what the owner
+      // auditioned there is exactly what they hear here.
       try {
         const res = await fetch("/api/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: say.slice(0, 2000) }),
+          body: JSON.stringify(ttsBody(say.slice(0, 2000), loadVoiceSettings())),
         });
         const type = res.headers.get("content-type") ?? "";
         if (res.ok && type.startsWith("audio")) {

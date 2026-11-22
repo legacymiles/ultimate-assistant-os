@@ -12,6 +12,7 @@ import { useMemo } from "react";
 import { Icon } from "../icons";
 import { MemoryCore, SOURCE_COLOR } from "./MemoryCore";
 import { UpdatesPanel } from "./UpdatesPanel";
+import { VoiceStage } from "../new-jarvis/VoiceStage";
 import { briefInputs } from "@/lib/jarvis/brief";
 import { graphNodes, linkCount } from "@/lib/jarvis/memoryClient";
 import { SOURCE_LABEL, type JarvisStore } from "@/lib/jarvis/types";
@@ -62,7 +63,11 @@ export function DashboardTab({
 
   return (
     <div className="p-3 sm:p-4">
-      <section className="relative overflow-hidden rounded-xl border border-line bg-black">
+      {/* How Jarvis sounds, above the memory core — the owner picked this
+          placement from three mockups on 2026-11-18. */}
+      <VoiceStage />
+
+      <section className="relative mt-3 overflow-hidden rounded-xl border border-line bg-black">
         <MemoryCore nodes={nodes} className="h-56 w-full sm:h-72" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-2 p-3">
           <div>
