@@ -58,6 +58,32 @@ vercel env add SEARXNG_TOKEN production
 Environment variables are baked in at build time, so **redeploy** before
 testing the live site.
 
+## Nothing copied: the paste-in bootstrap
+
+Getting this folder onto a VPS turned out to be the hard part, so
+`vps-bootstrap.sh` removes the need. It copies nothing: paste it into a shell
+on the VPS and it builds the stack from upstream sources.
+
+On a **Windows** VPS, after `wsl.exe --install --no-launch -d Ubuntu` and a
+reboot:
+
+```
+wsl -d Ubuntu -u root
+```
+
+then paste the whole of `vps-bootstrap.sh`, having edited the two lines at the
+top (hostname and email).
+
+It installs Docker, clones SearXNG's own `searxng-docker` repo, generates the
+secrets, enables the JSON API, turns the per-IP limiter off, replaces the
+Caddyfile with one that demands a bearer token, brings it up, and refuses to
+claim success until the JSON API answers *and* an untokened request is refused
+with a 401. Running it twice is safe and is the upgrade path.
+
+Building on upstream's repo rather than this folder's compose file is
+deliberate: upgrades become `git pull && docker compose up -d`, and the parts
+it does not patch stay upstream's problem.
+
 ## On a WINDOWS VPS
 
 `install.sh` is for Linux. A Windows Server has no `apt`, `sudo` or systemd,
@@ -79,7 +105,8 @@ cd C:\searxng; powershell -ExecutionPolicy Bypass -File .\setup-windows-vps.ps1 
 It checks the box can actually do this before changing anything, installs WSL
 and Ubuntu, installs Docker inside it, copies the stack to `/opt/searxng`,
 strips the carriage returns Windows adds (bash fails on them with the
-unhelpful `$'': command not found`), and then runs the same `install.sh` a
+unhelpful `$'
+': command not found`), and then runs the same `install.sh` a
 Linux VPS would. Running it twice is safe.
 
 Three things are different from Linux, and all three are handled:
@@ -175,7 +202,8 @@ curl -H "Authorization: Bearer $SEARXNG_TOKEN" "https://search.example.com/searc
 | `docker-compose.yml` | SearXNG + Valkey, plus Caddy under the `public` profile (VPS only) |
 | `searxng/settings.yml` | the instance config — JSON format on, limiter off, dead engines disabled |
 | `Caddyfile` | TLS, security headers, the bearer-token gate, and query strings redacted from the access log |
-| `install.sh` | the VPS installer and upgrader |
+| `install.sh` | the VPS installer and upgrader, from files already on the box |
+| `vps-bootstrap.sh` | the same thing with **nothing copied first** - paste it into a shell on the VPS |
 | `start-local.ps1` | the laptop starter |
 | `setup-windows-vps.ps1` | the Windows VPS installer: WSL2 + Docker, then `install.sh` |
 | `refresh-portproxy.ps1` | re-points 80/443 at WSL after a reboot (portproxy path only) |
