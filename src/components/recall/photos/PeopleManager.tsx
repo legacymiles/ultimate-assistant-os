@@ -93,14 +93,14 @@ export function PeopleManager({ data, onData, onToast, onClose }: Props) {
         </div>
 
         <p className="mb-3 text-[11.5px] leading-relaxed text-ink-muted">
-          Name the people who matter and give each of them up to {MAX_PERSON_REFS} clear photos of
-          their face &mdash; different angles, different hair, different years. Every one of them
-          goes onto a labelled reference sheet that is shown to the vision model alongside each new
-          photo, so it answers &ldquo;which of these people is this?&rdquo; instead of guessing.
-          Then press <strong className="font-semibold text-ink">Describe</strong> to have their
-          face written down: recognition gets told which features to compare, and you can
+          These are the people Camera Autopilot can name. Each one&apos;s face references (up to{" "}
+          {MAX_PERSON_REFS}, chosen in their profile) go onto a labelled reference sheet shown to
+          the vision model alongside each new photo, so it answers &ldquo;which of these people is
+          this?&rdquo; instead of guessing. Press <strong className="font-semibold text-ink">Describe</strong>{" "}
+          to have their face written down from those references: recognition gets told which
+          features to compare, and you can
           <span className="text-ink"> @their&#8209;name</span> in a Studio prompt to put them in a
-          video without uploading anything. Everything stays in your own storage.
+          video without uploading anything.
         </p>
 
         <p className="mb-3 rounded-xl border border-sky-400/30 bg-sky-400/[0.07] px-3 py-2 text-[11.5px] leading-relaxed text-sky-100">

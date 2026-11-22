@@ -64,6 +64,8 @@ function hash(s: string): string {
   return (h >>> 0).toString(36);
 }
 
+let lastTried = "";
+
 /** Write the identity cards to Jarvis Memory when they changed since last time. */
 export async function syncIdentityMemory(cards: IdentityCard[], force = false): Promise<void> {
   const payload = cards.map((c) => {
@@ -72,6 +74,10 @@ export async function syncIdentityMemory(cards: IdentityCard[], force = false): 
   });
   const sig = hash(payload.map((p) => p.externalId + p.hash).join("|"));
   if (!force && loadLocal<string>(MEMORY_SENT_KEY, "") === sig) return;
+  // One try per set of cards per page: when memory is unavailable (signed
+  // out, no Supabase) the same cards are not re-sent on every save.
+  if (!force && lastTried === sig) return;
+  lastTried = sig;
   try {
     const r = await fetch("/api/identity/memory", {
       method: "POST",
