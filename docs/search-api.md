@@ -367,6 +367,38 @@ Nothing else changes. No app learns its name. The DuckDuckGo adapter exists
 partly as proof: it was a hardcoded scrape inside `lib/web/fetchPublic.ts`
 before, and becoming a provider is all it took.
 
+## A result is a page
+
+Every adapter returns through `dedupe` in
+[`providers/base.ts`](../src/lib/search/providers/base.ts), and that is where
+`serveableUrl` drops a row whose URL is not a page: a search engine's own
+click-through (`duckduckgo.com/y.js`, `bing.com/aclick`, `google.*/url`,
+`r.search.yahoo.com`), an ad network's tracker (`doubleclick.net`,
+`googleadservices.com`), anything that is not `http(s)`, and anything over 400
+characters — past that the address *is* tracking payload. Host matching is
+anchored, so `notduckduckgo.com` is an ordinary result.
+
+It is here rather than in each app because every caller has the same problem
+and only one of them would remember to solve it. An app that puts a result URL
+in front of a person — BuildFlip's buy links, Jarvis citing a source — needs
+that URL to resolve. SearXNG is on the host list deliberately: it proxies the
+same engines, so a sponsored row comes through its JSON unchanged. This is not
+a DuckDuckGo quirk patched in the wrong place.
+
+**What found it.** BuildFlip's first live pricing run came back with
+`duckduckgo.com/y.js?ad_domain=amazon.com&…` as the top result for "2x4x8
+pressure treated lumber price buy" — 1,200 characters of tracking, titled
+"Amazon Official Site", on its way to becoming a buy link on someone's build
+plan. The DuckDuckGo adapter *had* refused ads since October, which is what
+made it worth chasing rather than patching over: `unwrapDdgLink` dropped a bare
+`y.js` href but followed DuckDuckGo's ordinary `/l/?uddg=` redirect straight
+onto one, because it unwrapped a layer without judging what it unwrapped to.
+The parser in [`lib/new-jarvis/web.ts`](../src/lib/new-jarvis/web.ts) now
+applies the same rule to the target, with a bound on nested redirects — which
+fixes it for Jarvis's `web_search` and for Profiles research too, since all
+three share that parser. `serveableUrl` is the second line of defence, at the
+layer where this stops being one provider's problem.
+
 ## Who uses it
 
 | Caller | Through |
@@ -418,17 +450,13 @@ the internet and needs no key at all. It is cheaper, it is cached, and it is in
 the usage log. If a month of picks come back thin, the honest fix is a better
 query or Tavily's news depth, not a search model back inside the generation.
 
-**Two things the first live run taught us**, both now fixed in BuildFlip rather
-than assumed away. DuckDuckGo's results can lead with a sponsored
-click-through — `duckduckgo.com/y.js?ad_domain=amazon.com&…`, 1,200 characters
-of tracking — and left alone that becomes a "buy link" on a plan and eats the
-item's character budget, so `usable()` in `web-context.ts` drops search-engine
-and ad hosts and anything over 400 characters before the model sees it. (The
-cleaner home for that is the DuckDuckGo adapter itself; it is filtered
-app-side for now.) And a model asked to *explain* an estimate writes long: a
-300-character `note` and a 700-character `marketNote` each threw a ZodError
-that cost the whole pass its answer, so `schema.ts` now trims those fields
-instead of rejecting them. One chatty sentence must not cost a plan its prices.
+**Two things the first live run taught us.** The first turned out to be this
+service's bug rather than BuildFlip's — see *A result is a page* above. The
+second: a model asked to *explain* an estimate writes long, and a 300-character
+`note` and a 700-character `marketNote` each threw a ZodError that cost the
+whole pass its answer, so BuildFlip's `schema.ts` now trims those fields
+instead of rejecting them. One chatty sentence must not cost a plan its
+prices.
 
 **On a machine with no SearXNG, expect the degrade path.** DuckDuckGo
 rate-limits after a handful of queries — sixteen material searches is well past

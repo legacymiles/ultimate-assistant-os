@@ -28,6 +28,47 @@ describe("web search results", () => {
     expect(unwrapDdgLink("https://duckduckgo.com/y.js?x=1")).toBeNull();
     expect(unwrapDdgLink("javascript:alert(1)")).toBeNull();
   });
+
+  /**
+   * An ad does not always arrive as a bare `y.js` href. It also comes wrapped
+   * in the ordinary `/l/?uddg=` redirect, and unwrapping one layer and stopping
+   * handed back `https://duckduckgo.com/y.js?ad_domain=amazon.com&…` — a
+   * 1,200-character click-through, titled "Amazon Official Site", as the top
+   * result for a price search. It reached BuildFlip's pricing prompt, where it
+   * would have become a buy link on a build plan.
+   */
+  it("refuses an ad wrapped inside the redirect, not just a bare one", () => {
+    const ad = "https://duckduckgo.com/y.js?ad_domain=amazon.com&ad_provider=bingv7aa";
+    expect(unwrapDdgLink(`//duckduckgo.com/l/?uddg=${encodeURIComponent(ad)}&rut=24e9`)).toBeNull();
+  });
+
+  it("stops walking a chain of nested redirects", () => {
+    const inner = "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fa.com%2Fb";
+    // One nested layer still resolves; a chain deeper than the bound gives up
+    // rather than recursing as far as it was written.
+    expect(unwrapDdgLink(`//duckduckgo.com/l/?uddg=${encodeURIComponent(inner)}`)).toBe(
+      "https://a.com/b",
+    );
+    let deep = "https://a.com/b";
+    for (let i = 0; i < 6; i++) {
+      deep = `https://duckduckgo.com/l/?uddg=${encodeURIComponent(deep)}`;
+    }
+    expect(unwrapDdgLink(deep)).toBeNull();
+  });
+
+  it("keeps a host that only looks like DuckDuckGo's", () => {
+    expect(unwrapDdgLink("https://notduckduckgo.com/p/1")).toBe("https://notduckduckgo.com/p/1");
+  });
+
+  it("drops an ad row from a real results page", () => {
+    const ad = "https://duckduckgo.com/y.js?ad_domain=amazon.com";
+    const html =
+      `<a class="result__a" href="//duckduckgo.com/l/?uddg=${encodeURIComponent(ad)}">Amazon Official Site</a>` +
+      `<div class="result__snippet">Low priced lumber</div>` +
+      `<a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.lowes.com%2Fpd%2Fx%2F1">Lowe's</a>` +
+      `<div class="result__snippet">A real listing</div>`;
+    expect(parseDdgResults(html).map((hit) => hit.url)).toEqual(["https://www.lowes.com/pd/x/1"]);
+  });
 });
 
 describe("reading a page", () => {

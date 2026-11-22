@@ -74,16 +74,55 @@ export function tidy(value: unknown): string {
 }
 
 /**
+ * Hosts that hand back a click-through rather than a page.
+ *
+ * A search engine's own redirect and an ad network's tracker are not results.
+ * They are kept out here, at the provider layer, rather than in each app,
+ * because every caller has the same problem and only one of them would
+ * remember to solve it: an app that puts a result URL in front of a person —
+ * BuildFlip's buy links, Jarvis citing a source — needs the URL to be a page.
+ *
+ * SearXNG is included deliberately. It proxies the same engines, so when one of
+ * them returns a sponsored row the wrapper comes through its JSON unchanged;
+ * this is not a DuckDuckGo quirk being patched in the wrong place.
+ */
+const CLICK_THROUGH_HOSTS =
+  /(^|\.)(duckduckgo\.com|bing\.com|google\.[a-z.]{2,8}|r\.search\.yahoo\.com|doubleclick\.net|googleadservices\.com|googlesyndication\.com|adclick\.g\.doubleclick\.net)$/i;
+
+/** No real page has a URL this long. Past it, the address IS tracking payload. */
+const MAX_URL_CHARS = 400;
+
+/**
+ * True for a URL worth handing to a caller: an http(s) address, on a host that
+ * serves pages, short enough to be one.
+ */
+export function serveableUrl(url: string): boolean {
+  if (!url || url.length > MAX_URL_CHARS) return false;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return false;
+    return !CLICK_THROUGH_HOSTS.test(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Drop rows that are not usable, and the same URL twice.
  *
  * Deduping is on the URL without its fragment, because `#section` links to the
  * same page and an agent reading both wastes a fetch on a duplicate.
+ *
+ * Every adapter returns through here, which is why the ad and redirect filter
+ * lives here too: one gate, applied before anything in the service caches a
+ * result, logs it or hands it to an app.
  */
 export function dedupe(results: SearchResult[]): SearchResult[] {
   const seen = new Set<string>();
   const out: SearchResult[] = [];
   for (const result of results) {
     if (!result.url || !result.title) continue;
+    if (!serveableUrl(result.url)) continue;
     let key = result.url;
     try {
       const url = new URL(result.url);

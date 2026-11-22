@@ -116,41 +116,22 @@ async function safeResearch(
 }
 
 /**
- * Hosts that hand back a redirect or an ad rather than a page.
+ * Why there is no ad or redirect filter here.
  *
- * Found the hard way: with only DuckDuckGo in the chain, the top result for
- * "2x4x8 pressure treated lumber price buy" was
- * `duckduckgo.com/y.js?ad_domain=amazon.com&…`, a 1,200-character sponsored
- * click-through. Two things go wrong if that reaches the model. It becomes a
- * "buy link" on someone's plan, which is the one thing this app must not ship.
- * And it eats the per-item character budget, so the real listings underneath it
- * get truncated away.
- */
-const REDIRECT_HOSTS =
-  /(^|\.)(duckduckgo\.com|bing\.com|google\.[a-z.]+|r\.search\.yahoo\.com|doubleclick\.net|googleadservices\.com|googlesyndication\.com)$/i;
-
-/**
- * A result worth showing the model: a real page, at a length a URL can be.
+ * There was one, for a day. The top result for "2x4x8 pressure treated lumber
+ * price buy" came back as `duckduckgo.com/y.js?ad_domain=amazon.com&…`, a
+ * 1,200-character sponsored click-through titled "Amazon Official Site" —
+ * which would have become a buy link on someone's build plan, and eaten the
+ * item's whole character budget on the way.
  *
- * Exported for its test — it is the filter that keeps an ad redirect from
- * becoming a buy link, which is worth pinning down.
+ * Filtering it here was the wrong place twice over. Every caller of the search
+ * service has the same problem, and the actual bug was upstream of all of them:
+ * `unwrapDdgLink` dropped a bare `y.js` href but followed DuckDuckGo's own
+ * `/l/?uddg=` redirect straight onto one. Both are fixed where they belong —
+ * `serveableUrl` in `lib/search/providers/base.ts`, which every adapter returns
+ * through, and the parser in `lib/new-jarvis/web.ts`. So what arrives here is
+ * already a page.
  */
-export function usable(result: SearchResult): boolean {
-  // No product URL is 400 characters. Anything that long is tracking payload.
-  if (result.url.length > 400) return false;
-  try {
-    const u = new URL(result.url);
-    if (u.protocol !== "https:" && u.protocol !== "http:") return false;
-    return !REDIRECT_HOSTS.test(u.hostname);
-  } catch {
-    return false;
-  }
-}
-
-/** The same response with the junk dropped, ready for `asPrompt`. */
-function cleaned(response: SearchResponse): SearchResponse {
-  return { ...response, results: response.results.filter(usable) };
-}
 
 /** A searchable query for one material: what it is, at the size a store sells. */
 function priceQuery(material: { name: string; spec?: string }): string {
@@ -194,8 +175,7 @@ export async function priceContext(
   let found = 0;
 
   subjects.forEach((material, i) => {
-    const raw = responses[i];
-    const res = raw ? cleaned(raw) : null;
+    const res = responses[i];
     const label = `ITEM ${i + 1}: ${material.name} (price per 1 ${material.unit})`;
     if (!res?.results.length) {
       blocks.push(`${label}\nNo listings came back for this one.`);
@@ -235,7 +215,7 @@ export async function compsContext(spec: { title: string; summary?: string }): P
   const merged: SearchResult[] = [];
   const seen = new Set<string>();
   for (const res of responses) {
-    for (const result of res ? cleaned(res).results : []) {
+    for (const result of res?.results ?? []) {
       if (seen.has(result.url)) continue;
       seen.add(result.url);
       merged.push(result);

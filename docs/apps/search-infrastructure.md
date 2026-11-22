@@ -111,6 +111,15 @@ Full API reference: [`docs/search-api.md`](../search-api.md). SearXNG install:
   (it would leak the VPS hostname), never anyone else's keys.
 - **A hub account is not access.** A signed-in non-owner is a caller only if the owner has issued
   them a key; otherwise they are told to ask for one.
+- **A result is a page, or it is dropped.** `serveableUrl` in
+  `providers/base.ts` — on the path every adapter returns through — refuses a
+  search engine's own click-through, an ad network's tracker, a non-http URL and
+  anything over 400 characters. Found by BuildFlip: `duckduckgo.com/y.js?ad_domain=amazon.com…`
+  arrived as the top result for a lumber price, titled "Amazon Official Site",
+  on its way to becoming a buy link on a build plan. The root cause was upstream
+  of every provider — `unwrapDdgLink` followed DuckDuckGo's `/l/?uddg=` redirect
+  onto an ad without re-judging the target — so the parser is fixed too, which
+  fixes Jarvis's web tools and Profiles research with it.
 - **The SearXNG 403 keeps its own message.** "Add json to the formats list" rather than "the VPS is
   down" — it is the mistake everybody makes once, and naming it is worth a branch.
 
@@ -181,5 +190,6 @@ _Rewritten by `npm run apps:records` from the source — do not edit by hand. `n
 ### Tests
 
 - `src/lib/search/limits.test.ts`
+- `src/lib/search/providers/base.test.ts`
 - `src/lib/search/search.test.ts`
 <!-- code:end -->

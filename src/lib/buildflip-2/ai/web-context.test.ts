@@ -1,43 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { allowedUrl, keepRealLinks, usable } from "./web-context";
-import type { SearchResult } from "@/lib/search/client";
+import { allowedUrl, keepRealLinks } from "./web-context";
 
 /**
- * These two functions are the only thing standing between a model's output and
- * an href on someone's build plan, so they are tested rather than trusted.
+ * These are the last thing standing between a model's output and an href on
+ * someone's build plan, so they are tested rather than trusted.
  *
- * Both cases below were found by running the real thing: `usable` exists
- * because DuckDuckGo's top result for a lumber price was a 1,200-character
- * sponsored click-through, and `allowedUrl` exists because a model copying
- * twenty URLs out of a prompt eventually produces one that is close rather
- * than identical.
+ * `allowedUrl` exists because a model copying twenty URLs out of a prompt
+ * eventually produces one that is close rather than identical. Ads and search
+ * redirects are not filtered here at all — that belongs to the search
+ * service's provider layer (`serveableUrl`), and is tested there.
  */
-
-const result = (url: string): SearchResult =>
-  ({ title: "t", url, description: "", source: "s" }) as SearchResult;
-
-describe("usable", () => {
-  it("keeps a real product page", () => {
-    expect(usable(result("https://www.homedepot.com/p/2x4-8ft-lumber/202089032"))).toBe(true);
-  });
-
-  it("drops a search engine's ad redirect", () => {
-    expect(
-      usable(result("https://duckduckgo.com/y.js?ad_domain=amazon.com&ad_provider=bingv7aa")),
-    ).toBe(false);
-    expect(usable(result("https://www.bing.com/aclick?ld=abc"))).toBe(false);
-  });
-
-  it("drops a URL too long to be a page", () => {
-    expect(usable(result(`https://shop.example.com/p?${"x".repeat(420)}`))).toBe(false);
-  });
-
-  it("drops anything that is not http(s)", () => {
-    expect(usable(result("javascript:alert(1)"))).toBe(false);
-    expect(usable(result("not a url"))).toBe(false);
-  });
-});
 
 describe("allowedUrl", () => {
   const seen = ["https://www.lowes.com/pd/Titebond-III/3045677"];

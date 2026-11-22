@@ -52,17 +52,33 @@ function stripTags(s: string): string {
   return decodeEntities(s.replace(/<[^>]*>/g, "")).replace(/\s+/g, " ").trim();
 }
 
-/** DuckDuckGo wraps result links in a redirect; this returns the real address. */
-export function unwrapDdgLink(href: string): string | null {
+/**
+ * DuckDuckGo wraps result links in a redirect; this returns the real address.
+ *
+ * The unwrapped target is judged by the SAME rule, which is the whole point.
+ * Ads go through `/y.js`, and dropping a bare `y.js` href was not enough: an ad
+ * also arrives wrapped in DuckDuckGo's ordinary `/l/?uddg=` redirect, with a
+ * `y.js` click-tracker as its target. That unwrapped to
+ * `https://duckduckgo.com/y.js?ad_domain=amazon.com&…` — 1,200 characters of
+ * tracking, handed back as the top result for a price search, with "Amazon
+ * Official Site" as its title. It was found reaching BuildFlip's pricing
+ * prompt, where it would have become a buy link on someone's build plan.
+ *
+ * `depth` bounds the walk: a crafted chain of nested `/l/` redirects would
+ * otherwise recurse as deep as the attacker wrote it.
+ */
+export function unwrapDdgLink(href: string, depth = 0): string | null {
   const raw = decodeEntities(href.trim());
   try {
     const u = new URL(raw.startsWith("//") ? `https:${raw}` : raw, "https://duckduckgo.com");
-    if (/duckduckgo\.com$/.test(u.hostname) && u.pathname.startsWith("/l/")) {
+    // Anchored, so `notduckduckgo.com` is an ordinary result rather than one of
+    // DuckDuckGo's own links.
+    if (/(^|\.)duckduckgo\.com$/.test(u.hostname)) {
+      if (!u.pathname.startsWith("/l/") || depth >= 3) return null;
       const real = u.searchParams.get("uddg");
-      return real && /^https?:\/\//.test(real) ? real : null;
+      if (!real || !/^https?:\/\//.test(real)) return null;
+      return unwrapDdgLink(real, depth + 1);
     }
-    // Ads go through y.js; never hand those back as results.
-    if (/duckduckgo\.com$/.test(u.hostname)) return null;
     return /^https?:$/.test(u.protocol) ? u.toString() : null;
   } catch {
     return null;
