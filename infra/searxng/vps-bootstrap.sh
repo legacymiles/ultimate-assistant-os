@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+#
+#   ###########################################################
+#   #                                                         #
+#   #   THIS IS A LINUX SCRIPT. IT IS NOT POWERSHELL.         #
+#   #                                                         #
+#   #   Your prompt must look like   root@machine:/#          #
+#   #   NOT like                     PS C:\Users\...>         #
+#   #                                                         #
+#   #   If it says PS C:\...  then STOP and run first:        #
+#   #       wsl -d Ubuntu -u root                             #
+#   #                                                         #
+#   ###########################################################
+#
 # ---------------------------------------------------------------------------
 # SearXNG on a VPS, with NOTHING copied there first.
 #
@@ -22,6 +35,13 @@
 # Safe to run twice: secrets already generated are kept, so it is also the
 # upgrade path.
 # ---------------------------------------------------------------------------
+# Checked before anything else: pasted into PowerShell, "set -euo pipefail"
+# complains about a parameter named 'euo', which explains nothing, and the
+# lines after it half-run.
+if [ -z "${BASH_VERSION:-}" ]; then
+  echo "This needs bash, not PowerShell. Run first:  wsl -d Ubuntu -u root" >&2
+  exit 1
+fi
 set -euo pipefail
 
 # --- EDIT THESE TWO LINES --------------------------------------------------
