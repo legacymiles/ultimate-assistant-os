@@ -110,11 +110,22 @@ else
   echo "Generated a bearer token."
 fi
 
-cat > .env <<ENVEOF
-SEARXNG_HOSTNAME=${SEARX_HOST}
-LETSENCRYPT_EMAIL=${SEARX_EMAIL}
-SEARXNG_TOKEN=${SEARX_TOKEN}
-ENVEOF
+# The email is only for Let's Encrypt expiry notices, and ACME works without
+# a contact address. So an unset one is left OUT rather than written as the
+# placeholder, which would be an invalid registration and fail the order.
+{
+  printf 'SEARXNG_HOSTNAME=%s
+' "$SEARX_HOST"
+  printf 'SEARXNG_TOKEN=%s
+' "$SEARX_TOKEN"
+  if [ "$SEARX_EMAIL" != "you@example.com" ] && [ -n "$SEARX_EMAIL" ]; then
+    printf 'LETSENCRYPT_EMAIL=%s
+' "$SEARX_EMAIL"
+  else
+    echo "No SEARX_EMAIL set - registering with Let's Encrypt anonymously." >&2
+    echo "You will get no expiry warnings. Set SEARX_EMAIL and re-run to add one." >&2
+  fi
+} > .env
 chmod 600 .env
 
 # Upstream ships a settings.yml with a placeholder secret; this generates a
