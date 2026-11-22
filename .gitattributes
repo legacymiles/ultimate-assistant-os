@@ -1,0 +1,15 @@
+# ---------------------------------------------------------------------------
+# Line endings.
+#
+# Added 2026-11-22, when SearXNG's installer had to run on a Windows VPS. A
+# shell script checked out with CRLF on Windows fails the moment it reaches
+# Linux (WSL, a container, a real VPS) with `$'\r': command not found`, which
+# names neither the file nor the cause. Pinning .sh to LF means the file is the
+# same bytes everywhere, whatever a clone's core.autocrlf says.
+#
+# .ps1 is deliberately NOT pinned: PowerShell is happy with either, and the
+# scripts under infra/ are written as ASCII with a BOM, which is what makes
+# Windows PowerShell 5.1 read them as UTF-8 rather than the ANSI codepage.
+# ---------------------------------------------------------------------------
+
+*.sh text eol=lf

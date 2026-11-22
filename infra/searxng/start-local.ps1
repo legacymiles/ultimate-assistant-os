@@ -1,12 +1,12 @@
-# ---------------------------------------------------------------------------
+﻿# ---------------------------------------------------------------------------
 # SearXNG on this machine, for while the laptop is on.
 #
 #   cd infra\searxng
 #   .\start-local.ps1
 #
 # No TLS, no Caddy, no token: it binds to 127.0.0.1 only, so nothing outside
-# this machine can reach it. That is also why the hub prefers it — a search
-# that never leaves the laptop is both free and private — and why it can only
+# this machine can reach it. That is also why the hub prefers it -- a search
+# that never leaves the laptop is both free and private -- and why it can only
 # be the first choice for code RUNNING here. `npm run dev` gets it; the
 # deployed site cannot, and falls through to the VPS.
 #
@@ -25,7 +25,7 @@ $docker = Get-Command docker -ErrorAction SilentlyContinue
 if ($null -eq $docker) {
   Warn "Docker isn't installed. Install Docker Desktop, then run this again:"
   Write-Host "    winget install Docker.DockerDesktop" -ForegroundColor Gray
-  Write-Host "  Without it, the hub just uses the VPS instance instead — nothing breaks." -ForegroundColor Gray
+  Write-Host "  Without it, the hub just uses the VPS instance instead -- nothing breaks." -ForegroundColor Gray
   exit 1
 }
 
@@ -58,7 +58,7 @@ if (-not (Test-Path $envFile)) {
 Say "Starting SearXNG"
 docker compose --env-file .env.local --profile local pull
 docker compose --env-file .env.local --profile local up -d
-if ($LASTEXITCODE -ne 0) { Warn "Compose failed — see the output above."; exit 1 }
+if ($LASTEXITCODE -ne 0) { Warn "Compose failed -- see the output above."; exit 1 }
 
 Say "Waiting for the JSON API"
 # The JSON API, not the container's health: a stock settings.yml serves HTML
