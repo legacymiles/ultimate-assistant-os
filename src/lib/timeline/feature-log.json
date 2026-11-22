@@ -1,5 +1,68 @@
 [
  {
+  "id": "d64caea:buildflip-2",
+  "date": "2026-11-22",
+  "slug": "buildflip-2",
+  "title": "Search first, then generate",
+  "detail": "The last two apps that let the MODEL search for itself now go through the hub's one search service. Both passed OpenRouter's web plugin, or a model that searches as it answers, and both are restructured into search-then-generate: search here, read the pages, hand the model the text.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "d64caea:viral-studio-content",
+  "date": "2026-11-22",
+  "slug": "viral-studio-content",
+  "title": "Search first, then generate",
+  "detail": "The last two apps that let the MODEL search for itself now go through the hub's one search service. Both passed OpenRouter's web plugin, or a model that searches as it answers, and both are restructured into search-then-generate: search here, read the pages, hand the model the text.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2200a1f:search-infrastructure",
+  "date": "2026-11-22",
+  "slug": "search-infrastructure",
+  "title": "Keys belong to people, so access can be given away",
+  "detail": "The first cut had one kind of key: the owner's. This adds the second — a key issued TO someone, with their own ceiling, their own usage and an optional expiry — so the search service can be handed out without handing out the owner's quota or the owner's providers.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "2200a1f:search-access",
+  "date": "2026-11-22",
+  "slug": "search-access",
+  "title": "Keys belong to people, so access can be given away",
+  "detail": "The first cut had one kind of key: the owner's. This adds the second — a key issued TO someone, with their own ceiling, their own usage and an optional expiry — so the search service can be handed out without handing out the owner's quota or the owner's providers.",
+  "group": "core",
+  "source": "git"
+ },
+ {
+  "id": "2200a1f:jarvis",
+  "date": "2026-11-22",
+  "slug": "jarvis",
+  "title": "Keys belong to people, so access can be given away",
+  "detail": "The first cut had one kind of key: the owner's. This adds the second — a key issued TO someone, with their own ceiling, their own usage and an optional expiry — so the search service can be handed out without handing out the owner's quota or the owner's providers.",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3911ed4:jarvis",
+  "date": "2026-11-22",
+  "slug": "jarvis",
+  "title": "A living 3D avatar and one voice button",
+  "detail": "The chat harness gets a Three.js avatar (mockup 3 \"Bold\", picked 2026-11-22): big over the empty chat with one round voice button under the box, a pill top-right once a conversation starts that expands into a side stage. It melts between nine forms and six materials every 5 s, follows the pointer, l",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
+  "id": "3911ed4:voice",
+  "date": "2026-11-22",
+  "slug": "voice",
+  "title": "A living 3D avatar and one voice button",
+  "detail": "The chat harness gets a Three.js avatar (mockup 3 \"Bold\", picked 2026-11-22): big over the empty chat with one round voice button under the box, a pill top-right once a conversation starts that expands into a side stage. It melts between nine forms and six materials every 5 s, follows the pointer, l",
+  "group": "supporting",
+  "source": "git"
+ },
+ {
   "id": "d77ebe9:jarvis",
   "date": "2026-11-22",
   "slug": "jarvis",
