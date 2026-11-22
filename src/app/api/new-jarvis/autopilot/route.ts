@@ -38,6 +38,7 @@ export async function POST(req: Request) {
       selectedId: typeof raw.selectedId === "string" ? raw.selectedId : null,
       rules: Array.isArray(raw.rules) ? raw.rules.filter((r) => typeof r === "string").slice(0, 30) : [],
       ownerName: typeof raw.ownerName === "string" ? raw.ownerName.slice(0, 60) : "",
+      people: typeof raw.people === "string" ? raw.people.slice(0, 3000) : "",
     };
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });

@@ -208,6 +208,18 @@ export async function reconcile(key: string, mergeOnce?: MergeOnce): Promise<voi
     }
   }
 
+  // The page may have saved while the pull was in flight. That save pushed
+  // itself and is the newest thing there is: never push the copy read before
+  // the await over it, and never replace it with the server's older one.
+  const nowLocal = (() => {
+    try {
+      return window.localStorage.getItem(scopedKey(key));
+    } catch {
+      return rawLocal;
+    }
+  })();
+  if (nowLocal !== rawLocal) return;
+
   // Both exist. updated_at is stamped by the server, so it is the one clock
   // both devices agree on; a local edit recorded after it is genuinely newer.
   const localStamp = loadLocalStamp(key);

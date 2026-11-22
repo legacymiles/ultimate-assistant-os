@@ -52,9 +52,10 @@ export function Mark({ node, hue, size = 52, soft = false }: { node: Pick<Profil
 }
 
 /** A photo or video tile. Examples paint a soft scene; uploads show the real image. */
-export function MediaTile({ m, className = "", style, caption = false, onClick }: { m: Media; className?: string; style?: CSSProperties; caption?: boolean; onClick?: () => void }) {
+export function MediaTile({ m, className = "", style, caption = false, onClick, badge }: { m: Media; className?: string; style?: CSSProperties; caption?: boolean; onClick?: () => void; badge?: React.ReactNode }) {
   const inner = (
     <>
+      {badge}
       {m.src ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={m.src} alt={m.caption} loading="lazy" />

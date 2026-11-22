@@ -273,6 +273,11 @@ export function applyChanges(input: ProfilesData, changes: Change[]): Applied {
         if (!n) break;
         const gone = new Set(c.ids);
         n.media = n.media.filter((m) => !gone.has(m.id));
+        // The profile picture goes with its photo rather than outliving it.
+        if (n.primaryMediaId && gone.has(n.primaryMediaId)) {
+          delete n.primaryMediaId;
+          delete n.avatar;
+        }
         done.push("Removed photos");
         break;
       }
@@ -297,6 +302,28 @@ export function applyChanges(input: ProfilesData, changes: Change[]): Applied {
         for (const [k, v] of Object.entries(c.patch)) if (v === undefined) delete (n as unknown as Record<string, unknown>)[k];
         undo.unshift({ op: "patch_node", node: n.id, patch: before as typeof c.patch });
         done.push(`Updated ${n.name}`);
+        focus = focus ?? n.id;
+        break;
+      }
+      case "patch_media": {
+        const n = node(c.node);
+        const m = n?.media.find((x) => x.id === c.media);
+        if (!n || !m) {
+          skipped.push("Couldn't find that photo.");
+          break;
+        }
+        // A picture read live from the Images library is not the profile's own
+        // and can never be flagged here — only media added in the profile can.
+        if (m.fromRecall) {
+          skipped.push("That picture is only in the Images library. Add it to the profile first.");
+          break;
+        }
+        const before: Record<string, unknown> = {};
+        for (const k of Object.keys(c.patch) as (keyof typeof c.patch)[]) before[k] = m[k];
+        Object.assign(m, c.patch);
+        for (const [k, v] of Object.entries(c.patch)) if (v === undefined) delete (m as unknown as Record<string, unknown>)[k];
+        undo.unshift({ op: "patch_media", node: n.id, media: m.id, patch: before as typeof c.patch });
+        done.push(c.patch.ref === true ? `Using a photo of ${n.name} for face recognition` : c.patch.ref === false ? `Stopped using a photo of ${n.name} for face recognition` : `Updated a photo of ${n.name}`);
         focus = focus ?? n.id;
         break;
       }

@@ -60,6 +60,12 @@ export interface AutopilotRequest {
   selectedId?: string | null;
   rules: string[];
   ownerName?: string;
+  /**
+   * Who people are (lib/identity identityDigest): the same identities
+   * recognition uses, so "who is that?" and "file it under Brandy" resolve to
+   * one person. Clamped by the route.
+   */
+  people?: string;
 }
 
 export interface AutopilotReply {
@@ -119,6 +125,9 @@ export function systemPrompt(req: AutopilotRequest): string {
         (typeof p.sure === "number" ? ` | sure: ${Math.round(p.sure)}%` : ""),
     )
     .join("\n");
+  const people = req.people?.trim()
+    ? `\n\n${req.people.trim().slice(0, 3000)}\nA face is only named when recognition was sure; a photo flagged "Is this …?" is waiting for ${owner} to confirm, and an unrecognised face stays unidentified — never guess who it is.`
+    : "";
   return (
     `You are Jarvis, ${owner}'s assistant, running Camera Autopilot: new photos from ${owner}'s camera roll ` +
     "arrive in a review queue with a proposed destination, and you talk them through with " +
@@ -144,7 +153,8 @@ export function systemPrompt(req: AutopilotRequest): string {
         'To do anything with it — move it, build from it, look it up, make a note — propose a "task" (the photo goes along).\n\n'
       : "") +
     'Reply as JSON only: {"reply": string, "actions": [ {"type":"file","ids":[...]} | {"type":"reject","ids":[...]} | ' +
-    '{"type":"reroute","id":string,"instruction":string} | {"type":"rule","text":string} | {"type":"task","id":string,"task":string} ]}'
+    '{"type":"reroute","id":string,"instruction":string} | {"type":"rule","text":string} | {"type":"task","id":string,"task":string} ]}' +
+    people
   );
 }
 

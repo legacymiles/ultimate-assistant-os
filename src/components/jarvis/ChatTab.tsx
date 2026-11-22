@@ -533,7 +533,7 @@ export function ChatTab({
           // travel with the message; the route clamps them on arrival.
           characters: cast.map(({ images: _images, avatar: _avatar, ...c }) => c),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          extraContext: [profileContext(profile), await dashboardDigest(), brief].filter(Boolean).join("\n\n"),
+          extraContext: [profileContext(profile), await dashboardDigest(asked.text), brief].filter(Boolean).join("\n\n"),
         }),
       });
       const data = (await res.json()) as AgentResponse;

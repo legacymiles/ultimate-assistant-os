@@ -48,6 +48,21 @@ import type { PendingPhoto, PhotoAnalysis, PhotosData } from "./types";
 import { PHOTOS_ROOT } from "./types";
 import { closestPlace } from "@/lib/dashboard/places";
 import { learnFromApprovals, learnFromMisses } from "./autopilot";
+import { recognitionCast } from "@/lib/identity/sync";
+import { recognitionPeople } from "@/lib/identity/link";
+import { DEFAULT_FACE_SETTINGS, getFaceSettings, splitHits, type FaceSettings } from "@/lib/identity/settings";
+
+/**
+ * The contact sheet for this run. People come ONLY from Profiles — enrolled
+ * identities with the face references authorized in their profile — never from
+ * the Photos tab's own uploads or the Images library (lib/identity/link.ts).
+ */
+async function sheetForRun(photos: PhotosData) {
+  // If the identity layer fails, recognise nobody — never fall back to the
+  // Photos tab's own faces or a person-folder's library pictures.
+  const cast = await recognitionCast().catch(() => ({ people: [], albums: recognitionPeople(null, photos, {}, false).albums }));
+  return buildContactSheet(cast.people, cast.albums);
+}
 
 /** Photos analysed at once. Three keeps a big import moving without
  *  stampeding the gateway (and its rate limit) from one browser tab. */
@@ -196,8 +211,10 @@ export async function importPhotos(args: ImportArgs): Promise<ImportOutcome> {
   }
 
   // Phase 2 — triage, a few at a time.
+  const sheet = await sheetForRun(getPhotos());
+  // Read AFTER the sheet: building it links Profiles' people into the Photos tab.
   const photos = getPhotos();
-  const sheet = await buildContactSheet(photos.people, photos.categories);
+  const faceSettings = await getFaceSettings();
   let analysed = 0;
   const run = async (job: { pending: PendingPhoto; file: File }) => {
     const analysis = await analyzePhoto({
@@ -208,7 +225,7 @@ export async function importPhotos(args: ImportArgs): Promise<ImportOutcome> {
       existingTags: args.existingTags,
       instruction: args.instruction,
     });
-    applyAnalysis(job.pending.id, analysis, photos);
+    applyAnalysis(job.pending.id, analysis, photos, faceSettings);
     analysed++;
     args.onProgress?.({ stage: "analyzing", done: analysed, total: staged.length });
     args.onQueue?.(getQueue());
@@ -247,8 +264,24 @@ export function releaseInbox(ids: (string | undefined)[]): void {
   }).catch(() => undefined);
 }
 
+/**
+ * Apply the owner's confidence thresholds to who the model saw. Sure matches
+ * stay; middling ones move to `uncertain` and count as unidentified faces until
+ * confirmed, so they can never steer the photo into a person's folder.
+ */
+export function gateFaces(analysis: PhotoAnalysis, settings: FaceSettings): PhotoAnalysis {
+  const split = splitHits(analysis.people ?? [], settings);
+  return {
+    ...analysis,
+    people: split.confirmed,
+    uncertain: split.uncertain.length ? split.uncertain : undefined,
+    unknownPeople: (analysis.unknownPeople ?? 0) + split.uncertain.length + split.dropped,
+  };
+}
+
 /** Store an analysis against a pending photo along with its destination. */
-function applyAnalysis(id: string, analysis: PhotoAnalysis, photos: PhotosData): PendingPhoto[] {
+function applyAnalysis(id: string, raw: PhotoAnalysis, photos: PhotosData, faces: FaceSettings): PendingPhoto[] {
+  const analysis = gateFaces(raw, faces);
   const dest = resolveDestination(analysis, photos);
 
   // The user asked for the picture itself to go in a particular album. It goes
@@ -275,7 +308,10 @@ function applyAnalysis(id: string, analysis: PhotoAnalysis, photos: PhotosData):
   if (ref) {
     const cat = photos.categories.find((c) => c.id === ref.categoryId);
     const unplaced = dest.categoryId === null;
-    if (cat && (ref.confidence >= 0.7 || unplaced)) {
+    // A photo waiting on "Is this …?" is unplaced ON PURPOSE: a folder match
+    // must not file it before the owner answers.
+    const waitingOnFace = Boolean(analysis.uncertain?.length);
+    if (cat && !waitingOnFace && (ref.confidence >= 0.7 || unplaced)) {
       return updatePending(id, {
         status: "ready",
         analysis,
@@ -321,8 +357,9 @@ export async function reanalyze(
   if (!blob) {
     return updatePending(photoId, { status: "failed", error: "The file is no longer stored locally." });
   }
+  const sheet = await sheetForRun(getPhotos());
   const photos = getPhotos();
-  const sheet = await buildContactSheet(photos.people, photos.categories);
+  const faceSettings = await getFaceSettings();
   const analysis = await analyzePhoto({
     blob,
     name: pending.name,
@@ -334,7 +371,29 @@ export async function reanalyze(
     userPrompt: prompt,
     knownPlaces: options.knownPlaces,
   });
-  return applyAnalysis(photoId, analysis, photos);
+  return applyAnalysis(photoId, analysis, photos, faceSettings);
+}
+
+/**
+ * The owner answered "Is this Brandy?" on the review card. Yes makes them a
+ * confirmed person in the photo and re-sorts it (unless it was moved by hand);
+ * no leaves the face unidentified. Either way the question goes away.
+ */
+export function confirmFace(photoId: string, personId: string, yes: boolean): PendingPhoto[] {
+  const p = getQueue().find((x) => x.id === photoId);
+  const a = p?.analysis;
+  const hit = a?.uncertain?.find((h) => h.personId === personId);
+  if (!p || !a || !hit) return getQueue();
+  const uncertain = a.uncertain!.filter((h) => h.personId !== personId);
+  const next: PhotoAnalysis = {
+    ...a,
+    uncertain: uncertain.length ? uncertain : undefined,
+    people: yes ? [...a.people, { personId, confidence: 1 }] : a.people,
+    unknownPeople: yes ? Math.max(0, a.unknownPeople - 1) : a.unknownPeople,
+  };
+  if (p.overridden) return updatePending(photoId, { analysis: next });
+  const dest = resolveDestination(next, getPhotos());
+  return updatePending(photoId, { analysis: next, destPath: dest.path, categoryId: dest.categoryId });
 }
 
 /** Send a photo somewhere other than the proposal, by hand. */
@@ -376,6 +435,7 @@ export async function approvePhotos(args: ApproveArgs): Promise<ApproveResult> {
   const queue = getQueue().filter((p) => wanted.has(p.id) && p.status === "ready");
   const photos = getPhotos();
   const nameOf = new Map(photos.people.map((p) => [p.id, p.name]));
+  const identityOf = new Map(photos.people.filter((p) => p.identityId).map((p) => [p.id, p.identityId as string]));
   const result: ApproveResult = {
     filed: 0,
     eventsCreated: 0,
@@ -415,6 +475,9 @@ export async function approvePhotos(args: ApproveArgs): Promise<ApproveResult> {
       // Person names become tags, so "photos of Leo" works from the search box
       // even for someone who never opens the Photos tab.
       const peopleIds = a?.people.map((h) => h.personId) ?? [];
+      // The same people as Jarvis identities, so the picture is tied to their
+      // profile everywhere — without ever becoming part of the profile itself.
+      const identityIds = [...new Set(peopleIds.map((id) => identityOf.get(id)).filter((x): x is string => Boolean(x)))];
       const personTags = peopleIds
         .map((id) => nameOf.get(id))
         .filter(Boolean)
@@ -440,6 +503,7 @@ export async function approvePhotos(args: ApproveArgs): Promise<ApproveResult> {
         extract: extract || undefined,
         extractStatus: a?.engine === "ai" ? "ok" : "unsupported",
         people: peopleIds.length ? peopleIds : undefined,
+        identityIds: identityIds.length ? identityIds : undefined,
         photoCategoryId: p.categoryId ?? null,
         // Kept on the item so this photo is recognised as a duplicate later,
         // on any device — the item syncs, the pixels do not.
@@ -555,7 +619,8 @@ export async function retryFailed(folderPaths: string[], existingTags: string[])
 
 /** The heuristic stand-in, for a queue entry that never reached the model. */
 export function markUnanalysed(photo: PendingPhoto): PendingPhoto[] {
-  return applyAnalysis(photo.id, heuristicAnalysis(photo.name), getPhotos());
+  // The heuristic never names anyone, so the thresholds have nothing to gate.
+  return applyAnalysis(photo.id, heuristicAnalysis(photo.name), getPhotos(), DEFAULT_FACE_SETTINGS);
 }
 
 // ----- backing up ----------------------------------------------------------

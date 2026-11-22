@@ -22,6 +22,8 @@ import { compareEvents, todayKey } from "@/lib/recall/calendar/types";
 import { listsApi } from "@/lib/recall/lists/client";
 import { getPhotos } from "@/lib/recall/photos/store";
 import { ROLE_LABELS } from "@/lib/recall/photos/types";
+import { identityDigest } from "@/lib/identity/registry";
+import { identityCardsNow } from "@/lib/identity/sync";
 import type { Folder } from "@/lib/recall/types";
 import type { Priority } from "@/lib/recall/lists/types";
 
@@ -63,39 +65,38 @@ export function findFolder(folders: Folder[], name: string): Folder | undefined 
  * characters. Lists are fetched from the server, so this is async; a failed
  * fetch drops that section and says so rather than implying the lists are empty.
  */
-export async function dashboardDigest(): Promise<string> {
+export async function dashboardDigest(question = ""): Promise<string> {
   const out: string[] = [];
   const data = getData();
   const safe = data.items.filter((i) => i.kind !== "credential");
 
-  // WHO THE PEOPLE ARE. This block exists because of a question Jarvis could not
-  // answer: "who is Brandy?" The Photos tab knew — her name, her role, her face,
-  // the folder of her pictures — and none of it ever reached the chat, so he
-  // answered about a stranger or not at all. It leads the digest: a message is far
-  // more often about a person than about a folder count.
+  // WHO THE PEOPLE ARE. Profiles is the one record of every person (see
+  // lib/identity): name, nicknames, relationship, facts, and the same id
+  // Camera Autopilot and the Images library use. People the message names lead
+  // with their details; a word that fits two people is flagged so Jarvis asks.
+  // Photos-tab people not yet in Profiles are listed after, so nobody the
+  // owner named before this change goes missing.
   const photos = getPhotos();
-  if (photos.people.length) {
-    const counts = new Map<string, number>();
-    for (const i of safe) for (const id of i.people ?? []) counts.set(id, (counts.get(id) ?? 0) + 1);
-    const lines = photos.people.map((p) => {
-      const n = counts.get(p.id) ?? 0;
-      const bits = [
-        `- ${p.name} — ${ROLE_LABELS[p.role].toLowerCase()}`,
-        n ? `${n} photo${n === 1 ? "" : "s"} filed` : "no photos filed yet",
-        p.refs.length ? `${p.refs.length} reference face${p.refs.length === 1 ? "" : "s"}` : "no reference face",
-      ];
-      // The description is the part worth spending tokens on: it is the only
-      // thing here that answers "what does she look like?", and it is what a
-      // Studio prompt is written from.
-      const sheet = p.sheet?.appearance ? `\n    Looks like: ${p.sheet.appearance}` : "";
-      const note = p.notes ? `\n    Note: ${p.notes}` : "";
-      return `${bits.join(", ")}${note}${sheet}`;
-    });
+  const cards = identityCardsNow();
+  const people = identityDigest(cards, question);
+  if (people) out.push(people);
+  const counts = new Map<string, number>();
+  for (const i of safe) for (const id of i.people ?? []) counts.set(id, (counts.get(id) ?? 0) + 1);
+  // Only people Jarvis may see (hidden or archived profiles have no card).
+  const visible = new Set(cards.map((c) => c.id));
+  const looks = photos.people.filter((p) => p.identityId && visible.has(p.identityId) && p.sheet?.appearance);
+  if (looks.length)
     out.push(
-      "PEOPLE THE OWNER HAS NAMED (from the Photos tab). These are real people in their life. " +
-        "Answer questions about them from this, and when the owner writes @their-name in a Studio " +
-        `prompt it means this person.\n${lines.join("\n")}`,
+      "WHAT THEY LOOK LIKE (written from the reference photos authorized in each profile; @their-name in a Studio prompt means this person):\n" +
+        looks.map((p) => `- ${p.name} [identity ${p.identityId}], ${counts.get(p.id) ?? 0} photos filed: ${p.sheet!.appearance}`).join("\n"),
     );
+  const legacy = photos.people.filter((p) => !p.identityId);
+  if (legacy.length) {
+    const lines = legacy.map((p) => {
+      const n = counts.get(p.id) ?? 0;
+      return `- ${p.name} — ${ROLE_LABELS[p.role].toLowerCase()}, ${n ? `${n} photo${n === 1 ? "" : "s"} filed` : "no photos filed yet"}${p.notes ? `. Note: ${p.notes}` : ""}`;
+    });
+    out.push(`ALSO NAMED IN THE PHOTOS TAB (no profile yet, so not recognised by face):\n${lines.join("\n")}`);
   }
 
   const described = photos.categories.filter((c) => c.sheet?.appearance);

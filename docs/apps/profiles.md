@@ -25,9 +25,12 @@ tab bars.
 
 ## Features
 
-- **Talk to it** — the hub's voice ("Jarvis, …" or the orb) goes to the Profiles chat on any
-  Profiles page, opens the answer in the peek card and reads it back, saying when changes are
-  waiting for Save.
+- **Talk to it** — the hub's voice ("Jarvis, …") goes to the Profiles chat on any Profiles page,
+  opens the answer in the peek card and reads it back, saying when changes are waiting for Save.
+  Its one voice button is Jarvis's living 3D avatar (Nov 2026): at the start of the chat bar, in
+  place of the old decorative orb, and in the open chat where the Dictate mic was (the Dictate mic
+  is gone — one voice button, owner's rule). Tap the face to talk, tap again to stop; the ▾ beside
+  it opens the avatar's settings above it.
 - **The one Profiles app (Nov 2026)** — the same app is Jarvis › Dashboard › Profile, the
   Dashboard's Profiles tab and `/apps/profiles`. The old Profile tabs (Who you are, Business &
   personal, Life record, How you work) are gone from Jarvis; **Connections**, the **Backend
@@ -40,11 +43,34 @@ tab bars.
   arrives.
 - **Read my screen feeds Profiles** — it stays in the main Jarvis chat bar; what it saves to the
   Life record shows up in My Profile straight away (it fires `jarvis:record-changed`).
-- **Synced with Folders, Memory and Photos** — each real profile gets a folder under "Profiles"
-  in the Dashboard (nested and moved/renamed with it) holding a searchable note of its details
-  (private rows left out), so Folders search and the Memory graph find it; photos uploaded to a
-  profile land in Photos › <profile>; a profile's gallery also shows every picture already in
-  its folder or Photos folder.
+- **The one identity system (Nov 2026)** — every person profile IS a Jarvis identity: its
+  profile id is the one id Camera Autopilot, the Images library (Dashboard Folders/Photos),
+  Jarvis Memory and the LLM harness use for that person (`src/lib/identity/`, spec
+  `docs/superpowers/specs/unified-identity.md`). Renames, nicknames, the profile picture and face
+  references flow out to all of them; nothing else can mint a person.
+- **Synced with Folders, Memory and Photos — one way** — each real profile gets a folder under
+  "Profiles" in the Dashboard (nested and moved/renamed with it) holding a searchable note of its
+  details (private rows left out); photos uploaded to a profile are copied to Photos › <profile>.
+  Folders and copied photos of a person carry their identity id. **Nothing comes back by
+  itself**: pictures in the Images library are not shown in the profile and can never become a
+  profile picture or a face reference. The gallery's **From Images library** button lists that
+  person's library pictures so the owner can pick some in — the only road from the library in.
+- **Profile picture and face references** — in a person's lightbox: *Make profile picture* and
+  *Use for face recognition*; gallery tiles show a star / face badge. Person › Settings › **Face
+  recognition**: the consent switch (off = their face data is deleted everywhere), the profile
+  picture, the reference strip and *Add reference photos* (uploads straight into the profile).
+- **Face recognition for Camera Autopilot** — Autopilot matches new photos ONLY against the
+  reference photos authorized in profiles, for people whose consent is on. Profiles › Settings ›
+  Face recognition holds the master switch, the two thresholds (file-by and ask-me), whether face
+  data is encrypted (`IDENTITY_ENC_KEY`), possible duplicate people, and *Delete face data*.
+  Faces the Photos tab already had were carried into the matching profile once (consent marked
+  "carried over"); a person with no profile got one.
+- **Jarvis knows who you mean** — every Jarvis chat, the New Jarvis agent and the Autopilot chat
+  get a PEOPLE block built from the identities (names, nicknames, relationship, safe facts),
+  people the message names first, and a word that fits two people is flagged so Jarvis asks.
+  Each person is also one `identity` memory (`identity:<id>`) so search, the jarvis-memory MCP
+  and the harness find "who is Brandy". Photos dropped into the Profiles chat are run through
+  recognition; a sure match decides where they are filed, an unsure one is only mentioned.
 - **New profiles start from what is already known** — "create a profile for my 3D printing
   business" searches Jarvis Memory and the Dashboard's folders, notes and photos first, files
   what it finds into the new profile (cited), puts it in the right parent (a teacher inside the
@@ -124,6 +150,14 @@ tab bars.
 - Profiles never writes the Dashboard store on a device that has no Dashboard copy (it would
   overwrite the account's real folders); it reconciles first (`recallBridge.ts` `syncToRecall`).
 - Life record sensitive values and imported passwords never reach a prompt (`noAi`).
+- **One-way images**: a Profile upload is copied into the Images library; a library picture
+  never appears in the profile, never becomes its picture or a face reference unless the owner
+  picks it in from the profile (`patch_media` refuses `fromRecall`; `libraryMediaFor` is only
+  the picker). Covered by `src/lib/identity/identity.test.ts`.
+- Face recognition is consent-gated per person; switching it off or *Delete face data* removes
+  the face templates and the Autopilot description, and they are never in a prompt or a memory.
+- One person = one identity: Camera Autopilot adopts a same-named Photos person instead of
+  making a second one; `identityIds` / `identityId` are set on library pictures and folders.
 
 - Asking "What email do I use for my printing suppliers?", "What is the gas code at my job?",
   "Show me pictures of my son" and "Move my son's teacher profile into his school folder" on the
@@ -138,6 +172,9 @@ tab bars.
 - Photos are stored as downscaled JPEG data in the synced blob; a large library will want
   Supabase Storage.
 - Searching the owner's jarvis-memory store and folders beyond Profiles' own Memory notes.
+- On-device face detection/embeddings (MediaPipe is already a dependency) to crop references to
+  the face and give a numeric similarity alongside the vision model's.
+- Merge two duplicate person profiles in one step (today: flagged, archive one by hand).
 
 <!-- code:start -->
 ## From the code

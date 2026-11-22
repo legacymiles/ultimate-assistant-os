@@ -17,6 +17,19 @@ Your memory, folders, photos, lists, calendar and Record in one place. Every req
 
 ## Features
 
+- **Camera Autopilot recognises people from Profiles (Nov 2026)** — the people Autopilot can name
+  are now the Profiles identities whose face recognition is switched on, matched ONLY against the
+  reference photos authorized in each profile (sealed with `IDENTITY_ENC_KEY`, or kept in memory
+  only). Pictures in the Images library — a person's folder, an album's reference pictures, photos
+  already filed under them — no longer feed recognition or the description that steers it. A
+  match at or above the file-by threshold is filed by; one between the thresholds shows **Is this
+  Brandy? Yes / No** on the review card (and a flag on the Deck) and is not used until answered;
+  below, the face stays unidentified. Filed photos carry `identityIds`, so the picture is tied to
+  the person's profile without becoming part of it. The Photos tab's People list shows Profiles
+  people as *From Profiles* (edit there); adding someone goes to Profiles. Every chat, the agent
+  and the Autopilot chat get the same PEOPLE block (`src/lib/identity`), and each person is an
+  `identity` memory for search, the MCP and the harness.
+
 - **Bills, on the calendar (Nov 2026)** — the Calendar has a **Bills** tab beside Month, holding
   every bill Jarvis knows about. Most are not typed here at all: they are read live out of the
   **Profiles** app, so a payment filed under a profile — the girlfriend's car insurance, the DTF
@@ -48,11 +61,14 @@ Your memory, folders, photos, lists, calendar and Record in one place. Every req
   never picks up a conversation in the room and starts a task.
 - **A living 3D avatar, and one voice button (Nov 2026)** — picked from three mockups (3, "Bold").
   On an empty chat a big Three.js avatar floats over the box with ONE round voice button under it
-  (the bar has no mic of its own until a conversation starts); once a conversation starts it
-  shrinks into a pill top-right (face, what it is doing, a live wave, the voice button, expand)
-  that opens into a side stage. The old orb, the voice chamber and its Talk / "Wait for the name" /
-  "Speak answers aloud" buttons are gone — "Always listen for Jarvis", "Speak answers aloud" and
-  "Transform every few seconds" are switches in the stage. It is one procedural body that melts
+  (the bar has no mic of its own until a conversation starts); once a conversation starts the
+  avatar moves INTO the chat box as its one voice button (`components/voice/ChatVoiceAvatar.tsx`):
+  tap the live face to talk, tap again to stop, and the small ▾ beside it opens a popover above it
+  with the big avatar and the switches ("Transform every few seconds", "Always listen for
+  Jarvis", "Speak answers aloud"), closed by a click elsewhere or Escape. Nothing floats over the
+  page — the first version's top-right pill covered a navigation button (owner, 2026-11-22). On
+  Jarvis tabs with no chat box the face sits in the bottom status bar. The old orb, the voice
+  chamber and its Talk / "Wait for the name" / "Speak answers aloud" buttons are gone. It is one procedural body that melts
   between nine forms (human, robot, wolf, cat, dragon, alien, orb, crystal, liquid blob) and six
   materials (hologram, glass, metal, plasma, solid, wireframe), with an energy surge at each change;
   on its own it transforms every 5 s, and a tap makes it flinch and change at once. It breathes,
@@ -68,8 +84,11 @@ Your memory, folders, photos, lists, calendar and Record in one place. Every req
   an idle/talk clip are driven if the file has them). **It appears wherever a Jarvis chat harness
   is on the page — a registered voice target: Jarvis chat, Profiles, a harness thread, Website
   Studio drafts, App Builder, a running Client Review build, the Dashboard agent — and nowhere
-  else**; other owner pages keep the small orb. Code: `src/components/new-jarvis/avatar/`
-  (`AvatarScene.tsx` renderer, `shaders.ts`, `JarvisAvatar.tsx` hero / voice button / dock),
+  else** — each of those chat boxes carries the face in place of its own mic (Profiles' Dictate
+  mic and its bar's decorative orb are now the avatar); other owner pages keep the small orb. All
+  avatars on a page run on one shared clock, so they always show the same form. Code:
+  `src/components/new-jarvis/avatar/` (`AvatarScene.tsx` renderer, `shaders.ts`,
+  `JarvisAvatar.tsx` hero + big voice button), `src/components/voice/ChatVoiceAvatar.tsx`,
   logic + tests `src/lib/new-jarvis/avatar/`. Off-screen or hidden it stops drawing; reduced
   motion stops the transforming; no WebGL shows a glowing core.
 - **Answers speak in the voice you picked** — the hub voice sent `/api/tts` the text alone, so
@@ -107,6 +126,10 @@ _Seeded from this app's edit log. Rewrite it into plain features the next time t
 
 _The flows a user would notice breaking. Sign-in, data rules, routes and keys are listed from the code below by themselves._
 
+- **Recognition only from Profiles.** `buildContactSheet` is fed by `recognitionCast()`
+  (`src/lib/identity/sync.ts`): enrolled identities with profile faces; Photos-tab refs of a
+  linked person stay empty and `addPersonRef` refuses them; person-folder album refs are dropped.
+  An unsure match never routes a photo (`gateFaces`, `src/lib/recall/photos/faceGate.test.ts`).
 - **Jarvis still speaks.** `useWakeVoice.speak` (and the older `useVoice.speak`) posts to `/api/tts` and plays the audio through an
   AudioContext, so the Reactor meter reads the voice and not the microphone. A media element that
   is routed into a context but never connected to `ctx.destination` goes silent.
@@ -114,8 +137,12 @@ _The flows a user would notice breaking. Sign-in, data rules, routes and keys ar
   untouched by the Voice stage; the dock still says the voice *state* in words (off / waiting for
   its name / listening / thinking / speaking), with the chosen voice's name after it.
 - **One voice button on screen.** The empty chat has the big round button under the box and no mic
-  in the bar; mid-conversation the bar has it and the pill has the same control. Never two
-  different things that both start listening.
+  in the bar; mid-conversation the avatar face in the bar is the only voice control. Every Jarvis
+  chat (Profiles, App Builder, Website Studio, Client Review, a harness thread, the Dashboard
+  agent) has the face and no second mic. Never two things that both start listening.
+- **Nothing voice-related floats over a page.** The avatar lives inside the chat box (or Jarvis's
+  status bar); its popover opens only when asked and closes on a click elsewhere or Escape, so it
+  can never sit on top of a navigation button.
 - **The avatar never blocks the chat.** It is lazy-loaded, stops drawing off screen and in a
   hidden tab, and a page with no WebGL gets a glowing core, not a blank box or a crash.
 - **"Become a better cook" is not an avatar command.** The fast reader only takes a sentence that

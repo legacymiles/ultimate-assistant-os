@@ -18,6 +18,7 @@ import { evidenceCount, allSubjects, subjectAvatar, type Subject } from "@/lib/r
 import { getPhotos } from "@/lib/recall/photos/store";
 import { characterToken, uniqueTokens, type CharacterMention } from "./characters";
 import { ROLE_LABELS } from "@/lib/recall/photos/types";
+import { cachedFaces, ensureFaces } from "@/lib/identity/faces";
 
 /** A character plus what it takes to actually render them. */
 export interface Character extends CharacterMention {
@@ -38,7 +39,8 @@ function toCharacter(s: Subject, token: string): Character {
     wardrobe: sheet?.wardrobe,
     notes: s.kind === "person" ? s.person.notes : s.category.refHint,
     pictures: refs + filed,
-    images: s.kind === "person" ? s.person.refs : s.category.refs ?? [],
+    // A person Profiles owns renders from the faces authorized in their profile.
+    images: s.kind === "person" ? (s.person.identityId ? cachedFaces(s.person.identityId) : s.person.refs) : s.category.refs ?? [],
   };
 }
 
@@ -70,14 +72,22 @@ export function useCharacters(): { characters: Character[]; reload: () => void }
 
   useEffect(() => {
     reload();
+    // Profile faces live in memory (or sealed at rest); warm them, then redraw.
+    void import("@/lib/identity/sync")
+      .then(({ readProfiles }) => readProfiles(false))
+      .then((d) => ensureFaces(d))
+      .then(() => reload())
+      .catch(() => undefined);
     // The owner adds a face in the Photos tab and comes back to chat; the list
     // is stale until something tells it, and a tab change is that something.
     const onFocus = () => reload();
     window.addEventListener("focus", onFocus);
     window.addEventListener("recall-photos-changed", onFocus);
+    window.addEventListener("jarvis:identity-changed", onFocus);
     return () => {
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("recall-photos-changed", onFocus);
+      window.removeEventListener("jarvis:identity-changed", onFocus);
     };
   }, [reload]);
 

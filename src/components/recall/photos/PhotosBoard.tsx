@@ -23,6 +23,7 @@ import {
   reanalyze,
   rejectPhotos,
   retarget,
+  confirmFace,
 } from "@/lib/recall/photos/pipeline";
 import { composeBatch } from "@/lib/recall/photos/compose";
 import { readBatchPlan } from "@/lib/recall/photos/batch";
@@ -805,6 +806,7 @@ export function PhotosBoard({
         onSendTo={(id, routeId, prompt) => void reread(id, routeId, prompt)}
         onKeepDuplicate={(id) => setPending(keepDuplicate(id))}
         onCreateAlbum={(id, album) => createAlbum(id, album)}
+        onConfirmFace={(id, personId, yes) => setPending(confirmFace(id, personId, yes))}
       />
 
       {/* Folders, the whole library at once, or the video branch */}

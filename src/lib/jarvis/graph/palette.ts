@@ -27,6 +27,7 @@ export const SOURCE_COLOR: Record<MemorySource, string> = {
   email: "#5ee0c0", // mint
   event: "#ff5fa2", // pink
   profile: "#e9ecf3", // near-white
+  identity: "#ffb86b", // warm orange — people, from Profiles
 };
 
 /**

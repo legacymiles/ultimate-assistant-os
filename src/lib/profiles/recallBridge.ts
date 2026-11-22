@@ -13,8 +13,13 @@
 //   · photos uploaded to a profile land in Photos › <profile>, so the Photos
 //     tab shows them too.
 //
-// And reads back: a profile's gallery also shows every picture already in its
-// folder or its Photos folder, wherever it was added.
+// ONE WAY. Pictures flow Profile → Images library, never back on their own:
+// a picture that only sits in the library is not in the profile, cannot be its
+// profile picture and cannot be a face reference. `libraryMediaFor()` lists the
+// library pictures so the owner can PICK some into the profile by hand — that
+// explicit pick is the only road in. Every folder and copied picture of a
+// person carries their identity id (the profile id), so both stores point at
+// the same person without being merged.
 //
 // mirrorPlan() and recallMediaFor() are pure (tested); syncToRecall() is the
 // one place that touches the Dashboard store.
@@ -111,6 +116,10 @@ export function mirrorPlan(profiles: ProfilesData, input: RecallData): MirrorRes
         }
       }
       link.folderId = folder.id;
+      if (node.kind === "person" && folder.identityId !== node.id) {
+        folder.identityId = node.id;
+        changed = true;
+      }
 
       // --- the searchable note ------------------------------------------------
       const body = noteBody(node);
@@ -152,6 +161,7 @@ export function mirrorPlan(profiles: ProfilesData, input: RecallData): MirrorRes
         let pf = link.photosFolderId ? folderById.get(link.photosFolderId) : undefined;
         if (!pf) pf = recall.folders.find((f) => f.parentId === photosRoot!.id && f.name === node.name) ?? makeFolder(node.name, photosRoot.id);
         link.photosFolderId = pf.id;
+        if (node.kind === "person" && pf.identityId !== node.id) pf.identityId = node.id;
         for (const m of uploads) {
           const ts = nowIso();
           const item: Item = {
@@ -163,6 +173,7 @@ export function mirrorPlan(profiles: ProfilesData, input: RecallData): MirrorRes
             source: "manual",
             folderId: pf.id,
             tags: ["profile"],
+            identityIds: node.kind === "person" ? [node.id] : undefined,
             attachment: { name: m.caption, type: "image/jpeg", size: Math.round((m.src!.length * 3) / 4), url: m.src, category: "image" },
             createdAt: ts,
             updatedAt: ts,
@@ -206,15 +217,19 @@ function subtree(folders: Folder[], rootId: string): Set<string> {
   return out;
 }
 
-/** Pictures already in the Dashboard for this profile (its folder or Photos folder). */
-export function recallMediaFor(node: ProfileNode, recall: RecallData): Media[] {
-  const roots = [node.recall?.folderId, node.recall?.photosFolderId].filter((x): x is string => Boolean(x));
-  if (!roots.length) return [];
+/**
+ * Pictures in the Images library that belong to this profile — its folders,
+ * any folder tagged with its identity, and any picture Camera Autopilot filed
+ * as this person — that are NOT already in the profile. Shown only in the
+ * "Add from Images library" picker; never merged into the profile's gallery.
+ */
+export function libraryMediaFor(node: ProfileNode, recall: RecallData): Media[] {
+  const roots = [node.recall?.folderId, node.recall?.photosFolderId, ...recall.folders.filter((f) => f.identityId === node.id).map((f) => f.id)].filter((x): x is string => Boolean(x));
   const ids = new Set<string>();
   for (const r of roots) for (const id of subtree(recall.folders, r)) ids.add(id);
   const mine = new Set(node.media.map((m) => m.recallItemId).filter(Boolean));
   return recall.items
-    .filter((i) => i.folderId && ids.has(i.folderId) && !mine.has(i.id) && (i.kind === "image" || i.attachment?.category === "video") && i.attachment?.url)
+    .filter((i) => ((i.folderId && ids.has(i.folderId)) || (i.identityIds ?? []).includes(node.id)) && !mine.has(i.id) && (i.kind === "image" || i.attachment?.category === "video") && i.attachment?.url)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .map((i) => ({
       id: `rc-${i.id}`,

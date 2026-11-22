@@ -15,6 +15,7 @@ import { childrenOf, fromNow, hueOf, linksOf, mediaUnder, nextDate, parentOf, pa
 import type { Item, Media, ProfileNode, ProfilesData, Section } from "@/lib/profiles/types";
 import type { ProfilesStore } from "@/lib/profiles/useProfiles";
 import { fileToMedia, Ico, ICON_NAMES, MediaTile, Mark, offCardPointer, onCardPointer } from "./bits";
+import { FaceSection, FaceSettingsSection, LibraryPicker, TileBadges } from "./identity";
 import type { HarnessStatus } from "@/lib/profiles/harnessBrain";
 
 export type View = { t: "node" | "gallery" | "settings"; id: string };
@@ -521,6 +522,8 @@ export function GalleryView({ store, nav, stack, id, lightbox }: { store: Profil
   const [filter, setFilter] = useState("all");
   const list = all.filter((m) => (filter === "all" ? true : filter === "photo" || filter === "video" ? m.kind === filter : m.from === filter));
   const input = useRef<HTMLInputElement>(null);
+  const [picking, setPicking] = useState(false);
+  const inLibrary = node ? store.library(id).length : 0;
   const upload = async (files: FileList | null) => {
     if (!files?.length) return;
     const made = (await Promise.all([...files].slice(0, 24).map(fileToMedia))).filter((m): m is Media => Boolean(m));
@@ -541,9 +544,15 @@ export function GalleryView({ store, nav, stack, id, lightbox }: { store: Profil
             <button type="button" className="pf-btn" onClick={() => input.current?.click()}>
               <ImagePlus /> Add photos
             </button>
+            {inLibrary ? (
+              <button type="button" className="pf-btn" onClick={() => setPicking(true)} title="Pick pictures from the Images library into this profile">
+                From Images library · {inLibrary}
+              </button>
+            ) : null}
           </>
         }
       />
+      {picking ? <LibraryPicker store={store} node={node} nav={nav} close={() => setPicking(false)} /> : null}
       <div className="pf-head">
         <Mark node={node} hue={h} size={56} />
         <div className="pf-head-t">
@@ -563,7 +572,7 @@ export function GalleryView({ store, nav, stack, id, lightbox }: { store: Profil
       {list.length ? (
         <div className="pf-masonry">
           {list.map((m, i) => (
-            <MediaTile key={m.id} m={m} caption className="pf-rise" style={sty({ height: HEIGHTS[i % HEIGHTS.length], "--i": i })} onClick={() => lightbox(list, i)} />
+            <MediaTile key={m.id} m={m} caption className="pf-rise" style={sty({ height: HEIGHTS[i % HEIGHTS.length], "--i": i })} onClick={() => lightbox(list, i)} badge={<TileBadges node={data.nodes[m.from]} m={m} />} />
           ))}
         </div>
       ) : (
@@ -573,7 +582,7 @@ export function GalleryView({ store, nav, stack, id, lightbox }: { store: Profil
   );
 }
 
-export function Lightbox({ list, index, close }: { list: Media[]; index: number; close: () => void }) {
+export function Lightbox({ list, index, close, actions }: { list: Media[]; index: number; close: () => void; actions?: (m: Media) => ReactNode }) {
   const [i, setI] = useState(index);
   const m = list[i];
   useEffect(() => {
@@ -602,6 +611,7 @@ export function Lightbox({ list, index, close }: { list: Media[]; index: number;
           {m.caption}
           {m.date ? ` · ${m.date}` : ""} · {i + 1} of {list.length}
         </figcaption>
+        {actions?.(m)}
       </figure>
       <button type="button" className="pf-ib" onClick={(e) => { e.stopPropagation(); setI((x) => Math.min(list.length - 1, x + 1)); }} aria-label="Next" disabled={i === list.length - 1}>
         <ChevronRight />
@@ -695,6 +705,7 @@ function NodeSettings({ store, nav, stack, node }: { store: ProfilesStore; nav: 
             </div>
           )}
         </section>
+        {node.kind === "person" && !node.example ? <FaceSection store={store} node={node} nav={nav} hue={h} /> : null}
         <section className="pf-group pf-rise" style={sty({ "--i": 1 })}>
           <h3>Jarvis and privacy</h3>
           <div className="pf-field">
@@ -847,6 +858,7 @@ function AppSettings({ store, nav, stack, harness, recheck, resetChat, extras, o
             <Switch on={data.settings.mask} label="Hide codes and numbers" set={(v) => store.setSettings({ mask: v })} />
           </div>
         </section>
+        <FaceSettingsSection store={store} nav={nav} />
         <section className="pf-group pf-rise" style={sty({ "--i": 2 })}>
           <h3>Examples</h3>
           <div className="pf-field">

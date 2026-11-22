@@ -59,6 +59,32 @@ export interface Media {
   recallItemId?: string;
   /** Read live from the Dashboard's Photos/Folders, not stored here. */
   fromRecall?: boolean;
+  /**
+   * How it got into this profile. "upload" (the default) was added here;
+   * "library" was explicitly picked from the Images library inside this
+   * profile. Both are the owner's choice made IN the profile, which is what
+   * makes them eligible to be a profile picture or a face reference — a
+   * picture that only sits in the Images library never is.
+   */
+  origin?: "upload" | "library";
+  /**
+   * Authorized face reference for recognition (Camera Autopilot, identifying a
+   * dropped photo). Only ever set from inside the profile, and only counts
+   * while the person's `faceConsent` is granted.
+   */
+  ref?: boolean;
+}
+
+/**
+ * Permission to use this person's face for recognition. Nothing is enrolled
+ * without it; revoking it deletes the face data derived from their photos.
+ */
+export interface FaceConsent {
+  granted: boolean;
+  /** When it was last switched on or off (ISO). */
+  at: string;
+  /** "owner" — switched on in Profiles; "carried" — brought over from the Photos tab's own reference faces. */
+  by: "owner" | "carried";
 }
 
 /**
@@ -104,6 +130,10 @@ export interface ProfileNode {
   asks?: string[];
   /** A small square photo (data URL), shown in place of initials. */
   avatar?: string;
+  /** The profile media chosen as the primary profile picture; `avatar` is cut from it. */
+  primaryMediaId?: string;
+  /** Face recognition permission (people only). */
+  faceConsent?: FaceConsent;
   recall?: RecallLink;
   /** Life record field key → the row it lives in here (My Profile only). */
   recordKeys?: Record<string, string>;
@@ -172,7 +202,9 @@ export type Change =
   | { op: "remove_media"; node: string; ids: string[] }
   | { op: "forget"; id: string }
   // The page's own settings edits (colour, icon, privacy) — never from a brain.
-  | { op: "patch_node"; node: string; patch: Partial<Pick<ProfileNode, "hue" | "icon" | "initials" | "hidden" | "aliases">> };
+  | { op: "patch_node"; node: string; patch: Partial<Pick<ProfileNode, "hue" | "icon" | "initials" | "hidden" | "aliases" | "avatar" | "primaryMediaId" | "faceConsent">> }
+  // Flags on one photo the owner set inside the profile (face reference).
+  | { op: "patch_media"; node: string; media: string; patch: Partial<Pick<Media, "ref" | "caption">> };
 
 /** What a brain hands back: words, plus anything it wants the page to do. */
 export interface AgentActions {

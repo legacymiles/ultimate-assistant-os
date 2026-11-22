@@ -26,6 +26,7 @@ import type { Media } from "@/lib/profiles/types";
 import { useProfiles } from "@/lib/profiles/useProfiles";
 import { Jarvis, type JarvisMode } from "./Jarvis";
 import { GalleryView, HomeView, Lightbox, NodeView, SettingsView, type Nav, type View } from "./views";
+import { LightboxIdentityActions } from "./identity";
 import "./profiles.css";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -309,7 +310,18 @@ export function ProfilesApp({ embedded = false, settingsExtras = [], openSetting
       />
 
       <AnimatePresence>
-        {lb ? <Lightbox key="lb" list={lb.list} index={lb.i} close={() => setLb(null)} /> : null}
+        {lb ? (
+          <Lightbox
+            key="lb"
+            list={lb.list}
+            index={lb.i}
+            close={() => setLb(null)}
+            actions={(m) => {
+              const owner = Object.values(store.data.nodes).find((n) => n.media.some((x) => x.id === m.id));
+              return owner ? <LightboxIdentityActions store={store} node={owner} m={m} nav={nav} /> : null;
+            }}
+          />
+        ) : null}
       </AnimatePresence>
 
       <AnimatePresence>

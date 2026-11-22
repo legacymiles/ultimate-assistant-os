@@ -4,7 +4,7 @@ import { applyChanges } from "./changes";
 import { classifyIntake, intakeName, isNewProfileAsk } from "./intake";
 import { importRecallProfiles, syncLifeRecord, withoutExamples } from "./imports";
 import { offlineBrain } from "./offline";
-import { mirrorPlan, noteBody, recallMediaFor } from "./recallBridge";
+import { libraryMediaFor, mirrorPlan, noteBody } from "./recallBridge";
 import { emptyProfiles, ROOT, seedProfiles } from "./seed";
 import type { Found } from "./found";
 import type { LifeRecord } from "@/lib/jarvis/record/types";
@@ -175,7 +175,7 @@ describe("mirroring into the Dashboard", () => {
     expect(folders[0].parentId).toBe(first.links[son].folderId);
   });
 
-  it("puts uploaded photos in Photos › the profile, and reads Dashboard pictures back", () => {
+  it("puts uploaded photos in Photos › the profile (one way), and only offers library pictures for picking", () => {
     const d = applyChanges(emptyProfiles(), [
       { op: "add_node", ref: "a", parent: ROOT, name: "Leo", kind: "person" },
     ]);
@@ -192,8 +192,11 @@ describe("mirroring into the Dashboard", () => {
       ...plan.recall,
       items: [...plan.recall.items, { id: "pic2", title: "Beach", body: "", summary: "", kind: "image", source: "manual", folderId: leoPhotos.id, tags: [], attachment: { name: "b", type: "image/jpeg", size: 1, url: "data:image/jpeg;base64,BBBB", category: "image" }, createdAt: now, updatedAt: now }],
     };
-    const back = recallMediaFor(node, extra);
+    // Library pictures are offered for picking, never merged into the profile.
+    const back = libraryMediaFor(node, extra);
     expect(back.map((m) => m.caption)).toEqual(["Beach"]);
+    expect(back.every((m) => m.fromRecall)).toBe(true);
+    expect(node.media.map((m) => m.id)).toEqual(["m1"]);
   });
 
   it("writes nothing into the note for a profile with only private rows", () => {

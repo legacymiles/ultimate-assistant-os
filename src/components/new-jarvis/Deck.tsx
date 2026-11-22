@@ -30,6 +30,8 @@
 //     there is — every picture you can see must open a chat you can act in.
 // ---------------------------------------------------------------------------
 
+import { identityDigest } from "@/lib/identity/registry";
+import { identityCardsNow } from "@/lib/identity/sync";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import "./deck.css";
@@ -46,7 +48,7 @@ import {
   toggleRule,
   type AutopilotData,
 } from "@/lib/recall/photos/autopilot";
-import { getQueue } from "@/lib/recall/photos/store";
+import { getPhotos, getQueue } from "@/lib/recall/photos/store";
 import { approvePhotos, importPhotos, reanalyze, rejectPhotos } from "@/lib/recall/photos/pipeline";
 import { gatherKnownPlaces, destinationById } from "@/lib/dashboard/destinations/registry";
 import { folderPathString, getData } from "@/lib/recall/store";
@@ -132,6 +134,10 @@ function flagOf(p: PendingPhoto): string | undefined {
     const d = destinationById(a.destination.id);
     const f = d?.parse(a.destination.fields);
     if (d && f) return d.preview(f).unverified;
+  }
+  if (a?.uncertain?.length) {
+    const names = a.uncertain.map((h) => getPhotos().people.find((x) => x.id === h.personId)?.name).filter(Boolean);
+    if (names.length) return `Is this ${names.join(" or ")}? Not sure enough to file by — confirm it in Photos`;
   }
   if ((a?.unknownPeople ?? 0) > 0) return "Someone I don't recognise";
   return undefined;
@@ -1210,6 +1216,8 @@ function PhotoSheet({
           selectedId: shot.id,
           rules,
           ownerName,
+          // Who people are, from Profiles — the identities recognition uses.
+          people: identityDigest(identityCardsNow(), "", 3000),
         }),
       });
       const d = (await r.json().catch(() => ({}))) as AutopilotReply & { error?: string };
@@ -1495,6 +1503,8 @@ function AutopilotBar({
           selectedId: targets.length === 1 ? targets[0].id : null,
           rules,
           ownerName,
+          // Who people are, from Profiles — the identities recognition uses.
+          people: identityDigest(identityCardsNow(), "", 3000),
         }),
       });
       const d = (await r.json().catch(() => ({}))) as AutopilotReply & { error?: string };

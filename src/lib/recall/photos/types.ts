@@ -81,6 +81,13 @@ export interface Person {
    * nothing to build it from.
    */
   sheet?: CharacterSheet | null;
+  /**
+   * The Jarvis identity (Profiles person id) this person IS. Set means Profiles
+   * owns them: their reference faces come only from photos authorized in the
+   * profile (never from this tab or the Images library), `refs` here stays
+   * empty, and their name follows the profile.
+   */
+  identityId?: string;
   createdAt: string;
 }
 
@@ -158,6 +165,12 @@ export interface PhotoAnalysis {
   people: PersonHit[];
   /** Faces that are clearly people but match nobody in the gallery. */
   unknownPeople: number;
+  /**
+   * Matches below the auto-assign threshold: probably this person, not sure
+   * enough to file by. They are counted in `unknownPeople` until the owner says
+   * yes on the review card, and never used for routing before that.
+   */
+  uncertain?: PersonHit[];
   /** Where an "info" photo belongs in the knowledge base. */
   folderPath?: string[];
   tags: string[];

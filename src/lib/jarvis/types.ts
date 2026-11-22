@@ -33,7 +33,10 @@ export type MemorySource =
   | "file" // an uploaded document
   | "email" // pulled from a connected inbox
   | "event" // pulled from a connected calendar
-  | "profile"; // derived from the Four-Cs intake
+  | "profile" // derived from the Four-Cs intake
+  // Who a person is, mirrored from Profiles (one row per identity,
+  // `identity:<profile id>`). Profiles is the source of truth; edit it there.
+  | "identity";
 
 export const MEMORY_SOURCES: MemorySource[] = [
   "vault",
@@ -45,6 +48,7 @@ export const MEMORY_SOURCES: MemorySource[] = [
   "email",
   "event",
   "profile",
+  "identity",
 ];
 
 /** Human labels for the source filter list. */
@@ -58,6 +62,7 @@ export const SOURCE_LABEL: Record<MemorySource, string> = {
   email: "Email",
   event: "Calendar",
   profile: "Profile",
+  identity: "People",
 };
 
 /**

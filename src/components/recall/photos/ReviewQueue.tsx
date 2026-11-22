@@ -57,6 +57,8 @@ interface Props {
   onSendTo: (photoId: string, routeId?: string, prompt?: string) => void;
   onKeepDuplicate: (photoId: string) => void;
   onCreateAlbum: (photoId: string, album: NewAlbum) => void;
+  /** "Is this Brandy?" answered on an uncertain face match. */
+  onConfirmFace?: (photoId: string, personId: string, yes: boolean) => void;
 }
 
 export function ReviewQueue({
@@ -70,6 +72,7 @@ export function ReviewQueue({
   onSendTo,
   onKeepDuplicate,
   onCreateAlbum,
+  onConfirmFace,
 }: Props) {
   const [detail, setDetail] = useState<string | null>(null);
   /** The photo shown full-screen, or null. */
@@ -202,6 +205,7 @@ export function ReviewQueue({
           onSendTo={(routeId, prompt) => onSendTo(detailPhoto.id, routeId, prompt)}
           onKeepDuplicate={() => onKeepDuplicate(detailPhoto.id)}
           onCreateAlbum={(album) => onCreateAlbum(detailPhoto.id, album)}
+          onConfirmFace={onConfirmFace ? (personId, yes) => onConfirmFace(detailPhoto.id, personId, yes) : undefined}
           onEnlarge={() => setEnlarged(detailPhoto)}
         />
       )}
@@ -321,6 +325,7 @@ function PhotoDetail({
   onSendTo,
   onKeepDuplicate,
   onCreateAlbum,
+  onConfirmFace,
   onEnlarge,
 }: {
   photo: PendingPhoto;
@@ -333,6 +338,7 @@ function PhotoDetail({
   onSendTo: (routeId?: string, prompt?: string) => void;
   onKeepDuplicate: () => void;
   onCreateAlbum: (album: NewAlbum) => void;
+  onConfirmFace?: (personId: string, yes: boolean) => void;
   onEnlarge: () => void;
 }) {
   const [pathText, setPathText] = useState((photo.destPath ?? []).join(" / "));
@@ -520,7 +526,7 @@ function PhotoDetail({
             </p>
             {a.people.length === 0 && a.unknownPeople === 0 ? (
               <p className="text-[11.5px] text-ink-faint">
-                Nobody recognised. Add reference photos in People and re-read this one.
+                Nobody recognised. Add reference photos to their profile in Profiles, then re-read this one.
               </p>
             ) : (
               <div className="flex flex-wrap gap-1.5">
@@ -536,13 +542,48 @@ function PhotoDetail({
                     </span>
                   </span>
                 ))}
-                {a.unknownPeople > 0 && (
+                {a.unknownPeople - (a.uncertain?.length ?? 0) > 0 && (
                   <span className="rounded-full border border-line px-2 py-0.5 text-[11px] text-ink-muted">
-                    +{a.unknownPeople} unrecognised
+                    +{a.unknownPeople - (a.uncertain?.length ?? 0)} unidentified
                   </span>
                 )}
               </div>
             )}
+            {a.uncertain?.length ? (
+              <div className="mt-2 space-y-1.5">
+                {a.uncertain.map((h) => (
+                  <div
+                    key={h.personId}
+                    className="flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/[0.06] px-2.5 py-1.5"
+                  >
+                    <p className="min-w-0 flex-1 text-[11.5px] text-amber-100">
+                      Is this <span className="font-semibold">{nameOf.get(h.personId) ?? "someone you know"}</span>?
+                      <span className="ml-1 text-[10px] tabular-nums text-amber-200/70">
+                        {Math.round(h.confidence * 100)}% — not sure enough to file by
+                      </span>
+                    </p>
+                    {onConfirmFace && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onConfirmFace(h.personId, true)}
+                          className="rounded-lg bg-amber-400/90 px-2 py-0.5 text-[11px] font-semibold text-black transition hover:bg-amber-300"
+                        >
+                          Yes
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onConfirmFace(h.personId, false)}
+                          className="rounded-lg border border-line px-2 py-0.5 text-[11px] text-ink-muted transition hover:text-ink"
+                        >
+                          No
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         )}
 

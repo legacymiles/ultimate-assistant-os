@@ -31,6 +31,7 @@ import type { ProfilesStore } from "@/lib/profiles/useProfiles";
 import { useVoiceTarget } from "../voice/VoiceProvider";
 import { fileToMedia, MediaTile, Mark } from "./bits";
 
+import { describeIdentity, identifyImage } from "@/lib/identity/match";
 export type JarvisMode = "bar" | "full";
 
 interface Pending {
@@ -146,7 +147,12 @@ export function Jarvis(p: JarvisProps) {
       abort.current?.abort();
       const ctl = new AbortController();
       abort.current = ctl;
-      const message = media.length ? `${text || "Here are some photos."}\n[The owner attached ${media.length} ${media.length === 1 ? "photo" : "photos/videos"}. Put the profile id they belong in as "media".]` : text;
+      // Who is in the first photo, by the faces enrolled in Profiles. Sure
+      // matches can decide where it is filed; unsure ones only inform the ask.
+      const firstPhoto = media.find((m) => m.kind === "photo" && m.src);
+      const faces = firstPhoto?.src ? await identifyImage(firstPhoto.src).catch(() => null) : null;
+      const facesLine = faces ? describeIdentity(faces) : "";
+      const message = media.length ? `${text || "Here are some photos."}\n[The owner attached ${media.length} ${media.length === 1 ? "photo" : "photos/videos"}. Put the profile id they belong in as "media".]${facesLine ? `\n${facesLine}` : ""}` : text;
       try {
         const a = await ask({
           data: d,
@@ -160,7 +166,9 @@ export function Jarvis(p: JarvisProps) {
         const changes = [...(a.actions.changes ?? [])];
         let words = a.text;
         if (media.length) {
-          const target = a.actions.media ?? a.actions.open ?? resolveNode(d, text, chatHere)?.id ?? (chatHere !== ROOT ? chatHere : null);
+          // One person recognised for sure is a better guess than "the page I'm on".
+          const recognised = faces?.sure.length === 1 ? faces.sure[0].identityId : null;
+          const target = a.actions.media ?? a.actions.open ?? resolveNode(d, text, chatHere)?.id ?? recognised ?? (chatHere !== ROOT ? chatHere : null);
           if (target && d.nodes[target]) {
             changes.push({ op: "add_media", node: target, media });
             if (!a.actions.changes?.length && a.by !== "harness") words = `I'll file ${media.length === 1 ? "it" : `all ${media.length}`} in ${d.nodes[target].name}'s photos.`;

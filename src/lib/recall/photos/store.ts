@@ -266,7 +266,8 @@ export function updatePerson(id: string, patch: Partial<PersonInput>): PhotosDat
   const data = load();
   const p = data.people.find((x) => x.id === id);
   if (p) {
-    if (patch.name !== undefined) p.name = patch.name.trim() || p.name;
+    // Profiles owns a linked person's name; a rename here would fork them.
+    if (patch.name !== undefined && !p.identityId) p.name = patch.name.trim() || p.name;
     if (patch.role !== undefined) p.role = patch.role;
     if (patch.refs !== undefined) p.refs = patch.refs.slice(0, MAX_PERSON_REFS);
     if (patch.notes !== undefined) p.notes = patch.notes.trim() || undefined;
@@ -292,8 +293,22 @@ export function deletePerson(id: string): PhotosData {
 export function addPersonRef(id: string, dataUrl: string): PhotosData {
   const data = load();
   const p = data.people.find((x) => x.id === id);
+  // A person Profiles owns takes reference faces ONLY from their profile. A
+  // picture added here would be an Images-tab picture becoming a recognition
+  // reference, which the identity system forbids — so it is refused.
+  if (p?.identityId) return data;
   if (p) p.refs = [...p.refs, dataUrl].slice(-MAX_PERSON_REFS);
   return save(data);
+}
+
+/**
+ * Replace the people list with the one Profiles worked out (lib/identity/link).
+ * The only writer of `identityId`; categories are re-derived from it.
+ */
+export function setLinkedPeople(people: Person[]): PhotosData {
+  const data = load();
+  data.people = people;
+  return save(reconcileCategories(data));
 }
 
 export function removePersonRef(id: string, index: number): PhotosData {

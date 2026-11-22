@@ -15,6 +15,10 @@ import type { Person, PersonRole, PhotosData } from "@/lib/recall/photos/types";
 import { invalidateContactSheet, toThumb } from "@/lib/recall/photos/vision";
 import { buildSheet, evidenceCount, sheetIsStale } from "@/lib/recall/photos/characters";
 import { characterToken } from "@/lib/studio/characters";
+import { cachedFaces } from "@/lib/identity/faces";
+
+/** Where a person's identity, profile picture and face references are edited. */
+const PROFILES_HREF = "/apps/profiles";
 
 // ---------------------------------------------------------------------------
 // People.
@@ -99,6 +103,16 @@ export function PeopleManager({ data, onData, onToast, onClose }: Props) {
           video without uploading anything. Everything stays in your own storage.
         </p>
 
+        <p className="mb-3 rounded-xl border border-sky-400/30 bg-sky-400/[0.07] px-3 py-2 text-[11.5px] leading-relaxed text-sky-100">
+          Recognition now comes from <strong>Profiles</strong>. Each person&apos;s face references are
+          the photos you mark in their profile, with their face recognition switched on &mdash;
+          never pictures from the Images library. People below marked{" "}
+          <span className="font-semibold">From Profiles</span> are edited there.{" "}
+          <a href={PROFILES_HREF} className="font-semibold underline underline-offset-2">
+            Open Profiles
+          </a>
+        </p>
+
         {!hasSelf && data.people.length > 0 && (
           <p className="mb-3 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[11.5px] text-amber-200">
             Nobody is marked as <strong>Me</strong> yet. Selfies, &ldquo;Me &amp; …&rdquo; and
@@ -129,12 +143,12 @@ export function PeopleManager({ data, onData, onToast, onClose }: Props) {
           </div>
         )}
 
-        <button
-          onClick={() => setAdding(true)}
+        <a
+          href={PROFILES_HREF}
           className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-line py-2.5 text-xs font-medium text-ink-faint transition hover:border-amber-400/50 hover:text-amber-300"
         >
-          <Icon.Plus width={14} height={14} /> Add someone
-        </button>
+          <Icon.Plus width={14} height={14} /> Add someone in Profiles
+        </a>
       </div>
 
       {(adding || editing) && (
@@ -176,6 +190,10 @@ function PersonCard({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  // Profiles owns this person: their faces are the profile's authorized
+  // references (in memory), and nothing here can add to them.
+  const fromProfiles = Boolean(person.identityId);
+  const refs = fromProfiles ? cachedFaces(person.identityId!) : person.refs;
 
   async function addFaces(files: FileList | null) {
     if (!files?.length) return;
@@ -198,10 +216,10 @@ function PersonCard({
   return (
     <div className="rounded-xl border border-line bg-canvas p-2.5">
       <div className="flex items-center gap-2">
-        {person.refs[0] ? (
+        {refs[0] ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={person.refs[0]}
+            src={refs[0]}
             alt={person.name}
             className="h-9 w-9 shrink-0 rounded-full object-cover"
           />
@@ -214,9 +232,23 @@ function PersonCard({
           <span className="block truncate text-[13px] font-semibold text-ink">{person.name}</span>
           <span className="block text-[11px] text-ink-muted">
             {ROLE_LABELS[person.role]}
-            {person.refs.length > 0 && ` · ${person.refs.length} reference ${person.refs.length === 1 ? "photo" : "photos"}`}
+            {refs.length > 0 && ` · ${refs.length} reference ${refs.length === 1 ? "photo" : "photos"}`}
+            {fromProfiles && (
+              <span className="ml-1.5 rounded-full border border-sky-400/40 bg-sky-400/10 px-1.5 py-px text-[9.5px] font-semibold uppercase tracking-wider text-sky-200">
+                From Profiles
+              </span>
+            )}
           </span>
         </span>
+        {fromProfiles ? (
+          <a
+            href={PROFILES_HREF}
+            className="shrink-0 rounded-lg border border-line px-2 py-1.5 text-[11px] text-ink-muted transition hover:text-ink"
+          >
+            Edit in Profiles
+          </a>
+        ) : (
+        <>
         <input
           ref={fileRef}
           type="file"
@@ -246,20 +278,23 @@ function PersonCard({
         >
           <Icon.Trash width={13} height={13} />
         </button>
+        </>
+        )}
       </div>
 
-      {person.refs.length === 0 ? (
+      {refs.length === 0 ? (
         <p className="mt-2 rounded-lg bg-amber-400/10 px-2 py-1.5 text-[11px] text-amber-200">
-          No face photos yet — {person.name} can&apos;t be recognised in new pictures until there
-          is at least one.
+          {fromProfiles
+            ? `No authorized face references yet — open ${person.name}'s profile, switch on face recognition and mark a photo or two.`
+            : `No face photos yet — ${person.name} can't be recognised in new pictures. Give them a profile in Profiles to enrol their face.`}
         </p>
       ) : (
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {person.refs.map((r, i) => (
+          {refs.map((r, i) => (
             <span key={i} className="group relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={r} alt="" className="h-11 w-11 rounded-lg object-cover" />
-              <button
+              {!fromProfiles && <button
                 onClick={() => {
                   onData(removePersonRef(person.id, i));
                   invalidateContactSheet();
@@ -268,7 +303,7 @@ function PersonCard({
                 className="absolute -right-1 -top-1 hidden rounded-full bg-canvas p-0.5 text-ink-faint shadow group-hover:block hover:text-red-400"
               >
                 <Icon.Close width={11} height={11} />
-              </button>
+              </button>}
             </span>
           ))}
         </div>

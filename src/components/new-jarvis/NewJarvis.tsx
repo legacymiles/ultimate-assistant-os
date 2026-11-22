@@ -92,6 +92,8 @@ import { BirthdaysSheet } from "../birthdays/BirthdaysSheet";
 import { addBirthday, deleteBirthday, getBirthdays, useBirthdays } from "@/lib/birthdays/store";
 import { birthdayDigest, birthdayEvents, formatBirthday, possessive } from "@/lib/birthdays/engine";
 import { CHAT_MODEL_KEY, isSubscription, subscriptionModel } from "@/lib/new-jarvis/chatModels";
+import { identityDigest } from "@/lib/identity/registry";
+import { identityCardsNow } from "@/lib/identity/sync";
 import { plainBridgeError, plainSiteError } from "@/lib/new-jarvis/plainErrors";
 import { BridgeError } from "@/lib/new-jarvis/bridge";
 import { MAX_CHAT_MEDIA, buildUserContent, prepareMedia, type ChatMedia } from "@/lib/new-jarvis/chatMedia";
@@ -472,6 +474,12 @@ export function NewJarvis() {
   // Every 10 minutes, from whichever tab is open: new iPhone photos are pulled
   // into Camera Autopilot and the feed below raises the notification.
   const camera = useCameraWatch();
+  // One identity per person, from Profiles: link Camera Autopilot's people,
+  // refresh face templates and Jarvis Memory's identity cards once on open.
+  useEffect(() => {
+    const t = setTimeout(() => void import("@/lib/identity/sync").then((m) => m.syncIdentity()).catch(() => undefined), 2500);
+    return () => clearTimeout(t);
+  }, []);
   // The backend checklist (in Profile): learns from chats and keeps the Claude
   // Code skill current from whichever tab is open.
   const jarvisProfile = useJarvisProfile();
@@ -1073,7 +1081,9 @@ ${reflex.best.excerpt ?? ""}`.trim()
               checklist: readChecklistPrompt(),
               // Saved birthdays, so "when is Mom's birthday?" answers and a
               // re-add updates instead of duplicating.
-              context: birthdayDigest(getBirthdays()),
+              // And who people ARE: one identity each, from Profiles, the
+              // people this command names first (src/lib/identity).
+              context: [identityDigest(identityCardsNow(), command, 4500), birthdayDigest(getBirthdays())].filter(Boolean).join("\n\n"),
             };
             const post = async (body: Record<string, unknown>) => {
               const res = await fetch("/api/new-jarvis/agent", {

@@ -23,6 +23,12 @@ import { getData } from "../store";
 import { getPhotos, setCategorySheet, setPersonSheet } from "./store";
 import { invalidateContactSheet, toAnalysisDataUrl, toThumb } from "./vision";
 import type { CharacterSheet, PhotoCategory, Person, PhotosData } from "./types";
+import { cachedFaces, ensureFaces } from "@/lib/identity/faces";
+
+/** Profiles owns this person: their pictures are their profile's authorized faces, nothing else. */
+function linked(s: Subject): string | null {
+  return s.kind === "person" ? (s.person.identityId ?? null) : null;
+}
 
 /**
  * Pictures sent to the writer.
@@ -51,8 +57,10 @@ export function subjectSheet(s: Subject): CharacterSheet | null {
   return (s.kind === "person" ? s.person.sheet : s.category.sheet) ?? null;
 }
 
-/** The reference pictures the owner uploaded by hand. */
+/** The reference pictures the owner chose — for a linked person, their profile's face references. */
 function ownRefs(s: Subject): string[] {
+  const id = linked(s);
+  if (id) return cachedFaces(id);
   return s.kind === "person" ? s.person.refs : s.category.refs ?? [];
 }
 
@@ -64,6 +72,9 @@ function ownRefs(s: Subject): string[] {
  * "Friends", and it is still a picture of Brandy.
  */
 export function filedPhotoIds(s: Subject): { fileId: string; thumb?: string }[] {
+  // A person Profiles owns is never described from Images-library pictures:
+  // the sheet steers recognition, and only profile-authorized faces may.
+  if (linked(s)) return [];
   const items = getData().items.filter((i) => {
     if (i.kind !== "image" || !i.attachment) return false;
     return s.kind === "person"
@@ -88,6 +99,10 @@ export function evidenceCount(s: Subject): { refs: number; filed: number } {
  * show a face clearly, where a filed photo might be a group shot at a distance.
  */
 export async function gatherPictures(s: Subject): Promise<string[]> {
+  if (linked(s)) {
+    const { readProfiles } = await import("@/lib/identity/sync");
+    await ensureFaces(await readProfiles(false));
+  }
   const out = [...ownRefs(s)].slice(0, MAX_SOURCES);
   for (const row of filedPhotoIds(s)) {
     if (out.length >= MAX_SOURCES) break;

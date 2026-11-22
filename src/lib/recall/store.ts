@@ -404,6 +404,8 @@ export interface NewItemInput {
   extractStatus?: Item["extractStatus"];
   /** Person ids recognised in a photo. */
   people?: string[];
+  /** Jarvis identities (Profiles ids) the picture is of. */
+  identityIds?: string[];
   /** Set on the note that mirrors a profile into the folder tree. */
   profileId?: string | null;
   photoCategoryId?: string | null;
@@ -436,6 +438,7 @@ export function createItem(input: NewItemInput): { data: RecallData; item: Item 
     extract: input.extract,
     extractStatus: input.extractStatus,
     people: input.people,
+    identityIds: input.identityIds,
     profileId: input.profileId ?? null,
     photoCategoryId: input.photoCategoryId ?? null,
     // Copied explicitly: this function lists every field, so a field that is

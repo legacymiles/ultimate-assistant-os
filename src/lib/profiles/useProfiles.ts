@@ -13,15 +13,15 @@
 // runs.
 // ---------------------------------------------------------------------------
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { loadLocal, saveSynced } from "@/lib/sync/appState";
 import { useRemotePull } from "@/lib/sync/useSync";
 import { applyChanges, newId, type Applied } from "./changes";
 import { importRecallProfiles, syncLifeRecord } from "./imports";
-import { readRecall, recallMediaFor, syncToRecall } from "./recallBridge";
+import { libraryMediaFor, readRecall, syncToRecall } from "./recallBridge";
 import { emptyProfiles, seedProfiles } from "./seed";
 import { hueOf, whereLabel } from "./tree";
-import type { Change, LogEntry, ProfilesData } from "./types";
+import type { Change, LogEntry, Media, ProfilesData } from "./types";
 import type { RecallData } from "@/lib/recall/types";
 
 /** Read Profiles' own blob, bring in the Life record and Dashboard profiles. */
@@ -65,6 +65,12 @@ export interface ProfilesStore {
   setSettings: (patch: Partial<ProfilesData["settings"]>) => void;
   clearExamples: () => void;
   restoreExamples: () => void;
+  /**
+   * Pictures in the Images library that belong to this profile but are not in
+   * it. Only for the explicit "Add from Images library" picker — they are never
+   * shown as part of the profile.
+   */
+  library: (nodeId: string) => Media[];
 }
 
 export function useProfiles(): ProfilesStore {
@@ -102,6 +108,18 @@ export function useProfiles(): ProfilesStore {
     void readRecall().then(setRecall);
   });
 
+  // The identity sync (lib/identity/sync) writes this blob when it carries
+  // faces over or deletes face data; reload so this page never saves over it.
+  useEffect(() => {
+    const reload = () => {
+      const fresh = load();
+      ref.current = fresh;
+      setData(fresh);
+    };
+    window.addEventListener("profiles:external-change", reload);
+    return () => window.removeEventListener("profiles:external-change", reload);
+  }, []);
+
   // Read my screen writes to the Life record; pick that up when it happens.
   useEffect(() => {
     const again = () => void runImports();
@@ -128,21 +146,22 @@ export function useProfiles(): ProfilesStore {
         commit(next);
       }
       setRecall(await readRecall());
+      // Then every other app: Camera Autopilot's people, face templates, and
+      // Jarvis Memory's identity cards. One run, idempotent.
+      const { syncIdentity } = await import("@/lib/identity/sync");
+      // Reads the SETTLED blob, never this page's in-memory copy: a first frame
+      // showing the examples must not look like "everyone was deleted".
+      void syncIdentity().catch(() => undefined);
     }, 1200);
     return () => clearTimeout(t);
   }, [data, ready, commit]);
 
-  /** What the screens show: each profile's own media plus its Dashboard pictures. */
-  const view = useMemo(() => {
-    if (!recall) return data;
-    let touched = false;
-    const nodes: ProfilesData["nodes"] = {};
-    for (const [id, n] of Object.entries(data.nodes)) {
-      const extra = n.recall ? recallMediaFor(n, recall) : [];
-      if (extra.length) touched = true;
-      nodes[id] = extra.length ? { ...n, media: [...n.media, ...extra] } : n;
-    }
-    return touched ? { ...data, nodes } : data;
+  // What the screens show is the profile's OWN media only. The Images library
+  // is not merged in — that read-back was a second, unwanted direction of sync.
+  const view = data;
+  const library = useCallback((nodeId: string): Media[] => {
+    const n = data.nodes[nodeId];
+    return n && recall ? libraryMediaFor(n, recall) : [];
   }, [data, recall]);
 
   const apply = useCallback(
@@ -197,5 +216,5 @@ export function useProfiles(): ProfilesStore {
 
   const lastLog = useCallback(() => ref.current.log[0]?.id, []);
 
-  return { data: view, ready, apply, lastLog, undo, setSettings, clearExamples, restoreExamples };
+  return { data: view, ready, apply, lastLog, undo, setSettings, clearExamples, restoreExamples, library };
 }

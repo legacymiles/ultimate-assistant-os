@@ -111,6 +111,13 @@ export interface Item {
   extractStatus?: "ok" | "pending" | "unsupported" | "failed";
   /** Person ids the vision pass recognised in a photo. */
   people?: string[];
+  /**
+   * The Jarvis identities (Profiles person ids) this picture is of — set when a
+   * profile photo is copied into the library, and when Camera Autopilot files a
+   * photo of someone it recognised. This is what ties a library picture to the
+   * same person everywhere; it never makes the picture part of their profile.
+   */
+  identityIds?: string[];
   /** Set on the note that mirrors a profile into the folder tree. */
   profileId?: string | null;
   /** The photo category rule that filed it, when one did. */
@@ -147,6 +154,8 @@ export interface Folder {
    * turn it back into a normal folder.
    */
   role?: "photos";
+  /** The Jarvis identity (Profiles id) this folder belongs to, when it is a person's folder. */
+  identityId?: string;
   /**
    * Which sections this folder shows. Undefined on older folders, which is why
    * `visibleSections` also forces on any section that actually holds something —
